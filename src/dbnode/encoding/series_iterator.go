@@ -32,8 +32,8 @@ type seriesIterator struct {
 	id               ident.ID
 	nsID             ident.ID
 	tags             ident.TagIterator
-	start            time.Time
-	end              time.Time
+	start            xtime.UnixNano
+	end              xtime.UnixNano
 	iters            iterators
 	multiReaderIters []MultiReaderIterator
 	err              error
@@ -66,11 +66,11 @@ func (it *seriesIterator) Tags() ident.TagIterator {
 }
 
 func (it *seriesIterator) Start() time.Time {
-	return it.start
+	return it.start.ToTime()
 }
 
 func (it *seriesIterator) End() time.Time {
-	return it.end
+	return it.end.ToTime()
 }
 
 func (it *seriesIterator) Next() bool {
@@ -139,7 +139,7 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 	it.iters.reset()
 	it.start = opts.StartInclusive
 	it.end = opts.EndExclusive
-	if !it.start.IsZero() && !it.end.IsZero() {
+	if it.start != 0 && it.end != 0 {
 		it.iters.setFilter(it.start, it.end)
 	}
 	it.SetIterateEqualTimestampStrategy(opts.IterateEqualTimestampStrategy)
@@ -195,7 +195,7 @@ func (it *seriesIterator) moveToNext() {
 		}
 
 		curr := it.iters.at()
-		if !curr.Equal(prev) {
+		if curr != prev {
 			return
 		}
 

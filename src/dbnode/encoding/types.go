@@ -95,7 +95,7 @@ type Options interface {
 	DefaultTimeUnit() xtime.Unit
 
 	// SetTimeEncodingSchemes sets the time encoding schemes for different time units.
-	SetTimeEncodingSchemes(value TimeEncodingSchemes) Options
+	SetTimeEncodingSchemes(value map[xtime.Unit]TimeEncodingScheme) Options
 
 	// TimeEncodingSchemes returns the time encoding schemes for different time units.
 	TimeEncodingSchemes() TimeEncodingSchemes
@@ -268,8 +268,8 @@ type SeriesIteratorOptions struct {
 	Namespace                     ident.ID
 	Tags                          ident.TagIterator
 	Replicas                      []MultiReaderIterator
-	StartInclusive                time.Time
-	EndExclusive                  time.Time
+	StartInclusive                xtime.UnixNano
+	EndExclusive                  xtime.UnixNano
 	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
 	DeduplicationFunction         DeduplicationFunction
 }

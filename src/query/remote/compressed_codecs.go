@@ -372,8 +372,8 @@ func seriesIteratorFromCompressedSeries(
 		id = ident.StringID(idString)
 	}
 
-	start := xtime.FromNanoseconds(meta.GetStartTime())
-	end := xtime.FromNanoseconds(meta.GetEndTime())
+	start := xtime.UnixNano(meta.GetStartTime())
+	end := xtime.UnixNano(meta.GetEndTime())
 
 	var seriesIter encoding.SeriesIterator
 	if seriesIterPool != nil {
