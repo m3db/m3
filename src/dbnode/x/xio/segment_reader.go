@@ -28,10 +28,11 @@ import (
 )
 
 type segmentReader struct {
-	segment ts.Segment
-	headSet bool
-	tailSet bool
-	pool    SegmentReaderPool
+	segment  ts.Segment
+	lazyHead []byte
+	lazyTail []byte
+	si       int
+	pool     SegmentReaderPool
 }
 
 // NewSegmentReader creates a new segment reader along with a specified segment.
@@ -50,31 +51,35 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 		return 0, nil
 	}
 
-	if sr.headSet && sr.tailSet {
+	if b := sr.segment.Head; b != nil && (sr.lazyHead == nil || len(sr.lazyHead) > 0) {
+		sr.lazyHead = b.Bytes()
+	}
+	if b := sr.segment.Tail; b != nil && (sr.lazyTail == nil || len(sr.lazyTail) > 0) {
+		sr.lazyTail = b.Bytes()
+	}
+
+	nh, nt := len(sr.lazyHead), len(sr.lazyTail)
+	if sr.si >= nh+nt {
 		return 0, io.EOF
 	}
-
-	bytesRead := 0
-	if !sr.headSet {
-		sr.headSet = true
-		if h := sr.segment.Head; h != nil {
-			bytesRead = copy(b, h.Bytes())
-
-			// Buffer full, therefore eagerly return.
-			if bytesRead == len(b) {
-				return bytesRead, nil
-			}
+	n := 0
+	if sr.si < nh {
+		nRead := copy(b, sr.lazyHead[sr.si:])
+		sr.si += nRead
+		n += nRead
+		if n == len(b) {
+			return n, nil
 		}
 	}
-
-	sr.tailSet = true
-	if t := sr.segment.Tail; t != nil {
-		// Copy into the buffer at the position left over from head if needed.
-		bytesRead += copy(b[bytesRead:], t.Bytes())
-		return bytesRead, nil
+	if sr.si < nh+nt {
+		nRead := copy(b[n:], sr.lazyTail[sr.si-nh:])
+		sr.si += nRead
+		n += nRead
 	}
-
-	return 0, io.EOF
+	if n == 0 {
+		return 0, io.EOF
+	}
+	return n, nil
 }
 
 func (sr *segmentReader) Segment() (ts.Segment, error) {
@@ -83,17 +88,24 @@ func (sr *segmentReader) Segment() (ts.Segment, error) {
 
 func (sr *segmentReader) Reset(segment ts.Segment) {
 	sr.segment = segment
-	sr.headSet = false
-	sr.tailSet = false
+	sr.resetBuffers()
 }
 
 func (sr *segmentReader) Finalize() {
 	// Finalize the segment
 	sr.segment.Finalize()
-	sr.headSet = false
-	sr.tailSet = false
+	sr.resetBuffers()
 
 	if pool := sr.pool; pool != nil {
 		pool.Put(sr)
+	}
+}
+
+func (sr *segmentReader) resetBuffers() {
+	if sr.lazyHead != nil {
+		sr.lazyHead = sr.lazyHead[:0]
+	}
+	if sr.lazyTail != nil {
+		sr.lazyTail = sr.lazyTail[:0]
 	}
 }
