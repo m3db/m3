@@ -255,12 +255,11 @@ func (b *builder) indexWorker(indexQueue chan indexJob) {
 		newField := terms.size() == 0
 		// NB(bodu): Bulk of the cpu time during insertion is spent inside of terms.post().
 		err := terms.post(job.field.Value, job.id)
-		if err == nil {
-			if newField {
-				b.uniqueFields[job.shard] = append(b.uniqueFields[job.shard], job.field.Name)
-			}
-		} else {
+		if err != nil {
 			job.batchErr.AddWithLock(index.BatchError{Err: err, Idx: job.idx})
+		}
+		if err == nil && newField {
+			b.uniqueFields[job.shard] = append(b.uniqueFields[job.shard], job.field.Name)
 		}
 		job.wg.Done()
 	}
