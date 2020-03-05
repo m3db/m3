@@ -751,6 +751,7 @@ func (i *nsIndex) Flush(
 	if err != nil {
 		return err
 	}
+	defer builder.Close()
 
 	var evicted int
 	for _, block := range flushable {

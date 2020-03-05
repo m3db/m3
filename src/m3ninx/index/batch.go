@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 )
@@ -79,6 +80,8 @@ func NewBatch(docs []doc.Document, opts ...BatchOption) Batch {
 // BatchPartialError indicates an error was encountered inserting some documents in a batch.
 // It is not safe for concurrent use.
 type BatchPartialError struct {
+	sync.Mutex
+
 	errs []BatchError
 }
 
@@ -136,6 +139,16 @@ func (e *BatchPartialError) Add(err BatchError) {
 		return
 	}
 	e.errs = append(e.errs, err)
+}
+
+// AddWithLock adds an error to e with a lock. Any nil errors are ignored.
+func (e *BatchPartialError) AddWithLock(err BatchError) {
+	if err.Err == nil {
+		return
+	}
+	e.Lock()
+	e.errs = append(e.errs, err)
+	e.Unlock()
 }
 
 // Errs returns the errors with the indexes of the documents in the batch

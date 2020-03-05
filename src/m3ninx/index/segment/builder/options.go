@@ -21,6 +21,8 @@
 package builder
 
 import (
+	"runtime"
+
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/util"
@@ -28,6 +30,10 @@ import (
 
 const (
 	defaultInitialCapacity = 128
+)
+
+var (
+	defaultConcurrency = runtime.NumCPU()
 )
 
 // Options is a collection of options for segment building.
@@ -49,12 +55,19 @@ type Options interface {
 
 	// PostingsListPool returns the postings list pool.
 	PostingsListPool() postings.Pool
+
+	// SetConcurrency sets the indexing concurrency.
+	SetConcurrency(value int) Options
+
+	// Concurrency returns the indexing concurrency.
+	Concurrency() int
 }
 
 type opts struct {
 	newUUIDFn       util.NewUUIDFn
 	initialCapacity int
 	postingsPool    postings.Pool
+	concurrency     int
 }
 
 // NewOptions returns new options.
@@ -63,6 +76,7 @@ func NewOptions() Options {
 		newUUIDFn:       util.NewUUID,
 		initialCapacity: defaultInitialCapacity,
 		postingsPool:    postings.NewPool(nil, roaring.NewPostingsList),
+		concurrency:     defaultConcurrency,
 	}
 }
 
@@ -94,4 +108,14 @@ func (o *opts) SetPostingsListPool(v postings.Pool) Options {
 
 func (o *opts) PostingsListPool() postings.Pool {
 	return o.postingsPool
+}
+
+func (o *opts) SetConcurrency(v int) Options {
+	opts := *o
+	opts.concurrency = v
+	return &opts
+}
+
+func (o *opts) Concurrency() int {
+	return o.concurrency
 }

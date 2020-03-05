@@ -167,10 +167,17 @@ type Builder interface {
 	AllDocs() (index.IDDocIterator, error)
 }
 
-// DocumentsBuilder is a builder is written documents to.
+// DocumentsBuilder is a builder that has documents written to it.
 type DocumentsBuilder interface {
 	Builder
 	index.Writer
+}
+
+// CloseableDocumentsBuilder is a builder that has documents written to it and has freeable resources.
+type CloseableDocumentsBuilder interface {
+	DocumentsBuilder
+
+	Close() error
 }
 
 // SegmentsBuilder is a builder that is built from segments.
