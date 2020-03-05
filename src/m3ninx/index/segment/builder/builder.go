@@ -100,13 +100,13 @@ func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, e
 		go b.indexWorker(indexQueue)
 
 		// Give each shard a fraction of the configured initial capacity.
-		shardInitialCapcity := opts.InitialCapacity()
-		if shardInitialCapcity > 0 {
-			shardInitialCapcity /= concurrency
+		shardInitialCapacity := opts.InitialCapacity()
+		if shardInitialCapacity > 0 {
+			shardInitialCapacity /= concurrency
 		}
-		shardUniqueFields := make([][]byte, 0, shardInitialCapcity)
+		shardUniqueFields := make([][]byte, 0, shardInitialCapacity)
 		b.uniqueFields = append(b.uniqueFields, shardUniqueFields)
-		b.fields = newShardedFieldsMap(concurrency, shardInitialCapcity)
+		b.fields = newShardedFieldsMap(concurrency, shardInitialCapacity)
 	}
 
 	return b, nil
@@ -227,7 +227,7 @@ func (b *builder) index(
 	wg.Add(1)
 	// NB(bodu): To avoid locking inside of the terms, we shard the work
 	// by field name.
-	shard := int(xxhash.Sum64(f.Name) % uint64(len(b.indexQueues)))
+	shard := b.calculateShard(f.Name)
 	b.indexQueues[shard] <- indexJob{
 		wg:       wg,
 		id:       id,
@@ -265,6 +265,10 @@ func (b *builder) indexWorker(indexQueue chan indexJob) {
 	}
 }
 
+func (b *builder) calculateShard(field []byte) int {
+	return int(xxhash.Sum64(field) % uint64(len(b.indexQueues)))
+}
+
 func (b *builder) AllDocs() (index.IDDocIterator, error) {
 	rangeIter := postings.NewRangeIterator(b.offset,
 		b.offset+postings.ID(len(b.docs)))
@@ -297,9 +301,7 @@ func (b *builder) Fields() (segment.FieldsIterator, error) {
 }
 
 func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
-	// NB(bodu): The # of indexQueues and field map shards are equal.
-	shard := int(xxhash.Sum64(field) % uint64(len(b.indexQueues)))
-	terms, ok := b.fields.ShardedGet(shard, field)
+	terms, ok := b.fields.ShardedGet(b.calculateShard(field), field)
 	if !ok {
 		return nil, fmt.Errorf("field not found: %s", string(field))
 	}
