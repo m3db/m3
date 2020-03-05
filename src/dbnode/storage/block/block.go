@@ -287,7 +287,7 @@ func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) 
 		data.AppendAll(b.segment.Tail.Bytes())
 	}
 	data.DecRef()
-	checksum := b.segment.Checksum
+	checksum := b.segment.CalculateChecksum()
 	segmentReader.Reset(ts.NewSegment(data, nil, checksum, ts.FinalizeHead))
 	ctx.RegisterFinalizer(segmentReader)
 

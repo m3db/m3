@@ -787,7 +787,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 		dbBlock := blocksPool.Get()
 		dbBlock.Reset(blockStart, blockSize,
-			ts.NewSegmentWithGeneratedChecksum(data, nil, ts.FinalizeHead), nsCtx)
+			ts.NewSegment(data, nil, 0, ts.FinalizeHead), nsCtx)
 
 		// Resetting the block will trigger a checksum calculation, so use
 		// that instead of calculating it twice.

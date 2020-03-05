@@ -69,7 +69,7 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 		Tail:      segment.Tail.Bytes(),
 		StartTime: xtime.ToNanoseconds(br.Start),
 		BlockSize: int64(br.BlockSize),
-		Checksum:  segment.Checksum,
+		Checksum:  segment.CalculateChecksum(),
 	}, nil
 }
 

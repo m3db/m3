@@ -624,7 +624,7 @@ func blockReaderFromData(
 	startTime time.Time,
 	blockSize time.Duration,
 ) xio.BlockReader {
-	seg := ts.NewSegmentWithGeneratedChecksum(data, nil, ts.FinalizeHead)
+	seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)
 	segReader.Reset(seg)
 	return xio.BlockReader{
 		SegmentReader: segReader,

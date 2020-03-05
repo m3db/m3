@@ -74,7 +74,7 @@ func testSegmentReader(
 	require.NoError(t, err)
 	require.Equal(t, head, seg.Head.Bytes())
 	require.Equal(t, tail, seg.Tail.Bytes())
-	require.Equal(t, checksum, seg.Checksum)
+	require.Equal(t, checksum, seg.CalculateChecksum())
 
 	// Ensure cloned segment reader does not share original head and tail.
 	cloned, err := r.Clone(pool)
@@ -87,7 +87,7 @@ func testSegmentReader(
 	require.NoError(t, err)
 	require.Equal(t, head, seg.Head.Bytes())
 	require.Equal(t, tail, seg.Tail.Bytes())
-	require.Equal(t, checksum, seg.Checksum)
+	require.Equal(t, checksum, seg.CalculateChecksum())
 
 	cloned.Finalize()
 	segment.Finalize()

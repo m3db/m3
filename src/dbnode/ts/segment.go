@@ -38,8 +38,8 @@ type Segment struct {
 	Tail checked.Bytes
 	// SegmentFlags declares whether to finalize when finalizing the segment.
 	Flags SegmentFlags
-	// Checksum is the checksum for the segment.
-	Checksum uint32
+	// checksum is the checksum for the segment.
+	checksum uint32
 }
 
 // SegmentFlags describes the option to finalize or not finalize
@@ -58,8 +58,8 @@ const (
 // CalculateChecksum calculates and sets the 32-bit checksum for
 // this segment avoiding any allocations.
 func (s *Segment) CalculateChecksum() uint32 {
-	if s.Checksum != 0 {
-		return s.Checksum
+	if s.checksum != 0 {
+		return s.checksum
 	}
 	d := stackadler32.NewDigest()
 	if s.Head != nil {
@@ -68,31 +68,8 @@ func (s *Segment) CalculateChecksum() uint32 {
 	if s.Tail != nil {
 		d = d.Update(s.Tail.Bytes())
 	}
-	s.Checksum = d.Sum32()
-	return s.Checksum
-}
-
-// NewSegmentWithGeneratedChecksum will create a new segment with a generated
-// checksum value, and increment the refs to  head and tail if they
-// are non-nil. When  finalized the segment will also finalize the byte
-// slices if FinalizeBytes is passed.
-func NewSegmentWithGeneratedChecksum(
-	head, tail checked.Bytes,
-	flags SegmentFlags,
-) Segment {
-	if head != nil {
-		head.IncRef()
-	}
-	if tail != nil {
-		tail.IncRef()
-	}
-	seg := Segment{
-		Head:  head,
-		Tail:  tail,
-		Flags: flags,
-	}
-	seg.CalculateChecksum()
-	return seg
+	s.checksum = d.Sum32()
+	return s.checksum
 }
 
 // NewSegment will create a new segment and increment the refs to
@@ -113,7 +90,7 @@ func NewSegment(
 		Head:     head,
 		Tail:     tail,
 		Flags:    flags,
-		Checksum: checksum,
+		checksum: checksum,
 	}
 }
 
@@ -207,5 +184,5 @@ func (s *Segment) Clone(pool pool.CheckedBytesPool) Segment {
 
 	// NB: new segment is always finalizeable.
 	return NewSegment(checkedHead, checkedTail,
-		s.Checksum, FinalizeHead&FinalizeTail)
+		s.CalculateChecksum(), FinalizeHead&FinalizeTail)
 }
