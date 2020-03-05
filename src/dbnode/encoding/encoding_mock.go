@@ -1022,6 +1022,43 @@ func (mr *MockSeriesIteratorMockRecorder) Stats() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockSeriesIterator)(nil).Stats))
 }
 
+// MockSeriesIteratorConsolidator is a mock of SeriesIteratorConsolidator interface
+type MockSeriesIteratorConsolidator struct {
+	ctrl     *gomock.Controller
+	recorder *MockSeriesIteratorConsolidatorMockRecorder
+}
+
+// MockSeriesIteratorConsolidatorMockRecorder is the mock recorder for MockSeriesIteratorConsolidator
+type MockSeriesIteratorConsolidatorMockRecorder struct {
+	mock *MockSeriesIteratorConsolidator
+}
+
+// NewMockSeriesIteratorConsolidator creates a new mock instance
+func NewMockSeriesIteratorConsolidator(ctrl *gomock.Controller) *MockSeriesIteratorConsolidator {
+	mock := &MockSeriesIteratorConsolidator{ctrl: ctrl}
+	mock.recorder = &MockSeriesIteratorConsolidatorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSeriesIteratorConsolidator) EXPECT() *MockSeriesIteratorConsolidatorMockRecorder {
+	return m.recorder
+}
+
+// ConsolidateReplicas mocks base method
+func (m *MockSeriesIteratorConsolidator) ConsolidateReplicas(arg0 []MultiReaderIterator) []MultiReaderIterator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConsolidateReplicas", arg0)
+	ret0, _ := ret[0].([]MultiReaderIterator)
+	return ret0
+}
+
+// ConsolidateReplicas indicates an expected call of ConsolidateReplicas
+func (mr *MockSeriesIteratorConsolidatorMockRecorder) ConsolidateReplicas(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateReplicas", reflect.TypeOf((*MockSeriesIteratorConsolidator)(nil).ConsolidateReplicas), arg0)
+}
+
 // MockSeriesIterators is a mock of SeriesIterators interface
 type MockSeriesIterators struct {
 	ctrl     *gomock.Controller
