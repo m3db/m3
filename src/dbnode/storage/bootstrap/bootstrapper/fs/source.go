@@ -767,12 +767,12 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 		willFulfill := result.NewShardTimeRanges()
 		for _, shard := range info.Shards {
-			tr := shardsTimeRanges.Get(shard)
-			if tr == nil {
+			tr, ok := shardsTimeRanges.Get(shard)
+			if !ok {
 				// No ranges match for this shard.
 				continue
 			}
-			if willFulfill.Get(shard) == nil {
+			if _, ok := willFulfill.Get(shard); !ok {
 				willFulfill.Set(shard, xtime.NewRanges())
 			}
 

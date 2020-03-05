@@ -390,12 +390,15 @@ func TestAvailableTimeRangeFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, res.Len())
-	require.NotNil(t, res.Get(testShard))
+	_, ok := res.Get(testShard)
+	require.True(t, ok)
 
 	expected := xtime.NewRanges(
 		xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)},
 		xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
-	validateTimeRanges(t, res.Get(testShard), expected)
+	tr, ok := res.Get(testShard)
+	require.True(t, ok)
+	validateTimeRanges(t, tr, expected)
 }
 
 func TestAvailableTimeRangePartialError(t *testing.T) {
@@ -417,12 +420,15 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, res.Len())
-	require.NotNil(t, res.Get(testShard))
+	_, ok := res.Get(testShard)
+	require.True(t, ok)
 
 	expected := xtime.NewRanges(
 		xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)},
 		xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
-	validateTimeRanges(t, res.Get(testShard), expected)
+	tr, ok := res.Get(testShard)
+	require.True(t, ok)
+	validateTimeRanges(t, tr, expected)
 }
 
 // NB: too real :'(

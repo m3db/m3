@@ -587,8 +587,8 @@ func validateShardTimeRanges(
 
 	seen := make(map[uint32]struct{}, r.Len())
 	for k, val := range r.Iter() {
-		expectedVal := ex.Get(k)
-		if expectedVal == nil {
+		expectedVal, ok := ex.Get(k)
+		if !ok {
 			return fmt.Errorf("expected shard map %v does not have shard %d; "+
 				"actual: %v", ex, k, r)
 		}

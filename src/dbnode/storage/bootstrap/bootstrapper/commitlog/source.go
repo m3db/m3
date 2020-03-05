@@ -495,8 +495,8 @@ func (s *commitLogSource) Read(
 		// NB(r): This can occur when a topology change happens then we
 		// bootstrap from the commit log data that the node no longer owns.
 		shard := seriesEntry.series.Shard
-		bootstrappingShard := seriesEntry.namespace.dataAndIndexShardRanges.Get(shard)
-		if bootstrappingShard == nil {
+		_, ok = seriesEntry.namespace.dataAndIndexShardRanges.Get(shard)
+		if !ok {
 			datapointsSkippedNotBootstrappingShard++
 			continue
 		}
@@ -1035,7 +1035,9 @@ func (s *commitLogSource) availability(
 			// to distinguish between "unfulfilled" data and "corrupt" data, then
 			// modify this to only say the commit log bootstrapper can fullfil
 			// "unfulfilled" data, but not corrupt data.
-			availableShardTimeRanges.Set(shardIDUint, shardsTimeRanges.Get(shardIDUint))
+			if tr, ok := shardsTimeRanges.Get(shardIDUint); ok {
+				availableShardTimeRanges.Set(shardIDUint, tr)
+			}
 		case shard.Unknown:
 			fallthrough
 		default:

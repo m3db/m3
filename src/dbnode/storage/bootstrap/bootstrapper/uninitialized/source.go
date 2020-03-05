@@ -126,7 +126,9 @@ func (s *uninitializedTopologySource) availability(
 		// factor to actually increase correctly.
 		shardHasNeverBeenCompletelyInitialized := numInitializing-numLeaving > 0
 		if shardHasNeverBeenCompletelyInitialized {
-			availableShardTimeRanges.Set(shardIDUint, shardsTimeRanges.Get(shardIDUint))
+			if tr, ok := shardsTimeRanges.Get(shardIDUint); ok {
+				availableShardTimeRanges.Set(shardIDUint, tr)
+			}
 		}
 	}
 

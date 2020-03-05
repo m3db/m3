@@ -50,8 +50,9 @@ func NewShardTimeRanges() ShardTimeRanges {
 }
 
 // Get time ranges for a shard.
-func (r shardTimeRanges) Get(shard uint32) xtime.Ranges {
-	return r[shard]
+func (r shardTimeRanges) Get(shard uint32) (xtime.Ranges, bool) {
+	tr, ok := r[shard]
+	return tr, ok
 }
 
 // Set time ranges for a shard.
@@ -166,8 +167,8 @@ func (r shardTimeRanges) Subtract(other ShardTimeRanges) {
 		return
 	}
 	for shard, ranges := range r {
-		otherRanges := other.Get(shard)
-		if otherRanges == nil {
+		otherRanges, ok := other.Get(shard)
+		if !ok {
 			continue
 		}
 

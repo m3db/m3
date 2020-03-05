@@ -125,7 +125,7 @@ type ShardResults map[uint32]ShardResult
 // ShardTimeRanges is a map of shards to time ranges.
 type ShardTimeRanges interface {
 	// Get time ranges for a shard.
-	Get(shard uint32) xtime.Ranges
+	Get(shard uint32) (xtime.Ranges, bool)
 
 	// Set time ranges for a shard.
 	Set(shard uint32, ranges xtime.Ranges) ShardTimeRanges

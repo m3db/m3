@@ -995,7 +995,9 @@ func (s *peersSource) peerAvailability(
 		// all the data. This assumption is safe, as the shard/block ranges
 		// will simply be marked unfulfilled if the peers are not able to
 		// satisfy the requests.
-		availableShardTimeRanges.Set(shardIDUint, shardsTimeRanges.Get(shardIDUint))
+		if tr, ok := shardsTimeRanges.Get(shardIDUint); ok {
+			availableShardTimeRanges.Set(shardIDUint, tr)
+		}
 	}
 
 	return availableShardTimeRanges, nil
@@ -1010,7 +1012,7 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 ) {
 	// NB(r): We explicitly do not remove entries from the index results
 	// as they are additive and get merged together with results from other
-	// bootstrappers by just appending the result (unlike data bootstrap
+	// bootstrappers by just appending the result (ounlike data bootstrap
 	// results that when merged replace the block with the current block).
 	// It would also be difficult to remove only series that were added to the
 	// index block as results from a specific data block can be subsets of the
