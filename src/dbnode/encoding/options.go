@@ -56,7 +56,7 @@ type options struct {
 func newOptions() Options {
 	return &options{
 		defaultTimeUnit:        defaultDefaultTimeUnit,
-		timeEncodingSchemes:    defaultTimeEncodingSchemes,
+		timeEncodingSchemes:    newTimeEncodingSchemes(defaultTimeEncodingSchemes),
 		markerEncodingScheme:   defaultMarkerEncodingScheme,
 		byteFieldDictLRUSize:   defaultByteFieldDictLRUSize,
 		iStreamReaderSizeM3TSZ: defaultIStreamReaderSizeM3TSZ,
@@ -79,9 +79,9 @@ func (o *options) DefaultTimeUnit() xtime.Unit {
 	return o.defaultTimeUnit
 }
 
-func (o *options) SetTimeEncodingSchemes(value TimeEncodingSchemes) Options {
+func (o *options) SetTimeEncodingSchemes(value map[xtime.Unit]TimeEncodingScheme) Options {
 	opts := *o
-	opts.timeEncodingSchemes = value
+	opts.timeEncodingSchemes = newTimeEncodingSchemes(value)
 	return &opts
 }
 

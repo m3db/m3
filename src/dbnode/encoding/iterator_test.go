@@ -71,7 +71,7 @@ func (it *testIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 		idx = 0
 	}
 	v := it.values[idx]
-	dp := ts.Datapoint{Timestamp: v.t, Value: v.value}
+	dp := ts.Datapoint{Timestamp: v.t, TimestampNanos: xtime.ToUnixNano(v.t), Value: v.value}
 	return dp, v.unit, ts.Annotation(v.annotation)
 }
 
@@ -128,7 +128,7 @@ func (it *testMultiIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 		idx = 0
 	}
 	v := it.values[idx]
-	dp := ts.Datapoint{Timestamp: v.t, Value: v.value}
+	dp := ts.Datapoint{Timestamp: v.t, TimestampNanos: xtime.ToUnixNano(v.t), Value: v.value}
 	return dp, v.unit, ts.Annotation(v.annotation)
 }
 

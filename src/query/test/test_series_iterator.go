@@ -185,8 +185,8 @@ func BuildTestSeriesIterator(id string) (encoding.SeriesIterator, error) {
 			ID:             ident.StringID(id),
 			Namespace:      ident.StringID(SeriesNamespace),
 			Tags:           ident.NewTagsIterator(tags),
-			StartInclusive: SeriesStart,
-			EndExclusive:   End,
+			StartInclusive: xtime.ToUnixNano(SeriesStart),
+			EndExclusive:   xtime.ToUnixNano(End),
 			Replicas: []encoding.MultiReaderIterator{
 				replicaOne,
 				replicaTwo,
@@ -263,8 +263,8 @@ func BuildCustomIterator(
 				ID:             ident.StringID(seriesID),
 				Namespace:      ident.StringID(seriesNamespace),
 				Tags:           ident.NewTagsIterator(tags),
-				StartInclusive: start,
-				EndExclusive:   currentStart.Add(blockSize),
+				StartInclusive: xtime.ToUnixNano(start),
+				EndExclusive:   xtime.ToUnixNano(currentStart.Add(blockSize)),
 				Replicas: []encoding.MultiReaderIterator{
 					multiReader,
 				},
