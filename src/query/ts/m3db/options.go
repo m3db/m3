@@ -26,6 +26,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -59,6 +60,7 @@ type encodedBlockOptions struct {
 	readWorkerPools  xsync.PooledWorkerPool
 	writeWorkerPools xsync.PooledWorkerPool
 	batchingFn       IteratorBatchingFn
+	adminOptions     []client.CustomAdminOption
 	instrumented     bool
 }
 
@@ -195,6 +197,18 @@ func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Optio
 
 func (o *encodedBlockOptions) IteratorBatchingFn() IteratorBatchingFn {
 	return o.batchingFn
+}
+
+func (o *encodedBlockOptions) SetCustomAdminOptions(
+	val []client.CustomAdminOption) Options {
+	opts := *o
+	opts.adminOptions = val
+	return &opts
+
+}
+
+func (o *encodedBlockOptions) CustomAdminOptions() []client.CustomAdminOption {
+	return o.adminOptions
 }
 
 func (o *encodedBlockOptions) SetInstrumented(i bool) Options {

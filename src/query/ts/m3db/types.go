@@ -23,6 +23,7 @@ package m3db
 import (
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
@@ -78,6 +79,10 @@ type Options interface {
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.
 	IteratorBatchingFn() IteratorBatchingFn
+	// SetCustomAdminOptions sets custom admin options.
+	SetCustomAdminOptions([]client.CustomAdminOption) Options
+	// CustomAdminOptions gets custom admin options.
+	CustomAdminOptions() []client.CustomAdminOption
 	// SetInstrumented marks if the encoding step should have instrumentation enabled.
 	SetInstrumented(bool) Options
 	// Instrumented returns if the encoding step should have instrumentation enabled.
