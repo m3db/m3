@@ -21,6 +21,7 @@
 package xio
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -51,10 +52,13 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 		return 0, nil
 	}
 
+	fmt.Println("CALL", sr.si)
 	if b := sr.segment.Head; b != nil && len(sr.lazyHead) == 0 {
+		fmt.Println("HEAD", sr.si, sr.lazyHead)
 		sr.lazyHead = b.Bytes()
 	}
 	if b := sr.segment.Tail; b != nil && len(sr.lazyTail) == 0 {
+		fmt.Println("TAIL", sr.si, sr.lazyTail)
 		sr.lazyTail = b.Bytes()
 	}
 
@@ -87,27 +91,17 @@ func (sr *segmentReader) Segment() (ts.Segment, error) {
 }
 
 func (sr *segmentReader) Reset(segment ts.Segment) {
-	// Reuse buffers if the segment is the same.
-	sr.resetBuffers(sr.segment == segment)
 	sr.segment = segment
+	sr.si = 0
+	sr.lazyHead = sr.lazyHead[:0]
+	sr.lazyTail = sr.lazyTail[:0]
 }
 
 func (sr *segmentReader) Finalize() {
-	sr.resetBuffers(false)
-	sr.segment.Finalize()
+	sr.lazyHead = nil
+	sr.lazyTail = nil
 
 	if pool := sr.pool; pool != nil {
 		pool.Put(sr)
-	}
-}
-
-func (sr *segmentReader) resetBuffers(reuse bool) {
-	sr.si = 0
-	if reuse {
-		sr.lazyHead = sr.lazyHead[:0]
-		sr.lazyTail = sr.lazyTail[:0]
-	} else {
-		sr.lazyHead = nil
-		sr.lazyTail = nil
 	}
 }
