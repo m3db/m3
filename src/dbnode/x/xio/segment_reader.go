@@ -21,7 +21,6 @@
 package xio
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -52,13 +51,10 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 		return 0, nil
 	}
 
-	fmt.Println("CALL", sr.si)
 	if b := sr.segment.Head; b != nil && len(sr.lazyHead) == 0 {
-		fmt.Println("HEAD", sr.si, sr.lazyHead)
 		sr.lazyHead = b.Bytes()
 	}
 	if b := sr.segment.Tail; b != nil && len(sr.lazyTail) == 0 {
-		fmt.Println("TAIL", sr.si, sr.lazyTail)
 		sr.lazyTail = b.Bytes()
 	}
 
