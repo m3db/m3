@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -31,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
 )
 
@@ -48,8 +48,8 @@ const (
 )
 
 var (
-	errFetchStateStillProcessing = instrument.InvariantErrorf("fetch state is " +
-		"still processing, unable to create response")
+	errFetchStateStillProcessing = errors.New("[invariant violated] fetch " +
+		"state is still processing, unable to create response")
 )
 
 type fetchState struct {
@@ -160,8 +160,8 @@ func (f *fetchState) completionFn(
 	default:
 		// should never happen
 		done = true
-		err = instrument.InvariantErrorf(
-			"expected result to be one of %v, received: %v",
+		err = fmt.Errorf(
+			"[invariant violated] expected result to be one of %v, received: %v",
 			[]string{"fetchTaggedResultAccumulatorOpts", "aggregateResultAccumulatorOpts"},
 			result)
 	}
