@@ -3548,8 +3548,6 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 			return nil
 		}
 
-		currReader.CalculateChecksum()
-		resultReader.CalculateChecksum()
 		readers := []xio.SegmentReader{currReader.SegmentReader, resultReader.SegmentReader}
 		blockSize := currReader.BlockSize
 
