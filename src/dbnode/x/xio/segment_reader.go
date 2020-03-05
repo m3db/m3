@@ -93,7 +93,7 @@ func (sr *segmentReader) Reset(segment ts.Segment) {
 }
 
 func (sr *segmentReader) Finalize() {
-	sr.resetBuffers(true)
+	sr.resetBuffers(false)
 	sr.segment.Finalize()
 
 	if pool := sr.pool; pool != nil {
@@ -104,12 +104,8 @@ func (sr *segmentReader) Finalize() {
 func (sr *segmentReader) resetBuffers(reuse bool) {
 	sr.si = 0
 	if reuse {
-		if sr.lazyHead != nil {
-			sr.lazyHead = sr.lazyHead[0:]
-		}
-		if sr.lazyTail != nil {
-			sr.lazyTail = sr.lazyTail[0:]
-		}
+		sr.lazyHead = sr.lazyHead[0:]
+		sr.lazyTail = sr.lazyTail[0:]
 	} else {
 		sr.lazyHead = nil
 		sr.lazyTail = nil
