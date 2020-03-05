@@ -1580,7 +1580,6 @@ func (s *session) fetchIDsAttempt(
 					numItersToInclude = numDesired
 				}
 
-				// arnikola Optionally dedupe here instead before removing.
 				itersToInclude := results[:numItersToInclude]
 				resultsLock.RUnlock()
 
@@ -1591,13 +1590,14 @@ func (s *session) fetchIDsAttempt(
 				// due to a pending request in queue.
 				seriesID := s.pools.id.Clone(tsID)
 				namespaceID := s.pools.id.Clone(namespace)
+				consolidator := s.opts.IterationOptions().SeriesIteratorConsolidator
 				iter.Reset(encoding.SeriesIteratorOptions{
-					ID:                    seriesID,
-					Namespace:             namespaceID,
-					StartInclusive:        xtime.ToUnixNano(startInclusive),
-					EndExclusive:          xtime.ToUnixNano(endExclusive),
-					Replicas:              itersToInclude,
-					DeduplicationFunction: s.opts.IterationOptions().DeduplicationFunction,
+					ID:                         seriesID,
+					Namespace:                  namespaceID,
+					StartInclusive:             xtime.ToUnixNano(startInclusive),
+					EndExclusive:               xtime.ToUnixNano(endExclusive),
+					Replicas:                   itersToInclude,
+					SeriesIteratorConsolidator: consolidator,
 				})
 				iters.SetAt(idx, iter)
 			}
@@ -3548,6 +3548,8 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 			return nil
 		}
 
+		currReader.CalculateChecksum()
+		resultReader.CalculateChecksum()
 		readers := []xio.SegmentReader{currReader.SegmentReader, resultReader.SegmentReader}
 		blockSize := currReader.BlockSize
 

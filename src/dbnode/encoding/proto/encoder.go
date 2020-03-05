@@ -259,7 +259,7 @@ func (enc *Encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	tail := tails[lastByte]
 
 	// Only discard the head since tails are shared for process life time.
-	return ts.NewSegmentWithGeneratedChecksum(head, tail, ts.FinalizeHead)
+	return ts.NewSegment(head, tail, 0, ts.FinalizeHead)
 }
 
 func (enc *Encoder) segmentTakeOwnership() ts.Segment {
@@ -271,7 +271,7 @@ func (enc *Encoder) segmentTakeOwnership() ts.Segment {
 	// Take ref from the ostream.
 	head := enc.stream.Discard()
 
-	return ts.NewSegmentWithGeneratedChecksum(head, nil, ts.FinalizeHead)
+	return ts.NewSegment(head, nil, 0, ts.FinalizeHead)
 }
 
 // NumEncoded returns the number of encoded messages.

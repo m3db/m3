@@ -218,7 +218,8 @@ func writeToDiskWithPredicate(
 			}
 			data[0] = segment.Head
 			data[1] = segment.Tail
-			err = writer.WriteAll(series.ID, series.Tags, data, segment.Checksum)
+			checksum := segment.CalculateChecksum()
+			err = writer.WriteAll(series.ID, series.Tags, data, checksum)
 			if err != nil {
 				return err
 			}

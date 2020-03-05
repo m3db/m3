@@ -123,7 +123,7 @@ func TestDatabaseBlockMergeProto(t *testing.T) {
 	// Make sure the checksum was updated
 	mergedChecksum, err := block1.Checksum()
 	require.NoError(t, err)
-	require.Equal(t, seg.Checksum, mergedChecksum)
+	require.Equal(t, seg.CalculateChecksum(), mergedChecksum)
 
 	depCtx.BlockingClose()
 	block1.Close()

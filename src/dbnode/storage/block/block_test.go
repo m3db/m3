@@ -188,7 +188,7 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	// Make sure the checksum was updated
 	mergedChecksum, err := block1.Checksum()
 	require.NoError(t, err)
-	require.Equal(t, seg.Checksum, mergedChecksum)
+	require.Equal(t, seg.CalculateChecksum(), mergedChecksum)
 
 	// Make sure each segment reader was only finalized once
 	require.Equal(t, 3, len(segmentReaders))
@@ -382,7 +382,7 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 	// Make sure the checksum was updated
 	mergedChecksum, err := block1.Checksum()
 	require.NoError(t, err)
-	require.Equal(t, seg.Checksum, mergedChecksum)
+	require.Equal(t, seg.CalculateChecksum(), mergedChecksum)
 
 	// Make sure each segment reader was only finalized once
 	require.Equal(t, 5, len(segmentReaders))
@@ -491,7 +491,7 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 	// Make sure the new checksum is correct
 	mergedChecksum, err := block1.Checksum()
 	require.NoError(t, err)
-	require.Equal(t, seg.Checksum, mergedChecksum)
+	require.Equal(t, seg.CalculateChecksum(), mergedChecksum)
 }
 
 func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {

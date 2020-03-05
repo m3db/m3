@@ -1115,7 +1115,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		seg, err := streams[id].Segment()
 		require.NoError(t, err)
 
-		checksums[id] = seg.Checksum
+		checksums[id] = seg.CalculateChecksum()
 		expectedBlockReader := []xio.BlockReader{
 			xio.BlockReader{
 				SegmentReader: stream,

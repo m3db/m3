@@ -87,7 +87,7 @@ type QueryOptions struct {
 
 // IterationOptions enables users to specify iteration preferences.
 type IterationOptions struct {
-	DeduplicationFunction encoding.DeduplicationFunction
+	SeriesIteratorConsolidator encoding.SeriesIteratorConsolidator
 }
 
 // LimitExceeded returns whether a given size exceeds the limit

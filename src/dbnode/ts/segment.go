@@ -55,9 +55,12 @@ const (
 	FinalizeTail SegmentFlags = 1 << 2
 )
 
-// segmentChecksum returns the 32-bit checksum for a segment
-// avoiding any allocations.
-func (s Segment) segmentChecksum() uint32 {
+// CalculateChecksum calculates and sets the 32-bit checksum for
+// this segment avoiding any allocations.
+func (s *Segment) CalculateChecksum() uint32 {
+	if s.Checksum != 0 {
+		return s.Checksum
+	}
 	d := stackadler32.NewDigest()
 	if s.Head != nil {
 		d = d.Update(s.Head.Bytes())
@@ -65,7 +68,8 @@ func (s Segment) segmentChecksum() uint32 {
 	if s.Tail != nil {
 		d = d.Update(s.Tail.Bytes())
 	}
-	return d.Sum32()
+	s.Checksum = d.Sum32()
+	return s.Checksum
 }
 
 // NewSegmentWithGeneratedChecksum will create a new segment with a generated
@@ -87,7 +91,7 @@ func NewSegmentWithGeneratedChecksum(
 		Tail:  tail,
 		Flags: flags,
 	}
-	seg.Checksum = seg.segmentChecksum()
+	seg.CalculateChecksum()
 	return seg
 }
 

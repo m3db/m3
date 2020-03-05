@@ -226,7 +226,16 @@ func TestSeriesIteratorSetIterateEqualTimestampStrategy(t *testing.T) {
 		DefaultIterateEqualTimestampStrategy)
 }
 
-func TestSeriesIteratorSetDeduplicationFunction(t *testing.T) {
+type testConsolidator struct {
+	iters []MultiReaderIterator
+}
+
+func (c *testConsolidator) ConsolidateReplicas(
+	_ []MultiReaderIterator) []MultiReaderIterator {
+	return c.iters
+}
+
+func TestSeriesIteratorSetSeriesIteratorConsolidator(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -238,19 +247,17 @@ func TestSeriesIteratorSetDeduplicationFunction(t *testing.T) {
 	iter := newTestSeriesIterator(t, test).iter
 	newIter := NewMockMultiReaderIterator(ctrl)
 	newIter.EXPECT().Next().Return(true)
-	newIter.EXPECT().Current().Return(ts.Datapoint{}, xtime.Second, nil)
+	newIter.EXPECT().Current().Return(ts.Datapoint{}, xtime.Second, nil).Times(2)
 
-	dedupe := func(iter []MultiReaderIterator) []MultiReaderIterator {
-		return []MultiReaderIterator{newIter}
-	}
-
+	iter.iters.setFilter(0, 1)
+	consolidator := &testConsolidator{iters: []MultiReaderIterator{newIter}}
 	oldIter := NewMockMultiReaderIterator(ctrl)
 	oldIters := []MultiReaderIterator{oldIter}
 	iter.multiReaderIters = oldIters
 	assert.Equal(t, oldIter, iter.multiReaderIters[0])
 	iter.Reset(SeriesIteratorOptions{
-		Replicas:              oldIters,
-		DeduplicationFunction: dedupe,
+		Replicas:                   oldIters,
+		SeriesIteratorConsolidator: consolidator,
 	})
 	assert.Equal(t, newIter, iter.multiReaderIters[0])
 }

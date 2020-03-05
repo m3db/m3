@@ -402,7 +402,7 @@ func (enc *encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
 	// ref we have no ref to it anymore and if by copy then the owner should
 	// be finalizing the bytes when the segment is finalized.
-	return ts.NewSegmentWithGeneratedChecksum(head, tail, ts.FinalizeHead)
+	return ts.NewSegment(head, tail, 0, ts.FinalizeHead)
 }
 
 func (enc *encoder) segmentTakeOwnership() ts.Segment {
@@ -430,5 +430,5 @@ func (enc *encoder) segmentTakeOwnership() ts.Segment {
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
 	// ref we have no ref to it anymore and if by copy then the owner should
 	// be finalizing the bytes when the segment is finalized.
-	return ts.NewSegmentWithGeneratedChecksum(head, tail, ts.FinalizeHead)
+	return ts.NewSegment(head, tail, 0, ts.FinalizeHead)
 }

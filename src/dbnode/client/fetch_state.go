@@ -26,15 +26,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/namespace" 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument" 
-	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/ident" 
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
 )
 
@@ -204,12 +201,11 @@ func (f *fetchState) asTaggedIDsIterator(
 	return f.tagResultAccumulator.AsTaggedIDsIterator(limit, pools)
 }
 
-<<<<<<< HEAD
 func (f *fetchState) asEncodingSeriesIterators(
 	pools fetchTaggedPools,
 	descr namespace.SchemaDescr,
 	opts index.IterationOptions,
-) (encoding.SeriesIterators, FetchResponseMetadata, error) { 
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
 

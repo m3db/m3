@@ -145,8 +145,8 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 	it.SetIterateEqualTimestampStrategy(opts.IterateEqualTimestampStrategy)
 
 	replicas := opts.Replicas
-	if opts.DeduplicationFunction != nil {
-		replicas = opts.DeduplicationFunction(replicas)
+	if consolidator := opts.SeriesIteratorConsolidator; consolidator != nil {
+		replicas = consolidator.ConsolidateReplicas(replicas)
 	}
 
 	for _, replica := range replicas {

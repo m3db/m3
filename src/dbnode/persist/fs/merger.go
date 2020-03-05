@@ -353,7 +353,8 @@ func persistSegment(
 	segment ts.Segment,
 	persistFn persist.DataFn,
 ) error {
-	return persistFn(id, tags, segment, segment.Checksum)
+	checksum := segment.CalculateChecksum()
+	return persistFn(id, tags, segment, checksum)
 }
 
 func persistSegmentWithChecksum(

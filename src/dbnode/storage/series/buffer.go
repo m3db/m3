@@ -541,7 +541,8 @@ func (b *dbBuffer) Snapshot(
 		return nil
 	}
 
-	return persistFn(id, tags, segment, segment.Checksum)
+	checksum := segment.CalculateChecksum()
+	return persistFn(id, tags, segment, checksum)
 }
 
 func (b *dbBuffer) WarmFlush(
@@ -601,7 +602,8 @@ func (b *dbBuffer) WarmFlush(
 		return FlushOutcomeBlockDoesNotExist, nil
 	}
 
-	err = persistFn(id, tags, segment, segment.Checksum)
+	checksum := segment.CalculateChecksum()
+	err = persistFn(id, tags, segment, checksum)
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
@@ -1259,7 +1261,8 @@ func (b *BufferBucket) checksumIfSingleStream(ctx context.Context) (*uint32, err
 			return nil, nil
 		}
 
-		return &segment.Checksum, nil
+		checksum := segment.CalculateChecksum()
+		return &checksum, nil
 	}
 
 	if b.hasJustSingleLoadedBlock() {

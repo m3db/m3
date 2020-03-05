@@ -137,7 +137,7 @@ func ToSegments(blocks []xio.BlockReader) (ToSegmentsResult, error) {
 		}
 		startTime := xtime.ToNormalizedTime(blocks[0].Start, time.Nanosecond)
 		blockSize := xtime.ToNormalizedDuration(blocks[0].BlockSize, time.Nanosecond)
-		checksum := int64(seg.Checksum)
+		checksum := int64(seg.CalculateChecksum())
 		s.Merged = &rpc.Segment{
 			Head:      bytesRef(seg.Head),
 			Tail:      bytesRef(seg.Tail),
@@ -161,7 +161,7 @@ func ToSegments(blocks []xio.BlockReader) (ToSegmentsResult, error) {
 		}
 		startTime := xtime.ToNormalizedTime(block.Start, time.Nanosecond)
 		blockSize := xtime.ToNormalizedDuration(block.BlockSize, time.Nanosecond)
-		checksum := int64(seg.Checksum)
+		checksum := int64(seg.CalculateChecksum())
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
 			Head:      bytesRef(seg.Head),
 			Tail:      bytesRef(seg.Tail),
