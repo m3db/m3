@@ -51,10 +51,10 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 		return 0, nil
 	}
 
-	if b := sr.segment.Head; b != nil && (sr.lazyHead == nil || len(sr.lazyHead) > 0) {
+	if b := sr.segment.Head; b != nil && (sr.lazyHead == nil || len(sr.lazyHead) == 0) {
 		sr.lazyHead = b.Bytes()
 	}
-	if b := sr.segment.Tail; b != nil && (sr.lazyTail == nil || len(sr.lazyTail) > 0) {
+	if b := sr.segment.Tail; b != nil && (sr.lazyTail == nil || len(sr.lazyTail) == 0) {
 		sr.lazyTail = b.Bytes()
 	}
 
@@ -102,6 +102,7 @@ func (sr *segmentReader) Finalize() {
 }
 
 func (sr *segmentReader) resetBuffers() {
+	sr.si = 0
 	if sr.lazyHead != nil {
 		sr.lazyHead = sr.lazyHead[:0]
 	}
