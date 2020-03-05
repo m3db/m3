@@ -87,26 +87,31 @@ func (sr *segmentReader) Segment() (ts.Segment, error) {
 }
 
 func (sr *segmentReader) Reset(segment ts.Segment) {
+	// Reuse buffers if the segment is the same.
+	sr.resetBuffers(sr.segment == segment)
 	sr.segment = segment
-	sr.resetBuffers()
 }
 
 func (sr *segmentReader) Finalize() {
-	// Finalize the segment
+	sr.resetBuffers(true)
 	sr.segment.Finalize()
-	sr.resetBuffers()
 
 	if pool := sr.pool; pool != nil {
 		pool.Put(sr)
 	}
 }
 
-func (sr *segmentReader) resetBuffers() {
+func (sr *segmentReader) resetBuffers(reuse bool) {
 	sr.si = 0
-	if sr.lazyHead != nil {
-		sr.lazyHead = sr.lazyHead[0:]
-	}
-	if sr.lazyTail != nil {
-		sr.lazyTail = sr.lazyTail[0:]
+	if reuse {
+		if sr.lazyHead != nil {
+			sr.lazyHead = sr.lazyHead[0:]
+		}
+		if sr.lazyTail != nil {
+			sr.lazyTail = sr.lazyTail[0:]
+		}
+	} else {
+		sr.lazyHead = nil
+		sr.lazyTail = nil
 	}
 }
