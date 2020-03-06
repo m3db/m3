@@ -231,8 +231,8 @@ type testConsolidator struct {
 }
 
 func (c *testConsolidator) ConsolidateReplicas(
-	_ []MultiReaderIterator) []MultiReaderIterator {
-	return c.iters
+	_ []MultiReaderIterator) ([]MultiReaderIterator, error) {
+	return c.iters, nil
 }
 
 func TestSeriesIteratorSetSeriesIteratorConsolidator(t *testing.T) {
