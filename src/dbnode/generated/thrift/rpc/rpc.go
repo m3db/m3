@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -2769,11 +2769,13 @@ func (p *Segments) String() string {
 //  - Tail
 //  - StartTime
 //  - BlockSize
+//  - Checksum
 type Segment struct {
 	Head      []byte `thrift:"head,1,required" db:"head" json:"head"`
 	Tail      []byte `thrift:"tail,2,required" db:"tail" json:"tail"`
 	StartTime *int64 `thrift:"startTime,3" db:"startTime" json:"startTime,omitempty"`
 	BlockSize *int64 `thrift:"blockSize,4" db:"blockSize" json:"blockSize,omitempty"`
+	Checksum  *int64 `thrift:"checksum,5" db:"checksum" json:"checksum,omitempty"`
 }
 
 func NewSegment() *Segment {
@@ -2805,12 +2807,25 @@ func (p *Segment) GetBlockSize() int64 {
 	}
 	return *p.BlockSize
 }
+
+var Segment_Checksum_DEFAULT int64
+
+func (p *Segment) GetChecksum() int64 {
+	if !p.IsSetChecksum() {
+		return Segment_Checksum_DEFAULT
+	}
+	return *p.Checksum
+}
 func (p *Segment) IsSetStartTime() bool {
 	return p.StartTime != nil
 }
 
 func (p *Segment) IsSetBlockSize() bool {
 	return p.BlockSize != nil
+}
+
+func (p *Segment) IsSetChecksum() bool {
+	return p.Checksum != nil
 }
 
 func (p *Segment) Read(iprot thrift.TProtocol) error {
@@ -2846,6 +2861,10 @@ func (p *Segment) Read(iprot thrift.TProtocol) error {
 			}
 		case 4:
 			if err := p.ReadField4(iprot); err != nil {
+				return err
+			}
+		case 5:
+			if err := p.ReadField5(iprot); err != nil {
 				return err
 			}
 		default:
@@ -2905,6 +2924,15 @@ func (p *Segment) ReadField4(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Segment) ReadField5(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 5: ", err)
+	} else {
+		p.Checksum = &v
+	}
+	return nil
+}
+
 func (p *Segment) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Segment"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -2920,6 +2948,9 @@ func (p *Segment) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField4(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField5(oprot); err != nil {
 			return err
 		}
 	}
@@ -2983,6 +3014,21 @@ func (p *Segment) writeField4(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:blockSize: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *Segment) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetChecksum() {
+		if err := oprot.WriteFieldBegin("checksum", thrift.I64, 5); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:checksum: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.Checksum)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.checksum (5) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:checksum: ", p), err)
 		}
 	}
 	return err

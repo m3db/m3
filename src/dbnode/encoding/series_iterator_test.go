@@ -226,6 +226,42 @@ func TestSeriesIteratorSetIterateEqualTimestampStrategy(t *testing.T) {
 		DefaultIterateEqualTimestampStrategy)
 }
 
+type testConsolidator struct {
+	iters []MultiReaderIterator
+}
+
+func (c *testConsolidator) ConsolidateReplicas(
+	_ []MultiReaderIterator) []MultiReaderIterator {
+	return c.iters
+}
+
+func TestSeriesIteratorSetSeriesIteratorConsolidator(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	test := testSeries{
+		id:   "foo",
+		nsID: "bar",
+	}
+
+	iter := newTestSeriesIterator(t, test).iter
+	newIter := NewMockMultiReaderIterator(ctrl)
+	newIter.EXPECT().Next().Return(true)
+	newIter.EXPECT().Current().Return(ts.Datapoint{}, xtime.Second, nil).Times(2)
+
+	iter.iters.setFilter(0, 1)
+	consolidator := &testConsolidator{iters: []MultiReaderIterator{newIter}}
+	oldIter := NewMockMultiReaderIterator(ctrl)
+	oldIters := []MultiReaderIterator{oldIter}
+	iter.multiReaderIters = oldIters
+	assert.Equal(t, oldIter, iter.multiReaderIters[0])
+	iter.Reset(SeriesIteratorOptions{
+		Replicas:                   oldIters,
+		SeriesIteratorConsolidator: consolidator,
+	})
+	assert.Equal(t, newIter, iter.multiReaderIters[0])
+}
+
 type newTestSeriesIteratorResult struct {
 	iter                 *seriesIterator
 	multiReaderIterators []MultiReaderIterator
@@ -248,8 +284,8 @@ func newTestSeriesIterator(
 		ID:             ident.StringID(series.id),
 		Namespace:      ident.StringID(series.nsID),
 		Tags:           ident.EmptyTagIterator,
-		StartInclusive: series.start,
-		EndExclusive:   series.end,
+		StartInclusive: xtime.ToUnixNano(series.start),
+		EndExclusive:   xtime.ToUnixNano(series.end),
 		Replicas:       iters,
 	}, nil)
 

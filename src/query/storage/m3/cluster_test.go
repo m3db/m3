@@ -164,7 +164,7 @@ func newTestClientFromConfig(ctrl *gomock.Controller) (
 	newClientFn := func(
 		_ client.Configuration,
 		_ client.ConfigurationParameters,
-		_ ...client.CustomOption,
+		_ ...client.CustomAdminOption,
 	) (client.Client, error) {
 		return mockClient, nil
 	}

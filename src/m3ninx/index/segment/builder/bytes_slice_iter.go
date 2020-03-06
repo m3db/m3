@@ -25,6 +25,8 @@ import (
 	"sort"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+
+	"github.com/twotwotwo/sorts"
 )
 
 // OrderedBytesSliceIter is a new ordered bytes slice iterator.
@@ -32,9 +34,9 @@ type OrderedBytesSliceIter struct {
 	err  error
 	done bool
 
-	currentIdx   int
-	current      []byte
-	backingSlice [][]byte
+	currentIdx    int
+	current       []byte
+	backingSlices *sortableSliceOfSliceOfByteSlicesAsc
 }
 
 var _ segment.FieldsIterator = &OrderedBytesSliceIter{}
@@ -42,12 +44,13 @@ var _ segment.FieldsIterator = &OrderedBytesSliceIter{}
 // NewOrderedBytesSliceIter sorts a slice of bytes and then
 // returns an iterator over them.
 func NewOrderedBytesSliceIter(
-	maybeUnorderedSlice [][]byte,
+	maybeUnorderedSlices [][][]byte,
 ) *OrderedBytesSliceIter {
-	sortSliceOfByteSlices(maybeUnorderedSlice)
+	sortable := &sortableSliceOfSliceOfByteSlicesAsc{data: maybeUnorderedSlices}
+	sorts.ByBytes(sortable)
 	return &OrderedBytesSliceIter{
-		currentIdx:   -1,
-		backingSlice: maybeUnorderedSlice,
+		currentIdx:    -1,
+		backingSlices: sortable,
 	}
 }
 
@@ -57,11 +60,12 @@ func (b *OrderedBytesSliceIter) Next() bool {
 		return false
 	}
 	b.currentIdx++
-	if b.currentIdx >= len(b.backingSlice) {
+	if b.currentIdx >= b.backingSlices.Len() {
 		b.done = true
 		return false
 	}
-	b.current = b.backingSlice[b.currentIdx]
+	iOuter, iInner := b.backingSlices.getIndices(b.currentIdx)
+	b.current = b.backingSlices.data[iOuter][iInner]
 	return true
 }
 
@@ -77,13 +81,58 @@ func (b *OrderedBytesSliceIter) Err() error {
 
 // Len returns the length of the slice.
 func (b *OrderedBytesSliceIter) Len() int {
-	return len(b.backingSlice)
+	return b.backingSlices.Len()
 }
 
 // Close releases resources.
 func (b *OrderedBytesSliceIter) Close() error {
 	b.current = nil
 	return nil
+}
+
+type sortableSliceOfSliceOfByteSlicesAsc struct {
+	data   [][][]byte
+	length int
+}
+
+func (s *sortableSliceOfSliceOfByteSlicesAsc) Len() int {
+	if s.length > 0 {
+		return s.length
+	}
+
+	totalLen := 0
+	for _, innerSlice := range s.data {
+		totalLen += len(innerSlice)
+	}
+	s.length = totalLen
+
+	return s.length
+}
+
+func (s *sortableSliceOfSliceOfByteSlicesAsc) Less(i, j int) bool {
+	iOuter, iInner := s.getIndices(i)
+	jOuter, jInner := s.getIndices(j)
+	return bytes.Compare(s.data[iOuter][iInner], s.data[jOuter][jInner]) < 0
+}
+
+func (s *sortableSliceOfSliceOfByteSlicesAsc) Swap(i, j int) {
+	iOuter, iInner := s.getIndices(i)
+	jOuter, jInner := s.getIndices(j)
+	s.data[iOuter][iInner], s.data[jOuter][jInner] = s.data[jOuter][jInner], s.data[iOuter][iInner]
+}
+
+func (s *sortableSliceOfSliceOfByteSlicesAsc) Key(i int) []byte {
+	iOuter, iInner := s.getIndices(i)
+	return s.data[iOuter][iInner]
+}
+
+func (s *sortableSliceOfSliceOfByteSlicesAsc) getIndices(idx int) (int, int) {
+	currentSliceIdx := 0
+	for idx >= len(s.data[currentSliceIdx]) {
+		idx -= len(s.data[currentSliceIdx])
+		currentSliceIdx++
+	}
+	return currentSliceIdx, idx
 }
 
 func sortSliceOfByteSlices(b [][]byte) {

@@ -278,7 +278,7 @@ func Run(runOpts RunOptions) {
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
 		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBClient, instrumentOptions)
+			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
@@ -615,6 +615,7 @@ func initClusters(
 	cfg config.Configuration,
 	dbClientCh <-chan client.Client,
 	instrumentOpts instrument.Options,
+	customAdminOptions []client.CustomAdminOption,
 ) (m3.Clusters, *pools.PoolWrapper, error) {
 	instrumentOpts = instrumentOpts.
 		SetMetricsScope(instrumentOpts.MetricsScope().SubScope("m3db-client"))
@@ -628,7 +629,8 @@ func initClusters(
 	if len(cfg.Clusters) > 0 {
 		clusters, err = cfg.Clusters.NewClusters(instrumentOpts,
 			m3.ClustersStaticConfigurationOptions{
-				AsyncSessions: true,
+				AsyncSessions:      true,
+				CustomAdminOptions: customAdminOptions,
 			})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
@@ -659,7 +661,8 @@ func initClusters(
 
 		clusters, err = clustersCfg.NewClusters(instrumentOpts,
 			m3.ClustersStaticConfigurationOptions{
-				ProvidedSession: session,
+				ProvidedSession:    session,
+				CustomAdminOptions: customAdminOptions,
 			})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")

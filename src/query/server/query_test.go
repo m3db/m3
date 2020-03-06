@@ -132,7 +132,7 @@ func TestRun(t *testing.T) {
 		func(
 			cfg client.Configuration,
 			params client.ConfigurationParameters,
-			custom ...client.CustomOption,
+			custom ...client.CustomAdminOption,
 		) (client.Client, error) {
 			return dbClient, nil
 		})

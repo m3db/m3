@@ -502,8 +502,8 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset) {
 				Namespace:      namespaceID,
 				Tags:           tags,
 				Replicas:       replicasIters,
-				StartInclusive: start,
-				EndExclusive:   end,
+				StartInclusive: xtime.ToUnixNano(start),
+				EndExclusive:   xtime.ToUnixNano(end),
 			})
 		}
 	}

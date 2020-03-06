@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package digest
+package builder
 
-import (
-	"hash/adler32"
-
-	"github.com/m3db/stackadler32"
-)
-
-// NewDigest creates a new digest.
-// The default 32-bit hashing algorithm is adler32.
-func NewDigest() stackadler32.Digest {
-	return stackadler32.NewDigest()
+type shardedFieldsMap struct {
+	data []*fieldsMap
 }
 
-// Checksum returns the checksum for a buffer.
-func Checksum(buf []byte) uint32 {
-	return adler32.Checksum(buf)
+func newShardedFieldsMap(
+	numShards int,
+	shardInitialCapacity int,
+) *shardedFieldsMap {
+	data := make([]*fieldsMap, 0, numShards)
+	for i := 0; i < numShards; i++ {
+		data = append(data, newFieldsMap(fieldsMapOptions{
+			InitialSize: shardInitialCapacity,
+		}))
+	}
+	return &shardedFieldsMap{
+		data: data,
+	}
+}
+
+func (s *shardedFieldsMap) ShardedGet(
+	shard int,
+	k []byte,
+) (*terms, bool) {
+	return s.data[shard].Get(k)
+}
+
+func (s *shardedFieldsMap) ShardedSetUnsafe(
+	shard int,
+	k []byte,
+	v *terms,
+	opts fieldsMapSetUnsafeOptions,
+) {
+	s.data[shard].SetUnsafe(k, v, opts)
+}
+
+// ResetTermsSets keeps fields around but resets the terms set for each one.
+func (s *shardedFieldsMap) ResetTermsSets() {
+	for _, fieldMap := range s.data {
+		for _, entry := range fieldMap.Iter() {
+			entry.Value().reset()
+		}
+	}
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -47,7 +48,9 @@ import (
 func TestFetchTaggedResultsAccumulatorClearResetsState(t *testing.T) {
 	pools := newTestFetchTaggedPools()
 	accum := newFetchTaggedResultAccumulator()
-	iter, meta, err := accum.AsEncodingSeriesIterators(100, pools, nil)
+
+	iter, meta, err := accum.AsEncodingSeriesIterators(100, pools, nil,
+		index.IterationOptions{})
 	require.NoError(t, err)
 	require.True(t, meta.Exhaustive)
 	require.Equal(t, 0, iter.Len())
