@@ -270,7 +270,7 @@ type SeriesIteratorStats struct {
 // reset series iterators.
 type SeriesIteratorConsolidator interface {
 	// ConsolidateReplicas consolidates MultiReaderIterator slices.
-	ConsolidateReplicas([]MultiReaderIterator) []MultiReaderIterator
+	ConsolidateReplicas([]MultiReaderIterator) ([]MultiReaderIterator, error)
 }
 
 // SeriesIteratorOptions is a set of options for using a series iterator.
