@@ -22,12 +22,17 @@ package builder
 
 import (
 	"bytes"
-	"sort"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
 
 	"github.com/twotwotwo/sorts"
 )
+
+type uniqueField struct {
+	field        []byte
+	postingsList postings.List
+}
 
 // OrderedBytesSliceIter is a new ordered bytes slice iterator.
 type OrderedBytesSliceIter struct {
@@ -35,18 +40,18 @@ type OrderedBytesSliceIter struct {
 	done bool
 
 	currentIdx    int
-	current       []byte
-	backingSlices *sortableSliceOfSliceOfByteSlicesAsc
+	current       uniqueField
+	backingSlices *sortableSliceOfSliceOfUniqueFieldsAsc
 }
 
-var _ segment.FieldsIterator = &OrderedBytesSliceIter{}
+var _ segment.FieldsPostingsListIterator = &OrderedBytesSliceIter{}
 
 // NewOrderedBytesSliceIter sorts a slice of bytes and then
 // returns an iterator over them.
 func NewOrderedBytesSliceIter(
-	maybeUnorderedSlices [][][]byte,
+	maybeUnorderedFields [][]uniqueField,
 ) *OrderedBytesSliceIter {
-	sortable := &sortableSliceOfSliceOfByteSlicesAsc{data: maybeUnorderedSlices}
+	sortable := &sortableSliceOfSliceOfUniqueFieldsAsc{data: maybeUnorderedFields}
 	sorts.ByBytes(sortable)
 	return &OrderedBytesSliceIter{
 		currentIdx:    -1,
@@ -70,8 +75,8 @@ func (b *OrderedBytesSliceIter) Next() bool {
 }
 
 // Current returns the current entry.
-func (b *OrderedBytesSliceIter) Current() []byte {
-	return b.current
+func (b *OrderedBytesSliceIter) Current() ([]byte, postings.List) {
+	return b.current.field, b.current.postingsList
 }
 
 // Err returns an error if an error occurred iterating.
@@ -86,16 +91,16 @@ func (b *OrderedBytesSliceIter) Len() int {
 
 // Close releases resources.
 func (b *OrderedBytesSliceIter) Close() error {
-	b.current = nil
+	b.current = uniqueField{}
 	return nil
 }
 
-type sortableSliceOfSliceOfByteSlicesAsc struct {
-	data   [][][]byte
+type sortableSliceOfSliceOfUniqueFieldsAsc struct {
+	data   [][]uniqueField
 	length int
 }
 
-func (s *sortableSliceOfSliceOfByteSlicesAsc) Len() int {
+func (s *sortableSliceOfSliceOfUniqueFieldsAsc) Len() int {
 	if s.length > 0 {
 		return s.length
 	}
@@ -109,34 +114,28 @@ func (s *sortableSliceOfSliceOfByteSlicesAsc) Len() int {
 	return s.length
 }
 
-func (s *sortableSliceOfSliceOfByteSlicesAsc) Less(i, j int) bool {
+func (s *sortableSliceOfSliceOfUniqueFieldsAsc) Less(i, j int) bool {
 	iOuter, iInner := s.getIndices(i)
 	jOuter, jInner := s.getIndices(j)
-	return bytes.Compare(s.data[iOuter][iInner], s.data[jOuter][jInner]) < 0
+	return bytes.Compare(s.data[iOuter][iInner].field, s.data[jOuter][jInner].field) < 0
 }
 
-func (s *sortableSliceOfSliceOfByteSlicesAsc) Swap(i, j int) {
+func (s *sortableSliceOfSliceOfUniqueFieldsAsc) Swap(i, j int) {
 	iOuter, iInner := s.getIndices(i)
 	jOuter, jInner := s.getIndices(j)
 	s.data[iOuter][iInner], s.data[jOuter][jInner] = s.data[jOuter][jInner], s.data[iOuter][iInner]
 }
 
-func (s *sortableSliceOfSliceOfByteSlicesAsc) Key(i int) []byte {
+func (s *sortableSliceOfSliceOfUniqueFieldsAsc) Key(i int) []byte {
 	iOuter, iInner := s.getIndices(i)
-	return s.data[iOuter][iInner]
+	return s.data[iOuter][iInner].field
 }
 
-func (s *sortableSliceOfSliceOfByteSlicesAsc) getIndices(idx int) (int, int) {
+func (s *sortableSliceOfSliceOfUniqueFieldsAsc) getIndices(idx int) (int, int) {
 	currentSliceIdx := 0
 	for idx >= len(s.data[currentSliceIdx]) {
 		idx -= len(s.data[currentSliceIdx])
 		currentSliceIdx++
 	}
 	return currentSliceIdx, idx
-}
-
-func sortSliceOfByteSlices(b [][]byte) {
-	sort.Slice(b, func(i, j int) bool {
-		return bytes.Compare(b[i], b[j]) < 0
-	})
 }

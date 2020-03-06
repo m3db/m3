@@ -35,6 +35,7 @@ import (
 var (
 	errSegmentSealed     = errors.New("unable to seal, segment has already been sealed")
 	errSegmentIsUnsealed = errors.New("un-supported operation on an un-sealed mutable segment")
+	errNotImplemented    = errors.New("not implemented")
 )
 
 // nolint: maligned
@@ -459,6 +460,10 @@ func (s *segment) Fields() (sgmt.FieldsIterator, error) {
 		return nil, err
 	}
 	return s.termsDict.Fields(), nil
+}
+
+func (s *segment) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
+	return nil, errNotImplemented
 }
 
 func (s *segment) Terms(name []byte) (sgmt.TermsIterator, error) {

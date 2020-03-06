@@ -70,7 +70,7 @@ type builder struct {
 	docs         []doc.Document
 	idSet        *IDsMap
 	fields       *shardedFieldsMap
-	uniqueFields [][][]byte
+	uniqueFields [][]uniqueField
 
 	indexQueues []chan indexJob
 	status      builderStatus
@@ -90,7 +90,7 @@ func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, e
 		idSet: NewIDsMap(IDsMapOptions{
 			InitialSize: opts.InitialCapacity(),
 		}),
-		uniqueFields: make([][][]byte, 0, concurrency),
+		uniqueFields: make([][]uniqueField, 0, concurrency),
 		indexQueues:  make([]chan indexJob, 0, concurrency),
 	}
 
@@ -104,7 +104,7 @@ func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, e
 		if shardInitialCapacity > 0 {
 			shardInitialCapacity /= concurrency
 		}
-		shardUniqueFields := make([][]byte, 0, shardInitialCapacity)
+		shardUniqueFields := make([]uniqueField, 0, shardInitialCapacity)
 		b.uniqueFields = append(b.uniqueFields, shardUniqueFields)
 		b.fields = newShardedFieldsMap(concurrency, shardInitialCapacity)
 	}
@@ -131,7 +131,7 @@ func (b *builder) Reset(offset postings.ID) {
 	// Reset the unique fields slice
 	for i, shardUniqueFields := range b.uniqueFields {
 		for i := range shardUniqueFields {
-			shardUniqueFields[i] = nil
+			shardUniqueFields[i] = uniqueField{}
 		}
 		b.uniqueFields[i] = shardUniqueFields[:0]
 	}
@@ -259,7 +259,10 @@ func (b *builder) indexWorker(indexQueue chan indexJob) {
 			job.batchErr.AddWithLock(index.BatchError{Err: err, Idx: job.idx})
 		}
 		if err == nil && newField {
-			b.uniqueFields[job.shard] = append(b.uniqueFields[job.shard], job.field.Name)
+			b.uniqueFields[job.shard] = append(b.uniqueFields[job.shard], uniqueField{
+				field:        job.field.Name,
+				postingsList: terms.postingsListUnion,
+			})
 		}
 		job.wg.Done()
 	}
@@ -288,7 +291,7 @@ func (b *builder) Docs() []doc.Document {
 	return b.docs
 }
 
-func (b *builder) FieldsIterable() segment.FieldsIterable {
+func (b *builder) FieldsIterable() segment.FieldsPostingsListIterable {
 	return b
 }
 
@@ -296,7 +299,7 @@ func (b *builder) TermsIterable() segment.TermsIterable {
 	return b
 }
 
-func (b *builder) Fields() (segment.FieldsIterator, error) {
+func (b *builder) FieldsPostingsList() (segment.FieldsPostingsListIterator, error) {
 	return NewOrderedBytesSliceIter(b.uniqueFields), nil
 }
 

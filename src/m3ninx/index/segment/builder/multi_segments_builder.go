@@ -21,6 +21,7 @@
 package builder
 
 import (
+	"errors"
 	"io"
 	"sort"
 
@@ -29,6 +30,10 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	xerrors "github.com/m3db/m3/src/x/errors"
+)
+
+var (
+	errNotImplemented = errors.New("not implemented")
 )
 
 type builderFromSegments struct {
@@ -176,6 +181,10 @@ func (b *builderFromSegments) TermsIterable() segment.TermsIterable {
 
 func (b *builderFromSegments) Fields() (segment.FieldsIterator, error) {
 	return newFieldIterFromSegments(b.segments)
+}
+
+func (b *builderFromSegments) FieldsPostingsList() (segment.FieldsPostingsListIterator, error) {
+	return nil, nil
 }
 
 func (b *builderFromSegments) Terms(field []byte) (segment.TermsIterator, error) {
