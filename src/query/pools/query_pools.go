@@ -137,10 +137,6 @@ func (s sessionPools) TagDecoder() serialize.TagDecoderPool {
 	return s.tagDecoder
 }
 
-// iteratorPoolSize            = 1000
-// checkedBytesWrapperPoolSize = 128
-// defaultIdentifierPoolSize   = 128
-
 // BuildIteratorPoolsOptions is a set of build iterator pools.
 type BuildIteratorPoolsOptions struct {
 	Replicas                    int
