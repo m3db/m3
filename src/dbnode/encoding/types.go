@@ -210,6 +210,9 @@ type MultiReaderIterator interface {
 	// Readers exposes the underlying ReaderSliceOfSlicesIterator
 	// for this MultiReaderIterator.
 	Readers() xio.ReaderSliceOfSlicesIterator
+
+	// Schema exposes the underlying SchemaDescr for this MutliReaderIterator.
+	Schema() namespace.SchemaDescr
 }
 
 // SeriesIterator is an iterator that iterates over a set of iterators from
