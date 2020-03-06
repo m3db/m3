@@ -29,9 +29,8 @@ import (
 // istream encapsulates a readable stream.
 type istream struct {
 	r         *bufio.Reader // encoded stream
-	err       error         // error encountered
 	current   byte          // current byte we are working off of
-	remaining int           // bits remaining in current to be read
+	remaining uint          // bits remaining in current to be read
 }
 
 // NewIStream creates a new Istream
@@ -41,9 +40,6 @@ func NewIStream(reader io.Reader, bufioSize int) IStream {
 
 // ReadBit reads the next Bit
 func (is *istream) ReadBit() (Bit, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
 	if is.remaining == 0 {
 		if err := is.readByteFromStream(); err != nil {
 			return 0, err
@@ -77,9 +73,6 @@ func (is *istream) Read(b []byte) (int, error) {
 
 // ReadByte reads the next Byte
 func (is *istream) ReadByte() (byte, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
 	remaining := is.remaining
 	res := is.consumeBuffer(remaining)
 	if remaining == 8 {
@@ -93,11 +86,7 @@ func (is *istream) ReadByte() (byte, error) {
 }
 
 // ReadBits reads the next Bits
-func (is *istream) ReadBits(numBits int) (uint64, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
-
+func (is *istream) ReadBits(numBits uint) (uint64, error) {
 	var res uint64
 	for numBits >= 8 {
 		byteRead, err := is.ReadByte()
@@ -121,7 +110,7 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		if is.remaining < numToRead {
 			numToRead = is.remaining
 		}
-		bits := is.current >> uint(8-numToRead)
+		bits := is.current >> (8 - numToRead)
 		is.current <<= uint(numToRead)
 		is.remaining -= numToRead
 		res = (res << uint64(numToRead)) | uint64(bits)
@@ -131,10 +120,7 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 }
 
 // PeekBits looks at the next Bits, but doesn't move the pos
-func (is *istream) PeekBits(numBits int) (uint64, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
+func (is *istream) PeekBits(numBits uint) (uint64, error) {
 	// check the last byte first
 	if numBits <= is.remaining {
 		return uint64(readBitsInByte(is.current, numBits)), nil
@@ -152,39 +138,39 @@ func (is *istream) PeekBits(numBits int) (uint64, error) {
 		numBitsRead += 8
 	}
 	remainder := readBitsInByte(bytesRead[numBytesToRead-1], numBits-numBitsRead)
-	res = (res << uint(numBits-numBitsRead)) | uint64(remainder)
+	res = (res << (numBits - numBitsRead)) | uint64(remainder)
 	return res, nil
 }
 
 // RemainingBitsInCurrentByte returns the number of bits remaining to be read in
 // the current byte.
-func (is *istream) RemainingBitsInCurrentByte() int {
+func (is *istream) RemainingBitsInCurrentByte() uint {
 	return is.remaining
 }
 
 // readBitsInByte reads numBits in byte b.
-func readBitsInByte(b byte, numBits int) byte {
-	return b >> uint(8-numBits)
+func readBitsInByte(b byte, numBits uint) byte {
+	return b >> (8 - numBits)
 }
 
 // consumeBuffer consumes numBits in is.current.
-func (is *istream) consumeBuffer(numBits int) byte {
+func (is *istream) consumeBuffer(numBits uint) byte {
 	res := readBitsInByte(is.current, numBits)
-	is.current <<= uint(numBits)
+	is.current <<= numBits
 	is.remaining -= numBits
 	return res
 }
 
 func (is *istream) readByteFromStream() error {
-	is.current, is.err = is.r.ReadByte()
+	var err error
+	is.current, err = is.r.ReadByte()
 	is.remaining = 8
-	return is.err
+	return err
 }
 
 // Reset resets the Istream
 func (is *istream) Reset(r io.Reader) {
 	is.r.Reset(r)
-	is.err = nil
 	is.current = 0
 	is.remaining = 0
 }

@@ -165,10 +165,10 @@ func (it *readerIterator) readIntValDiff() {
 		sign = 1.0
 	}
 
-	it.intVal += sign * float64(it.readBits(int(it.sig)))
+	it.intVal += sign * float64(it.readBits(uint(it.sig)))
 }
 
-func (it *readerIterator) readBits(numBits int) uint64 {
+func (it *readerIterator) readBits(numBits uint) uint64 {
 	if !it.hasNext() {
 		return 0
 	}
