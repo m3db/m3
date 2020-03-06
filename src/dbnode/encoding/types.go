@@ -146,27 +146,31 @@ type Options interface {
 	// ByteFieldDictionaryLRUSize returns the ByteFieldDictionaryLRUSize.
 	ByteFieldDictionaryLRUSize() int
 
-	// SetIStreamReaderSizeM3TSZ sets the istream bufio reader size for m3tsz encoding iteration.
+	// SetIStreamReaderSizeM3TSZ sets the istream bufio reader size
+	// for m3tsz encoding iteration.
 	SetIStreamReaderSizeM3TSZ(value int) Options
 
-	// IStreamReaderSizeM3TSZ returns the istream bufio reader size for m3tsz encoding iteration.
+	// IStreamReaderSizeM3TSZ returns the istream bufio reader size
+	// for m3tsz encoding iteration.
 	IStreamReaderSizeM3TSZ() int
 
-	// SetIStreamReaderSizeProto sets the istream bufio reader size for proto encoding iteration.
+	// SetIStreamReaderSizeProto sets the istream bufio reader size
+	// for proto encoding iteration.
 	SetIStreamReaderSizeProto(value int) Options
 
-	// SetIStreamReaderSizeProto returns the istream bufio reader size for proto encoding iteration.
+	// SetIStreamReaderSizeProto returns the istream bufio reader size
+	// for proto encoding iteration.
 	IStreamReaderSizeProto() int
 }
 
 // Iterator is the generic interface for iterating over encoded data.
 type Iterator interface {
-	// Next moves to the next item
+	// Next moves to the next item.
 	Next() bool
 
-	// Current returns the value as well as the annotation associated with the current datapoint.
-	// Users should not hold on to the returned Annotation object as it may get invalidated when
-	// the iterator calls Next().
+	// Current returns the value as well as the annotation associated with the
+	// current datapoint. Users should not hold on to the returned Annotation
+	// object as it may get invalidated when the iterator calls Next().
 	Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 
 	// Err returns the error encountered
@@ -180,7 +184,8 @@ type Iterator interface {
 type ReaderIterator interface {
 	Iterator
 
-	// Reset resets the iterator to read from a new reader with a new schema (for schema aware iterators).
+	// Reset resets the iterator to read from a new reader with
+	// a new schema (for schema aware iterators).
 	Reset(reader io.Reader, schema namespace.SchemaDescr)
 }
 
@@ -258,6 +263,13 @@ type SeriesIteratorStats struct {
 	ApproximateSizeInBytes int
 }
 
+// SeriesIteratorConsolidator optionally defines methods to consolidate newly
+// reset series iterators.
+type SeriesIteratorConsolidator interface {
+	// ConsolidateReplicas consolidates MultiReaderIterator slices.
+	ConsolidateReplicas([]MultiReaderIterator) []MultiReaderIterator
+}
+
 // SeriesIteratorOptions is a set of options for using a series iterator.
 type SeriesIteratorOptions struct {
 	ID                            ident.ID
@@ -267,31 +279,33 @@ type SeriesIteratorOptions struct {
 	StartInclusive                xtime.UnixNano
 	EndExclusive                  xtime.UnixNano
 	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
+	SeriesIteratorConsolidator    SeriesIteratorConsolidator
 }
 
-// SeriesIterators is a collection of SeriesIterator that can close all iterators
+// SeriesIterators is a collection of SeriesIterator that can
+// close all iterators.
 type SeriesIterators interface {
-	// Iters returns the array of series iterators
+	// Iters returns the array of series iterators.
 	Iters() []SeriesIterator
 
-	// Len returns the length of the iters
+	// Len returns the count of iterators in the collection.
 	Len() int
 
-	// Close closes all iterators contained
+	// Close closes all iterators contained within the collection.
 	Close()
 }
 
-// MutableSeriesIterators is a mutable SeriesIterators
+// MutableSeriesIterators is a mutable SeriesIterators.
 type MutableSeriesIterators interface {
 	SeriesIterators
 
-	// Reset the iters collection to a size for reuse
+	// Reset the iters collection to a size for reuse.
 	Reset(size int)
 
-	// Cap returns the capacity of the iters
+	// Cap returns the capacity of the iters.
 	Cap() int
 
-	// SetAt an index a SeriesIterator
+	// SetAt sets a SeriesIterator to the given index.
 	SetAt(idx int, iter SeriesIterator)
 }
 
@@ -301,7 +315,7 @@ type Decoder interface {
 	Decode(reader io.Reader) ReaderIterator
 }
 
-// NewDecoderFn creates a new decoder
+// NewDecoderFn creates a new decoder.
 type NewDecoderFn func() Decoder
 
 // EncoderAllocate allocates an encoder for a pool.
@@ -336,95 +350,95 @@ type OStream interface {
 	CheckedBytes() (checked.Bytes, int)
 }
 
-// EncoderPool provides a pool for encoders
+// EncoderPool provides a pool for encoders.
 type EncoderPool interface {
 	// Init initializes the pool.
 	Init(alloc EncoderAllocate)
 
-	// Get provides an encoder from the pool
+	// Get provides an encoder from the pool.
 	Get() Encoder
 
-	// Put returns an encoder to the pool
+	// Put returns an encoder to the pool.
 	Put(e Encoder)
 }
 
-// ReaderIteratorPool provides a pool for ReaderIterators
+// ReaderIteratorPool provides a pool for ReaderIterators.
 type ReaderIteratorPool interface {
 	// Init initializes the pool.
 	Init(alloc ReaderIteratorAllocate)
 
-	// Get provides a ReaderIterator from the pool
+	// Get provides a ReaderIterator from the pool.
 	Get() ReaderIterator
 
-	// Put returns a ReaderIterator to the pool
+	// Put returns a ReaderIterator to the pool.
 	Put(iter ReaderIterator)
 }
 
-// MultiReaderIteratorPool provides a pool for MultiReaderIterators
+// MultiReaderIteratorPool provides a pool for MultiReaderIterators.
 type MultiReaderIteratorPool interface {
 	// Init initializes the pool.
 	Init(alloc ReaderIteratorAllocate)
 
-	// Get provides a MultiReaderIterator from the pool
+	// Get provides a MultiReaderIterator from the pool.
 	Get() MultiReaderIterator
 
-	// Put returns a MultiReaderIterator to the pool
+	// Put returns a MultiReaderIterator to the pool.
 	Put(iter MultiReaderIterator)
 }
 
-// SeriesIteratorPool provides a pool for SeriesIterator
+// SeriesIteratorPool provides a pool for SeriesIterator.
 type SeriesIteratorPool interface {
-	// Init initializes the pool
+	// Init initializes the pool.
 	Init()
 
-	// Get provides a SeriesIterator from the pool
+	// Get provides a SeriesIterator from the pool.
 	Get() SeriesIterator
 
-	// Put returns a SeriesIterator to the pool
+	// Put returns a SeriesIterator to the pool.
 	Put(iter SeriesIterator)
 }
 
-// MutableSeriesIteratorsPool provides a pool for MutableSeriesIterators
+// MutableSeriesIteratorsPool provides a pool for MutableSeriesIterators.
 type MutableSeriesIteratorsPool interface {
-	// Init initializes the pool
+	// Init initializes the pool.
 	Init()
 
-	// Get provides a MutableSeriesIterators from the pool
+	// Get provides a MutableSeriesIterators from the pool.
 	Get(size int) MutableSeriesIterators
 
-	// Put returns a MutableSeriesIterators to the pool
+	// Put returns a MutableSeriesIterators to the pool.
 	Put(iters MutableSeriesIterators)
 }
 
-// MultiReaderIteratorArrayPool provides a pool for MultiReaderIterator arrays
+// MultiReaderIteratorArrayPool provides a pool for MultiReaderIterator arrays.
 type MultiReaderIteratorArrayPool interface {
-	// Init initializes the pool
+	// Init initializes the pool.
 	Init()
 
-	// Get provides a Iterator array from the pool
+	// Get provides a MultiReaderIterator array from the pool.
 	Get(size int) []MultiReaderIterator
 
-	// Put returns a Iterator array to the pool
+	// Put returns a MultiReaderIterator array to the pool.
 	Put(iters []MultiReaderIterator)
 }
 
-// IteratorPools exposes a small subset of iterator pools that are sufficient for clients
-// to rebuild SeriesIterator
+// IteratorPools exposes a small subset of iterator pools that are sufficient
+// for clients to rebuild SeriesIterator.
 type IteratorPools interface {
-	// MultiReaderIteratorArray exposes the session's MultiReaderIteratorArrayPool
+	// MultiReaderIteratorArray exposes the session MultiReaderIteratorArrayPool.
 	MultiReaderIteratorArray() MultiReaderIteratorArrayPool
-	// MultiReaderIterator exposes the session's MultiReaderIteratorPool
+	// MultiReaderIterator exposes the session MultiReaderIteratorPool.
 	MultiReaderIterator() MultiReaderIteratorPool
-	// MutableSeriesIterators exposes the session's MutableSeriesIteratorsPool
+	// MutableSeriesIterators exposes the session MutableSeriesIteratorsPool.
 	MutableSeriesIterators() MutableSeriesIteratorsPool
-	// SeriesIterator exposes the session's SeriesIteratorPool
+	// SeriesIterator exposes the session SeriesIteratorPool.
 	SeriesIterator() SeriesIteratorPool
-	// CheckedBytesWrapper exposes the session's CheckedBytesWrapperPool
+	// CheckedBytesWrapper exposes the session CheckedBytesWrapperPool.
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
-	// ID exposes the session's identity pool
+	// ID exposes the session identity pool.
 	ID() ident.Pool
-	// TagEncoder exposes the session's tag encoder pool
+	// TagEncoder exposes the session tag encoder pool.
 	TagEncoder() serialize.TagEncoderPool
-	// TagDecoder exposes the session's tag decoder pool
+	// TagDecoder exposes the session tag decoder pool.
 	TagDecoder() serialize.TagDecoderPool
 }

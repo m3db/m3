@@ -62,7 +62,8 @@ type encodedSeriesIter struct {
 
 func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
 	return NewEncodedSeriesIter(
-		b.meta, b.seriesMetas, b.seriesBlockIterators, b.options.LookbackDuration(), b.options.Instrumented(),
+		b.meta, b.seriesMetas, b.seriesBlockIterators,
+		b.options.LookbackDuration(), b.options.Instrumented(),
 	), nil
 }
 
@@ -193,7 +194,8 @@ func iteratorBatchingFn(
 		}
 
 		iter := NewEncodedSeriesIter(
-			meta, seriesMetas[start:end], seriesBlockIterators[start:end], opts.LookbackDuration(), opts.Instrumented(),
+			meta, seriesMetas[start:end], seriesBlockIterators[start:end],
+			opts.LookbackDuration(), opts.Instrumented(),
 		)
 
 		iters = append(iters, block.SeriesIterBatch{
