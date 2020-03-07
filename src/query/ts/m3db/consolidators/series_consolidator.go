@@ -37,7 +37,6 @@ type SeriesLookbackConsolidator struct {
 	earliestLookback time.Time
 	consolidated     float64
 	datapoints       []ts.Datapoint
-	datapointsBuffer []ts.Datapoint
 	fn               ConsolidationFunc
 }
 
@@ -55,7 +54,6 @@ func NewSeriesLookbackConsolidator(
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		consolidated:     math.NaN(),
 		datapoints:       datapoints,
-		datapointsBuffer: datapoints,
 		fn:               fn,
 	}
 }
@@ -85,11 +83,11 @@ func (c *SeriesLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
 	if len(datapointsRelevant) > 0 {
 		// Move them back to the start of the slice to reuse the slice
 		// as best as possible.
-		c.datapoints = c.datapointsBuffer[:len(datapointsRelevant)]
+		c.datapoints = c.datapoints[:len(datapointsRelevant)]
 		copy(c.datapoints, datapointsRelevant)
 	} else {
 		// No relevant datapoints, repoint to the start of the buffer.
-		c.datapoints = c.datapointsBuffer[:0]
+		c.datapoints = c.datapoints[:0]
 	}
 
 	return c.consolidated
@@ -107,5 +105,5 @@ func (c *SeriesLookbackConsolidator) Reset(
 	startTime time.Time,
 ) {
 	c.earliestLookback = startTime.Add(-1 * c.lookbackDuration)
-	c.datapoints = c.datapointsBuffer[:0]
+	c.datapoints = c.datapoints[:0]
 }

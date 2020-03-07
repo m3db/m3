@@ -36,7 +36,6 @@ type StepLookbackAccumulator struct {
 	stepSize         time.Duration
 	earliestLookback time.Time
 	datapoints       []xts.Datapoint
-	datapointsBuffer []xts.Datapoint
 	buffer           [][]xts.Datapoint
 	unconsumed       [][]xts.Datapoint
 }
@@ -57,7 +56,6 @@ func NewStepLookbackAccumulator(
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		datapoints:       datapoints,
-		datapointsBuffer: datapoints,
 		buffer:           buffer,
 		unconsumed:       buffer[:0],
 	}
@@ -89,7 +87,7 @@ func (c *StepLookbackAccumulator) BufferStep() {
 
 	accumulated := make([]xts.Datapoint, len(c.datapoints))
 	copy(accumulated, c.datapoints)
-	c.datapoints = c.datapointsBuffer[:0]
+	c.datapoints = c.datapoints[:0]
 	c.unconsumed = append(c.unconsumed, accumulated)
 }
 

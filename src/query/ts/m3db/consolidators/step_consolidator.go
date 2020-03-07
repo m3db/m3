@@ -48,7 +48,6 @@ type StepLookbackConsolidator struct {
 	stepSize         time.Duration
 	earliestLookback time.Time
 	datapoints       []ts.Datapoint
-	datapointsBuffer []ts.Datapoint
 	buffer           []float64
 	unconsumed       []float64
 	fn               ConsolidationFunc
@@ -71,7 +70,6 @@ func NewStepLookbackConsolidator(
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		datapoints:       datapoints,
-		datapointsBuffer: datapoints,
 		buffer:           buffer,
 		unconsumed:       buffer[:0],
 		fn:               fn,
@@ -99,11 +97,11 @@ func (c *StepLookbackConsolidator) BufferStep() {
 	if len(datapointsRelevant) > 0 {
 		// Move them back to the start of the slice to reuse the slice
 		// as best as possible.
-		c.datapoints = c.datapointsBuffer[:len(datapointsRelevant)]
+		c.datapoints = c.datapoints[:len(datapointsRelevant)]
 		copy(c.datapoints, datapointsRelevant)
 	} else {
 		// No relevant datapoints, repoint to the start of the buffer.
-		c.datapoints = c.datapointsBuffer[:0]
+		c.datapoints = c.datapoints[:0]
 	}
 
 	// Blindly append to unconsumed.
