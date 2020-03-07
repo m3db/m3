@@ -154,6 +154,10 @@ func (it *testMultiIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesI
 	}
 }
 
+func (it *testMultiIterator) Schema() namespace.SchemaDescr {
+	return nil
+}
+
 func (it *testMultiIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 	return nil
 }

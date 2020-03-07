@@ -820,6 +820,20 @@ func (mr *MockMultiReaderIteratorMockRecorder) Readers() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Readers", reflect.TypeOf((*MockMultiReaderIterator)(nil).Readers))
 }
 
+// Schema mocks base method
+func (m *MockMultiReaderIterator) Schema() namespace.SchemaDescr {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Schema")
+	ret0, _ := ret[0].(namespace.SchemaDescr)
+	return ret0
+}
+
+// Schema indicates an expected call of Schema
+func (mr *MockMultiReaderIteratorMockRecorder) Schema() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Schema", reflect.TypeOf((*MockMultiReaderIterator)(nil).Schema))
+}
+
 // MockSeriesIterator is a mock of SeriesIterator interface
 type MockSeriesIterator struct {
 	ctrl     *gomock.Controller
@@ -1046,11 +1060,12 @@ func (m *MockSeriesIteratorConsolidator) EXPECT() *MockSeriesIteratorConsolidato
 }
 
 // ConsolidateReplicas mocks base method
-func (m *MockSeriesIteratorConsolidator) ConsolidateReplicas(arg0 []MultiReaderIterator) []MultiReaderIterator {
+func (m *MockSeriesIteratorConsolidator) ConsolidateReplicas(arg0 []MultiReaderIterator) ([]MultiReaderIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConsolidateReplicas", arg0)
 	ret0, _ := ret[0].([]MultiReaderIterator)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ConsolidateReplicas indicates an expected call of ConsolidateReplicas

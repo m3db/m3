@@ -143,10 +143,14 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 		it.iters.setFilter(it.start, it.end)
 	}
 	it.SetIterateEqualTimestampStrategy(opts.IterateEqualTimestampStrategy)
-
 	replicas := opts.Replicas
+	var err error
 	if consolidator := opts.SeriesIteratorConsolidator; consolidator != nil {
-		replicas = consolidator.ConsolidateReplicas(replicas)
+		replicas, err = consolidator.ConsolidateReplicas(replicas)
+		if err != nil {
+			it.err = err
+			return
+		}
 	}
 
 	for _, replica := range replicas {

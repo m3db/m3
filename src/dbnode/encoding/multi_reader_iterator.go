@@ -181,6 +181,10 @@ func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter xio.ReaderSliceOfSl
 	it.moveToNext()
 }
 
+func (it *multiReaderIterator) Schema() namespace.SchemaDescr {
+	return it.schemaDesc
+}
+
 func (it *multiReaderIterator) Close() {
 	if it.isClosed() {
 		return
