@@ -196,6 +196,44 @@ func (mr *MockFieldsIterableMockRecorder) Fields() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockFieldsIterable)(nil).Fields))
 }
 
+// MockFieldsPostingsListIterable is a mock of FieldsPostingsListIterable interface
+type MockFieldsPostingsListIterable struct {
+	ctrl     *gomock.Controller
+	recorder *MockFieldsPostingsListIterableMockRecorder
+}
+
+// MockFieldsPostingsListIterableMockRecorder is the mock recorder for MockFieldsPostingsListIterable
+type MockFieldsPostingsListIterableMockRecorder struct {
+	mock *MockFieldsPostingsListIterable
+}
+
+// NewMockFieldsPostingsListIterable creates a new mock instance
+func NewMockFieldsPostingsListIterable(ctrl *gomock.Controller) *MockFieldsPostingsListIterable {
+	mock := &MockFieldsPostingsListIterable{ctrl: ctrl}
+	mock.recorder = &MockFieldsPostingsListIterableMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockFieldsPostingsListIterable) EXPECT() *MockFieldsPostingsListIterableMockRecorder {
+	return m.recorder
+}
+
+// FieldsPostingsList mocks base method
+func (m *MockFieldsPostingsListIterable) FieldsPostingsList() (FieldsPostingsListIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FieldsPostingsList")
+	ret0, _ := ret[0].(FieldsPostingsListIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FieldsPostingsList indicates an expected call of FieldsPostingsList
+func (mr *MockFieldsPostingsListIterableMockRecorder) FieldsPostingsList() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FieldsPostingsList", reflect.TypeOf((*MockFieldsPostingsListIterable)(nil).FieldsPostingsList))
+}
+
 // MockTermsIterable is a mock of TermsIterable interface
 type MockTermsIterable struct {
 	ctrl     *gomock.Controller
@@ -313,6 +351,86 @@ func (mr *MockOrderedBytesIteratorMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockOrderedBytesIterator)(nil).Close))
 }
 
+// MockFieldsPostingsListIterator is a mock of FieldsPostingsListIterator interface
+type MockFieldsPostingsListIterator struct {
+	ctrl     *gomock.Controller
+	recorder *MockFieldsPostingsListIteratorMockRecorder
+}
+
+// MockFieldsPostingsListIteratorMockRecorder is the mock recorder for MockFieldsPostingsListIterator
+type MockFieldsPostingsListIteratorMockRecorder struct {
+	mock *MockFieldsPostingsListIterator
+}
+
+// NewMockFieldsPostingsListIterator creates a new mock instance
+func NewMockFieldsPostingsListIterator(ctrl *gomock.Controller) *MockFieldsPostingsListIterator {
+	mock := &MockFieldsPostingsListIterator{ctrl: ctrl}
+	mock.recorder = &MockFieldsPostingsListIteratorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockFieldsPostingsListIterator) EXPECT() *MockFieldsPostingsListIteratorMockRecorder {
+	return m.recorder
+}
+
+// Next mocks base method
+func (m *MockFieldsPostingsListIterator) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next
+func (mr *MockFieldsPostingsListIteratorMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockFieldsPostingsListIterator)(nil).Next))
+}
+
+// Err mocks base method
+func (m *MockFieldsPostingsListIterator) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockFieldsPostingsListIteratorMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockFieldsPostingsListIterator)(nil).Err))
+}
+
+// Close mocks base method
+func (m *MockFieldsPostingsListIterator) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockFieldsPostingsListIteratorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockFieldsPostingsListIterator)(nil).Close))
+}
+
+// Current mocks base method
+func (m *MockFieldsPostingsListIterator) Current() ([]byte, postings.List) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(postings.List)
+	return ret0, ret1
+}
+
+// Current indicates an expected call of Current
+func (mr *MockFieldsPostingsListIteratorMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockFieldsPostingsListIterator)(nil).Current))
+}
+
 // MockFieldsIterator is a mock of FieldsIterator interface
 type MockFieldsIterator struct {
 	ctrl     *gomock.Controller
@@ -350,20 +468,6 @@ func (mr *MockFieldsIteratorMockRecorder) Next() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockFieldsIterator)(nil).Next))
 }
 
-// Current mocks base method
-func (m *MockFieldsIterator) Current() []byte {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Current")
-	ret0, _ := ret[0].([]byte)
-	return ret0
-}
-
-// Current indicates an expected call of Current
-func (mr *MockFieldsIteratorMockRecorder) Current() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockFieldsIterator)(nil).Current))
-}
-
 // Err mocks base method
 func (m *MockFieldsIterator) Err() error {
 	m.ctrl.T.Helper()
@@ -390,6 +494,20 @@ func (m *MockFieldsIterator) Close() error {
 func (mr *MockFieldsIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockFieldsIterator)(nil).Close))
+}
+
+// Current mocks base method
+func (m *MockFieldsIterator) Current() []byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].([]byte)
+	return ret0
+}
+
+// Current indicates an expected call of Current
+func (mr *MockFieldsIteratorMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockFieldsIterator)(nil).Current))
 }
 
 // MockTermsIterator is a mock of TermsIterator interface
@@ -429,21 +547,6 @@ func (mr *MockTermsIteratorMockRecorder) Next() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockTermsIterator)(nil).Next))
 }
 
-// Current mocks base method
-func (m *MockTermsIterator) Current() ([]byte, postings.List) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Current")
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(postings.List)
-	return ret0, ret1
-}
-
-// Current indicates an expected call of Current
-func (mr *MockTermsIteratorMockRecorder) Current() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockTermsIterator)(nil).Current))
-}
-
 // Err mocks base method
 func (m *MockTermsIterator) Err() error {
 	m.ctrl.T.Helper()
@@ -470,6 +573,86 @@ func (m *MockTermsIterator) Close() error {
 func (mr *MockTermsIteratorMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockTermsIterator)(nil).Close))
+}
+
+// Current mocks base method
+func (m *MockTermsIterator) Current() ([]byte, postings.List) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(postings.List)
+	return ret0, ret1
+}
+
+// Current indicates an expected call of Current
+func (mr *MockTermsIteratorMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockTermsIterator)(nil).Current))
+}
+
+// MockIterator is a mock of Iterator interface
+type MockIterator struct {
+	ctrl     *gomock.Controller
+	recorder *MockIteratorMockRecorder
+}
+
+// MockIteratorMockRecorder is the mock recorder for MockIterator
+type MockIteratorMockRecorder struct {
+	mock *MockIterator
+}
+
+// NewMockIterator creates a new mock instance
+func NewMockIterator(ctrl *gomock.Controller) *MockIterator {
+	mock := &MockIterator{ctrl: ctrl}
+	mock.recorder = &MockIteratorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockIterator) EXPECT() *MockIteratorMockRecorder {
+	return m.recorder
+}
+
+// Next mocks base method
+func (m *MockIterator) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next
+func (mr *MockIteratorMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockIterator)(nil).Next))
+}
+
+// Err mocks base method
+func (m *MockIterator) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockIteratorMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockIterator)(nil).Err))
+}
+
+// Close mocks base method
+func (m *MockIterator) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockIteratorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterator)(nil).Close))
 }
 
 // MockMutableSegment is a mock of MutableSegment interface
@@ -596,19 +779,19 @@ func (mr *MockMutableSegmentMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockMutableSegment)(nil).Close))
 }
 
-// Fields mocks base method
-func (m *MockMutableSegment) Fields() (FieldsIterator, error) {
+// FieldsPostingsList mocks base method
+func (m *MockMutableSegment) FieldsPostingsList() (FieldsPostingsListIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Fields")
-	ret0, _ := ret[0].(FieldsIterator)
+	ret := m.ctrl.Call(m, "FieldsPostingsList")
+	ret0, _ := ret[0].(FieldsPostingsListIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Fields indicates an expected call of Fields
-func (mr *MockMutableSegmentMockRecorder) Fields() *gomock.Call {
+// FieldsPostingsList indicates an expected call of FieldsPostingsList
+func (mr *MockMutableSegmentMockRecorder) FieldsPostingsList() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockMutableSegment)(nil).Fields))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FieldsPostingsList", reflect.TypeOf((*MockMutableSegment)(nil).FieldsPostingsList))
 }
 
 // Terms mocks base method
@@ -694,6 +877,21 @@ func (m *MockMutableSegment) InsertBatch(b index.Batch) error {
 func (mr *MockMutableSegmentMockRecorder) InsertBatch(b interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MockMutableSegment)(nil).InsertBatch), b)
+}
+
+// Fields mocks base method
+func (m *MockMutableSegment) Fields() (FieldsIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Fields")
+	ret0, _ := ret[0].(FieldsIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Fields indicates an expected call of Fields
+func (mr *MockMutableSegmentMockRecorder) Fields() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockMutableSegment)(nil).Fields))
 }
 
 // Offset mocks base method
@@ -899,19 +1097,19 @@ func (m *MockBuilder) EXPECT() *MockBuilderMockRecorder {
 	return m.recorder
 }
 
-// Fields mocks base method
-func (m *MockBuilder) Fields() (FieldsIterator, error) {
+// FieldsPostingsList mocks base method
+func (m *MockBuilder) FieldsPostingsList() (FieldsPostingsListIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Fields")
-	ret0, _ := ret[0].(FieldsIterator)
+	ret := m.ctrl.Call(m, "FieldsPostingsList")
+	ret0, _ := ret[0].(FieldsPostingsListIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Fields indicates an expected call of Fields
-func (mr *MockBuilderMockRecorder) Fields() *gomock.Call {
+// FieldsPostingsList indicates an expected call of FieldsPostingsList
+func (mr *MockBuilderMockRecorder) FieldsPostingsList() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockBuilder)(nil).Fields))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FieldsPostingsList", reflect.TypeOf((*MockBuilder)(nil).FieldsPostingsList))
 }
 
 // Terms mocks base method
@@ -993,19 +1191,19 @@ func (m *MockDocumentsBuilder) EXPECT() *MockDocumentsBuilderMockRecorder {
 	return m.recorder
 }
 
-// Fields mocks base method
-func (m *MockDocumentsBuilder) Fields() (FieldsIterator, error) {
+// FieldsPostingsList mocks base method
+func (m *MockDocumentsBuilder) FieldsPostingsList() (FieldsPostingsListIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Fields")
-	ret0, _ := ret[0].(FieldsIterator)
+	ret := m.ctrl.Call(m, "FieldsPostingsList")
+	ret0, _ := ret[0].(FieldsPostingsListIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Fields indicates an expected call of Fields
-func (mr *MockDocumentsBuilderMockRecorder) Fields() *gomock.Call {
+// FieldsPostingsList indicates an expected call of FieldsPostingsList
+func (mr *MockDocumentsBuilderMockRecorder) FieldsPostingsList() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockDocumentsBuilder)(nil).Fields))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FieldsPostingsList", reflect.TypeOf((*MockDocumentsBuilder)(nil).FieldsPostingsList))
 }
 
 // Terms mocks base method
@@ -1116,19 +1314,19 @@ func (m *MockCloseableDocumentsBuilder) EXPECT() *MockCloseableDocumentsBuilderM
 	return m.recorder
 }
 
-// Fields mocks base method
-func (m *MockCloseableDocumentsBuilder) Fields() (FieldsIterator, error) {
+// FieldsPostingsList mocks base method
+func (m *MockCloseableDocumentsBuilder) FieldsPostingsList() (FieldsPostingsListIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Fields")
-	ret0, _ := ret[0].(FieldsIterator)
+	ret := m.ctrl.Call(m, "FieldsPostingsList")
+	ret0, _ := ret[0].(FieldsPostingsListIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Fields indicates an expected call of Fields
-func (mr *MockCloseableDocumentsBuilderMockRecorder) Fields() *gomock.Call {
+// FieldsPostingsList indicates an expected call of FieldsPostingsList
+func (mr *MockCloseableDocumentsBuilderMockRecorder) FieldsPostingsList() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockCloseableDocumentsBuilder)(nil).Fields))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FieldsPostingsList", reflect.TypeOf((*MockCloseableDocumentsBuilder)(nil).FieldsPostingsList))
 }
 
 // Terms mocks base method
@@ -1253,19 +1451,19 @@ func (m *MockSegmentsBuilder) EXPECT() *MockSegmentsBuilderMockRecorder {
 	return m.recorder
 }
 
-// Fields mocks base method
-func (m *MockSegmentsBuilder) Fields() (FieldsIterator, error) {
+// FieldsPostingsList mocks base method
+func (m *MockSegmentsBuilder) FieldsPostingsList() (FieldsPostingsListIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Fields")
-	ret0, _ := ret[0].(FieldsIterator)
+	ret := m.ctrl.Call(m, "FieldsPostingsList")
+	ret0, _ := ret[0].(FieldsPostingsListIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Fields indicates an expected call of Fields
-func (mr *MockSegmentsBuilderMockRecorder) Fields() *gomock.Call {
+// FieldsPostingsList indicates an expected call of FieldsPostingsList
+func (mr *MockSegmentsBuilderMockRecorder) FieldsPostingsList() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockSegmentsBuilder)(nil).Fields))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FieldsPostingsList", reflect.TypeOf((*MockSegmentsBuilder)(nil).FieldsPostingsList))
 }
 
 // Terms mocks base method

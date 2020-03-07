@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 )
 
 // termsDict is an in-memory terms dictionary. It maps fields to postings lists.
@@ -82,6 +83,27 @@ func (d *termsDict) Fields() sgmt.FieldsIterator {
 		fields = append(fields, entry.Key())
 	}
 	return newBytesSliceIter(fields, d.opts)
+}
+
+func (d *termsDict) FieldsPostingsList() sgmt.FieldsPostingsListIterator {
+	d.fields.RLock()
+	defer d.fields.RUnlock()
+	// NB(bodu): This is probably fine since the terms dict/mem segment is only used in tests.
+	fields := make([]uniqueField, 0, d.fields.Len())
+	for _, entry := range d.fields.Iter() {
+		field := entry.Key()
+		pl := roaring.NewPostingsList()
+		if postingsMap, ok := d.fields.Get(field); ok {
+			for _, entry := range postingsMap.Iter() {
+				pl.Union(entry.value)
+			}
+		}
+		fields = append(fields, uniqueField{
+			field:        field,
+			postingsList: pl,
+		})
+	}
+	return newUniqueFieldsIter(fields, d.opts)
 }
 
 func (d *termsDict) Terms(field []byte) sgmt.TermsIterator {

@@ -35,7 +35,6 @@ import (
 var (
 	errSegmentSealed     = errors.New("unable to seal, segment has already been sealed")
 	errSegmentIsUnsealed = errors.New("un-supported operation on an un-sealed mutable segment")
-	errNotImplemented    = errors.New("not implemented")
 )
 
 // nolint: maligned
@@ -463,7 +462,12 @@ func (s *segment) Fields() (sgmt.FieldsIterator, error) {
 }
 
 func (s *segment) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
-	return nil, errNotImplemented
+	s.state.RLock()
+	defer s.state.RUnlock()
+	if err := s.checkIsSealedWithRLock(); err != nil {
+		return nil, err
+	}
+	return s.termsDict.FieldsPostingsList(), nil
 }
 
 func (s *segment) Terms(name []byte) (sgmt.TermsIterator, error) {
@@ -476,6 +480,10 @@ func (s *segment) Terms(name []byte) (sgmt.TermsIterator, error) {
 }
 
 func (s *segment) FieldsIterable() sgmt.FieldsIterable {
+	return s
+}
+
+func (s *segment) FieldsPostingsListIterable() sgmt.FieldsPostingsListIterable {
 	return s
 }
 
