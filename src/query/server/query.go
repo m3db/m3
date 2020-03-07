@@ -253,7 +253,8 @@ func Run(runOpts RunOptions) {
 	if cfg.Backend == config.GRPCStorageType {
 		// For grpc backend, we need to setup only the grpc client and a storage
 		// accompanying that client.
-		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
+		poolWrapper := pools.NewPoolsWrapper(
+			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
 		remoteOpts := config.RemoteOptionsFromConfig(cfg.RPC)
 		remotes, enabled, err := remoteClient(poolWrapper, remoteOpts,
 			tsdbOpts, instrumentOptions)
@@ -549,7 +550,7 @@ func newDownsampler(
 	}
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
-	tagDecoderOptions := serialize.NewTagDecoderOptions()
+	tagDecoderOptions := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{})
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.
 			SetMetricsScope(instrumentOpts.MetricsScope().
@@ -635,7 +636,8 @@ func initClusters(
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
-		poolWrapper = pools.NewPoolsWrapper(pools.BuildIteratorPools())
+		poolWrapper = pools.NewPoolsWrapper(
+			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {

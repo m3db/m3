@@ -294,7 +294,9 @@ func initTestFetchTaggedPools() *testFetchTaggedPools {
 	pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(opts)
 	pools.checkedBytesWrapper.Init()
 
-	pools.tagDecoder = serialize.NewTagDecoderPool(serialize.NewTagDecoderOptions(), opts)
+	pools.tagDecoder = serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		opts)
 	pools.tagDecoder.Init()
 
 	return pools

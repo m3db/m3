@@ -81,18 +81,20 @@ func NewOptions() Options {
 	})
 	bytesPool.Init()
 
-	opts := pool.NewObjectPoolOptions().SetSize(1024)
-	batchPool := pool.NewObjectPool(opts)
-	batchPool.Init(func() interface{} {
-		return nextDetails{}
-	})
+	iteratorPools := pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{})
+	return newOptions(bytesPool, iteratorPools)
+}
 
+func newOptions(
+	bytesPool pool.CheckedBytesPool,
+	iteratorPools encoding.IteratorPools,
+) Options {
 	return &encodedBlockOptions{
 		lookbackDuration: defaultLookbackDuration,
 		consolidationFn:  defaultConsolidationFn,
 		tagOptions:       models.NewTagOptions(),
 		iterAlloc:        defaultIterAlloc,
-		pools:            pools.BuildIteratorPools(),
+		pools:            iteratorPools,
 		checkedPools:     bytesPool,
 		batchingFn:       defaultIteratorBatchingFn,
 		instrumented:     defaultInstrumented,

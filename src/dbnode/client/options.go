@@ -343,7 +343,7 @@ func newOptions() *options {
 		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
 		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
 		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
-		tagDecoderOpts:                          serialize.NewTagDecoderOptions(),
+		tagDecoderOpts:                          serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
 		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,

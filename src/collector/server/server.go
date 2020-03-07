@@ -92,7 +92,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
-	tagDecoderOptions := serialize.NewTagDecoderOptions()
+	tagDecoderOptions := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{})
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.
 			SetMetricsScope(instrumentOpts.MetricsScope().

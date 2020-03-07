@@ -432,7 +432,7 @@ func Run(runOpts RunOptions) {
 			scope.SubScope("tag-encoder-pool")))
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(),
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		poolOptions(
 			policy.TagDecoderPool,
 			scope.SubScope("tag-decoder-pool")))

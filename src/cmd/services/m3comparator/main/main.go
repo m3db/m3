@@ -37,7 +37,8 @@ import (
 
 func main() {
 	var (
-		iterPools   = pools.BuildIteratorPools()
+		iterPools = pools.BuildIteratorPools(
+			pools.BuildIteratorPoolsOptions{})
 		poolWrapper = pools.NewPoolsWrapper(iterPools)
 
 		iOpts  = instrument.NewOptions()
