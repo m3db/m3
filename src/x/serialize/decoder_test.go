@@ -32,7 +32,7 @@ import (
 )
 
 var (
-	testDecodeOpts = NewTagDecoderOptions()
+	testDecodeOpts = NewTagDecoderOptions(TagDecoderOptionsConfig{})
 )
 
 func TestEmptyDecode(t *testing.T) {

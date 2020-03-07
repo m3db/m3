@@ -52,7 +52,8 @@ import (
 
 var (
 	errRead      = errors.New("read error")
-	poolsWrapper = pools.NewPoolsWrapper(pools.BuildIteratorPools())
+	poolsWrapper = pools.NewPoolsWrapper(
+		pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
 )
 
 type mockStorageOptions struct {
