@@ -210,6 +210,9 @@ type MultiReaderIterator interface {
 	// Readers exposes the underlying ReaderSliceOfSlicesIterator
 	// for this MultiReaderIterator.
 	Readers() xio.ReaderSliceOfSlicesIterator
+
+	// Schema exposes the underlying SchemaDescr for this MutliReaderIterator.
+	Schema() namespace.SchemaDescr
 }
 
 // SeriesIterator is an iterator that iterates over a set of iterators from
@@ -267,7 +270,7 @@ type SeriesIteratorStats struct {
 // reset series iterators.
 type SeriesIteratorConsolidator interface {
 	// ConsolidateReplicas consolidates MultiReaderIterator slices.
-	ConsolidateReplicas([]MultiReaderIterator) []MultiReaderIterator
+	ConsolidateReplicas([]MultiReaderIterator) ([]MultiReaderIterator, error)
 }
 
 // SeriesIteratorOptions is a set of options for using a series iterator.
