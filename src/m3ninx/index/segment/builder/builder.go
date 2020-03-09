@@ -300,7 +300,7 @@ func (b *builder) TermsIterable() segment.TermsIterable {
 }
 
 func (b *builder) FieldsPostingsList() (segment.FieldsPostingsListIterator, error) {
-	return NewOrderedBytesSliceIter(b.uniqueFields), nil
+	return newOrderedFieldsPostingsListIter(b.uniqueFields), nil
 }
 
 func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {

@@ -129,8 +129,16 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 	i.currEvaluate()
 
 	// NB(bodu): Build the postings list for this field if the field has changed.
-	i.currFieldPostingsLists = i.currFieldPostingsLists[:0]
-	i.currReaders = i.currReaders[:0]
+	defer func() {
+		for idx := range i.currFieldPostingsLists {
+			i.currFieldPostingsLists[idx] = nil
+		}
+		i.currFieldPostingsLists = i.currFieldPostingsLists[:0]
+		for idx := range i.currReaders {
+			i.currReaders[idx] = nil
+		}
+		i.currReaders = i.currReaders[:0]
+	}()
 	currField := i.currIters[0].Current()
 
 	if !bytes.Equal(prevField, currField) {

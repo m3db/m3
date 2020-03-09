@@ -34,8 +34,8 @@ type uniqueField struct {
 	postingsList postings.List
 }
 
-// OrderedBytesSliceIter is a new ordered bytes slice iterator.
-type OrderedBytesSliceIter struct {
+// orderedFieldsPostingsListIter is a new ordered fields/postings list iterator.
+type orderedFieldsPostingsListIter struct {
 	err  error
 	done bool
 
@@ -44,23 +44,23 @@ type OrderedBytesSliceIter struct {
 	backingSlices *sortableSliceOfSliceOfUniqueFieldsAsc
 }
 
-var _ segment.FieldsPostingsListIterator = &OrderedBytesSliceIter{}
+var _ segment.FieldsPostingsListIterator = &orderedFieldsPostingsListIter{}
 
-// NewOrderedBytesSliceIter sorts a slice of bytes and then
+// newOrderedFieldsPostingsListIter sorts a slice of slices of unique fields and then
 // returns an iterator over them.
-func NewOrderedBytesSliceIter(
+func newOrderedFieldsPostingsListIter(
 	maybeUnorderedFields [][]uniqueField,
-) *OrderedBytesSliceIter {
+) *orderedFieldsPostingsListIter {
 	sortable := &sortableSliceOfSliceOfUniqueFieldsAsc{data: maybeUnorderedFields}
 	sorts.ByBytes(sortable)
-	return &OrderedBytesSliceIter{
+	return &orderedFieldsPostingsListIter{
 		currentIdx:    -1,
 		backingSlices: sortable,
 	}
 }
 
 // Next returns true if there is a next result.
-func (b *OrderedBytesSliceIter) Next() bool {
+func (b *orderedFieldsPostingsListIter) Next() bool {
 	if b.done || b.err != nil {
 		return false
 	}
@@ -75,22 +75,22 @@ func (b *OrderedBytesSliceIter) Next() bool {
 }
 
 // Current returns the current entry.
-func (b *OrderedBytesSliceIter) Current() ([]byte, postings.List) {
+func (b *orderedFieldsPostingsListIter) Current() ([]byte, postings.List) {
 	return b.current.field, b.current.postingsList
 }
 
 // Err returns an error if an error occurred iterating.
-func (b *OrderedBytesSliceIter) Err() error {
+func (b *orderedFieldsPostingsListIter) Err() error {
 	return nil
 }
 
 // Len returns the length of the slice.
-func (b *OrderedBytesSliceIter) Len() int {
+func (b *orderedFieldsPostingsListIter) Len() int {
 	return b.backingSlices.Len()
 }
 
 // Close releases resources.
-func (b *OrderedBytesSliceIter) Close() error {
+func (b *orderedFieldsPostingsListIter) Close() error {
 	b.current = uniqueField{}
 	return nil
 }
