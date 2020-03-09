@@ -1377,7 +1377,7 @@ func (mr *MockIStreamMockRecorder) PeekBits(numBits interface{}) *gomock.Call {
 func (m *MockIStream) RemainingBitsInCurrentByte() uint {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemainingBitsInCurrentByte")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(uint)
 	return ret0
 }
 
