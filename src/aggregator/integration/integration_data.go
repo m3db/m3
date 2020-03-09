@@ -367,7 +367,7 @@ func computeExpectedAggregationBuckets(
 					var (
 						aggTypeOpts     = opts.AggregationTypesOptions()
 						aggTypes        = maggregation.NewIDDecompressor().MustDecompress(bucket.key.aggregationID)
-						aggregationOpts = aggregation.NewOptions()
+						aggregationOpts = aggregation.NewOptions(opts.InstrumentOptions().MetricsScope())
 					)
 					switch mu.Type() {
 					case metric.CounterType:
@@ -431,7 +431,7 @@ func addUntimedMetricToAggregation(
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
-		v.Update(mu.GaugeVal)
+		v.Update(time.Now(), mu.GaugeVal)
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unrecognized untimed metric type %v", mu.Type)
@@ -453,7 +453,7 @@ func addTimedMetricToAggregation(
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
-		v.Update(mu.Value)
+		v.Update(time.Now(), mu.Value)
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unrecognized timed metric type %v", mu.Type)
@@ -478,7 +478,7 @@ func addForwardedMetricToAggregation(
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
 		for _, val := range mu.Values {
-			v.Update(val)
+			v.Update(time.Now(), val)
 		}
 		return v, nil
 	default:

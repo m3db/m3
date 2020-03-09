@@ -397,8 +397,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 				continue
 			}
 			currTime := start.Add(time.Duration(i+1) * storagePolicy.Resolution().Window)
-			agg := aggregation.NewGauge(aggregation.NewOptions())
-			agg.Update(expectedValuesList[spIdx][i])
+			scope := aggregatorOpts.InstrumentOptions().MetricsScope()
+			agg := aggregation.NewGauge(aggregation.NewOptions(scope))
+			agg.Update(time.Now(), expectedValuesList[spIdx][i])
 			expectedValuesByTimeList[spIdx][currTime.UnixNano()] = agg
 		}
 	}

@@ -23,6 +23,7 @@ package aggregator
 import (
 	"strings"
 	"testing"
+	"time"
 
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
@@ -276,11 +277,11 @@ func TestGaugeElemBase(t *testing.T) {
 func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 	e := gaugeElemBase{}
 	la := e.NewAggregation(nil, raggregation.Options{})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		GaugeVal: 100.0,
 	})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		GaugeVal: 200.0,
 	})

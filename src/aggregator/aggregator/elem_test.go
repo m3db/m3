@@ -1843,7 +1843,7 @@ func testGaugeElem(
 	e := MustNewGaugeElem(testGaugeID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, WithPrefixWithSuffix, opts)
 	for i, aligned := range alignedstartAtNanos {
 		gauge := &lockedGaugeAggregation{aggregation: newGaugeAggregation(raggregation.NewGauge(e.aggOpts))}
-		gauge.aggregation.Update(gaugeVals[i])
+		gauge.aggregation.Update(time.Now(), gaugeVals[i])
 		e.values = append(e.values, timedGauge{
 			startAtNanos: aligned,
 			lockedAgg:    gauge,

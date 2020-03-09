@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
@@ -29,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -53,7 +55,7 @@ var (
 )
 
 func TestCounterAggregationAdd(t *testing.T) {
-	c := newCounterAggregation(aggregation.NewCounter(aggregation.NewOptions()))
+	c := newCounterAggregation(aggregation.NewCounter(aggregation.NewOptions(tally.NoopScope)))
 	for _, v := range testAggregationValues {
 		c.Add(v)
 	}
@@ -62,7 +64,7 @@ func TestCounterAggregationAdd(t *testing.T) {
 }
 
 func TestCounterAggregationAddUnion(t *testing.T) {
-	c := newCounterAggregation(aggregation.NewCounter(aggregation.NewOptions()))
+	c := newCounterAggregation(aggregation.NewCounter(aggregation.NewOptions(tally.NoopScope)))
 	for _, v := range testAggregationUnions {
 		c.AddUnion(v)
 	}
@@ -71,7 +73,7 @@ func TestCounterAggregationAddUnion(t *testing.T) {
 }
 
 func TestTimerAggregationAdd(t *testing.T) {
-	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions()))
+	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions(tally.NoopScope)))
 	for _, v := range testAggregationValues {
 		tm.Add(v)
 	}
@@ -80,7 +82,7 @@ func TestTimerAggregationAdd(t *testing.T) {
 }
 
 func TestTimerAggregationAddUnion(t *testing.T) {
-	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions()))
+	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions(tally.NoopScope)))
 	for _, v := range testAggregationUnions {
 		tm.AddUnion(v)
 	}
@@ -89,18 +91,18 @@ func TestTimerAggregationAddUnion(t *testing.T) {
 }
 
 func TestGaugeAggregationAdd(t *testing.T) {
-	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions()))
+	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions(tally.NoopScope)))
 	for _, v := range testAggregationValues {
-		g.Add(v)
+		g.Add(time.Now(), v)
 	}
 	require.Equal(t, int64(4), g.Count())
 	require.Equal(t, 799.2, g.Sum())
 }
 
 func TestGaugeAggregationAddUnion(t *testing.T) {
-	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions()))
+	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions(tally.NoopScope)))
 	for _, v := range testAggregationUnions {
-		g.AddUnion(v)
+		g.AddUnion(time.Now(), v)
 	}
 	require.Equal(t, int64(3), g.Count())
 	require.Equal(t, 123.456, g.Sum())
