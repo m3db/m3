@@ -367,7 +367,7 @@ func computeExpectedAggregationBuckets(
 					var (
 						aggTypeOpts     = opts.AggregationTypesOptions()
 						aggTypes        = maggregation.NewIDDecompressor().MustDecompress(bucket.key.aggregationID)
-						aggregationOpts = aggregation.NewOptions(opts.InstrumentOptions().MetricsScope())
+						aggregationOpts = aggregation.NewOptions(opts.InstrumentOptions())
 					)
 					switch mu.Type() {
 					case metric.CounterType:

@@ -62,7 +62,7 @@ func (g *Gauge) Update(timestamp time.Time, value float64) {
 		g.last = value
 		g.lastAt = timestamp
 	} else {
-		g.Options.Metrics.IncGaugeValuesOutOfOrder()
+		g.Options.Metrics.Gauge.IncValuesOutOfOrder()
 	}
 
 	g.sum += value

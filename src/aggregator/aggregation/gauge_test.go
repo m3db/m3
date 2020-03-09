@@ -25,13 +25,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
 func TestGaugeDefaultAggregationType(t *testing.T) {
-	g := NewGauge(NewOptions(tally.NoopScope))
+	g := NewGauge(NewOptions(instrument.NewOptions()))
 	require.False(t, g.HasExpensiveAggregations)
 	for i := 1.0; i <= 100.0; i++ {
 		g.Update(time.Now(), i)
@@ -44,7 +45,7 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 }
 
 func TestGaugeCustomAggregationType(t *testing.T) {
-	opts := NewOptions(tally.NoopScope)
+	opts := NewOptions(instrument.NewOptions())
 	opts.HasExpensiveAggregations = true
 
 	g := NewGauge(opts)
@@ -83,7 +84,7 @@ func TestGaugeCustomAggregationType(t *testing.T) {
 
 func TestGaugeLastOutOfOrderValues(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
-	g := NewGauge(NewOptions(scope))
+	g := NewGauge(NewOptions(instrument.NewOptions().SetMetricsScope(scope)))
 
 	timeMid := time.Now().Add(time.Minute)
 	timePre := timeMid.Add(-1 * time.Second)

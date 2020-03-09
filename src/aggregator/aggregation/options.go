@@ -22,6 +22,8 @@ package aggregation
 
 import (
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/uber-go/tally"
 )
 
@@ -40,30 +42,40 @@ type Options struct {
 
 // Metrics is a set of metrics that can be used by elements.
 type Metrics struct {
-	gaugeValuesOutOfOrder tally.Counter
+	Gauge GaugeMetrics
+}
+
+// GaugeMetrics is a set of gauge metrics can be used by all gauges.
+type GaugeMetrics struct {
+	valuesOutOfOrder tally.Counter
 }
 
 // NewMetrics is a set of aggregation metrics.
 func NewMetrics(scope tally.Scope) Metrics {
 	scope = scope.SubScope("aggregation")
-	gaugeScope := scope.SubScope("gauges")
 	return Metrics{
-		gaugeValuesOutOfOrder: gaugeScope.Counter("values-out-of-order"),
+		Gauge: newGaugeMetrics(scope.SubScope("gauges")),
 	}
 }
 
-// IncGaugeValuesOutOfOrder increments value or if not initialized is a no-op.
-func (m Metrics) IncGaugeValuesOutOfOrder() {
-	if m.gaugeValuesOutOfOrder != nil {
-		m.gaugeValuesOutOfOrder.Inc(1)
+func newGaugeMetrics(scope tally.Scope) GaugeMetrics {
+	return GaugeMetrics{
+		valuesOutOfOrder: scope.Counter("values-out-of-order"),
+	}
+}
+
+// IncValuesOutOfOrder increments value or if not initialized is a no-op.
+func (m GaugeMetrics) IncValuesOutOfOrder() {
+	if m.valuesOutOfOrder != nil {
+		m.valuesOutOfOrder.Inc(1)
 	}
 }
 
 // NewOptions creates a new aggregation options.
-func NewOptions(scope tally.Scope) Options {
+func NewOptions(instrumentOpts instrument.Options) Options {
 	return Options{
 		HasExpensiveAggregations: defaultHasExpensiveAggregations,
-		Metrics:                  NewMetrics(scope),
+		Metrics:                  NewMetrics(instrumentOpts.MetricsScope()),
 	}
 }
 
