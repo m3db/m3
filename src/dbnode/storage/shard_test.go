@@ -1523,8 +1523,8 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	shard.setBlockRetriever(retriever)
 
 	segments := []ts.Segment{
-		ts.NewSegment(checked.NewBytes([]byte("bar"), nil), nil, ts.FinalizeNone),
-		ts.NewSegment(checked.NewBytes([]byte("baz"), nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte("bar"), nil), nil, 0, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte("baz"), nil), nil, 1, ts.FinalizeNone),
 	}
 
 	var blockReaders []xio.BlockReader

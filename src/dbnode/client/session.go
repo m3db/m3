@@ -1297,7 +1297,8 @@ func (s *session) fetchTaggedAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, metadata, err := fetchState.asEncodingSeriesIterators(s.pools, nsCtx.Schema)
+	iters, metadata, err := fetchState.asEncodingSeriesIterators(
+		s.pools, nsCtx.Schema, s.opts.IterationOptions())
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
@@ -1578,6 +1579,7 @@ func (s *session) fetchIDsAttempt(
 					// Avoid decoding more data than is required to satisfy the consistency guarantees.
 					numItersToInclude = numDesired
 				}
+
 				itersToInclude := results[:numItersToInclude]
 				resultsLock.RUnlock()
 
@@ -1588,12 +1590,14 @@ func (s *session) fetchIDsAttempt(
 				// due to a pending request in queue.
 				seriesID := s.pools.id.Clone(tsID)
 				namespaceID := s.pools.id.Clone(namespace)
+				consolidator := s.opts.IterationOptions().SeriesIteratorConsolidator
 				iter.Reset(encoding.SeriesIteratorOptions{
-					ID:             seriesID,
-					Namespace:      namespaceID,
-					StartInclusive: startInclusive,
-					EndExclusive:   endExclusive,
-					Replicas:       itersToInclude,
+					ID:                         seriesID,
+					Namespace:                  namespaceID,
+					StartInclusive:             xtime.ToUnixNano(startInclusive),
+					EndExclusive:               xtime.ToUnixNano(endExclusive),
+					Replicas:                   itersToInclude,
+					SeriesIteratorConsolidator: consolidator,
 				})
 				iters.SetAt(idx, iter)
 			}
@@ -3261,7 +3265,12 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 		tail.AppendAll(seg.Tail)
 		tail.DecRef()
 	}
-	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
+	var checksum uint32
+	if seg.Checksum != nil {
+		checksum = uint32(*seg.Checksum)
+	}
+
+	return ts.NewSegment(head, tail, checksum, ts.FinalizeHead&ts.FinalizeTail)
 }
 
 func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {

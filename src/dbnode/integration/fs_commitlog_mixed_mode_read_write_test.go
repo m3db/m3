@@ -338,8 +338,9 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 			dp = generate.Series{ID: point.series}
 		}
 		dp.Data = append(dp.Data, generate.TestValue{Datapoint: ts.Datapoint{
-			Timestamp: t,
-			Value:     point.value,
+			Timestamp:      t,
+			TimestampNanos: xtime.ToUnixNano(t),
+			Value:          point.value,
 		}, Annotation: point.ann})
 		seriesBlock[idString] = dp
 		blockStartToSeriesMap[xtime.ToUnixNano(trunc)] = seriesBlock

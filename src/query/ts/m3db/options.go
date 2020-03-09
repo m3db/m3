@@ -26,6 +26,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -59,6 +60,7 @@ type encodedBlockOptions struct {
 	readWorkerPools  xsync.PooledWorkerPool
 	writeWorkerPools xsync.PooledWorkerPool
 	batchingFn       IteratorBatchingFn
+	adminOptions     []client.CustomAdminOption
 	instrumented     bool
 }
 
@@ -79,18 +81,20 @@ func NewOptions() Options {
 	})
 	bytesPool.Init()
 
-	opts := pool.NewObjectPoolOptions().SetSize(1024)
-	batchPool := pool.NewObjectPool(opts)
-	batchPool.Init(func() interface{} {
-		return nextDetails{}
-	})
+	iteratorPools := pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{})
+	return newOptions(bytesPool, iteratorPools)
+}
 
+func newOptions(
+	bytesPool pool.CheckedBytesPool,
+	iteratorPools encoding.IteratorPools,
+) Options {
 	return &encodedBlockOptions{
 		lookbackDuration: defaultLookbackDuration,
 		consolidationFn:  defaultConsolidationFn,
 		tagOptions:       models.NewTagOptions(),
 		iterAlloc:        defaultIterAlloc,
-		pools:            pools.BuildIteratorPools(),
+		pools:            iteratorPools,
 		checkedPools:     bytesPool,
 		batchingFn:       defaultIteratorBatchingFn,
 		instrumented:     defaultInstrumented,
@@ -195,6 +199,18 @@ func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Optio
 
 func (o *encodedBlockOptions) IteratorBatchingFn() IteratorBatchingFn {
 	return o.batchingFn
+}
+
+func (o *encodedBlockOptions) SetCustomAdminOptions(
+	val []client.CustomAdminOption) Options {
+	opts := *o
+	opts.adminOptions = val
+	return &opts
+
+}
+
+func (o *encodedBlockOptions) CustomAdminOptions() []client.CustomAdminOption {
+	return o.adminOptions
 }
 
 func (o *encodedBlockOptions) SetInstrumented(i bool) Options {

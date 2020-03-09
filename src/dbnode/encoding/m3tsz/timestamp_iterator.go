@@ -33,7 +33,7 @@ import (
 // TimestampIterator encapsulates all the state required for iterating over
 // delta-of-delta compresed timestamps.
 type TimestampIterator struct {
-	PrevTime      time.Time
+	PrevTime      xtime.UnixNano
 	PrevTimeDelta time.Duration
 	PrevAnt       ts.Annotation
 
@@ -76,7 +76,7 @@ func (it *TimestampIterator) ReadTimestamp(stream encoding.IStream) (bool, bool,
 		first = false
 		err   error
 	)
-	if it.PrevTime.IsZero() {
+	if it.PrevTime == 0 {
 		first = true
 		err = it.readFirstTimestamp(stream)
 	} else {
@@ -120,11 +120,10 @@ func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 		return err
 	}
 
-	nt := int64(ntBits)
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
-	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
+	nt := xtime.UnixNano(ntBits)
 	if it.TimeUnit == xtime.None {
-		it.TimeUnit = initialTimeUnit(st, it.Opts.DefaultTimeUnit())
+		it.TimeUnit = initialTimeUnit(nt, it.Opts.DefaultTimeUnit())
 	}
 
 	err = it.readNextTimestamp(stream)
@@ -132,7 +131,7 @@ func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 		return err
 	}
 
-	it.PrevTime = st.Add(it.PrevTimeDelta)
+	it.PrevTime = nt + xtime.UnixNano(it.PrevTimeDelta)
 	return nil
 }
 
@@ -143,7 +142,7 @@ func (it *TimestampIterator) readNextTimestamp(stream encoding.IStream) error {
 	}
 
 	it.PrevTimeDelta += dod
-	it.PrevTime = it.PrevTime.Add(it.PrevTimeDelta)
+	it.PrevTime = it.PrevTime + xtime.UnixNano(it.PrevTimeDelta)
 	return nil
 }
 
@@ -218,7 +217,7 @@ func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (
 		}
 	}
 
-	tes, exists := it.Opts.TimeEncodingSchemes()[it.TimeUnit]
+	tes, exists := it.Opts.TimeEncodingSchemes().SchemeForUnit(it.TimeUnit)
 	if !exists {
 		return 0, fmt.Errorf("time encoding scheme for time unit %v doesn't exist", it.TimeUnit)
 	}
@@ -277,7 +276,6 @@ func (it *TimestampIterator) readDeltaOfDelta(
 	if err != nil {
 		return 0, err
 	}
-
 	dod := encoding.SignExtend(dodBits, numValueBits)
 	timeUnit, err := it.TimeUnit.Value()
 	if err != nil {
