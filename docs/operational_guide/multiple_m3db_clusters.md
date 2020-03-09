@@ -2,37 +2,20 @@
 
 ### Overview:
 
-Default M3 architecture has the M3Coordinator writing to and aggregating meterics from a single M3DB cluster. If wanting to add more than one, follow the below instructions. 
+Default M3 architecture has the M3Coordinator writing to and aggregating meterics from a single M3DB cluster. To map a single coordinator to more than one M3DB cluster, follow the below instructions. 
 
 Use case(s):
 - Sending metrics to different namespaces for different retention periods, etc.
 
 ### Instructions: 
 
-**Note:** Adding mutliple M3DB clusters to m3coordinator using the m3aggregator requires clusterManagement
+**Note:** Adding multiple M3DB clusters to m3coordinator using the m3aggregator requires clusterManagement.
 
 **Note:** When making API requests, an environment header needs to be set. 
 
 1. Add clusterManagement to congfig file:
 
-Example of clusterManagement config:
-
-```bash
-clusterManagement:
-  etcd:
-    env: default_env
-    zone: embedded
-    service: m3db
-    cacheDir: /data/m3kv_default
-    etcdClusters:
-      - zone: embedded
-        endpoints:
-          - 10.33.131.173:2379
-          - 10.33.131.174:2379
-          - 10.33.131.175:2379
-  ``` 
-
-Example config file with clusterManagement: 
+Example config file with clusterManagement (see end of the config):
 
 ```bash
   - namespaces:
@@ -49,9 +32,9 @@ Example config file with clusterManagement:
            etcdClusters:
              - zone: embedded
                endpoints:
-                 - 10.33.131.173:2379
-                 - 10.33.131.174:2379
-                 - 10.33.131.175:2379
+              - <ETCD_IP_1>
+              - <ETCD_IP_2>
+              - <ETCD_IP_3>
        writeConsistencyLevel: majority
        readConsistencyLevel: unstrict_majority
        writeTimeout: 10s
@@ -88,9 +71,9 @@ Example config file with clusterManagement:
            etcdClusters:
              - zone: embedded
                endpoints:
-                 - 10.33.131.173:2379
-                 - 10.33.131.174:2379
-                 - 10.33.131.175:2379
+                 - <ETCD_IP_1>
+                 - <ETCD_IP_2>
+                 - <ETCD_IP_3>
        writeConsistencyLevel: majority
        readConsistencyLevel: unstrict_majority
        writeTimeout: 10s
@@ -119,7 +102,7 @@ clusterManagement:
     etcdClusters:
       - zone: embedded
         endpoints:
-          - 10.33.131.173:2379
-          - 10.33.131.174:2379
-          - 10.33.131.175:2379
+          - <ETCD_IP_1>
+          - <ETCD_IP_2>
+          - <ETCD_IP_3>
 ```
