@@ -49,8 +49,7 @@ type TimestampIterator struct {
 	// for situations where looking ahead is not safe.
 	SkipMarkers bool
 
-	numOpcodeBits        int
-	numValueBits         int
+	numValueBits         uint
 	numBits              uint
 	markerEncodingScheme encoding.MarkerEncodingScheme
 }
@@ -61,8 +60,7 @@ func NewTimestampIterator(opts encoding.Options, skipMarkers bool) TimestampIter
 	return TimestampIterator{
 		Opts:                 opts,
 		SkipMarkers:          skipMarkers,
-		numValueBits:         mes.NumValueBits(),
-		numOpcodeBits:        mes.NumOpcodeBits(),
+		numValueBits:         uint(mes.NumValueBits()),
 		numBits:              uint(mes.NumOpcodeBits() + mes.NumValueBits()),
 		markerEncodingScheme: mes,
 	}
@@ -152,13 +150,13 @@ func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (time.Durati
 		return 0, false, nil
 	}
 
-	opcode := opcodeAndValue >> uint(it.numValueBits)
+	opcode := opcodeAndValue >> it.numValueBits
 	if opcode != it.markerEncodingScheme.Opcode() {
 		return 0, false, nil
 	}
 
 	var (
-		valueMask   = (1 << uint(it.numValueBits)) - 1
+		valueMask   = (1 << it.numValueBits) - 1
 		markerValue = int64(opcodeAndValue & uint64(valueMask))
 	)
 	switch encoding.Marker(markerValue) {
