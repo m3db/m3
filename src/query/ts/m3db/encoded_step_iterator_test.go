@@ -398,6 +398,7 @@ func (t iterType) name(name string) string {
 }
 
 type reset func()
+type stop func()
 
 // newTestOptions provides options with very small/non-existent pools
 // so that memory profiles don't get cluttered with pooled allocated objects.
@@ -423,7 +424,7 @@ func newTestOptions() Options {
 	return newOptions(bytesPool, iteratorPools)
 }
 
-func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset) {
+func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, stop) {
 	var (
 		seriesCount   = 1000
 		replicasCount = 3
@@ -509,34 +510,6 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset) {
 	}
 
 	usePools := t == stepParallel
-	if os.Getenv("PROFILE_TEST_CPU") == "true" {
-		key := profileTakenKey{
-			profile:    "cpu",
-			pools:      usePools,
-			iterations: iterations,
-		}
-		if v := profilesTaken[key]; v == 2 {
-			p := profile.Start(profile.CPUProfile)
-			defer p.Stop()
-		}
-
-		profilesTaken[key] = profilesTaken[key] + 1
-	}
-
-	if os.Getenv("PROFILE_TEST_MEM") == "true" {
-		key := profileTakenKey{
-			profile:    "mem",
-			pools:      usePools,
-			iterations: iterations,
-		}
-
-		if v := profilesTaken[key]; v == 2 {
-			p := profile.Start(profile.MemProfile)
-			defer p.Stop()
-		}
-
-		profilesTaken[key] = profilesTaken[key] + 1
-	}
 
 	opts := newTestOptions()
 	if usePools {
@@ -559,14 +532,57 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset) {
 
 	require.NoError(b, err)
 	return block, func() {
-		for _, reset := range itersReset {
-			reset()
+			for _, reset := range itersReset {
+				reset()
+			}
+		},
+		setupProf(usePools, iterations)
+}
+
+func setupProf(usePools bool, iterations int) stop {
+	var pCPU, pMem interface {
+		Stop()
+	}
+	if os.Getenv("PROFILE_TEST_CPU") == "true" {
+		key := profileTakenKey{
+			profile:    "cpu",
+			pools:      usePools,
+			iterations: iterations,
+		}
+		if v := profilesTaken[key]; v == 2 {
+			pCPU = profile.Start(profile.CPUProfile)
+		}
+
+		profilesTaken[key] = profilesTaken[key] + 1
+	}
+
+	if os.Getenv("PROFILE_TEST_MEM") == "true" {
+		key := profileTakenKey{
+			profile:    "mem",
+			pools:      usePools,
+			iterations: iterations,
+		}
+
+		if v := profilesTaken[key]; v == 2 {
+			pMem = profile.Start(profile.MemProfile)
+		}
+
+		profilesTaken[key] = profilesTaken[key] + 1
+	}
+	return func() {
+		if pCPU != nil {
+			pCPU.Stop()
+		}
+		if pMem != nil {
+			pMem.Stop()
 		}
 	}
 }
 
 func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
-	bl, reset := setupBlock(b, iterations, t)
+	bl, reset, close := setupBlock(b, iterations, t)
+	defer close()
+
 	if t == seriesSequential {
 		it, err := bl.SeriesIter()
 		require.NoError(b, err)
@@ -673,13 +689,13 @@ var (
 */
 func BenchmarkNextIteration(b *testing.B) {
 	iterTypes := []iterType{
-		stepSequential,
-		stepParallel,
+		// stepSequential,
+		// stepParallel,
 		seriesSequential,
-		seriesBatch,
+		// seriesBatch,
 	}
 
-	for _, s := range []int{10, 100, 200, 500, 1000, 2000} {
+	for _, s := range []int{10} {
 		for _, t := range iterTypes {
 			name := t.name(fmt.Sprintf("%d", s))
 			b.Run(name, func(b *testing.B) {
