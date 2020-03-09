@@ -178,6 +178,10 @@ func (b *builderFromSegments) Fields() (segment.FieldsIterator, error) {
 	return newFieldIterFromSegments(b.segments)
 }
 
+func (b *builderFromSegments) FieldsPostingsList() (segment.FieldsPostingsListIterator, error) {
+	return newFieldPostingsListIterFromSegments(b.segments)
+}
+
 func (b *builderFromSegments) Terms(field []byte) (segment.TermsIterator, error) {
 	if err := b.termsIter.setField(field); err != nil {
 		return nil, err
