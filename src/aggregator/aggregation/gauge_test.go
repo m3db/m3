@@ -22,17 +22,19 @@ package aggregation
 
 import (
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestGaugeDefaultAggregationType(t *testing.T) {
-	g := NewGauge(NewOptions())
+	g := NewGauge(NewOptions(tally.NoopScope))
 	require.False(t, g.HasExpensiveAggregations)
 	for i := 1.0; i <= 100.0; i++ {
-		g.Update(i)
+		g.Update(time.Now(), i)
 	}
 	require.Equal(t, 100.0, g.Last())
 	require.Equal(t, 100.0, g.ValueOf(aggregation.Last))
@@ -42,14 +44,14 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 }
 
 func TestGaugeCustomAggregationType(t *testing.T) {
-	opts := NewOptions()
+	opts := NewOptions(tally.NoopScope)
 	opts.HasExpensiveAggregations = true
 
 	g := NewGauge(opts)
 	require.True(t, g.HasExpensiveAggregations)
 
 	for i := 1; i <= 100; i++ {
-		g.Update(float64(i))
+		g.Update(time.Now(), float64(i))
 	}
 
 	require.Equal(t, 100.0, g.Last())
@@ -77,4 +79,25 @@ func TestGaugeCustomAggregationType(t *testing.T) {
 			require.False(t, aggType.IsValidForGauge())
 		}
 	}
+}
+
+func TestGaugeLastOutOfOrderValues(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	g := NewGauge(NewOptions(scope))
+
+	timeMid := time.Now().Add(time.Minute)
+	timePre := timeMid.Add(-1 * time.Second)
+	timePrePre := timeMid.Add(-1 * time.Second)
+	timeAfter := timeMid.Add(time.Second)
+
+	g.Update(timeMid, 42)
+	g.Update(timePre, 41)
+	g.Update(timeAfter, 43)
+	g.Update(timePrePre, 40)
+
+	require.Equal(t, 43.0, g.Last())
+	snap := scope.Snapshot().Counters()
+	counter, ok := snap["aggregation.gauges.values-out-of-order+"]
+	require.True(t, ok)
+	require.Equal(t, int64(2), counter.Value())
 }

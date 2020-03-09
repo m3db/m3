@@ -173,10 +173,11 @@ type elemBase struct {
 }
 
 func newElemBase(opts Options) elemBase {
+	scope := opts.InstrumentOptions().MetricsScope()
 	return elemBase{
 		opts:         opts,
 		aggTypesOpts: opts.AggregationTypesOptions(),
-		aggOpts:      raggregation.NewOptions(),
+		aggOpts:      raggregation.NewOptions(scope),
 	}
 }
 

@@ -26,10 +26,11 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestCounterDefaultAggregationType(t *testing.T) {
-	c := NewCounter(NewOptions())
+	c := NewCounter(NewOptions(tally.NoopScope))
 	require.False(t, c.HasExpensiveAggregations)
 	for i := 1; i <= 100; i++ {
 		c.Update(int64(i))
@@ -41,7 +42,7 @@ func TestCounterDefaultAggregationType(t *testing.T) {
 }
 
 func TestCounterCustomAggregationType(t *testing.T) {
-	opts := NewOptions()
+	opts := NewOptions(tally.NoopScope)
 	opts.HasExpensiveAggregations = true
 
 	c := NewCounter(opts)

@@ -20,10 +20,13 @@
 
 package aggregation
 
-import "github.com/m3db/m3/src/metrics/aggregation"
+import (
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/uber-go/tally"
+)
 
 var (
-	defaultOptions Options
+	defaultHasExpensiveAggregations = false
 )
 
 // Options is the options for aggregations.
@@ -31,11 +34,37 @@ type Options struct {
 	// HasExpensiveAggregations means expensive (multiplication／division)
 	// aggregation types are enabled.
 	HasExpensiveAggregations bool
+	// Metrics is as set of aggregation metrics.
+	Metrics Metrics
+}
+
+// Metrics is a set of metrics that can be used by elements.
+type Metrics struct {
+	gaugeValuesOutOfOrder tally.Counter
+}
+
+// NewMetrics is a set of aggregation metrics.
+func NewMetrics(scope tally.Scope) Metrics {
+	scope = scope.SubScope("aggregation")
+	gaugeScope := scope.SubScope("gauges")
+	return Metrics{
+		gaugeValuesOutOfOrder: gaugeScope.Counter("values-out-of-order"),
+	}
+}
+
+// IncGaugeValuesOutOfOrder increments value or if not initialized is a no-op.
+func (m Metrics) IncGaugeValuesOutOfOrder() {
+	if m.gaugeValuesOutOfOrder != nil {
+		m.gaugeValuesOutOfOrder.Inc(1)
+	}
 }
 
 // NewOptions creates a new aggregation options.
-func NewOptions() Options {
-	return defaultOptions
+func NewOptions(scope tally.Scope) Options {
+	return Options{
+		HasExpensiveAggregations: defaultHasExpensiveAggregations,
+		Metrics:                  NewMetrics(scope),
+	}
 }
 
 // ResetSetData resets the aggregation options.

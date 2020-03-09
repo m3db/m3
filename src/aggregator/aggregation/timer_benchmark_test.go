@@ -24,10 +24,12 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
+
+	"github.com/uber-go/tally"
 )
 
 func getTimer() Timer {
-	opts := NewOptions()
+	opts := NewOptions(tally.NoopScope)
 	opts.ResetSetData(testAggTypes)
 
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)

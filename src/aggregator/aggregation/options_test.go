@@ -26,10 +26,11 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestOptions(t *testing.T) {
-	o := NewOptions()
+	o := NewOptions(tally.NoopScope)
 	require.False(t, o.HasExpensiveAggregations)
 
 	o.ResetSetData(nil)

@@ -22,6 +22,7 @@ package aggregation
 
 import (
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 )
@@ -34,12 +35,13 @@ const (
 type Gauge struct {
 	Options
 
-	last  float64
-	sum   float64
-	sumSq float64
-	count int64
-	max   float64
-	min   float64
+	last   float64
+	lastAt time.Time
+	sum    float64
+	sumSq  float64
+	count  int64
+	max    float64
+	min    float64
 }
 
 // NewGauge creates a new gauge.
@@ -52,8 +54,16 @@ func NewGauge(opts Options) Gauge {
 }
 
 // Update updates the gauge value.
-func (g *Gauge) Update(value float64) {
-	g.last = value
+func (g *Gauge) Update(timestamp time.Time, value float64) {
+	if g.lastAt.IsZero() || timestamp.After(g.lastAt) {
+		// NB(r): Only set the last value if this value arrives
+		// after the wall clock timestamp of previous values, not
+		// the arrival time (i.e. order received).
+		g.last = value
+		g.lastAt = timestamp
+	} else {
+		g.Options.Metrics.IncGaugeValuesOutOfOrder()
+	}
 
 	g.sum += value
 	g.count++

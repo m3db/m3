@@ -21,6 +21,8 @@
 package aggregator
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 )
@@ -34,23 +36,44 @@ func newCounterAggregation(c aggregation.Counter) counterAggregation {
 	return counterAggregation{Counter: c}
 }
 
-func (c *counterAggregation) Add(value float64)                    { c.Counter.Update(int64(value)) }
-func (c *counterAggregation) AddUnion(mu unaggregated.MetricUnion) { c.Counter.Update(mu.CounterVal) }
+func (c *counterAggregation) Add(value float64) {
+	c.Counter.Update(int64(value))
+}
+
+func (c *counterAggregation) AddUnion(mu unaggregated.MetricUnion) {
+	c.Counter.Update(mu.CounterVal)
+}
 
 // timerAggregation is a timer aggregation.
 type timerAggregation struct {
 	aggregation.Timer
 }
 
-func newTimerAggregation(t aggregation.Timer) timerAggregation   { return timerAggregation{Timer: t} }
-func (t *timerAggregation) Add(value float64)                    { t.Timer.Add(value) }
-func (t *timerAggregation) AddUnion(mu unaggregated.MetricUnion) { t.Timer.AddBatch(mu.BatchTimerVal) }
+func newTimerAggregation(t aggregation.Timer) timerAggregation {
+	return timerAggregation{Timer: t}
+}
+
+func (t *timerAggregation) Add(value float64) {
+	t.Timer.Add(value)
+}
+
+func (t *timerAggregation) AddUnion(mu unaggregated.MetricUnion) {
+	t.Timer.AddBatch(mu.BatchTimerVal)
+}
 
 // gaugeAggregation is a gauge aggregation.
 type gaugeAggregation struct {
 	aggregation.Gauge
 }
 
-func newGaugeAggregation(g aggregation.Gauge) gaugeAggregation   { return gaugeAggregation{Gauge: g} }
-func (g *gaugeAggregation) Add(value float64)                    { g.Gauge.Update(value) }
-func (g *gaugeAggregation) AddUnion(mu unaggregated.MetricUnion) { g.Gauge.Update(mu.GaugeVal) }
+func newGaugeAggregation(g aggregation.Gauge) gaugeAggregation {
+	return gaugeAggregation{Gauge: g}
+}
+
+func (g *gaugeAggregation) Add(t time.Time, value float64) {
+	g.Gauge.Update(t, value)
+}
+
+func (g *gaugeAggregation) AddUnion(t time.Time, mu unaggregated.MetricUnion) {
+	g.Gauge.Update(t, mu.GaugeVal)
+}

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -56,13 +57,13 @@ func TestCreateTimerResetStream(t *testing.T) {
 
 	// Add a value to the timer and close the timer, which returns the
 	// underlying stream to the pool.
-	timer := NewTimer(testQuantiles, streamOpts, NewOptions())
+	timer := NewTimer(testQuantiles, streamOpts, NewOptions(tally.NoopScope))
 	timer.Add(1.0)
 	require.Equal(t, 1.0, timer.Min())
 	timer.Close()
 
 	// Create a new timer and assert the underlying stream has been closed.
-	timer = NewTimer(testQuantiles, streamOpts, NewOptions())
+	timer = NewTimer(testQuantiles, streamOpts, NewOptions(tally.NoopScope))
 	timer.Add(1.0)
 	require.Equal(t, 1.0, timer.Min())
 	timer.Close()
@@ -70,7 +71,7 @@ func TestCreateTimerResetStream(t *testing.T) {
 }
 
 func TestTimerAggregations(t *testing.T) {
-	opts := NewOptions()
+	opts := NewOptions(tally.NoopScope)
 	opts.ResetSetData(testAggTypes)
 
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
@@ -143,7 +144,7 @@ func TestTimerAggregations(t *testing.T) {
 }
 
 func TestTimerAggregationsNotExpensive(t *testing.T) {
-	opts := NewOptions()
+	opts := NewOptions(tally.NoopScope)
 	opts.ResetSetData(aggregation.Types{aggregation.Sum})
 
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
