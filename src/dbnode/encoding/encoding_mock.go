@@ -1344,7 +1344,7 @@ func (mr *MockIStreamMockRecorder) ReadByte() *gomock.Call {
 }
 
 // ReadBits mocks base method
-func (m *MockIStream) ReadBits(numBits int) (uint64, error) {
+func (m *MockIStream) ReadBits(numBits uint) (uint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadBits", numBits)
 	ret0, _ := ret[0].(uint64)
@@ -1359,7 +1359,7 @@ func (mr *MockIStreamMockRecorder) ReadBits(numBits interface{}) *gomock.Call {
 }
 
 // PeekBits mocks base method
-func (m *MockIStream) PeekBits(numBits int) (uint64, error) {
+func (m *MockIStream) PeekBits(numBits uint) (uint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PeekBits", numBits)
 	ret0, _ := ret[0].(uint64)
@@ -1374,7 +1374,7 @@ func (mr *MockIStreamMockRecorder) PeekBits(numBits interface{}) *gomock.Call {
 }
 
 // RemainingBitsInCurrentByte mocks base method
-func (m *MockIStream) RemainingBitsInCurrentByte() int {
+func (m *MockIStream) RemainingBitsInCurrentByte() uint {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemainingBitsInCurrentByte")
 	ret0, _ := ret[0].(int)
