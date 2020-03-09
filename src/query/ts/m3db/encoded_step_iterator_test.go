@@ -509,7 +509,7 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 
 		if v := profilesTaken[key]; v == 2 {
 			p := profile.Start(profile.MemProfile)
-			p.Stop()
+			defer p.Stop()
 		}
 
 		profilesTaken[key] = profilesTaken[key] + 1
