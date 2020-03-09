@@ -72,7 +72,7 @@ func TestPeekBitsSuccess(t *testing.T) {
 		require.Equal(t, input.expected, res)
 	}
 	require.Equal(t, byte(0), is.current)
-	require.Equal(t, 0, is.remaining)
+	require.Equal(t, 0, int(is.remaining))
 }
 
 func TestPeekBitsError(t *testing.T) {
@@ -116,5 +116,5 @@ func TestResetIStream(t *testing.T) {
 	is.ReadBits(1)
 	is.Reset(bytes.NewReader(nil))
 	require.Equal(t, byte(0), is.current)
-	require.Equal(t, 0, is.remaining)
+	require.Equal(t, 0, int(is.remaining))
 }
