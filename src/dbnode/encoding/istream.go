@@ -111,7 +111,7 @@ func (is *istream) ReadBits(numBits uint) (uint64, error) {
 			numToRead = is.remaining
 		}
 		bits := is.current >> (8 - numToRead)
-		is.current <<= uint(numToRead)
+		is.current <<= numToRead
 		is.remaining -= numToRead
 		res = (res << uint64(numToRead)) | uint64(bits)
 		numBits -= numToRead
