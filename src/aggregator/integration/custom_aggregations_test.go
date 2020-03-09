@@ -241,6 +241,6 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 		expected = append(expected, mustComputeExpectedResults(t, finalTime, input, testServer.aggregatorOpts)...)
 	}
 	sort.Sort(byTimeIDPolicyAscending(expected))
-	actual := testServer.sortedResults()
+	actual := testServer.snapshotSortedResults()
 	require.Equal(t, expected, actual)
 }

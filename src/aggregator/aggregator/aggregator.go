@@ -255,13 +255,20 @@ func (agg *aggregator) Close() error {
 		return errAggregatorNotOpenOrClosed
 	}
 	close(agg.doneCh)
-	for _, shardID := range agg.shardIDs {
-		agg.shards[shardID].Close()
-	}
+
+	// Close the flush manager and other related resources
+	// before closing the shards since shards may have a flush in progress.
 	if agg.shardSetOpen {
 		agg.closeShardSetWithLock()
 	}
 	agg.flushHandler.Close()
+
+	// Now flush manager and flush related tasks complete, can
+	// safely close shards.
+	for _, shardID := range agg.shardIDs {
+		agg.shards[shardID].Close()
+	}
+
 	if agg.adminClient != nil {
 		agg.adminClient.Close()
 	}

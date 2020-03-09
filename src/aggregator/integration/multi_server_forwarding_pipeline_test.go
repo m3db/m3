@@ -426,5 +426,5 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 		expectedResultsFlattened = append(expectedResultsFlattened, expectedResults...)
 	}
 	sort.Sort(byTimeIDPolicyAscending(expectedResultsFlattened))
-	require.True(t, cmp.Equal(expectedResultsFlattened, destinationServer.sortedResults(), testCmpOpts...))
+	require.True(t, cmp.Equal(expectedResultsFlattened, destinationServer.snapshotSortedResults(), testCmpOpts...))
 }

@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const jsonPrettyIndent = "  "
+
 // Diff is a helper method to print a terminal pretty diff of two strings
 // for test output purposes.
 func Diff(expected, actual string) string {
@@ -41,7 +43,14 @@ func MustPrettyJSON(t *testing.T, str string) string {
 	var unmarshalled map[string]interface{}
 	err := json.Unmarshal([]byte(str), &unmarshalled)
 	require.NoError(t, err)
-	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
+	pretty, err := json.MarshalIndent(unmarshalled, "", jsonPrettyIndent)
+	require.NoError(t, err)
+	return string(pretty)
+}
+
+// MustPrettyJSONValue returns an indented version of the JSON.
+func MustPrettyJSONValue(t *testing.T, v interface{}) string {
+	pretty, err := json.MarshalIndent(v, "", jsonPrettyIndent)
 	require.NoError(t, err)
 	return string(pretty)
 }

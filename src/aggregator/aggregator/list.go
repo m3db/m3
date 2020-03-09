@@ -700,9 +700,8 @@ func (id timedMetricListID) toMetricListID() metricListID {
 type timedMetricList struct {
 	*baseMetricList
 
-	flushOffset time.Duration
-	log         *zap.Logger
-	flushMgr    FlushManager
+	log      *zap.Logger
+	flushMgr FlushManager
 }
 
 func newTimedMetricList(
@@ -734,10 +733,8 @@ func newTimedMetricList(
 		return nil, err
 	}
 
-	flushOffset := timedAggregationBufferPast - timedAggregationBufferPast.Truncate(l.FlushInterval())
 	fl := &timedMetricList{
 		baseMetricList: l,
-		flushOffset:    flushOffset,
 		log:            opts.InstrumentOptions().Logger(),
 		flushMgr:       opts.FlushManager(),
 	}
@@ -838,22 +835,31 @@ func (l *metricLists) Len() int {
 // and if not found, creates one.
 func (l *metricLists) FindOrCreate(id metricListID) (metricList, error) {
 	l.RLock()
-	if l.closed {
-		l.RUnlock()
-		return nil, errListsClosed
-	}
-	list, exists := l.lists[id]
-	if exists {
-		l.RUnlock()
-		return list, nil
+	var (
+		closed = l.closed
+		list   metricList
+		exists bool
+	)
+	if !closed {
+		list, exists = l.lists[id]
 	}
 	l.RUnlock()
-
-	l.Lock()
-	if l.closed {
-		l.Unlock()
+	if closed {
 		return nil, errListsClosed
 	}
+	if exists {
+		return list, nil
+	}
+
+	// NB(r): Use defer unlock here since below had a missing
+	// unlock previously.
+	l.Lock()
+	defer l.Unlock()
+
+	if l.closed {
+		return nil, errListsClosed
+	}
+
 	list, exists = l.lists[id]
 	if !exists {
 		var err error
@@ -863,7 +869,6 @@ func (l *metricLists) FindOrCreate(id metricListID) (metricList, error) {
 		}
 		l.lists[id] = list
 	}
-	l.Unlock()
 
 	return list, nil
 }

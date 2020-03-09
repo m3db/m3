@@ -171,6 +171,12 @@ type testServerOptions interface {
 	// JitterEnabled returns whether jittering is enabled.
 	JitterEnabled() bool
 
+	// SetFlushJitterType sets which type of jittering is to be used.
+	SetFlushJitterType(value aggregator.FlushJitterType) testServerOptions
+
+	// FlushJitterType returns which type of jittering is to be used.
+	FlushJitterType() aggregator.FlushJitterType
+
 	// SetMaxJitterFn sets the max flush jittering function.
 	SetMaxJitterFn(value aggregator.FlushJitterFn) testServerOptions
 
@@ -188,6 +194,12 @@ type testServerOptions interface {
 
 	// DiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
 	DiscardNaNAggregatedValues() bool
+
+	// SetBufferForPastTimedMetricFn sets the size of the buffer for timed metrics in the past.
+	SetBufferForPastTimedMetricFn(value aggregator.BufferForPastTimedMetricFn) testServerOptions
+
+	// BufferForPastTimedMetricFn returns the size of the buffer for timed metrics in the past.
+	BufferForPastTimedMetricFn() aggregator.BufferForPastTimedMetricFn
 }
 
 // nolint: maligned
@@ -212,9 +224,11 @@ type serverOptions struct {
 	electionStateChangeTimeout  time.Duration
 	entryCheckInterval          time.Duration
 	jitterEnabled               bool
+	jitterType                  aggregator.FlushJitterType
 	maxJitterFn                 aggregator.FlushJitterFn
 	maxAllowedForwardingDelayFn aggregator.MaxAllowedForwardingDelayFn
 	discardNaNAggregatedValues  bool
+	bufferForPastTimedMetricFn  aggregator.BufferForPastTimedMetricFn
 }
 
 func newTestServerOptions() testServerOptions {
@@ -241,6 +255,7 @@ func newTestServerOptions() testServerOptions {
 		clientConnectionOpts:        aggclient.NewConnectionOptions(),
 		electionStateChangeTimeout:  defaultElectionStateChangeTimeout,
 		jitterEnabled:               defaultJitterEnabled,
+		jitterType:                  aggregator.FlushJitterTypeDefault,
 		entryCheckInterval:          defaultEntryCheckInterval,
 		maxJitterFn:                 defaultMaxJitterFn,
 		maxAllowedForwardingDelayFn: defaultMaxAllowedForwardingDelayFn,
@@ -448,6 +463,16 @@ func (o *serverOptions) JitterEnabled() bool {
 	return o.jitterEnabled
 }
 
+func (o *serverOptions) SetFlushJitterType(value aggregator.FlushJitterType) testServerOptions {
+	opts := *o
+	opts.jitterType = value
+	return &opts
+}
+
+func (o *serverOptions) FlushJitterType() aggregator.FlushJitterType {
+	return o.jitterType
+}
+
 func (o *serverOptions) SetMaxJitterFn(value aggregator.FlushJitterFn) testServerOptions {
 	opts := *o
 	opts.maxJitterFn = value
@@ -476,6 +501,16 @@ func (o *serverOptions) SetDiscardNaNAggregatedValues(value bool) testServerOpti
 
 func (o *serverOptions) DiscardNaNAggregatedValues() bool {
 	return o.discardNaNAggregatedValues
+}
+
+func (o *serverOptions) SetBufferForPastTimedMetricFn(value aggregator.BufferForPastTimedMetricFn) testServerOptions {
+	opts := *o
+	opts.bufferForPastTimedMetricFn = value
+	return &opts
+}
+
+func (o *serverOptions) BufferForPastTimedMetricFn() aggregator.BufferForPastTimedMetricFn {
+	return o.bufferForPastTimedMetricFn
 }
 
 func defaultMaxJitterFn(interval time.Duration) time.Duration {

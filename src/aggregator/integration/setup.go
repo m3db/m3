@@ -69,7 +69,8 @@ type testServerSetup struct {
 	electionCluster  *testCluster
 	workerPool       xsync.WorkerPool
 	results          *[]aggregated.MetricWithStoragePolicy
-	resultLock       *sync.Mutex
+	received         *[]receivedMetricWithStoragePolicy
+	resultLock       *sync.RWMutex
 
 	// Signals.
 	doneCh   chan struct{}
@@ -98,6 +99,9 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetEntryCheckInterval(opts.EntryCheckInterval()).
 		SetMaxAllowedForwardingDelayFn(opts.MaxAllowedForwardingDelayFn()).
 		SetDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues())
+	if value := opts.BufferForPastTimedMetricFn(); value != nil {
+		aggregatorOpts = aggregatorOpts.SetBufferForPastTimedMetricFn(value)
+	}
 
 	// Set up placement manager.
 	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
@@ -150,6 +154,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
 		SetJitterEnabled(opts.JitterEnabled()).
+		SetFlushJitterType(opts.FlushJitterType()).
 		SetMaxJitterFn(opts.MaxJitterFn())
 	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
@@ -167,9 +172,14 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Set up the handler.
 	var (
 		results    []aggregated.MetricWithStoragePolicy
-		resultLock sync.Mutex
+		received   []receivedMetricWithStoragePolicy
+		resultLock sync.RWMutex
+		handler    = &capturingHandler{
+			results:    &results,
+			received:   &received,
+			resultLock: &resultLock,
+		}
 	)
-	handler := &capturingHandler{results: &results, resultLock: &resultLock}
 	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
 
 	// Set up entry pool.
@@ -213,6 +223,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		electionCluster:  electionCluster,
 		workerPool:       workerPool,
 		results:          &results,
+		received:         &received,
 		resultLock:       &resultLock,
 		doneCh:           make(chan struct{}),
 		closedCh:         make(chan struct{}),
@@ -292,9 +303,27 @@ func (ts *testServerSetup) waitUntilLeader() error {
 	return nil
 }
 
-func (ts *testServerSetup) sortedResults() []aggregated.MetricWithStoragePolicy {
-	sort.Sort(byTimeIDPolicyAscending(*ts.results))
-	return *ts.results
+func (ts *testServerSetup) snapshotSortedResults() []aggregated.MetricWithStoragePolicy {
+	// Results are sorted so not safe to take a slice to existing results.
+	ts.resultLock.Lock()
+	curr := *ts.results
+	snapshot := append(
+		make([]aggregated.MetricWithStoragePolicy, 0, len(curr)),
+		curr...)
+	ts.resultLock.Unlock()
+	sort.Sort(byTimeIDPolicyAscending(snapshot))
+	return snapshot
+}
+
+func (ts *testServerSetup) snapshotReceived() []receivedMetricWithStoragePolicy {
+	// Received is not sorted by anything except the order they are received,
+	// so it is safe to take a read only slice.
+	ts.resultLock.RLock()
+	defer ts.resultLock.RUnlock()
+
+	slice := *ts.received
+	snapshot := slice[:]
+	return snapshot
 }
 
 func (ts *testServerSetup) stopServer() error {
@@ -314,25 +343,43 @@ func (ts *testServerSetup) close() {
 
 type capturingWriter struct {
 	results    *[]aggregated.MetricWithStoragePolicy
-	resultLock *sync.Mutex
+	received   *[]receivedMetricWithStoragePolicy
+	resultLock *sync.RWMutex
+}
+
+type receivedMetricWithStoragePolicy struct {
+	value      aggregated.MetricWithStoragePolicy
+	receivedAt time.Time
 }
 
 func (w *capturingWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
 	w.resultLock.Lock()
-	var fullID []byte
+	defer w.resultLock.Unlock()
+
+	length := len(mp.ChunkedID.Prefix) + len(mp.ChunkedID.Data) + len(mp.ChunkedID.Suffix)
+
+	fullID := make([]byte, 0, length)
 	fullID = append(fullID, mp.ChunkedID.Prefix...)
 	fullID = append(fullID, mp.ChunkedID.Data...)
 	fullID = append(fullID, mp.ChunkedID.Suffix...)
+
 	metric := aggregated.Metric{
 		ID:        fullID,
 		TimeNanos: mp.TimeNanos,
 		Value:     mp.Value,
 	}
-	*w.results = append(*w.results, aggregated.MetricWithStoragePolicy{
+
+	value := aggregated.MetricWithStoragePolicy{
 		Metric:        metric,
 		StoragePolicy: mp.StoragePolicy,
-	})
-	w.resultLock.Unlock()
+	}
+	*w.results = append(*w.results, value)
+
+	received := receivedMetricWithStoragePolicy{
+		value:      value,
+		receivedAt: time.Now(),
+	}
+	*w.received = append(*w.received, received)
 	return nil
 }
 
@@ -341,11 +388,16 @@ func (w *capturingWriter) Close() error { return nil }
 
 type capturingHandler struct {
 	results    *[]aggregated.MetricWithStoragePolicy
-	resultLock *sync.Mutex
+	received   *[]receivedMetricWithStoragePolicy
+	resultLock *sync.RWMutex
 }
 
 func (h *capturingHandler) NewWriter(tally.Scope) (writer.Writer, error) {
-	return &capturingWriter{results: h.results, resultLock: h.resultLock}, nil
+	return &capturingWriter{
+		results:    h.results,
+		received:   h.received,
+		resultLock: h.resultLock,
+	}, nil
 }
 
 func (h *capturingHandler) Close() {}

@@ -22,6 +22,8 @@ package integration
 
 import (
 	"time"
+
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 )
 
 type conditionFn func() bool
@@ -35,4 +37,35 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 		time.Sleep(time.Second)
 	}
 	return false
+}
+
+// aggregatedMetric is useful for JSON comparison of expected metrics.
+type aggregatedMetric struct {
+	ID            string
+	Type          string
+	Time          time.Time
+	Value         float64
+	StoragePolicy string
+}
+
+func newAggregatedMetric(
+	m aggregated.MetricWithStoragePolicy,
+) aggregatedMetric {
+	return aggregatedMetric{
+		ID:            m.Metric.ID.String(),
+		Type:          m.Metric.Type.String(),
+		Time:          time.Unix(0, m.Metric.TimeNanos),
+		Value:         m.Metric.Value,
+		StoragePolicy: m.StoragePolicy.String(),
+	}
+}
+
+func newAggregatedMetrics(
+	m []aggregated.MetricWithStoragePolicy,
+) []aggregatedMetric {
+	results := make([]aggregatedMetric, 0, len(m))
+	for _, m := range m {
+		results = append(results, newAggregatedMetric(m))
+	}
+	return results
 }
