@@ -91,9 +91,9 @@ func (d *termsDict) FieldsPostingsList() sgmt.FieldsPostingsListIterator {
 	d.fields.RLock()
 	defer d.fields.RUnlock()
 	// NB(bodu): This is probably fine since the terms dict/mem segment is only used in tests.
-	d.currFieldsPostingsLists = d.currFieldsPostingsLists[:0]
 	fields := make([]uniqueField, 0, d.fields.Len())
 	for _, entry := range d.fields.Iter() {
+		d.currFieldsPostingsLists = d.currFieldsPostingsLists[:0]
 		field := entry.Key()
 		pl := roaring.NewPostingsList()
 		if postingsMap, ok := d.fields.Get(field); ok {

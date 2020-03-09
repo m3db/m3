@@ -233,7 +233,7 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 
 	// for each known field
 	for fields.Next() {
-		f, fieldsPostingsList := fields.Current()
+		f, fieldPostingsList := fields.Current()
 		// retrieve known terms for current field
 		terms, err := w.builder.Terms(f)
 		if err != nil {
@@ -257,7 +257,7 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 		// write the field level postings list
 		if writeFieldsPostingList {
 			// Write the unioned postings list out.
-			n, err := writePL(fieldsPostingsList)
+			n, err := writePL(fieldPostingsList)
 			if err != nil {
 				return err
 			}
