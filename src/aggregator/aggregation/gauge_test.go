@@ -97,8 +97,9 @@ func TestGaugeLastOutOfOrderValues(t *testing.T) {
 	g.Update(timePrePre, 40)
 
 	require.Equal(t, 43.0, g.Last())
-	snap := scope.Snapshot().Counters()
-	counter, ok := snap["aggregation.gauges.values-out-of-order+"]
+	snap := scope.Snapshot()
+	counters := snap.Counters()
+	counter, ok := counters["aggregation.gauges.values-out-of-order+"]
 	require.True(t, ok)
 	require.Equal(t, int64(2), counter.Value())
 }
