@@ -23,6 +23,7 @@ package builder
 import (
 	"bytes"
 
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -33,19 +34,21 @@ import (
 var _ segment.FieldsPostingsListIterator = &multiKeyPostingsListIterator{}
 
 type multiKeyPostingsListIterator struct {
-	err              error
-	firstNext        bool
-	closeIters       []keyIterator
-	iters            []keyIterator
-	currIters        []keyIterator
-	segments         []segment.Segment
-	currPostingsList postings.MutableList
+	err                    error
+	firstNext              bool
+	closeIters             []keyIterator
+	iters                  []keyIterator
+	currIters              []keyIterator
+	currReaders            []index.Reader
+	segments               []segment.Segment
+	currFieldPostingsList  postings.MutableList
+	currFieldPostingsLists []postings.List
 }
 
 func newMultiKeyPostingsListIterator() *multiKeyPostingsListIterator {
 	b := bitmap.NewBitmapWithDefaultPooling(defaultBitmapContainerPooling)
 	i := &multiKeyPostingsListIterator{
-		currPostingsList: roaring.NewPostingsListFromBitmap(b),
+		currFieldPostingsList: roaring.NewPostingsListFromBitmap(b),
 	}
 	i.reset()
 	return i
@@ -53,7 +56,7 @@ func newMultiKeyPostingsListIterator() *multiKeyPostingsListIterator {
 
 func (i *multiKeyPostingsListIterator) reset() {
 	i.firstNext = true
-	i.currPostingsList.Reset()
+	i.currFieldPostingsList.Reset()
 
 	for j := range i.closeIters {
 		i.closeIters[j] = nil
@@ -126,9 +129,12 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 	i.currEvaluate()
 
 	// NB(bodu): Build the postings list for this field if the field has changed.
+	i.currFieldPostingsLists = i.currFieldPostingsLists[:0]
+	i.currReaders = i.currReaders[:0]
 	currField := i.currIters[0].Current()
+
 	if !bytes.Equal(prevField, currField) {
-		i.currPostingsList.Reset()
+		i.currFieldPostingsList.Reset()
 		for _, segment := range i.segments {
 			reader, err := segment.Reader()
 			if err != nil {
@@ -140,8 +146,18 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 				i.err = err
 				return false
 			}
-			i.currPostingsList.Union(pl)
-			reader.Close()
+
+			i.currFieldPostingsLists = append(i.currFieldPostingsLists, pl)
+			i.currReaders = append(i.currReaders, reader)
+		}
+
+		i.currFieldPostingsList.UnionMany(i.currFieldPostingsLists)
+
+		for _, reader := range i.currReaders {
+			if err := reader.Close(); err != nil {
+				i.err = err
+				return false
+			}
 		}
 	}
 	return true
@@ -174,7 +190,7 @@ func (i *multiKeyPostingsListIterator) tryAddCurr(iter keyIterator) {
 }
 
 func (i *multiKeyPostingsListIterator) Current() ([]byte, postings.List) {
-	return i.currIters[0].Current(), i.currPostingsList
+	return i.currIters[0].Current(), i.currFieldPostingsList
 }
 
 func (i *multiKeyPostingsListIterator) CurrentIters() []keyIterator {

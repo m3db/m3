@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -106,6 +106,7 @@ func (t *terms) reset() {
 		t.pool.Put(entry.Value())
 	}
 	t.postings.Reset()
+	t.postingsListUnion.Reset()
 
 	// Reset the unique terms slice
 	var emptyTerm termElem

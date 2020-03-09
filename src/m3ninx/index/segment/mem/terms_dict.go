@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,8 @@ import (
 // termsDict is an in-memory terms dictionary. It maps fields to postings lists.
 type termsDict struct {
 	opts Options
+
+	currFieldsPostingsLists []postings.List
 
 	fields struct {
 		sync.RWMutex
@@ -89,15 +91,17 @@ func (d *termsDict) FieldsPostingsList() sgmt.FieldsPostingsListIterator {
 	d.fields.RLock()
 	defer d.fields.RUnlock()
 	// NB(bodu): This is probably fine since the terms dict/mem segment is only used in tests.
+	d.currFieldsPostingsLists = d.currFieldsPostingsLists[:0]
 	fields := make([]uniqueField, 0, d.fields.Len())
 	for _, entry := range d.fields.Iter() {
 		field := entry.Key()
 		pl := roaring.NewPostingsList()
 		if postingsMap, ok := d.fields.Get(field); ok {
 			for _, entry := range postingsMap.Iter() {
-				pl.Union(entry.value)
+				d.currFieldsPostingsLists = append(d.currFieldsPostingsLists, entry.value)
 			}
 		}
+		pl.UnionMany(d.currFieldsPostingsLists)
 		fields = append(fields, uniqueField{
 			field:        field,
 			postingsList: pl,
