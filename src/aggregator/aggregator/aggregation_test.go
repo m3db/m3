@@ -75,7 +75,7 @@ func TestCounterAggregationAddUnion(t *testing.T) {
 func TestTimerAggregationAdd(t *testing.T) {
 	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationValues {
-		tm.Add(v)
+		tm.Add(time.Now(), v)
 	}
 	require.Equal(t, int64(4), tm.Count())
 	require.Equal(t, 799.2, tm.Sum())
@@ -84,7 +84,7 @@ func TestTimerAggregationAdd(t *testing.T) {
 func TestTimerAggregationAddUnion(t *testing.T) {
 	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationUnions {
-		tm.AddUnion(v)
+		tm.AddUnion(time.Now(), v)
 	}
 	require.Equal(t, int64(5), tm.Count())
 	require.Equal(t, 18.0, tm.Sum())

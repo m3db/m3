@@ -218,11 +218,11 @@ func TestTimerElemBase(t *testing.T) {
 func TestTimerElemBaseNewAggregation(t *testing.T) {
 	e := timerElemBase{}
 	la := e.NewAggregation(NewOptions(), raggregation.Options{})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:          metric.TimerType,
 		BatchTimerVal: []float64{100.0, 200.0},
 	})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:          metric.TimerType,
 		BatchTimerVal: []float64{300.0, 400.0, 500.0},
 	})
