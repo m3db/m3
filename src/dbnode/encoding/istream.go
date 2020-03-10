@@ -54,9 +54,6 @@ func (is *istream) ReadBit() (Bit, error) {
 
 // Read reads len(b) bytes.
 func (is *istream) Read(b []byte) (int, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
 	if is.remaining == 0 {
 		// Optimized path for when the iterator is already aligned on a byte boundary. Avoids
 		// all the bit manipulation and ReadByte() function calls.
