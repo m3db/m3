@@ -63,9 +63,11 @@ var (
 	nsRetentionOpts = retention.NewOptions().
 			SetBlockSize(blockSize).
 			SetRetentionPeriod(48 * blockSize)
-	testTagDecodingPool = serialize.NewTagDecoderPool(serialize.NewTagDecoderOptions(),
+	testTagDecodingPool = serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		pool.NewObjectPoolOptions().SetSize(1))
-	testTagEncodingPool = serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+	testTagEncodingPool = serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(),
 		pool.NewObjectPoolOptions().SetSize(1))
 	testIDPool     = newSessionTestOptions().IdentifierPool()
 	fooID          = ident.StringID("foo")

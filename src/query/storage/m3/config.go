@@ -31,19 +31,11 @@ import (
 	"github.com/m3db/m3/src/query/stores/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/uber/tchannel-go"
 )
 
 var (
 	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
 	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
-)
-
-// TODO(bodu): Could make these configurable at some point.
-const (
-	idleCheckInterval = 5 * time.Minute
-	maxIdleTime       = 5 * time.Minute
 )
 
 // ClustersStaticConfiguration is a set of static cluster configurations.
@@ -54,7 +46,7 @@ type ClustersStaticConfiguration []ClusterStaticConfiguration
 type NewClientFromConfig func(
 	cfg client.Configuration,
 	params client.ConfigurationParameters,
-	custom ...client.CustomOption,
+	custom ...client.CustomAdminOption,
 ) (client.Client, error)
 
 // ClusterStaticConfiguration is a static cluster configuration.
@@ -66,12 +58,12 @@ type ClusterStaticConfiguration struct {
 
 func (c ClusterStaticConfiguration) newClient(
 	params client.ConfigurationParameters,
-	custom ...client.CustomOption,
+	custom ...client.CustomAdminOption,
 ) (client.Client, error) {
 	if c.NewClientFromConfig != nil {
 		return c.NewClientFromConfig(c.Client, params, custom...)
 	}
-	return c.Client.NewClient(params, custom...)
+	return c.Client.NewAdminClient(params, custom...)
 }
 
 // ClusterStaticNamespaceConfiguration describes the namespaces in a
@@ -170,8 +162,9 @@ type clusterConnectResult struct {
 // ClustersStaticConfigurationOptions are options to use when
 // constructing clusters from config.
 type ClustersStaticConfigurationOptions struct {
-	AsyncSessions   bool
-	ProvidedSession client.Session
+	AsyncSessions      bool
+	ProvidedSession    client.Session
+	CustomAdminOptions []client.CustomAdminOption
 }
 
 // NewClusters instantiates a new Clusters instance.
@@ -195,16 +188,9 @@ func (c ClustersStaticConfiguration) NewClusters(
 
 		if opts.ProvidedSession == nil {
 			// NB(r): Only create client session if not already provided.
-			result, err = clusterCfg.newClient(
-				client.ConfigurationParameters{
-					InstrumentOptions: instrumentOpts,
-				},
-				func(opts client.Options) client.Options {
-					return opts.SetChannelOptions(&tchannel.ChannelOptions{
-						IdleCheckInterval: idleCheckInterval,
-						MaxIdleTime:       maxIdleTime,
-					})
-				})
+			result, err = clusterCfg.newClient(client.ConfigurationParameters{
+				InstrumentOptions: instrumentOpts,
+			}, opts.CustomAdminOptions...)
 			if err != nil {
 				return nil, err
 			}

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package digest
+package builder
 
 import (
-	"hash/adler32"
+	"testing"
 
-	"github.com/m3db/stackadler32"
+	"github.com/m3db/m3/src/m3ninx/postings"
+
+	"github.com/stretchr/testify/require"
 )
 
-// NewDigest creates a new digest.
-// The default 32-bit hashing algorithm is adler32.
-func NewDigest() stackadler32.Digest {
-	return stackadler32.NewDigest()
-}
+func TestTermsReuse(t *testing.T) {
+	terms := newTerms(NewOptions())
 
-// Checksum returns the checksum for a buffer.
-func Checksum(buf []byte) uint32 {
-	return adler32.Checksum(buf)
+	require.NoError(t, terms.post([]byte("term"), postings.ID(1)))
+	require.Equal(t, terms.size(), 1)
+	require.Equal(t, terms.postings.Len(), 1)
+	require.Equal(t, terms.postingsListUnion.Len(), 1)
+
+	terms.reset()
+	require.Equal(t, terms.size(), 0)
+	require.Equal(t, terms.postings.Len(), 0)
+	require.Equal(t, terms.postingsListUnion.Len(), 0)
 }

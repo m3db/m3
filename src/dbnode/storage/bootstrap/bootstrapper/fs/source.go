@@ -589,7 +589,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		return fmt.Errorf("unable to checkout series: %v", err)
 	}
 
-	seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+	seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)
 	seriesBlock.Reset(blockStart, blockSize, seg, nsCtx)
 	if err := ref.Series.LoadBlock(seriesBlock, series.WarmWrite); err != nil {
 		return fmt.Errorf("unable to load block: %v", err)

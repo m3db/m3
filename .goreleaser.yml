@@ -55,6 +55,8 @@ builds:
       - darwin
       # Issue #692 tracks Windows support.
       # - windows
+    goarch:
+      - amd64
   - id: m3aggregator
     main: ./src/cmd/services/m3aggregator/main/main.go
     binary: m3aggregator

@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/sync"
 	time0 "github.com/m3db/m3/src/x/time"
@@ -1185,6 +1186,34 @@ func (m *MockOptions) InstrumentOptions() instrument.Options {
 func (mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
+}
+
+// SetLogErrorSampleRate mocks base method
+func (m *MockOptions) SetLogErrorSampleRate(value sampler.Rate) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetLogErrorSampleRate", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetLogErrorSampleRate indicates an expected call of SetLogErrorSampleRate
+func (mr *MockOptionsMockRecorder) SetLogErrorSampleRate(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).SetLogErrorSampleRate), value)
+}
+
+// LogErrorSampleRate mocks base method
+func (m *MockOptions) LogErrorSampleRate() sampler.Rate {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LogErrorSampleRate")
+	ret0, _ := ret[0].(sampler.Rate)
+	return ret0
+}
+
+// LogErrorSampleRate indicates an expected call of LogErrorSampleRate
+func (mr *MockOptionsMockRecorder) LogErrorSampleRate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).LogErrorSampleRate))
 }
 
 // SetTopologyInitializer mocks base method
@@ -2391,6 +2420,34 @@ func (mr *MockOptionsMockRecorder) UseV2BatchAPIs() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseV2BatchAPIs", reflect.TypeOf((*MockOptions)(nil).UseV2BatchAPIs))
 }
 
+// SetIterationOptions mocks base method
+func (m *MockOptions) SetIterationOptions(arg0 index.IterationOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIterationOptions", arg0)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIterationOptions indicates an expected call of SetIterationOptions
+func (mr *MockOptionsMockRecorder) SetIterationOptions(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIterationOptions", reflect.TypeOf((*MockOptions)(nil).SetIterationOptions), arg0)
+}
+
+// IterationOptions mocks base method
+func (m *MockOptions) IterationOptions() index.IterationOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IterationOptions")
+	ret0, _ := ret[0].(index.IterationOptions)
+	return ret0
+}
+
+// IterationOptions indicates an expected call of IterationOptions
+func (mr *MockOptionsMockRecorder) IterationOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterationOptions", reflect.TypeOf((*MockOptions)(nil).IterationOptions))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -2552,6 +2609,34 @@ func (m *MockAdminOptions) InstrumentOptions() instrument.Options {
 func (mr *MockAdminOptionsMockRecorder) InstrumentOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockAdminOptions)(nil).InstrumentOptions))
+}
+
+// SetLogErrorSampleRate mocks base method
+func (m *MockAdminOptions) SetLogErrorSampleRate(value sampler.Rate) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetLogErrorSampleRate", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetLogErrorSampleRate indicates an expected call of SetLogErrorSampleRate
+func (mr *MockAdminOptionsMockRecorder) SetLogErrorSampleRate(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).SetLogErrorSampleRate), value)
+}
+
+// LogErrorSampleRate mocks base method
+func (m *MockAdminOptions) LogErrorSampleRate() sampler.Rate {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LogErrorSampleRate")
+	ret0, _ := ret[0].(sampler.Rate)
+	return ret0
+}
+
+// LogErrorSampleRate indicates an expected call of LogErrorSampleRate
+func (mr *MockAdminOptionsMockRecorder) LogErrorSampleRate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).LogErrorSampleRate))
 }
 
 // SetTopologyInitializer mocks base method
@@ -3756,6 +3841,34 @@ func (m *MockAdminOptions) UseV2BatchAPIs() bool {
 func (mr *MockAdminOptionsMockRecorder) UseV2BatchAPIs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseV2BatchAPIs", reflect.TypeOf((*MockAdminOptions)(nil).UseV2BatchAPIs))
+}
+
+// SetIterationOptions mocks base method
+func (m *MockAdminOptions) SetIterationOptions(arg0 index.IterationOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIterationOptions", arg0)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIterationOptions indicates an expected call of SetIterationOptions
+func (mr *MockAdminOptionsMockRecorder) SetIterationOptions(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIterationOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetIterationOptions), arg0)
+}
+
+// IterationOptions mocks base method
+func (m *MockAdminOptions) IterationOptions() index.IterationOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IterationOptions")
+	ret0, _ := ret[0].(index.IterationOptions)
+	return ret0
+}
+
+// IterationOptions indicates an expected call of IterationOptions
+func (mr *MockAdminOptionsMockRecorder) IterationOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterationOptions", reflect.TypeOf((*MockAdminOptions)(nil).IterationOptions))
 }
 
 // SetOrigin mocks base method

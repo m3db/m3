@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package digest
+package pools
 
 import (
-	"hash/adler32"
+	"runtime"
+	"strconv"
+	"testing"
 
-	"github.com/m3db/stackadler32"
+	"github.com/stretchr/testify/require"
 )
 
-// NewDigest creates a new digest.
-// The default 32-bit hashing algorithm is adler32.
-func NewDigest() stackadler32.Digest {
-	return stackadler32.NewDigest()
-}
+func TestBuildIteratorPoolsHasSaneDefaults(t *testing.T) {
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
 
-// Checksum returns the checksum for a buffer.
-func Checksum(buf []byte) uint32 {
-	return adler32.Checksum(buf)
+	// TotalAlloc increases as heap objects are allocated, but
+	// unlike Alloc and HeapAlloc, it does not decrease when
+	// objects are freed.
+	totalAllocBefore := stats.TotalAlloc
+
+	BuildIteratorPools(BuildIteratorPoolsOptions{})
+
+	runtime.ReadMemStats(&stats)
+
+	allocated := int(stats.TotalAlloc - totalAllocBefore)
+	t.Logf("allocated %v bytes", allocated)
+
+	upperLimit := 64 * 1024 * 1024 // 64mb
+	require.True(t, allocated < upperLimit,
+		"allocated more than "+strconv.Itoa(upperLimit)+" bytes")
 }

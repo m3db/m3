@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package digest
+package builder
 
 import (
-	"hash/adler32"
-
-	"github.com/m3db/stackadler32"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-// NewDigest creates a new digest.
-// The default 32-bit hashing algorithm is adler32.
-func NewDigest() stackadler32.Digest {
-	return stackadler32.NewDigest()
-}
+// Ensure for our use case that the multi key iterator we return
+// matches the signature for the fields iterator.
+var _ segment.FieldsPostingsListIterator = &multiKeyPostingsListIterator{}
 
-// Checksum returns the checksum for a buffer.
-func Checksum(buf []byte) uint32 {
-	return adler32.Checksum(buf)
+func newFieldPostingsListIterFromSegments(
+	segments []segmentMetadata,
+) (segment.FieldsPostingsListIterator, error) {
+	multiIter := newMultiKeyPostingsListIterator()
+	for _, seg := range segments {
+		iter, err := seg.segment.FieldsIterable().Fields()
+		if err != nil {
+			return nil, err
+		}
+		if !iter.Next() {
+			// Don't consume this iterator if no results.
+			if err := xerrors.FirstError(iter.Err(), iter.Close()); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		multiIter.add(iter, seg.segment)
+	}
+
+	return multiIter, nil
 }

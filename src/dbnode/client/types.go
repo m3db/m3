@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -271,6 +272,12 @@ type Options interface {
 
 	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
+
+	// SetLogErrorSampleRate sets the log error sample rate between [0,1.0].
+	SetLogErrorSampleRate(value sampler.Rate) Options
+
+	// LogErrorSampleRate returns the log error sample rate between [0,1.0].
+	LogErrorSampleRate() sampler.Rate
 
 	// SetTopologyInitializer sets the TopologyInitializer.
 	SetTopologyInitializer(value topology.Initializer) Options
@@ -547,6 +554,12 @@ type Options interface {
 
 	// UseV2BatchAPIs returns whether the V2 batch APIs should be used.
 	UseV2BatchAPIs() bool
+
+	// SetIterationOptions sets experimental iteration options.
+	SetIterationOptions(index.IterationOptions) Options
+
+	// IterationOptions returns experimental iteration options.
+	IterationOptions() index.IterationOptions
 }
 
 // AdminOptions is a set of administration client options.
