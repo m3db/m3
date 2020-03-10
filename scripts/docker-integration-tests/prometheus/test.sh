@@ -21,7 +21,14 @@ echo "Run m3dbnode and m3coordinator containers"
 docker-compose -f ${COMPOSE_FILE} up -d dbnode01
 docker-compose -f ${COMPOSE_FILE} up -d coordinator01
 
+TEST_SUCCESS=false
+
 function defer {
+  if [[ "$TEST_SUCCESS" != "true" ]]; then
+    echo "Test failure, printing docker-compose logs"
+    docker-compose -f ${COMPOSE_FILE} logs
+  fi
+
   docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
 }
 trap defer EXIT
@@ -191,3 +198,5 @@ test_query_restrict_metrics_type
 
 echo "Running function correctness tests"
 test_correctness
+
+TEST_SUCCESS=true
