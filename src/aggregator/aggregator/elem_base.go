@@ -176,7 +176,7 @@ func newElemBase(opts Options) elemBase {
 	return elemBase{
 		opts:         opts,
 		aggTypesOpts: opts.AggregationTypesOptions(),
-		aggOpts:      raggregation.NewOptions(),
+		aggOpts:      raggregation.NewOptions(opts.InstrumentOptions()),
 	}
 }
 
