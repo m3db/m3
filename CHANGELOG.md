@@ -50,6 +50,7 @@
 - **All**: Add a utility for comparing performance and correctness across different versions of M3DB, enabling diffing the perf of different versions ([#2044](https://github.com/m3db/m3/pull/2044))
 - **All**: Upgrade etcd client library to 3.4.3 ([#2101](https://github.com/m3db/m3/pull/2101))
 - **All**: Include key name in watch errors ([#2138](https://github.com/m3db/m3/pull/2138))
+- **M3DB**: Add client bad request/internal error distinction for metrics and sampled logs ([#2201](https://github.com/m3db/m3/pull/2201))
 - **M3DB**: Add latency metrics to remote reads ([#2027](https://github.com/m3db/m3/pull/2027))
 - **M3DB**: Add metrics for async replication worker pool utilization ([#2059](https://github.com/m3db/m3/pull/2059))
 - **M3DB**: Remove carbon debug flag and rely on log debug level for debugging Carbon/Graphite mapping rules ([#2024](https://github.com/m3db/m3/pull/2024))
