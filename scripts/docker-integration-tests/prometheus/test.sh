@@ -26,7 +26,7 @@ TEST_SUCCESS=false
 function defer {
   if [[ "$TEST_SUCCESS" != "true" ]]; then
     echo "Test failure, printing docker-compose logs"
-    docker-compose logs
+    docker-compose -f ${COMPOSE_FILE} logs
   fi
 
   docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
