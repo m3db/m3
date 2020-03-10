@@ -168,11 +168,11 @@ func TestCounterElemBase(t *testing.T) {
 func TestCounterElemBaseNewAggregation(t *testing.T) {
 	e := counterElemBase{}
 	la := e.NewAggregation(nil, raggregation.Options{})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:       metric.CounterType,
 		CounterVal: 100,
 	})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:       metric.CounterType,
 		CounterVal: 200,
 	})

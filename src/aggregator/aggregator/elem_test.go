@@ -1804,7 +1804,7 @@ func testCounterElem(
 	e := MustNewCounterElem(testCounterID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, WithPrefixWithSuffix, opts)
 	for i, aligned := range alignedstartAtNanos {
 		counter := &lockedCounterAggregation{aggregation: newCounterAggregation(raggregation.NewCounter(e.aggOpts))}
-		counter.aggregation.Update(counterVals[i])
+		counter.aggregation.Update(time.Unix(0, aligned), counterVals[i])
 		e.values = append(e.values, timedCounter{
 			startAtNanos: aligned,
 			lockedAgg:    counter,

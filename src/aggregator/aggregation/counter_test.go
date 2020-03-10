@@ -22,6 +22,7 @@ package aggregation
 
 import (
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/x/instrument"
@@ -33,7 +34,7 @@ func TestCounterDefaultAggregationType(t *testing.T) {
 	c := NewCounter(NewOptions(instrument.NewOptions()))
 	require.False(t, c.HasExpensiveAggregations)
 	for i := 1; i <= 100; i++ {
-		c.Update(int64(i))
+		c.Update(time.Now(), int64(i))
 	}
 	require.Equal(t, int64(5050), c.Sum())
 	require.Equal(t, 5050.0, c.ValueOf(aggregation.Sum))
@@ -49,7 +50,7 @@ func TestCounterCustomAggregationType(t *testing.T) {
 	require.True(t, c.HasExpensiveAggregations)
 
 	for i := 1; i <= 100; i++ {
-		c.Update(int64(i))
+		c.Update(time.Now(), int64(i))
 	}
 	require.Equal(t, int64(5050), c.Sum())
 	for aggType := range aggregation.ValidTypes {

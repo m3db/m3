@@ -36,12 +36,12 @@ func newCounterAggregation(c aggregation.Counter) counterAggregation {
 	return counterAggregation{Counter: c}
 }
 
-func (c *counterAggregation) Add(value float64) {
-	c.Counter.Update(int64(value))
+func (c *counterAggregation) Add(t time.Time, value float64) {
+	c.Counter.Update(t, int64(value))
 }
 
-func (c *counterAggregation) AddUnion(mu unaggregated.MetricUnion) {
-	c.Counter.Update(mu.CounterVal)
+func (c *counterAggregation) AddUnion(t time.Time, mu unaggregated.MetricUnion) {
+	c.Counter.Update(t, mu.CounterVal)
 }
 
 // timerAggregation is a timer aggregation.
