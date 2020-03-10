@@ -26,22 +26,66 @@ import (
 	"go.uber.org/atomic"
 )
 
+// Rate is a sample rate.
+type Rate float64
+
+// Value returns the float64 sample rate value.
+func (r Rate) Value() float64 {
+	return float64(r)
+}
+
+// Validate validates a sample rate.
+func (r Rate) Validate() error {
+	if r < 0.0 || r > 1.0 {
+		return fmt.Errorf("invalid sample rate: actual=%f, valid=[0.0,1.0]", r)
+	}
+	return nil
+}
+
+// UnmarshalYAML unmarshals a sample rate.
+func (r *Rate) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var value float64
+	if err := unmarshal(&value); err != nil {
+		return err
+	}
+	return r.Validate()
+}
+
 // Sampler samples the requests, out of 100 sample calls,
 // 100*sampleRate calls will be sampled.
 type Sampler struct {
+	sampleRate  Rate
 	sampleEvery int32
 	numTried    *atomic.Int32
 }
 
 // NewSampler creates a new sampler with a sample rate.
-func NewSampler(sampleRate float64) (*Sampler, error) {
-	if sampleRate <= 0.0 || sampleRate >= 1.0 {
-		return nil, fmt.Errorf("invalid sample rate %f", sampleRate)
+func NewSampler(sampleRate Rate) (*Sampler, error) {
+	if err := sampleRate.Validate(); err != nil {
+		return nil, err
 	}
-	return &Sampler{numTried: atomic.NewInt32(0), sampleEvery: int32(1.0 / sampleRate)}, nil
+	if sampleRate == 0 {
+		return &Sampler{
+			sampleRate:  sampleRate,
+			sampleEvery: 0,
+		}, nil
+	}
+	return &Sampler{
+		sampleRate:  sampleRate,
+		numTried:    atomic.NewInt32(0),
+		sampleEvery: int32(1.0 / sampleRate),
+	}, nil
 }
 
 // Sample returns true when the call is sampled.
 func (t *Sampler) Sample() bool {
+	if t.sampleEvery == 0 {
+		return false
+	}
 	return (t.numTried.Inc()-1)%t.sampleEvery == 0
+}
+
+// SampleRate returns the effective sample rate.
+func (t *Sampler) SampleRate() Rate {
+	return t.sampleRate
 }
