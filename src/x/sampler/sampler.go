@@ -48,7 +48,15 @@ func (r *Rate) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&value); err != nil {
 		return err
 	}
-	return r.Validate()
+
+	parsed := Rate(value)
+	if err := parsed.Validate(); err != nil {
+		return err
+	}
+
+	*r = parsed
+
+	return nil
 }
 
 // Sampler samples the requests, out of 100 sample calls,
