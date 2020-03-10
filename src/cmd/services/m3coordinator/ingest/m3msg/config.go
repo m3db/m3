@@ -82,7 +82,7 @@ func (cfg Configuration) newOptions(
 	if cfg.LogSampleRate != nil {
 		logSampleRate = *cfg.LogSampleRate
 	}
-	sampler, err := sampler.NewSampler(logSampleRate)
+	sampler, err := sampler.NewSampler(sampler.Rate(logSampleRate))
 	if err != nil {
 		return Options{}, err
 	}
