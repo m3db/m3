@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -153,7 +153,7 @@ func (e *TimerElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) e
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.AddUnion(mu)
+	lockedAgg.aggregation.AddUnion(timestamp, mu)
 	lockedAgg.Unlock()
 	return nil
 }
@@ -170,7 +170,7 @@ func (e *TimerElem) AddValue(timestamp time.Time, value float64) error {
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.Add(value)
+	lockedAgg.aggregation.Add(timestamp, value)
 	lockedAgg.Unlock()
 	return nil
 }
@@ -196,7 +196,7 @@ func (e *TimerElem) AddUnique(timestamp time.Time, values []float64, sourceID ui
 	}
 	lockedAgg.sourcesSeen.Set(source)
 	for _, v := range values {
-		lockedAgg.aggregation.Add(v)
+		lockedAgg.aggregation.Add(timestamp, v)
 	}
 	lockedAgg.Unlock()
 	return nil

@@ -43,10 +43,10 @@ type typeSpecificAggregation interface {
 	generic.Type
 
 	// Add adds a new metric value.
-	Add(value float64)
+	Add(t time.Time, value float64)
 
 	// AddUnion adds a new metric value union.
-	AddUnion(mu unaggregated.MetricUnion)
+	AddUnion(t time.Time, mu unaggregated.MetricUnion)
 
 	// ValueOf returns the value for the given aggregation type.
 	ValueOf(aggType maggregation.Type) float64
@@ -207,7 +207,7 @@ func (e *GenericElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion)
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.AddUnion(mu)
+	lockedAgg.aggregation.AddUnion(timestamp, mu)
 	lockedAgg.Unlock()
 	return nil
 }
@@ -224,7 +224,7 @@ func (e *GenericElem) AddValue(timestamp time.Time, value float64) error {
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.Add(value)
+	lockedAgg.aggregation.Add(timestamp, value)
 	lockedAgg.Unlock()
 	return nil
 }
@@ -250,7 +250,7 @@ func (e *GenericElem) AddUnique(timestamp time.Time, values []float64, sourceID 
 	}
 	lockedAgg.sourcesSeen.Set(source)
 	for _, v := range values {
-		lockedAgg.aggregation.Add(v)
+		lockedAgg.aggregation.Add(timestamp, v)
 	}
 	lockedAgg.Unlock()
 	return nil
