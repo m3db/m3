@@ -423,7 +423,7 @@ func addUntimedMetricToAggregation(
 	switch mu.Type {
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
-		v.Update(mu.CounterVal)
+		v.Update(time.Now(), mu.CounterVal)
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
@@ -445,7 +445,7 @@ func addTimedMetricToAggregation(
 	switch mu.Type {
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
-		v.Update(int64(mu.Value))
+		v.Update(time.Now(), int64(mu.Value))
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
@@ -468,7 +468,7 @@ func addForwardedMetricToAggregation(
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
 		for _, val := range mu.Values {
-			v.Update(int64(val))
+			v.Update(time.Now(), int64(val))
 		}
 		return v, nil
 	case metric.TimerType:
