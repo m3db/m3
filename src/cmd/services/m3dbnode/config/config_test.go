@@ -398,6 +398,7 @@ func TestConfiguration(t *testing.T) {
       maxRetries: 3
       forever: null
       jitter: true
+    logErrorSampleRate: 0
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
