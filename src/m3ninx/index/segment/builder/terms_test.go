@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,49 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregation
+package builder
 
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/m3ninx/postings"
+
+	"github.com/stretchr/testify/require"
 )
 
-func getTimer() Timer {
-	opts := NewOptions(instrument.NewOptions())
-	opts.ResetSetData(testAggTypes)
+func TestTermsReuse(t *testing.T) {
+	terms := newTerms(NewOptions())
 
-	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
+	require.NoError(t, terms.post([]byte("term"), postings.ID(1)))
+	require.Equal(t, terms.size(), 1)
+	require.Equal(t, terms.postings.Len(), 1)
+	require.Equal(t, terms.postingsListUnion.Len(), 1)
 
-	for i := 1; i <= 100; i++ {
-		timer.Add(float64(i))
-	}
-	return timer
-}
-
-func BenchmarkTimerValues(b *testing.B) {
-	timer := getTimer()
-	for n := 0; n < b.N; n++ {
-		timer.Sum()
-		timer.SumSq()
-		timer.Mean()
-		timer.Min()
-		timer.Max()
-		timer.Count()
-		timer.Stdev()
-		timer.Quantile(0.5)
-		timer.Quantile(0.5)
-		timer.Quantile(0.95)
-		timer.Quantile(0.99)
-	}
-}
-
-func BenchmarkTimerValueOf(b *testing.B) {
-	timer := getTimer()
-	for n := 0; n < b.N; n++ {
-		for _, aggType := range testAggTypes {
-			timer.ValueOf(aggType)
-		}
-	}
+	terms.reset()
+	require.Equal(t, terms.size(), 0)
+	require.Equal(t, terms.postings.Len(), 0)
+	require.Equal(t, terms.postingsListUnion.Len(), 0)
 }

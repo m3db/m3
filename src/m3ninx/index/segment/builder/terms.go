@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@ type terms struct {
 	opts                Options
 	pool                postings.Pool
 	postings            *PostingsMap
+	postingsListUnion   postings.MutableList
 	uniqueTerms         []termElem
 	uniqueTermsIsSorted bool
 }
@@ -41,10 +42,12 @@ type termElem struct {
 }
 
 func newTerms(opts Options) *terms {
+	pool := opts.PostingsListPool()
 	return &terms{
-		opts:     opts,
-		pool:     opts.PostingsListPool(),
-		postings: NewPostingsMap(PostingsMapOptions{}),
+		opts:              opts,
+		pool:              pool,
+		postingsListUnion: pool.Get(),
+		postings:          NewPostingsMap(PostingsMapOptions{}),
 	}
 }
 
@@ -67,6 +70,9 @@ func (t *terms) post(term []byte, id postings.ID) error {
 	// collection for correct response when retrieving all terms
 	newTerm := postingsList.Len() == 0
 	if err := postingsList.Insert(id); err != nil {
+		return err
+	}
+	if err := t.postingsListUnion.Insert(id); err != nil {
 		return err
 	}
 	if newTerm {
@@ -100,6 +106,7 @@ func (t *terms) reset() {
 		t.pool.Put(entry.Value())
 	}
 	t.postings.Reset()
+	t.postingsListUnion.Reset()
 
 	// Reset the unique terms slice
 	var emptyTerm termElem

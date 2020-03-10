@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,49 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregation
+package builder
 
 import (
-	"testing"
-
-	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
+	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-func getTimer() Timer {
-	opts := NewOptions(instrument.NewOptions())
-	opts.ResetSetData(testAggTypes)
+// Ensure for our use case that the multi key iterator we return
+// matches the signature for the fields iterator.
+var _ segment.FieldsPostingsListIterator = &multiKeyPostingsListIterator{}
 
-	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
-
-	for i := 1; i <= 100; i++ {
-		timer.Add(float64(i))
-	}
-	return timer
-}
-
-func BenchmarkTimerValues(b *testing.B) {
-	timer := getTimer()
-	for n := 0; n < b.N; n++ {
-		timer.Sum()
-		timer.SumSq()
-		timer.Mean()
-		timer.Min()
-		timer.Max()
-		timer.Count()
-		timer.Stdev()
-		timer.Quantile(0.5)
-		timer.Quantile(0.5)
-		timer.Quantile(0.95)
-		timer.Quantile(0.99)
-	}
-}
-
-func BenchmarkTimerValueOf(b *testing.B) {
-	timer := getTimer()
-	for n := 0; n < b.N; n++ {
-		for _, aggType := range testAggTypes {
-			timer.ValueOf(aggType)
+func newFieldPostingsListIterFromSegments(
+	segments []segmentMetadata,
+) (segment.FieldsPostingsListIterator, error) {
+	multiIter := newMultiKeyPostingsListIterator()
+	for _, seg := range segments {
+		iter, err := seg.segment.FieldsIterable().Fields()
+		if err != nil {
+			return nil, err
 		}
+		if !iter.Next() {
+			// Don't consume this iterator if no results.
+			if err := xerrors.FirstError(iter.Err(), iter.Close()); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		multiIter.add(iter, seg.segment)
 	}
+
+	return multiIter, nil
 }
