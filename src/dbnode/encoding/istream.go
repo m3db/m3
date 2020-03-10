@@ -29,6 +29,7 @@ import (
 // istream encapsulates a readable stream.
 type istream struct {
 	r         *bufio.Reader // encoded stream
+	err       error         // error encountered
 	current   byte          // current byte we are working off of
 	remaining uint          // bits remaining in current to be read
 }
@@ -40,6 +41,9 @@ func NewIStream(reader io.Reader, bufioSize int) IStream {
 
 // ReadBit reads the next Bit
 func (is *istream) ReadBit() (Bit, error) {
+	if is.err != nil {
+		return 0, is.err
+	}
 	if is.remaining == 0 {
 		if err := is.readByteFromStream(); err != nil {
 			return 0, err
@@ -50,6 +54,9 @@ func (is *istream) ReadBit() (Bit, error) {
 
 // Read reads len(b) bytes.
 func (is *istream) Read(b []byte) (int, error) {
+	if is.err != nil {
+		return 0, is.err
+	}
 	if is.remaining == 0 {
 		// Optimized path for when the iterator is already aligned on a byte boundary. Avoids
 		// all the bit manipulation and ReadByte() function calls.
@@ -73,6 +80,9 @@ func (is *istream) Read(b []byte) (int, error) {
 
 // ReadByte reads the next Byte
 func (is *istream) ReadByte() (byte, error) {
+	if is.err != nil {
+		return 0, is.err
+	}
 	remaining := is.remaining
 	res := is.consumeBuffer(remaining)
 	if remaining == 8 {
@@ -87,6 +97,9 @@ func (is *istream) ReadByte() (byte, error) {
 
 // ReadBits reads the next Bits
 func (is *istream) ReadBits(numBits uint) (uint64, error) {
+	if is.err != nil {
+		return 0, is.err
+	}
 	var res uint64
 	for numBits >= 8 {
 		byteRead, err := is.ReadByte()
@@ -162,15 +175,15 @@ func (is *istream) consumeBuffer(numBits uint) byte {
 }
 
 func (is *istream) readByteFromStream() error {
-	var err error
-	is.current, err = is.r.ReadByte()
+	is.current, is.err = is.r.ReadByte()
 	is.remaining = 8
-	return err
+	return is.err
 }
 
 // Reset resets the Istream
 func (is *istream) Reset(r io.Reader) {
 	is.r.Reset(r)
+	is.err = nil
 	is.current = 0
 	is.remaining = 0
 }
