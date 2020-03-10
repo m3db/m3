@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/sync"
 	time0 "github.com/m3db/m3/src/x/time"
@@ -1185,6 +1186,34 @@ func (m *MockOptions) InstrumentOptions() instrument.Options {
 func (mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
+}
+
+// SetLogErrorSampleRate mocks base method
+func (m *MockOptions) SetLogErrorSampleRate(value sampler.Rate) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetLogErrorSampleRate", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetLogErrorSampleRate indicates an expected call of SetLogErrorSampleRate
+func (mr *MockOptionsMockRecorder) SetLogErrorSampleRate(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).SetLogErrorSampleRate), value)
+}
+
+// LogErrorSampleRate mocks base method
+func (m *MockOptions) LogErrorSampleRate() sampler.Rate {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LogErrorSampleRate")
+	ret0, _ := ret[0].(sampler.Rate)
+	return ret0
+}
+
+// LogErrorSampleRate indicates an expected call of LogErrorSampleRate
+func (mr *MockOptionsMockRecorder) LogErrorSampleRate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogErrorSampleRate", reflect.TypeOf((*MockOptions)(nil).LogErrorSampleRate))
 }
 
 // SetTopologyInitializer mocks base method
@@ -2580,6 +2609,34 @@ func (m *MockAdminOptions) InstrumentOptions() instrument.Options {
 func (mr *MockAdminOptionsMockRecorder) InstrumentOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockAdminOptions)(nil).InstrumentOptions))
+}
+
+// SetLogErrorSampleRate mocks base method
+func (m *MockAdminOptions) SetLogErrorSampleRate(value sampler.Rate) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetLogErrorSampleRate", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetLogErrorSampleRate indicates an expected call of SetLogErrorSampleRate
+func (mr *MockAdminOptionsMockRecorder) SetLogErrorSampleRate(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLogErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).SetLogErrorSampleRate), value)
+}
+
+// LogErrorSampleRate mocks base method
+func (m *MockAdminOptions) LogErrorSampleRate() sampler.Rate {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LogErrorSampleRate")
+	ret0, _ := ret[0].(sampler.Rate)
+	return ret0
+}
+
+// LogErrorSampleRate indicates an expected call of LogErrorSampleRate
+func (mr *MockAdminOptionsMockRecorder) LogErrorSampleRate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogErrorSampleRate", reflect.TypeOf((*MockAdminOptions)(nil).LogErrorSampleRate))
 }
 
 // SetTopologyInitializer mocks base method
