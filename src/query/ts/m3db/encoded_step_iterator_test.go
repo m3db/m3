@@ -540,7 +540,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 }
 
 func setupProf(usePools bool, iterations int) stop {
-	var pCPU, pMem interface {
+	var prof interface {
 		Stop()
 	}
 	if os.Getenv("PROFILE_TEST_CPU") == "true" {
@@ -550,7 +550,7 @@ func setupProf(usePools bool, iterations int) stop {
 			iterations: iterations,
 		}
 		if v := profilesTaken[key]; v == 2 {
-			pCPU = profile.Start(profile.CPUProfile)
+			prof = profile.Start(profile.CPUProfile)
 		}
 
 		profilesTaken[key] = profilesTaken[key] + 1
@@ -564,17 +564,14 @@ func setupProf(usePools bool, iterations int) stop {
 		}
 
 		if v := profilesTaken[key]; v == 2 {
-			pMem = profile.Start(profile.MemProfile)
+			prof = profile.Start(profile.MemProfile)
 		}
 
 		profilesTaken[key] = profilesTaken[key] + 1
 	}
 	return func() {
-		if pCPU != nil {
-			pCPU.Stop()
-		}
-		if pMem != nil {
-			pMem.Stop()
+		if prof != nil {
+			prof.Stop()
 		}
 	}
 }
