@@ -126,9 +126,9 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		// NB(r): First apply mapping rules to see which storage policies
 		// have been applied, any that have been applied as part of
 		// mapping rules that exact match a default storage policy will
-		// skip be skipped when applying default rules so to avoid
-		// storing the same metrics in the same namespace with the same
-		// metric name and tags (i.e. overwriting each other).
+		// skipped when applying default rules so to avoid storing
+		// the same metrics in the same namespace with the same metric
+		// name and tags (i.e. overwriting each other).
 		a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
 
 		stagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
@@ -164,7 +164,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 			stagedMetadatsBeforeFilter := stagedMetadatas[:]
 			if len(a.mappingRuleStoragePolicies) != 0 {
-				// If mapping rules have applied aggregatinons for
+				// If mapping rules have applied aggregations for
 				// storage policies then de-dupe so we don't have two
 				// active aggregations for the same storage policy.
 				stagedMetadatasAfterFilter := stagedMetadatas[:0]
