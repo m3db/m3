@@ -111,11 +111,11 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		// Use Read call rather than individual ReadByte calls since it has
 		// optimized path for when the iterator is aligned on a byte boundary.
 		bytes := is.buffer[0:numBytes]
-		_, err := is.Read(bytes)
+		read, err := is.Read(bytes)
 		if err != nil {
 			return 0, err
 		}
-		if numBytes == numBytesInInt64 {
+		if read == numBytesInInt64 {
 			res = binary.BigEndian.Uint64(bytes)
 		} else {
 			for _, b := range bytes {
