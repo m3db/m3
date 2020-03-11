@@ -1,11 +1,11 @@
 package yaml
 
 import (
+	pb "github.com/m3db/m3/src/cmd/tools/m3ctl/yaml/generated"
 	"io/ioutil"
 	"testing"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml/generated"
 )
 
 func TestPeekerPositive(t *testing.T) {
@@ -24,13 +24,17 @@ func TestPeekerPositive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to encode to protocol:%v:\n", err)
 	}
-	dest := yaml.DatabaseCreateRequestYaml{}
+	dest := pb.DatabaseCreateRequestYaml{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 	if err := unmarshaller.Unmarshal(data, &dest); err != nil {
 		t.Fatalf("operation selector failed to unmarshal unknown operation data:%v:\n", err)
 	}
-	if dest.Operation != opCreate {
-		t.Errorf("dest type does not have the correct type via operation selector:expected:%v:got:%v:", opCreate, dest.Operation)
+	t.Logf("dest:%v:\n", dest)
+	if dest.Request.NamespaceName != "default" {
+		t.Errorf("dest NamespaceName does not have the correct value via operation:expected:%v:got:%v:", opCreate, dest.Request.NamespaceName)
+	}
+	if dest.Request.Type != "cluster" {
+		t.Errorf("dest type does not have the correct value via operation:expected:%v:got:%v:", opCreate, dest.Request.Type)
 	}
 }
 func TestPeekerNegative(t *testing.T) {

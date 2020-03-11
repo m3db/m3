@@ -5,17 +5,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/errors"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/globalopts"
 )
 
-// all the values from the cli args are stored in here
-// for all the placement-related commands
 type namespacesVals struct {
-	nodeName *string
+	showAll *bool
 }
 
-// this has all that the upper dispatcher needs to parse the cli
 type Context struct {
 	vals     *namespacesVals
 	handlers namespacesHandlers
@@ -30,28 +27,26 @@ func InitializeFlags() Context {
 	return _setupFlags(
 		&namespacesVals{},
 		namespacesHandlers{
-			handle: doDelete,
+			handle: doGet,
 		},
 	)
 }
-
 func _setupFlags(finalArgs *namespacesVals, handler namespacesHandlers) Context {
-	nsFlags := flag.NewFlagSet("ns", flag.ContinueOnError)
-	finalArgs.nodeName = nsFlags.String("id", "", "delete the specified node in the placement")
-	nsFlags.Usage = func() {
+	namespaceFlags := flag.NewFlagSet("ns", flag.ContinueOnError)
+	finalArgs.showAll = namespaceFlags.Bool("all", false, "get all the standard info for namespaces (otherwise default behaviour lists only the names)")
+	namespaceFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
-The delete "%s" subcommand will delete namespace.
+The "%s" subcommand will list the namesspace names, or verbosely dump all details about the namespaces in json format.
 
-`, nsFlags.Name())
-		nsFlags.PrintDefaults()
+`, namespaceFlags.Name())
+		namespaceFlags.PrintDefaults()
 	}
 	return Context{
 		vals:     finalArgs,
 		handlers: handler,
-		Flags:    nsFlags,
+		Flags:    namespaceFlags,
 	}
 }
-
 func (ctx Context) PopParseDispatch(cli []string) error {
 	if len(cli) < 1 {
 		ctx.Flags.Usage()
@@ -60,23 +55,24 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 	inArgs := cli[1:]
 	if err := ctx.Flags.Parse(inArgs); err != nil {
 		ctx.Flags.Usage()
-		return err
-	}
-	if ctx.Flags.NFlag() == 0 {
-		ctx.Flags.Usage()
 		return &errors.FlagsError{}
 	}
+	if ctx.Flags.NArg() == 0 {
+		return ctx.handlers.handle(ctx.vals, ctx.Globals)
+	}
 	if err := dispatcher(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, err.Error())
 		return err
 	}
 	return nil
 }
-
 func dispatcher(ctx Context) error {
 	nextArgs := ctx.Flags.Args()
-	if len(nextArgs) != 0 {
+	switch nextArgs[0] {
+	case "":
+		return ctx.handlers.handle(ctx.vals, ctx.Globals)
+	default:
 		ctx.Flags.Usage()
-		return &errors.FlagsError{"\nextra args supplied. See usage.\n"}
+		return &errors.FlagsError{}
 	}
-	return ctx.handlers.handle(ctx.vals, ctx.Globals)
 }

@@ -5,9 +5,9 @@ import (
 	"go.uber.org/zap"
 	"io"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/client"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/namespaces"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/globalopts"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/namespaces"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 
 	"github.com/gogo/protobuf/jsonpb"

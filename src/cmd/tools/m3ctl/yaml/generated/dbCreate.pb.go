@@ -21,10 +21,6 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-// enum OperationType {
-//CREATE = 0;
-//INIT = 1;
-//}
 type DatabaseCreateRequestYaml struct {
 	Operation            string                       `protobuf:"bytes,1,opt,name=Operation,proto3" json:"Operation,omitempty"`
 	Request              *admin.DatabaseCreateRequest `protobuf:"bytes,2,opt,name=Request,proto3" json:"Request,omitempty"`

@@ -3,9 +3,9 @@ package apply
 import (
 	"fmt"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/client"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/yaml"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/globalopts"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/yaml"
 )
 
 func doApply(vals *applyVals, globals globalopts.GlobalOpts) error {

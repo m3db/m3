@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/apply"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/delete"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/apply"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/delete"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/get"
 	"go.uber.org/zap"
 )
 

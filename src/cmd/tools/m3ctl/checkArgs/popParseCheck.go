@@ -3,7 +3,7 @@ package checkArgs
 import (
 	"flag"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/errors"
 )
 
 func PopParseAndCheck(args []string, fs *flag.FlagSet) error {

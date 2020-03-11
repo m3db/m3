@@ -1,16 +1,16 @@
-package placements
+package namespaces
 
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/globalopts"
 )
 
 func makeStub() Context {
 	ctx := _setupFlags(
-		&placementVals{},
-		placementHandlers{
-			handle: func(*placementVals, globalopts.GlobalOpts) error { return nil },
+		&namespacesVals{},
+		namespacesHandlers{
+			handle: func(*namespacesVals, globalopts.GlobalOpts) error { return nil },
 		},
 	)
 	ctx.Globals.Endpoint = "nuch"
@@ -23,8 +23,13 @@ func TestBasic(t *testing.T) {
 		successCondition func(error) bool
 	}{
 		{
-			args:             []string{"pl"},
+			args:             []string{"ns"},
 			msg:              "It should return no error for sane args",
+			successCondition: func(err error) bool { return err == nil },
+		},
+		{
+			args:             []string{"ns", "-all"},
+			msg:              "It should return no error for sane args for -all",
 			successCondition: func(err error) bool { return err == nil },
 		},
 		{
@@ -33,17 +38,17 @@ func TestBasic(t *testing.T) {
 			successCondition: func(err error) bool { return err != nil },
 		},
 		{
-			args:             []string{"pl", "-h"},
+			args:             []string{"ns", "-h"},
 			msg:              "It should return error because we ran with -h",
 			successCondition: func(err error) bool { return err != nil },
 		},
 		{
-			args:             []string{"pl", "-node", "eee", "errr"},
+			args:             []string{"ns", "-all", "eee", "errr"},
 			msg:              "It should return error because we got extra args",
 			successCondition: func(err error) bool { return err != nil },
 		},
 		{
-			args:             []string{"pl", ""},
+			args:             []string{"ns", ""},
 			msg:              "It should return an error because we got an empty val",
 			successCondition: func(err error) bool { return err == nil },
 		},

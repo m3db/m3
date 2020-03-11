@@ -1,16 +1,17 @@
-package get
+package delete
 
 import (
 	"flag"
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get/namespaces"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/get/placements"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/delete/namespaces"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/delete/placements"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/errors"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/globalopts"
 )
 
+// this has all that the upper level needs to dispatch to here
 type Context struct {
 	GlobalOpts globalopts.GlobalOpts
 	Flags      *flag.FlagSet
@@ -19,25 +20,24 @@ type Context struct {
 func InitializeFlags() Context {
 	return _setupFlags()
 }
-
 func _setupFlags() Context {
-	getFlags := flag.NewFlagSet("get", flag.ContinueOnError)
-	getFlags.Usage = func() {
+	deleteFlags := flag.NewFlagSet("delete", flag.ContinueOnError)
+	deleteFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, `
-"%s" is for displaying information about the namespaces and placements.
+"%s" is for deletiion operations for namespaces and placements.
 
-`)
-		getFlags.PrintDefaults()
+`, deleteFlags.Name())
+		deleteFlags.PrintDefaults()
 	}
-	return Context{Flags: getFlags}
+	return Context{Flags: deleteFlags}
 }
-
 func (ctx Context) PopParseDispatch(cli []string) error {
 	thisFlagset := ctx.Flags
 	if len(cli) < 1 {
 		thisFlagset.Usage()
 		return &errors.FlagsError{}
 	}
+	// pop and parse
 	inArgs := cli[1:]
 	if err := thisFlagset.Parse(inArgs); err != nil {
 		thisFlagset.Usage()
@@ -47,7 +47,6 @@ func (ctx Context) PopParseDispatch(cli []string) error {
 		thisFlagset.Usage()
 		return &errors.FlagsError{}
 	}
-
 	plctx := placements.InitializeFlags()
 	nsctx := namespaces.InitializeFlags()
 	nextArgs := thisFlagset.Args()

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/errors"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/main/globalopts"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/errors"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/globalopts"
 	"github.com/m3db/m3/src/x/config/configflag"
 )
 
