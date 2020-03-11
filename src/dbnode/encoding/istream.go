@@ -27,6 +27,10 @@ import (
 	"math"
 )
 
+const (
+	numBytesInInt64 = 8
+)
+
 // istream encapsulates a readable stream.
 type istream struct {
 	r         *bufio.Reader // encoded stream
@@ -38,7 +42,7 @@ type istream struct {
 
 // NewIStream creates a new Istream
 func NewIStream(reader io.Reader, bufioSize int) IStream {
-	return &istream{r: bufio.NewReaderSize(reader, bufioSize), buffer: make([]byte, 8, 8)}
+	return &istream{r: bufio.NewReaderSize(reader, bufioSize), buffer: make([]byte, numBytesInInt64, numBytesInInt64)}
 }
 
 // ReadBit reads the next Bit
@@ -104,15 +108,17 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 	numBytes := numBits / 8
 	numBits = numBits % 8
 	if numBytes > 0 {
-		fullBytes := is.buffer[0:numBytes]
-		_, err := is.Read(fullBytes)
+		// Use Read call rather than individual ReadByte calls since it has
+		// optimized path for when the iterator is aligned on a byte boundary.
+		bytes := is.buffer[0:numBytes]
+		_, err := is.Read(bytes)
 		if err != nil {
 			return 0, err
 		}
-		if numBytes == 8 {
-			res = binary.BigEndian.Uint64(fullBytes)
+		if numBytes == numBytesInInt64 {
+			res = binary.BigEndian.Uint64(bytes)
 		} else {
-			for _, b := range fullBytes {
+			for _, b := range bytes {
 				res = (res << 8) | uint64(b)
 			}
 		}
