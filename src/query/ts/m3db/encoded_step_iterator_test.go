@@ -689,13 +689,10 @@ var (
 */
 func BenchmarkNextIteration(b *testing.B) {
 	iterTypes := []iterType{
-		// stepSequential,
-		// stepParallel,
 		seriesSequential,
-		// seriesBatch,
 	}
 
-	for _, s := range []int{10} {
+	for _, s := range []int{500} {
 		for _, t := range iterTypes {
 			name := t.name(fmt.Sprintf("%d", s))
 			b.Run(name, func(b *testing.B) {

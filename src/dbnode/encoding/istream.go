@@ -22,6 +22,7 @@ package encoding
 
 import (
 	"bufio"
+	"encoding/binary"
 	"io"
 	"math"
 )
@@ -31,12 +32,13 @@ type istream struct {
 	r         *bufio.Reader // encoded stream
 	err       error         // error encountered
 	current   byte          // current byte we are working off of
+	buffer    []byte        // current byte we are working off of
 	remaining int           // bits remaining in current to be read
 }
 
 // NewIStream creates a new Istream
 func NewIStream(reader io.Reader, bufioSize int) IStream {
-	return &istream{r: bufio.NewReaderSize(reader, bufioSize)}
+	return &istream{r: bufio.NewReaderSize(reader, bufioSize), buffer: make([]byte, 8, 8)}
 }
 
 // ReadBit reads the next Bit
@@ -98,15 +100,35 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		return 0, is.err
 	}
 
+	//var res uint64
+	//fmt.Println("NUM", numBits)
 	var res uint64
-	for numBits >= 8 {
-		byteRead, err := is.ReadByte()
+	numBytes := numBits / 8
+	numBits = numBits % 8
+	if numBytes > 0 {
+		fullBytes := is.buffer[0:numBytes]
+		_, err := is.Read(fullBytes)
 		if err != nil {
 			return 0, err
 		}
-		res = (res << 8) | uint64(byteRead)
-		numBits -= 8
+		// var res2 uint64
+		// for _, b := range fullBytes {
+		// 	res2 = (res2 << 8) | uint64(b)
+		// }
+		res = binary.BigEndian.Uint64(is.buffer)
+		// if res != res2 {
+		// 	panic(fmt.Sprintf("A %d %d", int(res), int(res2)))
+		// }
 	}
+
+	// for numBits >= 8 {
+	// 	byteRead, err := is.ReadByte()
+	// 	if err != nil {
+	// 		return 0, err
+	// 	}
+	// 	res = (res << 8) | uint64(byteRead)
+	// 	numBits -= 8
+	// }
 
 	for numBits > 0 {
 		// This is equivalent to calling is.ReadBit() in a loop but some manual inlining
