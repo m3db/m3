@@ -145,7 +145,7 @@ func (it *multiReaderIterator) moveIteratorsToNext() {
 		}
 
 		curr := it.iters.at()
-		if !curr.Equal(prev) {
+		if curr != prev {
 			return
 		}
 
@@ -179,6 +179,10 @@ func (it *multiReaderIterator) ResetSliceOfSlices(slicesIter xio.ReaderSliceOfSl
 	it.closed = false
 	// Try moveToNext to load values for calls to Current before Next
 	it.moveToNext()
+}
+
+func (it *multiReaderIterator) Schema() namespace.SchemaDescr {
+	return it.schemaDesc
 }
 
 func (it *multiReaderIterator) Close() {

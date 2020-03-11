@@ -22,11 +22,11 @@ package ingestm3msg
 
 import (
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sampler"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
 
@@ -70,7 +70,7 @@ func (cfg Configuration) newOptions(
 
 	workers.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(),
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		pool.NewObjectPoolOptions().
 			SetInstrumentOptions(instrumentOptions.
 				SetMetricsScope(instrumentOptions.MetricsScope().
@@ -82,7 +82,7 @@ func (cfg Configuration) newOptions(
 	if cfg.LogSampleRate != nil {
 		logSampleRate = *cfg.LogSampleRate
 	}
-	sampler, err := sampler.NewSampler(logSampleRate)
+	sampler, err := sampler.NewSampler(sampler.Rate(logSampleRate))
 	if err != nil {
 		return Options{}, err
 	}

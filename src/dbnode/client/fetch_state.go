@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/ident"
@@ -47,7 +48,8 @@ const (
 )
 
 var (
-	errFetchStateStillProcessing = errors.New("[invariant violated] fetch state is still processing, unable to create response")
+	errFetchStateStillProcessing = errors.New("[invariant violated] fetch " +
+		"state is still processing, unable to create response")
 )
 
 type fetchState struct {
@@ -175,7 +177,9 @@ func (f *fetchState) markDoneWithLock(err error) {
 	f.Signal()
 }
 
-func (f *fetchState) asTaggedIDsIterator(pools fetchTaggedPools) (TaggedIDsIterator, FetchResponseMetadata, error) {
+func (f *fetchState) asTaggedIDsIterator(
+	pools fetchTaggedPools,
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -197,7 +201,11 @@ func (f *fetchState) asTaggedIDsIterator(pools fetchTaggedPools) (TaggedIDsItera
 	return f.tagResultAccumulator.AsTaggedIDsIterator(limit, pools)
 }
 
-func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools, descr namespace.SchemaDescr) (encoding.SeriesIterators, FetchResponseMetadata, error) {
+func (f *fetchState) asEncodingSeriesIterators(
+	pools fetchTaggedPools,
+	descr namespace.SchemaDescr,
+	opts index.IterationOptions,
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -216,7 +224,7 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools, descr nam
 	}
 
 	limit := f.fetchTaggedOp.requestLimit(maxInt)
-	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools, descr)
+	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools, descr, opts)
 }
 
 func (f *fetchState) asAggregatedTagsIterator(pools fetchTaggedPools) (AggregatedTagsIterator, FetchResponseMetadata, error) {

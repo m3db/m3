@@ -741,7 +741,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	rulesStore := ruleskv.NewStore(rulesKVStore, rulesStoreOpts)
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
-	tagDecoderOptions := serialize.NewTagDecoderOptions()
+	tagDecoderOptions := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{})
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.
 			SetMetricsScope(instrumentOpts.MetricsScope().
@@ -808,8 +808,12 @@ func newTestID(t *testing.T, tags map[string]string) id.ID {
 	data, ok := tagEncoder.Data()
 	require.True(t, ok)
 
-	tagDecoderPool := serialize.NewTagDecoderPool(serialize.NewTagDecoderOptions(),
-		pool.NewObjectPoolOptions().SetSize(1))
+	size := 1
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
+			CheckBytesWrapperPoolSize: &size,
+		}),
+		pool.NewObjectPoolOptions().SetSize(size))
 	tagDecoderPool.Init()
 
 	tagDecoder := tagDecoderPool.Get()

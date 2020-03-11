@@ -108,7 +108,8 @@ func NewOptions() Options {
 		serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions())
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		pool.NewObjectPoolOptions())
 	tagDecoderPool.Init()
 	fstOptions := fst.NewOptions()
 
