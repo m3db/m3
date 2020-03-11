@@ -16,10 +16,12 @@
   "gnetId": null,
   "graphTooltip": 1,
   "iteration": 1575560854098,
+  "iteration": 1582905705847,
   "links": [],
   "panels": [
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -37,6 +39,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -48,6 +51,7 @@
         "x": 0,
         "y": 1
       },
+      "hiddenSeries": false,
       "id": 3,
       "legend": {
         "avg": false,
@@ -140,6 +144,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -151,6 +156,7 @@
         "x": 8,
         "y": 1
       },
+      "hiddenSeries": false,
       "id": 4,
       "legend": {
         "avg": false,
@@ -243,6 +249,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -254,6 +261,7 @@
         "x": 16,
         "y": 1
       },
+      "hiddenSeries": false,
       "id": 12,
       "legend": {
         "avg": false,
@@ -363,6 +371,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -374,6 +383,7 @@
         "x": 0,
         "y": 8
       },
+      "hiddenSeries": false,
       "id": 93,
       "legend": {
         "avg": false,
@@ -477,6 +487,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -488,6 +499,7 @@
         "x": 8,
         "y": 8
       },
+      "hiddenSeries": false,
       "id": 92,
       "legend": {
         "avg": false,
@@ -563,6 +575,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -574,6 +587,7 @@
         "x": 16,
         "y": 8
       },
+      "hiddenSeries": false,
       "id": 47,
       "legend": {
         "avg": false,
@@ -674,6 +688,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -682,6 +697,7 @@
         "x": 0,
         "y": 15
       },
+      "hiddenSeries": false,
       "id": 170,
       "legend": {
         "avg": false,
@@ -760,6 +776,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
@@ -768,6 +785,7 @@
         "x": 8,
         "y": 15
       },
+      "hiddenSeries": false,
       "id": 171,
       "legend": {
         "avg": false,
@@ -846,6 +864,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -857,6 +876,7 @@
         "x": 16,
         "y": 15
       },
+      "hiddenSeries": false,
       "id": 195,
       "legend": {
         "avg": false,
@@ -932,11 +952,12 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 22
       },
       "id": 190,
       "panels": [],
@@ -949,14 +970,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 0,
-        "y": 31
+        "y": 23
       },
+      "hiddenSeries": false,
       "id": 122,
       "legend": {
         "avg": false,
@@ -1035,14 +1058,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 6,
-        "y": 31
+        "y": 23
       },
+      "hiddenSeries": false,
       "id": 132,
       "legend": {
         "avg": false,
@@ -1122,14 +1147,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 12,
-        "y": 31
+        "y": 23
       },
+      "hiddenSeries": false,
       "id": 141,
       "legend": {
         "avg": false,
@@ -1207,14 +1234,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 18,
-        "y": 31
+        "y": 23
       },
+      "hiddenSeries": false,
       "id": 133,
       "legend": {
         "avg": false,
@@ -1290,11 +1319,12 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 38
+        "y": 30
       },
       "id": 194,
       "panels": [],
@@ -1306,14 +1336,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 0,
-        "y": 39
+        "y": 31
       },
+      "hiddenSeries": false,
       "id": 134,
       "legend": {
         "avg": false,
@@ -1391,14 +1423,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 6,
-        "y": 39
+        "y": 31
       },
+      "hiddenSeries": false,
       "id": 123,
       "legend": {
         "avg": false,
@@ -1477,14 +1511,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 12,
-        "y": 39
+        "y": 31
       },
+      "hiddenSeries": false,
       "id": 140,
       "legend": {
         "avg": false,
@@ -1563,14 +1599,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 18,
-        "y": 39
+        "y": 31
       },
+      "hiddenSeries": false,
       "id": 130,
       "legend": {
         "avg": false,
@@ -1654,14 +1692,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 0,
-        "y": 46
+        "y": 38
       },
+      "hiddenSeries": false,
       "id": 129,
       "legend": {
         "avg": false,
@@ -1765,14 +1805,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 6,
-        "y": 46
+        "y": 38
       },
+      "hiddenSeries": false,
       "id": 128,
       "legend": {
         "avg": false,
@@ -1862,14 +1904,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 12,
-        "y": 46
+        "y": 38
       },
+      "hiddenSeries": false,
       "id": 125,
       "legend": {
         "avg": false,
@@ -1948,14 +1992,16 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 7,
         "w": 6,
         "x": 18,
-        "y": 46
+        "y": 38
       },
+      "hiddenSeries": false,
       "id": 139,
       "legend": {
         "avg": false,
@@ -2031,11 +2077,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 53
+        "y": 45
       },
       "id": 173,
       "panels": [
@@ -2044,6 +2091,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2141,6 +2189,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2234,6 +2283,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2321,6 +2371,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2409,6 +2460,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2502,6 +2554,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2595,11 +2648,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 54
+        "y": 46
       },
       "id": 174,
       "panels": [
@@ -2608,6 +2662,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2703,6 +2758,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2792,6 +2848,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2881,6 +2938,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -2970,6 +3028,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3059,6 +3118,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3150,11 +3210,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 47
       },
       "id": 175,
       "panels": [
@@ -3163,6 +3224,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3252,6 +3314,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3341,6 +3404,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3430,6 +3494,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3521,11 +3586,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 48
       },
       "id": 176,
       "panels": [
@@ -3534,6 +3600,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3623,6 +3690,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3712,6 +3780,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3801,6 +3870,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3890,6 +3960,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -3979,6 +4050,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -4070,11 +4142,12 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 57
+        "y": 49
       },
       "id": 177,
       "panels": [],
@@ -4087,6 +4160,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4096,8 +4170,9 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 58
+        "y": 50
       },
+      "hiddenSeries": false,
       "id": 42,
       "legend": {
         "avg": false,
@@ -4173,6 +4248,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4182,8 +4258,9 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 58
+        "y": 50
       },
+      "hiddenSeries": false,
       "id": 50,
       "legend": {
         "avg": false,
@@ -4261,6 +4338,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4270,8 +4348,9 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 58
+        "y": 50
       },
+      "hiddenSeries": false,
       "id": 43,
       "legend": {
         "avg": false,
@@ -4354,6 +4433,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4363,8 +4443,9 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 65
+        "y": 57
       },
+      "hiddenSeries": false,
       "id": 45,
       "legend": {
         "avg": false,
@@ -4447,6 +4528,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4456,8 +4538,9 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 65
+        "y": 57
       },
+      "hiddenSeries": false,
       "id": 142,
       "legend": {
         "avg": false,
@@ -4535,6 +4618,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4544,8 +4628,9 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 65
+        "y": 57
       },
+      "hiddenSeries": false,
       "id": 143,
       "legend": {
         "avg": false,
@@ -4623,6 +4708,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4632,8 +4718,9 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 72
+        "y": 64
       },
+      "hiddenSeries": false,
       "id": 88,
       "legend": {
         "avg": false,
@@ -4716,6 +4803,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4725,8 +4813,9 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 72
+        "y": 64
       },
+      "hiddenSeries": false,
       "id": 44,
       "legend": {
         "avg": false,
@@ -4804,6 +4893,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4813,8 +4903,9 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 72
+        "y": 64
       },
+      "hiddenSeries": false,
       "id": 78,
       "legend": {
         "avg": false,
@@ -4892,6 +4983,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4901,8 +4993,9 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 79
+        "y": 71
       },
+      "hiddenSeries": false,
       "id": 79,
       "legend": {
         "avg": false,
@@ -4980,6 +5073,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "$datasource",
       "editable": true,
       "error": false,
       "fill": 0,
@@ -4989,8 +5083,9 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 79
+        "y": 71
       },
+      "hiddenSeries": false,
       "id": 84,
       "legend": {
         "avg": false,
@@ -5065,11 +5160,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 86
+        "y": 78
       },
       "id": 178,
       "panels": [
@@ -5078,6 +5174,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -5166,6 +5263,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -5254,6 +5352,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -5342,6 +5441,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -5435,6 +5535,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -5523,6 +5624,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -5634,11 +5736,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 87
+        "y": 79
       },
       "id": 179,
       "panels": [
@@ -5647,6 +5750,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -5740,6 +5844,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -5828,6 +5933,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -5916,6 +6022,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -6010,6 +6117,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -6098,6 +6206,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -6186,6 +6295,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -6276,11 +6386,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 88
+        "y": 80
       },
       "id": 180,
       "panels": [
@@ -6289,6 +6400,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -6375,6 +6487,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -6461,6 +6574,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -6547,6 +6661,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -6633,6 +6748,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -6719,6 +6835,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -6805,6 +6922,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -6891,6 +7009,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -6977,6 +7096,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -7063,6 +7183,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -7154,6 +7275,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -7240,6 +7362,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -7328,11 +7451,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 89
+        "y": 81
       },
       "id": 181,
       "panels": [
@@ -7341,6 +7465,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -7444,6 +7569,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -7547,6 +7673,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -7660,6 +7787,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -7749,6 +7877,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -7838,6 +7967,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -7927,6 +8057,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8015,6 +8146,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8103,6 +8235,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8191,6 +8324,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8279,6 +8413,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8367,6 +8502,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8455,6 +8591,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8543,6 +8680,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8633,11 +8771,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 90
+        "y": 82
       },
       "id": 182,
       "panels": [
@@ -8646,6 +8785,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8735,6 +8875,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8824,6 +8965,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -8913,6 +9055,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9002,6 +9145,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9093,11 +9237,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 91
+        "y": 83
       },
       "id": 183,
       "panels": [
@@ -9106,6 +9251,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9195,6 +9341,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9286,11 +9433,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 92
+        "y": 84
       },
       "id": 184,
       "panels": [
@@ -9299,6 +9447,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9392,6 +9541,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9485,6 +9635,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9573,6 +9724,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9661,6 +9813,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9749,6 +9902,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9839,11 +9993,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 93
+        "y": 85
       },
       "id": 185,
       "panels": [
@@ -9852,6 +10007,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -9940,6 +10096,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -10028,6 +10185,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -10116,6 +10274,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -10204,6 +10363,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -10292,6 +10452,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -10382,11 +10543,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 94
+        "y": 86
       },
       "id": 186,
       "panels": [
@@ -10395,6 +10557,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -10484,6 +10647,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -10573,6 +10737,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -10664,11 +10829,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 95
+        "y": 87
       },
       "id": 188,
       "panels": [
@@ -10677,6 +10843,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 1,
@@ -10785,6 +10952,7 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -10798,6 +10966,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "editable": true,
           "error": false,
           "fill": 0,
@@ -10889,11 +11058,12 @@
     },
     {
       "collapsed": true,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 97
+        "y": 89
       },
       "id": 191,
       "panels": [
@@ -10902,6 +11072,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 0,
           "fillGradient": 0,
           "gridPos": {
@@ -10988,6 +11159,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 0,
           "fillGradient": 0,
           "gridPos": {
@@ -11074,6 +11246,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -11160,6 +11333,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -11246,6 +11420,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -11332,6 +11507,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -11418,6 +11594,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -11511,13 +11688,31 @@
     }
   ],
   "refresh": false,
-  "schemaVersion": 19,
+  "schemaVersion": 22,
   "style": "dark",
   "tags": [
     "disable-sync"
   ],
   "templating": {
     "list": [
+      {
+        "current": {
+          "tags": [],
+          "text": "M3DB",
+          "value": "M3DB"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
       {
         "allFormat": "glob",
         "allValue": ".*",
@@ -11527,7 +11722,7 @@
             "$__all"
           ]
         },
-        "datasource": null,
+        "datasource": "$datasource",
         "definition": "{__name__=~\"m3aggregator_aggregator_flush_handler.*\"}",
         "hide": 0,
         "includeAll": true,
@@ -11824,5 +12019,5 @@
   "timezone": "browser",
   "title": "M3: Aggregator Details",
   "uid": "000000317",
-  "version": 61
+  "version": 62
 }
