@@ -30,7 +30,7 @@ import (
 const (
 	defaultDefaultTimeUnit        = xtime.Second
 	defaultByteFieldDictLRUSize   = 4
-	defaultIStreamReaderSizeM3TSZ = 16
+	defaultIStreamReaderSizeM3TSZ = 8 * 2
 	defaultIStreamReaderSizeProto = 128
 )
 
