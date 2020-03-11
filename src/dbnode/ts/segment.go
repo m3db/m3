@@ -36,10 +36,6 @@ type Segment struct {
 	Head checked.Bytes
 	// Tail is the tail of the segment.
 	Tail checked.Bytes
-	// RawHead is the head of the segment.
-	RawHead []byte
-	// RawTail is the tail of the segment.
-	RawTail []byte
 	// SegmentFlags declares whether to finalize when finalizing the segment.
 	Flags SegmentFlags
 	// checksum is the checksum for the segment.
@@ -93,20 +89,6 @@ func NewSegment(
 	return Segment{
 		Head:     head,
 		Tail:     tail,
-		Flags:    flags,
-		checksum: checksum,
-	}
-}
-
-// NewRawSegment creates a new RawSegment.
-func NewRawSegment(
-	head, tail []byte,
-	checksum uint32,
-	flags SegmentFlags,
-) Segment {
-	return Segment{
-		RawHead:  head,
-		RawTail:  tail,
 		Flags:    flags,
 		checksum: checksum,
 	}

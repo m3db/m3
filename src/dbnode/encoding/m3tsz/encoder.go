@@ -430,11 +430,5 @@ func (enc *encoder) segmentTakeOwnership() ts.Segment {
 	// NB(r): Finalize the head bytes whether this is by ref or copy. If by
 	// ref we have no ref to it anymore and if by copy then the owner should
 	// be finalizing the bytes when the segment is finalized.
-	head.IncRef()
-	abc := head.Bytes()
-	head.DecRef()
-	tail.IncRef()
-	def := tail.Bytes()
-	tail.DecRef()
-	return ts.NewRawSegment(abc, def, 0, ts.FinalizeHead)
+	return ts.NewSegment(head, tail, 0, ts.FinalizeHead)
 }
