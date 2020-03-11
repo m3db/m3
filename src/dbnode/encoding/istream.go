@@ -36,7 +36,7 @@ type istream struct {
 	r         *bufio.Reader // encoded stream
 	err       error         // error encountered
 	current   byte          // current byte we are working off of
-	buffer    []byte        // current byte we are working off of
+	buffer    []byte        // buffer for reading in multiple bytes
 	remaining int           // bits remaining in current to be read
 }
 
