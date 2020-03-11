@@ -100,8 +100,6 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		return 0, is.err
 	}
 
-	//var res uint64
-	//fmt.Println("NUM", numBits)
 	var res uint64
 	numBytes := numBits / 8
 	numBits = numBits % 8
@@ -111,24 +109,14 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
-		// var res2 uint64
-		// for _, b := range fullBytes {
-		// 	res2 = (res2 << 8) | uint64(b)
-		// }
-		res = binary.BigEndian.Uint64(is.buffer)
-		// if res != res2 {
-		// 	panic(fmt.Sprintf("A %d %d", int(res), int(res2)))
-		// }
+		if numBytes == 8 {
+			res = binary.BigEndian.Uint64(fullBytes)
+		} else {
+			for _, b := range fullBytes {
+				res = (res << 8) | uint64(b)
+			}
+		}
 	}
-
-	// for numBits >= 8 {
-	// 	byteRead, err := is.ReadByte()
-	// 	if err != nil {
-	// 		return 0, err
-	// 	}
-	// 	res = (res << 8) | uint64(byteRead)
-	// 	numBits -= 8
-	// }
 
 	for numBits > 0 {
 		// This is equivalent to calling is.ReadBit() in a loop but some manual inlining
