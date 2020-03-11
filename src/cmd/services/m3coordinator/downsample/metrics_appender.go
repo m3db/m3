@@ -125,8 +125,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	} else {
 		// NB(r): First apply mapping rules to see which storage policies
 		// have been applied, any that have been applied as part of
-		// mapping rules that exact match a default storage policy will
-		// skipped when applying default rules so to avoid storing
+		// mapping rules that exact match a default storage policy will be
+		// skipped when applying default rules, so as to avoid storing
 		// the same metrics in the same namespace with the same metric
 		// name and tags (i.e. overwriting each other).
 		a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
@@ -162,7 +162,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			a.debugLogMatch("downsampler applying default mapping rule",
 				debugLogMatchOptions{Meta: stagedMetadatas})
 
-			stagedMetadatsBeforeFilter := stagedMetadatas[:]
+			stagedMetadataBeforeFilter := stagedMetadatas[:]
 			if len(a.mappingRuleStoragePolicies) != 0 {
 				// If mapping rules have applied aggregations for
 				// storage policies then de-dupe so we don't have two
@@ -180,7 +180,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 								if sp.Equivalent(existing) {
 									matchedByMappingRule = true
 									a.debugLogMatch("downsampler skipping default mapping rule storage policy",
-										debugLogMatchOptions{Meta: stagedMetadatsBeforeFilter})
+										debugLogMatchOptions{Meta: stagedMetadataBeforeFilter})
 									break
 								}
 							}
@@ -219,7 +219,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			// after any filtering that's applied.
 			if len(stagedMetadatas) == 0 {
 				a.debugLogMatch("downsampler skipping default mapping rule completely",
-					debugLogMatchOptions{Meta: stagedMetadatsBeforeFilter})
+					debugLogMatchOptions{Meta: stagedMetadataBeforeFilter})
 				continue
 			}
 
