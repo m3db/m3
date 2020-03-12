@@ -70,21 +70,50 @@ ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
 
 if [[ "$USE_AGGREGATOR" = true ]]; then
     echo "Running aggregator pipeline"
-    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
-        "num_shards": 64,
-        "replication_factor": 1,
-        "instances": [
-            {
-                "id": "m3aggregator01",
-                "isolation_group": "rack-a",
-                "zone": "embedded",
-                "weight": 1024,
-                "endpoint": "m3aggregator01:6000",
-                "hostname": "m3aggregator01",
-                "port": 6000
-            }
-        ]
-    }'
+    if [[ "$USE_AGGREGATOR_HA" != true ]]; then
+        # Use single replica.
+        curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
+            "num_shards": 64,
+            "replication_factor": 1,
+            "instances": [
+                {
+                    "id": "m3aggregator01",
+                    "isolation_group": "rack-a",
+                    "zone": "embedded",
+                    "weight": 1024,
+                    "endpoint": "m3aggregator01:6000",
+                    "hostname": "m3aggregator01",
+                    "port": 6000
+                }
+            ]
+        }'
+    else
+        # Use two replicas.
+        curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
+            "num_shards": 64,
+            "replication_factor": 2,
+            "instances": [
+                {
+                    "id": "m3aggregator01",
+                    "isolation_group": "rack-a",
+                    "zone": "embedded",
+                    "weight": 1024,
+                    "endpoint": "m3aggregator01:6000",
+                    "hostname": "m3aggregator01",
+                    "port": 6000
+                },
+                {
+                    "id": "m3aggregator02",
+                    "isolation_group": "rack-b",
+                    "zone": "embedded",
+                    "weight": 1024,
+                    "endpoint": "m3aggregator02:6000",
+                    "hostname": "m3aggregator02",
+                    "port": 6000
+                }
+            ]
+        }'
+    fi
 
     echo "Initializing m3msg topic for ingestion"
     curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
