@@ -18,7 +18,7 @@ RUN cd /go/src/github.com/m3db/m3/ && \
 FROM alpine:latest
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
-EXPOSE 5000/tcp 6000/tcp 60001/tcp 7203/tcp 9000-9004/tcp
+EXPOSE 5000/tcp 6000/tcp 6001/tcp
 
 RUN apk add --no-cache curl jq
 
