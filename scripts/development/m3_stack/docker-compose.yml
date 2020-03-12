@@ -4,8 +4,8 @@ services:
     networks:
       - backend
     build:
-      context: ../../../
-      dockerfile: ./docker/m3dbnode/Dockerfile
+      context: ../../../bin
+      dockerfile: ./docker/m3dbnode/development.Dockerfile
     image: m3dbnode01:latest
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
@@ -24,8 +24,8 @@ services:
     networks:
       - backend
     build:
-      context: ../../../
-      dockerfile: ./docker/m3dbnode/Dockerfile
+      context: ../../../bin
+      dockerfile: ./docker/m3dbnode/development.Dockerfile
     image: m3dbnode02:latest
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
@@ -35,8 +35,8 @@ services:
     networks:
       - backend
     build:
-      context: ../../../
-      dockerfile: ./docker/m3dbnode/Dockerfile
+      context: ../../../bin
+      dockerfile: ./docker/m3dbnode/development.Dockerfile
     image: m3dbnode03:latest
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
@@ -50,8 +50,8 @@ services:
     networks:
       - backend
     build:
-      context: ../../../
-      dockerfile: ./docker/m3aggregator/Dockerfile
+      context: ../../../bin
+      dockerfile: ./docker/m3aggregator/development.Dockerfile
     image: m3aggregator01:latest
     volumes:
       - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
@@ -71,11 +71,12 @@ services:
     networks:
       - backend
     build:
-      context: ../../../
-      dockerfile: ./docker/m3coordinator/Dockerfile
+      context: ../../../bin
+      dockerfile: ./docker/m3coordinator/development.Dockerfile
     image: m3coordinator01:latest
     volumes:
-      - "./m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
+      # Use a path in the bin directory (gitignored) to easily change configs
+      - "../../../bin/m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
       - "./schema.proto:/etc/m3coordinator/schema.proto"
   m3collector01:
     expose:
@@ -87,8 +88,8 @@ services:
     networks:
       - backend
     build:
-      context: ../../../
-      dockerfile: ./docker/m3collector/Dockerfile
+      context: ../../../bin
+      dockerfile: ./docker/m3collector/development.Dockerfile
     image: m3collector01:latest
     volumes:
       - "./m3collector.yml:/etc/m3collector/m3collector.yml"
@@ -101,7 +102,17 @@ services:
       - backend
     image: prom/prometheus:latest
     volumes:
-      - "./:/etc/prometheus/"
+      - "./prometheus01.yml:/etc/prometheus/prometheus.yml"
+  prometheus02:
+    expose:
+      - "9091"
+    ports:
+      - "0.0.0.0:9091:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./prometheus02.yml:/etc/prometheus/prometheus.yml"
   grafana:
     build:
       context: ../../../
