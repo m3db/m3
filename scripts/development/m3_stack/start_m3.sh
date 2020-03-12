@@ -43,7 +43,7 @@ else
 fi
 
 # Bring up any other replicas
-if [[ "$MULTI_DB_NODE" = true ]] ; then
+if [[ "$USE_MULTI_DB_NODES" = true ]] ; then
     echo "Running multi node"
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data01
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data02
@@ -172,7 +172,7 @@ echo "Validating namespace"
 echo "Done validating namespace"
 
 echo "Initializing topology"
-if [[ "$MULTI_DB_NODE" = true ]] ; then
+if [[ "$USE_MULTI_DB_NODES" = true ]] ; then
     curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
         "num_shards": 64,
         "replication_factor": 3,
