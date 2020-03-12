@@ -101,8 +101,10 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
         docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator01
     fi
 
-    # Bring up the second replica
-    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator02
+    if [[ "$USE_AGGREGATOR_HA" == true ]]; then
+        # Bring up the second replica
+        docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator02
+    fi
 
     if [[ "$M3COLLECTOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COLLECTOR" == true ]]; then
         prepare_build_cmd "make m3collector-linux-amd64"

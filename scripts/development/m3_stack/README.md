@@ -11,7 +11,8 @@ The environment variables that let's you configure this setup are:
 - `USE_MULTI_DB_NODES=true`: uses 3 database nodes instead of 1 for cluster.
 - `USE_JAEGER=true`: look at traces emitted by M3 services.
 - `USE_PROMETHEUS_HA=true`: send data to M3 from two HA Prometheus instances to replicate deployments of HA Prometheus sending data to M3.
-- `USE_AGGREGATOR=true`: use dedicated aggregators to aggregate metrics.
+- `USE_AGGREGATOR=true`: use dedicate aggregator to aggregate metrics.
+- `USE_AGGREGATOR_HA=true`: use two dedicated aggregators for HA aggregated metrics.
 
 ## Usage
 
