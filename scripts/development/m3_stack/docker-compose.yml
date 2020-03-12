@@ -6,7 +6,7 @@ services:
     build:
       context: ../../../bin
       dockerfile: ./docker/m3dbnode/development.Dockerfile
-    image: m3dbnode01:latest
+    image: m3dbnode:dev
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
       - "./schema.proto:/etc/m3dbnode/schema.proto"
@@ -26,7 +26,7 @@ services:
     build:
       context: ../../../bin
       dockerfile: ./docker/m3dbnode/development.Dockerfile
-    image: m3dbnode02:latest
+    image: m3dbnode:dev
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
     environment:
@@ -37,7 +37,7 @@ services:
     build:
       context: ../../../bin
       dockerfile: ./docker/m3dbnode/development.Dockerfile
-    image: m3dbnode03:latest
+    image: m3dbnode:dev
     volumes:
       - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
     environment:
@@ -52,11 +52,26 @@ services:
     build:
       context: ../../../bin
       dockerfile: ./docker/m3aggregator/development.Dockerfile
-    image: m3aggregator01:latest
+    image: m3aggregator:dev
     volumes:
       - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
     environment:
       - M3AGGREGATOR_HOST_ID=m3aggregator01
+  m3aggregator02:
+    expose:
+      - "6001"
+    ports:
+      - "0.0.0.0:6001:6001"
+    networks:
+      - backend
+    build:
+      context: ../../../bin
+      dockerfile: ./docker/m3aggregator/development.Dockerfile
+    image: m3aggregator:dev
+    volumes:
+      - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+    environment:
+      - M3AGGREGATOR_HOST_ID=m3aggregator02
   m3coordinator01:
     expose:
       - "7201"
@@ -73,7 +88,7 @@ services:
     build:
       context: ../../../bin
       dockerfile: ./docker/m3coordinator/development.Dockerfile
-    image: m3coordinator01:latest
+    image: m3coordinator:dev
     volumes:
       # Use a path in the bin directory (gitignored) to easily change configs
       - "../../../bin/m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
@@ -90,7 +105,7 @@ services:
     build:
       context: ../../../bin
       dockerfile: ./docker/m3collector/development.Dockerfile
-    image: m3collector01:latest
+    image: m3collector:dev
     volumes:
       - "./m3collector.yml:/etc/m3collector/m3collector.yml"
   prometheus01:

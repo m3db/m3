@@ -27,20 +27,12 @@ if [[ "$USE_JAEGER" = true ]] ; then
     fi
 fi
 
-# Use standard coordinator config
-cp ./m3coordinator-standard.yml ${RELATIVE}/bin/m3coordinator.yml
+M3DBNODE_DEV_IMG=$(docker images m3dbnode:dev | fgrep -iv repository | wc -l | xargs)
+M3COORDINATOR_DEV_IMG=$(docker images m3coordinator:dev | fgrep -iv repository | wc -l | xargs)
+M3AGGREGATOR_DEV_IMG=$(docker images m3aggregator:dev | fgrep -iv repository | wc -l | xargs)
+M3COLLECTOR_DEV_IMG=$(docker images m3collector:dev | fgrep -iv repository | wc -l | xargs)
 
-if [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COORDINATOR" == true ]]; then
-    prepare_build_cmd "make m3coordinator-linux-amd64"
-    echo "Building m3coordinator binary first"
-    bash -c "$build_cmd"
-
-    docker-compose -f docker-compose.yml up --build $DOCKER_ARGS m3coordinator01
-else
-    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
-fi
-
-if [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3DBNODE" == true ]]; then
+if [[ "$M3DBNODE_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3DBNODE" == true ]]; then
     prepare_build_cmd "make m3dbnode-linux-amd64"
     echo "Building m3dbnode binary first"
     bash -c "$build_cmd"
@@ -50,12 +42,26 @@ else
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
 fi
 
+# Bring up any other replicas
 if [[ "$MULTI_DB_NODE" = true ]] ; then
     echo "Running multi node"
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data01
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data02
 else
     echo "Running single node"
+fi
+
+# Use standard coordinator config when bringing up coordinator first time
+cp ./m3coordinator-standard.yml ${RELATIVE}/bin/m3coordinator.yml
+
+if [[ "$M3COORDINATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COORDINATOR" == true ]]; then
+    prepare_build_cmd "make m3coordinator-linux-amd64"
+    echo "Building m3coordinator binary first"
+    bash -c "$build_cmd"
+
+    docker-compose -f docker-compose.yml up --build $DOCKER_ARGS m3coordinator01
+else
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 fi
 
 echo "Wait for coordinator API to be up"
@@ -85,7 +91,7 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
         "numberOfShards": 64
     }'
 
-    if [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3AGGREGATOR" == true ]]; then
+    if [[ "$M3AGGREGATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3AGGREGATOR" == true ]]; then
         prepare_build_cmd "make m3aggregator-linux-amd64"
         echo "Building m3aggregator binary first"
         bash -c "$build_cmd"
@@ -95,7 +101,10 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
         docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator01
     fi
 
-    if [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COLLECTOR" == true ]]; then
+    # Bring up the second replica
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator02
+
+    if [[ "$M3COLLECTOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COLLECTOR" == true ]]; then
         prepare_build_cmd "make m3collector-linux-amd64"
         echo "Building m3collector binary first"
         bash -c "$build_cmd"
