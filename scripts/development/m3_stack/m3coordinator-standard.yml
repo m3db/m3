@@ -39,53 +39,6 @@ clusters:
       # proto:
       #   schemaFilePath: /etc/m3coordinator/schema.proto
 
-# Uncomment for remote aggregator use
-# -- 
-# downsample:
-#   remoteAggregator:
-#     client:
-#       placementKV:
-#         namespace: /placement
-#         environment: override_test_env
-#       placementWatcher:
-#         key: m3aggregator
-#         initWatchTimeout: 10s
-#       hashType: murmur32
-#       shardCutoffLingerDuration: 1m
-#       flushSize: 1440
-#       maxTimerBatchSize: 1120
-#       queueSize: 10000
-#       queueDropType: oldest
-#       encoder:
-#         initBufferSize: 2048
-#         maxMessageSize: 10485760
-#         bytesPool:
-#           buckets:
-#             - capacity: 2048
-#               count: 4096
-#             - capacity: 4096
-#               count: 4096
-#           watermark:
-#             low: 0.7
-#             high: 1.0
-#       connection:
-#         writeTimeout: 250ms
-# ingest:
-#   ingester:
-#     workerPoolSize: 10000
-#     opPool:
-#       size: 10000
-#     retry:
-#       maxRetries: 3
-#       jitter: true
-#     logSampleRate: 0.01
-#   m3msg:
-#     server:
-#       listenAddress: "0.0.0.0:7507"
-#       retry:
-#         maxBackoff: 10s
-#         jitter: true
-
 carbon:
   ingester:
     listenAddress: "0.0.0.0:7204"
