@@ -444,20 +444,18 @@ func (e *GaugeElem) processValueWithAggregationLock(
 			continue
 		}
 
-		if !e.parsedPipeline.HasRollup {
-			// Process non-rollup.
-			switch e.idPrefixSuffixType {
-			case NoPrefixNoSuffix:
-				flushLocalFn(nil, e.id, nil, timeNanos, value, e.sp)
-			case WithPrefixWithSuffix:
-				flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
-			}
+		if e.parsedPipeline.HasRollup {
+			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
+			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
 			continue
 		}
 
-		// Process rollup.
-		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-		flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
+		switch e.idPrefixSuffixType {
+		case NoPrefixNoSuffix:
+			flushLocalFn(nil, e.id, nil, timeNanos, value, e.sp)
+		case WithPrefixWithSuffix:
+			flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
+		}
 	}
 
 	// Track when last consumed relative to the aggregation time window.

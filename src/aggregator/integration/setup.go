@@ -97,7 +97,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetAggregationTypesOptions(opts.AggregationTypesOptions()).
 		SetEntryCheckInterval(opts.EntryCheckInterval()).
 		SetMaxAllowedForwardingDelayFn(opts.MaxAllowedForwardingDelayFn()).
-		SetEnableDiscardNaNAggregatedValues(opts.DiscardNaNAggregatedValues())
+		SetEnableDiscardNaNAggregatedValues(opts.EnableDiscardNaNAggregatedValues())
 
 	// Set up placement manager.
 	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
