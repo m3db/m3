@@ -268,26 +268,28 @@ func (s *m3storage) fetchCompressed(
 		return nil, err
 	}
 
-	for _, n := range namespaces {
-		// NB(r): Need to perform log on inner loop, cannot reuse a
-		// checked entry returned from logger.Check(...).
-		// Will see: "Unsafe CheckedEntry re-use near Entry ..." otherwise.
-		debugLog := s.logger.Check(zapcore.DebugLevel,
-			"query resolved cluster namespace, will use most granular per result")
-		if debugLog == nil {
-			continue
-		}
+	if s.logger.Core().Enabled(zapcore.DebugLevel) {
+		for _, n := range namespaces {
+			// NB(r): Need to perform log on inner loop, cannot reuse a
+			// checked entry returned from logger.Check(...).
+			// Will see: "Unsafe CheckedEntry re-use near Entry ..." otherwise.
+			debugLog := s.logger.Check(zapcore.DebugLevel,
+				"query resolved cluster namespace, will use most granular per result")
+			if debugLog == nil {
+				continue
+			}
 
-		debugLog.Write(zap.String("query", query.Raw),
-			zap.String("m3query", m3query.String()),
-			zap.Time("start", query.Start),
-			zap.Time("end", query.End),
-			zap.String("fanoutType", fanout.String()),
-			zap.String("namespace", n.NamespaceID().String()),
-			zap.String("type", n.Options().Attributes().MetricsType.String()),
-			zap.String("retention", n.Options().Attributes().Retention.String()),
-			zap.String("resolution", n.Options().Attributes().Resolution.String()),
-			zap.Bool("remote", options.Remote))
+			debugLog.Write(zap.String("query", query.Raw),
+				zap.String("m3query", m3query.String()),
+				zap.Time("start", query.Start),
+				zap.Time("end", query.End),
+				zap.String("fanoutType", fanout.String()),
+				zap.String("namespace", n.NamespaceID().String()),
+				zap.String("type", n.Options().Attributes().MetricsType.String()),
+				zap.String("retention", n.Options().Attributes().Retention.String()),
+				zap.String("resolution", n.Options().Attributes().Resolution.String()),
+				zap.Bool("remote", options.Remote))
+		}
 	}
 
 	var (
