@@ -134,7 +134,7 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 		SetWriteWorkerPool(writePool).
 		SetLookbackDuration(time.Minute).
 		SetTagOptions(tagOpts)
-	storage, err := NewStorage(clusters, opts, instrument.NewOptions())
+	storage, err := NewStorage(clusters, opts, instrument.NewTestOptions(t))
 	require.NoError(t, err)
 	return storage
 }
