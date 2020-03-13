@@ -83,6 +83,7 @@ type bootstrapManager struct {
 	hasPending                  bool
 	status                      tally.Gauge
 	bootstrapDuration           tally.Timer
+	durableStatus               tally.Gauge
 	lastBootstrapCompletionTime time.Time
 }
 
@@ -102,6 +103,7 @@ func newBootstrapManager(
 		processProvider:   opts.BootstrapProcessProvider(),
 		status:            scope.Gauge("bootstrapped"),
 		bootstrapDuration: scope.Timer("bootstrap-duration"),
+		durableStatus:     scope.Gauge("bootstrapped-durable"),
 	}
 	m.bootstrapFn = m.bootstrap
 	return m
@@ -198,6 +200,12 @@ func (m *bootstrapManager) Report() {
 		m.status.Update(1)
 	} else {
 		m.status.Update(0)
+	}
+
+	if m.database.IsBootstrappedAndDurable() {
+		m.durableStatus.Update(1)
+	} else {
+		m.durableStatus.Update(0)
 	}
 }
 
