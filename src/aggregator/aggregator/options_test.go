@@ -202,10 +202,16 @@ func TestSetMaxNumCachedSourceSets(t *testing.T) {
 	require.Equal(t, value, o.MaxNumCachedSourceSets())
 }
 
-func TestSetDiscardNaNAggregatedValues(t *testing.T) {
+func TestSetEnableDiscardNaNAggregatedValues(t *testing.T) {
 	value := false
-	o := NewOptions().SetDiscardNaNAggregatedValues(value)
-	require.Equal(t, value, o.DiscardNaNAggregatedValues())
+	o := NewOptions().SetEnableDiscardNaNAggregatedValues(value)
+	require.Equal(t, value, o.EnableDiscardNaNAggregatedValues())
+}
+
+func TestSetEnableAggregationLastValueAdjustTimestamp(t *testing.T) {
+	value := true
+	o := NewOptions().SetEnableAggregationLastValueAdjustTimestamp(value)
+	require.Equal(t, value, o.EnableAggregationLastValueAdjustTimestamp())
 }
 
 func TestSetCounterElemPool(t *testing.T) {

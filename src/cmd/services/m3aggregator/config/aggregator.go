@@ -143,6 +143,9 @@ type AggregatorConfiguration struct {
 	// Whether to discard NaN aggregated values.
 	DiscardNaNAggregatedValues *bool `yaml:"discardNaNAggregatedValues"`
 
+	// Whether to use last timestamp of a last value aggregation rather than the window time.
+	AggregationLastValueAdjustTimestamp *bool `yaml:"aggregationLastValueAdjustTimestamp"`
+
 	// Pool of counter elements.
 	CounterElemPool pool.ObjectPoolConfiguration `yaml:"counterElemPool"`
 
@@ -389,13 +392,19 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetDefaultStoragePolicies(storagePolicies)
 
 	// Set cached source sets options.
-	if c.MaxNumCachedSourceSets != nil {
-		opts = opts.SetMaxNumCachedSourceSets(*c.MaxNumCachedSourceSets)
+	if v := c.MaxNumCachedSourceSets; v != nil {
+		opts = opts.SetMaxNumCachedSourceSets(*v)
 	}
 
 	// Set whether to discard NaN aggregated values.
-	if c.DiscardNaNAggregatedValues != nil {
-		opts = opts.SetDiscardNaNAggregatedValues(*c.DiscardNaNAggregatedValues)
+	if v := c.DiscardNaNAggregatedValues; v != nil {
+		opts = opts.SetEnableDiscardNaNAggregatedValues(*v)
+	}
+
+	// Set whether to adjust the aggregation last value timestamp taken
+	// to the time at which it was received instead of the last window timestamp.
+	if v := c.AggregationLastValueAdjustTimestamp; v != nil {
+		opts = opts.SetEnableAggregationLastValueAdjustTimestamp(*v)
 	}
 
 	// Set counter elem pool.

@@ -49,7 +49,7 @@ type typeSpecificAggregation interface {
 	AddUnion(t time.Time, mu unaggregated.MetricUnion)
 
 	// ValueOf returns the value for the given aggregation type.
-	ValueOf(aggType maggregation.Type) float64
+	ValueOf(aggType maggregation.Type) raggregation.Value
 
 	// Close closes the aggregation object.
 	Close()
@@ -455,17 +455,25 @@ func (e *GenericElem) indexOfWithLock(alignedStart int64) (int, bool) {
 }
 
 func (e *GenericElem) processValueWithAggregationLock(
-	timeNanos int64,
+	aggregationTimeNanos int64,
 	lockedAgg *lockedAggregation,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 ) {
 	var (
 		transformations  = e.parsedPipeline.Transformations
-		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
+		discardNaNValues = e.opts.EnableDiscardNaNAggregatedValues()
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
-		value := lockedAgg.aggregation.ValueOf(aggType)
+		aggValue := lockedAgg.aggregation.ValueOf(aggType)
+
+		timeNanos := aggregationTimeNanos
+		if aggValue.AdjustTimestamp {
+			timeNanos = aggValue.AdjustTimestampTime.UnixNano()
+		}
+
+		value := aggValue.Value
+
 		for i := 0; i < transformations.Len(); i++ {
 			transformType := transformations.At(i).Transformation.Type
 			if transformType.IsUnaryTransform() {
@@ -485,20 +493,27 @@ func (e *GenericElem) processValueWithAggregationLock(
 				value = res.Value
 			}
 		}
+
 		if discardNaNValues && math.IsNaN(value) {
 			continue
 		}
+
 		if !e.parsedPipeline.HasRollup {
+			// Process non-rollup.
 			switch e.idPrefixSuffixType {
 			case NoPrefixNoSuffix:
 				flushLocalFn(nil, e.id, nil, timeNanos, value, e.sp)
 			case WithPrefixWithSuffix:
 				flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
 			}
-		} else {
-			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
+			continue
 		}
+
+		// Process rollup.
+		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
+		flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
 	}
-	e.lastConsumedAtNanos = timeNanos
+
+	// Track when last consumed relative to the aggregation time window.
+	e.lastConsumedAtNanos = aggregationTimeNanos
 }

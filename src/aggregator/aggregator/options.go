@@ -38,18 +38,19 @@ import (
 )
 
 var (
-	defaultMetricPrefix               = []byte("stats.")
-	defaultCounterPrefix              = []byte("counts.")
-	defaultTimerPrefix                = []byte("timers.")
-	defaultGaugePrefix                = []byte("gauges.")
-	defaultEntryTTL                   = time.Hour
-	defaultEntryCheckInterval         = time.Hour
-	defaultEntryCheckBatchPercent     = 0.01
-	defaultMaxTimerBatchSizePerWrite  = 0
-	defaultMaxNumCachedSourceSets     = 2
-	defaultDiscardNaNAggregatedValues = true
-	defaultResignTimeout              = 5 * time.Minute
-	defaultDefaultStoragePolicies     = []policy.StoragePolicy{
+	defaultMetricPrefix                              = []byte("stats.")
+	defaultCounterPrefix                             = []byte("counts.")
+	defaultTimerPrefix                               = []byte("timers.")
+	defaultGaugePrefix                               = []byte("gauges.")
+	defaultEntryTTL                                  = time.Hour
+	defaultEntryCheckInterval                        = time.Hour
+	defaultEntryCheckBatchPercent                    = 0.01
+	defaultMaxTimerBatchSizePerWrite                 = 0
+	defaultMaxNumCachedSourceSets                    = 2
+	defaultEnableDiscardNaNAggregatedValues          = true
+	defaultEnableAggregationLastValueAdjustTimestamp = false
+	defaultResignTimeout                             = 5 * time.Minute
+	defaultDefaultStoragePolicies                    = []policy.StoragePolicy{
 		policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 		policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
 	}
@@ -261,11 +262,21 @@ type Options interface {
 	// MaxNumCachedSourceSets returns the maximum number of cached source sets.
 	MaxNumCachedSourceSets() int
 
-	// SetDiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
-	SetDiscardNaNAggregatedValues(value bool) Options
+	// SetEnableDiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
+	SetEnableDiscardNaNAggregatedValues(value bool) Options
 
-	// DiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
-	DiscardNaNAggregatedValues() bool
+	// EnableDiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
+	EnableDiscardNaNAggregatedValues() bool
+
+	// SetEnableAggregationLastValueAdjustTimestamp determines whether
+	// aggregations for last value aggregations adjusts timestamp to the last
+	// timestamp that the value was received in a time window or not.
+	SetEnableAggregationLastValueAdjustTimestamp(value bool) Options
+
+	// EnableAggregationLastValueAdjustTimestamp determines whether
+	// aggregations for last value aggregations adjusts timestamp to the last
+	// timestamp that the value was received in a time window or not.
+	EnableAggregationLastValueAdjustTimestamp() bool
 
 	// SetEntryPool sets the entry pool.
 	SetEntryPool(value EntryPool) Options
@@ -311,41 +322,42 @@ type Options interface {
 
 type options struct {
 	// Base options.
-	aggTypesOptions                  aggregation.TypesOptions
-	metricPrefix                     []byte
-	counterPrefix                    []byte
-	timerPrefix                      []byte
-	gaugePrefix                      []byte
-	timeLock                         *sync.RWMutex
-	clockOpts                        clock.Options
-	instrumentOpts                   instrument.Options
-	streamOpts                       cm.Options
-	adminClient                      client.AdminClient
-	runtimeOptsManager               runtime.OptionsManager
-	placementManager                 PlacementManager
-	shardFn                          sharding.ShardFn
-	bufferDurationBeforeShardCutover time.Duration
-	bufferDurationAfterShardCutoff   time.Duration
-	flushManager                     FlushManager
-	flushHandler                     handler.Handler
-	entryTTL                         time.Duration
-	entryCheckInterval               time.Duration
-	entryCheckBatchPercent           float64
-	maxTimerBatchSizePerWrite        int
-	defaultStoragePolicies           []policy.StoragePolicy
-	flushTimesManager                FlushTimesManager
-	electionManager                  ElectionManager
-	resignTimeout                    time.Duration
-	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
-	bufferForPastTimedMetricFn       BufferForPastTimedMetricFn
-	bufferForFutureTimedMetric       time.Duration
-	maxNumCachedSourceSets           int
-	discardNaNAggregatedValues       bool
-	entryPool                        EntryPool
-	counterElemPool                  CounterElemPool
-	timerElemPool                    TimerElemPool
-	gaugeElemPool                    GaugeElemPool
-	verboseErrors                    bool
+	aggTypesOptions                           aggregation.TypesOptions
+	metricPrefix                              []byte
+	counterPrefix                             []byte
+	timerPrefix                               []byte
+	gaugePrefix                               []byte
+	timeLock                                  *sync.RWMutex
+	clockOpts                                 clock.Options
+	instrumentOpts                            instrument.Options
+	streamOpts                                cm.Options
+	adminClient                               client.AdminClient
+	runtimeOptsManager                        runtime.OptionsManager
+	placementManager                          PlacementManager
+	shardFn                                   sharding.ShardFn
+	bufferDurationBeforeShardCutover          time.Duration
+	bufferDurationAfterShardCutoff            time.Duration
+	flushManager                              FlushManager
+	flushHandler                              handler.Handler
+	entryTTL                                  time.Duration
+	entryCheckInterval                        time.Duration
+	entryCheckBatchPercent                    float64
+	maxTimerBatchSizePerWrite                 int
+	defaultStoragePolicies                    []policy.StoragePolicy
+	flushTimesManager                         FlushTimesManager
+	electionManager                           ElectionManager
+	resignTimeout                             time.Duration
+	maxAllowedForwardingDelayFn               MaxAllowedForwardingDelayFn
+	bufferForPastTimedMetricFn                BufferForPastTimedMetricFn
+	bufferForFutureTimedMetric                time.Duration
+	maxNumCachedSourceSets                    int
+	enableDiscardNaNAggregatedValues          bool
+	enableAggregationLastValueAdjustTimestamp bool
+	entryPool                                 EntryPool
+	counterElemPool                           CounterElemPool
+	timerElemPool                             TimerElemPool
+	gaugeElemPool                             GaugeElemPool
+	verboseErrors                             bool
 
 	// Derived options.
 	fullCounterPrefix []byte
@@ -384,8 +396,9 @@ func NewOptions() Options {
 		bufferForPastTimedMetricFn:       defaultBufferForPastTimedMetricFn,
 		bufferForFutureTimedMetric:       defaultTimedMetricBuffer,
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
-		discardNaNAggregatedValues:       defaultDiscardNaNAggregatedValues,
-		verboseErrors:                    defaultVerboseErrors,
+		enableDiscardNaNAggregatedValues: defaultEnableDiscardNaNAggregatedValues,
+		enableAggregationLastValueAdjustTimestamp: defaultEnableAggregationLastValueAdjustTimestamp,
+		verboseErrors: defaultVerboseErrors,
 	}
 
 	// Initialize pools.
@@ -691,14 +704,24 @@ func (o *options) MaxNumCachedSourceSets() int {
 	return o.maxNumCachedSourceSets
 }
 
-func (o *options) SetDiscardNaNAggregatedValues(value bool) Options {
+func (o *options) SetEnableDiscardNaNAggregatedValues(value bool) Options {
 	opts := *o
-	opts.discardNaNAggregatedValues = value
+	opts.enableDiscardNaNAggregatedValues = value
 	return &opts
 }
 
-func (o *options) DiscardNaNAggregatedValues() bool {
-	return o.discardNaNAggregatedValues
+func (o *options) EnableDiscardNaNAggregatedValues() bool {
+	return o.enableDiscardNaNAggregatedValues
+}
+
+func (o *options) SetEnableAggregationLastValueAdjustTimestamp(value bool) Options {
+	opts := *o
+	opts.enableAggregationLastValueAdjustTimestamp = value
+	return &opts
+}
+
+func (o *options) EnableAggregationLastValueAdjustTimestamp() bool {
+	return o.enableAggregationLastValueAdjustTimestamp
 }
 
 func (o *options) SetEntryPool(value EntryPool) Options {

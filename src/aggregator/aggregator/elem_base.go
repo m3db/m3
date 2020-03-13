@@ -173,10 +173,13 @@ type elemBase struct {
 }
 
 func newElemBase(opts Options) elemBase {
+	aggOpts := raggregation.NewOptions(opts.InstrumentOptions())
+	aggOpts.EnableAggregationLastValueAdjustTimestamp =
+		opts.EnableAggregationLastValueAdjustTimestamp()
 	return elemBase{
 		opts:         opts,
 		aggTypesOpts: opts.AggregationTypesOptions(),
-		aggOpts:      raggregation.NewOptions(opts.InstrumentOptions()),
+		aggOpts:      aggOpts,
 	}
 }
 

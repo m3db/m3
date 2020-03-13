@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -401,17 +401,25 @@ func (e *GaugeElem) indexOfWithLock(alignedStart int64) (int, bool) {
 }
 
 func (e *GaugeElem) processValueWithAggregationLock(
-	timeNanos int64,
+	aggregationTimeNanos int64,
 	lockedAgg *lockedGaugeAggregation,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 ) {
 	var (
 		transformations  = e.parsedPipeline.Transformations
-		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
+		discardNaNValues = e.opts.EnableDiscardNaNAggregatedValues()
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
-		value := lockedAgg.aggregation.ValueOf(aggType)
+		aggValue := lockedAgg.aggregation.ValueOf(aggType)
+
+		timeNanos := aggregationTimeNanos
+		if aggValue.AdjustTimestamp {
+			timeNanos = aggValue.AdjustTimestampTime.UnixNano()
+		}
+
+		value := aggValue.Value
+
 		for i := 0; i < transformations.Len(); i++ {
 			transformType := transformations.At(i).Transformation.Type
 			if transformType.IsUnaryTransform() {
@@ -431,20 +439,27 @@ func (e *GaugeElem) processValueWithAggregationLock(
 				value = res.Value
 			}
 		}
+
 		if discardNaNValues && math.IsNaN(value) {
 			continue
 		}
+
 		if !e.parsedPipeline.HasRollup {
+			// Process non-rollup.
 			switch e.idPrefixSuffixType {
 			case NoPrefixNoSuffix:
 				flushLocalFn(nil, e.id, nil, timeNanos, value, e.sp)
 			case WithPrefixWithSuffix:
 				flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
 			}
-		} else {
-			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
-			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
+			continue
 		}
+
+		// Process rollup.
+		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
+		flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
 	}
-	e.lastConsumedAtNanos = timeNanos
+
+	// Track when last consumed relative to the aggregation time window.
+	e.lastConsumedAtNanos = aggregationTimeNanos
 }
