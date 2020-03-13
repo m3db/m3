@@ -271,6 +271,7 @@ func (s *m3storage) fetchCompressed(
 	for _, n := range namespaces {
 		// NB(r): Need to perform log on inner loop, cannot reuse a
 		// checked entry returned from logger.Check(...).
+		// Will see: "Unsafe CheckedEntry re-use near Entry ..." otherwise.
 		debugLog := s.logger.Check(zapcore.DebugLevel,
 			"query resolved cluster namespace, will use most granular per result")
 		if debugLog == nil {
