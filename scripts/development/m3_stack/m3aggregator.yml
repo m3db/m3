@@ -327,6 +327,7 @@ aggregator:
     - 10s:2d
   maxNumCachedSourceSets: 2
   discardNaNAggregatedValues: true
+  aggregationLastValueAdjustTimestamp: true
   entryPool:
     size: 4096
   counterElemPool:
