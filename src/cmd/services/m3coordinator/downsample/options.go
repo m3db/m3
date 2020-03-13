@@ -78,12 +78,12 @@ const (
 	defaultVerboseErrors           = true
 	defaultMatcherCacheCapacity    = 100000
 
-	// defaultEnableAggregationLastValueAdjustTimestamp is set to true so that
+	// defaultEnableAggregationLastValueKeepLastTimestamp is set to true so that
 	// by default downsampling for prometheus metrics retains the last value
 	// timestamp.
 	// Should be disabled for graphite and non-Prometheus use cases that expect
 	// a fixed step size.
-	defaultEnableAggregationLastValueAdjustTimestamp = true
+	defaultEnableAggregationLastValueKeepLastTimestamp = true
 )
 
 var (
@@ -204,9 +204,9 @@ type Configuration struct {
 	// AggregationTypes configs the aggregation types.
 	AggregationTypes *aggregation.TypesConfiguration `yaml:"aggregationTypes"`
 
-	// AggregationLastValueAdjustTimestamp determines whether to use last
+	// AggregationLastValueKeepLastTimestamp determines whether to use last
 	// timestamp of a last value aggregation rather than the window time.
-	AggregationLastValueAdjustTimestamp *bool `yaml:"aggregationLastValueAdjustTimestamp"`
+	AggregationLastValueKeepLastTimestamp *bool `yaml:"aggregationLastValueKeepLastTimestamp"`
 
 	// Pool of counter elements.
 	CounterElemPool pool.ObjectPoolConfiguration `yaml:"counterElemPool"`
@@ -746,7 +746,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn).
 		SetBufferForFutureTimedMetric(defaultBufferFutureTimedMetric).
 		SetVerboseErrors(defaultVerboseErrors).
-		SetEnableAggregationLastValueAdjustTimestamp(defaultEnableAggregationLastValueAdjustTimestamp)
+		SetEnableAggregationLastValueKeepLastTimestamp(defaultEnableAggregationLastValueKeepLastTimestamp)
 
 	if v := cfg.EntryTTL; v != 0 {
 		aggregatorOpts = aggregatorOpts.SetEntryTTL(v)
@@ -760,8 +760,8 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		aggregatorOpts = aggregatorOpts.SetAggregationTypesOptions(aggTypeOpts)
 	}
 
-	if v := cfg.AggregationLastValueAdjustTimestamp; v != nil {
-		aggregatorOpts = aggregatorOpts.SetEnableAggregationLastValueAdjustTimestamp(*v)
+	if v := cfg.AggregationLastValueKeepLastTimestamp; v != nil {
+		aggregatorOpts = aggregatorOpts.SetEnableAggregationLastValueKeepLastTimestamp(*v)
 	}
 
 	// Set counter elem pool.

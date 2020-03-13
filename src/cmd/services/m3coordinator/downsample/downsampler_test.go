@@ -328,7 +328,7 @@ func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
-func TestDownsamplerAggregationLastValueAdjustTimestamp(t *testing.T) {
+func TestDownsamplerAggregationLastValueKeepLastTimestamp(t *testing.T) {
 	alignedStart := time.Now().
 		Truncate(testAggregationResolution).
 		Add(testAggregationResolution)
@@ -829,7 +829,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		cfg.Rules = opts.rulesConfig
 	}
 	if opts.aggregationLastValueAdjustment != nil {
-		cfg.AggregationLastValueAdjustTimestamp = opts.aggregationLastValueAdjustment
+		cfg.AggregationLastValueKeepLastTimestamp = opts.aggregationLastValueAdjustment
 	}
 
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{

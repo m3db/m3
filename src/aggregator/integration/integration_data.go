@@ -571,10 +571,10 @@ func computeExpectedAggregatedMetrics(
 
 		for _, aggType := range aggTypes {
 			if key.category == timedMetric {
-				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType), sp)
+				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType).Value, sp)
 				continue
 			}
-			fn(opts.FullCounterPrefix(), id, aggTypeOpts.TypeStringForCounter(aggType), timeNanos, metricAgg.ValueOf(aggType), sp)
+			fn(opts.FullCounterPrefix(), id, aggTypeOpts.TypeStringForCounter(aggType), timeNanos, metricAgg.ValueOf(aggType).Value, sp)
 		}
 	case aggregation.Timer:
 		if aggTypes.IsDefault() {
@@ -583,10 +583,10 @@ func computeExpectedAggregatedMetrics(
 
 		for _, aggType := range aggTypes {
 			if key.category == timedMetric {
-				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType), sp)
+				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType).Value, sp)
 				continue
 			}
-			fn(opts.FullTimerPrefix(), id, aggTypeOpts.TypeStringForTimer(aggType), timeNanos, metricAgg.ValueOf(aggType), sp)
+			fn(opts.FullTimerPrefix(), id, aggTypeOpts.TypeStringForTimer(aggType), timeNanos, metricAgg.ValueOf(aggType).Value, sp)
 		}
 	case aggregation.Gauge:
 		if aggTypes.IsDefault() {
@@ -595,10 +595,10 @@ func computeExpectedAggregatedMetrics(
 
 		for _, aggType := range aggTypes {
 			if key.category == timedMetric {
-				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType), sp)
+				fn(nil, id, nil, timeNanos, metricAgg.ValueOf(aggType).Value, sp)
 				continue
 			}
-			fn(opts.FullGaugePrefix(), id, aggTypeOpts.TypeStringForGauge(aggType), timeNanos, metricAgg.ValueOf(aggType), sp)
+			fn(opts.FullGaugePrefix(), id, aggTypeOpts.TypeStringForGauge(aggType), timeNanos, metricAgg.ValueOf(aggType).Value, sp)
 		}
 	default:
 		return nil, fmt.Errorf("unrecognized aggregation type %T", metricAgg)

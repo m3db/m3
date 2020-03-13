@@ -108,7 +108,7 @@ func TestCounterResetSetData(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, opts.AggregationTypesOptions().DefaultCounterAggregationTypes(), ce.aggTypes)
 	require.True(t, ce.useDefaultAggregation)
-	require.False(t, ce.aggOpts.HasExpensiveAggregations)
+	require.False(t, ce.aggOpts.EnableExpensiveAggregations)
 	require.Equal(t, 1, ce.numForwardedTimes)
 
 	// Reset element with a default pipeline.
@@ -121,7 +121,7 @@ func TestCounterResetSetData(t *testing.T) {
 	require.False(t, ce.tombstoned)
 	require.False(t, ce.closed)
 	require.False(t, ce.useDefaultAggregation)
-	require.True(t, ce.aggOpts.HasExpensiveAggregations)
+	require.True(t, ce.aggOpts.EnableExpensiveAggregations)
 	require.Nil(t, ce.lastConsumedValues)
 	require.Equal(t, 2, ce.numForwardedTimes)
 
@@ -661,7 +661,7 @@ func TestTimerResetSetData(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, te.quantilesPool)
 	require.NotNil(t, te.quantiles)
-	require.True(t, te.aggOpts.HasExpensiveAggregations)
+	require.True(t, te.aggOpts.EnableExpensiveAggregations)
 	require.Equal(t, opts.AggregationTypesOptions().DefaultTimerAggregationTypes(), te.aggTypes)
 	require.True(t, te.useDefaultAggregation)
 
@@ -675,7 +675,7 @@ func TestTimerResetSetData(t *testing.T) {
 	require.False(t, te.tombstoned)
 	require.False(t, te.closed)
 	require.False(t, te.useDefaultAggregation)
-	require.False(t, te.aggOpts.HasExpensiveAggregations)
+	require.False(t, te.aggOpts.EnableExpensiveAggregations)
 	require.Equal(t, []float64{0.999}, te.quantiles)
 	require.NotNil(t, te.quantilesPool)
 	require.Nil(t, te.lastConsumedValues)
@@ -1168,7 +1168,7 @@ func TestGaugeResetSetData(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, opts.AggregationTypesOptions().DefaultGaugeAggregationTypes(), ge.aggTypes)
 	require.True(t, ge.useDefaultAggregation)
-	require.False(t, ge.aggOpts.HasExpensiveAggregations)
+	require.False(t, ge.aggOpts.EnableExpensiveAggregations)
 
 	// Reset element with a default pipeline.
 	err = ge.ResetSetData(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, 0, NoPrefixNoSuffix)
@@ -1180,7 +1180,7 @@ func TestGaugeResetSetData(t *testing.T) {
 	require.False(t, ge.tombstoned)
 	require.False(t, ge.closed)
 	require.False(t, ge.useDefaultAggregation)
-	require.True(t, ge.aggOpts.HasExpensiveAggregations)
+	require.True(t, ge.aggOpts.EnableExpensiveAggregations)
 	require.Nil(t, ge.lastConsumedValues)
 
 	// Reset element with a pipeline containing a derivative transformation.

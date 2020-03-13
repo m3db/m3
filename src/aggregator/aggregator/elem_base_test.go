@@ -77,7 +77,7 @@ func TestElemBaseResetSetData(t *testing.T) {
 	require.Equal(t, testStoragePolicy, e.sp)
 	require.Equal(t, testAggregationTypesExpensive, e.aggTypes)
 	require.False(t, e.useDefaultAggregation)
-	require.True(t, e.aggOpts.HasExpensiveAggregations)
+	require.True(t, e.aggOpts.EnableExpensiveAggregations)
 	require.Equal(t, expectedParsedPipeline, e.parsedPipeline)
 	require.Equal(t, 3, e.numForwardedTimes)
 	require.False(t, e.tombstoned)
@@ -176,7 +176,7 @@ func TestCounterElemBaseNewAggregation(t *testing.T) {
 		Type:       metric.CounterType,
 		CounterVal: 200,
 	})
-	res := la.ValueOf(maggregation.Sum)
+	res := la.ValueOf(maggregation.Sum).Value
 	require.Equal(t, float64(300), res)
 }
 
@@ -226,7 +226,7 @@ func TestTimerElemBaseNewAggregation(t *testing.T) {
 		Type:          metric.TimerType,
 		BatchTimerVal: []float64{300.0, 400.0, 500.0},
 	})
-	res := la.ValueOf(maggregation.Mean)
+	res := la.ValueOf(maggregation.Mean).Value
 	require.Equal(t, float64(300.0), res)
 }
 
@@ -285,7 +285,7 @@ func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 		Type:     metric.GaugeType,
 		GaugeVal: 200.0,
 	})
-	res := la.ValueOf(maggregation.Last)
+	res := la.ValueOf(maggregation.Last).Value
 	require.Equal(t, float64(200.0), res)
 }
 

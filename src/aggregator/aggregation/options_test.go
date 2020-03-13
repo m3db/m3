@@ -31,14 +31,14 @@ import (
 
 func TestOptions(t *testing.T) {
 	o := NewOptions(instrument.NewOptions())
-	require.False(t, o.HasExpensiveAggregations)
+	require.False(t, o.EnableExpensiveAggregations)
 
 	o.ResetSetData(nil)
-	require.False(t, o.HasExpensiveAggregations)
+	require.False(t, o.EnableExpensiveAggregations)
 
 	o.ResetSetData(aggregation.Types{aggregation.Sum})
-	require.False(t, o.HasExpensiveAggregations)
+	require.False(t, o.EnableExpensiveAggregations)
 
 	o.ResetSetData(aggregation.Types{aggregation.Sum, aggregation.SumSq})
-	require.True(t, o.HasExpensiveAggregations)
+	require.True(t, o.EnableExpensiveAggregations)
 }

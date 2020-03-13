@@ -208,10 +208,10 @@ func TestSetEnableDiscardNaNAggregatedValues(t *testing.T) {
 	require.Equal(t, value, o.EnableDiscardNaNAggregatedValues())
 }
 
-func TestSetEnableAggregationLastValueAdjustTimestamp(t *testing.T) {
+func TestSetEnableAggregationLastValueKeepLastTimestamp(t *testing.T) {
 	value := true
-	o := NewOptions().SetEnableAggregationLastValueAdjustTimestamp(value)
-	require.Equal(t, value, o.EnableAggregationLastValueAdjustTimestamp())
+	o := NewOptions().SetEnableAggregationLastValueKeepLastTimestamp(value)
+	require.Equal(t, value, o.EnableAggregationLastValueKeepLastTimestamp())
 }
 
 func TestSetCounterElemPool(t *testing.T) {

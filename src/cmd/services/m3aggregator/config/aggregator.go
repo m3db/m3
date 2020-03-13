@@ -144,7 +144,7 @@ type AggregatorConfiguration struct {
 	DiscardNaNAggregatedValues *bool `yaml:"discardNaNAggregatedValues"`
 
 	// Whether to use last timestamp of a last value aggregation rather than the window time.
-	AggregationLastValueAdjustTimestamp *bool `yaml:"aggregationLastValueAdjustTimestamp"`
+	AggregationLastValueKeepLastTimestamp *bool `yaml:"aggregationLastValueKeepLastTimestamp"`
 
 	// Pool of counter elements.
 	CounterElemPool pool.ObjectPoolConfiguration `yaml:"counterElemPool"`
@@ -403,8 +403,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	// Set whether to adjust the aggregation last value timestamp taken
 	// to the time at which it was received instead of the last window timestamp.
-	if v := c.AggregationLastValueAdjustTimestamp; v != nil {
-		opts = opts.SetEnableAggregationLastValueAdjustTimestamp(*v)
+	if v := c.AggregationLastValueKeepLastTimestamp; v != nil {
+		opts = opts.SetEnableAggregationLastValueKeepLastTimestamp(*v)
 	}
 
 	// Set counter elem pool.

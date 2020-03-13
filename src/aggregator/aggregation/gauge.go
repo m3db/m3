@@ -117,7 +117,7 @@ func (g *Gauge) Max() float64 { return g.max }
 func (g *Gauge) ValueOf(aggType aggregation.Type) Value {
 	switch aggType {
 	case aggregation.Last:
-		if g.Options.EnableAggregationLastValueAdjustTimestamp {
+		if g.Options.EnableAggregationLastValueKeepLastTimestamp {
 			return Value{
 				Value:               g.Last(),
 				AdjustTimestamp:     true,

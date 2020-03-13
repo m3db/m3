@@ -28,8 +28,8 @@ import (
 )
 
 var (
-	defaultEnableExpensiveAggregations               = false
-	defaultEnableAggregationLastValueAdjustTimestamp = false
+	defaultEnableExpensiveAggregations                 = false
+	defaultEnableAggregationLastValueKeepLastTimestamp = false
 )
 
 // Options is the options for aggregations.
@@ -37,10 +37,10 @@ type Options struct {
 	// EnableExpensiveAggregations means expensive (multiplication／division)
 	// aggregation types are enabled.
 	EnableExpensiveAggregations bool
-	// EnableAggregationLastValueAdjustTimestamp will enable last value
+	// EnableAggregationLastValueKeepLastTimestamp will enable last value
 	// aggregations to adjust the timestamp of the resulting last value
 	// aggregation.
-	EnableAggregationLastValueAdjustTimestamp bool
+	EnableAggregationLastValueKeepLastTimestamp bool
 	// Metrics is as set of aggregation metrics.
 	Metrics Metrics
 }
@@ -79,8 +79,8 @@ func (m GaugeMetrics) IncValuesOutOfOrder() {
 // NewOptions creates a new aggregation options.
 func NewOptions(instrumentOpts instrument.Options) Options {
 	return Options{
-		EnableExpensiveAggregations:               defaultEnableExpensiveAggregations,
-		EnableAggregationLastValueAdjustTimestamp: defaultEnableAggregationLastValueAdjustTimestamp,
+		EnableExpensiveAggregations:                 defaultEnableExpensiveAggregations,
+		EnableAggregationLastValueKeepLastTimestamp: defaultEnableAggregationLastValueKeepLastTimestamp,
 		Metrics: NewMetrics(instrumentOpts.MetricsScope()),
 	}
 }
