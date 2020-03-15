@@ -21,6 +21,7 @@
 package ingestm3msg
 
 import (
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -43,9 +44,10 @@ type Configuration struct {
 // NewIngester creates an ingester with an appender.
 func (cfg Configuration) NewIngester(
 	appender storage.Appender,
+	tagOptions models.TagOptions,
 	instrumentOptions instrument.Options,
 ) (*Ingester, error) {
-	opts, err := cfg.newOptions(appender, instrumentOptions)
+	opts, err := cfg.newOptions(appender, tagOptions, instrumentOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +56,7 @@ func (cfg Configuration) NewIngester(
 
 func (cfg Configuration) newOptions(
 	appender storage.Appender,
+	tagOptions models.TagOptions,
 	instrumentOptions instrument.Options,
 ) (Options, error) {
 	scope := instrumentOptions.MetricsScope().Tagged(
@@ -90,6 +93,7 @@ func (cfg Configuration) newOptions(
 		Appender:          appender,
 		Workers:           workers,
 		PoolOptions:       cfg.OpPool.NewObjectPoolOptions(instrumentOptions),
+		TagOptions:        tagOptions,
 		TagDecoderPool:    tagDecoderPool,
 		RetryOptions:      cfg.Retry.NewOptions(scope),
 		Sampler:           sampler,
