@@ -91,9 +91,9 @@ clusters:
 
 ingest:
   ingester:
-    workerPoolSize: 10000
+    workerPoolSize: 100
     opPool:
-      size: 10000
+      size: 100
     retry:
       maxRetries: 3
       jitter: true
@@ -112,15 +112,14 @@ tagOptions:
 readWorkerPoolPolicy:
   grow: true
   size: 100
-  shards: 1000
+  shards: 100
   killProbability: 0.3
 
 writeWorkerPoolPolicy:
   grow: true
   size: 100
-  shards: 1000
+  shards: 100
   killProbability: 0.3
-
 `
 
 func TestWrite(t *testing.T) {
