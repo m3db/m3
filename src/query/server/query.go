@@ -511,7 +511,9 @@ func newM3DBStorage(
 
 			// Notify the downsampler ready channel that
 			// the downsampler has now been created and is ready.
-			downsamplerReadyCh <- struct{}{}
+			if downsamplerReadyCh != nil {
+				downsamplerReadyCh <- struct{}{}
+			}
 
 			return downsampler, nil
 		}
