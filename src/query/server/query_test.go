@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/m3"
+	xclock "github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -363,9 +364,10 @@ func TestIngest(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now wait for write.
-	for numWrites.Load() != 1 {
-		time.Sleep(time.Millisecond)
-	}
+	// xtest.
+	xclock.WaitUntil(func() bool {
+		return numWrites.Load() == 1
+	}, 30*time.Second)
 
 	// Ensure close server performs as expected
 	interruptCh <- fmt.Errorf("interrupt")
