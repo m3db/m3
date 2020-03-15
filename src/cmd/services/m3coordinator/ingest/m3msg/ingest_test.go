@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -54,7 +54,8 @@ func TestIngest(t *testing.T) {
 		},
 	}
 	appender := &mockAppender{}
-	ingester, err := cfg.NewIngester(appender, instrument.NewOptions())
+	ingester, err := cfg.NewIngester(appender, models.NewTagOptions(),
+		instrument.NewOptions())
 	require.NoError(t, err)
 
 	id := newTestID(t, "__name__", "foo", "app", "bar")
