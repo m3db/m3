@@ -364,7 +364,6 @@ func TestIngest(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now wait for write.
-	// xtest.
 	xclock.WaitUntil(func() bool {
 		return numWrites.Load() == 1
 	}, 30*time.Second)
