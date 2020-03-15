@@ -34,21 +34,21 @@ import (
 var _ segment.FieldsPostingsListIterator = &multiKeyPostingsListIterator{}
 
 type multiKeyPostingsListIterator struct {
-	err                    error
-	firstNext              bool
-	closeIters             []keyIterator
-	iters                  []keyIterator
-	currIters              []keyIterator
-	currReaders            []index.Reader
-	segments               []segment.Segment
-	currFieldPostingsList  postings.MutableList
-	currFieldPostingsLists []postings.List
+	err                   error
+	firstNext             bool
+	closeIters            []keyIterator
+	iters                 []keyIterator
+	currIters             []keyIterator
+	currReaders           []index.Reader
+	currFieldPostingsList postings.MutableList
+	bitmapIter            *bitmap.Iterator
 }
 
 func newMultiKeyPostingsListIterator() *multiKeyPostingsListIterator {
 	b := bitmap.NewBitmapWithDefaultPooling(defaultBitmapContainerPooling)
 	i := &multiKeyPostingsListIterator{
 		currFieldPostingsList: roaring.NewPostingsListFromBitmap(b),
+		bitmapIter:            &bitmap.Iterator{},
 	}
 	i.reset()
 	return i
@@ -72,17 +72,11 @@ func (i *multiKeyPostingsListIterator) reset() {
 		i.currIters[j] = nil
 	}
 	i.currIters = i.currIters[:0]
-
-	for j := range i.segments {
-		i.segments[j] = nil
-	}
-	i.segments = i.segments[:0]
 }
 
-func (i *multiKeyPostingsListIterator) add(iter keyIterator, segment segment.Segment) {
+func (i *multiKeyPostingsListIterator) add(iter keyIterator) {
 	i.closeIters = append(i.closeIters, iter)
 	i.iters = append(i.iters, iter)
-	i.segments = append(i.segments, segment)
 	i.tryAddCurr(iter)
 }
 
@@ -123,49 +117,74 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 		return false
 	}
 
-	prevField := i.currIters[0].Current()
-
 	// Re-evaluate current value
 	i.currEvaluate()
 
 	// NB(bodu): Build the postings list for this field if the field has changed.
 	defer func() {
-		for idx := range i.currFieldPostingsLists {
-			i.currFieldPostingsLists[idx] = nil
-		}
-		i.currFieldPostingsLists = i.currFieldPostingsLists[:0]
 		for idx := range i.currReaders {
 			i.currReaders[idx] = nil
 		}
 		i.currReaders = i.currReaders[:0]
 	}()
+	i.currFieldPostingsList.Reset()
 	currField := i.currIters[0].Current()
-
-	if !bytes.Equal(prevField, currField) {
-		i.currFieldPostingsList.Reset()
-		for _, segment := range i.segments {
-			reader, err := segment.Reader()
-			if err != nil {
-				i.err = err
-				return false
-			}
-			pl, err := reader.MatchField(currField)
-			if err != nil {
-				i.err = err
-				return false
-			}
-
-			i.currFieldPostingsLists = append(i.currFieldPostingsLists, pl)
-			i.currReaders = append(i.currReaders, reader)
+	for _, iter := range i.currIters {
+		fieldsKeyIter := iter.(*fieldsKeyIter)
+		reader, err := fieldsKeyIter.segment.segment.Reader()
+		if err != nil {
+			i.err = err
+			return false
+		}
+		pl, err := reader.MatchField(currField)
+		if err != nil {
+			i.err = err
+			return false
 		}
 
-		i.currFieldPostingsList.UnionMany(i.currFieldPostingsLists)
+		if fieldsKeyIter.segment.offset == 0 {
+			// No offset, which means is first segment we are combining from
+			// so can just direct union
+			i.currFieldPostingsList.Union(pl)
+			continue
+		}
 
-		for _, reader := range i.currReaders {
-			if err := reader.Close(); err != nil {
-				i.err = err
-				return false
+		// We have to taken into account the offset and duplicates
+		var (
+			iter           = i.bitmapIter
+			duplicates     = fieldsKeyIter.segment.duplicatesAsc
+			negativeOffset postings.ID
+		)
+		bitmap, ok := roaring.BitmapFromPostingsList(pl)
+		if !ok {
+			i.err = errPostingsListNotRoaring
+			return false
+		}
+
+		iter.Reset(bitmap)
+		for v, eof := iter.Next(); !eof; v, eof = iter.Next() {
+			curr := postings.ID(v)
+			for len(duplicates) > 0 && curr > duplicates[0] {
+				duplicates = duplicates[1:]
+				negativeOffset++
 			}
+			if len(duplicates) > 0 && curr == duplicates[0] {
+				duplicates = duplicates[1:]
+				negativeOffset++
+				// Also skip this value, as itself is a duplicate
+				continue
+			}
+			value := curr + fieldsKeyIter.segment.offset - negativeOffset
+			_ = i.currFieldPostingsList.Insert(value)
+		}
+
+		i.currReaders = append(i.currReaders, reader)
+	}
+
+	for _, reader := range i.currReaders {
+		if err := reader.Close(); err != nil {
+			i.err = err
+			return false
 		}
 	}
 	return true
