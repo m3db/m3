@@ -504,8 +504,17 @@ func newM3DBStorage(
 		}
 
 		newDownsamplerFn := func() (downsample.Downsampler, error) {
-			return newDownsampler(cfg.Downsample, clusterClient,
+			downsampler, err := newDownsampler(cfg.Downsample, clusterClient,
 				fanoutStorage, autoMappingRules, tsdbOpts.TagOptions(), instrumentOptions)
+			if err != nil {
+				return nil, err
+			}
+
+			// Notify the downsampler ready channel that
+			// the downsampler has now been created and is ready.
+			downsamplerReadyCh <- struct{}{}
+
+			return downsampler, nil
 		}
 
 		if clusterClientWaitCh != nil {
@@ -513,12 +522,6 @@ func newM3DBStorage(
 			// since the cluster client will return errors until it's initialized itself
 			// and will fail constructing the downsampler consequently
 			downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
-				if downsamplerReadyCh != nil {
-					defer func() {
-						downsamplerReadyCh <- struct{}{}
-					}()
-				}
-
 				<-clusterClientWaitCh
 				return newDownsamplerFn()
 			}, nil)
@@ -527,10 +530,6 @@ func newM3DBStorage(
 			downsampler, err = newDownsamplerFn()
 			if err != nil {
 				return nil, nil, nil, nil, err
-			}
-
-			if downsamplerReadyCh != nil {
-				downsamplerReadyCh <- struct{}{}
 			}
 		}
 	}
