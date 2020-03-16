@@ -8,9 +8,8 @@ import (
 	"go.uber.org/zap"
 )
 
-//func doDelete(flags *namespacesVals, globals globalopts.GlobalOpts) error {
-func DoDelete(endpoint string, nodeName string, deleteEntire bool, zapper *zap.Logger) error {
+func DoDelete(endpoint string, nsName string, zapper *zap.Logger) error {
 
-	url := fmt.Sprintf("%s%s/%s", endpoint, "/api/v1/services/m3db/namespace", nodeName)
+	url := fmt.Sprintf("%s%s/%s", endpoint, "/api/v1/services/m3db/namespace", nsName)
 	return client.DoDelete(url, client.Dumper, zapper)
 }

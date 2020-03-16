@@ -48,8 +48,6 @@ func main() {
 		Use: "cobra",
 	}
 
-	rootCmd.PersistentFlags().StringVar(&endPoint, "endpoint", DefaultEndpoint, "m3db service endpoint")
-
 	getCmd := &cobra.Command{
 		Use:   "get",
 		Short: "Get specified resources from the remote",
@@ -61,7 +59,7 @@ func main() {
 	}
 
 	applyCmd := &cobra.Command{
-		Use:   "apply []",
+		Use:   "apply",
 		Short: "Apply various yamls to remote endpoint",
 		Long:  `This will take specific yamls and send them over to the remote
 endpoint.  See the yaml/examples directory for examples.  Operations such as 
@@ -156,14 +154,39 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		},
 	}
 
+
+	deleteNamespaceCmd := &cobra.Command{
+		Use:   "namespace",
+		Short: "Delete the namespace from the remote endpoint",
+		Aliases: []string{"ns"},
+		Run: func(cmd *cobra.Command, args []string) {
+
+			zapper, err := zap.NewDevelopment()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+
+			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+
+			if err := namespaces.DoDelete(endPoint, nodeName, zapper); err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+		},
+	}
+
 	rootCmd.AddCommand(getCmd, applyCmd, deleteCmd)
 	getCmd.AddCommand(getNamespaceCmd)
 	getCmd.AddCommand(getPlacementCmd)
 	deleteCmd.AddCommand(deletePlacementCmd)
+	deleteCmd.AddCommand(deleteNamespaceCmd)
+
+	rootCmd.PersistentFlags().StringVar(&endPoint, "endpoint", DefaultEndpoint, "m3db service endpoint")
 	applyCmd.Flags().StringVarP(&yamlPath, "file", "f", "", "times to echo the input")
 	getNamespaceCmd.Flags().BoolVarP(&showAll, "showAll", "a", false, "times to echo the input")
 	deletePlacementCmd.Flags().BoolVarP(&showAll, "deleteAll", "a", false, "delete the entire placement")
-	deletePlacementCmd.Flags().StringVarP(&nodeName, "nodeName", "n", "", "which node to delete from the placement")
+	deleteCmd.PersistentFlags().StringVarP(&nodeName, "nodeName", "n", "", "which node to delete")
 
 	rootCmd.Execute()
 
