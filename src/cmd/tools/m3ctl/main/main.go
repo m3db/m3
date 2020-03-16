@@ -44,6 +44,12 @@ var (
 
 func main() {
 
+	zapper, err := zap.NewDevelopment()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+
 	rootCmd := &cobra.Command{
 		Use: "cobra",
 	}
@@ -66,12 +72,6 @@ endpoint.  See the yaml/examples directory for examples.  Operations such as
 database creation, database init, adding a node, and replacing a node, are supported.
 `,
 		Run: func(cmd *cobra.Command, args []string) {
-
-			zapper, err := zap.NewDevelopment()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
-				os.Exit(1)
-			}
 
 			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
 
@@ -97,12 +97,6 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		Aliases:  []string{"ns"},
 		Run: func(cmd *cobra.Command, args []string) {
 
-			zapper, err := zap.NewDevelopment()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
-				os.Exit(1)
-			}
-
 			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
 
 			if err := namespaces.DoGet(endPoint, showAll, zapper); err != nil {
@@ -117,12 +111,6 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		Short: "Get the placement from the remote endpoint",
 		Aliases:  []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
-
-			zapper, err := zap.NewDevelopment()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
-				os.Exit(1)
-			}
 
 			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
 
@@ -139,12 +127,6 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		Aliases: []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
 
-			zapper, err := zap.NewDevelopment()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
-				os.Exit(1)
-			}
-
 			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
 
 			if err := placements.DoDelete(endPoint, nodeName, showAll, zapper); err != nil {
@@ -160,12 +142,6 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		Short: "Delete the namespace from the remote endpoint",
 		Aliases: []string{"ns"},
 		Run: func(cmd *cobra.Command, args []string) {
-
-			zapper, err := zap.NewDevelopment()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
-				os.Exit(1)
-			}
 
 			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
 
