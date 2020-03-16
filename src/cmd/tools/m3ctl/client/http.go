@@ -12,8 +12,8 @@ import (
 
 const timeout = time.Duration(5 * time.Second)
 
-func DoGet(url string, getter func(reader io.Reader, zl *zap.SugaredLogger) error, zl *zap.SugaredLogger) error {
-	zl.Infof("DoGet:url:%s:\n", url)
+func DoGet(url string, getter func(reader io.Reader, zl *zap.Logger) error, zl *zap.Logger) error {
+	zl.Info(fmt.Sprintf("DoGet:url:%s:\n", url))
 	client := http.Client{
 		Timeout: timeout,
 	}
@@ -31,8 +31,8 @@ func DoGet(url string, getter func(reader io.Reader, zl *zap.SugaredLogger) erro
 	return getter(resp.Body, zl)
 }
 
-func DoPost(url string, data io.Reader, getter func(reader io.Reader, zl *zap.SugaredLogger) error, zl *zap.SugaredLogger) error {
-	zl.Infof("DoPost:url:%s:\n", url)
+func DoPost(url string, data io.Reader, getter func(reader io.Reader, zl *zap.Logger) error, zl *zap.Logger) error {
+	zl.Info(fmt.Sprintf("DoPost:url:%s:\n", url))
 	client := &http.Client{
 		Timeout: timeout,
 	}
@@ -52,8 +52,8 @@ func DoPost(url string, data io.Reader, getter func(reader io.Reader, zl *zap.Su
 	return getter(resp.Body, zl)
 }
 
-func DoDelete(url string, getter func(reader io.Reader, zl *zap.SugaredLogger) error, zl *zap.SugaredLogger) error {
-	zl.Infof("DoDelete:url:%s:\n", url)
+func DoDelete(url string, getter func(reader io.Reader, zl *zap.Logger) error, zl *zap.Logger) error {
+	zl.Info(fmt.Sprintf("DoDelete:url:%s:\n", url))
 	client := &http.Client{
 		Timeout: timeout,
 	}
@@ -73,7 +73,7 @@ func DoDelete(url string, getter func(reader io.Reader, zl *zap.SugaredLogger) e
 	return getter(resp.Body, zl)
 }
 
-func Dumper(in io.Reader, zl *zap.SugaredLogger) error {
+func Dumper(in io.Reader, zl *zap.Logger) error {
 	dat, err := ioutil.ReadAll(in)
 	if err != nil {
 		return err

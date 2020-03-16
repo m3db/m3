@@ -21,84 +21,141 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/apply"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/delete"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/get"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/namespaces"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/placements"
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
 const (
-	defaultEndpoint = "http://localhost:7201"
+	DefaultEndpoint = "http://localhost:7201"
+)
+
+var (
+	endPoint string
+	yamlPath string
+	showAll  bool
+	nodeName string
 )
 
 func main() {
 
-	// top-level option
-	endPoint := flag.String("endpoint", defaultEndpoint, "The url for target m3db backend.")
-
-	// flagsets for next level down
-	getFlagSets := get.InitializeFlags()
-	deleteFlagSets := delete.InitializeFlags()
-	applyFlagSets := apply.InitializeFlags()
-	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), `
-Usage of %s:
-
-	Specify one of the following subcommands, which are shorthand for database, placement, and namespace:
-
-	%s
-	%s
-	%s
-
-Each subcommand has its own built-in help provided via "-h".
-
-`, os.Args[0], applyFlagSets.Flags.Name(),
-			getFlagSets.Flags.Name(),
-			deleteFlagSets.Flags.Name())
-
-		flag.PrintDefaults()
+	rootCmd := &cobra.Command{
+		Use: "cobra",
 	}
-	// parse this level
-	flag.Parse()
-	if len(os.Args) < 2 {
-		flag.Usage()
-		os.Exit(1)
+
+	rootCmd.PersistentFlags().StringVar(&endPoint, "endpoint", DefaultEndpoint, "m3db service endpoint")
+
+	getCmd := &cobra.Command{
+		Use:   "get []",
+		Short: "Get specified resources from the remote",
+		Long:  `...`,
 	}
-	rawLogger, err := zap.NewDevelopment()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, err.Error())
-		os.Exit(1)
+
+	deleteCmd := &cobra.Command{
+		Use:   "delete []",
+		Short: "Delete specified resources from the remote",
+		Long:  `...`,
 	}
-	log := rawLogger.Sugar()
-	// dispatch to the next level
-	switch flag.Arg(0) {
-	case getFlagSets.Flags.Name():
-		getFlagSets.GlobalOpts.Endpoint = *endPoint
-		getFlagSets.GlobalOpts.Zap = log
-		if err := getFlagSets.PopParseDispatch(flag.Args()); err != nil {
-			fmt.Fprintf(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-	case deleteFlagSets.Flags.Name():
-		deleteFlagSets.GlobalOpts.Endpoint = *endPoint
-		deleteFlagSets.GlobalOpts.Zap = log
-		if err := deleteFlagSets.PopParseDispatch(flag.Args()); err != nil {
-			fmt.Fprintf(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-	case applyFlagSets.Flags.Name():
-		applyFlagSets.GlobalOpts.Endpoint = *endPoint
-		applyFlagSets.GlobalOpts.Zap = log
-		if err := applyFlagSets.PopParseDispatch(flag.Args()); err != nil {
-			fmt.Fprintf(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-	default:
-		flag.Usage()
-		os.Exit(1)
+
+	applyCmd := &cobra.Command{
+		Use:   "apply []",
+		Short: "Apply various yamls to remote endpoint",
+		Long:  `...`,
+		Run: func(cmd *cobra.Command, args []string) {
+
+			zapper, err := zap.NewDevelopment()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+
+			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+
+			if err := apply.DoApply(endPoint, yamlPath, zapper); err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+
+		},
 	}
+
+	getNamespaceCmd := &cobra.Command{
+		Use:   "namespace []",
+		Short: "Get the namespaces from the remote endpoint",
+		Long:  `...`,
+		Run: func(cmd *cobra.Command, args []string) {
+
+			zapper, err := zap.NewDevelopment()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+
+			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+
+			if err := namespaces.DoGet(endPoint, showAll, zapper); err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+		},
+	}
+
+	getPlacementCmd := &cobra.Command{
+		Use:   "placement []",
+		Short: "Get the placement from the remote endpoint",
+		Long:  `...`,
+		Run: func(cmd *cobra.Command, args []string) {
+
+			zapper, err := zap.NewDevelopment()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+
+			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+
+			if err := placements.DoGet(endPoint, zapper); err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+		},
+	}
+
+	deletePlacementCmd := &cobra.Command{
+		Use:   "placement []",
+		Short: "Delete the placement from the remote endpoint",
+		Long:  `...`,
+		Run: func(cmd *cobra.Command, args []string) {
+
+			zapper, err := zap.NewDevelopment()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+
+			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+
+			if err := placements.DoDelete(endPoint, nodeName, showAll, zapper); err != nil {
+				fmt.Fprintf(os.Stderr, err.Error())
+				os.Exit(1)
+			}
+		},
+	}
+
+	rootCmd.AddCommand(getCmd, applyCmd, deleteCmd)
+	applyCmd.Flags().StringVarP(&yamlPath, "file", "f", "", "times to echo the input")
+	getNamespaceCmd.Flags().BoolVarP(&showAll, "showAll", "a", false, "times to echo the input")
+	getCmd.AddCommand(getNamespaceCmd)
+	getCmd.AddCommand(getPlacementCmd)
+	deleteCmd.AddCommand(deletePlacementCmd)
+	deletePlacementCmd.Flags().BoolVarP(&showAll, "deleteAll", "a", false, "delete the entire placement")
+	deletePlacementCmd.Flags().StringVarP(&nodeName, "nodeName", "n", "", "which node to delete from the placement")
+
+	rootCmd.Execute()
+
 }

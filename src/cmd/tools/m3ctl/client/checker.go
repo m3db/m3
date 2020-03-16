@@ -8,8 +8,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func checkForAndHandleError(url string, resp *http.Response, zl *zap.SugaredLogger) error {
-	zl.Infof("resp.StatusCode:%d:\n", resp.StatusCode)
+func checkForAndHandleError(url string, resp *http.Response, zl *zap.Logger) error {
+	zl.Info(fmt.Sprintf("resp.StatusCode:%d:\n", resp.StatusCode))
 	if resp.StatusCode > 299 {
 		dat, _ := ioutil.ReadAll(resp.Body)
 		if dat != nil {

@@ -19,7 +19,7 @@ import (
 //
 // See the examples directories.
 //
-func Load(path string, zl *zap.SugaredLogger) (string, io.Reader, error) {
+func Load(path string, zl *zap.Logger) (string, io.Reader, error) {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		return "", nil, err

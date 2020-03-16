@@ -6,23 +6,21 @@ import (
 	"io"
 
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/globalopts"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/namespaces"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 
 	"github.com/gogo/protobuf/jsonpb"
 )
 
-func doGet(flags *namespacesVals, globals globalopts.GlobalOpts) error {
-	url := fmt.Sprintf("%s%s?%s", globals.Endpoint, namespaces.DefaultPath, namespaces.DebugQS)
-	if *flags.showAll {
-		return client.DoGet(url, client.Dumper, globals.Zap)
+func DoGet(endpoint string, showAll bool, zapper *zap.Logger) error {
+	url := fmt.Sprintf("%s%s?%s", endpoint, DefaultPath, DebugQS)
+	if showAll {
+		return client.DoGet(url, client.Dumper, zapper)
 	} else {
-		return client.DoGet(url, showNames, globals.Zap)
+		return client.DoGet(url, showNames, zapper)
 	}
 }
 
-func showNames(in io.Reader, zl *zap.SugaredLogger) error {
+func showNames(in io.Reader, zl *zap.Logger) error {
 	registry := admin.NamespaceGetResponse{}
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 	if err := unmarshaller.Unmarshal(in, &registry); err != nil {
