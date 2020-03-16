@@ -51,21 +51,22 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&endPoint, "endpoint", DefaultEndpoint, "m3db service endpoint")
 
 	getCmd := &cobra.Command{
-		Use:   "get []",
+		Use:   "get",
 		Short: "Get specified resources from the remote",
-		Long:  `...`,
 	}
 
 	deleteCmd := &cobra.Command{
-		Use:   "delete []",
+		Use:   "delete",
 		Short: "Delete specified resources from the remote",
-		Long:  `...`,
 	}
 
 	applyCmd := &cobra.Command{
 		Use:   "apply []",
 		Short: "Apply various yamls to remote endpoint",
-		Long:  `...`,
+		Long:  `This will take specific yamls and send them over to the remote
+endpoint.  See the yaml/examples directory for examples.  Operations such as 
+database creation, database init, adding a node, and replacing a node, are supported.
+`,
 		Run: func(cmd *cobra.Command, args []string) {
 
 			zapper, err := zap.NewDevelopment()
@@ -75,6 +76,14 @@ func main() {
 			}
 
 			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+
+			zapper.Debug(fmt.Sprintf("args:%v:\n", cmd.LocalFlags().Lookup("file").Value.String()))
+
+			if len(cmd.LocalFlags().Lookup("file").Value.String()) == 0 {
+				fmt.Printf("Specify a path to a yaml file.\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
 
 			if err := apply.DoApply(endPoint, yamlPath, zapper); err != nil {
 				fmt.Fprintf(os.Stderr, err.Error())
@@ -87,7 +96,7 @@ func main() {
 	getNamespaceCmd := &cobra.Command{
 		Use:   "namespace []",
 		Short: "Get the namespaces from the remote endpoint",
-		Long:  `...`,
+		Aliases:  []string{"ns"},
 		Run: func(cmd *cobra.Command, args []string) {
 
 			zapper, err := zap.NewDevelopment()
@@ -106,9 +115,9 @@ func main() {
 	}
 
 	getPlacementCmd := &cobra.Command{
-		Use:   "placement []",
+		Use:   "placement",
 		Short: "Get the placement from the remote endpoint",
-		Long:  `...`,
+		Aliases:  []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
 
 			zapper, err := zap.NewDevelopment()
@@ -127,9 +136,9 @@ func main() {
 	}
 
 	deletePlacementCmd := &cobra.Command{
-		Use:   "placement []",
+		Use:   "placement",
 		Short: "Delete the placement from the remote endpoint",
-		Long:  `...`,
+		Aliases: []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
 
 			zapper, err := zap.NewDevelopment()
@@ -148,11 +157,11 @@ func main() {
 	}
 
 	rootCmd.AddCommand(getCmd, applyCmd, deleteCmd)
-	applyCmd.Flags().StringVarP(&yamlPath, "file", "f", "", "times to echo the input")
-	getNamespaceCmd.Flags().BoolVarP(&showAll, "showAll", "a", false, "times to echo the input")
 	getCmd.AddCommand(getNamespaceCmd)
 	getCmd.AddCommand(getPlacementCmd)
 	deleteCmd.AddCommand(deletePlacementCmd)
+	applyCmd.Flags().StringVarP(&yamlPath, "file", "f", "", "times to echo the input")
+	getNamespaceCmd.Flags().BoolVarP(&showAll, "showAll", "a", false, "times to echo the input")
 	deletePlacementCmd.Flags().BoolVarP(&showAll, "deleteAll", "a", false, "delete the entire placement")
 	deletePlacementCmd.Flags().StringVarP(&nodeName, "nodeName", "n", "", "which node to delete from the placement")
 
