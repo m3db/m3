@@ -49,8 +49,8 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 	}
 
 	times := []time.Time{start, start.Add(testBlockSize), start.Add(2 * testBlockSize)}
-	tr0 := NewShardTimeRanges(times[0], times[1], 1, 2, 3)
-	tr1 := NewShardTimeRanges(times[1], times[2], 1, 2, 3)
+	tr0 := NewShardTimeRangesFromRange(times[0], times[1], 1, 2, 3)
+	tr1 := NewShardTimeRangesFromRange(times[1], times[2], 1, 2, 3)
 
 	first := NewIndexBootstrapResult()
 	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}, tr0), nil)
@@ -79,7 +79,7 @@ func TestIndexResultSetUnfulfilled(t *testing.T) {
 		return t0.Add(time.Duration(i) * time.Hour)
 	}
 	results := NewIndexBootstrapResult()
-	testRanges := NewShardTimeRanges(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+	testRanges := NewShardTimeRangesFromRange(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 	results.SetUnfulfilled(testRanges)
 	require.Equal(t, testRanges, results.Unfulfilled())
 }
@@ -93,13 +93,13 @@ func TestIndexResultAdd(t *testing.T) {
 		return t0.Add(time.Duration(i) * time.Hour)
 	}
 	results := NewIndexBootstrapResult()
-	testRanges := NewShardTimeRanges(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+	testRanges := NewShardTimeRangesFromRange(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 	results.Add(IndexBlock{}, testRanges)
 	require.Equal(t, testRanges, results.Unfulfilled())
 }
 
 func TestShardTimeRangesToUnfulfilledIndexResult(t *testing.T) {
-	str := ShardTimeRanges{
+	str := shardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: time.Now(),
 			End:   time.Now().Add(time.Minute),
@@ -127,12 +127,12 @@ func TestIndexResulsMarkFulfilled(t *testing.T) {
 
 	// range checks
 	require.Error(t, results.MarkFulfilled(tn(0),
-		NewShardTimeRanges(tn(4), tn(6), 1), iopts))
+		NewShardTimeRangesFromRange(tn(4), tn(6), 1), iopts))
 	require.Error(t, results.MarkFulfilled(tn(0),
-		NewShardTimeRanges(tn(-1), tn(1), 1), iopts))
+		NewShardTimeRangesFromRange(tn(-1), tn(1), 1), iopts))
 
 	// valid add
-	fulfilledRange := NewShardTimeRanges(tn(0), tn(1), 1)
+	fulfilledRange := NewShardTimeRangesFromRange(tn(0), tn(1), 1)
 	require.NoError(t, results.MarkFulfilled(tn(0), fulfilledRange, iopts))
 	require.Equal(t, 1, len(results))
 	blk, ok := results[xtime.ToUnixNano(tn(0))]
@@ -141,7 +141,7 @@ func TestIndexResulsMarkFulfilled(t *testing.T) {
 	require.Equal(t, fulfilledRange, blk.fulfilled)
 
 	// additional add for same block
-	nextFulfilledRange := NewShardTimeRanges(tn(1), tn(2), 2)
+	nextFulfilledRange := NewShardTimeRangesFromRange(tn(1), tn(2), 2)
 	require.NoError(t, results.MarkFulfilled(tn(1), nextFulfilledRange, iopts))
 	require.Equal(t, 1, len(results))
 	blk, ok = results[xtime.ToUnixNano(tn(0))]
@@ -151,7 +151,7 @@ func TestIndexResulsMarkFulfilled(t *testing.T) {
 	require.Equal(t, fulfilledRange, blk.fulfilled)
 
 	// additional add for next block
-	nextFulfilledRange = NewShardTimeRanges(tn(2), tn(4), 1, 2, 3)
+	nextFulfilledRange = NewShardTimeRangesFromRange(tn(2), tn(4), 1, 2, 3)
 	require.NoError(t, results.MarkFulfilled(tn(2), nextFulfilledRange, iopts))
 	require.Equal(t, 2, len(results))
 	blk, ok = results[xtime.ToUnixNano(tn(2))]

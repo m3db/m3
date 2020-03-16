@@ -1,4 +1,30 @@
 {
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "5.2.4"
+    },
+    {
+      "type": "panel",
+      "id": "graph",
+      "name": "Graph",
+      "version": "5.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "5.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "singlestat",
+      "name": "Singlestat",
+      "version": "5.0.0"
+    }
+  ],
   "annotations": {
     "list": [
       {
@@ -15,13 +41,12 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "iteration": 1575560854098,
   "iteration": 1582905705847,
   "links": [],
   "panels": [
     {
       "collapsed": false,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -952,7 +977,7 @@
     },
     {
       "collapsed": false,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1319,7 +1344,7 @@
     },
     {
       "collapsed": false,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2077,7 +2102,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2648,7 +2673,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -3210,7 +3235,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -3586,7 +3611,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -4142,7 +4167,7 @@
     },
     {
       "collapsed": false,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -5160,7 +5185,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -5736,7 +5761,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -6386,7 +6411,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -7451,7 +7476,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -8771,7 +8796,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -9237,7 +9262,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -9433,7 +9458,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -9993,7 +10018,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -10543,7 +10568,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -10829,7 +10854,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -10952,7 +10977,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -11058,7 +11083,7 @@
     },
     {
       "collapsed": true,
-      "datasource": null,
+      "datasource": "$datasource",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -11697,14 +11722,11 @@
     "list": [
       {
         "current": {
-          "tags": [],
-          "text": "M3DB",
-          "value": "M3DB"
+          "text": "M3Query - Prometheus",
+          "value": "M3Query - Prometheus"
         },
         "hide": 0,
-        "includeAll": false,
         "label": null,
-        "multi": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
@@ -11895,7 +11917,7 @@
             "$__all"
           ]
         },
-        "datasource": "M3DB",
+        "datasource": "$datasource",
         "definition": "m3aggregator_aggregator_flush_handler_placement_update{backend=\"m3msg\"}",
         "hide": 0,
         "includeAll": true,
@@ -11925,7 +11947,7 @@
             "$__all"
           ]
         },
-        "datasource": "M3DB",
+        "datasource": "$datasource",
         "definition": "m3aggregator_aggregator_flush_handler_placement_update{backend=\"m3msg\"}",
         "hide": 0,
         "includeAll": true,

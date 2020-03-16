@@ -46,8 +46,35 @@ func newFieldPostingsListIterFromSegments(
 			continue
 		}
 
-		multiIter.add(iter, seg.segment)
+		multiIter.add(&fieldsKeyIter{
+			iter:    iter,
+			segment: seg,
+		})
 	}
 
 	return multiIter, nil
+}
+
+// fieldsKeyIter needs to be a keyIterator and contains a terms iterator
+var _ keyIterator = &fieldsKeyIter{}
+
+type fieldsKeyIter struct {
+	iter    segment.FieldsIterator
+	segment segmentMetadata
+}
+
+func (i *fieldsKeyIter) Next() bool {
+	return i.iter.Next()
+}
+
+func (i *fieldsKeyIter) Current() []byte {
+	return i.iter.Current()
+}
+
+func (i *fieldsKeyIter) Err() error {
+	return i.iter.Err()
+}
+
+func (i *fieldsKeyIter) Close() error {
+	return i.iter.Close()
 }

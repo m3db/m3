@@ -49,7 +49,7 @@ type indexBootstrapResult struct {
 func NewIndexBootstrapResult() IndexBootstrapResult {
 	return &indexBootstrapResult{
 		results:     make(IndexResults),
-		unfulfilled: make(ShardTimeRanges),
+		unfulfilled: NewShardTimeRanges(),
 	}
 }
 
@@ -241,7 +241,7 @@ func NewIndexBlock(
 	fulfilled ShardTimeRanges,
 ) IndexBlock {
 	if fulfilled == nil {
-		fulfilled = ShardTimeRanges{}
+		fulfilled = NewShardTimeRanges()
 	}
 	return IndexBlock{
 		blockStart: blockStart,

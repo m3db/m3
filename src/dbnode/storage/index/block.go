@@ -1240,7 +1240,7 @@ func (b *block) AddResults(
 
 	// first see if this block can cover all our current blocks covering shard
 	// time ranges.
-	currFulfilled := make(result.ShardTimeRanges)
+	currFulfilled := result.NewShardTimeRanges()
 	for _, existing := range b.shardRangesSegments {
 		currFulfilled.AddRanges(existing.shardTimeRanges)
 	}
