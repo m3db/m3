@@ -73,10 +73,10 @@ func (s *uninitializedTopologySource) availability(
 ) (result.ShardTimeRanges, error) {
 	var (
 		topoState                = runOpts.InitialTopologyState()
-		availableShardTimeRanges = result.ShardTimeRanges{}
+		availableShardTimeRanges = result.NewShardTimeRanges()
 	)
 
-	for shardIDUint := range shardsTimeRanges {
+	for shardIDUint := range shardsTimeRanges.Iter() {
 		shardID := topology.ShardID(shardIDUint)
 		hostShardStates, ok := topoState.ShardStates[shardID]
 		if !ok {
@@ -126,7 +126,9 @@ func (s *uninitializedTopologySource) availability(
 		// factor to actually increase correctly.
 		shardHasNeverBeenCompletelyInitialized := numInitializing-numLeaving > 0
 		if shardHasNeverBeenCompletelyInitialized {
-			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
+			if tr, ok := shardsTimeRanges.Get(shardIDUint); ok {
+				availableShardTimeRanges.Set(shardIDUint, tr)
+			}
 		}
 	}
 

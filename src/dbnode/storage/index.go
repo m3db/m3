@@ -761,7 +761,7 @@ func (i *nsIndex) Flush(
 		}
 		// Make a result that covers the entire time ranges for the
 		// block for each shard
-		fulfilled := result.NewShardTimeRanges(block.StartTime(), block.EndTime(),
+		fulfilled := result.NewShardTimeRangesFromRange(block.StartTime(), block.EndTime(),
 			dbShards(shards).IDs()...)
 		// Add the results to the block
 		results := result.NewIndexBlock(block.StartTime(), immutableSegments,
@@ -1353,7 +1353,7 @@ func (i *nsIndex) blocksForQueryWithRLock(queryRange xtime.Ranges) ([]index.Bloc
 		}
 
 		// Remove this range from the query range.
-		queryRange = queryRange.RemoveRange(blockRange)
+		queryRange.RemoveRange(blockRange)
 
 		blocks = append(blocks, block)
 	}
