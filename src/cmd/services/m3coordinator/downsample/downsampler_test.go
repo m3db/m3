@@ -176,6 +176,132 @@ func TestDownsamplerAggregationWithRulesConfigMappingRules(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMappingRule(t *testing.T) {
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag: "foo_metric",
+			"app":   "nginx_edge",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []AutoMappingRule{
+			{
+				Aggregations: []aggregation.Type{aggregation.Sum},
+				Policies: policy.StoragePolicies{
+					policy.MustParseStoragePolicy("2s:24h"),
+					policy.MustParseStoragePolicy("4s:48h"),
+				},
+			},
+		},
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 2 * time.Second,
+							Retention:  24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				// Expect the max to be used and override the default auto
+				// mapping rule for the storage policy 2s:24h.
+				{
+					tags:  gaugeMetric.tags,
+					value: 30,
+					attributes: &storage.Attributes{
+						MetricsType: storage.AggregatedMetricsType,
+						Resolution:  2 * time.Second,
+						Retention:   24 * time.Hour,
+					},
+				},
+				// Expect the sum to still be used for the storage
+				// policy 4s:48h.
+				{
+					tags:  gaugeMetric.tags,
+					value: 60,
+					attributes: &storage.Attributes{
+						MetricsType: storage.AggregatedMetricsType,
+						Resolution:  4 * time.Second,
+						Retention:   48 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRule(t *testing.T) {
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag: "foo_metric",
+			"app":   "nginx_edge",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []AutoMappingRule{
+			{
+				Aggregations: []aggregation.Type{aggregation.Sum},
+				Policies: policy.StoragePolicies{
+					policy.MustParseStoragePolicy("2s:24h"),
+				},
+			},
+		},
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 2 * time.Second,
+							Retention:  24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				// Expect the max to be used and override the default auto
+				// mapping rule for the storage policy 2s:24h.
+				{
+					tags:  gaugeMetric.tags,
+					value: 30,
+					attributes: &storage.Attributes{
+						MetricsType: storage.AggregatedMetricsType,
+						Resolution:  2 * time.Second,
+						Retention:   24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRulesConfigRollupRules(t *testing.T) {
 	gaugeMetric := testGaugeMetric{
 		tags: map[string]string{
@@ -197,7 +323,6 @@ func TestDownsamplerAggregationWithRulesConfigRollupRules(t *testing.T) {
 	res := 5 * time.Second
 	ret := 30 * 24 * time.Hour
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
-		instrumentOpts: instrument.NewTestOptions(t),
 		rulesConfig: &RulesConfiguration{
 			RollupRules: []RollupRuleConfiguration{
 				{
@@ -472,7 +597,8 @@ CheckAllWritesArrivedLoop:
 
 		for _, expectedWrite := range expectedWrites {
 			name := expectedWrite.tags[nameTag]
-			if _, ok := findWrite(t, writes, name); !ok {
+			_, ok := findWrite(t, writes, name, expectedWrite.attributes)
+			if !ok {
 				time.Sleep(100 * time.Millisecond)
 				continue CheckAllWritesArrivedLoop
 			}
@@ -497,7 +623,7 @@ CheckAllWritesArrivedLoop:
 		name := expectedWrite.tags[nameTag]
 		value := expectedWrite.value
 
-		write, found := findWrite(t, writes, name)
+		write, found := findWrite(t, writes, name, expectedWrite.attributes)
 		require.True(t, found)
 		assert.Equal(t, expectedWrite.tags, tagsToStringMap(write.Tags))
 		require.Equal(t, 1, len(write.Datapoints))
@@ -724,7 +850,8 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		clockOpts = opts.clockOpts
 	}
 
-	instrumentOpts := instrument.NewOptions()
+	// Use a test instrument options by default to get the debug logs on by default.
+	instrumentOpts := instrument.NewTestOptions(t)
 	if opts.instrumentOpts != nil {
 		instrumentOpts = opts.instrumentOpts
 	}
@@ -827,12 +954,20 @@ func findWrite(
 	t *testing.T,
 	writes []*storage.WriteQuery,
 	name string,
+	optionalMatchAttrs *storage.Attributes,
 ) (*storage.WriteQuery, bool) {
 	for _, w := range writes {
 		if t, ok := w.Tags.Get([]byte(nameTag)); ok {
-			if bytes.Equal(t, []byte(name)) {
-				return w, true
+			if !bytes.Equal(t, []byte(name)) {
+				// Does not match name.
+				continue
 			}
+			if optionalMatchAttrs != nil && w.Attributes != *optionalMatchAttrs {
+				// Tried to match attributes and not matched.
+				continue
+			}
+			// Matches name and all optional lookups.
+			return w, true
 		}
 	}
 	return nil, false
