@@ -108,19 +108,12 @@ func (is *istream) ReadBits(numBits uint) (uint64, error) {
 		// Use Read call rather than individual ReadByte calls since it has
 		// optimized path for when the iterator is aligned on a byte boundary.
 		bytes := is.buffer[0:numBytes]
-		read, err := is.Read(bytes)
+		_, err := is.Read(bytes)
 		if err != nil {
 			return 0, err
 		}
-		if read == 8 {
-			// Inlined copy of native code for performance: binary.BigEndian.Uint64(bytes).
-			_ = bytes[7]
-			res = uint64(bytes[7]) | uint64(bytes[6])<<8 | uint64(bytes[5])<<16 | uint64(bytes[4])<<24 |
-				uint64(bytes[3])<<32 | uint64(bytes[2])<<40 | uint64(bytes[1])<<48 | uint64(bytes[0])<<56
-		} else {
-			for _, b := range bytes {
-				res = (res << 8) | uint64(b)
-			}
+		for _, b := range bytes {
+			res = (res << 8) | uint64(b)
 		}
 	}
 
