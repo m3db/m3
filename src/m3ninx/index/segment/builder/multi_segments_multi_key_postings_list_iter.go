@@ -122,13 +122,21 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 
 	// NB(bodu): Build the postings list for this field if the field has changed.
 	defer func() {
+		for _, reader := range i.currReaders {
+			if err := reader.Close(); err != nil {
+				i.err = err
+			}
+		}
+
 		for idx := range i.currReaders {
 			i.currReaders[idx] = nil
 		}
 		i.currReaders = i.currReaders[:0]
 	}()
+
 	i.currFieldPostingsList.Reset()
 	currField := i.currIters[0].Current()
+
 	for _, iter := range i.currIters {
 		fieldsKeyIter := iter.(*fieldsKeyIter)
 		reader, err := fieldsKeyIter.segment.segment.Reader()
@@ -136,6 +144,8 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 			i.err = err
 			return false
 		}
+		i.currReaders = append(i.currReaders, reader)
+
 		pl, err := reader.MatchField(currField)
 		if err != nil {
 			i.err = err
@@ -175,16 +185,10 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 				continue
 			}
 			value := curr + fieldsKeyIter.segment.offset - negativeOffset
-			_ = i.currFieldPostingsList.Insert(value)
-		}
-
-		i.currReaders = append(i.currReaders, reader)
-	}
-
-	for _, reader := range i.currReaders {
-		if err := reader.Close(); err != nil {
-			i.err = err
-			return false
+			if err := i.currFieldPostingsList.Insert(value); err != nil {
+				i.err = err
+				return false
+			}
 		}
 	}
 	return true
