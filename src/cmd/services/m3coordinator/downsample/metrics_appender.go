@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/serialize"
 
@@ -56,6 +57,8 @@ type metricsAppenderOptions struct {
 	tagEncoder             serialize.TagEncoder
 	matcher                matcher.Matcher
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool
+
+	mappingRuleStoragePolicies []policy.StoragePolicy
 
 	clockOpts    clock.Options
 	debugLogging bool
@@ -120,11 +123,30 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			})
 		}
 	} else {
-		// Always aggregate any default staged metadats
-		for _, stagedMetadatas := range a.defaultStagedMetadatas {
-			a.debugLogMatch("downsampler applying default mapping rule",
+		// NB(r): First apply mapping rules to see which storage policies
+		// have been applied, any that have been applied as part of
+		// mapping rules that exact match a default storage policy will be
+		// skipped when applying default rules, so as to avoid storing
+		// the same metrics in the same namespace with the same metric
+		// name and tags (i.e. overwriting each other).
+		a.mappingRuleStoragePolicies = a.mappingRuleStoragePolicies[:0]
+
+		stagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
+		if !stagedMetadatas.IsDefault() && len(stagedMetadatas) != 0 {
+			a.debugLogMatch("downsampler applying matched mapping rule",
 				debugLogMatchOptions{Meta: stagedMetadatas})
 
+			// Collect all the current active mapping rules
+			for _, stagedMetadata := range stagedMetadatas {
+				for _, pipe := range stagedMetadata.Pipelines {
+					for _, sp := range pipe.StoragePolicies {
+						a.mappingRuleStoragePolicies =
+							append(a.mappingRuleStoragePolicies, sp)
+					}
+				}
+			}
+
+			// Only sample if going to actually aggregate
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
 				clientRemote:    a.clientRemote,
@@ -133,12 +155,74 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			})
 		}
 
-		stagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
-		if !stagedMetadatas.IsDefault() && len(stagedMetadatas) != 0 {
-			a.debugLogMatch("downsampler applying matched mapping rule",
+		// Always aggregate any default staged metadatas (unless
+		// mapping rule has provided an override for a storage policy,
+		// if so then skip aggregating for that storage policy).
+		for _, stagedMetadatas := range a.defaultStagedMetadatas {
+			a.debugLogMatch("downsampler applying default mapping rule",
 				debugLogMatchOptions{Meta: stagedMetadatas})
 
-			// Only sample if going to actually aggregate
+			stagedMetadataBeforeFilter := stagedMetadatas[:]
+			if len(a.mappingRuleStoragePolicies) != 0 {
+				// If mapping rules have applied aggregations for
+				// storage policies then de-dupe so we don't have two
+				// active aggregations for the same storage policy.
+				stagedMetadatasAfterFilter := stagedMetadatas[:0]
+				for _, stagedMetadata := range stagedMetadatas {
+					pipesAfterFilter := stagedMetadata.Pipelines[:0]
+					for _, pipe := range stagedMetadata.Pipelines {
+						storagePoliciesAfterFilter := pipe.StoragePolicies[:0]
+						for _, sp := range pipe.StoragePolicies {
+							// Check aggregation for storage policy not already
+							// set by a mapping rule.
+							matchedByMappingRule := false
+							for _, existing := range a.mappingRuleStoragePolicies {
+								if sp.Equivalent(existing) {
+									matchedByMappingRule = true
+									a.debugLogMatch("downsampler skipping default mapping rule storage policy",
+										debugLogMatchOptions{Meta: stagedMetadataBeforeFilter})
+									break
+								}
+							}
+							if !matchedByMappingRule {
+								// Keep storage policy if not matched by mapping rule.
+								storagePoliciesAfterFilter =
+									append(storagePoliciesAfterFilter, sp)
+							}
+						}
+
+						// Update storage policies slice after filtering.
+						pipe.StoragePolicies = storagePoliciesAfterFilter
+
+						if len(pipe.StoragePolicies) != 0 {
+							// Keep storage policy if still has some storage policies.
+							pipesAfterFilter = append(pipesAfterFilter, pipe)
+						}
+					}
+
+					// Update pipelnes after filtering.
+					stagedMetadata.Pipelines = pipesAfterFilter
+
+					if len(stagedMetadata.Pipelines) != 0 {
+						// Keep staged metadata if still has some pipelines.
+						stagedMetadatasAfterFilter =
+							append(stagedMetadatasAfterFilter, stagedMetadata)
+					}
+				}
+
+				// Finally set the staged metadatas we're keeping
+				// as those that were kept after filtering.
+				stagedMetadatas = stagedMetadatasAfterFilter
+			}
+
+			// Now skip appending if after filtering there's no staged metadatas
+			// after any filtering that's applied.
+			if len(stagedMetadatas) == 0 {
+				a.debugLogMatch("downsampler skipping default mapping rule completely",
+					debugLogMatchOptions{Meta: stagedMetadataBeforeFilter})
+				continue
+			}
+
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
 				clientRemote:    a.clientRemote,
@@ -167,8 +251,9 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 }
 
 type debugLogMatchOptions struct {
-	Meta     metadata.StagedMetadatas
-	RollupID []byte
+	Meta          metadata.StagedMetadatas
+	StoragePolicy policy.StoragePolicy
+	RollupID      []byte
 }
 
 func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
@@ -183,6 +268,9 @@ func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
 	}
 	if v := opts.Meta; v != nil {
 		fields = append(fields, stagedMetadatasLogField(v))
+	}
+	if v := opts.StoragePolicy; v != policy.EmptyStoragePolicy {
+		fields = append(fields, zap.Stringer("storagePolicy", v))
 	}
 	a.logger.Debug(str, fields...)
 }
