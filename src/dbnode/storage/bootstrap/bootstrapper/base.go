@@ -240,9 +240,9 @@ func (b baseBootstrapper) logSuccessAndDetermineCurrResultsUnfulfilledAndNextBoo
 		nextNamespace.DataRunOptions.ShardTimeRanges = dataUnfulfilled.Copy()
 
 		var (
-			indexCurrRequested = result.ShardTimeRanges{}
-			indexCurrFulfilled = result.ShardTimeRanges{}
-			indexUnfulfilled   = result.ShardTimeRanges{}
+			indexCurrRequested = result.NewShardTimeRanges()
+			indexCurrFulfilled = result.NewShardTimeRanges()
+			indexUnfulfilled   = result.NewShardTimeRanges()
 		)
 		if currNamespace.Metadata.Options().IndexOptions().Enabled() {
 			// Calculate bootstrap time ranges.
