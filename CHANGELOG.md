@@ -1,5 +1,32 @@
 # Changelog
 
+# 0.15.0-rc.3
+
+## Features
+
+- **Coordinator**: Use tag options specified in config with M3Msg ingester ([#2212](https://github.com/m3db/m3/pull/2212))
+- **M3DB**: Add metric for BootstrappedAndDurable ([#2210](https://github.com/m3db/m3/pull/2210))
+- **M3Coordinator**: Add support for Graphite Grafana plugin /find POST requests ([#2153](https://github.com/m3db/m3/pull/2153))
+
+## Performance
+
+- **M3DB**: Remove implicit cloning of time ranges to reduce Allocs ([#2178](https://github.com/m3db/m3/pull/2178))
+- **M3DB**: Decode ReadBits improvements ([#2197](https://github.com/m3db/m3/pull/2197))
+- **M3Coordinator**: Ensure coordinator not grow M3Msg buffer if message over max siz ([#2207](https://github.com/m3db/m3/pull/2207))
+e
+
+## Bug Fixes
+
+- **M3DB**: Account for Neg/Pos Offsets when building per field roaring bitmap posting lists ([#2213](https://github.com/m3db/m3/pull/2213))
+- **M3Query**: Fix namespace resolve debug log not being written with multiple namespaces ([#2211](https://github.com/m3db/m3/pull/2211))
+- **M3Coordinator**: Only honor default aggregation policies if not matched by mapping rule ([#2203](https://github.com/m3db/m3/pull/2203))
+
+## Misc
+
+- **Development**: Add HA Prometheus lab setup for dev M3 docker compose deployment ([#2206](https://github.com/m3db/m3/pull/2206))
+- **M3Aggregator**: Add a datasource variable and reuse it in all the panels of the aggregator dashboard ([#2182](https://github.com/m3db/m3/pull/2182))
+- **Build**: Only build amd64 architecture for m3query releases ([#2202](https://github.com/m3db/m3/pull/2202))
+
 # 0.15.0-rc.2
 
 ## Features
