@@ -81,7 +81,7 @@ func ParseLimit(req *http.Request, defaultLimit int) (int, error) {
 		return n, nil
 	}
 
-	if str := req.URL.Query().Get("limit"); str != "" {
+	if str := req.FormValue("limit"); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(

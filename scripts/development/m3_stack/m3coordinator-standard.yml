@@ -19,10 +19,10 @@ clusters:
       - namespace: metrics_0_30m
         type: unaggregated
         retention: 30m
-      - namespace: metrics_10s_48h
+      - namespace: metrics_30s_24h
         type: aggregated
-        retention: 48h
-        resolution: 10s
+        retention: 24h
+        resolution: 30s
     client:
       config:
         service:
@@ -34,24 +34,10 @@ clusters:
             - zone: embedded
               endpoints:
                 - m3db_seed:2379
+      # Uncomment for proto use
+      # --
       # proto:
       #   schemaFilePath: /etc/m3coordinator/schema.proto
-
-ingest:
-  ingester:
-    workerPoolSize: 10000
-    opPool:
-      size: 10000
-    retry:
-      maxRetries: 3
-      jitter: true
-    logSampleRate: 0.01
-  m3msg:
-    server:
-      listenAddress: "0.0.0.0:7507"
-      retry:
-        maxBackoff: 10s
-        jitter: true
 
 carbon:
   ingester:

@@ -5821,6 +5821,21 @@
   "templating": {
     "list": [
       {
+        "current": {
+          "text": "M3Query - Prometheus",
+          "value": "M3Query - Prometheus"
+        },
+        "hide": 0,
+        "label": null,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
         "allFormat": "glob",
         "allValue": null,
         "current": {
@@ -5981,21 +5996,6 @@
         "tagsQuery": "",
         "type": "query",
         "useTags": false
-      },
-      {
-        "current": {
-          "text": "M3Query - Prometheus",
-          "value": "M3Query - Prometheus"
-        },
-        "hide": 0,
-        "label": null,
-        "name": "datasource",
-        "options": [],
-        "query": "prometheus",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "type": "datasource"
       }
     ]
   },

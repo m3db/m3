@@ -121,6 +121,14 @@ type RunOptions struct {
 	// on once it has opened.
 	ListenerCh chan<- net.Listener
 
+	// M3MsgListenerCh is a programmatic channel to receive the M3Msg server
+	// listener on once it has opened.
+	M3MsgListenerCh chan<- net.Listener
+
+	// DownsamplerReadyCh is a programmatic channel to receive the downsampler
+	// ready signal once it is open.
+	DownsamplerReadyCh chan<- struct{}
+
 	// CustomHandlers is a list of custom 3rd party handlers.
 	CustomHandlers []options.CustomHandler
 
@@ -228,8 +236,7 @@ func Run(runOpts RunOptions) {
 		instrumentOptions,
 		cfg.ReadWorkerPool,
 		cfg.WriteWorkerPool,
-		scope,
-	)
+		scope)
 	if err != nil {
 		logger.Fatal("could not create worker pools", zap.Error(err))
 	}
@@ -286,7 +293,8 @@ func Run(runOpts RunOptions) {
 		var cleanup cleanupFn
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
 			cfg, m3dbClusters, m3dbPoolWrapper,
-			runOpts, queryCtxOpts, tsdbOpts, instrumentOptions)
+			runOpts, queryCtxOpts, tsdbOpts,
+			runOpts.DownsamplerReadyCh, instrumentOptions)
 
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
@@ -379,25 +387,33 @@ func Run(runOpts RunOptions) {
 	if cfg.Ingest != nil {
 		logger.Info("starting m3msg server",
 			zap.String("address", cfg.Ingest.M3Msg.Server.ListenAddress))
-		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
+		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage,
+			tagOptions, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}
 
 		server, err := cfg.Ingest.M3Msg.NewServer(
 			ingester.Ingest,
-			instrumentOptions.SetMetricsScope(scope.SubScope("ingest-m3msg")),
-		)
-
+			instrumentOptions.SetMetricsScope(scope.SubScope("ingest-m3msg")))
 		if err != nil {
 			logger.Fatal("unable to create m3msg server", zap.Error(err))
 		}
 
-		if err := server.ListenAndServe(); err != nil {
+		listener, err := net.Listen("tcp", cfg.Ingest.M3Msg.Server.ListenAddress)
+		if err != nil {
+			logger.Fatal("unable to open m3msg server", zap.Error(err))
+		}
+
+		if runOpts.M3MsgListenerCh != nil {
+			runOpts.M3MsgListenerCh <- listener
+		}
+
+		if err := server.Serve(listener); err != nil {
 			logger.Fatal("unable to listen on ingest server", zap.Error(err))
 		}
 
-		logger.Info("started m3msg server ")
+		logger.Info("started m3msg server", zap.Stringer("addr", listener.Addr()))
 		defer server.Close()
 	} else {
 		logger.Info("no m3msg server configured")
@@ -425,6 +441,7 @@ func newM3DBStorage(
 	runOpts RunOptions,
 	queryContextOptions models.QueryContextOptions,
 	tsdbOpts tsdb.Options,
+	downsamplerReadyCh chan<- struct{},
 	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var (
@@ -486,8 +503,19 @@ func newM3DBStorage(
 		}
 
 		newDownsamplerFn := func() (downsample.Downsampler, error) {
-			return newDownsampler(cfg.Downsample, clusterClient,
+			downsampler, err := newDownsampler(cfg.Downsample, clusterClient,
 				fanoutStorage, autoMappingRules, tsdbOpts.TagOptions(), instrumentOptions)
+			if err != nil {
+				return nil, err
+			}
+
+			// Notify the downsampler ready channel that
+			// the downsampler has now been created and is ready.
+			if downsamplerReadyCh != nil {
+				downsamplerReadyCh <- struct{}{}
+			}
+
+			return downsampler, nil
 		}
 
 		if clusterClientWaitCh != nil {

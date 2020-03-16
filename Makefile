@@ -123,6 +123,14 @@ install-vendor-m3:
 install-vendor-m3-remove-bad-dep:
 	([ -d $(VENDOR)/$(bad_trace_dep) ] && rm -rf $(VENDOR)/$(bad_trace_dep)) || (echo "No bad trace dep" > /dev/null)
 
+.PHONY: docker-dev-prep
+docker-dev-prep:
+	mkdir -p ./bin/config
+
+	# Hacky way to find all configs and put into ./bin/config/
+	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
+	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/
+
 define SERVICE_RULES
 
 .PHONY: $(SERVICE)
@@ -141,11 +149,7 @@ $(SERVICE)-linux-amd64:
 
 .PHONY: $(SERVICE)-docker-dev
 $(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
-	mkdir -p ./bin/config
-	
-	# Hacky way to find all configs and put into ./bin/config/
-	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
-	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/
+	make docker-dev-prep
 
 	# Build development docker image
 	docker build -t $(SERVICE):dev -t quay.io/m3dbtest/$(SERVICE):dev-$(USER) -f ./docker/$(SERVICE)/development.Dockerfile ./bin

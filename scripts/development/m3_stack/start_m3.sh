@@ -7,10 +7,11 @@ source "$(pwd)/../../docker-integration-tests/common.sh"
 # Locally don't care if we hot loop faster
 export MAX_TIMEOUT=4
 
+RELATIVE="./../../.."
+prepare_build_cmd() {
+    build_cmd="cd $RELATIVE && make clean-build docker-dev-prep && cp -r ./docker ./bin/ && $1"
+}
 DOCKER_ARGS="-d --renew-anon-volumes"
-if [[ "$FORCE_BUILD" = true ]] ; then
-    DOCKER_ARGS="--build -d --renew-anon-volumes"
-fi
 
 echo "Bringing up nodes in the background with docker compose, remember to run ./stop.sh when done"
 
@@ -26,12 +27,23 @@ if [[ "$USE_JAEGER" = true ]] ; then
     fi
 fi
 
-docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
-docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
-docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
-docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
+M3DBNODE_DEV_IMG=$(docker images m3dbnode:dev | fgrep -iv repository | wc -l | xargs)
+M3COORDINATOR_DEV_IMG=$(docker images m3coordinator:dev | fgrep -iv repository | wc -l | xargs)
+M3AGGREGATOR_DEV_IMG=$(docker images m3aggregator:dev | fgrep -iv repository | wc -l | xargs)
+M3COLLECTOR_DEV_IMG=$(docker images m3collector:dev | fgrep -iv repository | wc -l | xargs)
 
-if [[ "$MULTI_DB_NODE" = true ]] ; then
+if [[ "$M3DBNODE_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3DBNODE" == true ]]; then
+    prepare_build_cmd "make m3dbnode-linux-amd64"
+    echo "Building m3dbnode binary first"
+    bash -c "$build_cmd"
+
+    docker-compose -f docker-compose.yml up --build $DOCKER_ARGS m3db_seed
+else
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
+fi
+
+# Bring up any other replicas
+if [[ "$USE_MULTI_DB_NODES" = true ]] ; then
     echo "Running multi node"
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data01
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data02
@@ -39,35 +51,99 @@ else
     echo "Running single node"
 fi
 
+# Use standard coordinator config when bringing up coordinator first time
+cp ./m3coordinator-standard.yml ${RELATIVE}/bin/m3coordinator.yml
+
+if [[ "$M3COORDINATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COORDINATOR" == true ]]; then
+    prepare_build_cmd "make m3coordinator-linux-amd64"
+    echo "Building m3coordinator binary first"
+    bash -c "$build_cmd"
+
+    docker-compose -f docker-compose.yml up --build $DOCKER_ARGS m3coordinator01
+else
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
+fi
+
 echo "Wait for coordinator API to be up"
 ATTEMPTS=10 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff  \
   'curl -vvvsSf localhost:7201/health'
 
-if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
+if [[ "$USE_AGGREGATOR" = true ]]; then
     echo "Running aggregator pipeline"
-    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
-        "num_shards": 64,
-        "replication_factor": 1,
-        "instances": [
-            {
-                "id": "m3aggregator01",
-                "isolation_group": "rack-a",
-                "zone": "embedded",
-                "weight": 1024,
-                "endpoint": "m3aggregator01:6000",
-                "hostname": "m3aggregator01",
-                "port": 6000
-            }
-        ]
-    }'
+    if [[ "$USE_AGGREGATOR_HA" != true ]]; then
+        # Use single replica.
+        curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
+            "num_shards": 64,
+            "replication_factor": 1,
+            "instances": [
+                {
+                    "id": "m3aggregator01",
+                    "isolation_group": "rack-a",
+                    "zone": "embedded",
+                    "weight": 1024,
+                    "endpoint": "m3aggregator01:6000",
+                    "hostname": "m3aggregator01",
+                    "port": 6000
+                }
+            ]
+        }'
+    else
+        # Use two replicas.
+        curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
+            "num_shards": 64,
+            "replication_factor": 2,
+            "instances": [
+                {
+                    "id": "m3aggregator01",
+                    "isolation_group": "rack-a",
+                    "zone": "embedded",
+                    "weight": 1024,
+                    "endpoint": "m3aggregator01:6000",
+                    "hostname": "m3aggregator01",
+                    "port": 6000
+                },
+                {
+                    "id": "m3aggregator02",
+                    "isolation_group": "rack-b",
+                    "zone": "embedded",
+                    "weight": 1024,
+                    "endpoint": "m3aggregator02:6000",
+                    "hostname": "m3aggregator02",
+                    "port": 6000
+                }
+            ]
+        }'
+    fi
 
     echo "Initializing m3msg topic for ingestion"
     curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
         "numberOfShards": 64
     }'
 
-    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator01
-    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3collector01
+    if [[ "$M3AGGREGATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3AGGREGATOR" == true ]]; then
+        prepare_build_cmd "make m3aggregator-linux-amd64"
+        echo "Building m3aggregator binary first"
+        bash -c "$build_cmd"
+
+        docker-compose -f docker-compose.yml up --build $DOCKER_ARGS m3aggregator01
+    else
+        docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator01
+    fi
+
+    if [[ "$USE_AGGREGATOR_HA" == true ]]; then
+        # Bring up the second replica
+        docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator02
+    fi
+
+    if [[ "$M3COLLECTOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COLLECTOR" == true ]]; then
+        prepare_build_cmd "make m3collector-linux-amd64"
+        echo "Building m3collector binary first"
+        bash -c "$build_cmd"
+
+        docker-compose -f docker-compose.yml up --build $DOCKER_ARGS m3collector01
+    else
+        docker-compose -f docker-compose.yml up $DOCKER_ARGS m3collector01
+    fi
 else
     echo "Not running aggregator pipeline"
 fi
@@ -97,7 +173,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
   }
 }'
 curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
-  "name": "metrics_10s_48h",
+  "name": "metrics_30s_24h",
   "options": {
     "bootstrapEnabled": true,
     "flushEnabled": true,
@@ -106,8 +182,8 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
     "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodDuration": "48h",
-      "blockSizeDuration": "4h",
+      "retentionPeriodDuration": "24h",
+      "blockSizeDuration": "2h",
       "bufferFutureDuration": "10m",
       "bufferPastDuration": "10m",
       "blockDataExpiry": true,
@@ -115,7 +191,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeDuration": "4h"
+      "blockSizeDuration": "2h"
     }
   }
 }'
@@ -123,11 +199,11 @@ echo "Done initializing namespaces"
 
 echo "Validating namespace"
 [ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_0_30m.indexOptions.enabled)" == true ]
-[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_10s_48h.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_30s_24h.indexOptions.enabled)" == true ]
 echo "Done validating namespace"
 
 echo "Initializing topology"
-if [[ "$MULTI_DB_NODE" = true ]] ; then
+if [[ "$USE_MULTI_DB_NODES" = true ]] ; then
     curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
         "num_shards": 64,
         "replication_factor": 3,
@@ -187,7 +263,7 @@ echo "Waiting until shards are marked as available"
 ATTEMPTS=100 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
-if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
+if [[ "$USE_AGGREGATOR" = true ]]; then
     echo "Initializing M3Coordinator topology"
     curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
         "instances": [
@@ -220,14 +296,33 @@ if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
         }
     }' # msgs will be discarded after 600000000000ns = 10mins
 
+    # Restart with aggregator coordinator config
+    docker-compose -f docker-compose.yml stop m3coordinator01
+    cp ./m3coordinator-aggregator.yml ${RELATIVE}/bin/m3coordinator.yml
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
+
     # May not necessarily flush
     echo "Sending unaggregated metric to m3collector"
     curl http://localhost:7206/api/v1/json/report -X POST -d '{"metrics":[{"type":"gauge","value":42,"tags":{"__name__":"foo_metric","foo":"bar"}}]}'
 fi
 
+echo "Starting Prometheus"
+docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
+
+if [[ "$USE_PROMETHEUS_HA" = true ]] ; then
+    echo "Starting Prometheus HA replica"
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus02
+fi
+
+echo "Starting Grafana"
+docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
+
 if [[ "$USE_JAEGER" = true ]] ; then
     echo "Jaeger UI available at localhost:16686"
 fi
 echo "Prometheus available at localhost:9090"
+if [[ "$USE_PROMETHEUS_HA" = true ]] ; then
+    echo "Prometheus HA replica available at localhost:9091"
+fi
 echo "Grafana available at localhost:3000"
 echo "Run ./stop.sh to shutdown nodes when done"
