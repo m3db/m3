@@ -122,13 +122,10 @@ func (i *multiKeyPostingsListIterator) Next() bool {
 
 	// NB(bodu): Build the postings list for this field if the field has changed.
 	defer func() {
-		for _, reader := range i.currReaders {
+		for idx, reader := range i.currReaders {
 			if err := reader.Close(); err != nil {
 				i.err = err
 			}
-		}
-
-		for idx := range i.currReaders {
 			i.currReaders[idx] = nil
 		}
 		i.currReaders = i.currReaders[:0]
