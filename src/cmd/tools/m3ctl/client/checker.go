@@ -13,7 +13,7 @@ func checkForAndHandleError(url string, resp *http.Response, zl *zap.Logger) err
 	if resp.StatusCode > 299 {
 		dat, _ := ioutil.ReadAll(resp.Body)
 		if dat != nil {
-			fmt.Println(string(dat))
+			zl.Info(string(dat))
 		}
 		return fmt.Errorf("error from m3db:%s:url:%s:", resp.Status, url)
 	}
