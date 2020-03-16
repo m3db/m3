@@ -22,7 +22,6 @@ package encoding
 
 import (
 	"bufio"
-	"encoding/binary"
 	"io"
 	"math"
 )
@@ -114,7 +113,10 @@ func (is *istream) ReadBits(numBits uint) (uint64, error) {
 			return 0, err
 		}
 		if read == 8 {
-			res = binary.BigEndian.Uint64(bytes)
+			// Inlined copy of native code for performance: binary.BigEndian.Uint64(bytes).
+			_ = bytes[7]
+			res = uint64(bytes[7]) | uint64(bytes[6])<<8 | uint64(bytes[5])<<16 | uint64(bytes[4])<<24 |
+				uint64(bytes[3])<<32 | uint64(bytes[2])<<40 | uint64(bytes[1])<<48 | uint64(bytes[0])<<56
 		} else {
 			for _, b := range bytes {
 				res = (res << 8) | uint64(b)
