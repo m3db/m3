@@ -753,7 +753,14 @@ func (n *dbNamespace) AggregateQuery(
 	return res, err
 }
 
-func (n *dbNamespace) PrepareBootstrap() ([]databaseShard, error) {
+func (n *dbNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, error) {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.NSPrepareBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(opentracinglog.String("namespace", n.id.String()))
+	}
+
 	var (
 		wg           sync.WaitGroup
 		multiErrLock sync.Mutex
@@ -766,7 +773,7 @@ func (n *dbNamespace) PrepareBootstrap() ([]databaseShard, error) {
 		go func() {
 			defer wg.Done()
 
-			err := shard.PrepareBootstrap()
+			err := shard.PrepareBootstrap(ctx)
 			if err != nil {
 				multiErrLock.Lock()
 				multiErr = multiErr.Add(err)
@@ -840,8 +847,16 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 }
 
 func (n *dbNamespace) Bootstrap(
+	ctx context.Context,
 	bootstrapResult bootstrap.NamespaceResult,
 ) error {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.NSBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(opentracinglog.String("namespace", n.id.String()))
+	}
+
 	callStart := n.nowFn()
 
 	n.Lock()
@@ -916,7 +931,7 @@ func (n *dbNamespace) Bootstrap(
 		wg.Add(1)
 		shard := shard
 		workers.Go(func() {
-			err := shard.Bootstrap()
+			err := shard.Bootstrap(ctx)
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)

@@ -536,7 +536,9 @@ func (nt *NamespacesTester) ResultForNamespace(id ident.ID) NamespaceResult {
 // TestBootstrapWith bootstraps the current Namespaces with the
 // provided bootstrapper.
 func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
-	res, err := b.Bootstrap(nt.Namespaces)
+	ctx := context.NewContext()
+	defer ctx.Close()
+	res, err := b.Bootstrap(ctx, nt.Namespaces)
 	assert.NoError(nt.t, err)
 	nt.Results = res
 }
@@ -544,7 +546,9 @@ func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
 // TestReadWith reads the current Namespaces with the
 // provided bootstrap source.
 func (nt *NamespacesTester) TestReadWith(s Source) {
-	res, err := s.Read(nt.Namespaces)
+	ctx := context.NewContext()
+	defer ctx.Close()
+	res, err := s.Read(ctx, nt.Namespaces)
 	require.NoError(nt.t, err)
 	nt.Results = res
 }
