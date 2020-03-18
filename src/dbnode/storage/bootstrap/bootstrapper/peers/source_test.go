@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -199,7 +200,11 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	runOpts := testRunOptsWithPersist.SetPersistConfig(bootstrap.PersistConfig{Enabled: true, FileSetType: 999})
 	tester := bootstrap.BuildNamespacesTester(t, runOpts, target, testNsMd)
 	defer tester.Finish()
-	_, err = src.Read(tester.Namespaces)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	_, err = src.Read(ctx, tester.Namespaces)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "unknown persist config fileset file type"))
 	tester.EnsureNoLoadedBlocks()

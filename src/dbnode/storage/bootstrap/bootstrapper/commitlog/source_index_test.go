@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -407,7 +408,10 @@ func TestBootstrapIndexFailsForDecodedTags(t *testing.T) {
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md1)
 	defer tester.Finish()
 
-	_, err = src.Read(tester.Namespaces)
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	_, err = src.Read(ctx, tester.Namespaces)
 	require.Error(t, err)
 
 	tester.EnsureNoLoadedBlocks()

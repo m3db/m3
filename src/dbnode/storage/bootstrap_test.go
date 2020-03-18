@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -65,19 +66,22 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	bsm.sleepFn = func(time.Duration) {}
 
 	gomock.InOrder(
-		ns.EXPECT().PrepareBootstrap().Return([]databaseShard{}, nil),
+		ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil),
 		ns.EXPECT().Metadata().Return(meta),
 		ns.EXPECT().ID().Return(id),
 		ns.EXPECT().
-			Bootstrap(gomock.Any()).
+			Bootstrap(gomock.Any(), gomock.Any()).
 			Return(fmt.Errorf("an error")).
-			Do(func(bootstrapResult bootstrap.NamespaceResult) {
+			Do(func(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) {
 				// After returning an error, make sure we don't re-enqueue.
 				bsm.bootstrapFn = func() error {
 					return nil
 				}
 			}),
 	)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
 
 	result, err := bsm.Bootstrap()
 	require.NoError(t, err)
@@ -110,13 +114,13 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	ns.EXPECT().PrepareBootstrap().Return([]databaseShard{}, nil).AnyTimes()
+	ns.EXPECT().PrepareBootstrap(gomock.Any()).Return([]databaseShard{}, nil).AnyTimes()
 	ns.EXPECT().Metadata().Return(meta).AnyTimes()
 
 	ns.EXPECT().
-		Bootstrap(gomock.Any()).
+		Bootstrap(gomock.Any(), gomock.Any()).
 		Return(nil).
-		Do(func(arg0 interface{}) {
+		Do(func(arg0, arg1 interface{}) {
 			defer wg.Done()
 
 			// Enqueue the second bootstrap
@@ -129,7 +133,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 			bsm.RUnlock()
 
 			// Expect the second bootstrap call
-			ns.EXPECT().Bootstrap(gomock.Any()).Return(nil)
+			ns.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
 		})
 	ns.EXPECT().
 		ID().
