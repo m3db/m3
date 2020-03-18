@@ -1535,8 +1535,8 @@ func withEncodingAndPoolingOptions(
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).
 		SetAggregateResultsPool(aggregateQueryResultsPool).
-		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
-		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
+		SetForwardIndexProbability(cfg.Index.ForwardIndexProbabilityOrDefault()).
+		SetForwardIndexThreshold(cfg.Index.ForwardIndexThresholdOrDefault())
 
 	queryResultsPool.Init(func() index.QueryResults {
 		// NB(r): Need to initialize after setting the index opts so

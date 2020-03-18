@@ -48,6 +48,9 @@ const (
 	defaultEtcdListenHost = "http://0.0.0.0"
 	defaultEtcdClientPort = 2379
 	defaultEtcdServerPort = 2380
+
+	defaultForwardIndexProbability = 0.01
+	defaultForwardIndexThreshold   = 1.0
 )
 
 // Configuration is the top level configuration that includes both a DB
@@ -208,7 +211,7 @@ type IndexConfiguration struct {
 	// NB: this is an optimization which lessens pressure on the index around
 	// block boundaries by eagerly writing the series to the next block
 	// preemptively.
-	ForwardIndexProbability float64 `yaml:"forwardIndexProbability" validate:"min=0.0,max=1.0"`
+	ForwardIndexProbability *float64 `yaml:"forwardIndexProbability"`
 
 	// ForwardIndexThreshold determines the threshold for forward writes, as a
 	// fraction of the given namespace's bufferFuture.
@@ -216,7 +219,21 @@ type IndexConfiguration struct {
 	// NB: this is an optimization which lessens pressure on the index around
 	// block boundaries by eagerly writing the series to the next block
 	// preemptively.
-	ForwardIndexThreshold float64 `yaml:"forwardIndexThreshold" validate:"min=0.0,max=1.0"`
+	ForwardIndexThreshold *float64 `yaml:"forwardIndexThreshold"`
+}
+
+func (c IndexConfiguration) ForwardIndexProbabilityOrDefault() float64 {
+	if v := c.ForwardIndexProbability; v != nil {
+		return *v
+	}
+	return defaultForwardIndexProbability
+}
+
+func (c IndexConfiguration) ForwardIndexThresholdOrDefault() float64 {
+	if v := c.ForwardIndexThreshold; v != nil {
+		return *v
+	}
+	return defaultForwardIndexThreshold
 }
 
 // TransformConfiguration contains configuration options that can transform
