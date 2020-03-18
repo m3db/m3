@@ -5126,11 +5126,11 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(build_information{}) by (revision)",
+              "expr": "sum(build_information{}) by (build_version, revision)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.5783520603949805,
-              "legendFormat": "{{revision}}",
+              "legendFormat": "{{build_version}} ({{revision}})",
               "refId": "A"
             }
           ],

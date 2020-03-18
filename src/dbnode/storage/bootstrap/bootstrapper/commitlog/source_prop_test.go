@@ -370,7 +370,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			runOpts := testDefaultRunOpts.SetInitialTopologyState(initialTopoState)
 			tester := bootstrap.BuildNamespacesTester(t, runOpts, shardTimeRanges, nsMeta)
 
-			bootstrapResults, err := source.Bootstrap(tester.Namespaces)
+			ctx := context.NewContext()
+			defer ctx.Close()
+
+			bootstrapResults, err := source.Bootstrap(ctx, tester.Namespaces)
 			if err != nil {
 				return false, err
 			}

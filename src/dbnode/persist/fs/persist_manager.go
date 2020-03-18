@@ -196,7 +196,7 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 
 func (pm *persistManager) reset() {
 	pm.status = persistManagerIdle
-	pm.start = timeZero
+	pm.start = timeZero 
 	pm.count = 0
 	pm.bytesWritten = 0
 	pm.worked = 0
