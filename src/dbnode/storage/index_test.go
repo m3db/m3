@@ -319,6 +319,20 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	assert.Equal(t, 0, aggResult.Results.Size())
 }
 
+func TestIndexNamespaceMetricsLatencyBuckets(t *testing.T) {
+	opts := DefaultTestOptions()
+	metrics, err := newNamespaceIndexMetrics(opts.IndexOptions(),
+		opts.InstrumentOptions())
+	require.NoError(t, err)
+
+	buckets := metrics.IndexLatencyBuckets
+
+	// NB(r): Bucket values are tested to sanity check they look right
+	expected := "[0s 100ms 200ms 300ms 400ms 500ms 600ms 700ms 800ms 900ms 1s 1.5s 2s 2.5s 3s 3.5s 4s 4.5s 5s 5.5s 6s 6.5s 7s 7.5s 8s 8.5s 9s 9.5s 10s 15s 20s 25s 30s 35s 40s 45s 50s 55s 1m0s 1m0s 1m30s 2m0s 2m30s 3m0s 3m30s 4m0s 4m30s 5m0s 5m30s 6m0s 6m30s 7m0s 7m30s 8m0s 8m30s 9m0s 9m30s 10m0s 10m30s 10m0s 12m0s 14m0s 16m0s 18m0s 20m0s 22m0s 24m0s 26m0s 28m0s 35m0s 40m0s 45m0s 50m0s 55m0s]"
+	actual := fmt.Sprintf("%v", buckets.AsDurations())
+	require.Equal(t, expected, actual)
+}
+
 type testIndex struct {
 	index          namespaceIndex
 	metadata       namespace.Metadata

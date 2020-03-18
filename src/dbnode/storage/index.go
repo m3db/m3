@@ -278,6 +278,12 @@ func newNamespaceIndexWithOptions(
 	indexOpts = indexOpts.SetInstrumentOptions(instrumentOpts)
 
 	nowFn := indexOpts.ClockOptions().NowFn()
+
+	metrics, err := newNamespaceIndexMetrics(indexOpts, instrumentOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	idx := &nsIndex{
 		state: nsIndexState{
 			closeCh: make(chan struct{}),
@@ -307,7 +313,7 @@ func newNamespaceIndexWithOptions(
 		aggregateResultsPool: indexOpts.AggregateResultsPool(),
 
 		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
-		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
+		metrics:          metrics,
 	}
 
 	// Assign shard set upfront.
@@ -622,7 +628,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 	now := i.nowFn()
 	for idx := range pending {
 		took := now.Sub(pending[idx].EnqueuedAt)
-		i.metrics.InsertEndToEndLatency.Record(took)
+		i.metrics.InsertEndToEndLatency.RecordDuration(took)
 	}
 
 	// NB: we don't need to do anything to the OnIndexSeries refs in `inserts` at this point,
@@ -1549,7 +1555,8 @@ type nsIndexMetrics struct {
 	AsyncInsertErrors            tally.Counter
 	InsertAfterClose             tally.Counter
 	QueryAfterClose              tally.Counter
-	InsertEndToEndLatency        tally.Timer
+	IndexLatencyBuckets          tally.DurationBuckets
+	InsertEndToEndLatency        tally.Histogram
 	BlocksEvictedMutableSegments tally.Counter
 	BlockMetrics                 nsIndexBlocksMetrics
 }
@@ -1557,9 +1564,56 @@ type nsIndexMetrics struct {
 func newNamespaceIndexMetrics(
 	opts index.Options,
 	iopts instrument.Options,
-) nsIndexMetrics {
+) (nsIndexMetrics, error) {
 	scope := iopts.MetricsScope()
 	blocksScope := scope.SubScope("blocks")
+
+	upTo1sBuckets, err := tally.LinearDurationBuckets(0, 100*time.Millisecond, 10)
+	if err != nil {
+		return nsIndexMetrics{}, err
+	}
+
+	upTo10sBuckets, err := tally.LinearDurationBuckets(time.Second, 500*time.Millisecond, 18)
+	if err != nil {
+		return nsIndexMetrics{}, err
+	}
+
+	upTo60sBuckets, err := tally.LinearDurationBuckets(10*time.Second, 5*time.Second, 11)
+	if err != nil {
+		return nsIndexMetrics{}, err
+	}
+
+	upTo10mBuckets, err := tally.LinearDurationBuckets(1*time.Minute, 30*time.Second, 18)
+	if err != nil {
+		return nsIndexMetrics{}, err
+	}
+	upTo10mBuckets = upTo10mBuckets[1:]
+
+	upTo30mBuckets, err := tally.LinearDurationBuckets(10*time.Minute, 2*time.Minute, 11)
+	if err != nil {
+		return nsIndexMetrics{}, err
+	}
+
+	upTo60mBuckets, err := tally.LinearDurationBuckets(30*time.Minute, 5*time.Minute, 7)
+	if err != nil {
+		return nsIndexMetrics{}, err
+	}
+	upTo60mBuckets = upTo60mBuckets[1:]
+
+	var indexLatencyBuckets tally.DurationBuckets
+	indexLatencyBuckets = append(indexLatencyBuckets, upTo1sBuckets...)
+	indexLatencyBuckets = append(indexLatencyBuckets, upTo10sBuckets...)
+	indexLatencyBuckets = append(indexLatencyBuckets, upTo60sBuckets...)
+	indexLatencyBuckets = append(indexLatencyBuckets, upTo10mBuckets...)
+	indexLatencyBuckets = append(indexLatencyBuckets, upTo30mBuckets...)
+	indexLatencyBuckets = append(indexLatencyBuckets, upTo60mBuckets...)
+
+	indexLatencyScope := scope.Tagged(map[string]string{
+		// buckets-schema should be bumped each time these change so can update
+		// queries and differentiate between the two versions of buckets.
+		"buckets-schema": "v1",
+	})
+
 	return nsIndexMetrics{
 		AsyncInsertSuccess: scope.Counter("index-success"),
 		AsyncInsertErrors: scope.Tagged(map[string]string{
@@ -1571,12 +1625,11 @@ func newNamespaceIndexMetrics(
 		QueryAfterClose: scope.Tagged(map[string]string{
 			"error_type": "query-closed",
 		}).Counter("query-after-error"),
-		InsertEndToEndLatency: instrument.MustCreateSampledTimer(
-			scope.Timer("insert-end-to-end-latency"),
-			iopts.MetricsSamplingRate()),
+		IndexLatencyBuckets:          indexLatencyBuckets,
+		InsertEndToEndLatency:        indexLatencyScope.Histogram("insert-end-to-end-latency", indexLatencyBuckets),
 		BlocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
 		BlockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
-	}
+	}, nil
 }
 
 type nsIndexBlocksMetrics struct {
