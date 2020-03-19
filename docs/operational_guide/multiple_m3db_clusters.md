@@ -11,13 +11,13 @@ Use case(s):
 
 **Note:** Adding multiple M3DB clusters to m3coordinator using the m3aggregator requires clusterManagement.
 
-**Note:** When making API requests, an environment header needs to be set. 
-
-1. Add clusterManagement to congfig file:
+1. Add clusterManagement to config file:
 
 Example config file with clusterManagement (see end of the config):
 
 ```bash
+clusters:
+  # Should match the namespace(s) set up in the DB nodes
   - namespaces:
        - namespace: 21d
          retention: 504h
@@ -35,11 +35,6 @@ Example config file with clusterManagement (see end of the config):
               - <ETCD_IP_1>
               - <ETCD_IP_2>
               - <ETCD_IP_3>
-       writeConsistencyLevel: majority
-       readConsistencyLevel: unstrict_majority
-       writeTimeout: 10s
-       fetchTimeout: 15s
-       connectTimeout: 20s
        writeRetry:
          initialBackoff: 500ms
          backoffFactor: 3
@@ -50,8 +45,6 @@ Example config file with clusterManagement (see end of the config):
          backoffFactor: 2
          maxRetries: 3
          jitter: true
-       backgroundHealthCheckFailLimit: 4
-       backgroundHealthCheckFailThrottleFactor: 0.5
    - namespaces:
        - namespace: 90d
          retention: 2160h
@@ -74,11 +67,6 @@ Example config file with clusterManagement (see end of the config):
                  - <ETCD_IP_1>
                  - <ETCD_IP_2>
                  - <ETCD_IP_3>
-       writeConsistencyLevel: majority
-       readConsistencyLevel: unstrict_majority
-       writeTimeout: 10s
-       fetchTimeout: 15s
-       connectTimeout: 20s
        writeRetry:
          initialBackoff: 500ms
          backoffFactor: 3
@@ -89,8 +77,6 @@ Example config file with clusterManagement (see end of the config):
          backoffFactor: 2
          maxRetries: 3
          jitter: true
-       backgroundHealthCheckFailLimit: 4
-       backgroundHealthCheckFailThrottleFactor: 0.5
 tagOptions:
   idScheme: quoted
 clusterManagement:
@@ -106,3 +92,6 @@ clusterManagement:
           - <ETCD_IP_2>
           - <ETCD_IP_3>
 ```
+2. Use environment header when calling existing APIs 
+
+**Note:** Any API requests to the coordinator require a `Cluster-Environment-Name` header that corresponds to the cluster the request is targeting.
