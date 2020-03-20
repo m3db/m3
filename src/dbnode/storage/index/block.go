@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
 	"github.com/m3db/m3/src/x/context"
@@ -103,6 +104,30 @@ func (s blockState) String() string {
 
 type newExecutorFn func() (search.Executor, error)
 
+type shardRangesSegmentsByVolumeType map[persist.IndexVolumeType][]blockShardRangesSegments
+
+func (s shardRangesSegmentsByVolumeType) forEachSegment(cb func(segment segment.Segment) error) error {
+	return s.forEachSegmentGroup(func(group blockShardRangesSegments) error {
+		for _, seg := range group.segments {
+			if err := cb(seg); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s shardRangesSegmentsByVolumeType) forEachSegmentGroup(cb func(group blockShardRangesSegments) error) error {
+	for _, shardRangesSegments := range s {
+		for _, group := range shardRangesSegments {
+			if err := cb(group); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // nolint: maligned
 type block struct {
 	sync.RWMutex
@@ -110,19 +135,18 @@ type block struct {
 	state                             blockState
 	hasEvictedMutableSegmentsAnyTimes bool
 
-	foregroundSegments  []*readableSeg
-	backgroundSegments  []*readableSeg
-	shardRangesSegments []blockShardRangesSegments
-
-	newFieldsAndTermsIteratorFn newFieldsAndTermsIteratorFn
-	newExecutorFn               newExecutorFn
-	blockStart                  time.Time
-	blockEnd                    time.Time
-	blockSize                   time.Duration
-	blockOpts                   BlockOptions
-	opts                        Options
-	iopts                       instrument.Options
-	nsMD                        namespace.Metadata
+	foregroundSegments              []*readableSeg
+	backgroundSegments              []*readableSeg
+	shardRangesSegmentsByVolumeType shardRangesSegmentsByVolumeType
+	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
+	newExecutorFn                   newExecutorFn
+	blockStart                      time.Time
+	blockEnd                        time.Time
+	blockSize                       time.Duration
+	blockOpts                       BlockOptions
+	opts                            Options
+	iopts                           instrument.Options
+	nsMD                            namespace.Metadata
 
 	compact blockCompact
 
@@ -728,9 +752,10 @@ func (b *block) cleanupForegroundCompactWithLock() {
 
 func (b *block) executorWithRLock() (search.Executor, error) {
 	expectedReaders := len(b.foregroundSegments) + len(b.backgroundSegments)
-	for _, group := range b.shardRangesSegments {
+	b.shardRangesSegmentsByVolumeType.forEachSegmentGroup(func(group blockShardRangesSegments) error {
 		expectedReaders += len(group.segments)
-	}
+		return nil
+	})
 
 	var (
 		readers = make([]m3ninxindex.Reader, 0, expectedReaders)
@@ -756,14 +781,15 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	}
 
 	// Loop over the segments associated to shard time ranges.
-	for _, group := range b.shardRangesSegments {
-		for _, seg := range group.segments {
-			reader, err := seg.Reader()
-			if err != nil {
-				return nil, err
-			}
-			readers = append(readers, reader)
+	if err := b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
+		reader, err := seg.Reader()
+		if err != nil {
+			return err
 		}
+		readers = append(readers, reader)
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	success = true
@@ -772,9 +798,10 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 
 func (b *block) segmentsWithRLock() []segment.Segment {
 	numSegments := len(b.foregroundSegments) + len(b.backgroundSegments)
-	for _, group := range b.shardRangesSegments {
+	b.shardRangesSegmentsByVolumeType.forEachSegmentGroup(func(group blockShardRangesSegments) error {
 		numSegments += len(group.segments)
-	}
+		return nil
+	})
 
 	segments := make([]segment.Segment, 0, numSegments)
 	// Add foreground & background segments.
@@ -786,11 +813,10 @@ func (b *block) segmentsWithRLock() []segment.Segment {
 	}
 
 	// Loop over the segments associated to shard time ranges.
-	for _, group := range b.shardRangesSegments {
-		for _, seg := range group.segments {
-			segments = append(segments, seg)
-		}
-	}
+	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
+		segments = append(segments, seg)
+		return nil
+	})
 
 	return segments
 }
@@ -1196,75 +1222,84 @@ func (b *block) addAggregateResults(
 }
 
 func (b *block) AddResults(
-	results result.IndexBlock,
+	resultsByVolumeType result.IndexBlockByVolumeType,
 ) error {
 	b.Lock()
 	defer b.Unlock()
 
-	// NB(prateek): we have to allow bootstrap to succeed even if we're Sealed because
-	// of topology changes. i.e. if the current m3db process is assigned new shards,
-	// we need to include their data in the index.
-
-	// i.e. the only state we do not accept bootstrapped data is if we are closed.
-	if b.state == blockStateClosed {
-		return errUnableToBootstrapBlockClosed
-	}
-
-	// First check fulfilled is correct
-	min, max := results.Fulfilled().MinMax()
-	if min.Before(b.blockStart) || max.After(b.blockEnd) {
-		blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
-		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
-			results.Fulfilled().SummaryString(), blockRange.String())
-	}
-
-	var (
-		plCache         = b.opts.PostingsListCache()
-		readThroughOpts = b.opts.ReadThroughSegmentOptions()
-		segments        = results.Segments()
-	)
-	readThroughSegments := make([]segment.Segment, 0, len(segments))
-	for _, seg := range segments {
-		readThroughSeg := seg
-		if immSeg, ok := seg.(segment.ImmutableSegment); ok {
-			// only wrap the immutable segments with a read through cache.
-			readThroughSeg = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
-		}
-		readThroughSegments = append(readThroughSegments, readThroughSeg)
-	}
-
-	entry := blockShardRangesSegments{
-		shardTimeRanges: results.Fulfilled(),
-		segments:        readThroughSegments,
-	}
-
-	// first see if this block can cover all our current blocks covering shard
-	// time ranges.
-	currFulfilled := result.NewShardTimeRanges()
-	for _, existing := range b.shardRangesSegments {
-		currFulfilled.AddRanges(existing.shardTimeRanges)
-	}
-
-	unfulfilledBySegments := currFulfilled.Copy()
-	unfulfilledBySegments.Subtract(results.Fulfilled())
-	if !unfulfilledBySegments.IsEmpty() {
-		// This is the case where it cannot wholly replace the current set of blocks
-		// so simply append the segments in this case.
-		b.shardRangesSegments = append(b.shardRangesSegments, entry)
-		return nil
-	}
-
-	// This is the case where the new segments can wholly replace the
-	// current set of blocks since unfullfilled by the new segments is zero.
 	multiErr := xerrors.NewMultiError()
-	for i, group := range b.shardRangesSegments {
-		for _, seg := range group.segments {
-			// Make sure to close the existing segments.
-			multiErr = multiErr.Add(seg.Close())
+
+	for volumeType, results := range resultsByVolumeType.Data {
+		shardRangesSegments, ok := b.shardRangesSegmentsByVolumeType[volumeType]
+		if !ok {
+			shardRangesSegments = make([]blockShardRangesSegments, 0)
+			b.shardRangesSegmentsByVolumeType[volumeType] = shardRangesSegments
 		}
-		b.shardRangesSegments[i] = blockShardRangesSegments{}
+
+		// NB(prateek): we have to allow bootstrap to succeed even if we're Sealed because
+		// of topology changes. i.e. if the current m3db process is assigned new shards,
+		// we need to include their data in the index.
+
+		// i.e. the only state we do not accept bootstrapped data is if we are closed.
+		if b.state == blockStateClosed {
+			return errUnableToBootstrapBlockClosed
+		}
+
+		// First check fulfilled is correct
+		min, max := results.Fulfilled().MinMax()
+		if min.Before(b.blockStart) || max.After(b.blockEnd) {
+			blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
+			return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
+				results.Fulfilled().SummaryString(), blockRange.String())
+		}
+
+		var (
+			plCache         = b.opts.PostingsListCache()
+			readThroughOpts = b.opts.ReadThroughSegmentOptions()
+			segments        = results.Segments()
+		)
+		readThroughSegments := make([]segment.Segment, 0, len(segments))
+		for _, seg := range segments {
+			readThroughSeg := seg
+			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
+				// only wrap the immutable segments with a read through cache.
+				readThroughSeg = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+			}
+			readThroughSegments = append(readThroughSegments, readThroughSeg)
+		}
+
+		entry := blockShardRangesSegments{
+			shardTimeRanges: results.Fulfilled(),
+			segments:        readThroughSegments,
+		}
+
+		// first see if this block can cover all our current blocks covering shard
+		// time ranges.
+		currFulfilled := result.NewShardTimeRanges()
+		for _, existing := range shardRangesSegments {
+			currFulfilled.AddRanges(existing.shardTimeRanges)
+		}
+
+		unfulfilledBySegments := currFulfilled.Copy()
+		unfulfilledBySegments.Subtract(results.Fulfilled())
+		if !unfulfilledBySegments.IsEmpty() {
+			// This is the case where it cannot wholly replace the current set of blocks
+			// so simply append the segments in this case.
+			b.shardRangesSegmentsByVolumeType[volumeType] = append(shardRangesSegments, entry)
+			return nil
+		}
+
+		// This is the case where the new segments can wholly replace the
+		// current set of blocks since unfullfilled by the new segments is zero.
+		for i, group := range shardRangesSegments {
+			for _, seg := range group.segments {
+				// Make sure to close the existing segments.
+				multiErr = multiErr.Add(seg.Close())
+			}
+			shardRangesSegments[i] = blockShardRangesSegments{}
+		}
+		b.shardRangesSegmentsByVolumeType[volumeType] = append(shardRangesSegments[:0], entry)
 	}
-	b.shardRangesSegments = append(b.shardRangesSegments[:0], entry)
 
 	return multiErr.FinalError()
 }
@@ -1290,26 +1325,25 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 	multiErr := xerrors.NewMultiError()
 
 	// Any segments covering persisted shard ranges.
-	for _, group := range b.shardRangesSegments {
-		for _, seg := range group.segments {
-			result.NumSegments++
-			result.NumDocs += seg.Size()
+	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
+		result.NumSegments++
+		result.NumDocs += seg.Size()
 
-			immSeg, ok := seg.(segment.ImmutableSegment)
-			if !ok {
-				b.metrics.segmentFreeMmapSkipNotImmutable.Inc(1)
-				continue
-			}
-
-			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
-			if err := immSeg.FreeMmap(); err != nil {
-				multiErr = multiErr.Add(err)
-				b.metrics.segmentFreeMmapError.Inc(1)
-				continue
-			}
-			b.metrics.segmentFreeMmapSuccess.Inc(1)
+		immSeg, ok := seg.(segment.ImmutableSegment)
+		if !ok {
+			b.metrics.segmentFreeMmapSkipNotImmutable.Inc(1)
+			return nil
 		}
-	}
+
+		// TODO(bodu): Revist this and implement a more sophisticated free strategy.
+		if err := immSeg.FreeMmap(); err != nil {
+			multiErr = multiErr.Add(err)
+			b.metrics.segmentFreeMmapError.Inc(1)
+			return nil
+		}
+		b.metrics.segmentFreeMmapSuccess.Inc(1)
+		return nil
+	})
 
 	return result, multiErr.FinalError()
 }
@@ -1357,17 +1391,15 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 		})
 	}
 
-	for _, shardRangeSegments := range b.shardRangesSegments {
-		for _, seg := range shardRangeSegments.segments {
-			_, mutable := seg.(segment.MutableSegment)
-			reporter.ReportSegmentStats(BlockSegmentStats{
-				Type:    FlushedSegment,
-				Mutable: mutable,
-				Size:    seg.Size(),
-			})
-		}
-	}
-
+	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
+		_, mutable := seg.(segment.MutableSegment)
+		reporter.ReportSegmentStats(BlockSegmentStats{
+			Type:    FlushedSegment,
+			Mutable: mutable,
+			Size:    seg.Size(),
+		})
+		return nil
+	})
 	return nil
 }
 
@@ -1395,13 +1427,12 @@ func (b *block) NeedsMutableSegmentsEvicted() bool {
 	}
 
 	// Check boostrapped segments and to see if any of them need an eviction.
-	for _, shardRangeSegments := range b.shardRangesSegments {
-		for _, seg := range shardRangeSegments.segments {
-			if mutableSeg, ok := seg.(segment.MutableSegment); ok {
-				anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || mutableSeg.Size() > 0
-			}
+	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
+		if mutableSeg, ok := seg.(segment.MutableSegment); ok {
+			anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || mutableSeg.Size() > 0
 		}
-	}
+		return nil
+	})
 
 	return anyMutableSegmentNeedsEviction
 }
@@ -1427,17 +1458,19 @@ func (b *block) EvictMutableSegments() error {
 
 	// Close any other mutable segments that was added.
 	multiErr := xerrors.NewMultiError()
-	for idx := range b.shardRangesSegments {
-		segments := make([]segment.Segment, 0, len(b.shardRangesSegments[idx].segments))
-		for _, seg := range b.shardRangesSegments[idx].segments {
-			mutableSeg, ok := seg.(segment.MutableSegment)
-			if !ok {
-				segments = append(segments, seg)
-				continue
+	for _, shardRangesSegments := range b.shardRangesSegmentsByVolumeType {
+		for idx := range shardRangesSegments {
+			segments := make([]segment.Segment, 0, len(shardRangesSegments[idx].segments))
+			for _, seg := range shardRangesSegments[idx].segments {
+				mutableSeg, ok := seg.(segment.MutableSegment)
+				if !ok {
+					segments = append(segments, seg)
+					continue
+				}
+				multiErr = multiErr.Add(mutableSeg.Close())
 			}
-			multiErr = multiErr.Add(mutableSeg.Close())
+			shardRangesSegments[idx].segments = segments
 		}
-		b.shardRangesSegments[idx].segments = segments
 	}
 
 	return multiErr.FinalError()
@@ -1463,12 +1496,14 @@ func (b *block) Close() error {
 
 	// Close any other added segments too.
 	var multiErr xerrors.MultiError
-	for _, group := range b.shardRangesSegments {
-		for _, seg := range group.segments {
-			multiErr = multiErr.Add(seg.Close())
-		}
+	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
+		multiErr = multiErr.Add(seg.Close())
+		return nil
+	})
+
+	for volumeType := range b.shardRangesSegmentsByVolumeType {
+		b.shardRangesSegmentsByVolumeType[volumeType] = nil
 	}
-	b.shardRangesSegments = nil
 
 	return multiErr.FinalError()
 }

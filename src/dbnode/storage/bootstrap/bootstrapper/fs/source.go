@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -417,7 +418,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				// Mark index block as fulfilled.
 				fulfilled := result.NewShardTimeRanges().Set(shard, xtime.NewRanges(timeRange))
 				err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
-					ns.Options().IndexOptions())
+					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
+					idxpersist.DefaultIndexVolumeType, ns.Options().IndexOptions())
 				if err != nil {
 					s.log.Error("MarkFulfilled failed",
 						zap.String("error", err.Error()),
@@ -822,12 +824,16 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		for _, segment := range segments {
 			persistedSegments = append(persistedSegments, bootstrapper.NewSegment(segment, true))
 		}
-		indexBlock := result.NewIndexBlock(indexBlockStart, persistedSegments,
-			segmentsFulfilled)
+		volumeType := idxpersist.DefaultIndexVolumeType
+		if info.IndexVolumeType != nil {
+			volumeType := idxpersist.IndexVolumeType(info.IndexVolumeType.Value)
+		}
+		indexBlockByVolumeType := result.NewIndexBlockByVolumeType(indexBlockStart)
+		indexBlockByVolumeType.Data[volumeType] = result.NewIndexBlock(persistedSegments, segmentsFulfilled)
 		// NB(r): Don't need to call MarkFulfilled on the IndexResults here
 		// as we've already passed the ranges fulfilled to the block that
 		// we place in the IndexResuts with the call to Add(...).
-		res.result.index.Add(indexBlock, nil)
+		res.result.index.Add(indexBlockByVolumeType, nil)
 		res.fulfilled.AddRanges(segmentsFulfilled)
 	}
 

@@ -33,6 +33,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	protobuftypes "github.com/gogo/protobuf/types"
 )
 
 const (
@@ -58,14 +60,15 @@ type indexWriter struct {
 	newDirectoryMode os.FileMode
 	fdWithDigest     digest.FdWithDigestWriter
 
-	err          error
-	blockSize    time.Duration
-	start        time.Time
-	fileSetType  persist.FileSetType
-	snapshotTime time.Time
-	volumeIndex  int
-	shards       map[uint32]struct{}
-	segments     []writtenIndexSegment
+	err             error
+	blockSize       time.Duration
+	start           time.Time
+	fileSetType     persist.FileSetType
+	snapshotTime    time.Time
+	volumeIndex     int
+	indexVolumeType idxpersist.IndexVolumeType
+	shards          map[uint32]struct{}
+	segments        []writtenIndexSegment
 
 	namespaceDir       string
 	checkpointFilePath string
@@ -116,6 +119,7 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	w.volumeIndex = opts.Identifier.VolumeIndex
 	w.shards = opts.Shards
 	w.snapshotTime = opts.Snapshot.SnapshotTime
+	w.indexVolumeType = opts.IndexVolumeType
 	w.segments = nil
 
 	switch opts.FileSetType {
@@ -230,13 +234,16 @@ func (w *indexWriter) infoFileData() ([]byte, error) {
 	for shard := range w.shards {
 		shards = append(shards, shard)
 	}
-	info := &index.IndexInfo{
+	info := &index.IndexVolumeInfo{
 		MajorVersion: indexFileSetMajorVersion,
 		BlockStart:   w.start.UnixNano(),
 		BlockSize:    int64(w.blockSize),
 		FileType:     int64(w.fileSetType),
 		Shards:       shards,
 		SnapshotTime: w.snapshotTime.UnixNano(),
+		IndexVolumeType: &protobuftypes.StringValue{
+			Value: string(w.indexVolumeType),
+		},
 	}
 	for _, segment := range w.segments {
 		segmentInfo := &index.SegmentInfo{

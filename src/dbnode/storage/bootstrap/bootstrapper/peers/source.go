@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -772,7 +773,8 @@ func (s *peersSource) processReaders(
 					xtime.NewRanges(timeRange),
 				)
 				err = r.IndexResults().MarkFulfilled(start, fulfilled,
-					idxOpts)
+					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
+					idxpersist.DefaultIndexVolumeType, idxOpts)
 			}
 
 			if err == nil {
@@ -1025,7 +1027,7 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 		shard,
 		xtime.NewRanges(timeRange),
 	)
-	r.Add(result.IndexBlock{}, unfulfilled)
+	r.Add(result.NewIndexBlockByVolumeType(time.Time{}), unfulfilled)
 }
 
 func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {

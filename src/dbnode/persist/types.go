@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/pborman/uuid"
@@ -153,6 +154,7 @@ type IndexPrepareOptions struct {
 	BlockStart        time.Time
 	FileSetType       FileSetType
 	Shards            map[uint32]struct{}
+	IndexVolumeType   persist.IndexVolumeType
 }
 
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains

@@ -283,7 +283,8 @@ type IndexWriterOpenOptions struct {
 	FileSetType persist.FileSetType
 	Shards      map[uint32]struct{}
 	// Only used when writing snapshot files
-	Snapshot IndexWriterSnapshotOptions
+	Snapshot        IndexWriterSnapshotOptions
+	IndexVolumeType idxpersist.IndexVolumeType
 }
 
 // IndexFileSetWriter is a index file set writer.

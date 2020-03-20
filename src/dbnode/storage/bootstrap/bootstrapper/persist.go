@@ -59,6 +59,11 @@ func PersistBootstrapIndexSegment(
 	persistManager *SharedPersistManager,
 	resultOpts result.Options,
 ) error {
+	// No-op if there are no documents that ned to be written for this time block (nothing to persist).
+	if len(builder.Docs()) == 0 {
+		return nil
+	}
+
 	// If we're performing an index run with persistence enabled
 	// determine if we covered a full block exactly (which should
 	// occur since we always group readers by block size).
@@ -100,7 +105,7 @@ func PersistBootstrapIndexSegment(
 		}))
 	}
 
-	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
+	indexBlockByVolumeType, ok := indexResults[xtime.ToUnixNano(blockStart)]
 	if !ok {
 		// NB(bodu): We currently write empty data files to disk, which means that we can attempt to bootstrap
 		// time ranges that have no data and no index block.
@@ -112,97 +117,96 @@ func PersistBootstrapIndexSegment(
 		return fmt.Errorf("could not find index block in results: time=%s, ts=%d",
 			blockStart.String(), blockStart.UnixNano())
 	}
-	if len(builder.Docs()) == 0 {
-		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
-		return nil
-	}
 
-	var (
-		fulfilled         = indexBlock.Fulfilled()
-		success           = false
-		persistedSegments []segment.Segment
-	)
-	defer func() {
-		if !success {
-			return
+	success := false
+	for volumeType, indexBlock := range indexBlockByVolumeType.Data {
+		var (
+			fulfilled         = indexBlock.Fulfilled()
+			persistedSegments []segment.Segment
+		)
+		defer func() {
+			if !success {
+				return
+			}
+
+			// Combine persisted  and existing segments.
+			segments := make([]segment.Segment, 0, len(persistedSegments))
+			for _, pSeg := range persistedSegments {
+				segments = append(segments, NewSegment(pSeg, true))
+			}
+			for _, seg := range indexBlock.Segments() {
+				segments = append(segments, seg)
+			}
+
+			// Now replace the active segment with the persisted segment.
+			newFulfilled := fulfilled.Copy()
+			newFulfilled.AddRanges(expectedRanges)
+			replacedBlock := result.NewIndexBlock(segments, newFulfilled)
+			indexResults[xtime.ToUnixNano(blockStart)].Data[volumeType] = replacedBlock
+		}()
+
+		// Check that we completely fulfilled all shards for the block
+		// and we didn't bootstrap any more/less than expected.
+		requireFulfilled := expectedRanges.Copy()
+		requireFulfilled.Subtract(fulfilled)
+		exactStartEnd := max.Equal(blockStart.Add(blockSize))
+		if !exactStartEnd || !requireFulfilled.IsEmpty() {
+			return fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
+				"expected=%v, actual=%v, fulfilled=%v, exactStartEnd=%v, requireFulfilledEmpty=%v",
+				expectedRanges.String(), requestedRanges.String(), fulfilled.String(),
+				exactStartEnd, requireFulfilled.IsEmpty())
 		}
 
-		// Combine persisted  and existing segments.
-		segments := make([]segment.Segment, 0, len(persistedSegments))
-		for _, pSeg := range persistedSegments {
-			segments = append(segments, NewSegment(pSeg, true))
+		// NB(r): Need to get an exclusive lock to actually write the segment out
+		// due to needing to incrementing the index file set volume index and also
+		// using non-thread safe resources on the persist manager.
+		persistManager.Lock()
+		defer persistManager.Unlock()
+
+		flush, err := persistManager.Mgr.StartIndexPersist()
+		if err != nil {
+			return err
 		}
-		for _, seg := range indexBlock.Segments() {
-			segments = append(segments, seg)
+
+		var calledDone bool
+		defer func() {
+			if !calledDone {
+				flush.DoneIndex()
+			}
+		}()
+
+		preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
+			NamespaceMetadata: ns,
+			BlockStart:        indexBlockByVolumeType.BlockStart(),
+			FileSetType:       persist.FileSetFlushType,
+			Shards:            shards,
+			IndexVolumeType:   volumeType,
+		})
+		if err != nil {
+			return err
 		}
 
-		// Now replace the active segment with the persisted segment.
-		newFulfilled := fulfilled.Copy()
-		newFulfilled.AddRanges(expectedRanges)
-		replacedBlock := result.NewIndexBlock(blockStart, segments, newFulfilled)
-		indexResults[xtime.ToUnixNano(blockStart)] = replacedBlock
-	}()
+		var calledClose bool
+		defer func() {
+			if !calledClose {
+				preparedPersist.Close()
+			}
+		}()
 
-	// Check that we completely fulfilled all shards for the block
-	// and we didn't bootstrap any more/less than expected.
-	requireFulfilled := expectedRanges.Copy()
-	requireFulfilled.Subtract(fulfilled)
-	exactStartEnd := max.Equal(blockStart.Add(blockSize))
-	if !exactStartEnd || !requireFulfilled.IsEmpty() {
-		return fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
-			"expected=%v, actual=%v, fulfilled=%v, exactStartEnd=%v, requireFulfilledEmpty=%v",
-			expectedRanges.String(), requestedRanges.String(), fulfilled.String(),
-			exactStartEnd, requireFulfilled.IsEmpty())
-	}
-
-	// NB(r): Need to get an exclusive lock to actually write the segment out
-	// due to needing to incrementing the index file set volume index and also
-	// using non-thread safe resources on the persist manager.
-	persistManager.Lock()
-	defer persistManager.Unlock()
-
-	flush, err := persistManager.Mgr.StartIndexPersist()
-	if err != nil {
-		return err
-	}
-
-	var calledDone bool
-	defer func() {
-		if !calledDone {
-			flush.DoneIndex()
+		if err := preparedPersist.Persist(builder); err != nil {
+			return err
 		}
-	}()
 
-	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
-		NamespaceMetadata: ns,
-		BlockStart:        indexBlock.BlockStart(),
-		FileSetType:       persist.FileSetFlushType,
-		Shards:            shards,
-	})
-	if err != nil {
-		return err
-	}
-
-	var calledClose bool
-	defer func() {
-		if !calledClose {
-			preparedPersist.Close()
+		calledClose = true
+		persistedSegments, err = preparedPersist.Close()
+		if err != nil {
+			return err
 		}
-	}()
 
-	if err := preparedPersist.Persist(builder); err != nil {
-		return err
-	}
-
-	calledClose = true
-	persistedSegments, err = preparedPersist.Close()
-	if err != nil {
-		return err
-	}
-
-	calledDone = true
-	if err := flush.DoneIndex(); err != nil {
-		return err
+		calledDone = true
+		if err := flush.DoneIndex(); err != nil {
+			return err
+		}
 	}
 
 	// Indicate the defer above should merge newly built segments w/ existing.
@@ -259,7 +263,7 @@ func BuildBootstrapIndexSegment(
 		}))
 	}
 
-	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
+	indexBlockByVolumeType, ok := indexResults[xtime.ToUnixNano(blockStart)]
 	if !ok {
 		// NB(bodu): We currently write empty data files to disk, which means that we can attempt to bootstrap
 		// time ranges that have no data and no index block.
@@ -288,15 +292,17 @@ func BuildBootstrapIndexSegment(
 		return err
 	}
 
-	segments := []segment.Segment{NewSegment(seg, false)}
-	for _, seg := range indexBlock.Segments() {
-		segments = append(segments, seg)
-	}
+	for volumeType, indexBlock := range indexBlockByVolumeType.Data {
+		segments := []segment.Segment{NewSegment(seg, false)}
+		for _, seg := range indexBlock.Segments() {
+			segments = append(segments, seg)
+		}
 
-	// Now replace the active segment with the built segment.
-	newFulfilled := indexBlock.Fulfilled().Copy()
-	newFulfilled.AddRanges(expectedRanges)
-	replacedBlock := result.NewIndexBlock(blockStart, segments, newFulfilled)
-	indexResults[xtime.ToUnixNano(blockStart)] = replacedBlock
+		// Now replace the active segment with the built segment.
+		newFulfilled := indexBlock.Fulfilled().Copy()
+		newFulfilled.AddRanges(expectedRanges)
+		replacedBlock := result.NewIndexBlock(segments, newFulfilled)
+		indexResults[xtime.ToUnixNano(blockStart)].Data[volumeType] = replacedBlock
+	}
 	return nil
 }
