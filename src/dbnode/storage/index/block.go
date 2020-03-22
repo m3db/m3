@@ -221,15 +221,16 @@ func NewBlock(
 	blockSize := md.Options().IndexOptions().BlockSize()
 	iopts := indexOpts.InstrumentOptions()
 	b := &block{
-		state:      blockStateOpen,
-		blockStart: blockStart,
-		blockEnd:   blockStart.Add(blockSize),
-		blockSize:  blockSize,
-		opts:       indexOpts,
-		iopts:      iopts,
-		nsMD:       md,
-		metrics:    newBlockMetrics(iopts.MetricsScope()),
-		logger:     iopts.Logger(),
+		state:                           blockStateOpen,
+		blockStart:                      blockStart,
+		blockEnd:                        blockStart.Add(blockSize),
+		blockSize:                       blockSize,
+		shardRangesSegmentsByVolumeType: make(shardRangesSegmentsByVolumeType),
+		opts:                            indexOpts,
+		iopts:                           iopts,
+		nsMD:                            md,
+		metrics:                         newBlockMetrics(iopts.MetricsScope()),
+		logger:                          iopts.Logger(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorFn = b.executorWithRLock

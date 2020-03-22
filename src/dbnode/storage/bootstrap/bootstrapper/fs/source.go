@@ -826,7 +826,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 		volumeType := idxpersist.DefaultIndexVolumeType
 		if info.IndexVolumeType != nil {
-			volumeType := idxpersist.IndexVolumeType(info.IndexVolumeType.Value)
+			volumeType = idxpersist.IndexVolumeType(info.IndexVolumeType.Value)
 		}
 		indexBlockByVolumeType := result.NewIndexBlockByVolumeType(indexBlockStart)
 		indexBlockByVolumeType.Data[volumeType] = result.NewIndexBlock(persistedSegments, segmentsFulfilled)
