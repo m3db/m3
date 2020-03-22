@@ -34,20 +34,20 @@ import (
 )
 
 const (
-	defaultRawTCPAddr                 = "localhost:6000"
-	defaultHTTPAddr                   = "localhost:6001"
-	defaultServerStateChangeTimeout   = 5 * time.Second
-	defaultClientBatchSize            = 1440
-	defaultWorkerPoolSize             = 4
-	defaultInstanceID                 = "localhost"
-	defaultPlacementKVKey             = "/placement"
-	defaultElectionKeyFmt             = "/shardset/%d/lock"
-	defaultFlushTimesKeyFmt           = "/shardset/%d/flush"
-	defaultShardSetID                 = 0
-	defaultElectionStateChangeTimeout = 10 * time.Second
-	defaultEntryCheckInterval         = time.Second
-	defaultJitterEnabled              = true
-	defaultDiscardNaNAggregatedValues = true
+	defaultRawTCPAddr                       = "localhost:6000"
+	defaultHTTPAddr                         = "localhost:6001"
+	defaultServerStateChangeTimeout         = 5 * time.Second
+	defaultClientBatchSize                  = 1440
+	defaultWorkerPoolSize                   = 4
+	defaultInstanceID                       = "localhost"
+	defaultPlacementKVKey                   = "/placement"
+	defaultElectionKeyFmt                   = "/shardset/%d/lock"
+	defaultFlushTimesKeyFmt                 = "/shardset/%d/flush"
+	defaultShardSetID                       = 0
+	defaultElectionStateChangeTimeout       = 10 * time.Second
+	defaultEntryCheckInterval               = time.Second
+	defaultJitterEnabled                    = true
+	defaultEnableDiscardNaNAggregatedValues = true
 )
 
 type testServerOptions interface {
@@ -183,38 +183,38 @@ type testServerOptions interface {
 	// MaxAllowedForwardingDelayFn returns the maximum allowed forwarding delay function.
 	MaxAllowedForwardingDelayFn() aggregator.MaxAllowedForwardingDelayFn
 
-	// SetDiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
-	SetDiscardNaNAggregatedValues(value bool) testServerOptions
+	// SetEnableDiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
+	SetEnableDiscardNaNAggregatedValues(value bool) testServerOptions
 
-	// DiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
-	DiscardNaNAggregatedValues() bool
+	// EnableDiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
+	EnableDiscardNaNAggregatedValues() bool
 }
 
 // nolint: maligned
 type serverOptions struct {
-	clockOpts                   clock.Options
-	instrumentOpts              instrument.Options
-	aggTypesOpts                aggregation.TypesOptions
-	rawTCPAddr                  string
-	httpAddr                    string
-	instanceID                  string
-	electionKeyFmt              string
-	electionCluster             *testCluster
-	shardSetID                  uint32
-	shardFn                     sharding.ShardFn
-	placementKVKey              string
-	flushTimesKeyFmt            string
-	kvStore                     kv.Store
-	serverStateChangeTimeout    time.Duration
-	workerPoolSize              int
-	clientBatchSize             int
-	clientConnectionOpts        aggclient.ConnectionOptions
-	electionStateChangeTimeout  time.Duration
-	entryCheckInterval          time.Duration
-	jitterEnabled               bool
-	maxJitterFn                 aggregator.FlushJitterFn
-	maxAllowedForwardingDelayFn aggregator.MaxAllowedForwardingDelayFn
-	discardNaNAggregatedValues  bool
+	clockOpts                        clock.Options
+	instrumentOpts                   instrument.Options
+	aggTypesOpts                     aggregation.TypesOptions
+	rawTCPAddr                       string
+	httpAddr                         string
+	instanceID                       string
+	electionKeyFmt                   string
+	electionCluster                  *testCluster
+	shardSetID                       uint32
+	shardFn                          sharding.ShardFn
+	placementKVKey                   string
+	flushTimesKeyFmt                 string
+	kvStore                          kv.Store
+	serverStateChangeTimeout         time.Duration
+	workerPoolSize                   int
+	clientBatchSize                  int
+	clientConnectionOpts             aggclient.ConnectionOptions
+	electionStateChangeTimeout       time.Duration
+	entryCheckInterval               time.Duration
+	jitterEnabled                    bool
+	maxJitterFn                      aggregator.FlushJitterFn
+	maxAllowedForwardingDelayFn      aggregator.MaxAllowedForwardingDelayFn
+	enableDiscardNaNAggregatedValues bool
 }
 
 func newTestServerOptions() testServerOptions {
@@ -223,28 +223,28 @@ func newTestServerOptions() testServerOptions {
 		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
 		SetGaugeTypeStringTransformFn(aggregation.EmptyTransform)
 	return &serverOptions{
-		rawTCPAddr:                  defaultRawTCPAddr,
-		httpAddr:                    defaultHTTPAddr,
-		clockOpts:                   clock.NewOptions(),
-		instrumentOpts:              instrument.NewOptions(),
-		aggTypesOpts:                aggTypesOpts,
-		instanceID:                  defaultInstanceID,
-		electionKeyFmt:              defaultElectionKeyFmt,
-		shardSetID:                  defaultShardSetID,
-		shardFn:                     sharding.Murmur32Hash.MustShardFn(),
-		placementKVKey:              defaultPlacementKVKey,
-		flushTimesKeyFmt:            defaultFlushTimesKeyFmt,
-		kvStore:                     mem.NewStore(),
-		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
-		workerPoolSize:              defaultWorkerPoolSize,
-		clientBatchSize:             defaultClientBatchSize,
-		clientConnectionOpts:        aggclient.NewConnectionOptions(),
-		electionStateChangeTimeout:  defaultElectionStateChangeTimeout,
-		jitterEnabled:               defaultJitterEnabled,
-		entryCheckInterval:          defaultEntryCheckInterval,
-		maxJitterFn:                 defaultMaxJitterFn,
-		maxAllowedForwardingDelayFn: defaultMaxAllowedForwardingDelayFn,
-		discardNaNAggregatedValues:  defaultDiscardNaNAggregatedValues,
+		rawTCPAddr:                       defaultRawTCPAddr,
+		httpAddr:                         defaultHTTPAddr,
+		clockOpts:                        clock.NewOptions(),
+		instrumentOpts:                   instrument.NewOptions(),
+		aggTypesOpts:                     aggTypesOpts,
+		instanceID:                       defaultInstanceID,
+		electionKeyFmt:                   defaultElectionKeyFmt,
+		shardSetID:                       defaultShardSetID,
+		shardFn:                          sharding.Murmur32Hash.MustShardFn(),
+		placementKVKey:                   defaultPlacementKVKey,
+		flushTimesKeyFmt:                 defaultFlushTimesKeyFmt,
+		kvStore:                          mem.NewStore(),
+		serverStateChangeTimeout:         defaultServerStateChangeTimeout,
+		workerPoolSize:                   defaultWorkerPoolSize,
+		clientBatchSize:                  defaultClientBatchSize,
+		clientConnectionOpts:             aggclient.NewConnectionOptions(),
+		electionStateChangeTimeout:       defaultElectionStateChangeTimeout,
+		jitterEnabled:                    defaultJitterEnabled,
+		entryCheckInterval:               defaultEntryCheckInterval,
+		maxJitterFn:                      defaultMaxJitterFn,
+		maxAllowedForwardingDelayFn:      defaultMaxAllowedForwardingDelayFn,
+		enableDiscardNaNAggregatedValues: defaultEnableDiscardNaNAggregatedValues,
 	}
 }
 
@@ -468,14 +468,14 @@ func (o *serverOptions) MaxAllowedForwardingDelayFn() aggregator.MaxAllowedForwa
 	return o.maxAllowedForwardingDelayFn
 }
 
-func (o *serverOptions) SetDiscardNaNAggregatedValues(value bool) testServerOptions {
+func (o *serverOptions) SetEnableDiscardNaNAggregatedValues(value bool) testServerOptions {
 	opts := *o
-	opts.discardNaNAggregatedValues = value
+	opts.enableDiscardNaNAggregatedValues = value
 	return &opts
 }
 
-func (o *serverOptions) DiscardNaNAggregatedValues() bool {
-	return o.discardNaNAggregatedValues
+func (o *serverOptions) EnableDiscardNaNAggregatedValues() bool {
+	return o.enableDiscardNaNAggregatedValues
 }
 
 func defaultMaxJitterFn(interval time.Duration) time.Duration {

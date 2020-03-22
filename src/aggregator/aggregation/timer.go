@@ -51,7 +51,7 @@ func (t *Timer) Add(value float64) {
 	t.sum += value
 	t.stream.Add(value)
 
-	if t.HasExpensiveAggregations {
+	if t.EnableExpensiveAggregations {
 		t.sumSq += value * value
 	}
 }
@@ -104,28 +104,28 @@ func (t *Timer) Stdev() float64 {
 }
 
 // ValueOf returns the value for the aggregation type.
-func (t *Timer) ValueOf(aggType aggregation.Type) float64 {
+func (t *Timer) ValueOf(aggType aggregation.Type) Value {
 	if q, ok := aggType.Quantile(); ok {
-		return t.Quantile(q)
+		return Value{Value: t.Quantile(q)}
 	}
 
 	switch aggType {
 	case aggregation.Min:
-		return t.Min()
+		return Value{Value: t.Min()}
 	case aggregation.Max:
-		return t.Max()
+		return Value{Value: t.Max()}
 	case aggregation.Mean:
-		return t.Mean()
+		return Value{Value: t.Mean()}
 	case aggregation.Count:
-		return float64(t.Count())
+		return Value{Value: float64(t.Count())}
 	case aggregation.Sum:
-		return t.Sum()
+		return Value{Value: t.Sum()}
 	case aggregation.SumSq:
-		return t.SumSq()
+		return Value{Value: t.SumSq()}
 	case aggregation.Stdev:
-		return t.Stdev()
+		return Value{Value: t.Stdev()}
 	}
-	return 0
+	return Value{}
 }
 
 // Close closes the timer.

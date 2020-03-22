@@ -401,17 +401,25 @@ func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 }
 
 func (e *CounterElem) processValueWithAggregationLock(
-	timeNanos int64,
+	aggregationTimeNanos int64,
 	lockedAgg *lockedCounterAggregation,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 ) {
 	var (
 		transformations  = e.parsedPipeline.Transformations
-		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
+		discardNaNValues = e.opts.EnableDiscardNaNAggregatedValues()
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
-		value := lockedAgg.aggregation.ValueOf(aggType)
+		aggValue := lockedAgg.aggregation.ValueOf(aggType)
+
+		timeNanos := aggregationTimeNanos
+		if aggValue.AdjustTimestamp {
+			timeNanos = aggValue.AdjustTimestampTime.UnixNano()
+		}
+
+		value := aggValue.Value
+
 		for i := 0; i < transformations.Len(); i++ {
 			transformType := transformations.At(i).Transformation.Type
 			if transformType.IsUnaryTransform() {
@@ -431,20 +439,25 @@ func (e *CounterElem) processValueWithAggregationLock(
 				value = res.Value
 			}
 		}
+
 		if discardNaNValues && math.IsNaN(value) {
 			continue
 		}
-		if !e.parsedPipeline.HasRollup {
-			switch e.idPrefixSuffixType {
-			case NoPrefixNoSuffix:
-				flushLocalFn(nil, e.id, nil, timeNanos, value, e.sp)
-			case WithPrefixWithSuffix:
-				flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
-			}
-		} else {
+
+		if e.parsedPipeline.HasRollup {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
+			continue
+		}
+
+		switch e.idPrefixSuffixType {
+		case NoPrefixNoSuffix:
+			flushLocalFn(nil, e.id, nil, timeNanos, value, e.sp)
+		case WithPrefixWithSuffix:
+			flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
 		}
 	}
-	e.lastConsumedAtNanos = timeNanos
+
+	// Track when last consumed relative to the aggregation time window.
+	e.lastConsumedAtNanos = aggregationTimeNanos
 }

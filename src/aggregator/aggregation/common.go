@@ -22,9 +22,18 @@ package aggregation
 
 import (
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 )
+
+// Value is an aggregation value, with the ability to override the
+// aggregation value timestamp.
+type Value struct {
+	Value               float64
+	AdjustTimestamp     bool
+	AdjustTimestampTime time.Time
+}
 
 func stdev(count int64, sumSq, sum float64) float64 {
 	div := count * (count - 1)

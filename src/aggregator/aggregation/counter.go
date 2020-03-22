@@ -59,7 +59,7 @@ func (c *Counter) Update(timestamp time.Time, value int64) {
 		c.min = value
 	}
 
-	if c.HasExpensiveAggregations {
+	if c.EnableExpensiveAggregations {
 		c.sumSq += value * value
 	}
 }
@@ -93,24 +93,24 @@ func (c *Counter) Min() int64 { return c.min }
 func (c *Counter) Max() int64 { return c.max }
 
 // ValueOf returns the value for the aggregation type.
-func (c *Counter) ValueOf(aggType aggregation.Type) float64 {
+func (c *Counter) ValueOf(aggType aggregation.Type) Value {
 	switch aggType {
 	case aggregation.Min:
-		return float64(c.Min())
+		return Value{Value: float64(c.Min())}
 	case aggregation.Max:
-		return float64(c.Max())
+		return Value{Value: float64(c.Max())}
 	case aggregation.Mean:
-		return c.Mean()
+		return Value{Value: c.Mean()}
 	case aggregation.Count:
-		return float64(c.Count())
+		return Value{Value: float64(c.Count())}
 	case aggregation.Sum:
-		return float64(c.Sum())
+		return Value{Value: float64(c.Sum())}
 	case aggregation.SumSq:
-		return float64(c.SumSq())
+		return Value{Value: float64(c.SumSq())}
 	case aggregation.Stdev:
-		return c.Stdev()
+		return Value{Value: c.Stdev()}
 	default:
-		return 0
+		return Value{}
 	}
 }
 

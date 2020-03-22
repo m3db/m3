@@ -179,7 +179,7 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
 			SetClientConnectionOptions(connectionOpts).
-			SetDiscardNaNAggregatedValues(discardNaNAggregatedValues)
+			SetEnableDiscardNaNAggregatedValues(discardNaNAggregatedValues)
 		server := newTestServerSetup(t, serverOpts)
 		servers = append(servers, server)
 	}

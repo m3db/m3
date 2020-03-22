@@ -32,29 +32,29 @@ import (
 
 func TestCounterDefaultAggregationType(t *testing.T) {
 	c := NewCounter(NewOptions(instrument.NewOptions()))
-	require.False(t, c.HasExpensiveAggregations)
+	require.False(t, c.EnableExpensiveAggregations)
 	for i := 1; i <= 100; i++ {
 		c.Update(time.Now(), int64(i))
 	}
 	require.Equal(t, int64(5050), c.Sum())
-	require.Equal(t, 5050.0, c.ValueOf(aggregation.Sum))
-	require.Equal(t, 100.0, c.ValueOf(aggregation.Count))
-	require.Equal(t, 50.5, c.ValueOf(aggregation.Mean))
+	require.Equal(t, 5050.0, c.ValueOf(aggregation.Sum).Value)
+	require.Equal(t, 100.0, c.ValueOf(aggregation.Count).Value)
+	require.Equal(t, 50.5, c.ValueOf(aggregation.Mean).Value)
 }
 
 func TestCounterCustomAggregationType(t *testing.T) {
 	opts := NewOptions(instrument.NewOptions())
-	opts.HasExpensiveAggregations = true
+	opts.EnableExpensiveAggregations = true
 
 	c := NewCounter(opts)
-	require.True(t, c.HasExpensiveAggregations)
+	require.True(t, c.EnableExpensiveAggregations)
 
 	for i := 1; i <= 100; i++ {
 		c.Update(time.Now(), int64(i))
 	}
 	require.Equal(t, int64(5050), c.Sum())
 	for aggType := range aggregation.ValidTypes {
-		v := c.ValueOf(aggType)
+		v := c.ValueOf(aggType).Value
 		switch aggType {
 		case aggregation.Min:
 			require.Equal(t, float64(1), v)

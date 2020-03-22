@@ -74,13 +74,16 @@ func (g *Gauge) Update(timestamp time.Time, value float64) {
 		g.min = value
 	}
 
-	if g.HasExpensiveAggregations {
+	if g.EnableExpensiveAggregations {
 		g.sumSq += value * value
 	}
 }
 
 // Last returns the last value received.
 func (g *Gauge) Last() float64 { return g.last }
+
+// LastAt returns the last value received time.
+func (g *Gauge) LastAt() time.Time { return g.lastAt }
 
 // Count returns the number of values received.
 func (g *Gauge) Count() int64 { return g.count }
@@ -111,26 +114,33 @@ func (g *Gauge) Min() float64 { return g.min }
 func (g *Gauge) Max() float64 { return g.max }
 
 // ValueOf returns the value for the aggregation type.
-func (g *Gauge) ValueOf(aggType aggregation.Type) float64 {
+func (g *Gauge) ValueOf(aggType aggregation.Type) Value {
 	switch aggType {
 	case aggregation.Last:
-		return g.Last()
+		if g.Options.EnableAggregationLastValueKeepLastTimestamp {
+			return Value{
+				Value:               g.Last(),
+				AdjustTimestamp:     true,
+				AdjustTimestampTime: g.LastAt(),
+			}
+		}
+		return Value{Value: g.Last()}
 	case aggregation.Min:
-		return g.Min()
+		return Value{Value: g.Min()}
 	case aggregation.Max:
-		return g.Max()
+		return Value{Value: g.Max()}
 	case aggregation.Mean:
-		return g.Mean()
+		return Value{Value: g.Mean()}
 	case aggregation.Count:
-		return float64(g.Count())
+		return Value{Value: float64(g.Count())}
 	case aggregation.Sum:
-		return g.Sum()
+		return Value{Value: g.Sum()}
 	case aggregation.SumSq:
-		return g.SumSq()
+		return Value{Value: g.SumSq()}
 	case aggregation.Stdev:
-		return g.Stdev()
+		return Value{Value: g.Stdev()}
 	default:
-		return 0
+		return Value{}
 	}
 }
 

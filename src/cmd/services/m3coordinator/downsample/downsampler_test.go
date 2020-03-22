@@ -48,6 +48,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -57,8 +58,9 @@ import (
 
 var (
 	testAggregationType            = aggregation.Sum
+	testAggregationResolution      = 2 * time.Second
 	testAggregationStoragePolicies = []policy.StoragePolicy{
-		policy.MustParseStoragePolicy("2s:1d"),
+		policy.MustParseStoragePolicy(testAggregationResolution.String() + ":1d"),
 	}
 )
 
@@ -451,6 +453,53 @@ func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationLastValueKeepLastTimestamp(t *testing.T) {
+	alignedStart := time.Now().
+		Truncate(testAggregationResolution).
+		Add(testAggregationResolution)
+
+	subStep := time.Duration(float64(testAggregationResolution) * 0.25)
+
+	metric := testGaugeMetric{
+		tags: map[string]string{nameTag: "gauge0", "app": "testapp", "qux": "qaz"},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 4, time: alignedStart},
+			{value: 6, time: alignedStart.Add(subStep)},
+			{value: 5, time: alignedStart.Add(2 * subStep)},
+		},
+	}
+
+	lastSample := metric.timedSamples[len(metric.timedSamples)-1]
+
+	expectedTimestamp := xtime.UnixNano(lastSample.time.UnixNano())
+
+	expectedWrite := testExpectedWrite{
+		tags:      metric.tags,
+		value:     5,
+		timestamp: &expectedTimestamp,
+	}
+
+	aggregationLastValueAdjustment := true
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		aggregationLastValueAdjustment: &aggregationLastValueAdjustment,
+		autoMappingRules: []AutoMappingRule{
+			{
+				Aggregations: []aggregation.Type{aggregation.Last},
+				Policies:     testAggregationStoragePolicies,
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{metric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{expectedWrite},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -476,6 +525,7 @@ func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
 type testExpectedWrite struct {
 	tags       map[string]string
 	value      float64
+	timestamp  *xtime.UnixNano
 	attributes *storage.Attributes
 }
 
@@ -625,13 +675,28 @@ CheckAllWritesArrivedLoop:
 
 		write, found := findWrite(t, writes, name, expectedWrite.attributes)
 		require.True(t, found)
+
 		assert.Equal(t, expectedWrite.tags, tagsToStringMap(write.Tags))
+
 		require.Equal(t, 1, len(write.Datapoints))
+
 		assert.Equal(t, float64(value), write.Datapoints[0].Value)
+
+		if ts := expectedWrite.timestamp; ts != nil {
+			timestamp := *ts
+			offBy := write.Datapoints[0].Timestamp.Sub(timestamp.ToTime())
+			if offBy < 0 {
+				offBy = -1 * offBy
+			}
+			assert.Equal(t,
+				int64(timestamp), write.Datapoints[0].Timestamp.UnixNano(),
+				"write timestamp off by "+offBy.String())
+		}
 
 		if attrs := expectedWrite.attributes; attrs != nil {
 			assert.Equal(t, *attrs, write.Attributes)
 		}
+
 	}
 }
 
@@ -822,10 +887,11 @@ type testDownsamplerOptions struct {
 	instrumentOpts instrument.Options
 
 	// Options for the test
-	autoMappingRules   []AutoMappingRule
-	sampleAppenderOpts *SampleAppenderOptions
-	remoteClientMock   *client.MockClient
-	rulesConfig        *RulesConfiguration
+	autoMappingRules               []AutoMappingRule
+	sampleAppenderOpts             *SampleAppenderOptions
+	remoteClientMock               *client.MockClient
+	rulesConfig                    *RulesConfiguration
+	aggregationLastValueAdjustment *bool
 
 	// Test ingest and expectations overrides
 	ingest *testDownsamplerOptionsIngest
@@ -888,6 +954,9 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	}
 	if opts.rulesConfig != nil {
 		cfg.Rules = opts.rulesConfig
+	}
+	if opts.aggregationLastValueAdjustment != nil {
+		cfg.AggregationLastValueKeepLastTimestamp = opts.aggregationLastValueAdjustment
 	}
 
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{

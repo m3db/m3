@@ -77,7 +77,7 @@ func TestTimerAggregations(t *testing.T) {
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
 
 	// Assert the state of an empty timer.
-	require.True(t, timer.HasExpensiveAggregations)
+	require.True(t, timer.EnableExpensiveAggregations)
 	require.Equal(t, int64(0), timer.Count())
 	require.Equal(t, 0.0, timer.Sum())
 	require.Equal(t, 0.0, timer.SumSq())
@@ -107,7 +107,7 @@ func TestTimerAggregations(t *testing.T) {
 	require.True(t, timer.Quantile(0.99) >= 98 && timer.Quantile(0.99) <= 100)
 
 	for aggType := range aggregation.ValidTypes {
-		v := timer.ValueOf(aggType)
+		v := timer.ValueOf(aggType).Value
 		switch aggType {
 		case aggregation.Last:
 			require.Equal(t, 0.0, v)
@@ -150,7 +150,7 @@ func TestTimerAggregationsNotExpensive(t *testing.T) {
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
 
 	// Assert the state of an empty timer.
-	require.False(t, timer.HasExpensiveAggregations)
+	require.False(t, timer.EnableExpensiveAggregations)
 
 	// Add values.
 	for i := 1; i <= 100; i++ {
