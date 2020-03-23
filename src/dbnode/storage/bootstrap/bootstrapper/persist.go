@@ -22,6 +22,7 @@ package bootstrapper
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -69,7 +70,7 @@ func PersistBootstrapIndexSegment(
 	// If we're performing an index run with persistence enabled
 	// determine if we covered a full block exactly (which should
 	// occur since we always group readers by block size).
-	min, _ := requestedRanges.MinMax()
+	min, max := requestedRanges.MinMax()
 	blockSize := ns.Options().IndexOptions().BlockSize()
 	blockStart := min.Truncate(blockSize)
 	blockEnd := blockStart.Add(blockSize)
@@ -133,6 +134,7 @@ func PersistBootstrapIndexSegment(
 			expectedRanges,
 			blockStart,
 			blockSize,
+			max,
 		); err != nil {
 			return err
 		}
@@ -152,6 +154,7 @@ func persistBootstrapIndexSegment(
 	expectedRanges result.ShardTimeRanges,
 	blockStart time.Time,
 	blockSize time.Duration,
+	max time.Time,
 ) error {
 	var (
 		fulfilled         = indexBlock.Fulfilled()
@@ -183,8 +186,8 @@ func persistBootstrapIndexSegment(
 	// and we didn't bootstrap any more/less than expected.
 	requireFulfilled := expectedRanges.Copy()
 	requireFulfilled.Subtract(fulfilled)
-	max, _ := requestedRanges.MinMax()
 	exactStartEnd := max.Equal(blockStart.Add(blockSize))
+	log.Println("!exactStartEnd:", !exactStartEnd, "!requireFulfilled.IsEmpty():", !requireFulfilled.IsEmpty())
 	if !exactStartEnd || !requireFulfilled.IsEmpty() {
 		return fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
 			"expected=%v, actual=%v, fulfilled=%v, exactStartEnd=%v, requireFulfilledEmpty=%v",

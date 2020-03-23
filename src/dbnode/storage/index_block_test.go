@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -373,9 +374,15 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -573,9 +580,15 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -689,9 +702,15 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -771,9 +790,15 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -894,9 +919,15 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -981,9 +1012,15 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3))
+	t1Results := result.NewIndexBlockByVolumeType(t1)
+	t1Results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
+		result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3))
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRangesFromRange(t1, t2, 1, 2, 3)),
+		t0Nanos: t0Results,
+		t1Nanos: t1Results,
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
