@@ -90,4 +90,4 @@ clusterManagement:
           - <ETCD_IP_2>
           - <ETCD_IP_3>
 ```
-2. Use a `Cluster-Environment-Name` header for any API requests to the m3coordinator. 
+2. Use the `Cluster-Environment-Name` header for any API requests to the m3coordinator. 
