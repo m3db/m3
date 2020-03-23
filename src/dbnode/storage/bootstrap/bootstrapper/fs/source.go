@@ -488,7 +488,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		// Determine all requested ranges were fulfilled or at edge of retention
 		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
 		if shouldFlush && satisifiedFlushRanges {
-			s.log.Info("building file set index segment", buildIndexLogFields...)
+			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			if err := bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
