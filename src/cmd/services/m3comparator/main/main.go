@@ -22,6 +22,7 @@ package main
 
 import (
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -41,8 +42,9 @@ func main() {
 			pools.BuildIteratorPoolsOptions{})
 		poolWrapper = pools.NewPoolsWrapper(iterPools)
 
-		iOpts  = instrument.NewOptions()
-		logger = iOpts.Logger()
+		iOpts      = instrument.NewOptions()
+		logger     = iOpts.Logger()
+		tagOptions = models.NewTagOptions()
 
 		encoderPoolOpts = pool.NewObjectPoolOptions()
 		encoderPool     = encoding.NewEncoderPool(encoderPoolOpts)
@@ -52,15 +54,15 @@ func main() {
 		return m3tsz.NewEncoder(time.Time{}, nil, true, encoding.NewOptions())
 	})
 
-	tagOptions := models.NewTagOptions()
-	querier := &querier{
-		opts: iteratorOptions{
-			encoderPool:   encoderPool,
-			iteratorPools: iterPools,
-			tagOptions:    tagOptions,
-		},
+	opts := iteratorOptions{
+		encoderPool:   encoderPool,
+		iteratorPools: iterPools,
+		tagOptions:    tagOptions,
+		iOpts:         iOpts,
 	}
 
+	seriesLoader := newSeriesLoadHandler(opts)
+	querier := &querier{opts: opts, handler: seriesLoader}
 	server := remote.NewGRPCServer(
 		querier,
 		models.QueryContextOptions{},
@@ -75,6 +77,13 @@ func main() {
 		logger.Error("listener error", zap.Error(err))
 		return
 	}
+
+	loaderAddr := "0.0.0.0:9001"
+	go func() {
+		if err := http.ListenAndServe(loaderAddr, seriesLoader); err != nil {
+			logger.Error("series load handler failed", zap.Error(err))
+		}
+	}()
 
 	if err := server.Serve(listener); err != nil {
 		logger.Error("serve error", zap.Error(err))

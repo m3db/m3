@@ -41,7 +41,7 @@ var _ m3.Querier = (*querier)(nil)
 
 type querier struct {
 	opts    iteratorOptions
-	handler seriesLoadHandler
+	handler *seriesLoadHandler
 	sync.Mutex
 }
 

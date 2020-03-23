@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -50,22 +49,21 @@ type seriesLoadHandler struct {
 	sync.RWMutex
 	nameIDSeriesMap nameIDSeriesMap
 	iterOpts        iteratorOptions
-	iOpts           instrument.Options
 }
 
-// NewSeriesLoadHandler builds a handler that can load series
+var _ http.Handler = (*seriesLoadHandler)(nil)
+
+// newSeriesLoadHandler builds a handler that can load series
 // to the comparator via an http endpoint.
-func NewSeriesLoadHandler(
-	iterOpts iteratorOptions, iOpts instrument.Options) http.Handler {
+func newSeriesLoadHandler(iterOpts iteratorOptions) *seriesLoadHandler {
 	return &seriesLoadHandler{
 		iterOpts:        iterOpts,
-		iOpts:           iOpts,
 		nameIDSeriesMap: make(nameIDSeriesMap),
 	}
 }
 
 func (l *seriesLoadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	logger := l.iOpts.Logger()
+	logger := l.iterOpts.iOpts.Logger()
 	err := l.serveHTTP(r)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
@@ -82,7 +80,7 @@ func (l *seriesLoadHandler) getSeriesIterators(
 	l.RLock()
 	defer l.RUnlock()
 
-	logger := l.iOpts.Logger()
+	logger := l.iterOpts.iOpts.Logger()
 	seriesMap, found := l.nameIDSeriesMap[name]
 	if !found || len(seriesMap.series) == 0 {
 		return nil
@@ -145,7 +143,7 @@ func (l *seriesLoadHandler) serveHTTP(r *http.Request) error {
 	l.Lock()
 	defer l.Unlock()
 
-	logger := l.iOpts.Logger()
+	logger := l.iterOpts.iOpts.Logger()
 	if err := r.ParseForm(); err != nil {
 		return err
 	}

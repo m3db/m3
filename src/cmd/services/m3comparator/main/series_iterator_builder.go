@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -40,6 +41,7 @@ type iteratorOptions struct {
 	encoderPool   encoding.EncoderPool
 	iteratorPools encoding.IteratorPools
 	tagOptions    models.TagOptions
+	iOpts         instrument.Options
 }
 
 var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
