@@ -1240,12 +1240,6 @@ func (b *block) addResults(
 	volumeType persist.IndexVolumeType,
 	results result.IndexBlock,
 ) error {
-	shardRangesSegments, ok := b.shardRangesSegmentsByVolumeType[volumeType]
-	if !ok {
-		shardRangesSegments = make([]blockShardRangesSegments, 0)
-		b.shardRangesSegmentsByVolumeType[volumeType] = shardRangesSegments
-	}
-
 	// NB(prateek): we have to allow bootstrap to succeed even if we're Sealed because
 	// of topology changes. i.e. if the current m3db process is assigned new shards,
 	// we need to include their data in the index.
@@ -1261,6 +1255,12 @@ func (b *block) addResults(
 		blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
 		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
 			results.Fulfilled().SummaryString(), blockRange.String())
+	}
+
+	shardRangesSegments, ok := b.shardRangesSegmentsByVolumeType[volumeType]
+	if !ok {
+		shardRangesSegments = make([]blockShardRangesSegments, 0)
+		b.shardRangesSegmentsByVolumeType[volumeType] = shardRangesSegments
 	}
 
 	var (

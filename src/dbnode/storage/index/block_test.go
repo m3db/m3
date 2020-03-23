@@ -999,7 +999,7 @@ func TestBlockAddResultsRangeCheck(t *testing.T) {
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
 	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start, start.Add(-1*time.Minute), 1, 2, 3))
+		result.NewShardTimeRangesFromRange(start.Add(-1*time.Minute), start, 1, 2, 3))
 	require.Error(t, b.AddResults(results))
 
 	results = result.NewIndexBlockByVolumeType(start)
@@ -1027,6 +1027,7 @@ func TestBlockAddResultsCoversCurrentData(t *testing.T) {
 	require.NoError(t, b.AddResults(results))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
+	seg1.EXPECT().Close().Return(nil)
 	results = result.NewIndexBlockByVolumeType(start)
 	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3, 4))
