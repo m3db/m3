@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -120,6 +120,9 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	w.shards = opts.Shards
 	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.indexVolumeType = opts.IndexVolumeType
+	if w.indexVolumeType == "" {
+		w.indexVolumeType = idxpersist.DefaultIndexVolumeType
+	}
 	w.segments = nil
 
 	switch opts.FileSetType {

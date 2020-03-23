@@ -23,6 +23,7 @@ package bootstrapper
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -30,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/mmap"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -59,7 +61,7 @@ func PersistBootstrapIndexSegment(
 	persistManager *SharedPersistManager,
 	resultOpts result.Options,
 ) error {
-	// No-op if there are no documents that ned to be written for this time block (nothing to persist).
+	// No-op if there are no documents that need to be written for this time block (nothing to persist).
 	if len(builder.Docs()) == 0 {
 		return nil
 	}
@@ -67,7 +69,7 @@ func PersistBootstrapIndexSegment(
 	// If we're performing an index run with persistence enabled
 	// determine if we covered a full block exactly (which should
 	// occur since we always group readers by block size).
-	min, max := requestedRanges.MinMax()
+	min, _ := requestedRanges.MinMax()
 	blockSize := ns.Options().IndexOptions().BlockSize()
 	blockStart := min.Truncate(blockSize)
 	blockEnd := blockStart.Add(blockSize)
@@ -118,95 +120,127 @@ func PersistBootstrapIndexSegment(
 			blockStart.String(), blockStart.UnixNano())
 	}
 
-	success := false
 	for volumeType, indexBlock := range indexBlockByVolumeType.Data {
-		var (
-			fulfilled         = indexBlock.Fulfilled()
-			persistedSegments []segment.Segment
-		)
-		defer func() {
-			if !success {
-				return
-			}
-
-			// Combine persisted  and existing segments.
-			segments := make([]segment.Segment, 0, len(persistedSegments))
-			for _, pSeg := range persistedSegments {
-				segments = append(segments, NewSegment(pSeg, true))
-			}
-			for _, seg := range indexBlock.Segments() {
-				segments = append(segments, seg)
-			}
-
-			// Now replace the active segment with the persisted segment.
-			newFulfilled := fulfilled.Copy()
-			newFulfilled.AddRanges(expectedRanges)
-			replacedBlock := result.NewIndexBlock(segments, newFulfilled)
-			indexResults[xtime.ToUnixNano(blockStart)].Data[volumeType] = replacedBlock
-		}()
-
-		// Check that we completely fulfilled all shards for the block
-		// and we didn't bootstrap any more/less than expected.
-		requireFulfilled := expectedRanges.Copy()
-		requireFulfilled.Subtract(fulfilled)
-		exactStartEnd := max.Equal(blockStart.Add(blockSize))
-		if !exactStartEnd || !requireFulfilled.IsEmpty() {
-			return fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
-				"expected=%v, actual=%v, fulfilled=%v, exactStartEnd=%v, requireFulfilledEmpty=%v",
-				expectedRanges.String(), requestedRanges.String(), fulfilled.String(),
-				exactStartEnd, requireFulfilled.IsEmpty())
-		}
-
-		// NB(r): Need to get an exclusive lock to actually write the segment out
-		// due to needing to incrementing the index file set volume index and also
-		// using non-thread safe resources on the persist manager.
-		persistManager.Lock()
-		defer persistManager.Unlock()
-
-		flush, err := persistManager.Mgr.StartIndexPersist()
-		if err != nil {
+		if err := persistBootstrapIndexSegment(
+			ns,
+			shards,
+			builder,
+			persistManager,
+			volumeType,
+			indexBlock,
+			indexResults,
+			requestedRanges,
+			expectedRanges,
+			blockStart,
+			blockSize,
+		); err != nil {
 			return err
 		}
+	}
+	return nil
+}
 
-		var calledDone bool
-		defer func() {
-			if !calledDone {
-				flush.DoneIndex()
-			}
-		}()
-
-		preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
-			NamespaceMetadata: ns,
-			BlockStart:        indexBlockByVolumeType.BlockStart(),
-			FileSetType:       persist.FileSetFlushType,
-			Shards:            shards,
-			IndexVolumeType:   volumeType,
-		})
-		if err != nil {
-			return err
+func persistBootstrapIndexSegment(
+	ns namespace.Metadata,
+	shards map[uint32]struct{},
+	builder segment.DocumentsBuilder,
+	persistManager *SharedPersistManager,
+	volumeType idxpersist.IndexVolumeType,
+	indexBlock result.IndexBlock,
+	indexResults result.IndexResults,
+	requestedRanges result.ShardTimeRanges,
+	expectedRanges result.ShardTimeRanges,
+	blockStart time.Time,
+	blockSize time.Duration,
+) error {
+	var (
+		fulfilled         = indexBlock.Fulfilled()
+		persistedSegments []segment.Segment
+		success           bool
+	)
+	defer func() {
+		if !success {
+			return
 		}
 
-		var calledClose bool
-		defer func() {
-			if !calledClose {
-				preparedPersist.Close()
-			}
-		}()
-
-		if err := preparedPersist.Persist(builder); err != nil {
-			return err
+		// Combine persisted  and existing segments.
+		segments := make([]segment.Segment, 0, len(persistedSegments))
+		for _, pSeg := range persistedSegments {
+			segments = append(segments, NewSegment(pSeg, true))
+		}
+		for _, seg := range indexBlock.Segments() {
+			segments = append(segments, seg)
 		}
 
-		calledClose = true
-		persistedSegments, err = preparedPersist.Close()
-		if err != nil {
-			return err
-		}
+		// Now replace the active segment with the persisted segment.
+		newFulfilled := fulfilled.Copy()
+		newFulfilled.AddRanges(expectedRanges)
+		replacedBlock := result.NewIndexBlock(segments, newFulfilled)
+		indexResults[xtime.ToUnixNano(blockStart)].Data[volumeType] = replacedBlock
+	}()
 
-		calledDone = true
-		if err := flush.DoneIndex(); err != nil {
-			return err
+	// Check that we completely fulfilled all shards for the block
+	// and we didn't bootstrap any more/less than expected.
+	requireFulfilled := expectedRanges.Copy()
+	requireFulfilled.Subtract(fulfilled)
+	max, _ := requestedRanges.MinMax()
+	exactStartEnd := max.Equal(blockStart.Add(blockSize))
+	if !exactStartEnd || !requireFulfilled.IsEmpty() {
+		return fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
+			"expected=%v, actual=%v, fulfilled=%v, exactStartEnd=%v, requireFulfilledEmpty=%v",
+			expectedRanges.String(), requestedRanges.String(), fulfilled.String(),
+			exactStartEnd, requireFulfilled.IsEmpty())
+	}
+
+	// NB(r): Need to get an exclusive lock to actually write the segment out
+	// due to needing to incrementing the index file set volume index and also
+	// using non-thread safe resources on the persist manager.
+	persistManager.Lock()
+	defer persistManager.Unlock()
+
+	flush, err := persistManager.Mgr.StartIndexPersist()
+	if err != nil {
+		return err
+	}
+
+	var calledDone bool
+	defer func() {
+		if !calledDone {
+			flush.DoneIndex()
 		}
+	}()
+
+	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
+		NamespaceMetadata: ns,
+		BlockStart:        blockStart,
+		FileSetType:       persist.FileSetFlushType,
+		Shards:            shards,
+		IndexVolumeType:   volumeType,
+	})
+	if err != nil {
+		return err
+	}
+
+	var calledClose bool
+	defer func() {
+		if !calledClose {
+			preparedPersist.Close()
+		}
+	}()
+
+	if err := preparedPersist.Persist(builder); err != nil {
+		return err
+	}
+
+	calledClose = true
+	persistedSegments, err = preparedPersist.Close()
+	if err != nil {
+		return err
+	}
+
+	calledDone = true
+	if err := flush.DoneIndex(); err != nil {
+		return err
 	}
 
 	// Indicate the defer above should merge newly built segments w/ existing.
@@ -224,6 +258,11 @@ func BuildBootstrapIndexSegment(
 	resultOpts result.Options,
 	mmapReporter mmap.Reporter,
 ) error {
+	// No-op if there are no documents that need to be written for this time block (nothing to persist).
+	if len(builder.Docs()) == 0 {
+		return nil
+	}
+
 	// If we're performing an index run with persistence enabled
 	// determine if we covered a full block exactly (which should
 	// occur since we always group readers by block size).
@@ -274,10 +313,6 @@ func BuildBootstrapIndexSegment(
 		// - attempt to bootstrap time ranges that have no index results block
 		return fmt.Errorf("could not find index block in results: time=%s, ts=%d",
 			blockStart.String(), blockStart.UnixNano())
-	}
-	if len(builder.Docs()) == 0 {
-		// No-op if there are no documents that ned to be written for this time block (nothing to persist).
-		return nil
 	}
 
 	compactor.Lock()

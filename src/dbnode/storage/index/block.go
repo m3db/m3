@@ -1229,78 +1229,87 @@ func (b *block) AddResults(
 	defer b.Unlock()
 
 	multiErr := xerrors.NewMultiError()
-
 	for volumeType, results := range resultsByVolumeType.Data {
-		shardRangesSegments, ok := b.shardRangesSegmentsByVolumeType[volumeType]
-		if !ok {
-			shardRangesSegments = make([]blockShardRangesSegments, 0)
-			b.shardRangesSegmentsByVolumeType[volumeType] = shardRangesSegments
-		}
-
-		// NB(prateek): we have to allow bootstrap to succeed even if we're Sealed because
-		// of topology changes. i.e. if the current m3db process is assigned new shards,
-		// we need to include their data in the index.
-
-		// i.e. the only state we do not accept bootstrapped data is if we are closed.
-		if b.state == blockStateClosed {
-			return errUnableToBootstrapBlockClosed
-		}
-
-		// First check fulfilled is correct
-		min, max := results.Fulfilled().MinMax()
-		if min.Before(b.blockStart) || max.After(b.blockEnd) {
-			blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
-			return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
-				results.Fulfilled().SummaryString(), blockRange.String())
-		}
-
-		var (
-			plCache         = b.opts.PostingsListCache()
-			readThroughOpts = b.opts.ReadThroughSegmentOptions()
-			segments        = results.Segments()
-		)
-		readThroughSegments := make([]segment.Segment, 0, len(segments))
-		for _, seg := range segments {
-			readThroughSeg := seg
-			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
-				// only wrap the immutable segments with a read through cache.
-				readThroughSeg = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
-			}
-			readThroughSegments = append(readThroughSegments, readThroughSeg)
-		}
-
-		entry := blockShardRangesSegments{
-			shardTimeRanges: results.Fulfilled(),
-			segments:        readThroughSegments,
-		}
-
-		// first see if this block can cover all our current blocks covering shard
-		// time ranges.
-		currFulfilled := result.NewShardTimeRanges()
-		for _, existing := range shardRangesSegments {
-			currFulfilled.AddRanges(existing.shardTimeRanges)
-		}
-
-		unfulfilledBySegments := currFulfilled.Copy()
-		unfulfilledBySegments.Subtract(results.Fulfilled())
-		if !unfulfilledBySegments.IsEmpty() {
-			// This is the case where it cannot wholly replace the current set of blocks
-			// so simply append the segments in this case.
-			b.shardRangesSegmentsByVolumeType[volumeType] = append(shardRangesSegments, entry)
-			return nil
-		}
-
-		// This is the case where the new segments can wholly replace the
-		// current set of blocks since unfullfilled by the new segments is zero.
-		for i, group := range shardRangesSegments {
-			for _, seg := range group.segments {
-				// Make sure to close the existing segments.
-				multiErr = multiErr.Add(seg.Close())
-			}
-			shardRangesSegments[i] = blockShardRangesSegments{}
-		}
-		b.shardRangesSegmentsByVolumeType[volumeType] = append(shardRangesSegments[:0], entry)
+		multiErr = multiErr.Add(b.addResults(volumeType, results))
 	}
+
+	return multiErr.FinalError()
+}
+
+func (b *block) addResults(
+	volumeType persist.IndexVolumeType,
+	results result.IndexBlock,
+) error {
+	shardRangesSegments, ok := b.shardRangesSegmentsByVolumeType[volumeType]
+	if !ok {
+		shardRangesSegments = make([]blockShardRangesSegments, 0)
+		b.shardRangesSegmentsByVolumeType[volumeType] = shardRangesSegments
+	}
+
+	// NB(prateek): we have to allow bootstrap to succeed even if we're Sealed because
+	// of topology changes. i.e. if the current m3db process is assigned new shards,
+	// we need to include their data in the index.
+
+	// i.e. the only state we do not accept bootstrapped data is if we are closed.
+	if b.state == blockStateClosed {
+		return errUnableToBootstrapBlockClosed
+	}
+
+	// First check fulfilled is correct
+	min, max := results.Fulfilled().MinMax()
+	if min.Before(b.blockStart) || max.After(b.blockEnd) {
+		blockRange := xtime.Range{Start: b.blockStart, End: b.blockEnd}
+		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
+			results.Fulfilled().SummaryString(), blockRange.String())
+	}
+
+	var (
+		plCache         = b.opts.PostingsListCache()
+		readThroughOpts = b.opts.ReadThroughSegmentOptions()
+		segments        = results.Segments()
+	)
+	readThroughSegments := make([]segment.Segment, 0, len(segments))
+	for _, seg := range segments {
+		readThroughSeg := seg
+		if immSeg, ok := seg.(segment.ImmutableSegment); ok {
+			// only wrap the immutable segments with a read through cache.
+			readThroughSeg = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+		}
+		readThroughSegments = append(readThroughSegments, readThroughSeg)
+	}
+
+	entry := blockShardRangesSegments{
+		shardTimeRanges: results.Fulfilled(),
+		segments:        readThroughSegments,
+	}
+
+	// first see if this block can cover all our current blocks covering shard
+	// time ranges.
+	currFulfilled := result.NewShardTimeRanges()
+	for _, existing := range shardRangesSegments {
+		currFulfilled.AddRanges(existing.shardTimeRanges)
+	}
+
+	unfulfilledBySegments := currFulfilled.Copy()
+	unfulfilledBySegments.Subtract(results.Fulfilled())
+	if !unfulfilledBySegments.IsEmpty() {
+		// This is the case where it cannot wholly replace the current set of blocks
+		// so simply append the segments in this case.
+		b.shardRangesSegmentsByVolumeType[volumeType] = append(shardRangesSegments, entry)
+		return nil
+	}
+
+	// This is the case where the new segments can wholly replace the
+	// current set of blocks since unfullfilled by the new segments is zero.
+	multiErr := xerrors.NewMultiError()
+	for i, group := range shardRangesSegments {
+		for _, seg := range group.segments {
+			// Make sure to close the existing segments.
+			multiErr = multiErr.Add(seg.Close())
+		}
+		shardRangesSegments[i] = blockShardRangesSegments{}
+	}
+	b.shardRangesSegmentsByVolumeType[volumeType] = append(shardRangesSegments[:0], entry)
 
 	return multiErr.FinalError()
 }
