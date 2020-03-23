@@ -55,6 +55,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -141,6 +142,8 @@ type session struct {
 	scope                            tally.Scope
 	nowFn                            clock.NowFn
 	log                              *zap.Logger
+	logWriteErrorSampler             *sampler.Sampler
+	logFetchErrorSampler             *sampler.Sampler
 	newHostQueueFn                   newHostQueueFn
 	writeRetrier                     xretry.Retrier
 	fetchRetrier                     xretry.Retrier
@@ -167,12 +170,14 @@ type shardMetricsKey struct {
 type sessionMetrics struct {
 	sync.RWMutex
 	writeSuccess                         tally.Counter
-	writeErrors                          tally.Counter
+	writeErrorsBadRequest                tally.Counter
+	writeErrorsInternalError             tally.Counter
 	writeLatencyHistogram                tally.Histogram
 	writeNodesRespondingErrors           []tally.Counter
 	writeNodesRespondingBadRequestErrors []tally.Counter
 	fetchSuccess                         tally.Counter
-	fetchErrors                          tally.Counter
+	fetchErrorsBadRequest                tally.Counter
+	fetchErrorsInternalError             tally.Counter
 	fetchLatencyHistogram                tally.Histogram
 	fetchNodesRespondingErrors           []tally.Counter
 	fetchNodesRespondingBadRequestErrors []tally.Counter
@@ -183,11 +188,21 @@ type sessionMetrics struct {
 
 func newSessionMetrics(scope tally.Scope) sessionMetrics {
 	return sessionMetrics{
-		writeSuccess:           scope.Counter("write.success"),
-		writeErrors:            scope.Counter("write.errors"),
-		writeLatencyHistogram:  histogramWithDurationBuckets(scope, "write.latency"),
-		fetchSuccess:           scope.Counter("fetch.success"),
-		fetchErrors:            scope.Counter("fetch.errors"),
+		writeSuccess: scope.Counter("write.success"),
+		writeErrorsBadRequest: scope.Tagged(map[string]string{
+			"error_type": "bad_request",
+		}).Counter("write.errors"),
+		writeErrorsInternalError: scope.Tagged(map[string]string{
+			"error_type": "internal_error",
+		}).Counter("write.errors"),
+		writeLatencyHistogram: histogramWithDurationBuckets(scope, "write.latency"),
+		fetchSuccess:          scope.Counter("fetch.success"),
+		fetchErrorsBadRequest: scope.Tagged(map[string]string{
+			"error_type": "bad_request",
+		}).Counter("fetch.errors"),
+		fetchErrorsInternalError: scope.Tagged(map[string]string{
+			"error_type": "internal_error",
+		}).Counter("fetch.errors"),
 		fetchLatencyHistogram:  histogramWithDurationBuckets(scope, "fetch.latency"),
 		topologyUpdatedSuccess: scope.Counter("topology.updated-success"),
 		topologyUpdatedError:   scope.Counter("topology.updated-error"),
@@ -239,6 +254,16 @@ func newSession(opts Options) (clientSession, error) {
 		return nil, err
 	}
 
+	logWriteErrorSampler, err := sampler.NewSampler(opts.LogErrorSampleRate())
+	if err != nil {
+		return nil, err
+	}
+
+	logFetchErrorSampler, err := sampler.NewSampler(opts.LogErrorSampleRate())
+	if err != nil {
+		return nil, err
+	}
+
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	s := &session{
@@ -252,6 +277,8 @@ func newSession(opts Options) (clientSession, error) {
 		scope:                scope,
 		nowFn:                opts.ClockOptions().NowFn(),
 		log:                  opts.InstrumentOptions().Logger(),
+		logWriteErrorSampler: logWriteErrorSampler,
+		logFetchErrorSampler: logFetchErrorSampler,
 		newHostQueueFn:       newHostQueue,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
@@ -425,10 +452,18 @@ func (s *session) recordWriteMetrics(consistencyResultErr error, respErrs int32,
 	}
 	if consistencyResultErr == nil {
 		s.metrics.writeSuccess.Inc(1)
+	} else if IsBadRequestError(consistencyResultErr) {
+		s.metrics.writeErrorsBadRequest.Inc(1)
 	} else {
-		s.metrics.writeErrors.Inc(1)
+		s.metrics.writeErrorsInternalError.Inc(1)
 	}
 	s.metrics.writeLatencyHistogram.RecordDuration(s.nowFn().Sub(start))
+
+	if consistencyResultErr != nil && s.logWriteErrorSampler.Sample() {
+		s.log.Error("m3db client write error occurred",
+			zap.Float64("sampleRateLog", s.logWriteErrorSampler.SampleRate().Value()),
+			zap.Error(consistencyResultErr))
+	}
 }
 
 func (s *session) recordFetchMetrics(consistencyResultErr error, respErrs int32, start time.Time) {
@@ -441,10 +476,18 @@ func (s *session) recordFetchMetrics(consistencyResultErr error, respErrs int32,
 	}
 	if consistencyResultErr == nil {
 		s.metrics.fetchSuccess.Inc(1)
+	} else if IsBadRequestError(consistencyResultErr) {
+		s.metrics.fetchErrorsBadRequest.Inc(1)
 	} else {
-		s.metrics.fetchErrors.Inc(1)
+		s.metrics.fetchErrorsInternalError.Inc(1)
 	}
 	s.metrics.fetchLatencyHistogram.RecordDuration(s.nowFn().Sub(start))
+
+	if consistencyResultErr != nil && s.logFetchErrorSampler.Sample() {
+		s.log.Error("m3db client fetch error occurred",
+			zap.Float64("sampleRateLog", s.logFetchErrorSampler.SampleRate().Value()),
+			zap.Error(consistencyResultErr))
+	}
 }
 
 func (s *session) nodesRespondingErrorsMetricIndex(respErrs int32) int32 {
@@ -1164,24 +1207,24 @@ func (s *session) FetchIDs(
 
 func (s *session) Aggregate(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
-) (AggregatedTagsIterator, bool, error) {
+) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	f := s.pools.aggregateAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.attemptFn)
-	iter, exhaustive := f.resultIter, f.resultExhaustive
+	iter, metadata := f.resultIter, f.resultMetadata
 	s.pools.aggregateAttempt.Put(f)
-	return iter, exhaustive, err
+	return iter, metadata, err
 }
 
 func (s *session) aggregateAttempt(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
-) (AggregatedTagsIterator, bool, error) {
+) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return nil, false, errSessionStatusNotOpen
+		return nil, FetchResponseMetadata{}, errSessionStatusNotOpen
 	}
 
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
@@ -1192,7 +1235,7 @@ func (s *session) aggregateAttempt(
 	if err != nil {
 		s.state.RUnlock()
 		nsClone.Finalize()
-		return nil, false, xerrors.NewNonRetryableError(err)
+		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
@@ -1204,7 +1247,7 @@ func (s *session) aggregateAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1214,52 +1257,52 @@ func (s *session) aggregateAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, exhaustive, err := fetchState.asAggregatedTagsIterator(s.pools)
+	iters, meta, err := fetchState.asAggregatedTagsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iters, exhaustive, err
+	return iters, meta, err
 }
 
 func (s *session) FetchTagged(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (encoding.SeriesIterators, bool, error) {
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.dataAttemptFn)
-	iters, exhaustive := f.dataResultIters, f.dataResultExhaustive
+	iters, metadata := f.dataResultIters, f.dataResultMetadata
 	s.pools.fetchTaggedAttempt.Put(f)
-	return iters, exhaustive, err
+	return iters, metadata, err
 }
 
 func (s *session) FetchTaggedIDs(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (TaggedIDsIterator, bool, error) {
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.idsAttemptFn)
-	iter, exhaustive := f.idsResultIter, f.idsResultExhaustive
+	iter, metadata := f.idsResultIter, f.idsResultMetadata
 	s.pools.fetchTaggedAttempt.Put(f)
-	return iter, exhaustive, err
+	return iter, metadata, err
 }
 
 func (s *session) fetchTaggedAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (encoding.SeriesIterators, bool, error) {
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	nsCtx, err := s.nsCtxFor(ns)
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return nil, false, errSessionStatusNotOpen
+		return nil, FetchResponseMetadata{}, errSessionStatusNotOpen
 	}
 
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
@@ -1275,7 +1318,7 @@ func (s *session) fetchTaggedAttempt(
 	if err != nil {
 		s.state.RUnlock()
 		nsClone.Finalize()
-		return nil, false, xerrors.NewNonRetryableError(err)
+		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
@@ -1287,7 +1330,7 @@ func (s *session) fetchTaggedAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1297,22 +1340,23 @@ func (s *session) fetchTaggedAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(s.pools, nsCtx.Schema)
+	iters, metadata, err := fetchState.asEncodingSeriesIterators(
+		s.pools, nsCtx.Schema, s.opts.IterationOptions())
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iters, exhaustive, err
+	return iters, metadata, err
 }
 
 func (s *session) fetchTaggedIDsAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (TaggedIDsIterator, bool, error) {
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return nil, false, errSessionStatusNotOpen
+		return nil, FetchResponseMetadata{}, errSessionStatusNotOpen
 	}
 
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
@@ -1328,7 +1372,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	if err != nil {
 		s.state.RUnlock()
 		nsClone.Finalize()
-		return nil, false, xerrors.NewNonRetryableError(err)
+		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
@@ -1340,7 +1384,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1350,13 +1394,13 @@ func (s *session) fetchTaggedIDsAttempt(
 	// must Unlock before calling `asTaggedIDsIterator` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iter, exhaustive, err := fetchState.asTaggedIDsIterator(s.pools)
+	iter, metadata, err := fetchState.asTaggedIDsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iter, exhaustive, err
+	return iter, metadata, err
 }
 
 type newFetchStateOpts struct {
@@ -1578,6 +1622,7 @@ func (s *session) fetchIDsAttempt(
 					// Avoid decoding more data than is required to satisfy the consistency guarantees.
 					numItersToInclude = numDesired
 				}
+
 				itersToInclude := results[:numItersToInclude]
 				resultsLock.RUnlock()
 
@@ -1588,12 +1633,14 @@ func (s *session) fetchIDsAttempt(
 				// due to a pending request in queue.
 				seriesID := s.pools.id.Clone(tsID)
 				namespaceID := s.pools.id.Clone(namespace)
+				consolidator := s.opts.IterationOptions().SeriesIteratorConsolidator
 				iter.Reset(encoding.SeriesIteratorOptions{
-					ID:             seriesID,
-					Namespace:      namespaceID,
-					StartInclusive: startInclusive,
-					EndExclusive:   endExclusive,
-					Replicas:       itersToInclude,
+					ID:                         seriesID,
+					Namespace:                  namespaceID,
+					StartInclusive:             xtime.ToUnixNano(startInclusive),
+					EndExclusive:               xtime.ToUnixNano(endExclusive),
+					Replicas:                   itersToInclude,
+					SeriesIteratorConsolidator: consolidator,
 				})
 				iters.SetAt(idx, iter)
 			}
@@ -3261,7 +3308,12 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 		tail.AppendAll(seg.Tail)
 		tail.DecRef()
 	}
-	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
+	var checksum uint32
+	if seg.Checksum != nil {
+		checksum = uint32(*seg.Checksum)
+	}
+
+	return ts.NewSegment(head, tail, checksum, ts.FinalizeHead&ts.FinalizeTail)
 }
 
 func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {

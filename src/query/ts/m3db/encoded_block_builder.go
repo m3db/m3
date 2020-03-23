@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const initBlockLength = 10
@@ -181,8 +182,8 @@ func (b *encodedBlockBuilder) backfillMissing() error {
 				ID:             ident.StringID(iterDetails.id.String()),
 				Namespace:      ident.StringID(iterDetails.ns.String()),
 				Tags:           tags,
-				StartInclusive: iterDetails.start,
-				EndExclusive:   iterDetails.end,
+				StartInclusive: xtime.ToUnixNano(iterDetails.start),
+				EndExclusive:   xtime.ToUnixNano(iterDetails.end),
 			}, nil)
 
 			block := bl.block

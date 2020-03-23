@@ -90,3 +90,17 @@ func (it *readerSliceOfSlicesIterator) arrayIdx() int {
 	}
 	return idx
 }
+
+func (it *readerSliceOfSlicesIterator) Size() (int, error) {
+	size := 0
+	for _, blocks := range it.blocks {
+		for _, blockAtTime := range blocks {
+			seg, err := blockAtTime.Segment()
+			if err != nil {
+				return 0, err
+			}
+			size += seg.Len()
+		}
+	}
+	return size, nil
+}

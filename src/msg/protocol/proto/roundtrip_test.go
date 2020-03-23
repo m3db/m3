@@ -143,11 +143,20 @@ func TestDecodeMessageLargerThanMaxSize(t *testing.T) {
 	require.NoError(t, err)
 
 	decodeMsg := msgpb.Message{}
-	opts := NewOptions().SetMaxMessageSize(4)
+	opts := NewOptions().SetMaxMessageSize(8)
 	dec := NewDecoder(bytes.NewReader(enc.Bytes()), opts)
+
+	// NB(r): We need to make sure does not grow the buffer
+	// if over max size, so going to take size of buffer, make
+	// sure its sizeEncodingLength so we can measure if it increases at all.
+	require.Equal(t, sizeEncodingLength, cap(dec.(*decoder).buffer))
+
 	err = dec.Decode(&decodeMsg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "larger than maximum supported size")
+
+	// Make sure did not grow buffer before returning error.
+	require.Equal(t, sizeEncodingLength, cap(dec.(*decoder).buffer))
 }
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {

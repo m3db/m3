@@ -174,7 +174,10 @@ func (i *termsIterFromSegments) Next() bool {
 				continue
 			}
 			value := curr + termsKeyIter.segment.offset - negativeOffset
-			_ = i.currPostingsList.Insert(value)
+			if err := i.currPostingsList.Insert(value); err != nil {
+				i.err = err
+				return false
+			}
 		}
 	}
 

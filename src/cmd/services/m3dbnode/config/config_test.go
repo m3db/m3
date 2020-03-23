@@ -375,6 +375,7 @@ func TestConfiguration(t *testing.T) {
     value: host1
     envVarName: null
     file: null
+    hostname: null
   client:
     config: null
     writeConsistencyLevel: 2
@@ -397,6 +398,7 @@ func TestConfiguration(t *testing.T) {
       maxRetries: 3
       forever: null
       jitter: true
+    logErrorSampleRate: 0
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
@@ -713,6 +715,7 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
+  tchannel: null
 coordinator: null
 `
 

@@ -55,7 +55,7 @@ var (
 
 // Segment represents a FST segment.
 type Segment interface {
-	sgmt.Segment
+	sgmt.ImmutableSegment
 	index.Readable
 }
 

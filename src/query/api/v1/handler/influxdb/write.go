@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -188,14 +189,45 @@ func (ii *ingestIterator) Next() bool {
 	return false
 }
 
+func copyTagsWithNewName(t models.Tags, name []byte) models.Tags {
+	copiedTags := make([]models.Tag, t.Len())
+	metricName := t.Opts.MetricName()
+	nameHandled := false
+	for i, tag := range t.Tags {
+		if !nameHandled && bytes.Equal(tag.Name, metricName) {
+			copiedTags[i] = models.Tag{Name: metricName, Value: name}
+			nameHandled = true
+		} else {
+			copiedTags[i] = tag
+		}
+	}
+	return models.Tags{Tags: copiedTags, Opts: t.Opts}
+}
+
+func determineTimeUnit(t time.Time) xtime.Unit {
+	ns := t.UnixNano()
+	if ns%int64(time.Second) == 0 {
+		return xtime.Second
+	}
+	if ns%int64(time.Millisecond) == 0 {
+		return xtime.Millisecond
+	}
+	if ns%int64(time.Microsecond) == 0 {
+		return xtime.Microsecond
+	}
+	return xtime.Nanosecond
+}
+
 func (ii *ingestIterator) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
 	if ii.pointIndex < len(ii.points) && ii.nextFieldIndex > 0 && len(ii.fields) > (ii.nextFieldIndex-1) {
 		point := ii.points[ii.pointIndex]
 		field := ii.fields[ii.nextFieldIndex-1]
-		tags := ii.tags.SetName(field.name)
+		tags := copyTagsWithNewName(ii.tags, field.name)
 
-		return tags, []ts.Datapoint{ts.Datapoint{Timestamp: point.Time(),
-			Value: field.value}}, xtime.Nanosecond, nil
+		t := point.Time()
+
+		return tags, []ts.Datapoint{ts.Datapoint{Timestamp: t,
+			Value: field.value}}, determineTimeUnit(t), nil
 	}
 	return models.EmptyTags(), nil, 0, nil
 }

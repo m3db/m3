@@ -193,8 +193,8 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 		tags     = ident.NewTags(ident.StringTag("bar", "baz"))
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3, 0x4}, nil)
-		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
-		checksum = digest.SegmentChecksum(segment)
+		segment  = ts.NewSegment(head, tail, 0, ts.FinalizeNone)
+		checksum = segment.CalculateChecksum()
 	)
 	writer.EXPECT().WriteAll(id, tags, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
@@ -263,8 +263,8 @@ func TestPersistenceManagerPrepareSnapshotSuccess(t *testing.T) {
 		tags     = ident.NewTags(ident.StringTag("bar", "baz"))
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3, 0x4}, nil)
-		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
-		checksum = digest.SegmentChecksum(segment)
+		segment  = ts.NewSegment(head, tail, 0, ts.FinalizeNone)
+		checksum = segment.CalculateChecksum()
 	)
 	writer.EXPECT().WriteAll(id, tags, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
@@ -497,8 +497,8 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		tags     = ident.NewTags(ident.StringTag("bar", "baz"))
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3}, nil)
-		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
-		checksum = digest.SegmentChecksum(segment)
+		segment  = ts.NewSegment(head, tail, 0, ts.FinalizeNone)
+		checksum = segment.CalculateChecksum()
 	)
 
 	pm.nowFn = func() time.Time { return now }
@@ -552,8 +552,8 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		id       = ident.StringID("foo")
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3}, nil)
-		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
-		checksum = digest.SegmentChecksum(segment)
+		segment  = ts.NewSegment(head, tail, 0, ts.FinalizeNone)
+		checksum = segment.CalculateChecksum()
 	)
 
 	pm.nowFn = func() time.Time { return now }

@@ -43,6 +43,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -84,6 +85,8 @@ const (
 	defaultAggregateResultsEntryBatchSize = 256
 
 	compactDebugLogEvery = 1 // Emit debug log for every compaction
+
+	mmapIndexBlockName = "mmap.index.block"
 )
 
 func (s blockState) String() string {
@@ -135,12 +138,16 @@ type blockMetrics struct {
 	foregroundCompactionTaskRunLatency tally.Timer
 	backgroundCompactionPlanRunLatency tally.Timer
 	backgroundCompactionTaskRunLatency tally.Timer
+	segmentFreeMmapSuccess             tally.Counter
+	segmentFreeMmapError               tally.Counter
+	segmentFreeMmapSkipNotImmutable    tally.Counter
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
 	s = s.SubScope("index").SubScope("block")
 	foregroundScope := s.Tagged(map[string]string{"compaction-type": "foreground"})
 	backgroundScope := s.Tagged(map[string]string{"compaction-type": "background"})
+	segmentFreeMmap := "segment-free-mmap"
 	return blockMetrics{
 		rotateActiveSegment:    s.Counter("rotate-active-segment"),
 		rotateActiveSegmentAge: s.Timer("rotate-active-segment-age"),
@@ -150,6 +157,18 @@ func newBlockMetrics(s tally.Scope) blockMetrics {
 		foregroundCompactionTaskRunLatency: foregroundScope.Timer("compaction-task-run-latency"),
 		backgroundCompactionPlanRunLatency: backgroundScope.Timer("compaction-plan-run-latency"),
 		backgroundCompactionTaskRunLatency: backgroundScope.Timer("compaction-task-run-latency"),
+		segmentFreeMmapSuccess: s.Tagged(map[string]string{
+			"result":    "success",
+			"skip_type": "none",
+		}).Counter(segmentFreeMmap),
+		segmentFreeMmapError: s.Tagged(map[string]string{
+			"result":    "error",
+			"skip_type": "none",
+		}).Counter(segmentFreeMmap),
+		segmentFreeMmapSkipNotImmutable: s.Tagged(map[string]string{
+			"result":    "skip",
+			"skip_type": "not-immutable",
+		}).Counter(segmentFreeMmap),
 	}
 }
 
@@ -344,7 +363,12 @@ func (b *block) backgroundCompactWithTask(
 	}
 
 	start := time.Now()
-	compacted, err := b.compact.backgroundCompactor.Compact(segments)
+	compacted, err := b.compact.backgroundCompactor.Compact(segments, mmap.ReporterOptions{
+		Context: mmap.Context{
+			Name: mmapIndexBlockName,
+		},
+		Reporter: b.opts.MmapReporter(),
+	})
 	took := time.Since(start)
 	b.metrics.backgroundCompactionTaskRunLatency.Record(took)
 
@@ -642,7 +666,12 @@ func (b *block) foregroundCompactWithTask(
 	}
 
 	start := time.Now()
-	compacted, err := b.compact.foregroundCompactor.CompactUsingBuilder(builder, segments)
+	compacted, err := b.compact.foregroundCompactor.CompactUsingBuilder(builder, segments, mmap.ReporterOptions{
+		Context: mmap.Context{
+			Name: mmapIndexBlockName,
+		},
+		Reporter: b.opts.MmapReporter(),
+	})
 	took := time.Since(start)
 	b.metrics.foregroundCompactionTaskRunLatency.Record(took)
 
@@ -677,18 +706,24 @@ func (b *block) cleanupForegroundCompactWithLock() {
 	b.foregroundSegments = nil
 
 	// Free compactor resources.
-	if b.compact.foregroundCompactor == nil {
-		return
+	if b.compact.foregroundCompactor != nil {
+		if err := b.compact.foregroundCompactor.Close(); err != nil {
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("error closing index block foreground compactor", zap.Error(err))
+			})
+		}
+		b.compact.foregroundCompactor = nil
 	}
 
-	if err := b.compact.foregroundCompactor.Close(); err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
-			l.Error("error closing index block foreground compactor", zap.Error(err))
-		})
+	// Free segment builder resources.
+	if b.compact.segmentBuilder != nil {
+		if err := b.compact.segmentBuilder.Close(); err != nil {
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
+				l.Error("error closing index block segment builder", zap.Error(err))
+			})
+		}
+		b.compact.segmentBuilder = nil
 	}
-
-	b.compact.foregroundCompactor = nil
-	b.compact.segmentBuilder = nil
 }
 
 func (b *block) executorWithRLock() (search.Executor, error) {
@@ -1191,9 +1226,9 @@ func (b *block) AddResults(
 	readThroughSegments := make([]segment.Segment, 0, len(segments))
 	for _, seg := range segments {
 		readThroughSeg := seg
-		if _, ok := seg.(segment.MutableSegment); !ok {
+		if immSeg, ok := seg.(segment.ImmutableSegment); ok {
 			// only wrap the immutable segments with a read through cache.
-			readThroughSeg = NewReadThroughSegment(seg, plCache, readThroughOpts)
+			readThroughSeg = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
 		}
 		readThroughSegments = append(readThroughSegments, readThroughSeg)
 	}
@@ -1205,7 +1240,7 @@ func (b *block) AddResults(
 
 	// first see if this block can cover all our current blocks covering shard
 	// time ranges.
-	currFulfilled := make(result.ShardTimeRanges)
+	currFulfilled := result.NewShardTimeRanges()
 	for _, existing := range b.shardRangesSegments {
 		currFulfilled.AddRanges(existing.shardTimeRanges)
 	}
@@ -1259,12 +1294,20 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		for _, seg := range group.segments {
 			result.NumSegments++
 			result.NumDocs += seg.Size()
-			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
-			if immSeg, ok := seg.(segment.ImmutableSegment); ok {
-				if err := immSeg.FreeMmap(); err != nil {
-					multiErr = multiErr.Add(err)
-				}
+
+			immSeg, ok := seg.(segment.ImmutableSegment)
+			if !ok {
+				b.metrics.segmentFreeMmapSkipNotImmutable.Inc(1)
+				continue
 			}
+
+			// TODO(bodu): Revist this and implement a more sophisticated free strategy.
+			if err := immSeg.FreeMmap(); err != nil {
+				multiErr = multiErr.Add(err)
+				b.metrics.segmentFreeMmapError.Inc(1)
+				continue
+			}
+			b.metrics.segmentFreeMmapSuccess.Inc(1)
 		}
 	}
 
@@ -1447,7 +1490,7 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 
 // blockCompact has several lazily allocated compaction components.
 type blockCompact struct {
-	segmentBuilder       segment.DocumentsBuilder
+	segmentBuilder       segment.CloseableDocumentsBuilder
 	foregroundCompactor  *compaction.Compactor
 	backgroundCompactor  *compaction.Compactor
 	compactingForeground bool
@@ -1473,7 +1516,7 @@ func (b *blockCompact) allocLazyBuilderAndCompactors(
 
 	if b.foregroundCompactor == nil {
 		b.foregroundCompactor, err = compaction.NewCompactor(docsPool,
-			documentArrayPoolCapacity,
+			DocumentArrayPoolCapacity,
 			opts.SegmentBuilderOptions(),
 			opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{
@@ -1492,7 +1535,7 @@ func (b *blockCompact) allocLazyBuilderAndCompactors(
 
 	if b.backgroundCompactor == nil {
 		b.backgroundCompactor, err = compaction.NewCompactor(docsPool,
-			documentArrayPoolCapacity,
+			DocumentArrayPoolCapacity,
 			opts.SegmentBuilderOptions(),
 			opts.FSTSegmentOptions(),
 			compaction.CompactorOptions{

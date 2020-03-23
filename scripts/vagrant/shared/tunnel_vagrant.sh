@@ -5,6 +5,10 @@ set -xe
 export BOX="ubuntu/xenial64"
 PROVIDER=${PROVIDER:-virtualbox}
 
+if [[ "$GRAFANA_PORT" == "" ]]; then
+    GRAFANA_PORT="3333"
+fi
+
 if [[ "$PROVIDER" != "virtualbox" ]]; then
     if [[ "$USER" == "" ]]; then
         echo "USER env var not set"
@@ -60,9 +64,7 @@ fi
 
 # Run tunnels
 echo "Tunnelling"
-echo "Grafana available at http://localhost:3333"
-vagrant ssh $MACHINE --no-tty -c "cd provision && ./run_tunnels.sh" --\
-    -L 3333:localhost:3000 \
-    -L 7201:localhost:7201 \
-    -L 9003:localhost:9003 \
-    -L 9004:localhost:9004 \
+echo "Grafana available at http://localhost:$GRAFANA_PORT"
+vagrant ssh $MACHINE --no-tty --\
+    -L $GRAFANA_PORT:localhost:3000 \
+    -L 7201:localhost:7201

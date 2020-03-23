@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -42,8 +43,9 @@ const (
 	// = 256 * 256 * 16
 	// = 1mb (but with Go's heap probably 2mb)
 	// TODO(r): Make this configurable in a followup change.
-	documentArrayPoolSize        = 256
-	documentArrayPoolCapacity    = 256
+	documentArrayPoolSize = 256
+	// DocumentArrayPoolCapacity is the capacity of the document array pool.
+	DocumentArrayPoolCapacity    = 256
 	documentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
 
 	// aggregateResultsEntryArrayPool size in general: 256*256*sizeof(doc.Field)
@@ -119,6 +121,7 @@ type opts struct {
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
 	postingsListCache               *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
+	mmapReporter                    mmap.Reporter
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -139,7 +142,7 @@ func NewOptions() Options {
 	docArrayPool := doc.NewDocumentArrayPool(doc.DocumentArrayPoolOpts{
 		Options: pool.NewObjectPoolOptions().
 			SetSize(documentArrayPoolSize),
-		Capacity:    documentArrayPoolCapacity,
+		Capacity:    DocumentArrayPoolCapacity,
 		MaxCapacity: documentArrayPoolMaxCapacity,
 	})
 	docArrayPool.Init()
@@ -400,4 +403,14 @@ func (o *opts) SetForwardIndexThreshold(value float64) Options {
 
 func (o *opts) ForwardIndexThreshold() float64 {
 	return o.forwardIndexThreshold
+}
+
+func (o *opts) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	opts := *o
+	opts.mmapReporter = mmapReporter
+	return &opts
+}
+
+func (o *opts) MmapReporter() mmap.Reporter {
+	return o.mmapReporter
 }

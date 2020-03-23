@@ -83,7 +83,6 @@ func (h *DeleteHandler) ServeHTTP(
 		logger = logging.WithContext(ctx, h.instrumentOptions)
 		id     = mux.Vars(r)[placementIDVar]
 	)
-
 	if id == "" {
 		logger.Error("no placement ID provided to delete", zap.Error(errEmptyID))
 		xhttp.Error(w, errEmptyID, http.StatusBadRequest)
@@ -101,6 +100,20 @@ func (h *DeleteHandler) ServeHTTP(
 		return
 	}
 
+	curPlacement, err := service.Placement()
+	if err != nil {
+		logger.Error("unable to fetch placement", zap.Error(err))
+		xhttp.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	instance, ok := curPlacement.Instance(id)
+	if !ok {
+		err = fmt.Errorf("instance not found: %s", id)
+		xhttp.Error(w, err, http.StatusNotFound)
+		return
+	}
+
 	toRemove := []string{id}
 
 	// There are no unsafe placement changes because M3Coordinator is stateless
@@ -113,26 +126,19 @@ func (h *DeleteHandler) ServeHTTP(
 		newPlacement, err = service.RemoveInstances(toRemove)
 		if err != nil {
 			logger.Error("unable to delete instances", zap.Error(err))
-			xhttp.Error(w, err, http.StatusNotFound)
-			return
-		}
-	} else {
-		curPlacement, err := service.Placement()
-		if err != nil {
-			logger.Error("unable to fetch placement", zap.Error(err))
 			xhttp.Error(w, err, http.StatusInternalServerError)
 			return
 		}
-
+	} else {
 		if err := validateAllAvailable(curPlacement); err != nil {
-			logger.Info("unable to remove instance, some shards not available", zap.Error(err), zap.String("instance", id))
+			logger.Warn("unable to remove instance, some shards not available", zap.Error(err), zap.String("instance", id))
 			xhttp.Error(w, err, http.StatusBadRequest)
 			return
 		}
 
 		_, ok := curPlacement.Instance(id)
 		if !ok {
-			logger.Info("instance not found in placement", zap.String("instance", id))
+			logger.Error("instance not found in placement", zap.String("instance", id))
 			err := fmt.Errorf("instance %s not found in placement", id)
 			xhttp.Error(w, err, http.StatusNotFound)
 			return
@@ -140,16 +146,43 @@ func (h *DeleteHandler) ServeHTTP(
 
 		newPlacement, err = algo.RemoveInstances(curPlacement, toRemove)
 		if err != nil {
-			logger.Info("unable to generate placement with instances removed", zap.String("instance", id), zap.Error(err))
-			xhttp.Error(w, err, http.StatusBadRequest)
+			logger.Error("unable to generate placement with instances removed", zap.String("instance", id), zap.Error(err))
+			xhttp.Error(w, err, http.StatusInternalServerError)
 			return
 		}
 
 		newPlacement, err = service.CheckAndSet(newPlacement, curPlacement.Version())
 		if err != nil {
-			logger.Info("unable to remove instance from placement", zap.String("instance", id), zap.Error(err))
-			xhttp.Error(w, err, http.StatusBadRequest)
+			logger.Error("unable to remove instance from placement", zap.String("instance", id), zap.Error(err))
+			xhttp.Error(w, err, http.StatusInternalServerError)
 			return
+		}
+	}
+
+	// Now need to delete aggregator related keys (e.g. for shardsets) if required.
+	if svc.ServiceName == handleroptions.M3AggregatorServiceName {
+		shardSetID := instance.ShardSetID()
+		anyExistingShardSetIDs := false
+		for _, elem := range curPlacement.Instances() {
+			if elem.ID() == instance.ID() {
+				continue
+			}
+			if elem.ShardSetID() == shardSetID {
+				anyExistingShardSetIDs = true
+				break
+			}
+		}
+
+		// Only delete the related shardset keys if no other shardsets left.
+		if !anyExistingShardSetIDs {
+			err := deleteAggregatorShardSetIDRelatedKeys(svc, opts,
+				h.clusterClient, []uint32{shardSetID})
+			if err != nil {
+				logger.Error("error removing aggregator keys for instances",
+					zap.Error(err))
+				xhttp.Error(w, err, http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 

@@ -29,7 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
@@ -1116,9 +1115,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		seg, err := streams[id].Segment()
 		require.NoError(t, err)
 
-		checksum := digest.SegmentChecksum(seg)
-		checksums[id] = checksum
-
+		checksums[id] = seg.CalculateChecksum()
 		expectedBlockReader := []xio.BlockReader{
 			xio.BlockReader{
 				SegmentReader: stream,
@@ -1614,9 +1611,15 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 2)
-	assert.Equal(t, tracepoint.FetchTagged, spans[0].OperationName)
-	assert.Equal(t, "root", spans[1].OperationName)
+	require.Len(t, spans, 8)
+	assert.Equal(t, tracepoint.FetchReadEncoded, spans[0].OperationName)
+	assert.Equal(t, tracepoint.FetchReadSegment, spans[1].OperationName)
+	assert.Equal(t, tracepoint.FetchReadSingleResult, spans[2].OperationName)
+	assert.Equal(t, tracepoint.FetchReadSegment, spans[3].OperationName)
+	assert.Equal(t, tracepoint.FetchReadSingleResult, spans[4].OperationName)
+	assert.Equal(t, tracepoint.FetchReadResults, spans[5].OperationName)
+	assert.Equal(t, tracepoint.FetchTagged, spans[6].OperationName)
+	assert.Equal(t, "root", spans[7].OperationName)
 }
 
 func TestServiceFetchTaggedIsOverloaded(t *testing.T) {

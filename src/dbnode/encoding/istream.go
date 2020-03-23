@@ -31,12 +31,17 @@ type istream struct {
 	r         *bufio.Reader // encoded stream
 	err       error         // error encountered
 	current   byte          // current byte we are working off of
-	remaining int           // bits remaining in current to be read
+	buffer    []byte        // buffer for reading in multiple bytes
+	remaining uint          // bits remaining in current to be read
 }
 
 // NewIStream creates a new Istream
 func NewIStream(reader io.Reader, bufioSize int) IStream {
-	return &istream{r: bufio.NewReaderSize(reader, bufioSize)}
+	return &istream{
+		r: bufio.NewReaderSize(reader, bufioSize),
+		// Buffer meant to hold uint64 size of bytes.
+		buffer: make([]byte, 8),
+	}
 }
 
 // ReadBit reads the next Bit
@@ -93,21 +98,26 @@ func (is *istream) ReadByte() (byte, error) {
 }
 
 // ReadBits reads the next Bits
-func (is *istream) ReadBits(numBits int) (uint64, error) {
+func (is *istream) ReadBits(numBits uint) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
 	}
-
 	var res uint64
-	for numBits >= 8 {
-		byteRead, err := is.ReadByte()
+	numBytes := numBits / 8
+	if numBytes > 0 {
+		// Use Read call rather than individual ReadByte calls since it has
+		// optimized path for when the iterator is aligned on a byte boundary.
+		bytes := is.buffer[0:numBytes]
+		_, err := is.Read(bytes)
 		if err != nil {
 			return 0, err
 		}
-		res = (res << 8) | uint64(byteRead)
-		numBits -= 8
+		for _, b := range bytes {
+			res = (res << 8) | uint64(b)
+		}
 	}
 
+	numBits = numBits % 8
 	for numBits > 0 {
 		// This is equivalent to calling is.ReadBit() in a loop but some manual inlining
 		// has been performed to optimize this loop as its heavily used in the hot path.
@@ -121,8 +131,8 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 		if is.remaining < numToRead {
 			numToRead = is.remaining
 		}
-		bits := is.current >> uint(8-numToRead)
-		is.current <<= uint(numToRead)
+		bits := is.current >> (8 - numToRead)
+		is.current <<= numToRead
 		is.remaining -= numToRead
 		res = (res << uint64(numToRead)) | uint64(bits)
 		numBits -= numToRead
@@ -131,10 +141,7 @@ func (is *istream) ReadBits(numBits int) (uint64, error) {
 }
 
 // PeekBits looks at the next Bits, but doesn't move the pos
-func (is *istream) PeekBits(numBits int) (uint64, error) {
-	if is.err != nil {
-		return 0, is.err
-	}
+func (is *istream) PeekBits(numBits uint) (uint64, error) {
 	// check the last byte first
 	if numBits <= is.remaining {
 		return uint64(readBitsInByte(is.current, numBits)), nil
@@ -152,25 +159,25 @@ func (is *istream) PeekBits(numBits int) (uint64, error) {
 		numBitsRead += 8
 	}
 	remainder := readBitsInByte(bytesRead[numBytesToRead-1], numBits-numBitsRead)
-	res = (res << uint(numBits-numBitsRead)) | uint64(remainder)
+	res = (res << (numBits - numBitsRead)) | uint64(remainder)
 	return res, nil
 }
 
 // RemainingBitsInCurrentByte returns the number of bits remaining to be read in
 // the current byte.
-func (is *istream) RemainingBitsInCurrentByte() int {
+func (is *istream) RemainingBitsInCurrentByte() uint {
 	return is.remaining
 }
 
 // readBitsInByte reads numBits in byte b.
-func readBitsInByte(b byte, numBits int) byte {
-	return b >> uint(8-numBits)
+func readBitsInByte(b byte, numBits uint) byte {
+	return b >> (8 - numBits)
 }
 
 // consumeBuffer consumes numBits in is.current.
-func (is *istream) consumeBuffer(numBits int) byte {
+func (is *istream) consumeBuffer(numBits uint) byte {
 	res := readBitsInByte(is.current, numBits)
-	is.current <<= uint(numBits)
+	is.current <<= numBits
 	is.remaining -= numBits
 	return res
 }

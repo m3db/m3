@@ -27,3 +27,16 @@ message PlacementReplaceRequest {
   repeated placementpb.Instance candidates = 2;
   bool force = 3;
 }
+
+message PlacementSetRequest {
+  placementpb.Placement placement = 1;
+  int32 version = 2;
+  // Confirm must be set, otherwise just a dry run is executed.
+  bool confirm = 3;
+}
+
+message PlacementSetResponse {
+  placementpb.Placement placement = 1;
+  int32 version = 2;
+  bool dryRun = 3;
+}

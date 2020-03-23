@@ -22,11 +22,13 @@ package aggregator
 
 import (
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 )
@@ -53,54 +55,54 @@ var (
 )
 
 func TestCounterAggregationAdd(t *testing.T) {
-	c := newCounterAggregation(aggregation.NewCounter(aggregation.NewOptions()))
+	c := newCounterAggregation(aggregation.NewCounter(aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationValues {
-		c.Add(v)
+		c.Add(time.Now(), v)
 	}
 	require.Equal(t, int64(4), c.Count())
 	require.Equal(t, int64(799), c.Sum())
 }
 
 func TestCounterAggregationAddUnion(t *testing.T) {
-	c := newCounterAggregation(aggregation.NewCounter(aggregation.NewOptions()))
+	c := newCounterAggregation(aggregation.NewCounter(aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationUnions {
-		c.AddUnion(v)
+		c.AddUnion(time.Now(), v)
 	}
 	require.Equal(t, int64(3), c.Count())
 	require.Equal(t, int64(1234), c.Sum())
 }
 
 func TestTimerAggregationAdd(t *testing.T) {
-	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions()))
+	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationValues {
-		tm.Add(v)
+		tm.Add(time.Now(), v)
 	}
 	require.Equal(t, int64(4), tm.Count())
 	require.Equal(t, 799.2, tm.Sum())
 }
 
 func TestTimerAggregationAddUnion(t *testing.T) {
-	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions()))
+	tm := newTimerAggregation(aggregation.NewTimer([]float64{0.5}, cm.NewOptions(), aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationUnions {
-		tm.AddUnion(v)
+		tm.AddUnion(time.Now(), v)
 	}
 	require.Equal(t, int64(5), tm.Count())
 	require.Equal(t, 18.0, tm.Sum())
 }
 
 func TestGaugeAggregationAdd(t *testing.T) {
-	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions()))
+	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationValues {
-		g.Add(v)
+		g.Add(time.Now(), v)
 	}
 	require.Equal(t, int64(4), g.Count())
 	require.Equal(t, 799.2, g.Sum())
 }
 
 func TestGaugeAggregationAddUnion(t *testing.T) {
-	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions()))
+	g := newGaugeAggregation(aggregation.NewGauge(aggregation.NewOptions(instrument.NewOptions())))
 	for _, v := range testAggregationUnions {
-		g.AddUnion(v)
+		g.AddUnion(time.Now(), v)
 	}
 	require.Equal(t, int64(3), g.Count())
 	require.Equal(t, 123.456, g.Sum())

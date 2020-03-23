@@ -51,12 +51,12 @@ var (
 	// M3AggReplaceURL is the url for the m3aggregator replace handler (method
 	// POST).
 	M3AggReplaceURL = path.Join(handler.RoutePrefixV1,
-		handleroptions.M3AggregatorServiceName, replacePathName)
+		M3AggServicePlacementPathName, replacePathName)
 
 	// M3CoordinatorReplaceURL is the url for the m3coordinator replace handler
 	// (method POST).
 	M3CoordinatorReplaceURL = path.Join(handler.RoutePrefixV1,
-		handleroptions.M3CoordinatorServiceName, replacePathName)
+		M3CoordinatorServicePlacementPathName, replacePathName)
 )
 
 // ReplaceHandler is the type for placement replaces.

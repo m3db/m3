@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	sync0 "github.com/m3db/m3/src/x/sync"
 	time0 "github.com/m3db/m3/src/x/time"
@@ -1460,12 +1461,13 @@ func (mr *MockdatabaseNamespaceMockRecorder) FlushState(shardID, blockStart inte
 }
 
 // SeriesReadWriteRef mocks base method
-func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, error) {
+func (m *MockdatabaseNamespace) SeriesReadWriteRef(shardID uint32, id ident.ID, tags ident.TagIterator) (SeriesReadWriteRef, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesReadWriteRef", shardID, id, tags)
 	ret0, _ := ret[0].(SeriesReadWriteRef)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // SeriesReadWriteRef indicates an expected call of SeriesReadWriteRef
@@ -3942,6 +3944,34 @@ func (m *MockOptions) MemoryTracker() MemoryTracker {
 func (mr *MockOptionsMockRecorder) MemoryTracker() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemoryTracker", reflect.TypeOf((*MockOptions)(nil).MemoryTracker))
+}
+
+// SetMmapReporter mocks base method
+func (m *MockOptions) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMmapReporter", mmapReporter)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMmapReporter indicates an expected call of SetMmapReporter
+func (mr *MockOptionsMockRecorder) SetMmapReporter(mmapReporter interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMmapReporter", reflect.TypeOf((*MockOptions)(nil).SetMmapReporter), mmapReporter)
+}
+
+// MmapReporter mocks base method
+func (m *MockOptions) MmapReporter() mmap.Reporter {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MmapReporter")
+	ret0, _ := ret[0].(mmap.Reporter)
+	return ret0
+}
+
+// MmapReporter indicates an expected call of MmapReporter
+func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface

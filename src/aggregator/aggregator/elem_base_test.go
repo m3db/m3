@@ -23,6 +23,7 @@ package aggregator
 import (
 	"strings"
 	"testing"
+	"time"
 
 	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
@@ -167,11 +168,11 @@ func TestCounterElemBase(t *testing.T) {
 func TestCounterElemBaseNewAggregation(t *testing.T) {
 	e := counterElemBase{}
 	la := e.NewAggregation(nil, raggregation.Options{})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:       metric.CounterType,
 		CounterVal: 100,
 	})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:       metric.CounterType,
 		CounterVal: 200,
 	})
@@ -217,11 +218,11 @@ func TestTimerElemBase(t *testing.T) {
 func TestTimerElemBaseNewAggregation(t *testing.T) {
 	e := timerElemBase{}
 	la := e.NewAggregation(NewOptions(), raggregation.Options{})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:          metric.TimerType,
 		BatchTimerVal: []float64{100.0, 200.0},
 	})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:          metric.TimerType,
 		BatchTimerVal: []float64{300.0, 400.0, 500.0},
 	})
@@ -276,11 +277,11 @@ func TestGaugeElemBase(t *testing.T) {
 func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 	e := gaugeElemBase{}
 	la := e.NewAggregation(nil, raggregation.Options{})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		GaugeVal: 100.0,
 	})
-	la.AddUnion(unaggregated.MetricUnion{
+	la.AddUnion(time.Now(), unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		GaugeVal: 200.0,
 	})

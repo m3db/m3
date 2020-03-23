@@ -25,16 +25,18 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// NewDefaultMutableSegmentAllocator returns a default mutable segment
+// NewDefaultDocumentsBuilderAllocator returns a default mutable segment
 // allocator.
-func NewDefaultMutableSegmentAllocator() MutableSegmentAllocator {
-	return func() (segment.MutableSegment, error) {
-		return mem.NewSegment(0, mem.NewOptions())
+func NewDefaultDocumentsBuilderAllocator() DocumentsBuilderAllocator {
+	return func() (segment.DocumentsBuilder, error) {
+		return builder.NewBuilderFromDocuments(builder.NewOptions())
 	}
 }
 
@@ -47,7 +49,7 @@ type indexBootstrapResult struct {
 func NewIndexBootstrapResult() IndexBootstrapResult {
 	return &indexBootstrapResult{
 		results:     make(IndexResults),
-		unfulfilled: make(ShardTimeRanges),
+		unfulfilled: NewShardTimeRanges(),
 	}
 }
 
@@ -78,6 +80,73 @@ func (r *indexBootstrapResult) NumSeries() int {
 	return int(size)
 }
 
+// NewIndexBuilder creates a wrapped locakble index seg builder.
+func NewIndexBuilder(builder segment.DocumentsBuilder) *IndexBuilder {
+	return &IndexBuilder{
+		builder: builder,
+	}
+}
+
+// FlushBatch flushes a batch of documents to the underlying segment builder.
+func (b *IndexBuilder) FlushBatch(batch []doc.Document) ([]doc.Document, error) {
+	if len(batch) == 0 {
+		// Last flush might not have any docs enqueued
+		return batch, nil
+	}
+
+	// NB(bodu): Prevent concurrent writes.
+	// Although it seems like there's no need to lock on writes since
+	// each block should ONLY be getting built in a single thread.
+	err := b.builder.InsertBatch(index.Batch{
+		Docs:                batch,
+		AllowPartialUpdates: true,
+	})
+	if err != nil && index.IsBatchPartialError(err) {
+		// If after filtering out duplicate ID errors
+		// there are no errors, then this was a successful
+		// insertion.
+		batchErr := err.(*index.BatchPartialError)
+		// NB(r): FilterDuplicateIDErrors returns nil
+		// if no errors remain after filtering duplicate ID
+		// errors, this case is covered in unit tests.
+		err = batchErr.FilterDuplicateIDErrors()
+	}
+	if err != nil {
+		return batch, err
+	}
+
+	// Reset docs batch for reuse
+	var empty doc.Document
+	for i := range batch {
+		batch[i] = empty
+	}
+	batch = batch[:0]
+	return batch, nil
+}
+
+// Builder returns the underlying index segment docs builder.
+func (b *IndexBuilder) Builder() segment.DocumentsBuilder {
+	return b.builder
+}
+
+// AddBlockIfNotExists adds an index block if it does not already exist to the index results.
+func (r IndexResults) AddBlockIfNotExists(
+	t time.Time,
+	idxopts namespace.IndexOptions,
+) {
+	// NB(r): The reason we can align by the retention block size and guarantee
+	// there is only one entry for this time is because index blocks must be a
+	// positive multiple of the data block size, making it easy to map a data
+	// block entry to at most one index block entry.
+	blockStart := t.Truncate(idxopts.BlockSize())
+	blockStartNanos := xtime.ToUnixNano(blockStart)
+
+	_, exists := r[blockStartNanos]
+	if !exists {
+		r[blockStartNanos] = NewIndexBlock(blockStart, nil, nil)
+	}
+}
+
 // Add will add an index block to the collection, merging if one already
 // exists.
 func (r IndexResults) Add(block IndexBlock) {
@@ -101,41 +170,6 @@ func (r IndexResults) AddResults(other IndexResults) {
 	for _, block := range other {
 		r.Add(block)
 	}
-}
-
-// GetOrAddSegment get or create a new mutable segment.
-func (r IndexResults) GetOrAddSegment(
-	t time.Time,
-	idxopts namespace.IndexOptions,
-	opts Options,
-) (segment.MutableSegment, error) {
-	// NB(r): The reason we can align by the retention block size and guarantee
-	// there is only one entry for this time is because index blocks must be a
-	// positive multiple of the data block size, making it easy to map a data
-	// block entry to at most one index block entry.
-	blockStart := t.Truncate(idxopts.BlockSize())
-	blockStartNanos := xtime.ToUnixNano(blockStart)
-
-	block, exists := r[blockStartNanos]
-	if !exists {
-		block = NewIndexBlock(blockStart, nil, nil)
-		r[blockStartNanos] = block
-	}
-	for _, seg := range block.Segments() {
-		if mutable, ok := seg.(segment.MutableSegment); ok {
-			return mutable, nil
-		}
-	}
-
-	alloc := opts.IndexMutableSegmentAllocator()
-	mutable, err := alloc()
-	if err != nil {
-		return nil, err
-	}
-
-	segments := []segment.Segment{mutable}
-	r[blockStartNanos] = block.Merged(NewIndexBlock(blockStart, segments, nil))
-	return mutable, nil
 }
 
 // MarkFulfilled will mark an index block as fulfilled, either partially or
@@ -207,7 +241,7 @@ func NewIndexBlock(
 	fulfilled ShardTimeRanges,
 ) IndexBlock {
 	if fulfilled == nil {
-		fulfilled = ShardTimeRanges{}
+		fulfilled = NewShardTimeRanges()
 	}
 	return IndexBlock{
 		blockStart: blockStart,

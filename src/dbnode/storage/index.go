@@ -159,10 +159,9 @@ type nsIndexState struct {
 // nsIndex mutex, so to keep the lock acquisitions to a minimum these are protected
 // under the same nsIndex mutex.
 type nsIndexRuntimeOptions struct {
-	insertMode            index.InsertMode
-	maxQueryLimit         int64
-	flushBlockNumSegments uint
-	defaultQueryTimeout   time.Duration
+	insertMode          index.InsertMode
+	maxQueryLimit       int64
+	defaultQueryTimeout time.Duration
 }
 
 type newBlockFn func(
@@ -283,8 +282,7 @@ func newNamespaceIndexWithOptions(
 		state: nsIndexState{
 			closeCh: make(chan struct{}),
 			runtimeOpts: nsIndexRuntimeOptions{
-				insertMode:            indexOpts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
-				flushBlockNumSegments: runtime.DefaultFlushIndexBlockNumSegments,
+				insertMode: indexOpts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
 			},
 			blocksByTime: make(map[xtime.UnixNano]index.Block),
 		},
@@ -352,7 +350,6 @@ func newNamespaceIndexWithOptions(
 func (i *nsIndex) SetRuntimeOptions(value runtime.Options) {
 	i.state.Lock()
 	i.state.runtimeOpts.defaultQueryTimeout = value.IndexDefaultQueryTimeout()
-	i.state.runtimeOpts.flushBlockNumSegments = value.FlushIndexBlockNumSegments()
 	i.state.Unlock()
 }
 
@@ -754,6 +751,7 @@ func (i *nsIndex) Flush(
 	if err != nil {
 		return err
 	}
+	defer builder.Close()
 
 	var evicted int
 	for _, block := range flushable {
@@ -763,7 +761,7 @@ func (i *nsIndex) Flush(
 		}
 		// Make a result that covers the entire time ranges for the
 		// block for each shard
-		fulfilled := result.NewShardTimeRanges(block.StartTime(), block.EndTime(),
+		fulfilled := result.NewShardTimeRangesFromRange(block.StartTime(), block.EndTime(),
 			dbShards(shards).IDs()...)
 		// Add the results to the block
 		results := result.NewIndexBlock(block.StartTime(), immutableSegments,
@@ -845,19 +843,10 @@ func (i *nsIndex) flushBlock(
 	shards []databaseShard,
 	builder segment.DocumentsBuilder,
 ) ([]segment.Segment, error) {
-	i.state.RLock()
-	numSegments := i.state.runtimeOpts.flushBlockNumSegments
-	i.state.RUnlock()
-
 	allShards := make(map[uint32]struct{})
-	segmentShards := make([][]databaseShard, numSegments)
-	for i, shard := range shards {
+	for _, shard := range shards {
 		// Populate all shards
 		allShards[shard.ID()] = struct{}{}
-
-		// Populate segment shards
-		idx := i % int(numSegments)
-		segmentShards[idx] = append(segmentShards[idx], shard)
 	}
 
 	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
@@ -881,17 +870,9 @@ func (i *nsIndex) flushBlock(
 		}
 	}()
 
-	for _, shards := range segmentShards {
-		if len(shards) == 0 {
-			// This can happen if fewer shards than num segments we'd like
-			continue
-		}
-
-		// Flush a single block segment
-		err := i.flushBlockSegment(preparedPersist, indexBlock, shards, builder)
-		if err != nil {
-			return nil, err
-		}
+	// Flush a single block segment.
+	if err := i.flushBlockSegment(preparedPersist, indexBlock, shards, builder); err != nil {
+		return nil, err
 	}
 
 	closed = true
@@ -1372,7 +1353,7 @@ func (i *nsIndex) blocksForQueryWithRLock(queryRange xtime.Ranges) ([]index.Bloc
 		}
 
 		// Remove this range from the query range.
-		queryRange = queryRange.RemoveRange(blockRange)
+		queryRange.RemoveRange(blockRange)
 
 		blocks = append(blocks, block)
 	}

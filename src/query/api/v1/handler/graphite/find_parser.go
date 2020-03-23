@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/json"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 // parseFindParamsToQueries parses an incoming request to two find queries,
@@ -57,8 +57,7 @@ func parseFindParamsToQueries(r *http.Request) (
 	_rawQueryString string,
 	_err *xhttp.ParseError,
 ) {
-	values := r.URL.Query()
-	query := values.Get("query")
+	query := r.FormValue("query")
 	if query == "" {
 		return nil, nil, "",
 			xhttp.NewParseError(errors.ErrNoQueryFound, http.StatusBadRequest)
@@ -142,36 +141,61 @@ func parseFindParamsToQueries(r *http.Request) (
 func findResultsJSON(
 	w io.Writer,
 	prefix string,
-	tags map[string]bool,
+	tags map[string]nodeDescriptor,
 ) error {
 	jw := json.NewWriter(w)
 	jw.BeginArray()
 
-	for value, hasChildren := range tags {
-		leaf := 1
-		if hasChildren {
-			leaf = 0
-		}
-		jw.BeginObject()
-
-		jw.BeginObjectField("id")
-		jw.WriteString(fmt.Sprintf("%s%s", prefix, value))
-
-		jw.BeginObjectField("text")
-		jw.WriteString(value)
-
-		jw.BeginObjectField("leaf")
-		jw.WriteInt(leaf)
-
-		jw.BeginObjectField("expandable")
-		jw.WriteInt(1 - leaf)
-
-		jw.BeginObjectField("allowChildren")
-		jw.WriteInt(1 - leaf)
-
-		jw.EndObject()
+	for value, descriptor := range tags {
+		writeFindNodeResultJSON(jw, prefix, value, descriptor)
 	}
 
 	jw.EndArray()
 	return jw.Close()
+}
+
+func writeFindNodeResultJSON(
+	jw *json.Writer,
+	prefix string,
+	value string,
+	descriptor nodeDescriptor,
+) {
+	id := fmt.Sprintf("%s%s", prefix, value)
+	if descriptor.isLeaf {
+		writeFindResultJSON(jw, id, value, false)
+	}
+
+	if descriptor.hasChildren {
+		writeFindResultJSON(jw, id, value, true)
+	}
+}
+
+func writeFindResultJSON(
+	jw *json.Writer,
+	id string,
+	value string,
+	hasChildren bool,
+) {
+	var leaf = 1
+	if hasChildren {
+		leaf = 0
+	}
+	jw.BeginObject()
+
+	jw.BeginObjectField("id")
+	jw.WriteString(id)
+
+	jw.BeginObjectField("text")
+	jw.WriteString(value)
+
+	jw.BeginObjectField("leaf")
+	jw.WriteInt(leaf)
+
+	jw.BeginObjectField("expandable")
+	jw.WriteInt(1 - leaf)
+
+	jw.BeginObjectField("allowChildren")
+	jw.WriteInt(1 - leaf)
+
+	jw.EndObject()
 }

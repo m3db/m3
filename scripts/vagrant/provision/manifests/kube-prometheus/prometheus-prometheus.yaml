@@ -18,6 +18,7 @@ spec:
   resources:
     requests:
       memory: 400Mi
+  retention: '48h'
   ruleSelector:
     matchLabels:
       prometheus: k8s

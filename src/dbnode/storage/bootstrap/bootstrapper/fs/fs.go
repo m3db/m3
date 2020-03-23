@@ -53,11 +53,14 @@ func NewFileSystemBootstrapperProvider(
 
 func (p fileSystemBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
 	var (
-		src  = newFileSystemSource(p.opts)
 		b    = &fileSystemBootstrapper{}
 		next bootstrap.Bootstrapper
-		err  error
 	)
+	src, err := newFileSystemSource(p.opts)
+	if err != nil {
+		return nil, err
+	}
+
 	if p.next != nil {
 		next, err = p.next.Provide()
 		if err != nil {

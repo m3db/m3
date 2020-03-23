@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -46,12 +47,12 @@ const (
 // GetHandler is the handler for topic gets.
 type GetHandler Handler
 
-// NewGetHandler returns a new instance of GetHandler.
-func NewGetHandler(
+// newGetHandler returns a new instance of GetHandler.
+func newGetHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) *GetHandler {
+) http.Handler {
 	return &GetHandler{
 		client:         client,
 		cfg:            cfg,
@@ -66,7 +67,9 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger = logging.WithContext(ctx, h.instrumentOpts)
 	)
 
-	service, err := h.serviceFn(h.client)
+	serviceCfg := handleroptions.ServiceNameAndDefaults{}
+	svcOpts := handleroptions.NewServiceOptions(serviceCfg, r.Header, nil)
+	service, err := h.serviceFn(h.client, svcOpts)
 	if err != nil {
 		logger.Error("unable to get service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)

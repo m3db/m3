@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"runtime"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -29,11 +30,10 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 )
 
-const (
-	defaultFetchConcurrency = 2
-)
-
 var (
+	// Allow max concurrency to match available CPUs.
+	defaultFetchConcurrency = runtime.NumCPU()
+
 	errBlockLeaseManagerNotSet = errors.New("block lease manager is not set")
 )
 

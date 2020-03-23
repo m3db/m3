@@ -36,6 +36,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -248,6 +249,9 @@ func (s *seeker) Open(
 		uint(info.BloomFilter.NumElementsM),
 		uint(info.BloomFilter.NumHashesK),
 		s.opts.opts.ForceBloomFilterMmapMemory(),
+		mmap.ReporterOptions{
+			Reporter: s.opts.opts.MmapReporter(),
+		},
 	)
 	if err != nil {
 		s.Close()
@@ -262,6 +266,9 @@ func (s *seeker) Open(
 		resources.byteDecoderStream,
 		int(info.Summaries.Summaries),
 		s.opts.opts.ForceIndexSummariesMmapMemory(),
+		mmap.ReporterOptions{
+			Reporter: s.opts.opts.MmapReporter(),
+		},
 	)
 	if err != nil {
 		s.Close()

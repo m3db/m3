@@ -37,6 +37,10 @@ var (
 	errCantCloseClosedSegment         = errors.New("cant close closed segment")
 )
 
+// Ensure FST segment implements ImmutableSegment so can be casted upwards
+// and mmap's can be freed.
+var _ segment.ImmutableSegment = (*ReadThroughSegment)(nil)
+
 // ReadThroughSegment wraps a segment with a postings list cache so that
 // queries can be transparently cached in a read through manner. In addition,
 // the postings lists returned by the segments may not be safe to use once the
@@ -47,7 +51,7 @@ var (
 type ReadThroughSegment struct {
 	sync.RWMutex
 
-	segment segment.Segment
+	segment segment.ImmutableSegment
 
 	uuid              uuid.UUID
 	postingsListCache *PostingsListCache
@@ -68,7 +72,7 @@ type ReadThroughSegmentOptions struct {
 
 // NewReadThroughSegment creates a new read through segment.
 func NewReadThroughSegment(
-	seg segment.Segment,
+	seg segment.ImmutableSegment,
 	cache *PostingsListCache,
 	opts ReadThroughSegmentOptions,
 ) segment.Segment {
@@ -142,10 +146,7 @@ func (r *ReadThroughSegment) ContainsField(field []byte) (bool, error) {
 
 // FreeMmap frees the mmapped data if any.
 func (r *ReadThroughSegment) FreeMmap() error {
-	if immSeg, ok := r.segment.(segment.ImmutableSegment); ok {
-		return immSeg.FreeMmap()
-	}
-	return nil
+	return r.segment.FreeMmap()
 }
 
 // Size is a pass through call to the segment, since there's no

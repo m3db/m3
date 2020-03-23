@@ -53,10 +53,10 @@ func (d *decoder) Decode(m Unmarshaler) error {
 	if err != nil {
 		return err
 	}
-	d.buffer = growDataBufferIfNeeded(d.buffer, sizeEncodingLength+size, d.bytesPool)
 	if size > d.maxMessageSize {
 		return fmt.Errorf("decoded message size %d is larger than maximum supported size %d", size, d.maxMessageSize)
 	}
+	d.buffer = growDataBufferIfNeeded(d.buffer, sizeEncodingLength+size, d.bytesPool)
 	return d.decodeData(d.buffer[sizeEncodingLength:sizeEncodingLength+size], m)
 }
 

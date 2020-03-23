@@ -91,8 +91,9 @@ type seriesMapKey struct {
 }
 
 type seriesMapEntry struct {
-	namespace *bootstrapNamespace
-	series    bootstrap.CheckoutSeriesResult
+	shardNoLongerOwned bool
+	namespace          *bootstrapNamespace
+	series             bootstrap.CheckoutSeriesResult
 }
 
 // accumulateArg contains all the information a worker go-routine needs to
@@ -207,7 +208,7 @@ func (s *commitLogSource) Read(
 
 		// NB(r): Combine all shard time ranges across data and index
 		// so we can do in one go.
-		shardTimeRanges := result.ShardTimeRanges{}
+		shardTimeRanges := result.NewShardTimeRanges()
 		shardTimeRanges.AddRanges(ns.DataRunOptions.ShardTimeRanges)
 		if ns.Metadata.Options().IndexOptions().Enabled() {
 			shardTimeRanges.AddRanges(ns.IndexRunOptions.ShardTimeRanges)
@@ -239,7 +240,7 @@ func (s *commitLogSource) Read(
 
 		// Start by reading any available snapshot files.
 		blockSize := ns.Metadata.Options().RetentionOptions().BlockSize()
-		for shard, tr := range shardTimeRanges {
+		for shard, tr := range shardTimeRanges.Iter() {
 			err := s.bootstrapShardSnapshots(
 				ns.Metadata, accumulator, shard, tr, blockSize,
 				mostRecentCompleteSnapshotByBlockShard)
@@ -289,6 +290,7 @@ func (s *commitLogSource) Read(
 		}
 		datapointsSkippedNotBootstrappingNamespace = 0
 		datapointsSkippedNotBootstrappingShard     = 0
+		datapointsSkippedShardNoLongerOwned        = 0
 		startCommitLogsRead                        = s.nowFn()
 	)
 	s.log.Info("read commit logs start")
@@ -301,7 +303,8 @@ func (s *commitLogSource) Read(
 			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
 			zap.Int("datapointsRead", datapointsRead),
 			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace),
-			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard))
+			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard),
+			zap.Int("datapointsSkippedShardNoLongerOwned", datapointsSkippedShardNoLongerOwned))
 	}()
 
 	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
@@ -450,13 +453,19 @@ func (s *commitLogSource) Read(
 				// Check out the series for writing, no need for concurrency
 				// as commit log bootstrapper does not perform parallel
 				// checking out of series.
-				series, err := accumulator.CheckoutSeriesWithoutLock(
+				series, owned, err := accumulator.CheckoutSeriesWithoutLock(
 					entry.Series.Shard,
 					entry.Series.ID,
-					tagIter,
-				)
-
+					tagIter)
 				if err != nil {
+					if !owned {
+						// If we encounter a log entry for a shard that we're
+						// not responsible for, skip this entry. This can occur
+						// when a topology change happens and we bootstrap from
+						// a commit log which contains this data.
+						commitLogSeries[seriesKey] = seriesMapEntry{shardNoLongerOwned: true}
+						continue
+					}
 					return bootstrap.NamespaceResults{}, err
 				}
 
@@ -469,17 +478,25 @@ func (s *commitLogSource) Read(
 			commitLogSeries[seriesKey] = seriesEntry
 		}
 
+		// If series is no longer owned, then we can safely skip trying to
+		// bootstrap the result.
+		if seriesEntry.shardNoLongerOwned {
+			datapointsSkippedShardNoLongerOwned++
+			continue
+		}
+
 		// If not bootstrapping this namespace then skip this result.
 		if !seriesEntry.namespace.bootstrapping {
 			datapointsSkippedNotBootstrappingNamespace++
 			continue
 		}
+
 		// If not bootstrapping shard for this series then also skip.
 		// NB(r): This can occur when a topology change happens then we
 		// bootstrap from the commit log data that the node no longer owns.
 		shard := seriesEntry.series.Shard
-		_, bootstrapping := seriesEntry.namespace.dataAndIndexShardRanges[shard]
-		if !bootstrapping {
+		_, ok = seriesEntry.namespace.dataAndIndexShardRanges.Get(shard)
+		if !ok {
 			datapointsSkippedNotBootstrappingShard++
 			continue
 		}
@@ -559,7 +576,7 @@ func (s *commitLogSource) snapshotFilesByShard(
 	shardsTimeRanges result.ShardTimeRanges,
 ) (map[uint32]fs.FileSetFilesSlice, error) {
 	snapshotFilesByShard := map[uint32]fs.FileSetFilesSlice{}
-	for shard := range shardsTimeRanges {
+	for shard := range shardsTimeRanges.Iter() {
 		snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, nsID, shard)
 		if err != nil {
 			return nil, err
@@ -587,7 +604,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 	)
 
 	for currBlockStart := minBlock.Truncate(blockSize); currBlockStart.Before(maxBlock); currBlockStart = currBlockStart.Add(blockSize) {
-		for shard := range shardsTimeRanges {
+		for shard := range shardsTimeRanges.Iter() {
 			// Anonymous func for easier clean up using defer.
 			func() {
 				var (
@@ -770,21 +787,26 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 		dbBlock := blocksPool.Get()
 		dbBlock.Reset(blockStart, blockSize,
-			ts.NewSegment(data, nil, ts.FinalizeHead), nsCtx)
+			ts.NewSegment(data, nil, 0, ts.FinalizeHead), nsCtx)
 
-		// Resetting the block will trigger a checksum calculation, so use that instead
-		// of calculating it twice.
+		// Resetting the block will trigger a checksum calculation, so use
+		// that instead of calculating it twice.
 		checksum, err := dbBlock.Checksum()
 		if err != nil {
 			return err
 		}
 		if checksum != expectedChecksum {
-			return fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
+			return fmt.Errorf("checksum for series: %s was %d but expected %d",
+				id, checksum, expectedChecksum)
 		}
 
 		// NB(r): No parallelization required to checkout the series.
-		ref, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
+		ref, owned, err := accumulator.CheckoutSeriesWithoutLock(shard, id, tags)
 		if err != nil {
+			if !owned {
+				// Skip bootstrapping this series if we don't own it.
+				continue
+			}
 			return err
 		}
 
@@ -970,10 +992,10 @@ func (s *commitLogSource) availability(
 ) (result.ShardTimeRanges, error) {
 	var (
 		topoState                = runOpts.InitialTopologyState()
-		availableShardTimeRanges = result.ShardTimeRanges{}
+		availableShardTimeRanges = result.NewShardTimeRanges()
 	)
 
-	for shardIDUint := range shardsTimeRanges {
+	for shardIDUint := range shardsTimeRanges.Iter() {
 		shardID := topology.ShardID(shardIDUint)
 		hostShardStates, ok := topoState.ShardStates[shardID]
 		if !ok {
@@ -1014,11 +1036,13 @@ func (s *commitLogSource) availability(
 			// to distinguish between "unfulfilled" data and "corrupt" data, then
 			// modify this to only say the commit log bootstrapper can fullfil
 			// "unfulfilled" data, but not corrupt data.
-			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
+			if tr, ok := shardsTimeRanges.Get(shardIDUint); ok {
+				availableShardTimeRanges.Set(shardIDUint, tr)
+			}
 		case shard.Unknown:
 			fallthrough
 		default:
-			return result.ShardTimeRanges{}, fmt.Errorf("unknown shard state: %v", originShardState)
+			return result.NewShardTimeRanges(), fmt.Errorf("unknown shard state: %v", originShardState)
 		}
 	}
 

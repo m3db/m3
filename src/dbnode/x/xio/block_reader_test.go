@@ -210,7 +210,7 @@ func TestBlockIsNotEmpty(t *testing.T) {
 func TestFilterEmptyBlockReadersSliceOfSlicesInPlace(t *testing.T) {
 	var (
 		head          = checked.NewBytes([]byte("some-data"), checked.NewBytesOptions())
-		segment       = ts.NewSegment(head, nil, 0)
+		segment       = ts.NewSegment(head, nil, 0, 0)
 		segmentReader = NewSegmentReader(segment)
 	)
 	notEmpty := BlockReader{
@@ -231,7 +231,7 @@ func TestFilterEmptyBlockReadersSliceOfSlicesInPlace(t *testing.T) {
 func TestFilterEmptyBlockReadersInPlace(t *testing.T) {
 	var (
 		head          = checked.NewBytes([]byte("some-data"), checked.NewBytesOptions())
-		segment       = ts.NewSegment(head, nil, 0)
+		segment       = ts.NewSegment(head, nil, 0, 0)
 		segmentReader = NewSegmentReader(segment)
 	)
 	notEmpty := BlockReader{

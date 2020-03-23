@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 
 	"github.com/uber-go/tally"
 )
@@ -35,7 +35,6 @@ import (
 var (
 	errIndexInsertQueueNotOpen             = errors.New("index insert queue is not open")
 	errIndexInsertQueueAlreadyOpenOrClosed = errors.New("index insert queue already open or is closed")
-	errNewSeriesIndexRateLimitExceeded     = errors.New("indexing new series exceeds rate limit")
 )
 
 type nsIndexInsertQueueState int
@@ -46,8 +45,7 @@ const (
 	nsIndexInsertQueueStateClosed
 
 	// TODO(prateek): runtime options for this stuff
-	defaultIndexBatchBackoff   = time.Millisecond
-	defaultIndexPerSecondLimit = 1000000
+	defaultIndexBatchBackoff = time.Millisecond
 
 	indexResetAllInsertsEvery = 30 * time.Second
 )
@@ -60,10 +58,7 @@ type nsIndexInsertQueue struct {
 	state nsIndexInsertQueueState
 
 	// rate limits
-	indexBatchBackoff               time.Duration
-	indexPerSecondLimit             int
-	indexPerSecondLimitWindowNanos  int64
-	indexPerSecondLimitWindowValues int
+	indexBatchBackoff time.Duration
 
 	// active batch pending execution
 	currBatch *nsIndexInsertBatch
@@ -80,6 +75,14 @@ type nsIndexInsertQueue struct {
 type newNamespaceIndexInsertQueueFn func(
 	nsIndexInsertBatchFn, namespace.Metadata, clock.NowFn, tally.Scope) namespaceIndexInsertQueue
 
+// newNamespaceIndexInsertQueue returns a new index insert queue.
+// Note: No limit appears on the index insert queue since any items making
+// it into the index insert queue must first pass through the shard insert
+// queue which has it's own limits in place.
+// Any error returned from this queue would cause the series to not be indexed
+// and there is no way to return this error to the client over the network
+// (unlike the shard insert queue at which point if an error is returned
+// is returned all the way back to the DB node client).
 // FOLLOWUP(prateek): subsequent PR to wire up rate limiting to runtime.Options
 func newNamespaceIndexInsertQueue(
 	indexBatchFn nsIndexInsertBatchFn,
@@ -89,15 +92,14 @@ func newNamespaceIndexInsertQueue(
 ) namespaceIndexInsertQueue {
 	subscope := scope.SubScope("insert-queue")
 	q := &nsIndexInsertQueue{
-		namespaceMetadata:   namespaceMetadata,
-		indexBatchBackoff:   defaultIndexBatchBackoff,
-		indexPerSecondLimit: defaultIndexPerSecondLimit,
-		indexBatchFn:        indexBatchFn,
-		nowFn:               nowFn,
-		sleepFn:             time.Sleep,
-		notifyInsert:        make(chan struct{}, 1),
-		closeCh:             make(chan struct{}, 1),
-		metrics:             newNamespaceIndexInsertQueueMetrics(subscope),
+		namespaceMetadata: namespaceMetadata,
+		indexBatchBackoff: defaultIndexBatchBackoff,
+		indexBatchFn:      indexBatchFn,
+		nowFn:             nowFn,
+		sleepFn:           time.Sleep,
+		notifyInsert:      make(chan struct{}, 1),
+		closeCh:           make(chan struct{}, 1),
+		metrics:           newNamespaceIndexInsertQueueMetrics(subscope),
 	}
 	q.currBatch = q.newBatch()
 	return q
@@ -166,24 +168,10 @@ func (q *nsIndexInsertQueue) insertLoop() {
 func (q *nsIndexInsertQueue) InsertBatch(
 	batch *index.WriteBatch,
 ) (*sync.WaitGroup, error) {
-	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
-
 	q.Lock()
 	if q.state != nsIndexInsertQueueStateOpen {
 		q.Unlock()
 		return nil, errIndexInsertQueueNotOpen
-	}
-	if limit := q.indexPerSecondLimit; limit > 0 {
-		if q.indexPerSecondLimitWindowNanos != windowNanos {
-			// Rolled into to a new window
-			q.indexPerSecondLimitWindowNanos = windowNanos
-			q.indexPerSecondLimitWindowValues = 0
-		}
-		q.indexPerSecondLimitWindowValues++
-		if q.indexPerSecondLimitWindowValues > limit {
-			q.Unlock()
-			return nil, errNewSeriesIndexRateLimitExceeded
-		}
 	}
 	batchLen := batch.Len()
 	q.currBatch.shardInserts = append(q.currBatch.shardInserts, batch)

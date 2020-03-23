@@ -105,6 +105,8 @@ pages:
     - "Docker & Kernel Configuration": "operational_guide/kernel_configuration.md"
     - "etcd": "operational_guide/etcd.md"
     - "Monitoring": "operational_guide/monitoring.md"
+    - "Configuring Mapping & Rollup Rules": "operational_guide/mapping_rollup.md"
+    - "Upgrading M3": "operational_guide/upgrading_m3.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"

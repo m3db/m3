@@ -21,6 +21,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +32,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -73,7 +75,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	xconfig "github.com/m3db/m3/src/x/config"
-	"github.com/m3db/m3/src/x/context"
+	xcontext "github.com/m3db/m3/src/x/context"
 	xdebug "github.com/m3db/m3/src/x/debug"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/ident"
@@ -86,9 +88,10 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
-	"go.etcd.io/etcd/embed"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go"
+	"go.etcd.io/etcd/embed"
 	"go.uber.org/zap"
 )
 
@@ -102,6 +105,8 @@ const (
 	defaultServiceName               = "m3dbnode"
 	skipRaiseProcessLimitsEnvVar     = "SKIP_PROCESS_LIMITS_RAISE"
 	skipRaiseProcessLimitsEnvVarTrue = "true"
+	mmapReporterMetricName           = "mmap-mapped-bytes"
+	mmapReporterTagName              = "map-name"
 )
 
 // RunOptions provides options for running the server
@@ -129,6 +134,9 @@ type RunOptions struct {
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
+
+	// CustomOptions are custom options to apply to the session.
+	CustomOptions []client.CustomAdminOption
 }
 
 // Run runs the server programmatically given a filename for the
@@ -340,6 +348,26 @@ func Run(runOpts RunOptions) {
 	}
 	defer buildReporter.Stop()
 
+	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
+	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
+	if shouldUseHugeTLB {
+		// Make sure the host supports HugeTLB before proceeding with it to prevent
+		// excessive log spam.
+		shouldUseHugeTLB, err = hostSupportsHugeTLB()
+		if err != nil {
+			logger.Fatal("could not determine if host supports HugeTLB", zap.Error(err))
+		}
+		if !shouldUseHugeTLB {
+			logger.Warn("host doesn't support HugeTLB, proceeding without it")
+		}
+	}
+
+	mmapReporter := newMmapReporter(scope)
+	mmapReporterCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go mmapReporter.Run(mmapReporterCtx)
+	opts = opts.SetMmapReporter(mmapReporter)
+
 	runtimeOpts := m3dbruntime.NewOptions().
 		SetPersistRateLimitOptions(ratelimit.NewOptions().
 			SetLimitEnabled(true).
@@ -377,7 +405,8 @@ func Run(runOpts RunOptions) {
 		SetReadThroughSegmentOptions(index.ReadThroughSegmentOptions{
 			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
 			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
-		})
+		}).
+		SetMmapReporter(mmapReporter)
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -395,20 +424,6 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
-	mmapCfg := cfg.Filesystem.MmapConfigurationOrDefault()
-	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
-	if shouldUseHugeTLB {
-		// Make sure the host supports HugeTLB before proceeding with it to prevent
-		// excessive log spam.
-		shouldUseHugeTLB, err = hostSupportsHugeTLB()
-		if err != nil {
-			logger.Fatal("could not determine if host supports HugeTLB", zap.Error(err))
-		}
-		if !shouldUseHugeTLB {
-			logger.Warn("host doesn't support HugeTLB, proceeding without it")
-		}
-	}
-
 	policy := cfg.PoolingPolicy
 	tagEncoderPool := serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
@@ -417,7 +432,7 @@ func Run(runOpts RunOptions) {
 			scope.SubScope("tag-encoder-pool")))
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(),
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		poolOptions(
 			policy.TagDecoderPool,
 			scope.SubScope("tag-decoder-pool")))
@@ -447,7 +462,8 @@ func Run(runOpts RunOptions) {
 		SetTagDecoderPool(tagDecoderPool).
 		SetForceIndexSummariesMmapMemory(cfg.Filesystem.ForceIndexSummariesMmapMemoryOrDefault()).
 		SetForceBloomFilterMmapMemory(cfg.Filesystem.ForceBloomFilterMmapMemoryOrDefault()).
-		SetIndexBloomFilterFalsePositivePercent(cfg.Filesystem.BloomFilterFalsePositivePercentOrDefault())
+		SetIndexBloomFilterFalsePositivePercent(cfg.Filesystem.BloomFilterFalsePositivePercentOrDefault()).
+		SetMmapReporter(mmapReporter)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -587,6 +603,10 @@ func Run(runOpts RunOptions) {
 		// SetDatabase() once we've initialized it.
 		service = ttnode.NewService(nil, ttopts)
 	)
+	if cfg.TChannel != nil {
+		tchannelOpts.MaxIdleTime = cfg.TChannel.MaxIdleTime
+		tchannelOpts.IdleCheckInterval = cfg.TChannel.IdleCheckInterval
+	}
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
 		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
@@ -682,8 +702,10 @@ func Run(runOpts RunOptions) {
 
 	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := newAdminClient(
-		cfg.Client, iopts, syncCfg.TopologyInitializer, runtimeOptsMgr,
-		origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
+		cfg.Client, iopts, tchannelOpts, syncCfg.TopologyInitializer,
+		runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
+		syncCfg.KVStore, logger, runOpts.CustomOptions)
+
 	if err != nil {
 		logger.Fatal("could not create m3db client", zap.Error(err))
 	}
@@ -692,13 +714,13 @@ func Run(runOpts RunOptions) {
 		runOpts.ClientCh <- m3dbClient
 	}
 
-	mutableSegmentAlloc := index.NewBootstrapResultMutableSegmentAllocator(
+	documentsBuilderAlloc := index.NewBootstrapResultDocumentsBuilderAllocator(
 		opts.IndexOptions())
 	rsOpts := result.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
-		SetIndexMutableSegmentAllocator(mutableSegmentAlloc)
+		SetIndexDocumentsBuilderAllocator(documentsBuilderAlloc)
 
 	var repairClients []client.AdminClient
 	if cfg.Repair != nil && cfg.Repair.Enabled {
@@ -717,8 +739,9 @@ func Run(runOpts RunOptions) {
 			// Guaranteed to not be nil if repair is enabled by config validation.
 			clientCfg := *cluster.Client
 			clusterClient, err := newAdminClient(
-				clientCfg, iopts, topologyInitializer, runtimeOptsMgr,
-				origin, protoEnabled, schemaRegistry, syncCfg.KVStore, logger)
+				clientCfg, iopts, tchannelOpts, topologyInitializer,
+				runtimeOptsMgr, origin, protoEnabled, schemaRegistry,
+				syncCfg.KVStore, logger, runOpts.CustomOptions)
 			if err != nil {
 				logger.Fatal(
 					"unable to create client for replicated cluster",
@@ -1213,6 +1236,7 @@ func withEncodingAndPoolingOptions(
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))
 	checkedBytesPoolOpts := bytesPoolOpts.
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("checked-bytes-pool")))
+
 	buckets := make([]pool.Bucket, len(policy.BytesPool.Buckets))
 	for i, bucket := range policy.BytesPool.Buckets {
 		var b pool.Bucket
@@ -1222,10 +1246,12 @@ func withEncodingAndPoolingOptions(
 			SetRefillLowWatermark(bucket.RefillLowWaterMarkOrDefault()).
 			SetRefillHighWatermark(bucket.RefillHighWaterMarkOrDefault())
 		buckets[i] = b
-		logger.Sugar().Infof("bytes pool registering bucket capacity=%d, size=%d, "+
-			"refillLowWatermark=%f, refillHighWatermark=%f",
-			bucket.Capacity, bucket.Size,
-			bucket.RefillLowWaterMarkOrDefault(), bucket.RefillHighWaterMarkOrDefault())
+
+		logger.Info("bytes pool configured",
+			zap.Int("capacity", bucket.CapacityOrDefault()),
+			zap.Int("size", bucket.SizeOrDefault()),
+			zap.Float64("refillLowWaterMark", bucket.RefillLowWaterMarkOrDefault()),
+			zap.Float64("refillHighWaterMark", bucket.RefillHighWaterMarkOrDefault()))
 	}
 
 	var bytesPool pool.CheckedBytesPool
@@ -1248,9 +1274,9 @@ func withEncodingAndPoolingOptions(
 			l = l.With(zap.String("policy", string(*t)))
 		}
 
-		l.Info("bytes pool init")
+		l.Info("bytes pool init start")
 		bytesPool.Init()
-		l.Info("bytes pool init done")
+		l.Info("bytes pool init end")
 	}
 
 	segmentReaderPool := xio.NewSegmentReaderPool(
@@ -1272,7 +1298,7 @@ func withEncodingAndPoolingOptions(
 		policy.ContextPool,
 		scope.SubScope("context-pool"))
 
-	contextPool := context.NewPool(context.NewOptions().
+	contextPool := xcontext.NewPool(xcontext.NewOptions().
 		SetContextPoolOptions(contextPoolOpts).
 		SetFinalizerPoolOptions(closersPoolOpts))
 
@@ -1529,6 +1555,7 @@ func withEncodingAndPoolingOptions(
 func newAdminClient(
 	config client.Configuration,
 	iopts instrument.Options,
+	tchannelOpts *tchannel.ChannelOptions,
 	topologyInitializer topology.Initializer,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
 	origin topology.Host,
@@ -1536,6 +1563,7 @@ func newAdminClient(
 	schemaRegistry namespace.SchemaRegistry,
 	kvStore kv.Store,
 	logger *zap.Logger,
+	custom []client.CustomAdminOption,
 ) (client.AdminClient, error) {
 	if config.EnvironmentConfig != nil {
 		// If the user has provided an override for the dynamic client configuration
@@ -1543,11 +1571,10 @@ func newAdminClient(
 		topologyInitializer = nil
 	}
 
-	m3dbClient, err := config.NewAdminClient(
-		client.ConfigurationParameters{
-			InstrumentOptions: iopts.
-				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
-			TopologyInitializer: topologyInitializer,
+	// NB: append custom options coming from run options to existing options.
+	options := []client.CustomAdminOption{
+		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetChannelOptions(tchannelOpts).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
@@ -1567,6 +1594,16 @@ func newAdminClient(
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetSchemaRegistry(schemaRegistry).(client.AdminOptions)
 		},
+	}
+
+	options = append(options, custom...)
+	m3dbClient, err := config.NewAdminClient(
+		client.ConfigurationParameters{
+			InstrumentOptions: iopts.
+				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
+			TopologyInitializer: topologyInitializer,
+		},
+		options...,
 	)
 	if err != nil {
 		return nil, err
@@ -1672,7 +1709,7 @@ func hostSupportsHugeTLB() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("could not mmap anonymous region: %v", err)
 	}
-	defer mmap.Munmap(withHugeTLB.Result)
+	defer mmap.Munmap(withHugeTLB)
 
 	if withHugeTLB.Warning == nil {
 		// If there was no warning, then the host didn't complain about
@@ -1685,7 +1722,7 @@ func hostSupportsHugeTLB() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("could not mmap anonymous region: %v", err)
 	}
-	defer mmap.Munmap(withoutHugeTLB.Result)
+	defer mmap.Munmap(withoutHugeTLB)
 	if withoutHugeTLB.Warning == nil {
 		// The machine doesn't support HugeTLB, proceed without it
 		return false, nil
@@ -1708,4 +1745,109 @@ func (t *topoMapProvider) TopologyMap() (topology.Map, error) {
 	}
 
 	return t.t.Get(), nil
+}
+
+// Ensure mmap reporter implements mmap.Reporter
+var _ mmap.Reporter = (*mmapReporter)(nil)
+
+type mmapReporter struct {
+	sync.Mutex
+	scope   tally.Scope
+	entries map[string]*mmapReporterEntry
+}
+
+type mmapReporterEntry struct {
+	value int64
+	gauge tally.Gauge
+}
+
+func newMmapReporter(scope tally.Scope) *mmapReporter {
+	return &mmapReporter{
+		scope:   scope,
+		entries: make(map[string]*mmapReporterEntry),
+	}
+}
+
+func (r *mmapReporter) Run(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			r.Lock()
+			for _, r := range r.entries {
+				r.gauge.Update(float64(r.value))
+			}
+			r.Unlock()
+		}
+	}
+}
+
+func (r *mmapReporter) entryKeyAndTags(ctx mmap.Context) (string, map[string]string) {
+	numTags := 1
+	if ctx.Metadata != nil {
+		numTags += len(ctx.Metadata)
+	}
+
+	tags := make(map[string]string, numTags)
+	tags[mmapReporterTagName] = ctx.Name
+	if ctx.Metadata != nil {
+		for k, v := range ctx.Metadata {
+			tags[k] = v
+		}
+	}
+
+	entryKey := tally.KeyForStringMap(tags)
+	return entryKey, tags
+}
+
+func (r *mmapReporter) ReportMap(ctx mmap.Context) error {
+	if ctx.Name == "" {
+		return fmt.Errorf("report mmap map missing context name: %+v", ctx)
+	}
+
+	entryKey, entryTags := r.entryKeyAndTags(ctx)
+
+	r.Lock()
+	defer r.Unlock()
+
+	entry, ok := r.entries[entryKey]
+	if !ok {
+		entry = &mmapReporterEntry{
+			gauge: r.scope.Tagged(entryTags).Gauge(mmapReporterMetricName),
+		}
+		r.entries[entryKey] = entry
+	}
+
+	entry.value += ctx.Size
+
+	return nil
+}
+
+func (r *mmapReporter) ReportUnmap(ctx mmap.Context) error {
+	if ctx.Name == "" {
+		return fmt.Errorf("report mmap unmap missing context name: %+v", ctx)
+	}
+
+	entryKey, _ := r.entryKeyAndTags(ctx)
+
+	r.Lock()
+	defer r.Unlock()
+
+	entry, ok := r.entries[entryKey]
+	if !ok {
+		return fmt.Errorf("report mmap unmap missing entry for context: %+v", ctx)
+	}
+
+	entry.value -= ctx.Size
+
+	if entry.value == 0 {
+		// No more similar mmaps active for this context name, garbage collect
+		delete(r.entries, entryKey)
+	}
+
+	return nil
 }

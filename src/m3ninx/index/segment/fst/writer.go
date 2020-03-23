@@ -30,9 +30,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
-	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
-	pilosaroaring "github.com/m3db/pilosa/roaring"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -41,6 +39,7 @@ var (
 	defaultInitialPostingsOffsetsSize    = 1024
 	defaultInitialFSTTermsOffsetsSize    = 1024
 	defaultInitialDocOffsetsSize         = 1024
+	defaultInitialPostingsNeedsUnionSize = 1024
 	defaultInitialIntEncoderSize         = 128
 	defaultPilosaRoaringMaxContainerSize = 128
 )
@@ -66,8 +65,6 @@ type writer struct {
 
 	// only used by versions >= 1.1
 	fieldPostingsOffsets []uint64
-	fieldsPilosaBitmap   *pilosaroaring.Bitmap
-	fieldsPostingsList   postings.MutableList
 	fieldData            *fswriter.FieldData
 	fieldBuffer          proto.Buffer
 }
@@ -97,9 +94,6 @@ func newWriterWithVersion(opts WriterOptions, vers *Version) (Writer, error) {
 		return nil, err
 	}
 
-	bitmap := pilosaroaring.NewBitmapWithDefaultPooling(defaultPilosaRoaringMaxContainerSize)
-	pl := roaring.NewPostingsListFromBitmap(bitmap)
-
 	return &writer{
 		version:             v,
 		intEncoder:          encoding.NewEncoder(defaultInitialIntEncoderSize),
@@ -112,8 +106,6 @@ func newWriterWithVersion(opts WriterOptions, vers *Version) (Writer, error) {
 		termPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
 
 		fieldPostingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
-		fieldsPilosaBitmap:   bitmap,
-		fieldsPostingsList:   pl,
 		fieldData:            &fswriter.FieldData{},
 	}, nil
 }
@@ -138,8 +130,6 @@ func (w *writer) clear() {
 	w.termPostingsOffsets = w.termPostingsOffsets[:0]
 
 	w.fieldPostingsOffsets = w.fieldPostingsOffsets[:0]
-	w.fieldsPilosaBitmap.Reset()
-	w.fieldsPostingsList.Reset()
 	w.fieldData.Reset()
 	w.fieldBuffer.Reset()
 }
@@ -236,21 +226,20 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 	}
 
 	// retrieve known fields
-	fields, err := w.builder.Fields()
+	fields, err := w.builder.FieldsPostingsList()
 	if err != nil {
 		return err
 	}
 
 	// for each known field
 	for fields.Next() {
-		f := fields.Current()
+		f, fieldPostingsList := fields.Current()
 		// retrieve known terms for current field
 		terms, err := w.builder.Terms(f)
 		if err != nil {
 			return err
 		}
 
-		w.fieldsPostingsList.Reset()
 		// for each term corresponding to the current field
 		for terms.Next() {
 			_, pl := terms.Current()
@@ -263,18 +252,12 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 			currentOffset += n
 			// track current offset as the offset for the current field/term
 			w.termPostingsOffsets = append(w.termPostingsOffsets, currentOffset)
-
-			// update field level postings list
-			if writeFieldsPostingList {
-				if err := w.fieldsPostingsList.Union(pl); err != nil {
-					return err
-				}
-			}
 		}
 
 		// write the field level postings list
 		if writeFieldsPostingList {
-			n, err := writePL(w.fieldsPostingsList)
+			// Write the unioned postings list out.
+			n, err := writePL(fieldPostingsList)
 			if err != nil {
 				return err
 			}
@@ -316,7 +299,7 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 	)
 
 	// retrieve all known fields
-	fields, err := w.builder.Fields()
+	fields, err := w.builder.FieldsPostingsList()
 	if err != nil {
 		return err
 	}
@@ -329,7 +312,7 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 
 	// build a fst for each field's terms
 	for fields.Next() {
-		f := fields.Current()
+		f, _ := fields.Current()
 
 		// write fields level postings list if required
 		if writeFieldsPostingList {
@@ -452,14 +435,14 @@ func (w *writer) WriteFSTFields(iow io.Writer) error {
 	offsets := w.fstTermsOffsets
 
 	// retrieve all known fields
-	fields, err := w.builder.Fields()
+	fields, err := w.builder.FieldsPostingsList()
 	if err != nil {
 		return err
 	}
 
 	// insert each field into fst
 	for fields.Next() {
-		f := fields.Current()
+		f, _ := fields.Current()
 
 		// get offset for this field's term fst
 		if len(offsets) == 0 {

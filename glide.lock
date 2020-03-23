@@ -1,5 +1,5 @@
-hash: 89a085a5d24851860fc6d79e789853cc802bb65b89b412c36aeb5bf7e4a923f8
-updated: 2020-01-08T13:38:18.738124428-05:00
+hash: baed617ba8848f4267525e942246b21bc23c660894dee1eebc40b3910467e067
+updated: 2020-02-10T15:18:46.492669-05:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -411,6 +411,8 @@ imports:
   - suite
 - name: github.com/subosito/gotenv
   version: de67a6614a4de71ad5e380b6946e56ab957d58c5
+- name: github.com/twotwotwo/sorts
+  version: bf5c1f2b8553dec28372aa6ac5a8bf53a20a4c5b
 - name: github.com/uber-go/atomic
   version: 40ae6a40a970ef4cdbffa7b24b280e316db8accc
 - name: github.com/uber-go/tally

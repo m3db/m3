@@ -23,8 +23,10 @@ package m3db
 import (
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/pool"
@@ -73,9 +75,30 @@ type Options interface {
 	SetWriteWorkerPool(xsync.PooledWorkerPool) Options
 	// ReadWorkerPool returns the write worker pool for the converter.
 	WriteWorkerPool() xsync.PooledWorkerPool
+	// SetIteratorBatchingFn sets the batching function for the converter.
+	SetIteratorBatchingFn(IteratorBatchingFn) Options
+	// IteratorBatchingFn returns the batching function for the converter.
+	IteratorBatchingFn() IteratorBatchingFn
+	// SetCustomAdminOptions sets custom admin options.
+	SetCustomAdminOptions([]client.CustomAdminOption) Options
+	// CustomAdminOptions gets custom admin options.
+	CustomAdminOptions() []client.CustomAdminOption
+	// SetInstrumented marks if the encoding step should have instrumentation enabled.
+	SetInstrumented(bool) Options
+	// Instrumented returns if the encoding step should have instrumentation enabled.
+	Instrumented() bool
 	// Validate ensures that the given block options are valid.
 	Validate() error
 }
+
+// IteratorBatchingFn determines how the iterator is split into batches.
+type IteratorBatchingFn func(
+	concurrency int,
+	seriesBlockIterators []encoding.SeriesIterator,
+	seriesMetas []block.SeriesMeta,
+	meta block.Metadata,
+	opts Options,
+) ([]block.SeriesIterBatch, error)
 
 type peekValue struct {
 	started  bool

@@ -22,6 +22,7 @@ package aggregation
 
 import (
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 )
@@ -47,7 +48,7 @@ func NewCounter(opts Options) Counter {
 }
 
 // Update updates the counter value.
-func (c *Counter) Update(value int64) {
+func (c *Counter) Update(timestamp time.Time, value int64) {
 	c.sum += value
 
 	c.count++

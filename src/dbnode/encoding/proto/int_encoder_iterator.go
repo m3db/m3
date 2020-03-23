@@ -224,7 +224,7 @@ func (eit *intEncoderAndIterator) readIntValDiff(stream encoding.IStream) error 
 			itErrPrefix, err)
 	}
 
-	numSig := int(eit.intSigBitsTracker.NumSig)
+	numSig := uint(eit.intSigBitsTracker.NumSig)
 	diffSigBits, err := stream.ReadBits(numSig)
 	if err != nil {
 		return fmt.Errorf(
