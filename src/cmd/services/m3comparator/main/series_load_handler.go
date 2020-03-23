@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -171,10 +171,6 @@ func (l *seriesLoadHandler) serveHTTP(r *http.Request) error {
 		if series.End.IsZero() || series.End.Before(start) {
 			end = series.End
 		}
-	}
-
-	if l.nameIDSeriesMap == nil {
-		l.nameIDSeriesMap = make(nameIDSeriesMap, len(series))
 	}
 
 	name := string(l.iterOpts.tagOptions.MetricName())

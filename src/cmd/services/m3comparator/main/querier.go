@@ -117,6 +117,7 @@ func (q *querier) FetchCompressed(
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(name, matcher.Name) {
 			iters = q.handler.getSeriesIterators(string(matcher.Value))
+			break
 		}
 	}
 

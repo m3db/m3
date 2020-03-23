@@ -34,6 +34,7 @@ type ParseFunctionExpr func(
 	argValues []interface{},
 	stringValues []string,
 	hasArgValue bool,
+	inner string,
 	tagOptions models.TagOptions,
 ) (parser.Params, bool, error)
 
