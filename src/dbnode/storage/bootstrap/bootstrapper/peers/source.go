@@ -804,7 +804,7 @@ func (s *peersSource) processReaders(
 		zap.String("remainingRanges", remainingRanges.SummaryString()),
 	}
 	if shouldPersist {
-		s.log.Info("building file set index segment", buildIndexLogFields...)
+		s.log.Debug("building file set index segment", buildIndexLogFields...)
 		if err := bootstrapper.PersistBootstrapIndexSegment(
 			ns,
 			requestedRanges,
