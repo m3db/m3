@@ -37,8 +37,6 @@ const sep rune = '!'
 const tagSep rune = '.'
 
 type iteratorOptions struct {
-	blockSize     time.Duration
-	start         time.Time
 	encoderPool   encoding.EncoderPool
 	iteratorPools encoding.IteratorPools
 	tagOptions    models.TagOptions
@@ -51,6 +49,7 @@ var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterat
 func buildBlockReader(
 	block seriesBlock,
 	start time.Time,
+	blockSize time.Duration,
 	opts iteratorOptions,
 ) ([]xio.BlockReader, error) {
 	encoder := opts.encoderPool.Get()
@@ -65,10 +64,10 @@ func buildBlockReader(
 
 	segment := encoder.Discard()
 	return []xio.BlockReader{
-		xio.BlockReader{
+		{
 			SegmentReader: xio.NewSegmentReader(segment),
 			Start:         start,
-			BlockSize:     opts.blockSize,
+			BlockSize:     blockSize,
 		},
 	}, nil
 }
@@ -97,23 +96,24 @@ func buildTagIteratorAndID(
 
 func buildSeriesIterator(
 	series series,
+	start time.Time,
+	blockSize time.Duration,
 	opts iteratorOptions,
 ) (encoding.SeriesIterator, error) {
 	var (
 		blocks  = series.blocks
 		tags    = series.tags
 		readers = make([][]xio.BlockReader, 0, len(blocks))
-		start   = opts.start
 	)
 
 	for _, block := range blocks {
-		seriesBlock, err := buildBlockReader(block, start, opts)
+		seriesBlock, err := buildBlockReader(block, start, blockSize, opts)
 		if err != nil {
 			return nil, err
 		}
 
 		readers = append(readers, seriesBlock)
-		start = start.Add(opts.blockSize)
+		start = start.Add(blockSize)
 	}
 
 	multiReader := encoding.NewMultiReaderIterator(
@@ -124,7 +124,7 @@ func buildSeriesIterator(
 	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
 	multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
 
-	end := opts.start.Add(opts.blockSize)
+	end := start.Add(blockSize)
 	if len(blocks) > 0 {
 		lastBlock := blocks[len(blocks)-1]
 		end = lastBlock[len(lastBlock)-1].Timestamp
@@ -136,7 +136,7 @@ func buildSeriesIterator(
 				ID:             id,
 				Namespace:      ident.StringID("ns"),
 				Tags:           tagIter,
-				StartInclusive: xtime.ToUnixNano(opts.start),
+				StartInclusive: xtime.ToUnixNano(start),
 				EndExclusive:   xtime.ToUnixNano(end),
 				Replicas: []encoding.MultiReaderIterator{
 					multiReader,
@@ -147,11 +147,13 @@ func buildSeriesIterator(
 
 func buildSeriesIterators(
 	series []series,
+	start time.Time,
+	blockSize time.Duration,
 	opts iteratorOptions,
 ) (encoding.SeriesIterators, error) {
 	iters := make([]encoding.SeriesIterator, 0, len(series))
 	for _, s := range series {
-		iter, err := buildSeriesIterator(s, opts)
+		iter, err := buildSeriesIterator(s, start, blockSize, opts)
 		if err != nil {
 			return nil, err
 		}

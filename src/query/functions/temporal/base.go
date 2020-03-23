@@ -248,7 +248,8 @@ func parallelProcess(
 
 		// Simulate as if we did all the decoding up front so we can visualize
 		// how much decoding takes relative to the entire processing of the function.
-		_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeParallel, opentracing.StartTime(start))
+		_, sp, _ := xcontext.StartSampledTraceSpan(ctx,
+			tracepoint.TemporalDecodeParallel, opentracing.StartTime(start))
 		sp.FinishWithOptions(opentracing.FinishOptions{
 			FinishTime: start.Add(decodeDuration),
 		})
@@ -323,7 +324,8 @@ func singleProcess(
 		}
 		// Simulate as if we did all the decoding up front so we can visualize
 		// how much decoding takes relative to the entire processing of the function.
-		_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeSingle, opentracing.StartTime(start))
+		_, sp, _ := xcontext.StartSampledTraceSpan(ctx,
+			tracepoint.TemporalDecodeSingle, opentracing.StartTime(start))
 		sp.FinishWithOptions(opentracing.FinishOptions{
 			FinishTime: start.Add(decodeDuration),
 		})

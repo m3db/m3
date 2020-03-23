@@ -49,12 +49,16 @@ func main() {
 	)
 
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Now(), nil, true, encoding.NewOptions())
+		return m3tsz.NewEncoder(time.Time{}, nil, true, encoding.NewOptions())
 	})
 
+	tagOptions := models.NewTagOptions()
 	querier := &querier{
-		encoderPool:   encoderPool,
-		iteratorPools: iterPools,
+		opts: iteratorOptions{
+			encoderPool:   encoderPool,
+			iteratorPools: iterPools,
+			tagOptions:    tagOptions,
+		},
 	}
 
 	server := remote.NewGRPCServer(
