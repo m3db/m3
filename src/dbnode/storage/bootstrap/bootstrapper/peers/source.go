@@ -869,7 +869,7 @@ func (s *peersSource) processReaders(
 		}
 	}
 
-	// Replace index block for default index volume type
+	// Replace index block for default index volume type.
 	r.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = indexBlock
 
 	// Return readers to pool.

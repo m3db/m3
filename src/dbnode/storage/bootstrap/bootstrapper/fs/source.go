@@ -551,7 +551,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				})
 			}
 		}
-		// Replace index block for default index volume type
+		// Replace index block for default index volume type.
 		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = indexBlock
 
 	}
