@@ -486,6 +486,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 		}
 
+		// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
 		indexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
 		if !ok {
 			err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
@@ -506,8 +507,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
 		if shouldFlush && satisifiedFlushRanges {
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
-			// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
-			// RETURN INDEX BLOCK HERE AND ADD TO RESULTS
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,

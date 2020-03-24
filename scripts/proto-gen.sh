@@ -22,7 +22,6 @@ for i in "${GOPATH}/src/${PROTO_SRC}"/*; do
 		continue
 	fi
 
-
 	if ls $i/*.proto > /dev/null 2>&1; then
 		proto_files=$(ls $i/*.proto | sed -e "s@${GOPATH}@@g")
 		echo "generating from ${proto_files}"
