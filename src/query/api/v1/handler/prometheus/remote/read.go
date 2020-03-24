@@ -124,7 +124,11 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	readResult, err := h.read(ctx, w, req, timeout, fetchOpts)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		logger.Error("unable to fetch data", zap.Error(err))
+		logger.Error("remote read query error",
+			zap.Error(err),
+			zap.Any("req", req),
+			zap.Duration("timeout", timeout),
+			zap.Any("fetchOpts", fetchOpts))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
