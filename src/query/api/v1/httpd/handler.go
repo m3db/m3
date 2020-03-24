@@ -22,7 +22,6 @@ package httpd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
@@ -121,15 +120,11 @@ func NewHandler(
 
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
 
-	var timeoutOpts = &prometheus.TimeoutOpts{}
-	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
-		timeoutOpts.FetchTimeout = defaultTimeout
-	} else {
-		if *embeddedDbCfg.Client.FetchTimeout <= 0 {
-			return nil, errors.New("m3db client fetch timeout should be > 0")
-		}
-
-		timeoutOpts.FetchTimeout = *embeddedDbCfg.Client.FetchTimeout
+	timeout := cfg.Query.TimeoutOrDefault()
+	if embeddedDbCfg != nil &&
+		embeddedDbCfg.Client.FetchTimeout != nil &&
+		*embeddedDbCfg.Client.FetchTimeout > timeout {
+		timeout = *embeddedDbCfg.Client.FetchTimeout
 	}
 
 	return &Handler{
@@ -144,7 +139,6 @@ func NewHandler(
 		embeddedDbCfg:         embeddedDbCfg,
 		createdAt:             time.Now(),
 		tagOptions:            tagOptions,
-		timeoutOpts:           timeoutOpts,
 		enforcer:              enforcer,
 		fetchOptionsBuilder:   fetchOptionsBuilder,
 		queryContextOptions:   queryContextOptions,
@@ -152,6 +146,9 @@ func NewHandler(
 		cpuProfileDuration:    cpuProfileDuration,
 		placementServiceNames: placementServiceNames,
 		serviceOptionDefaults: serviceOptionDefaults,
+		timeoutOpts: &prometheus.TimeoutOpts{
+			FetchTimeout: timeout,
+		},
 	}, nil
 }
 
