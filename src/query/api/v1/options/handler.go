@@ -190,17 +190,11 @@ func NewHandlerOptions(
 	placementServiceNames []string,
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
 ) (HandlerOptions, error) {
-	var timeoutOpts = &prometheus.TimeoutOpts{}
-	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
-		timeoutOpts.FetchTimeout = defaultTimeout
-	} else {
-		timeout := *embeddedDbCfg.Client.FetchTimeout
-		if timeout <= 0 {
-			return nil,
-				fmt.Errorf("m3db client fetch timeout should be > 0, is %d", timeout)
-		}
-
-		timeoutOpts.FetchTimeout = timeout
+	timeout := cfg.Query.TimeoutOrDefault()
+	if embeddedDbCfg != nil 
+		&& embeddedDbCfg.Client.FetchTimeout != nil 
+		&& *embeddedDbCfg.Client.FetchTimeout > timeout {
+		timeout = *embeddedDbCfg.Client.FetchTimeout
 	}
 
 	return &handlerOptions{
@@ -213,7 +207,6 @@ func NewHandlerOptions(
 		embeddedDbCfg:         embeddedDbCfg,
 		createdAt:             time.Now(),
 		tagOptions:            tagOptions,
-		timeoutOpts:           timeoutOpts,
 		enforcer:              enforcer,
 		fetchOptionsBuilder:   fetchOptionsBuilder,
 		queryContextOptions:   queryContextOptions,
@@ -222,6 +215,9 @@ func NewHandlerOptions(
 		placementServiceNames: placementServiceNames,
 		serviceOptionDefaults: serviceOptionDefaults,
 		nowFn:                 time.Now,
+		timeoutOpts:           &prometheus.TimeoutOpts{
+			FetchTimeout: timeout,
+		},
 	}, nil
 }
 
