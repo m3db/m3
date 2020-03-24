@@ -796,8 +796,28 @@ func (s *peersSource) processReaders(
 
 	// Only persist to disk if the requested ranges were completely fulfilled.
 	// Otherwise, this is the latest index segment and should only exist in mem.
-	shouldPersist := remainingRanges.IsEmpty()
-	min, max := requestedRanges.MinMax()
+	var (
+		iopts          = s.opts.ResultOptions().InstrumentOptions()
+		shouldPersist  = remainingRanges.IsEmpty()
+		min, max       = requestedRanges.MinMax()
+		indexBlockSize = ns.Options().IndexOptions().BlockSize()
+		blockStart     = min.Truncate(indexBlockSize)
+		blockEnd       = blockStart.Add(indexBlockSize)
+		err            error
+	)
+
+	indexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(r.IndexResults(), blockStart)
+	if !ok {
+		err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
+			blockStart.String(), blockStart.UnixNano())
+		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+			l.Error("peers bootstrap failed",
+				zap.Error(err),
+				zap.Stringer("namespace", ns.ID()),
+				zap.Stringer("requestedRanges", requestedRanges))
+		})
+	}
+
 	buildIndexLogFields := []zapcore.Field{
 		zap.Bool("shouldPersist", shouldPersist),
 		zap.Int("totalEntries", totalEntries),
@@ -807,15 +827,17 @@ func (s *peersSource) processReaders(
 	}
 	if shouldPersist {
 		s.log.Debug("building file set index segment", buildIndexLogFields...)
-		if err := bootstrapper.PersistBootstrapIndexSegment(
+		indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 			ns,
 			requestedRanges,
-			r.IndexResults(),
+			indexBlock,
 			s.builder.Builder(),
 			s.persistManager,
 			s.opts.ResultOptions(),
-		); err != nil {
-			iopts := s.opts.ResultOptions().InstrumentOptions()
+			blockStart,
+			blockEnd,
+		)
+		if err != nil {
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("persist fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
@@ -825,15 +847,18 @@ func (s *peersSource) processReaders(
 		}
 	} else {
 		s.log.Info("building in-memory index segment", buildIndexLogFields...)
-		if err := bootstrapper.BuildBootstrapIndexSegment(
+		indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 			ns,
 			requestedRanges,
-			r.IndexResults(),
+			indexBlock,
 			s.builder.Builder(),
 			s.compactor,
 			s.opts.ResultOptions(),
 			s.opts.IndexOptions().MmapReporter(),
-		); err != nil {
+			blockStart,
+			blockEnd,
+		)
+		if err != nil {
 			iopts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("build fs index bootstrap failed",
@@ -843,6 +868,9 @@ func (s *peersSource) processReaders(
 			})
 		}
 	}
+
+	// Replace index block for default index volume type
+	r.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = indexBlock
 
 	// Return readers to pool.
 	for _, shardReaders := range timeWindowReaders.Readers {

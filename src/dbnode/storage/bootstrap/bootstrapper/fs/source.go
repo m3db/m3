@@ -459,7 +459,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 			overlapsWithInitalIndexRange = false
 			min, max                     = requestedRanges.MinMax()
+			blockStart                   = min.Truncate(indexBlockSize)
+			blockEnd                     = blockStart.Add(indexBlockSize)
 			iopts                        = s.opts.ResultOptions().InstrumentOptions()
+			err                          error
 		)
 		for _, remainingRange := range remainingRanges.Iter() {
 			if remainingRange.Overlaps(initialIndexRange) {
@@ -483,6 +486,18 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
 		}
 
+		indexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
+		if !ok {
+			err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
+				blockStart.String(), blockStart.UnixNano())
+			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+				l.Error("index bootstrap failed",
+					zap.Error(err),
+					zap.Stringer("namespace", ns.ID()),
+					zap.Stringer("requestedRanges", requestedRanges))
+			})
+		}
+
 		// Determine if should flush data for range.
 		persistCfg := runOpts.PersistConfig()
 		shouldFlush := persistCfg.Enabled &&
@@ -491,14 +506,19 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
 		if shouldFlush && satisifiedFlushRanges {
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
-			if err := bootstrapper.PersistBootstrapIndexSegment(
+			// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
+			// RETURN INDEX BLOCK HERE AND ADD TO RESULTS
+			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
-				runResult.index.IndexResults(),
+				indexBlock,
 				s.builder.Builder(),
 				s.persistManager,
 				s.opts.ResultOptions(),
-			); err != nil {
+				blockStart,
+				blockEnd,
+			)
+			if err != nil {
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("persist fs index bootstrap failed",
 						zap.Error(err),
@@ -510,15 +530,18 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			s.metrics.persistedIndexBlocksWrite.Inc(1)
 		} else {
 			s.log.Info("building in-memory index segment", buildIndexLogFields...)
-			if err := bootstrapper.BuildBootstrapIndexSegment(
+			indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 				ns,
 				requestedRanges,
-				runResult.index.IndexResults(),
+				indexBlock,
 				s.builder.Builder(),
 				s.compactor,
 				s.opts.ResultOptions(),
 				s.opts.FilesystemOptions().MmapReporter(),
-			); err != nil {
+				blockStart,
+				blockEnd,
+			)
+			if err != nil {
 				iopts := s.opts.ResultOptions().InstrumentOptions()
 				instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 					l.Error("build fs index bootstrap failed",
@@ -528,6 +551,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				})
 			}
 		}
+		// Replace index block for default index volume type
+		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = indexBlock
+
 	}
 
 	// Return readers to pool.

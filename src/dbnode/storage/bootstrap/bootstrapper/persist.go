@@ -57,23 +57,22 @@ type SharedCompactor struct {
 func PersistBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
-	indexResults result.IndexResults,
+	indexBlock result.IndexBlock,
 	builder segment.DocumentsBuilder,
 	persistManager *SharedPersistManager,
 	resultOpts result.Options,
-) error {
+	blockStart time.Time,
+	blockEnd time.Time,
+) (result.IndexBlock, error) {
 	// No-op if there are no documents that need to be written for this time block (nothing to persist).
 	if len(builder.Docs()) == 0 {
-		return nil
+		return indexBlock, nil
 	}
 
 	// If we're performing an index run with persistence enabled
 	// determine if we covered a full block exactly (which should
 	// occur since we always group readers by block size).
-	min, max := requestedRanges.MinMax()
-	blockSize := ns.Options().IndexOptions().BlockSize()
-	blockStart := min.Truncate(blockSize)
-	blockEnd := blockStart.Add(blockSize)
+	_, max := requestedRanges.MinMax()
 	expectedRangeStart, expectedRangeEnd := blockStart, blockEnd
 
 	// Index blocks can be arbitrarily larger than data blocks, but the
@@ -108,38 +107,21 @@ func PersistBootstrapIndexSegment(
 		}))
 	}
 
-	indexBlockByVolumeType, ok := indexResults[xtime.ToUnixNano(blockStart)]
-	if !ok {
-		// NB(bodu): We currently write empty data files to disk, which means that we can attempt to bootstrap
-		// time ranges that have no data and no index block.
-		// For example:
-		// - peers data bootstrap from peer nodes receives peer blocks w/ no data (empty)
-		// - peers data bootstrap writes empty ts data files to disk
-		// - peers index bootstrap reads empty ts data files md from disk
-		// - attempt to bootstrap time ranges that have no index results block
-		return fmt.Errorf("could not find index block in results: time=%s, ts=%d",
-			blockStart.String(), blockStart.UnixNano())
+	indexBlock, err := persistBootstrapIndexSegment(
+		ns,
+		shards,
+		builder,
+		persistManager,
+		indexBlock,
+		requestedRanges,
+		expectedRanges,
+		blockStart,
+		max,
+	)
+	if err != nil {
+		return indexBlock, err
 	}
-
-	for volumeType, indexBlock := range indexBlockByVolumeType.Data {
-		if err := persistBootstrapIndexSegment(
-			ns,
-			shards,
-			builder,
-			persistManager,
-			volumeType,
-			indexBlock,
-			indexResults,
-			requestedRanges,
-			expectedRanges,
-			blockStart,
-			blockSize,
-			max,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
+	return indexBlock, nil
 }
 
 func persistBootstrapIndexSegment(
@@ -147,49 +129,22 @@ func persistBootstrapIndexSegment(
 	shards map[uint32]struct{},
 	builder segment.DocumentsBuilder,
 	persistManager *SharedPersistManager,
-	volumeType idxpersist.IndexVolumeType,
 	indexBlock result.IndexBlock,
-	indexResults result.IndexResults,
 	requestedRanges result.ShardTimeRanges,
 	expectedRanges result.ShardTimeRanges,
 	blockStart time.Time,
-	blockSize time.Duration,
 	max time.Time,
-) error {
-	var (
-		fulfilled         = indexBlock.Fulfilled()
-		persistedSegments []segment.Segment
-		success           bool
-	)
-	defer func() {
-		if !success {
-			return
-		}
-
-		// Combine persisted  and existing segments.
-		segments := make([]segment.Segment, 0, len(persistedSegments))
-		for _, pSeg := range persistedSegments {
-			segments = append(segments, NewSegment(pSeg, true))
-		}
-		for _, seg := range indexBlock.Segments() {
-			segments = append(segments, seg)
-		}
-
-		// Now replace the active segment with the persisted segment.
-		newFulfilled := fulfilled.Copy()
-		newFulfilled.AddRanges(expectedRanges)
-		replacedBlock := result.NewIndexBlock(segments, newFulfilled)
-		indexResults[xtime.ToUnixNano(blockStart)].Data[volumeType] = replacedBlock
-	}()
+) (result.IndexBlock, error) {
+	fulfilled := indexBlock.Fulfilled()
 
 	// Check that we completely fulfilled all shards for the block
 	// and we didn't bootstrap any more/less than expected.
 	requireFulfilled := expectedRanges.Copy()
 	requireFulfilled.Subtract(fulfilled)
-	exactStartEnd := max.Equal(blockStart.Add(blockSize))
+	exactStartEnd := max.Equal(blockStart.Add(ns.Options().IndexOptions().BlockSize()))
 	log.Println("!exactStartEnd:", !exactStartEnd, "!requireFulfilled.IsEmpty():", !requireFulfilled.IsEmpty())
 	if !exactStartEnd || !requireFulfilled.IsEmpty() {
-		return fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
+		return indexBlock, fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
 			"expected=%v, actual=%v, fulfilled=%v, exactStartEnd=%v, requireFulfilledEmpty=%v",
 			expectedRanges.String(), requestedRanges.String(), fulfilled.String(),
 			exactStartEnd, requireFulfilled.IsEmpty())
@@ -203,7 +158,7 @@ func persistBootstrapIndexSegment(
 
 	flush, err := persistManager.Mgr.StartIndexPersist()
 	if err != nil {
-		return err
+		return indexBlock, err
 	}
 
 	var calledDone bool
@@ -218,10 +173,11 @@ func persistBootstrapIndexSegment(
 		BlockStart:        blockStart,
 		FileSetType:       persist.FileSetFlushType,
 		Shards:            shards,
-		IndexVolumeType:   volumeType,
+		// NB(bodu): Assume default volume type when persisted bootstrapped index data.
+		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
 	})
 	if err != nil {
-		return err
+		return indexBlock, err
 	}
 
 	var calledClose bool
@@ -232,47 +188,55 @@ func persistBootstrapIndexSegment(
 	}()
 
 	if err := preparedPersist.Persist(builder); err != nil {
-		return err
+		return indexBlock, err
 	}
 
 	calledClose = true
-	persistedSegments, err = preparedPersist.Close()
+	persistedSegments, err := preparedPersist.Close()
 	if err != nil {
-		return err
+		return indexBlock, err
 	}
 
 	calledDone = true
 	if err := flush.DoneIndex(); err != nil {
-		return err
+		return indexBlock, err
+	}
+	// Combine persisted  and existing segments.
+	segments := make([]segment.Segment, 0, len(persistedSegments))
+	for _, pSeg := range persistedSegments {
+		segments = append(segments, NewSegment(pSeg, true))
+	}
+	for _, seg := range indexBlock.Segments() {
+		segments = append(segments, seg)
 	}
 
-	// Indicate the defer above should merge newly built segments w/ existing.
-	success = true
-	return nil
+	// Now replace the active segment with the persisted segment.
+	newFulfilled := fulfilled.Copy()
+	newFulfilled.AddRanges(expectedRanges)
+
+	return result.NewIndexBlock(segments, newFulfilled), nil
 }
 
 // BuildBootstrapIndexSegment is a helper function that builds (in memory) bootstrapped index segments for a ns -> block of time.
 func BuildBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
-	indexResults result.IndexResults,
+	indexBlock result.IndexBlock,
 	builder segment.DocumentsBuilder,
 	compactor *SharedCompactor,
 	resultOpts result.Options,
 	mmapReporter mmap.Reporter,
-) error {
+	blockStart time.Time,
+	blockEnd time.Time,
+) (result.IndexBlock, error) {
 	// No-op if there are no documents that need to be written for this time block (nothing to persist).
 	if len(builder.Docs()) == 0 {
-		return nil
+		return indexBlock, nil
 	}
 
 	// If we're performing an index run with persistence enabled
 	// determine if we covered a full block exactly (which should
 	// occur since we always group readers by block size).
-	min, _ := requestedRanges.MinMax()
-	blockSize := ns.Options().IndexOptions().BlockSize()
-	blockStart := min.Truncate(blockSize)
-	blockEnd := blockStart.Add(blockSize)
 	expectedRangeStart, expectedRangeEnd := blockStart, blockEnd
 
 	// Index blocks can be arbitrarily larger than data blocks, but the
@@ -305,19 +269,6 @@ func BuildBootstrapIndexSegment(
 		}))
 	}
 
-	indexBlockByVolumeType, ok := indexResults[xtime.ToUnixNano(blockStart)]
-	if !ok {
-		// NB(bodu): We currently write empty data files to disk, which means that we can attempt to bootstrap
-		// time ranges that have no data and no index block.
-		// For example:
-		// - peers data bootstrap from peer nodes receives peer blocks w/ no data (empty)
-		// - peers data bootstrap writes empty ts data files to disk
-		// - peers index bootstrap reads empty ts data files md from disk
-		// - attempt to bootstrap time ranges that have no index results block
-		return fmt.Errorf("could not find index block in results: time=%s, ts=%d",
-			blockStart.String(), blockStart.UnixNano())
-	}
-
 	compactor.Lock()
 	defer compactor.Unlock()
 	seg, err := compactor.Compactor.CompactUsingBuilder(builder, nil, mmap.ReporterOptions{
@@ -327,20 +278,40 @@ func BuildBootstrapIndexSegment(
 		Reporter: mmapReporter,
 	})
 	if err != nil {
-		return err
+		return indexBlock, err
 	}
 
-	for volumeType, indexBlock := range indexBlockByVolumeType.Data {
-		segments := []segment.Segment{NewSegment(seg, false)}
-		for _, seg := range indexBlock.Segments() {
-			segments = append(segments, seg)
-		}
-
-		// Now replace the active segment with the built segment.
-		newFulfilled := indexBlock.Fulfilled().Copy()
-		newFulfilled.AddRanges(expectedRanges)
-		replacedBlock := result.NewIndexBlock(segments, newFulfilled)
-		indexResults[xtime.ToUnixNano(blockStart)].Data[volumeType] = replacedBlock
+	segments := []segment.Segment{NewSegment(seg, false)}
+	for _, seg := range indexBlock.Segments() {
+		segments = append(segments, seg)
 	}
-	return nil
+
+	// Now replace the active segment with the built segment.
+	newFulfilled := indexBlock.Fulfilled().Copy()
+	newFulfilled.AddRanges(expectedRanges)
+
+	return result.NewIndexBlock(segments, newFulfilled), nil
+}
+
+// GetDefaultIndexBlockForBlockStart gets the index block for the default volume type from the index results.
+func GetDefaultIndexBlockForBlockStart(
+	results result.IndexResults,
+	blockStart time.Time,
+) (result.IndexBlock, bool) {
+	indexBlockByVolumeType, ok := results[xtime.ToUnixNano(blockStart)]
+	if !ok {
+		// NB(bodu): We currently write empty data files to disk, which means that we can attempt to bootstrap
+		// time ranges that have no data and no index block.
+		// For example:
+		// - peers data bootstrap from peer nodes receives peer blocks w/ no data (empty)
+		// - peers data bootstrap writes empty ts data files to disk
+		// - peers index bootstrap reads empty ts data files md from disk
+		// - attempt to bootstrap time ranges that have no index results block
+		return result.IndexBlock{}, false
+	}
+	indexBlock, ok := indexBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	if !ok {
+		return result.IndexBlock{}, false
+	}
+	return indexBlock, true
 }
