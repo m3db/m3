@@ -121,7 +121,7 @@ func (q *querier) FetchCompressed(
 		}
 	}
 
-	if iters == nil {
+	if iters == nil || iters.Len() == 0 {
 		iters, err = q.genIters(query)
 		if err != nil {
 			return m3.SeriesFetchResult{}, noop, err

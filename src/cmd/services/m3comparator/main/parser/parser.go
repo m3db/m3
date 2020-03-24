@@ -49,8 +49,8 @@ type Datapoint struct {
 	Timestamp time.Time `json:"ts"`
 }
 
-// GetOrGenID gets the ID for this result.
-func (r *Series) GetOrGenID() string {
+// IDOrGenID gets the ID for this result.
+func (r *Series) IDOrGenID() string {
 	if len(r.id) == 0 {
 		tags := make(sort.StringSlice, len(r.Tags))
 		for k, v := range r.Tags {

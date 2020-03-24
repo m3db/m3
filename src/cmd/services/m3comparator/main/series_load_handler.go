@@ -22,6 +22,7 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
@@ -75,8 +76,7 @@ func (l *seriesLoadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (l *seriesLoadHandler) getSeriesIterators(
-	name string,
-) encoding.SeriesIterators {
+	name string) encoding.SeriesIterators {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -90,9 +90,8 @@ func (l *seriesLoadHandler) getSeriesIterators(
 	for _, series := range seriesMap.series {
 		encoder := l.iterOpts.encoderPool.Get()
 		dps := series.Datapoints
-		encoder.Reset(time.Time{}, len(dps), nil)
+		encoder.Reset(time.Now(), len(dps), nil)
 		for _, dp := range dps {
-
 			err := encoder.Encode(ts.Datapoint{
 				Timestamp:      dp.Timestamp,
 				Value:          dp.Value,
@@ -119,8 +118,9 @@ func (l *seriesLoadHandler) getSeriesIterators(
 
 		sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
 		multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
+
 		tagIter, id := buildTagIteratorAndID(tagMap(series.Tags), l.iterOpts.tagOptions)
-		iters = append(iters, encoding.NewSeriesIterator(
+		iter := encoding.NewSeriesIterator(
 			encoding.SeriesIteratorOptions{
 				ID:             id,
 				Namespace:      ident.StringID("ns"),
@@ -130,7 +130,9 @@ func (l *seriesLoadHandler) getSeriesIterators(
 				Replicas: []encoding.MultiReaderIterator{
 					multiReader,
 				},
-			}, nil))
+			}, nil)
+
+		iters = append(iters, iter)
 	}
 
 	return encoding.NewSeriesIterators(
@@ -139,58 +141,93 @@ func (l *seriesLoadHandler) getSeriesIterators(
 	)
 }
 
+func calculateSeriesRange(seriesList []parser.Series) (time.Time, time.Time) {
+	// NB: keep consistent start/end for the entire ingested set.
+	//
+	// Try taking from set start/end; infer from first/last endpoint otherwise.
+	start, end := time.Time{}, time.Time{}
+	for _, series := range seriesList {
+		if start.IsZero() || series.Start.Before(start) {
+			start = series.Start
+		}
+
+		if end.IsZero() || series.End.Before(start) {
+			end = series.End
+		}
+	}
+
+	if !start.IsZero() && !end.IsZero() {
+		return start, end
+	}
+
+	for _, series := range seriesList {
+		dps := series.Datapoints
+		if len(dps) == 0 {
+			continue
+		}
+
+		first, last := dps[0].Timestamp, dps[len(dps)-1].Timestamp
+		if start.IsZero() || first.Before(start) {
+			start = first
+		}
+
+		if end.IsZero() || last.Before(start) {
+			end = last
+		}
+	}
+
+	return start, end
+}
+
 func (l *seriesLoadHandler) serveHTTP(r *http.Request) error {
 	l.Lock()
 	defer l.Unlock()
 
 	logger := l.iterOpts.iOpts.Logger()
-	if err := r.ParseForm(); err != nil {
+	body := r.Body
+	defer body.Close()
+	buf, err := ioutil.ReadAll(body)
+	if err != nil {
+		logger.Error("could not read body", zap.Error(err))
 		return err
 	}
 
-	series := r.Form["series"]
-	if len(series) != 1 {
-		logger.Info("wrong length in series")
-		return nil
-	}
-
-	buf := []byte(series[0])
 	seriesList := make([]parser.Series, 0, 10)
-	if err := json.Unmarshal(buf, &series); err != nil {
+	if err := json.Unmarshal(buf, &seriesList); err != nil {
 		logger.Error("could not unmarshal queries", zap.Error(err))
 		return err
 	}
 
 	// NB: keep consistent start/end for the entire ingested set.
-	start, end := time.Time{}, time.Time{}
-	for _, series := range seriesList {
-		if series.Start.IsZero() || series.Start.Before(start) {
-			start = series.Start
-		}
-
-		if series.End.IsZero() || series.End.Before(start) {
-			end = series.End
-		}
-	}
-
+	start, end := calculateSeriesRange(seriesList)
 	name := string(l.iterOpts.tagOptions.MetricName())
+	nameMap := make(nameIDSeriesMap, len(seriesList))
 	for _, series := range seriesList {
 		name, found := series.Tags[name]
 		if !found || len(series.Datapoints) == 0 {
 			continue
 		}
 
-		// NB: overwrite existing series here.
-		seriesMap := idSeriesMap{
-			series: make(map[string]parser.Series, len(seriesList)),
+		seriesMap, found := nameMap[name]
+		if !found {
+			seriesMap = idSeriesMap{
+				series: make(map[string]parser.Series, len(seriesList)),
+			}
 		}
-		id := series.GetOrGenID()
+
+		id := series.IDOrGenID()
 		logger.Info("setting series",
 			zap.String("name", name), zap.String("id", id))
 
 		series.Start = start
 		series.End = end
 		seriesMap.series[id] = series
+		nameMap[name] = seriesMap
+	}
+
+	for k, v := range nameMap {
+		// NB: overwrite existing series.
+		l.nameIDSeriesMap[k] = v
 	}
 
 	return nil

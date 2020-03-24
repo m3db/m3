@@ -55,7 +55,7 @@ func buildBlockReader(
 	opts iteratorOptions,
 ) ([]xio.BlockReader, error) {
 	encoder := opts.encoderPool.Get()
-	encoder.Reset(start, len(block), nil)
+	encoder.Reset(time.Now(), len(block), nil)
 	for _, dp := range block {
 		err := encoder.Encode(dp, xtime.Second, nil)
 		if err != nil {
