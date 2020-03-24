@@ -39,7 +39,7 @@ import (
 )
 
 func TestPromCompressedReadSuccess(t *testing.T) {
-	req := httptest.NewRequest("POST", "dummy", test.GeneratePromReadBody(t))
+	req := httptest.NewRequest("POST", "/dummy", test.GeneratePromReadBody(t))
 	_, err := ParsePromCompressedRequest(req)
 	assert.NoError(t, err)
 }
