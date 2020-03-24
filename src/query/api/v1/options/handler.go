@@ -21,7 +21,6 @@
 package options
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -191,9 +190,9 @@ func NewHandlerOptions(
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
 ) (HandlerOptions, error) {
 	timeout := cfg.Query.TimeoutOrDefault()
-	if embeddedDbCfg != nil 
-		&& embeddedDbCfg.Client.FetchTimeout != nil 
-		&& *embeddedDbCfg.Client.FetchTimeout > timeout {
+	if embeddedDbCfg != nil &&
+		embeddedDbCfg.Client.FetchTimeout != nil &&
+		*embeddedDbCfg.Client.FetchTimeout > timeout {
 		timeout = *embeddedDbCfg.Client.FetchTimeout
 	}
 
@@ -215,7 +214,7 @@ func NewHandlerOptions(
 		placementServiceNames: placementServiceNames,
 		serviceOptionDefaults: serviceOptionDefaults,
 		nowFn:                 time.Now,
-		timeoutOpts:           &prometheus.TimeoutOpts{
+		timeoutOpts: &prometheus.TimeoutOpts{
 			FetchTimeout: timeout,
 		},
 	}, nil

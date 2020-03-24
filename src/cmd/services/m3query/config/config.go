@@ -58,7 +58,7 @@ const (
 		"generation scheme is required in coordinator configuration settings. " +
 		"More information is available here: %s"
 
-	defaultQueryTimeout = 30 * time.Duration
+	defaultQueryTimeout = 30 * time.Second
 )
 
 var (
