@@ -69,16 +69,19 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(r.Context(), h.instrumentOpts)
 
 	query, parseBodyErr := h.parseBody(r)
-	opts, parseURLParamsErr := h.parseURLParams(r)
+	fetchOpts, parseURLParamsErr := h.parseURLParams(r)
 	if err := firstParseError(parseBodyErr, parseURLParamsErr); err != nil {
 		logger.Error("unable to parse request", zap.Error(err.Inner()))
 		xhttp.Error(w, err.Inner(), err.Code())
 		return
 	}
 
-	results, err := h.search(r.Context(), query, opts)
+	results, err := h.search(r.Context(), query, fetchOpts)
 	if err != nil {
-		logger.Error("unable to fetch data", zap.Error(err))
+		logger.Error("search query error",
+			zap.Error(err),
+			zap.Any("query", query),
+			zap.Any("fetchOpts", fetchOpts))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}

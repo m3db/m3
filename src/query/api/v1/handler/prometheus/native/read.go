@@ -178,7 +178,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	w http.ResponseWriter,
 	r *http.Request,
 	engine executor.Engine,
-	opts *executor.QueryOptions,
+	queryOpts *executor.QueryOptions,
 	fetchOpts *storage.FetchOptions,
 ) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
@@ -191,7 +191,7 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 	}
 
 	if params.Debug {
-		logger.Info("Request params", zap.Any("params", params))
+		logger.Info("request params", zap.Any("params", params))
 	}
 
 	if err := h.validateRequest(&params); err != nil {
@@ -199,13 +199,17 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, engine, opts, fetchOpts, h.tagOpts,
+	result, err := read(ctx, engine, queryOpts, fetchOpts, h.tagOpts,
 		w, params, h.instrumentOpts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
 		opentracingext.Error.Set(sp, true)
-		logger.Error("unable to fetch data", zap.Error(err))
+		logger.Error("range query error",
+			zap.Error(err),
+			zap.Any("params", params),
+			zap.Any("queryOpts", queryOpts),
+			zap.Any("fetchOpts", fetchOpts))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}
 	}
