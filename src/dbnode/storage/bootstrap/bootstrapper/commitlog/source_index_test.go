@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/ts"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -264,7 +265,11 @@ func verifyIndexResultsAreCorrect(
 	}
 
 	for indexBlockStart, expectedSeries := range expectedIndexBlocks {
-		indexBlock, ok := indexResults[indexBlockStart]
+		indexBlockByVolumeType, ok := indexResults[indexBlockStart]
+		if !ok {
+			return fmt.Errorf("missing index block: %v", indexBlockStart.ToTime().String())
+		}
+		indexBlock, ok := indexBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
 		if !ok {
 			return fmt.Errorf("missing index block: %v", indexBlockStart.ToTime().String())
 		}

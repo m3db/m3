@@ -205,7 +205,8 @@ func (r IndexResults) MarkFulfilled(
 
 	blocks, exists := r[blockStartNanos]
 	if !exists {
-		r[blockStartNanos] = NewIndexBlockByVolumeType(blockStart)
+		blocks = NewIndexBlockByVolumeType(blockStart)
+		r[blockStartNanos] = blocks
 	}
 
 	block, exists := blocks.Data[indexVolumeType]
