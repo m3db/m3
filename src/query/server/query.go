@@ -302,15 +302,18 @@ func Run(runOpts RunOptions) {
 		defer cleanup()
 	}
 
-	perQueryEnforcer, err := newConfiguredChainedEnforcer(&cfg, instrumentOptions)
+	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(&cfg,
+		instrumentOptions)
 	if err != nil {
-		logger.Fatal("unable to setup perQueryEnforcer", zap.Error(err))
+		logger.Fatal("unable to setup chained enforcer", zap.Error(err))
 	}
+
+	defer chainedEnforceCloser.Close()
 
 	engineOpts := executor.NewEngineOptions().
 		SetStore(backendStorage).
 		SetLookbackDuration(*cfg.LookbackDuration).
-		SetGlobalEnforcer(perQueryEnforcer).
+		SetGlobalEnforcer(chainedEnforcer).
 		SetInstrumentOptions(instrumentOptions.
 			SetMetricsScope(instrumentOptions.MetricsScope().SubScope("engine")))
 	if fn := runOpts.CustomPromQLParseFunction; fn != nil {
@@ -341,7 +344,7 @@ func Run(runOpts RunOptions) {
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, m3dbClusters, clusterClient, cfg, runOpts.DBConfig,
-		perQueryEnforcer, fetchOptsBuilder, queryCtxOpts, instrumentOptions,
+		chainedEnforcer, fetchOptsBuilder, queryCtxOpts, instrumentOptions,
 		cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults)
 	if err != nil {

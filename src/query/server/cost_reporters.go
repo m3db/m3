@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	qcost "github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/cost"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -34,6 +35,9 @@ import (
 )
 
 const (
+	costScopeName           = "cost"
+	limitManagerScopeName   = "limit-manager"
+	reporterScopeName       = "reporter"
 	queriesOverLimitMetric  = "over_datapoints_limit"
 	datapointsMetric        = "datapoints"
 	datapointsCounterMetric = "datapoints_counter"
@@ -56,38 +60,75 @@ const (
 //
 //   cost.per_query.max_datapoints_hist: histogram; represents the
 //     distribution of the maximum datapoints used at any point in each query.
-func newConfiguredChainedEnforcer(cfg *config.Configuration, instrumentOptions instrument.Options) (qcost.ChainedEnforcer, error) {
-	costScope := instrumentOptions.MetricsScope().SubScope("cost")
-	costIops := instrumentOptions.SetMetricsScope(costScope)
-	limitMgr := cost.NewStaticLimitManager(cfg.Limits.Global.AsLimitManagerOptions().SetInstrumentOptions(costIops))
-	tracker := cost.NewTracker()
+func newConfiguredChainedEnforcer(
+	cfg *config.Configuration,
+	instrumentOptions instrument.Options,
+) (qcost.ChainedEnforcer, close.SimpleCloser, error) {
+	scope := instrumentOptions.MetricsScope().SubScope(costScopeName)
 
-	globalEnforcer := cost.NewEnforcer(limitMgr, tracker,
-		cost.NewEnforcerOptions().SetReporter(
-			newGlobalReporter(costScope.SubScope("global")),
-		).SetCostExceededMessage("limits.global.maxFetchedDatapoints exceeded"),
-	)
+	// Create global limit manager and enforcer.
+	globalScope := scope.Tagged(map[string]string{
+		"limit-scope": "global",
+	})
+	globalLimitManagerScope := globalScope.SubScope(limitManagerScopeName)
+	globalReporterScope := globalScope.SubScope(reporterScopeName)
 
-	queryEnforcerOpts := cost.NewEnforcerOptions().SetCostExceededMessage("limits.perQuery.maxFetchedDatapoints exceeded").
-		SetReporter(newPerQueryReporter(costScope.
-			SubScope("per_query")))
+	globalLimitMgr := cost.NewStaticLimitManager(
+		cfg.Limits.Global.AsLimitManagerOptions().
+			SetInstrumentOptions(instrumentOptions.SetMetricsScope(globalLimitManagerScope)))
 
-	queryEnforcer := cost.NewEnforcer(
-		cost.NewStaticLimitManager(cfg.Limits.PerQuery.AsLimitManagerOptions()),
-		cost.NewTracker(),
-		queryEnforcerOpts)
+	globalTracker := cost.NewTracker()
 
+	globalEnforcer := cost.NewEnforcer(globalLimitMgr, globalTracker,
+		cost.NewEnforcerOptions().
+			SetReporter(newGlobalReporter(globalReporterScope)).
+			SetCostExceededMessage("limits.global.maxFetchedDatapoints exceeded"))
+
+	// Create per query limit manager and enforcer.
+	queryScope := scope.Tagged(map[string]string{
+		"limit-scope": "query",
+	})
+	queryLimitManagerScope := queryScope.SubScope(limitManagerScopeName)
+	queryReporterScope := queryScope.SubScope(reporterScopeName)
+
+	queryLimitMgr := cost.NewStaticLimitManager(
+		cfg.Limits.Global.AsLimitManagerOptions().
+			SetInstrumentOptions(instrumentOptions.SetMetricsScope(queryLimitManagerScope)))
+
+	queryTracker := cost.NewTracker()
+
+	queryEnforcer := cost.NewEnforcer(queryLimitMgr, queryTracker,
+		cost.NewEnforcerOptions().
+			SetReporter(newPerQueryReporter(queryReporterScope)).
+			SetCostExceededMessage("limits.perQuery.maxFetchedDatapoints exceeded"))
+
+	// Create block enforcer.
 	blockEnforcer := cost.NewEnforcer(
 		cost.NewStaticLimitManager(cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{Enabled: false})),
 		cost.NewTracker(),
-		nil,
-	)
+		nil)
 
-	return qcost.NewChainedEnforcer(qcost.GlobalLevel, []cost.Enforcer{
+	// Create chained enforcer.
+	enforcer, err := qcost.NewChainedEnforcer(qcost.GlobalLevel, []cost.Enforcer{
 		globalEnforcer,
 		queryEnforcer,
 		blockEnforcer,
 	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Start reporting stats for all limit managers.
+	go globalLimitMgr.Report()
+	go queryLimitMgr.Report()
+
+	// Close the stats at the end.
+	closer := close.SimpleCloserFn(func() {
+		globalLimitMgr.Close()
+		queryLimitMgr.Close()
+	})
+
+	return enforcer, closer, nil
 }
 
 // globalReporter records ChainedEnforcer statistics for the global enforcer.
