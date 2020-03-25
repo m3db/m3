@@ -71,7 +71,7 @@ type IndexBuilder struct {
 // IndexBlockByVolumeType contains the bootstrap data structures for an index block by volume type.
 type IndexBlockByVolumeType struct {
 	blockStart time.Time
-	Data       map[persist.IndexVolumeType]IndexBlock
+	data       map[persist.IndexVolumeType]IndexBlock
 }
 
 // IndexBlock is an index block for a index volume type.

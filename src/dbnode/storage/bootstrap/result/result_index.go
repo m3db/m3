@@ -301,6 +301,10 @@ func (b IndexBlockByVolumeType) BlockStart() time.Time {
 	return b.blockStart
 }
 
+func (b IndexBlockByVolumeType) GetBlock(volumeType persist.IndexVolumeType) (IndexBlock, bool) {
+	return b.data[volumeType]
+}
+
 // Merged returns a new merged index block by volume type.
 // It merges the underlying index blocks together by index volume type.
 func (b IndexBlockByVolumeType) Merged(other IndexBlockByVolumeType) IndexBlockByVolumeType {
