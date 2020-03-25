@@ -3,6 +3,6 @@ package yaml;
 
 import "github.com/m3db/m3/src/query/generated/proto/admin/database.proto";
 message DatabaseCreateRequestYaml {
-  string Operation = 1;
-  admin.DatabaseCreateRequest Request = 2;
+  string operation = 1;
+  admin.DatabaseCreateRequest request = 2;
 }

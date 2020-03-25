@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,7 @@ var (
 
 func main() {
 
-	zapper, err := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
@@ -73,18 +73,17 @@ database creation, database init, adding a node, and replacing a node, are suppo
 `,
 		Run: func(cmd *cobra.Command, args []string) {
 
-			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+			fileArg := cmd.LocalFlags().Lookup("file").Value.String()
+			logger.Debug("running command", zap.String("name", cmd.Name()), zap.String("args", fileArg))
 
-			zapper.Debug(fmt.Sprintf("args:%v:\n", cmd.LocalFlags().Lookup("file").Value.String()))
-
-			if len(cmd.LocalFlags().Lookup("file").Value.String()) == 0 {
-				fmt.Printf("Specify a path to a yaml file.\n")
+			if len(fileArg) == 0 {
+				logger.Error("specify a path to a yaml file.\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
 
-			if err := apply.DoApply(endPoint, yamlPath, zapper); err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+			if err := apply.DoApply(endPoint, yamlPath, logger); err != nil {
+				logger.Error("apply failed", zap.Error(err))
 				os.Exit(1)
 			}
 
@@ -97,10 +96,10 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		Aliases:  []string{"ns"},
 		Run: func(cmd *cobra.Command, args []string) {
 
-			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+			logger.Debug("running command", zap.String("command", cmd.Name()))
 
-			if err := namespaces.DoGet(endPoint, showAll, zapper); err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+			if err := namespaces.DoGet(endPoint, showAll, logger); err != nil {
+				logger.Error("get namespace failed", zap.Error(err))
 				os.Exit(1)
 			}
 		},
@@ -112,10 +111,10 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		Aliases:  []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
 
-			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+			logger.Debug("running command", zap.String("command", cmd.Name()))
 
-			if err := placements.DoGet(endPoint, zapper); err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+			if err := placements.DoGet(endPoint, logger); err != nil {
+				logger.Error("get placement failed", zap.Error(err))
 				os.Exit(1)
 			}
 		},
@@ -127,10 +126,10 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		Aliases: []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
 
-			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+			logger.Debug("running command", zap.String("command", cmd.Name()))
 
-			if err := placements.DoDelete(endPoint, nodeName, showAll, zapper); err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+			if err := placements.DoDelete(endPoint, nodeName, showAll, logger); err != nil {
+				logger.Error("delete placement failed", zap.Error(err))
 				os.Exit(1)
 			}
 		},
@@ -143,10 +142,10 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		Aliases: []string{"ns"},
 		Run: func(cmd *cobra.Command, args []string) {
 
-			zapper.Debug(fmt.Sprintf("Running command:%s:\n", cmd.Name()))
+			logger.Debug("running command", zap.String("command", cmd.Name()))
 
-			if err := namespaces.DoDelete(endPoint, nodeName, zapper); err != nil {
-				fmt.Fprintf(os.Stderr, err.Error())
+			if err := namespaces.DoDelete(endPoint, nodeName, logger); err != nil {
+				logger.Error("delete namespace failed", zap.Error(err))
 				os.Exit(1)
 			}
 		},
