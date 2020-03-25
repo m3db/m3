@@ -263,7 +263,7 @@ func validateGoodTaggedSeries(
 		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
 		indexBlockByVolumeType, ok := indexResults[expectedAt]
 		require.True(t, ok)
-		for _, indexBlock := range indexBlockByVolumeType.Data {
+		for _, indexBlock := range indexBlockByVolumeType.Iter() {
 			require.Equal(t, 1, len(indexBlock.Segments()))
 			for _, seg := range indexBlock.Segments() {
 				reader, err := seg.Reader()

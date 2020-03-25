@@ -879,7 +879,7 @@ func (s *peersSource) processReaders(
 	newFulfilled.AddRanges(indexBlock.Fulfilled())
 
 	// Replace index block for default index volume type.
-	r.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock(segments, newFulfilled)
+	r.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 
 	// Return readers to pool.
 	for _, shardReaders := range timeWindowReaders.Readers {

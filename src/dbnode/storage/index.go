@@ -766,7 +766,7 @@ func (i *nsIndex) Flush(
 			dbShards(shards).IDs()...)
 		// Add the results to the block
 		results := result.NewIndexBlockByVolumeType(block.StartTime())
-		results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock(immutableSegments, fulfilled)
+		results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(immutableSegments, fulfilled))
 		if err := block.AddResults(results); err != nil {
 			return err
 		}

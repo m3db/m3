@@ -22,7 +22,6 @@ package bootstrapper
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -136,7 +135,6 @@ func persistBootstrapIndexSegment(
 	requireFulfilled := expectedRanges.Copy()
 	requireFulfilled.Subtract(fulfilled)
 	exactStartEnd := max.Equal(blockStart.Add(ns.Options().IndexOptions().BlockSize()))
-	log.Println("!exactStartEnd:", !exactStartEnd, "!requireFulfilled.IsEmpty():", !requireFulfilled.IsEmpty())
 	if !exactStartEnd || !requireFulfilled.IsEmpty() {
 		return result.IndexBlock{}, fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
 			"expected=%v, actual=%v, fulfilled=%v, exactStartEnd=%v, requireFulfilledEmpty=%v",

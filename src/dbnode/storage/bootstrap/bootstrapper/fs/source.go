@@ -560,7 +560,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		newFulfilled.AddRanges(indexBlock.Fulfilled())
 
 		// Replace index block for default index volume type.
-		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock(segments, newFulfilled)
+		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 	}
 
 	// Return readers to pool.
@@ -862,7 +862,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			volumeType = idxpersist.IndexVolumeType(info.IndexVolumeType.Value)
 		}
 		indexBlockByVolumeType := result.NewIndexBlockByVolumeType(indexBlockStart)
-		indexBlockByVolumeType.Data[volumeType] = result.NewIndexBlock(persistedSegments, segmentsFulfilled)
+		indexBlockByVolumeType.SetBlock(volumeType, result.NewIndexBlock(persistedSegments, segmentsFulfilled))
 		// NB(r): Don't need to call MarkFulfilled on the IndexResults here
 		// as we've already passed the ranges fulfilled to the block that
 		// we place in the IndexResuts with the call to Add(...).
