@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3/src/m3ninx/persist"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -443,8 +443,8 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	seg3 := segment.NewMockMutableSegment(ctrl)
 
 	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
-	b.shardRangesSegmentsByVolumeType = map[persist.IndexVolumeType][]blockShardRangesSegments{
-		persist.DefaultIndexVolumeType: []blockShardRangesSegments{
+	b.shardRangesSegmentsByVolumeType = map[idxpersist.IndexVolumeType][]blockShardRangesSegments{
+		idxpersist.DefaultIndexVolumeType: []blockShardRangesSegments{
 			blockShardRangesSegments{segments: []segment.Segment{seg2, seg3}},
 		},
 	}
@@ -846,10 +846,10 @@ func TestBlockAddResultsAddsSegment(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3))
 	require.NoError(t, b.AddResults(results))
-	shardRangesSegments := b.shardRangesSegmentsByVolumeType[persist.DefaultIndexVolumeType]
+	shardRangesSegments := b.shardRangesSegmentsByVolumeType[idxpersist.DefaultIndexVolumeType]
 	require.Equal(t, 1, len(shardRangesSegments))
 
 	require.Equal(t, seg1, shardRangesSegments[0].segments[0])
@@ -867,7 +867,7 @@ func TestBlockAddResultsAfterCloseFails(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3))
 	require.Error(t, blk.AddResults(results))
 }
@@ -887,10 +887,10 @@ func TestBlockAddResultsAfterSealWorks(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3))
 	require.NoError(t, b.AddResults(results))
-	shardRangesSegments := b.shardRangesSegmentsByVolumeType[persist.DefaultIndexVolumeType]
+	shardRangesSegments := b.shardRangesSegmentsByVolumeType[idxpersist.DefaultIndexVolumeType]
 	require.Equal(t, 1, len(shardRangesSegments))
 
 	require.Equal(t, seg1, shardRangesSegments[0].segments[0])
@@ -937,7 +937,7 @@ func TestBlockTickMultipleSegment(t *testing.T) {
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg2.EXPECT().Size().Return(int64(20))
 	results := result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3))
 	require.NoError(t, b.AddResults(results))
 
@@ -998,12 +998,12 @@ func TestBlockAddResultsRangeCheck(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
 		result.NewShardTimeRangesFromRange(start.Add(-1*time.Minute), start, 1, 2, 3))
 	require.Error(t, b.AddResults(results))
 
 	results = result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
 		result.NewShardTimeRangesFromRange(start, start.Add(2*time.Hour), 1, 2, 3))
 	require.Error(t, b.AddResults(results))
 }
@@ -1022,14 +1022,14 @@ func TestBlockAddResultsCoversCurrentData(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3))
 	require.NoError(t, b.AddResults(results))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg1.EXPECT().Close().Return(nil)
 	results = result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3, 4))
 	require.NoError(t, b.AddResults(results))
 
@@ -1052,13 +1052,13 @@ func TestBlockAddResultsDoesNotCoverCurrentData(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3))
 	require.NoError(t, b.AddResults(results))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	results = result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 5))
 	require.NoError(t, b.AddResults(results))
 
@@ -1120,7 +1120,7 @@ func TestBlockNeedsMutableSegmentsEvictedMutableSegments(t *testing.T) {
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	seg1.EXPECT().Size().Return(int64(0)).AnyTimes()
 	results := result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3))
 	require.NoError(t, b.AddResults(results))
 	require.False(t, b.NeedsMutableSegmentsEvicted())
@@ -1129,7 +1129,7 @@ func TestBlockNeedsMutableSegmentsEvictedMutableSegments(t *testing.T) {
 	seg2.EXPECT().Size().Return(int64(1)).AnyTimes()
 	seg3 := segment.NewMockSegment(ctrl)
 	results = result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 4))
 	require.NoError(t, b.AddResults(results))
 	require.True(t, b.NeedsMutableSegmentsEvicted())
@@ -1166,7 +1166,7 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg1},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3))
 	require.NoError(t, b.AddResults(results))
 	seg1.EXPECT().Close().Return(nil)
@@ -1176,7 +1176,7 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
 	results = result.NewIndexBlockByVolumeType(start)
-	results.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
+	results.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg2, seg3},
 		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 4))
 	require.NoError(t, b.AddResults(results))
 	seg2.EXPECT().Close().Return(nil)
@@ -1395,7 +1395,7 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 
 	seg := testSegment(t, testDoc1DupeID())
 	idxResults := result.NewIndexBlockByVolumeType(blockStart)
-	idxResults.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg},
+	idxResults.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg},
 		result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(blockSize), 1, 2, 3))
 	require.NoError(t, blk.AddResults(idxResults))
 
@@ -1472,7 +1472,7 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 
 	seg := testSegment(t, testDoc2())
 	idxResults := result.NewIndexBlockByVolumeType(blockStart)
-	idxResults.Data[persist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg},
+	idxResults.Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock([]segment.Segment{seg},
 		result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(blockSize), 1, 2, 3))
 	require.NoError(t, blk.AddResults(idxResults))
 
