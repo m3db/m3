@@ -57,16 +57,16 @@ type SharedCompactor struct {
 func PersistBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
-	indexBlock result.IndexBlock,
 	builder segment.DocumentsBuilder,
 	persistManager *SharedPersistManager,
 	resultOpts result.Options,
+	fulfilled result.ShardTimeRanges,
 	blockStart time.Time,
 	blockEnd time.Time,
 ) (result.IndexBlock, error) {
 	// No-op if there are no documents that need to be written for this time block (nothing to persist).
 	if len(builder.Docs()) == 0 {
-		return indexBlock, nil
+		return result.IndexBlock{}, nil
 	}
 
 	// If we're performing an index run with persistence enabled
@@ -107,21 +107,17 @@ func PersistBootstrapIndexSegment(
 		}))
 	}
 
-	indexBlock, err := persistBootstrapIndexSegment(
+	return persistBootstrapIndexSegment(
 		ns,
 		shards,
 		builder,
 		persistManager,
-		indexBlock,
 		requestedRanges,
 		expectedRanges,
+		fulfilled,
 		blockStart,
 		max,
 	)
-	if err != nil {
-		return indexBlock, err
-	}
-	return indexBlock, nil
 }
 
 func persistBootstrapIndexSegment(
@@ -129,14 +125,12 @@ func persistBootstrapIndexSegment(
 	shards map[uint32]struct{},
 	builder segment.DocumentsBuilder,
 	persistManager *SharedPersistManager,
-	indexBlock result.IndexBlock,
 	requestedRanges result.ShardTimeRanges,
 	expectedRanges result.ShardTimeRanges,
+	fulfilled result.ShardTimeRanges,
 	blockStart time.Time,
 	max time.Time,
 ) (result.IndexBlock, error) {
-	fulfilled := indexBlock.Fulfilled()
-
 	// Check that we completely fulfilled all shards for the block
 	// and we didn't bootstrap any more/less than expected.
 	requireFulfilled := expectedRanges.Copy()
@@ -144,7 +138,7 @@ func persistBootstrapIndexSegment(
 	exactStartEnd := max.Equal(blockStart.Add(ns.Options().IndexOptions().BlockSize()))
 	log.Println("!exactStartEnd:", !exactStartEnd, "!requireFulfilled.IsEmpty():", !requireFulfilled.IsEmpty())
 	if !exactStartEnd || !requireFulfilled.IsEmpty() {
-		return indexBlock, fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
+		return result.IndexBlock{}, fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: "+
 			"expected=%v, actual=%v, fulfilled=%v, exactStartEnd=%v, requireFulfilledEmpty=%v",
 			expectedRanges.String(), requestedRanges.String(), fulfilled.String(),
 			exactStartEnd, requireFulfilled.IsEmpty())
@@ -158,7 +152,7 @@ func persistBootstrapIndexSegment(
 
 	flush, err := persistManager.Mgr.StartIndexPersist()
 	if err != nil {
-		return indexBlock, err
+		return result.IndexBlock{}, err
 	}
 
 	var calledDone bool
@@ -177,7 +171,7 @@ func persistBootstrapIndexSegment(
 		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
 	})
 	if err != nil {
-		return indexBlock, err
+		return result.IndexBlock{}, err
 	}
 
 	var calledClose bool
@@ -188,40 +182,31 @@ func persistBootstrapIndexSegment(
 	}()
 
 	if err := preparedPersist.Persist(builder); err != nil {
-		return indexBlock, err
+		return result.IndexBlock{}, err
 	}
 
 	calledClose = true
 	persistedSegments, err := preparedPersist.Close()
 	if err != nil {
-		return indexBlock, err
+		return result.IndexBlock{}, err
 	}
 
 	calledDone = true
 	if err := flush.DoneIndex(); err != nil {
-		return indexBlock, err
+		return result.IndexBlock{}, err
 	}
-	// Combine persisted  and existing segments.
 	segments := make([]segment.Segment, 0, len(persistedSegments))
 	for _, pSeg := range persistedSegments {
 		segments = append(segments, NewSegment(pSeg, true))
 	}
-	for _, seg := range indexBlock.Segments() {
-		segments = append(segments, seg)
-	}
 
-	// Now replace the active segment with the persisted segment.
-	newFulfilled := fulfilled.Copy()
-	newFulfilled.AddRanges(expectedRanges)
-
-	return result.NewIndexBlock(segments, newFulfilled), nil
+	return result.NewIndexBlock(segments, expectedRanges), nil
 }
 
 // BuildBootstrapIndexSegment is a helper function that builds (in memory) bootstrapped index segments for a ns -> block of time.
 func BuildBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
-	indexBlock result.IndexBlock,
 	builder segment.DocumentsBuilder,
 	compactor *SharedCompactor,
 	resultOpts result.Options,
@@ -231,7 +216,7 @@ func BuildBootstrapIndexSegment(
 ) (result.IndexBlock, error) {
 	// No-op if there are no documents that need to be written for this time block (nothing to persist).
 	if len(builder.Docs()) == 0 {
-		return indexBlock, nil
+		return result.IndexBlock{}, nil
 	}
 
 	// If we're performing an index run with persistence enabled
@@ -278,19 +263,10 @@ func BuildBootstrapIndexSegment(
 		Reporter: mmapReporter,
 	})
 	if err != nil {
-		return indexBlock, err
+		return result.IndexBlock{}, err
 	}
 
-	segments := []segment.Segment{NewSegment(seg, false)}
-	for _, seg := range indexBlock.Segments() {
-		segments = append(segments, seg)
-	}
-
-	// Now replace the active segment with the built segment.
-	newFulfilled := indexBlock.Fulfilled().Copy()
-	newFulfilled.AddRanges(expectedRanges)
-
-	return result.NewIndexBlock(segments, newFulfilled), nil
+	return result.NewIndexBlock([]segment.Segment{NewSegment(seg, false)}, expectedRanges), nil
 }
 
 // GetDefaultIndexBlockForBlockStart gets the index block for the default volume type from the index results.

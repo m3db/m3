@@ -462,6 +462,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			blockStart                   = min.Truncate(indexBlockSize)
 			blockEnd                     = blockStart.Add(indexBlockSize)
 			iopts                        = s.opts.ResultOptions().InstrumentOptions()
+			indexBlock                   result.IndexBlock
 			err                          error
 		)
 		for _, remainingRange := range remainingRanges.Iter() {
@@ -487,7 +488,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
-		indexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
+		existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
 		if !ok {
 			err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
 				blockStart.String(), blockStart.UnixNano())
@@ -510,10 +511,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
-				indexBlock,
 				s.builder.Builder(),
 				s.persistManager,
 				s.opts.ResultOptions(),
+				existingIndexBlock.Fulfilled(),
 				blockStart,
 				blockEnd,
 			)
@@ -532,7 +533,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 				ns,
 				requestedRanges,
-				indexBlock,
 				s.builder.Builder(),
 				s.compactor,
 				s.opts.ResultOptions(),
@@ -550,9 +550,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				})
 			}
 		}
-		// Replace index block for default index volume type.
-		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = indexBlock
 
+		// Merge segments and fulfilled time ranges.
+		segments := indexBlock.Segments()
+		for _, seg := range existingIndexBlock.Segments() {
+			segments = append(segments, seg)
+		}
+		newFulfilled := existingIndexBlock.Fulfilled().Copy()
+		newFulfilled.AddRanges(indexBlock.Fulfilled())
+
+		// Replace index block for default index volume type.
+		runResult.index.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock(segments, newFulfilled)
 	}
 
 	// Return readers to pool.

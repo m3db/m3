@@ -803,11 +803,12 @@ func (s *peersSource) processReaders(
 		indexBlockSize = ns.Options().IndexOptions().BlockSize()
 		blockStart     = min.Truncate(indexBlockSize)
 		blockEnd       = blockStart.Add(indexBlockSize)
+		indexBlock     result.IndexBlock
 		err            error
 	)
 
 	// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
-	indexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(r.IndexResults(), blockStart)
+	existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(r.IndexResults(), blockStart)
 	if !ok {
 		err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
 			blockStart.String(), blockStart.UnixNano())
@@ -831,10 +832,10 @@ func (s *peersSource) processReaders(
 		indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 			ns,
 			requestedRanges,
-			indexBlock,
 			s.builder.Builder(),
 			s.persistManager,
 			s.opts.ResultOptions(),
+			existingIndexBlock.Fulfilled(),
 			blockStart,
 			blockEnd,
 		)
@@ -851,7 +852,6 @@ func (s *peersSource) processReaders(
 		indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 			ns,
 			requestedRanges,
-			indexBlock,
 			s.builder.Builder(),
 			s.compactor,
 			s.opts.ResultOptions(),
@@ -870,8 +870,16 @@ func (s *peersSource) processReaders(
 		}
 	}
 
+	// Merge segments and fulfilled time ranges.
+	segments := indexBlock.Segments()
+	for _, seg := range existingIndexBlock.Segments() {
+		segments = append(segments, seg)
+	}
+	newFulfilled := existingIndexBlock.Fulfilled().Copy()
+	newFulfilled.AddRanges(indexBlock.Fulfilled())
+
 	// Replace index block for default index volume type.
-	r.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = indexBlock
+	r.IndexResults()[xtime.ToUnixNano(blockStart)].Data[idxpersist.DefaultIndexVolumeType] = result.NewIndexBlock(segments, newFulfilled)
 
 	// Return readers to pool.
 	for _, shardReaders := range timeWindowReaders.Readers {
