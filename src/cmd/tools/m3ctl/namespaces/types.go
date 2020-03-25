@@ -24,5 +24,5 @@ const (
 	// DefaultPath is the default url path for the namespace api calls
 	DefaultPath = "/api/v1/namespace"
 	// DebugQS this is the query string to activate debug output in api responses
-	DebugQS     = "debug=true"
+	DebugQS = "debug=true"
 )

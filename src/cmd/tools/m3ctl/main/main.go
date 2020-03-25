@@ -67,7 +67,7 @@ func main() {
 	applyCmd := &cobra.Command{
 		Use:   "apply",
 		Short: "Apply various yamls to remote endpoint",
-		Long:  `This will take specific yamls and send them over to the remote
+		Long: `This will take specific yamls and send them over to the remote
 endpoint.  See the yaml/examples directory for examples.  Operations such as 
 database creation, database init, adding a node, and replacing a node, are supported.
 `,
@@ -91,9 +91,9 @@ database creation, database init, adding a node, and replacing a node, are suppo
 	}
 
 	getNamespaceCmd := &cobra.Command{
-		Use:   "namespace []",
-		Short: "Get the namespaces from the remote endpoint",
-		Aliases:  []string{"ns"},
+		Use:     "namespace []",
+		Short:   "Get the namespaces from the remote endpoint",
+		Aliases: []string{"ns"},
 		Run: func(cmd *cobra.Command, args []string) {
 
 			logger.Debug("running command", zap.String("command", cmd.Name()))
@@ -106,9 +106,9 @@ database creation, database init, adding a node, and replacing a node, are suppo
 	}
 
 	getPlacementCmd := &cobra.Command{
-		Use:   "placement",
-		Short: "Get the placement from the remote endpoint",
-		Aliases:  []string{"pl"},
+		Use:     "placement",
+		Short:   "Get the placement from the remote endpoint",
+		Aliases: []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
 
 			logger.Debug("running command", zap.String("command", cmd.Name()))
@@ -121,8 +121,8 @@ database creation, database init, adding a node, and replacing a node, are suppo
 	}
 
 	deletePlacementCmd := &cobra.Command{
-		Use:   "placement",
-		Short: "Delete the placement from the remote endpoint",
+		Use:     "placement",
+		Short:   "Delete the placement from the remote endpoint",
 		Aliases: []string{"pl"},
 		Run: func(cmd *cobra.Command, args []string) {
 
@@ -135,10 +135,9 @@ database creation, database init, adding a node, and replacing a node, are suppo
 		},
 	}
 
-
 	deleteNamespaceCmd := &cobra.Command{
-		Use:   "namespace",
-		Short: "Delete the namespace from the remote endpoint",
+		Use:     "namespace",
+		Short:   "Delete the namespace from the remote endpoint",
 		Aliases: []string{"ns"},
 		Run: func(cmd *cobra.Command, args []string) {
 

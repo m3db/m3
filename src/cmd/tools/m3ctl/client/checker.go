@@ -29,7 +29,7 @@ import (
 )
 
 func checkForAndHandleError(url string, resp *http.Response, zl *zap.Logger) error {
-	if resp.StatusCode%100 != 2 {
+	if resp.StatusCode/100 != 2 {
 		dat, _ := ioutil.ReadAll(resp.Body)
 		if dat != nil {
 			zl.Error("error response",
