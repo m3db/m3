@@ -153,7 +153,7 @@ func TestIndexResultsMarkFulfilled(t *testing.T) {
 	blkByVolumeType, ok := results[xtime.ToUnixNano(tn(0))]
 	require.True(t, ok)
 	require.True(t, tn(0).Equal(blkByVolumeType.blockStart))
-	blk, ok := blkByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	blk, ok := blkByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, fulfilledRange, blk.fulfilled)
 
@@ -165,7 +165,7 @@ func TestIndexResultsMarkFulfilled(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, tn(0).Equal(blkByVolumeType.blockStart))
 	fulfilledRange.AddRanges(nextFulfilledRange)
-	blk, ok = blkByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	blk, ok = blkByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, fulfilledRange, blk.fulfilled)
 
@@ -176,7 +176,7 @@ func TestIndexResultsMarkFulfilled(t *testing.T) {
 	blkByVolumeType, ok = results[xtime.ToUnixNano(tn(2))]
 	require.True(t, ok)
 	require.True(t, tn(2).Equal(blkByVolumeType.blockStart))
-	blk, ok = blkByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	blk, ok = blkByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, nextFulfilledRange, blk.fulfilled)
 }
@@ -190,11 +190,11 @@ func segmentsInResultsSame(a, b IndexResults) bool {
 		if !ok {
 			return false
 		}
-		block, ok := blockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+		block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		if !ok {
 			return false
 		}
-		otherBlock, ok := otherBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+		otherBlock, ok := otherBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		if !ok {
 			return false
 		}

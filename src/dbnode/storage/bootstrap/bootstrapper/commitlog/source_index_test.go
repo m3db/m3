@@ -269,7 +269,7 @@ func verifyIndexResultsAreCorrect(
 		if !ok {
 			return fmt.Errorf("missing index block: %v", indexBlockStart.ToTime().String())
 		}
-		indexBlock, ok := indexBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		if !ok {
 			return fmt.Errorf("missing index block: %v", indexBlockStart.ToTime().String())
 		}

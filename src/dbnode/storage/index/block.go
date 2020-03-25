@@ -1229,7 +1229,7 @@ func (b *block) AddResults(
 	defer b.Unlock()
 
 	multiErr := xerrors.NewMultiError()
-	for volumeType, results := range resultsByVolumeType.Data {
+	for volumeType, results := range resultsByVolumeType.Iter() {
 		multiErr = multiErr.Add(b.addResults(volumeType, results))
 	}
 

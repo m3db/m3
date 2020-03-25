@@ -285,7 +285,7 @@ func GetDefaultIndexBlockForBlockStart(
 		// - attempt to bootstrap time ranges that have no index results block
 		return result.IndexBlock{}, false
 	}
-	indexBlock, ok := indexBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	if !ok {
 		return result.IndexBlock{}, false
 	}

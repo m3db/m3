@@ -356,7 +356,7 @@ func TestBootstrapIndex(t *testing.T) {
 	// Check that the segment is not a mutable segment for this block
 	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
 	require.True(t, ok)
-	block, ok := blockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
@@ -366,7 +366,7 @@ func TestBootstrapIndex(t *testing.T) {
 	// Check that the second segment is mutable and was not written out
 	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
 	require.True(t, ok)
-	block, ok = blockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
@@ -426,7 +426,7 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	// Check that both segments are mutable
 	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
 	require.True(t, ok)
-	block, ok := blockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
@@ -435,7 +435,7 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 
 	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
 	require.True(t, ok)
-	block, ok = blockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
@@ -495,7 +495,7 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	// and came from disk
 	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
 	require.True(t, ok)
-	block, ok := blockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
@@ -505,7 +505,7 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	// Check that the second segment is mutable
 	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
 	require.True(t, ok)
-	block, ok = blockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
@@ -628,7 +628,7 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	// Check that the segment is not a mutable segment
 	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
 	require.True(t, ok)
-	block, ok := blockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
@@ -638,7 +638,7 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	// Check that the second is not a mutable segment
 	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
 	require.True(t, ok)
-	block, ok = blockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok = block.Segments()[0].(*bootstrapper.Segment)

@@ -312,6 +312,11 @@ func (b IndexBlockByVolumeType) SetBlock(volumeType persist.IndexVolumeType, blo
 	b.data[volumeType] = block
 }
 
+// Iter returns the underlying iterable map data.
+func (b IndexBlockByVolumeType) Iter() map[persist.IndexVolumeType]IndexBlock {
+	return b.data
+}
+
 // Merged returns a new merged index block by volume type.
 // It merges the underlying index blocks together by index volume type.
 func (b IndexBlockByVolumeType) Merged(other IndexBlockByVolumeType) IndexBlockByVolumeType {

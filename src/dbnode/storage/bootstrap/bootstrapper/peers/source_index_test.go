@@ -278,7 +278,7 @@ func TestBootstrapIndex(t *testing.T) {
 	indexResults := results.IndexResult.IndexResults()
 	numBlocksWithData := 0
 	for _, indexBlockByVolumeType := range indexResults {
-		indexBlock, ok := indexBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		if len(indexBlock.Segments()) != 0 {
 			log.Printf("result block start: %s", indexBlockByVolumeType.BlockStart())
@@ -313,7 +313,7 @@ func TestBootstrapIndex(t *testing.T) {
 		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
 		indexBlockByVolumeType, ok := indexResults[expectedAt]
 		require.True(t, ok)
-		indexBlock, ok := indexBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		for _, seg := range indexBlock.Segments() {
 			reader, err := seg.Reader()
@@ -359,13 +359,13 @@ func TestBootstrapIndex(t *testing.T) {
 
 	indexBlockByVolumeType, ok := indexResults[xtime.ToUnixNano(t1)]
 	require.True(t, ok)
-	blk1, ok := indexBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	blk1, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t1, t2, 0), blk1.Fulfilled())
 
 	indexBlockByVolumeType, ok = indexResults[xtime.ToUnixNano(t2)]
 	require.True(t, ok)
-	blk2, ok := indexBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+	blk2, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t2, t3, 0), blk2.Fulfilled())
 
@@ -377,7 +377,7 @@ func TestBootstrapIndex(t *testing.T) {
 		// any errors in the response.
 		start := indexBlockByVolumeType.BlockStart()
 		end := start.Add(indexBlockSize)
-		blk, ok := indexBlockByVolumeType.Data[idxpersist.DefaultIndexVolumeType]
+		blk, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(start, end, 0), blk.Fulfilled())
 	}
