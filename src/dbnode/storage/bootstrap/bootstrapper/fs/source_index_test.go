@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/require"
@@ -260,44 +261,46 @@ func validateGoodTaggedSeries(
 	expectedSeriesByBlock := expectedTaggedSeriesWithOptions(t, start, opts)
 	for _, expected := range expectedSeriesByBlock {
 		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
-		indexBlock, ok := indexResults[expectedAt]
+		indexBlockByVolumeType, ok := indexResults[expectedAt]
 		require.True(t, ok)
-		require.Equal(t, 1, len(indexBlock.Segments()))
-		for _, seg := range indexBlock.Segments() {
-			reader, err := seg.Reader()
-			require.NoError(t, err)
+		for _, indexBlock := range indexBlockByVolumeType.Iter() {
+			require.Equal(t, 1, len(indexBlock.Segments()))
+			for _, seg := range indexBlock.Segments() {
+				reader, err := seg.Reader()
+				require.NoError(t, err)
 
-			docs, err := reader.AllDocs()
-			require.NoError(t, err)
+				docs, err := reader.AllDocs()
+				require.NoError(t, err)
 
-			matches := map[string]struct{}{}
-			for docs.Next() {
-				curr := docs.Current()
+				matches := map[string]struct{}{}
+				for docs.Next() {
+					curr := docs.Current()
 
-				_, ok := matches[string(curr.ID)]
-				require.False(t, ok)
-				matches[string(curr.ID)] = struct{}{}
-
-				series, ok := expected.series[string(curr.ID)]
-				require.True(t, ok)
-
-				matchingTags := map[string]struct{}{}
-				for _, tag := range curr.Fields {
-					_, ok := matchingTags[string(tag.Name)]
+					_, ok := matches[string(curr.ID)]
 					require.False(t, ok)
-					matchingTags[string(tag.Name)] = struct{}{}
+					matches[string(curr.ID)] = struct{}{}
 
-					tagValue, ok := series.tags[string(tag.Name)]
+					series, ok := expected.series[string(curr.ID)]
 					require.True(t, ok)
 
-					require.Equal(t, tagValue, string(tag.Value))
-				}
-				require.Equal(t, len(series.tags), len(matchingTags))
-			}
-			require.NoError(t, docs.Err())
-			require.NoError(t, docs.Close())
+					matchingTags := map[string]struct{}{}
+					for _, tag := range curr.Fields {
+						_, ok := matchingTags[string(tag.Name)]
+						require.False(t, ok)
+						matchingTags[string(tag.Name)] = struct{}{}
 
-			require.Equal(t, len(expected.series), len(matches))
+						tagValue, ok := series.tags[string(tag.Name)]
+						require.True(t, ok)
+
+						require.Equal(t, tagValue, string(tag.Value))
+					}
+					require.Equal(t, len(series.tags), len(matchingTags))
+				}
+				require.NoError(t, docs.Err())
+				require.NoError(t, docs.Close())
+
+				require.Equal(t, len(expected.series), len(matches))
+			}
 		}
 	}
 }
@@ -351,7 +354,9 @@ func TestBootstrapIndex(t *testing.T) {
 	}
 
 	// Check that the segment is not a mutable segment for this block
-	block, ok := indexResults[xtime.ToUnixNano(times.start)]
+	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	require.True(t, ok)
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
@@ -359,7 +364,9 @@ func TestBootstrapIndex(t *testing.T) {
 	require.True(t, segment.IsPersisted())
 
 	// Check that the second segment is mutable and was not written out
-	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
@@ -417,14 +424,18 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	require.Equal(t, 0, len(infoFiles))
 
 	// Check that both segments are mutable
-	block, ok := indexResults[xtime.ToUnixNano(times.start)]
+	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	require.True(t, ok)
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
 	require.True(t, ok)
 	require.False(t, segment.IsPersisted())
 
-	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
@@ -482,7 +493,9 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 
 	// Check that the segment is not a mutable segment for this block
 	// and came from disk
-	block, ok := indexResults[xtime.ToUnixNano(times.start)]
+	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	require.True(t, ok)
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
@@ -490,7 +503,9 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	require.True(t, segment.IsPersisted())
 
 	// Check that the second segment is mutable
-	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
@@ -611,7 +626,9 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	}
 
 	// Check that the segment is not a mutable segment
-	block, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
+	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
+	require.True(t, ok)
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
@@ -619,7 +636,9 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	require.True(t, segment.IsPersisted())
 
 	// Check that the second is not a mutable segment
-	block, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
 	segment, ok = block.Segments()[0].(*bootstrapper.Segment)

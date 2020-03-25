@@ -269,10 +269,11 @@ func (pm *persistManager) PrepareIndex(opts persist.IndexPrepareOptions) (persis
 	}
 	blockSize := nsMetadata.Options().IndexOptions().BlockSize()
 	idxWriterOpts := IndexWriterOpenOptions{
-		BlockSize:   blockSize,
-		FileSetType: opts.FileSetType,
-		Identifier:  fileSetID,
-		Shards:      opts.Shards,
+		BlockSize:       blockSize,
+		FileSetType:     opts.FileSetType,
+		Identifier:      fileSetID,
+		Shards:          opts.Shards,
+		IndexVolumeType: opts.IndexVolumeType,
 	}
 
 	// create writer for required fileset file.

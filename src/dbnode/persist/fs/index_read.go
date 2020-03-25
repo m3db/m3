@@ -53,7 +53,7 @@ type indexReader struct {
 	volumeIndex  int
 
 	currIdx                int
-	info                   index.IndexInfo
+	info                   index.IndexVolumeInfo
 	expectedDigest         index.IndexDigests
 	expectedDigestOfDigest uint32
 	readDigests            indexReaderReadDigests
