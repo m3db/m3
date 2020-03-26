@@ -27,9 +27,11 @@ for i in "${GOPATH}/src/${PROTO_SRC}"/*; do
 		echo "generating from ${proto_files}"
 		# need the additional m3db_path mount in docker because it's a symlink on the CI.
 		m3db_path=$(realpath $GOPATH/src/github.com/m3db/m3)
+                resolve_protos="Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types"
+
 		docker run --rm -w /src -v $GOPATH/src:/src -v ${m3db_path}:/src/github.com/m3db/m3 \
 		$UID_FLAGS $PROTOC_IMAGE_VERSION \
-			 --gogofaster_out=Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,plugins=grpc:/src  \
+			 --gogofaster_out=${resolve_protos},plugins=grpc:/src \
 			 -I/src -I/src/github.com/m3db/m3/vendor ${proto_files}
 	fi
 done
