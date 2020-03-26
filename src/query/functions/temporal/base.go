@@ -256,7 +256,7 @@ func parallelProcess(
 	}()
 
 	values := make([]float64, 0, blockMeta.steps)
-	for iter.Next() {
+	for i := 0; iter.Next(); i++ {
 		var (
 			newVal float64
 			init   = 0
@@ -296,7 +296,7 @@ func parallelProcess(
 		mu.Lock()
 		// NB: this sets the values internally, so no need to worry about keeping
 		// a reference to underlying `values`.
-		err := builder.SetRow(idx, values, blockMeta.seriesMeta[idx])
+		err := builder.SetRow(idx, values, iter.SeriesMeta()[i])
 		mu.Unlock()
 		idx++
 		if err != nil {
