@@ -320,9 +320,10 @@ func (r *blockRetriever) fetchBatch(
 
 		var (
 			seg, onRetrieveSeg ts.Segment
+			checksum           = req.indexEntry.Checksum
 		)
 		if data != nil {
-			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
+			seg = ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
 		}
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
@@ -333,7 +334,7 @@ func (r *blockRetriever) fetchBatch(
 			// consequent fetches.
 			if data != nil {
 				dataCopy := r.bytesPool.Get(data.Len())
-				onRetrieveSeg = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
+				onRetrieveSeg = ts.NewSegment(dataCopy, nil, checksum, ts.FinalizeHead)
 				dataCopy.AppendAll(data.Bytes())
 			}
 			if tags := req.indexEntry.EncodedTags; tags != nil && tags.Len() > 0 {

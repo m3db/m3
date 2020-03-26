@@ -52,6 +52,9 @@ type termsDictionary interface {
 	// Fields returns the known fields.
 	Fields() sgmt.FieldsIterator
 
+	// Fields returns the known fields.
+	FieldsPostingsList() sgmt.FieldsPostingsListIterator
+
 	// Terms returns the known terms values for the given field.
 	Terms(field []byte) sgmt.TermsIterator
 

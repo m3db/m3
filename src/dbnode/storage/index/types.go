@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -75,11 +76,18 @@ type Query struct {
 	idx.Query
 }
 
-// QueryOptions enables users to specify constraints on query execution.
+// QueryOptions enables users to specify constraints and
+// preferences on query execution.
 type QueryOptions struct {
-	StartInclusive time.Time
-	EndExclusive   time.Time
-	Limit          int
+	StartInclusive   time.Time
+	EndExclusive     time.Time
+	Limit            int
+	IterationOptions IterationOptions
+}
+
+// IterationOptions enables users to specify iteration preferences.
+type IterationOptions struct {
+	SeriesIteratorConsolidator encoding.SeriesIteratorConsolidator
 }
 
 // LimitExceeded returns whether a given size exceeds the limit
@@ -326,7 +334,7 @@ type Block interface {
 	) (exhaustive bool, err error)
 
 	// AddResults adds bootstrap results to the block.
-	AddResults(results result.IndexBlock) error
+	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
 
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable) (BlockTickResult, error)

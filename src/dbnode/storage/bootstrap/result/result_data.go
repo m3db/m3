@@ -34,7 +34,7 @@ type dataBootstrapResult struct {
 // NewDataBootstrapResult creates a new result.
 func NewDataBootstrapResult() DataBootstrapResult {
 	return &dataBootstrapResult{
-		unfulfilled: make(ShardTimeRanges),
+		unfulfilled: NewShardTimeRanges(),
 	}
 }
 

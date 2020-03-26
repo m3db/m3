@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/m3ninx/persist"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -49,7 +50,7 @@ type indexBootstrapResult struct {
 func NewIndexBootstrapResult() IndexBootstrapResult {
 	return &indexBootstrapResult{
 		results:     make(IndexResults),
-		unfulfilled: make(ShardTimeRanges),
+		unfulfilled: NewShardTimeRanges(),
 	}
 }
 
@@ -65,16 +66,18 @@ func (r *indexBootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
 	r.unfulfilled = unfulfilled
 }
 
-func (r *indexBootstrapResult) Add(block IndexBlock, unfulfilled ShardTimeRanges) {
-	r.results.Add(block)
+func (r *indexBootstrapResult) Add(blocks IndexBlockByVolumeType, unfulfilled ShardTimeRanges) {
+	r.results.Add(blocks)
 	r.unfulfilled.AddRanges(unfulfilled)
 }
 
 func (r *indexBootstrapResult) NumSeries() int {
 	var size int64
-	for _, b := range r.results {
-		for _, s := range b.segments {
-			size += s.Size()
+	for _, blockByVolumeType := range r.results {
+		for _, b := range blockByVolumeType.data {
+			for _, s := range b.segments {
+				size += s.Size()
+			}
 		}
 	}
 	return int(size)
@@ -143,32 +146,33 @@ func (r IndexResults) AddBlockIfNotExists(
 
 	_, exists := r[blockStartNanos]
 	if !exists {
-		r[blockStartNanos] = NewIndexBlock(blockStart, nil, nil)
+		r[blockStartNanos] = NewIndexBlockByVolumeType(blockStart)
 	}
 }
 
 // Add will add an index block to the collection, merging if one already
 // exists.
-func (r IndexResults) Add(block IndexBlock) {
-	if block.BlockStart().IsZero() {
+func (r IndexResults) Add(blocks IndexBlockByVolumeType) {
+	if blocks.BlockStart().IsZero() {
 		return
 	}
 
 	// Merge results
-	blockStart := xtime.ToUnixNano(block.BlockStart())
+	blockStart := xtime.ToUnixNano(blocks.BlockStart())
 	existing, ok := r[blockStart]
 	if !ok {
-		r[blockStart] = block
+		r[blockStart] = blocks
 		return
 	}
-	r[blockStart] = existing.Merged(block)
+
+	r[blockStart] = existing.Merged(blocks)
 }
 
 // AddResults will add another set of index results to the collection, merging
 // if index blocks already exists.
 func (r IndexResults) AddResults(other IndexResults) {
-	for _, block := range other {
-		r.Add(block)
+	for _, blocks := range other {
+		r.Add(blocks)
 	}
 }
 
@@ -177,6 +181,7 @@ func (r IndexResults) AddResults(other IndexResults) {
 func (r IndexResults) MarkFulfilled(
 	t time.Time,
 	fulfilled ShardTimeRanges,
+	indexVolumeType persist.IndexVolumeType,
 	idxopts namespace.IndexOptions,
 ) error {
 	// NB(r): The reason we can align by the retention block size and guarantee
@@ -198,12 +203,18 @@ func (r IndexResults) MarkFulfilled(
 			fulfilled.SummaryString(), blockRange.String())
 	}
 
-	block, exists := r[blockStartNanos]
+	blocks, exists := r[blockStartNanos]
 	if !exists {
-		block = NewIndexBlock(blockStart, nil, nil)
-		r[blockStartNanos] = block
+		blocks = NewIndexBlockByVolumeType(blockStart)
+		r[blockStartNanos] = blocks
 	}
-	r[blockStartNanos] = block.Merged(NewIndexBlock(blockStart, nil, fulfilled))
+
+	block, exists := blocks.data[indexVolumeType]
+	if !exists {
+		block = NewIndexBlock(nil, nil)
+		blocks.data[indexVolumeType] = block
+	}
+	blocks.data[indexVolumeType] = block.Merged(NewIndexBlock(nil, fulfilled))
 	return nil
 }
 
@@ -219,10 +230,14 @@ func MergedIndexBootstrapResult(i, j IndexBootstrapResult) IndexBootstrapResult 
 	}
 	sizeI, sizeJ := 0, 0
 	for _, ir := range i.IndexResults() {
-		sizeI += len(ir.Segments())
+		for _, b := range ir.data {
+			sizeI += len(b.Segments())
+		}
 	}
 	for _, ir := range j.IndexResults() {
-		sizeJ += len(ir.Segments())
+		for _, b := range ir.data {
+			sizeJ += len(b.Segments())
+		}
 	}
 	if sizeI >= sizeJ {
 		i.IndexResults().AddResults(j.IndexResults())
@@ -236,23 +251,16 @@ func MergedIndexBootstrapResult(i, j IndexBootstrapResult) IndexBootstrapResult 
 
 // NewIndexBlock returns a new bootstrap index block result.
 func NewIndexBlock(
-	blockStart time.Time,
 	segments []segment.Segment,
 	fulfilled ShardTimeRanges,
 ) IndexBlock {
 	if fulfilled == nil {
-		fulfilled = ShardTimeRanges{}
+		fulfilled = NewShardTimeRanges()
 	}
 	return IndexBlock{
-		blockStart: blockStart,
-		segments:   segments,
-		fulfilled:  fulfilled,
+		segments:  segments,
+		fulfilled: fulfilled,
 	}
-}
-
-// BlockStart returns the block start.
-func (b IndexBlock) BlockStart() time.Time {
-	return b.blockStart
 }
 
 // Segments returns the segments.
@@ -276,6 +284,50 @@ func (b IndexBlock) Merged(other IndexBlock) IndexBlock {
 	if !other.fulfilled.IsEmpty() {
 		r.fulfilled = b.fulfilled.Copy()
 		r.fulfilled.AddRanges(other.fulfilled)
+	}
+	return r
+}
+
+// NewIndexBlockByVolumeType returns a new bootstrap index blocks by volume type result.
+func NewIndexBlockByVolumeType(blockStart time.Time) IndexBlockByVolumeType {
+	return IndexBlockByVolumeType{
+		blockStart: blockStart,
+		data:       make(map[persist.IndexVolumeType]IndexBlock),
+	}
+}
+
+// BlockStart returns the block start.
+func (b IndexBlockByVolumeType) BlockStart() time.Time {
+	return b.blockStart
+}
+
+// GetBlock returns an IndexBlock for volumeType.
+func (b IndexBlockByVolumeType) GetBlock(volumeType persist.IndexVolumeType) (IndexBlock, bool) {
+	block, ok := b.data[volumeType]
+	return block, ok
+}
+
+// SetBlock sets an IndexBlock for volumeType.
+func (b IndexBlockByVolumeType) SetBlock(volumeType persist.IndexVolumeType, block IndexBlock) {
+	b.data[volumeType] = block
+}
+
+// Iter returns the underlying iterable map data.
+func (b IndexBlockByVolumeType) Iter() map[persist.IndexVolumeType]IndexBlock {
+	return b.data
+}
+
+// Merged returns a new merged index block by volume type.
+// It merges the underlying index blocks together by index volume type.
+func (b IndexBlockByVolumeType) Merged(other IndexBlockByVolumeType) IndexBlockByVolumeType {
+	r := b
+	for volumeType, otherBlock := range other.data {
+		existing, ok := r.data[volumeType]
+		if !ok {
+			r.data[volumeType] = otherBlock
+			continue
+		}
+		r.data[volumeType] = existing.Merged(otherBlock)
 	}
 	return r
 }

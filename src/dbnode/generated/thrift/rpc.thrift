@@ -154,6 +154,7 @@ struct Segment {
 	2: required binary tail
 	3: optional i64 startTime
 	4: optional i64 blockSize
+	5: optional i64 checksum
 }
 
 struct FetchTaggedRequest {

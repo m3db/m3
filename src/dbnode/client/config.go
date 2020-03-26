@@ -31,11 +31,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
 
@@ -76,6 +76,9 @@ type Configuration struct {
 
 	// FetchRetry is the fetch retry config.
 	FetchRetry *retry.Configuration `yaml:"fetchRetry"`
+
+	// LogErrorSampleRate is the log error sample rate.
+	LogErrorSampleRate sampler.Rate `yaml:"logErrorSampleRate"`
 
 	// BackgroundHealthCheckFailLimit is the amount of times a background check
 	// must fail before a connection is taken out of consideration.
@@ -157,6 +160,10 @@ func (c *Configuration) Validate() error {
 
 	if c.ConnectTimeout != nil && *c.ConnectTimeout < 0 {
 		return fmt.Errorf("m3db client connectTimeout was: %d but must be >= 0", *c.ConnectTimeout)
+	}
+
+	if err := c.LogErrorSampleRate.Validate(); err != nil {
+		return fmt.Errorf("m3db client error validating log error sample rate: %v", err)
 	}
 
 	if c.BackgroundHealthCheckFailLimit != nil &&
@@ -297,8 +304,8 @@ func (c Configuration) NewAdminClient(
 	v := NewAdminOptions().
 		SetTopologyInitializer(syncTopoInit).
 		SetAsyncTopologyInitializers(asyncTopoInits).
-		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
-		SetInstrumentOptions(iopts)
+		SetInstrumentOptions(iopts).
+		SetLogErrorSampleRate(c.LogErrorSampleRate)
 
 	if c.UseV2BatchAPIs != nil {
 		v = v.SetUseV2BatchAPIs(*c.UseV2BatchAPIs)

@@ -378,10 +378,10 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
 
-	iters, exhaust, err := session.FetchTagged(ident.StringID("namespace"),
+	iters, meta, err := session.FetchTagged(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.NoError(t, err)
-	assert.False(t, exhaust)
+	assert.False(t, meta.Exhaustive)
 	expected := append(sg0, sg1...)
 	expected = append(expected, sg2...)
 	expected.assertMatchesEncodingIters(t, iters)
@@ -513,10 +513,10 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 	// NB: stubbing needs to be done after session.Open
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
-	iters, exhaust, err := session.FetchTagged(ident.StringID("namespace"),
+	iters, meta, err := session.FetchTagged(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.NoError(t, err)
-	assert.False(t, exhaust)
+	assert.False(t, meta.Exhaustive)
 	expected := append(sg0, sg1...)
 	expected = append(expected, sg2...)
 	expected.assertMatchesEncodingIters(t, iters)

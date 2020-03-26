@@ -69,7 +69,9 @@ func testTargetRanges() xtime.Ranges {
 }
 
 func testShardTimeRanges() result.ShardTimeRanges {
-	return map[uint32]xtime.Ranges{testShard: testTargetRanges()}
+	r := result.NewShardTimeRanges()
+	r.Set(testShard, testTargetRanges())
+	return r
 }
 
 func testResult(
@@ -78,9 +80,8 @@ func testResult(
 	shard uint32,
 	unfulfilledRange xtime.Ranges,
 ) bootstrap.NamespaceResults {
-	unfulfilled := result.ShardTimeRanges{
-		shard: unfulfilledRange,
-	}
+	unfulfilled := result.NewShardTimeRanges()
+	unfulfilled.Set(shard, unfulfilledRange)
 
 	opts := bootstrap.NamespaceResultsMapOptions{}
 	results := bootstrap.NewNamespaceResultsMap(opts)
@@ -130,7 +131,7 @@ func testBaseBootstrapperEmptyRange(t *testing.T, withIndex bool) {
 	src, _, base := testBaseBootstrapper(t, ctrl)
 	testNs := testNsMetadata(t, withIndex)
 
-	rngs := result.ShardTimeRanges{}
+	rngs := result.NewShardTimeRanges()
 	unfulfilled := xtime.NewRanges()
 	nsResults := testResult(testNs, withIndex, testShard, unfulfilled)
 	shardRangeMatcher := bootstrap.ShardTimeRangesMatcher{Ranges: rngs}
@@ -255,11 +256,11 @@ func testBasebootstrapperNext(
 
 	src.EXPECT().
 		AvailableData(testNs, targetRanges, testDefaultRunOpts).
-		Return(nil, nil)
+		Return(result.NewShardTimeRanges(), nil)
 	if withIndex {
 		src.EXPECT().
 			AvailableIndex(testNs, targetRanges, testDefaultRunOpts).
-			Return(nil, nil)
+			Return(result.NewShardTimeRanges(), nil)
 	}
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges,
@@ -280,7 +281,7 @@ func testBasebootstrapperNext(
 	expected := ex.DataResult.Unfulfilled()
 	expectedIdx := ex.IndexResult.Unfulfilled()
 	if !withIndex {
-		expectedIdx = result.ShardTimeRanges{}
+		expectedIdx = result.NewShardTimeRanges()
 	}
 
 	tester.TestUnfulfilledForNamespace(testNs, expected, expectedIdx)

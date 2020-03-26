@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/ts"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -156,23 +157,25 @@ func TestBootstrapIndex(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start,
-		End:   start.Add(dataBlockSize),
-	})
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(dataBlockSize),
-		End:   start.Add(2 * dataBlockSize),
-	})
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(2 * dataBlockSize),
-		End:   start.Add(3 * dataBlockSize),
-	})
+	ranges := xtime.NewRanges(
+		xtime.Range{Start: start, End: start.Add(dataBlockSize)},
+		xtime.Range{Start: start.Add(dataBlockSize), End: start.Add(2 * dataBlockSize)},
+		xtime.Range{Start: start.Add(2 * dataBlockSize), End: start.Add(3 * dataBlockSize)})
 
 	// Don't include ranges for shard 4 as thats how we're testing the noShardBootstrapRange series.
-	targetRanges := result.ShardTimeRanges{
-		shardn(0): ranges, shardn(1): ranges, shardn(2): ranges, shardn(5): ranges}
+	targetRanges := result.NewShardTimeRanges().Set(
+		shardn(0),
+		ranges,
+	).Set(
+		shardn(1),
+		ranges,
+	).Set(
+		shardn(2),
+		ranges,
+	).Set(
+		shardn(5),
+		ranges,
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md1, md2, md3)
 	defer tester.Finish()
@@ -220,7 +223,7 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
-	target := result.ShardTimeRanges{}
+	target := result.NewShardTimeRanges()
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
 	defer tester.Finish()
 
@@ -262,7 +265,11 @@ func verifyIndexResultsAreCorrect(
 	}
 
 	for indexBlockStart, expectedSeries := range expectedIndexBlocks {
-		indexBlock, ok := indexResults[indexBlockStart]
+		indexBlockByVolumeType, ok := indexResults[indexBlockStart]
+		if !ok {
+			return fmt.Errorf("missing index block: %v", indexBlockStart.ToTime().String())
+		}
+		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		if !ok {
 			return fmt.Errorf("missing index block: %v", indexBlockStart.ToTime().String())
 		}
@@ -382,23 +389,25 @@ func TestBootstrapIndexFailsForDecodedTags(t *testing.T) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start,
-		End:   start.Add(dataBlockSize),
-	})
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(dataBlockSize),
-		End:   start.Add(2 * dataBlockSize),
-	})
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(2 * dataBlockSize),
-		End:   start.Add(3 * dataBlockSize),
-	})
+	ranges := xtime.NewRanges(
+		xtime.Range{Start: start, End: start.Add(dataBlockSize)},
+		xtime.Range{Start: start.Add(dataBlockSize), End: start.Add(2 * dataBlockSize)},
+		xtime.Range{Start: start.Add(2 * dataBlockSize), End: start.Add(3 * dataBlockSize)})
 
 	// Don't include ranges for shard 4 as thats how we're testing the noShardBootstrapRange series.
-	targetRanges := result.ShardTimeRanges{
-		shardn(0): ranges, shardn(1): ranges, shardn(2): ranges, shardn(5): ranges}
+	targetRanges := result.NewShardTimeRanges().Set(
+		shardn(0),
+		ranges,
+	).Set(
+		shardn(1),
+		ranges,
+	).Set(
+		shardn(2),
+		ranges,
+	).Set(
+		shardn(5),
+		ranges,
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, targetRanges, md1)
 	defer tester.Finish()

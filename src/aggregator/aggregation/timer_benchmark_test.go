@@ -24,10 +24,11 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 func getTimer() Timer {
-	opts := NewOptions()
+	opts := NewOptions(instrument.NewOptions())
 	opts.ResetSetData(testAggTypes)
 
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)

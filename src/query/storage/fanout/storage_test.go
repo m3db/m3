@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	errs "github.com/m3db/m3/src/query/errors"
@@ -86,13 +87,13 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	store2, session2 := m3.NewStorageAndSession(t, ctrl)
 
 	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(response[0].result, true, response[0].err)
+		Return(response[0].result, client.FetchResponseMetadata{Exhaustive: true}, response[0].err)
 	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(response[len(response)-1].result, true, response[len(response)-1].err)
+		Return(response[len(response)-1].result, client.FetchResponseMetadata{Exhaustive: true}, response[len(response)-1].err)
 	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, false, errs.ErrNotImplemented)
+		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, errs.ErrNotImplemented)
 	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, false, errs.ErrNotImplemented)
+		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, errs.ErrNotImplemented)
 	session1.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 	session2.EXPECT().IteratorPools().
@@ -117,9 +118,9 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 	session1.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, true, errs[0]).AnyTimes()
+		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, errs[0]).AnyTimes()
 	session1.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, true, errs[0]).AnyTimes()
+		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, errs[0]).AnyTimes()
 
 	session2.EXPECT().
 		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),

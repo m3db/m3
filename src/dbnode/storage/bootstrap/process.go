@@ -275,10 +275,10 @@ func (b bootstrapProcess) newShardTimeRanges(
 	window xtime.Range,
 	shards []uint32,
 ) result.ShardTimeRanges {
-	shardsTimeRanges := make(result.ShardTimeRanges, len(shards))
+	shardsTimeRanges := result.NewShardTimeRanges()
 	ranges := xtime.NewRanges(window)
 	for _, s := range shards {
-		shardsTimeRanges[s] = ranges
+		shardsTimeRanges.Set(s, ranges)
 	}
 	return shardsTimeRanges
 }

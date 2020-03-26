@@ -46,7 +46,7 @@ type ClustersStaticConfiguration []ClusterStaticConfiguration
 type NewClientFromConfig func(
 	cfg client.Configuration,
 	params client.ConfigurationParameters,
-	custom ...client.CustomOption,
+	custom ...client.CustomAdminOption,
 ) (client.Client, error)
 
 // ClusterStaticConfiguration is a static cluster configuration.
@@ -58,12 +58,12 @@ type ClusterStaticConfiguration struct {
 
 func (c ClusterStaticConfiguration) newClient(
 	params client.ConfigurationParameters,
-	custom ...client.CustomOption,
+	custom ...client.CustomAdminOption,
 ) (client.Client, error) {
 	if c.NewClientFromConfig != nil {
 		return c.NewClientFromConfig(c.Client, params, custom...)
 	}
-	return c.Client.NewClient(params, custom...)
+	return c.Client.NewAdminClient(params, custom...)
 }
 
 // ClusterStaticNamespaceConfiguration describes the namespaces in a
@@ -162,8 +162,9 @@ type clusterConnectResult struct {
 // ClustersStaticConfigurationOptions are options to use when
 // constructing clusters from config.
 type ClustersStaticConfigurationOptions struct {
-	AsyncSessions   bool
-	ProvidedSession client.Session
+	AsyncSessions      bool
+	ProvidedSession    client.Session
+	CustomAdminOptions []client.CustomAdminOption
 }
 
 // NewClusters instantiates a new Clusters instance.
@@ -189,7 +190,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 			// NB(r): Only create client session if not already provided.
 			result, err = clusterCfg.newClient(client.ConfigurationParameters{
 				InstrumentOptions: instrumentOpts,
-			})
+			}, opts.CustomAdminOptions...)
 			if err != nil {
 				return nil, err
 			}

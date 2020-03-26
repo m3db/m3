@@ -94,8 +94,8 @@ func enqueueReadersGroupedByBlockSize(
 
 	// Now enqueue across all shards by block size.
 	for _, group := range groupedByBlockSize {
-		readers := make(map[ShardID]ShardReaders, len(group.Ranges))
-		for shard, tr := range group.Ranges {
+		readers := make(map[ShardID]ShardReaders, group.Ranges.Len())
+		for shard, tr := range group.Ranges.Iter() {
 			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr, logger)
 			readers[ShardID(shard)] = shardReaders
 		}

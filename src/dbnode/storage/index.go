@@ -48,6 +48,7 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -751,6 +752,7 @@ func (i *nsIndex) Flush(
 	if err != nil {
 		return err
 	}
+	defer builder.Close()
 
 	var evicted int
 	for _, block := range flushable {
@@ -760,11 +762,11 @@ func (i *nsIndex) Flush(
 		}
 		// Make a result that covers the entire time ranges for the
 		// block for each shard
-		fulfilled := result.NewShardTimeRanges(block.StartTime(), block.EndTime(),
+		fulfilled := result.NewShardTimeRangesFromRange(block.StartTime(), block.EndTime(),
 			dbShards(shards).IDs()...)
 		// Add the results to the block
-		results := result.NewIndexBlock(block.StartTime(), immutableSegments,
-			fulfilled)
+		results := result.NewIndexBlockByVolumeType(block.StartTime())
+		results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(immutableSegments, fulfilled))
 		if err := block.AddResults(results); err != nil {
 			return err
 		}
@@ -853,6 +855,8 @@ func (i *nsIndex) flushBlock(
 		BlockStart:        indexBlock.StartTime(),
 		FileSetType:       persist.FileSetFlushType,
 		Shards:            allShards,
+		// NB(bodu): By default, we always write to the "default" index volume type.
+		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
 	})
 	if err != nil {
 		return nil, err
@@ -1352,7 +1356,7 @@ func (i *nsIndex) blocksForQueryWithRLock(queryRange xtime.Ranges) ([]index.Bloc
 		}
 
 		// Remove this range from the query range.
-		queryRange = queryRange.RemoveRange(blockRange)
+		queryRange.RemoveRange(blockRange)
 
 		blocks = append(blocks, block)
 	}

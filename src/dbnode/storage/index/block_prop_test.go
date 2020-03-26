@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/proptest"
 	"github.com/m3db/m3/src/x/context"
@@ -184,12 +185,14 @@ func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metad
 		memSeg = testSegment(t, lotsTestDocuments...).(segment.MutableSegment)
 		fstSeg = fst.ToTestSegment(t, memSeg, testFstOptions)
 		// Need at least one shard to look fulfilled.
-		fulfilled  = result.NewShardTimeRanges(blockStart, blockStart.Add(testBlockSize), uint32(1))
-		indexBlock = result.NewIndexBlock(blockStart, []segment.Segment{fstSeg}, fulfilled)
+		fulfilled              = result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(testBlockSize), uint32(1))
+		indexBlockByVolumeType = result.NewIndexBlockByVolumeType(blockStart)
 	)
+	indexBlockByVolumeType.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{fstSeg}, fulfilled))
+
 	// Use the AddResults API because thats the only scenario in which we'll wrap a segment
 	// in a ReadThroughSegment to use the postings list cache.
-	err = blk.AddResults(indexBlock)
+	err = blk.AddResults(indexBlockByVolumeType)
 	require.NoError(t, err)
 	return blk, nil
 }
