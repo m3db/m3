@@ -41,6 +41,7 @@ const (
 	defaultMessageQueueScanBatchSize         = 16
 	defaultInitialAckMapSize                 = 1024
 
+	defaultNumConnections            = 4
 	defaultConnectionDialTimeout     = 10 * time.Second
 	defaultConnectionWriteTimeout    = time.Second
 	defaultConnectionKeepAlivePeriod = time.Minute
@@ -53,6 +54,12 @@ const (
 
 // ConnectionOptions configs the connections.
 type ConnectionOptions interface {
+	// NumConnections returns the number of connections.
+	NumConnections() int
+
+	// SetNumConnections sets the number of connections.
+	SetNumConnections(value int) ConnectionOptions
+
 	// DialTimeout returns the dial timeout.
 	DialTimeout() time.Duration
 
@@ -109,6 +116,7 @@ type ConnectionOptions interface {
 }
 
 type connectionOptions struct {
+	numConnections  int
 	dialTimeout     time.Duration
 	writeTimeout    time.Duration
 	keepAlivePeriod time.Duration
@@ -123,6 +131,7 @@ type connectionOptions struct {
 // NewConnectionOptions creates ConnectionOptions.
 func NewConnectionOptions() ConnectionOptions {
 	return &connectionOptions{
+		numConnections:  defaultNumConnections,
 		dialTimeout:     defaultConnectionDialTimeout,
 		writeTimeout:    defaultConnectionWriteTimeout,
 		keepAlivePeriod: defaultConnectionKeepAlivePeriod,
@@ -133,6 +142,16 @@ func NewConnectionOptions() ConnectionOptions {
 		readBufferSize:  defaultConnectionBufferSize,
 		iOpts:           instrument.NewOptions(),
 	}
+}
+
+func (opts *connectionOptions) NumConnections() int {
+	return opts.numConnections
+}
+
+func (opts *connectionOptions) SetNumConnections(value int) ConnectionOptions {
+	o := *opts
+	o.numConnections = value
+	return &o
 }
 
 func (opts *connectionOptions) DialTimeout() time.Duration {
