@@ -24,15 +24,13 @@ import (
 	"fmt"
 	"github.com/ghodss/yaml"
 	"github.com/gogo/protobuf/proto"
-
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/placements"
+
+	//"github.com/m3db/m3/src/cmd/tools/m3ctl/placements"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 
 // peek into the yaml to see what it is expected to be
-// don't try to decode the entire thing since its
-// going into something that's currently unknown
-// so just grab the "operation" then dispatch
 //
 // returns the url path, proto.Message, and error
 func peeker(data []byte) (string, proto.Message, error) {
@@ -43,51 +41,38 @@ func peeker(data []byte) (string, proto.Message, error) {
 
 	// this really does nothing more than unpack into the above
 	// private type to take a peek at Operation
-	// no data is saved from this
-	// nothing is returned from thie
 	// its just a peek
-	// and then it returns other data depending on the results of the peek
 	if err := yaml.Unmarshal(data, &peek); err != nil {
 		return "", nil, err
 	}
+
 	switch peek.Operation {
 	case opCreate:
-		q := struct {
-			Request admin.DatabaseCreateRequest
-		}{}
-		if err := yaml.Unmarshal(data, &q); err != nil {
+		payload := struct {Request admin.DatabaseCreateRequest}{}
+		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
-		pb := q.Request
-		return dbcreatePath, &pb, nil
+		return dbcreatePath, &payload.Request, nil
 	case opInit:
-		q := struct {
-			Request admin.PlacementInitRequest
-		}{}
-		if err := yaml.Unmarshal(data, &q); err != nil {
+		payload := struct {Request admin.PlacementInitRequest}{}
+		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
-		pb := q.Request
-		return fmt.Sprintf("%s/init", placements.DefaultPath), &pb, nil
+		return fmt.Sprintf("%s/init", placements.DefaultPath), &payload.Request, nil
 	case opReplace:
-		q := struct {
-			Request admin.PlacementReplaceRequest
-		}{}
-		if err := yaml.Unmarshal(data, &q); err != nil {
+		payload := struct {Request admin.PlacementReplaceRequest}{}
+		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
-		pb := q.Request
-		return fmt.Sprintf("%s/replace", placements.DefaultPath), &pb, nil
+		return fmt.Sprintf("%s/replace", placements.DefaultPath), &payload.Request, nil
 	case opNewNode:
-		q := struct {
-			Request admin.PlacementInitRequest
-		}{}
-		if err := yaml.Unmarshal(data, &q); err != nil {
+		payload := struct {Request admin.PlacementInitRequest}{}
+		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
-		pb := q.Request
-		return fmt.Sprintf("%s", placements.DefaultPath), &pb, nil
+		return fmt.Sprintf("%s", placements.DefaultPath), &payload.Request, nil
 	default:
 		return "", nil, fmt.Errorf("Unknown operation specified in the yaml\n")
 	}
+
 }
