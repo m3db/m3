@@ -26,7 +26,6 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/ghodss/yaml"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 )
@@ -48,15 +47,11 @@ func Load(path string, zl *zap.Logger) (string, io.Reader, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	rv, err := load(content, pbmessage)
+	rv, err := load(pbmessage)
 	return url, rv, nil
 }
 
-func load(content []byte, target proto.Message) (io.Reader, error) {
-	// unmarshal it into json
-	if err := yaml.Unmarshal(content, target); err != nil {
-		return nil, err
-	}
+func load(target proto.Message) (io.Reader, error) {
 	// marshal it into protocol buffers
 	var data *bytes.Buffer
 	data = bytes.NewBuffer(nil)

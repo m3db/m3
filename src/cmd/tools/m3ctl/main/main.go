@@ -160,7 +160,7 @@ database creation, database init, adding a node, and replacing a node, are suppo
 	applyCmd.Flags().StringVarP(&yamlPath, "file", "f", "", "times to echo the input")
 	getNamespaceCmd.Flags().BoolVarP(&showAll, "showAll", "a", false, "times to echo the input")
 	deletePlacementCmd.Flags().BoolVarP(&showAll, "deleteAll", "a", false, "delete the entire placement")
-	deleteCmd.PersistentFlags().StringVarP(&nodeName, "nodeName", "n", "", "which node to delete")
+	deleteCmd.PersistentFlags().StringVarP(&nodeName, "name", "n", "", "which namespace or node to delete")
 
 	rootCmd.Execute()
 

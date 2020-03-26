@@ -21,11 +21,12 @@
 package yaml
 
 import (
-	pb "github.com/m3db/m3/src/cmd/tools/m3ctl/yaml/generated"
 	"io/ioutil"
 	"testing"
 
 	"github.com/gogo/protobuf/jsonpb"
+
+	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 
 func TestPeekerPositive(t *testing.T) {
@@ -40,21 +41,30 @@ func TestPeekerPositive(t *testing.T) {
 	if urlpath != dbcreatePath {
 		t.Errorf("urlpath is wrong:expected:%s:got:%s:\n", dbcreatePath, urlpath)
 	}
-	data, err := load(content, pbmessage)
+	data, err := load(pbmessage)
 	if err != nil {
 		t.Fatalf("failed to encode to protocol:%v:\n", err)
 	}
-	dest := pb.DatabaseCreateRequestYaml{}
+	var dest admin.DatabaseCreateRequest
 	unmarshaller := &jsonpb.Unmarshaler{AllowUnknownFields: true}
 	if err := unmarshaller.Unmarshal(data, &dest); err != nil {
 		t.Fatalf("operation selector failed to unmarshal unknown operation data:%v:\n", err)
 	}
 	t.Logf("dest:%v:\n", dest)
-	if dest.Request.NamespaceName != "default" {
-		t.Errorf("dest NamespaceName does not have the correct value via operation:expected:%v:got:%v:", opCreate, dest.Request.NamespaceName)
+	if dest.NamespaceName != "default" {
+		t.Errorf("dest NamespaceName does not have the correct value via operation:expected:%v:got:%v:", opCreate, dest.NamespaceName)
 	}
-	if dest.Request.Type != "cluster" {
-		t.Errorf("dest type does not have the correct value via operation:expected:%v:got:%v:", opCreate, dest.Request.Type)
+	if dest.Type != "cluster" {
+		t.Errorf("dest type does not have the correct value via operation:expected:%v:got:%v:", opCreate, dest.Type)
+	}
+	if dest.ReplicationFactor != 327 {
+		t.Errorf("in and out ReplicationFactor did not match:expected:%d:got:%d:\n", 327, dest.ReplicationFactor)
+	}
+	if len(dest.Hosts) != 1 {
+		t.Errorf("number of hosts is wrong:expected:%d:got:%d:\n", 1, len(dest.Hosts))
+	}
+	if dest.Hosts[0].Id != "m3db_seed" {
+		t.Errorf("hostname is wrong:expected:%s:got:%s:\n", "m3db_seed", dest.Hosts[0])
 	}
 }
 func TestPeekerNegative(t *testing.T) {

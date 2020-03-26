@@ -24,8 +24,9 @@ import (
 	"fmt"
 	"github.com/ghodss/yaml"
 	"github.com/gogo/protobuf/proto"
+
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/placements"
-	pb "github.com/m3db/m3/src/cmd/tools/m3ctl/yaml/generated"
+	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 
 // peek into the yaml to see what it is expected to be
@@ -45,19 +46,47 @@ func peeker(data []byte) (string, proto.Message, error) {
 	// no data is saved from this
 	// nothing is returned from thie
 	// its just a peek
-	// and then it returns other data depending on the reults of the peek
+	// and then it returns other data depending on the results of the peek
 	if err := yaml.Unmarshal(data, &peek); err != nil {
 		return "", nil, err
 	}
 	switch peek.Operation {
 	case opCreate:
-		return dbcreatePath, &pb.DatabaseCreateRequestYaml{}, nil
+		q := struct {
+			Request admin.DatabaseCreateRequest
+		}{}
+		if err := yaml.Unmarshal(data, &q); err != nil {
+			return "", nil, err
+		}
+		pb := q.Request
+		return dbcreatePath, &pb, nil
 	case opInit:
-		return fmt.Sprintf("%s/init", placements.DefaultPath), &pb.PlacementInitRequestYaml{}, nil
+		q := struct {
+			Request admin.PlacementInitRequest
+		}{}
+		if err := yaml.Unmarshal(data, &q); err != nil {
+			return "", nil, err
+		}
+		pb := q.Request
+		return fmt.Sprintf("%s/init", placements.DefaultPath), &pb, nil
 	case opReplace:
-		return fmt.Sprintf("%s/replace", placements.DefaultPath), &pb.PlacementReplaceRequestYaml{}, nil
+		q := struct {
+			Request admin.PlacementReplaceRequest
+		}{}
+		if err := yaml.Unmarshal(data, &q); err != nil {
+			return "", nil, err
+		}
+		pb := q.Request
+		return fmt.Sprintf("%s/replace", placements.DefaultPath), &pb, nil
 	case opNewNode:
-		return fmt.Sprintf("%s", placements.DefaultPath), &pb.PlacementInitRequestYaml{}, nil
+		q := struct {
+			Request admin.PlacementInitRequest
+		}{}
+		if err := yaml.Unmarshal(data, &q); err != nil {
+			return "", nil, err
+		}
+		pb := q.Request
+		return fmt.Sprintf("%s", placements.DefaultPath), &pb, nil
 	default:
 		return "", nil, fmt.Errorf("Unknown operation specified in the yaml\n")
 	}
