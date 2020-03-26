@@ -565,6 +565,19 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 	floatsEqual(float64(r.Cost), 11)
 	require.NoError(t, r.Error)
 
+	// Wait for stats reporting to start.
+	start := time.Now()
+	for time.Since(start) < 15*time.Second {
+		gauges := scope.Snapshot().Gauges()
+		globalEnabled, globalOk := gauges["cost.limits.enabled+limiter=global"]
+		queryEnabled, queryOk := gauges["cost.limits.enabled+limiter=query"]
+		if globalOk && queryOk && globalEnabled.Value() == 1 && queryEnabled.Value() == 1 {
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	// Check stats.
 	expectCounterValues := map[string]int64{
 		"cost.reporter.over_datapoints_limit+enabled=false,limiter=global": 0,
@@ -574,11 +587,11 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 		"cost.reporter.over_datapoints_limit+enabled=true,limiter=query":   1,
 	}
 	expectGaugeValues := map[string]float64{
-		"cost.limits.threshold+limiter=global":    0,
-		"cost.limits.enabled+limiter=global":      0,
+		"cost.limits.threshold+limiter=global":    100,
+		"cost.limits.enabled+limiter=global":      1,
 		"cost.reporter.datapoints+limiter=global": 11,
-		"cost.limits.threshold+limiter=query":     0,
-		"cost.limits.enabled+limiter=query":       0,
+		"cost.limits.threshold+limiter=query":     10,
+		"cost.limits.enabled+limiter=query":       1,
 	}
 
 	snapshot := scope.Snapshot()
