@@ -48,25 +48,25 @@ func peeker(data []byte) (string, proto.Message, error) {
 
 	switch peek.Operation {
 	case opCreate:
-		payload := struct {Request admin.DatabaseCreateRequest}{}
+		payload := struct{ Request admin.DatabaseCreateRequest }{}
 		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
 		return dbcreatePath, &payload.Request, nil
 	case opInit:
-		payload := struct {Request admin.PlacementInitRequest}{}
+		payload := struct{ Request admin.PlacementInitRequest }{}
 		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
 		return fmt.Sprintf("%s/init", placements.DefaultPath), &payload.Request, nil
 	case opReplace:
-		payload := struct {Request admin.PlacementReplaceRequest}{}
+		payload := struct{ Request admin.PlacementReplaceRequest }{}
 		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
 		return fmt.Sprintf("%s/replace", placements.DefaultPath), &payload.Request, nil
 	case opNewNode:
-		payload := struct {Request admin.PlacementInitRequest}{}
+		payload := struct{ Request admin.PlacementInitRequest }{}
 		if err := yaml.Unmarshal(data, &payload); err != nil {
 			return "", nil, err
 		}
