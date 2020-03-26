@@ -237,6 +237,8 @@ func (cb ColumnBlockBuilder) PopulateColumns(size int) {
 	for i := range cb.block.columns {
 		cb.block.columns[i] = column{Values: cols[size*i : size*(i+1)]}
 	}
+
+	cb.block.seriesMeta = make([]SeriesMeta, size)
 }
 
 // SetRow sets a given block row to the given values and metadata.
