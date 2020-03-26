@@ -1091,6 +1091,14 @@ func (c *aggregatorLocalAdminClient) WriteForwarded(
 	return c.agg.AddForwarded(metric, metadata)
 }
 
+// WritePassthrough writes passthrough metrics.
+func (c *aggregatorLocalAdminClient) WritePassthrough(
+	metric aggregated.Metric,
+	storagePolicy policy.StoragePolicy,
+) error {
+	return c.agg.AddPassthrough(metric, storagePolicy)
+}
+
 // Flush flushes any remaining data buffered by the client.
 func (c *aggregatorLocalAdminClient) Flush() error {
 	return nil
