@@ -31,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -47,16 +46,19 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/m3"
 	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/close"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
-	"go.uber.org/atomic"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 )
 
@@ -510,7 +512,12 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 		Global cost.ChainedEnforcer
 		Query  cost.ChainedEnforcer
 		Block  cost.ChainedEnforcer
+		Closer close.SimpleCloser
 	}
+
+	scope := tally.NewTestScope("", nil)
+	instrumentOpts := instrument.NewTestOptions(t).
+		SetMetricsScope(scope)
 
 	setup := func(t *testing.T, globalLimit, queryLimit int) testContext {
 		cfg := &config.Configuration{
@@ -524,7 +531,7 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 			},
 		}
 
-		global, err := newConfiguredChainedEnforcer(cfg, instrument.NewOptions())
+		global, closer, err := newConfiguredChainedEnforcer(cfg, instrumentOpts)
 		require.NoError(t, err)
 
 		queryLvl := global.Child(cost.QueryLevel)
@@ -534,13 +541,15 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 			Global: global,
 			Query:  queryLvl,
 			Block:  blockLvl,
+			Closer: closer,
 		}
 	}
 
 	tctx := setup(t, 100, 10)
+	defer tctx.Closer.Close()
 
-	// spot check that limits are setup properly for each level
-	r := tctx.Block.Add(11)
+	// Spot check that limits are setup properly for each level.
+	r := tctx.Query.Add(11)
 	require.Error(t, r.Error)
 
 	floatsEqual := func(f1, f2 float64) {
@@ -555,6 +564,59 @@ func TestNewPerQueryEnforcer(t *testing.T) {
 	r, _ = tctx.Global.State()
 	floatsEqual(float64(r.Cost), 11)
 	require.NoError(t, r.Error)
+
+	// Check stats.
+	expectCounterValues := map[string]int64{
+		"cost.reporter.over_datapoints_limit+enabled=false,limiter=global": 0,
+		"cost.reporter.over_datapoints_limit+enabled=true,limiter=global":  0,
+		"cost.reporter.datapoints_counter+limiter=global":                  11,
+		"cost.reporter.over_datapoints_limit+enabled=false,limiter=query":  0,
+		"cost.reporter.over_datapoints_limit+enabled=true,limiter=query":   1,
+	}
+	expectGaugeValues := map[string]float64{
+		"cost.limits.threshold+limiter=global":    0,
+		"cost.limits.enabled+limiter=global":      0,
+		"cost.reporter.datapoints+limiter=global": 11,
+		"cost.limits.threshold+limiter=query":     0,
+		"cost.limits.enabled+limiter=query":       0,
+	}
+
+	snapshot := scope.Snapshot()
+	actualCounterValues := make(map[string]int64)
+	for k, v := range snapshot.Counters() {
+		actualCounterValues[k] = v.Value()
+
+		expected, ok := expectCounterValues[k]
+		if !ok {
+			continue
+		}
+
+		// Check match.
+		assert.Equal(t, expected, v.Value(),
+			fmt.Sprintf("stat mismatch: stat=%s", k))
+
+		delete(expectCounterValues, k)
+	}
+	assert.Equal(t, 0, len(expectCounterValues),
+		fmt.Sprintf("missing stats: %+v", expectCounterValues))
+
+	actualGaugeValues := make(map[string]float64)
+	for k, v := range snapshot.Gauges() {
+		actualGaugeValues[k] = v.Value()
+
+		expected, ok := expectGaugeValues[k]
+		if !ok {
+			continue
+		}
+
+		// Check match.
+		assert.Equal(t, expected, v.Value(),
+			fmt.Sprintf("stat mismatch: stat=%s", k))
+
+		delete(expectGaugeValues, k)
+	}
+	assert.Equal(t, 0, len(expectGaugeValues),
+		fmt.Sprintf("missing stats: %+v", expectGaugeValues))
 }
 
 var _ rpc.QueryServer = &queryServer{}

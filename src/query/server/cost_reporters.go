@@ -23,6 +23,7 @@ package server
 // This file contains reporters and setup for our query/cost.ChainedEnforcer
 // instances.
 import (
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -36,7 +37,7 @@ import (
 
 const (
 	costScopeName           = "cost"
-	limitManagerScopeName   = "limit-manager"
+	limitManagerScopeName   = "limits"
 	reporterScopeName       = "reporter"
 	queriesOverLimitMetric  = "over_datapoints_limit"
 	datapointsMetric        = "datapoints"
@@ -49,26 +50,30 @@ const (
 // on them (as configured by cfg.Limits); per-block is purely for accounting
 // purposes.
 // Our enforcers report at least these stats:
-//   cost.global.datapoints: gauge; the number of datapoints currently in use
-//                           by this instance.
+//   cost_reporter_datapoints{limit="global"}: gauge;
+//   > the number of datapoints currently in use by this instance.
 //
-//   cost.global.datapoints_counter: counter; counter representation of the
-//                                   number of datapoints in use by this instance
+//   cost_reporter_datapoints_counter{limiter="global"}: counter;
+//   > counter representation of the number of datapoints in use by this instance.
 //
-//   cost.{per_query,global}.over_datapoints_limit: counter; how many queries are over the
-//    datapoint limit
+//   cost_reporter_over_datapoints_limit{limiter=~"(global|per_query)"}: counter;
+//   > how many queries are over the datapoint limit.
 //
-//   cost.per_query.max_datapoints_hist: histogram; represents the
-//     distribution of the maximum datapoints used at any point in each query.
+//   cost_reporter_max_datapoints_hist{limiter=~"(global|per_query)"}: histogram;
+//   > represents the distribution of the maximum datapoints used at any point in each query.
 func newConfiguredChainedEnforcer(
 	cfg *config.Configuration,
 	instrumentOptions instrument.Options,
 ) (qcost.ChainedEnforcer, close.SimpleCloser, error) {
 	scope := instrumentOptions.MetricsScope().SubScope(costScopeName)
 
+	exceededMessage := func(exceedType, exceedLimit string) string {
+		return fmt.Sprintf("exceeded limits.%s.%s", exceedType, exceedLimit)
+	}
+
 	// Create global limit manager and enforcer.
 	globalScope := scope.Tagged(map[string]string{
-		"limit-scope": "global",
+		"limiter": "global",
 	})
 	globalLimitManagerScope := globalScope.SubScope(limitManagerScopeName)
 	globalReporterScope := globalScope.SubScope(reporterScopeName)
@@ -82,17 +87,17 @@ func newConfiguredChainedEnforcer(
 	globalEnforcer := cost.NewEnforcer(globalLimitMgr, globalTracker,
 		cost.NewEnforcerOptions().
 			SetReporter(newGlobalReporter(globalReporterScope)).
-			SetCostExceededMessage("limits.global.maxFetchedDatapoints exceeded"))
+			SetCostExceededMessage(exceededMessage("global", "maxFetchedDatapoints")))
 
 	// Create per query limit manager and enforcer.
 	queryScope := scope.Tagged(map[string]string{
-		"limit-scope": "query",
+		"limiter": "query",
 	})
 	queryLimitManagerScope := queryScope.SubScope(limitManagerScopeName)
 	queryReporterScope := queryScope.SubScope(reporterScopeName)
 
 	queryLimitMgr := cost.NewStaticLimitManager(
-		cfg.Limits.Global.AsLimitManagerOptions().
+		cfg.Limits.PerQuery.AsLimitManagerOptions().
 			SetInstrumentOptions(instrumentOptions.SetMetricsScope(queryLimitManagerScope)))
 
 	queryTracker := cost.NewTracker()
@@ -100,7 +105,7 @@ func newConfiguredChainedEnforcer(
 	queryEnforcer := cost.NewEnforcer(queryLimitMgr, queryTracker,
 		cost.NewEnforcerOptions().
 			SetReporter(newPerQueryReporter(queryReporterScope)).
-			SetCostExceededMessage("limits.perQuery.maxFetchedDatapoints exceeded"))
+			SetCostExceededMessage(exceededMessage("perQuery", "maxFetchedDatapoints")))
 
 	// Create block enforcer.
 	blockEnforcer := cost.NewEnforcer(

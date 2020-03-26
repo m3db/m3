@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/cost/test"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -35,17 +36,22 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func TestNewConfiguredChainedEnforcer(t *testing.T) {
-	type testCtx struct {
-		Scope          tally.TestScope
-		GlobalEnforcer cost.ChainedEnforcer
-	}
+type enforcerTestCtx struct {
+	Scope          tally.TestScope
+	GlobalEnforcer cost.ChainedEnforcer
+	Closer         close.SimpleCloser
+}
 
-	setup := func(t *testing.T, perQueryLimit, globalLimit int64) testCtx {
+func (c enforcerTestCtx) Close() {
+	c.Closer.Close()
+}
+
+func TestNewConfiguredChainedEnforcer(t *testing.T) {
+	setup := func(t *testing.T, perQueryLimit, globalLimit int64) enforcerTestCtx {
 		s := tally.NewTestScope("", nil)
 		iopts := instrument.NewOptions().SetMetricsScope(s)
 
-		globalEnforcer, err := newConfiguredChainedEnforcer(&config.Configuration{
+		globalEnforcer, closer, err := newConfiguredChainedEnforcer(&config.Configuration{
 			Limits: config.LimitsConfiguration{
 				PerQuery: config.PerQueryLimitsConfiguration{
 					MaxFetchedDatapoints: perQueryLimit,
@@ -58,14 +64,16 @@ func TestNewConfiguredChainedEnforcer(t *testing.T) {
 
 		require.NoError(t, err)
 
-		return testCtx{
+		return enforcerTestCtx{
 			Scope:          s,
 			GlobalEnforcer: globalEnforcer,
+			Closer:         closer,
 		}
 	}
 
 	t.Run("has 3 valid levels", func(t *testing.T) {
 		tctx := setup(t, 6, 10)
+		defer tctx.Close()
 
 		assertValid := func(ce cost.ChainedEnforcer) {
 			assert.NotEqual(t, ce, cost.NoopChainedEnforcer())
@@ -86,6 +94,8 @@ func TestNewConfiguredChainedEnforcer(t *testing.T) {
 
 	t.Run("configures reporters", func(t *testing.T) {
 		tctx := setup(t, 6, 10)
+		defer tctx.Close()
+
 		queryEf := tctx.GlobalEnforcer.Child(cost.QueryLevel)
 		blockEf := queryEf.Child(cost.BlockLevel)
 		blockEf.Add(7)
@@ -110,12 +120,15 @@ func TestNewConfiguredChainedEnforcer(t *testing.T) {
 
 	t.Run("block level doesn't have a limit", func(t *testing.T) {
 		tctx := setup(t, -1, -1)
+		defer tctx.Close()
+
 		block := tctx.GlobalEnforcer.Child(cost.QueryLevel).Child(cost.BlockLevel)
 		assert.NoError(t, block.Add(math.MaxFloat64-1).Error)
 	})
 
 	t.Run("works e2e", func(t *testing.T) {
 		tctx := setup(t, 6, 10)
+		defer tctx.Close()
 
 		qe1, qe2 := tctx.GlobalEnforcer.Child(cost.QueryLevel), tctx.GlobalEnforcer.Child(cost.QueryLevel)
 		r := qe1.Add(6)
