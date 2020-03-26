@@ -103,7 +103,7 @@ func TestNewConfiguredChainedEnforcer(t *testing.T) {
 		assertHasGauge(t,
 			tctx.Scope.Snapshot(),
 			tally.KeyForPrefixedStringMap(
-				fmt.Sprintf("cost.global.%s", datapointsMetric), nil),
+				fmt.Sprintf("cost.reporter.%s", datapointsMetric), map[string]string{"limiter": "global"}),
 			7,
 		)
 
@@ -113,7 +113,7 @@ func TestNewConfiguredChainedEnforcer(t *testing.T) {
 		assertHasHistogram(t,
 			tctx.Scope.Snapshot(),
 			tally.KeyForPrefixedStringMap(
-				fmt.Sprintf("cost.per_query.%s", maxDatapointsHistMetric), nil),
+				fmt.Sprintf("cost.reporter.%s", maxDatapointsHistMetric), map[string]string{"limiter": "query"}),
 			map[float64]int64{10: 1},
 		)
 	})
@@ -135,7 +135,7 @@ func TestNewConfiguredChainedEnforcer(t *testing.T) {
 		test.AssertLimitErrorWithMsg(
 			t,
 			r.Error,
-			"exceeded query limit: limits.perQuery.maxFetchedDatapoints exceeded",
+			"exceeded query limit: exceeded limits.perQuery.maxFetchedDatapoints",
 			6,
 			6)
 
@@ -146,7 +146,7 @@ func TestNewConfiguredChainedEnforcer(t *testing.T) {
 		test.AssertLimitErrorWithMsg(
 			t,
 			r.Error,
-			"exceeded global limit: limits.global.maxFetchedDatapoints exceeded",
+			"exceeded global limit: exceeded limits.global.maxFetchedDatapoints",
 			11,
 			10)
 
