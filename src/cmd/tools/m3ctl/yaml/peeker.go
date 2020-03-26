@@ -22,11 +22,11 @@ package yaml
 
 import (
 	"fmt"
+
 	"github.com/ghodss/yaml"
 	"github.com/gogo/protobuf/proto"
-	"github.com/m3db/m3/src/cmd/tools/m3ctl/placements"
 
-	//"github.com/m3db/m3/src/cmd/tools/m3ctl/placements"
+	"github.com/m3db/m3/src/cmd/tools/m3ctl/placements"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 )
 
@@ -46,6 +46,8 @@ func peeker(data []byte) (string, proto.Message, error) {
 		return "", nil, err
 	}
 
+	// now the payload is of known type
+	// unmarshal it and return the proto.Message
 	switch peek.Operation {
 	case opCreate:
 		payload := struct{ Request admin.DatabaseCreateRequest }{}
