@@ -2804,6 +2804,18 @@ func (mr *MockdatabaseMediatorMockRecorder) Tick(forceType, startTime interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseMediator)(nil).Tick), forceType, startTime)
 }
 
+// WaitForFileSystemProcesses mocks base method
+func (m *MockdatabaseMediator) WaitForFileSystemProcesses() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "WaitForFileSystemProcesses")
+}
+
+// WaitForFileSystemProcesses indicates an expected call of WaitForFileSystemProcesses
+func (mr *MockdatabaseMediatorMockRecorder) WaitForFileSystemProcesses() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForFileSystemProcesses", reflect.TypeOf((*MockdatabaseMediator)(nil).WaitForFileSystemProcesses))
+}
+
 // Repair mocks base method
 func (m *MockdatabaseMediator) Repair() error {
 	m.ctrl.T.Helper()

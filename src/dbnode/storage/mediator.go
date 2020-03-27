@@ -33,15 +33,22 @@ import (
 	"go.uber.org/zap"
 )
 
-type mediatorState int
+type (
+	mediatorState            int
+	fileSystemProcessesState int
+)
 
 const (
-	fileOpCheckInterval = time.Second
-	tickCheckInterval   = 5 * time.Second
+	fileOpCheckInterval              = time.Second
+	tickCheckInterval                = 5 * time.Second
+	fileSystemProcessesCheckInterval = 100 * time.Millisecond
 
 	mediatorNotOpen mediatorState = iota
 	mediatorOpen
 	mediatorClosed
+
+	fileSystemProcessesIdle fileSystemProcessesState = iota
+	fileSystemProcessesBusy
 )
 
 var (
@@ -76,13 +83,14 @@ type mediator struct {
 	databaseTickManager
 	databaseRepairer
 
-	opts                Options
-	nowFn               clock.NowFn
-	sleepFn             sleepFn
-	metrics             mediatorMetrics
-	state               mediatorState
-	mediatorTimeBarrier mediatorTimeBarrier
-	closedCh            chan struct{}
+	opts                     Options
+	nowFn                    clock.NowFn
+	sleepFn                  sleepFn
+	metrics                  mediatorMetrics
+	state                    mediatorState
+	fileSystemProcessesState fileSystemProcessesState
+	mediatorTimeBarrier      mediatorTimeBarrier
+	closedCh                 chan struct{}
 }
 
 // TODO(r): Consider renaming "databaseMediator" to "databaseCoordinator"
@@ -94,14 +102,15 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 		nowFn = opts.ClockOptions().NowFn()
 	)
 	d := &mediator{
-		database:            database,
-		opts:                opts,
-		nowFn:               opts.ClockOptions().NowFn(),
-		sleepFn:             time.Sleep,
-		metrics:             newMediatorMetrics(scope),
-		state:               mediatorNotOpen,
-		mediatorTimeBarrier: newMediatorTimeBarrier(nowFn, iOpts),
-		closedCh:            make(chan struct{}),
+		database:                 database,
+		opts:                     opts,
+		nowFn:                    opts.ClockOptions().NowFn(),
+		sleepFn:                  time.Sleep,
+		metrics:                  newMediatorMetrics(scope),
+		state:                    mediatorNotOpen,
+		fileSystemProcessesState: fileSystemProcessesIdle,
+		mediatorTimeBarrier:      newMediatorTimeBarrier(nowFn, iOpts),
+		closedCh:                 make(chan struct{}),
 	}
 
 	fsm := newFileSystemManager(database, commitlog, opts)
@@ -129,7 +138,7 @@ func (m *mediator) Open() error {
 	}
 	m.state = mediatorOpen
 	go m.reportLoop()
-	go m.ongoingFilesystemProcesses()
+	go m.ongoingFileSystemProcesses()
 	go m.ongoingTick()
 	m.databaseRepairer.Start()
 	return nil
@@ -151,6 +160,18 @@ func (m *mediator) Report() {
 	m.databaseBootstrapManager.Report()
 	m.databaseRepairer.Report()
 	m.databaseFileSystemManager.Report()
+}
+
+func (m *mediator) WaitForFileSystemProcesses() {
+	m.RLock()
+	fileSystemProcessesState := m.fileSystemProcessesState
+	m.RUnlock()
+	for fileSystemProcessesState == fileSystemProcessesBusy {
+		m.sleepFn(fileSystemProcessesCheckInterval)
+		m.RLock()
+		fileSystemProcessesState = m.fileSystemProcessesState
+		m.RUnlock()
+	}
 }
 
 func (m *mediator) Close() error {
@@ -182,22 +203,20 @@ func (m *mediator) Close() error {
 // is potentially still on disk (if it hasn't been cleaned up yet).
 //
 // See comment over mediatorTimeBarrier for more details on how this is implemented.
-func (m *mediator) ongoingFilesystemProcesses() {
-	log := m.opts.InstrumentOptions().Logger()
+func (m *mediator) ongoingFileSystemProcesses() {
 	for {
 		select {
 		case <-m.closedCh:
 			return
 		default:
 			m.sleepFn(tickCheckInterval)
-			// See comment over mediatorTimeBarrier for an explanation of this logic.
-			mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
-			if err != nil {
-				log.Error("error within ongoingFilesystemProcesses waiting for next mediatorTime", zap.Error(err))
-				continue
+
+			// Check if the mediator is already closed.
+			if !m.isOpen() {
+				return
 			}
 
-			m.databaseFileSystemManager.Run(mediatorTime, syncRun, noForce)
+			m.runFileSystemProcesses()
 		}
 	}
 }
@@ -214,20 +233,47 @@ func (m *mediator) ongoingTick() {
 		default:
 			m.sleepFn(tickCheckInterval)
 
+			// Check if the mediator is already closed.
+			if !m.isOpen() {
+				return
+			}
+
 			// See comment over mediatorTimeBarrier for an explanation of this logic.
 			newMediatorTime, err := m.mediatorTimeBarrier.maybeRelease()
 			if err != nil {
-				log.Error(
-					"ongoing tick was unable to release time barrier", zap.Error(err))
+				log.Error("ongoing tick was unable to release time barrier", zap.Error(err))
 				continue
 			}
 			mediatorTime = newMediatorTime
 
-			if err := m.Tick(force, mediatorTime); err != nil {
+			// NB(bodu): We may still hit a db closed error here since the db does not wait upon
+			// completion of ticks.
+			if err := m.Tick(force, mediatorTime); err != nil && err != errDatabaseIsClosed {
 				log.Error("error within tick", zap.Error(err))
 			}
 		}
 	}
+}
+
+func (m *mediator) runFileSystemProcesses() {
+	m.Lock()
+	m.fileSystemProcessesState = fileSystemProcessesBusy
+	m.Unlock()
+	defer func() {
+		m.Lock()
+		m.fileSystemProcessesState = fileSystemProcessesIdle
+		m.Unlock()
+	}()
+
+	// See comment over mediatorTimeBarrier for an explanation of this logic.
+	log := m.opts.InstrumentOptions().Logger()
+	mediatorTime, err := m.mediatorTimeBarrier.fsProcessesWait()
+	if err != nil {
+		log.Error("error within ongoingFileSystemProcesses waiting for next mediatorTime", zap.Error(err))
+		return
+	}
+
+	m.databaseFileSystemManager.Run(mediatorTime, syncRun, noForce)
 }
 
 func (m *mediator) reportLoop() {
@@ -243,6 +289,12 @@ func (m *mediator) reportLoop() {
 			return
 		}
 	}
+}
+
+func (m *mediator) isOpen() bool {
+	m.RLock()
+	defer m.RUnlock()
+	return m.state == mediatorOpen
 }
 
 // mediatorTimeBarrier is used to prevent the tick process and the filesystem processes from ever running
