@@ -505,7 +505,9 @@ func newReadWriterWithTimeout(conn net.Conn, timeout time.Duration, nowFn clock.
 }
 
 func (conn readWriterWithTimeout) Write(p []byte) (int, error) {
-	conn.SetWriteDeadline(conn.nowFn().Add(conn.timeout))
+	if conn.timeout > 0 {
+		conn.SetWriteDeadline(conn.nowFn().Add(conn.timeout))
+	}
 	return conn.Conn.Write(p)
 }
 

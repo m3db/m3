@@ -42,9 +42,9 @@ const (
 	defaultInitialAckMapSize                 = 1024
 
 	defaultNumConnections            = 4
-	defaultConnectionDialTimeout     = 10 * time.Second
+	defaultConnectionDialTimeout     = 5 * time.Second
 	defaultConnectionWriteTimeout    = time.Second
-	defaultConnectionKeepAlivePeriod = time.Minute
+	defaultConnectionKeepAlivePeriod = 5 * time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
 	defaultConnectionFlushInterval   = time.Second
 	// Using 16K which provides much better performance comparing
