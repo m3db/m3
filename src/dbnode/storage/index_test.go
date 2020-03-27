@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -143,6 +144,7 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 		BlockStart:        blockTime,
 		FileSetType:       persist.FileSetFlushType,
 		Shards:            map[uint32]struct{}{0: struct{}{}},
+		IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
 	})).Return(preparedPersist, nil)
 
 	results := block.NewMockFetchBlocksMetadataResults(ctrl)
@@ -251,6 +253,7 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 		BlockStart:        blockTime,
 		FileSetType:       persist.FileSetFlushType,
 		Shards:            map[uint32]struct{}{0: struct{}{}, 1: struct{}{}},
+		IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
 	})).Return(preparedPersist, nil)
 
 	results1 := block.NewMockFetchBlocksMetadataResults(ctrl)

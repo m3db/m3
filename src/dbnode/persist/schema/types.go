@@ -22,6 +22,7 @@ package schema
 
 import (
 	"github.com/m3db/m3/src/dbnode/persist"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 )
 
 // MajorVersion is the major schema version for a set of fileset files,
@@ -31,16 +32,17 @@ const MajorVersion = 1
 
 // IndexInfo stores metadata information about block filesets
 type IndexInfo struct {
-	MajorVersion int64
-	BlockStart   int64
-	BlockSize    int64
-	Entries      int64
-	Summaries    IndexSummariesInfo
-	BloomFilter  IndexBloomFilterInfo
-	SnapshotTime int64
-	FileType     persist.FileSetType
-	SnapshotID   []byte
-	VolumeIndex  int
+	MajorVersion    int64
+	BlockStart      int64
+	BlockSize       int64
+	Entries         int64
+	Summaries       IndexSummariesInfo
+	BloomFilter     IndexBloomFilterInfo
+	SnapshotTime    int64
+	FileType        persist.FileSetType
+	SnapshotID      []byte
+	VolumeIndex     int
+	IndexVolumeType idxpersist.IndexVolumeType
 }
 
 // IndexSummariesInfo stores metadata about the summaries

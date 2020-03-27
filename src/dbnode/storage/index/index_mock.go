@@ -715,17 +715,17 @@ func (mr *MockBlockMockRecorder) Aggregate(ctx, cancellable, opts, results, logF
 }
 
 // AddResults mocks base method
-func (m *MockBlock) AddResults(results result.IndexBlock) error {
+func (m *MockBlock) AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddResults", results)
+	ret := m.ctrl.Call(m, "AddResults", resultsByVolumeType)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AddResults indicates an expected call of AddResults
-func (mr *MockBlockMockRecorder) AddResults(results interface{}) *gomock.Call {
+func (mr *MockBlockMockRecorder) AddResults(resultsByVolumeType interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResults", reflect.TypeOf((*MockBlock)(nil).AddResults), results)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResults", reflect.TypeOf((*MockBlock)(nil).AddResults), resultsByVolumeType)
 }
 
 // Tick mocks base method

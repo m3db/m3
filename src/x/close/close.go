@@ -37,9 +37,25 @@ type Closer interface {
 	io.Closer
 }
 
+// CloserFn implements the SimpleCloser interface.
+type CloserFn func() error
+
+// Close implements the SimplerCloser interface.
+func (fn CloserFn) Close() error {
+	return fn()
+}
+
 // SimpleCloser is a resource that can be closed without returning a result.
 type SimpleCloser interface {
 	Close()
+}
+
+// SimpleCloserFn implements the SimpleCloser interface.
+type SimpleCloserFn func()
+
+// Close implements the SimplerCloser interface.
+func (fn SimpleCloserFn) Close() {
+	fn()
 }
 
 // TryClose attempts to close a resource, the resource is expected to

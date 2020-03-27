@@ -334,7 +334,7 @@ type Block interface {
 	) (exhaustive bool, err error)
 
 	// AddResults adds bootstrap results to the block.
-	AddResults(results result.IndexBlock) error
+	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
 
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable) (BlockTickResult, error)

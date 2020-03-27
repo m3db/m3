@@ -96,6 +96,15 @@ type IndexSegmentFile interface {
 	Mmap() (mmap.Descriptor, error)
 }
 
+// IndexVolumeType is the type of an index volume.
+type IndexVolumeType string
+
+const (
+	// DefaultIndexVolumeType is a default IndexVolumeType.
+	// This is the type if not otherwise specified.
+	DefaultIndexVolumeType IndexVolumeType = "default"
+)
+
 // IndexSegmentType is the type of an index file set.
 type IndexSegmentType string
 

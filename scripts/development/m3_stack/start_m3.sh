@@ -52,7 +52,8 @@ else
 fi
 
 # Use standard coordinator config when bringing up coordinator first time
-cp ./m3coordinator-standard.yml ${RELATIVE}/bin/m3coordinator.yml
+# Note: Use ".tmp" suffix to be git ignored.
+cp ./m3coordinator-standard.yml ./m3coordinator.yml.tmp
 
 if [[ "$M3COORDINATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COORDINATOR" == true ]]; then
     prepare_build_cmd "make m3coordinator-linux-amd64"
@@ -298,7 +299,9 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
 
     # Restart with aggregator coordinator config
     docker-compose -f docker-compose.yml stop m3coordinator01
-    cp ./m3coordinator-aggregator.yml ${RELATIVE}/bin/m3coordinator.yml
+
+    # Note: Use ".tmp" suffix to be git ignored.
+    cp ./m3coordinator-aggregator.yml ./m3coordinator.yml.tmp
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 
     # May not necessarily flush

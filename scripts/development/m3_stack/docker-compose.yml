@@ -90,8 +90,9 @@ services:
       dockerfile: ./docker/m3coordinator/development.Dockerfile
     image: m3coordinator:dev
     volumes:
-      # Use a path in the bin directory (gitignored) to easily change configs
-      - "../../../bin/m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
+      # Use a git ignored path to easily change pre-set configs.
+      # Note: Use ".tmp" suffix is git ignored.
+      - "./m3coordinator.yml.tmp:/etc/m3coordinator/m3coordinator.yml"
       - "./schema.proto:/etc/m3coordinator/schema.proto"
   m3collector01:
     expose:
