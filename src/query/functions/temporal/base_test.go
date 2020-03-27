@@ -95,14 +95,14 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 			test.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
 			// Name should be dropped from series tags.
 			expectedSeriesMetas := []block.SeriesMeta{
-				{
+				block.SeriesMeta{
 					Name: []byte("t1=v1,"),
 					Tags: models.EmptyTags().AddTags([]models.Tag{{
 						Name:  []byte("t1"),
 						Value: []byte("v1"),
 					}}),
 				},
-				{
+				block.SeriesMeta{
 					Name: []byte("t1=v2,"),
 					Tags: models.EmptyTags().AddTags([]models.Tag{{
 						Name:  []byte("t1"),
