@@ -21,12 +21,10 @@
 package temporal
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -35,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/query/test/executor"
 	"github.com/m3db/m3/src/query/test/transformtest"
 	"github.com/m3db/m3/src/query/ts"
-	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -145,153 +142,4 @@ func TestGetIndicesError(t *testing.T) {
 	require.Equal(t, 0, l)
 	require.Equal(t, 10, r)
 	require.False(t, ok)
-}
-
-type dummyProcessor struct {
-	t *testing.T
-}
-
-func (p *dummyProcessor) process(dps ts.Datapoints, _ iterationBounds) float64 {
-	require.True(p.t, len(dps) > 0)
-	return dps[0].Value
-}
-
-var _ block.SeriesIter = (*dummySeriesIter)(nil)
-
-type dummySeriesIter struct {
-	metas []block.SeriesMeta
-	vals  []float64
-	idx   int
-}
-
-func (it *dummySeriesIter) SeriesMeta() []block.SeriesMeta {
-	return it.metas
-}
-
-func (it *dummySeriesIter) SeriesCount() int {
-	return len(it.metas)
-}
-
-func (it *dummySeriesIter) Current() block.UnconsolidatedSeries {
-	return block.NewUnconsolidatedSeries(
-		ts.Datapoints{ts.Datapoint{Value: it.vals[it.idx]}},
-		it.metas[it.idx],
-		block.UnconsolidatedSeriesStats{},
-	)
-}
-
-func (it *dummySeriesIter) Next() bool {
-	if it.idx >= len(it.metas)-1 {
-		return false
-	}
-
-	it.idx++
-	return true
-}
-
-func (it *dummySeriesIter) Err() error {
-	return nil
-}
-
-func (it *dummySeriesIter) Close() {
-	//no-op
-}
-
-func TestParallelProcess(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	tagName := "tag"
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := baseNode{
-		controller:    c,
-		op:            baseOp{duration: time.Minute},
-		processor:     &dummyProcessor{t: t},
-		transformOpts: transform.Options{},
-	}
-
-	stepSize := time.Minute
-	bl := block.NewMockBlock(ctrl)
-	bl.EXPECT().Meta().Return(block.Metadata{
-		Bounds: models.Bounds{
-			StepSize: stepSize,
-			Duration: stepSize,
-		}}).AnyTimes()
-
-	numSeries := 10
-	seriesMetas := make([]block.SeriesMeta, 0, numSeries)
-	vals := make([]float64, 0, numSeries)
-	for i := 0; i < numSeries; i++ {
-		number := fmt.Sprint(i)
-		name := []byte(fmt.Sprintf("%d_should_not_appear_after_func_applied", i))
-		meta := block.SeriesMeta{
-			Name: []byte(number),
-			Tags: models.MustMakeTags(tagName, number).SetName(name),
-		}
-
-		seriesMetas = append(seriesMetas, meta)
-		vals = append(vals, float64(i))
-	}
-
-	fullIter := &dummySeriesIter{
-		idx:   -1,
-		vals:  vals,
-		metas: seriesMetas,
-	}
-
-	bl.EXPECT().SeriesIter().Return(fullIter, nil).MaxTimes(1)
-
-	numBatches := 3
-	blockMetas := make([][]block.SeriesMeta, 0, numBatches)
-	blockVals := make([][]float64, 0, numBatches)
-	for i := 0; i < numBatches; i++ {
-		l := numSeries/numBatches + 1
-		blockMetas = append(blockMetas, make([]block.SeriesMeta, 0, l))
-		blockVals = append(blockVals, make([]float64, 0, l))
-	}
-
-	for i, meta := range seriesMetas {
-		idx := i % numBatches
-		blockMetas[idx] = append(blockMetas[idx], meta)
-		blockVals[idx] = append(blockVals[idx], float64(i))
-	}
-
-	batches := make([]block.SeriesIterBatch, 0, numBatches)
-	for i := 0; i < numBatches; i++ {
-		iter := &dummySeriesIter{
-			idx:   -1,
-			vals:  blockVals[i],
-			metas: blockMetas[i],
-		}
-
-		batches = append(batches, block.SeriesIterBatch{
-			Iter: iter,
-			Size: len(blockVals[i]),
-		})
-	}
-
-	bl.EXPECT().MultiSeriesIter(gomock.Any()).Return(batches, nil).MaxTimes(1)
-	bl.EXPECT().Close().Times(1)
-
-	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
-	require.NoError(t, err)
-
-	expected := []float64{
-		0, 3, 6, 9,
-		1, 4, 7,
-		2, 5, 8,
-	}
-
-	for i, v := range sink.Values {
-		assert.Equal(t, expected[i], v[0])
-	}
-
-	for i, m := range sink.Metas {
-		expected := fmt.Sprint(expected[i])
-		assert.Equal(t, expected, string(m.Name))
-		require.Equal(t, 1, m.Tags.Len())
-		tag, found := m.Tags.Get([]byte(tagName))
-		require.True(t, found)
-		assert.Equal(t, expected, string(tag))
-	}
 }
