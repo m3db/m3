@@ -23,6 +23,7 @@ package writer
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -51,8 +52,8 @@ type consumerWriter interface {
 	// Address returns the consumer address.
 	Address() string
 
-	// Write writes the bytes, it is thread safe.
-	Write(b []byte) error
+	// Write writes the bytes, it is thread safe per connection index.
+	Write(connIndex int, b []byte) error
 
 	// Init initializes the consumer writer.
 	Init()
@@ -96,7 +97,7 @@ type connectFn func(addr string) (io.ReadWriteCloser, error)
 type connectAllFn func(addr string) ([]io.ReadWriteCloser, error)
 
 type consumerWriterImpl struct {
-	writeState consumerWriterWriteState
+	writeState consumerWriterImplWriteState
 
 	addr        string
 	router      ackRouter
@@ -115,8 +116,8 @@ type consumerWriterImpl struct {
 	connectFn connectFn
 }
 
-type consumerWriterWriteState struct {
-	sync.Mutex
+type consumerWriterImplWriteState struct {
+	sync.RWMutex
 
 	closed     bool
 	validConns bool
@@ -125,16 +126,16 @@ type consumerWriterWriteState struct {
 	// Note: readers will take a reference to this slice with a lock
 	// then loop through it and call decode on decoders, so not safe
 	// to reuse.
-	conns          []connection
-	nextWrite      int
+	conns          []*connection
 	lastResetNanos int64
 }
 
 type connection struct {
-	conn    io.ReadWriteCloser
-	rw      *bufio.ReadWriter
-	decoder proto.Decoder
-	ack     msgpb.Ack
+	writeLock sync.Mutex
+	conn      io.ReadWriteCloser
+	rw        *bufio.ReadWriter
+	decoder   proto.Decoder
+	ack       msgpb.Ack
 }
 
 func newConsumerWriter(
@@ -193,18 +194,28 @@ func (w *consumerWriterImpl) Address() string {
 
 // Write should fail fast so that the write could be tried on other
 // consumer writers that are sharing the message queue.
-func (w *consumerWriterImpl) Write(b []byte) error {
-	w.writeState.Lock()
+func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
+	w.writeState.RLock()
 	if !w.writeState.validConns || len(w.writeState.conns) == 0 {
-		w.writeState.Unlock()
+		w.writeState.RUnlock()
 		w.m.writeInvalidConn.Inc(1)
 		return errInvalidConnection
 	}
-	w.writeState.nextWrite++
-	writeIdx := w.writeState.nextWrite % len(w.writeState.conns)
-	writeConn := w.writeState.conns[writeIdx]
+	if connIndex < 0 || connIndex >= len(w.writeState.conns) {
+		w.writeState.RUnlock()
+		return fmt.Errorf("connection index out of range: %d", connIndex)
+	}
+
+	writeConn := w.writeState.conns[connIndex]
+
+	// Make sure only writer to this connection.
+	writeConn.writeLock.Lock()
 	_, err := writeConn.rw.Write(b)
-	w.writeState.Unlock()
+	writeConn.writeLock.Unlock()
+
+	// Hold onto the write state lock until done, since flushing and
+	// closing connections are done by acquiring the write state lock.
+	w.writeState.RUnlock()
 
 	if err != nil {
 		w.notifyReset()
@@ -400,7 +411,7 @@ func (w *consumerWriterImpl) reset(opts resetOptions) {
 		}
 	}()
 
-	w.writeState.conns = make([]connection, 0, len(opts.connections))
+	w.writeState.conns = make([]*connection, 0, len(opts.connections))
 	for _, conn := range opts.connections {
 		rw := bufio.NewReadWriter(
 			bufio.NewReaderSize(u, w.connOpts.ReadBufferSize()),
@@ -410,7 +421,7 @@ func (w *consumerWriterImpl) reset(opts resetOptions) {
 
 		decoder := proto.NewDecoder(rw, w.opts.DecoderOptions())
 
-		newConn := connection{
+		newConn := &connection{
 			conn:    conn,
 			rw:      rw,
 			decoder: decoder,
