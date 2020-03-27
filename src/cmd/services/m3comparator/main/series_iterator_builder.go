@@ -108,14 +108,15 @@ func buildSeriesIterator(
 		readers = make([][]xio.BlockReader, 0, len(blocks))
 	)
 
+	blockStart := start
 	for _, block := range blocks {
-		seriesBlock, err := buildBlockReader(block, start, blockSize, opts)
+		seriesBlock, err := buildBlockReader(block, blockStart, blockSize, opts)
 		if err != nil {
 			return nil, err
 		}
 
 		readers = append(readers, seriesBlock)
-		start = start.Add(blockSize)
+		blockStart = blockStart.Add(blockSize)
 	}
 
 	multiReader := encoding.NewMultiReaderIterator(
@@ -134,17 +135,16 @@ func buildSeriesIterator(
 
 	tagIter, id := buildTagIteratorAndID(tags, opts.tagOptions)
 	return encoding.NewSeriesIterator(
-			encoding.SeriesIteratorOptions{
-				ID:             id,
-				Namespace:      ident.StringID("ns"),
-				Tags:           tagIter,
-				StartInclusive: xtime.ToUnixNano(start),
-				EndExclusive:   xtime.ToUnixNano(end),
-				Replicas: []encoding.MultiReaderIterator{
-					multiReader,
-				},
-			}, nil),
-		nil
+		encoding.SeriesIteratorOptions{
+			ID:             id,
+			Namespace:      ident.StringID("ns"),
+			Tags:           tagIter,
+			StartInclusive: xtime.ToUnixNano(start),
+			EndExclusive:   xtime.ToUnixNano(end),
+			Replicas: []encoding.MultiReaderIterator{
+				multiReader,
+			},
+		}, nil), nil
 }
 
 func buildSeriesIterators(
