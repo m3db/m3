@@ -149,6 +149,7 @@ type messageWriterImpl struct {
 	retryOpts         retry.Options
 	r                 *rand.Rand
 	encoder           proto.Encoder
+	numConnections    int
 
 	msgID            uint64
 	queue            *list.List
@@ -186,6 +187,7 @@ func newMessageWriter(
 		retryOpts:         opts.MessageRetryOptions(),
 		r:                 rand.New(rand.NewSource(nowFn().UnixNano())),
 		encoder:           proto.NewEncoder(opts.EncoderOptions()),
+		numConnections:    opts.ConnectionOptions().NumConnections(),
 		msgID:             0,
 		queue:             list.New(),
 		acks:              newAckHelper(opts.InitialAckMapSize()),
@@ -261,7 +263,10 @@ func (w *messageWriterImpl) write(
 		written = false
 	)
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
-		if err := consumerWriters[randIndex(iterationIndexes, i)].Write(w.encoder.Bytes()); err != nil {
+		// NB(r): Always select the same connection index per connection.
+		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
+		connIndex := int(w.replicatedShardID % uint64(w.numConnections))
+		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
 			w.m.oneConsumerWriteError.Inc(1)
 			continue
 		}
@@ -386,14 +391,14 @@ func (w *messageWriterImpl) scanMessageQueue() {
 func (w *messageWriterImpl) writeBatch(
 	iterationIndexes []int,
 	consumerWriters []consumerWriter,
-	toBeRetried []*message,
+	messages []*message,
 ) error {
 	if len(consumerWriters) == 0 {
 		// Not expected in a healthy/valid placement.
-		w.m.noWritersError.Inc(int64(len(toBeRetried)))
+		w.m.noWritersError.Inc(int64(len(messages)))
 		return errNoWriters
 	}
-	for _, m := range toBeRetried {
+	for _, m := range messages {
 		if err := w.write(iterationIndexes, consumerWriters, m); err != nil {
 			return err
 		}
