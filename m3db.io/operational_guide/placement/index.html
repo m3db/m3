@@ -1386,7 +1386,7 @@
 <h2 id="overview">Overview</h2>
 <p><strong>Note</strong>: The words <em>placement</em> and <em>topology</em> are used interchangeably throughout the M3DB documentation and codebase.</p>
 <p>A M3DB cluster has exactly one Placement. That placement maps the cluster's shard replicas to nodes. A cluster also has 0 or more namespaces (analogous to tables in other databases), and each node serves every namespace for the shards it owns. In other words, if the cluster topology states that node A owns shards 1, 2, and 3 then node A will own shards 1, 2, 3 for all configured namespaces in the cluster.</p>
-<p>M3DB stores its placement (mapping of which NODES are responsible for which shards) in <a href="https://coreos.com/etcd/">etcd</a>. There are three possible states that each node/shard pair can be in:</p>
+<p>M3DB stores its placement (mapping of which NODES are responsible for which shards) in <a href="https://etcd.io/">etcd</a>. There are three possible states that each node/shard pair can be in:</p>
 <ol>
 <li><code>Initializing</code></li>
 <li><code>Available</code></li>
