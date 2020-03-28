@@ -797,6 +797,9 @@ type databaseMediator interface {
 	// Tick performs a tick.
 	Tick(forceType forceType, startTime time.Time) error
 
+	// WaitForFileSystemProcesses waits for any ongoing fs processes to finish.
+	WaitForFileSystemProcesses()
+
 	// Repair repairs the database.
 	Repair() error
 

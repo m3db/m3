@@ -537,6 +537,9 @@ func (d *db) terminateWithLock() error {
 }
 
 func (d *db) Terminate() error {
+	// NB(bodu): Wait for fs processes to finish.
+	d.mediator.WaitForFileSystemProcesses()
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -544,6 +547,9 @@ func (d *db) Terminate() error {
 }
 
 func (d *db) Close() error {
+	// NB(bodu): Wait for fs processes to finish.
+	d.mediator.WaitForFileSystemProcesses()
+
 	d.Lock()
 	defer d.Unlock()
 
