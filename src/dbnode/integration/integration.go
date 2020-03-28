@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -43,7 +44,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 
@@ -430,4 +434,69 @@ func newCompactor(
 	require.NoError(t, err)
 	return compactor
 
+}
+
+func writeTestIndexDataToDisk(
+	md namespace.Metadata,
+	storageOpts storage.Options,
+	indexVolumeType idxpersist.IndexVolumeType,
+	blockStart time.Time,
+	shards []uint32,
+	docs []doc.Document,
+) error {
+	blockSize := md.Options().IndexOptions().BlockSize()
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	writer, err := fs.NewIndexWriter(fsOpts)
+	if err != nil {
+		return err
+	}
+	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter()
+	if err != nil {
+		return err
+	}
+
+	shardsMap := make(map[uint32]struct{})
+	for _, shard := range shards {
+		shardsMap[shard] = struct{}{}
+	}
+	volumeIndex, err := fs.NextIndexFileSetVolumeIndex(
+		fsOpts.FilePathPrefix(),
+		md.ID(),
+		blockStart,
+	)
+	if err != nil {
+		return err
+	}
+	writerOpts := fs.IndexWriterOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   md.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: volumeIndex,
+		},
+		BlockSize:       blockSize,
+		Shards:          shardsMap,
+		IndexVolumeType: indexVolumeType,
+	}
+	if err := writer.Open(writerOpts); err != nil {
+		return err
+	}
+
+	builder, err := builder.NewBuilderFromDocuments(builder.NewOptions())
+	for _, doc := range docs {
+		_, err = builder.Insert(doc)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := segmentWriter.Reset(builder); err != nil {
+		return err
+	}
+	if err := writer.WriteSegmentFileSet(segmentWriter); err != nil {
+		return err
+	}
+	if err := builder.Close(); err != nil {
+		return err
+	}
+	return writer.Close()
 }

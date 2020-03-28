@@ -111,7 +111,11 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	result, err := read(ctx, h.engine, queryOpts, fetchOpts,
 		h.tagOpts, w, params, h.instrumentOpts)
 	if err != nil {
-		logger.Error("unable to fetch data", zap.Error(err))
+		logger.Error("instant query error",
+			zap.Error(err),
+			zap.Any("params", params),
+			zap.Any("queryOpts", queryOpts),
+			zap.Any("fetchOpts", queryOpts))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}

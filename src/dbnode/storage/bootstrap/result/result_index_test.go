@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -53,19 +54,33 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 	tr1 := NewShardTimeRangesFromRange(times[1], times[2], 1, 2, 3)
 
 	first := NewIndexBootstrapResult()
-	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}, tr0), nil)
-	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[1]}, tr0), nil)
-	first.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3]}, tr1), nil)
+	blk1 := NewIndexBlockByVolumeType(times[0])
+	blk1.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[0]}, tr0))
+	first.Add(blk1, nil)
+	blk2 := NewIndexBlockByVolumeType(times[0])
+	blk2.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[1]}, tr0))
+	first.Add(blk2, nil)
+	blk3 := NewIndexBlockByVolumeType(times[1])
+	blk3.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[2], segments[3]}, tr1))
+	first.Add(blk3, nil)
 
 	second := NewIndexBootstrapResult()
-	second.Add(NewIndexBlock(times[0], []segment.Segment{segments[4]}, tr0), nil)
-	second.Add(NewIndexBlock(times[1], []segment.Segment{segments[5]}, tr1), nil)
+	blk4 := NewIndexBlockByVolumeType(times[0])
+	blk4.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[4]}, tr0))
+	second.Add(blk4, nil)
+	blk5 := NewIndexBlockByVolumeType(times[1])
+	blk5.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[5]}, tr1))
+	second.Add(blk5, nil)
 
 	merged := MergedIndexBootstrapResult(first, second)
 
 	expected := NewIndexBootstrapResult()
-	expected.Add(NewIndexBlock(times[0], []segment.Segment{segments[0], segments[1], segments[4]}, tr0), nil)
-	expected.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3], segments[5]}, tr1), nil)
+	blk6 := NewIndexBlockByVolumeType(times[0])
+	blk6.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[0], segments[1], segments[4]}, tr0))
+	expected.Add(blk6, nil)
+	blk7 := NewIndexBlockByVolumeType(times[1])
+	blk7.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[2], segments[3], segments[5]}, tr1))
+	expected.Add(blk7, nil)
 
 	assert.True(t, segmentsInResultsSame(expected.IndexResults(), merged.IndexResults()))
 }
@@ -94,7 +109,7 @@ func TestIndexResultAdd(t *testing.T) {
 	}
 	results := NewIndexBootstrapResult()
 	testRanges := NewShardTimeRangesFromRange(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-	results.Add(IndexBlock{}, testRanges)
+	results.Add(NewIndexBlockByVolumeType(time.Time{}), testRanges)
 	require.Equal(t, testRanges, results.Unfulfilled())
 }
 
@@ -114,7 +129,7 @@ func TestShardTimeRangesToUnfulfilledIndexResult(t *testing.T) {
 	assert.True(t, r.Unfulfilled().Equal(str))
 }
 
-func TestIndexResulsMarkFulfilled(t *testing.T) {
+func TestIndexResultsMarkFulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -127,36 +142,42 @@ func TestIndexResulsMarkFulfilled(t *testing.T) {
 
 	// range checks
 	require.Error(t, results.MarkFulfilled(tn(0),
-		NewShardTimeRangesFromRange(tn(4), tn(6), 1), iopts))
+		NewShardTimeRangesFromRange(tn(4), tn(6), 1), idxpersist.DefaultIndexVolumeType, iopts))
 	require.Error(t, results.MarkFulfilled(tn(0),
-		NewShardTimeRangesFromRange(tn(-1), tn(1), 1), iopts))
+		NewShardTimeRangesFromRange(tn(-1), tn(1), 1), idxpersist.DefaultIndexVolumeType, iopts))
 
 	// valid add
 	fulfilledRange := NewShardTimeRangesFromRange(tn(0), tn(1), 1)
-	require.NoError(t, results.MarkFulfilled(tn(0), fulfilledRange, iopts))
+	require.NoError(t, results.MarkFulfilled(tn(0), fulfilledRange, idxpersist.DefaultIndexVolumeType, iopts))
 	require.Equal(t, 1, len(results))
-	blk, ok := results[xtime.ToUnixNano(tn(0))]
+	blkByVolumeType, ok := results[xtime.ToUnixNano(tn(0))]
 	require.True(t, ok)
-	require.True(t, tn(0).Equal(blk.blockStart))
+	require.True(t, tn(0).Equal(blkByVolumeType.blockStart))
+	blk, ok := blkByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+	require.True(t, ok)
 	require.Equal(t, fulfilledRange, blk.fulfilled)
 
 	// additional add for same block
 	nextFulfilledRange := NewShardTimeRangesFromRange(tn(1), tn(2), 2)
-	require.NoError(t, results.MarkFulfilled(tn(1), nextFulfilledRange, iopts))
+	require.NoError(t, results.MarkFulfilled(tn(1), nextFulfilledRange, idxpersist.DefaultIndexVolumeType, iopts))
 	require.Equal(t, 1, len(results))
-	blk, ok = results[xtime.ToUnixNano(tn(0))]
+	blkByVolumeType, ok = results[xtime.ToUnixNano(tn(0))]
 	require.True(t, ok)
-	require.True(t, tn(0).Equal(blk.blockStart))
+	require.True(t, tn(0).Equal(blkByVolumeType.blockStart))
 	fulfilledRange.AddRanges(nextFulfilledRange)
+	blk, ok = blkByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+	require.True(t, ok)
 	require.Equal(t, fulfilledRange, blk.fulfilled)
 
 	// additional add for next block
 	nextFulfilledRange = NewShardTimeRangesFromRange(tn(2), tn(4), 1, 2, 3)
-	require.NoError(t, results.MarkFulfilled(tn(2), nextFulfilledRange, iopts))
+	require.NoError(t, results.MarkFulfilled(tn(2), nextFulfilledRange, idxpersist.DefaultIndexVolumeType, iopts))
 	require.Equal(t, 2, len(results))
-	blk, ok = results[xtime.ToUnixNano(tn(2))]
+	blkByVolumeType, ok = results[xtime.ToUnixNano(tn(2))]
 	require.True(t, ok)
-	require.True(t, tn(2).Equal(blk.blockStart))
+	require.True(t, tn(2).Equal(blkByVolumeType.blockStart))
+	blk, ok = blkByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+	require.True(t, ok)
 	require.Equal(t, nextFulfilledRange, blk.fulfilled)
 }
 
@@ -164,8 +185,16 @@ func segmentsInResultsSame(a, b IndexResults) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for t, block := range a {
-		otherBlock, ok := b[t]
+	for t, blockByVolumeType := range a {
+		otherBlockByVolumeType, ok := b[t]
+		if !ok {
+			return false
+		}
+		block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+		if !ok {
+			return false
+		}
+		otherBlock, ok := otherBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		if !ok {
 			return false
 		}

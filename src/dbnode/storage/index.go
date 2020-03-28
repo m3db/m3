@@ -48,6 +48,7 @@ import (
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -764,8 +765,8 @@ func (i *nsIndex) Flush(
 		fulfilled := result.NewShardTimeRangesFromRange(block.StartTime(), block.EndTime(),
 			dbShards(shards).IDs()...)
 		// Add the results to the block
-		results := result.NewIndexBlock(block.StartTime(), immutableSegments,
-			fulfilled)
+		results := result.NewIndexBlockByVolumeType(block.StartTime())
+		results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(immutableSegments, fulfilled))
 		if err := block.AddResults(results); err != nil {
 			return err
 		}
@@ -854,6 +855,8 @@ func (i *nsIndex) flushBlock(
 		BlockStart:        indexBlock.StartTime(),
 		FileSetType:       persist.FileSetFlushType,
 		Shards:            allShards,
+		// NB(bodu): By default, we always write to the "default" index volume type.
+		IndexVolumeType: idxpersist.DefaultIndexVolumeType,
 	})
 	if err != nil {
 		return nil, err

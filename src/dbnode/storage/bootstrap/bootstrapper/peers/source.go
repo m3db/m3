@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -772,7 +773,8 @@ func (s *peersSource) processReaders(
 					xtime.NewRanges(timeRange),
 				)
 				err = r.IndexResults().MarkFulfilled(start, fulfilled,
-					idxOpts)
+					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
+					idxpersist.DefaultIndexVolumeType, idxOpts)
 			}
 
 			if err == nil {
@@ -794,8 +796,30 @@ func (s *peersSource) processReaders(
 
 	// Only persist to disk if the requested ranges were completely fulfilled.
 	// Otherwise, this is the latest index segment and should only exist in mem.
-	shouldPersist := remainingRanges.IsEmpty()
-	min, max := requestedRanges.MinMax()
+	var (
+		iopts          = s.opts.ResultOptions().InstrumentOptions()
+		shouldPersist  = remainingRanges.IsEmpty()
+		min, max       = requestedRanges.MinMax()
+		indexBlockSize = ns.Options().IndexOptions().BlockSize()
+		blockStart     = min.Truncate(indexBlockSize)
+		blockEnd       = blockStart.Add(indexBlockSize)
+		indexBlock     result.IndexBlock
+		err            error
+	)
+
+	// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
+	existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(r.IndexResults(), blockStart)
+	if !ok {
+		err := fmt.Errorf("could not find index block in results: time=%s, ts=%d",
+			blockStart.String(), blockStart.UnixNano())
+		instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
+			l.Error("peers bootstrap failed",
+				zap.Error(err),
+				zap.Stringer("namespace", ns.ID()),
+				zap.Stringer("requestedRanges", requestedRanges))
+		})
+	}
+
 	buildIndexLogFields := []zapcore.Field{
 		zap.Bool("shouldPersist", shouldPersist),
 		zap.Int("totalEntries", totalEntries),
@@ -804,16 +828,18 @@ func (s *peersSource) processReaders(
 		zap.String("remainingRanges", remainingRanges.SummaryString()),
 	}
 	if shouldPersist {
-		s.log.Info("building file set index segment", buildIndexLogFields...)
-		if err := bootstrapper.PersistBootstrapIndexSegment(
+		s.log.Debug("building file set index segment", buildIndexLogFields...)
+		indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 			ns,
 			requestedRanges,
-			r.IndexResults(),
 			s.builder.Builder(),
 			s.persistManager,
 			s.opts.ResultOptions(),
-		); err != nil {
-			iopts := s.opts.ResultOptions().InstrumentOptions()
+			existingIndexBlock.Fulfilled(),
+			blockStart,
+			blockEnd,
+		)
+		if err != nil {
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("persist fs index bootstrap failed",
 					zap.Stringer("namespace", ns.ID()),
@@ -823,15 +849,17 @@ func (s *peersSource) processReaders(
 		}
 	} else {
 		s.log.Info("building in-memory index segment", buildIndexLogFields...)
-		if err := bootstrapper.BuildBootstrapIndexSegment(
+		indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 			ns,
 			requestedRanges,
-			r.IndexResults(),
 			s.builder.Builder(),
 			s.compactor,
 			s.opts.ResultOptions(),
 			s.opts.IndexOptions().MmapReporter(),
-		); err != nil {
+			blockStart,
+			blockEnd,
+		)
+		if err != nil {
 			iopts := s.opts.ResultOptions().InstrumentOptions()
 			instrument.EmitAndLogInvariantViolation(iopts, func(l *zap.Logger) {
 				l.Error("build fs index bootstrap failed",
@@ -841,6 +869,17 @@ func (s *peersSource) processReaders(
 			})
 		}
 	}
+
+	// Merge segments and fulfilled time ranges.
+	segments := indexBlock.Segments()
+	for _, seg := range existingIndexBlock.Segments() {
+		segments = append(segments, seg)
+	}
+	newFulfilled := existingIndexBlock.Fulfilled().Copy()
+	newFulfilled.AddRanges(indexBlock.Fulfilled())
+
+	// Replace index block for default index volume type.
+	r.IndexResults()[xtime.ToUnixNano(blockStart)].SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock(segments, newFulfilled))
 
 	// Return readers to pool.
 	for _, shardReaders := range timeWindowReaders.Readers {
@@ -1025,7 +1064,7 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 		shard,
 		xtime.NewRanges(timeRange),
 	)
-	r.Add(result.IndexBlock{}, unfulfilled)
+	r.Add(result.NewIndexBlockByVolumeType(time.Time{}), unfulfilled)
 }
 
 func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {

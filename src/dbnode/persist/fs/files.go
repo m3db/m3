@@ -831,7 +831,7 @@ func ReadInfoFiles(
 // ReadIndexInfoFileResult is the result of reading an info file
 type ReadIndexInfoFileResult struct {
 	ID   FileSetFileIdentifier
-	Info index.IndexInfo
+	Info index.IndexVolumeInfo
 	Err  ReadInfoFileResultError
 }
 
@@ -852,7 +852,7 @@ func ReadIndexInfoFiles(
 		},
 		readerBufferSize,
 		func(filepath string, id FileSetFileIdentifier, data []byte) {
-			var info index.IndexInfo
+			var info index.IndexVolumeInfo
 			err := info.Unmarshal(data)
 			infoFileResults = append(infoFileResults, ReadIndexInfoFileResult{
 				ID:   id,
