@@ -183,7 +183,7 @@ func newConsumerWriter(
 	// Try connecting without retry first attempt.
 	connectAllNoRetry := w.newConnectFn(connectOptions{retry: false})
 	if err := w.resetWithConnectFn(connectAllNoRetry); err != nil {
-		w.notifyReset()
+		w.notifyReset(err)
 	}
 	return w
 }
@@ -218,7 +218,7 @@ func (w *consumerWriterImpl) Write(connIndex int, b []byte) error {
 	w.writeState.RUnlock()
 
 	if err != nil {
-		w.notifyReset()
+		w.notifyReset(err)
 		w.m.encodeError.Inc(1)
 	}
 
@@ -257,7 +257,9 @@ func (w *consumerWriterImpl) flushUntilClose() {
 		case <-flushTicker.C:
 			w.writeState.Lock()
 			for _, conn := range w.writeState.conns {
-				conn.rw.Flush()
+				if err := conn.rw.Flush(); err != nil {
+					w.notifyReset(err)
+				}
 			}
 			w.writeState.Unlock()
 		case <-w.doneCh:
@@ -351,7 +353,7 @@ func (w *consumerWriterImpl) readAcks(idx int) error {
 	conn.ack.Metadata = conn.ack.Metadata[:0]
 	err := conn.decoder.Decode(&conn.ack)
 	if err != nil {
-		w.notifyReset()
+		w.notifyReset(err)
 		w.m.decodeError.Inc(1)
 		return err
 	}
@@ -381,9 +383,12 @@ func (w *consumerWriterImpl) Close() {
 	w.wg.Wait()
 }
 
-func (w *consumerWriterImpl) notifyReset() {
+func (w *consumerWriterImpl) notifyReset(err error) {
 	select {
 	case w.resetCh <- struct{}{}:
+		if err != nil {
+			w.logger.Error("connection error", zap.Error(err))
+		}
 	default:
 	}
 }
