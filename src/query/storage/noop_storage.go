@@ -22,12 +22,15 @@ package storage
 
 import (
 	"context"
+	"errors"
 
 	"github.com/m3db/m3/src/query/block"
 )
 
-// NewNoopStorage returns a fake implementation of Storage that accepts all writes
-// and returns no results for all queries.
+var noopClientError = errors.New("operation not valid for noop client")
+
+// NewNoopStorage returns a fake implementation of Storage that rejects all
+// writes and returns errors for all queries.
 func NewNoopStorage() Storage {
 	return noopStorage{}
 }
@@ -35,32 +38,32 @@ func NewNoopStorage() Storage {
 type noopStorage struct{}
 
 func (noopStorage) Fetch(ctx context.Context, query *FetchQuery, options *FetchOptions) (*FetchResult, error) {
-	return &FetchResult{}, nil
+	return nil, noopClientError
 }
 
 func (noopStorage) FetchProm(ctx context.Context, query *FetchQuery, options *FetchOptions) (PromResult, error) {
-	return PromResult{}, nil
+	return PromResult{}, noopClientError
 }
 
 // FetchBlocks fetches timeseries as blocks based on a query.
 func (noopStorage) FetchBlocks(ctx context.Context, query *FetchQuery, options *FetchOptions) (block.Result, error) {
-	return block.Result{}, nil
+	return block.Result{}, noopClientError
 }
 
 // SearchSeries returns series IDs matching the current query.
 func (noopStorage) SearchSeries(ctx context.Context, query *FetchQuery, options *FetchOptions) (*SearchResults, error) {
-	return &SearchResults{}, nil
+	return nil, noopClientError
 }
 
 // CompleteTags returns autocompleted tag results.
 func (noopStorage) CompleteTags(ctx context.Context, query *CompleteTagsQuery, options *FetchOptions) (*CompleteTagsResult, error) {
-	return &CompleteTagsResult{}, nil
+	return nil, noopClientError
 }
 
 // Write writes a batched set of datapoints to storage based on the provided
 // query.
 func (noopStorage) Write(ctx context.Context, query *WriteQuery) error {
-	return nil
+	return noopClientError
 }
 
 // Type identifies the type of the underlying
@@ -70,7 +73,7 @@ func (noopStorage) Type() Type {
 
 // Close is used to close the underlying storage and free up resources.
 func (noopStorage) Close() error {
-	return nil
+	return noopClientError
 }
 
 // ErrorBehavior dictates what fanout storage should do when this storage
