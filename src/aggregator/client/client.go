@@ -185,11 +185,9 @@ func NewClient(opts Options) (Client, error) {
 			messagePool: newMessagePool(),
 		}
 	case LegacyAggregatorClient:
-		var (
-			writerMgrScope = instrumentOpts.MetricsScope().SubScope("writer-manager")
-			writerMgrOpts  = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
-			writerMgr      = newInstanceWriterManager(writerMgrOpts)
-		)
+		writerMgrScope := instrumentOpts.MetricsScope().SubScope("writer-manager")
+		writerMgrOpts := opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
+		writerMgr = newInstanceWriterManager(writerMgrOpts)
 		onPlacementsAddedFn := func(placements []placement.Placement) {
 			for _, placement := range placements {
 				writerMgr.AddInstances(placement.Instances()) // nolint: errcheck

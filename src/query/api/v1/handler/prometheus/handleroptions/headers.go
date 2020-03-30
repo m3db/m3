@@ -45,6 +45,19 @@ const (
 	// Valid values are "unaggregated" or "aggregated".
 	MetricsTypeHeader = "M3-Metrics-Type"
 
+	// WriteTypeHeader sets whether to perform a default write that can be
+	// written to unaggreated namespace and optionally aggregated or
+	// to specifically only perform aggregations (and skip writing unaggregated
+	// values).
+	// Valid values are "default" or "aggregate"
+	WriteTypeHeader = "M3-Write-Type"
+
+	// DefaultWriteType is the default write type.
+	DefaultWriteType = "default"
+
+	// AggregateWriteType is the aggregate write type.
+	AggregateWriteType = "aggregate"
+
 	// MetricsStoragePolicyHeader specifies the resolution and retention of
 	// metrics being written or read.
 	// In the form of a storage policy string, e.g. "1m:14d".
