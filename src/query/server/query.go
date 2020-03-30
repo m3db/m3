@@ -257,7 +257,8 @@ func Run(runOpts RunOptions) {
 		tsdbOpts = runOpts.ApplyCustomTSDBOptions(tsdbOpts)
 	}
 
-	if cfg.Backend == config.GRPCStorageType {
+	switch cfg.Backend {
+	case config.GRPCStorageType:
 		// For grpc backend, we need to setup only the grpc client and a storage
 		// accompanying that client.
 		poolWrapper := pools.NewPoolsWrapper(
@@ -281,7 +282,27 @@ func Run(runOpts RunOptions) {
 		backendStorage = fanout.NewStorage(remotes, r, w, c,
 			instrumentOptions)
 		logger.Info("setup grpc backend")
-	} else {
+
+	case config.NoopEtcdStorageType:
+		backendStorage = storage.NewNoopStorage()
+		mgmt := cfg.ClusterManagement
+
+		if mgmt == nil || len(mgmt.Etcd.ETCDClusters) == 0 {
+			logger.Fatal("must specify cluster management config and at least one etcd cluster")
+		}
+
+		opts := mgmt.Etcd.NewOptions()
+		clusterClient, err = etcdclient.NewConfigServiceClient(opts)
+		if err != nil {
+			logger.Fatal("error constructing etcd client", zap.Error(err))
+		}
+		logger.Info("setup noop storage backend with etcd")
+
+	case config.NoopStorageType:
+		backendStorage = storage.NewNoopStorage()
+		logger.Info("setup noop storage backend")
+
+	default:
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
 		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
@@ -300,6 +321,7 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
 		defer cleanup()
+
 	}
 
 	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(&cfg,
