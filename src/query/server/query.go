@@ -321,7 +321,6 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
 		defer cleanup()
-
 	}
 
 	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(&cfg,
