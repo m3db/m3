@@ -54,6 +54,7 @@ func NewUnconsolidatedBlockFromDatapointsWithMeta(
 	bounds models.Bounds,
 	meta []block.SeriesMeta,
 	seriesValues [][]float64,
+	enableBatched bool,
 ) block.Block {
 	seriesList := make(ts.SeriesList, len(seriesValues))
 	for i, values := range seriesValues {
@@ -70,21 +71,7 @@ func NewUnconsolidatedBlockFromDatapointsWithMeta(
 		Start:    bounds.Start,
 		End:      bounds.End(),
 		Interval: bounds.StepSize,
-	}, time.Minute)
-}
-
-// NewUnconsolidatedBlockFromDatapoints creates a new unconsolidated block
-// using the provided values.
-func NewUnconsolidatedBlockFromDatapoints(
-	bounds models.Bounds,
-	seriesValues [][]float64,
-) block.Block {
-	meta := NewSeriesMeta("dummy", len(seriesValues))
-	return NewUnconsolidatedBlockFromDatapointsWithMeta(
-		bounds,
-		meta,
-		seriesValues,
-	)
+	}, time.Minute, enableBatched)
 }
 
 func seriesValuesToDatapoints(

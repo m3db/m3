@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -38,6 +37,7 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,66 +55,73 @@ type opGenerator func(t *testing.T, tc testCase) transform.Params
 
 func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			values, bounds := test.GenerateValuesAndBounds(tt.vals, nil)
-			boundStart := bounds.Start
-
-			seriesMetas := []block.SeriesMeta{
-				{
-					Name: []byte("s1"),
-					Tags: models.EmptyTags().AddTags([]models.Tag{{
-						Name:  []byte("t1"),
-						Value: []byte("v1"),
-					}}).SetName([]byte("foobar")),
-				},
-				{
-					Name: []byte("s2"),
-					Tags: models.EmptyTags().AddTags([]models.Tag{{
-						Name:  []byte("t1"),
-						Value: []byte("v2"),
-					}}).SetName([]byte("foobar")),
-				},
+		for _, runBatched := range []bool{true, false} {
+			name := tt.name + "_unbatched"
+			if runBatched {
+				name = tt.name + "_batched"
 			}
+			t.Run(name, func(t *testing.T) {
+				values, bounds := test.GenerateValuesAndBounds(tt.vals, nil)
+				boundStart := bounds.Start
 
-			bl := test.NewUnconsolidatedBlockFromDatapointsWithMeta(models.Bounds{
-				Start:    bounds.Start.Add(-2 * bounds.Duration),
-				Duration: bounds.Duration * 2,
-				StepSize: bounds.StepSize,
-			}, seriesMetas, values)
+				seriesMetas := []block.SeriesMeta{
+					{
+						Name: []byte("s1"),
+						Tags: models.EmptyTags().AddTags([]models.Tag{{
+							Name:  []byte("t1"),
+							Value: []byte("v1"),
+						}}).SetName([]byte("foobar")),
+					},
+					{
+						Name: []byte("s2"),
+						Tags: models.EmptyTags().AddTags([]models.Tag{{
+							Name:  []byte("t1"),
+							Value: []byte("v2"),
+						}}).SetName([]byte("foobar")),
+					},
+				}
 
-			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-			baseOp := opGen(t, tt)
-			node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
-				TimeSpec: transform.TimeSpec{
-					Start: boundStart.Add(-2 * bounds.Duration),
-					End:   bounds.End(),
-					Step:  time.Second,
-				},
-			}))
+				bl := test.NewUnconsolidatedBlockFromDatapointsWithMeta(models.Bounds{
+					Start:    bounds.Start.Add(-2 * bounds.Duration),
+					Duration: bounds.Duration * 2,
+					StepSize: bounds.StepSize,
+				}, seriesMetas, values, runBatched)
 
-			err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
-			require.NoError(t, err)
+				c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+				baseOp := opGen(t, tt)
+				node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
+					TimeSpec: transform.TimeSpec{
+						Start: boundStart.Add(-2 * bounds.Duration),
+						End:   bounds.End(),
+						Step:  time.Second,
+					},
+				}))
 
-			test.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
-			// Name should be dropped from series tags.
-			expectedSeriesMetas := []block.SeriesMeta{
-				block.SeriesMeta{
+				err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
+				require.NoError(t, err)
+
+				test.EqualsWithNansWithDelta(t, tt.expected, sink.Values, 0.0001)
+				metaOne := block.SeriesMeta{
 					Name: []byte("t1=v1,"),
 					Tags: models.EmptyTags().AddTags([]models.Tag{{
 						Name:  []byte("t1"),
 						Value: []byte("v1"),
 					}}),
-				},
-				block.SeriesMeta{
+				}
+
+				metaTwo := block.SeriesMeta{
 					Name: []byte("t1=v2,"),
 					Tags: models.EmptyTags().AddTags([]models.Tag{{
 						Name:  []byte("t1"),
 						Value: []byte("v2"),
-					}})},
-			}
+					}})}
 
-			assert.Equal(t, expectedSeriesMetas, sink.Metas)
-		})
+				// NB: name should be dropped from series tags, and the name
+				// should be the updated ID.
+				expectedSeriesMetas := []block.SeriesMeta{metaOne, metaTwo}
+				require.Equal(t, expectedSeriesMetas, sink.Metas)
+			})
+		}
 	}
 }
 
@@ -145,15 +152,6 @@ func TestGetIndicesError(t *testing.T) {
 	require.Equal(t, 0, l)
 	require.Equal(t, 10, r)
 	require.False(t, ok)
-}
-
-type dummyProcessor struct {
-	t *testing.T
-}
-
-func (p *dummyProcessor) process(dps ts.Datapoints, _ iterationBounds) float64 {
-	require.True(p.t, len(dps) > 0)
-	return dps[0].Value
 }
 
 var _ block.SeriesIter = (*dummySeriesIter)(nil)
@@ -203,10 +201,17 @@ func TestParallelProcess(t *testing.T) {
 
 	tagName := "tag"
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	aggProcess := aggProcessor{
+		aggFunc: func(fs []float64) float64 {
+			require.Equal(t, 1, len(fs))
+			return fs[0]
+		},
+	}
+
 	node := baseNode{
 		controller:    c,
 		op:            baseOp{duration: time.Minute},
-		processor:     &dummyProcessor{t: t},
+		makeProcessor: aggProcess,
 		transformOpts: transform.Options{},
 	}
 
@@ -288,7 +293,8 @@ func TestParallelProcess(t *testing.T) {
 
 	for i, m := range sink.Metas {
 		expected := fmt.Sprint(expected[i])
-		assert.Equal(t, expected, string(m.Name))
+		expectedName := fmt.Sprintf("tag=%s,", expected)
+		assert.Equal(t, expectedName, string(m.Name))
 		require.Equal(t, 1, m.Tags.Len())
 		tag, found := m.Tags.Get([]byte(tagName))
 		require.True(t, found)

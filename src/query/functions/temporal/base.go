@@ -50,11 +50,7 @@ type iterationBounds struct {
 // makeProcessor is a way to create a transform.
 type makeProcessor interface {
 	// initialize initializes the processor.
-	initialize(
-		duration time.Duration,
-		controller *transform.Controller,
-		opts transform.Options,
-	) processor
+	initialize(duration time.Duration, opts transform.Options) processor
 }
 
 // processor is implemented by the underlying transforms.
@@ -97,7 +93,7 @@ func (o baseOp) Node(
 	return &baseNode{
 		controller:    controller,
 		op:            o,
-		processor:     o.processorFn.initialize(o.duration, controller, opts),
+		makeProcessor: o.processorFn,
 		transformOpts: opts,
 	}
 }
@@ -109,7 +105,7 @@ type baseNode struct {
 	// https://github.com/m3db/m3/issues/1430
 	controller    controller
 	op            baseOp
-	processor     processor
+	makeProcessor makeProcessor
 	transformOpts transform.Options
 }
 
@@ -198,13 +194,13 @@ func (c *baseNode) batchProcess(
 	}
 
 	builder.PopulateColumns(numSeries)
-	p := c.processor
 	for _, batch := range iterBatches {
 		wg.Add(1)
 		// capture loop variables
 		loopIndex := idx
 		batch := batch
 		idx = idx + batch.Size
+		p := c.makeProcessor.initialize(c.op.duration, c.transformOpts)
 		go func() {
 			err := parallelProcess(ctx, loopIndex, batch.Iter, builder, m, p, &mu)
 			if err != nil {
@@ -252,6 +248,10 @@ func parallelProcess(
 	values := make([]float64, 0, blockMeta.steps)
 	metas := iter.SeriesMeta()
 	for i := 0; iter.Next(); i++ {
+		if i >= len(metas) {
+			return fmt.Errorf("invalid series meta index: %d, max %d", i, len(metas))
+		}
+
 		var (
 			newVal float64
 			init   = 0
@@ -270,6 +270,7 @@ func parallelProcess(
 		}
 
 		seriesMeta.Tags = seriesMeta.Tags.WithoutName()
+		seriesMeta.Name = seriesMeta.Tags.ID()
 		values = values[:0]
 		for i := 0; i < blockMeta.steps; i++ {
 			iterBounds := iterationBounds{
@@ -291,6 +292,7 @@ func parallelProcess(
 		}
 
 		mu.Lock()
+
 		// NB: this sets the values internally, so no need to worry about keeping
 		// a reference to underlying `values`.
 		err := builder.SetRow(idx, values, seriesMeta)
@@ -348,6 +350,12 @@ func (c *baseNode) singleProcess(
 		return nil, err
 	}
 
+	err = builder.AddCols(m.steps)
+	if err != nil {
+		return nil, err
+	}
+
+	p := c.makeProcessor.initialize(c.op.duration, c.transformOpts)
 	for seriesIter.Next() {
 		var (
 			newVal float64
@@ -373,10 +381,10 @@ func (c *baseNode) singleProcess(
 
 			l, r, b := getIndices(datapoints, start, end, init)
 			if !b {
-				newVal = c.processor.process(ts.Datapoints{}, iterBounds)
+				newVal = p.process(ts.Datapoints{}, iterBounds)
 			} else {
 				init = l
-				newVal = c.processor.process(datapoints[l:r], iterBounds)
+				newVal = p.process(datapoints[l:r], iterBounds)
 			}
 
 			if err := builder.AppendValue(i, newVal); err != nil {

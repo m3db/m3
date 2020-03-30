@@ -34,11 +34,14 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var ctx = models.NewQueryContext(context.Background(),
-	tally.NoopScope, cost.NoopChainedEnforcer(),
-	models.QueryContextOptions{})
+func makeTestQueryContext() *models.QueryContext {
+	return models.NewQueryContext(context.Background(),
+		tally.NoopScope, cost.NoopChainedEnforcer(),
+		models.QueryContextOptions{})
+}
 
 func TestColumnBuilderInfoTypes(t *testing.T) {
+	ctx := makeTestQueryContext()
 	builder := NewColumnBlockBuilder(ctx, Metadata{}, []SeriesMeta{})
 	block := builder.Build()
 	assert.Equal(t, BlockDecompressed, block.Info().blockType)
@@ -63,6 +66,7 @@ func TestSetRow(t *testing.T) {
 		metas[i] = buildMeta(i)
 	}
 
+	ctx := makeTestQueryContext()
 	builder := NewColumnBlockBuilder(ctx, Metadata{
 		Bounds: models.Bounds{StepSize: time.Minute, Duration: time.Minute},
 	}, metas)
