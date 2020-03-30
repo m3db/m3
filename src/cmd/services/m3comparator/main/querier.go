@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 )
@@ -41,8 +40,8 @@ import (
 var _ m3.Querier = (*querier)(nil)
 
 type querier struct {
-	encoderPool   encoding.EncoderPool
-	iteratorPools encoding.IteratorPools
+	opts    iteratorOptions
+	handler *seriesLoadHandler
 	sync.Mutex
 }
 
@@ -98,20 +97,6 @@ func generateSeries(
 	}, nil
 }
 
-func (q *querier) generateOptions(
-	start time.Time,
-	blockSize time.Duration,
-	tagOptions models.TagOptions,
-) iteratorOptions {
-	return iteratorOptions{
-		start:         start,
-		blockSize:     blockSize,
-		encoderPool:   q.encoderPool,
-		iteratorPools: q.iteratorPools,
-		tagOptions:    tagOptions,
-	}
-}
-
 type seriesGen struct {
 	name string
 	res  time.Duration
@@ -124,18 +109,48 @@ func (q *querier) FetchCompressed(
 	options *storage.FetchOptions,
 ) (m3.SeriesFetchResult, m3.Cleanup, error) {
 	var (
-		// TODO: take from config.
+		iters encoding.SeriesIterators
+		err   error
+	)
+
+	name := q.opts.tagOptions.MetricName()
+	for _, matcher := range query.TagMatchers {
+		if bytes.Equal(name, matcher.Name) {
+			iters = q.handler.getSeriesIterators(string(matcher.Value))
+			break
+		}
+	}
+
+	if iters == nil || iters.Len() == 0 {
+		iters, err = q.genIters(query)
+		if err != nil {
+			return m3.SeriesFetchResult{}, noop, err
+		}
+	}
+
+	cleanup := func() error {
+		iters.Close()
+		return nil
+	}
+
+	return m3.SeriesFetchResult{
+		SeriesIterators: iters,
+		Metadata:        block.NewResultMetadata(),
+	}, cleanup, nil
+}
+
+func (q *querier) genIters(
+	query *storage.FetchQuery,
+) (encoding.SeriesIterators, error) {
+	var (
 		blockSize = time.Hour * 12
 		start     = query.Start.Truncate(blockSize)
 		end       = query.End.Truncate(blockSize).Add(blockSize)
-		tagOpts   = models.NewTagOptions()
-		opts      = q.generateOptions(start, blockSize, tagOpts)
-
-		// TODO: take from config.
-		gens = []seriesGen{
-			seriesGen{"foo", time.Second},
-			seriesGen{"bar", time.Second * 15},
-			seriesGen{"quail", time.Minute},
+		opts      = q.opts
+		gens      = []seriesGen{
+			{"foo", time.Second},
+			{"bar", time.Second * 15},
+			{"quail", time.Minute},
 		}
 
 		actualGens []seriesGen
@@ -160,7 +175,7 @@ func (q *querier) FetchCompressed(
 			cStr := string(matcher.Value)
 			count, err := strconv.Atoi(cStr)
 			if err != nil {
-				return m3.SeriesFetchResult{}, noop, err
+				return nil, err
 			}
 
 			actualGens = make([]seriesGen, count)
@@ -189,26 +204,13 @@ func (q *querier) FetchCompressed(
 
 		series, err := generateSeries(start, end, blockSize, gen.res, tagMap)
 		if err != nil {
-			return m3.SeriesFetchResult{}, noop, err
+			return nil, err
 		}
 
 		seriesList = append(seriesList, series)
 	}
 
-	iters, err := buildSeriesIterators(seriesList, opts)
-	if err != nil {
-		return m3.SeriesFetchResult{}, noop, err
-	}
-
-	cleanup := func() error {
-		iters.Close()
-		return nil
-	}
-
-	return m3.SeriesFetchResult{
-		SeriesIterators: iters,
-		Metadata:        block.NewResultMetadata(),
-	}, cleanup, nil
+	return buildSeriesIterators(seriesList, query.Start, blockSize, opts)
 }
 
 // SearchCompressed fetches matching tags based on a query.
@@ -231,7 +233,7 @@ func (q *querier) CompleteTagsCompressed(
 	return &storage.CompleteTagsResult{
 		CompleteNameOnly: nameOnly,
 		CompletedTags: []storage.CompletedTag{
-			storage.CompletedTag{
+			{
 				Name:   []byte("__name__"),
 				Values: [][]byte{[]byte("foo"), []byte("foo"), []byte("quail")},
 			},

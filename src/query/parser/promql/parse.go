@@ -323,7 +323,7 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		op, ok, err := p.parseFunctionExpr(n.Func.Name, argValues,
-			stringValues, hasValue, p.tagOpts)
+			stringValues, hasValue, n.Args.String(), p.tagOpts)
 		if err != nil {
 			return err
 		}
