@@ -95,6 +95,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_downsampler_remote_aggregator_client_writeForwarded_success[$step]))",
@@ -179,6 +180,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_downsampler_remote_aggregator_client_writeForwarded_errors[$step]))",
@@ -263,6 +265,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_downsampler_remote_aggregator_client_writer_manager_writer_queue_successes[$step]))",
@@ -347,6 +350,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_downsampler_remote_aggregator_client_writer_manager_writer_queue_dropped[$step]))",
@@ -452,6 +456,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(m3aggregator_aggregator_addUntimed_success{m3_cluster=~\"$cluster\"}[$step]))",
@@ -555,6 +560,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(m3aggregator_aggregator_addUntimed_errors{m3_cluster=~\"$cluster\"}[$step])) by (reason)",
@@ -672,6 +678,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "rate(m3aggregator_aggregator_flush_handler_drop_oldest_async{m3_cluster=~\"$cluster\"}[$step])",
@@ -772,6 +779,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(m3aggregator_aggregator_flush_handler_message_buffered{m3_cluster=~\"$cluster\",backend=\"m3msg\",component=\"producer\"}) by (instance)",
@@ -858,6 +866,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "m3aggregator_aggregator_flush_handler_buffer_message_dropped{m3_cluster=~\"$cluster\",backend=\"m3msg\", component=\"producer\"}",
@@ -944,6 +953,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "m3aggregator_aggregator_flush_handler_drop_oldest_async{m3_cluster=~\"$cluster\",backend=\"m3msg\",component=\"producer\"}",
@@ -1035,6 +1045,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(m3aggregator_aggregator_flush_handler_byte_buffered{m3_cluster=~\"$cluster\",backend=\"m3msg\", component=\"producer\"}) by (instance)",
@@ -1121,6 +1132,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "m3aggregator_aggregator_flush_handler_buffer_byte_dropped{m3_cluster=~\"$cluster\",backend=\"m3msg\",component=\"producer\"}",
@@ -1219,6 +1231,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_ingest_m3msg_ack_sent{m3_cluster=~\"$cluster\"}[$step]))",
@@ -1303,6 +1316,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_ingest_m3msg_errors{m3_cluster=~\"$cluster\"}[$step]))",
@@ -1407,6 +1421,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_ingest_m3msg_metric_accepted{m3_cluster=~\"$cluster\"}[$step]))",
@@ -1491,6 +1506,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_ingest_m3msg_metric_dropped{m3_cluster=~\"$cluster\"}[$step]))",
@@ -1575,6 +1591,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_ingest_success{m3_cluster=~\"$cluster\"}[$step]))",
@@ -1659,6 +1676,7 @@
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
+      "datasource": "$datasource",
       "targets": [
         {
           "expr": "sum(rate(coordinator_ingest_error{m3_cluster=~\"$cluster\"}[$step]))",
@@ -1713,6 +1731,21 @@
   "tags": [],
   "templating": {
     "list": [
+      {
+        "current": {
+          "text": "M3Query - Prometheus",
+          "value": "M3Query - Prometheus"
+        },
+        "hide": 0,
+        "label": null,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
       {
         "allValue": null,
         "current": {

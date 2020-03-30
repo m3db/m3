@@ -392,6 +392,19 @@ func (h *PromWriteHandler) parseRequest(
 			}
 		}
 	}
+	if v := strings.TrimSpace(r.Header.Get(handleroptions.WriteTypeHeader)); v != "" {
+		switch v {
+		case handleroptions.DefaultWriteType:
+		case handleroptions.AggregateWriteType:
+			opts.WriteOverride = true
+			opts.WriteStoragePolicies = policy.StoragePolicies{}
+		default:
+			err := fmt.Errorf("unrecognized write type: %s", v)
+			return nil, ingest.WriteOptions{},
+				prometheus.ParsePromCompressedRequestResult{},
+				xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+	}
 
 	result, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
