@@ -15,11 +15,11 @@ defaultContentLanguageInSubdir= true
   # Prefix URL to edit current page. Will display an "Edit this page" button on top right hand corner of every page. 
   # Useful to give opportunity to people to create merge request for your doc.
   # See the config.toml file from this documentation site to have an example.
-  editURL = ""
+  editURL = "M3DB"
   # Author of the site, will be used in meta information
-  author = ""
+  author = "m3"
   # Description of the site, will be used in meta information
-  description = ""
+  description = "m3documentation"
   # Shows a checkmark for visited pages on the menu
   showVisitedLinks = false
   # Disable search function. It will hide search bar
