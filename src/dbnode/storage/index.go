@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -903,7 +903,14 @@ func (i *nsIndex) flushBlockSegment(
 			first = false
 
 			var (
-				opts    = block.FetchBlocksMetadataOptions{}
+				opts = block.FetchBlocksMetadataOptions{
+					// NB(bodu): There is a lag between when data gets flushed
+					// to disk and when it gets removed from memory during the next
+					// Tick. In this case, the same series can exist both on disk
+					// and in memory at the same time resulting in dupe series IDs.
+					// Only read data from disk when flushing index segments.
+					OnlyDisk: true,
+				}
 				limit   = defaultFlushReadDataBlocksBatchSize
 				results block.FetchBlocksMetadataResults
 				err     error
