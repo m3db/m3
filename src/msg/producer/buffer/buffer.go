@@ -37,7 +37,9 @@ import (
 var (
 	emptyStruct = struct{}{}
 
-	errBufferFull        = errors.New("buffer full")
+	// ErrBufferFull is returned when the buffer is full.
+	ErrBufferFull = errors.New("buffer full")
+
 	errBufferClosed      = errors.New("buffer closed")
 	errMessageTooLarge   = errors.New("message size larger than allowed")
 	errCleanupNoProgress = errors.New("buffer cleanup no progress")
@@ -155,7 +157,7 @@ func (b *buffer) produceOnFull(newBufferSize uint64, messageSize uint64) error {
 	switch b.opts.OnFullStrategy() {
 	case ReturnError:
 		b.size.Sub(messageSize)
-		return errBufferFull
+		return ErrBufferFull
 	case DropOldest:
 		if newBufferSize >= b.maxSpilloverSize {
 			// The size after the write reached max allowed spill over size.
