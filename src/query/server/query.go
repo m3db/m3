@@ -298,11 +298,8 @@ func Run(runOpts RunOptions) {
 		}
 		logger.Info("setup noop storage backend with etcd")
 
-	case config.NoopStorageType:
-		backendStorage = storage.NewNoopStorage()
-		logger.Info("setup noop storage backend")
-
-	default:
+	// Empty backend defaults to M3DB.
+	case "":
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
 		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
@@ -321,6 +318,9 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
 		defer cleanup()
+
+	default:
+		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}
 
 	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(&cfg,

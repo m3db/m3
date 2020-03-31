@@ -10,6 +10,7 @@ export REVISION
 
 echo "Run coordinator with no etcd"
 docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes coordinator01
+docker-compose -f ${COMPOSE_FILE} up -d --renew-anon-volumes etcd01
 
 function defer {
   docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
@@ -19,9 +20,17 @@ trap defer EXIT
 I=0
 RES=""
 while [[ "$I" -le 5 ]]; do
-  # Curling an m3admin API with no etcd client should be a 404.
-  RES=$(curl -s -o /dev/null -w '%{http_code}' "localhost:7201/api/v1/services/m3db/placement" || true)
-  if [[ "$RES" == "404" ]]; then
+  if curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
+    "instances": [
+        {
+            "id": "m3coordinator01",
+            "zone": "embedded",
+            "endpoint": "m3coordinator01:7507",
+            "hostname": "m3coordinator01",
+            "port": 7507
+        }
+    ]
+  }'; then
     break
   fi
   # Need some time for coordinators to come up.
@@ -29,8 +38,8 @@ while [[ "$I" -le 5 ]]; do
   I=$((I+1))
 done
 
-if [[ "$RES" != "404" ]]; then
-  echo "expected 404 exit code"
+if ! curl -vvvsSf localhost:7201/api/v1/services/m3coordinator/placement; then
+  echo "could not fetch existing placement"
   exit 1
 fi
 

@@ -52,9 +52,6 @@ const (
 	GRPCStorageType BackendStorageType = "grpc"
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
-	// NoopStorageType is for a noop backend which returns empty results for any
-	// query and blackholes any writes.
-	NoopStorageType BackendStorageType = "noop"
 	// NoopEtcdStorageType is for a noop backend which returns empty results for
 	// any query and blackholes any writes, but requires that a valid etcd cluster
 	// is defined and can be connected to. Primarily used for standalone

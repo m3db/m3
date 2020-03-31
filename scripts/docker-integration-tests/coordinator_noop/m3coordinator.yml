@@ -14,7 +14,17 @@ metrics:
   samplingRate: 1.0
   extended: none
 
-backend: noop
+backend: noop-etcd
+clusterManagement:
+  etcd:
+    env: default_env
+    zone: embedded
+    service: m3db
+    cacheDir: /var/lib/m3kv
+    etcdClusters:
+    - zone: embedded
+      endpoints:
+      - etcd01:2379
 
 tagOptions:
   idScheme: quoted
