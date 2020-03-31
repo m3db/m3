@@ -1,0 +1,14 @@
+version: "3.5"
+services:
+  coordinator01:
+    expose:
+      - "7201"
+    ports:
+      - "0.0.0.0:7201:7201"
+    networks:
+      - backend
+    image: "m3coordinator_integration:${REVISION}"
+    volumes:
+      - "./m3coordinator.yml:/etc/m3coordinator/m3coordinator.yml"
+networks:
+  backend:
