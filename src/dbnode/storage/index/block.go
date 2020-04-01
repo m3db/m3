@@ -109,6 +109,8 @@ func (s blockState) String() string {
 // LimitBlocksQueried enforces a max blocks query limit within a recency window.
 func LimitBlocksQueried(max int, within time.Duration) chan struct{} {
 	recentlyQueried = &queryRecencyWindow{
+		length:         within,
+		maxBlocks:      max,
 		recentBlocks:   atomic.NewInt64(0),
 		previousBlocks: 0,
 		stopCh:         make(chan struct{}),
