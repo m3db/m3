@@ -51,6 +51,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -70,9 +71,16 @@ var (
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
 	errCancelledQuery                          = errors.New("query was cancelled")
+	errAbortedQuery                            = errors.New("query was aborted due to too many recent blocks in memory")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
+
+	recentlyQueried = queryRecencyWindow{
+		length:    defaultQueryRecencyWindow,
+		maxBlocks: defaultMaxBlocksInQueryRecencyWindow,
+		blocks:    atomic.NewInt64(0),
+	}
 )
 
 type blockState uint
@@ -84,6 +92,9 @@ const (
 
 	defaultQueryDocsBatchSize             = 256
 	defaultAggregateResultsEntryBatchSize = 256
+
+	defaultQueryRecencyWindow            = time.Second
+	defaultMaxBlocksInQueryRecencyWindow = 500
 
 	compactDebugLogEvery = 1 // Emit debug log for every compaction
 
@@ -100,6 +111,27 @@ func (s blockState) String() string {
 		return "closed"
 	}
 	return "unknown"
+}
+
+// For tracking query stats in past X duration such as blocks queried.
+type queryRecencyWindow struct {
+	length    time.Duration
+	maxBlocks int
+	blocks    *atomic.Int64
+}
+
+func (w queryRecencyWindow) AddWithinLimit(blocks int) bool {
+	w.blocks.Add(int64(blocks))
+	val := int(w.blocks.Load())
+
+	go func() {
+		time.Sleep(w.length)
+	}()
+
+	if val > w.maxBlocks {
+		return false
+	}
+	return true
 }
 
 type newExecutorFn func() (search.Executor, error)
@@ -974,6 +1006,13 @@ func (b *block) addQueryResults(
 
 	// try to add the docs to the resource.
 	size, err := results.AddDocuments(batch)
+
+	// track recently queried blocks to limit memory.
+	if size > 0 {
+		if withinLimit := recentlyQueried.AddWithinLimit(size); !withinLimit {
+			return nil, 0, errAbortedQuery
+		}
+	}
 
 	// immediately release the checkout on the lifetime of query.
 	cancellable.ReleaseCheckout()
