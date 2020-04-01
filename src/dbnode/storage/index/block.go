@@ -136,9 +136,8 @@ func (w queryRecencyWindow) Start() {
 		select {
 		case <-ticker.C:
 			// Clear older active blocks every X duration.
-			currentBlocks := w.recentBlocks.Load()
 			w.recentBlocks.Sub(w.previousBlocks)
-			w.previousBlocks = currentBlocks
+			w.previousBlocks = w.recentBlocks.Load()
 		case <-w.stopCh:
 			return
 		}
