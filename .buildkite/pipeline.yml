@@ -38,6 +38,7 @@ steps:
   - name: "Services, Tools, Metalint"
     command: make clean install-vendor-m3 services tools metalint
     env:
+      CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.14.x
     plugins:
       docker-compose#v2.5.1:
@@ -100,6 +101,7 @@ steps:
   - label: "FOSSA license scan"
     command: make clean install-vendor-m3 fossa
     env:
+      CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.14.x
     plugins:
       docker-compose#v2.5.1:
