@@ -897,6 +897,10 @@ func Run(runOpts RunOptions) {
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
 
+	// Enforce max blocks queried within a given duration.
+	stopLimitCh := index.LimitBlocksQueried(500, time.Second)
+	defer close(stopLimitCh)
+
 	// Wait for process interrupt.
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
 		InterruptCh: runOpts.InterruptCh,

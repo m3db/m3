@@ -76,11 +76,7 @@ var (
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
 
-	recentlyQueried = queryRecencyWindow{
-		recentBlocks:   atomic.NewInt64(0),
-		previousBlocks: 0,
-		stopCh:         make(chan struct{}),
-	}
+	recentlyQueried *queryRecencyWindow
 )
 
 type blockState uint
@@ -92,9 +88,6 @@ const (
 
 	defaultQueryDocsBatchSize             = 256
 	defaultAggregateResultsEntryBatchSize = 256
-
-	defaultQueryRecencyWindow            = time.Second
-	defaultMaxBlocksInQueryRecencyWindow = 500
 
 	compactDebugLogEvery = 1 // Emit debug log for every compaction
 
@@ -113,15 +106,31 @@ func (s blockState) String() string {
 	return "unknown"
 }
 
+// LimitBlocksQueried enforces a max blocks query limit within a recency window.
+func LimitBlocksQueried(max int, within time.Duration) chan struct{} {
+	recentlyQueried = &queryRecencyWindow{
+		recentBlocks:   atomic.NewInt64(0),
+		previousBlocks: 0,
+		stopCh:         make(chan struct{}),
+	}
+	recentlyQueried.Start()
+
+	// Give caller handle to stop the background flushing.
+	return recentlyQueried.stopCh
+}
+
 // For tracking query stats in past X duration such as blocks queried.
 type queryRecencyWindow struct {
+	length    time.Duration
+	maxBlocks int
+
 	recentBlocks   *atomic.Int64
 	previousBlocks int64
 	stopCh         chan struct{}
 }
 
 func (w queryRecencyWindow) Start() {
-	ticker := time.NewTicker(defaultQueryRecencyWindow)
+	ticker := time.NewTicker(w.length)
 	defer ticker.Stop()
 	for {
 		select {
@@ -136,16 +145,16 @@ func (w queryRecencyWindow) Start() {
 	}
 }
 
-func (w queryRecencyWindow) Stop() {
-	close(w.stopCh)
-}
+func (w *queryRecencyWindow) AddWithinLimit(blocks int) bool {
+	if w == nil {
+		return true
+	}
 
-func (w queryRecencyWindow) AddWithinLimit(blocks int) bool {
 	inc := int64(blocks)
 	w.recentBlocks.Add(inc)
 	val := int(w.recentBlocks.Load())
 
-	if val > defaultMaxBlocksInQueryRecencyWindow {
+	if val > w.maxBlocks {
 		return false
 	}
 	return true
