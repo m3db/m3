@@ -77,9 +77,9 @@ var (
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
 
 	recentlyQueried = queryRecencyWindow{
-		length:    defaultQueryRecencyWindow,
-		maxBlocks: defaultMaxBlocksInQueryRecencyWindow,
-		blocks:    atomic.NewInt64(0),
+		recentBlocks:   atomic.NewInt64(0),
+		previousBlocks: 0,
+		stopCh:         make(chan struct{}),
 	}
 )
 
@@ -115,20 +115,37 @@ func (s blockState) String() string {
 
 // For tracking query stats in past X duration such as blocks queried.
 type queryRecencyWindow struct {
-	length    time.Duration
-	maxBlocks int
-	blocks    *atomic.Int64
+	recentBlocks   *atomic.Int64
+	previousBlocks int64
+	stopCh         chan struct{}
+}
+
+func (w queryRecencyWindow) Start() {
+	ticker := time.NewTicker(defaultQueryRecencyWindow)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			// Clear older active blocks every X duration.
+			currentBlocks := w.recentBlocks.Load()
+			w.recentBlocks.Sub(w.previousBlocks)
+			w.previousBlocks = currentBlocks
+		case <-w.stopCh:
+			return
+		}
+	}
+}
+
+func (w queryRecencyWindow) Stop() {
+	close(w.stopCh)
 }
 
 func (w queryRecencyWindow) AddWithinLimit(blocks int) bool {
-	w.blocks.Add(int64(blocks))
-	val := int(w.blocks.Load())
+	inc := int64(blocks)
+	w.recentBlocks.Add(inc)
+	val := int(w.recentBlocks.Load())
 
-	go func() {
-		time.Sleep(w.length)
-	}()
-
-	if val > w.maxBlocks {
+	if val > defaultMaxBlocksInQueryRecencyWindow {
 		return false
 	}
 	return true
