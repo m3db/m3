@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream
-FROM alpine:latest
-=======
 FROM alpine:3.11
->>>>>>> Stashed changes
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 RUN apk add --no-cache curl jq

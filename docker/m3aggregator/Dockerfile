@@ -1,5 +1,5 @@
 # stage 1: build
-FROM golang:1.12-alpine3.9 AS builder
+FROM golang:1.14-alpine3.11 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install Glide
@@ -15,7 +15,7 @@ RUN cd /go/src/github.com/m3db/m3/ && \
     make m3aggregator-linux-amd64
 
 # stage 2: lightweight "release"
-FROM alpine:latest
+FROM alpine:3.11
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 EXPOSE 5000/tcp 6000/tcp 6001/tcp
