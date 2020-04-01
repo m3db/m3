@@ -269,6 +269,8 @@ func parallelProcess(
 			decodeDuration += stats.DecodeDuration
 		}
 
+		// rename series to exclude their __name__ tag as
+		// part of function processing.
 		seriesMeta.Tags = seriesMeta.Tags.WithoutName()
 		seriesMeta.Name = seriesMeta.Tags.ID()
 		values = values[:0]

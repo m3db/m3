@@ -77,19 +77,12 @@ func read(
 		return emptyResult, err
 	}
 
-	result, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
+	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
 	if err != nil {
 		return emptyResult, err
 	}
 
-	res := <-result.ResultChan()
-	if res.Err != nil {
-		return emptyResult, res.Err
-	}
-
-	bl := res.Block
 	resultMeta := bl.Meta().ResultMetadata
-
 	it, err := bl.StepIter()
 	if err != nil {
 		return emptyResult, err

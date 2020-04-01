@@ -69,7 +69,7 @@ func TestSetRow(t *testing.T) {
 	ctx := makeTestQueryContext()
 	builder := NewColumnBlockBuilder(ctx, Metadata{
 		Bounds: models.Bounds{StepSize: time.Minute, Duration: time.Minute},
-	}, metas)
+	}, nil)
 
 	require.NoError(t, builder.AddCols(1))
 	builder.PopulateColumns(size)
