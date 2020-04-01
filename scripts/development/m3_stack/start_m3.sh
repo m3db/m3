@@ -82,9 +82,9 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
                     "isolation_group": "rack-a",
                     "zone": "embedded",
                     "weight": 1024,
-                    "endpoint": "m3aggregator01:6000",
+                    "endpoint": "m3aggregator01:6002",
                     "hostname": "m3aggregator01",
-                    "port": 6000
+                    "port": 6002
                 }
             ]
         }'
@@ -99,25 +99,44 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
                     "isolation_group": "rack-a",
                     "zone": "embedded",
                     "weight": 1024,
-                    "endpoint": "m3aggregator01:6000",
+                    "endpoint": "m3aggregator01:6002",
                     "hostname": "m3aggregator01",
-                    "port": 6000
+                    "port": 6002
                 },
                 {
                     "id": "m3aggregator02",
                     "isolation_group": "rack-b",
                     "zone": "embedded",
                     "weight": 1024,
-                    "endpoint": "m3aggregator02:6000",
+                    "endpoint": "m3aggregator02:6002",
                     "hostname": "m3aggregator02",
-                    "port": 6000
+                    "port": 6002
                 }
             ]
         }'
     fi
 
-    echo "Initializing m3msg topic for ingestion"
-    curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
+    echo "Initializing m3msg inbound topic for m3aggregator ingestion from m3coordinators"
+    curl -vvvsSf -X POST -H "Topic-Name: aggregator_ingest" -H "Cluster-Environment-Name: default_env" localhost:7201/api/v1/topic/init -d '{
+        "numberOfShards": 64
+    }'
+
+    echo "Adding m3aggregator as a consumer to the aggregator ingest topic"
+    curl -vvvsSf -X POST -H "Topic-Name: aggregator_ingest" -H "Cluster-Environment-Name: default_env" localhost:7201/api/v1/topic -d '{
+    "consumerService": {
+        "serviceId": {
+        "name": "m3aggregator",
+        "environment": "default_env",
+        "zone": "embedded"
+        },
+        "consumptionType": "REPLICATED",
+        "messageTtlNanos": "600000000000"
+    }
+    }' # msgs will be discarded after 600000000000ns = 10mins
+
+    # Create outbound m3msg topic for m3 aggregators to coordinators
+    echo "Initializing m3msg outbound topic for m3 aggregators to coordinators"
+    curl -vvvsSf -X POST -H "Topic-Name: aggregated_metrics" -H "Cluster-Environment-Name: default_env" localhost:7201/api/v1/topic/init -d '{
         "numberOfShards": 64
     }'
 
@@ -284,8 +303,8 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
     echo "Done validating topology"
 
     # Do this after placement for m3coordinator is created.
-    echo "Adding m3coordinator as a consumer to the topic"
-    curl -vvvsSf -X POST localhost:7201/api/v1/topic -d '{
+    echo "Adding coordinator as a consumer to the aggregator outbound topic"
+    curl -vvvsSf -X POST -H "Topic-Name: aggregated_metrics" -H "Cluster-Environment-Name: default_env" localhost:7201/api/v1/topic -d '{
         "consumerService": {
                 "serviceId": {
                 "name": "m3coordinator",

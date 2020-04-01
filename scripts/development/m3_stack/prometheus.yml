@@ -38,8 +38,7 @@ scrape_configs:
 
   - job_name: 'aggregator'
     static_configs:
-      - targets: ['m3aggregator01:6002']
-      - targets: ['m3aggregator02:6002']
+      - targets: ['m3aggregator01:6003', 'm3aggregator02:6003']
 
 remote_read:
   - url: http://m3coordinator01:7201/api/v1/prom/remote/read

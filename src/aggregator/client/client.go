@@ -361,13 +361,18 @@ func (c *client) Close() error {
 		return errClientIsUninitializedOrClosed
 	}
 
-	if c.aggregatorClientType == M3MsgAggregatorClient {
+	var multiErr xerrors.MultiError
+	switch c.aggregatorClientType {
+	case M3MsgAggregatorClient:
 		c.m3msg.producer.Close(producer.WaitForConsumption)
+	case LegacyAggregatorClient:
+		multiErr = multiErr.Add(c.placementWatcher.Unwatch())
+		multiErr = multiErr.Add(c.writerMgr.Close())
 	}
 
 	c.state = clientClosed
-	c.placementWatcher.Unwatch() // nolint: errcheck
-	return c.writerMgr.Close()
+
+	return multiErr.FinalError()
 }
 
 func (c *client) write(metricID id.RawID, timeNanos int64, payload payloadUnion) error {
