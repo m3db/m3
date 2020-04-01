@@ -72,7 +72,7 @@ sysctl -w fs.nr_open=3000000
 
 To set these values permanently, update the `fs.file-max` and `fs.nr_open` settings in `/etc/sysctl.conf`.
 
-Alternatively, if you wish to have M3DB run under `systemd` you can use our [service example](https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service) which will set sane defaults.
+Alternatively, if you wish to have M3DB run under `systemd` you can use our [service example](https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service) which will set same defaults.
 Keep in mind that you'll still need to configure the kernel and process limits because systemd will not allow a process to exceed them and will silently fallback to a default value which could cause M3DB to crash due to hitting the file descriptor limit.
 Also note that systemd has a `system.conf` file and a `user.conf` file which may contain limits that the service-specific configuration files cannot override.
 Be sure to check that those files aren't configured with values lower than the value you configure at the service level.
