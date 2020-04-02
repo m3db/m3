@@ -107,13 +107,12 @@ func (s blockState) String() string {
 }
 
 // LimitBlocksQueried enforces a max blocks query limit within a recency window.
-func LimitBlocksQueried(max int, within time.Duration) chan struct{} {
+func LimitBlocksQueried(max int64, within time.Duration) chan struct{} {
 	recentlyQueried = &queryRecencyWindow{
-		length:         within,
-		maxBlocks:      max,
-		recentBlocks:   atomic.NewInt64(0),
-		previousBlocks: 0,
-		stopCh:         make(chan struct{}),
+		length:       within,
+		maxBlocks:    max,
+		recentBlocks: atomic.NewInt64(0),
+		stopCh:       make(chan struct{}),
 	}
 	recentlyQueried.Start()
 
@@ -124,11 +123,10 @@ func LimitBlocksQueried(max int, within time.Duration) chan struct{} {
 // For tracking query stats in past X duration such as blocks queried.
 type queryRecencyWindow struct {
 	length    time.Duration
-	maxBlocks int
+	maxBlocks int64
 
-	recentBlocks   *atomic.Int64
-	previousBlocks int64
-	stopCh         chan struct{}
+	recentBlocks *atomic.Int64
+	stopCh       chan struct{}
 }
 
 func (w queryRecencyWindow) Start() {
@@ -137,9 +135,8 @@ func (w queryRecencyWindow) Start() {
 	for {
 		select {
 		case <-ticker.C:
-			// Clear older active blocks every X duration.
-			w.recentBlocks.Sub(w.previousBlocks)
-			w.previousBlocks = w.recentBlocks.Load()
+			// Clear recent active blocks every X duration.
+			w.recentBlocks.Store(0)
 		case <-w.stopCh:
 			return
 		}
@@ -152,8 +149,7 @@ func (w *queryRecencyWindow) AddWithinLimit(blocks int) bool {
 	}
 
 	inc := int64(blocks)
-	w.recentBlocks.Add(inc)
-	val := int(w.recentBlocks.Load())
+	val := w.recentBlocks.Add(inc)
 
 	if val > w.maxBlocks {
 		return false
