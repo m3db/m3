@@ -432,7 +432,8 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 	@(PATH=$(combined_bin_paths):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
-endif
+# endif kubeval
+# endif
 
 endef
 
