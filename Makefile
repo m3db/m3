@@ -332,11 +332,11 @@ define SUBDIR_RULES
 # bundle.
 # ifeq ($(SUBDIR), kube)
 
-# Builds the single kube bundle from individual manifest files.
+# Builds the single kube bundle from individual manifest files. 
 # all-gen-kube: install-tools
 # 	@echo "--- Generating kube bundle"
 # 	@./kube/scripts/build_bundle.sh
-# 	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
+# 	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0 
 
 # else
 

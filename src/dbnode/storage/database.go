@@ -593,7 +593,12 @@ func (d *db) Write(
 		return nil
 	}
 
-	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	dp := ts.Datapoint{
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
+	}
+
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
@@ -622,7 +627,12 @@ func (d *db) WriteTagged(
 		return nil
 	}
 
-	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	dp := ts.Datapoint{
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
+	}
+
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 

@@ -302,7 +302,10 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 		return ts.Datapoint{}, errNoEncodedDatapoints
 	}
 
-	result := ts.Datapoint{Timestamp: enc.tsEncoderState.PrevTime}
+	result := ts.Datapoint{
+		Timestamp:      enc.tsEncoderState.PrevTime,
+		TimestampNanos: xtime.ToUnixNano(enc.tsEncoderState.PrevTime),
+	}
 	if enc.isFloat {
 		result.Value = math.Float64frombits(enc.floatEnc.PrevFloatBits)
 	} else {
