@@ -4,14 +4,14 @@
  
 ## Performance
 
-- **M3Query**: Read bits uses an optimized byte reader ([#2205](https://github.com/m3db/m3/pull/2205))
 - **M3DB**: Decode ReadBits decompression improvements ([#2197](https://github.com/m3db/m3/pull/2197))
 - **M3DB**: Remove implicit cloning of time ranges to reduce allocs ([#2178](https://github.com/m3db/m3/pull/2178))
+- **M3Query**: Read bits uses an optimized byte reader ([#2205](https://github.com/m3db/m3/pull/2205))
 
 ## Bug Fixes
 
-- **M3Query**: Fix to temporal function regression leading to inconsistent results ([#2231](https://github.com/m3db/m3/pull/2231))
 - **M3DB**: Fix to build flush errors ([#2229](https://github.com/m3db/m3/pull/2229), [#2217](https://github.com/m3db/m3/pull/2217))
+- **M3Query**: Fix to temporal function regression leading to inconsistent results ([#2231](https://github.com/m3db/m3/pull/2231))
 
 ## Documentation 
 
@@ -22,6 +22,7 @@
 - **Development**: Temporarily disable kubeval validation to allow builds on go 1.12 ([#2241](https://github.com/m3db/m3/pull/2241))
 - **Development**: Add comparator value ingester for replaying functions against given data sets ([#2224](https://github.com/m3db/m3/pull/2224))
 - **Development**: Logging improvements ([#2222](https://github.com/m3db/m3/pull/2222),[#2225](https://github.com/m3db/m3/pull/2225))
+- **M3DB**: Use madvdontneed=1 in DB nodes to get a more accurate view of memory usage ([#2242]https://github.com/m3db/m3/pull/2242))
 
 # 0.15.0-rc.3
 
