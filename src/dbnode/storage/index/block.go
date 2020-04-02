@@ -70,12 +70,9 @@ var (
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
 	errCancelledQuery                          = errors.New("query was cancelled")
-	errAbortedQuery                            = errors.New("query was aborted due to too many recent blocks in memory")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
-
-	recentlyQueried *queryRecencyWindow
 )
 
 type blockState uint
@@ -972,11 +969,11 @@ func (b *block) addQueryResults(
 	results BaseResults,
 	batch []doc.Document,
 ) ([]doc.Document, int, error) {
-	// track recently queried blocks to limit memory.
+	// track recently queried docs to measure memory usage.
 	docs := len(batch)
 	if docs > 0 {
-		if withinLimit := recentlyQueried.AddWithinLimit(docs); !withinLimit {
-			return nil, 0, errAbortedQuery
+		if err := TrackStats(docs); err != nil {
+			return batch, 0, err
 		}
 	}
 
