@@ -35,12 +35,15 @@ type multiSeriesBlock struct {
 	lookbackDuration time.Duration
 	meta             block.Metadata
 	seriesList       ts.SeriesList
+	query            *storage.FetchQuery
+	enableBatched    bool
 }
 
 func newMultiSeriesBlock(
 	fetchResult *storage.FetchResult,
 	query *storage.FetchQuery,
 	lookbackDuration time.Duration,
+	enableBatched bool,
 ) block.Block {
 	meta := block.Metadata{
 		Bounds: models.Bounds{
@@ -56,6 +59,8 @@ func newMultiSeriesBlock(
 		seriesList:       fetchResult.SeriesList,
 		meta:             meta,
 		lookbackDuration: lookbackDuration,
+		enableBatched:    enableBatched,
+		query:            query,
 	}
 }
 
@@ -79,7 +84,39 @@ func (m multiSeriesBlock) SeriesIter() (block.SeriesIter, error) {
 func (m multiSeriesBlock) MultiSeriesIter(
 	concurrency int,
 ) ([]block.SeriesIterBatch, error) {
-	return nil, errors.New("batched iterator is not supported by test block")
+	if !m.enableBatched {
+		return nil,
+			errors.New("batched iterator is not supported by this test block")
+	}
+
+	batches := make([]ts.SeriesList, 0, concurrency)
+	for i := 0; i < concurrency; i++ {
+		batches = append(batches, make(ts.SeriesList, 0, 10))
+	}
+
+	// round-robin series.
+	for i, seriesList := range m.seriesList {
+		batches[i%concurrency] = append(batches[i%concurrency], seriesList)
+	}
+
+	seriesIterBatches := make([]block.SeriesIterBatch, 0, concurrency)
+	for _, batch := range batches {
+		insideBlock := newMultiSeriesBlock(&storage.FetchResult{
+			SeriesList: batch,
+			Metadata:   m.meta.ResultMetadata,
+		}, m.query, m.lookbackDuration, false)
+		it, err := insideBlock.SeriesIter()
+		if err != nil {
+			return nil, err
+		}
+
+		seriesIterBatches = append(seriesIterBatches, block.SeriesIterBatch{
+			Iter: it,
+			Size: len(batch),
+		})
+	}
+
+	return seriesIterBatches, nil
 }
 
 func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {

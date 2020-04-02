@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var _ m3.Querier = (*querier)(nil)
@@ -62,9 +63,11 @@ func generateSeriesBlock(
 	numPoints := int(blockSize / resolution)
 	dps := make(seriesBlock, 0, numPoints)
 	for i := 0; i < numPoints; i++ {
+		stamp := start.Add(resolution * time.Duration(i))
 		dp := ts.Datapoint{
-			Timestamp: start.Add(resolution * time.Duration(i)),
-			Value:     rand.Float64(),
+			Timestamp:      stamp,
+			TimestampNanos: xtime.ToUnixNano(stamp),
+			Value:          rand.Float64(),
 		}
 
 		dps = append(dps, dp)
@@ -116,13 +119,17 @@ func (q *querier) FetchCompressed(
 	name := q.opts.tagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(name, matcher.Name) {
-			iters = q.handler.getSeriesIterators(string(matcher.Value))
+			iters, err = q.handler.getSeriesIterators(string(matcher.Value))
+			if err != nil {
+				return m3.SeriesFetchResult{}, noop, err
+			}
+
 			break
 		}
 	}
 
 	if iters == nil || iters.Len() == 0 {
-		iters, err = q.genIters(query)
+		iters, err = q.generateRandomIters(query)
 		if err != nil {
 			return m3.SeriesFetchResult{}, noop, err
 		}
@@ -139,7 +146,7 @@ func (q *querier) FetchCompressed(
 	}, cleanup, nil
 }
 
-func (q *querier) genIters(
+func (q *querier) generateRandomIters(
 	query *storage.FetchQuery,
 ) (encoding.SeriesIterators, error) {
 	var (
