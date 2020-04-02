@@ -21,7 +21,7 @@
 package stats
 
 import (
-	"fmt"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -43,6 +43,7 @@ type queryStats struct {
 }
 
 type queryStatsMetrics struct {
+	sync.Mutex
 	recentDocs tally.Gauge
 }
 
@@ -73,6 +74,9 @@ func (w queryStats) start() {
 		case <-ticker.C:
 			// Clear recent docs every X duration.
 			w.recentDocs.Store(0)
+
+			// Also invoke the track func for having zero value.
+			w.trackFn(0)
 		case <-w.stopCh:
 			return
 		}
@@ -81,7 +85,6 @@ func (w queryStats) start() {
 
 // TrackStats tracks new query stats.
 func TrackStats(newDocs int) error {
-	fmt.Println("NEW DOCS", newDocs)
 	if globalQueryStats == nil {
 		return nil
 	}
@@ -102,7 +105,9 @@ func QueryStatsMetricsTrackFn(opts instrument.Options) QueryStatsTrackFn {
 		recentDocs: scope.Gauge("recentDocs"),
 	}
 	return func(recentDocs int64) error {
+		statsMetrics.Lock()
 		statsMetrics.recentDocs.Update(float64(recentDocs))
+		statsMetrics.Unlock()
 		return nil
 	}
 }
