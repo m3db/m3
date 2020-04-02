@@ -335,7 +335,7 @@ define SUBDIR_RULES
 # 	@./kube/scripts/build_bundle.sh
 # 	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
 
-else
+# else
 
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
