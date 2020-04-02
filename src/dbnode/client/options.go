@@ -1014,5 +1014,5 @@ func (o *options) SetQueryStatsTrackFn(value stats.QueryStatsTrackFn) AdminOptio
 }
 
 func (o *options) QueryStatsTrackFn() stats.QueryStatsTrackFn {
-	return o.fetchSeriesBlocksBatchSize
+	return o.queryStatsTrackFn
 }
