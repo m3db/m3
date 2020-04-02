@@ -81,7 +81,8 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
-	kube        \
+	# Disabled during kubeval dependency issue
+	# kube        \
 
 TOOLS :=               \
 	read_ids             \
