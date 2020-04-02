@@ -21,6 +21,7 @@
 package stats
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -80,6 +81,7 @@ func (w queryStats) start() {
 
 // TrackStats tracks new query stats.
 func TrackStats(newDocs int) error {
+	fmt.Println("NEW DOCS", newDocs)
 	if globalQueryStats == nil {
 		return nil
 	}

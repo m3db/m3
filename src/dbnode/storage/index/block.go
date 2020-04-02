@@ -929,22 +929,18 @@ func (b *block) queryWithSpan(
 			continue
 		}
 
-		fmt.Println("BATCH", len(batch))
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
-		fmt.Println("SIZE", size)
 	}
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		fmt.Println("LAST BATCH", len(batch))
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
-		fmt.Println("LAST SIZE", size)
 	}
 
 	if err := iter.Err(); err != nil {
@@ -970,7 +966,7 @@ func (b *block) addQueryResults(
 	results BaseResults,
 	batch []doc.Document,
 ) ([]doc.Document, int, error) {
-	// track recently queried docs to measure memory usage.
+	// track recently queried docs to monitor memory.
 	if err := stats.TrackStats(len(batch)); err != nil {
 		return batch, 0, err
 	}
@@ -1208,7 +1204,7 @@ func (b *block) addAggregateResults(
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 ) ([]AggregateResultsEntry, int, error) {
-	// track recently queried docs to measure memory usage.
+	// track recently queried docs to monitor memory.
 	if err := stats.TrackStats(len(batch)); err != nil {
 		return batch, 0, err
 	}
