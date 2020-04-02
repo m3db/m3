@@ -970,11 +970,8 @@ func (b *block) addQueryResults(
 	batch []doc.Document,
 ) ([]doc.Document, int, error) {
 	// track recently queried docs to measure memory usage.
-	docs := len(batch)
-	if docs > 0 {
-		if err := TrackStats(docs); err != nil {
-			return batch, 0, err
-		}
+	if err := TrackStats(len(batch)); err != nil {
+		return batch, 0, err
 	}
 
 	// checkout the lifetime of the query before adding results.
@@ -1210,6 +1207,11 @@ func (b *block) addAggregateResults(
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 ) ([]AggregateResultsEntry, int, error) {
+	// track recently queried docs to measure memory usage.
+	if err := TrackStats(len(batch)); err != nil {
+		return batch, 0, err
+	}
+
 	// checkout the lifetime of the query before adding results.
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {

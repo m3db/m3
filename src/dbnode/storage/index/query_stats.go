@@ -83,6 +83,9 @@ func TrackStats(newDocs int) error {
 	if globalQueryStats == nil {
 		return nil
 	}
+	if newDocs <= 0 {
+		return nil
+	}
 
 	recentDocs := globalQueryStats.recentDocs.Add(int64(newDocs))
 	return globalQueryStats.trackFn(recentDocs)
