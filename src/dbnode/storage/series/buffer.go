@@ -1128,8 +1128,9 @@ func (b *BufferBucket) write(
 	schema namespace.SchemaDescr,
 ) (bool, error) {
 	datapoint := ts.Datapoint{
-		Timestamp: timestamp,
-		Value:     value,
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
 	}
 
 	// Find the correct encoder to write to
