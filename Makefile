@@ -81,7 +81,7 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
-	# Disabled during kubeval dependency issue
+	# Disabled during kubeval dependency issue https://github.com/m3db/m3/issues/2220
 	# kube        \
 
 TOOLS :=               \
@@ -326,9 +326,11 @@ define SUBDIR_RULES
 
 # Temporarily remove kube validation until we fix a dependency issue with
 # kubeval (one of its depenencies depends on go1.13).
+# https://github.com/m3db/m3/issues/2220
 #
 # We override the rules for `*-gen-kube` to just generate the kube manifest
-# bundle. ifeq ($(SUBDIR), kube)
+# bundle.
+# ifeq ($(SUBDIR), kube)
 
 # Builds the single kube bundle from individual manifest files.
 # all-gen-kube: install-tools
