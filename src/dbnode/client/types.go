@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -560,6 +561,12 @@ type Options interface {
 
 	// IterationOptions returns experimental iteration options.
 	IterationOptions() index.IterationOptions
+
+	// SetQueryStatsLookback sets the trailing length of time query stats are tracked for.
+	SetQueryStatsLookback(time.Duration) Options
+
+	// QueryStatsLookback returns the trailing length of time query stats are tracked for.
+	QueryStatsLookback() time.Duration
 }
 
 // AdminOptions is a set of administration client options.
@@ -613,6 +620,12 @@ type AdminOptions interface {
 
 	// StreamBlocksRetrier returns the retrier for streaming blocks.
 	StreamBlocksRetrier() xretry.Retrier
+
+	// SetQueryStatsTrackFn sets the tracking function for query stats.
+	SetQueryStatsTrackFn(value stats.QueryStatsTrackFn) AdminOptions
+
+	// QueryStatsTrackFn returns the tracking function for query stats.
+	QueryStatsTrackFn() stats.QueryStatsTrackFn
 }
 
 // The rest of these types are internal types that mocks are generated for

@@ -96,8 +96,8 @@ func TrackStats(newDocs int) error {
 	return globalQueryStats.trackFn(recentDocs)
 }
 
-// QueryStatsMetricsTrackFn provides a tracking function that emits query stats as metrics.
-func QueryStatsMetricsTrackFn(opts instrument.Options) QueryStatsTrackFn {
+// DefaultQueryStatsMetricsTrackFn provides a tracking function that emits query stats as metrics.
+func DefaultQueryStatsMetricsTrackFn(opts instrument.Options) QueryStatsTrackFn {
 	scope := opts.
 		MetricsScope().
 		SubScope("query-stats")
