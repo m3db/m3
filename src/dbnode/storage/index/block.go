@@ -51,7 +51,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -104,57 +103,6 @@ func (s blockState) String() string {
 		return "closed"
 	}
 	return "unknown"
-}
-
-// LimitBlocksQueried enforces a max blocks query limit within a recency window.
-func LimitBlocksQueried(max int64, within time.Duration) chan struct{} {
-	recentlyQueried = &queryRecencyWindow{
-		length:       within,
-		maxBlocks:    max,
-		recentBlocks: atomic.NewInt64(0),
-		stopCh:       make(chan struct{}),
-	}
-	recentlyQueried.Start()
-
-	// Give caller handle to stop the background flushing.
-	return recentlyQueried.stopCh
-}
-
-// For tracking query stats in past X duration such as blocks queried.
-type queryRecencyWindow struct {
-	length    time.Duration
-	maxBlocks int64
-
-	recentBlocks *atomic.Int64
-	stopCh       chan struct{}
-}
-
-func (w queryRecencyWindow) Start() {
-	ticker := time.NewTicker(w.length)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			// Clear recent active blocks every X duration.
-			w.recentBlocks.Store(0)
-		case <-w.stopCh:
-			return
-		}
-	}
-}
-
-func (w *queryRecencyWindow) AddWithinLimit(blocks int) bool {
-	if w == nil {
-		return true
-	}
-
-	inc := int64(blocks)
-	val := w.recentBlocks.Add(inc)
-
-	if val > w.maxBlocks {
-		return false
-	}
-	return true
 }
 
 type newExecutorFn func() (search.Executor, error)
@@ -983,18 +931,22 @@ func (b *block) queryWithSpan(
 			continue
 		}
 
+		fmt.Println("BATCH", len(batch))
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
+		fmt.Println("SIZE", size)
 	}
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
+		fmt.Println("LAST BATCH", len(batch))
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
+		fmt.Println("LAST SIZE", size)
 	}
 
 	if err := iter.Err(); err != nil {
@@ -1020,6 +972,14 @@ func (b *block) addQueryResults(
 	results BaseResults,
 	batch []doc.Document,
 ) ([]doc.Document, int, error) {
+	// track recently queried blocks to limit memory.
+	docs := len(batch)
+	if docs > 0 {
+		if withinLimit := recentlyQueried.AddWithinLimit(docs); !withinLimit {
+			return nil, 0, errAbortedQuery
+		}
+	}
+
 	// checkout the lifetime of the query before adding results.
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {
@@ -1029,13 +989,6 @@ func (b *block) addQueryResults(
 
 	// try to add the docs to the resource.
 	size, err := results.AddDocuments(batch)
-
-	// track recently queried blocks to limit memory.
-	if size > 0 {
-		if withinLimit := recentlyQueried.AddWithinLimit(size); !withinLimit {
-			return nil, 0, errAbortedQuery
-		}
-	}
 
 	// immediately release the checkout on the lifetime of query.
 	cancellable.ReleaseCheckout()
