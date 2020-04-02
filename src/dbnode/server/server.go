@@ -902,9 +902,9 @@ func Run(runOpts RunOptions) {
 	clientAdminOpts := m3dbClient.Options().(client.AdminOptions)
 	trackFn := clientAdminOpts.QueryStatsTrackFn()
 	if trackFn == nil {
-		trackFn = stats.DefaultQueryStatsMetricsTrackFn()
+		trackFn = stats.DefaultQueryStatsMetricsTrackFn(iopts)
 	}
-	stopTracking := stats.EnableQueryStatsTracking(time.Second, trackFn)
+	stopTracking := stats.EnableQueryStatsTracking(clientAdminOpts.QueryStatsLookback(), trackFn)
 	defer close(stopTracking)
 
 	// Wait for process interrupt.
