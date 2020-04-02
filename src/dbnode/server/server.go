@@ -65,6 +65,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
@@ -897,9 +898,9 @@ func Run(runOpts RunOptions) {
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
 
-	// Enforce max blocks queried within a given duration.
-	stopLimitCh := index.LimitBlocksQueried(500, time.Second)
-	defer close(stopLimitCh)
+	// Track recent query stats.
+	stopTracking := stats.EnableQueryStatsTracking(time.Second, stats.QueryStatsMetricsTrackFn(iopts))
+	defer close(stopTracking)
 
 	// Wait for process interrupt.
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
