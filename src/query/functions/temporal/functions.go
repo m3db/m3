@@ -49,11 +49,9 @@ type functionProcessor struct {
 
 func (f functionProcessor) initialize(
 	_ time.Duration,
-	controller *transform.Controller,
-	opts transform.Options,
+	_ transform.Options,
 ) processor {
-	return &functionNode{
-		controller:     controller,
+	return &functionNode{ 
 		comparisonFunc: f.compFunc,
 	}
 }
@@ -84,8 +82,7 @@ func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) 
 	return newBaseOp(duration, optype, f)
 }
 
-type functionNode struct {
-	controller     *transform.Controller
+type functionNode struct { 
 	comparisonFunc comparisonFunc
 }
 

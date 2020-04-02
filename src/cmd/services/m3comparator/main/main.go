@@ -36,24 +36,39 @@ import (
 	"go.uber.org/zap"
 )
 
-func main() {
-	var (
-		iterPools = pools.BuildIteratorPools(
-			pools.BuildIteratorPoolsOptions{})
-		poolWrapper = pools.NewPoolsWrapper(iterPools)
+var (
+	iterPools = pools.BuildIteratorPools(
+		pools.BuildIteratorPoolsOptions{})
+	poolWrapper = pools.NewPoolsWrapper(iterPools)
 
-		iOpts      = instrument.NewOptions()
-		logger     = iOpts.Logger()
-		tagOptions = models.NewTagOptions()
+	iOpts      = instrument.NewOptions()
+	logger     = iOpts.Logger()
+	tagOptions = models.NewTagOptions()
 
-		encoderPoolOpts = pool.NewObjectPoolOptions()
-		encoderPool     = encoding.NewEncoderPool(encoderPoolOpts)
-	)
+	encoderPoolOpts = pool.NewObjectPoolOptions()
+	encoderPool     = encoding.NewEncoderPool(encoderPoolOpts)
+
+	checkedBytesPool pool.CheckedBytesPool
+	encodingOpts     encoding.Options
+)
+
+func init() {
+	buckets := []pool.Bucket{{Capacity: 10, Count: 10}}
+	newBackingBytesPool := func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	}
+
+	checkedBytesPool = pool.NewCheckedBytesPool(buckets, nil, newBackingBytesPool)
+	checkedBytesPool.Init()
+
+	encodingOpts = encoding.NewOptions().SetEncoderPool(encoderPool).SetBytesPool(checkedBytesPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, true, encoding.NewOptions())
+		return m3tsz.NewEncoder(time.Time{}, nil, true, encodingOpts)
 	})
+}
 
+func main() {
 	opts := iteratorOptions{
 		encoderPool:   encoderPool,
 		iteratorPools: iterPools,

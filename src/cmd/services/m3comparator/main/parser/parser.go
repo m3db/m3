@@ -21,8 +21,10 @@
 package parser
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -45,8 +47,33 @@ type Datapoints []Datapoint
 
 // Datapoint is a JSON serializeable datapoint for the series.
 type Datapoint struct {
-	Value     float64   `json:"val"`
+	Value     Value     `json:"val"`
 	Timestamp time.Time `json:"ts"`
+}
+
+// Value is a JSON serizlizable float64 that allows NaNs.
+type Value float64
+
+// MarshalJSON returns state as the JSON encoding of a Value.
+func (v Value) MarshalJSON() ([]byte, error) {
+	return json.Marshal(fmt.Sprintf("%g", float64(v)))
+}
+
+// UnmarshalJSON unmarshals JSON-encoded data into a Value.
+func (v *Value) UnmarshalJSON(data []byte) error {
+	var str string
+	err := json.Unmarshal(data, &str)
+	if err != nil {
+		return err
+	}
+
+	f, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		return err
+	}
+
+	*v = Value(f)
+	return nil
 }
 
 // IDOrGenID gets the ID for this result.
