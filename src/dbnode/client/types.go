@@ -621,11 +621,11 @@ type AdminOptions interface {
 	// StreamBlocksRetrier returns the retrier for streaming blocks.
 	StreamBlocksRetrier() xretry.Retrier
 
-	// SetQueryStatsTrackFn sets the tracking function for query stats.
-	SetQueryStatsTrackFn(value stats.QueryStatsTrackFn) AdminOptions
+	// SetQueryStatsTracker sets the tracker implementation for query stats.
+	SetQueryStatsTracker(value stats.QueryStatsTracker) AdminOptions
 
-	// QueryStatsTrackFn returns the tracking function for query stats.
-	QueryStatsTrackFn() stats.QueryStatsTrackFn
+	// QueryStatsTracker returns the tracker implementation for query stats.
+	QueryStatsTracker() stats.QueryStatsTracker
 }
 
 // The rest of these types are internal types that mocks are generated for

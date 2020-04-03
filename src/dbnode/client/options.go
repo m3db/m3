@@ -275,7 +275,7 @@ type options struct {
 	useV2BatchAPIs                          bool
 	iterationOptions                        index.IterationOptions
 	queryStatsLookback                      time.Duration
-	queryStatsTrackFn                       stats.QueryStatsTrackFn
+	queryStatsTracker                       stats.QueryStatsTracker
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -1007,12 +1007,12 @@ func (o *options) QueryStatsLookback() time.Duration {
 	return o.queryStatsLookback
 }
 
-func (o *options) SetQueryStatsTrackFn(value stats.QueryStatsTrackFn) AdminOptions {
+func (o *options) SetQueryStatsTracker(value stats.QueryStatsTracker) AdminOptions {
 	opts := *o
-	opts.queryStatsTrackFn = value
+	opts.queryStatsTracker = value
 	return &opts
 }
 
-func (o *options) QueryStatsTrackFn() stats.QueryStatsTrackFn {
-	return o.queryStatsTrackFn
+func (o *options) QueryStatsTracker() stats.QueryStatsTracker {
+	return o.queryStatsTracker
 }
