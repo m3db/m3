@@ -92,7 +92,7 @@ func TestGatherSeriesToBuckets(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, expected, actual)
+	assert.Equal(t, sanitizeBuckets(expected), actual)
 }
 
 func TestSanitizeBuckets(t *testing.T) {
@@ -132,8 +132,8 @@ func TestSanitizeBuckets(t *testing.T) {
 		},
 	}
 
-	actual := bucketedSeries{
-		`{bar="baz"}`: indexedBuckets{
+	expected := validSeriesBuckets{
+		indexedBuckets{
 			buckets: []indexedBucket{
 				{upperBound: 1, idx: 0},
 				{upperBound: 2, idx: 3},
@@ -143,8 +143,7 @@ func TestSanitizeBuckets(t *testing.T) {
 		},
 	}
 
-	sanitizeBuckets(bucketed)
-	assert.Equal(t, actual, bucketed)
+	assert.Equal(t, expected, sanitizeBuckets(bucketed))
 }
 
 func TestBucketQuantile(t *testing.T) {
