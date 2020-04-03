@@ -36,27 +36,44 @@ var (
 // For tracking query stats in past X duration such as blocks queried.
 type queryStats struct {
 	length  time.Duration
-	trackFn QueryStatsTrackFn
+	tracker QueryStatsTracker
 
 	recentDocs *atomic.Int64
 	stopCh     chan struct{}
 }
 
-type queryStatsMetrics struct {
+// Tracker implementation that emits query stats as metrics.
+type queryStatsMetricsTracker struct {
 	sync.Mutex
 	recentDocs tally.Gauge
 }
 
-// QueryStatsTrackFn provides an interface for handling current query stats.
-type QueryStatsTrackFn func(
-	recentDocs int64,
-) error
+// QueryStatsTracker provides an interface for handling current query stats.
+type QueryStatsTracker interface {
+	TrackDocs(recentDocs int64) error
+}
+
+// UpdateQueryStats adds new query stats which are being tracked.
+func UpdateQueryStats(newDocs int) error {
+	if globalQueryStats == nil {
+		return nil
+	}
+	if newDocs <= 0 {
+		return nil
+	}
+
+	// Add the new stats to the global state.
+	recentDocs := globalQueryStats.recentDocs.Add(int64(newDocs))
+
+	// Invoke the custom tracker based on the new stats values.
+	return globalQueryStats.tracker.TrackDocs(recentDocs)
+}
 
 // EnableQueryStatsTracking enables query stats to be tracked within a recency time window.
-func EnableQueryStatsTracking(within time.Duration, trackFn QueryStatsTrackFn) chan struct{} {
+func EnableQueryStatsTracking(within time.Duration, tracker QueryStatsTracker) chan struct{} {
 	globalQueryStats = &queryStats{
 		length:     within,
-		trackFn:    trackFn,
+		tracker:    tracker,
 		recentDocs: atomic.NewInt64(0),
 		stopCh:     make(chan struct{}),
 	}
@@ -76,38 +93,27 @@ func (w queryStats) start() {
 			w.recentDocs.Store(0)
 
 			// Also invoke the track func for having zero value.
-			w.trackFn(0)
+			w.tracker.TrackDocs(0)
 		case <-w.stopCh:
 			return
 		}
 	}
 }
 
-// TrackStats tracks new query stats.
-func TrackStats(newDocs int) error {
-	if globalQueryStats == nil {
-		return nil
-	}
-	if newDocs <= 0 {
-		return nil
-	}
-
-	recentDocs := globalQueryStats.recentDocs.Add(int64(newDocs))
-	return globalQueryStats.trackFn(recentDocs)
-}
-
-// DefaultQueryStatsMetricsTrackFn provides a tracking function that emits query stats as metrics.
-func DefaultQueryStatsMetricsTrackFn(opts instrument.Options) QueryStatsTrackFn {
+// DefaultQueryStatsTrackerForMetrics provides a tracker
+// implementation that emits query stats as metrics.
+func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTracker {
 	scope := opts.
 		MetricsScope().
 		SubScope("query-stats")
-	statsMetrics := queryStatsMetrics{
+	return &queryStatsMetricsTracker{
 		recentDocs: scope.Gauge("recentDocs"),
 	}
-	return func(recentDocs int64) error {
-		statsMetrics.Lock()
-		statsMetrics.recentDocs.Update(float64(recentDocs))
-		statsMetrics.Unlock()
-		return nil
-	}
+}
+
+func (t *queryStatsMetricsTracker) TrackDocs(recentDocs int64) error {
+	t.Lock()
+	t.recentDocs.Update(float64(recentDocs))
+	t.Unlock()
+	return nil
 }
