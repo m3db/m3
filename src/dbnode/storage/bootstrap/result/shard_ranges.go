@@ -138,9 +138,8 @@ func (r shardTimeRanges) AddRanges(other ShardTimeRanges) {
 		}
 		if existing, ok := r[shard]; ok {
 			existing.AddRanges(ranges)
-			r[shard] = existing
 		} else {
-			r[shard] = ranges
+			r[shard] = ranges.Clone()
 		}
 	}
 }

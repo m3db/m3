@@ -5,3 +5,4 @@ metadata:
 provisioner: kubernetes.io/azure-disk
 parameters:
   skuName: Premium_LRS
+volumeBindingMode: WaitForFirstConsumer
