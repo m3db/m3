@@ -966,8 +966,8 @@ func (b *block) addQueryResults(
 	results BaseResults,
 	batch []doc.Document,
 ) ([]doc.Document, int, error) {
-	// track recently queried docs to monitor memory.
-	if err := stats.TrackStats(len(batch)); err != nil {
+	// update recently queried docs to monitor memory.
+	if err := stats.UpdateQueryStats(len(batch)); err != nil {
 		return batch, 0, err
 	}
 
@@ -1204,8 +1204,8 @@ func (b *block) addAggregateResults(
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 ) ([]AggregateResultsEntry, int, error) {
-	// track recently queried docs to monitor memory.
-	if err := stats.TrackStats(len(batch)); err != nil {
+	// update recently queried docs to monitor memory.
+	if err := stats.UpdateQueryStats(len(batch)); err != nil {
 		return batch, 0, err
 	}
 
