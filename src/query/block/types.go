@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 // BlockType describes a block type.
@@ -160,8 +161,8 @@ type Result struct {
 	Metadata ResultMetadata
 }
 
-// TimeTransform transforms a timestamp.
-type TimeTransform func(time.Time) time.Time
+// DatapointTransform transforms a datapoint.
+type DatapointTransform func(dp ts.Datapoint) ts.Datapoint
 
 // MetaTransform transforms meta data.
 type MetaTransform func(meta Metadata) Metadata
@@ -169,19 +170,12 @@ type MetaTransform func(meta Metadata) Metadata
 // SeriesMetaTransform transforms series meta data.
 type SeriesMetaTransform func(meta []SeriesMeta) []SeriesMeta
 
-// ValueTransform transform a float64.
-type ValueTransform func(float64) float64
-
 // LazyOptions describes options for lazy blocks.
 type LazyOptions interface {
 	// SetTimeTransform sets the time transform function.
-	SetTimeTransform(TimeTransform) LazyOptions
+	SetDatapointTransform(DatapointTransform) LazyOptions
 	// TimeTransform returns the time transform function.
-	TimeTransform() TimeTransform
-	// SetValueTransform sets the value transform function.
-	SetValueTransform(ValueTransform) LazyOptions
-	// ValueTransform returns the value transform function.
-	ValueTransform() ValueTransform
+	DatapointTransform() DatapointTransform
 	// SetMetaTransform sets the meta transform function.
 	SetMetaTransform(MetaTransform) LazyOptions
 	// MetaTransform returns the meta transform function.

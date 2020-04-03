@@ -20,6 +20,10 @@
 
 package block
 
+import (
+	"github.com/m3db/m3/src/query/ts"
+)
+
 type lazyBlock struct {
 	block Block
 	opts  LazyOptions
@@ -75,17 +79,19 @@ func (it *lazyStepIter) SeriesMeta() []SeriesMeta {
 func (it *lazyStepIter) Current() Step {
 	var (
 		c        = it.it.Current()
-		tt, vt   = it.opts.TimeTransform(), it.opts.ValueTransform()
+		dpt      = it.opts.DatapointTransform()
 		stepVals = c.Values()
 	)
 
 	vals := make([]float64, 0, len(stepVals))
 	for _, val := range stepVals {
-		vals = append(vals, vt(val))
+		vv := dpt(ts.Datapoint{Value: val})
+		vals = append(vals, vv.Value)
 	}
 
+	tt := dpt(ts.Datapoint{Timestamp: c.Time()})
 	return ColStep{
-		time:   tt(c.Time()),
+		time:   tt.Timestamp,
 		values: vals,
 	}
 }
@@ -121,12 +127,11 @@ func (it *lazySeriesIter) Current() UnconsolidatedSeries {
 	var (
 		c      = it.it.Current()
 		values = c.datapoints
-		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
+		dpt    = it.opts.DatapointTransform()
 	)
 
 	for i, v := range values {
-		c.datapoints[i].Timestamp = tt(v.Timestamp)
-		c.datapoints[i].Value = vt(v.Value)
+		c.datapoints[i] = dpt(v)
 	}
 
 	return c

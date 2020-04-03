@@ -20,7 +20,35 @@
 
 package scalar
 
-import "github.com/m3db/m3/src/query/functions/binary"
+import (
+	"time"
+
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/binary"
+)
+
+// TimeValueFromMetadata creates a time value
+// generator based on block metadata.
+func TimeValueFromMetadata(md block.Metadata) TimeValueGenerator {
+	var (
+		bounds    = md.Bounds
+		steps     = bounds.Steps()
+		generated = make([]float64, 0, steps)
+		start     = float64(bounds.Start.Unix())
+		stepSize  = float64(bounds.StepSize / time.Second)
+	)
+
+	for i := 0; i < steps; i++ {
+		generated = append(generated, start)
+		start = start + stepSize
+	}
+
+	return func() []float64 {
+		// NB: this needs to return a cloned slice as the
+		// generated value is mutated.
+		return append(make([]float64, 0, steps), generated...)
+	}
+}
 
 // TimeValueGenerator generates values for times at steps.
 // NB: this must return a new slice every time, as the underlying bytes

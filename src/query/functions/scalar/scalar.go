@@ -25,6 +25,7 @@ import (
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	"go.uber.org/zap"
@@ -103,23 +104,35 @@ func (n *scalarNode) Execute(queryCtx *models.QueryContext) error {
 		ResultMetadata: block.NewResultMetadata(),
 	}
 
-	block := block.NewScalar(n.op.val.Scalar, meta)
-	// FIXME
-	if n.opts.Debug() {
-		// Ignore any errors
-		iter, _ := block.StepIter()
-		if iter != nil {
-			logging.WithContext(queryCtx.Ctx, n.opts.InstrumentOptions()).
-				Info("scalar node", zap.Any("meta", block.Meta()))
-		}
+	name := "scalar node"
+	bl := block.NewScalar(n.op.val.Scalar, meta)
+	// If it's a timed node, override scalar values with
+	// lazily applied timestamp rewrite.
+	if n.op.val.HasTimeValues {
+		name = "timed scalar node"
+		bl = block.NewLazyBlock(bl, block.NewLazyOptions().
+			SetDatapointTransform(func(dp ts.Datapoint) ts.Datapoint {
+				timestamp := float64(dp.Timestamp.Unix())
+				dp.Value = n.op.val.TimeValueFn(func() []float64 {
+					return []float64{timestamp}
+				})[0]
+
+				return dp
+			}))
 	}
 
-	if err := n.controller.Process(queryCtx, block); err != nil {
-		block.Close()
+	if n.opts.Debug() {
+		// Ignore any errors
+		logging.WithContext(queryCtx.Ctx, n.opts.InstrumentOptions()).
+			Info(name, zap.Any("meta", bl.Meta()))
+	}
+
+	if err := n.controller.Process(queryCtx, bl); err != nil {
+		bl.Close()
 		// Fail on first error
 		return err
 	}
 
-	block.Close()
+	bl.Close()
 	return nil
 }

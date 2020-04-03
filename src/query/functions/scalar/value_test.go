@@ -22,7 +22,10 @@ package scalar
 
 import (
 	"testing"
+	"time"
 
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -81,4 +84,25 @@ func TestApplyFunc(t *testing.T) {
 	ac = ApplyFunc(ac, ac, sub)
 	assert.True(t, ac.HasTimeValues)
 	assert.Equal(t, []float64{0, 0}, ac.TimeValueFn(gen))
+}
+
+func TestTimeValueFromMetadata(t *testing.T) {
+	startSecs := int64(100)
+	start := time.Unix(startSecs, 0)
+	generator := TimeValueFromMetadata(block.Metadata{
+		Bounds: models.Bounds{
+			Start:    start,
+			Duration: 3 * time.Second,
+			StepSize: time.Second,
+		},
+	})
+
+	generated := generator()
+	assert.Equal(t, []float64{100, 101, 102}, generated)
+	generated[0] = 200
+	// assure generated value is not affected by
+	// mutations to previously generated values.
+	regenerated := generator()
+	assert.Equal(t, []float64{200, 101, 102}, generated)
+	assert.Equal(t, []float64{100, 101, 102}, regenerated)
 }

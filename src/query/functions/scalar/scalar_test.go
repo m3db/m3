@@ -22,6 +22,7 @@ package scalar
 
 import (
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
@@ -59,6 +60,54 @@ func TestScalar(t *testing.T) {
 
 	vals := sink.Values[0]
 	assert.Equal(t, bounds.Steps(), len(vals))
+	for _, v := range vals {
+		assert.Equal(t, val, v)
+	}
+
+	resultMeta := sink.Meta.ResultMetadata
+	require.True(t, resultMeta.Exhaustive)
+	require.True(t, resultMeta.LocalOnly)
+	require.Equal(t, 0, len(resultMeta.Warnings))
+}
+
+func TestTimed(t *testing.T) {
+	val := Value{
+		Scalar:        1,
+		HasTimeValues: true,
+		TimeValueFn: func(generator TimeValueGenerator) []float64 {
+			genned := generator()
+			for i, v := range genned {
+				genned[i] = v + 100
+			}
+
+			return genned
+		},
+	}
+
+	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
+	op, err := NewScalarOp(val, models.NewTagOptions())
+	require.NoError(t, err)
+
+	baseOp, ok := op.(*ScalarOp)
+	require.True(t, ok)
+
+	startSecs := int64(100)
+	start := time.Unix(startSecs, 0)
+	step := time.Second
+	node := baseOp.Node(c, transformtest.Options(t, transform.OptionsParams{
+		TimeSpec: transform.TimeSpec{
+			Start: start,
+			End:   start.Add(3 * time.Second),
+			Step:  step,
+		},
+	}))
+
+	err = node.Execute(models.NoopQueryContext())
+	require.NoError(t, err)
+	require.Equal(t, 1, len(sink.Values))
+
+	vals := sink.Values[0]
+	assert.Equal(t, 3, len(vals))
 	for _, v := range vals {
 		assert.Equal(t, val, v)
 	}

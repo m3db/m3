@@ -53,7 +53,7 @@ func buildTestSeriesMeta(name string) []SeriesMeta {
 	tags := models.NewTags(1, models.NewTagOptions()).
 		AddTag(models.Tag{Name: []byte("a"), Value: []byte("b")})
 	return []SeriesMeta{
-		SeriesMeta{
+		{
 			Name: []byte(name),
 			Tags: tags,
 		},
@@ -62,8 +62,12 @@ func buildTestSeriesMeta(name string) []SeriesMeta {
 }
 
 func testLazyOpts(timeOffset time.Duration, valOffset float64) LazyOptions {
-	tt := func(t time.Time) time.Time { return t.Add(timeOffset) }
-	vt := func(val float64) float64 { return val * valOffset }
+	dpt := func(dp ts.Datapoint) ts.Datapoint {
+		dp.Timestamp = dp.Timestamp.Add(timeOffset)
+		dp.Value = dp.Value * valOffset
+		return dp
+	}
+
 	mt := func(meta Metadata) Metadata {
 		meta.Bounds.Start = meta.Bounds.Start.Add(timeOffset)
 		return meta
@@ -78,19 +82,19 @@ func testLazyOpts(timeOffset time.Duration, valOffset float64) LazyOptions {
 	}
 
 	return NewLazyOptions().
-		SetTimeTransform(tt).
-		SetValueTransform(vt).
+		SetDatapointTransform(dpt).
 		SetMetaTransform(mt).
 		SetSeriesMetaTransform(smt)
 }
 
 func TestLazyOpts(t *testing.T) {
 	off := time.Minute
-	lazyOpts := testLazyOpts(off, 1.0)
+	lazyOpts := testLazyOpts(off, 2.0)
 
 	now := time.Now()
-	equalTimes := lazyOpts.TimeTransform()(now).Equal(now.Add(off))
-	assert.True(t, equalTimes)
+	dp := lazyOpts.DatapointTransform()(
+		ts.Datapoint{Timestamp: now, Value: 1})
+	require.Equal(t, ts.Datapoint{Timestamp: now.Add(off), Value: 2}, dp)
 
 	meta := buildMeta(now)
 	updated := lazyOpts.MetaTransform()(meta)
@@ -100,8 +104,6 @@ func TestLazyOpts(t *testing.T) {
 	seriesMeta := buildTestSeriesMeta("name")
 	expectSM := buildTestSeriesMeta("name_mutated")
 	require.Equal(t, expectSM, lazyOpts.SeriesMetaTransform()(seriesMeta))
-
-	require.Equal(t, 1.0, lazyOpts.ValueTransform()(1.0))
 }
 
 func TestValidOffset(t *testing.T) {
@@ -306,9 +308,9 @@ func TestUnconsolidatedSeriesIterWithNegativeValueOffset(t *testing.T) {
 
 	concurrency := 5
 	batched := []SeriesIterBatch{
-		SeriesIterBatch{},
-		SeriesIterBatch{},
-		SeriesIterBatch{},
+		{},
+		{},
+		{},
 	}
 
 	b.EXPECT().MultiSeriesIter(concurrency).Return(batched, nil)
