@@ -46,12 +46,12 @@ const (
 
 // ScalarOp is a scalar operation representing a constant.
 type ScalarOp struct {
-	val        float64
+	val        Value
 	tagOptions models.TagOptions
 }
 
 // Value is the constant value for thes scalar operation.
-func (o ScalarOp) Value() float64 {
+func (o ScalarOp) Value() Value {
 	return o.val
 }
 
@@ -79,7 +79,7 @@ func (o ScalarOp) Node(
 
 // NewScalarOp creates an operation that yields a scalar source.
 func NewScalarOp(
-	val float64,
+	val Value,
 	tagOptions models.TagOptions,
 ) (parser.Params, error) {
 	return &ScalarOp{
@@ -103,7 +103,8 @@ func (n *scalarNode) Execute(queryCtx *models.QueryContext) error {
 		ResultMetadata: block.NewResultMetadata(),
 	}
 
-	block := block.NewScalar(n.op.val, meta)
+	block := block.NewScalar(n.op.val.Scalar, meta)
+	// FIXME
 	if n.opts.Debug() {
 		// Ignore any errors
 		iter, _ := block.StepIter()

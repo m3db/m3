@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -70,7 +71,7 @@ func processTakeOp(t *testing.T, op parser.Params) *executor.SinkNode {
 
 func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 	op, err := NewTakeOp(BottomKType, NodeParams{
-		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: 1,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: scalar.Value{Scalar: 1},
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
@@ -94,7 +95,7 @@ func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 
 func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 	op, err := NewTakeOp(TopKType, NodeParams{
-		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: 1,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: scalar.Value{Scalar: 1},
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
@@ -118,7 +119,7 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 
 func TestTakeTopFunctionFilteringWithoutALessThanOne(t *testing.T) {
 	op, err := NewTakeOp(TopKType, NodeParams{
-		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: -1,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: scalar.Value{Scalar: -1},
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)

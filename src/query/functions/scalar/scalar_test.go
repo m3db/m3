@@ -35,7 +35,7 @@ import (
 )
 
 func TestScalar(t *testing.T) {
-	val := 10.0
+	val := Value{Scalar: 10.0}
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(0))
 	op, err := NewScalarOp(val, models.NewTagOptions())

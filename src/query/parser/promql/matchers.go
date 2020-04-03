@@ -98,8 +98,8 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 		if err != nil {
 			return nil, err
 		}
-		// FIXME
-		nodeInformation.Parameter = val.Scalar
+
+		nodeInformation.Parameter = val
 		return aggregation.NewTakeOp(op, nodeInformation)
 	}
 
@@ -145,7 +145,7 @@ func newScalarOperator(
 	expr *promql.NumberLiteral,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
-	return scalar.NewScalarOp(expr.Val, tagOpts)
+	return scalar.NewScalarOp(scalar.Value{Scalar: expr.Val}, tagOpts)
 }
 
 // NewBinaryOperator creates a new binary operator based on the type.
