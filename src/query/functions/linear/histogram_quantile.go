@@ -135,6 +135,21 @@ type bucketedSeries map[string]indexedBuckets
 
 type validSeriesBuckets []indexedBuckets
 
+func (b validSeriesBuckets) Len() int      { return len(b) }
+func (b validSeriesBuckets) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b validSeriesBuckets) Less(i, j int) bool {
+	if len(b[i].buckets) == 0 {
+		return false
+	}
+
+	if len(b[j].buckets) == 0 {
+		return true
+	}
+
+	// An arbitrarily chosen sort that guarantees deterministic results.
+	return b[i].buckets[0].idx < b[j].buckets[0].idx
+}
+
 func gatherSeriesToBuckets(metas []block.SeriesMeta) validSeriesBuckets {
 	bucketsForID := make(bucketedSeries, initIndexBucketLength)
 	for i, meta := range metas {
@@ -194,6 +209,7 @@ func sanitizeBuckets(bucketMap bucketedSeries) validSeriesBuckets {
 		validSeriesBuckets = append(validSeriesBuckets, buckets)
 	}
 
+	sort.Sort(validSeriesBuckets)
 	return validSeriesBuckets
 }
 
