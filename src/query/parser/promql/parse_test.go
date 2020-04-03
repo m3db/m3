@@ -211,21 +211,22 @@ var linearParseTests = []struct {
 
 func TestLinearParses(t *testing.T) {
 	for _, tt := range linearParseTests {
-		t.Run(tt.q, func(t *testing.T) {
-			q := tt.q
-			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
-			require.NoError(t, err)
-			transforms, edges, err := p.DAG()
-			require.NoError(t, err)
-			require.Len(t, transforms, 2)
-			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-			assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
-			assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-			assert.Len(t, edges, 1)
-			assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
-			assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
-		})
+		// t.Run(tt.q, func(t *testing.T) {
+		q := tt.q
+		p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
+		require.NoError(t, err)
+		transforms, edges, err := p.DAG()
+		fmt.Println(q)
+		require.NoError(t, err)
+		require.Len(t, transforms, 2)
+		assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+		assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+		assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
+		assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+		assert.Len(t, edges, 1)
+		assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
+		assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+		// })
 	}
 }
 

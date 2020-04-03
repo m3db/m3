@@ -27,7 +27,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-type binaryFunction func(x, y float64) float64
+// Function is a function that combines two float64s.
+type Function func(x, y float64) float64
 type singleScalarFunc func(x float64) float64
 
 // processes two logical blocks, performing a logical operation on them.
@@ -37,7 +38,7 @@ func processBinary(
 	params NodeParams,
 	controller *transform.Controller,
 	isComparison bool,
-	fn binaryFunction,
+	fn Function,
 ) (block.Block, error) {
 	lIter, err := lhs.StepIter()
 	if err != nil {
@@ -165,7 +166,7 @@ func processBothSeries(
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching VectorMatching,
-	fn binaryFunction,
+	fn Function,
 ) (block.Block, error) {
 	if !matching.Set {
 		return nil, errNoMatching

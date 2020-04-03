@@ -61,7 +61,7 @@ func (o baseOp) Node(
 }
 
 // ArithmeticFunction returns the arithmetic function for this operation type.
-func ArithmeticFunction(opType string, returnBool bool) (binaryFunction, error) {
+func ArithmeticFunction(opType string, returnBool bool) (Function, error) {
 	if fn, ok := arithmeticFuncs[opType]; ok {
 		return fn, nil
 	}

@@ -98,8 +98,8 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		nodeInformation.Parameter = val
+		// FIXME
+		nodeInformation.Parameter = val.Scalar
 		return aggregation.NewTakeOp(op, nodeInformation)
 	}
 

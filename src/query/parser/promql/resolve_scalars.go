@@ -25,6 +25,7 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/query/functions/binary"
+	"github.com/m3db/m3/src/query/functions/scalar"
 
 	pql "github.com/prometheus/prometheus/promql"
 )
@@ -35,16 +36,15 @@ var (
 	errInvalidNestingVector = fmt.Errorf("invalid nesting for vector conversion")
 )
 
-func resolveScalarArgument(expr pql.Expr) (float64, error) {
+func resolveScalarArgument(expr pql.Expr) (scalar.Value, error) {
 	value, nesting, err := resolveScalarArgumentWithNesting(expr, 0)
-	// On a regular error, return error
 	if err != nil {
-		return 0, err
+		return scalar.Value{}, err
 	}
 
 	if nesting != 0 {
-		return 0, fmt.Errorf("promql.resolveScalarArgument: invalid nesting %d",
-			nesting)
+		return scalar.Value{},
+			fmt.Errorf("promql.resolveScalarArgument: invalid nesting %d", nesting)
 	}
 
 	return value, nil
@@ -54,21 +54,21 @@ func resolveScalarArgument(expr pql.Expr) (float64, error) {
 func resolveScalarArgumentWithNesting(
 	expr pql.Expr,
 	nesting int,
-) (float64, int, error) {
+) (scalar.Value, int, error) {
 	if expr == nil {
-		return 0, 0, errNilScalarArg
+		return scalar.Value{}, 0, errNilScalarArg
 	}
 
 	switch n := expr.(type) {
 	case *pql.BinaryExpr:
 		left, nestingLeft, err := resolveScalarArgumentWithNesting(n.LHS, nesting)
 		if err != nil {
-			return 0, 0, err
+			return scalar.Value{}, 0, err
 		}
 
 		right, nestingRight, err := resolveScalarArgumentWithNesting(n.RHS, nesting)
 		if err != nil {
-			return 0, 0, err
+			return scalar.Value{}, 0, err
 		}
 
 		if nestingLeft < nestingRight {
@@ -80,44 +80,65 @@ func resolveScalarArgumentWithNesting(
 		op := getBinaryOpType(n.Op)
 		fn, err := binary.ArithmeticFunction(op, n.ReturnBool)
 		if err != nil {
-			return 0, 0, err
+			return scalar.Value{}, 0, err
 		}
 
-		return fn(left, right), nesting, nil
+		applied := scalar.ApplyFunc(left, right, fn)
+		return applied, nesting, nil
 
 	case *pql.VectorSelector:
 		// during scalar argument resolution, prom does not expand vectors
 		// and returns NaN as the value instead.
 		if nesting < 1 {
-			return 0, 0, errInvalidNestingFetch
+			return scalar.Value{}, 0, errInvalidNestingFetch
 		}
 
-		return math.NaN(), nesting - 1, nil
+		return scalar.Value{Scalar: math.NaN()}, nesting - 1, nil
 
 	case *pql.Call:
-		// TODO: once these functions exist, use those constants here
 		// If the function called is `scalar`, evaluate and ensure a scalar.
-		if n.Func.Name == "scalar" {
+		if n.Func.Name == scalar.ScalarType {
 			return resolveScalarArgumentWithNesting(n.Args[0], nesting+1)
-		} else if n.Func.Name == "vector" {
+		} else if n.Func.Name == scalar.VectorType {
 			// If the function called is `vector`, evaluate and ensure a vector.
 			if nesting < 1 {
-				return 0, 0, errInvalidNestingVector
+				return scalar.Value{}, 0, errInvalidNestingVector
 			}
 
 			return resolveScalarArgumentWithNesting(n.Args[0], nesting-1)
+		} else if n.Func.Name == scalar.TimeType {
+			return scalar.Value{
+				HasTimeValues: true,
+				TimeValueFn: func(generator scalar.TimeValueGenerator) []float64 {
+					return generator()
+				},
+			}, 0, nil
 		}
 
-		return 0, 0, nil
+		return scalar.Value{}, 0, fmt.Errorf("unknown call: %s", n.String())
 
 	case *pql.NumberLiteral:
-		return n.Val, 0, nil
+		return scalar.Value{Scalar: n.Val}, 0, nil
+
+	case *pql.UnaryExpr:
+		if n.Op.String() == binary.PlusType {
+			return resolveScalarArgumentWithNesting(n.Expr, nesting)
+		}
+
+		val, nesting, err := resolveScalarArgumentWithNesting(n.Expr, nesting)
+		if err != nil {
+			return scalar.Value{}, 0, err
+		}
+
+		return scalar.ApplyFunc(val, scalar.Value{}, func(x, _ float64) float64 {
+			return x * -1
+		}), nesting, err
 
 	case *pql.ParenExpr:
 		// Evaluate inside of paren expressions
 		return resolveScalarArgumentWithNesting(n.Expr, nesting)
 	}
 
-	return 0, 0, fmt.Errorf("resolveScalarArgument: unhandled node type %T, %v",
-		expr, expr)
+	return scalar.Value{}, 0,
+		fmt.Errorf("resolveScalarArgument: unhandled node type %T, %v", expr, expr)
 }

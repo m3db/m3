@@ -240,8 +240,8 @@ func (p *parseState) walk(node pql.Node) error {
 			if err != nil {
 				return err
 			}
-
-			op, err := scalar.NewScalarOp(val, p.tagOpts)
+			// FIXME
+			op, err := scalar.NewScalarOp(val.Scalar, p.tagOpts)
 			if err != nil {
 				return err
 			}

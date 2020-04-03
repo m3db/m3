@@ -356,6 +356,17 @@ func benchmarkSingleBlock(b *testing.B, withPools bool) {
 	}
 }
 
+func TestToUnix(t *testing.T) {
+	tt := time.Now().Truncate(time.Hour).UTC()
+	tx := xtime.ToUnixNano(tt)
+	// initial  tt 2020-04-01 19:00:00 +0000 UTC tx 1585767600000000000
+	fmt.Println("initial  tt", tt, "tx", tx)
+	// reverted tt 2020-04-01 15:00:00 -0400 EDT tx 1585767600000000000
+	reverted := tx.ToTime()
+	fmt.Println("reverted tt", reverted, "tx", xtime.ToUnixNano(reverted))
+	assert.Equal(t, reverted, tt)
+}
+
 func BenchmarkSingleBlockParallel(b *testing.B) {
 	benchmarkSingleBlock(b, true)
 }
