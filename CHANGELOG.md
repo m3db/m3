@@ -8,6 +8,7 @@
 - **M3Coordinator**: Add support for mapping rules, allowing metrics to be stored at different resolutions based on their labels/tags ([#2036](https://github.com/m3db/m3/pull/2036))
 - **M3Coordinator**: Add Graphite mapping rule support ([#2060](https://github.com/m3db/m3/pull/2060)) ([#2063](https://github.com/m3db/m3/pull/2063))
 - **M3Coordinator**: Add community contributed InfluxDB write endpoint (at /api/v1/influxdb/write) ([#2083](https://github.com/m3db/m3/pull/2083))
+- **M3Coordinator**: Add headers to pass along with request to remote write forward targets ([#2249](https://github.com/m3db/m3/pull/2249))
 - **M3Coordinator**: Add in-place M3Msg topic consumer updates with a PUT request ([#2186](https://github.com/m3db/m3/pull/2186))
 - **M3Query**: Add header to support enforcing all queries in request to implicitly always include a given label/tag matcher ([#2053](https://github.com/m3db/m3/pull/2053))
 - **M3Query**: Return headers indicating incomplete results for cross-regional fanout queries when remote fails or hits a limit ([#2053](https://github.com/m3db/m3/pull/2053))
@@ -47,6 +48,7 @@
 - **M3Query**: Fix namespace resolve debug log not being written with multiple namespaces ([#2211](https://github.com/m3db/m3/pull/2211))
 - **M3Query**: Fix to temporal function regression leading to inconsistent results ([#2231](https://github.com/m3db/m3/pull/2231))
 - **M3Query**: Fix edge cases with cross-zonal query fanout and add verify utility ([#1993](https://github.com/m3db/m3/pull/1993))
+- **M3Query**: Fix issue with histogram grouping ([#2247](https://github.com/m3db/m3/pull/2247))
 
 ## Documentation 
 
