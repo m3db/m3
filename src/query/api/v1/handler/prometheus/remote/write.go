@@ -425,6 +425,13 @@ func (h *PromWriteHandler) forward(
 		return err
 	}
 
+	if headers := target.Headers; headers != nil {
+		// If headers set, attach to request.
+		for name, value := range headers {
+			req.Header.Add(name, value)
+		}
+	}
+
 	resp, err := h.forwardHTTPClient.Do(req.WithContext(ctx))
 	if err != nil {
 		return err
