@@ -325,7 +325,9 @@ func newNamespaceIndexWithOptions(
 		return nil, err
 	}
 
-	logger.Info("forward index dice", zap.Bool("enabled", dice.enabled),
+	logger.Info("namespace forward indexing configured",
+		zap.Stringer("namespace", nsMD.ID()),
+		zap.Bool("enabled", dice.enabled),
 		zap.Duration("threshold", dice.forwardIndexThreshold),
 		zap.Float64("rate", dice.forwardIndexDice.Rate()))
 	idx.forwardIndexDice = dice
