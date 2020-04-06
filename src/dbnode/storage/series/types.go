@@ -38,6 +38,17 @@ import (
 	"github.com/uber-go/tally"
 )
 
+// DatabaseSeriesOptions is a set of options for creating a database series.
+type DatabaseSeriesOptions struct {
+	ID                     ident.ID
+	Tags                   ident.Tags
+	UniqueIndex            uint64
+	BlockRetriever         QueryableBlockRetriever
+	OnRetrieveBlock        block.OnRetrieveBlock
+	OnEvictedFromWiredList block.OnEvictedFromWiredList
+	Options                Options
+}
+
 // DatabaseSeries is a series in the database.
 type DatabaseSeries interface {
 	block.OnRetrieveBlock
@@ -133,15 +144,7 @@ type DatabaseSeries interface {
 	Close()
 
 	// Reset resets the series for reuse.
-	Reset(
-		id ident.ID,
-		tags ident.Tags,
-		uniqueIndex uint64,
-		blockRetriever QueryableBlockRetriever,
-		onRetrieveBlock block.OnRetrieveBlock,
-		onEvictedFromWiredList block.OnEvictedFromWiredList,
-		opts Options,
-	)
+	Reset(opts DatabaseSeriesOptions)
 }
 
 // FetchBlocksMetadataOptions encapsulates block fetch metadata options
@@ -417,4 +420,10 @@ type WriteOptions struct {
 	// bootstrappers filling data that they know has not yet been flushed to
 	// disk.
 	BootstrapWrite bool
+	// SkipOutOfRetention allows for skipping writes that are out of retention
+	// by just returning success, this allows for callers to not have to
+	// deal with clock skew when they are trying to write a value that may not
+	// fall into retention but they do not care if it fails to write due to
+	// it just having fallen out of retention (time race).
+	SkipOutOfRetention bool
 }

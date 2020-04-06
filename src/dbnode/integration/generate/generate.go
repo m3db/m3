@@ -54,15 +54,17 @@ func Block(conf BlockConfig) SeriesBlock {
 			if conf.AnnGen == nil {
 				datapoints = append(datapoints, TestValue{
 					Datapoint: ts.Datapoint{
-						Timestamp: timestamp,
-						Value:     testgen.GenerateFloatVal(r, 3, 1),
+						Timestamp:      timestamp,
+						TimestampNanos: xtime.ToUnixNano(timestamp),
+						Value:          testgen.GenerateFloatVal(r, 3, 1),
 					},
 				})
 			} else {
 				datapoints = append(datapoints, TestValue{
 					Datapoint: ts.Datapoint{
-						Timestamp: timestamp,
-						Value:     0,
+						Timestamp:      timestamp,
+						TimestampNanos: xtime.ToUnixNano(timestamp),
+						Value:          0,
 					},
 					Annotation: conf.AnnGen.Next(),
 				})
@@ -95,8 +97,8 @@ func ToPointsByTime(seriesMaps SeriesBlocksByStart) SeriesDataPointsByTime {
 		for _, blk := range blks {
 			for _, dp := range blk.Data {
 				pointsByTime = append(pointsByTime, SeriesDataPoint{
-					ID:        blk.ID,
-					Value:     dp,
+					ID:    blk.ID,
+					Value: dp,
 				})
 			}
 		}

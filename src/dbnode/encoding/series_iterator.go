@@ -32,8 +32,8 @@ type seriesIterator struct {
 	id               ident.ID
 	nsID             ident.ID
 	tags             ident.TagIterator
-	start            time.Time
-	end              time.Time
+	start            xtime.UnixNano
+	end              xtime.UnixNano
 	iters            iterators
 	multiReaderIters []MultiReaderIterator
 	err              error
@@ -66,11 +66,11 @@ func (it *seriesIterator) Tags() ident.TagIterator {
 }
 
 func (it *seriesIterator) Start() time.Time {
-	return it.start
+	return it.start.ToTime()
 }
 
 func (it *seriesIterator) End() time.Time {
-	return it.end
+	return it.end.ToTime()
 }
 
 func (it *seriesIterator) Next() bool {
@@ -139,12 +139,21 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 	it.iters.reset()
 	it.start = opts.StartInclusive
 	it.end = opts.EndExclusive
-	if !it.start.IsZero() && !it.end.IsZero() {
+	if it.start != 0 && it.end != 0 {
 		it.iters.setFilter(it.start, it.end)
 	}
 	it.SetIterateEqualTimestampStrategy(opts.IterateEqualTimestampStrategy)
+	replicas := opts.Replicas
+	var err error
+	if consolidator := opts.SeriesIteratorConsolidator; consolidator != nil {
+		replicas, err = consolidator.ConsolidateReplicas(replicas)
+		if err != nil {
+			it.err = err
+			return
+		}
+	}
 
-	for _, replica := range opts.Replicas {
+	for _, replica := range replicas {
 		if !replica.Next() || !it.iters.push(replica) {
 			if replica.Err() != nil {
 				it.err = replica.Err()
@@ -190,10 +199,23 @@ func (it *seriesIterator) moveToNext() {
 		}
 
 		curr := it.iters.at()
-		if !curr.Equal(prev) {
+		if curr != prev {
 			return
 		}
 
 		// Dedupe by continuing
 	}
+}
+
+func (it *seriesIterator) Stats() (SeriesIteratorStats, error) {
+	approx := 0
+	for _, readerIter := range it.multiReaderIters {
+		readers := readerIter.Readers()
+		size, err := readers.Size()
+		if err != nil {
+			return SeriesIteratorStats{}, err
+		}
+		approx += size
+	}
+	return SeriesIteratorStats{ApproximateSizeInBytes: approx}, nil
 }

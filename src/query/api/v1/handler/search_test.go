@@ -97,7 +97,7 @@ func searchServer(t *testing.T) *SearchHandler {
 
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(mockTaggedIDsIter, false, nil).AnyTimes()
+		Return(mockTaggedIDsIter, client.FetchResponseMetadata{Exhaustive: false}, nil).AnyTimes()
 
 	builder := handleroptions.
 		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})

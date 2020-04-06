@@ -24,9 +24,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,15 +79,41 @@ func requireReaderValuesEqual(t *testing.T, values []DecodedTestValue,
 	requireValuesEqual(t, values, decodedValues, nsCtx)
 }
 
-func requireValuesEqual(t *testing.T, expected, actual []DecodedTestValue,
-	nsCtx namespace.Context) {
-	require.Len(t, actual, len(expected))
+func requireValuesEqual(
+	t *testing.T,
+	expected, actual []DecodedTestValue,
+	nsCtx namespace.Context,
+) {
+	debugValues := struct {
+		ExpectedValues []DecodedTestValue
+		ActualValues   []DecodedTestValue
+	}{
+		ExpectedValues: expected,
+		ActualValues:   actual,
+	}
+	require.Len(t, actual, len(expected),
+		"length mismatch: values=%+v", spew.Sdump(debugValues))
 	for i := 0; i < len(actual); i++ {
-		require.True(t, expected[i].Timestamp.Equal(actual[i].Timestamp))
-		require.Equal(t, expected[i].Value, actual[i].Value)
-		require.Equal(t, expected[i].Unit, actual[i].Unit)
+		debugValue := struct {
+			ExpectedValue DecodedTestValue
+			ActualValue   DecodedTestValue
+		}{
+			ExpectedValue: expected[i],
+			ActualValue:   actual[i],
+		}
+		require.True(t, expected[i].Timestamp.Equal(actual[i].Timestamp),
+			"timestamp mismatch: mismatch=%+v values=%+v",
+			spew.Sdump(debugValue), spew.Sdump(debugValues))
+		require.Equal(t, expected[i].Value, actual[i].Value,
+			"value mismatch: mismatch=%+v values=%+v",
+			spew.Sdump(debugValue), spew.Sdump(debugValues))
+		require.Equal(t, expected[i].Unit, actual[i].Unit,
+			"unit mismatch: mismatch=%+v values=%+v",
+			spew.Sdump(debugValue), spew.Sdump(debugValues))
 		if nsCtx.Schema == nil {
-			require.Equal(t, expected[i].Annotation, actual[i].Annotation)
+			require.Equal(t, expected[i].Annotation, actual[i].Annotation,
+				"annotation mismatch: mismatch=%+v values=%+v",
+				spew.Sdump(debugValue), spew.Sdump(debugValues))
 		} else {
 			testProtoEqual(t, expected[i].Annotation, actual[i].Annotation)
 		}

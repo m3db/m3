@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3/src/cluster/services/leader/campaign"
 	"github.com/m3db/m3/src/cluster/services/leader/election"
 
-	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/clientv3/concurrency"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/clientv3/concurrency"
 	"golang.org/x/net/context"
 )
 

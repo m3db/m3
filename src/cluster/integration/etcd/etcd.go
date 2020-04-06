@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ import (
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/errors"
 
-	"github.com/coreos/etcd/embed"
+	"go.etcd.io/etcd/embed"
 )
 
 type embeddedKV struct {
@@ -52,6 +53,8 @@ func New(opts Options) (EmbeddedKV, error) {
 	}
 	cfg := embed.NewConfig()
 	cfg.Dir = dir
+
+	setRandomPorts(cfg)
 	e, err := embed.StartEtcd(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start etcd, err: %v", err)
@@ -61,6 +64,20 @@ func New(opts Options) (EmbeddedKV, error) {
 		opts: opts,
 		dir:  dir,
 	}, nil
+}
+
+func setRandomPorts(cfg *embed.Config) {
+	randomPortURL, err := url.Parse("http://localhost:0")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	cfg.LPUrls = []url.URL{*randomPortURL}
+	cfg.APUrls = []url.URL{*randomPortURL}
+	cfg.LCUrls = []url.URL{*randomPortURL}
+	cfg.ACUrls = []url.URL{*randomPortURL}
+
+	cfg.InitialCluster = cfg.InitialClusterFromName(cfg.Name)
 }
 
 func (e *embeddedKV) Close() error {
@@ -91,7 +108,7 @@ func (e *embeddedKV) Start() error {
 	}
 
 	// ensure v3 api endpoints are available, https://github.com/coreos/etcd/pull/7075
-	apiVersionEndpoint := fmt.Sprintf("%s/version", embed.DefaultListenClientURLs)
+	apiVersionEndpoint := fmt.Sprintf("http://%s/version", 	e.etcd.Clients[0].Addr().String())
 	fn := func() bool { return version3Available(apiVersionEndpoint) }
 	ok := xclock.WaitUntil(fn, timeout)
 	if !ok {

@@ -125,7 +125,7 @@ func TestMultiSeriesIter(t *testing.T) {
 }
 
 func TestMultiSeriesIterError(t *testing.T) {
-	b := &encodedBlock{}
+	b := &encodedBlock{options: NewOptions()}
 	_, err := b.MultiSeriesIter(0)
 	require.Error(t, err)
 

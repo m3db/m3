@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,11 +29,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/require"
@@ -71,14 +73,17 @@ func newTestBootstrapIndexTimes(
 	case 3:
 		end = at.Truncate(testIndexBlockSize)
 		start = end.Add(time.Duration(-1*opts.numBlocks) * testBlockSize)
+	default:
+		panic("unexpected")
 	}
 
-	shardTimeRanges := map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+	shardTimeRanges := result.NewShardTimeRanges().Set(
+		testShard,
+		xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   end,
 		}),
-	}
+	)
 
 	return testBootstrapIndexTimes{
 		start:           start,
@@ -118,7 +123,7 @@ func testGoodTaggedSeriesDataBlocks() testSeriesBlocks {
 }
 
 func writeTSDBGoodTaggedSeriesDataFiles(
-	t *testing.T,
+	t require.TestingT,
 	dir string,
 	namespaceID ident.ID,
 	start time.Time,
@@ -191,7 +196,7 @@ type expectedTaggedSeries struct {
 }
 
 func expectedTaggedSeriesWithOptions(
-	t *testing.T,
+	t require.TestingT,
 	start time.Time,
 	opts testTimesOptions,
 ) []expectedTaggedSeries {
@@ -246,7 +251,7 @@ func expectedTaggedSeriesWithOptions(
 }
 
 func validateGoodTaggedSeries(
-	t *testing.T,
+	t require.TestingT,
 	start time.Time,
 	indexResults result.IndexResults,
 	opts testTimesOptions,
@@ -256,44 +261,46 @@ func validateGoodTaggedSeries(
 	expectedSeriesByBlock := expectedTaggedSeriesWithOptions(t, start, opts)
 	for _, expected := range expectedSeriesByBlock {
 		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
-		indexBlock, ok := indexResults[expectedAt]
+		indexBlockByVolumeType, ok := indexResults[expectedAt]
 		require.True(t, ok)
-		require.Equal(t, 1, len(indexBlock.Segments()))
-		for _, seg := range indexBlock.Segments() {
-			reader, err := seg.Reader()
-			require.NoError(t, err)
+		for _, indexBlock := range indexBlockByVolumeType.Iter() {
+			require.Equal(t, 1, len(indexBlock.Segments()))
+			for _, seg := range indexBlock.Segments() {
+				reader, err := seg.Reader()
+				require.NoError(t, err)
 
-			docs, err := reader.AllDocs()
-			require.NoError(t, err)
+				docs, err := reader.AllDocs()
+				require.NoError(t, err)
 
-			matches := map[string]struct{}{}
-			for docs.Next() {
-				curr := docs.Current()
+				matches := map[string]struct{}{}
+				for docs.Next() {
+					curr := docs.Current()
 
-				_, ok := matches[string(curr.ID)]
-				require.False(t, ok)
-				matches[string(curr.ID)] = struct{}{}
-
-				series, ok := expected.series[string(curr.ID)]
-				require.True(t, ok)
-
-				matchingTags := map[string]struct{}{}
-				for _, tag := range curr.Fields {
-					_, ok := matchingTags[string(tag.Name)]
+					_, ok := matches[string(curr.ID)]
 					require.False(t, ok)
-					matchingTags[string(tag.Name)] = struct{}{}
+					matches[string(curr.ID)] = struct{}{}
 
-					tagValue, ok := series.tags[string(tag.Name)]
+					series, ok := expected.series[string(curr.ID)]
 					require.True(t, ok)
 
-					require.Equal(t, tagValue, string(tag.Value))
-				}
-				require.Equal(t, len(series.tags), len(matchingTags))
-			}
-			require.NoError(t, docs.Err())
-			require.NoError(t, docs.Close())
+					matchingTags := map[string]struct{}{}
+					for _, tag := range curr.Fields {
+						_, ok := matchingTags[string(tag.Name)]
+						require.False(t, ok)
+						matchingTags[string(tag.Name)] = struct{}{}
 
-			require.Equal(t, len(expected.series), len(matches))
+						tagValue, ok := series.tags[string(tag.Name)]
+						require.True(t, ok)
+
+						require.Equal(t, tagValue, string(tag.Value))
+					}
+					require.Equal(t, len(series.tags), len(matchingTags))
+				}
+				require.NoError(t, docs.Err())
+				require.NoError(t, docs.Close())
+
+				require.Equal(t, len(expected.series), len(matches))
+			}
 		}
 	}
 }
@@ -309,37 +316,20 @@ func TestBootstrapIndex(t *testing.T) {
 
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
-	src := newFileSystemSource(newTestOptions(dir))
-	nsMD := testNsMetadata(t)
-	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts,
-		times.shardTimeRanges, nsMD)
-	defer tester.Finish()
-
-	tester.TestReadWith(src)
-	indexResults := tester.ResultForNamespace(nsMD.ID()).IndexResult.IndexResults()
-	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
-	tester.EnsureNoWrites()
-}
-
-func TestBootstrapIndexWithPersist(t *testing.T) {
-	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
-
-	timesOpts := testTimesOptions{
-		numBlocks: 2,
-	}
-	times := newTestBootstrapIndexTimes(timesOpts)
-
-	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
-
 	opts := newTestOptionsWithPersistManager(t, dir)
 	scope := tally.NewTestScope("", nil)
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
+	// Should always be run with persist enabled.
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
-	src := newFileSystemSource(opts).(*fileSystemSource)
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, runOpts,
 		times.shardTimeRanges, nsMD)
@@ -364,18 +354,24 @@ func TestBootstrapIndexWithPersist(t *testing.T) {
 	}
 
 	// Check that the segment is not a mutable segment for this block
-	block, ok := indexResults[xtime.ToUnixNano(times.start)]
+	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	require.True(t, ok)
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable := block.Segments()[0].(segment.MutableSegment)
-	require.False(t, mutable)
+	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.True(t, segment.IsPersisted())
 
 	// Check that the second segment is mutable and was not written out
-	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable = block.Segments()[0].(segment.MutableSegment)
-	require.True(t, mutable)
+	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.False(t, segment.IsPersisted())
 
 	// Validate results
 	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
@@ -408,7 +404,12 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 			FileSetType: persist.FileSetSnapshotType,
 		})
 
-	src := newFileSystemSource(opts).(*fileSystemSource)
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, runOpts,
 		times.shardTimeRanges, nsMD)
@@ -423,17 +424,23 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	require.Equal(t, 0, len(infoFiles))
 
 	// Check that both segments are mutable
-	block, ok := indexResults[xtime.ToUnixNano(times.start)]
+	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	require.True(t, ok)
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable := block.Segments()[0].(segment.MutableSegment)
-	require.True(t, mutable)
+	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.False(t, segment.IsPersisted())
 
-	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable = block.Segments()[0].(segment.MutableSegment)
-	require.True(t, mutable)
+	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.False(t, segment.IsPersisted())
 
 	// Validate results
 	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
@@ -470,7 +477,12 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
-	src := newFileSystemSource(opts).(*fileSystemSource)
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
 	nsMD := testNsMetadata(t)
 	tester := bootstrap.BuildNamespacesTester(t, runOpts,
 		times.shardTimeRanges, nsMD)
@@ -481,18 +493,24 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 
 	// Check that the segment is not a mutable segment for this block
 	// and came from disk
-	block, ok := indexResults[xtime.ToUnixNano(times.start)]
+	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(times.start)]
+	require.True(t, ok)
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable := block.Segments()[0].(segment.MutableSegment)
-	require.False(t, mutable)
+	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.True(t, segment.IsPersisted())
 
 	// Check that the second segment is mutable
-	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable = block.Segments()[0].(segment.MutableSegment)
-	require.True(t, mutable)
+	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.False(t, segment.IsPersisted())
 
 	// Validate results
 	validateGoodTaggedSeries(t, times.start, indexResults, timesOpts)
@@ -505,6 +523,9 @@ func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	tester.EnsureNoWrites()
 }
 
+// TODO: Make this test actually exercise the case at the retention edge,
+// right now it only builds a partial segment for the second of three index
+// blocks it is trying to build.
 func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
@@ -518,17 +539,41 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
 
 	opts := newTestOptionsWithPersistManager(t, dir)
+
 	scope := tally.NewTestScope("", nil)
-	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+	opts = opts.
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+
+	at := time.Now()
+	resultOpts := opts.ResultOptions()
+	clockOpts := resultOpts.ClockOptions().
+		SetNowFn(func() time.Time {
+			return at
+		})
+	opts = opts.SetResultOptions(resultOpts.SetClockOptions(clockOpts))
 
 	runOpts := testDefaultRunOpts.
 		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
-	src := newFileSystemSource(opts).(*fileSystemSource)
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+
+	retentionPeriod := testBlockSize
+	for {
+		// Make sure that retention is set to end half way through the first block
+		flushStart := retention.FlushTimeStartForRetentionPeriod(retentionPeriod, testBlockSize, at)
+		if flushStart.Before(firstIndexBlockStart.Add(testIndexBlockSize)) {
+			break
+		}
+		retentionPeriod += testBlockSize
+	}
 
 	ropts := testRetentionOptions.
 		SetBlockSize(testBlockSize).
-		SetRetentionPeriod(time.Duration(timesOpts.numBlocks) * testBlockSize)
+		SetRetentionPeriod(retentionPeriod)
 	ns, err := namespace.NewMetadata(testNs1ID, testNamespaceOptions.
 		SetRetentionOptions(ropts).
 		SetIndexOptions(testNamespaceIndexOptions.
@@ -536,6 +581,14 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 			SetBlockSize(testIndexBlockSize)))
 	require.NoError(t, err)
 
+	// NB(bodu): Simulate requesting bootstrapping of two whole index blocks instead of 3 data blocks (1.5 index blocks).
+	times.shardTimeRanges = result.NewShardTimeRanges().Set(
+		testShard,
+		xtime.NewRanges(xtime.Range{
+			Start: firstIndexBlockStart,
+			End:   times.end,
+		}),
+	)
 	tester := bootstrap.BuildNamespacesTester(t, runOpts,
 		times.shardTimeRanges, ns)
 	defer tester.Finish()
@@ -573,18 +626,24 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 	}
 
 	// Check that the segment is not a mutable segment
-	block, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
+	blockByVolumeType, ok := indexResults[xtime.ToUnixNano(firstIndexBlockStart)]
+	require.True(t, ok)
+	block, ok := blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable := block.Segments()[0].(segment.MutableSegment)
-	require.False(t, mutable)
+	segment, ok := block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.True(t, segment.IsPersisted())
 
 	// Check that the second is not a mutable segment
-	block, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
+	blockByVolumeType, ok = indexResults[xtime.ToUnixNano(firstIndexBlockStart.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	block, ok = blockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
 	require.Equal(t, 1, len(block.Segments()))
-	_, mutable = block.Segments()[0].(segment.MutableSegment)
-	require.False(t, mutable)
+	segment, ok = block.Segments()[0].(*bootstrapper.Segment)
+	require.True(t, ok)
+	require.True(t, segment.IsPersisted())
 
 	// Validate results
 	validateGoodTaggedSeries(t, firstIndexBlockStart, indexResults, timesOpts)

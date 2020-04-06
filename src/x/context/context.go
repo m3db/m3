@@ -27,7 +27,9 @@ import (
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	"github.com/m3db/m3/src/x/resource"
 
+	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
 )
 
@@ -321,57 +323,61 @@ func (c *ctx) parentCtx() Context {
 	return parent
 }
 
-// Until OpenTracing supports the `IsSampled()` method, we need to cast to a Jaeger span.
-// See https://github.com/opentracing/specification/issues/92 for more information.
-func (c *ctx) spanIsSampled(sp opentracing.Span) bool {
-	jaegerSpan, ok := sp.(*jaeger.Span)
-	if !ok {
-		return false
-	}
-
-	jaegerCtx := jaegerSpan.Context()
-	spanCtx, ok := jaegerCtx.(*jaeger.SpanContext)
-	if !ok {
-		return false
-	}
-
-	if !spanCtx.IsSampled() {
-		return false
-	}
-
-	return true
-}
-
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
 	goCtx, exists := c.GoContext()
 	if !exists || c.checkedAndNotSampled {
 		return c, noopTracer.StartSpan(name), false
 	}
 
-	var (
-		sp    opentracing.Span
-		spCtx stdctx.Context
-	)
-
-	sp = opentracing.SpanFromContext(goCtx)
-	if sp == nil {
-		sp, spCtx = xopentracing.StartSpanFromContext(goCtx, name)
-		if c.spanIsSampled(sp) {
-			child := c.newChildContext()
-			child.SetGoContext(spCtx)
-			return child, sp, true
-		}
+	childGoCtx, span, sampled := StartSampledTraceSpan(goCtx, name)
+	if !sampled {
 		c.checkedAndNotSampled = true
 		return c, noopTracer.StartSpan(name), false
 	}
 
-	sp, spCtx = xopentracing.StartSpanFromContext(goCtx, name)
 	child := c.newChildContext()
-	child.SetGoContext(spCtx)
-	return child, sp, true
+	child.SetGoContext(childGoCtx)
+	return child, span, true
 }
 
 func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span) {
 	ctx, sp, _ := c.StartSampledTraceSpan(name)
 	return ctx, sp
+}
+
+// StartSampledTraceSpan starts a span that may or may not be sampled and will
+// return whether it was sampled or not.
+func StartSampledTraceSpan(ctx stdctx.Context, name string, opts ...opentracing.StartSpanOption) (stdctx.Context, opentracing.Span, bool) {
+	sp, spCtx := xopentracing.StartSpanFromContext(ctx, name, opts...)
+	sampled := spanIsSampled(sp)
+	if !sampled {
+		return ctx, noopTracer.StartSpan(name), false
+	}
+	return spCtx, sp, true
+}
+
+func spanIsSampled(sp opentracing.Span) bool {
+	if sp == nil {
+		return false
+	}
+
+	// Until OpenTracing supports the `IsSampled()` method, we need to cast to a Jaeger/Lightstep/etc. spans.
+	// See https://github.com/opentracing/specification/issues/92 for more information.
+	spanCtx := sp.Context()
+	jaegerSpCtx, ok := spanCtx.(jaeger.SpanContext)
+	if ok && jaegerSpCtx.IsSampled() {
+		return true
+	}
+
+	lightstepSpCtx, ok := spanCtx.(lightstep.SpanContext)
+	if ok && lightstepSpCtx.TraceID != 0 {
+		return true
+	}
+
+	mockSpCtx, ok := spanCtx.(mocktracer.MockSpanContext)
+	if ok && mockSpCtx.Sampled {
+		return true
+	}
+
+	return false
 }

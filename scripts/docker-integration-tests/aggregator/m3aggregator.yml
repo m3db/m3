@@ -7,6 +7,64 @@ metrics:
   prometheus:
     onError: none
     handlerPath: /metrics
+    listenAddress: 0.0.0.0:6002
+    timerType: histogram
+    defaultHistogramBuckets:
+      - upper: 0.002
+      - upper: 0.004
+      - upper: 0.006
+      - upper: 0.008
+      - upper: 0.01
+      - upper: 0.02
+      - upper: 0.04
+      - upper: 0.06
+      - upper: 0.08
+      - upper: 0.1
+      - upper: 0.2
+      - upper: 0.4
+      - upper: 0.6
+      - upper: 0.8
+      - upper: 1
+      - upper: 1.5
+      - upper: 2
+      - upper: 2.5
+      - upper: 3
+      - upper: 3.5
+      - upper: 4
+      - upper: 4.5
+      - upper: 5
+      - upper: 5.5
+      - upper: 6
+      - upper: 6.5
+      - upper: 7
+      - upper: 7.5
+      - upper: 8
+      - upper: 8.5
+      - upper: 9
+      - upper: 9.5
+      - upper: 10
+      - upper: 15
+      - upper: 20
+      - upper: 25
+      - upper: 30
+      - upper: 35
+      - upper: 40
+      - upper: 45
+      - upper: 50
+      - upper: 55
+      - upper: 60
+      - upper: 300
+      - upper: 600
+      - upper: 900
+      - upper: 1200
+      - upper: 1500
+      - upper: 1800
+      - upper: 2100
+      - upper: 2400
+      - upper: 2700
+      - upper: 3000
+      - upper: 3300
+      - upper: 3600
   sanitization: prometheus
   samplingRate: 1.0
   extended: none
@@ -71,7 +129,7 @@ rawtcp:
 
 kvClient:
   etcd:
-    env: default_env
+    env: override_test_env
     zone: embedded
     service: m3aggregator
     cacheDir: /var/lib/m3kv
@@ -82,7 +140,7 @@ kvClient:
 
 runtimeOptions:
   kvConfig:
-    environment: default_env
+    environment: override_test_env
     zone: embedded
   writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
   writeValuesPerMetricLimitPerSecond: 0
@@ -131,7 +189,7 @@ aggregator:
     placementKV:
       namespace: /placement
       zone: embedded
-      environment: default_env
+      environment: override_test_env
     placementWatcher:
       key: m3aggregator
       initWatchTimeout: 15s
@@ -164,7 +222,7 @@ aggregator:
   placementManager:
     kvConfig:
       namespace: /placement
-      environment: default_env
+      environment: override_test_env
       zone: embedded
     placementWatcher:
       key: m3aggregator
@@ -175,7 +233,7 @@ aggregator:
   resignTimeout: 1m
   flushTimesManager:
     kvConfig:
-      environment: default_env
+      environment: override_test_env
       zone: embedded
     flushTimesKeyFmt: shardset/%d/flush
     flushTimesPersistRetrier:
@@ -190,7 +248,7 @@ aggregator:
       ttlSeconds: 10
     serviceID:
       name: m3aggregator
-      environment: default_env
+      environment: override_test_env
       zone: embedded
     electionKeyFmt: shardset/%d/lock
     campaignRetrier:
@@ -243,7 +301,7 @@ aggregator:
               topicName: aggregated_metrics
               topicServiceOverride:
                 zone: embedded
-                environment: default_env
+                environment: override_test_env
               messageRetry:
                 initialBackoff: 1m
                 maxBackoff: 2m

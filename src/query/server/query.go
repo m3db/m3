@@ -70,7 +70,6 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -122,12 +121,26 @@ type RunOptions struct {
 	// on once it has opened.
 	ListenerCh chan<- net.Listener
 
+	// M3MsgListenerCh is a programmatic channel to receive the M3Msg server
+	// listener on once it has opened.
+	M3MsgListenerCh chan<- net.Listener
+
+	// DownsamplerReadyCh is a programmatic channel to receive the downsampler
+	// ready signal once it is open.
+	DownsamplerReadyCh chan<- struct{}
+
 	// CustomHandlers is a list of custom 3rd party handlers.
 	CustomHandlers []options.CustomHandler
 
 	// CustomPromQLParseFunction is a custom PromQL parsing function.
 	CustomPromQLParseFunction promql.ParseFn
+
+	// ApplyCustomTSDBOptions is a transform that allows for custom tsdb options.
+	ApplyCustomTSDBOptions CustomTSDBOptionsFn
 }
+
+// CustomTSDBOptionsFn is a transformation function for TSDB Options.
+type CustomTSDBOptionsFn func(tsdb.Options) tsdb.Options
 
 // Run runs the server programmatically given a filename for the configuration file.
 func Run(runOpts RunOptions) {
@@ -147,7 +160,14 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
-	scope, closer, err := cfg.Metrics.NewRootScope()
+	scope, closer, _, err := cfg.Metrics.NewRootScopeAndReporters(
+		instrument.NewRootScopeAndReportersOptions{
+			OnError: func(err error) {
+				// NB(r): Required otherwise collisions when registering metrics will
+				// cause a panic.
+				logger.Error("register metric error", zap.Error(err))
+			},
+		})
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
@@ -216,8 +236,7 @@ func Run(runOpts RunOptions) {
 		instrumentOptions,
 		cfg.ReadWorkerPool,
 		cfg.WriteWorkerPool,
-		scope,
-	)
+		scope)
 	if err != nil {
 		logger.Fatal("could not create worker pools", zap.Error(err))
 	}
@@ -234,10 +253,16 @@ func Run(runOpts RunOptions) {
 		SetReadWorkerPool(readWorkerPool).
 		SetWriteWorkerPool(writeWorkerPool)
 
-	if cfg.Backend == config.GRPCStorageType {
+	if runOpts.ApplyCustomTSDBOptions != nil {
+		tsdbOpts = runOpts.ApplyCustomTSDBOptions(tsdbOpts)
+	}
+
+	switch cfg.Backend {
+	case config.GRPCStorageType:
 		// For grpc backend, we need to setup only the grpc client and a storage
 		// accompanying that client.
-		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
+		poolWrapper := pools.NewPoolsWrapper(
+			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
 		remoteOpts := config.RemoteOptionsFromConfig(cfg.RPC)
 		remotes, enabled, err := remoteClient(poolWrapper, remoteOpts,
 			tsdbOpts, instrumentOptions)
@@ -257,11 +282,28 @@ func Run(runOpts RunOptions) {
 		backendStorage = fanout.NewStorage(remotes, r, w, c,
 			instrumentOptions)
 		logger.Info("setup grpc backend")
-	} else {
+
+	case config.NoopEtcdStorageType:
+		backendStorage = storage.NewNoopStorage()
+		mgmt := cfg.ClusterManagement
+
+		if mgmt == nil || len(mgmt.Etcd.ETCDClusters) == 0 {
+			logger.Fatal("must specify cluster management config and at least one etcd cluster")
+		}
+
+		opts := mgmt.Etcd.NewOptions()
+		clusterClient, err = etcdclient.NewConfigServiceClient(opts)
+		if err != nil {
+			logger.Fatal("error constructing etcd client", zap.Error(err))
+		}
+		logger.Info("setup noop storage backend with etcd")
+
+	// Empty backend defaults to M3DB.
+	case "":
 		// For m3db backend, we need to make connections to the m3db cluster
 		// which generates a session and use the storage with the session.
 		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg,
-			runOpts.DBClient, instrumentOptions)
+			runOpts.DBClient, instrumentOptions, tsdbOpts.CustomAdminOptions())
 		if err != nil {
 			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
@@ -269,23 +311,30 @@ func Run(runOpts RunOptions) {
 		var cleanup cleanupFn
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
 			cfg, m3dbClusters, m3dbPoolWrapper,
-			runOpts, queryCtxOpts, tsdbOpts, instrumentOptions)
+			runOpts, queryCtxOpts, tsdbOpts,
+			runOpts.DownsamplerReadyCh, instrumentOptions)
 
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
 		defer cleanup()
+
+	default:
+		logger.Fatal("unrecognized backend", zap.String("backend", string(cfg.Backend)))
 	}
 
-	perQueryEnforcer, err := newConfiguredChainedEnforcer(&cfg, instrumentOptions)
+	chainedEnforcer, chainedEnforceCloser, err := newConfiguredChainedEnforcer(&cfg,
+		instrumentOptions)
 	if err != nil {
-		logger.Fatal("unable to setup perQueryEnforcer", zap.Error(err))
+		logger.Fatal("unable to setup chained enforcer", zap.Error(err))
 	}
+
+	defer chainedEnforceCloser.Close()
 
 	engineOpts := executor.NewEngineOptions().
 		SetStore(backendStorage).
 		SetLookbackDuration(*cfg.LookbackDuration).
-		SetGlobalEnforcer(perQueryEnforcer).
+		SetGlobalEnforcer(chainedEnforcer).
 		SetInstrumentOptions(instrumentOptions.
 			SetMetricsScope(instrumentOptions.MetricsScope().SubScope("engine")))
 	if fn := runOpts.CustomPromQLParseFunction; fn != nil {
@@ -316,7 +365,7 @@ func Run(runOpts RunOptions) {
 
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
 		tagOptions, engine, m3dbClusters, clusterClient, cfg, runOpts.DBConfig,
-		perQueryEnforcer, fetchOptsBuilder, queryCtxOpts, instrumentOptions,
+		chainedEnforcer, fetchOptsBuilder, queryCtxOpts, instrumentOptions,
 		cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults)
 	if err != nil {
@@ -362,25 +411,33 @@ func Run(runOpts RunOptions) {
 	if cfg.Ingest != nil {
 		logger.Info("starting m3msg server",
 			zap.String("address", cfg.Ingest.M3Msg.Server.ListenAddress))
-		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
+		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage,
+			tagOptions, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}
 
 		server, err := cfg.Ingest.M3Msg.NewServer(
 			ingester.Ingest,
-			instrumentOptions.SetMetricsScope(scope.SubScope("ingest-m3msg")),
-		)
-
+			instrumentOptions.SetMetricsScope(scope.SubScope("ingest-m3msg")))
 		if err != nil {
 			logger.Fatal("unable to create m3msg server", zap.Error(err))
 		}
 
-		if err := server.ListenAndServe(); err != nil {
+		listener, err := net.Listen("tcp", cfg.Ingest.M3Msg.Server.ListenAddress)
+		if err != nil {
+			logger.Fatal("unable to open m3msg server", zap.Error(err))
+		}
+
+		if runOpts.M3MsgListenerCh != nil {
+			runOpts.M3MsgListenerCh <- listener
+		}
+
+		if err := server.Serve(listener); err != nil {
 			logger.Fatal("unable to listen on ingest server", zap.Error(err))
 		}
 
-		logger.Info("started m3msg server ")
+		logger.Info("started m3msg server", zap.Stringer("addr", listener.Addr()))
 		defer server.Close()
 	} else {
 		logger.Info("no m3msg server configured")
@@ -408,6 +465,7 @@ func newM3DBStorage(
 	runOpts RunOptions,
 	queryContextOptions models.QueryContextOptions,
 	tsdbOpts tsdb.Options,
+	downsamplerReadyCh chan<- struct{},
 	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var (
@@ -469,8 +527,19 @@ func newM3DBStorage(
 		}
 
 		newDownsamplerFn := func() (downsample.Downsampler, error) {
-			return newDownsampler(cfg.Downsample, clusterClient,
+			downsampler, err := newDownsampler(cfg.Downsample, clusterClient,
 				fanoutStorage, autoMappingRules, tsdbOpts.TagOptions(), instrumentOptions)
+			if err != nil {
+				return nil, err
+			}
+
+			// Notify the downsampler ready channel that
+			// the downsampler has now been created and is ready.
+			if downsamplerReadyCh != nil {
+				downsamplerReadyCh <- struct{}{}
+			}
+
+			return downsampler, nil
 		}
 
 		if clusterClientWaitCh != nil {
@@ -517,6 +586,10 @@ func newDownsampler(
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) (downsample.Downsampler, error) {
+	// Namespace the downsampler metrics.
+	instrumentOpts = instrumentOpts.SetMetricsScope(
+		instrumentOpts.MetricsScope().SubScope("downsampler"))
+
 	if clusterManagementClient == nil {
 		return nil, fmt.Errorf("no configured cluster management config, " +
 			"must set this config for downsampler")
@@ -529,7 +602,7 @@ func newDownsampler(
 	}
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
-	tagDecoderOptions := serialize.NewTagDecoderOptions()
+	tagDecoderOptions := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{})
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.
 			SetMetricsScope(instrumentOpts.MetricsScope().
@@ -540,13 +613,12 @@ func newDownsampler(
 				SubScope("tag-decoder-pool")))
 
 	downsampler, err := cfg.NewDownsampler(downsample.DownsamplerOptions{
-		Storage:          storage,
-		ClusterClient:    clusterManagementClient,
-		RulesKVStore:     kvStore,
-		AutoMappingRules: autoMappingRules,
-		ClockOptions:     clock.NewOptions(),
-		// TODO: remove after https://github.com/m3db/m3/issues/992 is fixed
-		InstrumentOptions:     instrumentOpts.SetMetricsScope(tally.NoopScope),
+		Storage:               storage,
+		ClusterClient:         clusterManagementClient,
+		RulesKVStore:          kvStore,
+		AutoMappingRules:      autoMappingRules,
+		ClockOptions:          clock.NewOptions(),
+		InstrumentOptions:     instrumentOpts,
 		TagEncoderOptions:     tagEncoderOptions,
 		TagDecoderOptions:     tagDecoderOptions,
 		TagEncoderPoolOptions: tagEncoderPoolOptions,
@@ -595,6 +667,7 @@ func initClusters(
 	cfg config.Configuration,
 	dbClientCh <-chan client.Client,
 	instrumentOpts instrument.Options,
+	customAdminOptions []client.CustomAdminOption,
 ) (m3.Clusters, *pools.PoolWrapper, error) {
 	instrumentOpts = instrumentOpts.
 		SetMetricsScope(instrumentOpts.MetricsScope().SubScope("m3db-client"))
@@ -608,13 +681,15 @@ func initClusters(
 	if len(cfg.Clusters) > 0 {
 		clusters, err = cfg.Clusters.NewClusters(instrumentOpts,
 			m3.ClustersStaticConfigurationOptions{
-				AsyncSessions: true,
+				AsyncSessions:      true,
+				CustomAdminOptions: customAdminOptions,
 			})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
-		poolWrapper = pools.NewPoolsWrapper(pools.BuildIteratorPools())
+		poolWrapper = pools.NewPoolsWrapper(
+			pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{}))
 	} else {
 		localCfg := cfg.Local
 		if localCfg == nil {
@@ -638,7 +713,8 @@ func initClusters(
 
 		clusters, err = clustersCfg.NewClusters(instrumentOpts,
 			m3.ClustersStaticConfigurationOptions{
-				ProvidedSession: session,
+				ProvidedSession:    session,
+				CustomAdminOptions: customAdminOptions,
 			})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")

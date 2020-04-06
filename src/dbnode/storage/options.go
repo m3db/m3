@@ -48,6 +48,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 )
@@ -156,6 +157,7 @@ type options struct {
 	schemaReg                      namespace.SchemaRegistry
 	blockLeaseManager              block.LeaseManager
 	memoryTracker                  MemoryTracker
+	mmapReporter                   mmap.Reporter
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -742,4 +744,14 @@ func (o *options) SetMemoryTracker(memTracker MemoryTracker) Options {
 
 func (o *options) MemoryTracker() MemoryTracker {
 	return o.memoryTracker
+}
+
+func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	opts := *o
+	opts.mmapReporter = mmapReporter
+	return &opts
+}
+
+func (o *options) MmapReporter() mmap.Reporter {
+	return o.mmapReporter
 }

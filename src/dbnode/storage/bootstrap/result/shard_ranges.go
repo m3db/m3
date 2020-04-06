@@ -29,18 +29,58 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// NewShardTimeRanges returns a new ShardTimeRanges with provided shards and time range.
-func NewShardTimeRanges(start, end time.Time, shards ...uint32) ShardTimeRanges {
+// NewShardTimeRangesFromRange returns a new ShardTimeRanges with provided shards and time range.
+func NewShardTimeRangesFromRange(start, end time.Time, shards ...uint32) ShardTimeRanges {
 	timeRange := xtime.NewRanges(xtime.Range{Start: start, End: end})
-	ranges := make(map[uint32]xtime.Ranges)
+	ranges := make(shardTimeRanges, len(shards))
 	for _, s := range shards {
 		ranges[s] = timeRange
 	}
 	return ranges
 }
 
+// NewShardTimeRangesFromSize returns a new ShardTimeRanges with provided shards and time range.
+func NewShardTimeRangesFromSize(size int) ShardTimeRanges {
+	return make(shardTimeRanges, size)
+}
+
+// NewShardTimeRanges returns an empty ShardTimeRanges.
+func NewShardTimeRanges() ShardTimeRanges {
+	return make(shardTimeRanges)
+}
+
+// Get time ranges for a shard.
+func (r shardTimeRanges) Get(shard uint32) (xtime.Ranges, bool) {
+	tr, ok := r[shard]
+	return tr, ok
+}
+
+// Set time ranges for a shard.
+func (r shardTimeRanges) Set(shard uint32, ranges xtime.Ranges) ShardTimeRanges {
+	r[shard] = ranges
+	return r
+}
+
+// GetOrAdd gets or adds time ranges for a shard.
+func (r shardTimeRanges) GetOrAdd(shard uint32) xtime.Ranges {
+	if r[shard] == nil {
+		r[shard] = xtime.NewRanges()
+	}
+	return r[shard]
+}
+
+// Len returns then number of shards.
+func (r shardTimeRanges) Len() int {
+	return len(r)
+}
+
+// Iter returns the underlying map.
+func (r shardTimeRanges) Iter() map[uint32]xtime.Ranges {
+	return r
+}
+
 // IsEmpty returns whether the shard time ranges is empty or not.
-func (r ShardTimeRanges) IsEmpty() bool {
+func (r shardTimeRanges) IsEmpty() bool {
 	for _, ranges := range r {
 		if !ranges.IsEmpty() {
 			return false
@@ -50,13 +90,13 @@ func (r ShardTimeRanges) IsEmpty() bool {
 }
 
 // Equal returns whether two shard time ranges are equal.
-func (r ShardTimeRanges) Equal(other ShardTimeRanges) bool {
-	if len(r) != len(other) {
+func (r shardTimeRanges) Equal(other ShardTimeRanges) bool {
+	if len(r) != other.Len() {
 		return false
 	}
 	for shard, ranges := range r {
-		otherRanges, ok := other[shard]
-		if !ok {
+		otherRanges := other.GetOrAdd(shard)
+		if otherRanges == nil {
 			return false
 		}
 		if ranges.Len() != otherRanges.Len() {
@@ -77,31 +117,36 @@ func (r ShardTimeRanges) Equal(other ShardTimeRanges) bool {
 }
 
 // Copy will return a copy of the current shard time ranges.
-func (r ShardTimeRanges) Copy() ShardTimeRanges {
-	result := make(map[uint32]xtime.Ranges, len(r))
+func (r shardTimeRanges) Copy() ShardTimeRanges {
+	result := make(shardTimeRanges, len(r))
 	for shard, ranges := range r {
-		result[shard] = xtime.Ranges{}.AddRanges(ranges)
+		newRanges := xtime.NewRanges()
+		newRanges.AddRanges(ranges)
+		result[shard] = newRanges
 	}
 	return result
 }
 
 // AddRanges adds other shard time ranges to the current shard time ranges.
-func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
-	for shard, ranges := range other {
+func (r shardTimeRanges) AddRanges(other ShardTimeRanges) {
+	if other == nil {
+		return
+	}
+	for shard, ranges := range other.Iter() {
 		if ranges.IsEmpty() {
 			continue
 		}
 		if existing, ok := r[shard]; ok {
-			r[shard] = existing.AddRanges(ranges)
+			existing.AddRanges(ranges)
 		} else {
-			r[shard] = ranges
+			r[shard] = ranges.Clone()
 		}
 	}
 }
 
 // ToUnfulfilledDataResult will return a result that is comprised of wholly
 // unfufilled time ranges from the set of shard time ranges.
-func (r ShardTimeRanges) ToUnfulfilledDataResult() DataBootstrapResult {
+func (r shardTimeRanges) ToUnfulfilledDataResult() DataBootstrapResult {
 	result := NewDataBootstrapResult()
 	result.SetUnfulfilled(r.Copy())
 	return result
@@ -109,21 +154,25 @@ func (r ShardTimeRanges) ToUnfulfilledDataResult() DataBootstrapResult {
 
 // ToUnfulfilledIndexResult will return a result that is comprised of wholly
 // unfufilled time ranges from the set of shard time ranges.
-func (r ShardTimeRanges) ToUnfulfilledIndexResult() IndexBootstrapResult {
+func (r shardTimeRanges) ToUnfulfilledIndexResult() IndexBootstrapResult {
 	result := NewIndexBootstrapResult()
 	result.SetUnfulfilled(r.Copy())
 	return result
 }
 
 // Subtract will subtract another range from the current range.
-func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
+func (r shardTimeRanges) Subtract(other ShardTimeRanges) {
+	if other == nil {
+		return
+	}
 	for shard, ranges := range r {
-		otherRanges, ok := other[shard]
+		otherRanges, ok := other.Get(shard)
 		if !ok {
 			continue
 		}
 
-		subtractedRanges := ranges.RemoveRanges(otherRanges)
+		subtractedRanges := ranges.Clone()
+		subtractedRanges.RemoveRanges(otherRanges)
 		if subtractedRanges.IsEmpty() {
 			delete(r, shard)
 		} else {
@@ -134,7 +183,7 @@ func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
 
 // MinMax will return the very minimum time as a start and the
 // maximum time as an end in the ranges.
-func (r ShardTimeRanges) MinMax() (time.Time, time.Time) {
+func (r shardTimeRanges) MinMax() (time.Time, time.Time) {
 	min, max := time.Time{}, time.Time{}
 	for _, ranges := range r {
 		if ranges.IsEmpty() {
@@ -155,17 +204,17 @@ func (r ShardTimeRanges) MinMax() (time.Time, time.Time) {
 }
 
 // MinMaxRange returns the min and max times, and the duration for this range.
-func (r ShardTimeRanges) MinMaxRange() (time.Time, time.Time, time.Duration) {
+func (r shardTimeRanges) MinMaxRange() (time.Time, time.Time, time.Duration) {
 	min, max := r.MinMax()
 	return min, max, max.Sub(min)
 }
 
 type summaryFn func(xtime.Ranges) string
 
-func (r ShardTimeRanges) summarize(sfn summaryFn) string {
-	values := make([]shardTimeRanges, 0, len(r))
+func (r shardTimeRanges) summarize(sfn summaryFn) string {
+	values := make([]shardTimeRangesPair, 0, len(r))
 	for shard, ranges := range r {
-		values = append(values, shardTimeRanges{shard: shard, value: ranges})
+		values = append(values, shardTimeRangesPair{shard: shard, value: ranges})
 	}
 	sort.Sort(shardTimeRangesByShard(values))
 
@@ -190,7 +239,7 @@ func (r ShardTimeRanges) summarize(sfn summaryFn) string {
 }
 
 // String returns a description of the time ranges
-func (r ShardTimeRanges) String() string {
+func (r shardTimeRanges) String() string {
 	return r.summarize(xtime.Ranges.String)
 }
 
@@ -207,16 +256,16 @@ func rangesDuration(ranges xtime.Ranges) string {
 }
 
 // SummaryString returns a summary description of the time ranges
-func (r ShardTimeRanges) SummaryString() string {
+func (r shardTimeRanges) SummaryString() string {
 	return r.summarize(rangesDuration)
 }
 
-type shardTimeRanges struct {
+type shardTimeRangesPair struct {
 	shard uint32
 	value xtime.Ranges
 }
 
-type shardTimeRangesByShard []shardTimeRanges
+type shardTimeRangesByShard []shardTimeRangesPair
 
 func (str shardTimeRangesByShard) Len() int      { return len(str) }
 func (str shardTimeRangesByShard) Swap(i, j int) { str[i], str[j] = str[j], str[i] }

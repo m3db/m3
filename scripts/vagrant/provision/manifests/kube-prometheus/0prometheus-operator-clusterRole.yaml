@@ -18,6 +18,8 @@ rules:
   - alertmanagers/finalizers
   - servicemonitors
   - prometheusrules
+  - podmonitors
+  - thanosrulers
   verbs:
   - '*'
 - apiGroups:

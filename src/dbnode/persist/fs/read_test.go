@@ -90,7 +90,8 @@ func init() {
 	})
 	testBytesPool.Init()
 	testTagDecoderPool = serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		pool.NewObjectPoolOptions())
 	testTagDecoderPool.Init()
 }
 

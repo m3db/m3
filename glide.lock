@@ -1,5 +1,5 @@
-hash: e7b782e3727ce7567e33f7d739f5e84f101b7d0efffca34307663fa49e5dd870
-updated: 2019-12-30T16:42:45.876408-05:00
+hash: baed617ba8848f4267525e942246b21bc23c660894dee1eebc40b3910467e067
+updated: 2020-02-10T15:18:46.492669-05:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -23,8 +23,8 @@ imports:
   version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
 - name: github.com/coreos/bbolt
   version: 32c383e75ce054674c53b5a07e55de85332aee14
-- name: github.com/coreos/etcd
-  version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
+- name: go.etcd.io/etcd
+  version: 3cf2f69b5738fb702ba1a935590f36b52b18979b
   subpackages:
   - alarm
   - auth
@@ -180,7 +180,7 @@ imports:
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/google/go-cmp
-  version: 2d0692c2e9617365a95b295612ac0d4415ba4627
+  version: 6f77996f0c42f7b84e5a2b252227263f93432e9b
   subpackages:
   - cmp
   - cmp/cmpopts
@@ -235,6 +235,15 @@ imports:
   - commands
   - gen
   - prop
+- name: github.com/lightstep/lightstep-tracer-common
+  version: 082dbbf1b51a87f008f51a6203c269395ac3fe54
+  subpackages:
+  - golang/gogo/collectorpb
+  - golang/gogo/lightsteppb
+- name: github.com/lightstep/lightstep-tracer-go
+  version: 95891af43e111d60f0ae6adaa39c2abe8caad401
+  subpackages:
+  - lightstep/rand
 - name: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
@@ -402,6 +411,8 @@ imports:
   - suite
 - name: github.com/subosito/gotenv
   version: de67a6614a4de71ad5e380b6946e56ab957d58c5
+- name: github.com/twotwotwo/sorts
+  version: bf5c1f2b8553dec28372aa6ac5a8bf53a20a4c5b
 - name: github.com/uber-go/atomic
   version: 40ae6a40a970ef4cdbffa7b24b280e316db8accc
 - name: github.com/uber-go/tally
@@ -525,7 +536,7 @@ imports:
   subpackages:
   - rate
 - name: golang.org/x/tools
-  version: 1e586a538ebbd26e54f3e5420dbc23914a69e16f
+  version: 2aa90c603ae35ab89ce30e45e49d870b7e5e7698
   subpackages:
   - go/analysis
   - go/analysis/passes/inspect
@@ -641,6 +652,10 @@ imports:
   - stylecheck
   - unused
   - version
+- name: github.com/influxdata/influxdb
+  version: 01c8dd416270f424ab0c40f9291e269ac6921964
+  subpackages:
+  - models
 testImports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 98d31706395aaac22e29676617f2ee37bee55b5a

@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
@@ -47,6 +47,12 @@ spec:
           readOnly: false
         - mountPath: /grafana-dashboard-definitions/0/k8s-node-rsrc-use
           name: grafana-dashboard-k8s-node-rsrc-use
+          readOnly: false
+        - mountPath: /grafana-dashboard-definitions/0/m3db-node-details
+          name: grafana-dashboard-m3db-node-details
+          readOnly: false
+        - mountPath: /grafana-dashboard-definitions/0/promremotebench
+          name: grafana-dashboard-promremotebench
           readOnly: false
         - mountPath: /grafana-dashboard-definitions/0/k8s-resources-cluster
           name: grafana-dashboard-k8s-resources-cluster
@@ -105,6 +111,12 @@ spec:
       - configMap:
           name: grafana-dashboard-k8s-resources-pod
         name: grafana-dashboard-k8s-resources-pod
+      - configMap:
+          name: grafana-dashboard-m3db-node-details
+        name: grafana-dashboard-m3db-node-details
+      - configMap:
+          name: grafana-dashboard-promremotebench
+        name: grafana-dashboard-promremotebench
       - configMap:
           name: grafana-dashboard-k8s-resources-workload
         name: grafana-dashboard-k8s-resources-workload

@@ -3,8 +3,10 @@ services:
   m3comparator:
     expose:
       - "9000"
+      - "9001"
     ports:
       - "0.0.0.0:9000:9000"
+      - "0.0.0.0:9001:9001"
     networks:
       - backend
     image: "m3comparator:${REVISION}"

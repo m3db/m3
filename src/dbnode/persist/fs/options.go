@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 )
@@ -98,6 +99,7 @@ type options struct {
 	forceIndexSummariesMmapMemory        bool
 	forceBloomFilterMmapMemory           bool
 	mmapEnableHugePages                  bool
+	mmapReporter                         mmap.Reporter
 }
 
 // NewOptions creates a new set of fs options
@@ -106,7 +108,8 @@ func NewOptions() Options {
 		serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions())
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		pool.NewObjectPoolOptions())
 	tagDecoderPool.Init()
 	fstOptions := fst.NewOptions()
 
@@ -352,4 +355,14 @@ func (o *options) SetFSTOptions(value fst.Options) Options {
 
 func (o *options) FSTOptions() fst.Options {
 	return o.fstOptions
+}
+
+func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	opts := *o
+	opts.mmapReporter = mmapReporter
+	return &opts
+}
+
+func (o *options) MmapReporter() mmap.Reporter {
+	return o.mmapReporter
 }

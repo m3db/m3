@@ -29,14 +29,18 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -67,12 +71,30 @@ var (
 				SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 	testBlockOpts         = block.NewOptions()
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
-	testDefaultOpts       = NewOptions().
-				SetResultOptions(testDefaultResultOpts)
 )
 
 func newTestDefaultOpts(t *testing.T, ctrl *gomock.Controller) Options {
-	return testDefaultOpts.
+	idxOpts := index.NewOptions()
+	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
+		index.DocumentArrayPoolCapacity,
+		idxOpts.SegmentBuilderOptions(),
+		idxOpts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			FSTWriterOptions: &fst.WriterOptions{
+				// DisableRegistry is set to true to trade a larger FST size
+				// for a faster FST compaction since we want to reduce the end
+				// to end latency for time to first index a metric.
+				DisableRegistry: true,
+			},
+		})
+	require.NoError(t, err)
+	return NewOptions().
+		SetResultOptions(testDefaultResultOpts).
+		SetPersistManager(persist.NewMockManager(ctrl)).
+		SetAdminClient(client.NewMockAdminClient(ctrl)).
+		SetFilesystemOptions(fs.NewOptions()).
+		SetCompactor(compactor).
+		SetIndexOptions(idxOpts).
 		SetAdminClient(newValidMockClient(t, ctrl)).
 		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(t, ctrl))
 }
@@ -112,7 +134,7 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts.
+	opts := newTestDefaultOpts(t, ctrl).
 		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(t, ctrl))
 
 	src, err := newPeersSource(opts)
@@ -120,7 +142,7 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 
 	var (
 		nsMetadata = testNamespaceMetadata(t)
-		target     = result.ShardTimeRanges{}
+		target     = result.NewShardTimeRanges()
 		runOpts    = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
 	)
 	available, err := src.AvailableData(nsMetadata, target, runOpts)
@@ -147,17 +169,20 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(nil, expectedErr)
 
-	opts := testDefaultOpts.SetAdminClient(mockAdminClient)
+	opts := newTestDefaultOpts(t, ctrl).SetAdminClient(mockAdminClient)
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
 
-	target := result.ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	).Set(
+		1,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
 	defer tester.Finish()
@@ -172,7 +197,7 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts
+	opts := newTestDefaultOpts(t, ctrl)
 	nsMetadata := testNamespaceMetadata(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
@@ -206,9 +231,10 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
-	target := result.ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
 	defer tester.Finish()
@@ -236,7 +262,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 
 		testNsMd := testNamespaceMetadata(t)
 		resultOpts := testDefaultResultOpts.SetSeriesCachePolicy(cachePolicy)
-		opts := testDefaultOpts.SetResultOptions(resultOpts)
+		opts := newTestDefaultOpts(t, ctrl).SetResultOptions(resultOpts)
 		ropts := testNsMd.Options().RetentionOptions()
 		testNsMd.Options()
 		blockSize := ropts.BlockSize()
@@ -247,10 +273,10 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard0ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard0ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
-			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
+			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, 1, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
 		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()), ropts.BlockSize(),
-			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
+			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, 2, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
 		shard0ResultBlock1.AddBlock(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 		shard0ResultBlock2.AddBlock(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "rab")), barBlock)
@@ -258,7 +284,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard1ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		bazBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
-			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
+			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, 3, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
 		shard1ResultBlock1.AddBlock(ident.StringID("baz"), ident.NewTags(ident.StringTag("baz", "zab")), bazBlock)
 
@@ -396,10 +422,13 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		src, err := newPeersSource(opts)
 		require.NoError(t, err)
 
-		target := result.ShardTimeRanges{
-			0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-			1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		}
+		target := result.NewShardTimeRanges().Set(
+			0,
+			xtime.NewRanges(xtime.Range{Start: start, End: end}),
+		).Set(
+			1,
+			xtime.NewRanges(xtime.Range{Start: start, End: end}),
+		)
 
 		tester := bootstrap.BuildNamespacesTester(t, testRunOptsWithPersist, target, testNsMd)
 		defer tester.Finish()
@@ -422,8 +451,8 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts.
-		SetResultOptions(testDefaultOpts.
+	opts := newTestDefaultOpts(t, ctrl).
+		SetResultOptions(newTestDefaultOpts(t, ctrl).
 			ResultOptions().
 			SetSeriesCachePolicy(series.CacheRecentlyRead),
 		)
@@ -461,7 +490,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	addResult(0, "foo", fooBlocks[0], true)
 
 	fooBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, 1, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(0, "foo", fooBlocks[1], false)
 
@@ -480,31 +509,31 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	addResult(1, "bar", barBlocks[0], false)
 
 	barBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, 2, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(1, "bar", barBlocks[1], false)
 
 	// baz results
 	var bazBlocks [2]block.DatabaseBlock
 	bazBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, 3, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(2, "baz", bazBlocks[0], false)
 
 	bazBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, 4, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(2, "baz", bazBlocks[1], false)
 
 	// qux results
 	var quxBlocks [2]block.DatabaseBlock
 	quxBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{13, 14, 15}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{13, 14, 15}, nil), nil, 5, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(3, "qux", quxBlocks[0], false)
 
 	quxBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{16, 17, 18}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{16, 17, 18}, nil), nil, 6, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
 	addResult(3, "qux", quxBlocks[1], false)
 
@@ -711,35 +740,48 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
-	target := result.ShardTimeRanges{
-		0: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-		1: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-		2: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-		3: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+	).Set(
+		1,
+		xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+	).Set(
+		2,
+		xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+	).Set(
+		3,
+		xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+	)
 
 	tester := bootstrap.BuildNamespacesTester(t, testRunOptsWithPersist, target, testNsMd)
 	defer tester.Finish()
 	tester.TestReadWith(src)
 
-	expectedRanges := result.ShardTimeRanges{
-		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
-		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
-		2: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
-		3: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
-	}
+	expectedRanges := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	).Set(
+		1,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	).Set(
+		2,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	).Set(
+		3,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	)
 
-	expectedIndexRanges := result.ShardTimeRanges{
-		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: midway}),
-	}
+	// NB(bodu): There is no time series data written to disk so all ranges fail to be fulfilled.
+	expectedIndexRanges := target
 
 	tester.TestUnfulfilledForNamespace(testNsMd, expectedRanges, expectedIndexRanges)
 	assert.Equal(t, map[string]int{

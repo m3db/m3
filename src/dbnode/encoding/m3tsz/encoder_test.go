@@ -211,13 +211,13 @@ func TestEncodeNoAnnotation(t *testing.T) {
 
 	startTime := time.Unix(1427162462, 0)
 	inputs := []ts.Datapoint{
-		{startTime, 12},
-		{startTime.Add(time.Second * 60), 12},
-		{startTime.Add(time.Second * 120), 24},
-		{startTime.Add(-time.Second * 76), 24},
-		{startTime.Add(-time.Second * 16), 24},
-		{startTime.Add(time.Second * 2092), 15},
-		{startTime.Add(time.Second * 4200), 12},
+		{Timestamp: startTime, Value: 12},
+		{Timestamp: startTime.Add(time.Second * 60), Value: 12},
+		{Timestamp: startTime.Add(time.Second * 120), Value: 24},
+		{Timestamp: startTime.Add(-time.Second * 76), Value: 24},
+		{Timestamp: startTime.Add(-time.Second * 16), Value: 24},
+		{Timestamp: startTime.Add(time.Second * 2092), Value: 15},
+		{Timestamp: startTime.Add(time.Second * 4200), Value: 12},
 	}
 	for _, input := range inputs {
 		encoder.Encode(input, xtime.Second, nil)
@@ -254,13 +254,13 @@ func TestEncodeWithAnnotation(t *testing.T) {
 		dp  ts.Datapoint
 		ant ts.Annotation
 	}{
-		{ts.Datapoint{startTime, 12}, []byte{0xa}},
-		{ts.Datapoint{startTime.Add(time.Second * 60), 12}, []byte{0xa}},
-		{ts.Datapoint{startTime.Add(time.Second * 120), 24}, nil},
-		{ts.Datapoint{startTime.Add(-time.Second * 76), 24}, nil},
-		{ts.Datapoint{startTime.Add(-time.Second * 16), 24}, []byte{0x1, 0x2}},
-		{ts.Datapoint{startTime.Add(time.Second * 2092), 15}, nil},
-		{ts.Datapoint{startTime.Add(time.Second * 4200), 12}, nil},
+		{ts.Datapoint{Timestamp: startTime, Value: 12}, []byte{0xa}},
+		{ts.Datapoint{Timestamp: startTime.Add(time.Second * 60), Value: 12}, []byte{0xa}},
+		{ts.Datapoint{Timestamp: startTime.Add(time.Second * 120), Value: 24}, nil},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Second * 76), Value: 24}, nil},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Second * 16), Value: 24}, []byte{0x1, 0x2}},
+		{ts.Datapoint{Timestamp: startTime.Add(time.Second * 2092), Value: 15}, nil},
+		{ts.Datapoint{Timestamp: startTime.Add(time.Second * 4200), Value: 12}, nil},
 	}
 
 	for _, input := range inputs {
@@ -298,15 +298,15 @@ func TestEncodeWithTimeUnit(t *testing.T) {
 		dp ts.Datapoint
 		tu xtime.Unit
 	}{
-		{ts.Datapoint{startTime, 12}, xtime.Second},
-		{ts.Datapoint{startTime.Add(time.Second * 60), 12}, xtime.Second},
-		{ts.Datapoint{startTime.Add(time.Second * 120), 24}, xtime.Second},
-		{ts.Datapoint{startTime.Add(-time.Second * 76), 24}, xtime.Second},
-		{ts.Datapoint{startTime.Add(-time.Second * 16), 24}, xtime.Second},
-		{ts.Datapoint{startTime.Add(-time.Nanosecond * 15500000000), 15}, xtime.Nanosecond},
-		{ts.Datapoint{startTime.Add(-time.Millisecond * 1400), 12}, xtime.Millisecond},
-		{ts.Datapoint{startTime.Add(-time.Second * 10), 12}, xtime.Second},
-		{ts.Datapoint{startTime.Add(time.Second * 10), 12}, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime, Value: 12}, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(time.Second * 60), Value: 12}, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(time.Second * 120), Value: 24}, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Second * 76), Value: 24}, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Second * 16), Value: 24}, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Nanosecond * 15500000000), Value: 15}, xtime.Nanosecond},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Millisecond * 1400), Value: 12}, xtime.Millisecond},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Second * 10), Value: 12}, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(time.Second * 10), Value: 12}, xtime.Second},
 	}
 
 	for _, input := range inputs {
@@ -337,13 +337,13 @@ func TestEncodeWithAnnotationAndTimeUnit(t *testing.T) {
 		ant ts.Annotation
 		tu  xtime.Unit
 	}{
-		{ts.Datapoint{startTime, 12}, []byte{0xa}, xtime.Second},
-		{ts.Datapoint{startTime.Add(time.Second * 60), 12}, nil, xtime.Second},
-		{ts.Datapoint{startTime.Add(time.Second * 120), 24}, nil, xtime.Second},
-		{ts.Datapoint{startTime.Add(-time.Second * 76), 24}, []byte{0x1, 0x2}, xtime.Second},
-		{ts.Datapoint{startTime.Add(-time.Second * 16), 24}, nil, xtime.Millisecond},
-		{ts.Datapoint{startTime.Add(-time.Millisecond * 15500), 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
-		{ts.Datapoint{startTime.Add(-time.Millisecond * 14000), 12}, nil, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime, Value: 12}, []byte{0xa}, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(time.Second * 60), Value: 12}, nil, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(time.Second * 120), Value: 24}, nil, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Second * 76), Value: 24}, []byte{0x1, 0x2}, xtime.Second},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Second * 16), Value: 24}, nil, xtime.Millisecond},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Millisecond * 15500), Value: 15}, []byte{0x3, 0x4, 0x5}, xtime.Millisecond},
+		{ts.Datapoint{Timestamp: startTime.Add(-time.Millisecond * 14000), Value: 12}, nil, xtime.Second},
 	}
 
 	for _, input := range inputs {
@@ -374,7 +374,7 @@ func TestInitTimeUnit(t *testing.T) {
 		{time.Unix(1, 1000), xtime.Unit(9), xtime.None},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expected, initialTimeUnit(input.start, input.tu))
+		require.Equal(t, input.expected, initialTimeUnit(xtime.ToUnixNano(input.start), input.tu))
 	}
 }
 
@@ -389,7 +389,7 @@ func TestEncoderResets(t *testing.T) {
 	_, ok := enc.Stream(ctx)
 	require.False(t, ok)
 
-	enc.Encode(ts.Datapoint{testStartTime, 12}, xtime.Second, nil)
+	enc.Encode(ts.Datapoint{Timestamp: testStartTime, Value: 12}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
 
 	now := time.Now()
@@ -400,7 +400,7 @@ func TestEncoderResets(t *testing.T) {
 	b, _ := enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b)
 
-	enc.Encode(ts.Datapoint{now, 13}, xtime.Second, nil)
+	enc.Encode(ts.Datapoint{Timestamp: now, Value: 13}, xtime.Second, nil)
 	require.True(t, enc.os.Len() > 0)
 
 	enc.DiscardReset(now, 0, nil)

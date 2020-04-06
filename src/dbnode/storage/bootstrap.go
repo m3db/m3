@@ -82,6 +82,8 @@ type bootstrapManager struct {
 	state                       BootstrapState
 	hasPending                  bool
 	status                      tally.Gauge
+	bootstrapDuration           tally.Timer
+	durableStatus               tally.Gauge
 	lastBootstrapCompletionTime time.Time
 }
 
@@ -92,14 +94,16 @@ func newBootstrapManager(
 ) databaseBootstrapManager {
 	scope := opts.InstrumentOptions().MetricsScope()
 	m := &bootstrapManager{
-		database:        database,
-		mediator:        mediator,
-		opts:            opts,
-		log:             opts.InstrumentOptions().Logger(),
-		nowFn:           opts.ClockOptions().NowFn(),
-		sleepFn:         time.Sleep,
-		processProvider: opts.BootstrapProcessProvider(),
-		status:          scope.Gauge("bootstrapped"),
+		database:          database,
+		mediator:          mediator,
+		opts:              opts,
+		log:               opts.InstrumentOptions().Logger(),
+		nowFn:             opts.ClockOptions().NowFn(),
+		sleepFn:           time.Sleep,
+		processProvider:   opts.BootstrapProcessProvider(),
+		status:            scope.Gauge("bootstrapped"),
+		bootstrapDuration: scope.Timer("bootstrap-duration"),
+		durableStatus:     scope.Gauge("bootstrapped-durable"),
 	}
 	m.bootstrapFn = m.bootstrap
 	return m
@@ -197,6 +201,17 @@ func (m *bootstrapManager) Report() {
 	} else {
 		m.status.Update(0)
 	}
+
+	if m.database.IsBootstrappedAndDurable() {
+		m.durableStatus.Update(1)
+	} else {
+		m.durableStatus.Update(0)
+	}
+}
+
+type bootstrapNamespace struct {
+	namespace databaseNamespace
+	shards    []databaseShard
 }
 
 func (m *bootstrapManager) bootstrap() error {
@@ -228,16 +243,55 @@ func (m *bootstrapManager) bootstrap() error {
 		}
 	}()
 
-	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
+	start := m.nowFn()
+	m.log.Info("bootstrap prepare")
+
+	var (
+		bootstrapNamespaces = make([]bootstrapNamespace, len(namespaces))
+		prepareWg           sync.WaitGroup
+		prepareLock         sync.Mutex
+		prepareMultiErr     xerrors.MultiError
+	)
+	for i, namespace := range namespaces {
+		i, namespace := i, namespace
+		prepareWg.Add(1)
+		go func() {
+			shards, err := namespace.PrepareBootstrap()
+
+			prepareLock.Lock()
+			defer func() {
+				prepareLock.Unlock()
+				prepareWg.Done()
+			}()
+
+			if err != nil {
+				prepareMultiErr = prepareMultiErr.Add(err)
+				return
+			}
+
+			bootstrapNamespaces[i] = bootstrapNamespace{
+				namespace: namespace,
+				shards:    shards,
+			}
+		}()
+	}
+
+	prepareWg.Wait()
+
+	if err := prepareMultiErr.FinalError(); err != nil {
+		m.log.Error("bootstrap prepare failed", zap.Error(err))
+		return err
+	}
+
 	var uniqueShards map[uint32]struct{}
-	for _, namespace := range namespaces {
-		namespaceShards := namespace.GetOwnedShards()
-		bootstrapShards := make([]uint32, 0, len(namespaceShards))
+	targets := make([]bootstrap.ProcessNamespace, 0, len(namespaces))
+	for _, ns := range bootstrapNamespaces {
+		bootstrapShards := make([]uint32, 0, len(ns.shards))
 		if uniqueShards == nil {
-			uniqueShards = make(map[uint32]struct{}, len(namespaceShards))
+			uniqueShards = make(map[uint32]struct{}, len(ns.shards))
 		}
 
-		for _, shard := range namespaceShards {
+		for _, shard := range ns.shards {
 			if shard.IsBootstrapped() {
 				continue
 			}
@@ -246,17 +300,38 @@ func (m *bootstrapManager) bootstrap() error {
 			bootstrapShards = append(bootstrapShards, shard.ID())
 		}
 
-		accumulator := NewDatabaseNamespaceDataAccumulator(namespace)
+		// Add hooks so that each bootstrapper when it interacts
+		// with the namespace and shards during data accumulation
+		// gets an up to date view of all the file volumes that
+		// actually exist on disk (since bootstrappers can write
+		// new blocks to disk).
+		hooks := bootstrap.NewNamespaceHooks(bootstrap.NamespaceHooksOptions{
+			BootstrapSourceEnd: func() error {
+				var wg sync.WaitGroup
+				for _, shard := range ns.shards {
+					shard := shard
+					wg.Add(1)
+					go func() {
+						shard.UpdateFlushStates()
+						wg.Done()
+					}()
+				}
+				wg.Wait()
+				return nil
+			},
+		})
+
+		accumulator := NewDatabaseNamespaceDataAccumulator(ns.namespace)
 		accmulators = append(accmulators, accumulator)
 
 		targets = append(targets, bootstrap.ProcessNamespace{
-			Metadata:        namespace.Metadata(),
+			Metadata:        ns.namespace.Metadata(),
 			Shards:          bootstrapShards,
+			Hooks:           hooks,
 			DataAccumulator: accumulator,
 		})
 	}
 
-	start := m.nowFn()
 	logFields := []zapcore.Field{
 		zap.Int("numShards", len(uniqueShards)),
 	}
@@ -265,8 +340,10 @@ func (m *bootstrapManager) bootstrap() error {
 	// Run the bootstrap.
 	bootstrapResult, err := process.Run(start, targets)
 
+	bootstrapDuration := m.nowFn().Sub(start)
+	m.bootstrapDuration.Record(bootstrapDuration)
 	logFields = append(logFields,
-		zap.Duration("bootstrapDuration", m.nowFn().Sub(start)))
+		zap.Duration("bootstrapDuration", bootstrapDuration))
 
 	if err != nil {
 		m.log.Error("bootstrap failed",
@@ -293,13 +370,10 @@ func (m *bootstrapManager) bootstrap() error {
 		}
 
 		if err := namespace.Bootstrap(result); err != nil {
-			m.log.Info("bootstrap error", append(logFields,
-				[]zapcore.Field{
-					zap.String("namespace", id.String()),
-					zap.Error(err),
-				}...,
-			)...,
-			)
+			m.log.Info("bootstrap error", append(logFields, []zapcore.Field{
+				zap.String("namespace", id.String()),
+				zap.Error(err),
+			}...)...)
 			multiErr = multiErr.Add(err)
 		}
 	}

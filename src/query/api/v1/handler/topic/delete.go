@@ -26,6 +26,7 @@ import (
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -45,12 +46,12 @@ const (
 // DeleteHandler is the handler for topic adds.
 type DeleteHandler Handler
 
-// NewDeleteHandler returns a new instance of DeleteHandler.
-func NewDeleteHandler(
+// newDeleteHandler returns a new instance of DeleteHandler.
+func newDeleteHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) *DeleteHandler {
+) http.Handler {
 	return &DeleteHandler{
 		client:         client,
 		cfg:            cfg,
@@ -65,7 +66,9 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger = logging.WithContext(ctx, h.instrumentOpts)
 	)
 
-	service, err := h.serviceFn(h.client)
+	serviceCfg := handleroptions.ServiceNameAndDefaults{}
+	svcOpts := handleroptions.NewServiceOptions(serviceCfg, r.Header, nil)
+	service, err := h.serviceFn(h.client, svcOpts)
 	if err != nil {
 		logger.Error("unable to get service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)

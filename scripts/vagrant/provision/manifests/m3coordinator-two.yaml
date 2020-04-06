@@ -79,6 +79,25 @@ spec:
   type: ClusterIP
 
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: m3coordinator
+  name: m3coordinator-dedicated-test-cluster-node-local
+  namespace: default
+spec:
+  ports:
+  - name: coordinator
+    port: 7201
+    protocol: TCP
+    targetPort: 7201
+    nodePort: 30000
+  selector:
+    app: m3coordinator
+  type: NodePort
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

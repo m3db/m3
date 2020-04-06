@@ -92,11 +92,14 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
 		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
+	storageIdxOpts := setup.storageOpts.IndexOptions()
 	bfsOpts := bfs.NewOptions().
 		SetResultOptions(bsOpts).
+		SetIndexOptions(storageIdxOpts).
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(blockRetrieverMgr).
-		SetPersistManager(persistMgr)
+		SetPersistManager(persistMgr).
+		SetCompactor(newCompactor(t, storageIdxOpts))
 	bs, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().

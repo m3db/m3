@@ -88,17 +88,21 @@ func (m *leaseManager) OpenLease(
 ) error {
 	// NB(r): Take exclusive lock so that upgrade leases can't be called
 	// while we are verifying a lease (racey)
+	// NB(bodu): We don't use defer here since the lease verifier takes out a
+	// a db lock when retrieving flush states resulting in a potential deadlock.
 	m.Lock()
-	defer m.Unlock()
 
 	if m.verifier == nil {
+		m.Unlock()
 		return errOpenLeaseVerifierNotSet
 	}
 
 	if !m.isRegistered(leaser) {
+		m.Unlock()
 		return errLeaserNotRegistered
 	}
 
+	m.Unlock()
 	return m.verifier.VerifyLease(descriptor, state)
 }
 
@@ -108,17 +112,21 @@ func (m *leaseManager) OpenLatestLease(
 ) (LeaseState, error) {
 	// NB(r): Take exclusive lock so that upgrade leases can't be called
 	// while we are verifying a lease (racey)
+	// NB(bodu): We don't use defer here since the lease verifier takes out a
+	// a db lock when retrieving flush states resulting in a potential deadlock.
 	m.Lock()
-	defer m.Unlock()
 
 	if m.verifier == nil {
+		m.Unlock()
 		return LeaseState{}, errOpenLeaseVerifierNotSet
 	}
 
 	if !m.isRegistered(leaser) {
+		m.Unlock()
 		return LeaseState{}, errLeaserNotRegistered
 	}
 
+	m.Unlock()
 	return m.verifier.LatestState(descriptor)
 }
 

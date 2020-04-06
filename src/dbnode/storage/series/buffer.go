@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -137,7 +136,13 @@ type databaseBuffer interface {
 
 	Load(bl block.DatabaseBlock, writeType WriteType)
 
-	Reset(id ident.ID, opts Options)
+	Reset(opts databaseBufferResetOptions)
+}
+
+type databaseBufferResetOptions struct {
+	ID             ident.ID
+	BlockRetriever QueryableBlockRetriever
+	Options        Options
 }
 
 type bufferStats struct {
@@ -223,13 +228,7 @@ type dbBuffer struct {
 	inOrderBlockStarts []time.Time
 	bucketVersionsPool *BufferBucketVersionsPool
 	bucketPool         *BufferBucketPool
-
-	blockSize             time.Duration
-	bufferPast            time.Duration
-	bufferFuture          time.Duration
-	coldWritesEnabled     bool
-	retentionPeriod       time.Duration
-	futureRetentionPeriod time.Duration
+	blockRetriever     QueryableBlockRetriever
 }
 
 // NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
@@ -242,19 +241,13 @@ func newDatabaseBuffer() databaseBuffer {
 	return b
 }
 
-func (b *dbBuffer) Reset(id ident.ID, opts Options) {
-	b.id = id
-	b.opts = opts
-	b.nowFn = opts.ClockOptions().NowFn()
-	ropts := opts.RetentionOptions()
-	b.bucketPool = opts.BufferBucketPool()
-	b.bucketVersionsPool = opts.BufferBucketVersionsPool()
-	b.blockSize = ropts.BlockSize()
-	b.bufferPast = ropts.BufferPast()
-	b.bufferFuture = ropts.BufferFuture()
-	b.coldWritesEnabled = opts.ColdWritesEnabled()
-	b.retentionPeriod = ropts.RetentionPeriod()
-	b.futureRetentionPeriod = ropts.FutureRetentionPeriod()
+func (b *dbBuffer) Reset(opts databaseBufferResetOptions) {
+	b.id = opts.ID
+	b.opts = opts.Options
+	b.nowFn = opts.Options.ClockOptions().NowFn()
+	b.bucketPool = opts.Options.BufferBucketPool()
+	b.bucketVersionsPool = opts.Options.BufferBucketVersionsPool()
+	b.blockRetriever = opts.BlockRetriever
 }
 
 func (b *dbBuffer) Write(
@@ -266,20 +259,34 @@ func (b *dbBuffer) Write(
 	wOpts WriteOptions,
 ) (bool, error) {
 	var (
-		now         = b.nowFn()
-		pastLimit   = now.Add(-1 * b.bufferPast)
-		futureLimit = now.Add(b.bufferFuture)
-		writeType   WriteType
+		ropts        = b.opts.RetentionOptions()
+		bufferPast   = ropts.BufferPast()
+		bufferFuture = ropts.BufferFuture()
+		now          = b.nowFn()
+		pastLimit    = now.Add(-1 * bufferPast)
+		futureLimit  = now.Add(bufferFuture)
+		blockSize    = ropts.BlockSize()
+		blockStart   = timestamp.Truncate(blockSize)
+		writeType    WriteType
 	)
 	switch {
 	case wOpts.BootstrapWrite:
-		writeType = WarmWrite
-		// Bootstrap writes are always warm writes.
-		// TODO(r): Validate that the block doesn't reside on disk by asking
-		// the shard for it's bootstrap flush states.
+		exists, err := b.blockRetriever.IsBlockRetrievable(blockStart)
+		if err != nil {
+			return false, err
+		}
+		// Bootstrap writes are allowed to be outside of time boundaries
+		// and determined as cold or warm writes depending on whether
+		// the block is retrievable or not.
+		if !exists {
+			writeType = WarmWrite
+		} else {
+			writeType = ColdWrite
+		}
+
 	case !pastLimit.Before(timestamp):
 		writeType = ColdWrite
-		if !b.coldWritesEnabled {
+		if !b.opts.ColdWritesEnabled() {
 			return false, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in past: "+
 					"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
@@ -289,9 +296,10 @@ func (b *dbBuffer) Write(
 					pastLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), pastLimit.UnixNano()))
 		}
+
 	case !futureLimit.After(timestamp):
 		writeType = ColdWrite
-		if !b.coldWritesEnabled {
+		if !b.opts.ColdWritesEnabled() {
 			return false, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in future: "+
 					"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
@@ -301,23 +309,40 @@ func (b *dbBuffer) Write(
 					futureLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), futureLimit.UnixNano()))
 		}
+
 	default:
 		writeType = WarmWrite
+
 	}
 
 	if writeType == ColdWrite {
-		if now.Add(-b.retentionPeriod).After(timestamp) {
+		retentionLimit := now.Add(-ropts.RetentionPeriod())
+		if wOpts.BootstrapWrite {
+			// NB(r): Allow bootstrapping to write to blocks that are
+			// still in retention.
+			retentionLimit = retentionLimit.Truncate(blockSize)
+		}
+		if retentionLimit.After(timestamp) {
+			if wOpts.SkipOutOfRetention {
+				// Allow for datapoint to be skipped since caller does not
+				// want writes out of retention to fail.
+				return false, nil
+			}
 			return false, m3dberrors.ErrTooPast
 		}
 
-		if !now.Add(b.futureRetentionPeriod).Add(b.blockSize).After(timestamp) {
+		if !now.Add(ropts.FutureRetentionPeriod()).Add(blockSize).After(timestamp) {
+			if wOpts.SkipOutOfRetention {
+				// Allow for datapoint to be skipped since caller does not
+				// want writes out of retention to fail.
+				return false, nil
+			}
 			return false, m3dberrors.ErrTooFuture
 		}
 
 		b.opts.Stats().IncColdWrites()
 	}
 
-	blockStart := timestamp.Truncate(b.blockSize)
 	buckets := b.bucketVersionsAtCreate(blockStart)
 	b.putBucketVersionsInCache(buckets)
 
@@ -437,9 +462,6 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 }
 
 func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
-	// TODO(r): If warm write then validate that the block doesn't reside on
-	// disk by asking the shard for its bootstrap flush states and verifying
-	// that the block does not exist yet.
 	var (
 		blockStart = bl.StartTime()
 		buckets    = b.bucketVersionsAtCreate(blockStart)
@@ -519,7 +541,7 @@ func (b *dbBuffer) Snapshot(
 		return nil
 	}
 
-	checksum := digest.SegmentChecksum(segment)
+	checksum := segment.CalculateChecksum()
 	return persistFn(id, tags, segment, checksum)
 }
 
@@ -580,7 +602,7 @@ func (b *dbBuffer) WarmFlush(
 		return FlushOutcomeBlockDoesNotExist, nil
 	}
 
-	checksum := digest.SegmentChecksum(segment)
+	checksum := segment.CalculateChecksum()
 	err = persistFn(id, tags, segment, checksum)
 	if err != nil {
 		return FlushOutcomeErr, err
@@ -601,11 +623,14 @@ func (b *dbBuffer) ReadEncoded(
 	end time.Time,
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
-	// TODO(r): pool these results arrays
-	var res [][]xio.BlockReader
+	var (
+		blockSize = b.opts.RetentionOptions().BlockSize()
+		// TODO(r): pool these results arrays
+		res [][]xio.BlockReader
+	)
 
 	for _, blockStart := range b.inOrderBlockStarts {
-		if !blockStart.Before(end) || !start.Before(blockStart.Add(b.blockSize)) {
+		if !blockStart.Before(end) || !start.Before(blockStart.Add(blockSize)) {
 			continue
 		}
 
@@ -665,10 +690,19 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 		return nil, fmt.Errorf("buckets do not exist with block start %s", start)
 	}
 	if bucket, exists := buckets.writableBucket(ColdWrite); exists {
+		// Update the version of the writable bucket (effectively making it not
+		// writable). This marks this bucket as attempted to be flushed,
+		// although it is only actually written to disk successfully at the
+		// shard level after every series has completed the flush process.
+		// The tick following a successful flush to disk will remove this bucket
+		// from memory.
 		bucket.version = version
-	} else {
-		return nil, fmt.Errorf("writable bucket does not exist with block start %s", start)
 	}
+	// No-op if the writable bucket doesn't exist.
+	// This function should only get called for blocks that we know need to be
+	// cold flushed. However, buckets that get attempted to be cold flushed and
+	// fail need to get cold flushed as well. These kinds of buckets will have
+	// a non-writable version.
 
 	return blocks, nil
 }
@@ -1094,8 +1128,9 @@ func (b *BufferBucket) write(
 	schema namespace.SchemaDescr,
 ) (bool, error) {
 	datapoint := ts.Datapoint{
-		Timestamp: timestamp,
-		Value:     value,
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
 	}
 
 	// Find the correct encoder to write to
@@ -1227,7 +1262,7 @@ func (b *BufferBucket) checksumIfSingleStream(ctx context.Context) (*uint32, err
 			return nil, nil
 		}
 
-		checksum := digest.SegmentChecksum(segment)
+		checksum := segment.CalculateChecksum()
 		return &checksum, nil
 	}
 

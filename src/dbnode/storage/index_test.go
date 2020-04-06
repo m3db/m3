@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -143,13 +144,14 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 		BlockStart:        blockTime,
 		FileSetType:       persist.FileSetFlushType,
 		Shards:            map[uint32]struct{}{0: struct{}{}},
+		IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
 	})).Return(preparedPersist, nil)
 
 	results := block.NewMockFetchBlocksMetadataResults(ctrl)
 	results.EXPECT().Results().Return(nil)
 	results.EXPECT().Close()
 	mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results, nil, nil)
+		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
 
 	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 	mockBlock.EXPECT().EvictMutableSegments().Return(nil)
@@ -251,25 +253,26 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 		BlockStart:        blockTime,
 		FileSetType:       persist.FileSetFlushType,
 		Shards:            map[uint32]struct{}{0: struct{}{}, 1: struct{}{}},
+		IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
 	})).Return(preparedPersist, nil)
 
 	results1 := block.NewMockFetchBlocksMetadataResults(ctrl)
 	results1.EXPECT().Results().Return(nil)
 	results1.EXPECT().Close()
 	mockShard1.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results1, nil, nil)
+		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results1, nil, nil)
 
 	results2 := block.NewMockFetchBlocksMetadataResults(ctrl)
 	results2.EXPECT().Results().Return(nil)
 	results2.EXPECT().Close()
 	mockShard2.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results2, nil, nil)
+		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results2, nil, nil)
 
 	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 	mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 
 	require.NoError(t, idx.Flush(mockFlush, shards))
-	require.Equal(t, 2, numPersistCalls)
+	require.Equal(t, 1, numPersistCalls)
 	require.True(t, persistClosed)
 }
 

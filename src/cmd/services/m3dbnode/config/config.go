@@ -38,9 +38,9 @@ import (
 	xlog "github.com/m3db/m3/src/x/log"
 	"github.com/m3db/m3/src/x/opentracing"
 
-	"github.com/coreos/etcd/embed"
-	"github.com/coreos/etcd/pkg/transport"
-	"github.com/coreos/etcd/pkg/types"
+	"go.etcd.io/etcd/embed"
+	"go.etcd.io/etcd/pkg/transport"
+	"go.etcd.io/etcd/pkg/types"
 )
 
 const (
@@ -157,6 +157,9 @@ type DBConfiguration struct {
 	// Limits contains configuration for limits that can be applied to M3DB for the purposes
 	// of applying back-pressure or protecting the db nodes.
 	Limits Limits `yaml:"limits"`
+
+	// TChannel exposes TChannel config options.
+	TChannel *TChannelConfiguration `yaml:"tchannel"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the Configuration.
@@ -475,7 +478,7 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	newKVCfg.InitialCluster = initialClusterString(kvCfg.InitialCluster)
 
 	copySecurityDetails := func(tls *transport.TLSInfo, ysc *environment.SeedNodeSecurityConfig) {
-		tls.CAFile = ysc.CAFile
+		tls.TrustedCAFile = ysc.CAFile
 		tls.CertFile = ysc.CertFile
 		tls.KeyFile = ysc.KeyFile
 		tls.ClientCertAuth = ysc.CertAuth
@@ -572,4 +575,10 @@ func IsSeedNode(initialCluster []environment.SeedNode, hostID string) bool {
 	}
 
 	return false
+}
+
+// TChannelConfiguration holds TChannel config options.
+type TChannelConfiguration struct {
+	MaxIdleTime       time.Duration `yaml:"maxIdleTime"`
+	IdleCheckInterval time.Duration `yaml:"idleCheckInterval"`
 }

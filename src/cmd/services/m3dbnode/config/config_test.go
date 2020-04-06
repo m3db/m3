@@ -375,6 +375,7 @@ func TestConfiguration(t *testing.T) {
     value: host1
     envVarName: null
     file: null
+    hostname: null
   client:
     config: null
     writeConsistencyLevel: 2
@@ -397,6 +398,7 @@ func TestConfiguration(t *testing.T) {
       maxRetries: 3
       forever: null
       jitter: true
+    logErrorSampleRate: 0
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
@@ -680,10 +682,40 @@ func TestConfiguration(t *testing.T) {
       headers: null
       baggage_restrictions: null
       throttler: null
+    lightstep:
+      access_token: ""
+      collector:
+        scheme: ""
+        host: ""
+        port: 0
+        plaintext: false
+        custom_ca_cert_file: ""
+      tags: {}
+      lightstep_api:
+        scheme: ""
+        host: ""
+        port: 0
+        plaintext: false
+        custom_ca_cert_file: ""
+      max_buffered_spans: 0
+      max_log_key_len: 0
+      max_log_value_len: 0
+      max_logs_per_span: 0
+      grpc_max_call_send_msg_size_bytes: 0
+      reporting_period: 0s
+      min_reporting_period: 0s
+      report_timeout: 0s
+      drop_span_logs: false
+      verbose: false
+      use_http: false
+      usegrpc: false
+      reconnect_period: 0s
+      meta_event_reporting_enabled: false
   limits:
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
+  tchannel: null
 coordinator: null
 `
 

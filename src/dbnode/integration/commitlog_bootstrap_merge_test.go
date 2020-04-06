@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -34,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/require"
@@ -133,11 +133,14 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	// fs bootstrapper
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
+	storageIdxOpts := setup.storageOpts.IndexOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
+		SetIndexOptions(storageIdxOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
-		SetPersistManager(persistMgr)
+		SetPersistManager(persistMgr).
+		SetCompactor(newCompactor(t, storageIdxOpts))
 	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 	require.NoError(t, err)
 	// bootstrapper storage opts

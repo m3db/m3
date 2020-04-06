@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -338,6 +339,11 @@ type databaseNamespace interface {
 		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
+	// PrepareBootstrap prepares the namespace for bootstrapping by ensuring
+	// it's shards know which flushed files reside on disk, so that calls
+	// to series.LoadBlock(...) will succeed.
+	PrepareBootstrap() ([]databaseShard, error)
+
 	// Bootstrap marks shards as bootstrapped for the namespace.
 	Bootstrap(bootstrapResult bootstrap.NamespaceResult) error
 
@@ -382,7 +388,7 @@ type databaseNamespace interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (SeriesReadWriteRef, error)
+	) (result SeriesReadWriteRef, owned bool, err error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -488,9 +494,17 @@ type databaseShard interface {
 		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
+	// PrepareBootstrap prepares the shard for bootstrapping by ensuring
+	// it knows which flushed files reside on disk.
+	PrepareBootstrap() error
+
 	// Bootstrap bootstraps the shard after all provided data
 	// has been loaded using LoadBootstrapBlocks.
 	Bootstrap() error
+
+	// UpdateFlushStates updates all the flush states for the current shard
+	// by checking the file volumes that exist on disk at a point in time.
+	UpdateFlushStates()
 
 	// LoadBlocks does the same thing as LoadBootstrapBlocks,
 	// except it can be called more than once and after a shard is
@@ -783,6 +797,9 @@ type databaseMediator interface {
 	// Tick performs a tick.
 	Tick(forceType forceType, startTime time.Time) error
 
+	// WaitForFileSystemProcesses waits for any ongoing fs processes to finish.
+	WaitForFileSystemProcesses()
+
 	// Repair repairs the database.
 	Repair() error
 
@@ -1039,6 +1056,12 @@ type Options interface {
 
 	// MemoryTracker returns the MemoryTracker.
 	MemoryTracker() MemoryTracker
+
+	// SetMmapReporter sets the mmap reporter.
+	SetMmapReporter(mmapReporter mmap.Reporter) Options
+
+	// MmapReporter returns the mmap reporter.
+	MmapReporter() mmap.Reporter
 }
 
 // MemoryTracker tracks memory.

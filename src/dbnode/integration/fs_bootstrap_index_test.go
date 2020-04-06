@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -34,8 +35,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
@@ -70,14 +72,31 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
 
+	storageIdxOpts := setup.storageOpts.IndexOptions()
+	compactor, err := compaction.NewCompactor(storageIdxOpts.DocumentArrayPool(),
+		index.DocumentArrayPoolCapacity,
+		storageIdxOpts.SegmentBuilderOptions(),
+		storageIdxOpts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			FSTWriterOptions: &fst.WriterOptions{
+				// DisableRegistry is set to true to trade a larger FST size
+				// for a faster FST compaction since we want to reduce the end
+				// to end latency for time to first index a metric.
+				DisableRegistry: true,
+			},
+		})
+	require.NoError(t, err)
+
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
 		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
+		SetIndexOptions(storageIdxOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
-		SetPersistManager(persistMgr)
+		SetPersistManager(persistMgr).
+		SetCompactor(compactor)
 	bs, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
@@ -164,28 +183,28 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err := session.FetchTaggedIDs(ns1.ID(),
+	iter, fetchResponse, err := session.FetchTaggedIDs(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
+		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:    []generate.Series{fooSeries, barSeries},
+		expected:   []generate.Series{fooSeries, barSeries},
 	})
 
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
+	iter, fetchResponse, err = session.FetchTaggedIDs(ns1.ID(),
 		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
+		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:    []generate.Series{barSeries, bazSeries},
+		expected:   []generate.Series{barSeries, bazSeries},
 	})
 }

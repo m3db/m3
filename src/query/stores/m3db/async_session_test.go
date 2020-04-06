@@ -96,9 +96,9 @@ func TestAsyncSessionUninitialized(t *testing.T) {
 	}, nil)
 	require.NotNil(t, asyncSession)
 
-	results, exhaustive, err := asyncSession.FetchTagged(namespace, index.Query{}, index.QueryOptions{})
+	results, meta, err := asyncSession.FetchTagged(namespace, index.Query{}, index.QueryOptions{})
 	assert.Nil(t, results)
-	assert.Equal(t, false, exhaustive)
+	assert.False(t, meta.Exhaustive)
 	assert.Equal(t, err, errSessionUninitialized)
 
 	_, _, err = asyncSession.FetchTaggedIDs(namespace, index.Query{}, index.QueryOptions{})
@@ -147,15 +147,15 @@ func TestAsyncSessionInitialized(t *testing.T) {
 	_, err = asyncSession.FetchIDs(nil, nil, time.Now(), time.Now())
 	assert.NoError(t, err)
 
-	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, nil)
+	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, nil)
 	_, _, err = asyncSession.FetchTagged(namespace, index.Query{}, index.QueryOptions{})
 	assert.NoError(t, err)
 
-	mockSession.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, nil)
+	mockSession.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, nil)
 	_, _, err = asyncSession.FetchTaggedIDs(namespace, index.Query{}, index.QueryOptions{})
 	assert.NoError(t, err)
 
-	mockSession.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, nil)
+	mockSession.EXPECT().Aggregate(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, nil)
 	_, _, err = asyncSession.Aggregate(namespace, index.Query{}, index.AggregationOptions{})
 	assert.NoError(t, err)
 

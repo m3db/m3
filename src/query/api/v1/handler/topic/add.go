@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -46,12 +47,12 @@ const (
 // AddHandler is the handler for topic adds.
 type AddHandler Handler
 
-// NewAddHandler returns a new instance of AddHandler.
-func NewAddHandler(
+// newAddHandler returns a new instance of AddHandler.
+func newAddHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) *AddHandler {
+) http.Handler {
 	return &AddHandler{
 		client:         client,
 		cfg:            cfg,
@@ -73,7 +74,9 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	service, err := h.serviceFn(h.client)
+	serviceCfg := handleroptions.ServiceNameAndDefaults{}
+	svcOpts := handleroptions.NewServiceOptions(serviceCfg, r.Header, nil)
+	service, err := h.serviceFn(h.client, svcOpts)
 	if err != nil {
 		logger.Error("unable to get service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)

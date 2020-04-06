@@ -27,7 +27,6 @@ import (
 	"math"
 	"sort"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -62,7 +61,7 @@ var _ NamespaceDataAccumulator = (*TestDataAccumulator)(nil)
 type TestDataAccumulator struct {
 	sync.Mutex
 
-	t              *testing.T
+	t              require.TestingT
 	ctrl           *gomock.Controller
 	ns             string
 	pool           encoding.MultiReaderIteratorPool
@@ -187,7 +186,7 @@ func (a *TestDataAccumulator) CheckoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (CheckoutSeriesResult, error) {
+) (CheckoutSeriesResult, bool, error) {
 	a.Lock()
 	defer a.Unlock()
 	return a.checkoutSeriesWithLock(shardID, id, tags)
@@ -200,7 +199,7 @@ func (a *TestDataAccumulator) CheckoutSeriesWithoutLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (CheckoutSeriesResult, error) {
+) (CheckoutSeriesResult, bool, error) {
 	return a.checkoutSeriesWithLock(shardID, id, tags)
 }
 
@@ -208,7 +207,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	shardID uint32,
 	id ident.ID,
 	tags ident.TagIterator,
-) (CheckoutSeriesResult, error) {
+) (CheckoutSeriesResult, bool, error) {
 	var decodedTags map[string]string
 	if tags != nil {
 		decodedTags = make(map[string]string, tags.Len())
@@ -222,7 +221,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 		}
 
 		if err := tags.Err(); err != nil {
-			return CheckoutSeriesResult{}, err
+			return CheckoutSeriesResult{}, false, err
 		}
 	} else {
 		// Ensure the decoded tags aren't nil.
@@ -231,7 +230,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 
 	stringID := id.String()
 	if result, found := a.results[stringID]; found {
-		return result, nil
+		return result, true, nil
 	}
 
 	var streamErr error
@@ -287,7 +286,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 	}
 
 	a.results[stringID] = result
-	return result, streamErr
+	return result, true, streamErr
 }
 
 // Release is a no-op on the test accumulator.
@@ -298,7 +297,7 @@ func (a *TestDataAccumulator) Close() error { return nil }
 
 // NamespacesTester is a utility to assist testing bootstrapping.
 type NamespacesTester struct {
-	t    *testing.T
+	t    require.TestingT
 	ctrl *gomock.Controller
 	pool encoding.MultiReaderIteratorPool
 
@@ -325,7 +324,7 @@ func buildDefaultIterPool() encoding.MultiReaderIteratorPool {
 
 // BuildNamespacesTester builds a NamespacesTester.
 func BuildNamespacesTester(
-	t *testing.T,
+	t require.TestingT,
 	runOpts RunOptions,
 	ranges result.ShardTimeRanges,
 	mds ...namespace.Metadata,
@@ -342,14 +341,14 @@ func BuildNamespacesTester(
 // BuildNamespacesTesterWithReaderIteratorPool builds a NamespacesTester with a
 // given MultiReaderIteratorPool.
 func BuildNamespacesTesterWithReaderIteratorPool(
-	t *testing.T,
+	t require.TestingT,
 	runOpts RunOptions,
 	ranges result.ShardTimeRanges,
 	iterPool encoding.MultiReaderIteratorPool,
 	mds ...namespace.Metadata,
 ) NamespacesTester {
-	shards := make([]uint32, 0, len(ranges))
-	for shard := range ranges {
+	shards := make([]uint32, 0, ranges.Len())
+	for shard := range ranges.Iter() {
 		shards = append(shards, shard)
 	}
 
@@ -552,14 +551,16 @@ func (nt *NamespacesTester) TestReadWith(s Source) {
 
 func validateRanges(ac xtime.Ranges, ex xtime.Ranges) error {
 	// Make range eclipses expected.
-	removedRange := ex.RemoveRanges(ac)
+	removedRange := ex.Clone()
+	removedRange.RemoveRanges(ac)
 	if !removedRange.IsEmpty() {
 		return fmt.Errorf("actual range %v does not match expected range %v "+
 			"diff: %v", ac, ex, removedRange)
 	}
 
 	// Now make sure no ranges outside of expected.
-	expectedWithAddedRanges := ex.AddRanges(ac)
+	expectedWithAddedRanges := ex.Clone()
+	expectedWithAddedRanges.AddRanges(ac)
 	if ex.Len() != expectedWithAddedRanges.Len() {
 		return fmt.Errorf("expected with re-added ranges not equal")
 	}
@@ -580,14 +581,14 @@ func validateShardTimeRanges(
 	r result.ShardTimeRanges,
 	ex result.ShardTimeRanges,
 ) error {
-	if len(ex) != len(r) {
+	if ex.Len() != r.Len() {
 		return fmt.Errorf("expected %v and actual %v size mismatch", ex, r)
 	}
 
-	seen := make(map[uint32]struct{}, len(r))
-	for k, val := range r {
-		expectedVal, found := ex[k]
-		if !found {
+	seen := make(map[uint32]struct{}, r.Len())
+	for k, val := range r.Iter() {
+		expectedVal, ok := ex.Get(k)
+		if !ok {
 			return fmt.Errorf("expected shard map %v does not have shard %d; "+
 				"actual: %v", ex, k, r)
 		}
@@ -599,7 +600,7 @@ func validateShardTimeRanges(
 		seen[k] = struct{}{}
 	}
 
-	for k := range ex {
+	for k := range ex.Iter() {
 		if _, beenFound := seen[k]; !beenFound {
 			return fmt.Errorf("shard %d in actual not found in expected %v", k, ex)
 		}
@@ -705,7 +706,7 @@ var _ gomock.Matcher = (*NamespaceMatcher)(nil)
 // ShardTimeRangesMatcher is a matcher for ShardTimeRanges.
 type ShardTimeRangesMatcher struct {
 	// Ranges are the expected ranges.
-	Ranges map[uint32]xtime.Ranges
+	Ranges result.ShardTimeRanges
 }
 
 // Matches returns whether x is a match.

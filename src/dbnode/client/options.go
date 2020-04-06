@@ -34,12 +34,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
@@ -199,6 +201,12 @@ var (
 			SetJitter(true),
 	)
 
+	// defaultChannelOptions are default tchannel channel options.
+	defaultChannelOptions = &tchannel.ChannelOptions{
+		MaxIdleTime:       5 * time.Minute,
+		IdleCheckInterval: 5 * time.Minute,
+	}
+
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
@@ -207,6 +215,7 @@ type options struct {
 	runtimeOptsMgr                          m3dbruntime.OptionsManager
 	clockOpts                               clock.Options
 	instrumentOpts                          instrument.Options
+	logErrorSampleRate                      sampler.Rate
 	topologyInitializer                     topology.Initializer
 	readConsistencyLevel                    topology.ReadConsistencyLevel
 	writeConsistencyLevel                   topology.ConsistencyLevel
@@ -259,6 +268,7 @@ type options struct {
 	asyncWriteWorkerPool                    xsync.PooledWorkerPool
 	asyncWriteMaxConcurrency                int
 	useV2BatchAPIs                          bool
+	iterationOptions                        index.IterationOptions
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -312,6 +322,7 @@ func newOptions() *options {
 	opts := &options{
 		clockOpts:                               clock.NewOptions(),
 		instrumentOpts:                          instrument.NewOptions(),
+		channelOptions:                          defaultChannelOptions,
 		writeConsistencyLevel:                   defaultWriteConsistencyLevel,
 		readConsistencyLevel:                    defaultReadConsistencyLevel,
 		bootstrapConsistencyLevel:               defaultBootstrapConsistencyLevel,
@@ -334,7 +345,7 @@ func newOptions() *options {
 		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
 		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
 		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
-		tagDecoderOpts:                          serialize.NewTagDecoderOptions(),
+		tagDecoderOpts:                          serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
 		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
@@ -384,9 +395,12 @@ func validate(opts *options) error {
 	); err != nil {
 		return err
 	}
-	return topology.ValidateConnectConsistencyLevel(
+	if err := topology.ValidateConnectConsistencyLevel(
 		opts.clusterConnectConsistencyLevel,
-	)
+	); err != nil {
+		return err
+	}
+	return opts.logErrorSampleRate.Validate()
 }
 
 func (o *options) Validate() error {
@@ -443,6 +457,16 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
+}
+
+func (o *options) SetLogErrorSampleRate(value sampler.Rate) Options {
+	opts := *o
+	opts.logErrorSampleRate = value
+	return &opts
+}
+
+func (o *options) LogErrorSampleRate() sampler.Rate {
+	return o.logErrorSampleRate
 }
 
 func (o *options) SetTopologyInitializer(value topology.Initializer) Options {
@@ -953,4 +977,14 @@ func (o *options) SetUseV2BatchAPIs(value bool) Options {
 
 func (o *options) UseV2BatchAPIs() bool {
 	return o.useV2BatchAPIs
+}
+
+func (o *options) SetIterationOptions(value index.IterationOptions) Options {
+	opts := *o
+	opts.iterationOptions = value
+	return &opts
+}
+
+func (o *options) IterationOptions() index.IterationOptions {
+	return o.iterationOptions
 }

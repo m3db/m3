@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -38,9 +39,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 
@@ -250,6 +257,8 @@ func newDefaultBootstrappableTestSetups(
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 		adminClient := newMultiAddrAdminClient(
 			t, adminOpts, topologyInitializer, origin, instrumentOpts)
+		storageIdxOpts := setup.storageOpts.IndexOptions()
+		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		if usingPeersBootstrapper {
 			var (
 				runtimeOptsMgr = setup.storageOpts.RuntimeOptionsManager()
@@ -261,10 +270,13 @@ func newDefaultBootstrappableTestSetups(
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
+				SetIndexOptions(storageIdxOpts).
+				SetFilesystemOptions(fsOpts).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 				SetPersistManager(setup.storageOpts.PersistManager()).
+				SetCompactor(newCompactor(t, storageIdxOpts)).
 				SetRuntimeOptionsManager(runtimeOptsMgr).
 				SetContextPool(setup.storageOpts.ContextPool())
 
@@ -272,14 +284,15 @@ func newDefaultBootstrappableTestSetups(
 			require.NoError(t, err)
 		}
 
-		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
 
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).
+			SetIndexOptions(storageIdxOpts).
 			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
+			SetCompactor(newCompactor(t, storageIdxOpts)).
 			SetPersistManager(persistMgr)
 
 		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, finalBootstrapper)
@@ -400,4 +413,90 @@ func hasBootstrappedShardsExactly(
 	}
 
 	return true
+}
+
+func newCompactor(
+	t *testing.T,
+	opts index.Options,
+) *compaction.Compactor {
+	compactor, err := compaction.NewCompactor(opts.DocumentArrayPool(),
+		index.DocumentArrayPoolCapacity,
+		opts.SegmentBuilderOptions(),
+		opts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			FSTWriterOptions: &fst.WriterOptions{
+				// DisableRegistry is set to true to trade a larger FST size
+				// for a faster FST compaction since we want to reduce the end
+				// to end latency for time to first index a metric.
+				DisableRegistry: true,
+			},
+		})
+	require.NoError(t, err)
+	return compactor
+
+}
+
+func writeTestIndexDataToDisk(
+	md namespace.Metadata,
+	storageOpts storage.Options,
+	indexVolumeType idxpersist.IndexVolumeType,
+	blockStart time.Time,
+	shards []uint32,
+	docs []doc.Document,
+) error {
+	blockSize := md.Options().IndexOptions().BlockSize()
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	writer, err := fs.NewIndexWriter(fsOpts)
+	if err != nil {
+		return err
+	}
+	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter()
+	if err != nil {
+		return err
+	}
+
+	shardsMap := make(map[uint32]struct{})
+	for _, shard := range shards {
+		shardsMap[shard] = struct{}{}
+	}
+	volumeIndex, err := fs.NextIndexFileSetVolumeIndex(
+		fsOpts.FilePathPrefix(),
+		md.ID(),
+		blockStart,
+	)
+	if err != nil {
+		return err
+	}
+	writerOpts := fs.IndexWriterOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   md.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: volumeIndex,
+		},
+		BlockSize:       blockSize,
+		Shards:          shardsMap,
+		IndexVolumeType: indexVolumeType,
+	}
+	if err := writer.Open(writerOpts); err != nil {
+		return err
+	}
+
+	builder, err := builder.NewBuilderFromDocuments(builder.NewOptions())
+	for _, doc := range docs {
+		_, err = builder.Insert(doc)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := segmentWriter.Reset(builder); err != nil {
+		return err
+	}
+	if err := writer.WriteSegmentFileSet(segmentWriter); err != nil {
+		return err
+	}
+	if err := builder.Close(); err != nil {
+		return err
+	}
+	return writer.Close()
 }

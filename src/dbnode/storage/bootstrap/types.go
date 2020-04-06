@@ -21,6 +21,7 @@
 package bootstrap
 
 import (
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -28,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -63,12 +65,128 @@ type ProcessNamespace struct {
 	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
+	// Hooks is a set of namespace bootstrap hooks.
+	Hooks NamespaceHooks
+}
+
+// NamespaceHooks is a set of namespace bootstrap hooks.
+type NamespaceHooks struct {
+	opts NamespaceHooksOptions
+}
+
+// NamespaceHooksOptions is a set of hooks options.
+type NamespaceHooksOptions struct {
+	BootstrapSourceBegin func() error
+	BootstrapSourceEnd   func() error
+}
+
+// NewNamespaceHooks returns a new set of bootstrap hooks.
+func NewNamespaceHooks(opts NamespaceHooksOptions) NamespaceHooks {
+	return NamespaceHooks{opts: opts}
+}
+
+// BootstrapSourceBegin is a hook to call when a bootstrap source starts.
+func (h NamespaceHooks) BootstrapSourceBegin() error {
+	if h.opts.BootstrapSourceBegin == nil {
+		return nil
+	}
+	return h.opts.BootstrapSourceBegin()
+}
+
+// BootstrapSourceEnd is a hook to call when a bootstrap source ends.
+func (h NamespaceHooks) BootstrapSourceEnd() error {
+	if h.opts.BootstrapSourceEnd == nil {
+		return nil
+	}
+	return h.opts.BootstrapSourceEnd()
 }
 
 // Namespaces are a set of namespaces being bootstrapped.
 type Namespaces struct {
 	// Namespaces are the namespaces being bootstrapped.
 	Namespaces *NamespacesMap
+}
+
+// Hooks returns namespaces hooks for the set of namespaces.
+func (n Namespaces) Hooks() NamespacesHooks {
+	return NamespacesHooks{namespaces: n.Namespaces}
+}
+
+// NamespacesHooks is a helper to run hooks for a set of namespaces.
+type NamespacesHooks struct {
+	namespaces *NamespacesMap
+}
+
+// BootstrapSourceBegin is a hook to call when a bootstrap source starts.
+func (h NamespacesHooks) BootstrapSourceBegin() error {
+	if h.namespaces == nil {
+		return nil
+	}
+
+	var (
+		wg           sync.WaitGroup
+		multiErrLock sync.Mutex
+		multiErr     xerrors.MultiError
+	)
+	for _, elem := range h.namespaces.Iter() {
+		ns := elem.Value()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Run bootstrap source end hook.
+			err := ns.Hooks.BootstrapSourceBegin()
+			if err == nil {
+				return
+			}
+
+			multiErrLock.Lock()
+			defer multiErrLock.Unlock()
+
+			multiErr = multiErr.Add(err)
+		}()
+	}
+
+	wg.Wait()
+
+	return multiErr.FinalError()
+}
+
+// BootstrapSourceEnd is a hook to call when a bootstrap source starts.
+func (h NamespacesHooks) BootstrapSourceEnd() error {
+	if h.namespaces == nil {
+		return nil
+	}
+
+	var (
+		wg           sync.WaitGroup
+		multiErrLock sync.Mutex
+		multiErr     xerrors.MultiError
+	)
+	for _, elem := range h.namespaces.Iter() {
+		ns := elem.Value()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Run bootstrap source end hook.
+			err := ns.Hooks.BootstrapSourceEnd()
+			if err == nil {
+				return
+			}
+
+			multiErrLock.Lock()
+			defer multiErrLock.Unlock()
+
+			multiErr = multiErr.Add(err)
+		}()
+	}
+
+	wg.Wait()
+
+	return multiErr.FinalError()
 }
 
 // Namespace is a namespace that is being bootstrapped.
@@ -79,6 +197,8 @@ type Namespace struct {
 	Shards []uint32
 	// DataAccumulator is the data accumulator for the shards.
 	DataAccumulator NamespaceDataAccumulator
+	// Hooks is a set of namespace bootstrap hooks.
+	Hooks NamespaceHooks
 	// DataTargetRange is the data target bootstrap range.
 	DataTargetRange TargetRange
 	// IndexTargetRange is the index target bootstrap range.
@@ -106,8 +226,14 @@ type NamespaceDataAccumulator interface {
 	// CheckoutSeriesWithoutLock retrieves a series for writing to
 	// and when the accumulator is closed it will ensure that the
 	// series is released.
+	//
 	// If indexing is not enabled, tags is still required, simply pass
 	// ident.EmptyTagIterator.
+	//
+	// Returns the result, whether the node owns the specified shard, along with
+	// an error if any. This allows callers to handle unowned shards differently
+	// than other errors. If owned == false, err should not be nil.
+	//
 	// Note: Without lock variant does not perform any locking and callers
 	// must ensure non-parallel access themselves, this helps avoid
 	// overhead of the lock for the commit log bootstrapper which reads
@@ -116,20 +242,17 @@ type NamespaceDataAccumulator interface {
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (CheckoutSeriesResult, error)
+	) (result CheckoutSeriesResult, owned bool, err error)
 
-	// CheckoutSeriesWithLock retrieves a series for writing to
-	// and when the accumulator is closed it will ensure that the
-	// series is released.
-	// If indexing is not enabled, tags is still required, simply pass
-	// ident.EmptyTagIterator.
-	// Note: With lock variant perform locking and callers do not need
+	// CheckoutSeriesWithLock is the "with lock" version of
+	// CheckoutSeriesWithoutLock.
+	// Note: With lock variant performs locking and callers do not need
 	// to be concerned about parallel access.
 	CheckoutSeriesWithLock(
 		shardID uint32,
 		id ident.ID,
 		tags ident.TagIterator,
-	) (CheckoutSeriesResult, error)
+	) (result CheckoutSeriesResult, owned bool, err error)
 
 	// Close will close the data accumulator and will release
 	// all series read/write refs.

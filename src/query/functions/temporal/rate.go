@@ -56,11 +56,9 @@ type rateProcessor struct {
 
 func (r rateProcessor) initialize(
 	duration time.Duration,
-	controller *transform.Controller,
-	opts transform.Options,
+	_ transform.Options,
 ) processor {
 	return &rateNode{
-		controller: controller,
 		isRate:     r.isRate,
 		isCounter:  r.isCounter,
 		rateFn:     r.rateFn,
@@ -121,7 +119,6 @@ type rateFn func(
 ) float64
 
 type rateNode struct {
-	controller        *transform.Controller
 	isRate, isCounter bool
 	duration          time.Duration
 	rateFn            rateFn

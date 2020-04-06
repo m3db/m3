@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,10 +33,17 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xerrors "github.com/m3db/m3/src/x/errors"
+
+	protobuftypes "github.com/gogo/protobuf/types"
 )
 
 const (
 	indexFileSetMajorVersion = 1
+
+	// indexWriteBufferSize is set to 250kb to avoid very frequent
+	// syscall overhead using the default buffer size (lot of large
+	// files written when writing the index).
+	indexWriteBufferSize = 2 << 17 // ~250kb
 )
 
 var (
@@ -53,14 +60,15 @@ type indexWriter struct {
 	newDirectoryMode os.FileMode
 	fdWithDigest     digest.FdWithDigestWriter
 
-	err          error
-	blockSize    time.Duration
-	start        time.Time
-	fileSetType  persist.FileSetType
-	snapshotTime time.Time
-	volumeIndex  int
-	shards       map[uint32]struct{}
-	segments     []writtenIndexSegment
+	err             error
+	blockSize       time.Duration
+	start           time.Time
+	fileSetType     persist.FileSetType
+	snapshotTime    time.Time
+	volumeIndex     int
+	indexVolumeType idxpersist.IndexVolumeType
+	shards          map[uint32]struct{}
+	segments        []writtenIndexSegment
 
 	namespaceDir       string
 	checkpointFilePath string
@@ -86,13 +94,12 @@ func NewIndexWriter(opts Options) (IndexFileSetWriter, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	bufferSize := opts.WriterBufferSize()
 	return &indexWriter{
 		opts:             opts,
 		filePathPrefix:   opts.FilePathPrefix(),
 		newFileMode:      opts.NewFileMode(),
 		newDirectoryMode: opts.NewDirectoryMode(),
-		fdWithDigest:     digest.NewFdWithDigestWriter(bufferSize),
+		fdWithDigest:     digest.NewFdWithDigestWriter(indexWriteBufferSize),
 	}, nil
 }
 
@@ -112,6 +119,10 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	w.volumeIndex = opts.Identifier.VolumeIndex
 	w.shards = opts.Shards
 	w.snapshotTime = opts.Snapshot.SnapshotTime
+	w.indexVolumeType = opts.IndexVolumeType
+	if w.indexVolumeType == "" {
+		w.indexVolumeType = idxpersist.DefaultIndexVolumeType
+	}
 	w.segments = nil
 
 	switch opts.FileSetType {
@@ -226,13 +237,16 @@ func (w *indexWriter) infoFileData() ([]byte, error) {
 	for shard := range w.shards {
 		shards = append(shards, shard)
 	}
-	info := &index.IndexInfo{
+	info := &index.IndexVolumeInfo{
 		MajorVersion: indexFileSetMajorVersion,
 		BlockStart:   w.start.UnixNano(),
 		BlockSize:    int64(w.blockSize),
 		FileType:     int64(w.fileSetType),
 		Shards:       shards,
 		SnapshotTime: w.snapshotTime.UnixNano(),
+		IndexVolumeType: &protobuftypes.StringValue{
+			Value: string(w.indexVolumeType),
+		},
 	}
 	for _, segment := range w.segments {
 		segmentInfo := &index.SegmentInfo{

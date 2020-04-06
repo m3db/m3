@@ -26,6 +26,7 @@ import (
 	"regexp"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/x/mmap"
 )
 
 var (
@@ -91,9 +92,18 @@ type IndexSegmentFile interface {
 	// SegmentFileType returns the segment file type.
 	SegmentFileType() IndexSegmentFileType
 
-	// Bytes will be valid until the segment file is closed.
-	Bytes() ([]byte, error)
+	// Mmap will be valid until the segment file is closed.
+	Mmap() (mmap.Descriptor, error)
 }
+
+// IndexVolumeType is the type of an index volume.
+type IndexVolumeType string
+
+const (
+	// DefaultIndexVolumeType is a default IndexVolumeType.
+	// This is the type if not otherwise specified.
+	DefaultIndexVolumeType IndexVolumeType = "default"
+)
 
 // IndexSegmentType is the type of an index file set.
 type IndexSegmentType string

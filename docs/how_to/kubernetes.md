@@ -35,10 +35,16 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-f
 If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify them
 manifests.
 
+If your Kubernetes cluster spans multiple availability zones, it's important to specify a [Volume Binding Mode](https://kubernetes.io/docs/concepts/storage/storage-classes/#volume-binding-mode) of `WaitForFirstConsumer` in your StorageClass to delay the binding of the PersistentVolume until the Pod is created.
+
 ### Kernel Configuration
 
 We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the [kernel][kernel] docs
 for more.
+
+Note that our default StatefulSet spec will give the M3DB container `CAP_SYS_RESOURCE` so it may raise its file limits.
+Uncomment the `securityContext` on the `m3db` container in the StatefulSet if running with a Pod Security Policy or
+similar enforcement mechanism that prevents adding capabilities to containers.
 
 ## Deploying
 

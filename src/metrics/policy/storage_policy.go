@@ -73,6 +73,14 @@ func NewStoragePolicyFromProto(pb *policypb.StoragePolicy) (StoragePolicy, error
 	return sp, nil
 }
 
+// Equivalent returns whether two storage policies are equal by their
+// retention width and resolution. The resolution precision is ignored
+// for equivalency (hence why the method is not named Equal).
+func (p StoragePolicy) Equivalent(other StoragePolicy) bool {
+	return p.resolution.Window == other.resolution.Window &&
+		p.retention == other.retention
+}
+
 // String is the string representation of a storage policy.
 func (p StoragePolicy) String() string {
 	return fmt.Sprintf("%s%s%s", p.resolution.String(), resolutionRetentionSeparator, p.retention.String())

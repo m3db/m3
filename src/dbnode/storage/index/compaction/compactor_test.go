@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
@@ -95,7 +96,7 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 
 	compacted, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
-	})
+	}, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
 	assertContents(t, compacted, testDocuments)
@@ -121,7 +122,7 @@ func TestCompactorSingleMutableSegmentWithMmapDocsData(t *testing.T) {
 
 	compacted, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg),
-	})
+	}, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
 	assertContents(t, compacted, testDocuments)
@@ -149,7 +150,7 @@ func TestCompactorManySegments(t *testing.T) {
 	compacted, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),
 		mustSeal(t, seg2),
-	})
+	}, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
 	assertContents(t, compacted, testDocuments)
@@ -180,7 +181,7 @@ func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
 	compacted, err := compactor.Compact([]segment.Segment{
 		mustSeal(t, seg1),
 		mustSeal(t, seg2),
-	})
+	}, mmap.ReporterOptions{})
 	require.NoError(t, err)
 
 	assertContents(t, compacted, testDocuments)

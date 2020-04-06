@@ -32,6 +32,7 @@ assets_rules_dir     := generated/assets
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
+bad_trace_dep        := go.etcd.io/etcd/vendor/golang.org/x/net/trace
 cache_policy         ?= recently_read
 genny_target         ?= genny-all
 
@@ -80,7 +81,8 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
-	kube        \
+	# Disabled during kubeval dependency issue https://github.com/m3db/m3/issues/2220
+	# kube        \
 
 TOOLS :=               \
 	read_ids             \
@@ -99,6 +101,38 @@ TOOLS :=               \
 setup:
 	mkdir -p $(BUILD)
 
+.PHONY: install-vendor-m3
+install-vendor-m3:
+	[ -d $(VENDOR) ] || make install-vendor
+	# See comment for "install-vendor-m3-remove-bad-dep" why required and the TODO.
+	make install-vendor-m3-remove-bad-dep
+
+# Some deps were causing panics when using GRPC and etcd libraries were used.
+# See issue: https://github.com/etcd-io/etcd/issues/9357
+# TODO: Move M3 to go mod to avoid the issue entirely instead of this hack
+# (which is bad and we should feel bad).
+# $ go test -v
+# panic: /debug/requests is already registered. You may have two independent
+# copies of golang.org/x/net/trace in your binary, trying to maintain separate
+# state. This may involve a vendored copy of golang.org/x/net/trace.
+#
+# goroutine 1 [running]:
+# github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace.init.0()
+#         /Users/r/go/src/github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace/trace.go:123 +0x1cd
+# exit status 2
+# FAIL    github.com/m3db/m3/src/query/remote     0.024s
+.PHONY: install-vendor-m3-remove-bad-dep
+install-vendor-m3-remove-bad-dep:
+	([ -d $(VENDOR)/$(bad_trace_dep) ] && rm -rf $(VENDOR)/$(bad_trace_dep)) || (echo "No bad trace dep" > /dev/null)
+
+.PHONY: docker-dev-prep
+docker-dev-prep:
+	mkdir -p ./bin/config
+
+	# Hacky way to find all configs and put into ./bin/config/
+	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
+	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/
+
 define SERVICE_RULES
 
 .PHONY: $(SERVICE)
@@ -108,7 +142,7 @@ ifeq ($(SERVICE),m3ctl)
 	make build-ui-ctl-statik-gen
 endif
 	@echo Building $(SERVICE)
-	[ -d $(VENDOR) ] || make install-vendor
+	[ -d $(VENDOR) ] || make install-vendor-m3
 	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
@@ -117,11 +151,7 @@ $(SERVICE)-linux-amd64:
 
 .PHONY: $(SERVICE)-docker-dev
 $(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
-	mkdir -p ./bin/config
-	
-	# Hacky way to find all configs and put into ./bin/config/
-	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
-	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/
+	make docker-dev-prep
 
 	# Build development docker image
 	docker build -t $(SERVICE):dev -t quay.io/m3dbtest/$(SERVICE):dev-$(USER) -f ./docker/$(SERVICE)/development.Dockerfile ./bin
@@ -295,17 +325,21 @@ test-ci-integration:
 
 define SUBDIR_RULES
 
+# Temporarily remove kube validation until we fix a dependency issue with
+# kubeval (one of its depenencies depends on go1.13).
+# https://github.com/m3db/m3/issues/2220
+#
 # We override the rules for `*-gen-kube` to just generate the kube manifest
 # bundle.
-ifeq ($(SUBDIR), kube)
+# ifeq ($(SUBDIR), kube)
 
-# Builds the single kube bundle from individual manifest files.
-all-gen-kube: install-tools
-	@echo "--- Generating kube bundle"
-	@./kube/scripts/build_bundle.sh
-	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
+# Builds the single kube bundle from individual manifest files. 
+# all-gen-kube: install-tools
+# 	@echo "--- Generating kube bundle"
+# 	@./kube/scripts/build_bundle.sh
+# 	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0 
 
-else
+# else
 
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
@@ -402,7 +436,8 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 	@(PATH=$(combined_bin_paths):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
-endif
+# endif kubeval
+# endif
 
 endef
 

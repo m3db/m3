@@ -37,6 +37,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	mmapPersistFsIndexName = "mmap.persist.fs.index"
+)
+
 type indexReader struct {
 	opts           Options
 	filePathPrefix string
@@ -49,7 +53,7 @@ type indexReader struct {
 	volumeIndex  int
 
 	currIdx                int
-	info                   index.IndexInfo
+	info                   index.IndexVolumeInfo
 	expectedDigest         index.IndexDigests
 	expectedDigestOfDigest uint32
 	readDigests            indexReaderReadDigests
@@ -227,33 +231,41 @@ func (r *indexReader) ReadSegmentFileSet() (
 		}
 
 		var (
-			fd    *os.File
-			bytes []byte
+			fd   *os.File
+			desc mmap.Descriptor
 		)
 		mmapResult, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
 			filePath: mmap.FileDesc{
-				File:    &fd,
-				Bytes:   &bytes,
-				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+				File:       &fd,
+				Descriptor: &desc,
+				Options: mmap.Options{
+					Read:    true,
+					HugeTLB: r.hugePagesOpts,
+					ReporterOptions: mmap.ReporterOptions{
+						Context: mmap.Context{
+							Name: mmapPersistFsIndexName,
+						},
+						Reporter: r.opts.MmapReporter(),
+					},
+				},
 			},
 		})
 		if err != nil {
 			return nil, err
 		}
-
 		if warning := mmapResult.Warning; warning != nil {
 			r.logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 		}
 
-		file := newReadableIndexSegmentFileMmap(segFileType, fd, bytes)
+		file := newReadableIndexSegmentFileMmap(segFileType, fd, desc)
 		result.files = append(result.files, file)
 		digests.files = append(digests.files, indexReaderReadSegmentFileDigest{
 			segmentFileType: segFileType,
-			digest:          digest.Checksum(bytes),
+			digest:          digest.Checksum(desc.Bytes),
 		})
 
 		// NB(bodu): Free mmaped bytes after we take the checksum so we don't get memory spikes at bootstrap time.
-		if err := mmap.MadviseDontNeed(bytes); err != nil {
+		if err := mmap.MadviseDontNeed(desc); err != nil {
 			return nil, err
 		}
 	}
@@ -369,21 +381,21 @@ func (s readableIndexSegmentFileSet) Files() []idxpersist.IndexSegmentFile {
 type readableIndexSegmentFileMmap struct {
 	fileType  idxpersist.IndexSegmentFileType
 	fd        *os.File
-	bytesMmap []byte
+	bytesMmap mmap.Descriptor
 	reader    bytes.Reader
 }
 
 func newReadableIndexSegmentFileMmap(
 	fileType idxpersist.IndexSegmentFileType,
 	fd *os.File,
-	bytesMmap []byte,
+	bytesMmap mmap.Descriptor,
 ) idxpersist.IndexSegmentFile {
 	r := &readableIndexSegmentFileMmap{
 		fileType:  fileType,
 		fd:        fd,
 		bytesMmap: bytesMmap,
 	}
-	r.reader.Reset(r.bytesMmap)
+	r.reader.Reset(r.bytesMmap.Bytes)
 	return r
 }
 
@@ -391,7 +403,7 @@ func (f *readableIndexSegmentFileMmap) SegmentFileType() idxpersist.IndexSegment
 	return f.fileType
 }
 
-func (f *readableIndexSegmentFileMmap) Bytes() ([]byte, error) {
+func (f *readableIndexSegmentFileMmap) Mmap() (mmap.Descriptor, error) {
 	return f.bytesMmap, nil
 }
 
@@ -401,11 +413,11 @@ func (f *readableIndexSegmentFileMmap) Read(b []byte) (int, error) {
 
 func (f *readableIndexSegmentFileMmap) Close() error {
 	// Be sure to close the mmap before the file
-	if f.bytesMmap != nil {
+	if f.bytesMmap.Bytes != nil {
 		if err := mmap.Munmap(f.bytesMmap); err != nil {
 			return err
 		}
-		f.bytesMmap = nil
+		f.bytesMmap = mmap.Descriptor{}
 	}
 	if f.fd != nil {
 		if err := f.fd.Close(); err != nil {

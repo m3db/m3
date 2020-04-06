@@ -1,5 +1,10 @@
 package: github.com/m3db/m3
 import:
+  - package: github.com/influxdata/influxdb
+    version: 01c8dd416270f424ab0c40f9291e269ac6921964
+    subpackages:
+      - models
+
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d
 
@@ -21,8 +26,8 @@ import:
   - package: github.com/cespare/xxhash
     version: 48099fad606eafc26e3a569fad19ff510fff4df6
 
-  - package: github.com/coreos/etcd
-    version: 3.2.10
+  - package: go.etcd.io/etcd
+    version: 3.4.3
 
   - package: github.com/pkg/errors
     version: ^0.8
@@ -54,9 +59,6 @@ import:
 
   - package: go.uber.org/zap
     version: f85c78b1dd998214c5f2138155b320a4a43fbe36
-
-  - package: github.com/opentracing/opentracing-go
-    version: 1.1.0
 
   - package: github.com/spaolacci/murmur3
     version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
@@ -153,7 +155,7 @@ import:
       - errgroup
 
   - package: github.com/google/go-cmp
-    version: ^0.3
+    version: 0.3
     subpackages:
       - cmp
 
@@ -192,23 +194,32 @@ import:
     subpackages:
       - capnslog
 
-  # START_JAEGER_DEPS
+  # START_TRACING_DEPS
+  - package: github.com/opentracing/opentracing-go
+    version: ^1.1.0
+
   - package: github.com/uber/jaeger-lib
     version: ^2.0.0
 
   - package: github.com/uber/jaeger-client-go
     version: ~2.16.0
 
+  - package: github.com/lightstep/lightstep-tracer-go
+    version: ~v0.18.0
+
+  - package: github.com/lightstep/lightstep-tracer-common
+    version: ~1.0.3
+
   - package: github.com/opentracing-contrib/go-stdlib
     # Pin this on recommendation of the repo (no stable release yet). Still arguably better than rewriting
     # the same code.
     version: cf7a6c988dc994e945d2715565026f3cc8718689
 
-  # END_JAEGER_DEPS
+  # END_TRACING_DEPS
 
   # To avoid conflicting packages not resolving the latest GRPC
   - package: google.golang.org/grpc
-    version: ~1.7.3
+    version: 1.7.5
     subpackages:
       - codes
 
@@ -249,3 +260,6 @@ import:
 
   - package: go.uber.org/config
     version: ^1.3.1
+
+  - package: github.com/twotwotwo/sorts
+    version: bf5c1f2b8553dec28372aa6ac5a8bf53a20a4c5b

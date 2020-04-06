@@ -32,30 +32,33 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 func TestFetchTaggedResultsAccumulatorClearResetsState(t *testing.T) {
 	pools := newTestFetchTaggedPools()
 	accum := newFetchTaggedResultAccumulator()
-	iter, exhaustive, err := accum.AsEncodingSeriesIterators(100, pools, nil)
+
+	iter, meta, err := accum.AsEncodingSeriesIterators(100, pools, nil,
+		index.IterationOptions{})
 	require.NoError(t, err)
-	require.True(t, exhaustive)
+	require.True(t, meta.Exhaustive)
 	require.Equal(t, 0, iter.Len())
 	iter.Close()
 
-	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(100, pools)
+	resultsIter, resultsMetadata, err := accum.AsTaggedIDsIterator(100, pools)
 	require.NoError(t, err)
-	require.True(t, resultsExhaustive)
+	require.True(t, resultsMetadata.Exhaustive)
 	require.False(t, resultsIter.Next())
 	require.NoError(t, resultsIter.Err())
 }
@@ -291,7 +294,9 @@ func initTestFetchTaggedPools() *testFetchTaggedPools {
 	pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(opts)
 	pools.checkedBytesWrapper.Init()
 
-	pools.tagDecoder = serialize.NewTagDecoderPool(serialize.NewTagDecoderOptions(), opts)
+	pools.tagDecoder = serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		opts)
 	pools.tagDecoder.Init()
 
 	return pools

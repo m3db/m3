@@ -77,7 +77,7 @@ func TestConfigSetBootstrappersHandler(t *testing.T) {
 	}
 	`
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
 }
 
 func TestConfigSetBootstrappersHandlerNoValues(t *testing.T) {

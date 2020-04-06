@@ -205,8 +205,9 @@ func newBatchWriterWrite(
 				Namespace:   namespace,
 			},
 			Datapoint: Datapoint{
-				Timestamp: timestamp,
-				Value:     value,
+				Timestamp:      timestamp,
+				TimestampNanos: xtime.ToUnixNano(timestamp),
+				Value:          value,
 			},
 			Unit:       unit,
 			Annotation: annotation,

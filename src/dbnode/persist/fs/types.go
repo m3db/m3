@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -282,7 +283,8 @@ type IndexWriterOpenOptions struct {
 	FileSetType persist.FileSetType
 	Shards      map[uint32]struct{}
 	// Only used when writing snapshot files
-	Snapshot IndexWriterSnapshotOptions
+	Snapshot        IndexWriterSnapshotOptions
+	IndexVolumeType idxpersist.IndexVolumeType
 }
 
 // IndexFileSetWriter is a index file set writer.
@@ -465,6 +467,12 @@ type Options interface {
 
 	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
+
+	// SetMmapReporter sets the mmap reporter.
+	SetMmapReporter(mmapReporter mmap.Reporter) Options
+
+	// MmapReporter returns the mmap reporter.
+	MmapReporter() mmap.Reporter
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

@@ -45,11 +45,17 @@ func NewPlacementService(s placement.Storage, opts placement.Options) placement.
 	if opts == nil {
 		opts = placement.NewOptions()
 	}
+
+	instanceSelector := opts.InstanceSelector()
+	if instanceSelector == nil {
+		instanceSelector = selector.NewInstanceSelector(opts)
+	}
+
 	return &placementService{
 		Storage:  s,
 		opts:     opts,
 		algo:     algo.NewAlgorithm(opts),
-		selector: selector.NewInstanceSelector(opts),
+		selector: instanceSelector,
 		logger:   opts.InstrumentOptions().Logger(),
 	}
 }

@@ -61,6 +61,7 @@ func TestIndexBlockFlush(t *testing.T) {
 		indexBlockSize  = time.Hour
 		bufferFuture    = 20 * time.Minute
 		bufferPast      = 10 * time.Minute
+		verifyTimeout   = 2 * time.Minute
 	)
 
 	// Test setup
@@ -122,7 +123,7 @@ func TestIndexBlockFlush(t *testing.T) {
 	indexed := xclock.WaitUntil(func() bool {
 		indexPeriod0 := writesPeriod0.numIndexed(t, md.ID(), session)
 		return indexPeriod0 == len(writesPeriod0)
-	}, 5*time.Second)
+	}, verifyTimeout)
 	require.True(t, indexed)
 	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
 
@@ -147,7 +148,7 @@ func TestIndexBlockFlush(t *testing.T) {
 		filesets, err := fs.IndexFileSetsAt(testSetup.filePathPrefix, md.ID(), t0)
 		require.NoError(t, err)
 		return len(filesets) == 1
-	}, 10*time.Second)
+	}, verifyTimeout)
 	require.True(t, found)
 	log.Info("found filesets found on disk")
 
@@ -157,7 +158,7 @@ func TestIndexBlockFlush(t *testing.T) {
 		counters := reporter.Counters()
 		counter, ok := counters["dbindex.blocks-evicted-mutable-segments"]
 		return ok && counter > 0
-	}, 10*time.Second)
+	}, verifyTimeout)
 	require.True(t, evicted)
 	log.Info("mutable segments are evicted!")
 

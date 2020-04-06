@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,10 +36,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/pkg/profile"
@@ -142,7 +145,7 @@ var consolidatedStepIteratorTests = []struct {
 
 func testConsolidatedStepIteratorMinuteLookback(t *testing.T, withPools bool) {
 	for _, tt := range consolidatedStepIteratorTests {
-		opts := NewOptions().
+		opts := newTestOptions().
 			SetLookbackDuration(1 * time.Minute).
 			SetSplitSeriesByBlock(false)
 		require.NoError(t, opts.Validate())
@@ -291,7 +294,7 @@ var consolidatedStepIteratorTestsSplitByBlock = []struct {
 
 func testConsolidatedStepIteratorSplitByBlock(t *testing.T, withPools bool) {
 	for _, tt := range consolidatedStepIteratorTestsSplitByBlock {
-		opts := NewOptions().
+		opts := newTestOptions().
 			SetLookbackDuration(0).
 			SetSplitSeriesByBlock(true)
 		require.NoError(t, opts.Validate())
@@ -328,7 +331,7 @@ func TestConsolidatedStepIteratorSplitByBlockSequential(t *testing.T) {
 }
 
 func benchmarkSingleBlock(b *testing.B, withPools bool) {
-	opts := NewOptions().
+	opts := newTestOptions().
 		SetLookbackDuration(1 * time.Minute).
 		SetSplitSeriesByBlock(false)
 	require.NoError(b, opts.Validate())
@@ -373,6 +376,7 @@ const (
 	stepSequential iterType = iota
 	stepParallel
 	seriesSequential
+	seriesBatch
 )
 
 func (t iterType) name(name string) string {
@@ -384,6 +388,8 @@ func (t iterType) name(name string) string {
 		n = "sequential"
 	case seriesSequential:
 		n = "series"
+	case seriesBatch:
+		n = "series_batch"
 	default:
 		panic(fmt.Sprint("bad iter type", t))
 	}
@@ -391,9 +397,36 @@ func (t iterType) name(name string) string {
 	return fmt.Sprintf("%s_%s", n, name)
 }
 
-func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
+type reset func()
+type stop func()
+
+// newTestOptions provides options with very small/non-existent pools
+// so that memory profiles don't get cluttered with pooled allocated objects.
+func newTestOptions() Options {
+	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
+	bytesPool := pool.NewCheckedBytesPool(nil, poolOpts,
+		func(s []pool.Bucket) pool.BytesPool {
+			return pool.NewBytesPool(s, poolOpts)
+		})
+	bytesPool.Init()
+
+	iteratorPools := pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{
+		Replicas:               1,
+		SeriesIteratorPoolSize: 1,
+		SeriesIteratorsPoolBuckets: []pool.Bucket{
+			{Capacity: 1, Count: 1},
+		},
+		SeriesIDBytesPoolBuckets: []pool.Bucket{
+			{Capacity: 1, Count: 1},
+		},
+		CheckedBytesWrapperPoolSize: 1,
+	})
+	return newOptions(bytesPool, iteratorPools)
+}
+
+func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, stop) {
 	var (
-		seriesCount   = 100
+		seriesCount   = 1000
 		replicasCount = 3
 		start         = time.Now()
 		stepSize      = time.Second * 10
@@ -401,20 +434,12 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 		end           = start.Add(window)
 		iters         = make([]encoding.SeriesIterator, seriesCount)
 		itersReset    = make([]func(), seriesCount)
-		collectors    = make([]consolidators.StepCollector, seriesCount)
-		peeks         = make([]peekValue, seriesCount)
 
 		encodingOpts = encoding.NewOptions()
 		namespaceID  = ident.StringID("namespace")
 	)
 
 	for i := 0; i < seriesCount; i++ {
-		collectors[i] = consolidators.NewStepLookbackConsolidator(
-			stepSize,
-			stepSize,
-			start,
-			consolidators.TakeLast)
-
 		encoder := m3tsz.NewEncoder(start, checked.NewBytes(nil, nil),
 			m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 
@@ -456,7 +481,6 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 		}
 
 		seriesID := ident.StringID(fmt.Sprintf("foo.%d", i))
-
 		tags, err := ident.NewTagStringsIterator("foo", "bar", "baz", "qux")
 		require.NoError(b, err)
 
@@ -479,13 +503,46 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 				Namespace:      namespaceID,
 				Tags:           tags,
 				Replicas:       replicasIters,
-				StartInclusive: start,
-				EndExclusive:   end,
+				StartInclusive: xtime.ToUnixNano(start),
+				EndExclusive:   xtime.ToUnixNano(end),
 			})
 		}
 	}
 
 	usePools := t == stepParallel
+
+	opts := newTestOptions()
+	if usePools {
+		poolOpts := xsync.NewPooledWorkerPoolOptions()
+		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, poolOpts)
+		require.NoError(b, err)
+		readWorkerPools.Init()
+		opts = opts.SetReadWorkerPool(readWorkerPools)
+	}
+
+	for _, reset := range itersReset {
+		reset()
+	}
+
+	block, err := NewEncodedBlock(iters, models.Bounds{
+		Start:    start,
+		StepSize: stepSize,
+		Duration: window,
+	}, false, block.NewResultMetadata(), opts)
+
+	require.NoError(b, err)
+	return block, func() {
+			for _, reset := range itersReset {
+				reset()
+			}
+		},
+		setupProf(usePools, iterations)
+}
+
+func setupProf(usePools bool, iterations int) stop {
+	var prof interface {
+		Stop()
+	}
 	if os.Getenv("PROFILE_TEST_CPU") == "true" {
 		key := profileTakenKey{
 			profile:    "cpu",
@@ -493,8 +550,7 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 			iterations: iterations,
 		}
 		if v := profilesTaken[key]; v == 2 {
-			p := profile.Start(profile.CPUProfile)
-			defer p.Stop()
+			prof = profile.Start(profile.CPUProfile)
 		}
 
 		profilesTaken[key] = profilesTaken[key] + 1
@@ -508,90 +564,76 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 		}
 
 		if v := profilesTaken[key]; v == 2 {
-			p := profile.Start(profile.MemProfile)
-			defer p.Stop()
+			prof = profile.Start(profile.MemProfile)
 		}
 
 		profilesTaken[key] = profilesTaken[key] + 1
 	}
+	return func() {
+		if prof != nil {
+			prof.Stop()
+		}
+	}
+}
+
+func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
+	bl, reset, close := setupBlock(b, iterations, t)
+	defer close()
 
 	if t == seriesSequential {
-		sm := make([]block.SeriesMeta, seriesCount)
-		for i := range iters {
-			sm[i] = block.SeriesMeta{}
-		}
-
-		it := encodedSeriesIter{
-			idx: -1,
-			meta: block.Metadata{
-				Bounds: models.Bounds{
-					Start:    start,
-					StepSize: stepSize,
-					Duration: window,
-				},
-			},
-
-			seriesIters:      iters,
-			seriesMeta:       sm,
-			lookbackDuration: time.Minute * 5,
-		}
+		it, err := bl.SeriesIter()
+		require.NoError(b, err)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			it.idx = -1
-			// Reset all the underlying compressed series iterators.
-			for _, reset := range itersReset {
-				reset()
-			}
-
+			reset()
 			for it.Next() {
 			}
+
 			require.NoError(b, it.Err())
 		}
 
 		return
 	}
 
-	it := &encodedStepIterWithCollector{
-		stepTime: start,
-		blockEnd: end,
-		meta: block.Metadata{
-			Bounds: models.Bounds{
-				Start:    start,
-				StepSize: stepSize,
-				Duration: window,
-			},
-		},
-
-		seriesCollectors: collectors,
-		seriesPeek:       peeks,
-		seriesIters:      iters,
-	}
-
-	if usePools {
-		opts := xsync.NewPooledWorkerPoolOptions()
-		readWorkerPools, err := xsync.NewPooledWorkerPool(1024, opts)
+	if t == seriesBatch {
+		batches, err := bl.MultiSeriesIter(runtime.NumCPU())
 		require.NoError(b, err)
-		readWorkerPools.Init()
-		it.workerPool = readWorkerPools
+
+		var wg sync.WaitGroup
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			reset()
+
+			for _, batch := range batches {
+				it := batch.Iter
+				wg.Add(1)
+				go func() {
+					for it.Next() {
+					}
+
+					wg.Done()
+				}()
+			}
+
+			wg.Wait()
+			for _, batch := range batches {
+				require.NoError(b, batch.Iter.Err())
+			}
+		}
+
+		return
 	}
+
+	it, err := bl.StepIter()
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		it.stepTime = start
-		it.bufferTime = time.Time{}
-		it.finished = false
-		for i := range it.seriesPeek {
-			it.seriesPeek[i] = peekValue{}
-		}
-
-		// Reset all the underlying compressed series iterators.
-		for _, reset := range itersReset {
-			reset()
-		}
-
+		reset()
 		for it.Next() {
 		}
+
 		require.NoError(b, it.Err())
 	}
 }
@@ -606,38 +648,48 @@ var (
 	profilesTaken = make(map[profileTakenKey]int)
 )
 
-// $ go test -v -run none -bench BenchmarkNextIteration
-// goos: darwin
-// goarch: amd64
-// pkg: github.com/m3db/m3/src/query/ts/m3db
-// BenchmarkNextIteration/sequential_10-12			1776			642349 ns/op
-// BenchmarkNextIteration/parallel_10-12	  		2538			466186 ns/op
-// BenchmarkNextIteration/series_10-12	    		1915			601583 ns/op
+/*
+	$ go test -v -run none -bench BenchmarkNextIteration
+	goos: darwin
+	goarch: amd64
+	pkg: github.com/m3db/m3/src/query/ts/m3db
 
-// BenchmarkNextIteration/sequential_100-12			621				1945963 ns/op
-// BenchmarkNextIteration/parallel_100-12	 			1118			1042822 ns/op
-// BenchmarkNextIteration/series_100-12	    		834				1451031 ns/op
+	BenchmarkNextIteration/sequential_10-12      4112  282491 ns/op
+	BenchmarkNextIteration/parallel_10-12        4214  249335 ns/op
+	BenchmarkNextIteration/series_10-12          4515  248946 ns/op
+	BenchmarkNextIteration/series_batch_10-12    4434  269776 ns/op
 
-// BenchmarkNextIteration/sequential_200-12			398				3002165 ns/op
-// BenchmarkNextIteration/parallel_200-12	  		699				1613085 ns/op
-// BenchmarkNextIteration/series_200-12	    		614				1969783 ns/op
+	BenchmarkNextIteration/sequential_100-12     4069  267836 ns/op
+	BenchmarkNextIteration/parallel_100-12       4126  283069 ns/op
+	BenchmarkNextIteration/series_100-12         4146  266928 ns/op
+	BenchmarkNextIteration/series_batch_100-12   4399  255991 ns/op
 
-// BenchmarkNextIteration/sequential_500-12			214				5522765 ns/op
-// BenchmarkNextIteration/parallel_500-12	  		382				2904843 ns/op
-// BenchmarkNextIteration/series_500-12	    		400				2996965 ns/op
+	BenchmarkNextIteration/sequential_200-12     4267  245249 ns/op
+	BenchmarkNextIteration/parallel_200-12       4233  239597 ns/op
+	BenchmarkNextIteration/series_200-12         4365  245924 ns/op
+	BenchmarkNextIteration/series_batch_200-12   4485  235055 ns/op
 
-// BenchmarkNextIteration/sequential_1000-12		129				9050684 ns/op
-// BenchmarkNextIteration/parallel_1000-12	 		238				4775567 ns/op
-// BenchmarkNextIteration/series_1000-12	   		289				4176052 ns/op
+	BenchmarkNextIteration/sequential_500-12     5108  230085 ns/op
+	BenchmarkNextIteration/parallel_500-12       4802  230694 ns/op
+	BenchmarkNextIteration/series_500-12         4831  229797 ns/op
+	BenchmarkNextIteration/series_batch_500-12   4880  246588 ns/op
 
-// BenchmarkNextIteration/sequential_2000-12		64				16190003 ns/op
-// BenchmarkNextIteration/parallel_2000-12	 		136				8238382 ns/op
-// BenchmarkNextIteration/series_2000-12	   		207				5744589 ns/op
+	BenchmarkNextIteration/sequential_1000-12    3807  265449 ns/op
+	BenchmarkNextIteration/parallel_1000-12      5062  254942 ns/op
+	BenchmarkNextIteration/series_1000-12        4423  236796 ns/op
+	BenchmarkNextIteration/series_batch_1000-12  4772  251977 ns/op
+
+	BenchmarkNextIteration/sequential_2000-12    4916  243593 ns/op
+	BenchmarkNextIteration/parallel_2000-12      4743  253677 ns/op
+	BenchmarkNextIteration/series_2000-12        4078  256375 ns/op
+	BenchmarkNextIteration/series_batch_2000-12  4465  242323 ns/op
+*/
 func BenchmarkNextIteration(b *testing.B) {
 	iterTypes := []iterType{
 		stepSequential,
 		stepParallel,
 		seriesSequential,
+		seriesBatch,
 	}
 
 	for _, s := range []int{10, 100, 200, 500, 1000, 2000} {

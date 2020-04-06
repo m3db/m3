@@ -19,9 +19,9 @@ Due to the nature of the requirements for the project, which are primarily to re
 
 The project has aimed to avoid compactions when at all possible, currently the only compactions M3DB performs are in-memory for the mutable compressed time series window (default configured at 2 hours).  As such out of order writes are limited to the size of a single compressed time series window.  Consequently backfilling large amounts of data is not currently possible.
 
-The project has also has optimized for the storage and retrieval of float64 values, as such there is no way to use it as a general time series database of arbitrary data structures just yet.
+The project has also optimized the storage and retrieval of float64 values, as such there is no way to use it as a general time series database of arbitrary data structures just yet.
 
 [gorilla]: http://www.vldb.org/pvldb/vol8/p1816-teller.pdf
 [cassandra]: http://cassandra.apache.org/
-[etcd]: https://github.com/coreos/etcd
+[etcd]: https://github.com/etcd-io/etcd
 [ubeross]: http://uber.github.io

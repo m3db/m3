@@ -332,6 +332,10 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// NB(schallert): this is frustrating but if we don't explicitly write an HTTP
+	// status code (or via Write()), OpenTracing middleware reports code=0 and
+	// shows up as error.
+	w.WriteHeader(200)
 	h.metrics.writeSuccess.Inc(1)
 }
 
@@ -419,6 +423,13 @@ func (h *PromWriteHandler) forward(
 	req, err := http.NewRequest(method, url, bytes.NewReader(request.CompressedBody))
 	if err != nil {
 		return err
+	}
+
+	if headers := target.Headers; headers != nil {
+		// If headers set, attach to request.
+		for name, value := range headers {
+			req.Header.Add(name, value)
+		}
 	}
 
 	resp, err := h.forwardHTTPClient.Do(req.WithContext(ctx))
