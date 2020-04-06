@@ -325,9 +325,17 @@ func newNamespaceIndexWithOptions(
 		return nil, err
 	}
 
-	logger.Info("forward index dice", zap.Bool("enabled", dice.enabled),
-		zap.Duration("threshold", dice.forwardIndexThreshold),
-		zap.Float64("rate", dice.forwardIndexDice.Rate()))
+	if dice.enabled {
+		logger.Info("forward index dice", zap.Bool("enabled", dice.enabled),
+			zap.Duration("threshold", dice.forwardIndexThreshold),
+			zap.Float64("rate", dice.forwardIndexDice.Rate()))
+	} else {
+		idxOpts := newIndexOpts.opts.IndexOptions()
+		logger.Info("forward index dice disabled",
+			zap.Float64("threshold", idxOpts.ForwardIndexThreshold()),
+			zap.Float64("probability", idxOpts.ForwardIndexProbability()))
+	}
+
 	idx.forwardIndexDice = dice
 
 	// allocate indexing queue and start it up.
@@ -594,7 +602,7 @@ func (i *nsIndex) writeBatches(
 		})
 
 	if forwardIndexEnabled && forwardIndexBatch.Len() > 0 {
-		i.metrics.forwardIndexCounter.Inc(forwardIndexBatch.Len())
+		i.metrics.forwardIndexCounter.Inc(int64(forwardIndexBatch.Len()))
 		batch.AppendAll(forwardIndexBatch)
 	}
 
