@@ -326,12 +326,16 @@ func newNamespaceIndexWithOptions(
 	}
 
 	if dice.enabled {
-		logger.Info("forward index dice", zap.Bool("enabled", dice.enabled),
+		logger.Info("namespace forward indexing configured",
+			zap.Stringer("namespace", nsMD.ID()),
+			zap.Bool("enabled", dice.enabled),
 			zap.Duration("threshold", dice.forwardIndexThreshold),
 			zap.Float64("rate", dice.forwardIndexDice.Rate()))
 	} else {
 		idxOpts := newIndexOpts.opts.IndexOptions()
-		logger.Info("forward index dice disabled",
+		logger.Info("namespace forward indexing not enabled",
+			zap.Stringer("namespace", nsMD.ID()),
+			zap.Bool("enabled", false),
 			zap.Float64("threshold", idxOpts.ForwardIndexThreshold()),
 			zap.Float64("probability", idxOpts.ForwardIndexProbability()))
 	}
