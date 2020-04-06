@@ -594,7 +594,7 @@ func (i *nsIndex) writeBatches(
 		})
 
 	if forwardIndexEnabled && forwardIndexBatch.Len() > 0 {
-		i.metrics.forwardIndexCounter.Inc(forwardIndexBatch.Len())
+		i.metrics.forwardIndexCounter.Inc(int64(forwardIndexBatch.Len()))
 		batch.AppendAll(forwardIndexBatch)
 	}
 
