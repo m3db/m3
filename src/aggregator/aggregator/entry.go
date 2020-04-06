@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	metricid "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
@@ -254,7 +255,18 @@ func (e *Entry) AddTimed(
 	if err := e.applyValueRateLimit(1, e.metrics.timed.rateLimit); err != nil {
 		return err
 	}
-	return e.addTimed(metric, metadata)
+	return e.addTimed(metric, metadata, nil)
+}
+
+// AddTimedWithStagedMetadatas adds a timed metric with staged metadatas.
+func (e *Entry) AddTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	metas metadata.StagedMetadatas,
+) error {
+	if err := e.applyValueRateLimit(1, e.metrics.timed.rateLimit); err != nil {
+		return err
+	}
+	return e.addTimed(metric, metadata.TimedMetadata{}, metas)
 }
 
 // AddForwarded adds a forwarded metric alongside its metadata.
@@ -414,7 +426,9 @@ func (e *Entry) addUntimed(
 	}
 
 	if e.shouldUpdateStagedMetadatasWithLock(sm) {
-		if err = e.updateStagedMetadatasWithLock(metric, hasDefaultMetadatas, sm); err != nil {
+		err := e.updateStagedMetadatasWithLock(metric.ID, metric.Type,
+			hasDefaultMetadatas, sm)
+		if err != nil {
 			// NB(xichen): if an error occurred during policy update, the policies
 			// will remain as they are, i.e., there are no half-updated policies.
 			e.Unlock()
@@ -565,12 +579,13 @@ func (e *Entry) removeOldAggregations(newAggregations aggregationValues) {
 }
 
 func (e *Entry) updateStagedMetadatasWithLock(
-	metric unaggregated.MetricUnion,
+	metricID id.RawID,
+	metricType metric.Type,
 	hasDefaultMetadatas bool,
 	sm metadata.StagedMetadata,
 ) error {
 	var (
-		elemID          = e.maybeCopyIDWithLock(metric.ID)
+		elemID          = e.maybeCopyIDWithLock(metricID)
 		newAggregations = make(aggregationValues, 0, initialAggregationCapacity)
 	)
 
@@ -588,7 +603,7 @@ func (e *Entry) updateStagedMetadatasWithLock(
 				resolution: storagePolicy.Resolution().Window,
 			}.toMetricListID()
 			var err error
-			newAggregations, err = e.addNewAggregationKeyWithLock(metric.Type, elemID, key, listID, newAggregations)
+			newAggregations, err = e.addNewAggregationKeyWithLock(metricType, elemID, key, listID, newAggregations)
 			if err != nil {
 				return err
 			}
@@ -620,6 +635,7 @@ func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUn
 func (e *Entry) addTimed(
 	metric aggregated.Metric,
 	metadata metadata.TimedMetadata,
+	stagedMetadatas metadata.StagedMetadatas,
 ) error {
 	timeLock := e.opts.TimeLock()
 	timeLock.RLock()
@@ -648,6 +664,71 @@ func (e *Entry) addTimed(
 	); err != nil {
 		e.RUnlock()
 		timeLock.RUnlock()
+		return err
+	}
+
+	// Only apply processing of staged metadatas if has sent staged metadatas
+	// that isn't the default staged metadatas.
+	hasDefaultMetadatas := stagedMetadatas.IsDefault()
+	if len(stagedMetadatas) > 0 && !hasDefaultMetadatas {
+		sm, err := e.activeStagedMetadataWithLock(currTime, stagedMetadatas)
+		if err != nil {
+			e.RUnlock()
+			timeLock.RUnlock()
+			return err
+		}
+
+		// If the metadata indicates the (rollup) metric has been tombstoned, the metric is
+		// not ingested for aggregation. However, we do not update the policies asssociated
+		// with this entry and mark it tombstoned because there may be a different raw metric
+		// generating this same (rollup) metric that is actively emitting, meaning this entry
+		// may still be very much alive.
+		if sm.Tombstoned {
+			e.RUnlock()
+			timeLock.RUnlock()
+			// e.metrics.timed.tombstonedMetadata.Inc(1)
+			return nil
+		}
+
+		// It is expected that there is at least one pipeline in the metadata.
+		if len(sm.Pipelines) == 0 {
+			e.RUnlock()
+			timeLock.RUnlock()
+			e.metrics.untimed.noPipelinesInMetadata.Inc(1)
+			return errNoPipelinesInMetadata
+		}
+
+		if !e.shouldUpdateStagedMetadatasWithLock(sm) {
+			err = e.addTimedWithStagedMetadatasAndLock(metric)
+			e.RUnlock()
+			timeLock.RUnlock()
+			return err
+		}
+		e.RUnlock()
+
+		e.Lock()
+		if e.closed {
+			e.Unlock()
+			timeLock.RUnlock()
+			return errEntryClosed
+		}
+
+		if e.shouldUpdateStagedMetadatasWithLock(sm) {
+			err := e.updateStagedMetadatasWithLock(metric.ID, metric.Type,
+				hasDefaultMetadatas, sm)
+			if err != nil {
+				// NB(xichen): if an error occurred during policy update, the policies
+				// will remain as they are, i.e., there are no half-updated policies.
+				e.Unlock()
+				timeLock.RUnlock()
+				return err
+			}
+		}
+
+		err = e.addTimedWithStagedMetadatasAndLock(metric)
+		e.Unlock()
+		timeLock.RUnlock()
+
 		return err
 	}
 
@@ -772,6 +853,19 @@ func (e *Entry) addTimedWithLock(
 ) error {
 	timestamp := time.Unix(0, metric.TimeNanos)
 	return value.elem.Value.(metricElem).AddValue(timestamp, metric.Value)
+}
+
+func (e *Entry) addTimedWithStagedMetadatasAndLock(
+	metric aggregated.Metric,
+) error {
+	timestamp := time.Unix(0, metric.TimeNanos)
+	multiErr := xerrors.NewMultiError()
+	for _, val := range e.aggregations {
+		if err := val.elem.Value.(metricElem).AddValue(timestamp, metric.Value); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+	return multiErr.FinalError()
 }
 
 func (e *Entry) addForwarded(

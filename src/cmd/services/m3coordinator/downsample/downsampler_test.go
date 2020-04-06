@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
 	"github.com/m3db/m3/src/metrics/rules/view"
+	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
@@ -311,18 +312,15 @@ func TestDownsamplerAggregationWithRulesConfigRollupRules(t *testing.T) {
 			"endpoint":      "/foo/bar",
 			"not_rolled_up": "not_rolled_up_value",
 		},
-		samples: []float64{42, 64},
-		// TODO: Make rollup rules work with timestamped samples (like below)
-		// instead of only with untimed samples (this requires being able to
-		// write staged metadatas instead of a single storage policy for a
-		// timed metric).
-		// timedSamples: []testGaugeMetricTimedSample{
-		// 	{value: 42}, {value: 64},
-		// },
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 42},
+			{value: 64, offset: 5 * time.Second},
+		},
 	}
 	res := 5 * time.Second
 	ret := 30 * 24 * time.Hour
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []AutoMappingRule{},
 		rulesConfig: &RulesConfiguration{
 			RollupRules: []RollupRuleConfiguration{
 				{
@@ -330,15 +328,11 @@ func TestDownsamplerAggregationWithRulesConfigRollupRules(t *testing.T) {
 						"%s:http_requests app:* status_code:* endpoint:*",
 						nameTag),
 					Transforms: []TransformConfiguration{
-						// TODO: make multi-stage rollup rules work, for some reason
-						// when multiple transforms applied the HasRollup detection
-						// fails and hence metric is not forwarded for second stage
-						// aggregation.
-						// {
-						// 	Transform: &TransformOperationConfiguration{
-						// 		Type: transformation.PerSecond,
-						// 	},
-						// },
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.PerSecond,
+							},
+						},
 						{
 							Rollup: &RollupOperationConfiguration{
 								MetricName:   "http_requests_by_status_code",
@@ -369,7 +363,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRules(t *testing.T) {
 						"status_code":         "500",
 						"endpoint":            "/foo/bar",
 					},
-					value: 106,
+					value: 4.4,
 					attributes: &storage.Attributes{
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  res,
@@ -486,8 +480,9 @@ type testCounterMetric struct {
 }
 
 type testCounterMetricTimedSample struct {
-	time  time.Time
-	value int64
+	time   time.Time
+	offset time.Duration
+	value  int64
 }
 
 type testGaugeMetric struct {
@@ -497,8 +492,9 @@ type testGaugeMetric struct {
 }
 
 type testGaugeMetricTimedSample struct {
-	time  time.Time
-	value float64
+	time   time.Time
+	offset time.Duration
+	value  float64
 }
 
 type testCounterMetricsOptions struct {
@@ -589,7 +585,8 @@ CheckAllWritesArrivedLoop:
 				for _, write := range writes {
 					logger.Info("accumulated write",
 						zap.ByteString("tags", write.Tags.ID()),
-						zap.Any("datapoints", write.Datapoints))
+						zap.Any("datapoints", write.Datapoints),
+						zap.Any("attributes", write.Attributes))
 				}
 			default:
 			}
@@ -768,8 +765,11 @@ func testDownsamplerAggregationIngest(
 			require.NoError(t, err)
 		}
 		for _, sample := range metric.timedSamples {
-			if sample.time.Equal(time.Time{}) {
+			if sample.time.IsZero() {
 				sample.time = time.Now() // Allow empty time to mean "now"
+			}
+			if sample.offset > 0 {
+				sample.time = sample.time.Add(sample.offset)
 			}
 			err = samplesAppender.AppendCounterTimedSample(sample.time, sample.value)
 			require.NoError(t, err)
@@ -789,8 +789,11 @@ func testDownsamplerAggregationIngest(
 			require.NoError(t, err)
 		}
 		for _, sample := range metric.timedSamples {
-			if sample.time.Equal(time.Time{}) {
+			if sample.time.IsZero() {
 				sample.time = time.Now() // Allow empty time to mean "now"
+			}
+			if sample.offset > 0 {
+				sample.time = sample.time.Add(sample.offset)
 			}
 			err = samplesAppender.AppendGaugeTimedSample(sample.time, sample.value)
 			require.NoError(t, err)

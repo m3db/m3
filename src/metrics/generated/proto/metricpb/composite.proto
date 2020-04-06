@@ -54,6 +54,11 @@ message TimedMetricWithMetadata {
   TimedMetadata metadata = 2 [(gogoproto.nullable) = false];
 }
 
+message TimedMetricWithMetadatas {
+  TimedMetric metric = 1 [(gogoproto.nullable) = false];
+  StagedMetadatas metadatas = 2 [(gogoproto.nullable) = false];
+}
+
 message TimedMetricWithStoragePolicy {
   TimedMetric timed_metric = 1 [(gogoproto.nullable) = false];
   policypb.StoragePolicy storage_policy = 2 [(gogoproto.nullable) = false];
@@ -78,6 +83,7 @@ message MetricWithMetadatas {
     GAUGE_WITH_METADATAS = 3;
     FORWARDED_METRIC_WITH_METADATA = 4;
     TIMED_METRIC_WITH_METADATA = 5;
+    TIMED_METRIC_WITH_METADATAS = 6;
   }
   Type type = 1;
   CounterWithMetadatas counter_with_metadatas = 2;
@@ -85,4 +91,5 @@ message MetricWithMetadatas {
   GaugeWithMetadatas gauge_with_metadatas = 4;
   ForwardedMetricWithMetadata forwarded_metric_with_metadata = 5;
   TimedMetricWithMetadata timed_metric_with_metadata = 6;
+  TimedMetricWithMetadatas timed_metric_with_metadatas = 7;
 }

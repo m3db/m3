@@ -48,6 +48,7 @@ func resetMetricWithMetadatasProto(pb *metricpb.MetricWithMetadatas) {
 	resetGaugeWithMetadatasProto(pb.GaugeWithMetadatas)
 	resetForwardedMetricWithMetadataProto(pb.ForwardedMetricWithMetadata)
 	resetTimedMetricWithMetadataProto(pb.TimedMetricWithMetadata)
+	resetTimedMetricWithMetadatasProto(pb.TimedMetricWithMetadatas)
 }
 
 func resetCounterWithMetadatasProto(pb *metricpb.CounterWithMetadatas) {
@@ -88,6 +89,14 @@ func resetTimedMetricWithMetadataProto(pb *metricpb.TimedMetricWithMetadata) {
 	}
 	resetTimedMetric(&pb.Metric)
 	resetTimedMetadata(&pb.Metadata)
+}
+
+func resetTimedMetricWithMetadatasProto(pb *metricpb.TimedMetricWithMetadatas) {
+	if pb == nil {
+		return
+	}
+	resetTimedMetric(&pb.Metric)
+	resetMetadatas(&pb.Metadatas)
 }
 
 func resetTimedMetricWithStoragePolicyProto(pb *metricpb.TimedMetricWithStoragePolicy) {

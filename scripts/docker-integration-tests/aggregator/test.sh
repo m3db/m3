@@ -5,7 +5,14 @@ set -xe
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/aggregator/docker-compose.yml
+# quay.io/m3db/prometheus_remote_client_golang @ v0.4.3
+PROMREMOTECLI_IMAGE=quay.io/m3db/prometheus_remote_client_golang@sha256:fc56df819bff9a5a087484804acf3a584dd4a78c68900c31a28896ed66ca7e7b
+JQ_IMAGE=realguess/jq:1.4@sha256:300c5d9fb1d74154248d155ce182e207cf6630acccbaadd0168e18b15bfaa786
 export REVISION
+
+echo "Pull containers required for test"
+docker pull $PROMREMOTECLI_IMAGE
+docker pull $JQ_IMAGE
 
 echo "Run m3dbnode"
 docker-compose -f ${COMPOSE_FILE} up -d dbnode01
@@ -118,8 +125,146 @@ bash -c 'while true; do t=$(date +%s); echo "foo.bar.baz 40 $t" | nc 0.0.0.0 720
 # Track PID to kill on exit
 METRIC_EMIT_PID="$!"
 
-# Read back the averaged averaged metric, we configured graphite
-# aggregation policy to average each tile and we are emitting
-# values 40 and 44 to get an average of 42 each tile
-echo "Read back aggregated averaged metric"
-ATTEMPTS=10 TIMEOUT=1 retry_with_backoff read_carbon foo.bar.* 42
+function test_aggregated_graphite_metric {
+  # Read back the averaged averaged metric, we configured graphite
+  # aggregation policy to average each tile and we are emitting
+  # values 40 and 44 to get an average of 42 each tile
+  echo "Read back aggregated averaged metric"
+  ATTEMPTS=40 TIMEOUT=1 MAX_TIMEOUT=4 retry_with_backoff read_carbon foo.bar.* 42
+
+  # echo "Finished with carbon metrics"
+  kill $METRIC_EMIT_PID
+  export METRIC_EMIT_PID="-1"
+}
+
+function prometheus_remote_write {
+  local metric_name=$1
+  local datapoint_timestamp=$2
+  local datapoint_value=$3
+  local expect_success=$4
+  local expect_success_err=$5
+  local expect_status=$6
+  local expect_status_err=$7
+  local label0_name=${label0_name:-label0}
+  local label0_value=${label0_value:-label0}
+  local label1_name=${label1_name:-label1}
+  local label1_value=${label1_value:-label1}
+  local label2_name=${label2_name:-label2}
+  local label2_value=${label2_value:-label2}
+
+  network_name="aggregator"
+  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ')
+  out=$((docker run -it --rm --network $network           \
+    $PROMREMOTECLI_IMAGE                                  \
+    -u http://m3coordinator01:7202/api/v1/prom/remote/write \
+    -t __name__:${metric_name}                            \
+    -t ${label0_name}:${label0_value}                     \
+    -t ${label1_name}:${label1_value}                     \
+    -t ${label2_name}:${label2_value}                     \
+    -d ${datapoint_timestamp},${datapoint_value} | grep -v promremotecli_log) || true)
+  success=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .success)
+  status=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .statusCode)
+  if [[ "$success" != "$expect_success" ]]; then
+    echo $expect_success_err
+    return 1
+  fi
+  if [[ "$status" != "$expect_status" ]]; then
+    echo "${expect_status_err}: actual=${status}"
+    return 1
+  fi
+  echo "Returned success=${success}, status=${status} as expected"
+  return 0
+}
+
+function prometheus_query_native {
+  local endpoint=${endpoint:-}
+  local query=${query:-}
+  local params=${params:-}
+  local metrics_type=${metrics_type:-}
+  local metrics_storage_policy=${metrics_storage_policy:-}
+  local jq_path=${jq_path:-}
+  local expected_value=${expected_value:-}
+
+  params_prefixed=""
+  if [[ "$params" != "" ]]; then
+    params_prefixed='&'"${params}"
+  fi
+
+  result=$(curl -s                                    \
+    -H "M3-Metrics-Type: ${metrics_type}"             \
+    -H "M3-Storage-Policy: ${metrics_storage_policy}" \
+    "0.0.0.0:7202/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}")
+  test "$result" = "$expected_value"
+  return $?
+}
+
+function test_aggregated_rollup_rule {
+  resolution_seconds="10"
+  now=$(date +"%s")
+  now_truncate_by=$(( $now % $resolution_seconds ))
+  now_truncated=$(( $now - $now_truncate_by ))
+
+  echo "Test write with rollup rule"
+
+  # Emit values for endpoint /foo/bar (to ensure right values aggregated)
+  write_at="$now_truncated"
+  value="42"
+  value_rate="22"
+  value_inc_by=$(( $value_rate * $resolution_seconds ))
+  for i in $(seq 1 10); do
+    label0_name="app" label0_value="nginx_edge" \
+      label1_name="status_code" label1_value="500" \
+      label2_name="endpoint" label2_value="/foo/bar" \
+      prometheus_remote_write \
+      http_requests $write_at $value \
+      true "Expected request to succeed" \
+      200 "Expected request to return status code 200"
+    write_at=$(( $write_at + $resolution_seconds ))
+    value=$(( $value + $value_inc_by ))
+  done
+
+  # Emit values for endpoint /foo/baz (to ensure right values aggregated)
+  write_at="$now_truncated"
+  value="84"
+  value_rate="4"
+  value_inc_by=$(( $value_rate * $resolution_seconds ))
+  for i in $(seq 1 10); do
+    label0_name="app" label0_value="nginx_edge" \
+      label1_name="status_code" label1_value="500" \
+      label2_name="endpoint" label2_value="/foo/baz" \
+      prometheus_remote_write \
+      http_requests $write_at $value \
+      true "Expected request to succeed" \
+      200 "Expected request to return status code 200"
+    write_at=$(( $write_at + $resolution_seconds ))
+    value=$(( $value + $value_inc_by ))
+  done
+
+  start=$(( $now - 3600 ))
+  end=$(( $now + 3600 ))
+  step="30s"
+  params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
+  jq_path=".data.result[0].values | .[][1] | select(. != null)"
+
+  echo "Test query rollup rule"
+
+  # Test by values are rolled up by second, then sum (for endpoint="/foo/bar")
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    endpoint=query_range query="http_requests_by_status_code\{endpoint=\"/foo/bar\"\}" \
+    params="$params_range" \
+    jq_path="$jq_path" expected_value="22" \
+    metrics_type="aggregated" metrics_storage_policy="10s:6h" \
+    retry_with_backoff prometheus_query_native
+
+  # Test by values are rolled up by second, then sum (for endpoint="/foo/bar")
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    endpoint=query_range query="http_requests_by_status_code\{endpoint=\"/foo/baz\"\}" \
+    params="$params_range" \
+    jq_path="$jq_path" expected_value="4" \
+    metrics_type="aggregated" metrics_storage_policy="10s:6h" \
+    retry_with_backoff prometheus_query_native
+}
+
+echo "Run tests"
+test_aggregated_graphite_metric
+test_aggregated_rollup_rule

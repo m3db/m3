@@ -1061,6 +1061,14 @@ func (c *aggregatorLocalAdminClient) WriteTimed(
 	return c.agg.AddTimed(metric, metadata)
 }
 
+// WriteTimedWithStagedMetadatas writes timed metrics with staged metadatas.
+func (c *aggregatorLocalAdminClient) WriteTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	metadatas metadata.StagedMetadatas,
+) error {
+	return c.agg.AddTimedWithStagedMetadatas(metric, metadatas)
+}
+
 // WriteForwarded writes forwarded metrics.
 func (c *aggregatorLocalAdminClient) WriteForwarded(
 	metric aggregated.ForwardedMetric,
