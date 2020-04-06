@@ -719,6 +719,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		return bufferForPastTimedMetric(bufferPastLimits, tile)
 	}
 
+	maxAllowedForwardingDelayFn := func(tile time.Duration, numForwardedTimes int) time.Duration {
+		return maxAllowedForwardingDelay(bufferPastLimits, tile, numForwardedTimes)
+	}
+
 	// Finally construct all options.
 	aggregatorOpts := aggregator.NewOptions().
 		SetClockOptions(clockOpts).
@@ -734,6 +738,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetFlushHandler(flushHandler).
 		SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn).
 		SetBufferForFutureTimedMetric(defaultBufferFutureTimedMetric).
+		SetMaxAllowedForwardingDelayFn(maxAllowedForwardingDelayFn).
 		SetVerboseErrors(defaultVerboseErrors)
 
 	if cfg.EntryTTL != 0 {
@@ -1101,7 +1106,10 @@ var (
 	}
 )
 
-func bufferForPastTimedMetric(limits []bufferPastLimit, tile time.Duration) time.Duration {
+func bufferForPastTimedMetric(
+	limits []bufferPastLimit,
+	tile time.Duration,
+) time.Duration {
 	bufferPast := limits[0].bufferPast
 	for _, limit := range limits {
 		if tile < limit.upperBound {
@@ -1110,4 +1118,20 @@ func bufferForPastTimedMetric(limits []bufferPastLimit, tile time.Duration) time
 		bufferPast = limit.bufferPast
 	}
 	return bufferPast
+}
+
+func maxAllowedForwardingDelay(
+	limits []bufferPastLimit,
+	tile time.Duration,
+	numForwardedTimes int,
+) time.Duration {
+	resolutionForwardDelay := tile * time.Duration(numForwardedTimes)
+	bufferPast := limits[0].bufferPast
+	for _, limit := range limits {
+		if tile < limit.upperBound {
+			return bufferPast + resolutionForwardDelay
+		}
+		bufferPast = limit.bufferPast
+	}
+	return bufferPast + resolutionForwardDelay
 }
