@@ -23,6 +23,7 @@ package downsample
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -304,20 +305,26 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRule
 }
 
 func TestDownsamplerAggregationWithRulesConfigRollupRules(t *testing.T) {
-	gaugeMetric := testGaugeMetric{
-		tags: map[string]string{
-			nameTag:         "http_requests",
-			"app":           "nginx_edge",
-			"status_code":   "500",
-			"endpoint":      "/foo/bar",
-			"not_rolled_up": "not_rolled_up_value",
-		},
-		timedSamples: []testGaugeMetricTimedSample{
-			{value: 42},
-			{value: 64, offset: 5 * time.Second},
-		},
+	num := 10
+	gaugeMetrics := make([]testGaugeMetric, 0, num)
+	for i := 0; i < num; i++ {
+		statusCode := fmt.Sprintf("%d", 500+i)
+		gaugeMetrics = append(gaugeMetrics, testGaugeMetric{
+			tags: map[string]string{
+				nameTag:         "http_requests",
+				"app":           "nginx_edge",
+				"status_code":   statusCode,
+				"endpoint":      "/foo/bar",
+				"not_rolled_up": "not_rolled_up_value",
+			},
+			timedSamples: []testGaugeMetricTimedSample{
+				{value: 42 + float64(i), offset: time.Duration(i) * time.Second},
+				{value: 64 + float64(i), offset: time.Duration(20+i) * time.Second},
+			},
+		})
 	}
-	res := 5 * time.Second
+
+	res := 20 * time.Second
 	ret := 30 * 24 * time.Hour
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
 		autoMappingRules: []AutoMappingRule{},
@@ -335,8 +342,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRules(t *testing.T) {
 						},
 						{
 							Rollup: &RollupOperationConfiguration{
-								MetricName:   "http_requests_by_status_code",
-								GroupBy:      []string{"app", "status_code", "endpoint"},
+								MetricName:   "http_requests_by_app_and_endpoint",
+								GroupBy:      []string{"app", "endpoint"},
 								Aggregations: []aggregation.Type{aggregation.Sum},
 							},
 						},
@@ -351,19 +358,18 @@ func TestDownsamplerAggregationWithRulesConfigRollupRules(t *testing.T) {
 			},
 		},
 		ingest: &testDownsamplerOptionsIngest{
-			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+			gaugeMetrics: gaugeMetrics,
 		},
 		expect: &testDownsamplerOptionsExpect{
 			writes: []testExpectedWrite{
 				{
 					tags: map[string]string{
-						nameTag:               "http_requests_by_status_code",
+						nameTag:               "http_requests_by_app_and_endpoint",
 						string(rollupTagName): string(rollupTagValue),
 						"app":                 "nginx_edge",
-						"status_code":         "500",
 						"endpoint":            "/foo/bar",
 					},
-					value: 4.4,
+					value: 11,
 					attributes: &storage.Attributes{
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  res,
@@ -624,7 +630,9 @@ CheckAllWritesArrivedLoop:
 		require.True(t, found)
 		assert.Equal(t, expectedWrite.tags, tagsToStringMap(write.Tags))
 		require.Equal(t, 1, len(write.Datapoints))
-		assert.Equal(t, float64(value), write.Datapoints[0].Value)
+		diff := math.Abs(write.Datapoints[0].Value - value)
+		fmt.Println("diff", diff)
+		assert.True(t, diff < 0.0000001, fmt.Sprintf("Value should be %f, was %f, diff %f", value, write.Datapoints[0].Value, diff))
 
 		if attrs := expectedWrite.attributes; attrs != nil {
 			assert.Equal(t, *attrs, write.Attributes)
