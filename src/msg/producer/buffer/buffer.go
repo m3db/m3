@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
@@ -52,7 +51,7 @@ type bufferMetrics struct {
 	dropOldestAsync   tally.Counter
 	messageBuffered   tally.Gauge
 	byteBuffered      tally.Gauge
-	bufferScanBatch   tally.Timer
+	// bufferScanBatch   tally.Timer
 }
 
 func newBufferMetrics(
@@ -68,7 +67,7 @@ func newBufferMetrics(
 		dropOldestAsync:   scope.Counter("drop-oldest-async"),
 		messageBuffered:   scope.Gauge("message-buffered"),
 		byteBuffered:      scope.Gauge("byte-buffered"),
-		bufferScanBatch:   instrument.MustCreateSampledTimer(scope.Timer("buffer-scan-batch"), samplingRate),
+		// bufferScanBatch:   instrument.MustCreateSampledTimer(scope.Timer("buffer-scan-batch"), samplingRate),
 	}
 }
 
@@ -233,7 +232,7 @@ func (b *buffer) cleanup() error {
 		batchRemoved int
 	)
 	for e != nil {
-		beforeBatch := time.Now()
+		// beforeBatch := time.Now()
 		// NB: There is a chance the start element could be removed by another
 		// thread since the lock will be released between scan batch.
 		// For example when the there is a slow/dead consumer that is not
@@ -246,7 +245,7 @@ func (b *buffer) cleanup() error {
 		b.listLock.Lock()
 		e, batchRemoved = b.cleanupBatchWithListLock(e, batchSize, forceDrop)
 		b.listLock.Unlock()
-		b.m.bufferScanBatch.Record(time.Since(beforeBatch))
+		// b.m.bufferScanBatch.Record(time.Since(beforeBatch))
 		totalRemoved += batchRemoved
 	}
 	b.m.messageBuffered.Update(float64(b.bufferLen()))

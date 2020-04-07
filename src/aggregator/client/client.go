@@ -118,11 +118,11 @@ type clientMetrics struct {
 
 func newClientMetrics(scope tally.Scope, sampleRate float64) clientMetrics {
 	return clientMetrics{
-		writeUntimedCounter:    instrument.NewMethodMetrics(scope, "writeUntimedCounter", sampleRate),
-		writeUntimedBatchTimer: instrument.NewMethodMetrics(scope, "writeUntimedBatchTimer", sampleRate),
-		writeUntimedGauge:      instrument.NewMethodMetrics(scope, "writeUntimedGauge", sampleRate),
-		writeForwarded:         instrument.NewMethodMetrics(scope, "writeForwarded", sampleRate),
-		flush:                  instrument.NewMethodMetrics(scope, "flush", sampleRate),
+		writeUntimedCounter:    instrument.NewNoTimerMethodMetrics(scope, "writeUntimedCounter", sampleRate),
+		writeUntimedBatchTimer: instrument.NewNoTimerMethodMetrics(scope, "writeUntimedBatchTimer", sampleRate),
+		writeUntimedGauge:      instrument.NewNoTimerMethodMetrics(scope, "writeUntimedGauge", sampleRate),
+		writeForwarded:         instrument.NewNoTimerMethodMetrics(scope, "writeForwarded", sampleRate),
+		flush:                  instrument.NewNoTimerMethodMetrics(scope, "flush", sampleRate),
 		shardNotOwned:          scope.Counter("shard-not-owned"),
 		shardNotWriteable:      scope.Counter("shard-not-writeable"),
 	}

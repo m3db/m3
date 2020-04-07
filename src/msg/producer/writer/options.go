@@ -43,13 +43,13 @@ const (
 
 	defaultNumConnections            = 4
 	defaultConnectionDialTimeout     = 5 * time.Second
-	defaultConnectionWriteTimeout    = time.Second
+	defaultConnectionWriteTimeout    = time.Duration(0)
 	defaultConnectionKeepAlivePeriod = 5 * time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
 	defaultConnectionFlushInterval   = time.Second
-	// Using 16K which provides much better performance comparing
+	// Using 65k which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
-	defaultConnectionBufferSize = 16384
+	defaultConnectionBufferSize = 2 << 15 // ~65kb
 )
 
 // ConnectionOptions configs the connections.
