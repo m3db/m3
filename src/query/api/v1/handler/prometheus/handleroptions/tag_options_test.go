@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -140,4 +141,38 @@ func TestParse(t *testing.T) {
 			require.Equal(t, tt.expected, a)
 		}
 	}
+}
+
+func TestTagMapperValidate(t *testing.T) {
+	tm := TagMapper{}
+	assert.Error(t, tm.Validate())
+
+	tm.Append = AppendOp{Tag: "foo", Value: "bar"}
+	assert.NoError(t, tm.Validate())
+
+	tm.Drop = DropOp{Tag: "foo"}
+	assert.Error(t, tm.Validate())
+}
+
+func TestOpIsEmpty(t *testing.T) {
+	t.Run("Append", func(t *testing.T) {
+		op := AppendOp{}
+		assert.True(t, op.IsEmpty())
+		op.Tag = "foo"
+		assert.False(t, op.IsEmpty())
+	})
+
+	t.Run("Drop", func(t *testing.T) {
+		op := DropOp{}
+		assert.True(t, op.IsEmpty())
+		op.Tag = "foo"
+		assert.False(t, op.IsEmpty())
+	})
+
+	t.Run("Replace", func(t *testing.T) {
+		op := ReplaceOp{}
+		assert.True(t, op.IsEmpty())
+		op.Tag = "foo"
+		assert.False(t, op.IsEmpty())
+	})
 }

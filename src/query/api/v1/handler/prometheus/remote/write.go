@@ -23,6 +23,7 @@ package remote
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -396,6 +397,19 @@ func (h *PromWriteHandler) parseRequest(
 		return nil, ingest.WriteOptions{},
 			prometheus.ParsePromCompressedRequestResult{},
 			xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	if mapStr := r.Header.Get(handleroptions.MapTagsByJSONHeader); mapStr != "" {
+		var opts handleroptions.MapTagsOptions
+		if err := json.Unmarshal([]byte(mapStr), &opts); err != nil {
+			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
+				xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		if err := mapTags(&req, opts); err != nil {
+			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
+				xhttp.NewParseError(err, http.StatusBadRequest)
+		}
 	}
 
 	return &req, opts, result, nil
