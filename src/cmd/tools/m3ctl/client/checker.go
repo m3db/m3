@@ -40,7 +40,7 @@ func checkForAndHandleError(url string, resp *http.Response, zl *zap.Logger) err
 			zl.Error("error response",
 				zap.Error(fmt.Errorf("status %d", resp.StatusCode)),
 				zap.String("url", url),
-				zap.ByteString("response", dat))
+				zap.String("response", "not available"))
 		}
 		return fmt.Errorf("error from m3db status=%s, url=%s\n", resp.Status, url)
 	}
