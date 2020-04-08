@@ -39,21 +39,22 @@ func mapTags(req *prompb.WriteRequest, opts handleroptions.MapTagsOptions) error
 			tag := []byte(op.Tag)
 			value := []byte(op.Value)
 
-		TSLoop:
 			for i, ts := range req.Timeseries {
+				replaced := false
 				for j, l := range ts.Labels {
 					if bytes.Equal(l.Name, tag) {
 						ts.Labels[j].Value = value
-						// Move onto next timeseries, don't need to append tag now.
-						continue TSLoop
+						replaced = true
 					}
 				}
 
-				// No existing labels with this tag, append it.
-				req.Timeseries[i].Labels = append(ts.Labels, prompb.Label{
-					Name:  tag,
-					Value: value,
-				})
+				if !replaced {
+					// No existing labels with this tag, append it.
+					req.Timeseries[i].Labels = append(ts.Labels, prompb.Label{
+						Name:  tag,
+						Value: value,
+					})
+				}
 			}
 		}
 
