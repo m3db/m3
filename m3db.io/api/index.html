@@ -903,6 +903,12 @@
 <td>*corev1.DNSPolicy</td>
 <td>false</td>
 </tr>
+<tr>
+<td>externalCoordinatorSelector</td>
+<td>Specify a \"controlling\" coordinator for the cluster It is expected that there is a separate standalone coordinator cluster It is externally managed - not managed by this operator It is expected to have a service endpoint Setup this db cluster, but do not assume a co-located coordinator Instead provide a selector here so we can point to a separate coordinator service Specify here the labels required for the selector</td>
+<td>map[string]string</td>
+<td>false</td>
+</tr>
 </tbody>
 </table>
 <p><a href="#table-of-contents">Back to TOC</a></p>
