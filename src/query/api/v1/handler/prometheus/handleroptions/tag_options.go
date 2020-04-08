@@ -120,31 +120,15 @@ type MapTagsOptions struct {
 
 // TagMapper represents one of a variety of tag mapping operations.
 type TagMapper struct {
-	Append  AppendOp  `json:"append,omitEmpty"`
-	Drop    DropOp    `json:"drop,omitEmpty"`
-	Replace ReplaceOp `json:"replace,omitEmpty"`
+	Append AppendOp `json:"append,omitEmpty"`
 }
 
 // Validate ensures the mapper is valid.
 func (t TagMapper) Validate() error {
-	numOps := 0
-	if !t.Append.IsEmpty() {
-		numOps++
+	if t.Append.IsEmpty() {
+		return errors.New("tag mapper must not be empty")
 	}
-
-	if !t.Drop.IsEmpty() {
-		numOps++
-	}
-
-	if !t.Replace.IsEmpty() {
-		numOps++
-	}
-
-	if numOps == 1 {
-		return nil
-	}
-
-	return fmt.Errorf("must specify one operation per tag mapper (got %d)", numOps)
+	return nil
 }
 
 // AppendOp with value tag="foo" and value="bar" will unconditionally add
@@ -159,33 +143,4 @@ type AppendOp struct {
 // IsEmpty returns true if the operation is empty.
 func (op AppendOp) IsEmpty() bool {
 	return op.Tag == "" && op.Value == ""
-}
-
-// DropOp with tag="foo" and an empty value will remove all tag-value pairs in
-// all timeseries in the write request where the tag was "foo". If value is
-// non-empty, a tag-value pair will only be removed if the value was equal to
-// value.
-type DropOp struct {
-	Tag   string `json:"tag"`
-	Value string `json:"value"`
-}
-
-// IsEmpty returns true if the operation is empty.
-func (op DropOp) IsEmpty() bool {
-	return op.Tag == "" && op.Value == ""
-}
-
-// ReplaceOp with tag="foo", an empty old field, and a non-empty new field will
-// unconditionally replace the value of any tag-value pair of any timeseries in
-// the write request where the tag is "foo" with the value of new. If old is
-// non-empty, a value will only be replaced if the value was equal to old.
-type ReplaceOp struct {
-	Tag      string `json:"tag"`
-	OldValue string `json:"old"`
-	NewValue string `json:"new"`
-}
-
-// IsEmpty returns true if the operation is empty.
-func (op ReplaceOp) IsEmpty() bool {
-	return op.Tag == "" && op.OldValue == "" && op.NewValue == ""
 }
