@@ -54,8 +54,8 @@ func TestMapTags_Append(t *testing.T) {
 
 	opts := handleroptions.MapTagsOptions{
 		TagMappers: []handleroptions.TagMapper{
-			{Append: handleroptions.WriteOp{Tag: "tag1", Value: "val2"}},
-			{Append: handleroptions.WriteOp{Tag: "tag2", Value: "val3"}},
+			{Write: handleroptions.WriteOp{Tag: "tag1", Value: "val2"}},
+			{Write: handleroptions.WriteOp{Tag: "tag2", Value: "val3"}},
 		},
 	}
 
@@ -97,8 +97,8 @@ func TestMapTags_Err(t *testing.T) {
 	opts := handleroptions.MapTagsOptions{
 		TagMappers: []handleroptions.TagMapper{
 			{
-				Append: handleroptions.WriteOp{Tag: "tag1", Value: "val2"},
-				Drop:   handleroptions.DropOp{Tag: "tag2", Value: "val3"},
+				Write: handleroptions.WriteOp{Tag: "tag1", Value: "val2"},
+				Drop:  handleroptions.DropOp{Tag: "tag2"},
 			},
 		},
 	}
@@ -107,7 +107,7 @@ func TestMapTags_Err(t *testing.T) {
 	assert.Error(t, err)
 
 	opts.TagMappers[0] = handleroptions.TagMapper{
-		Drop: handleroptions.DropOp{Tag: "foo", Value: "bar"},
+		Drop: handleroptions.DropOp{Tag: "foo"},
 	}
 	err = mapTags(req, opts)
 	assert.Error(t, err)
