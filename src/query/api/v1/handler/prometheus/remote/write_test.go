@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	xclock "github.com/m3db/m3/src/x/clock"
@@ -281,4 +282,29 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 	writeHandler.ServeHTTP(writer, req)
 	resp := writer.Result()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func BenchmarkWriteDatapoints(b *testing.B) {
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+		AnyTimes()
+
+	opts := makeOptions(mockDownsamplerAndWriter)
+	handler, err := NewPromWriteHandler(opts)
+	require.NoError(b, err)
+
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBodyBytes(b, promReq)
+	promReqBodyReader := bytes.NewReader(nil)
+
+	for i := 0; i < b.N; i++ {
+		promReqBodyReader.Reset(promReqBody)
+		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBodyReader)
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+	}
 }
