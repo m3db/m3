@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
@@ -317,6 +318,16 @@ func (iwh *ingestWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		}
 		resultErr = fmt.Sprintf("%s%sbad_request_errors: count=%d, last=%s",
 			resultErr, sep, numBadRequest, lastBadRequestErr)
+		// telegraf compatibility; it checks for substrings that have to be to change its behavior. so we add the magic ones to resulterr
+		if strings.Contains(lastBadRequestErr, "Message:datapoint too far in past:") {
+			// with these responses, at least telegraf will not keep retrying which will always fail
+			if numBadRequest == len(points) {
+				resultErr = fmt.Sprintf("points beyond retention policy - %s", resultErr)
+			} else {
+				resultErr = fmt.Sprintf("partial write - %s", resultErr)
+			}
+		}
 	}
+
 	xhttp.Error(w, errors.New(resultErr), status)
 }
