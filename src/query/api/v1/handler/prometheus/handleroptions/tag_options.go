@@ -120,19 +120,24 @@ type MapTagsOptions struct {
 
 // TagMapper represents one of a variety of tag mapping operations.
 type TagMapper struct {
-	Append  AppendOp  `json:"append,omitEmpty"`
-	Drop    DropOp    `json:"drop,omitEmpty"`
-	Replace ReplaceOp `json:"replace,omitEmpty"`
+	Write         WriteOp         `json:"write,omitEmpty"`
+	Drop          DropOp          `json:"drop,omitEmpty"`
+	DropWithValue DropWithValueOp `json:"dropWithValue,omitEmpty"`
+	Replace       ReplaceOp       `json:"replace,omitEmpty"`
 }
 
 // Validate ensures the mapper is valid.
 func (t TagMapper) Validate() error {
 	numOps := 0
-	if !t.Append.IsEmpty() {
+	if !t.Write.IsEmpty() {
 		numOps++
 	}
 
 	if !t.Drop.IsEmpty() {
+		numOps++
+	}
+
+	if !t.DropWithValue.IsEmpty() {
 		numOps++
 	}
 
@@ -147,31 +152,41 @@ func (t TagMapper) Validate() error {
 	return fmt.Errorf("must specify one operation per tag mapper (got %d)", numOps)
 }
 
-// AppendOp with value tag="foo" and value="bar" will unconditionally add
+// WriteOp with value tag="foo" and value="bar" will unconditionally add
 // tag-value pair "foo":"bar" to all timeseries included in the write request.
 // Any timeseries with a non-empty "foo" tag will have its value for that tag
 // replaced.
-type AppendOp struct {
+type WriteOp struct {
 	Tag   string `json:"tag"`
 	Value string `json:"value"`
 }
 
 // IsEmpty returns true if the operation is empty.
-func (op AppendOp) IsEmpty() bool {
+func (op WriteOp) IsEmpty() bool {
 	return op.Tag == "" && op.Value == ""
 }
 
 // DropOp with tag="foo" and an empty value will remove all tag-value pairs in
-// all timeseries in the write request where the tag was "foo". If value is
-// non-empty, a tag-value pair will only be removed if the value was equal to
-// value.
+// all timeseries in the write request where the tag was "foo".
 type DropOp struct {
+	Tag string `json:"tag"`
+}
+
+// IsEmpty returns true if the operation is empty.
+func (op DropOp) IsEmpty() bool {
+	return op.Tag == ""
+}
+
+// DropWithValueOp will remove all tag-value pairs in all timeseries in the
+// writer equest if and only if the tag AND value in the timeseries is equal to
+// those on the operation.
+type DropWithValueOp struct {
 	Tag   string `json:"tag"`
 	Value string `json:"value"`
 }
 
 // IsEmpty returns true if the operation is empty.
-func (op DropOp) IsEmpty() bool {
+func (op DropWithValueOp) IsEmpty() bool {
 	return op.Tag == "" && op.Value == ""
 }
 

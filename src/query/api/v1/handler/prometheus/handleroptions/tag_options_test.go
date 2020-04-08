@@ -147,7 +147,7 @@ func TestTagMapperValidate(t *testing.T) {
 	tm := TagMapper{}
 	assert.Error(t, tm.Validate())
 
-	tm.Append = AppendOp{Tag: "foo", Value: "bar"}
+	tm.Append = WriteOp{Tag: "foo", Value: "bar"}
 	assert.NoError(t, tm.Validate())
 
 	tm.Drop = DropOp{Tag: "foo"}
@@ -156,7 +156,7 @@ func TestTagMapperValidate(t *testing.T) {
 
 func TestOpIsEmpty(t *testing.T) {
 	t.Run("Append", func(t *testing.T) {
-		op := AppendOp{}
+		op := WriteOp{}
 		assert.True(t, op.IsEmpty())
 		op.Tag = "foo"
 		assert.False(t, op.IsEmpty())
@@ -166,6 +166,13 @@ func TestOpIsEmpty(t *testing.T) {
 		op := DropOp{}
 		assert.True(t, op.IsEmpty())
 		op.Tag = "foo"
+		assert.False(t, op.IsEmpty())
+	})
+
+	t.Run("DropWithValue", func(t *testing.T) {
+		op := DropWithValueOp{}
+		assert.True(t, op.IsEmpty())
+		op.Value = "foo"
 		assert.False(t, op.IsEmpty())
 	})
 

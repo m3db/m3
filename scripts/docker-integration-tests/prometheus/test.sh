@@ -126,7 +126,7 @@ function test_prometheus_remote_write_map_tags {
     $METRIC_NAME_TEST_RESTRICT_WRITE now 42.42 \
     true "Expected request to succeed" \
     200 "Expected request to return status code 200" \
-    unaggregated "" '{"tagMappers":[{"append":{"tag":"globaltag","value":"somevalue"}}]}'
+    unaggregated "" '{"tagMappers":[{"write":{"tag":"globaltag","value":"somevalue"}}]}'
 
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
     endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="" \

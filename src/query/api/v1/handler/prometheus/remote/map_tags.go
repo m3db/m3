@@ -35,7 +35,7 @@ func mapTags(req *prompb.WriteRequest, opts handleroptions.MapTagsOptions) error
 			return err
 		}
 
-		if op := mapper.Append; !op.IsEmpty() {
+		if op := mapper.Write; !op.IsEmpty() {
 			tag := []byte(op.Tag)
 			value := []byte(op.Value)
 
@@ -60,6 +60,10 @@ func mapTags(req *prompb.WriteRequest, opts handleroptions.MapTagsOptions) error
 
 		if op := mapper.Drop; !op.IsEmpty() {
 			return errors.New("Drop operation is not yet supported")
+		}
+
+		if op := mapper.DropWithValue; !op.IsEmpty() {
+			return errors.New("DropWithValue operation is not yet supported")
 		}
 
 		if op := mapper.Replace; !op.IsEmpty() {
