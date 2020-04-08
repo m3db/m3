@@ -340,6 +340,13 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.metrics.writeSuccess.Inc(1)
 }
 
+// parseRequest extracts the Prometheus write request from the request body and
+// headers. WARNING: it is not guaranteed that the tags returned in the request
+// body are in sorted order. It is expected that the caller ensures the tags are
+// sorted before passing them to storage, which currently happens in write() ->
+// newTSPromIter() -> storage.PromLabelsToM3Tags() -> tags.AddTags(). This is
+// the only path written metrics are processed, but future write paths must
+// uphold the same guarantees.
 func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
 ) (*prompb.WriteRequest, ingest.WriteOptions, prometheus.ParsePromCompressedRequestResult, *xhttp.ParseError) {
