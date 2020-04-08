@@ -147,7 +147,7 @@ func TestTagMapperValidate(t *testing.T) {
 	tm := TagMapper{}
 	assert.Error(t, tm.Validate())
 
-	tm.Append = WriteOp{Tag: "foo", Value: "bar"}
+	tm.Write = WriteOp{Tag: "foo", Value: "bar"}
 	assert.NoError(t, tm.Validate())
 
 	tm.Drop = DropOp{Tag: "foo"}
