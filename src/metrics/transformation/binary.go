@@ -29,8 +29,20 @@ const (
 	nanosPerSecond = time.Second / time.Nanosecond
 )
 
+var (
+	// allows to use a single transform fn ref (instead of
+	// taking reference to it each time when converting to iface).
+	transformPerSecondFn = BinaryTransformFn(perSecond)
+	transformIncreaseFn  = BinaryTransformFn(increase)
+)
+
+func transformPerSecond() BinaryTransform {
+	return transformPerSecondFn
+}
+
 // perSecond computes the derivative between consecutive datapoints, taking into
 // account the time interval between the values.
+// Note:
 // * It skips NaN values.
 // * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
 //   If either of the two conditions is not met, an empty datapoint is returned.
@@ -44,4 +56,27 @@ func perSecond(prev, curr Datapoint) Datapoint {
 	}
 	rate := diff * float64(nanosPerSecond) / float64(curr.TimeNanos-prev.TimeNanos)
 	return Datapoint{TimeNanos: curr.TimeNanos, Value: rate}
+}
+
+func transformIncrease() BinaryTransform {
+	return transformIncreaseFn
+}
+
+// increase computes the difference between consecutive datapoints, unlike
+// perSecond it does not account for the time interval between the values.
+// Note:
+// * It skips NaN values.
+// * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
+//   If the value decreases, this is treated as a counter reset and the value is returned.
+func increase(prev, curr Datapoint) Datapoint {
+	if prev.TimeNanos >= curr.TimeNanos || math.IsNaN(prev.Value) || math.IsNaN(curr.Value) {
+		return emptyDatapoint
+	}
+	diff := curr.Value - prev.Value
+	if diff < 0 {
+		// // Treated as a counter reset, take the curr value as counted elements.
+		// return Datapoint{TimeNanos: curr.TimeNanos, Value: curr.Value}
+		return emptyDatapoint
+	}
+	return Datapoint{TimeNanos: curr.TimeNanos, Value: diff}
 }
