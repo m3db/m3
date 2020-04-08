@@ -22,6 +22,7 @@ package remote
 
 import (
 	"bytes"
+	"errors"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -54,6 +55,14 @@ func mapTags(req *prompb.WriteRequest, opts handleroptions.MapTagsOptions) error
 					Value: value,
 				})
 			}
+		}
+
+		if op := mapper.Drop; !op.IsEmpty() {
+			return errors.New("Drop operation is not yet supported")
+		}
+
+		if op := mapper.Replace; !op.IsEmpty() {
+			return errors.New("Replace operation is not yet supported")
 		}
 	}
 
