@@ -28,6 +28,10 @@ import (
 )
 
 const (
+	// M3HeaderPrefix is the prefix all M3-specific headers that affect query or
+	// write behavior (not necessarily m3admin headers) are guaranteed to have.
+	M3HeaderPrefix = "M3-"
+
 	// WarningsHeader is the M3 warnings header when to display a warning to a user.
 	WarningsHeader = "M3-Warnings"
 
