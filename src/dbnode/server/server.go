@@ -137,7 +137,7 @@ type RunOptions struct {
 	InterruptCh <-chan error
 
 	// QueryStatsTracker exposes an interface for tracking query stats.
-	QueryStatsTracker stats.QueryStatsTracker
+	QueryStatsTracker *stats.QueryStatsTracker
 
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
@@ -902,7 +902,10 @@ func Run(runOpts RunOptions) {
 	}()
 
 	// Setup query stats tracking.
-	if runOpts.QueryStatsTracker == nil {
+	var tracker stats.QueryStatsTracker
+	if runOpts.QueryStatsTracker != nil {
+		tracker = *runOpts.QueryStatsTracker
+	} else {
 		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
 	}
 	queryStats := stats.NewQueryStats(tracker)
