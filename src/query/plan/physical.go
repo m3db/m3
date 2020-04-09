@@ -97,8 +97,8 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 		}
 
 		spec := boundOp.Bounds()
-		if spec.Offset+p.LookbackDuration > maxOffset {
-			maxOffset = spec.Offset + p.LookbackDuration
+		if p.LookbackDuration > maxOffset {
+			maxOffset = p.LookbackDuration
 		}
 
 		if spec.Range > maxRange {
