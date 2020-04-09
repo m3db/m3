@@ -45,6 +45,7 @@ type aggregator struct {
 	gaugesWithMetadatas          []unaggregated.GaugeWithMetadatas
 	forwardedMetricsWithMetadata []aggregated.ForwardedMetricWithMetadata
 	timedMetricsWithMetadata     []aggregated.TimedMetricWithMetadata
+	timedMetricsWithMetadatas    []aggregated.TimedMetricWithMetadatas
 }
 
 // NewAggregator creates a new capturing aggregator.
@@ -107,6 +108,26 @@ func (agg *aggregator) AddTimed(
 		TimedMetadata: metadata,
 	}
 	agg.timedMetricsWithMetadata = append(agg.timedMetricsWithMetadata, tm)
+	agg.numMetricsAdded++
+	return nil
+}
+
+func (agg *aggregator) AddTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	sm metadata.StagedMetadatas,
+) error {
+	// Clone the metric and timed metadata to ensure it cannot be mutated externally.
+	metric = cloneTimedMetric(metric)
+	sm = cloneStagedMetadatas(sm)
+
+	agg.Lock()
+	defer agg.Unlock()
+
+	tms := aggregated.TimedMetricWithMetadatas{
+		Metric:          metric,
+		StagedMetadatas: sm,
+	}
+	agg.timedMetricsWithMetadatas = append(agg.timedMetricsWithMetadatas, tms)
 	agg.numMetricsAdded++
 	return nil
 }

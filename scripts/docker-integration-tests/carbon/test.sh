@@ -27,7 +27,7 @@ function read_carbon {
   end=$(date +%s)
   start=$(($end-1000))
   RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/graphite/render?target=$target&from=$start&until=$end")
-  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null)" | tail -n 1)" = "$expected_val"
+  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null) | last")" = "$expected_val"
   return $?
 }
 

@@ -123,7 +123,7 @@ function test_query_mapping_rule {
   end=$(( $now + 3600 ))
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
-  jq_path=".data.result[0].values[0] | .[1] | select(. != null)"
+  jq_path=".data.result[0].values[0] | .[1] | select(. != null) | last"
 
   # Test values can be mapped to 30s:24h resolution namespace (for app="nginx")
   echo "Test query mapping rule"
@@ -190,7 +190,7 @@ function test_query_rollup_rule {
   end=$(( $now + 3600 ))
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
-  jq_path=".data.result[0].values | .[][1] | select(. != null)"
+  jq_path=".data.result[0].values | .[][1] | select(. != null) | last"
 
   echo "Test query rollup rule"
 

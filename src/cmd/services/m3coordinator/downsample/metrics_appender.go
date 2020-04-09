@@ -251,16 +251,19 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.currStagedMetadata.Pipelines, pipelines.Pipelines...)
 		}
 
-		mappingStagedMetadatas := []metadata.StagedMetadata{a.currStagedMetadata}
-		a.debugLogMatch("downsampler built mapping staged metadatas",
-			debugLogMatchOptions{Meta: mappingStagedMetadatas})
+		if len(a.currStagedMetadata.Pipelines) > 0 {
+			// Send to downsampler if we have something in the pipeline.
+			mappingStagedMetadatas := []metadata.StagedMetadata{a.currStagedMetadata}
+			a.debugLogMatch("downsampler using built mapping staged metadatas",
+				debugLogMatchOptions{Meta: mappingStagedMetadatas})
 
-		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:             a.agg,
-			clientRemote:    a.clientRemote,
-			unownedID:       unownedID,
-			stagedMetadatas: mappingStagedMetadatas,
-		})
+			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+				agg:             a.agg,
+				clientRemote:    a.clientRemote,
+				unownedID:       unownedID,
+				stagedMetadatas: mappingStagedMetadatas,
+			})
+		}
 
 		numRollups := matchResult.NumNewRollupIDs()
 		for i := 0; i < numRollups; i++ {

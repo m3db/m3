@@ -114,7 +114,7 @@ function read_carbon {
   end=$(date +%s)
   start=$(($end-1000))
   RESPONSE=$(curl -sSfg "http://${COORDINATOR_API}/api/v1/graphite/render?target=$target&from=$start&until=$end")
-  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null)" | tail -n 1)" = "$expected_val"
+  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null) | last")" = "$expected_val"
   return $?
 }
 
@@ -244,7 +244,7 @@ function test_aggregated_rollup_rule {
   end=$(( $now + 3600 ))
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
-  jq_path=".data.result[0].values | .[][1] | select(. != null)"
+  jq_path=".data.result[0].values | .[][1] | select(. != null) | last"
 
   echo "Test query rollup rule"
 
