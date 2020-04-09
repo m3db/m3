@@ -83,7 +83,7 @@ func testPromReadHandlerRead(
 		setup.QueryOpts, setup.FetchOpts, promRead.tagOpts, httptest.NewRecorder(),
 		r, instrument.NewOptions())
 
-	seriesList := result.series
+	seriesList := result.Series
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
 	s := seriesList[0]
@@ -331,14 +331,7 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			setup := newTestSetup()
-			setup.Handlers.Read.limitsCfg = &config.LimitsConfiguration{
-				PerQuery: config.PerQueryLimitsConfiguration{
-					PrivateMaxComputedDatapoints: tc.Max,
-				},
-			}
-
-			err := setup.Handlers.Read.validateRequest(tc.Params)
+			err := validateRequest(tc.Params, tc.Max)
 			if tc.ErrorExpected {
 				require.Error(t, err)
 			} else {

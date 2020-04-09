@@ -134,7 +134,7 @@ func testPromReadInstantHandler(
 	{
 		"status": "success",
 		"data": {
-			"resultType": "vector",
+			"resultType": "vector", 
 			"result": [
 				{
 					"metric": {

@@ -21,6 +21,7 @@
 package options
 
 import (
+	"io"
 	"net/http"
 	"time"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -59,6 +61,10 @@ type CustomHandler interface {
 	// Handler is the custom handler itself.
 	Handler(handlerOptions HandlerOptions) (http.Handler, error)
 }
+
+// RemoteReadRenderer renders remote read output.
+type RemoteReadRenderer func(io.Writer, []*ts.Series,
+	models.RequestParams, bool)
 
 // HandlerOptions represents handler options.
 type HandlerOptions interface {
@@ -145,7 +151,12 @@ type HandlerOptions interface {
 	// SetNowFn sets the now function.
 	SetNowFn(f clock.NowFn) HandlerOptions
 
-	// InstrumentOpts returns the instrumentation optoins.
+	// RemoteReadRenderer returns the remote read renderer.
+	RemoteReadRenderer() RemoteReadRenderer
+	// SetInstrumentOpts sets the remote read renderer.
+	SetRemoteReadRenderer(r RemoteReadRenderer) HandlerOptions
+
+	// InstrumentOpts returns the instrumentation options.
 	InstrumentOpts() instrument.Options
 	// SetInstrumentOpts sets instrumentation options.
 	SetInstrumentOpts(opts instrument.Options) HandlerOptions

@@ -127,16 +127,17 @@ func NewPromReadHandler(opts options.HandlerOptions) *PromReadHandler {
 
 // Read reads the given query, returning result and params.
 func Read(
-	w http.ResponseWriter,
+	// w http.ResponseWriter,
 	r *http.Request,
+	cancelWatcher handler.CancelWatcher,
 	maxDps int64,
 	opts options.HandlerOptions,
 ) (ReadResult, models.RequestParams, *RespError) {
 	// timer := h.promReadMetrics.fetchTimerSuccess.Start()
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return ReadResult{}, emptyReqParams, rErr
+		err := &RespError{Err: rErr.Inner(), Code: rErr.Code()}
+		return ReadResult{}, emptyReqParams, err
 	}
 
 	queryOpts := &executor.QueryOptions{
@@ -153,67 +154,13 @@ func Read(
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	return ServeHTTPWithEngine(w, r, queryOpts, fetchOpts, maxDps, opts)
+	return readWithEngine(r, cancelWatcher, queryOpts, fetchOpts, maxDps, opts)
 }
 
-func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	timer := h.promReadMetrics.fetchTimerSuccess.Start()
-	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return
-	}
-
-	queryOpts := &executor.QueryOptions{
-		QueryContextOptions: models.QueryContextOptions{
-			LimitMaxTimeseries: fetchOpts.Limit,
-		}}
-
-	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
-	if restrictOpts != nil {
-		restrict := &models.RestrictFetchTypeQueryContextOptions{
-			MetricsType:   uint(restrictOpts.MetricsType),
-			StoragePolicy: restrictOpts.StoragePolicy,
-		}
-		queryOpts.QueryContextOptions.RestrictFetchType = restrict
-	}
-
-	maxDps := h.limitsCfg.MaxComputedDatapoints()
-	result, params, respErr := ServeHTTPWithEngine(
-		w, r, queryOpts, fetchOpts, maxDps, h.opts)
-	if respErr != nil {
-		if respErr.Code == http.StatusInternalServerError {
-			h.promReadMetrics.fetchErrorsServer.Inc(1)
-		} else {
-			h.promReadMetrics.fetchErrorsClient.Inc(1)
-		}
-
-		xhttp.Error(w, respErr.Err, respErr.Code)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	handleroptions.AddWarningHeaders(w, result.Meta)
-
-	if params.FormatType == models.FormatM3QL {
-		renderM3QLResultsJSON(w, result.Series, params)
-		h.promReadMetrics.fetchSuccess.Inc(1)
-		timer.Stop()
-		return
-	}
-
-	h.promReadMetrics.fetchSuccess.Inc(1)
-	timer.Stop()
-
-	keepEmpty := h.opts.Config().ResultOptions.KeepNans
-	// TODO: Support multiple result types
-	renderResultsJSON(w, result.Series, params, keepEmpty)
-}
-
-// ServeHTTPWithEngine returns query results from the storage
-func ServeHTTPWithEngine(
-	w http.ResponseWriter,
+// readWithEngine returns query results from the storage with the given engine.
+func readWithEngine(
 	r *http.Request,
+	cancelWatcher handler.CancelWatcher,
 	queryOpts *executor.QueryOptions,
 	fetchOpts *storage.FetchOptions,
 	maxDps int64,
@@ -240,8 +187,11 @@ func ServeHTTPWithEngine(
 			&RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, engine, queryOpts, fetchOpts, opts.TagOptions(),
-		w, params, iOpts)
+	reqCtx, cancel := context.WithTimeout(ctx, params.Timeout)
+	// Detect clients closing connections.
+	cancelWatcher.WatchForCancel(reqCtx, cancel)
+	result, err := read(reqCtx, engine, queryOpts, fetchOpts, opts.TagOptions(), params)
+	cancel()
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
@@ -279,4 +229,38 @@ func validateRequest(
 	}
 
 	return nil
+}
+
+func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	timer := h.promReadMetrics.fetchTimerSuccess.Start()
+	maxDps := h.limitsCfg.MaxComputedDatapoints()
+	watcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
+	result, params, respErr := Read(r, watcher, maxDps, h.opts)
+	if respErr != nil {
+		if respErr.Code == http.StatusInternalServerError {
+			h.promReadMetrics.fetchErrorsServer.Inc(1)
+		} else {
+			h.promReadMetrics.fetchErrorsClient.Inc(1)
+		}
+
+		xhttp.Error(w, respErr.Err, respErr.Code)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	handleroptions.AddWarningHeaders(w, result.Meta)
+
+	if params.FormatType == models.FormatM3QL {
+		renderM3QLResultsJSON(w, result.Series, params)
+		h.promReadMetrics.fetchSuccess.Inc(1)
+		timer.Stop()
+		return
+	}
+
+	h.promReadMetrics.fetchSuccess.Inc(1)
+	timer.Stop()
+
+	keepEmpty := h.opts.Config().ResultOptions.KeepNans
+	// TODO: Support multiple result types
+	renderResultsJSON(w, result.Series, params, keepEmpty)
 }

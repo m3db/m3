@@ -28,7 +28,51 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 )
 
-// CloseWatcher watches for CloseNotify and context timeout. It is best effort and may sometimes not close the channel relying on gc
+// CancelWatcher is an interface that wraps a WatchForCancel method.
+type CancelWatcher interface {
+	WatchForCancel(context.Context, context.CancelFunc)
+}
+
+type canceller struct {
+	w     http.ResponseWriter
+	iOpts instrument.Options
+}
+
+// NewResponseWriterCanceller creates a canceller on the given context with
+// the given response writer.
+func NewResponseWriterCanceller(
+	w http.ResponseWriter,
+	iOpts instrument.Options,
+) CancelWatcher {
+	return &canceller{w: w, iOpts: iOpts}
+}
+
+func (c *canceller) WatchForCancel(
+	ctx context.Context,
+	cancel context.CancelFunc,
+) {
+	logger := logging.WithContext(ctx, c.iOpts)
+	if notifier, ok := c.w.(http.CloseNotifier); ok {
+		notify := notifier.CloseNotify()
+		go func() {
+			// Wait for either the request to finish
+			// or for the client to disconnect
+			select {
+			case <-notify:
+				logger.Warn("connection closed by client")
+				cancel()
+			case <-ctx.Done():
+				// We only care about the time out case and not other cancellations
+				if ctx.Err() == context.DeadlineExceeded {
+					logger.Warn("request timed out")
+				}
+			}
+		}()
+	}
+}
+
+// CloseWatcher watches for CloseNotify and context timeout.
+// It is best effort and may sometimes not close the channel relying on GC.
 func CloseWatcher(
 	ctx context.Context,
 	cancel context.CancelFunc,

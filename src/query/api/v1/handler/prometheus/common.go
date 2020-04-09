@@ -135,7 +135,7 @@ func ParseRequestTimeout(
 	}
 
 	return duration, nil
-}q
+}
 
 // TagCompletionQueries are tag completion queries.
 type TagCompletionQueries struct {

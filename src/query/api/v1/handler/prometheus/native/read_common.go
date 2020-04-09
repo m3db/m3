@@ -23,9 +23,7 @@ package native
 import (
 	"context"
 	"math"
-	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
@@ -33,31 +31,25 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/x/instrument"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
-// ReadResult is a result from a read
+// ReadResult is a result from a remote read.
 type ReadResult struct {
 	Series []*ts.Series
 	Meta   block.ResultMetadata
 }
 
 func read(
-	reqCtx context.Context,
+	ctx context.Context,
 	engine executor.Engine,
 	opts *executor.QueryOptions,
 	fetchOpts *storage.FetchOptions,
 	tagOpts models.TagOptions,
-	w http.ResponseWriter,
 	params models.RequestParams,
-	instrumentOpts instrument.Options,
 ) (ReadResult, error) {
-	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
-	defer cancel()
-
 	sp := xopentracing.SpanFromContextOrNoop(ctx)
 	sp.LogFields(
 		opentracinglog.String("params.query", params.Query),
@@ -67,8 +59,6 @@ func read(
 		xopentracing.Duration("params.step", params.Step),
 	)
 
-	// Detect clients closing connections.
-	handler.CloseWatcher(ctx, cancel, w, instrumentOpts)
 	emptyResult := ReadResult{Meta: block.NewResultMetadata()}
 
 	// TODO: Capture timing

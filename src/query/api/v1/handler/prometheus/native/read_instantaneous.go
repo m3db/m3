@@ -108,8 +108,7 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	result, err := read(ctx, h.engine, queryOpts, fetchOpts,
-		h.tagOpts, w, params, h.instrumentOpts)
+	result, err := read(ctx, h.engine, queryOpts, fetchOpts, h.tagOpts, params)
 	if err != nil {
 		logger.Error("instant query error",
 			zap.Error(err),
