@@ -29,10 +29,6 @@ import (
 	"go.uber.org/atomic"
 )
 
-var (
-	globalQueryStats *queryStats
-)
-
 // For tracking query stats in past X duration such as blocks queried.
 type queryStats struct {
 	length  time.Duration
@@ -48,56 +44,61 @@ type queryStatsMetricsTracker struct {
 	recentDocs tally.Gauge
 }
 
-// QueryStatsTracker provides an interface for handling current query stats.
+// QueryStats provides an interface for updating query stats.
+type QueryStats interface {
+	Update(newDocs int) error
+	Start()
+	Stop()
+}
+
+// QueryStatsTracker provides an interface for tracking current query stats.
 type QueryStatsTracker interface {
-	TrackDocs(recentDocs int64) error
+	TrackDocs(recentDocs int) error
 }
 
-// UpdateQueryStats adds new query stats which are being tracked.
-func UpdateQueryStats(newDocs int) error {
-	if globalQueryStats == nil {
-		return nil
-	}
-	if newDocs <= 0 {
-		return nil
-	}
-
-	// Add the new stats to the global state.
-	recentDocs := globalQueryStats.recentDocs.Add(int64(newDocs))
-
-	// Invoke the custom tracker based on the new stats values.
-	return globalQueryStats.tracker.TrackDocs(recentDocs)
-}
-
-// EnableQueryStatsTracking enables query stats to be tracked within a recency time window.
-func EnableQueryStatsTracking(within time.Duration, tracker QueryStatsTracker) chan struct{} {
-	globalQueryStats = &queryStats{
+// NewQueryStats enables query stats to be tracked within a recency time window.
+func NewQueryStats(within time.Duration, tracker QueryStatsTracker) QueryStats {
+	return &queryStats{
 		length:     within,
 		tracker:    tracker,
 		recentDocs: atomic.NewInt64(0),
 		stopCh:     make(chan struct{}),
 	}
-	globalQueryStats.start()
-
-	// Give caller handle to stop the background tracking.
-	return globalQueryStats.stopCh
 }
 
-func (w queryStats) start() {
-	ticker := time.NewTicker(w.length)
+// UpdateQueryStats adds new query stats which are being tracked.
+func (q *queryStats) Update(newDocs int) error {
+	if newDocs <= 0 {
+		return nil
+	}
+
+	// Add the new stats to the global state.
+	recentDocs := q.recentDocs.Add(int64(newDocs))
+
+	// Invoke the custom tracker based on the new stats values.
+	return q.tracker.TrackDocs(int(recentDocs))
+}
+
+// Start initializes background processing for handling query stats.
+func (q *queryStats) Start() {
+	ticker := time.NewTicker(q.length)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			// Clear recent docs every X duration.
-			w.recentDocs.Store(0)
+			q.recentDocs.Store(0)
 
 			// Also invoke the track func for having zero value.
-			w.tracker.TrackDocs(0)
-		case <-w.stopCh:
+			q.tracker.TrackDocs(0)
+		case <-q.stopCh:
 			return
 		}
 	}
+}
+
+func (q *queryStats) Stop() {
+	close(q.stopCh)
 }
 
 // DefaultQueryStatsTrackerForMetrics provides a tracker
@@ -111,7 +112,7 @@ func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTrack
 	}
 }
 
-func (t *queryStatsMetricsTracker) TrackDocs(recentDocs int64) error {
+func (t *queryStatsMetricsTracker) TrackDocs(recentDocs int) error {
 	t.Lock()
 	t.recentDocs.Update(float64(recentDocs))
 	t.Unlock()
