@@ -161,8 +161,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRules(t *testing.T) {
 		expect: &testDownsamplerOptionsExpect{
 			writes: []testExpectedWrite{
 				{
-					tags:  gaugeMetric.tags,
-					value: 30,
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 30}},
 					attributes: &storage.Attributes{
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  5 * time.Second,
@@ -219,8 +219,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 				// Expect the max to be used and override the default auto
 				// mapping rule for the storage policy 2s:24h.
 				{
-					tags:  gaugeMetric.tags,
-					value: 30,
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 30}},
 					attributes: &storage.Attributes{
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  2 * time.Second,
@@ -230,8 +230,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 				// Expect the sum to still be used for the storage
 				// policy 4s:48h.
 				{
-					tags:  gaugeMetric.tags,
-					value: 60,
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 60}},
 					attributes: &storage.Attributes{
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  4 * time.Second,
@@ -287,8 +287,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRule
 				// Expect the max to be used and override the default auto
 				// mapping rule for the storage policy 2s:24h.
 				{
-					tags:  gaugeMetric.tags,
-					value: 30,
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 30}},
 					attributes: &storage.Attributes{
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  2 * time.Second,
@@ -363,7 +363,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesPerSecondSum(t *testing
 						"status_code":         "500",
 						"endpoint":            "/foo/bar",
 					},
-					value: 4.4,
+					values:            []expectedValue{{value: 4.4}},
+					valueAllowedError: 0.01,
 					attributes: &storage.Attributes{
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  res,
@@ -456,13 +457,16 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.
 			writes: []testExpectedWrite{
 				{
 					tags: map[string]string{
-						nameTag:               "http_requests_by_status_code_",
+						nameTag:               "http_requests_by_status_code",
 						string(rollupTagName): string(rollupTagValue),
 						"app":                 "nginx_edge",
 						"status_code":         "500",
 						"endpoint":            "/foo/bar",
 					},
-					values: []float64{14, 26, 62},
+					values: []expectedValue{
+						{value: 14},
+						{value: 50, offset: 10 * time.Second},
+					},
 					attributes: &storage.Attributes{
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  res,
@@ -506,10 +510,10 @@ func TestDownsamplerAggregationWithTimedSamples(t *testing.T) {
 
 func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 	counterMetrics, counterMetricsExpect := testCounterMetrics(testCounterMetricsOptions{})
-	counterMetricsExpect[0].value = 2
+	counterMetricsExpect[0].values = []expectedValue{{value: 2}}
 
 	gaugeMetrics, gaugeMetricsExpect := testGaugeMetrics(testGaugeMetricsOptions{})
-	gaugeMetricsExpect[0].value = 5
+	gaugeMetricsExpect[0].values = []expectedValue{{value: 5}}
 
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
 		sampleAppenderOpts: &SampleAppenderOptions{
@@ -567,10 +571,15 @@ func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
 }
 
 type testExpectedWrite struct {
-	tags       map[string]string
-	value      float64   // use value for single expected value
-	values     []float64 // use values for multi expected values
-	attributes *storage.Attributes
+	tags              map[string]string
+	values            []expectedValue // use values for multi expected values
+	valueAllowedError float64         // use for allowing for slightly inexact values due to timing, etc
+	attributes        *storage.Attributes
+}
+
+type expectedValue struct {
+	offset time.Duration
+	value  float64
 }
 
 type testCounterMetric struct {
@@ -616,8 +625,8 @@ func testCounterMetrics(opts testCounterMetricsOptions) (
 		}
 	}
 	write := testExpectedWrite{
-		tags:  metric.tags,
-		value: 6,
+		tags:   metric.tags,
+		values: []expectedValue{{value: 6}},
 	}
 	return []testCounterMetric{metric}, []testExpectedWrite{write}
 }
@@ -638,8 +647,8 @@ func testGaugeMetrics(opts testGaugeMetricsOptions) ([]testGaugeMetric, []testEx
 		}
 	}
 	write := testExpectedWrite{
-		tags:  metric.tags,
-		value: 15,
+		tags:   metric.tags,
+		values: []expectedValue{{value: 15}},
 	}
 	return []testGaugeMetric{metric}, []testExpectedWrite{write}
 }
@@ -676,13 +685,13 @@ func testDownsamplerAggregation(
 	logWritesAccumulatedTicker := time.NewTicker(time.Second)
 CheckAllWritesArrivedLoop:
 	for {
-		writes := testDownsampler.storage.Writes()
+		allWrites := testDownsampler.storage.Writes()
 		if logWritesAccumulated {
 			select {
 			case <-logWritesAccumulatedTicker.C:
 				logger.Info("logging accmulated writes",
-					zap.Int("numWrites", len(writes)))
-				for _, write := range writes {
+					zap.Int("numAllWrites", len(allWrites)))
+				for _, write := range allWrites {
 					logger.Info("accumulated write",
 						zap.ByteString("tags", write.Tags.ID()),
 						zap.Any("datapoints", write.Datapoints),
@@ -694,8 +703,8 @@ CheckAllWritesArrivedLoop:
 
 		for _, expectedWrite := range expectedWrites {
 			name := expectedWrite.tags[nameTag]
-			_, ok := findWrite(t, writes, name, expectedWrite.attributes)
-			if !ok {
+			writesForName, _ := findWrites(t, allWrites, name, expectedWrite.attributes)
+			if len(writesForName) != len(expectedWrite.values) {
 				time.Sleep(100 * time.Millisecond)
 				continue CheckAllWritesArrivedLoop
 			}
@@ -705,11 +714,11 @@ CheckAllWritesArrivedLoop:
 
 	// Verify writes
 	logger.Info("verify test metrics")
-	writes := testDownsampler.storage.Writes()
+	allWrites := testDownsampler.storage.Writes()
 	if logWritesAccumulated {
 		logger.Info("logging accmulated writes to verify",
-			zap.Int("numWrites", len(writes)))
-		for _, write := range writes {
+			zap.Int("numAllWrites", len(allWrites)))
+		for _, write := range allWrites {
 			logger.Info("accumulated write",
 				zap.ByteString("tags", write.Tags.ID()),
 				zap.Any("datapoints", write.Datapoints))
@@ -718,16 +727,43 @@ CheckAllWritesArrivedLoop:
 
 	for _, expectedWrite := range expectedWrites {
 		name := expectedWrite.tags[nameTag]
-		value := expectedWrite.value
+		expectedValues := expectedWrite.values
+		allowedError := expectedWrite.valueAllowedError
 
-		write, found := findWrite(t, writes, name, expectedWrite.attributes)
+		writesForName, found := findWrites(t, allWrites, name, expectedWrite.attributes)
 		require.True(t, found)
-		assert.Equal(t, expectedWrite.tags, tagsToStringMap(write.Tags))
-		require.Equal(t, 1, len(write.Datapoints))
-		assert.Equal(t, float64(value), write.Datapoints[0].Value)
+		require.Equal(t, len(expectedValues), len(writesForName))
+		for i, expectedValue := range expectedValues {
+			write := writesForName[i]
 
-		if attrs := expectedWrite.attributes; attrs != nil {
-			assert.Equal(t, *attrs, write.Attributes)
+			assert.Equal(t, expectedWrite.tags, tagsToStringMap(write.Tags))
+
+			require.Equal(t, 1, len(write.Datapoints))
+
+			actualValue := write.Datapoints[0].Value
+			if allowedError == 0 {
+				// Exact match value.
+				assert.Equal(t, expectedValue.value, actualValue)
+			} else {
+				// Fuzzy match value.
+				lower := expectedValue.value - allowedError
+				upper := expectedValue.value + allowedError
+				withinBounds := (lower <= actualValue) && (actualValue <= upper)
+				msg := fmt.Sprintf("expected within: lower=%f, upper=%f, actual=%f",
+					lower, upper, actualValue)
+				assert.True(t, withinBounds, msg)
+			}
+
+			if expectedOffset := expectedValue.offset; expectedOffset > 0 {
+				// Check if distance between datapoints as expected (use
+				// absolute offset from first write).
+				actualOffset := write.Datapoints[0].Timestamp.Sub(writesForName[0].Datapoints[0].Timestamp)
+				assert.Equal(t, expectedOffset, actualOffset)
+			}
+
+			if attrs := expectedWrite.attributes; attrs != nil {
+				assert.Equal(t, *attrs, write.Attributes)
+			}
 		}
 	}
 }
@@ -1053,12 +1089,13 @@ func newTestID(t *testing.T, tags map[string]string) id.ID {
 	return iter
 }
 
-func findWrite(
+func findWrites(
 	t *testing.T,
 	writes []*storage.WriteQuery,
 	name string,
 	optionalMatchAttrs *storage.Attributes,
-) (*storage.WriteQuery, bool) {
+) ([]*storage.WriteQuery, bool) {
+	var results []*storage.WriteQuery
 	for _, w := range writes {
 		if t, ok := w.Tags.Get([]byte(nameTag)); ok {
 			if !bytes.Equal(t, []byte(name)) {
@@ -1069,11 +1106,12 @@ func findWrite(
 				// Tried to match attributes and not matched.
 				continue
 			}
+
 			// Matches name and all optional lookups.
-			return w, true
+			results = append(results, w)
 		}
 	}
-	return nil, false
+	return results, len(results) > 0
 }
 
 func testUpdateMetadata() rules.UpdateMetadata {

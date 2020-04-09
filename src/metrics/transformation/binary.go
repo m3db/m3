@@ -67,15 +67,13 @@ func transformIncrease() BinaryTransform {
 // Note:
 // * It skips NaN values.
 // * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
-//   If the value decreases, this is treated as a counter reset and the value is returned.
+//   If either of the two conditions is not met, an empty datapoint is returned.
 func increase(prev, curr Datapoint) Datapoint {
 	if prev.TimeNanos >= curr.TimeNanos || math.IsNaN(prev.Value) || math.IsNaN(curr.Value) {
 		return emptyDatapoint
 	}
 	diff := curr.Value - prev.Value
 	if diff < 0 {
-		// // Treated as a counter reset, take the curr value as counted elements.
-		// return Datapoint{TimeNanos: curr.TimeNanos, Value: curr.Value}
 		return emptyDatapoint
 	}
 	return Datapoint{TimeNanos: curr.TimeNanos, Value: diff}

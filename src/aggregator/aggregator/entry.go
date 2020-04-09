@@ -101,18 +101,24 @@ func newUntimedEntryMetrics(scope tally.Scope) untimedEntryMetrics {
 }
 
 type timedEntryMetrics struct {
-	rateLimit         rateLimitEntryMetrics
-	tooFarInTheFuture tally.Counter
-	tooFarInThePast   tally.Counter
-	metadataUpdates   tally.Counter
+	rateLimit             rateLimitEntryMetrics
+	tooFarInTheFuture     tally.Counter
+	tooFarInThePast       tally.Counter
+	noPipelinesInMetadata tally.Counter
+	tombstonedMetadata    tally.Counter
+	metadataUpdates       tally.Counter
+	metadatasUpdates      tally.Counter
 }
 
 func newTimedEntryMetrics(scope tally.Scope) timedEntryMetrics {
 	return timedEntryMetrics{
-		rateLimit:         newRateLimitEntryMetrics(scope),
-		tooFarInTheFuture: scope.Counter("too-far-in-the-future"),
-		tooFarInThePast:   scope.Counter("too-far-in-the-past"),
-		metadataUpdates:   scope.Counter("metadata-updates"),
+		rateLimit:             newRateLimitEntryMetrics(scope),
+		tooFarInTheFuture:     scope.Counter("too-far-in-the-future"),
+		tooFarInThePast:       scope.Counter("too-far-in-the-past"),
+		noPipelinesInMetadata: scope.Counter("no-pipelines-in-metadata"),
+		tombstonedMetadata:    scope.Counter("tombstoned-metadata"),
+		metadataUpdates:       scope.Counter("metadata-updates"),
+		metadatasUpdates:      scope.Counter("metadatas-updates"),
 	}
 }
 
@@ -435,6 +441,7 @@ func (e *Entry) addUntimed(
 			timeLock.RUnlock()
 			return err
 		}
+		e.metrics.untimed.metadatasUpdates.Inc(1)
 	}
 
 	err = e.addUntimedWithLock(currTime, metric)
@@ -617,7 +624,6 @@ func (e *Entry) updateStagedMetadatasWithLock(
 	e.aggregations = newAggregations
 	e.hasDefaultMetadatas = hasDefaultMetadatas
 	e.cutoverNanos = sm.CutoverNanos
-	e.metrics.untimed.metadatasUpdates.Inc(1)
 
 	return nil
 }
@@ -686,7 +692,7 @@ func (e *Entry) addTimed(
 		if sm.Tombstoned {
 			e.RUnlock()
 			timeLock.RUnlock()
-			// e.metrics.timed.tombstonedMetadata.Inc(1)
+			e.metrics.timed.tombstonedMetadata.Inc(1)
 			return nil
 		}
 
@@ -694,7 +700,7 @@ func (e *Entry) addTimed(
 		if len(sm.Pipelines) == 0 {
 			e.RUnlock()
 			timeLock.RUnlock()
-			e.metrics.untimed.noPipelinesInMetadata.Inc(1)
+			e.metrics.timed.noPipelinesInMetadata.Inc(1)
 			return errNoPipelinesInMetadata
 		}
 
@@ -723,6 +729,7 @@ func (e *Entry) addTimed(
 				timeLock.RUnlock()
 				return err
 			}
+			e.metrics.timed.metadatasUpdates.Inc(1)
 		}
 
 		err = e.addTimedWithStagedMetadatasAndLock(metric)
