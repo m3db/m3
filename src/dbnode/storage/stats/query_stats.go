@@ -77,20 +77,22 @@ func (q *queryStats) Start() {
 	if q == nil {
 		return
 	}
-	ticker := time.NewTicker(q.tracker.Lookback())
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			// Clear recent docs every X duration.
-			q.recentDocs.Store(0)
+	go func() {
+		ticker := time.NewTicker(q.tracker.Lookback())
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				// Clear recent docs every X duration.
+				q.recentDocs.Store(0)
 
-			// Also invoke the track func for having zero value.
-			q.tracker.TrackDocs(0)
-		case <-q.stopCh:
-			return
+				// Also invoke the track func for having zero value.
+				q.tracker.TrackDocs(0)
+			case <-q.stopCh:
+				return
+			}
 		}
-	}
+	}()
 }
 
 func (q *queryStats) Stop() {
