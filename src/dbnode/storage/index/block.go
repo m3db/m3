@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
@@ -967,7 +966,7 @@ func (b *block) addQueryResults(
 	batch []doc.Document,
 ) ([]doc.Document, int, error) {
 	// update recently queried docs to monitor memory.
-	if err := stats.UpdateQueryStats(len(batch)); err != nil {
+	if err := b.opts.QueryStats().Update(len(batch)); err != nil {
 		return batch, 0, err
 	}
 
@@ -1205,7 +1204,7 @@ func (b *block) addAggregateResults(
 	batch []AggregateResultsEntry,
 ) ([]AggregateResultsEntry, int, error) {
 	// update recently queried docs to monitor memory.
-	if err := stats.UpdateQueryStats(len(batch)); err != nil {
+	if err := b.opts.QueryStats().Update(len(batch)); err != nil {
 		return batch, 0, err
 	}
 
