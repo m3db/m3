@@ -41,6 +41,15 @@ import (
 
 const defaultTimeout = 30 * time.Second
 
+// OptionTransformFn transforms given handler options.
+type OptionTransformFn func(opts HandlerOptions) HandlerOptions
+
+// CustomHandlerOptions is a list of custom handler options.
+type CustomHandlerOptions struct {
+	CustomHandlers    []CustomHandler
+	OptionTransformFn OptionTransformFn
+}
+
 // CustomHandler allows for custom third party http handlers.
 type CustomHandler interface {
 	// Route is the custom handler route.

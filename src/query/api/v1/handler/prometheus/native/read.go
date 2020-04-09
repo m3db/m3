@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
@@ -36,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
@@ -68,14 +66,10 @@ var (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	keepEmpty           bool
 	limitsCfg           *config.LimitsConfiguration
-	timeoutOps          *prometheus.TimeoutOpts
-	engine              executor.Engine
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	tagOpts             models.TagOptions
 	promReadMetrics     promReadMetrics
-	instrumentOpts      instrument.Options
+	opts                options.HandlerOptions
 }
 
 type promReadMetrics struct {
@@ -121,19 +115,45 @@ func NewPromReadHandler(opts options.HandlerOptions) *PromReadHandler {
 	limits := opts.Config().Limits
 
 	h := &PromReadHandler{
-		engine:              opts.Engine(),
-		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		tagOpts:             opts.TagOptions(),
-		limitsCfg:           &limits,
-		promReadMetrics:     newPromReadMetrics(taggedScope),
-		timeoutOps:          opts.TimeoutOpts(),
-		keepEmpty:           opts.Config().ResultOptions.KeepNans,
-		instrumentOpts:      opts.InstrumentOpts(),
+		limitsCfg:       &limits,
+		promReadMetrics: newPromReadMetrics(taggedScope),
+		opts:            opts,
 	}
 
 	pointCount := float64(limits.MaxComputedDatapoints())
 	h.promReadMetrics.maxDatapoints.Update(pointCount)
 	return h
+}
+
+// Read reads the given query, returning result and params.
+func Read(
+	w http.ResponseWriter,
+	r *http.Request,
+	maxDps int64,
+	opts options.HandlerOptions,
+) (ReadResult, models.RequestParams, *RespError) {
+	// timer := h.promReadMetrics.fetchTimerSuccess.Start()
+	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	if rErr != nil {
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return ReadResult{}, emptyReqParams, rErr
+	}
+
+	queryOpts := &executor.QueryOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOpts.Limit,
+		}}
+
+	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
+	if restrictOpts != nil {
+		restrict := &models.RestrictFetchTypeQueryContextOptions{
+			MetricsType:   uint(restrictOpts.MetricsType),
+			StoragePolicy: restrictOpts.StoragePolicy,
+		}
+		queryOpts.QueryContextOptions.RestrictFetchType = restrict
+	}
+
+	return ServeHTTPWithEngine(w, r, queryOpts, fetchOpts, maxDps, opts)
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -158,15 +178,25 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine, queryOpts, fetchOpts)
+	maxDps := h.limitsCfg.MaxComputedDatapoints()
+	result, params, respErr := ServeHTTPWithEngine(
+		w, r, queryOpts, fetchOpts, maxDps, h.opts)
 	if respErr != nil {
+		if respErr.Code == http.StatusInternalServerError {
+			h.promReadMetrics.fetchErrorsServer.Inc(1)
+		} else {
+			h.promReadMetrics.fetchErrorsClient.Inc(1)
+		}
+
 		xhttp.Error(w, respErr.Err, respErr.Code)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	handleroptions.AddWarningHeaders(w, result.Meta)
+
 	if params.FormatType == models.FormatM3QL {
-		renderM3QLResultsJSON(w, result, params)
+		renderM3QLResultsJSON(w, result.Series, params)
 		h.promReadMetrics.fetchSuccess.Inc(1)
 		timer.Stop()
 		return
@@ -174,39 +204,44 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	h.promReadMetrics.fetchSuccess.Inc(1)
 	timer.Stop()
+
+	keepEmpty := h.opts.Config().ResultOptions.KeepNans
 	// TODO: Support multiple result types
-	renderResultsJSON(w, result, params, h.keepEmpty)
+	renderResultsJSON(w, result.Series, params, keepEmpty)
 }
 
 // ServeHTTPWithEngine returns query results from the storage
-func (h *PromReadHandler) ServeHTTPWithEngine(
+func ServeHTTPWithEngine(
 	w http.ResponseWriter,
 	r *http.Request,
-	engine executor.Engine,
 	queryOpts *executor.QueryOptions,
 	fetchOpts *storage.FetchOptions,
-) ([]*ts.Series, models.RequestParams, *RespError) {
+	maxDps int64,
+	opts options.HandlerOptions,
+) (ReadResult, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
+	iOpts := opts.InstrumentOpts()
+	logger := logging.WithContext(ctx, iOpts)
+	engine := opts.Engine()
 
 	params, rErr := parseParams(r, engine.Options(),
-		h.timeoutOps, fetchOpts, h.instrumentOpts)
+		opts.TimeoutOpts(), fetchOpts, iOpts)
 	if rErr != nil {
-		h.promReadMetrics.fetchErrorsClient.Inc(1)
-		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
+		return ReadResult{}, emptyReqParams,
+			&RespError{Err: rErr.Inner(), Code: rErr.Code()}
 	}
 
 	if params.Debug {
 		logger.Info("request params", zap.Any("params", params))
 	}
 
-	if err := h.validateRequest(&params); err != nil {
-		h.promReadMetrics.fetchErrorsClient.Inc(1)
-		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
+	if err := validateRequest(&params, maxDps); err != nil {
+		return ReadResult{}, emptyReqParams,
+			&RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, engine, queryOpts, fetchOpts, h.tagOpts,
-		w, params, h.instrumentOpts)
+	result, err := read(ctx, engine, queryOpts, fetchOpts, opts.TagOptions(),
+		w, params, iOpts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
@@ -216,29 +251,28 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 			zap.Any("params", params),
 			zap.Any("queryOpts", queryOpts),
 			zap.Any("fetchOpts", fetchOpts))
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		return nil, emptyReqParams, &RespError{
+		return ReadResult{}, emptyReqParams, &RespError{
 			Err:  err,
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	// TODO: Support multiple result types
-	w.Header().Set("Content-Type", "application/json")
-	handleroptions.AddWarningHeaders(w, result.meta)
-	return result.series, params, nil
+	return result, params, nil
 }
 
-func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
-	// Impose a rough limit on the number of returned time series. This is intended to prevent things like
-	// querying from the beginning of time with a 1s step size.
-	// Approach taken directly from prom.
+func validateRequest(
+	params *models.RequestParams,
+	maxComputedDatapoints int64,
+) error {
+	// Impose a rough limit on the number of returned time series.
+	// This is intended to prevent things like querying from the
+	//  beginning of time with a 1s step size.
 	numSteps := int64(params.End.Sub(params.Start) / params.Step)
-	maxComputedDatapoints := h.limitsCfg.MaxComputedDatapoints()
 	if maxComputedDatapoints > 0 && numSteps > maxComputedDatapoints {
 		return fmt.Errorf(
-			"querying from %v to %v with step size %v would result in too many datapoints "+
-				"(end - start / step > %d). Either decrease the query resolution (?step=XX), decrease the time window, "+
+			"querying from %v to %v with step size %v would result in too many "+
+				"datapoints (end - start / step > %d). Either decrease the query "+
+				"resolution (?step=XX), decrease the time window, "+
 				"or increase the limit (`limits.maxComputedDatapoints`)",
 			params.Start, params.End, params.Step, maxComputedDatapoints,
 		)

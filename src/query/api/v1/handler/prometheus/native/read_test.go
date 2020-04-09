@@ -339,7 +339,6 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 			}
 
 			err := setup.Handlers.Read.validateRequest(tc.Params)
-
 			if tc.ErrorExpected {
 				require.Error(t, err)
 			} else {

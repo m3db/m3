@@ -39,9 +39,10 @@ import (
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
-type readResult struct {
-	series []*ts.Series
-	meta   block.ResultMetadata
+// ReadResult is a result from a read
+type ReadResult struct {
+	Series []*ts.Series
+	Meta   block.ResultMetadata
 }
 
 func read(
@@ -53,7 +54,7 @@ func read(
 	w http.ResponseWriter,
 	params models.RequestParams,
 	instrumentOpts instrument.Options,
-) (readResult, error) {
+) (ReadResult, error) {
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
 
@@ -68,7 +69,7 @@ func read(
 
 	// Detect clients closing connections.
 	handler.CloseWatcher(ctx, cancel, w, instrumentOpts)
-	emptyResult := readResult{meta: block.NewResultMetadata()}
+	emptyResult := ReadResult{Meta: block.NewResultMetadata()}
 
 	// TODO: Capture timing
 	parseOpts := engine.Options().ParseOptions()
@@ -130,8 +131,5 @@ func read(
 	}
 
 	seriesList = prometheus.FilterSeriesByOptions(seriesList, fetchOpts)
-	return readResult{
-		series: seriesList,
-		meta:   resultMeta,
-	}, nil
+	return ReadResult{Series: seriesList, Meta: resultMeta}, nil
 }
