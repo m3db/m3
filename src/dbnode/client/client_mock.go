@@ -3871,34 +3871,6 @@ func (mr *MockAdminOptionsMockRecorder) IterationOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterationOptions", reflect.TypeOf((*MockAdminOptions)(nil).IterationOptions))
 }
 
-// SetQueryStatsLookback mocks base method
-func (m *MockAdminOptions) SetQueryStatsLookback(arg0 time.Duration) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQueryStatsLookback", arg0)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetQueryStatsLookback indicates an expected call of SetQueryStatsLookback
-func (mr *MockAdminOptionsMockRecorder) SetQueryStatsLookback(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryStatsLookback", reflect.TypeOf((*MockAdminOptions)(nil).SetQueryStatsLookback), arg0)
-}
-
-// QueryStatsLookback mocks base method
-func (m *MockAdminOptions) QueryStatsLookback() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryStatsLookback")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// QueryStatsLookback indicates an expected call of QueryStatsLookback
-func (mr *MockAdminOptionsMockRecorder) QueryStatsLookback() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryStatsLookback", reflect.TypeOf((*MockAdminOptions)(nil).QueryStatsLookback))
-}
-
 // SetOrigin mocks base method
 func (m *MockAdminOptions) SetOrigin(value topology.Host) AdminOptions {
 	m.ctrl.T.Helper()

@@ -560,12 +560,6 @@ type Options interface {
 
 	// IterationOptions returns experimental iteration options.
 	IterationOptions() index.IterationOptions
-
-	// SetQueryStatsLookback sets the trailing length of time query stats are tracked for.
-	SetQueryStatsLookback(time.Duration) Options
-
-	// QueryStatsLookback returns the trailing length of time query stats are tracked for.
-	QueryStatsLookback() time.Duration
 }
 
 // AdminOptions is a set of administration client options.
