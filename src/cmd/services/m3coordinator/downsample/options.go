@@ -26,8 +26,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
-
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -41,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
