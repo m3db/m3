@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -2449,34 +2448,6 @@ func (mr *MockOptionsMockRecorder) IterationOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterationOptions", reflect.TypeOf((*MockOptions)(nil).IterationOptions))
 }
 
-// SetQueryStatsLookback mocks base method
-func (m *MockOptions) SetQueryStatsLookback(arg0 time.Duration) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQueryStatsLookback", arg0)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetQueryStatsLookback indicates an expected call of SetQueryStatsLookback
-func (mr *MockOptionsMockRecorder) SetQueryStatsLookback(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryStatsLookback", reflect.TypeOf((*MockOptions)(nil).SetQueryStatsLookback), arg0)
-}
-
-// QueryStatsLookback mocks base method
-func (m *MockOptions) QueryStatsLookback() time.Duration {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryStatsLookback")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// QueryStatsLookback indicates an expected call of QueryStatsLookback
-func (mr *MockOptionsMockRecorder) QueryStatsLookback() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryStatsLookback", reflect.TypeOf((*MockOptions)(nil).QueryStatsLookback))
-}
-
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -4150,34 +4121,6 @@ func (m *MockAdminOptions) StreamBlocksRetrier() retry.Retrier {
 func (mr *MockAdminOptionsMockRecorder) StreamBlocksRetrier() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamBlocksRetrier", reflect.TypeOf((*MockAdminOptions)(nil).StreamBlocksRetrier))
-}
-
-// SetQueryStatsTracker mocks base method
-func (m *MockAdminOptions) SetQueryStatsTracker(value stats.QueryStatsTracker) AdminOptions {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQueryStatsTracker", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-// SetQueryStatsTracker indicates an expected call of SetQueryStatsTracker
-func (mr *MockAdminOptionsMockRecorder) SetQueryStatsTracker(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryStatsTracker", reflect.TypeOf((*MockAdminOptions)(nil).SetQueryStatsTracker), value)
-}
-
-// QueryStatsTracker mocks base method
-func (m *MockAdminOptions) QueryStatsTracker() stats.QueryStatsTracker {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryStatsTracker")
-	ret0, _ := ret[0].(stats.QueryStatsTracker)
-	return ret0
-}
-
-// QueryStatsTracker indicates an expected call of QueryStatsTracker
-func (mr *MockAdminOptionsMockRecorder) QueryStatsTracker() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryStatsTracker", reflect.TypeOf((*MockAdminOptions)(nil).QueryStatsTracker))
 }
 
 // MockclientSession is a mock of clientSession interface

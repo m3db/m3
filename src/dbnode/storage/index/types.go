@@ -907,4 +907,10 @@ type Options interface {
 
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
+
+	// SetQueryStatsTracker sets the tracker implementation for query stats.
+	SetQueryStatsTracker(value stats.QueryStatsTracker) Options
+
+	// QueryStatsTracker returns the tracker implementation for query stats.
+	QueryStatsTracker() stats.QueryStatsTracker
 }

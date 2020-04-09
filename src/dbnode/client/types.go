@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -620,12 +619,6 @@ type AdminOptions interface {
 
 	// StreamBlocksRetrier returns the retrier for streaming blocks.
 	StreamBlocksRetrier() xretry.Retrier
-
-	// SetQueryStatsTracker sets the tracker implementation for query stats.
-	SetQueryStatsTracker(value stats.QueryStatsTracker) AdminOptions
-
-	// QueryStatsTracker returns the tracker implementation for query stats.
-	QueryStatsTracker() stats.QueryStatsTracker
 }
 
 // The rest of these types are internal types that mocks are generated for

@@ -136,6 +136,9 @@ type RunOptions struct {
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
 
+	// QueryTracker exposes an interface for tracking query stats.
+	QueryTracker stats.QueryStatsTracker
+
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
 }

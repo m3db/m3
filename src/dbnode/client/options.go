@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -163,10 +162,6 @@ const (
 	// defaultUseV2BatchAPIs is the default setting for whether the v2 version of the batch APIs should
 	// be used.
 	defaultUseV2BatchAPIs = false
-
-	// defaultQueryStatsLookback kept low since we primarily use this for
-	// tracking significant spikes in query performance or memory demand.
-	defaultQueryStatsLookback = time.Second
 )
 
 var (
@@ -274,8 +269,6 @@ type options struct {
 	asyncWriteMaxConcurrency                int
 	useV2BatchAPIs                          bool
 	iterationOptions                        index.IterationOptions
-	queryStatsLookback                      time.Duration
-	queryStatsTracker                       stats.QueryStatsTracker
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -376,7 +369,6 @@ func newOptions() *options {
 		asyncTopologyInitializers:               []topology.Initializer{},
 		asyncWriteMaxConcurrency:                defaultAsyncWriteMaxConcurrency,
 		useV2BatchAPIs:                          defaultUseV2BatchAPIs,
-		queryStatsLookback:                      defaultQueryStatsLookback,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -995,24 +987,4 @@ func (o *options) SetIterationOptions(value index.IterationOptions) Options {
 
 func (o *options) IterationOptions() index.IterationOptions {
 	return o.iterationOptions
-}
-
-func (o *options) SetQueryStatsLookback(value time.Duration) Options {
-	opts := *o
-	opts.queryStatsLookback = value
-	return &opts
-}
-
-func (o *options) QueryStatsLookback() time.Duration {
-	return o.queryStatsLookback
-}
-
-func (o *options) SetQueryStatsTracker(value stats.QueryStatsTracker) AdminOptions {
-	opts := *o
-	opts.queryStatsTracker = value
-	return &opts
-}
-
-func (o *options) QueryStatsTracker() stats.QueryStatsTracker {
-	return o.queryStatsTracker
 }

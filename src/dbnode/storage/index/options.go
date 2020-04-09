@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -122,6 +123,7 @@ type opts struct {
 	postingsListCache               *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
+	queryStatsTracker               stats.QueryStatsTracker
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -413,4 +415,14 @@ func (o *opts) SetMmapReporter(mmapReporter mmap.Reporter) Options {
 
 func (o *opts) MmapReporter() mmap.Reporter {
 	return o.mmapReporter
+}
+
+func (o *opts) SetQueryStatsTracker(value stats.QueryStatsTracker) Options {
+	opts := *o
+	opts.queryStatsTracker = value
+	return &opts
+}
+
+func (o *opts) QueryStatsTracker() stats.QueryStatsTracker {
+	return o.queryStatsTracker
 }
