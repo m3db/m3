@@ -111,8 +111,15 @@ func ParseRequestTimeout(
 	configFetchTimeout time.Duration,
 ) (time.Duration, error) {
 	timeout := r.Header.Get("timeout")
-	if timeout == "" {
-		return configFetchTimeout, nil
+	if len(timeout) == 0 {
+		if err := r.ParseForm(); err != nil {
+			return 0, err
+		}
+
+		timeout = r.FormValue("timeout")
+		if len(timeout) == 0 {
+			return configFetchTimeout, nil
+		}
 	}
 
 	duration, err := time.ParseDuration(timeout)

@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -67,16 +68,33 @@ func TestTimeoutParse(t *testing.T) {
 
 	timeout, err := ParseRequestTimeout(req, time.Second)
 	assert.NoError(t, err)
-	assert.Equal(t, timeout, time.Millisecond)
+	assert.Equal(t, time.Millisecond, timeout)
 
 	req.Header.Del("timeout")
 	timeout, err = ParseRequestTimeout(req, 2*time.Minute)
 	assert.NoError(t, err)
-	assert.Equal(t, timeout, 2*time.Minute)
+	assert.Equal(t, 2*time.Minute, timeout)
 
 	req.Header.Add("timeout", "invalid")
 	_, err = ParseRequestTimeout(req, 15*time.Second)
 	assert.Error(t, err)
+}
+
+func TestTimeoutFormValue(t *testing.T) {
+	req, _ := http.NewRequest("GET", "dummy?timeout=1ms", nil)
+
+	timeout, err := ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Millisecond, timeout)
+
+	data := url.Values{}
+	data.Set("timeout", "1m")
+	req, _ = http.NewRequest("POST", "dummy", strings.NewReader(data.Encode()))
+
+	timeout, err = ParseRequestTimeout(req, time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Minute, timeout)
+
 }
 
 type writer struct {
@@ -120,7 +138,7 @@ func TestRenderSeriesMatchResultsNoTags(t *testing.T) {
 	}
 
 	seriesMatchResult := []models.Metrics{
-		models.Metrics{
+		{
 			toTags("name", tag{name: "a", value: "b"}, tag{name: "role", value: "appears"}),
 			toTags("name2", tag{name: "c", value: "d"}, tag{name: "e", value: "f"}),
 		},
