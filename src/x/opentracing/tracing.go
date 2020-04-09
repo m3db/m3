@@ -140,7 +140,7 @@ func (cfg *TracingConfiguration) newLightstepTracer(serviceName string) (opentra
 
 	tracer, err := lightstep.CreateTracer(cfg.Lightstep)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create jaeger tracer: %v", err)
+		return nil, nil, fmt.Errorf("failed to create lightstep tracer: %v", err)
 	}
 
 	closer := &lightstepCloser{tracer: tracer}

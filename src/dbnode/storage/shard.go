@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1648,6 +1648,11 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	if encodedPageToken != nil {
 		if err := proto.Unmarshal(encodedPageToken, token); err != nil {
 			return nil, nil, xerrors.NewInvalidParamsError(errShardInvalidPageToken)
+		}
+	} else {
+		// NB(bodu): Allow callers to specify that they only want results from disk.
+		if opts.OnlyDisk {
+			token.FlushedSeriesPhase = &pagetoken.PageToken_FlushedSeriesPhase{}
 		}
 	}
 

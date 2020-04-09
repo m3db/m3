@@ -170,8 +170,9 @@ func (r *reader) Read() (LogEntry, error) {
 	result := LogEntry{
 		Series: metadata,
 		Datapoint: ts.Datapoint{
-			Timestamp: time.Unix(0, entry.Timestamp),
-			Value:     entry.Value,
+			Timestamp:      time.Unix(0, entry.Timestamp),
+			TimestampNanos: xtime.UnixNano(entry.Timestamp),
+			Value:          entry.Value,
 		},
 		Unit: xtime.Unit(entry.Unit),
 		Metadata: LogEntryMetadata{

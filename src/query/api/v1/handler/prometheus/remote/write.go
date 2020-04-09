@@ -241,7 +241,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
 				defer cancel()
 
-				if err := h.forward(ctx, result, target); err != nil {
+				if err := h.forward(ctx, result, r.Header, target); err != nil {
 					h.metrics.forwardErrors.Inc(1)
 					logger := logging.WithContext(h.forwardContext, h.instrumentOpts)
 					logger.Error("forward error", zap.Error(err))
@@ -413,6 +413,7 @@ func (h *PromWriteHandler) write(
 func (h *PromWriteHandler) forward(
 	ctx context.Context,
 	request prometheus.ParsePromCompressedRequestResult,
+	headers http.Header,
 	target handleroptions.PromWriteHandlerForwardTargetOptions,
 ) error {
 	method := target.Method
@@ -423,6 +424,25 @@ func (h *PromWriteHandler) forward(
 	req, err := http.NewRequest(method, url, bytes.NewReader(request.CompressedBody))
 	if err != nil {
 		return err
+	}
+
+	// There are multiple headers that impact coordinator behavior on the write
+	// (map tags, storage policy, etc.) that we must forward to the target
+	// coordinator to guarantee same behavior as the coordinator that originally
+	// received the request.
+	if headers != nil {
+		for h := range headers {
+			if strings.HasPrefix(h, handleroptions.M3HeaderPrefix) {
+				req.Header.Add(h, headers.Get(h))
+			}
+		}
+	}
+
+	if targetHeaders := target.Headers; targetHeaders != nil {
+		// If headers set, attach to request.
+		for name, value := range targetHeaders {
+			req.Header.Add(name, value)
+		}
 	}
 
 	resp, err := h.forwardHTTPClient.Do(req.WithContext(ctx))

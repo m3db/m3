@@ -22,6 +22,7 @@ package main
 
 import (
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -35,28 +36,48 @@ import (
 	"go.uber.org/zap"
 )
 
-func main() {
-	var (
-		iterPools = pools.BuildIteratorPools(
-			pools.BuildIteratorPoolsOptions{})
-		poolWrapper = pools.NewPoolsWrapper(iterPools)
+var (
+	iterPools = pools.BuildIteratorPools(
+		pools.BuildIteratorPoolsOptions{})
+	poolWrapper = pools.NewPoolsWrapper(iterPools)
 
-		iOpts  = instrument.NewOptions()
-		logger = iOpts.Logger()
+	iOpts      = instrument.NewOptions()
+	logger     = iOpts.Logger()
+	tagOptions = models.NewTagOptions()
 
-		encoderPoolOpts = pool.NewObjectPoolOptions()
-		encoderPool     = encoding.NewEncoderPool(encoderPoolOpts)
-	)
+	encoderPoolOpts = pool.NewObjectPoolOptions()
+	encoderPool     = encoding.NewEncoderPool(encoderPoolOpts)
 
-	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Now(), nil, true, encoding.NewOptions())
-	})
+	checkedBytesPool pool.CheckedBytesPool
+	encodingOpts     encoding.Options
+)
 
-	querier := &querier{
-		encoderPool:   encoderPool,
-		iteratorPools: iterPools,
+func init() {
+	buckets := []pool.Bucket{{Capacity: 10, Count: 10}}
+	newBackingBytesPool := func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
 	}
 
+	checkedBytesPool = pool.NewCheckedBytesPool(buckets, nil, newBackingBytesPool)
+	checkedBytesPool.Init()
+
+	encodingOpts = encoding.NewOptions().SetEncoderPool(encoderPool).SetBytesPool(checkedBytesPool)
+
+	encoderPool.Init(func() encoding.Encoder {
+		return m3tsz.NewEncoder(time.Time{}, nil, true, encodingOpts)
+	})
+}
+
+func main() {
+	opts := iteratorOptions{
+		encoderPool:   encoderPool,
+		iteratorPools: iterPools,
+		tagOptions:    tagOptions,
+		iOpts:         iOpts,
+	}
+
+	seriesLoader := newSeriesLoadHandler(opts)
+	querier := &querier{opts: opts, handler: seriesLoader}
 	server := remote.NewGRPCServer(
 		querier,
 		models.QueryContextOptions{},
@@ -71,6 +92,13 @@ func main() {
 		logger.Error("listener error", zap.Error(err))
 		return
 	}
+
+	loaderAddr := "0.0.0.0:9001"
+	go func() {
+		if err := http.ListenAndServe(loaderAddr, seriesLoader); err != nil {
+			logger.Error("series load handler failed", zap.Error(err))
+		}
+	}()
 
 	if err := server.Serve(listener); err != nil {
 		logger.Error("serve error", zap.Error(err))

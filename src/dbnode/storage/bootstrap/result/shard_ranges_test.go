@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,28 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handleroptions
+package result
 
 import (
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-// PromWriteHandlerForwardingOptions is the forwarding
-// options for prometheus write handler.
-type PromWriteHandlerForwardingOptions struct {
-	// MaxConcurrency is the max parallel forwarding and if zero will be unlimited.
-	MaxConcurrency int                                    `yaml:"maxConcurrency"`
-	Timeout        time.Duration                          `yaml:"timeout"`
-	Targets        []PromWriteHandlerForwardTargetOptions `yaml:"targets"`
-}
+func TestShardTimeRangesAdd(t *testing.T) {
+	start := time.Now().Truncate(testBlockSize)
+	times := []time.Time{start, start.Add(testBlockSize), start.Add(2 * testBlockSize), start.Add(3 * testBlockSize)}
 
-// PromWriteHandlerForwardTargetOptions is a prometheus write
-// handler forwarder target.
-type PromWriteHandlerForwardTargetOptions struct {
-	// URL of the target to send to.
-	URL string `yaml:"url"`
-	// Method defaults to POST if not set.
-	Method string `yaml:"method"`
-	// Headers to send along with requests to the target.
-	Headers map[string]string `yaml:"headers"`
+	sr := []ShardTimeRanges{
+		NewShardTimeRangesFromRange(times[0], times[1], 1, 2, 3),
+		NewShardTimeRangesFromRange(times[1], times[2], 1, 2, 3),
+		NewShardTimeRangesFromRange(times[2], times[3], 1, 2, 3),
+	}
+	ranges := NewShardTimeRanges()
+	for _, r := range sr {
+		ranges.AddRanges(r)
+	}
+	for i, r := range sr {
+		min, max, r := r.MinMaxRange()
+		require.Equal(t, r, testBlockSize)
+		require.Equal(t, min, times[i])
+		require.Equal(t, max, times[i+1])
+	}
 }
