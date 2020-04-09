@@ -428,20 +428,12 @@ func (e *GaugeElem) processValueWithAggregationLock(
 
 			case isBinaryOp:
 				lastTimeNanos := e.lastConsumedAtNanos
-				if v := e.lastConsumedValues[aggTypeIdx].TimeNanos; v > 0 {
-					lastTimeNanos = v
-				}
-
 				prev := transformation.Datapoint{
 					TimeNanos: lastTimeNanos,
 					Value:     e.lastConsumedValues[aggTypeIdx].Value,
 				}
 
 				currTimeNanos := timeNanos
-				if t := lockedAgg.aggregation.LastAt(); !t.IsZero() {
-					currTimeNanos = t.UnixNano()
-				}
-
 				curr := transformation.Datapoint{
 					TimeNanos: currTimeNanos,
 					Value:     value,

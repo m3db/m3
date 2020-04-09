@@ -363,8 +363,7 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesPerSecondSum(t *testing
 						"status_code":         "500",
 						"endpoint":            "/foo/bar",
 					},
-					values:            []expectedValue{{value: 4.4}},
-					valueAllowedError: 0.01,
+					values: []expectedValue{{value: 4.4}},
 					attributes: &storage.Attributes{
 						MetricsType: storage.AggregatedMetricsType,
 						Resolution:  res,
