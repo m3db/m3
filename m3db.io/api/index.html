@@ -909,6 +909,18 @@
 <td>map[string]string</td>
 <td>false</td>
 </tr>
+<tr>
+<td>initContainers</td>
+<td>Custom setup for db nodes can be done via initContainers Provide the complete spec for the initContainer here If any storage volumes are needed in the initContainer see InitVolumes below</td>
+<td>[]corev1.Container</td>
+<td>false</td>
+</tr>
+<tr>
+<td>initVolumes</td>
+<td>If the InitContainers require any storage volumes Provide the complete specification for the required Volumes here</td>
+<td>[]corev1.Volume</td>
+<td>false</td>
+</tr>
 </tbody>
 </table>
 <p><a href="#table-of-contents">Back to TOC</a></p>
