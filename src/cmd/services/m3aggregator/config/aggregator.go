@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	aggruntime "github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -49,12 +50,16 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
-	"github.com/m3db/m3/src/x/sync"
+	m3sync "github.com/m3db/m3/src/x/sync"
 )
 
 var (
 	errNoKVClientConfiguration = errors.New("no kv client configuration")
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
+)
+
+var (
+	defaultNumPassThroughWriters = 8
 )
 
 // AggregatorConfiguration contains aggregator configuration.
@@ -232,6 +237,7 @@ type InstanceIDConfiguration struct {
 func (c *AggregatorConfiguration) NewAggregatorOptions(
 	address string,
 	client client.Client,
+	passthruCfg PassThroughConfiguration,
 	runtimeOptsManager aggruntime.OptionsManager,
 	instrumentOpts instrument.Options,
 ) (aggregator.Options, error) {
@@ -362,6 +368,18 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return nil, err
 	}
 	opts = opts.SetFlushHandler(flushHandler)
+
+	// Set passthrough writer.
+	aggShardFn, err := hashType.AggregatedShardFn()
+	if err != nil {
+		return nil, err
+	}
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("passthrough-writer"))
+	passThroughWriter, err := c.newPassThroughWriter(passthruCfg, flushHandler, client, iOpts, aggShardFn)
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetPassThroughWriter(passThroughWriter)
 
 	// Set max allowed forwarding delay function.
 	jitterEnabled := flushManagerOpts.JitterEnabled()
@@ -780,7 +798,7 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		if workerPoolSize < 1 {
 			workerPoolSize = 1
 		}
-		workerPool := sync.NewWorkerPool(workerPoolSize)
+		workerPool := m3sync.NewWorkerPool(workerPoolSize)
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)
 	}
@@ -845,4 +863,34 @@ func setMetricPrefix(
 		return opts
 	}
 	return fn([]byte(*str))
+}
+
+func (c *AggregatorConfiguration) newPassThroughWriter(
+	passthruCfg PassThroughConfiguration,
+	flushHandler handler.Handler,
+	cs client.Client,
+	iOpts instrument.Options,
+	shardFn sharding.AggregatedShardFn,
+) (writer.Writer, error) {
+	// fallback gracefully
+	if !passthruCfg.Enabled {
+		iOpts.Logger().Info("passthrough writer disabled, blackholing all passthrough writes")
+		return writer.NewBlackholeWriter(), nil
+	}
+
+	count := defaultNumPassThroughWriters
+	if passthruCfg.NumWriters != 0 {
+		count = passthruCfg.NumWriters
+	}
+
+	writers := make([]writer.Writer, 0, count)
+	for i := 0; i < count; i++ {
+		writer, err := flushHandler.NewWriter(iOpts.MetricsScope())
+		if err != nil {
+			return nil, err
+		}
+		writers = append(writers, writer)
+	}
+
+	return writer.NewShardedWriter(writers, shardFn, iOpts)
 }

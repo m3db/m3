@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -199,6 +200,12 @@ type Options interface {
 	// FlushHandler returns the handler that flushes buffered encoders.
 	FlushHandler() handler.Handler
 
+	// SetPassThroughWriter sets the writer for pass-through metrics.
+	SetPassThroughWriter(value writer.Writer) Options
+
+	// PassThroughWriter returns the writer for pass-through metrics.
+	PassThroughWriter() writer.Writer
+
 	// SetEntryTTL sets the ttl for expiring stale entries.
 	SetEntryTTL(value time.Duration) Options
 
@@ -328,6 +335,7 @@ type options struct {
 	bufferDurationAfterShardCutoff   time.Duration
 	flushManager                     FlushManager
 	flushHandler                     handler.Handler
+	passThroughWriter                writer.Writer
 	entryTTL                         time.Duration
 	entryCheckInterval               time.Duration
 	entryCheckBatchPercent           float64
@@ -589,6 +597,16 @@ func (o *options) SetFlushHandler(value handler.Handler) Options {
 
 func (o *options) FlushHandler() handler.Handler {
 	return o.flushHandler
+}
+
+func (o *options) SetPassThroughWriter(value writer.Writer) Options {
+	opts := *o
+	opts.passThroughWriter = value
+	return &opts
+}
+
+func (o *options) PassThroughWriter() writer.Writer {
+	return o.passThroughWriter
 }
 
 func (o *options) SetEntryTTL(value time.Duration) Options {

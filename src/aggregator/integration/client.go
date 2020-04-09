@@ -25,14 +25,17 @@ import (
 	"net"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/msg/producer"
 )
 
 // TODO(xichen): replace client with the actual aggregation server client.
@@ -246,4 +249,44 @@ func (c *client) close() {
 		c.conn.Close()
 		c.conn = nil
 	}
+}
+
+type passthroughClient struct {
+	p producer.Producer
+	w writer.Writer
+}
+
+func newPassthroughClient(
+	p producer.Producer,
+	w writer.Writer,
+) *passthroughClient {
+	return &passthroughClient{
+		p: p,
+		w: w,
+	}
+}
+
+func (c *passthroughClient) writeMetricWithMetadata(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	met := aggregated.ChunkedMetricWithStoragePolicy{
+		ChunkedMetric: aggregated.ChunkedMetric{
+			ChunkedID: id.ChunkedID{
+				Data: []byte(metric.ID),
+			},
+			TimeNanos: metric.TimeNanos,
+			Value:     metric.Value,
+		},
+		StoragePolicy: metadata.StoragePolicy,
+	}
+	return c.w.Write(met)
+}
+
+func (c *passthroughClient) Close() error {
+	if err := c.w.Close(); err != nil {
+		return err
+	}
+	c.p.Close(producer.WaitForConsumption)
+	return nil
 }

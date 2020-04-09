@@ -47,4 +47,7 @@ type Configuration struct {
 
 	// Aggregator configuration.
 	Aggregator AggregatorConfiguration `yaml:"aggregator"`
+
+	// PassThrough controls the passthrough knobs.
+	PassThrough PassThroughConfiguration `yaml:"passthrough"`
 }
