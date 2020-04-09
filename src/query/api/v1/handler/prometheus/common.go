@@ -49,7 +49,7 @@ const (
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
 	errFormatStr        = "error parsing param: %s, error: %v"
-	maxTimeout          = 5 * time.Minute
+	maxTimeout          = 15 * time.Minute
 	tolerance           = 0.0000001
 )
 
@@ -112,11 +112,14 @@ func ParseRequestTimeout(
 ) (time.Duration, error) {
 	timeout := r.Header.Get("timeout")
 	if len(timeout) == 0 {
-		if err := r.ParseForm(); err != nil {
-			return 0, err
+		if r.Body != nil {
+			if err := r.ParseForm(); err != nil {
+				return 0, err
+			}
+
+			timeout = r.FormValue("timeout")
 		}
 
-		timeout = r.FormValue("timeout")
 		if len(timeout) == 0 {
 			return configFetchTimeout, nil
 		}

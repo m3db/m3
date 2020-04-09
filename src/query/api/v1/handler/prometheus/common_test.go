@@ -88,12 +88,13 @@ func TestTimeoutFormValue(t *testing.T) {
 	assert.Equal(t, time.Millisecond, timeout)
 
 	data := url.Values{}
-	data.Set("timeout", "1m")
+	data.Set("timeout", "10m")
 	req, _ = http.NewRequest("POST", "dummy", strings.NewReader(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	timeout, err = ParseRequestTimeout(req, time.Minute)
 	assert.NoError(t, err)
-	assert.Equal(t, time.Minute, timeout)
+	assert.Equal(t, time.Minute*10, timeout)
 
 }
 
