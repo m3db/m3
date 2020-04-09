@@ -58,6 +58,9 @@ func NewQueryStats(tracker QueryStatsTracker) QueryStats {
 
 // UpdateQueryStats adds new query stats which are being tracked.
 func (q *queryStats) Update(newDocs int) error {
+	if q == nil {
+		return nil
+	}
 	if newDocs <= 0 {
 		return nil
 	}
@@ -71,6 +74,9 @@ func (q *queryStats) Update(newDocs int) error {
 
 // Start initializes background processing for handling query stats.
 func (q *queryStats) Start() {
+	if q == nil {
+		return
+	}
 	ticker := time.NewTicker(q.tracker.Lookback())
 	defer ticker.Stop()
 	for {
@@ -88,5 +94,8 @@ func (q *queryStats) Start() {
 }
 
 func (q *queryStats) Stop() {
+	if q == nil {
+		return
+	}
 	close(q.stopCh)
 }

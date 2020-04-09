@@ -398,6 +398,17 @@ func Run(runOpts RunOptions) {
 	}
 	defer stopReporting()
 
+	// Setup query stats tracking.
+	var tracker stats.QueryStatsTracker
+	if runOpts.QueryStatsTracker != nil {
+		tracker = *runOpts.QueryStatsTracker
+	} else {
+		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
+	}
+	queryStats := stats.NewQueryStats(tracker)
+	queryStats.Start()
+	defer queryStats.Stop()
+
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
@@ -410,7 +421,8 @@ func Run(runOpts RunOptions) {
 			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
 			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
 		}).
-		SetMmapReporter(mmapReporter)
+		SetMmapReporter(mmapReporter).
+		SetQueryStats(queryStats)
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -900,18 +912,6 @@ func Run(runOpts RunOptions) {
 		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
-
-	// Setup query stats tracking.
-	var tracker stats.QueryStatsTracker
-	if runOpts.QueryStatsTracker != nil {
-		tracker = *runOpts.QueryStatsTracker
-	} else {
-		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
-	}
-	queryStats := stats.NewQueryStats(tracker)
-	opts.IndexOptions().SetQueryStats(queryStats)
-	queryStats.Start()
-	defer queryStats.Stop()
 
 	// Wait for process interrupt.
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
