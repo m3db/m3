@@ -21,27 +21,17 @@
 package stats
 
 import (
-	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 )
 
 // For tracking query stats in past X duration such as blocks queried.
 type queryStats struct {
-	length  time.Duration
 	tracker QueryStatsTracker
 
 	recentDocs *atomic.Int64
 	stopCh     chan struct{}
-}
-
-// Tracker implementation that emits query stats as metrics.
-type queryStatsMetricsTracker struct {
-	sync.Mutex
-	recentDocs tally.Gauge
 }
 
 // QueryStats provides an interface for updating query stats.
@@ -53,13 +43,13 @@ type QueryStats interface {
 
 // QueryStatsTracker provides an interface for tracking current query stats.
 type QueryStatsTracker interface {
+	Lookback() time.Duration
 	TrackDocs(recentDocs int) error
 }
 
-// NewQueryStats enables query stats to be tracked within a recency time window.
-func NewQueryStats(within time.Duration, tracker QueryStatsTracker) QueryStats {
+// NewQueryStats enables query stats to be tracked within a recency lookback duration.
+func NewQueryStats(tracker QueryStatsTracker) QueryStats {
 	return &queryStats{
-		length:     within,
 		tracker:    tracker,
 		recentDocs: atomic.NewInt64(0),
 		stopCh:     make(chan struct{}),
@@ -81,7 +71,7 @@ func (q *queryStats) Update(newDocs int) error {
 
 // Start initializes background processing for handling query stats.
 func (q *queryStats) Start() {
-	ticker := time.NewTicker(q.length)
+	ticker := time.NewTicker(q.tracker.Lookback())
 	defer ticker.Stop()
 	for {
 		select {
@@ -99,22 +89,4 @@ func (q *queryStats) Start() {
 
 func (q *queryStats) Stop() {
 	close(q.stopCh)
-}
-
-// DefaultQueryStatsTrackerForMetrics provides a tracker
-// implementation that emits query stats as metrics.
-func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTracker {
-	scope := opts.
-		MetricsScope().
-		SubScope("query-stats")
-	return &queryStatsMetricsTracker{
-		recentDocs: scope.Gauge("recentDocs"),
-	}
-}
-
-func (t *queryStatsMetricsTracker) TrackDocs(recentDocs int) error {
-	t.Lock()
-	t.recentDocs.Update(float64(recentDocs))
-	t.Unlock()
-	return nil
 }

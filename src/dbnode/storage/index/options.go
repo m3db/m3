@@ -417,12 +417,12 @@ func (o *opts) MmapReporter() mmap.Reporter {
 	return o.mmapReporter
 }
 
-func (o *opts) SetQueryStatsTracker(value stats.QueryStatsTracker) Options {
+func (o *opts) SetQueryStats(value stats.QueryStats) Options {
 	opts := *o
-	opts.queryStatsTracker = value
+	opts.queryStats = value
 	return &opts
 }
 
-func (o *opts) QueryStatsTracker() stats.QueryStatsTracker {
-	return o.queryStatsTracker
+func (o *opts) QueryStats() stats.QueryStats {
+	return o.queryStats
 }

@@ -136,8 +136,8 @@ type RunOptions struct {
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
 
-	// QueryTracker exposes an interface for tracking query stats.
-	QueryTracker stats.QueryStatsTracker
+	// QueryStatsTracker exposes an interface for tracking query stats.
+	QueryStatsTracker stats.QueryStatsTracker
 
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
@@ -901,14 +901,14 @@ func Run(runOpts RunOptions) {
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
 
-	// Track recent query stats.
-	clientAdminOpts := m3dbClient.Options().(client.AdminOptions)
-	tracker := clientAdminOpts.QueryStatsTracker()
-	if tracker == nil {
+	// Setup query stats tracking.
+	if runOpts.QueryStatsTracker == nil {
 		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
 	}
-	stopTracking := stats.EnableQueryStatsTracking(clientAdminOpts.QueryStatsLookback(), tracker)
-	defer close(stopTracking)
+	queryStats := stats.NewQueryStats(tracker)
+	opts.IndexOptions().SetQueryStats(queryStats)
+	queryStats.Start()
+	defer queryStats.Stop()
 
 	// Wait for process interrupt.
 	xos.WaitForInterrupt(logger, xos.InterruptOptions{
