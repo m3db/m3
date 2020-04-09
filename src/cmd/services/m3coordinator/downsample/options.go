@@ -26,6 +26,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -177,10 +179,10 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	defaultStagedMetadatas []metadata.StagedMetadatas
-	clockOpts              clock.Options
-	matcher                matcher.Matcher
-	pools                  aggPools
+	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
+	clockOpts                    clock.Options
+	matcher                      matcher.Matcher
+	pools                        aggPools
 }
 
 // Configuration configurates a downsampler.
@@ -549,13 +551,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	var (
-		storageFlushConcurrency = defaultStorageFlushConcurrency
-		clockOpts               = o.ClockOptions
-		instrumentOpts          = o.InstrumentOptions
-		scope                   = instrumentOpts.MetricsScope()
-		logger                  = instrumentOpts.Logger()
-		openTimeout             = defaultOpenTimeout
-		defaultStagedMetadatas  []metadata.StagedMetadatas
+		storageFlushConcurrency      = defaultStorageFlushConcurrency
+		clockOpts                    = o.ClockOptions
+		instrumentOpts               = o.InstrumentOptions
+		scope                        = instrumentOpts.MetricsScope()
+		logger                       = instrumentOpts.Logger()
+		openTimeout                  = defaultOpenTimeout
+		defaultStagedMetadatasProtos []metricpb.StagedMetadatas
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
@@ -568,7 +570,14 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		if err != nil {
 			return agg{}, err
 		}
-		defaultStagedMetadatas = append(defaultStagedMetadatas, metadatas)
+
+		var metadatasProto metricpb.StagedMetadatas
+		if err := metadatas.ToProto(&metadatasProto); err != nil {
+			return agg{}, err
+		}
+
+		defaultStagedMetadatasProtos =
+			append(defaultStagedMetadatasProtos, metadatasProto)
 	}
 
 	pools := o.newAggregatorPools()
@@ -670,10 +679,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		return agg{
-			clientRemote:           client,
-			defaultStagedMetadatas: defaultStagedMetadatas,
-			matcher:                matcher,
-			pools:                  pools,
+			clientRemote:                 client,
+			defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
+			matcher:                      matcher,
+			pools:                        pools,
 		}, nil
 	}
 
@@ -835,10 +844,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	return agg{
-		aggregator:             aggregatorInstance,
-		defaultStagedMetadatas: defaultStagedMetadatas,
-		matcher:                matcher,
-		pools:                  pools,
+		aggregator:                   aggregatorInstance,
+		defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
+		matcher:                      matcher,
+		pools:                        pools,
 	}, nil
 }
 

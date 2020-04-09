@@ -682,6 +682,9 @@ func testDownsamplerAggregation(
 	logger.Info("wait for test metrics to appear")
 	logWritesAccumulated := os.Getenv("TEST_LOG_WRITES_ACCUMULATED") == "true"
 	logWritesAccumulatedTicker := time.NewTicker(time.Second)
+
+	logWritesMatch := os.Getenv("TEST_LOG_WRITES_MATCH") == "true"
+	logWritesMatchTicker := time.NewTicker(time.Second)
 CheckAllWritesArrivedLoop:
 	for {
 		allWrites := testDownsampler.storage.Writes()
@@ -702,8 +705,22 @@ CheckAllWritesArrivedLoop:
 
 		for _, expectedWrite := range expectedWrites {
 			name := expectedWrite.tags[nameTag]
-			writesForName, _ := findWrites(t, allWrites, name, expectedWrite.attributes)
-			if len(writesForName) != len(expectedWrite.values) {
+			attrs := expectedWrite.attributes
+			writesForNameAndAttrs, _ := findWrites(t, allWrites, name, attrs)
+			if len(writesForNameAndAttrs) != len(expectedWrite.values) {
+				if logWritesMatch {
+					select {
+					case <-logWritesMatchTicker.C:
+						logger.Info("continuing wait for accumulated writes",
+							zap.String("name", name),
+							zap.Any("attributes", attrs),
+							zap.Int("numWritesForNameAndAttrs", len(writesForNameAndAttrs)),
+							zap.Int("numExpectedWriteValues", len(expectedWrite.values)),
+						)
+					default:
+					}
+				}
+
 				time.Sleep(100 * time.Millisecond)
 				continue CheckAllWritesArrivedLoop
 			}
@@ -729,11 +746,11 @@ CheckAllWritesArrivedLoop:
 		expectedValues := expectedWrite.values
 		allowedError := expectedWrite.valueAllowedError
 
-		writesForName, found := findWrites(t, allWrites, name, expectedWrite.attributes)
+		writesForNameAndAttrs, found := findWrites(t, allWrites, name, expectedWrite.attributes)
 		require.True(t, found)
-		require.Equal(t, len(expectedValues), len(writesForName))
+		require.Equal(t, len(expectedValues), len(writesForNameAndAttrs))
 		for i, expectedValue := range expectedValues {
-			write := writesForName[i]
+			write := writesForNameAndAttrs[i]
 
 			assert.Equal(t, expectedWrite.tags, tagsToStringMap(write.Tags))
 
@@ -756,7 +773,8 @@ CheckAllWritesArrivedLoop:
 			if expectedOffset := expectedValue.offset; expectedOffset > 0 {
 				// Check if distance between datapoints as expected (use
 				// absolute offset from first write).
-				actualOffset := write.Datapoints[0].Timestamp.Sub(writesForName[0].Datapoints[0].Timestamp)
+				firstTimestamp := writesForNameAndAttrs[0].Datapoints[0].Timestamp
+				actualOffset := write.Datapoints[0].Timestamp.Sub(firstTimestamp)
 				assert.Equal(t, expectedOffset, actualOffset)
 			}
 
