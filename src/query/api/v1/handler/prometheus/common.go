@@ -111,12 +111,14 @@ func ParseRequestTimeout(
 	configFetchTimeout time.Duration,
 ) (time.Duration, error) {
 	var timeout string
-	if v := r.Header.Get("timeout"); v != "" {
-		timeout = v
-	}
 	if v := r.FormValue("timeout"); v != "" {
 		timeout = v
 	}
+	// Note: Header should take precedence.
+	if v := r.Header.Get("timeout"); v != "" {
+		timeout = v
+	}
+
 	if timeout == "" {
 		return configFetchTimeout, nil
 	}
