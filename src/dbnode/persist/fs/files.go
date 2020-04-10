@@ -651,7 +651,7 @@ type forEachInfoFileSelector struct {
 	shard          uint32 // shard only applicable for data content type
 }
 
-type infoFileFn func(fname string, id FileSetFileIdentifier, infoData []byte)
+type infoFileFn func(file FileSetFile, infoData []byte)
 
 func forEachInfoFile(
 	args forEachInfoFileSelector,
@@ -762,7 +762,7 @@ func forEachInfoFile(
 			continue
 		}
 
-		fn(matched[i].AbsoluteFilepaths[0], matched[i].ID, infoData)
+		fn(matched[i], infoData)
 	}
 }
 
@@ -814,7 +814,8 @@ func ReadInfoFiles(
 			shard:          shard,
 		},
 		readerBufferSize,
-		func(filepath string, id FileSetFileIdentifier, data []byte) {
+		func(file FileSetFile, data []byte) {
+			filepath := file.AbsoluteFilepaths[0]
 			decoder.Reset(msgpack.NewByteDecoderStream(data))
 			info, err := decoder.DecodeIndexInfo()
 			infoFileResults = append(infoFileResults, ReadInfoFileResult{
@@ -830,10 +831,10 @@ func ReadInfoFiles(
 
 // ReadIndexInfoFileResult is the result of reading an info file
 type ReadIndexInfoFileResult struct {
-	ID         FileSetFileIdentifier
-	Info       index.IndexVolumeInfo
-	PathPrefix string // fs path prefix for all files in this fileset.
-	Err        ReadInfoFileResultError
+	ID                FileSetFileIdentifier
+	Info              index.IndexVolumeInfo
+	AbsoluteFilepaths []string
+	Err               ReadInfoFileResultError
 }
 
 // ReadIndexInfoFiles reads all the valid index info entries. Even if ReadIndexInfoFiles returns an error,
@@ -852,13 +853,15 @@ func ReadIndexInfoFiles(
 			namespace:      namespace,
 		},
 		readerBufferSize,
-		func(filepath string, id FileSetFileIdentifier, data []byte) {
+		func(file FileSetFile, data []byte) {
+			filepath := file.AbsoluteFilepaths[0]
+			id := file.ID
 			var info index.IndexVolumeInfo
 			err := info.Unmarshal(data)
 			infoFileResults = append(infoFileResults, ReadIndexInfoFileResult{
-				ID:         id,
-				Info:       info,
-				PathPrefix: fmt.Sprintf("%s*", pathPrefixFromIndexInfoFilePath(filepath)),
+				ID:                id,
+				Info:              info,
+				AbsoluteFilepaths: file.AbsoluteFilepaths,
 				Err: readInfoFileResultError{
 					err:      err,
 					filepath: filepath,

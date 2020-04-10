@@ -1537,7 +1537,7 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 	)
 	onDiskSegmentsOrderByVolumeIndexByVolumeType := make(map[idxpersist.IndexVolumeType][]fs.OnDiskSegments)
 	for _, file := range infoFiles {
-		seg := fs.NewOnDiskSegments(file.Info, file.PathPrefix)
+		seg := fs.NewOnDiskSegments(file.Info, file.AbsoluteFilepaths)
 		volumeType := seg.VolumeType()
 		if _, ok := onDiskSegmentsOrderByVolumeIndexByVolumeType[volumeType]; !ok {
 			onDiskSegmentsOrderByVolumeIndexByVolumeType[volumeType] = make([]fs.OnDiskSegments, 0)
@@ -1554,11 +1554,7 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 			if seg.ShardTimeRanges().IsSuperset(shardTimeRangesCovered) {
 				// Mark dupe segments for deletion.
 				for _, currSeg := range currOnDiskSegments {
-					files, err := currSeg.AbsolutePaths()
-					if err != nil {
-						multiErr = multiErr.Add(err)
-					}
-					filesToDelete = append(filesToDelete, files...)
+					filesToDelete = append(filesToDelete, currSeg.AbsoluteFilepaths()...)
 				}
 				currOnDiskSegments = []fs.OnDiskSegments{seg}
 				shardTimeRangesCovered = seg.ShardTimeRanges()

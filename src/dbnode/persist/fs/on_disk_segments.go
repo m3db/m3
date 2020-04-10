@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"path/filepath"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
@@ -31,7 +30,7 @@ import (
 )
 
 type onDiskSegments struct {
-	pathPrefixPattern string
+	absoluteFilepaths []string
 	shardRanges       result.ShardTimeRanges
 	volumeType        idxpersist.IndexVolumeType
 }
@@ -39,7 +38,7 @@ type onDiskSegments struct {
 // NewOnDiskSegments returns an on disk segments for an index info file.
 func NewOnDiskSegments(
 	info index.IndexVolumeInfo,
-	pathPrefixPattern string,
+	absoluteFilepaths []string,
 ) OnDiskSegments {
 	sr := result.NewShardTimeRanges()
 	indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
@@ -62,7 +61,7 @@ func NewOnDiskSegments(
 	return &onDiskSegments{
 		shardRanges:       sr,
 		volumeType:        volumeType,
-		pathPrefixPattern: pathPrefixPattern,
+		absoluteFilepaths: absoluteFilepaths,
 	}
 }
 
@@ -74,10 +73,6 @@ func (o *onDiskSegments) VolumeType() idxpersist.IndexVolumeType {
 	return o.volumeType
 }
 
-func (o *onDiskSegments) AbsolutePaths() ([]string, error) {
-	files, err := filepath.Glob(o.pathPrefixPattern)
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
+func (o *onDiskSegments) AbsoluteFilepaths() []string {
+	return o.absoluteFilepaths
 }

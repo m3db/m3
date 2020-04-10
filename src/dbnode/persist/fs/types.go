@@ -566,5 +566,5 @@ type NewMergerFn func(
 type OnDiskSegments interface {
 	ShardTimeRanges() result.ShardTimeRanges
 	VolumeType() idxpersist.IndexVolumeType
-	AbsolutePaths() ([]string, error)
+	AbsoluteFilepaths() []string
 }
