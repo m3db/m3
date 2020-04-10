@@ -334,7 +334,7 @@ func (s *m3storage) fetchCompressed(
 			// Filter the data coming back by setting start and end
 			// with an adjusted end.
 			shiftedStart := optsCopy.StartInclusive
-			shiftedEnd := opts.EndExclusive.Add(-1 * query.Offset)
+			shiftedEnd := optsCopy.EndExclusive.Add(-1 * query.Offset)
 			for _, iter := range iters.Iters() {
 				iter.SetStartAndEnd(shiftedStart, shiftedEnd)
 			}

@@ -336,13 +336,13 @@ func renderResultsJSON(
 				continue
 			}
 
-			// Skip points before the query boundary. Ideal place to adjust these
-			// would be at the result node but that would make it inefficient since
-			// we would need to create another block just for the sake of restricting
-			// the bounds.
-			if dp.Timestamp.Before(params.Start) {
-				continue
-			}
+			// // Skip points before the query boundary. Ideal place to adjust these
+			// // would be at the result node but that would make it inefficient since
+			// // we would need to create another block just for the sake of restricting
+			// // the bounds.
+			// if dp.Timestamp.Before(params.Start) {
+			// 	continue
+			// }
 
 			jw.BeginArray()
 			jw.WriteInt(int(dp.Timestamp.Unix()))
