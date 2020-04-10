@@ -114,7 +114,7 @@ function read_carbon {
   end=$(date +%s)
   start=$(($end-1000))
   RESPONSE=$(curl -sSfg "http://${COORDINATOR_API}/api/v1/graphite/render?target=$target&from=$start&until=$end")
-  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null) | last")" = "$expected_val"
+  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null)" | jq -s last)" = "$expected_val"
   return $?
 }
 
@@ -193,7 +193,7 @@ function prometheus_query_native {
   result=$(curl -s                                    \
     -H "M3-Metrics-Type: ${metrics_type}"             \
     -H "M3-Storage-Policy: ${metrics_storage_policy}" \
-    "0.0.0.0:7202/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}")
+    "0.0.0.0:7202/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}" | jq -s last)
   test "$result" = "$expected_value"
   return $?
 }
@@ -244,7 +244,7 @@ function test_aggregated_rollup_rule {
   end=$(( $now + 3600 ))
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
-  jq_path=".data.result[0].values | .[][1] | select(. != null) | last"
+  jq_path=".data.result[0].values | .[][1] | select(. != null)"
 
   echo "Test query rollup rule"
 

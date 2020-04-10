@@ -83,7 +83,7 @@ function prometheus_query_native {
   result=$(curl -s                                    \
     -H "M3-Metrics-Type: ${metrics_type}"             \
     -H "M3-Storage-Policy: ${metrics_storage_policy}" \
-    "0.0.0.0:7201/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}")
+    "0.0.0.0:7201/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}" | jq -s last)
   test "$result" = "$expected_value"
   return $?
 }
@@ -123,7 +123,7 @@ function test_query_mapping_rule {
   end=$(( $now + 3600 ))
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
-  jq_path=".data.result[0].values[0] | .[1] | select(. != null) | last"
+  jq_path=".data.result[0].values[0] | .[1] | select(. != null)"
 
   # Test values can be mapped to 30s:24h resolution namespace (for app="nginx")
   echo "Test query mapping rule"
@@ -190,7 +190,7 @@ function test_query_rollup_rule {
   end=$(( $now + 3600 ))
   step="30s"
   params_range="start=${start}"'&'"end=${end}"'&'"step=30s"
-  jq_path=".data.result[0].values | .[][1] | select(. != null) | last"
+  jq_path=".data.result[0].values | .[][1] | select(. != null)"
 
   echo "Test query rollup rule"
 
