@@ -68,6 +68,7 @@ type unaggregatedEncoder struct {
 	gm   metricpb.GaugeWithMetadatas
 	fm   metricpb.ForwardedMetricWithMetadata
 	tm   metricpb.TimedMetricWithMetadata
+	tms  metricpb.TimedMetricWithMetadatas
 	buf  []byte
 	used int
 
@@ -127,6 +128,8 @@ func (enc *unaggregatedEncoder) EncodeMessage(msg encoding.UnaggregatedMessageUn
 		return enc.encodeForwardedMetricWithMetadata(msg.ForwardedMetricWithMetadata)
 	case encoding.TimedMetricWithMetadataType:
 		return enc.encodeTimedMetricWithMetadata(msg.TimedMetricWithMetadata)
+	case encoding.TimedMetricWithMetadatasType:
+		return enc.encodeTimedMetricWithMetadatas(msg.TimedMetricWithMetadatas)
 	default:
 		return fmt.Errorf("unknown message type: %v", msg.Type)
 	}
@@ -183,6 +186,17 @@ func (enc *unaggregatedEncoder) encodeTimedMetricWithMetadata(tm aggregated.Time
 	mm := metricpb.MetricWithMetadatas{
 		Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
 		TimedMetricWithMetadata: &enc.tm,
+	}
+	return enc.encodeMetricWithMetadatas(mm)
+}
+
+func (enc *unaggregatedEncoder) encodeTimedMetricWithMetadatas(tms aggregated.TimedMetricWithMetadatas) error {
+	if err := tms.ToProto(&enc.tms); err != nil {
+		return fmt.Errorf("timed metric with metadatas proto conversion failed: %v", err)
+	}
+	mm := metricpb.MetricWithMetadatas{
+		Type:                     metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS,
+		TimedMetricWithMetadatas: &enc.tms,
 	}
 	return enc.encodeMetricWithMetadatas(mm)
 }

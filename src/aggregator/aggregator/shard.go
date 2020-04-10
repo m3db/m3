@@ -50,6 +50,11 @@ type addTimedFn func(
 	metadata metadata.TimedMetadata,
 ) error
 
+type addTimedWithStagedMetadatasFn func(
+	metric aggregated.Metric,
+	metas metadata.StagedMetadatas,
+) error
+
 type addForwardedFn func(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
@@ -80,12 +85,13 @@ type aggregatorShard struct {
 	earliestWritableNanos            int64
 	latestWriteableNanos             int64
 
-	closed         bool
-	metricMap      *metricMap
-	metrics        aggregatorShardMetrics
-	addUntimedFn   addUntimedFn
-	addTimedFn     addTimedFn
-	addForwardedFn addForwardedFn
+	closed                        bool
+	metricMap                     *metricMap
+	metrics                       aggregatorShardMetrics
+	addUntimedFn                  addUntimedFn
+	addTimedFn                    addTimedFn
+	addTimedWithStagedMetadatasFn addTimedWithStagedMetadatasFn
+	addForwardedFn                addForwardedFn
 }
 
 func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
@@ -97,8 +103,8 @@ func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
 		map[string]string{"shard": strconv.Itoa(int(shard))},
 	)
 	s := &aggregatorShard{
-		shard: shard,
-		nowFn: opts.ClockOptions().NowFn(),
+		shard:                            shard,
+		nowFn:                            opts.ClockOptions().NowFn(),
 		bufferDurationBeforeShardCutover: opts.BufferDurationBeforeShardCutover(),
 		bufferDurationAfterShardCutoff:   opts.BufferDurationAfterShardCutoff(),
 		metricMap:                        newMetricMap(shard, opts),
@@ -106,6 +112,7 @@ func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
 	}
 	s.addUntimedFn = s.metricMap.AddUntimed
 	s.addTimedFn = s.metricMap.AddTimed
+	s.addTimedWithStagedMetadatasFn = s.metricMap.AddTimedWithStagedMetadatas
 	s.addForwardedFn = s.metricMap.AddForwarded
 	return s
 }
@@ -193,6 +200,29 @@ func (s *aggregatorShard) AddTimed(
 		return errAggregatorShardNotWriteable
 	}
 	err := s.addTimedFn(metric, metadata)
+	s.RUnlock()
+	if err != nil {
+		return err
+	}
+	s.metrics.writeSucccess.Inc(1)
+	return nil
+}
+
+func (s *aggregatorShard) AddTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	metas metadata.StagedMetadatas,
+) error {
+	s.RLock()
+	if s.closed {
+		s.RUnlock()
+		return errAggregatorShardClosed
+	}
+	if !s.isWritableWithLock() {
+		s.RUnlock()
+		s.metrics.notWriteableErrors.Inc(1)
+		return errAggregatorShardNotWriteable
+	}
+	err := s.addTimedWithStagedMetadatasFn(metric, metas)
 	s.RUnlock()
 	if err != nil {
 		return err
