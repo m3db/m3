@@ -32,6 +32,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -96,18 +97,22 @@ type downsamplerAndWriter struct {
 	store       storage.Storage
 	downsampler downsample.Downsampler
 	workerPool  xsync.PooledWorkerPool
+
+	metricsDropped tally.Counter
 }
 
 // NewDownsamplerAndWriter creates a new downsampler and writer.
 func NewDownsamplerAndWriter(
+	scope tally.Scope,
 	store storage.Storage,
 	downsampler downsample.Downsampler,
 	workerPool xsync.PooledWorkerPool,
 ) DownsamplerAndWriter {
 	return &downsamplerAndWriter{
-		store:       store,
-		downsampler: downsampler,
-		workerPool:  workerPool,
+		store:          store,
+		downsampler:    downsampler,
+		workerPool:     workerPool,
+		metricsDropped: scope.Counter("metrics_dropped"),
 	}
 }
 
@@ -132,7 +137,9 @@ func (d *downsamplerAndWriter) Write(
 		}
 	}
 
-	if !dropUnaggregated && d.shouldWrite(overrides) {
+	if dropUnaggregated {
+		d.metricsDropped.Inc(1)
+	} else if d.shouldWrite(overrides) {
 		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
@@ -348,7 +355,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 		for iter.Next() {
 			tags, datapoints, unit, annotation := iter.Current()
 			if metadata := iter.GetCurrentMetadata(); metadata.DropUnaggregated {
-				// TODO: Emit a metric here.
+				d.metricsDropped.Inc(1)
 				continue
 			}
 			for _, p := range storagePolicies {

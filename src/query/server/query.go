@@ -70,6 +70,7 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -340,7 +341,10 @@ func Run(runOpts RunOptions) {
 	}
 
 	engine := executor.NewEngine(engineOpts)
-	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
+	downsamplerAndWriter, err := newDownsamplerAndWriter(
+		instrumentOptions.MetricsScope().SubScope("downsampler"),
+		backendStorage,
+		downsampler)
 	if err != nil {
 		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
 	}
@@ -1043,7 +1047,11 @@ func startCarbonIngestion(
 	return carbonServer, true
 }
 
-func newDownsamplerAndWriter(storage storage.Storage, downsampler downsample.Downsampler) (ingest.DownsamplerAndWriter, error) {
+func newDownsamplerAndWriter(
+	scope tally.Scope,
+	storage storage.Storage,
+	downsampler downsample.Downsampler,
+) (ingest.DownsamplerAndWriter, error) {
 	// Make sure the downsampler and writer gets its own PooledWorkerPool and that its not shared with any other
 	// codepaths because PooledWorkerPools can deadlock if used recursively.
 	downAndWriterWorkerPoolOpts := xsync.NewPooledWorkerPoolOptions().
@@ -1056,5 +1064,5 @@ func newDownsamplerAndWriter(storage storage.Storage, downsampler downsample.Dow
 	}
 	downAndWriteWorkerPool.Init()
 
-	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool), nil
+	return ingest.NewDownsamplerAndWriter(scope, storage, downsampler, downAndWriteWorkerPool), nil
 }
