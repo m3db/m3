@@ -270,7 +270,7 @@ func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespa
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
 			continue
 		}
-		idx, err := n.GetIndex()
+		idx, err := n.Index()
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue

@@ -329,7 +329,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 	}
 }
 
-func TestCleanupManagerNamespaceCleanup(t *testing.T) {
+func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
@@ -359,7 +359,41 @@ func TestCleanupManagerNamespaceCleanup(t *testing.T) {
 
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
+	idx.EXPECT().CleanupDuplicateFileSets().Return(nil)
 	require.NoError(t, mgr.Cleanup(ts, true))
+}
+
+func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	ts := timeFor(36000)
+	rOpts := retentionOptions.
+		SetRetentionPeriod(21600 * time.Second).
+		SetBlockSize(3600 * time.Second)
+	nsOpts := namespaceOptions.
+		SetRetentionOptions(rOpts).
+		SetCleanupEnabled(true).
+		SetIndexOptions(namespace.NewIndexOptions().
+			SetEnabled(true).
+			SetBlockSize(7200 * time.Second))
+
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
+	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
+
+	idx := NewMockNamespaceIndex(ctrl)
+	ns.EXPECT().Index().Return(idx, nil)
+
+	nses := []databaseNamespace{ns}
+	db := newMockdatabase(ctrl, ns)
+	db.EXPECT().OwnedNamespaces().Return(nses, nil).AnyTimes()
+
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
+	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
+	require.NoError(t, mgr.Cleanup(ts, false))
 }
 
 // Test NS doesn't cleanup when flag is present
