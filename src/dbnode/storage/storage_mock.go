@@ -2146,6 +2146,20 @@ func (mr *MockNamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockNamespaceIndex)(nil).CleanupExpiredFileSets), t)
 }
 
+// CleanupDuplicateFileSets mocks base method
+func (m *MocknamespaceIndex) CleanupDuplicateFileSets() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanupDuplicateFileSets")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupDuplicateFileSets indicates an expected call of CleanupDuplicateFileSets
+func (mr *MocknamespaceIndexMockRecorder) CleanupDuplicateFileSets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupDuplicateFileSets", reflect.TypeOf((*MocknamespaceIndex)(nil).CleanupDuplicateFileSets))
+}
+
 // Tick mocks base method
 func (m *MockNamespaceIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
 	m.ctrl.T.Helper()

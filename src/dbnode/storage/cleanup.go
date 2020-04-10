@@ -149,6 +149,11 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when cleaning up index files for %v: %v", t, err))
 	}
 
+	if err := m.cleanupDuplicateIndexFiles(namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up index files for %v: %v", t, err))
+	}
+
 	if err := m.deleteInactiveDataFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when deleting inactive data files for %v: %v", t, err))
@@ -250,6 +255,22 @@ func (m *cleanupManager) cleanupExpiredIndexFiles(t time.Time, namespaces []data
 			continue
 		}
 		multiErr = multiErr.Add(idx.CleanupExpiredFileSets(t))
+	}
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespace) error {
+	multiErr := xerrors.NewMultiError()
+	for _, n := range namespaces {
+		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
+			continue
+		}
+		idx, err := n.GetIndex()
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+		multiErr = multiErr.Add(idx.CleanupDuplicateFileSets())
 	}
 	return multiErr.FinalError()
 }

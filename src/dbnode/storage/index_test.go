@@ -22,11 +22,15 @@ package storage
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
+	indexpb "github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -34,10 +38,12 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	protobuftypes "github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,6 +69,133 @@ func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {
 		return nil
 	}
 	require.NoError(t, idx.CleanupExpiredFileSets(now))
+}
+
+func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
+	md := testNamespaceMetadata(time.Hour, time.Hour*8)
+	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
+	require.NoError(t, err)
+
+	idx := nsIdx.(*nsIndex)
+	now := time.Now().Truncate(time.Hour)
+	indexBlockSize := 2 * time.Hour
+	blockTime := now.Add(-2 * indexBlockSize)
+
+	fset1, err := ioutil.TempFile("", "fileset-9000-0-")
+	require.NoError(t, err)
+	fset2, err := ioutil.TempFile("", "fileset-9000-1-")
+	require.NoError(t, err)
+	fset3, err := ioutil.TempFile("", "fileset-9000-2-")
+	require.NoError(t, err)
+
+	volumeType := "extra"
+	infoFiles := []fs.ReadIndexInfoFileResult{
+		{
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeType,
+				},
+			},
+			PathPrefix: fmt.Sprintf("%s*", fset1.Name()),
+		},
+		{
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeType,
+				},
+			},
+			PathPrefix: fmt.Sprintf("%s*", fset2.Name()),
+		},
+		{
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2, 3},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeType,
+				},
+			},
+			PathPrefix: fmt.Sprintf("%s*", fset3.Name()),
+		},
+	}
+
+	idx.readIndexInfoFilesFn = func(
+		filePathPrefix string,
+		namespace ident.ID,
+		readerBufferSize int,
+	) []fs.ReadIndexInfoFileResult {
+		return infoFiles
+	}
+	idx.deleteFilesFn = func(s []string) error {
+		require.Equal(t, []string{fset1.Name(), fset2.Name()}, s)
+		multiErr := xerrors.NewMultiError()
+		for _, file := range s {
+			multiErr = multiErr.Add(os.Remove(file))
+		}
+		return multiErr.FinalError()
+	}
+	require.NoError(t, idx.CleanupDuplicateFileSets())
+}
+
+func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
+	md := testNamespaceMetadata(time.Hour, time.Hour*8)
+	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
+	require.NoError(t, err)
+
+	idx := nsIdx.(*nsIndex)
+	now := time.Now().Truncate(time.Hour)
+	indexBlockSize := 2 * time.Hour
+	blockTime := now.Add(-2 * indexBlockSize)
+
+	fset1, err := ioutil.TempFile("", "fileset-9000-0-")
+	require.NoError(t, err)
+	fset2, err := ioutil.TempFile("", "fileset-9000-1-")
+	require.NoError(t, err)
+
+	volumeType := string(idxpersist.DefaultIndexVolumeType)
+	infoFiles := []fs.ReadIndexInfoFileResult{
+		{
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{0, 1, 2},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeType,
+				},
+			},
+			PathPrefix: fmt.Sprintf("%s*", fset1.Name()),
+		},
+		{
+			Info: indexpb.IndexVolumeInfo{
+				BlockStart: blockTime.UnixNano(),
+				BlockSize:  int64(indexBlockSize),
+				Shards:     []uint32{4},
+				IndexVolumeType: &protobuftypes.StringValue{
+					Value: volumeType,
+				},
+			},
+			PathPrefix: fmt.Sprintf("%s*", fset2.Name()),
+		},
+	}
+
+	idx.readIndexInfoFilesFn = func(
+		filePathPrefix string,
+		namespace ident.ID,
+		readerBufferSize int,
+	) []fs.ReadIndexInfoFileResult {
+		return infoFiles
+	}
+	idx.deleteFilesFn = func(s []string) error {
+		require.Equal(t, []string{}, s)
+		return nil
+	}
+	require.NoError(t, idx.CleanupDuplicateFileSets())
 }
 
 func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {

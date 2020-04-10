@@ -830,9 +830,10 @@ func ReadInfoFiles(
 
 // ReadIndexInfoFileResult is the result of reading an info file
 type ReadIndexInfoFileResult struct {
-	ID   FileSetFileIdentifier
-	Info index.IndexVolumeInfo
-	Err  ReadInfoFileResultError
+	ID         FileSetFileIdentifier
+	Info       index.IndexVolumeInfo
+	PathPrefix string // fs path prefix for all files in this fileset.
+	Err        ReadInfoFileResultError
 }
 
 // ReadIndexInfoFiles reads all the valid index info entries. Even if ReadIndexInfoFiles returns an error,
@@ -855,8 +856,9 @@ func ReadIndexInfoFiles(
 			var info index.IndexVolumeInfo
 			err := info.Unmarshal(data)
 			infoFileResults = append(infoFileResults, ReadIndexInfoFileResult{
-				ID:   id,
-				Info: info,
+				ID:         id,
+				Info:       info,
+				PathPrefix: fmt.Sprintf("%s*", pathPrefixFromIndexInfoFilePath(filepath)),
 				Err: readInfoFileResultError{
 					err:      err,
 					filepath: filepath,
@@ -1714,4 +1716,8 @@ func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataId
 		Index: index,
 		UUID:  id,
 	}, nil
+}
+
+func pathPrefixFromIndexInfoFilePath(path string) string {
+	return strings.Split(path, fmt.Sprintf("%s%s", infoFileSuffix, fileSuffix))[0]
 }

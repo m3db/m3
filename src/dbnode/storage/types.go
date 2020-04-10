@@ -625,6 +625,9 @@ type NamespaceIndex interface {
 	// using the provided `t` as the frame of reference.
 	CleanupExpiredFileSets(t time.Time) error
 
+	// CleanupDuplicateFileSets removes duplicate fileset files.
+	CleanupDuplicateFileSets() error
+
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
 	Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error)
