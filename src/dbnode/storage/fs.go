@@ -158,7 +158,7 @@ func (m *fileSystemManager) Run(
 		// and not caught in CI or integration tests.
 		// When an invariant occurs in CI tests it panics so as to fail
 		// the build.
-		if err := m.Cleanup(t); err != nil {
+		if err := m.Cleanup(t, m.database.IsBootstrapped()); err != nil {
 			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
 					l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))

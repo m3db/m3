@@ -707,7 +707,7 @@ type databaseFlushManager interface {
 // databaseCleanupManager manages cleaning up persistent storage space.
 type databaseCleanupManager interface {
 	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time) error
+	Cleanup(t time.Time, isBootstrapped bool) error
 
 	// Report reports runtime information.
 	Report()
@@ -716,7 +716,7 @@ type databaseCleanupManager interface {
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
 	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time) error
+	Cleanup(t time.Time, isBootstrapped bool) error
 
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error

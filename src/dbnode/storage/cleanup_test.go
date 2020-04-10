@@ -317,7 +317,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				return nil
 			}
 
-			err := mgr.Cleanup(ts)
+			err := mgr.Cleanup(ts, true)
 			if tc.expectErr {
 				require.Error(t, err)
 			} else {
@@ -359,7 +359,7 @@ func TestCleanupManagerNamespaceCleanup(t *testing.T) {
 
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
-	require.NoError(t, mgr.Cleanup(ts))
+	require.NoError(t, mgr.Cleanup(ts, true))
 }
 
 // Test NS doesn't cleanup when flag is present
@@ -392,7 +392,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 		return nil
 	}
 
-	require.NoError(t, mgr.Cleanup(ts))
+	require.NoError(t, mgr.Cleanup(ts, true))
 }
 
 func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
@@ -418,7 +418,7 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
-	require.NoError(t, mgr.Cleanup(ts))
+	require.NoError(t, mgr.Cleanup(ts, true))
 }
 
 type deleteInactiveDirectoriesCall struct {
@@ -457,7 +457,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	}
 	mgr.deleteInactiveDirectoriesFn = deleteInactiveDirectoriesFn
 
-	require.NoError(t, mgr.Cleanup(ts))
+	require.NoError(t, mgr.Cleanup(ts, true))
 
 	expectedCalls := []deleteInactiveDirectoriesCall{
 		deleteInactiveDirectoriesCall{
@@ -502,7 +502,7 @@ func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
 	require.NoError(t, db.Open())
 	require.NoError(t, db.Terminate())
 
-	require.Error(t, mgr.Cleanup(ts))
+	require.Error(t, mgr.Cleanup(ts, true))
 }
 
 func timeFor(s int64) time.Time {

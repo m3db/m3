@@ -2436,17 +2436,17 @@ func (m *MockdatabaseCleanupManager) EXPECT() *MockdatabaseCleanupManagerMockRec
 }
 
 // Cleanup mocks base method
-func (m *MockdatabaseCleanupManager) Cleanup(t time.Time) error {
+func (m *MockdatabaseCleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", t)
+	ret := m.ctrl.Call(m, "Cleanup", t, isBootstrapped)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Cleanup indicates an expected call of Cleanup
-func (mr *MockdatabaseCleanupManagerMockRecorder) Cleanup(t interface{}) *gomock.Call {
+func (mr *MockdatabaseCleanupManagerMockRecorder) Cleanup(t, isBootstrapped interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).Cleanup), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).Cleanup), t, isBootstrapped)
 }
 
 // Report mocks base method
@@ -2485,17 +2485,17 @@ func (m *MockdatabaseFileSystemManager) EXPECT() *MockdatabaseFileSystemManagerM
 }
 
 // Cleanup mocks base method
-func (m *MockdatabaseFileSystemManager) Cleanup(t time.Time) error {
+func (m *MockdatabaseFileSystemManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", t)
+	ret := m.ctrl.Call(m, "Cleanup", t, isBootstrapped)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Cleanup indicates an expected call of Cleanup
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Cleanup(t interface{}) *gomock.Call {
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Cleanup(t, isBootstrapped interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Cleanup), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Cleanup), t, isBootstrapped)
 }
 
 // Flush mocks base method
