@@ -73,6 +73,12 @@ func (it *seriesIterator) End() time.Time {
 	return it.end.ToTime()
 }
 
+func (it *seriesIterator) SetStartAndEnd(start, end time.Time) {
+	it.start = xtime.ToUnixNano(start)
+	it.end = xtime.ToUnixNano(end)
+	it.iters.setFilter(it.start, it.end)
+}
+
 func (it *seriesIterator) Next() bool {
 	if !it.firstNext {
 		if !it.hasNext() {

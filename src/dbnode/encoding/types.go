@@ -237,6 +237,8 @@ type SeriesIterator interface {
 	// End returns the end time filter specified for the iterator.
 	End() time.Time
 
+	SetStartAndEnd(start, end time.Time)
+
 	// Reset resets the iterator to read from a set of iterators from different
 	// replicas, one  must note that this can be an array with nil entries if
 	// some replicas did not return successfully.

@@ -316,7 +316,11 @@ func (s *m3storage) fetchCompressed(
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iters, metadata, err := session.FetchTagged(namespaceID, m3query, opts)
+
+			optsCopy := opts
+			optsCopy.StartInclusive = optsCopy.StartInclusive.Add(-1 * query.Offset)
+
+			iters, metadata, err := session.FetchTagged(namespaceID, m3query, optsCopy)
 			if err == nil && sampled {
 				span.LogFields(
 					log.String("namespace", namespaceID.String()),
@@ -325,6 +329,14 @@ func (s *m3storage) fetchCompressed(
 					log.Int("responses", metadata.Responses),
 					log.Int("estimateTotalBytes", metadata.EstimateTotalBytes),
 				)
+			}
+
+			// Filter the data coming back by setting start and end
+			// with an adjusted end.
+			shiftedStart := optsCopy.StartInclusive
+			shiftedEnd := opts.EndExclusive.Add(-1 * query.Offset)
+			for _, iter := range iters.Iters() {
+				iter.SetStartAndEnd(shiftedStart, shiftedEnd)
 			}
 
 			blockMeta := block.NewResultMetadata()

@@ -100,6 +100,7 @@ type FetchQuery struct {
 	Start       time.Time       `json:"start"`
 	End         time.Time       `json:"end"`
 	Interval    time.Duration   `json:"interval"`
+	Offset      time.Duration   `json:"offset"`
 }
 
 // FetchOptions represents the options for fetch query.
