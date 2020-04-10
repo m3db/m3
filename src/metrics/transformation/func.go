@@ -38,9 +38,31 @@ func (dp Datapoint) IsEmpty() bool { return math.IsNaN(dp.Value) }
 
 // UnaryTransform is a unary transformation that takes a single
 // datapoint as input and transforms it into a datapoint as output.
-type UnaryTransform func(dp Datapoint) Datapoint
+// It can keep state if it requires.
+type UnaryTransform interface {
+	Evaluate(dp Datapoint) Datapoint
+}
+
+// UnaryTransformFn implements UnaryTransform as a function.
+type UnaryTransformFn func(dp Datapoint) Datapoint
+
+// Evaluate implements UnaryTransform as a function.
+func (fn UnaryTransformFn) Evaluate(dp Datapoint) Datapoint {
+	return fn(dp)
+}
 
 // BinaryTransform is a binary transformation that takes the
 // previous and the current datapoint as input and produces
 // a single datapoint as the transformation result.
-type BinaryTransform func(prev, curr Datapoint) Datapoint
+// It can keep state if it requires.
+type BinaryTransform interface {
+	Evaluate(prev, curr Datapoint) Datapoint
+}
+
+// BinaryTransformFn implements BinaryTransform as a function.
+type BinaryTransformFn func(prev, curr Datapoint) Datapoint
+
+// Evaluate implements BinaryTransform as a function.
+func (fn BinaryTransformFn) Evaluate(prev, curr Datapoint) Datapoint {
+	return fn(prev, curr)
+}

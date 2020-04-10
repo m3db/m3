@@ -52,6 +52,20 @@ clusters:
       readConsistencyLevel: unstrict_majority
 
 downsample:
+  rules:
+    rollupRules:
+      - name: "requests per second by status code"
+        filter: "__name__:http_requests app:* status_code:* endpoint:*"
+        transforms:
+          - transform:
+              type: "PerSecond"
+          - rollup:
+              metricName: "http_requests_by_status_code"
+              groupBy: ["app", "status_code", "endpoint"]
+              aggregations: ["Sum"]
+        storagePolicies:
+          - resolution: 10s
+            retention: 6h
   remoteAggregator:
     client:
       placementKV:

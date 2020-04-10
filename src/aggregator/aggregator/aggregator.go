@@ -71,6 +71,9 @@ type Aggregator interface {
 	// AddTimed adds a timed metric with metadata.
 	AddTimed(metric aggregated.Metric, metadata metadata.TimedMetadata) error
 
+	// AddTimedWithStagedMetadatas adds a timed metric with staged metadatas.
+	AddTimedWithStagedMetadatas(metric aggregated.Metric, metas metadata.StagedMetadatas) error
+
 	// AddForwarded adds a forwarded metric with metadata.
 	AddForwarded(metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
 
@@ -202,6 +205,25 @@ func (agg *aggregator) AddTimed(
 		return err
 	}
 	if err = shard.AddTimed(metric, metadata); err != nil {
+		agg.metrics.addTimed.ReportError(err)
+		return err
+	}
+	agg.metrics.addTimed.ReportSuccess(agg.nowFn().Sub(callStart))
+	return nil
+}
+
+func (agg *aggregator) AddTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	metas metadata.StagedMetadatas,
+) error {
+	callStart := agg.nowFn()
+	agg.metrics.timed.Inc(1)
+	shard, err := agg.shardFor(metric.ID)
+	if err != nil {
+		agg.metrics.addTimed.ReportError(err)
+		return err
+	}
+	if err = shard.AddTimedWithStagedMetadatas(metric, metas); err != nil {
 		agg.metrics.addTimed.ReportError(err)
 		return err
 	}
