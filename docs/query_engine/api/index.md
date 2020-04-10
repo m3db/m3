@@ -41,10 +41,10 @@ docs/common/headers_optional_read_write.md
 The `M3-Map-Tags-By-JSON` header enables dynamically mutating tags in Prometheus write request. See
 [2254](https://github.com/m3db/m3/issues/2254) for more background.
 
-Currently only `append` is supported. As an example, the following header would unconditionally cause
+Currently only `write` is supported. As an example, the following header would unconditionally cause
 `globaltag=somevalue` to be added to all metrics in a write request:
 ```
-M3-Map-Tags-By-JSON: '{"tagMappers":[{"append":{"tag":"globaltag","value":"somevalue"}}]}'
+M3-Map-Tags-By-JSON: '{"tagMappers":[{"write":{"tag":"globaltag","value":"somevalue"}}]}'
 ```
 
 ### Data Params
