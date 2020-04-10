@@ -148,10 +148,11 @@ func FetchResultToBlockResult(
 			SetSplitSeriesByBlock(true)
 	}
 
-	start := query.Start
+	start := query.Start.Add(-1 * query.Offset)
+	end := query.End.Add(-1 * query.Offset)
 	bounds := models.Bounds{
 		Start:    start,
-		Duration: query.End.Sub(start),
+		Duration: end.Sub(start),
 		StepSize: query.Interval,
 	}
 
