@@ -1720,7 +1720,3 @@ func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataId
 		UUID:  id,
 	}, nil
 }
-
-func pathPrefixFromIndexInfoFilePath(path string) string {
-	return strings.Split(path, fmt.Sprintf("%s%s", infoFileSuffix, fileSuffix))[0]
-}

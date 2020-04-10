@@ -33,11 +33,13 @@ type onDiskSegments struct {
 	absoluteFilepaths []string
 	shardRanges       result.ShardTimeRanges
 	volumeType        idxpersist.IndexVolumeType
+	volumeIndex       int
 }
 
 // NewOnDiskSegments returns an on disk segments for an index info file.
 func NewOnDiskSegments(
 	info index.IndexVolumeInfo,
+	volumeIndex int,
 	absoluteFilepaths []string,
 ) OnDiskSegments {
 	sr := result.NewShardTimeRanges()
@@ -61,6 +63,7 @@ func NewOnDiskSegments(
 	return &onDiskSegments{
 		shardRanges:       sr,
 		volumeType:        volumeType,
+		volumeIndex:       volumeIndex,
 		absoluteFilepaths: absoluteFilepaths,
 	}
 }
@@ -75,4 +78,8 @@ func (o *onDiskSegments) VolumeType() idxpersist.IndexVolumeType {
 
 func (o *onDiskSegments) AbsoluteFilepaths() []string {
 	return o.absoluteFilepaths
+}
+
+func (o *onDiskSegments) VolumeIndex() int {
+	return o.volumeIndex
 }
