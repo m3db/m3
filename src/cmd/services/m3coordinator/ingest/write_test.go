@@ -123,8 +123,9 @@ var (
 )
 
 type testIter struct {
-	idx     int
-	entries []testIterEntry
+	idx       int
+	entries   []testIterEntry
+	metadatas []ts.Metadata
 }
 
 type testIterEntry struct {
@@ -135,8 +136,9 @@ type testIterEntry struct {
 
 func newTestIter(entries []testIterEntry) *testIter {
 	return &testIter{
-		idx:     -1,
-		entries: entries,
+		idx:       -1,
+		entries:   entries,
+		metadatas: make([]ts.Metadata, 0, len(entries)),
 	}
 }
 
@@ -161,6 +163,17 @@ func (i *testIter) Reset() error {
 
 func (i *testIter) Error() error {
 	return nil
+}
+
+func (i *testIter) SetCurrentMetadata(metadata ts.Metadata) {
+	i.metadatas[i.idx] = metadata
+}
+
+func (i *testIter) GetCurrentMetadata() ts.Metadata {
+	if len(i.metadatas) == 0 {
+		return ts.Metadata{}
+	}
+	return i.metadatas[i.idx]
 }
 
 func TestDownsampleAndWrite(t *testing.T) {
@@ -200,6 +213,44 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndNoMappingRules(t *testing.T
 }
 
 func TestDownsampleAndWriteWithDownsampleOverridesAndMappingRules(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
+
+	// We're overriding the downsampling with mapping rules, so we expect data to be
+	// sent to the downsampler, as well as everything being written to storage.
+	mappingRules := []downsample.AutoMappingRule{
+		{
+			Aggregations: []aggregation.Type{aggregation.Mean},
+			Policies: []policy.StoragePolicy{
+				policy.NewStoragePolicy(
+					time.Minute, xtime.Second, 48*time.Hour),
+			},
+		},
+	}
+	overrides := WriteOptions{
+		DownsampleOverride:     true,
+		DownsampleMappingRules: mappingRules,
+	}
+
+	expectedSamplesAppenderOptions := downsample.SampleAppenderOptions{
+		Override: true,
+		OverrideRules: downsample.SamplesAppenderOverrideRules{
+			MappingRules: mappingRules,
+		},
+	}
+
+	expectDefaultDownsampling(ctrl, testDatapoints1, downsampler, expectedSamplesAppenderOptions)
+	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
+
+	err := downAndWrite.Write(
+		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
+	require.NoError(t, err)
+}
+
+func TestDownsampleAndWriteWithDownsampleOverridesAndDropMappingRules(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -348,6 +399,7 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	for _, dp := range testDatapoints2 {
 		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
+	mockMetricsAppender.EXPECT().IsDropPolicyApplied().Return(false).Times(2)
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
 	mockMetricsAppender.EXPECT().Reset().Times(2)
@@ -428,6 +480,7 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 			mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 		}
 	}
+	mockMetricsAppender.EXPECT().IsDropPolicyApplied().Return(false)
 
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
@@ -508,6 +561,7 @@ func expectDefaultDownsampling(
 	for _, dp := range datapoints {
 		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
+	mockMetricsAppender.EXPECT().IsDropPolicyApplied().Return(false)
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
 	mockMetricsAppender.EXPECT().Finalize()

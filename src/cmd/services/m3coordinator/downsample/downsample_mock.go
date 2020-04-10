@@ -116,6 +116,20 @@ func (mr *MockMetricsAppenderMockRecorder) Finalize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockMetricsAppender)(nil).Finalize))
 }
 
+// IsDropPolicyApplied mocks base method
+func (m *MockMetricsAppender) IsDropPolicyApplied() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsDropPolicyApplied")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsDropPolicyApplied indicates an expected call of IsDropPolicyApplied
+func (mr *MockMetricsAppenderMockRecorder) IsDropPolicyApplied() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsDropPolicyApplied", reflect.TypeOf((*MockMetricsAppender)(nil).IsDropPolicyApplied))
+}
+
 // Reset mocks base method
 func (m *MockMetricsAppender) Reset() {
 	m.ctrl.T.Helper()
