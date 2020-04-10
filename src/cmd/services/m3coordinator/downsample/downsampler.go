@@ -39,6 +39,7 @@ type MetricsAppender interface {
 	SamplesAppender(opts SampleAppenderOptions) (SamplesAppender, error)
 	Reset()
 	Finalize()
+	IsDropPolicyApplied() bool
 }
 
 // SampleAppenderOptions defines the options being used when constructing

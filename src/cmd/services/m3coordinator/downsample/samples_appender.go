@@ -41,6 +41,9 @@ type samplesAppender struct {
 	stagedMetadatas metadata.StagedMetadatas
 }
 
+// Ensure samplesAppender implements SamplesAppender.
+var _ SamplesAppender = (*samplesAppender)(nil)
+
 func (a samplesAppender) AppendCounterSample(value int64) error {
 	if a.clientRemote != nil {
 		// Remote client write instead of local aggregation.

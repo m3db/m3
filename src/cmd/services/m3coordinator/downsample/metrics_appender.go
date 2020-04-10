@@ -49,6 +49,7 @@ type metricsAppender struct {
 	currStagedMetadata           metadata.StagedMetadata
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
+	dropUnaggregated             bool
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -79,6 +80,10 @@ func newMetricsAppender(opts metricsAppenderOptions) *metricsAppender {
 
 func (a *metricsAppender) AddTag(name, value []byte) {
 	a.tags.append(name, value)
+}
+
+func (a *metricsAppender) IsDropPolicyApplied() bool {
+	return a.dropUnaggregated
 }
 
 func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppender, error) {
@@ -164,6 +169,12 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			pipelines := mappingRuleStagedMetadatas[len(mappingRuleStagedMetadatas)-1]
 			a.currStagedMetadata.Pipelines =
 				append(a.currStagedMetadata.Pipelines, pipelines.Pipelines...)
+
+			// If the staged metadata has a drop policy applied then set that
+			// the unaggregated metric needs to be dropped.
+			if mappingRuleStagedMetadatas.IsDropPolicyApplied() {
+				a.dropUnaggregated = true
+			}
 		}
 
 		// Always aggregate any default staged metadatas (unless
@@ -310,6 +321,7 @@ func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
 }
 
 func (a *metricsAppender) Reset() {
+	a.dropUnaggregated = false
 	a.tags.names = a.tags.names[:0]
 	a.tags.values = a.tags.values[:0]
 }

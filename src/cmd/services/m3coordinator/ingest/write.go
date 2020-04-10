@@ -48,6 +48,8 @@ type DownsampleAndWriteIter interface {
 	Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte)
 	Reset() error
 	Error() error
+	SetCurrentMetadata(ts.Metadata)
+	GetCurrentMetadata() ts.Metadata
 }
 
 // DownsamplerAndWriter is the interface for the downsamplerAndWriter which
@@ -117,15 +119,20 @@ func (d *downsamplerAndWriter) Write(
 	annotation []byte,
 	overrides WriteOptions,
 ) error {
-	multiErr := xerrors.NewMultiError()
+	var (
+		multiErr         = xerrors.NewMultiError()
+		dropUnaggregated bool
+	)
+
 	if d.shouldDownsample(overrides) {
-		err := d.writeToDownsampler(tags, datapoints, unit, overrides)
+		var err error
+		dropUnaggregated, err = d.writeToDownsampler(tags, datapoints, unit, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
 
-	if d.shouldWrite(overrides) {
+	if !dropUnaggregated && d.shouldWrite(overrides) {
 		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides)
 		if err != nil {
 			multiErr = multiErr.Add(err)
@@ -195,12 +202,12 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 	datapoints ts.Datapoints,
 	unit xtime.Unit,
 	overrides WriteOptions,
-) error {
+) (bool, error) {
 	// TODO(rartoul): MetricsAppender has a Finalize() method, but it does not actually reuse many
 	// resources. If we can pool this properly we can get a nice speedup.
 	appender, err := d.downsampler.NewMetricsAppender()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	defer appender.Finalize()
@@ -236,17 +243,18 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 
 	samplesAppender, err := appender.SamplesAppender(appenderOpts)
 	if err != nil {
-		return err
+		return false, err
 	}
 
+	dropUnaggregated := appender.IsDropPolicyApplied()
 	for _, dp := range datapoints {
 		err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 		if err != nil {
-			return err
+			return dropUnaggregated, err
 		}
 	}
 
-	return nil
+	return dropUnaggregated, nil
 }
 
 func (d *downsamplerAndWriter) writeToStorage(
@@ -315,7 +323,20 @@ func (d *downsamplerAndWriter) WriteBatch(
 		}
 	)
 
-	if d.shouldWrite(overrides) {
+	if d.shouldDownsample(overrides) {
+		if err := d.writeAggregatedBatch(iter, overrides); err != nil {
+			addError(err)
+		}
+	}
+
+	// Iter does not need to be synchronized because even though we use it to spawn
+	// many goroutines above, the iteration is always synchronous.
+	resetErr := iter.Reset()
+	if resetErr != nil {
+		addError(resetErr)
+	}
+
+	if d.shouldWrite(overrides) && resetErr == nil {
 		// Write unaggregated. Spin up all the background goroutines that make
 		// network requests before we do the synchronous work of writing to the
 		// downsampler.
@@ -326,6 +347,10 @@ func (d *downsamplerAndWriter) WriteBatch(
 
 		for iter.Next() {
 			tags, datapoints, unit, annotation := iter.Current()
+			if metadata := iter.GetCurrentMetadata(); metadata.DropUnaggregated {
+				// TODO: Emit a metric here.
+				continue
+			}
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)
@@ -343,19 +368,6 @@ func (d *downsamplerAndWriter) WriteBatch(
 					wg.Done()
 				})
 			}
-		}
-	}
-
-	// Iter does not need to be synchronized because even though we use it to spawn
-	// many goroutines above, the iteration is always synchronous.
-	resetErr := iter.Reset()
-	if resetErr != nil {
-		addError(resetErr)
-	}
-
-	if d.shouldDownsample(overrides) && resetErr == nil {
-		if err := d.writeAggregatedBatch(iter, overrides); err != nil {
-			addError(err)
 		}
 	}
 
@@ -378,6 +390,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 
 	defer appender.Finalize()
 
+	var multiErr xerrors.MultiError
 	for iter.Next() {
 		appender.Reset()
 		tags, datapoints, _, _ := iter.Current()
@@ -397,18 +410,32 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 
 		samplesAppender, err := appender.SamplesAppender(opts)
 		if err != nil {
-			return err
+			multiErr = multiErr.Add(err)
+		}
+
+		if appender.IsDropPolicyApplied() {
+			iter.SetCurrentMetadata(ts.Metadata{true})
 		}
 
 		for _, dp := range datapoints {
 			err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 			if err != nil {
-				return err
+				// If we see an error break out so we can try processing the
+				// next datapoint.
+				multiErr = multiErr.Add(err)
+				break
 			}
 		}
 	}
 
-	return iter.Error()
+	if err := iter.Error(); err != nil {
+		multiErr.Add(err)
+	}
+
+	if multiErr.NumErrors() == 0 {
+		return nil
+	}
+	return multiErr
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {

@@ -36,10 +36,10 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 
+	imodels "github.com/influxdata/influxdb/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
-	imodels "github.com/influxdata/influxdb/models"
 	"go.uber.org/zap"
 )
 
@@ -241,6 +241,12 @@ func (ii *ingestIterator) Reset() error {
 
 func (ii *ingestIterator) Error() error {
 	return ii.err.FinalError()
+}
+
+func (ii *ingestIterator) SetCurrentMetadata(metadata ts.Metadata) {}
+
+func (ii *ingestIterator) GetCurrentMetadata() ts.Metadata {
+	return ts.Metadata{}
 }
 
 func NewInfluxWriterHandler(options options.HandlerOptions) http.Handler {

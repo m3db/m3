@@ -96,3 +96,9 @@ func (i *iter) Reset() error {
 func (i *iter) Error() error {
 	return nil
 }
+
+func (i *iter) SetCurrentMetadata(_ ts.Metadata) {}
+
+func (i *iter) GetCurrentMetadata() ts.Metadata {
+	return ts.Metadata{}
+}
