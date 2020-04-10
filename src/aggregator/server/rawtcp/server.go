@@ -155,6 +155,10 @@ func (s *handler) Handle(conn net.Conn) {
 			timedMetric = current.TimedMetricWithMetadata.Metric
 			timedMetadata = current.TimedMetricWithMetadata.TimedMetadata
 			err = toAddTimedError(s.aggregator.AddTimed(timedMetric, timedMetadata))
+		case encoding.TimedMetricWithMetadatasType:
+			timedMetric = current.TimedMetricWithMetadatas.Metric
+			stagedMetadatas = current.TimedMetricWithMetadatas.StagedMetadatas
+			err = toAddTimedError(s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas))
 		default:
 			err = newUnknownMessageTypeError(current.Type)
 		}

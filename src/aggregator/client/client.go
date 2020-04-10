@@ -75,6 +75,12 @@ type Client interface {
 		metadata metadata.TimedMetadata,
 	) error
 
+	// WriteTimedWithStagedMetadatas writes timed metrics with staged metadatas.
+	WriteTimedWithStagedMetadatas(
+		metric aggregated.Metric,
+		metadatas metadata.StagedMetadatas,
+	) error
+
 	// Flush flushes any remaining data buffered by the client.
 	Flush() error
 
@@ -166,8 +172,8 @@ func NewClient(opts Options) Client {
 	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 
 	return &client{
-		opts:  opts,
-		nowFn: opts.ClockOptions().NowFn(),
+		opts:                       opts,
+		nowFn:                      opts.ClockOptions().NowFn(),
 		shardCutoverWarmupDuration: opts.ShardCutoverWarmupDuration(),
 		shardCutoffLingerDuration:  opts.ShardCutoffLingerDuration(),
 		writerMgr:                  writerMgr,
@@ -249,6 +255,23 @@ func (c *client) WriteTimed(
 		timed: timedPayload{
 			metric:   metric,
 			metadata: metadata,
+		},
+	}
+	err := c.write(metric.ID, metric.TimeNanos, payload)
+	c.metrics.writeForwarded.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	return err
+}
+
+func (c *client) WriteTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	metadatas metadata.StagedMetadatas,
+) error {
+	callStart := c.nowFn()
+	payload := payloadUnion{
+		payloadType: timedWithStagedMetadatasType,
+		timedWithStagedMetadatas: timedWithStagedMetadatas{
+			metric:    metric,
+			metadatas: metadatas,
 		},
 	}
 	err := c.write(metric.ID, metric.TimeNanos, payload)

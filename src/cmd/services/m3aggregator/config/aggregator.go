@@ -65,6 +65,10 @@ type AggregatorConfiguration struct {
 	// InstanceID is the instance ID configuration.
 	InstanceID InstanceIDConfiguration `yaml:"instanceID"`
 
+	// VerboseErrors sets whether or not to use verbose errors when
+	// value arrives too early, late, or other bad request like operation.
+	VerboseErrors bool `yaml:"verboseErrors"`
+
 	// AggregationTypes configs the aggregation types.
 	AggregationTypes aggregation.TypesConfiguration `yaml:"aggregationTypes"`
 
@@ -135,7 +139,7 @@ type AggregatorConfiguration struct {
 	MaxTimerBatchSizePerWrite int `yaml:"maxTimerBatchSizePerWrite" validate:"min=0"`
 
 	// Default storage policies.
-	DefaultStoragePolicies []policy.StoragePolicy `yaml:"defaultStoragePolicies" validate:"nonzero"`
+	DefaultStoragePolicies []policy.StoragePolicy `yaml:"defaultStoragePolicies"`
 
 	// Maximum number of cached source sets.
 	MaxNumCachedSourceSets *int `yaml:"maxNumCachedSourceSets"`
@@ -237,7 +241,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 ) (aggregator.Options, error) {
 	opts := aggregator.NewOptions().
 		SetInstrumentOptions(instrumentOpts).
-		SetRuntimeOptionsManager(runtimeOptsManager)
+		SetRuntimeOptionsManager(runtimeOptsManager).
+		SetVerboseErrors(c.VerboseErrors)
 
 	// Set the aggregation types options.
 	aggTypesOpts, err := c.AggregationTypes.NewOptions(instrumentOpts)
@@ -565,12 +570,20 @@ func (c placementManagerConfiguration) NewPlacementManager(
 type forwardingConfiguration struct {
 	// MaxSingleDelay is the maximum delay for a single forward step.
 	MaxSingleDelay time.Duration `yaml:"maxSingleDelay"`
+	// MaxConstDelay is the maximum delay for a forward step as a constant + resolution*numForwardedTimes.
+	MaxConstDelay time.Duration `yaml:"maxConstDelay"`
 }
 
 func (c forwardingConfiguration) MaxAllowedForwardingDelayFn(
 	jitterEnabled bool,
 	maxJitterFn aggregator.FlushJitterFn,
 ) aggregator.MaxAllowedForwardingDelayFn {
+	if v := c.MaxConstDelay; v > 0 {
+		return func(resolution time.Duration, numForwardedTimes int) time.Duration {
+			return v + (resolution * time.Duration(numForwardedTimes))
+		}
+	}
+
 	return func(resolution time.Duration, numForwardedTimes int) time.Duration {
 		// If jittering is enabled, we use max jitter fn to determine the initial jitter.
 		// Otherwise, flushing may start at any point within a resolution interval so we
