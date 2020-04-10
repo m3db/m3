@@ -319,7 +319,7 @@ func (s *m3storage) fetchCompressed(
 			namespaceID := namespace.NamespaceID()
 
 			optsCopy := opts
-			optsCopy.StartInclusive = optsCopy.StartInclusive.Add(-1 * query.Offset)
+			optsCopy.StartInclusive = optsCopy.StartInclusive.Add(-1 * query.Offset).Add(-2 * time.Hour)
 
 			iters, metadata, err := session.FetchTagged(namespaceID, m3query, optsCopy)
 			if err == nil && sampled {
@@ -334,7 +334,7 @@ func (s *m3storage) fetchCompressed(
 
 			// Filter the data coming back by setting start and end
 			// with an adjusted end.
-			shiftedStart := optsCopy.StartInclusive
+			shiftedStart := optsCopy.StartInclusive.Add(2 * time.Hour)
 			shiftedEnd := optsCopy.EndExclusive.Add(-1 * query.Offset)
 			for _, iter := range iters.Iters() {
 				iter.SetStartAndEnd(shiftedStart, shiftedEnd)
