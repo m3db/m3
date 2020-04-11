@@ -70,7 +70,6 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -342,7 +341,7 @@ func Run(runOpts RunOptions) {
 
 	engine := executor.NewEngine(engineOpts)
 	downsamplerAndWriter, err := newDownsamplerAndWriter(
-		instrumentOptions.MetricsScope().SubScope("downsampler"),
+		instrumentOptions,
 		backendStorage,
 		downsampler)
 	if err != nil {
@@ -1048,7 +1047,7 @@ func startCarbonIngestion(
 }
 
 func newDownsamplerAndWriter(
-	scope tally.Scope,
+	iOpts instrument.Options,
 	storage storage.Storage,
 	downsampler downsample.Downsampler,
 ) (ingest.DownsamplerAndWriter, error) {
@@ -1064,5 +1063,5 @@ func newDownsamplerAndWriter(
 	}
 	downAndWriteWorkerPool.Init()
 
-	return ingest.NewDownsamplerAndWriter(scope, storage, downsampler, downAndWriteWorkerPool), nil
+	return ingest.NewDownsamplerAndWriter(iOpts, storage, downsampler, downAndWriteWorkerPool), nil
 }

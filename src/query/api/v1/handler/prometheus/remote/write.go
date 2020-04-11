@@ -552,7 +552,7 @@ func (i *promTSIter) SetCurrentMetadata(metadata ts.Metadata) {
 	i.metadatas[i.idx] = metadata
 }
 
-func (i *promTSIter) GetCurrentMetadata() ts.Metadata {
+func (i *promTSIter) CurrentMetadata() ts.Metadata {
 	if len(i.metadatas) == 0 {
 		return ts.Metadata{}
 	}

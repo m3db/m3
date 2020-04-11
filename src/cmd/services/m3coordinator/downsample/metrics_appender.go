@@ -49,7 +49,6 @@ type metricsAppender struct {
 	currStagedMetadata           metadata.StagedMetadata
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
-	dropUnaggregated             bool
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -82,22 +81,18 @@ func (a *metricsAppender) AddTag(name, value []byte) {
 	a.tags.append(name, value)
 }
 
-func (a *metricsAppender) IsDropPolicyApplied() bool {
-	return a.dropUnaggregated
-}
-
-func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppender, error) {
+func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppenderResult, error) {
 	// Sort tags
 	sort.Sort(a.tags)
 
 	// Encode tags and compute a temporary (unowned) ID
 	a.tagEncoder.Reset()
 	if err := a.tagEncoder.Encode(a.tags); err != nil {
-		return nil, err
+		return SamplesAppenderResult{}, err
 	}
 	data, ok := a.tagEncoder.Data()
 	if !ok {
-		return nil, fmt.Errorf("unable to encode tags: names=%v, values=%v",
+		return SamplesAppenderResult{}, fmt.Errorf("unable to encode tags: names=%v, values=%v",
 			a.tags.names, a.tags.values)
 	}
 
@@ -114,6 +109,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
+	var dropPolicyApplied bool
 	if opts.Override {
 		// Reuse a slice to keep the current staged metadatas we will apply.
 		a.currStagedMetadata.Pipelines = a.currStagedMetadata.Pipelines[:0]
@@ -121,7 +117,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		for _, rule := range opts.OverrideRules.MappingRules {
 			stagedMetadatas, err := rule.StagedMetadatas()
 			if err != nil {
-				return nil, err
+				return SamplesAppenderResult{}, err
 			}
 
 			a.debugLogMatch("downsampler applying override mapping rule",
@@ -173,7 +169,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			// If the staged metadata has a drop policy applied then set that
 			// the unaggregated metric needs to be dropped.
 			if mappingRuleStagedMetadatas.IsDropPolicyApplied() {
-				a.dropUnaggregated = true
+				dropPolicyApplied = true
 			}
 		}
 
@@ -186,7 +182,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			stagedMetadatas := a.defaultStagedMetadatasCopies[idx]
 			err := stagedMetadatas.FromProto(stagedMetadatasProto)
 			if err != nil {
-				return nil,
+				return SamplesAppenderResult{},
 					fmt.Errorf("unable to copy default staged metadatas: %v", err)
 			}
 
@@ -292,7 +288,10 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		}
 	}
 
-	return a.multiSamplesAppender, nil
+	return SamplesAppenderResult{
+		SamplesAppender:     a.multiSamplesAppender,
+		IsDropPolicyApplied: dropPolicyApplied,
+	}, nil
 }
 
 type debugLogMatchOptions struct {
@@ -321,7 +320,6 @@ func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
 }
 
 func (a *metricsAppender) Reset() {
-	a.dropUnaggregated = false
 	a.tags.names = a.tags.names[:0]
 	a.tags.values = a.tags.values[:0]
 }

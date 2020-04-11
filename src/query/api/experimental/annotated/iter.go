@@ -51,6 +51,7 @@ type iter struct {
 	idx        int
 	tags       []models.Tags
 	datapoints []datapoint
+	metadatas  []ts.Metadata
 }
 
 func newIter(
@@ -97,8 +98,16 @@ func (i *iter) Error() error {
 	return nil
 }
 
-func (i *iter) SetCurrentMetadata(_ ts.Metadata) {}
+func (i *iter) SetCurrentMetadata(metadata ts.Metadata) {
+	if len(i.metadatas) == 0 {
+		i.metadatas = make([]ts.Metadata, len(i.tags))
+	}
+	i.metadatas[i.idx] = metadata
+}
 
-func (i *iter) GetCurrentMetadata() ts.Metadata {
-	return ts.Metadata{}
+func (i *iter) CurrentMetadata() ts.Metadata {
+	if len(i.metadatas) == 0 {
+		return ts.Metadata{}
+	}
+	return i.metadatas[i.idx]
 }

@@ -36,6 +36,7 @@ import (
 	testm3 "github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -169,7 +170,7 @@ func (i *testIter) SetCurrentMetadata(metadata ts.Metadata) {
 	i.metadatas[i.idx] = metadata
 }
 
-func (i *testIter) GetCurrentMetadata() ts.Metadata {
+func (i *testIter) CurrentMetadata() ts.Metadata {
 	if len(i.metadatas) == 0 {
 		return ts.Metadata{}
 	}
@@ -386,7 +387,7 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	mockMetricsAppender.
 		EXPECT().
 		SamplesAppender(zeroDownsamplerAppenderOpts).
-		Return(mockSamplesAppender, nil).Times(2)
+		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(2)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
@@ -399,7 +400,6 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	for _, dp := range testDatapoints2 {
 		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
-	mockMetricsAppender.EXPECT().IsDropPolicyApplied().Return(false).Times(2)
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
 	mockMetricsAppender.EXPECT().Reset().Times(2)
@@ -469,7 +469,7 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 				MappingRules: overrideMappingRules,
 			},
 		}).
-		Return(mockSamplesAppender, nil)
+		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil)
 
 	entries := testEntries[:1]
 	for _, entry := range entries {
@@ -480,8 +480,6 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 			mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 		}
 	}
-	mockMetricsAppender.EXPECT().IsDropPolicyApplied().Return(false)
-
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
 	mockMetricsAppender.EXPECT().Reset()
@@ -553,7 +551,7 @@ func expectDefaultDownsampling(
 	mockMetricsAppender.
 		EXPECT().
 		SamplesAppender(downsampleOpts).
-		Return(mockSamplesAppender, nil)
+		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
@@ -561,7 +559,6 @@ func expectDefaultDownsampling(
 	for _, dp := range datapoints {
 		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
-	mockMetricsAppender.EXPECT().IsDropPolicyApplied().Return(false)
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
 	mockMetricsAppender.EXPECT().Finalize()
@@ -593,7 +590,7 @@ func newTestDownsamplerAndWriter(
 		storage, session = testm3.NewStorageAndSession(t, ctrl)
 	}
 	downsampler := downsample.NewMockDownsampler(ctrl)
-	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool).(*downsamplerAndWriter), downsampler, session
+	return NewDownsamplerAndWriter(instrument.NewOptions(), storage, downsampler, testWorkerPool).(*downsamplerAndWriter), downsampler, session
 }
 
 func newTestDownsamplerAndWriterWithAggregatedNamespace(
@@ -604,7 +601,7 @@ func newTestDownsamplerAndWriterWithAggregatedNamespace(
 	storage, session := testm3.NewStorageAndSessionWithAggregatedNamespaces(
 		t, ctrl, aggregatedNamespaces)
 	downsampler := downsample.NewMockDownsampler(ctrl)
-	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool).(*downsamplerAndWriter), downsampler, session
+	return NewDownsamplerAndWriter(instrument.NewOptions(), storage, downsampler, testWorkerPool).(*downsamplerAndWriter), downsampler, session
 }
 
 func init() {

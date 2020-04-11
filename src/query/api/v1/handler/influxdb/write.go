@@ -245,7 +245,7 @@ func (ii *ingestIterator) Error() error {
 
 func (ii *ingestIterator) SetCurrentMetadata(metadata ts.Metadata) {}
 
-func (ii *ingestIterator) GetCurrentMetadata() ts.Metadata {
+func (ii *ingestIterator) CurrentMetadata() ts.Metadata {
 	return ts.Metadata{}
 }
 

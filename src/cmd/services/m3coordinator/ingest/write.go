@@ -30,8 +30,10 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
+
 	"github.com/uber-go/tally"
 )
 
@@ -50,7 +52,7 @@ type DownsampleAndWriteIter interface {
 	Reset() error
 	Error() error
 	SetCurrentMetadata(ts.Metadata)
-	GetCurrentMetadata() ts.Metadata
+	CurrentMetadata() ts.Metadata
 }
 
 // DownsamplerAndWriter is the interface for the downsamplerAndWriter which
@@ -91,6 +93,10 @@ type WriteOptions struct {
 	WriteOverride      bool
 }
 
+type downsamplerAndWriterMetrics struct {
+	dropped tally.Counter
+}
+
 // downsamplerAndWriter encapsulates the logic for writing data to the downsampler,
 // as well as in unaggregated form to storage.
 type downsamplerAndWriter struct {
@@ -98,21 +104,24 @@ type downsamplerAndWriter struct {
 	downsampler downsample.Downsampler
 	workerPool  xsync.PooledWorkerPool
 
-	metricsDropped tally.Counter
+	metrics downsamplerAndWriterMetrics
 }
 
 // NewDownsamplerAndWriter creates a new downsampler and writer.
 func NewDownsamplerAndWriter(
-	scope tally.Scope,
+	instrumentOpts instrument.Options,
 	store storage.Storage,
 	downsampler downsample.Downsampler,
 	workerPool xsync.PooledWorkerPool,
 ) DownsamplerAndWriter {
+	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
 	return &downsamplerAndWriter{
-		store:          store,
-		downsampler:    downsampler,
-		workerPool:     workerPool,
-		metricsDropped: scope.Counter("metrics_dropped"),
+		store:       store,
+		downsampler: downsampler,
+		workerPool:  workerPool,
+		metrics: downsamplerAndWriterMetrics{
+			dropped: scope.Counter("metrics_dropped"),
+		},
 	}
 }
 
@@ -138,7 +147,7 @@ func (d *downsamplerAndWriter) Write(
 	}
 
 	if dropUnaggregated {
-		d.metricsDropped.Inc(1)
+		d.metrics.dropped.Inc(1)
 	} else if d.shouldWrite(overrides) {
 		err := d.writeToStorage(ctx, tags, datapoints, unit, annotation, overrides)
 		if err != nil {
@@ -248,20 +257,19 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 		}
 	}
 
-	samplesAppender, err := appender.SamplesAppender(appenderOpts)
+	result, err := appender.SamplesAppender(appenderOpts)
 	if err != nil {
 		return false, err
 	}
 
-	dropUnaggregated := appender.IsDropPolicyApplied()
 	for _, dp := range datapoints {
-		err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+		err := result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 		if err != nil {
-			return dropUnaggregated, err
+			return result.IsDropPolicyApplied, err
 		}
 	}
 
-	return dropUnaggregated, nil
+	return result.IsDropPolicyApplied, nil
 }
 
 func (d *downsamplerAndWriter) writeToStorage(
@@ -354,8 +362,8 @@ func (d *downsamplerAndWriter) WriteBatch(
 
 		for iter.Next() {
 			tags, datapoints, unit, annotation := iter.Current()
-			if metadata := iter.GetCurrentMetadata(); metadata.DropUnaggregated {
-				d.metricsDropped.Inc(1)
+			if metadata := iter.CurrentMetadata(); metadata.DropUnaggregated {
+				d.metrics.dropped.Inc(1)
 				continue
 			}
 			for _, p := range storagePolicies {
@@ -415,17 +423,17 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			}
 		}
 
-		samplesAppender, err := appender.SamplesAppender(opts)
+		result, err := appender.SamplesAppender(opts)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
 
-		if appender.IsDropPolicyApplied() {
+		if result.IsDropPolicyApplied {
 			iter.SetCurrentMetadata(ts.Metadata{true})
 		}
 
 		for _, dp := range datapoints {
-			err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+			err := result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 			if err != nil {
 				// If we see an error break out so we can try processing the
 				// next datapoint.
@@ -436,13 +444,10 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 	}
 
 	if err := iter.Error(); err != nil {
-		multiErr.Add(err)
+		multiErr = multiErr.Add(err)
 	}
 
-	if multiErr.NumErrors() == 0 {
-		return nil
-	}
-	return multiErr
+	return multiErr.FinalError()
 }
 
 func (d *downsamplerAndWriter) Storage() storage.Storage {
