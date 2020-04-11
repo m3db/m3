@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 
@@ -70,6 +71,7 @@ type randFn func(int64) int64
 type leaderFlushManager struct {
 	sync.RWMutex
 
+	opts                   FlushManagerOptions
 	nowFn                  clock.NowFn
 	checkEvery             time.Duration
 	workers                xsync.WorkerPool
@@ -77,6 +79,9 @@ type leaderFlushManager struct {
 	flushTimesManager      FlushTimesManager
 	flushTimesPersistEvery time.Duration
 	maxBufferSize          time.Duration
+	maxJitterFn            FlushJitterFn
+	rand                   *rand.Rand
+	randFn                 randFn
 	logger                 *zap.Logger
 	scope                  tally.Scope
 
@@ -85,7 +90,6 @@ type leaderFlushManager struct {
 	flushedByShard      map[uint32]*schema.ShardFlushTimes
 	lastPersistAtNanos  int64
 	flushedSincePersist bool
-	flushTask           *leaderFlushTask
 	metrics             leaderFlushManagerMetrics
 }
 
@@ -94,26 +98,27 @@ func newLeaderFlushManager(
 	opts FlushManagerOptions,
 ) roleBasedFlushManager {
 	nowFn := opts.ClockOptions().NowFn()
+	rand := rand.New(rand.NewSource(nowFn().UnixNano()))
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 	mgr := &leaderFlushManager{
 		nowFn:                  nowFn,
+		opts:                   opts,
 		checkEvery:             opts.CheckEvery(),
 		workers:                opts.WorkerPool(),
 		placementManager:       opts.PlacementManager(),
 		flushTimesManager:      opts.FlushTimesManager(),
 		flushTimesPersistEvery: opts.FlushTimesPersistEvery(),
 		maxBufferSize:          opts.MaxBufferSize(),
+		maxJitterFn:            opts.MaxJitterFn(),
+		rand:                   rand,
+		randFn:                 rand.Int63n,
 		logger:                 instrumentOpts.Logger(),
 		scope:                  scope,
 		doneCh:                 doneCh,
 		flushedByShard:         make(map[uint32]*schema.ShardFlushTimes, defaultInitialFlushCapacity),
 		lastPersistAtNanos:     nowFn().UnixNano(),
 		metrics:                newLeaderFlushManagerMetrics(scope),
-	}
-	mgr.flushTask = &leaderFlushTask{
-		mgr:      mgr,
-		flushers: make([]flushingMetricList, 0, defaultInitialFlushCapacity),
 	}
 	return mgr
 }
@@ -133,8 +138,8 @@ func (mgr *leaderFlushManager) Init(buckets []*flushBucket) {
 
 func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.Duration) {
 	var (
-		shouldFlush = false
-		waitFor     = mgr.checkEvery
+		waitFor = mgr.checkEvery
+		task    *leaderFlushTask
 	)
 	mgr.Lock()
 	defer mgr.Unlock()
@@ -145,15 +150,19 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	if numFlushTimes > 0 {
 		earliestFlush := mgr.flushTimes.Min()
 		if nowNanos >= earliestFlush.timeNanos {
-			shouldFlush = true
 			waitFor = 0
 			bucketIdx := earliestFlush.bucketIdx
-			// NB(xichen): make a shallow copy of the flushers inside the lock
-			// and use the snapshot for flushing below because the flushers slice
-			// inside the bucket may be modified during task execution when new
-			// flushers are registered or old flushers are unregistered.
-			mgr.flushTask.duration = buckets[bucketIdx].duration
-			mgr.flushTask.flushers = append(mgr.flushTask.flushers[:0], buckets[bucketIdx].flushers...)
+
+			// Task runs async possibly, take a copy of the flushers.
+			task = &leaderFlushTask{
+				mgr:               mgr,
+				flushTimesManager: mgr.flushTimesManager,
+				duration:          buckets[bucketIdx].duration,
+				flushers: append(
+					make([]flushingMetricList, 0, len(buckets[bucketIdx].flushers)),
+					buckets[bucketIdx].flushers...),
+			}
+
 			nextFlushMetadata := flushMetadata{
 				timeNanos: earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
 				bucketIdx: bucketIdx,
@@ -171,17 +180,16 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	}
 
 	durationSinceLastPersist := time.Duration(nowNanos - mgr.lastPersistAtNanos)
-	if mgr.flushedSincePersist && durationSinceLastPersist >= mgr.flushTimesPersistEvery {
+	if task != nil && mgr.flushedSincePersist && durationSinceLastPersist >= mgr.flushTimesPersistEvery {
 		mgr.lastPersistAtNanos = nowNanos
 		mgr.flushedSincePersist = false
-		flushTimes := mgr.prepareFlushTimesWithLock(buckets)
-		mgr.flushTimesManager.StoreAsync(flushTimes)
+		task.flushTimes = mgr.prepareFlushTimesWithLock(buckets)
 	}
 
-	if !shouldFlush {
+	if task == nil {
 		return nil, waitFor
 	}
-	return mgr.flushTask, waitFor
+	return task, waitFor
 }
 
 // NB(xichen): if the current instance is a leader, we need to update the flush
@@ -395,12 +403,49 @@ func cloneForwardedFlushTimesForResolution(
 }
 
 type leaderFlushTask struct {
-	mgr      *leaderFlushManager
-	duration tally.Timer
-	flushers []flushingMetricList
+	sync.RWMutex
+
+	wg   sync.WaitGroup
+	done bool
+
+	mgr               *leaderFlushManager
+	flushTimesManager FlushTimesManager
+	duration          tally.Timer
+	flushers          []flushingMetricList
+	flushTimes        *schema.ShardSetFlushTimes
+}
+
+func (t *leaderFlushTask) Complete() bool {
+	t.RLock()
+	defer t.RUnlock()
+	return t.done
+}
+
+func (t *leaderFlushTask) WaitComplete() {
+	t.wg.Wait()
+}
+
+func (t *leaderFlushTask) runComplete(took time.Duration) {
+	if t.flushTimes != nil {
+		if err := t.flushTimesManager.StoreAsync(t.flushTimes); err != nil {
+			t.mgr.logger.Error("could not store flush times", zap.Error(err))
+		}
+	}
+
+	t.duration.Record(took)
+
+	t.Lock()
+	t.done = true
+	t.Unlock()
+
+	// Record task done.
+	t.wg.Done()
 }
 
 func (t *leaderFlushTask) Run() {
+	// Record waiting for task to complete.
+	t.wg.Add(1)
+
 	mgr := t.mgr
 	shards, err := mgr.placementManager.Shards()
 	if err != nil {
@@ -409,9 +454,15 @@ func (t *leaderFlushTask) Run() {
 	}
 
 	var (
-		wgWorkers sync.WaitGroup
-		start     = mgr.nowFn()
+		flushersWg     sync.WaitGroup
+		start          = mgr.nowFn()
+		recordDuration time.Duration
+		recordLock     sync.Mutex
 	)
+	// Flusher per shard, if per shard jitter is enabled we apply it here.
+	jitterEnabled := mgr.opts.JitterEnabled()
+	jitterType := mgr.opts.FlushJitterType()
+	jitterByShardAsync := jitterEnabled && jitterType == FlushJitterByShard
 	for _, flusher := range t.flushers {
 		// By default traffic is cut off from a shard, unless the shard is in the list of
 		// shards owned by the instance, in which case the cutover time and the cutoff time
@@ -432,15 +483,57 @@ func (t *leaderFlushTask) Run() {
 			CutoffNanos:       cutoffNanos,
 			BufferAfterCutoff: mgr.maxBufferSize,
 		}
+
+		flushersWg.Add(1)
 		flusher := flusher
-		wgWorkers.Add(1)
-		mgr.workers.Go(func() {
+		flusherWork := func() {
+			flusherStart := mgr.nowFn()
 			flusher.Flush(req)
-			wgWorkers.Done()
-		})
+			flusherDuration := mgr.nowFn().Sub(flusherStart)
+
+			recordLock.Lock()
+			recordDuration += flusherDuration
+			recordLock.Unlock()
+
+			flushersWg.Done()
+		}
+
+		// Jitter by shard if enabled.
+		if jitterByShardAsync {
+			go func() {
+				// Make sure to do the waiting in a goroutine not
+				// limited by concurrency, otherwise will be blocked
+				// by parallelism of the workers.
+				maxJitter := mgr.maxJitterFn(flusher.FlushInterval())
+				jitterNanos := mgr.randFn(int64(maxJitter))
+				time.Sleep(time.Duration(jitterNanos))
+
+				// Use the workers to limit concurrency on flush work.
+				mgr.workers.Go(flusherWork)
+			}()
+			continue
+		}
+
+		// Do work without jitter and limit by worker concurrency.
+		mgr.workers.Go(flusherWork)
 	}
-	wgWorkers.Wait()
-	t.duration.Record(mgr.nowFn().Sub(start))
+
+	if jitterByShardAsync {
+		// Record timing asynchronously since jitter is applied at flush time.
+		go func() {
+			flushersWg.Wait()
+
+			// NB(r): Because we spread out the flushing ourselves we want
+			// to measure the duration all flushes took together, not the
+			// wall clock time from start to finish.
+			t.runComplete(recordDuration)
+		}()
+		return
+	}
+
+	// Jitter applied between servers, not between shards.
+	flushersWg.Wait()
+	t.runComplete(mgr.nowFn().Sub(start))
 }
 
 // flushMetadata contains metadata information for a flush.

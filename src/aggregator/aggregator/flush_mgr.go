@@ -68,7 +68,12 @@ type FlushStatus struct {
 
 // flushTask is a flush task.
 type flushTask interface {
+	// Run runs the flush task.
 	Run()
+	// Complete returns whether complete or not.
+	Complete() bool
+	// WaitComplete will wait blockingly until complete.
+	WaitComplete()
 }
 
 // roleBasedFlushManager manages flushing data based on their elected roles.
@@ -116,6 +121,7 @@ type flushManager struct {
 	scope         tally.Scope
 	checkEvery    time.Duration
 	jitterEnabled bool
+	jitterType    FlushJitterType
 	maxJitterFn   FlushJitterFn
 	electionMgr   ElectionManager
 	leaderOpts    FlushManagerOptions
@@ -155,6 +161,7 @@ func NewFlushManager(opts FlushManagerOptions) FlushManager {
 		scope:         scope,
 		checkEvery:    opts.CheckEvery(),
 		jitterEnabled: opts.JitterEnabled(),
+		jitterType:    opts.FlushJitterType(),
 		maxJitterFn:   opts.MaxJitterFn(),
 		electionMgr:   opts.ElectionManager(),
 		leaderOpts:    leaderOpts,
@@ -297,7 +304,8 @@ func (mgr *flushManager) findOrCreateBucketWithLock(l flushingMetricList) (*flus
 }
 
 func (mgr *flushManager) computeFlushIntervalOffset(flushInterval time.Duration) time.Duration {
-	if !mgr.jitterEnabled {
+	fixedJitter := mgr.jitterEnabled && mgr.jitterType == FlushJitterByServer
+	if !fixedJitter {
 		// If jittering is disabled, we compute the offset between the current time
 		// and the aligned time and use that as the bucket offset.
 		now := mgr.nowFn()
@@ -309,7 +317,8 @@ func (mgr *flushManager) computeFlushIntervalOffset(flushInterval time.Duration)
 	// Otherwise the offset is determined based on jittering.
 	maxJitter := mgr.maxJitterFn(flushInterval)
 	jitterNanos := mgr.randFn(int64(maxJitter))
-	return time.Duration(jitterNanos)
+	value := time.Duration(jitterNanos)
+	return value
 }
 
 // NB(xichen): apparently timer.Reset() is more difficult to use than I originally
@@ -317,9 +326,30 @@ func (mgr *flushManager) computeFlushIntervalOffset(flushInterval time.Duration)
 // when I have more time I'll spend a few hours to get timer.Reset() right and switch
 // to a timer.Start + timer.Stop + timer.Reset + timer.After based approach.
 func (mgr *flushManager) flush() {
-	defer mgr.Done()
+	var tasks []flushTask
+	defer func() {
+		// First wait for all outstanding tasks to complete.
+		for _, t := range tasks {
+			t.WaitComplete()
+		}
+		// Mark as done.
+		mgr.Done()
+	}()
 
 	for {
+		// Remove any completed tasks tracking.
+		pending := tasks[:0]
+		for i, t := range tasks {
+			// Nil ref to task otherwise reused slice would still hold ref.
+			tasks[i] = nil
+
+			// Add back to reused slice if not complete yet.
+			if !t.Complete() {
+				pending = append(pending, t)
+			}
+		}
+		tasks = pending
+
 		mgr.RLock()
 		state := mgr.state
 		electionState := mgr.electionState
@@ -341,6 +371,7 @@ func (mgr *flushManager) flush() {
 		flushTask, waitFor := mgr.flushManagerWithLock().Prepare(mgr.buckets)
 		mgr.RUnlock()
 		if flushTask != nil {
+			tasks = append(tasks, flushTask)
 			flushTask.Run()
 		}
 		if waitFor > 0 {

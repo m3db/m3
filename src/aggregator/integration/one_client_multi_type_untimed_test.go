@@ -151,6 +151,6 @@ func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 
 	// Validate results.
 	expected := mustComputeExpectedResults(t, finalTime, dataset, testServer.aggregatorOpts)
-	actual := testServer.sortedResults()
+	actual := testServer.snapshotSortedResults()
 	require.Equal(t, expected, actual)
 }

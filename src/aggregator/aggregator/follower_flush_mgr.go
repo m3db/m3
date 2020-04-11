@@ -116,7 +116,6 @@ type followerFlushManager struct {
 	flushMode       followerFlushMode
 	lastFlushed     time.Time
 	openedAt        time.Time
-	flushTask       *followerFlushTask
 	sleepFn         sleepFn
 	metrics         followerFlushManagerMetrics
 }
@@ -146,7 +145,6 @@ func newFollowerFlushManager(
 		sleepFn:               time.Sleep,
 		metrics:               newFollowerFlushManagerMetrics(scope),
 	}
-	mgr.flushTask = &followerFlushTask{mgr: mgr}
 	return mgr
 }
 
@@ -201,8 +199,9 @@ func (mgr *followerFlushManager) Prepare(buckets []*flushBucket) (flushTask, tim
 		return nil, mgr.checkEvery
 	}
 	mgr.lastFlushed = now
-	mgr.flushTask.flushersByInterval = flushersByInterval
-	return mgr.flushTask, 0
+	return &followerFlushTask{
+		flushersByInterval: flushersByInterval,
+	}, 0
 }
 
 // NB(xichen): The follower flush manager flushes data based on the flush times
@@ -483,11 +482,35 @@ func (mgr *followerFlushManager) watchFlushTimes() {
 }
 
 type followerFlushTask struct {
+	sync.RWMutex
+
+	wg   sync.WaitGroup
+	done bool
+
 	mgr                *followerFlushManager
 	flushersByInterval []flushersGroup
 }
 
+func (t *followerFlushTask) Complete() bool {
+	t.RLock()
+	defer t.RUnlock()
+	return t.done
+}
+
+func (t *followerFlushTask) WaitComplete() {
+	t.wg.Wait()
+}
+
 func (t *followerFlushTask) Run() {
+	t.wg.Add(1)
+	defer func() {
+		t.Lock()
+		t.done = true
+		t.Unlock()
+
+		t.wg.Done()
+	}()
+
 	var (
 		mgr       = t.mgr
 		wgWorkers sync.WaitGroup

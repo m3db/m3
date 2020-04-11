@@ -185,6 +185,6 @@ func testMetadataChange(t *testing.T, oldMetadataFn, newMetadataFn metadataFn) {
 		expected = append(expected, mustComputeExpectedResults(t, finalTime, input, testServer.aggregatorOpts)...)
 	}
 	sort.Sort(byTimeIDPolicyAscending(expected))
-	actual := testServer.sortedResults()
+	actual := testServer.snapshotSortedResults()
 	require.Equal(t, expected, actual)
 }

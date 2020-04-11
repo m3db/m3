@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"math"
 	"runtime"
 	"time"
@@ -44,6 +45,58 @@ var (
 
 // FlushJitterFn determines the jitter based on the flush interval.
 type FlushJitterFn func(flushInterval time.Duration) time.Duration
+
+// FlushJitterType is a type of flush jitter.
+type FlushJitterType uint
+
+const (
+	// FlushJitterByServer means aggregators flush with fixed jitter between
+	// aggregator servers.
+	FlushJitterByServer FlushJitterType = iota
+	// FlushJitterByShard means aggregators flush jitters with jitter between
+	// shards.
+	FlushJitterByShard
+
+	// FlushJitterTypeDefault is the default flush jitter type.
+	FlushJitterTypeDefault = FlushJitterByServer
+)
+
+var (
+	validFlushJitterTypes = []FlushJitterType{
+		FlushJitterByServer,
+		FlushJitterByShard,
+	}
+)
+
+func (t FlushJitterType) String() string {
+	switch t {
+	case FlushJitterByServer:
+		return "server"
+	case FlushJitterByShard:
+		return "shard"
+	}
+	return "unknown"
+}
+
+// UnmarshalYAML unmarshals a FlushJitterType into a valid type from string.
+func (t *FlushJitterType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		*t = FlushJitterTypeDefault
+		return nil
+	}
+	for _, valid := range validFlushJitterTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid flush jitter type: actual=%v, valid=%v",
+		str, validFlushJitterTypes)
+}
 
 // FlushManagerOptions provide a set of options for the flush manager.
 type FlushManagerOptions interface {
@@ -70,6 +123,12 @@ type FlushManagerOptions interface {
 
 	// JitterEnabled returns whether jittering is enabled.
 	JitterEnabled() bool
+
+	// SetFlushJitterType sets which type of jittering is to be used.
+	SetFlushJitterType(value FlushJitterType) FlushManagerOptions
+
+	// FlushJitterType returns which type of jittering is to be used.
+	FlushJitterType() FlushJitterType
 
 	// SetMaxJitterFn sets the max flush jittering function.
 	SetMaxJitterFn(value FlushJitterFn) FlushManagerOptions
@@ -129,6 +188,7 @@ type flushManagerOptions struct {
 	instrumentOpts         instrument.Options
 	checkEvery             time.Duration
 	jitterEnabled          bool
+	jitterType             FlushJitterType
 	maxJitterFn            FlushJitterFn
 	workerPool             sync.WorkerPool
 	placementManager       PlacementManager
@@ -148,6 +208,7 @@ func NewFlushManagerOptions() FlushManagerOptions {
 		instrumentOpts:         instrument.NewOptions(),
 		checkEvery:             defaultCheckEvery,
 		jitterEnabled:          defaultJitterEnabled,
+		jitterType:             FlushJitterTypeDefault,
 		workerPool:             workerPool,
 		flushTimesPersistEvery: defaultFlushTimesPersistEvery,
 		maxBufferSize:          defaultMaxBufferSize,
@@ -193,6 +254,16 @@ func (o *flushManagerOptions) SetJitterEnabled(value bool) FlushManagerOptions {
 
 func (o *flushManagerOptions) JitterEnabled() bool {
 	return o.jitterEnabled
+}
+
+func (o *flushManagerOptions) SetFlushJitterType(value FlushJitterType) FlushManagerOptions {
+	opts := *o
+	opts.jitterType = value
+	return &opts
+}
+
+func (o *flushManagerOptions) FlushJitterType() FlushJitterType {
+	return o.jitterType
 }
 
 func (o *flushManagerOptions) SetMaxJitterFn(value FlushJitterFn) FlushManagerOptions {
