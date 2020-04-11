@@ -676,6 +676,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tag-mutation" title="Tag Mutation" class="md-nav__link">
+    Tag Mutation
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1405,6 +1412,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tag-mutation" title="Tag Mutation" class="md-nav__link">
+    Tag Mutation
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1483,11 +1497,18 @@
  The value of the header must be in the format of <code>resolution:retention</code> in duration shorthand. e.g. <code>1m:48h</code> specifices 1 minute resolution and 48 hour retention. Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".<br /><br />
 Here is <a href="https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/test.sh#L126-L146">an example</a> of querying metrics from a specific namespace. </li>
 </ul>
+<h4 id="tag-mutation">Tag Mutation</h4>
+<p>The <code>M3-Map-Tags-JSON</code> header enables dynamically mutating tags in Prometheus write request. See
+<a href="https://github.com/m3db/m3/issues/2254">2254</a> for more background.</p>
+<p>Currently only <code>write</code> is supported. As an example, the following header would unconditionally cause
+<code>globaltag=somevalue</code> to be added to all metrics in a write request:
+<div class="highlight"><pre><span></span>M3-Map-Tags-JSON: &#39;{&quot;tagMappers&quot;:[{&quot;write&quot;:{&quot;tag&quot;:&quot;globaltag&quot;,&quot;value&quot;:&quot;somevalue&quot;}}]}&#39;
+</pre></div></p>
 <h3 id="data-params">Data Params</h3>
 <p>None.</p>
 <h3 id="sample-call">Sample Call</h3>
-<!-- 
-Note: keep this example similar to the one found in coordinator API 
+<!--
+Note: keep this example similar to the one found in coordinator API
 documentation for consistency/ease of readers.
 -->
 
