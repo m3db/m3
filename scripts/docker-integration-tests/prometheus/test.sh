@@ -76,7 +76,7 @@ function prometheus_remote_write {
     -t __name__:${metric_name}                            \
     -h "M3-Metrics-Type: ${metrics_type}"                 \
     -h "M3-Storage-Policy: ${metrics_storage_policy}"     \
-    -h "M3-Map-Tags-By-JSON: ${map_tags_header}"          \
+    -h "M3-Map-Tags-JSON: ${map_tags_header}"          \
     -d ${datapoint_timestamp},${datapoint_value} | grep -v promremotecli_log) || true)
   success=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .success)
   status=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .statusCode)

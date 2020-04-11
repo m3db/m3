@@ -62,7 +62,7 @@ const (
 
 	// MapTagsByJSONHeader provides the ability to mutate tags of timeseries in
 	// incoming write requests. See `MapTagsOptions` for structure.
-	MapTagsByJSONHeader = "M3-Map-Tags-By-JSON"
+	MapTagsByJSONHeader = M3HeaderPrefix + "Map-Tags-JSON"
 
 	// LimitMaxSeriesHeader is the M3 limit timeseries header that limits
 	// the number of time series returned by each storage node.
