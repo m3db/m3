@@ -538,17 +538,3 @@ func (mr *MockIndexSegmentFileMockRecorder) Mmap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Mmap", reflect.TypeOf((*MockIndexSegmentFile)(nil).Mmap))
 }
-
-// Name mocks base method
-func (m *MockIndexSegmentFile) Name() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Name")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// Name indicates an expected call of Name
-func (mr *MockIndexSegmentFileMockRecorder) Name() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockIndexSegmentFile)(nil).Name))
-}

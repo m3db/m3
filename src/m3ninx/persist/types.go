@@ -96,8 +96,6 @@ type IndexSegmentFile interface {
 
 	// Mmap will be valid until the segment file is closed.
 	Mmap() (mmap.Descriptor, error)
-
-	Name() string
 }
 
 // IndexVolumeType is the type of an index volume.

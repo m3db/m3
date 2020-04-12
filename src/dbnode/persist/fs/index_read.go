@@ -435,7 +435,3 @@ func (f *readableIndexSegmentFileMmap) Close() error {
 	f.reader.Reset(nil)
 	return nil
 }
-
-func (f *readableIndexSegmentFileMmap) Name() string {
-	return f.fd.Name()
-}
