@@ -29,7 +29,7 @@ import (
 
 var (
 	// EmptyMatchResult is the result when no matches were found.
-	EmptyMatchResult = NewMatchResult(kv.UninitializedVersion, timeNanosMax, metadata.DefaultStagedMetadatas, nil)
+	EmptyMatchResult = NewMatchResult(kv.UninitializedVersion, timeNanosMax, metadata.DefaultStagedMetadatas, nil, 0)
 )
 
 // IDWithMetadatas is a pair of metric ID and the associated staged metadatas.
@@ -59,6 +59,8 @@ type MatchResult struct {
 	// produced by a rollup rule whose rollup pipeline contains a rollup operation
 	// as its first step.
 	forNewRollupIDs []IDWithMetadatas
+
+	dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
 }
 
 // NewMatchResult creates a new match result.
@@ -67,12 +69,14 @@ func NewMatchResult(
 	expireAtNanos int64,
 	forExistingID metadata.StagedMetadatas,
 	forNewRollupIDs []IDWithMetadatas,
+	dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult,
 ) MatchResult {
 	return MatchResult{
 		version:         version,
 		expireAtNanos:   expireAtNanos,
 		forExistingID:   forExistingID,
 		forNewRollupIDs: forNewRollupIDs,
+		dropApplyResult: dropApplyResult,
 	}
 }
 
@@ -100,6 +104,11 @@ func (r *MatchResult) ForNewRollupIDsAt(idx int, timeNanos int64) IDWithMetadata
 	forNewRollupID := r.forNewRollupIDs[idx]
 	metadatas := activeStagedMetadatasAt(forNewRollupID.Metadatas, timeNanos)
 	return IDWithMetadatas{ID: forNewRollupID.ID, Metadatas: metadatas}
+}
+
+// DropApplyResult returns the drop apply result.
+func (r *MatchResult) DropApplyResult() metadata.ApplyOrRemoveDropPoliciesResult {
+	return r.dropApplyResult
 }
 
 // activeStagedMetadatasAt returns the active staged metadatas at a given time, assuming

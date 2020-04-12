@@ -139,7 +139,8 @@ func (as *activeRuleSet) ForwardMatch(
 	// after `fromNanos`, or the end of the match time range reaches the first cutover time after
 	// `toNanos` among all active rules because the metric may then be matched against a different
 	// set of rules.
-	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, forNewRollupIDs)
+	return NewMatchResult(as.version, nextCutoverNanos, forExistingID,
+		forNewRollupIDs, currMatchRes.dropApplyResult)
 }
 
 func (as *activeRuleSet) ReverseMatch(
@@ -173,7 +174,8 @@ func (as *activeRuleSet) ReverseMatch(
 		nextIdx++
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
 	}
-	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, nil)
+
+	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, nil, 0) // TODO: make 0 actually result of applying or removing drop rules
 }
 
 // NB(xichen): can further consolidate pipelines with the same aggregation ID
@@ -202,6 +204,7 @@ func (as *activeRuleSet) forwardMatchAt(
 	return forwardMatchResult{
 		forExistingID:   forExistingID,
 		forNewRollupIDs: forNewRollupIDs,
+		dropApplyResult: mappingResults.forExistingID.dropApplyResult,
 	}
 }
 
@@ -239,7 +242,8 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 		pipelines = append(pipelines, pipeline)
 	}
 
-	pipelines, _ = metadata.PipelineMetadatas(pipelines).ApplyOrRemoveDropPolicies()
+	pipelines, dropApplyResult := metadata.PipelineMetadatas(pipelines).
+		ApplyOrRemoveDropPolicies()
 
 	// NB: The pipeline list should never be empty as the resulting pipelines are
 	// used to determine how the *existing* ID is aggregated and retained. If there
@@ -248,7 +252,11 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 		pipelines = metadata.DefaultPipelineMetadatas.Clone()
 	}
 	return mappingResults{
-		forExistingID: ruleMatchResults{cutoverNanos: cutoverNanos, pipelines: pipelines},
+		forExistingID: ruleMatchResults{
+			cutoverNanos:    cutoverNanos,
+			pipelines:       pipelines,
+			dropApplyResult: dropApplyResult,
+		},
 	}
 }
 
@@ -730,8 +738,9 @@ type matchRollupTargetOptions struct {
 }
 
 type ruleMatchResults struct {
-	cutoverNanos int64
-	pipelines    []metadata.PipelineMetadata
+	cutoverNanos    int64
+	pipelines       []metadata.PipelineMetadata
+	dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
 }
 
 // merge merges in another rule match results in place.
@@ -826,4 +835,5 @@ type rollupResults struct {
 type forwardMatchResult struct {
 	forExistingID   metadata.StagedMetadata
 	forNewRollupIDs []IDWithMetadatas
+	dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
 }

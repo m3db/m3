@@ -109,7 +109,6 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
-	var dropPolicyApplied bool
 	if opts.Override {
 		// Reuse a slice to keep the current staged metadatas we will apply.
 		a.currStagedMetadata.Pipelines = a.currStagedMetadata.Pipelines[:0]
@@ -165,12 +164,6 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			pipelines := mappingRuleStagedMetadatas[len(mappingRuleStagedMetadatas)-1]
 			a.currStagedMetadata.Pipelines =
 				append(a.currStagedMetadata.Pipelines, pipelines.Pipelines...)
-
-			// If the staged metadata has a drop policy applied then set that
-			// the unaggregated metric needs to be dropped.
-			if mappingRuleStagedMetadatas.IsDropPolicyApplied() {
-				dropPolicyApplied = true
-			}
 		}
 
 		// Always aggregate any default staged metadatas (unless
@@ -288,6 +281,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		}
 	}
 
+	dropPolicyApplied := matchResult.DropApplyResult() != metadata.NoDropPolicyPresentResult
 	return SamplesAppenderResult{
 		SamplesAppender:     a.multiSamplesAppender,
 		IsDropPolicyApplied: dropPolicyApplied,

@@ -185,9 +185,11 @@ func (metadatas PipelineMetadatas) Clone() PipelineMetadatas {
 type ApplyOrRemoveDropPoliciesResult uint
 
 const (
+	// NoDropPolicyPresentResult is the result of no drop policies being present.
+	NoDropPolicyPresentResult ApplyOrRemoveDropPoliciesResult = iota
 	// AppliedEffectiveDropPolicyResult is the result of applying the drop
 	// policy and returning just the single drop policy pipeline.
-	AppliedEffectiveDropPolicyResult ApplyOrRemoveDropPoliciesResult = iota
+	AppliedEffectiveDropPolicyResult
 	// RemovedIneffectiveDropPoliciesResult is the result of no drop policies
 	// being effective and returning the pipelines without any drop policies.
 	RemovedIneffectiveDropPoliciesResult
@@ -217,7 +219,7 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 
 	if dropIfOnlyMatchPipelines == 0 {
 		// No drop if only match pipelines, no need to remove anything
-		return metadatas, RemovedIneffectiveDropPoliciesResult
+		return metadatas, NoDropPolicyPresentResult
 	}
 
 	if nonDropPipelines == 0 {

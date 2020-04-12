@@ -293,7 +293,7 @@ func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
 
 	var drop policy.DropPolicy
 	if r.Drop {
-		drop = policy.DropMust
+		drop = policy.DropIfOnlyMatch
 	}
 
 	return view.MappingRule{
