@@ -81,7 +81,8 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
-	kube        \
+	# Disabled during kubeval dependency issue https://github.com/m3db/m3/issues/2220
+	# kube        \
 
 TOOLS :=               \
 	read_ids             \
@@ -107,13 +108,13 @@ install-vendor-m3:
 
 # Some deps were causing panics when using GRPC and etcd libraries were used.
 # See issue: https://github.com/etcd-io/etcd/issues/9357
-# TODO: Move M3 to go mod to avoid the issue entirely instead of this hack 
+# TODO: Move M3 to go mod to avoid the issue entirely instead of this hack
 # (which is bad and we should feel bad).
 # $ go test -v
-# panic: /debug/requests is already registered. You may have two independent 
-# copies of golang.org/x/net/trace in your binary, trying to maintain separate 
+# panic: /debug/requests is already registered. You may have two independent
+# copies of golang.org/x/net/trace in your binary, trying to maintain separate
 # state. This may involve a vendored copy of golang.org/x/net/trace.
-# 
+#
 # goroutine 1 [running]:
 # github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace.init.0()
 #         /Users/r/go/src/github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace/trace.go:123 +0x1cd
@@ -323,17 +324,21 @@ test-ci-integration:
 
 define SUBDIR_RULES
 
+# Temporarily remove kube validation until we fix a dependency issue with
+# kubeval (one of its depenencies depends on go1.13).
+# https://github.com/m3db/m3/issues/2220
+#
 # We override the rules for `*-gen-kube` to just generate the kube manifest
 # bundle.
-ifeq ($(SUBDIR), kube)
+# ifeq ($(SUBDIR), kube)
 
-# Builds the single kube bundle from individual manifest files.
-all-gen-kube: install-tools
-	@echo "--- Generating kube bundle"
-	@./kube/scripts/build_bundle.sh
-	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
+# Builds the single kube bundle from individual manifest files. 
+# all-gen-kube: install-tools
+# 	@echo "--- Generating kube bundle"
+# 	@./kube/scripts/build_bundle.sh
+# 	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0 
 
-else
+# else
 
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
@@ -430,7 +435,8 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 	@(PATH=$(combined_bin_paths):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
-endif
+# endif kubeval
+# endif
 
 endef
 

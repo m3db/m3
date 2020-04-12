@@ -42,7 +42,13 @@ type Options struct {
 
 // Metrics is a set of metrics that can be used by elements.
 type Metrics struct {
-	Gauge GaugeMetrics
+	Counter CounterMetrics
+	Gauge   GaugeMetrics
+}
+
+// CounterMetrics is a set of counter metrics can be used by all counters.
+type CounterMetrics struct {
+	valuesOutOfOrder tally.Counter
 }
 
 // GaugeMetrics is a set of gauge metrics can be used by all gauges.
@@ -54,7 +60,21 @@ type GaugeMetrics struct {
 func NewMetrics(scope tally.Scope) Metrics {
 	scope = scope.SubScope("aggregation")
 	return Metrics{
-		Gauge: newGaugeMetrics(scope.SubScope("gauges")),
+		Counter: newCounterMetrics(scope.SubScope("counters")),
+		Gauge:   newGaugeMetrics(scope.SubScope("gauges")),
+	}
+}
+
+func newCounterMetrics(scope tally.Scope) CounterMetrics {
+	return CounterMetrics{
+		valuesOutOfOrder: scope.Counter("values-out-of-order"),
+	}
+}
+
+// IncValuesOutOfOrder increments value or if not initialized is a no-op.
+func (m CounterMetrics) IncValuesOutOfOrder() {
+	if m.valuesOutOfOrder != nil {
+		m.valuesOutOfOrder.Inc(1)
 	}
 }
 

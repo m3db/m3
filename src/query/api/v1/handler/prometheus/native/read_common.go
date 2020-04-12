@@ -22,10 +22,8 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"net/http"
-	"sort"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -79,219 +77,61 @@ func read(
 		return emptyResult, err
 	}
 
-	result, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
+	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
 	if err != nil {
 		return emptyResult, err
 	}
 
-	// Block slices are sorted by start time.
-	// TODO: Pooling
-	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
-	resultChan := result.ResultChan()
-	defer func() {
-		for range resultChan {
-			// NB: drain result channel in case of early termination.
-		}
-	}()
-
-	var (
-		numSteps  int
-		numSeries int
-
-		firstElement bool
-	)
-
-	meta := block.NewResultMetadata()
-	// TODO(nikunj): Stream blocks to client
-	for blkResult := range resultChan {
-		if err := blkResult.Err; err != nil {
-			return emptyResult, err
-		}
-
-		b := blkResult.Block
-		if !firstElement {
-			firstElement = true
-			firstStepIter, err := b.StepIter()
-			if err != nil {
-				return emptyResult, err
-			}
-
-			numSteps = firstStepIter.StepCount()
-			numSeries = len(firstStepIter.SeriesMeta())
-			meta = b.Meta().ResultMetadata
-		}
-
-		// Insert blocks sorted by start time.
-		insertResult, err := insertSortedBlock(b, sortedBlockList,
-			numSteps, numSeries)
-		if err != nil {
-			return emptyResult, err
-		}
-
-		sortedBlockList = insertResult.blocks
-		meta = meta.CombineMetadata(insertResult.meta)
-	}
-
-	// Ensure that the blocks are closed. Can't do this above since
-	// sortedBlockList might change.
-	defer func() {
-		for _, b := range sortedBlockList {
-			// FIXME: this will double close blocks that have gone through the
-			// function pipeline.
-			b.block.Close()
-		}
-	}()
-
-	series, err := sortedBlocksToSeriesList(sortedBlockList)
+	resultMeta := bl.Meta().ResultMetadata
+	it, err := bl.StepIter()
 	if err != nil {
 		return emptyResult, err
 	}
 
-	series = prometheus.FilterSeriesByOptions(series, fetchOpts)
-	return readResult{
-		series: series,
-		meta:   meta,
-	}, nil
-}
+	seriesMeta := it.SeriesMeta()
+	numSeries := len(seriesMeta)
 
-func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
-	if len(blockList) == 0 {
-		return emptySeriesList, nil
-	}
-
-	var (
-		firstBlock = blockList[0].block
-		meta       = firstBlock.Meta()
-		bounds     = meta.Bounds
-		commonTags = meta.Tags.Tags
-	)
-
-	firstIter, err := firstBlock.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		seriesMeta = firstIter.SeriesMeta()
-		numSeries  = len(seriesMeta)
-		seriesList = make([]*ts.Series, 0, numSeries)
-		iters      = make([]block.StepIter, 0, len(blockList))
-	)
-
-	// To create individual series, we iterate over seriesIterators for each
-	// block in the block list.  For each iterator, the nth current() will
-	// be combined to give the nth series.
-	for _, b := range blockList {
-		it, err := b.block.StepIter()
-		if err != nil {
-			return nil, err
-		}
-
-		iters = append(iters, it)
-	}
-
-	numValues := 0
-	for _, block := range blockList {
-		b, err := block.block.StepIter()
-		if err != nil {
-			return nil, err
-		}
-
-		numValues += b.StepCount()
-	}
-
+	bounds := bl.Meta().Bounds
 	// Initialize data slices.
-	data := make([]ts.FixedResolutionMutableValues, numSeries)
-	for i := range data {
-		data[i] = ts.NewFixedStepValues(bounds.StepSize, numValues,
-			math.NaN(), bounds.Start)
+	data := make([]ts.FixedResolutionMutableValues, 0, numSeries)
+	for i := 0; i < numSeries; i++ {
+		data = append(data, ts.NewFixedStepValues(bounds.StepSize, bounds.Steps(),
+			math.NaN(), bounds.Start))
 	}
 
 	stepIndex := 0
-	for _, it := range iters {
-		for it.Next() {
-			step := it.Current()
-			for seriesIndex, v := range step.Values() {
-				// NB: iteration moves by time step across a block, so each value in the
-				// step iterator corresponds to a different series; transform it to
-				// series-based iteration using mutable series values.
-				mutableValuesForSeries := data[seriesIndex]
-				mutableValuesForSeries.SetValueAt(stepIndex, v)
-			}
-
-			stepIndex++
+	for it.Next() {
+		step := it.Current()
+		for seriesIndex, v := range step.Values() {
+			mutableValuesForSeries := data[seriesIndex]
+			mutableValuesForSeries.SetValueAt(stepIndex, v)
 		}
 
-		if err := it.Err(); err != nil {
-			return nil, err
-		}
+		stepIndex++
 	}
 
+	if err := it.Err(); err != nil {
+		return emptyResult, err
+	}
+
+	seriesList := make([]*ts.Series, 0, len(data))
 	for i, values := range data {
 		var (
 			meta   = seriesMeta[i]
-			tags   = meta.Tags.AddTags(commonTags)
+			tags   = meta.Tags.AddTags(bl.Meta().Tags.Tags)
 			series = ts.NewSeries(meta.Name, values, tags)
 		)
 
 		seriesList = append(seriesList, series)
 	}
 
-	return seriesList, nil
-}
-
-type insertBlockResult struct {
-	blocks []blockWithMeta
-	meta   block.ResultMetadata
-}
-
-func insertSortedBlock(
-	b block.Block,
-	blockList []blockWithMeta,
-	stepCount,
-	seriesCount int,
-) (insertBlockResult, error) {
-	it, err := b.StepIter()
-	emptyResult := insertBlockResult{meta: b.Meta().ResultMetadata}
-	if err != nil {
+	if err := bl.Close(); err != nil {
 		return emptyResult, err
 	}
 
-	meta := b.Meta()
-	if len(blockList) == 0 {
-		blockList = append(blockList, blockWithMeta{
-			block: b,
-			meta:  meta,
-		})
-
-		return insertBlockResult{
-			blocks: blockList,
-			meta:   b.Meta().ResultMetadata,
-		}, nil
-	}
-
-	blockSeriesCount := len(it.SeriesMeta())
-	if seriesCount != blockSeriesCount {
-		return emptyResult, fmt.Errorf(
-			"mismatch in number of series for the block, wanted: %d, found: %d",
-			seriesCount, blockSeriesCount)
-	}
-
-	// Binary search to keep the start times sorted
-	index := sort.Search(len(blockList), func(i int) bool {
-		return blockList[i].meta.Bounds.Start.After(meta.Bounds.Start)
-	})
-
-	// Append here ensures enough size in the slice
-	blockList = append(blockList, blockWithMeta{})
-	copy(blockList[index+1:], blockList[index:])
-	blockList[index] = blockWithMeta{
-		block: b,
-		meta:  meta,
-	}
-
-	return insertBlockResult{
-		meta:   b.Meta().ResultMetadata,
-		blocks: blockList,
+	seriesList = prometheus.FilterSeriesByOptions(seriesList, fetchOpts)
+	return readResult{
+		series: seriesList,
+		meta:   resultMeta,
 	}, nil
 }

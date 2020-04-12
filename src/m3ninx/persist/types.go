@@ -73,6 +73,8 @@ type IndexFileSetReader interface {
 	// The IndexSegmentFileSet will only be valid before it's closed,
 	// after that calls to Read or Bytes on it will have unexpected results.
 	ReadSegmentFileSet() (IndexSegmentFileSet, error)
+
+	IndexVolumeType() IndexVolumeType
 }
 
 // IndexSegmentFileSet is an index segment file set.

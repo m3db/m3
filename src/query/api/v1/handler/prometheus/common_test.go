@@ -23,7 +23,10 @@ package prometheus
 import (
 	"bytes"
 	"fmt"
+	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -32,37 +35,38 @@ import (
 	"github.com/m3db/m3/src/query/test"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPromCompressedReadSuccess(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", test.GeneratePromReadBody(t))
+	req := httptest.NewRequest("POST", "/dummy", test.GeneratePromReadBody(t))
 	_, err := ParsePromCompressedRequest(req)
 	assert.NoError(t, err)
 }
 
 func TestPromCompressedReadNoBody(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", nil)
+	req := httptest.NewRequest("POST", "/dummy", nil)
 	_, err := ParsePromCompressedRequest(req)
 	assert.Error(t, err)
 	assert.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
 func TestPromCompressedReadEmptyBody(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", bytes.NewReader([]byte{}))
+	req := httptest.NewRequest("POST", "/dummy", bytes.NewReader([]byte{}))
 	_, err := ParsePromCompressedRequest(req)
 	assert.Error(t, err)
 	assert.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
 func TestPromCompressedReadInvalidEncoding(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", bytes.NewReader([]byte{'a'}))
+	req := httptest.NewRequest("POST", "/dummy", bytes.NewReader([]byte{'a'}))
 	_, err := ParsePromCompressedRequest(req)
 	assert.Error(t, err)
 	assert.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
-func TestTimeoutParse(t *testing.T) {
-	req, _ := http.NewRequest("POST", "dummy", nil)
+func TestTimeoutParseWithHeader(t *testing.T) {
+	req := httptest.NewRequest("POST", "/dummy", nil)
 	req.Header.Add("timeout", "1ms")
 
 	timeout, err := ParseRequestTimeout(req, time.Second)
@@ -77,6 +81,34 @@ func TestTimeoutParse(t *testing.T) {
 	req.Header.Add("timeout", "invalid")
 	_, err = ParseRequestTimeout(req, 15*time.Second)
 	assert.Error(t, err)
+}
+
+func TestTimeoutParseWithPostRequestParam(t *testing.T) {
+	params := url.Values{}
+	params.Add("timeout", "1ms")
+
+	buff := bytes.NewBuffer(nil)
+	form := multipart.NewWriter(buff)
+	form.WriteField("timeout", "1ms")
+	require.NoError(t, form.Close())
+
+	req := httptest.NewRequest("POST", "/dummy", buff)
+	req.Header.Set("Content-Type", form.FormDataContentType())
+
+	timeout, err := ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Millisecond)
+}
+
+func TestTimeoutParseWithGetRequestParam(t *testing.T) {
+	params := url.Values{}
+	params.Add("timeout", "1ms")
+
+	req := httptest.NewRequest("GET", "/dummy?"+params.Encode(), nil)
+
+	timeout, err := ParseRequestTimeout(req, time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, timeout, time.Millisecond)
 }
 
 type writer struct {

@@ -548,7 +548,7 @@ func TestCustomSort(t *testing.T) {
 	}
 
 	fn := func(s string, _ []interface{}, _ []string,
-		_ bool, _ models.TagOptions) (parser.Params, bool, error) {
+		_ bool, _ string, _ models.TagOptions) (parser.Params, bool, error) {
 		return customParam{s}, true, nil
 	}
 

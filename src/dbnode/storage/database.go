@@ -537,6 +537,9 @@ func (d *db) terminateWithLock() error {
 }
 
 func (d *db) Terminate() error {
+	// NB(bodu): Wait for fs processes to finish.
+	d.mediator.WaitForFileSystemProcesses()
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -544,6 +547,9 @@ func (d *db) Terminate() error {
 }
 
 func (d *db) Close() error {
+	// NB(bodu): Wait for fs processes to finish.
+	d.mediator.WaitForFileSystemProcesses()
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -587,7 +593,12 @@ func (d *db) Write(
 		return nil
 	}
 
-	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	dp := ts.Datapoint{
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
+	}
+
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
@@ -616,7 +627,12 @@ func (d *db) WriteTagged(
 		return nil
 	}
 
-	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	dp := ts.Datapoint{
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
+	}
+
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
