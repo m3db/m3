@@ -30,12 +30,56 @@ import (
 
 // CancelWatcher is an interface that wraps a WatchForCancel method.
 type CancelWatcher interface {
+	// WatchForCancel watches on the given context, and applies
+	// the given cancellation function.
 	WatchForCancel(context.Context, context.CancelFunc)
 }
 
 type canceller struct {
-	w     http.ResponseWriter
+	notifier http.CloseNotifier
+	iOpts    instrument.Options
+}
+
+func (c *canceller) WatchForCancel(
+	ctx context.Context,
+	cancel context.CancelFunc,
+) {
+	logger := logging.WithContext(ctx, c.iOpts)
+	notify := c.notifier.CloseNotify()
+	go func() {
+		// Wait for either the request to finish
+		// or for the client to disconnect
+		select {
+		case <-notify:
+			logger.Warn("connection closed by client")
+			cancel()
+		case <-ctx.Done():
+			// We only care about the time out case and not other cancellations
+			if ctx.Err() == context.DeadlineExceeded {
+				logger.Warn("request timed out")
+			}
+		}
+	}()
+}
+
+type ctxCanceller struct {
 	iOpts instrument.Options
+}
+
+func (c *ctxCanceller) WatchForCancel(
+	ctx context.Context,
+	cancel context.CancelFunc,
+) {
+	logger := logging.WithContext(ctx, c.iOpts)
+	go func() {
+		select {
+		case <-ctx.Done():
+			// We only care about the time out case and not other cancellations
+			if ctx.Err() == context.DeadlineExceeded {
+				logger.Warn("request timed out")
+			}
+		}
+	}()
 }
 
 // NewResponseWriterCanceller creates a canceller on the given context with
@@ -44,31 +88,12 @@ func NewResponseWriterCanceller(
 	w http.ResponseWriter,
 	iOpts instrument.Options,
 ) CancelWatcher {
-	return &canceller{w: w, iOpts: iOpts}
-}
-
-func (c *canceller) WatchForCancel(
-	ctx context.Context,
-	cancel context.CancelFunc,
-) {
-	logger := logging.WithContext(ctx, c.iOpts)
-	if notifier, ok := c.w.(http.CloseNotifier); ok {
-		notify := notifier.CloseNotify()
-		go func() {
-			// Wait for either the request to finish
-			// or for the client to disconnect
-			select {
-			case <-notify:
-				logger.Warn("connection closed by client")
-				cancel()
-			case <-ctx.Done():
-				// We only care about the time out case and not other cancellations
-				if ctx.Err() == context.DeadlineExceeded {
-					logger.Warn("request timed out")
-				}
-			}
-		}()
+	notifier, ok := w.(http.CloseNotifier)
+	if !ok {
+		return &ctxCanceller{iOpts: iOpts}
 	}
+
+	return &canceller{notifier: notifier, iOpts: iOpts}
 }
 
 // CloseWatcher watches for CloseNotify and context timeout.
@@ -79,22 +104,25 @@ func CloseWatcher(
 	w http.ResponseWriter,
 	instrumentOpts instrument.Options,
 ) {
-	logger := logging.WithContext(ctx, instrumentOpts)
-	if notifier, ok := w.(http.CloseNotifier); ok {
-		notify := notifier.CloseNotify()
-		go func() {
-			// Wait for either the request to finish
-			// or for the client to disconnect
-			select {
-			case <-notify:
-				logger.Warn("connection closed by client")
-				cancel()
-			case <-ctx.Done():
-				// We only care about the time out case and not other cancellations
-				if ctx.Err() == context.DeadlineExceeded {
-					logger.Warn("request timed out")
-				}
-			}
-		}()
+	notifier, ok := w.(http.CloseNotifier)
+	if !ok {
+		return
 	}
+
+	logger := logging.WithContext(ctx, instrumentOpts)
+	notify := notifier.CloseNotify()
+	go func() {
+		// Wait for either the request to finish
+		// or for the client to disconnect
+		select {
+		case <-notify:
+			logger.Warn("connection closed by client")
+			cancel()
+		case <-ctx.Done():
+			// We only care about the time out case and not other cancellations
+			if ctx.Err() == context.DeadlineExceeded {
+				logger.Warn("request timed out")
+			}
+		}
+	}()
 }

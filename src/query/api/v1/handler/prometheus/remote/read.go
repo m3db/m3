@@ -25,7 +25,6 @@ import (
 	"context"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -38,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/proto"
@@ -55,27 +53,24 @@ const (
 	PromReadHTTPMethod = http.MethodPost
 )
 
-// PromReadHandler represents a handler for prometheus read endpoint.
-type PromReadHandler struct {
-	engine              executor.Engine
-	promReadMetrics     promReadMetrics
-	timeoutOpts         *prometheus.TimeoutOpts
-	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	keepEmpty           bool
-	instrumentOpts      instrument.Options
+// promReadHandler is a handler for the prometheus remote read endpoint.
+type promReadHandler struct {
+	// engine              executor.Engine
+	promReadMetrics promReadMetrics
+	// timeoutOpts     *prometheus.TimeoutOpts
+	// fetchOptionsBuilder handleroptions.FetchOptionsBuilder
+	// keepEmpty bool
+	// instrumentOpts      instrument.Options
+	opts options.HandlerOptions
 }
 
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(opts options.HandlerOptions) http.Handler {
 	taggedScope := opts.InstrumentOpts().MetricsScope().
 		Tagged(map[string]string{"handler": "remote-read"})
-	return &PromReadHandler{
-		engine:              opts.Engine(),
-		promReadMetrics:     newPromReadMetrics(taggedScope),
-		timeoutOpts:         opts.TimeoutOpts(),
-		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		keepEmpty:           opts.Config().ResultOptions.KeepNans,
-		instrumentOpts:      opts.InstrumentOpts(),
+	return &promReadHandler{
+		promReadMetrics: newPromReadMetrics(taggedScope),
+		opts:            opts,
 	}
 }
 
@@ -98,71 +93,80 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 	}
 }
 
-func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timer := h.promReadMetrics.fetchTimerSuccess.Start()
+	defer timer.Stop()
+
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
-	req, rErr := h.parseRequest(r)
+	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
+	req, fetchOpts, rErr := parseRequest(ctx, r, h.opts)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return
-	}
-
-	timeout, err := prometheus.ParseRequestTimeout(r, h.timeoutOpts.FetchTimeout)
-	if err != nil {
+		err := rErr.Inner()
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
-		xhttp.Error(w, err, http.StatusBadRequest)
+		logger.Error("remote read query parse error",
+			zap.Error(err),
+			zap.Any("req", req),
+			zap.Any("fetchOpts", fetchOpts))
+		xhttp.Error(w, err, rErr.Code())
 		return
 	}
 
-	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return
-	}
-
-	readResult, err := h.read(ctx, w, req, timeout, fetchOpts)
+	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
+	readResult, err := Read(ctx, cancelWatcher, req, fetchOpts, h.opts)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("remote read query error",
 			zap.Error(err),
 			zap.Any("req", req),
-			zap.Duration("timeout", timeout),
 			zap.Any("fetchOpts", fetchOpts))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
+	// NB: if this errors, all relevant headers and information should already
+	// be sent to the writer; so it is not necessary to do anything here other
+	// than increment success/failure metrics.
+	err = WriteSnappyCompressed(w, readResult, logger)
+	if err != nil {
+		h.promReadMetrics.fetchErrorsServer.Inc(1)
+	} else {
+		h.promReadMetrics.fetchSuccess.Inc(1)
+	}
+}
+
+// WriteSnappyCompressed writes snappy compressed results to the given writer.
+func WriteSnappyCompressed(
+	w http.ResponseWriter,
+	readResult ReadResult,
+	logger *zap.Logger,
+) error {
 	resp := &prompb.ReadResponse{
-		Results: readResult.result,
+		Results: readResult.Result,
 	}
 
 	data, err := proto.Marshal(resp)
 	if err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
+		// h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to marshal read results to protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.Header().Set("Content-Encoding", "snappy")
-	handleroptions.AddWarningHeaders(w, readResult.meta)
+	handleroptions.AddWarningHeaders(w, readResult.Meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to encode read results to snappy",
 			zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
-		return
 	}
 
-	timer.Stop()
-	h.promReadMetrics.fetchSuccess.Inc(1)
+	return err
 }
 
-func (h *PromReadHandler) parseRequest(
+func parseCompressedRequest(
 	r *http.Request,
 ) (*prompb.ReadRequest, *xhttp.ParseError) {
 	result, err := prometheus.ParsePromCompressedRequest(r)
@@ -178,18 +182,45 @@ func (h *PromReadHandler) parseRequest(
 	return &req, nil
 }
 
-type readResult struct {
-	meta   block.ResultMetadata
-	result []*prompb.QueryResult
+// ReadResult is a read result.
+type ReadResult struct {
+	Meta   block.ResultMetadata
+	Result []*prompb.QueryResult
 }
 
-func (h *PromReadHandler) read(
-	reqCtx context.Context,
-	w http.ResponseWriter,
+func parseRequest(
+	ctx context.Context,
+	r *http.Request,
+	opts options.HandlerOptions,
+) (*prompb.ReadRequest, *storage.FetchOptions, *xhttp.ParseError) {
+	req, rErr := parseCompressedRequest(r)
+	if rErr != nil {
+		return nil, nil, rErr
+	}
+
+	timeout := opts.TimeoutOpts().FetchTimeout
+	timeout, err := prometheus.ParseRequestTimeout(r, timeout)
+	if err != nil {
+		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	if rErr != nil {
+		return nil, nil, rErr
+	}
+
+	fetchOpts.Timeout = timeout
+	return req, fetchOpts, nil
+}
+
+// Read performs a remote read on the given engine.
+func Read(
+	ctx context.Context,
+	cancelWatcher handler.CancelWatcher,
 	r *prompb.ReadRequest,
-	timeout time.Duration,
 	fetchOpts *storage.FetchOptions,
-) (readResult, error) {
+	opts options.HandlerOptions,
+) (ReadResult, error) {
 	var (
 		queryCount   = len(r.Queries)
 		cancelFuncs  = make([]context.CancelFunc, queryCount)
@@ -199,6 +230,8 @@ func (h *PromReadHandler) read(
 			QueryContextOptions: models.QueryContextOptions{
 				LimitMaxTimeseries: fetchOpts.Limit,
 			}}
+
+		engine = opts.Engine()
 
 		wg       sync.WaitGroup
 		mu       sync.Mutex
@@ -210,7 +243,7 @@ func (h *PromReadHandler) read(
 		i, promQuery := i, promQuery // Capture vars for lambda.
 		go func() {
 			defer wg.Done()
-			ctx, cancel := context.WithTimeout(reqCtx, timeout)
+			ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
 			cancelFuncs[i] = cancel
 			query, err := storage.PromReadQueryToM3(promQuery)
 			if err != nil {
@@ -221,8 +254,8 @@ func (h *PromReadHandler) read(
 			}
 
 			// Detect clients closing connections
-			handler.CloseWatcher(ctx, cancel, w, h.instrumentOpts)
-			result, err := h.engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
+			cancelWatcher.WatchForCancel(ctx, cancel)
+			result, err := engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
 			if err != nil {
 				mu.Lock()
 				multiErr = multiErr.Add(err)
@@ -245,10 +278,10 @@ func (h *PromReadHandler) read(
 	}
 
 	if err := multiErr.FinalError(); err != nil {
-		return readResult{result: nil, meta: meta}, err
+		return ReadResult{Result: nil, Meta: meta}, err
 	}
 
-	return readResult{result: queryResults, meta: meta}, nil
+	return ReadResult{Result: queryResults, Meta: meta}, nil
 }
 
 // filterResults removes series tags based on options.

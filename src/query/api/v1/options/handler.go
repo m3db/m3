@@ -152,9 +152,9 @@ type HandlerOptions interface {
 	SetNowFn(f clock.NowFn) HandlerOptions
 
 	// RemoteReadRenderer returns the remote read renderer.
-	RemoteReadRenderer() RemoteReadRenderer
-	// SetInstrumentOpts sets the remote read renderer.
-	SetRemoteReadRenderer(r RemoteReadRenderer) HandlerOptions
+	// RemoteReadRenderer() RemoteReadRenderer
+	// // SetInstrumentOpts sets the remote read renderer.
+	// SetRemoteReadRenderer(r RemoteReadRenderer) HandlerOptions
 
 	// InstrumentOpts returns the instrumentation options.
 	InstrumentOpts() instrument.Options
