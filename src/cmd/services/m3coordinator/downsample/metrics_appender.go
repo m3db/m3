@@ -109,6 +109,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
+	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
 	if opts.Override {
 		// Reuse a slice to keep the current staged metadatas we will apply.
 		a.currStagedMetadata.Pipelines = a.currStagedMetadata.Pipelines[:0]
@@ -251,6 +252,9 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.currStagedMetadata.Pipelines, pipelines.Pipelines...)
 		}
 
+		// Apply drop policies results
+		a.currStagedMetadata.Pipelines, dropApplyResult = a.currStagedMetadata.Pipelines.ApplyOrRemoveDropPolicies()
+
 		if len(a.currStagedMetadata.Pipelines) > 0 {
 			// Send to downsampler if we have something in the pipeline.
 			mappingStagedMetadatas := []metadata.StagedMetadata{a.currStagedMetadata}
@@ -281,7 +285,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		}
 	}
 
-	dropPolicyApplied := matchResult.DropApplyResult() != metadata.NoDropPolicyPresentResult
+	dropPolicyApplied := dropApplyResult != metadata.NoDropPolicyPresentResult
 	return SamplesAppenderResult{
 		SamplesAppender:     a.multiSamplesAppender,
 		IsDropPolicyApplied: dropPolicyApplied,

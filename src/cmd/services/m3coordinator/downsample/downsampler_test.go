@@ -480,6 +480,89 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithRulesConfigRollupRuleAndDropPolicy(t *testing.T) {
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag:         "http_requests",
+			"app":           "nginx_edge",
+			"status_code":   "500",
+			"endpoint":      "/foo/bar",
+			"not_rolled_up": "not_rolled_up_value",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 42},
+			{value: 64, offset: 5 * time.Second},
+		},
+		expectDropPolicyApplied: true,
+	}
+	res := 5 * time.Second
+	ret := 30 * 24 * time.Hour
+	filter := fmt.Sprintf("%s:http_requests app:* status_code:* endpoint:*", nameTag)
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []AutoMappingRule{},
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter: filter,
+					Drop:   true,
+				},
+			},
+			RollupRules: []RollupRuleConfiguration{
+				{
+					Filter: fmt.Sprintf(
+						"%s:http_requests app:* status_code:* endpoint:*",
+						nameTag),
+					Transforms: []TransformConfiguration{
+						{
+							Transform: &TransformOperationConfiguration{
+								Type: transformation.PerSecond,
+							},
+						},
+						{
+							Rollup: &RollupOperationConfiguration{
+								MetricName:   "http_requests_by_status_code",
+								GroupBy:      []string{"app", "status_code", "endpoint"},
+								Aggregations: []aggregation.Type{aggregation.Sum},
+							},
+						},
+					},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: res,
+							Retention:  ret,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						nameTag:               "http_requests_by_status_code",
+						string(rollupTagName): string(rollupTagValue),
+						"app":                 "nginx_edge",
+						"status_code":         "500",
+						"endpoint":            "/foo/bar",
+					},
+					values: []expectedValue{{value: 4.4}},
+					attributes: &storage.Attributes{
+						MetricsType: storage.AggregatedMetricsType,
+						Resolution:  res,
+						Retention:   ret,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithTimedSamples(t *testing.T) {
 	counterMetrics, counterMetricsExpect := testCounterMetrics(testCounterMetricsOptions{
 		timedSamples: true,
@@ -582,9 +665,10 @@ type expectedValue struct {
 }
 
 type testCounterMetric struct {
-	tags         map[string]string
-	samples      []int64
-	timedSamples []testCounterMetricTimedSample
+	tags                    map[string]string
+	samples                 []int64
+	timedSamples            []testCounterMetricTimedSample
+	expectDropPolicyApplied bool
 }
 
 type testCounterMetricTimedSample struct {
@@ -594,9 +678,10 @@ type testCounterMetricTimedSample struct {
 }
 
 type testGaugeMetric struct {
-	tags         map[string]string
-	samples      []float64
-	timedSamples []testGaugeMetricTimedSample
+	tags                    map[string]string
+	samples                 []float64
+	timedSamples            []testGaugeMetricTimedSample
+	expectDropPolicyApplied bool
 }
 
 type testGaugeMetricTimedSample struct {
@@ -910,9 +995,12 @@ func testDownsamplerAggregationIngest(
 			appender.AddTag([]byte(name), []byte(value))
 		}
 
-		samplesAppender, err := appender.SamplesAppender(opts)
+		samplesAppenderResult, err := appender.SamplesAppender(opts)
 		require.NoError(t, err)
+		require.Equal(t, metric.expectDropPolicyApplied,
+			samplesAppenderResult.IsDropPolicyApplied)
 
+		samplesAppender := samplesAppenderResult.SamplesAppender
 		for _, sample := range metric.samples {
 			err = samplesAppender.AppendCounterSample(sample)
 			require.NoError(t, err)
@@ -934,9 +1022,12 @@ func testDownsamplerAggregationIngest(
 			appender.AddTag([]byte(name), []byte(value))
 		}
 
-		samplesAppender, err := appender.SamplesAppender(opts)
+		samplesAppenderResult, err := appender.SamplesAppender(opts)
 		require.NoError(t, err)
+		require.Equal(t, metric.expectDropPolicyApplied,
+			samplesAppenderResult.IsDropPolicyApplied)
 
+		samplesAppender := samplesAppenderResult.SamplesAppender
 		for _, sample := range metric.samples {
 			err = samplesAppender.AppendGaugeSample(sample)
 			require.NoError(t, err)

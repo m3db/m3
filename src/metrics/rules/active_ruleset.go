@@ -139,8 +139,7 @@ func (as *activeRuleSet) ForwardMatch(
 	// after `fromNanos`, or the end of the match time range reaches the first cutover time after
 	// `toNanos` among all active rules because the metric may then be matched against a different
 	// set of rules.
-	return NewMatchResult(as.version, nextCutoverNanos, forExistingID,
-		forNewRollupIDs, currMatchRes.dropApplyResult)
+	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, forNewRollupIDs)
 }
 
 func (as *activeRuleSet) ReverseMatch(
@@ -175,7 +174,7 @@ func (as *activeRuleSet) ReverseMatch(
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
 	}
 
-	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, nil, 0) // TODO: make 0 actually result of applying or removing drop rules
+	return NewMatchResult(as.version, nextCutoverNanos, forExistingID, nil)
 }
 
 // NB(xichen): can further consolidate pipelines with the same aggregation ID
@@ -204,7 +203,6 @@ func (as *activeRuleSet) forwardMatchAt(
 	return forwardMatchResult{
 		forExistingID:   forExistingID,
 		forNewRollupIDs: forNewRollupIDs,
-		dropApplyResult: mappingResults.forExistingID.dropApplyResult,
 	}
 }
 
@@ -242,9 +240,6 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 		pipelines = append(pipelines, pipeline)
 	}
 
-	pipelines, dropApplyResult := metadata.PipelineMetadatas(pipelines).
-		ApplyOrRemoveDropPolicies()
-
 	// NB: The pipeline list should never be empty as the resulting pipelines are
 	// used to determine how the *existing* ID is aggregated and retained. If there
 	// are no rule match, the default pipeline list is used.
@@ -253,9 +248,8 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 	}
 	return mappingResults{
 		forExistingID: ruleMatchResults{
-			cutoverNanos:    cutoverNanos,
-			pipelines:       pipelines,
-			dropApplyResult: dropApplyResult,
+			cutoverNanos: cutoverNanos,
+			pipelines:    pipelines,
 		},
 	}
 }
@@ -738,9 +732,8 @@ type matchRollupTargetOptions struct {
 }
 
 type ruleMatchResults struct {
-	cutoverNanos    int64
-	pipelines       []metadata.PipelineMetadata
-	dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
+	cutoverNanos int64
+	pipelines    []metadata.PipelineMetadata
 }
 
 // merge merges in another rule match results in place.
@@ -755,16 +748,6 @@ func (res *ruleMatchResults) merge(other ruleMatchResults) *ruleMatchResults {
 // unique de-duplicates the pipelines.
 func (res *ruleMatchResults) unique() *ruleMatchResults {
 	if len(res.pipelines) == 0 {
-		return res
-	}
-
-	// First resolve if drop policies are in effect
-	var (
-		evaluate        = metadata.PipelineMetadatas(res.pipelines)
-		dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
-	)
-	res.pipelines, dropApplyResult = evaluate.ApplyOrRemoveDropPolicies()
-	if dropApplyResult == metadata.AppliedEffectiveDropPolicyResult {
 		return res
 	}
 
