@@ -301,8 +301,6 @@ func TestDownsampleAndWriteWithDownsampleOverridesAndDropMappingRules(t *testing
 
 	mockMetricsAppender.EXPECT().Finalize()
 
-	//	expectDefaultStorageWrites(session, testDatapoints1, testAnnotation1)
-
 	err := downAndWrite.Write(
 		context.Background(), testTags1, testDatapoints1, xtime.Second, testAnnotation1, overrides)
 	require.NoError(t, err)
