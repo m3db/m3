@@ -656,7 +656,7 @@ func newTestDownsamplerAndWriter(
 		storage, session = testm3.NewStorageAndSession(t, ctrl)
 	}
 	downsampler := downsample.NewMockDownsampler(ctrl)
-	return NewDownsamplerAndWriter(instrument.NewOptions(), storage, downsampler, testWorkerPool).(*downsamplerAndWriter), downsampler, session
+	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool, instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 
 func newTestDownsamplerAndWriterWithAggregatedNamespace(
@@ -667,7 +667,7 @@ func newTestDownsamplerAndWriterWithAggregatedNamespace(
 	storage, session := testm3.NewStorageAndSessionWithAggregatedNamespaces(
 		t, ctrl, aggregatedNamespaces)
 	downsampler := downsample.NewMockDownsampler(ctrl)
-	return NewDownsamplerAndWriter(instrument.NewOptions(), storage, downsampler, testWorkerPool).(*downsamplerAndWriter), downsampler, session
+	return NewDownsamplerAndWriter(storage, downsampler, testWorkerPool, instrument.NewOptions()).(*downsamplerAndWriter), downsampler, session
 }
 
 func init() {

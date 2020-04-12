@@ -341,9 +341,10 @@ func Run(runOpts RunOptions) {
 
 	engine := executor.NewEngine(engineOpts)
 	downsamplerAndWriter, err := newDownsamplerAndWriter(
-		instrumentOptions,
 		backendStorage,
-		downsampler)
+		downsampler,
+		instrumentOptions,
+	)
 	if err != nil {
 		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
 	}
@@ -1047,9 +1048,9 @@ func startCarbonIngestion(
 }
 
 func newDownsamplerAndWriter(
-	iOpts instrument.Options,
 	storage storage.Storage,
 	downsampler downsample.Downsampler,
+	iOpts instrument.Options,
 ) (ingest.DownsamplerAndWriter, error) {
 	// Make sure the downsampler and writer gets its own PooledWorkerPool and that its not shared with any other
 	// codepaths because PooledWorkerPools can deadlock if used recursively.
@@ -1063,5 +1064,5 @@ func newDownsamplerAndWriter(
 	}
 	downAndWriteWorkerPool.Init()
 
-	return ingest.NewDownsamplerAndWriter(iOpts, storage, downsampler, downAndWriteWorkerPool), nil
+	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool, iOpts), nil
 }

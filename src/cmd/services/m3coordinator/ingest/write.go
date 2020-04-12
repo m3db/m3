@@ -109,10 +109,10 @@ type downsamplerAndWriter struct {
 
 // NewDownsamplerAndWriter creates a new downsampler and writer.
 func NewDownsamplerAndWriter(
-	instrumentOpts instrument.Options,
 	store storage.Storage,
 	downsampler downsample.Downsampler,
 	workerPool xsync.PooledWorkerPool,
+	instrumentOpts instrument.Options,
 ) DownsamplerAndWriter {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler")
 	return &downsamplerAndWriter{
@@ -443,10 +443,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 	}
 
-	if err := iter.Error(); err != nil {
-		multiErr = multiErr.Add(err)
-	}
-
+	multiErr = multiErr.Add(iter.Error())
 	return multiErr.FinalError()
 }
 
