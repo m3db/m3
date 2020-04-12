@@ -34,6 +34,7 @@ const (
 	untimedType
 	forwardedType
 	timedType
+	timedWithStagedMetadatasType
 )
 
 type untimedPayload struct {
@@ -51,9 +52,15 @@ type timedPayload struct {
 	metadata metadata.TimedMetadata
 }
 
+type timedWithStagedMetadatas struct {
+	metric    aggregated.Metric
+	metadatas metadata.StagedMetadatas
+}
+
 type payloadUnion struct {
-	payloadType payloadType
-	untimed     untimedPayload
-	forwarded   forwardedPayload
-	timed       timedPayload
+	payloadType              payloadType
+	untimed                  untimedPayload
+	forwarded                forwardedPayload
+	timed                    timedPayload
+	timedWithStagedMetadatas timedWithStagedMetadatas
 }

@@ -151,7 +151,7 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 	results.EXPECT().Results().Return(nil)
 	results.EXPECT().Close()
 	mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results, nil, nil)
+		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
 
 	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 	mockBlock.EXPECT().EvictMutableSegments().Return(nil)
@@ -260,13 +260,13 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 	results1.EXPECT().Results().Return(nil)
 	results1.EXPECT().Close()
 	mockShard1.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results1, nil, nil)
+		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results1, nil, nil)
 
 	results2 := block.NewMockFetchBlocksMetadataResults(ctrl)
 	results2.EXPECT().Results().Return(nil)
 	results2.EXPECT().Close()
 	mockShard2.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results2, nil, nil)
+		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results2, nil, nil)
 
 	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 	mockBlock.EXPECT().EvictMutableSegments().Return(nil)

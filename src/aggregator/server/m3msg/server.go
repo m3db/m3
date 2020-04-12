@@ -139,6 +139,14 @@ func (s *server) handleMessage(
 		return s.aggregator.AddTimed(
 			union.TimedMetricWithMetadata.Metric,
 			union.TimedMetricWithMetadata.TimedMetadata)
+	case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
+		err := union.TimedMetricWithMetadatas.FromProto(pb.TimedMetricWithMetadatas)
+		if err != nil {
+			return err
+		}
+		return s.aggregator.AddTimedWithStagedMetadatas(
+			union.TimedMetricWithMetadatas.Metric,
+			union.TimedMetricWithMetadatas.StagedMetadatas)
 	default:
 		return fmt.Errorf("unrecognized message type: %v", pb.Type)
 	}

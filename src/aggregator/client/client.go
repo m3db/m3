@@ -78,6 +78,12 @@ type Client interface {
 		metadata metadata.TimedMetadata,
 	) error
 
+	// WriteTimedWithStagedMetadatas writes timed metrics with staged metadatas.
+	WriteTimedWithStagedMetadatas(
+		metric aggregated.Metric,
+		metadatas metadata.StagedMetadatas,
+	) error
+
 	// Flush flushes any remaining data buffered by the client.
 	Flush() error
 
@@ -315,6 +321,23 @@ func (c *client) WriteTimed(
 	return err
 }
 
+func (c *client) WriteTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	metadatas metadata.StagedMetadatas,
+) error {
+	callStart := c.nowFn()
+	payload := payloadUnion{
+		payloadType: timedWithStagedMetadatasType,
+		timedWithStagedMetadatas: timedWithStagedMetadatas{
+			metric:    metric,
+			metadatas: metadatas,
+		},
+	}
+	err := c.write(metric.ID, metric.TimeNanos, payload)
+	c.metrics.writeForwarded.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	return err
+}
+
 func (c *client) WriteForwarded(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
@@ -507,6 +530,7 @@ type message struct {
 	gm     metricpb.GaugeWithMetadatas
 	fm     metricpb.ForwardedMetricWithMetadata
 	tm     metricpb.TimedMetricWithMetadata
+	tms    metricpb.TimedMetricWithMetadatas
 
 	buf []byte
 }
@@ -594,6 +618,19 @@ func (m *message) Encode(
 		m.metric = metricpb.MetricWithMetadatas{
 			Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
 			TimedMetricWithMetadata: &m.tm,
+		}
+	case timedWithStagedMetadatasType:
+		value := aggregated.TimedMetricWithMetadatas{
+			Metric:          payload.timedWithStagedMetadatas.metric,
+			StagedMetadatas: payload.timedWithStagedMetadatas.metadatas,
+		}
+		if err := value.ToProto(&m.tms); err != nil {
+			return err
+		}
+
+		m.metric = metricpb.MetricWithMetadatas{
+			Type:                     metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS,
+			TimedMetricWithMetadatas: &m.tms,
 		}
 	default:
 		return fmt.Errorf("unrecognized payload type: %v",

@@ -427,7 +427,7 @@ func addUntimedMetricToAggregation(
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.AddBatch(mu.BatchTimerVal)
+		v.AddBatch(time.Now(), mu.BatchTimerVal)
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
@@ -449,7 +449,7 @@ func addTimedMetricToAggregation(
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.AddBatch([]float64{mu.Value})
+		v.AddBatch(time.Now(), []float64{mu.Value})
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
@@ -473,7 +473,7 @@ func addForwardedMetricToAggregation(
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.AddBatch(mu.Values)
+		v.AddBatch(time.Now(), mu.Values)
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)

@@ -21,6 +21,8 @@
 package aggregation
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/metrics/aggregation"
 )
@@ -29,6 +31,7 @@ import (
 type Timer struct {
 	Options
 
+	lastAt time.Time
 	count  int64     // Number of values received.
 	sum    float64   // Sum of the values.
 	sumSq  float64   // Sum of squared values.
@@ -46,7 +49,30 @@ func NewTimer(quantiles []float64, streamOpts cm.Options, opts Options) Timer {
 }
 
 // Add adds a timer value.
-func (t *Timer) Add(value float64) {
+func (t *Timer) Add(timestamp time.Time, value float64) {
+	t.recordLastAt(timestamp)
+	t.addValue(value)
+}
+
+// AddBatch adds a batch of timer values.
+func (t *Timer) AddBatch(timestamp time.Time, values []float64) {
+	// Record last at just once.
+	t.recordLastAt(timestamp)
+	for _, v := range values {
+		t.addValue(v)
+	}
+}
+
+func (t *Timer) recordLastAt(timestamp time.Time) {
+	if t.lastAt.IsZero() || timestamp.After(t.lastAt) {
+		// NB(r): Only set the last value if this value arrives
+		// after the wall clock timestamp of previous values, not
+		// the arrival time (i.e. order received).
+		t.lastAt = timestamp
+	}
+}
+
+func (t *Timer) addValue(value float64) {
 	t.count++
 	t.sum += value
 	t.stream.Add(value)
@@ -56,12 +82,8 @@ func (t *Timer) Add(value float64) {
 	}
 }
 
-// AddBatch adds a batch of timer values.
-func (t *Timer) AddBatch(values []float64) {
-	for _, v := range values {
-		t.Add(v)
-	}
-}
+// LastAt returns the time of the last value received.
+func (t *Timer) LastAt() time.Time { return t.lastAt }
 
 // Quantile returns the value at a given quantile.
 func (t *Timer) Quantile(q float64) float64 {

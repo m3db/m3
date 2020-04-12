@@ -6,3 +6,4 @@ provisioner: kubernetes.io/aws-ebs
 parameters:
   type: io1
   iopsPerGB: "30"
+volumeBindingMode: WaitForFirstConsumer

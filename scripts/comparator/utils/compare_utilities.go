@@ -104,7 +104,7 @@ func parseFileToQueries(
 
 	queries := make(InputQueries, 0, 10)
 	if err := json.Unmarshal(buf, &queries); err != nil {
-		log.Error("could not unmarhsal queries", zap.Error(err))
+		log.Error("could not unmarshal queries", zap.Error(err))
 		return nil, err
 	}
 

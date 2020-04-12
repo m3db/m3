@@ -52,11 +52,18 @@ const (
 	GRPCStorageType BackendStorageType = "grpc"
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
+	// NoopEtcdStorageType is for a noop backend which returns empty results for
+	// any query and blackholes any writes, but requires that a valid etcd cluster
+	// is defined and can be connected to. Primarily used for standalone
+	// coordinators used only to serve m3admin APIs.
+	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
 	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
 		"generation scheme is required in coordinator configuration settings. " +
 		"More information is available here: %s"
+
+	defaultQueryTimeout = 30 * time.Second
 )
 
 var (
@@ -124,6 +131,9 @@ type Configuration struct {
 	// Carbon is the carbon configuration.
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
+	// Query is the query configuration.
+	Query QueryConfiguration `yaml:"query"`
+
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
 
@@ -188,6 +198,19 @@ type ResultOptions struct {
 	// KeepNans keeps NaNs before returning query results.
 	// The default is false, which matches Prometheus
 	KeepNans bool `yaml:"keepNans"`
+}
+
+// QueryConfiguration is the query configuration.
+type QueryConfiguration struct {
+	Timeout *time.Duration `yaml:"timeout"`
+}
+
+// TimeoutOrDefault returns the configured timeout or default value.
+func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
+	if v := c.Timeout; v != nil {
+		return *v
+	}
+	return defaultQueryTimeout
 }
 
 // LimitsConfiguration represents limitations on resource usage in the query

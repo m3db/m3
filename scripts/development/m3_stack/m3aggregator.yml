@@ -254,7 +254,7 @@ aggregator:
                   high: 0.5
   forwarding:
     maxSingleDelay: 5s
-  entryTTL: 6h
+  entryTTL: 1h
   entryCheckInterval: 10m
   maxTimerBatchSizePerWrite: 140
   defaultStoragePolicies:

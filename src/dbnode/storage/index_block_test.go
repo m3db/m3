@@ -128,7 +128,7 @@ func testNamespaceMetadata(blockSize, period time.Duration) namespace.Metadata {
 }
 
 func TestNamespaceIndexNewBlockFn(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -172,7 +172,7 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 }
 
 func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -195,7 +195,7 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 }
 
 func TestNamespaceIndexWrite(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -252,7 +252,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 }
 
 func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -328,7 +328,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 }
 
 func TestNamespaceIndexBootstrap(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -391,7 +391,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 }
 
 func TestNamespaceIndexTickExpire(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retentionPeriod := 4 * time.Hour
@@ -439,7 +439,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 }
 
 func TestNamespaceIndexTick(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retentionPeriod := 4 * time.Hour
@@ -525,7 +525,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 }
 
 func TestNamespaceIndexBlockQuery(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retention := 2 * time.Hour
@@ -637,7 +637,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 }
 
 func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retention := 2 * time.Hour
@@ -734,7 +734,7 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 }
 
 func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	query := idx.NewTermQuery([]byte("a"), []byte("b"))
@@ -853,7 +853,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 }
 
 func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	retention := 2 * time.Hour
@@ -956,7 +956,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 }
 
 func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	queries := []idx.Query{idx.NewAllQuery(), idx.NewFieldQuery([]byte("field"))}

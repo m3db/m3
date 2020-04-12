@@ -6,7 +6,7 @@
 
 A M3DB cluster has exactly one Placement. That placement maps the cluster's shard replicas to nodes. A cluster also has 0 or more namespaces (analogous to tables in other databases), and each node serves every namespace for the shards it owns. In other words, if the cluster topology states that node A owns shards 1, 2, and 3 then node A will own shards 1, 2, 3 for all configured namespaces in the cluster.
 
-M3DB stores its placement (mapping of which NODES are responsible for which shards) in [etcd](https://coreos.com/etcd/). There are three possible states that each node/shard pair can be in:
+M3DB stores its placement (mapping of which NODES are responsible for which shards) in [etcd](https://etcd.io/). There are three possible states that each node/shard pair can be in:
 
 1. `Initializing`
 2. `Available`

@@ -96,27 +96,11 @@ func (a *samplesAppender) AppendGaugeTimedSample(t time.Time, value float64) err
 }
 
 func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
-	var multiErr xerrors.MultiError
-	for _, meta := range a.stagedMetadatas {
-		for _, pipeline := range meta.Pipelines {
-			for _, policy := range pipeline.StoragePolicies {
-				metadata := metadata.TimedMetadata{
-					AggregationID: pipeline.AggregationID,
-					StoragePolicy: policy,
-				}
-
-				if a.clientRemote != nil {
-					// Remote client write instead of local aggregation.
-					multiErr = multiErr.Add(a.clientRemote.WriteTimed(sample, metadata))
-					continue
-				}
-
-				// Add timed to local aggregator.
-				multiErr = multiErr.Add(a.agg.AddTimed(sample, metadata))
-			}
-		}
+	if a.clientRemote != nil {
+		return a.clientRemote.WriteTimedWithStagedMetadatas(sample, a.stagedMetadatas)
 	}
-	return multiErr.LastError()
+
+	return a.agg.AddTimedWithStagedMetadatas(sample, a.stagedMetadatas)
 }
 
 // Ensure multiSamplesAppender implements SamplesAppender.
