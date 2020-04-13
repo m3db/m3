@@ -178,10 +178,55 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	renderResultsJSON(w, result, params, h.keepEmpty)
 }
 
+func parseSomething(
+	r *http.Request,
+	opts options.HandlerOptions,
+) {
+	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	if rErr != nil {
+		// xhttp.Error(w, rErr.Inner(), rErr.Code())
+		return
+	}
+
+	queryOpts := &executor.QueryOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOpts.Limit,
+		}}
+
+	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
+	if restrictOpts != nil {
+		restrict := &models.RestrictFetchTypeQueryContextOptions{
+			MetricsType:   uint(restrictOpts.MetricsType),
+			StoragePolicy: restrictOpts.StoragePolicy,
+		}
+		queryOpts.QueryContextOptions.RestrictFetchType = restrict
+	}
+
+	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
+	iOpts := opts.InstrumentOpts()
+	logger := logging.WithContext(ctx, iOpts)
+	engine := opts.Engine()
+	params, rErr := parseParams(r, engine.Options(),
+		opts.TimeoutOpts(), fetchOpts, iOpts)
+	if rErr != nil {
+		h.promReadMetrics.fetchErrorsClient.Inc(1)
+		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
+	}
+
+	if params.Debug {
+		logger.Info("request params", zap.Any("params", params))
+	}
+
+	if err := h.validateRequest(&params); err != nil {
+		h.promReadMetrics.fetchErrorsClient.Inc(1)
+		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
+	}
+}
+
 // ServeHTTPWithEngine returns query results from the storage
-func (h *PromReadHandler) ServeHTTPWithEngine(
-	_w http.ResponseWriter,
-	_r *http.Request,
+func (*PromReadHandler) ServeHTTPWithEngine(
+	w http.ResponseWriter,
+	r *http.Request,
 	engine executor.Engine,
 	queryOpts *executor.QueryOptions,
 	fetchOpts *storage.FetchOptions,

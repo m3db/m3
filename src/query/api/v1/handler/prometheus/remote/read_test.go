@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
@@ -45,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/query/test/m3"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -77,7 +79,7 @@ func newEngine(
 }
 
 func setupServer(t *testing.T) *httptest.Server {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	// No calls expected on session object
 	lstore, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
@@ -90,7 +92,7 @@ func setupServer(t *testing.T) *httptest.Server {
 }
 
 func readHandler(store storage.Storage,
-	timeoutOpts *prometheus.TimeoutOpts) http.Handler { //} *PromReadHandler {
+	timeoutOpts *prometheus.TimeoutOpts) http.Handler {
 	fetchOpts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
 	iOpts := instrument.NewOptions()
 	engine := newEngine(store, defaultLookbackDuration, nil, iOpts)
@@ -101,17 +103,10 @@ func readHandler(store storage.Storage,
 		SetTimeoutOpts(timeoutOpts)
 
 	return NewPromReadHandler(opts)
-	// return &PromReadHandler{
-	// 	engine:              engine,
-	// 	promReadMetrics:     promReadTestMetrics,
-	// 	timeoutOpts:         timeoutOpts,
-	// 	fetchOptionsBuilder: handleroptions.NewFetchOptionsBuilder(opts),
-	// 	instrumentOpts:      instrument.NewOptions(),
-	// }
 }
 
 func TestPromReadParsing(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	builderOpts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
 	engine := newEngine(storage, defaultLookbackDuration, nil,
@@ -130,52 +125,46 @@ func TestPromReadParsing(t *testing.T) {
 }
 
 func TestPromFetchTimeoutParsing(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	opts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
-	engine := newEngine(storage, defaultLookbackDuration, nil,
-		instrument.NewOptions())
-	promRead := NewPromReadHandler(options.EmptyHandlerOptions().SetTimeoutOpts(
-		&prometheus.TimeoutOpts{
-			FetchTimeout: 2 * time.Minute,
-		},
-	))
-
-	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
+	url := fmt.Sprintf("%s?timeout=2m", PromReadURL)
+	req := httptest.NewRequest("POST", url, test.GeneratePromReadBody(t))
 	dur, err := prometheus.ParseRequestTimeout(req, time.Second)
 	require.NoError(t, err)
 	assert.Equal(t, 2*time.Minute, dur)
 }
 
 func TestPromReadParsingBad(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	promRead := readHandler(storage, timeoutOpts)
 	req := httptest.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
 	_, _, err := parseRequest(context.TODO(), req, options.EmptyHandlerOptions())
 	require.NotNil(t, err, "unable to parse request")
 }
 
 func TestPromReadStorageWithFetchError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, fmt.Errorf("unable to get data"))
-	session.EXPECT().IteratorPools().
-		Return(nil, nil)
-	promRead := readHandler(store, timeoutOpts)
-	req := test.GeneratePromReadRequest()
-	recorder := httptest.NewRecorder()
-	res, err := promRead.read(context.TODO(), recorder,
-		req, time.Hour, storage.NewFetchOptions())
-	require.Error(t, err, "unable to read from storage")
-	header := recorder.Header().Get(handleroptions.LimitHeader)
-	assert.Equal(t, 0, len(header))
+	ctrl := xtest.NewController(t)
+	watcher := &cancelWatcher{}
+	readRequest := &prompb.ReadRequest{
+		Queries: []*prompb.Query{
+			{},
+		},
+	}
 
-	meta := res.meta
+	fetchOpts := &storage.FetchOptions{}
+	result := storage.PromResult{Metadata: block.ResultMetadata{
+		Exhaustive: true, LocalOnly: true}}
+	engine := executor.NewMockEngine(ctrl)
+	engine.EXPECT().
+		ExecuteProm(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(result, fmt.Errorf("expr err"))
+
+	opts := options.EmptyHandlerOptions().SetEngine(engine)
+	res, err := Read(context.TODO(), watcher, readRequest, fetchOpts, opts)
+	require.Error(t, err, "unable to read from storage")
+
+	meta := res.Meta
 	assert.True(t, meta.Exhaustive)
 	assert.True(t, meta.LocalOnly)
 	assert.Equal(t, 0, len(meta.Warnings))
+
+	assert.Equal(t, 1, watcher.count)
 }
 
 func TestQueryMatchMustBeEqual(t *testing.T) {
@@ -214,7 +203,7 @@ func TestQueryKillOnTimeout(t *testing.T) {
 }
 
 func TestReadErrorMetricsCount(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, fmt.Errorf("unable to get data"))
@@ -225,15 +214,16 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
-	opts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
+	buildOpts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
 	engine := newEngine(storage, defaultLookbackDuration, nil,
 		instrument.NewOptions())
-	promRead := &PromReadHandler{
-		engine:              engine,
-		promReadMetrics:     readMetrics,
-		timeoutOpts:         timeoutOpts,
-		fetchOptionsBuilder: handleroptions.NewFetchOptionsBuilder(opts),
-		instrumentOpts:      instrument.NewOptions(),
+	opts := options.EmptyHandlerOptions().
+		SetEngine(engine).
+		SetTimeoutOpts(&prometheus.TimeoutOpts{FetchTimeout: time.Minute}).
+		SetFetchOptionsBuilder(handleroptions.NewFetchOptionsBuilder(buildOpts))
+	promRead := &promReadHandler{
+		promReadMetrics: readMetrics,
+		opts:            opts,
 	}
 
 	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
@@ -246,7 +236,7 @@ func TestReadErrorMetricsCount(t *testing.T) {
 }
 
 func TestMultipleRead(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	now := time.Now()
@@ -311,7 +301,9 @@ func TestMultipleRead(t *testing.T) {
 			},
 		})
 
-	res, err := Read(context.TODO(), nil, req, fetchOpts, handlerOpts)
+	fetchOpts := &storage.FetchOptions{}
+	watcher := &cancelWatcher{}
+	res, err := Read(context.TODO(), watcher, req, fetchOpts, handlerOpts)
 	require.NoError(t, err)
 	expected := &prompb.QueryResult{
 		Timeseries: []*prompb.TimeSeries{
@@ -335,10 +327,12 @@ func TestMultipleRead(t *testing.T) {
 	assert.True(t, meta.LocalOnly)
 	require.Equal(t, 1, len(meta.Warnings))
 	assert.Equal(t, "foo_bar", meta.Warnings[0].Header())
+
+	assert.Equal(t, 2, watcher.count)
 }
 
 func TestReadWithOptions(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	now := time.Now()
@@ -398,4 +392,14 @@ func TestReadWithOptions(t *testing.T) {
 
 	result := res.Result
 	assert.Equal(t, expected.Timeseries[0], result[0].Timeseries[0])
+}
+
+type cancelWatcher struct {
+	count int
+}
+
+var _ handler.CancelWatcher = (*cancelWatcher)(nil)
+
+func (c *cancelWatcher) WatchForCancel(context.Context, context.CancelFunc) {
+	c.count++
 }

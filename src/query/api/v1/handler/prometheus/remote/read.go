@@ -55,13 +55,8 @@ const (
 
 // promReadHandler is a handler for the prometheus remote read endpoint.
 type promReadHandler struct {
-	// engine              executor.Engine
 	promReadMetrics promReadMetrics
-	// timeoutOpts     *prometheus.TimeoutOpts
-	// fetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	// keepEmpty bool
-	// instrumentOpts      instrument.Options
-	opts options.HandlerOptions
+	opts            options.HandlerOptions
 }
 
 // NewPromReadHandler returns a new instance of handler.
@@ -253,8 +248,11 @@ func Read(
 				return
 			}
 
-			// Detect clients closing connections
-			cancelWatcher.WatchForCancel(ctx, cancel)
+			// Detect clients closing connections.
+			if cancelWatcher != nil {
+				cancelWatcher.WatchForCancel(ctx, cancel)
+			}
+
 			result, err := engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
 			if err != nil {
 				mu.Lock()
