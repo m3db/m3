@@ -35,8 +35,8 @@ const (
 type Gauge struct {
 	Options
 
-	last   float64
 	lastAt time.Time
+	last   float64
 	sum    float64
 	sumSq  float64
 	count  int64
@@ -59,8 +59,8 @@ func (g *Gauge) Update(timestamp time.Time, value float64) {
 		// NB(r): Only set the last value if this value arrives
 		// after the wall clock timestamp of previous values, not
 		// the arrival time (i.e. order received).
-		g.last = value
 		g.lastAt = timestamp
+		g.last = value
 	} else {
 		g.Options.Metrics.Gauge.IncValuesOutOfOrder()
 	}
@@ -78,6 +78,9 @@ func (g *Gauge) Update(timestamp time.Time, value float64) {
 		g.sumSq += value * value
 	}
 }
+
+// LastAt returns the time of the last value received.
+func (g *Gauge) LastAt() time.Time { return g.lastAt }
 
 // Last returns the last value received.
 func (g *Gauge) Last() float64 { return g.last }

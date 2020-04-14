@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
@@ -177,10 +178,10 @@ type agg struct {
 	aggregator   aggregator.Aggregator
 	clientRemote client.Client
 
-	defaultStagedMetadatas []metadata.StagedMetadatas
-	clockOpts              clock.Options
-	matcher                matcher.Matcher
-	pools                  aggPools
+	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
+	clockOpts                    clock.Options
+	matcher                      matcher.Matcher
+	pools                        aggPools
 }
 
 // Configuration configurates a downsampler.
@@ -549,13 +550,13 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	var (
-		storageFlushConcurrency = defaultStorageFlushConcurrency
-		clockOpts               = o.ClockOptions
-		instrumentOpts          = o.InstrumentOptions
-		scope                   = instrumentOpts.MetricsScope()
-		logger                  = instrumentOpts.Logger()
-		openTimeout             = defaultOpenTimeout
-		defaultStagedMetadatas  []metadata.StagedMetadatas
+		storageFlushConcurrency      = defaultStorageFlushConcurrency
+		clockOpts                    = o.ClockOptions
+		instrumentOpts               = o.InstrumentOptions
+		scope                        = instrumentOpts.MetricsScope()
+		logger                       = instrumentOpts.Logger()
+		openTimeout                  = defaultOpenTimeout
+		defaultStagedMetadatasProtos []metricpb.StagedMetadatas
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
@@ -568,7 +569,14 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		if err != nil {
 			return agg{}, err
 		}
-		defaultStagedMetadatas = append(defaultStagedMetadatas, metadatas)
+
+		var metadatasProto metricpb.StagedMetadatas
+		if err := metadatas.ToProto(&metadatasProto); err != nil {
+			return agg{}, err
+		}
+
+		defaultStagedMetadatasProtos =
+			append(defaultStagedMetadatasProtos, metadatasProto)
 	}
 
 	pools := o.newAggregatorPools()
@@ -670,10 +678,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		return agg{
-			clientRemote:           client,
-			defaultStagedMetadatas: defaultStagedMetadatas,
-			matcher:                matcher,
-			pools:                  pools,
+			clientRemote:                 client,
+			defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
+			matcher:                      matcher,
+			pools:                        pools,
 		}, nil
 	}
 
@@ -719,10 +727,15 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		return bufferForPastTimedMetric(bufferPastLimits, tile)
 	}
 
+	maxAllowedForwardingDelayFn := func(tile time.Duration, numForwardedTimes int) time.Duration {
+		return maxAllowedForwardingDelay(bufferPastLimits, tile, numForwardedTimes)
+	}
+
 	// Finally construct all options.
 	aggregatorOpts := aggregator.NewOptions().
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
+		SetDefaultStoragePolicies(nil).
 		SetMetricPrefix(nil).
 		SetCounterPrefix(nil).
 		SetGaugePrefix(nil).
@@ -734,6 +747,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		SetFlushHandler(flushHandler).
 		SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn).
 		SetBufferForFutureTimedMetric(defaultBufferFutureTimedMetric).
+		SetMaxAllowedForwardingDelayFn(maxAllowedForwardingDelayFn).
 		SetVerboseErrors(defaultVerboseErrors)
 
 	if cfg.EntryTTL != 0 {
@@ -829,10 +843,10 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	}
 
 	return agg{
-		aggregator:             aggregatorInstance,
-		defaultStagedMetadatas: defaultStagedMetadatas,
-		matcher:                matcher,
-		pools:                  pools,
+		aggregator:                   aggregatorInstance,
+		defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
+		matcher:                      matcher,
+		pools:                        pools,
 	}, nil
 }
 
@@ -1061,6 +1075,14 @@ func (c *aggregatorLocalAdminClient) WriteTimed(
 	return c.agg.AddTimed(metric, metadata)
 }
 
+// WriteTimedWithStagedMetadatas writes timed metrics with staged metadatas.
+func (c *aggregatorLocalAdminClient) WriteTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	metadatas metadata.StagedMetadatas,
+) error {
+	return c.agg.AddTimedWithStagedMetadatas(metric, metadatas)
+}
+
 // WriteForwarded writes forwarded metrics.
 func (c *aggregatorLocalAdminClient) WriteForwarded(
 	metric aggregated.ForwardedMetric,
@@ -1093,7 +1115,10 @@ var (
 	}
 )
 
-func bufferForPastTimedMetric(limits []bufferPastLimit, tile time.Duration) time.Duration {
+func bufferForPastTimedMetric(
+	limits []bufferPastLimit,
+	tile time.Duration,
+) time.Duration {
 	bufferPast := limits[0].bufferPast
 	for _, limit := range limits {
 		if tile < limit.upperBound {
@@ -1102,4 +1127,20 @@ func bufferForPastTimedMetric(limits []bufferPastLimit, tile time.Duration) time
 		bufferPast = limit.bufferPast
 	}
 	return bufferPast
+}
+
+func maxAllowedForwardingDelay(
+	limits []bufferPastLimit,
+	tile time.Duration,
+	numForwardedTimes int,
+) time.Duration {
+	resolutionForwardDelay := tile * time.Duration(numForwardedTimes)
+	bufferPast := limits[0].bufferPast
+	for _, limit := range limits {
+		if tile < limit.upperBound {
+			return bufferPast + resolutionForwardDelay
+		}
+		bufferPast = limit.bufferPast
+	}
+	return bufferPast + resolutionForwardDelay
 }

@@ -282,3 +282,28 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 	resp := writer.Result()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
+
+func BenchmarkWriteDatapoints(b *testing.B) {
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+		AnyTimes()
+
+	opts := makeOptions(mockDownsamplerAndWriter)
+	handler, err := NewPromWriteHandler(opts)
+	require.NoError(b, err)
+
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBodyBytes(b, promReq)
+	promReqBodyReader := bytes.NewReader(nil)
+
+	for i := 0; i < b.N; i++ {
+		promReqBodyReader.Reset(promReqBody)
+		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBodyReader)
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+	}
+}
