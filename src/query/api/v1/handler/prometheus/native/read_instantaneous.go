@@ -107,10 +107,12 @@ func (h *PromReadInstantHandler) ServeHTTP(
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
+	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
 	parsed := parsed{
-		queryOpts: queryOpts,
-		fetchOpts: fetchOpts,
-		params:    params,
+		queryOpts:     queryOpts,
+		fetchOpts:     fetchOpts,
+		params:        params,
+		cancelWatcher: cancelWatcher,
 	}
 
 	result, err := read(ctx, parsed, h.opts)

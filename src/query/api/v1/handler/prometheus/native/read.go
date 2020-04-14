@@ -109,7 +109,7 @@ func NewPromReadHandler(opts options.HandlerOptions) *PromReadHandler {
 	taggedScope := opts.InstrumentOpts().MetricsScope().
 		Tagged(map[string]string{"handler": "native-read"})
 
-	h := &PromReadHandler{ 
+	h := &PromReadHandler{
 		promReadMetrics: newPromReadMetrics(taggedScope),
 		// timeoutOps:          opts.TimeoutOpts(),
 		// keepEmpty:           opts.Config().ResultOptions.KeepNans,
@@ -137,6 +137,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	parsed.cancelWatcher = handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
 	result, err := read(ctx, parsed, h.opts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
@@ -165,9 +166,10 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type parsed struct {
-	queryOpts *executor.QueryOptions
-	fetchOpts *storage.FetchOptions
-	params    models.RequestParams
+	queryOpts     *executor.QueryOptions
+	fetchOpts     *storage.FetchOptions
+	params        models.RequestParams
+	cancelWatcher handler.CancelWatcher
 }
 
 func parseRequest(

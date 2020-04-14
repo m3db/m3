@@ -46,9 +46,10 @@ func read(
 	handlerOpts options.HandlerOptions,
 ) (ReadResult, error) {
 	var (
-		opts      = parsed.queryOpts
-		fetchOpts = parsed.fetchOpts
-		params    = parsed.params
+		opts          = parsed.queryOpts
+		fetchOpts     = parsed.fetchOpts
+		params        = parsed.params
+		cancelWatcher = parsed.cancelWatcher
 
 		tagOpts = handlerOpts.TagOptions()
 		engine  = handlerOpts.Engine()
@@ -69,6 +70,12 @@ func read(
 	parser, err := promql.Parse(params.Query, params.Step, tagOpts, parseOpts)
 	if err != nil {
 		return emptyResult, err
+	}
+
+	// Detect clients closing connections.
+	if cancelWatcher != nil {
+		ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
+		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 
 	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
