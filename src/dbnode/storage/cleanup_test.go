@@ -296,12 +296,12 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 				ns.EXPECT().ID().Return(ident.StringID(fmt.Sprintf("ns%d", i))).AnyTimes()
 				ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 				ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
-				ns.EXPECT().GetOwnedShards().Return(shards).AnyTimes()
+				ns.EXPECT().OwnedShards().Return(shards).AnyTimes()
 				namespaces = append(namespaces, ns)
 			}
 
 			db := newMockdatabase(ctrl, namespaces...)
-			db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+			db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 			mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 			mgr.opts = mgr.opts.SetCommitLogOptions(
 				mgr.opts.CommitLogOptions().
@@ -348,14 +348,14 @@ func TestCleanupManagerNamespaceCleanup(t *testing.T) {
 	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
-	ns.EXPECT().GetOwnedShards().Return(nil).AnyTimes()
+	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
 
 	idx := NewMocknamespaceIndex(ctrl)
-	ns.EXPECT().GetIndex().Return(idx, nil)
+	ns.EXPECT().Index().Return(idx, nil)
 
 	nses := []databaseNamespace{ns}
 	db := newMockdatabase(ctrl, ns)
-	db.EXPECT().GetOwnedNamespaces().Return(nses, nil).AnyTimes()
+	db.EXPECT().OwnedNamespaces().Return(nses, nil).AnyTimes()
 
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
@@ -380,7 +380,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 		namespaces = append(namespaces, ns)
 	}
 	db := newMockdatabase(ctrl, namespaces...)
-	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+	db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
@@ -409,13 +409,13 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	shard.EXPECT().CleanupExpiredFileSets(expectedEarliestToRetain).Return(nil)
 	shard.EXPECT().CleanupCompactedFileSets().Return(nil)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	namespaces := []databaseNamespace{ns}
 
 	db := newMockdatabase(ctrl, namespaces...)
-	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+	db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
 	require.NoError(t, mgr.Cleanup(ts))
@@ -438,13 +438,13 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	namespaces := []databaseNamespace{ns}
 
 	db := newMockdatabase(ctrl, namespaces...)
-	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+	db.EXPECT().OwnedNamespaces().Return(namespaces, nil).AnyTimes()
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
 	deleteInactiveDirectoriesCalls := []deleteInactiveDirectoriesCall{}
@@ -486,7 +486,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	}
 }
 
-func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
+func TestCleanupManagerPropagatesOwnedNamespacesError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -496,7 +496,7 @@ func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
 	db.EXPECT().Open().Return(nil)
 	db.EXPECT().Terminate().Return(nil)
-	db.EXPECT().GetOwnedNamespaces().Return(nil, errDatabaseIsClosed).AnyTimes()
+	db.EXPECT().OwnedNamespaces().Return(nil, errDatabaseIsClosed).AnyTimes()
 
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	require.NoError(t, db.Open())

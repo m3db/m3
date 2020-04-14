@@ -1042,7 +1042,7 @@ func TestNamespaceCloseWillCloseShard(t *testing.T) {
 	require.NoError(t, ns.Close())
 
 	// Check the namespace no long owns any shards
-	require.Empty(t, ns.GetOwnedShards())
+	require.Empty(t, ns.OwnedShards())
 }
 
 func TestNamespaceCloseDoesNotLeak(t *testing.T) {
@@ -1070,7 +1070,7 @@ func TestNamespaceCloseDoesNotLeak(t *testing.T) {
 	require.NoError(t, ns.Close())
 
 	// Check the namespace no long owns any shards
-	require.Empty(t, ns.GetOwnedShards())
+	require.Empty(t, ns.OwnedShards())
 }
 
 func TestNamespaceIndexInsert(t *testing.T) {
