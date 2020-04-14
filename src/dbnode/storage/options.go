@@ -229,7 +229,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		retrieveRequestPool:            retrieveRequestPool,
 		checkedBytesWrapperPool:        bytesWrapperPool,
 		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
-		onColdFlush:                    nil, // TODO: provide a no-op impl here.
+		onColdFlush:                    &noOpColdFlush{},
 		memoryTracker:                  NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 	}
 	return o.SetEncodingM3TSZPooled()
@@ -772,3 +772,22 @@ func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {
 func (o *options) MmapReporter() mmap.Reporter {
 	return o.mmapReporter
 }
+
+type noOpColdFlush struct{}
+
+func (n *noOpColdFlush) ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error) {
+	return &noOpColdFlushNamespace{}, nil
+}
+
+type noOpColdFlushNamespace struct{}
+
+func (n *noOpColdFlushNamespace) OnFlushNewSeries(
+	shard uint32,
+	blockStart time.Time,
+	id ident.ID,
+	tags ident.Tags,
+) error {
+	return nil
+}
+
+func (n *noOpColdFlushNamespace) Done() error { return nil }

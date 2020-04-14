@@ -74,7 +74,7 @@ func testDatabaseShard(t *testing.T, opts Options) *dbShard {
 func testDatabaseShardWithIndexFn(
 	t *testing.T,
 	opts Options,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 ) *dbShard {
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)

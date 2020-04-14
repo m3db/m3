@@ -114,7 +114,7 @@ func newTestNamespaceWithOpts(
 
 func newTestNamespaceWithIndex(
 	t *testing.T,
-	index namespaceIndex,
+	index NamespaceIndex,
 ) (*dbNamespace, closerFn) {
 	ns, closer := newTestNamespace(t)
 	if index != nil {
@@ -125,7 +125,7 @@ func newTestNamespaceWithIndex(
 
 func newTestNamespaceWithTruncateType(
 	t *testing.T,
-	index namespaceIndex,
+	index NamespaceIndex,
 	truncateType series.TruncateType,
 ) (*dbNamespace, closerFn) {
 	opts := DefaultTestOptions().

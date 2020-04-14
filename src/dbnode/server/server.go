@@ -137,6 +137,9 @@ type RunOptions struct {
 
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
+
+	// StorageOptions are options to apply to the database storage options.
+	StorageOptions StorageOptions
 }
 
 // Run runs the server programmatically given a filename for the
@@ -777,6 +780,10 @@ func Run(runOpts RunOptions) {
 			SetRepairOptions(repairOpts)
 	} else {
 		opts = opts.SetRepairEnabled(false)
+	}
+
+	if runOpts.OnColdFlush != nil {
+		opts = opts.SetOnColdFlush(runOpts.OnColdFlush)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the

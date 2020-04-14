@@ -411,6 +411,10 @@ func (n *dbNamespace) Options() namespace.Options {
 	return n.nopts
 }
 
+func (n *dbNamespace) StorageOptions() Options {
+	return n.opts
+}
+
 func (n *dbNamespace) ID() ident.ID {
 	return n.id
 }

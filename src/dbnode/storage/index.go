@@ -473,6 +473,10 @@ func (i *nsIndex) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
 	return xtime.ToUnixNano(writeTime.Truncate(i.blockSize))
 }
 
+func (i *nsIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) {
+	return i.ensureBlockPresent(blockStart)
+}
+
 // NB(prateek): including the call chains leading to this point:
 //
 // - For new entry (previously unseen in the shard):

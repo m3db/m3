@@ -252,6 +252,9 @@ type Namespace interface {
 
 	// Index returns the reverse index backing the namespace, if it exists.
 	Index() (NamespaceIndex, error)
+
+	// StorageOptions returns storage options.
+	StorageOptions() Options
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -585,6 +588,11 @@ type NamespaceIndex interface {
 	BlockStartForWriteTime(
 		writeTime time.Time,
 	) xtime.UnixNano
+
+	// BlockForBlockStart returns an index block for a block start.
+	BlockForBlockStart(
+		blockStart time.Time,
+	) (index.Block, error)
 
 	// WriteBatch indexes the provided entries.
 	WriteBatch(

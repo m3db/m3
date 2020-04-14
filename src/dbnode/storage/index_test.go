@@ -323,7 +323,7 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 }
 
 type testIndex struct {
-	index          namespaceIndex
+	index          NamespaceIndex
 	metadata       namespace.Metadata
 	opts           Options
 	blockSize      time.Duration

@@ -174,7 +174,7 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	testShardWriteTaggedSyncRefCount(t, idx)
 }
 
-func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
+func testShardWriteTaggedSyncRefCount(t *testing.T, idx NamespaceIndex) {
 	var (
 		now   = time.Now()
 		opts  = DefaultTestOptions()
@@ -380,7 +380,7 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	testShardWriteTaggedAsyncRefCount(t, idx, nowFn)
 }
 
-func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex, nowFn func() time.Time) {
+func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn func() time.Time) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{
 		Reporter: testReporter,
