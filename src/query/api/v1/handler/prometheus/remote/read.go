@@ -23,12 +23,13 @@ package remote
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
+	comparator "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
+
 	"github.com/m3db/m3/src/query/ts"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -130,7 +131,6 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "json":
 		var (
 			start, end time.Time
-			result     native.ReadResult
 		)
 		for _, q := range req.Queries {
 			queryStart := storage.PromTimestampToTime(q.StartTimestampMs)
@@ -140,20 +140,25 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				end = queryEnd
 			}
 		}
+
+		count := 0
+		for _, q := range readResult.Result {
+			count += len(q.Timeseries)
+		}
+
+		results := make([]comparator.Series, 0, count)
 		for _, q := range readResult.Result {
 			for _, s := range q.Timeseries {
-				tags := storage.PromLabelsToM3Tags(s.Labels, h.opts.TagOptions())
 				datapoints := storage.PromSamplesToM3Datapoints(s.Samples)
-				name, _ := tags.Name()
-				series := ts.NewSeries(name, datapoints, tags)
-				result.Series = append(result.Series, series)
+				tags := storage.PromLabelsToM3Tags(s.Labels, h.opts.TagOptions())
+				series := toSeries(datapoints, tags)
+				series.Start = start
+				series.End = end
+				results = append(results, series)
 			}
 		}
-		native.RenderResultsJSON(w, result, native.RenderResultsOptions{
-			Start:    start,
-			End:      end,
-			KeepNaNs: strings.TrimSpace(r.FormValue("keepNans")) == "true",
-		})
+
+		err = json.NewEncoder(w).Encode(results)
 	default:
 		err = WriteSnappyCompressed(w, readResult, logger)
 	}
@@ -365,4 +370,33 @@ func filterLabels(
 	}
 
 	return filtered
+}
+
+func tagsConvert(ts models.Tags) comparator.Tags {
+	tags := make(comparator.Tags, ts.Len())
+	for _, t := range ts.Tags {
+		tags[string(t.Name)] = string(t.Value)
+	}
+
+	return tags
+}
+
+func datapointsConvert(dps ts.Datapoints) comparator.Datapoints {
+	datapoints := make(comparator.Datapoints, 0, dps.Len())
+	for _, dp := range dps.Datapoints() {
+		val := comparator.Datapoint{
+			Value:     comparator.Value(dp.Value),
+			Timestamp: dp.Timestamp,
+		}
+		datapoints = append(datapoints, val)
+	}
+
+	return datapoints
+}
+
+func toSeries(dps ts.Datapoints, tags models.Tags) comparator.Series {
+	return comparator.Series{
+		Tags:       tagsConvert(tags),
+		Datapoints: datapointsConvert(dps),
+	}
 }
