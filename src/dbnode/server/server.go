@@ -782,8 +782,8 @@ func Run(runOpts RunOptions) {
 		opts = opts.SetRepairEnabled(false)
 	}
 
-	if runOpts.OnColdFlush != nil {
-		opts = opts.SetOnColdFlush(runOpts.OnColdFlush)
+	if runOpts.StorageOptions.OnColdFlush != nil {
+		opts = opts.SetOnColdFlush(runOpts.StorageOptions.OnColdFlush)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the
