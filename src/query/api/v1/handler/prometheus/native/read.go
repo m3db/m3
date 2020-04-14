@@ -26,6 +26,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
@@ -153,6 +154,8 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	handleroptions.AddWarningHeaders(w, result.Meta)
+
 	if parsed.params.FormatType == models.FormatM3QL {
 		renderM3QLResultsJSON(w, result.Series, parsed.params)
 		h.promReadMetrics.fetchSuccess.Inc(1)

@@ -193,6 +193,9 @@ func TestRenderResultsJSON(t *testing.T) {
 	expected := xtest.MustPrettyJSON(t, `
 	{
 		"status": "success",
+		"warnings": [
+			"m3db exceeded query limit: results not exhaustive"
+		],
 		"data": {
 			"resultType": "matrix",
 			"result": [
@@ -298,7 +301,6 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 	}
 
 	renderResultsJSON(buffer, readResult, params, false)
-
 	expected := xtest.MustPrettyJSON(t, `
 	{
 		"status": "success",
@@ -366,8 +368,12 @@ func TestRenderInstantaneousResultsJSON(t *testing.T) {
 			})),
 	}
 
-	renderResultsInstantaneousJSON(buffer, series)
+	readResult := ReadResult{
+		Series: series,
+		Meta:   block.NewResultMetadata(),
+	}
 
+	renderResultsInstantaneousJSON(buffer, readResult)
 	expected := xtest.MustPrettyJSON(t, `
 	{
 		"status": "success",

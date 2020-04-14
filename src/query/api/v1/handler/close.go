@@ -67,8 +67,7 @@ type ctxCanceller struct {
 }
 
 func (c *ctxCanceller) WatchForCancel(
-	ctx context.Context,
-	cancel context.CancelFunc,
+	ctx context.Context, _ context.CancelFunc,
 ) {
 	logger := logging.WithContext(ctx, c.iOpts)
 	go func() {

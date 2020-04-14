@@ -297,7 +297,7 @@ func renderResultsJSON(
 ) {
 	var (
 		series   = result.Series
-		warnings = result.Meta.Warnings.ToStrings()
+		warnings = result.Meta.WarningStrings()
 	)
 
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
@@ -319,7 +319,6 @@ func renderResultsJSON(
 		}
 
 		jw.EndArray()
-		jw.EndObject()
 	}
 
 	jw.BeginObjectField("data")
@@ -383,13 +382,28 @@ func renderResultsJSON(
 
 func renderResultsInstantaneousJSON(
 	w io.Writer,
-	series []*ts.Series,
+	result ReadResult,
 ) {
+	var (
+		series   = result.Series
+		warnings = result.Meta.WarningStrings()
+	)
+
 	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
 	jw.WriteString("success")
+
+	if len(warnings) > 0 {
+		jw.BeginObjectField("warnings")
+		jw.BeginArray()
+		for _, warn := range warnings {
+			jw.WriteString(warn)
+		}
+
+		jw.EndArray()
+	}
 
 	jw.BeginObjectField("data")
 	jw.BeginObject()

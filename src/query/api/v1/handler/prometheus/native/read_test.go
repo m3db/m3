@@ -82,11 +82,13 @@ func testPromReadHandlerRead(
 	parsed := parsed{
 		queryOpts: setup.QueryOpts,
 		fetchOpts: setup.FetchOpts,
+		params:    r,
 	}
 
 	result, err := read(context.TODO(), parsed, promRead.opts)
-	seriesList := result.Series
 	require.NoError(t, err)
+	seriesList := result.Series
+
 	require.Len(t, seriesList, 2)
 	s := seriesList[0]
 

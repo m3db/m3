@@ -79,16 +79,18 @@ func (v vectorResultValues) parse() (time.Time, int, error) {
 }
 
 func TestPromReadInstantHandler(t *testing.T) {
-	testPromReadInstantHandler(t, block.NewResultMetadata(), "")
-	testPromReadInstantHandler(t, buildWarningMeta("foo", "bar"), "foo_bar")
+	testPromReadInstantHandler(t, block.NewResultMetadata(), "", "")
+	testPromReadInstantHandler(t, buildWarningMeta("foo", "bar"), "foo_bar", "foo_bar")
 	testPromReadInstantHandler(t, block.ResultMetadata{Exhaustive: false},
-		handleroptions.LimitHeaderSeriesLimitApplied)
+		handleroptions.LimitHeaderSeriesLimitApplied,
+		"m3db exceeded query limit: results not exhaustive")
 }
 
 func testPromReadInstantHandler(
 	t *testing.T,
 	resultMeta block.ResultMetadata,
 	ex string,
+	jsonWarning string,
 ) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
@@ -130,9 +132,18 @@ func testPromReadInstantHandler(
 	at1, value1, err := result.Data.Result[1].Value.parse()
 	require.NoError(t, err)
 
+	var jsonWarnings string
+	if len(jsonWarning) > 0 {
+		jsonWarnings = fmt.Sprintf(`
+		"warnings": [
+			"%s"
+		],
+		`, jsonWarning)
+	}
+
 	expected := xtest.MustPrettyJSON(t, fmt.Sprintf(`
 	{
-		"status": "success",
+		"status": "success",%s
 		"data": {
 			"resultType": "vector", 
 			"result": [
@@ -159,7 +170,8 @@ func testPromReadInstantHandler(
 			]
 		}
 	}
-	`, at0.Unix(), value0, at1.Unix(), value1))
+	`, jsonWarnings, at0.Unix(), value0, at1.Unix(), value1))
+
 	actual := xtest.MustPrettyJSON(t, recorder.Body.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
