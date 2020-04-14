@@ -382,6 +382,7 @@ func NewOptions() Options {
 		shardFn:                          sharding.Murmur32Hash.MustShardFn(),
 		bufferDurationBeforeShardCutover: defaultBufferDurationBeforeShardCutover,
 		bufferDurationAfterShardCutoff:   defaultBufferDurationAfterShardCutoff,
+		passthroughWriter:                writer.NewBlackholeWriter(),
 		entryTTL:                         defaultEntryTTL,
 		entryCheckInterval:               defaultEntryCheckInterval,
 		entryCheckBatchPercent:           defaultEntryCheckBatchPercent,

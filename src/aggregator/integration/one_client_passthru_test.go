@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"reflect"
 	"sort"
 	"sync"
 	"testing"
@@ -140,7 +141,7 @@ func TestOneClientPassthroughMetrics(t *testing.T) {
 	// Validate results.
 	expected := computeExpectedPassthroughResults(t, dataset)
 	actual := testServer.sortedResults()
-	require.Equal(t, expected, actual)
+	require.Equal(t, dedupResults(expected), dedupResults(actual))
 }
 
 func computeExpectedPassthroughResults(
@@ -165,4 +166,18 @@ func computeExpectedPassthroughResults(
 	// Sort the aggregated metrics.
 	sort.Sort(byTimeIDPolicyAscending(expected))
 	return expected
+}
+
+func dedupResults(
+	results []aggregated.MetricWithStoragePolicy,
+) []aggregated.MetricWithStoragePolicy {
+	var deduped []aggregated.MetricWithStoragePolicy
+	lenDeduped := 0
+	for _, m := range results {
+		if lenDeduped == 0 || !reflect.DeepEqual(deduped[lenDeduped-1], m) {
+			deduped = append(deduped, m)
+			lenDeduped++
+		}
+	}
+	return deduped
 }

@@ -273,7 +273,6 @@ func (agg *aggregator) AddPassthrough(
 
 	if agg.electionManager.ElectionState() == FollowerState {
 		agg.metrics.addPassthrough.ReportFollowerNoop()
-		agg.metrics.addPassthrough.ReportSuccess(agg.nowFn().Sub(callStart))
 		return nil
 	}
 
