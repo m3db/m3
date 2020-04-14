@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -169,22 +170,25 @@ func TestRenderResultsJSON(t *testing.T) {
 	series := []*ts.Series{
 		ts.NewSeries([]byte("foo"),
 			valsWithNaN, test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+				{Name: []byte("bar"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
 			})),
 		ts.NewSeries([]byte("foobar"),
-			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("biz"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("biz"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 	}
 
-	renderResultsJSON(buffer, series, params, true)
+	readResult := ReadResult{Series: series}
+	renderResultsJSON(buffer, readResult, params, true)
 
 	expected := xtest.MustPrettyJSON(t, `
 	{
@@ -268,26 +272,40 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 	series := []*ts.Series{
 		ts.NewSeries([]byte("foo"),
 			valsWithNaN, test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+				{Name: []byte("bar"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(step, 2, 2, start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			ts.NewFixedStepValues(step, 2, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
 			})),
 		ts.NewSeries([]byte("foobar"),
-			ts.NewFixedStepValues(step, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("biz"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			ts.NewFixedStepValues(step, 2, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("biz"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 	}
 
-	renderResultsJSON(buffer, series, params, false)
+	meta := block.NewResultMetadata()
+	meta.AddWarning("foo", "bar")
+	meta.AddWarning("baz", "qux")
+	readResult := ReadResult{
+		Series: series,
+		Meta:   meta,
+	}
+
+	renderResultsJSON(buffer, readResult, params, false)
 
 	expected := xtest.MustPrettyJSON(t, `
 	{
 		"status": "success",
+		"warnings": [
+			"foo_bar",
+			"baz_qux"
+		],
 		"data": {
 			"resultType": "matrix",
 			"result": [
@@ -335,14 +353,16 @@ func TestRenderInstantaneousResultsJSON(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	series := []*ts.Series{
 		ts.NewSeries([]byte("foo"),
-			ts.NewFixedStepValues(10*time.Second, 1, 1, start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			ts.NewFixedStepValues(10*time.Second, 1, 1, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("bar"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(10*time.Second, 1, 2, start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			ts.NewFixedStepValues(10*time.Second, 1, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
 			})),
 	}
 

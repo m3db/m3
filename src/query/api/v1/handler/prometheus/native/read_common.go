@@ -25,11 +25,9 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/executor"
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
-	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 
@@ -44,12 +42,17 @@ type ReadResult struct {
 
 func read(
 	ctx context.Context,
-	engine executor.Engine,
-	opts *executor.QueryOptions,
-	fetchOpts *storage.FetchOptions,
-	tagOpts models.TagOptions,
-	params models.RequestParams,
+	parsed parsed,
+	handlerOpts options.HandlerOptions,
 ) (ReadResult, error) {
+	var (
+		opts      = parsed.queryOpts
+		fetchOpts = parsed.fetchOpts
+		params    = parsed.params
+
+		tagOpts = handlerOpts.TagOptions()
+		engine  = handlerOpts.Engine()
+	)
 	sp := xopentracing.SpanFromContextOrNoop(ctx)
 	sp.LogFields(
 		opentracinglog.String("params.query", params.Query),

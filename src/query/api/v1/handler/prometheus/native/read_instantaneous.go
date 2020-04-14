@@ -25,13 +25,11 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
@@ -52,39 +50,40 @@ var (
 	}
 )
 
-// PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.
+// PromReadInstantHandler represents a handler for prometheus
+// instantaneous read endpoint.
 type PromReadInstantHandler struct {
-	engine              executor.Engine
-	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
-	tagOpts             models.TagOptions
-	timeoutOpts         *prometheus.TimeoutOpts
-	instrumentOpts      instrument.Options
+	opts options.HandlerOptions
 }
 
 // NewPromReadInstantHandler returns a new instance of handler.
 func NewPromReadInstantHandler(
 	opts options.HandlerOptions) *PromReadInstantHandler {
 	return &PromReadInstantHandler{
-		engine:              opts.Engine(),
-		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
-		tagOpts:             opts.TagOptions(),
-		timeoutOpts:         opts.TimeoutOpts(),
-		instrumentOpts:      opts.InstrumentOpts(),
+		opts: opts,
 	}
 }
 
-func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *PromReadInstantHandler) ServeHTTP(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx, h.instrumentOpts)
+	var (
+		engine         = h.opts.Engine()
+		timeoutOpts    = h.opts.TimeoutOpts()
+		instrumentOpts = h.opts.InstrumentOpts()
+	)
 
-	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
+	logger := logging.WithContext(ctx, instrumentOpts)
+	fetchOpts, rErr := h.opts.FetchOptionsBuilder().NewFetchOptions(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	params, rErr := parseInstantaneousParams(r, h.engine.Options(),
-		h.timeoutOpts, fetchOpts, h.instrumentOpts)
+	params, rErr := parseInstantaneousParams(r, engine.Options(),
+		timeoutOpts, fetchOpts, instrumentOpts)
 	if rErr != nil {
 		xhttp.Error(w, rErr, rErr.Code())
 		return
@@ -108,7 +107,13 @@ func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		queryOpts.QueryContextOptions.RestrictFetchType = restrict
 	}
 
-	result, err := read(ctx, h.engine, queryOpts, fetchOpts, h.tagOpts, params)
+	parsed := parsed{
+		queryOpts: queryOpts,
+		fetchOpts: fetchOpts,
+		params:    params,
+	}
+
+	result, err := read(ctx, parsed, h.opts)
 	if err != nil {
 		logger.Error("instant query error",
 			zap.Error(err),

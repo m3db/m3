@@ -159,6 +159,16 @@ func (w Warnings) addWarnings(warnings ...Warning) Warnings {
 	return w
 }
 
+// ToStrings converts warnings to a slice of strings for presentation.
+func (w Warnings) ToStrings() []string {
+	strs := make([]string, 0, len(w))
+	for _, warn := range w {
+		strs = append(strs, warn.Header())
+	}
+
+	return strs
+}
+
 // Warning is a message that indicates potential partial or incomplete results.
 type Warning struct {
 	// Name is the name of the store originating the warning.

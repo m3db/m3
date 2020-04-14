@@ -79,10 +79,12 @@ func testPromReadHandlerRead(
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	result, err := read(context.TODO(), promRead.engine,
-		setup.QueryOpts, setup.FetchOpts, promRead.tagOpts, httptest.NewRecorder(),
-		r, instrument.NewOptions())
+	parsed := parsed{
+		queryOpts: setup.QueryOpts,
+		fetchOpts: setup.FetchOpts,
+	}
 
+	result, err := read(context.TODO(), parsed, promRead.opts)
 	seriesList := result.Series
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
@@ -166,6 +168,7 @@ type testSetup struct {
 	QueryOpts   *executor.QueryOptions
 	FetchOpts   *storage.FetchOptions
 	TimeoutOpts *prometheus.TimeoutOpts
+	options     options.HandlerOptions
 }
 
 type testSetupHandlers struct {
@@ -214,16 +217,20 @@ func newTestSetup() *testSetup {
 		QueryOpts:   &executor.QueryOptions{},
 		FetchOpts:   storage.NewFetchOptions(),
 		TimeoutOpts: timeoutOpts,
+		options:     opts,
 	}
 }
 
-func TestPromReadHandler_ServeHTTP_maxComputedDatapoints(t *testing.T) {
+func TestPromReadHandlerServeHTTPMaxComputedDatapoints(t *testing.T) {
 	setup := newTestSetup()
-	setup.Handlers.Read.limitsCfg = &config.LimitsConfiguration{
-		PerQuery: config.PerQueryLimitsConfiguration{
-			PrivateMaxComputedDatapoints: 3599,
+	opts := setup.Handlers.Read.opts
+	setup.Handlers.Read.opts = opts.SetConfig(config.Configuration{
+		Limits: config.LimitsConfiguration{
+			PerQuery: config.PerQueryLimitsConfiguration{
+				PrivateMaxComputedDatapoints: 3599,
+			},
 		},
-	}
+	})
 
 	params := defaultParams()
 	params.Set(startParam, time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC).
@@ -260,79 +267,79 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 	}
 
 	cases := []struct {
-		Name          string
-		Params        *models.RequestParams
-		Max           int64
-		ErrorExpected bool
+		name          string
+		params        *models.RequestParams
+		max           int
+		errorExpected bool
 	}{{
-		Name: "under limit",
-		Params: &models.RequestParams{
+		name: "under limit",
+		params: &models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
 		},
-		Max:           3601,
-		ErrorExpected: false,
+		max:           3601,
+		errorExpected: false,
 	}, {
-		Name: "at limit",
-		Params: &models.RequestParams{
+		name: "at limit",
+		params: &models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
 		},
-		Max:           3600,
-		ErrorExpected: false,
+		max:           3600,
+		errorExpected: false,
 	}, {
-		Name: "over limit",
-		Params: &models.RequestParams{
+		name: "over limit",
+		params: &models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
 		},
-		Max:           3599,
-		ErrorExpected: true,
+		max:           3599,
+		errorExpected: true,
 	}, {
-		Name: "large query, limit disabled (0)",
-		Params: &models.RequestParams{
+		name: "large query, limit disabled (0)",
+		params: &models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
 		},
-		Max:           0,
-		ErrorExpected: false,
+		max:           0,
+		errorExpected: false,
 	}, {
-		Name: "large query, limit disabled (negative)",
-		Params: &models.RequestParams{
+		name: "large query, limit disabled (negative)",
+		params: &models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
 		},
-		Max:           -50,
-		ErrorExpected: false,
+		max:           -50,
+		errorExpected: false,
 	}, {
-		Name: "uneven step over limit",
-		Params: &models.RequestParams{
+		name: "uneven step over limit",
+		params: &models.RequestParams{
 			Step:  34 * time.Minute,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 11),
 		},
-		Max:           1,
-		ErrorExpected: true,
+		max:           1,
+		errorExpected: true,
 	}, {
-		Name: "uneven step under limit",
-		Params: &models.RequestParams{
+		name: "uneven step under limit",
+		params: &models.RequestParams{
 			Step:  34 * time.Minute,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
 		},
-		Max:           2,
-		ErrorExpected: false},
+		max:           2,
+		errorExpected: false},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			err := validateRequest(tc.Params, tc.Max)
-			if tc.ErrorExpected {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateRequest(tc.params, tc.max)
+			if tc.errorExpected {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
