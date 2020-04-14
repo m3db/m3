@@ -105,7 +105,7 @@ func (m *flushManager) Flush(startTime time.Time) error {
 
 	defer m.setState(flushManagerIdle)
 
-	namespaces, err := m.database.GetOwnedNamespaces()
+	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
 		return err
 	}

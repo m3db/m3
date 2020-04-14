@@ -204,3 +204,13 @@ const (
 	// FileSetIndexContentType indicates that the fileset files contain time series index metadata
 	FileSetIndexContentType
 )
+
+// OnFlushSeries performs work on a per series level.
+type OnFlushSeries interface {
+	OnFlushNewSeries(
+		shard uint32,
+		blockStart time.Time,
+		id ident.ID,
+		tags ident.Tags,
+	) error
+}

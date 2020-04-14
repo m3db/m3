@@ -223,8 +223,8 @@ type Database interface {
 type database interface {
 	Database
 
-	// GetOwnedNamespaces returns the namespaces this database owns.
-	GetOwnedNamespaces() ([]databaseNamespace, error)
+	// OwnedNamespaces returns the namespaces this database owns.
+	OwnedNamespaces() ([]databaseNamespace, error)
 
 	// UpdateOwnedNamespaces updates the namespaces this database owns.
 	UpdateOwnedNamespaces(namespaces namespace.Map) error
@@ -249,6 +249,9 @@ type Namespace interface {
 
 	// Shards returns the shard description.
 	Shards() []Shard
+
+	// Index returns the reverse index backing the namespace, if it exists.
+	Index() (NamespaceIndex, error)
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID.
@@ -269,11 +272,8 @@ type databaseNamespace interface {
 	// AssignShardSet sets the shard set assignment and returns immediately.
 	AssignShardSet(shardSet sharding.ShardSet)
 
-	// GetOwnedShards returns the database shards.
-	GetOwnedShards() []databaseShard
-
-	// GetIndex returns the reverse index backing the namespace, if it exists.
-	GetIndex() (namespaceIndex, error)
+	// OwnedShards returns the database shards.
+	OwnedShards() []databaseShard
 
 	// Tick performs any regular maintenance operations.
 	Tick(c context.Cancellable, startTime time.Time) error
@@ -523,6 +523,7 @@ type databaseShard interface {
 		flush persist.FlushPreparer,
 		resources coldFlushReuseableResources,
 		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
 	) error
 
 	// Snapshot snapshot's the unflushed WarmWrites in this shard.
@@ -574,8 +575,8 @@ type ShardSeriesReadWriteRefOptions struct {
 	ReverseIndex bool
 }
 
-// namespaceIndex indexes namespace writes.
-type namespaceIndex interface {
+// NamespaceIndex indexes namespace writes.
+type NamespaceIndex interface {
 	// AssignShardSet sets the shard set assignment and returns immediately.
 	AssignShardSet(shardSet sharding.ShardSet)
 
@@ -814,6 +815,17 @@ type databaseMediator interface {
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 }
 
+// OnColdFlush can perform work each time a series is flushed.
+type OnColdFlush interface {
+	ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error)
+}
+
+// OnColdFlushNamespace performs work on a per namespace level.
+type OnColdFlushNamespace interface {
+	persist.OnFlushSeries
+	Done() error
+}
+
 // Options represents the options for storage.
 type Options interface {
 	// Validate validates assumptions baked into the code.
@@ -1050,6 +1062,12 @@ type Options interface {
 
 	// BlockLeaseManager returns the block leaser.
 	BlockLeaseManager() block.LeaseManager
+
+	// SetOnColdFlush sets the on cold flush processor.
+	SetOnColdFlush(value OnColdFlush) Options
+
+	// OnColdFlush returns the on cold flush processor.
+	OnColdFlush() OnColdFlush
 
 	// SetMemoryTracker sets the MemoryTracker.
 	SetMemoryTracker(memTracker MemoryTracker) Options

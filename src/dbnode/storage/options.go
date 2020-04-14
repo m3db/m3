@@ -93,6 +93,7 @@ var (
 	errIndexOptionsNotSet         = errors.New("index enabled but index options are not set")
 	errPersistManagerNotSet       = errors.New("persist manager is not set")
 	errBlockLeaserNotSet          = errors.New("block leaser is not set")
+	errOnColdFlushNotSet          = errors.New("on cold flush is not set, requires at least a no-op implementation")
 )
 
 // NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
@@ -156,6 +157,7 @@ type options struct {
 	checkedBytesWrapperPool        xpool.CheckedBytesWrapperPool
 	schemaReg                      namespace.SchemaRegistry
 	blockLeaseManager              block.LeaseManager
+	onColdFlush                    OnColdFlush
 	memoryTracker                  MemoryTracker
 	mmapReporter                   mmap.Reporter
 }
@@ -227,6 +229,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		retrieveRequestPool:            retrieveRequestPool,
 		checkedBytesWrapperPool:        bytesWrapperPool,
 		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
+		onColdFlush:                    nil, // TODO: provide a no-op impl here.
 		memoryTracker:                  NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
 	}
 	return o.SetEncodingM3TSZPooled()
@@ -279,6 +282,10 @@ func (o *options) Validate() error {
 
 	if o.blockLeaseManager == nil {
 		return errBlockLeaserNotSet
+	}
+
+	if o.onColdFlush == nil {
+		return errOnColdFlushNotSet
 	}
 
 	return nil
@@ -734,6 +741,16 @@ func (o *options) SetBlockLeaseManager(leaseMgr block.LeaseManager) Options {
 
 func (o *options) BlockLeaseManager() block.LeaseManager {
 	return o.blockLeaseManager
+}
+
+func (o *options) SetOnColdFlush(value OnColdFlush) Options {
+	opts := *o
+	opts.onColdFlush = value
+	return &opts
+}
+
+func (o *options) OnColdFlush() OnColdFlush {
+	return o.onColdFlush
 }
 
 func (o *options) SetMemoryTracker(memTracker MemoryTracker) Options {

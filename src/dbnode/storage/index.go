@@ -211,7 +211,7 @@ func newNamespaceIndex(
 	nsMD namespace.Metadata,
 	shardSet sharding.ShardSet,
 	opts Options,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
 		shardSet:        shardSet,
@@ -227,7 +227,7 @@ func newNamespaceIndexWithInsertQueueFn(
 	shardSet sharding.ShardSet,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
 	opts Options,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
 		shardSet:        shardSet,
@@ -243,7 +243,7 @@ func newNamespaceIndexWithNewBlockFn(
 	shardSet sharding.ShardSet,
 	newBlockFn newBlockFn,
 	opts Options,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
 		shardSet:        shardSet,
@@ -256,7 +256,7 @@ func newNamespaceIndexWithNewBlockFn(
 // newNamespaceIndexWithOptions returns a new namespaceIndex with the provided configuration options.
 func newNamespaceIndexWithOptions(
 	newIndexOpts newNamespaceIndexOpts,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	var (
 		nsMD            = newIndexOpts.md
 		shardSet        = newIndexOpts.shardSet

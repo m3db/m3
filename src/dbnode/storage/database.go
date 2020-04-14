@@ -1023,7 +1023,7 @@ func (d *db) ownedNamespacesWithLock() []databaseNamespace {
 	return namespaces
 }
 
-func (d *db) GetOwnedNamespaces() ([]databaseNamespace, error) {
+func (d *db) OwnedNamespaces() ([]databaseNamespace, error) {
 	d.RLock()
 	defer d.RUnlock()
 	if d.state == databaseClosed {

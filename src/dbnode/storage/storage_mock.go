@@ -1166,10 +1166,10 @@ func (mr *MockdatabaseNamespaceMockRecorder) GetOwnedShards() *gomock.Call {
 }
 
 // GetIndex mocks base method
-func (m *MockdatabaseNamespace) GetIndex() (namespaceIndex, error) {
+func (m *MockdatabaseNamespace) GetIndex() (NamespaceIndex, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetIndex")
-	ret0, _ := ret[0].(namespaceIndex)
+	ret0, _ := ret[0].(NamespaceIndex)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
