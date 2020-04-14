@@ -165,7 +165,11 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.fetchSuccess.Inc(1)
 	keepNans := h.opts.Config().ResultOptions.KeepNans
 	// TODO: Support multiple result types
-	renderResultsJSON(w, result, parsed.params, keepNans)
+	RenderResultsJSON(w, result, RenderResultsOptions{
+		Start:    parsed.params.Start,
+		End:      parsed.params.End,
+		KeepNaNs: keepNans,
+	})
 }
 
 type parsed struct {

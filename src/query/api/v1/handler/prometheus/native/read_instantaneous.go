@@ -129,5 +129,5 @@ func (h *PromReadInstantHandler) ServeHTTP(
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
 	handleroptions.AddWarningHeaders(w, result.Meta)
-	renderResultsInstantaneousJSON(w, result)
+	RenderResultsInstantaneousJSON(w, result)
 }

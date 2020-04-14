@@ -24,7 +24,12 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"strings"
 	"sync"
+	"time"
+
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
+	"github.com/m3db/m3/src/query/ts"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -121,6 +126,37 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// NB: if this errors, all relevant headers and information should already
 	// be sent to the writer; so it is not necessary to do anything here other
 	// than increment success/failure metrics.
+	switch r.FormValue("format") {
+	case "json":
+		var (
+			start, end time.Time
+			result     native.ReadResult
+		)
+		for _, q := range req.Queries {
+			queryStart := storage.PromTimestampToTime(q.StartTimestampMs)
+			queryEnd := storage.PromTimestampToTime(q.EndTimestampMs)
+			if start.IsZero() || queryStart.Before(start) {
+				start = queryStart
+				end = queryEnd
+			}
+		}
+		for _, q := range readResult.Result {
+			for _, s := range q.Timeseries {
+				tags := storage.PromLabelsToM3Tags(s.Labels, h.opts.TagOptions())
+				datapoints := storage.PromSamplesToM3Datapoints(s.Samples)
+				name, _ := tags.Name()
+				series := ts.NewSeries(name, datapoints, tags)
+				result.Series = append(result.Series, series)
+			}
+		}
+		native.RenderResultsJSON(w, result, native.RenderResultsOptions{
+			Start:    start,
+			End:      end,
+			KeepNaNs: strings.TrimSpace(r.FormValue("keepNans")) == "true",
+		})
+	default:
+		err = WriteSnappyCompressed(w, readResult, logger)
+	}
 	err = WriteSnappyCompressed(w, readResult, logger)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
