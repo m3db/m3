@@ -999,11 +999,11 @@ func TestEntryAddUntimedWithInvalidAggregationType(t *testing.T) {
 	}
 }
 
-func TestEntryAddUntimedWithInvalidPipeline(t *testing.T) {
+func TestEntryAddUntimedWithNoRollup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	invalidPipeline := metadata.PipelineMetadata{
+	pipelineNoRollup := metadata.PipelineMetadata{
 		Pipeline: applied.NewPipeline([]applied.OpUnion{
 			{
 				Type:           pipeline.TransformationOpType,
@@ -1013,11 +1013,10 @@ func TestEntryAddUntimedWithInvalidPipeline(t *testing.T) {
 	}
 	e, _, _ := testEntry(ctrl, testEntryOptions{})
 	metadatas := metadata.StagedMetadatas{
-		{Metadata: metadata.Metadata{Pipelines: []metadata.PipelineMetadata{invalidPipeline}}},
+		{Metadata: metadata.Metadata{Pipelines: []metadata.PipelineMetadata{pipelineNoRollup}}},
 	}
 	err := e.AddUntimed(testCounter, metadatas)
-	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "has no rollup operations"))
+	require.NoError(t, err)
 }
 
 func TestShouldUpdateStagedMetadataWithLock(t *testing.T) {

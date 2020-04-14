@@ -51,6 +51,9 @@ type typeSpecificAggregation interface {
 	// ValueOf returns the value for the given aggregation type.
 	ValueOf(aggType maggregation.Type) float64
 
+	// LastAt returns the time for last received value.
+	LastAt() time.Time
+
 	// Close closes the aggregation object.
 	Close()
 }
@@ -117,10 +120,10 @@ type GenericElem struct {
 	elemBase
 	typeSpecificElemBase
 
-	values              []timedAggregation // metric aggregations sorted by time in ascending order
-	toConsume           []timedAggregation // small buffer to avoid memory allocations during consumption
-	lastConsumedAtNanos int64              // last consumed at in Unix nanoseconds
-	lastConsumedValues  []float64          // last consumed values
+	values              []timedAggregation         // metric aggregations sorted by time in ascending order
+	toConsume           []timedAggregation         // small buffer to avoid memory allocations during consumption
+	lastConsumedAtNanos int64                      // last consumed at in Unix nanoseconds
+	lastConsumedValues  []transformation.Datapoint // last consumed values
 }
 
 // NewGenericElem creates a new element for the given metric type.
@@ -186,11 +189,11 @@ func (e *GenericElem) ResetSetData(
 	}
 	numAggTypes := len(e.aggTypes)
 	if cap(e.lastConsumedValues) < numAggTypes {
-		e.lastConsumedValues = make([]float64, numAggTypes)
+		e.lastConsumedValues = make([]transformation.Datapoint, numAggTypes)
 	}
 	e.lastConsumedValues = e.lastConsumedValues[:numAggTypes]
 	for i := 0; i < len(e.lastConsumedValues); i++ {
-		e.lastConsumedValues[i] = nan
+		e.lastConsumedValues[i] = transformation.Datapoint{Value: nan}
 	}
 	return nil
 }
@@ -466,28 +469,52 @@ func (e *GenericElem) processValueWithAggregationLock(
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
 		value := lockedAgg.aggregation.ValueOf(aggType)
-		for i := 0; i < transformations.Len(); i++ {
-			transformType := transformations.At(i).Transformation.Type
-			if transformType.IsUnaryTransform() {
-				fn := transformType.MustUnaryTransform()
-				res := fn(transformation.Datapoint{TimeNanos: timeNanos, Value: value})
+		for _, transformOp := range transformations {
+			unaryOp, isUnaryOp := transformOp.UnaryTransform()
+			binaryOp, isBinaryOp := transformOp.BinaryTransform()
+			switch {
+			case isUnaryOp:
+				curr := transformation.Datapoint{
+					TimeNanos: timeNanos,
+					Value:     value,
+				}
+
+				res := unaryOp.Evaluate(curr)
+
 				value = res.Value
-			} else {
-				fn := transformType.MustBinaryTransform()
-				prev := transformation.Datapoint{TimeNanos: e.lastConsumedAtNanos, Value: e.lastConsumedValues[aggTypeIdx]}
-				curr := transformation.Datapoint{TimeNanos: timeNanos, Value: value}
-				res := fn(prev, curr)
+
+			case isBinaryOp:
+				lastTimeNanos := e.lastConsumedAtNanos
+				prev := transformation.Datapoint{
+					TimeNanos: lastTimeNanos,
+					Value:     e.lastConsumedValues[aggTypeIdx].Value,
+				}
+
+				currTimeNanos := timeNanos
+				curr := transformation.Datapoint{
+					TimeNanos: currTimeNanos,
+					Value:     value,
+				}
+
+				res := binaryOp.Evaluate(prev, curr)
+
 				// NB: we only need to record the value needed for derivative transformations.
 				// We currently only support first-order derivative transformations so we only
 				// need to keep one value. In the future if we need to support higher-order
 				// derivative transformations, we need to store an array of values here.
-				e.lastConsumedValues[aggTypeIdx] = value
+				if !math.IsNaN(curr.Value) {
+					e.lastConsumedValues[aggTypeIdx] = curr
+				}
+
 				value = res.Value
+
 			}
 		}
+
 		if discardNaNValues && math.IsNaN(value) {
 			continue
 		}
+
 		if !e.parsedPipeline.HasRollup {
 			switch e.idPrefixSuffixType {
 			case NoPrefixNoSuffix:

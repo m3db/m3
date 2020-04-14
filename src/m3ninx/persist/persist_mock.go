@@ -351,6 +351,20 @@ func (mr *MockIndexFileSetReaderMockRecorder) ReadSegmentFileSet() *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSegmentFileSet", reflect.TypeOf((*MockIndexFileSetReader)(nil).ReadSegmentFileSet))
 }
 
+// IndexVolumeType mocks base method
+func (m *MockIndexFileSetReader) IndexVolumeType() IndexVolumeType {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexVolumeType")
+	ret0, _ := ret[0].(IndexVolumeType)
+	return ret0
+}
+
+// IndexVolumeType indicates an expected call of IndexVolumeType
+func (mr *MockIndexFileSetReaderMockRecorder) IndexVolumeType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexVolumeType", reflect.TypeOf((*MockIndexFileSetReader)(nil).IndexVolumeType))
+}
+
 // MockIndexSegmentFileSet is a mock of IndexSegmentFileSet interface
 type MockIndexSegmentFileSet struct {
 	ctrl     *gomock.Controller

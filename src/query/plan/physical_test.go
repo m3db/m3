@@ -98,6 +98,6 @@ func TestShiftTime(t *testing.T) {
 	p, err = NewPhysicalPlan(lp, params)
 	require.NoError(t, err)
 	assert.Equal(t, params.Start.
-		Add(-1*(time.Minute+time.Hour+defaultLookbackDuration)), p.TimeSpec.Start,
+		Add(-1*(time.Hour+defaultLookbackDuration)), p.TimeSpec.Start,
 		"start time offset by fetch")
 }
