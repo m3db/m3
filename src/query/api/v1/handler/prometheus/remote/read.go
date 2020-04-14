@@ -24,14 +24,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	comparator "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
-
-	"github.com/m3db/m3/src/query/ts"
-
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
@@ -41,12 +40,16 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/promql"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -229,9 +232,73 @@ func parseRequest(
 	r *http.Request,
 	opts options.HandlerOptions,
 ) (*prompb.ReadRequest, *storage.FetchOptions, *xhttp.ParseError) {
-	req, rErr := parseCompressedRequest(r)
-	if rErr != nil {
-		return nil, nil, rErr
+	var req *prompb.ReadRequest
+	exprParam := strings.TrimSpace(r.FormValue("expr"))
+	switch {
+	case exprParam != "":
+		queryStart, err := util.ParseTimeString(r.FormValue("start"))
+		if err != nil {
+			return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		queryEnd, err := util.ParseTimeString(r.FormValue("end"))
+		if err != nil {
+			return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		req = &prompb.ReadRequest{}
+
+		expr, err := promql.ParseExpr(exprParam)
+		if err != nil {
+			return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		var (
+			evalRange time.Duration
+		)
+		promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
+			var (
+				start = queryStart
+				end   = queryEnd
+			)
+
+			switch n := node.(type) {
+			case *promql.VectorSelector:
+				if evalRange > 0 {
+					start = start.Add(-1 * evalRange)
+					evalRange = 0
+				}
+
+				if n.Offset > 0 {
+					offsetMilliseconds := time.Duration(n.Offset) * time.Millisecond
+					start = start.Add(-1 * offsetMilliseconds)
+					end = end.Add(-1 * offsetMilliseconds)
+				}
+
+				matchers, err := toLabelMatchers(n.LabelMatchers)
+				if err != nil {
+					return err
+				}
+
+				query := &prompb.Query{
+					StartTimestampMs: storage.TimeToPromTimestamp(start),
+					EndTimestampMs:   storage.TimeToPromTimestamp(end),
+					Matchers:         matchers,
+				}
+
+				req.Queries = append(req.Queries, query)
+
+			case *promql.MatrixSelector:
+				evalRange = n.Range
+			}
+			return nil
+		})
+	default:
+		var rErr *xhttp.ParseError
+		req, rErr = parseCompressedRequest(r)
+		if rErr != nil {
+			return nil, nil, rErr
+		}
 	}
 
 	timeout := opts.TimeoutOpts().FetchTimeout
@@ -399,4 +466,29 @@ func toSeries(dps ts.Datapoints, tags models.Tags) comparator.Series {
 		Tags:       tagsConvert(tags),
 		Datapoints: datapointsConvert(dps),
 	}
+}
+
+func toLabelMatchers(matchers []*labels.Matcher) ([]*prompb.LabelMatcher, error) {
+	pbMatchers := make([]*prompb.LabelMatcher, 0, len(matchers))
+	for _, m := range matchers {
+		var mType prompb.LabelMatcher_Type
+		switch m.Type {
+		case labels.MatchEqual:
+			mType = prompb.LabelMatcher_EQ
+		case labels.MatchNotEqual:
+			mType = prompb.LabelMatcher_NEQ
+		case labels.MatchRegexp:
+			mType = prompb.LabelMatcher_RE
+		case labels.MatchNotRegexp:
+			mType = prompb.LabelMatcher_NRE
+		default:
+			return nil, errors.New("invalid matcher type")
+		}
+		pbMatchers = append(pbMatchers, &prompb.LabelMatcher{
+			Type:  mType,
+			Name:  []byte(m.Name),
+			Value: []byte(m.Value),
+		})
+	}
+	return pbMatchers, nil
 }
