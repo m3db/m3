@@ -58,6 +58,7 @@ import fmt "fmt"
 import math "math"
 import _ "github.com/gogo/protobuf/gogoproto"
 import policypb "github.com/m3db/m3/src/metrics/generated/proto/policypb"
+
 import io "io"
 
 // Reference imports to suppress errors if they are not otherwise used.
