@@ -22,6 +22,7 @@ package apply
 
 import (
 	"fmt"
+
 	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
@@ -31,11 +32,16 @@ import (
 // DoApply does the API call to handle the kubectl apply command
 // It looks at the yaml, figures out what kind of API call to make
 // Sends it all off to the API
-func DoApply(endpoint string, filepath string, logger *zap.Logger) error {
+func DoApply(
+	endpoint string,
+	headers map[string]string,
+	filepath string,
+	logger *zap.Logger,
+) ([]byte, error) {
 	path, data, err := yaml.Load(filepath, logger)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	url := fmt.Sprintf("%s%s", endpoint, path)
-	return client.DoPost(url, data, client.Dumper, logger)
+	return client.DoPost(url, headers, data, logger)
 }

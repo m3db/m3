@@ -22,16 +22,24 @@ package placements
 
 import (
 	"fmt"
+
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
+
 	"go.uber.org/zap"
 )
 
 // DoDelete does the delete api calls for placements
-func DoDelete(endpoint string, nodeName string, deleteEntire bool, logger *zap.Logger) error {
+func DoDelete(
+	endpoint string,
+	headers map[string]string,
+	nodeName string,
+	deleteEntire bool,
+	logger *zap.Logger,
+) ([]byte, error) {
 	if deleteEntire {
 		url := fmt.Sprintf("%s%s", endpoint, DefaultPath)
-		return client.DoDelete(url, client.Dumper, logger)
+		return client.DoDelete(url, headers, logger)
 	}
 	url := fmt.Sprintf("%s%s/%s", endpoint, DefaultPath, nodeName)
-	return client.DoDelete(url, client.Dumper, logger)
+	return client.DoDelete(url, headers, logger)
 }

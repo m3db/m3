@@ -28,7 +28,12 @@ import (
 )
 
 // DoDelete calls the delete namespaces api on the backend
-func DoDelete(endpoint string, nsName string, logger *zap.Logger) error {
+func DoDelete(
+	endpoint string,
+	headers map[string]string,
+	nsName string,
+	logger *zap.Logger,
+) ([]byte, error) {
 	url := fmt.Sprintf("%s%s/%s", endpoint, "/api/v1/services/m3db/namespace", nsName)
-	return client.DoDelete(url, client.Dumper, logger)
+	return client.DoDelete(url, headers, logger)
 }

@@ -61,11 +61,11 @@ SERVICES :=     \
 	m3aggregator  \
 	m3query       \
 	m3collector   \
-	m3ctl         \
 	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \
 	m3comparator  \
+	r2ctl         \
 
 SUBDIRS :=    \
 	x           \

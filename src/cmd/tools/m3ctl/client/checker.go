@@ -30,19 +30,19 @@ import (
 
 func checkForAndHandleError(url string, resp *http.Response, zl *zap.Logger) error {
 	if resp.StatusCode/100 != 2 {
-		dat, _ := ioutil.ReadAll(resp.Body)
-		if dat != nil {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err == nil {
 			zl.Error("error response",
 				zap.Error(fmt.Errorf("status %d", resp.StatusCode)),
 				zap.String("url", url),
-				zap.ByteString("response", dat))
+				zap.ByteString("response", body))
 		} else {
 			zl.Error("error response",
 				zap.Error(fmt.Errorf("status %d", resp.StatusCode)),
 				zap.String("url", url),
-				zap.String("response", "not available"))
+				zap.Error(fmt.Errorf("response not available: %v", err)))
 		}
-		return fmt.Errorf("error from m3db status=%s, url=%s\n", resp.Status, url)
+		return fmt.Errorf("error response: status=%s, url=%s", resp.Status, url)
 	}
 	return nil
 }

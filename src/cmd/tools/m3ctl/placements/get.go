@@ -22,12 +22,18 @@ package placements
 
 import (
 	"fmt"
+
 	"github.com/m3db/m3/src/cmd/tools/m3ctl/client"
+
 	"go.uber.org/zap"
 )
 
 // DoGet calls the backend api for get placements
-func DoGet(endpoint string, logger *zap.Logger) error {
+func DoGet(
+	endpoint string,
+	headers map[string]string,
+	logger *zap.Logger,
+) ([]byte, error) {
 	url := fmt.Sprintf("%s%s", endpoint, DefaultPath)
-	return client.DoGet(url, client.Dumper, logger)
+	return client.DoGet(url, headers, logger)
 }

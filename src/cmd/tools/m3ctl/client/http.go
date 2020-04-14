@@ -21,7 +21,6 @@
 package client
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -32,76 +31,100 @@ import (
 
 const timeout = time.Duration(5 * time.Second)
 
-// DoGet is the low level call to the backend api for gets
-func DoGet(url string, getter func(reader io.Reader, zl *zap.Logger) error, zl *zap.Logger) error {
-	zl.Info("request", zap.String("method", "get"), zap.String("url", url))
+// DoGet is the low level call to the backend api for gets.
+func DoGet(
+	url string,
+	headers map[string]string,
+	l *zap.Logger,
+) ([]byte, error) {
+	l.Info("request", zap.String("method", "get"), zap.String("url", url))
 	client := http.Client{
 		Timeout: timeout,
 	}
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	setHeadersWithDefaults(req, headers)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
 	}
 	defer func() {
 		ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 	}()
-	if err := checkForAndHandleError(url, resp, zl); err != nil {
-		return err
+	if err := checkForAndHandleError(url, resp, l); err != nil {
+		return nil, err
 	}
-	return getter(resp.Body, zl)
+	return ioutil.ReadAll(resp.Body)
 }
 
-// DoPost is the low level call to the backend api for posts
-func DoPost(url string, data io.Reader, getter func(reader io.Reader, zl *zap.Logger) error, zl *zap.Logger) error {
-	zl.Info("request", zap.String("method", "post"), zap.String("url", url))
+// DoPost is the low level call to the backend api for posts.
+func DoPost(
+	url string,
+	headers map[string]string,
+	data io.Reader,
+	l *zap.Logger,
+) ([]byte, error) {
+	l.Info("request", zap.String("method", "post"), zap.String("url", url))
 	client := &http.Client{
 		Timeout: timeout,
 	}
 	req, err := http.NewRequest(http.MethodPost, url, data)
-	req.Header.Add("Content-Type", "application/json")
+	if err != nil {
+		return nil, err
+	}
+
+	setHeadersWithDefaults(req, headers)
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() {
 		ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 	}()
-	if err := checkForAndHandleError(url, resp, zl); err != nil {
-		return err
+	if err := checkForAndHandleError(url, resp, l); err != nil {
+		return nil, err
 	}
-	return getter(resp.Body, zl)
+	return ioutil.ReadAll(resp.Body)
 }
 
-// DoDelete is the low level call to the backend api for deletes
-func DoDelete(url string, getter func(reader io.Reader, zl *zap.Logger) error, zl *zap.Logger) error {
-	zl.Info("request", zap.String("method", "delete"), zap.String("url", url))
+// DoDelete is the low level call to the backend api for deletes.
+func DoDelete(
+	url string,
+	headers map[string]string,
+	l *zap.Logger,
+) ([]byte, error) {
+	l.Info("request", zap.String("method", "delete"), zap.String("url", url))
 	client := &http.Client{
 		Timeout: timeout,
 	}
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
-	req.Header.Add("Content-Type", "application/json")
+	if err != nil {
+		return nil, err
+	}
+
+	setHeadersWithDefaults(req, headers)
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() {
 		ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 	}()
-	if err := checkForAndHandleError(url, resp, zl); err != nil {
-		return err
+	if err := checkForAndHandleError(url, resp, l); err != nil {
+		return nil, err
 	}
-	return getter(resp.Body, zl)
+	return ioutil.ReadAll(resp.Body)
 }
 
-// Dumper is a simple printer for http responses
-func Dumper(in io.Reader, zl *zap.Logger) error {
-	dat, err := ioutil.ReadAll(in)
-	if err != nil {
-		return err
+func setHeadersWithDefaults(req *http.Request, headers map[string]string) {
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
-	fmt.Println(string(dat))
-	return nil
 }
