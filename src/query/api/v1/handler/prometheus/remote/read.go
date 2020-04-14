@@ -132,36 +132,32 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// than increment success/failure metrics.
 	switch r.FormValue("format") {
 	case "json":
-		var (
-			start, end time.Time
-		)
-		for _, q := range req.Queries {
-			queryStart := storage.PromTimestampToTime(q.StartTimestampMs)
-			queryEnd := storage.PromTimestampToTime(q.EndTimestampMs)
-			if start.IsZero() || queryStart.Before(start) {
-				start = queryStart
-				end = queryEnd
-			}
+		result := readResultsJSON{
+			Queries: make([]queryResultsJSON, 0, len(req.Queries)),
 		}
-
-		count := 0
-		for _, q := range readResult.Result {
-			count += len(q.Timeseries)
-		}
-
-		results := make([]comparator.Series, 0, count)
-		for _, q := range readResult.Result {
-			for _, s := range q.Timeseries {
+		for i, q := range req.Queries {
+			start := storage.PromTimestampToTime(q.StartTimestampMs)
+			end := storage.PromTimestampToTime(q.EndTimestampMs)
+			all := readResult.Result[i].Timeseries
+			timeseries := make([]comparator.Series, 0, len(all))
+			for _, s := range all {
 				datapoints := storage.PromSamplesToM3Datapoints(s.Samples)
 				tags := storage.PromLabelsToM3Tags(s.Labels, h.opts.TagOptions())
 				series := toSeries(datapoints, tags)
 				series.Start = start
 				series.End = end
-				results = append(results, series)
+				timeseries = append(timeseries, series)
 			}
+			result.Queries = append(result.Queries, queryResultsJSON{
+				Query:  q.Matchers,
+				Start:  start,
+				End:    end,
+				Series: timeseries,
+			})
 		}
 
-		err = json.NewEncoder(w).Encode(results)
+		w.Header().Set("Content-Type", "application/json")
+		err = json.NewEncoder(w).Encode(result)
 	default:
 		err = WriteSnappyCompressed(w, readResult, logger)
 	}
@@ -171,6 +167,17 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.promReadMetrics.fetchSuccess.Inc(1)
 	}
+}
+
+type readResultsJSON struct {
+	Queries []queryResultsJSON `json:"queries"`
+}
+
+type queryResultsJSON struct {
+	Query  []*prompb.LabelMatcher `json:"query"`
+	Start  time.Time              `json:"start"`
+	End    time.Time              `json:"end"`
+	Series []comparator.Series    `json:"series"`
 }
 
 // WriteSnappyCompressed writes snappy compressed results to the given writer.
