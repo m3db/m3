@@ -137,11 +137,19 @@ func main() {
 	}()
 
 	// Handle interrupts.
-	logger.Warn("interrupt", zap.Any("signal", interrupt()))
+	sigC := make(chan os.Signal, 1)
+	signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM)
+
+	logger.Warn("interrupt", zap.Any("signal", fmt.Errorf("%s", <-sigC)))
 
 	if s := cfg.Aggregator.ShutdownWaitTimeout; s != 0 {
 		logger.Info("waiting intentional shutdown period", zap.Duration("waitTimeout", s))
-		time.Sleep(s)
+		select {
+		case sig := <-sigC:
+			logger.Info("second signal received, skipping shutdown wait", zap.String("signal", sig.String()))
+		case <-time.After(cfg.Aggregator.ShutdownWaitTimeout):
+			logger.Info("shutdown period elapsed")
+		}
 	}
 
 	close(doneCh)
@@ -152,10 +160,4 @@ func main() {
 	case <-time.After(gracefulShutdownTimeout):
 		logger.Info("server closed due to timeout", zap.Duration("timeout", gracefulShutdownTimeout))
 	}
-}
-
-func interrupt() error {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	return fmt.Errorf("%s", <-c)
 }
