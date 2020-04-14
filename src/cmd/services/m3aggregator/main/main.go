@@ -139,6 +139,11 @@ func main() {
 	// Handle interrupts.
 	logger.Warn("interrupt", zap.Any("signal", interrupt()))
 
+	if s := cfg.Aggregator.ShutdownWaitTimeout; s != 0 {
+		logger.Info("waiting intentional shutdown period", zap.Duration("waitTimeout", s))
+		time.Sleep(s)
+	}
+
 	close(doneCh)
 
 	select {
