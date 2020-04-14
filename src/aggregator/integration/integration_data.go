@@ -423,6 +423,7 @@ func computeExpectedAggregationBuckets(
 				case timedMetric:
 					values, err = addTimedMetricToAggregation(values, mu.timed)
 				case passthroughMetric:
+					// Passthrough metrics need no aggregation.
 					err = nil
 				default:
 					err = fmt.Errorf("unrecognized metric category: %v", mu.category)
