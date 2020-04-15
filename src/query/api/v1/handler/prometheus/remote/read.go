@@ -163,7 +163,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		err = WriteSnappyCompressed(w, readResult, logger)
 	}
-	err = WriteSnappyCompressed(w, readResult, logger)
+
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 	} else {
