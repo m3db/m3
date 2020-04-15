@@ -351,7 +351,7 @@ func TestCleanupManagerNamespaceCleanupBootstrapped(t *testing.T) {
 	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
 
 	idx := NewMockNamespaceIndex(ctrl)
-	ns.EXPECT().Index().Return(idx, nil)
+	ns.EXPECT().Index().Times(2).Return(idx, nil)
 
 	nses := []databaseNamespace{ns}
 	db := newMockdatabase(ctrl, ns)
