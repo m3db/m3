@@ -625,6 +625,9 @@ type NamespaceIndex interface {
 	// using the provided `t` as the frame of reference.
 	CleanupExpiredFileSets(t time.Time) error
 
+	// CleanupDuplicateFileSets removes duplicate fileset files.
+	CleanupDuplicateFileSets() error
+
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
 	Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error)
@@ -704,7 +707,7 @@ type databaseFlushManager interface {
 // databaseCleanupManager manages cleaning up persistent storage space.
 type databaseCleanupManager interface {
 	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time) error
+	Cleanup(t time.Time, isBootstrapped bool) error
 
 	// Report reports runtime information.
 	Report()
@@ -713,7 +716,7 @@ type databaseCleanupManager interface {
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
 	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time) error
+	Cleanup(t time.Time, isBootstrapped bool) error
 
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error

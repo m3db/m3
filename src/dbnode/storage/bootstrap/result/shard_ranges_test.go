@@ -47,3 +47,31 @@ func TestShardTimeRangesAdd(t *testing.T) {
 		require.Equal(t, max, times[i+1])
 	}
 }
+
+func TestShardTimeRangesIsSuperset(t *testing.T) {
+	start := time.Now().Truncate(testBlockSize)
+	times := []time.Time{start, start.Add(testBlockSize), start.Add(2 * testBlockSize), start.Add(3 * testBlockSize)}
+
+	sr1 := []ShardTimeRanges{
+		NewShardTimeRangesFromRange(times[0], times[1], 1, 2, 3),
+		NewShardTimeRangesFromRange(times[1], times[2], 1, 2, 3),
+		NewShardTimeRangesFromRange(times[2], times[3], 1, 2, 3),
+	}
+	ranges1 := NewShardTimeRanges()
+	for _, r := range sr1 {
+		ranges1.AddRanges(r)
+	}
+	sr2 := []ShardTimeRanges{
+		NewShardTimeRangesFromRange(times[0], times[1], 2),
+		NewShardTimeRangesFromRange(times[1], times[2], 1, 2),
+		NewShardTimeRangesFromRange(times[2], times[3], 1),
+	}
+	ranges2 := NewShardTimeRanges()
+	for _, r := range sr2 {
+		ranges2.AddRanges(r)
+	}
+
+	require.True(t, ranges1.IsSuperset(ranges2))
+	require.False(t, ranges2.IsSuperset(ranges1))
+	require.True(t, ranges1.IsSuperset(ranges1))
+}

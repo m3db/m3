@@ -2146,6 +2146,20 @@ func (mr *MockNamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockNamespaceIndex)(nil).CleanupExpiredFileSets), t)
 }
 
+// CleanupDuplicateFileSets mocks base method
+func (m *MockNamespaceIndex) CleanupDuplicateFileSets() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanupDuplicateFileSets")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupDuplicateFileSets indicates an expected call of CleanupDuplicateFileSets
+func (mr *MockNamespaceIndexMockRecorder) CleanupDuplicateFileSets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupDuplicateFileSets", reflect.TypeOf((*MockNamespaceIndex)(nil).CleanupDuplicateFileSets))
+}
+
 // Tick mocks base method
 func (m *MockNamespaceIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error) {
 	m.ctrl.T.Helper()
@@ -2422,17 +2436,17 @@ func (m *MockdatabaseCleanupManager) EXPECT() *MockdatabaseCleanupManagerMockRec
 }
 
 // Cleanup mocks base method
-func (m *MockdatabaseCleanupManager) Cleanup(t time.Time) error {
+func (m *MockdatabaseCleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", t)
+	ret := m.ctrl.Call(m, "Cleanup", t, isBootstrapped)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Cleanup indicates an expected call of Cleanup
-func (mr *MockdatabaseCleanupManagerMockRecorder) Cleanup(t interface{}) *gomock.Call {
+func (mr *MockdatabaseCleanupManagerMockRecorder) Cleanup(t, isBootstrapped interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).Cleanup), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).Cleanup), t, isBootstrapped)
 }
 
 // Report mocks base method
@@ -2471,17 +2485,17 @@ func (m *MockdatabaseFileSystemManager) EXPECT() *MockdatabaseFileSystemManagerM
 }
 
 // Cleanup mocks base method
-func (m *MockdatabaseFileSystemManager) Cleanup(t time.Time) error {
+func (m *MockdatabaseFileSystemManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", t)
+	ret := m.ctrl.Call(m, "Cleanup", t, isBootstrapped)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Cleanup indicates an expected call of Cleanup
-func (mr *MockdatabaseFileSystemManagerMockRecorder) Cleanup(t interface{}) *gomock.Call {
+func (mr *MockdatabaseFileSystemManagerMockRecorder) Cleanup(t, isBootstrapped interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Cleanup), t)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Cleanup), t, isBootstrapped)
 }
 
 // Flush mocks base method
