@@ -602,7 +602,7 @@ func TestShardColdFlush(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, coldVersion)
 	}
-	err = shard.ColdFlush(preparer, resources, nsCtx)
+	err = shard.ColdFlush(preparer, resources, nsCtx, &noOpColdFlushNamespace{})
 	require.NoError(t, err)
 	// After a cold flush, t0-t6 previously dirty block starts should be updated
 	// to version 1.
@@ -663,7 +663,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	}
 	nsCtx := namespace.Context{}
 
-	shard.ColdFlush(preparer, resources, nsCtx)
+	shard.ColdFlush(preparer, resources, nsCtx, &noOpColdFlushNamespace{})
 	// After a cold flush, t0-t3 should remain version 0, since nothing should
 	// actually be merged.
 	for i := t0; i.Before(t3.Add(blockSize)); i = i.Add(blockSize) {
