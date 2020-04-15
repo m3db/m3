@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 type payloadType int
@@ -35,6 +36,7 @@ const (
 	forwardedType
 	timedType
 	timedWithStagedMetadatasType
+	passthroughType
 )
 
 type untimedPayload struct {
@@ -57,10 +59,16 @@ type timedWithStagedMetadatas struct {
 	metadatas metadata.StagedMetadatas
 }
 
+type passthroughPayload struct {
+	metric        aggregated.Metric
+	storagePolicy policy.StoragePolicy
+}
+
 type payloadUnion struct {
 	payloadType              payloadType
 	untimed                  untimedPayload
 	forwarded                forwardedPayload
 	timed                    timedPayload
 	timedWithStagedMetadatas timedWithStagedMetadatas
+	passthrough              passthroughPayload
 }

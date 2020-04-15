@@ -133,7 +133,7 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 		m.Unlock()
 	}()
 
-	namespaces, err := m.database.GetOwnedNamespaces()
+	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func (m *cleanupManager) deleteInactiveDataFileSetFiles(filesetFilesDirPathFn fu
 	for _, n := range namespaces {
 		var activeShards []string
 		namespaceDirPath := filesetFilesDirPathFn(filePathPrefix, n.ID())
-		for _, s := range n.GetOwnedShards() {
+		for _, s := range n.OwnedShards() {
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
 		}
@@ -231,7 +231,7 @@ func (m *cleanupManager) cleanupDataFiles(t time.Time, namespaces []databaseName
 			continue
 		}
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
-		shards := n.GetOwnedShards()
+		shards := n.OwnedShards()
 		multiErr = multiErr.Add(m.cleanupExpiredNamespaceDataFiles(earliestToRetain, shards))
 		multiErr = multiErr.Add(m.cleanupCompactedNamespaceDataFiles(shards))
 	}
@@ -244,7 +244,7 @@ func (m *cleanupManager) cleanupExpiredIndexFiles(t time.Time, namespaces []data
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
 			continue
 		}
-		idx, err := n.GetIndex()
+		idx, err := n.Index()
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
@@ -360,7 +360,7 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseName
 	}()
 
 	for _, ns := range namespaces {
-		for _, s := range ns.GetOwnedShards() {
+		for _, s := range ns.OwnedShards() {
 			shardSnapshots, err := m.snapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID(), s.ID())
 			if err != nil {
 				multiErr = multiErr.Add(fmt.Errorf("err reading snapshot files for ns: %s and shard: %d, err: %v", ns.ID(), s.ID(), err))
