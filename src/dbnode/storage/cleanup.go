@@ -122,7 +122,7 @@ func newCleanupManager(
 	}
 }
 
-func (m *cleanupManager) Cleanup(t time.Time) error {
+func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	m.Lock()
 	m.cleanupInProgress = true
 	m.Unlock()
@@ -145,6 +145,11 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 	}
 
 	if err := m.cleanupExpiredIndexFiles(t, namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up index files for %v: %v", t, err))
+	}
+
+	if err := m.cleanupDuplicateIndexFiles(namespaces, isBootstrapped); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up index files for %v: %v", t, err))
 	}
@@ -250,6 +255,27 @@ func (m *cleanupManager) cleanupExpiredIndexFiles(t time.Time, namespaces []data
 			continue
 		}
 		multiErr = multiErr.Add(idx.CleanupExpiredFileSets(t))
+	}
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespace, isBootstrapped bool) error {
+	// NB(bodu): Do not cleanup duplicate index files while we are bootstrapping since bootrapping and removing
+	// files from disk is racy if performed concurrently.
+	if !isBootstrapped {
+		return nil
+	}
+	multiErr := xerrors.NewMultiError()
+	for _, n := range namespaces {
+		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {
+			continue
+		}
+		idx, err := n.Index()
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+		multiErr = multiErr.Add(idx.CleanupDuplicateFileSets())
 	}
 	return multiErr.FinalError()
 }
