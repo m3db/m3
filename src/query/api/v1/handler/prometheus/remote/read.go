@@ -140,6 +140,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for i, q := range req.Queries {
 			start := storage.PromTimestampToTime(q.StartTimestampMs)
 			end := storage.PromTimestampToTime(q.EndTimestampMs)
+
 			all := readResult.Result[i].Timeseries
 			timeseries := make([]comparator.Series, 0, len(all))
 			for _, s := range all {
@@ -150,8 +151,21 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				series.End = end
 				timeseries = append(timeseries, series)
 			}
+
+			matchers := make([]labelMatcherJSON, 0, len(q.Matchers))
+			for _, m := range q.Matchers {
+				matcher := labelMatcherJSON{
+					Type:  m.Type.String(),
+					Name:  string(m.Name),
+					Value: string(m.Value),
+				}
+				matchers = append(matchers, matcher)
+			}
+
 			result.Queries = append(result.Queries, queryResultsJSON{
-				Query:  q.Matchers,
+				Query: queryJSON{
+					Matchers: matchers,
+				},
 				Start:  start,
 				End:    end,
 				Series: timeseries,
@@ -176,10 +190,20 @@ type readResultsJSON struct {
 }
 
 type queryResultsJSON struct {
-	Query  []*prompb.LabelMatcher `json:"query"`
-	Start  time.Time              `json:"start"`
-	End    time.Time              `json:"end"`
-	Series []comparator.Series    `json:"series"`
+	Query  queryJSON           `json:"query"`
+	Start  time.Time           `json:"start"`
+	End    time.Time           `json:"end"`
+	Series []comparator.Series `json:"series"`
+}
+
+type queryJSON struct {
+	Matchers []labelMatcherJSON `json:"matchers"`
+}
+
+type labelMatcherJSON struct {
+	Type  string `json:"type"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // WriteSnappyCompressed writes snappy compressed results to the given writer.
@@ -299,6 +323,10 @@ func parseRequest(
 
 			case *promql.MatrixSelector:
 				evalRange = n.Range
+				if evalRange > 0 {
+					start = start.Add(-1 * evalRange)
+					evalRange = 0
+				}
 
 				if n.Offset > 0 {
 					offsetMilliseconds := time.Duration(n.Offset) * time.Millisecond
@@ -318,6 +346,7 @@ func parseRequest(
 				}
 
 				req.Queries = append(req.Queries, query)
+
 			}
 			return nil
 		})
