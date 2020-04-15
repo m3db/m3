@@ -137,7 +137,7 @@ type RunOptions struct {
 	InterruptCh <-chan error
 
 	// QueryStatsTracker exposes an interface for tracking query stats.
-	QueryStatsTracker *stats.QueryStatsTracker
+	QueryStatsTracker stats.QueryStatsTracker
 
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
