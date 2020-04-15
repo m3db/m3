@@ -2200,8 +2200,8 @@ type MocknamespaceIndexInsertQueueMockRecorder struct {
 	mock *MocknamespaceIndexInsertQueue
 }
 
-// NewMockNamespaceIndexInsertQueue creates a new mock instance
-func NewMockNamespaceIndexInsertQueue(ctrl *gomock.Controller) *MocknamespaceIndexInsertQueue {
+// NewMocknamespaceIndexInsertQueue creates a new mock instance
+func NewMocknamespaceIndexInsertQueue(ctrl *gomock.Controller) *MocknamespaceIndexInsertQueue {
 	mock := &MocknamespaceIndexInsertQueue{ctrl: ctrl}
 	mock.recorder = &MocknamespaceIndexInsertQueueMockRecorder{mock}
 	return mock
