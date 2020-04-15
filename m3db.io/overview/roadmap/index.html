@@ -36,7 +36,7 @@
     
     
       
-        <title>M3Query - M3 Documentation</title>
+        <title>Roadmap - M3 Documentation</title>
       
     
     
@@ -89,7 +89,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
     
-      <a href="#setting-up-m3query" tabindex="1" class="md-skip">
+      <a href="#roadmap" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -115,7 +115,7 @@
                 M3 Documentation
               </span>
               <span class="md-header-nav__topic">
-                M3Query
+                Roadmap
               </span>
             
           
@@ -242,10 +242,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2" checked>
     
     <label class="md-nav__link" for="nav-2">
       Overview
@@ -263,7 +265,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../overview/components/" title="Components" class="md-nav__link">
+    <a href="../components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +277,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +289,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../overview/media/" title="Media" class="md-nav__link">
+    <a href="../media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -297,11 +299,20 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../../overview/roadmap/" title="Roadmap" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+    <a href="./" title="Roadmap" class="md-nav__link md-nav__link--active">
       Roadmap
     </a>
+    
   </li>
 
         
@@ -722,12 +733,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
     
     <label class="md-nav__link" for="nav-6">
       How-To's
@@ -745,7 +754,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
+    <a href="../../how_to/single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
       M3DB Single Node Deployment
     </a>
   </li>
@@ -757,7 +766,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../cluster_hard_way/" title="M3DB Cluster Deployment, Manually" class="md-nav__link">
+    <a href="../../how_to/cluster_hard_way/" title="M3DB Cluster Deployment, Manually" class="md-nav__link">
       M3DB Cluster Deployment, Manually
     </a>
   </li>
@@ -769,7 +778,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
+    <a href="../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
       M3DB on Kubernetes
     </a>
   </li>
@@ -779,130 +788,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="toc">
-        M3Query
-      </label>
-    
-    <a href="./" title="M3Query" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../../how_to/query/" title="M3Query" class="md-nav__link">
       M3Query
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#introduction" title="Introduction" class="md-nav__link">
-    Introduction
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuration" title="Configuration" class="md-nav__link">
-    Configuration
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#running" title="Running" class="md-nav__link">
-    Running
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#namespaces" title="Namespaces" class="md-nav__link">
-    Namespaces
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#etcd" title="etcd" class="md-nav__link">
-    etcd
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#aggregation" title="Aggregation" class="md-nav__link">
-    Aggregation
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#disabling-automatic-aggregation" title="Disabling automatic aggregation" class="md-nav__link">
-    Disabling automatic aggregation
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#id-generation" title="ID generation" class="md-nav__link">
-    ID generation
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#migration" title="Migration" class="md-nav__link">
-    Migration
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#grafana" title="Grafana" class="md-nav__link">
-    Grafana
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -912,7 +802,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../use_as_tsdb/" title="Use M3DB as a general purpose time series database" class="md-nav__link">
+    <a href="../../how_to/use_as_tsdb/" title="Use M3DB as a general purpose time series database" class="md-nav__link">
       Use M3DB as a general purpose time series database
     </a>
   </li>
@@ -1348,103 +1238,6 @@
     
   
   
-    <label class="md-nav__title" for="toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#introduction" title="Introduction" class="md-nav__link">
-    Introduction
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuration" title="Configuration" class="md-nav__link">
-    Configuration
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#running" title="Running" class="md-nav__link">
-    Running
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#namespaces" title="Namespaces" class="md-nav__link">
-    Namespaces
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#etcd" title="etcd" class="md-nav__link">
-    etcd
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#aggregation" title="Aggregation" class="md-nav__link">
-    Aggregation
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#disabling-automatic-aggregation" title="Disabling automatic aggregation" class="md-nav__link">
-    Disabling automatic aggregation
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#id-generation" title="ID generation" class="md-nav__link">
-    ID generation
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#migration" title="Migration" class="md-nav__link">
-    Migration
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#grafana" title="Grafana" class="md-nav__link">
-    Grafana
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -1455,68 +1248,20 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3/edit/master/docs/how_to/query.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/overview/roadmap.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="setting-up-m3query">Setting up m3query</h1>
-<h2 id="introduction">Introduction</h2>
-<p>m3query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with <a href="../../integrations/prometheus/">m3coordinator</a>, you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine such as <a href="http://m3db.github.io/m3/query_engine/architecture/blocks/">block processing</a>. Furthermore, since m3query provides a Prometheus compatible API, you can use 3<sup>rd</sup> party graphing and alerting solutions like Grafana.</p>
-<h2 id="configuration">Configuration</h2>
-<p>Before setting up m3query, make sure that you have at least <a href="../single_node/">one M3DB node running</a>. In order to start m3query, you need to configure a <code>yaml</code> file, that will be used to connect to M3DB. Here is a link to a <a href="https://github.com/m3db/m3/blob/master/src/query/config/m3query-local-etcd.yml">sample config</a> file that is used for an embedded etcd cluster within M3DB.</p>
-<h3 id="running">Running</h3>
-<p>You can run m3query by either building and running the binary yourself:</p>
-<div class="highlight"><pre><span></span>make m3query
-./bin/m3query -f ./src/query/config/m3query-local-etcd.yml
-</pre></div>
-
-<p>Or you can run it with Docker using the Docker file located at <code>$GOPATH/src/github.com/m3db/m3/docker/m3query/Dockerfile</code>.</p>
-<h3 id="namespaces">Namespaces</h3>
-<p>All namespaces that you wish to query from must be configured when <a href="../single_node/">setting up M3DB</a>. If you wish to add or change an existing namespace, please follow the namespace operational guide <a href="../../operational_guide/namespace_configuration/">here</a>.</p>
-<h3 id="etcd">etcd</h3>
-<p>The configuration file linked above uses an embedded etcd cluster, which is fine for development purposes. However, if you wish to use this in production, you will want an <a href="../../operational_guide/etcd/">external etcd</a> cluster.</p>
-<!-- TODO: link to etcd operational guide -->
-
-<h2 id="aggregation">Aggregation</h2>
-<p>You will notice that in the setup linked above, M3DB has just one unaggregated namespace configured. If you want aggregated metrics, you will need to set up an aggregated namespace in M3DB <strong>and</strong> in the m3query configuration. It is important to note that all writes go to all namespaces so as long as you include all namespaces in your query config, you will be querying all namespaces. Aggregation is done strictly by the query service. For example if you have an aggregated namespace setup in M3DB named <code>metrics_10s_48h</code>, you can add the following to the query config:</p>
-<div class="highlight"><pre><span></span><span class="p p-Indicator">-</span> <span class="nt">namespace</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">metrics_10s_48h</span>
-  <span class="nt">type</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">aggregated</span>
-  <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">48h</span>
-  <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">10s</span>
-</pre></div>
-
-<h3 id="disabling-automatic-aggregation">Disabling automatic aggregation</h3>
-<p>If you run Statsite, m3agg, or some other aggregation tier, you will want to set the <code>all</code> flag under <code>downsample</code> to <code>false</code>. Otherwise, you will be aggregating metrics that have already been aggregated.</p>
-<div class="highlight"><pre><span></span><span class="p p-Indicator">-</span> <span class="nt">namespace</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">metrics_10s_48h</span>
-  <span class="nt">type</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">aggregated</span>
-  <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">48h</span>
-  <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">10s</span>
-  <span class="nt">downsample</span><span class="p">:</span>
-    <span class="nt">all</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">false</span>
-</pre></div>
-
-<h2 id="id-generation">ID generation</h2>
-<p>The default generation scheme for IDs, <code>legacy</code>, is unfortunately prone to collisions, but remains the default for backwards compatibility reasons. It is suggested to set the ID generation scheme to one of either <code>quoted</code> or <code>prepend_meta</code>. <code>quoted</code> generation scheme yields the most human-readable IDs, whereas <code>prepend_meta</code> is better for more compact IDs, or if tags are expected to contain non-ASCII characters. To set the ID generation scheme, add the following to your m3coordinator configuration yaml file:</p>
-<div class="highlight"><pre><span></span><span class="nt">tagOptions</span><span class="p">:</span>
-  <span class="nt">idScheme</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">&lt;name&gt;</span>
-</pre></div>
-
-<p>As an example of how these schemes generate IDs, consider a series with the following 4 tags,
-<code>[{"t1":v1}, {t2:"v2"}, {t3:v3}, {t4:v4}]</code>. The following is an example of how different schemes will generate IDs.</p>
-<div class="highlight"><pre><span></span>legacy: &quot;t1&quot;=v1,t2=&quot;v2&quot;,t3=v3,t4=v4,
-prepend_meta: 4,2,2,4,2,2,2,2!&quot;t1&quot;v1t2&quot;v2&quot;t3v3t4v4
-quoted: {\&quot;t1\&quot;=&quot;v1&quot;,t2=&quot;\&quot;v2\&quot;&quot;,t3=&quot;v3&quot;,t4=&quot;v4&quot;}
-</pre></div>
-
-<p>If there is a chance that your metric tags will contain "control" characters, specifically <code>,</code> and <code>=</code>, it is highly recommended that one of either the <code>quoted</code> or <code>prepend_meta</code> schemes are specified, as the <code>legacy</code> scheme may cause ID collisions. As a general guideline, we suggest <code>quoted</code>, as it mirrors the more familiar Prometheus style IDs.</p>
-<p>We technically have a fourth ID generation scheme that is used for Graphite IDs, but it is exclusive to the Graphite ingestion path and is not selectable as a general scheme.</p>
-<p><strong>WARNING:</strong> Once a scheme is selected, be very careful about changing it. If changed, all incoming metrics will resolve to a new ID, effectively doubling the metric cardinality until all of the older-style metric IDs fall out of retention.</p>
-<h3 id="migration">Migration</h3>
-<p>We recently updated our ID generation scheme in m3coordinator to avoid the collision issues discussed above. To ease migration, we're temporarily enforcing that an ID generation scheme be explicitly provided in the m3coordinator configuration files.</p>
-<p>If you have been running m3query or m3coordinator already, you may want to counterintuitively select the collision-prone <code>legacy</code> scheme, as all the IDs for all of your current metrics would have already been generated with this scheme, and choosing another will effectively double your index size. If the twofold increase in cardinality is an acceptable increase (and unfortunately, this is likely to mean doubled cardinality until your longest retention cluster rotates out), it's suggested to choose a collision-resistant scheme instead.</p>
-<p>An example of a configuration file for a standalone m3query instance with the ID generation scheme can be found <a href="https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/m3coordinator.yml">here</a>. If you're running m3query or m3coordinator embedded, these configuration options should be nested under the <code>coordinator:</code> heading, as seen <a href="https://github.com/m3db/m3/blob/28fe5e1e430a651a1d66a0a3e22617b6a7f59ec6/src/dbnode/config/m3dbnode-all-config.yml#L33">here</a>.</p>
-<p>If none of these options work for you, or you would like further clarification, please stop by our <a href="https://gitter.im/m3db/Lobby">gitter channel</a> and we'll be happy to help you.</p>
-<h2 id="grafana">Grafana</h2>
-<p>You can also set up m3query as a <a href="http://docs.grafana.org/features/datasources/prometheus/">datasource in Grafana</a>. To do this, add a new datasource with a type of <code>Prometheus</code>. The URL should point to the host/port running m3query. By default, m3query runs on port <code>7201</code>.</p>
+                <h1 id="roadmap">Roadmap</h1>
+<p>This roadmap is open for suggestions and currently just a small snapshot of what is coming up.</p>
+<p>Short:
+- Add diagrams of what using M3 looks like (broken down by use case)
+- Improve operational guides for the aggregator
+- Add tutorials for a variety of use cases
+- Add design documentation of reverse index
+- Add design documentation of aggregator</p>
+<p>Medium:
+- Upgrade from glide to go modules
+- Plan what a v1.0 release looks like</p>
                 
                   
                 
@@ -1537,7 +1282,7 @@ quoted: {\&quot;t1\&quot;=&quot;v1&quot;,t2=&quot;\&quot;v2\&quot;&quot;,t3=&quo
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../kubernetes/" title="M3DB on Kubernetes" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../media/" title="Media" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1546,19 +1291,19 @@ quoted: {\&quot;t1\&quot;=&quot;v1&quot;,t2=&quot;\&quot;v2\&quot;&quot;,t3=&quo
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                M3DB on Kubernetes
+                Media
               </span>
             </div>
           </a>
         
         
-          <a href="../use_as_tsdb/" title="Use M3DB as a general purpose time series database" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../../m3db/" title="Introduction" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Use M3DB as a general purpose time series database
+                Introduction
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
