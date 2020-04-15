@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 
 	"github.com/golang/mock/gomock"
 )
@@ -97,6 +98,20 @@ func (m *MockClient) Init() error {
 func (mr *MockClientMockRecorder) Init() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockClient)(nil).Init))
+}
+
+// WritePassthrough mocks base method
+func (m *MockClient) WritePassthrough(arg0 aggregated.Metric, arg1 policy.StoragePolicy) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WritePassthrough", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WritePassthrough indicates an expected call of WritePassthrough
+func (mr *MockClientMockRecorder) WritePassthrough(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePassthrough", reflect.TypeOf((*MockClient)(nil).WritePassthrough), arg0, arg1)
 }
 
 // WriteTimed mocks base method
@@ -246,6 +261,20 @@ func (m *MockAdminClient) WriteForwarded(arg0 aggregated.ForwardedMetric, arg1 m
 func (mr *MockAdminClientMockRecorder) WriteForwarded(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteForwarded", reflect.TypeOf((*MockAdminClient)(nil).WriteForwarded), arg0, arg1)
+}
+
+// WritePassthrough mocks base method
+func (m *MockAdminClient) WritePassthrough(arg0 aggregated.Metric, arg1 policy.StoragePolicy) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WritePassthrough", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WritePassthrough indicates an expected call of WritePassthrough
+func (mr *MockAdminClientMockRecorder) WritePassthrough(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePassthrough", reflect.TypeOf((*MockAdminClient)(nil).WritePassthrough), arg0, arg1)
 }
 
 // WriteTimed mocks base method

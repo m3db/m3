@@ -320,6 +320,8 @@ aggregator:
                 flushInterval: 1s
                 writeBufferSize: 16384
                 readBufferSize: 256
+  passthrough:
+    enabled: true
   forwarding:
     maxConstDelay: 1m # Need to add some buffer window, since timed metrics by default are delayed by 1min.
   entryTTL: 1h
