@@ -402,10 +402,8 @@ func Run(runOpts RunOptions) {
 	defer stopReporting()
 
 	// Setup query stats tracking.
-	var tracker stats.QueryStatsTracker
-	if runOpts.QueryStatsTracker != nil {
-		tracker = *runOpts.QueryStatsTracker
-	} else {
+	tracker := runOpts.QueryStatsTracker
+	if runOpts.QueryStatsTracker == nil {
 		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
 	}
 	queryStats := stats.NewQueryStats(tracker)
