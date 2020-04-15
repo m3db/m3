@@ -87,6 +87,7 @@ func (m *merger) Merge(
 	nextVolumeIndex int,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
+	onFlush persist.OnFlushSeries,
 ) (err error) {
 	var (
 		reader         = m.reader
@@ -256,6 +257,11 @@ func (m *merger) Merge(
 			segmentReaders = segmentReaders[:0]
 			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData)
 			err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist)
+
+			if err == nil {
+				err = onFlush.OnFlushNewSeries(shard, startTime, id, tags)
+			}
+
 			// Context is safe to close after persisting data to disk.
 			// Reset context here within the passed in function so that the
 			// context gets reset for each remaining series instead of getting

@@ -114,7 +114,7 @@ func newTestNamespaceWithOpts(
 
 func newTestNamespaceWithIndex(
 	t *testing.T,
-	index namespaceIndex,
+	index NamespaceIndex,
 ) (*dbNamespace, closerFn) {
 	ns, closer := newTestNamespace(t)
 	if index != nil {
@@ -125,7 +125,7 @@ func newTestNamespaceWithIndex(
 
 func newTestNamespaceWithTruncateType(
 	t *testing.T,
-	index namespaceIndex,
+	index NamespaceIndex,
 	truncateType series.TruncateType,
 ) (*dbNamespace, closerFn) {
 	opts := DefaultTestOptions().
@@ -1042,7 +1042,7 @@ func TestNamespaceCloseWillCloseShard(t *testing.T) {
 	require.NoError(t, ns.Close())
 
 	// Check the namespace no long owns any shards
-	require.Empty(t, ns.GetOwnedShards())
+	require.Empty(t, ns.OwnedShards())
 }
 
 func TestNamespaceCloseDoesNotLeak(t *testing.T) {
@@ -1070,7 +1070,7 @@ func TestNamespaceCloseDoesNotLeak(t *testing.T) {
 	require.NoError(t, ns.Close())
 
 	// Check the namespace no long owns any shards
-	require.Empty(t, ns.GetOwnedShards())
+	require.Empty(t, ns.OwnedShards())
 }
 
 func TestNamespaceIndexInsert(t *testing.T) {
@@ -1079,7 +1079,7 @@ func TestNamespaceIndexInsert(t *testing.T) {
 
 	truncateTypes := []series.TruncateType{series.TypeBlock, series.TypeNone}
 	for _, truncateType := range truncateTypes {
-		idx := NewMocknamespaceIndex(ctrl)
+		idx := NewMockNamespaceIndex(ctrl)
 
 		ns, closer := newTestNamespaceWithTruncateType(t, idx, truncateType)
 		ns.reverseIndex = idx
@@ -1120,7 +1120,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	idx := NewMocknamespaceIndex(ctrl)
+	idx := NewMockNamespaceIndex(ctrl)
 	idx.EXPECT().BootstrapsDone().Return(uint(1))
 
 	ns, closer := newTestNamespaceWithIndex(t, idx)
@@ -1154,7 +1154,7 @@ func TestNamespaceAggregateQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	idx := NewMocknamespaceIndex(ctrl)
+	idx := NewMockNamespaceIndex(ctrl)
 	idx.EXPECT().BootstrapsDone().Return(uint(1))
 
 	ns, closer := newTestNamespaceWithIndex(t, idx)
@@ -1178,7 +1178,7 @@ func TestNamespaceTicksIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	idx := NewMocknamespaceIndex(ctrl)
+	idx := NewMockNamespaceIndex(ctrl)
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 	for _, s := range ns.shards {

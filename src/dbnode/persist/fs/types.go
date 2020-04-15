@@ -545,6 +545,7 @@ type Merger interface {
 		nextVolumeIndex int,
 		flushPreparer persist.FlushPreparer,
 		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
 	) error
 }
 

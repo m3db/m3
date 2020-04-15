@@ -47,7 +47,7 @@ func testNamespaceIndexOptions() index.Options {
 	return DefaultTestOptions().IndexOptions()
 }
 
-func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceIndex, *MocknamespaceIndexInsertQueue) {
+func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (NamespaceIndex, *MocknamespaceIndexInsertQueue) {
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
 	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
@@ -272,7 +272,7 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 func setupIndex(t *testing.T,
 	ctrl *gomock.Controller,
 	now time.Time,
-) namespaceIndex {
+) NamespaceIndex {
 	newFn := func(
 		fn nsIndexInsertBatchFn,
 		md namespace.Metadata,
