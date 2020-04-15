@@ -462,7 +462,7 @@ func testMergeWith(
 		BlockStart: startTime,
 	}
 	mergeWith := mockMergeWithFromData(t, ctrl, diskData, mergeTargetData)
-	err := merger.Merge(fsID, mergeWith, 1, preparer, nsCtx)
+	err := merger.Merge(fsID, mergeWith, 1, preparer, nsCtx, &persist.NoOpColdFlushNamespace{})
 	require.NoError(t, err)
 
 	assertPersistedAsExpected(t, persisted, expectedData)

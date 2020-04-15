@@ -776,18 +776,5 @@ func (o *options) MmapReporter() mmap.Reporter {
 type noOpColdFlush struct{}
 
 func (n *noOpColdFlush) ColdFlushNamespace(ns Namespace) (OnColdFlushNamespace, error) {
-	return &noOpColdFlushNamespace{}, nil
+	return &persist.NoOpColdFlushNamespace{}, nil
 }
-
-type noOpColdFlushNamespace struct{}
-
-func (n *noOpColdFlushNamespace) OnFlushNewSeries(
-	shard uint32,
-	blockStart time.Time,
-	id ident.ID,
-	tags ident.Tags,
-) error {
-	return nil
-}
-
-func (n *noOpColdFlushNamespace) Done() error { return nil }
