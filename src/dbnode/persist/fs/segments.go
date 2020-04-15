@@ -29,19 +29,19 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-type onDiskSegments struct {
+type segments struct {
 	absoluteFilepaths []string
 	shardRanges       result.ShardTimeRanges
 	volumeType        idxpersist.IndexVolumeType
 	volumeIndex       int
 }
 
-// NewOnDiskSegments returns an on disk segments for an index info file.
-func NewOnDiskSegments(
+// NewSegments returns an on disk segments for an index info file.
+func NewSegments(
 	info index.IndexVolumeInfo,
 	volumeIndex int,
 	absoluteFilepaths []string,
-) OnDiskSegments {
+) Segments {
 	sr := result.NewShardTimeRanges()
 	indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
 	indexBlockRange := xtime.Range{
@@ -60,7 +60,7 @@ func NewOnDiskSegments(
 	if info.IndexVolumeType != nil {
 		volumeType = idxpersist.IndexVolumeType(info.IndexVolumeType.Value)
 	}
-	return &onDiskSegments{
+	return &segments{
 		shardRanges:       sr,
 		volumeType:        volumeType,
 		volumeIndex:       volumeIndex,
@@ -68,18 +68,18 @@ func NewOnDiskSegments(
 	}
 }
 
-func (o *onDiskSegments) ShardTimeRanges() result.ShardTimeRanges {
+func (o *segments) ShardTimeRanges() result.ShardTimeRanges {
 	return o.shardRanges
 }
 
-func (o *onDiskSegments) VolumeType() idxpersist.IndexVolumeType {
+func (o *segments) VolumeType() idxpersist.IndexVolumeType {
 	return o.volumeType
 }
 
-func (o *onDiskSegments) AbsoluteFilepaths() []string {
+func (o *segments) AbsoluteFilepaths() []string {
 	return o.absoluteFilepaths
 }
 
-func (o *onDiskSegments) VolumeIndex() int {
+func (o *segments) VolumeIndex() int {
 	return o.volumeIndex
 }

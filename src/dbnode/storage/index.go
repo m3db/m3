@@ -1536,18 +1536,18 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 		fsOpts.InfoReaderBufferSize(),
 	)
 
-	onDiskSegmentsOrderByVolumeIndexByVolumeType := make(map[idxpersist.IndexVolumeType][]fs.OnDiskSegments)
+	segmentsOrderByVolumeIndexByVolumeType := make(map[idxpersist.IndexVolumeType][]fs.Segments)
 	for _, file := range infoFiles {
-		seg := fs.NewOnDiskSegments(file.Info, file.ID.VolumeIndex, file.AbsoluteFilepaths)
+		seg := fs.NewSegments(file.Info, file.ID.VolumeIndex, file.AbsoluteFilepaths)
 		volumeType := seg.VolumeType()
-		if _, ok := onDiskSegmentsOrderByVolumeIndexByVolumeType[volumeType]; !ok {
-			onDiskSegmentsOrderByVolumeIndexByVolumeType[volumeType] = make([]fs.OnDiskSegments, 0)
+		if _, ok := segmentsOrderByVolumeIndexByVolumeType[volumeType]; !ok {
+			segmentsOrderByVolumeIndexByVolumeType[volumeType] = make([]fs.Segments, 0)
 		}
-		onDiskSegmentsOrderByVolumeIndexByVolumeType[volumeType] = append(onDiskSegmentsOrderByVolumeIndexByVolumeType[volumeType], seg)
+		segmentsOrderByVolumeIndexByVolumeType[volumeType] = append(segmentsOrderByVolumeIndexByVolumeType[volumeType], seg)
 	}
 
 	// Ensure that segments are soroted by volume index.
-	for _, segs := range onDiskSegmentsOrderByVolumeIndexByVolumeType {
+	for _, segs := range segmentsOrderByVolumeIndexByVolumeType {
 		sort.SliceStable(segs, func(i, j int) bool {
 			return segs[i].VolumeIndex() < segs[j].VolumeIndex()
 		})
@@ -1556,20 +1556,20 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 	multiErr := xerrors.NewMultiError()
 	// Check for dupes and remove.
 	filesToDelete := make([]string, 0)
-	for _, onDiskSegmentsOrderByVolumeIndex := range onDiskSegmentsOrderByVolumeIndexByVolumeType {
+	for _, segmentsOrderByVolumeIndex := range segmentsOrderByVolumeIndexByVolumeType {
 		shardTimeRangesCovered := result.NewShardTimeRanges()
-		currOnDiskSegments := make([]fs.OnDiskSegments, 0)
-		for _, seg := range onDiskSegmentsOrderByVolumeIndex {
+		currSegments := make([]fs.Segments, 0)
+		for _, seg := range segmentsOrderByVolumeIndex {
 			if seg.ShardTimeRanges().IsSuperset(shardTimeRangesCovered) {
 				// Mark dupe segments for deletion.
-				for _, currSeg := range currOnDiskSegments {
+				for _, currSeg := range currSegments {
 					filesToDelete = append(filesToDelete, currSeg.AbsoluteFilepaths()...)
 				}
-				currOnDiskSegments = []fs.OnDiskSegments{seg}
+				currSegments = []fs.Segments{seg}
 				shardTimeRangesCovered = seg.ShardTimeRanges().Copy()
 				continue
 			}
-			currOnDiskSegments = append(currOnDiskSegments, seg)
+			currSegments = append(currSegments, seg)
 			shardTimeRangesCovered.AddRanges(seg.ShardTimeRanges())
 		}
 	}

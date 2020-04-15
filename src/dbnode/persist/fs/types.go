@@ -562,8 +562,8 @@ type NewMergerFn func(
 	nsOpts namespace.Options,
 ) Merger
 
-// OnDiskSegments represents on index segments on disk for an index volume.
-type OnDiskSegments interface {
+// Segments represents on index segments on disk for an index volume.
+type Segments interface {
 	ShardTimeRanges() result.ShardTimeRanges
 	VolumeType() idxpersist.IndexVolumeType
 	VolumeIndex() int

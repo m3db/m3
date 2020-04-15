@@ -81,11 +81,16 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 	indexBlockSize := 2 * time.Hour
 	blockTime := now.Add(-2 * indexBlockSize)
 
-	fset1, err := ioutil.TempFile("", "fileset-9000-0-")
+	dir, err := ioutil.TempDir("", t.Name())
 	require.NoError(t, err)
-	fset2, err := ioutil.TempFile("", "fileset-9000-1-")
+
+	defer os.RemoveAll(dir)
+
+	fset1, err := ioutil.TempFile(dir, "fileset-9000-0-")
 	require.NoError(t, err)
-	fset3, err := ioutil.TempFile("", "fileset-9000-2-")
+	fset2, err := ioutil.TempFile(dir, "fileset-9000-1-")
+	require.NoError(t, err)
+	fset3, err := ioutil.TempFile(dir, "fileset-9000-2-")
 	require.NoError(t, err)
 
 	volumeType := "extra"
@@ -153,9 +158,14 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 	indexBlockSize := 2 * time.Hour
 	blockTime := now.Add(-2 * indexBlockSize)
 
-	fset1, err := ioutil.TempFile("", "fileset-9000-0-")
+	dir, err := ioutil.TempDir("", t.Name())
 	require.NoError(t, err)
-	fset2, err := ioutil.TempFile("", "fileset-9000-1-")
+
+	defer os.RemoveAll(dir)
+
+	fset1, err := ioutil.TempFile(dir, "fileset-9000-0-")
+	require.NoError(t, err)
+	fset2, err := ioutil.TempFile(dir, "fileset-9000-1-")
 	require.NoError(t, err)
 
 	volumeType := string(idxpersist.DefaultIndexVolumeType)
