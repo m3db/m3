@@ -266,9 +266,9 @@ func parseRequest(
 	opts options.HandlerOptions,
 ) (*prompb.ReadRequest, *storage.FetchOptions, *xhttp.ParseError) {
 	var req *prompb.ReadRequest
-	exprParam := strings.TrimSpace(r.FormValue("expr"))
 	switch {
-	case exprParam != "":
+	case r.Method == http.MethodGet && strings.TrimSpace(r.FormValue("expr")) != "":
+		exprParam := strings.TrimSpace(r.FormValue("expr"))
 		queryStart, err := util.ParseTimeString(r.FormValue("start"))
 		if err != nil {
 			return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
