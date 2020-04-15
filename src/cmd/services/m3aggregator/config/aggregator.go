@@ -116,6 +116,11 @@ type AggregatorConfiguration struct {
 	// Resign timeout.
 	ResignTimeout time.Duration `yaml:"resignTimeout"`
 
+	// ShutdownWaitTimeout if non-zero will be how long the aggregator waits from
+	// receiving a shutdown signal to exit. This can make coordinating graceful
+	// shutdowns between two replicas safer.
+	ShutdownWaitTimeout time.Duration `yaml:"shutdownWaitTimeout"`
+
 	// Flush times manager.
 	FlushTimesManager flushTimesManagerConfiguration `yaml:"flushTimesManager"`
 
