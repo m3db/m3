@@ -350,7 +350,7 @@ func TestCleanupManagerNamespaceCleanup(t *testing.T) {
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
 
-	idx := NewMocknamespaceIndex(ctrl)
+	idx := NewMockNamespaceIndex(ctrl)
 	ns.EXPECT().Index().Return(idx, nil)
 
 	nses := []databaseNamespace{ns}
