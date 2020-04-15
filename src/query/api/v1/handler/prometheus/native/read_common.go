@@ -42,14 +42,14 @@ type ReadResult struct {
 
 func read(
 	ctx context.Context,
-	parsed parsed,
+	parsed ParsedOptions,
 	handlerOpts options.HandlerOptions,
 ) (ReadResult, error) {
 	var (
-		opts          = parsed.queryOpts
-		fetchOpts     = parsed.fetchOpts
-		params        = parsed.params
-		cancelWatcher = parsed.cancelWatcher
+		opts          = parsed.QueryOpts
+		fetchOpts     = parsed.FetchOpts
+		params        = parsed.Params
+		cancelWatcher = parsed.CancelWatcher
 
 		tagOpts = handlerOpts.TagOptions()
 		engine  = handlerOpts.Engine()

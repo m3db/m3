@@ -79,10 +79,10 @@ func testPromReadHandlerRead(
 	r, parseErr := testParseParams(req)
 	require.Nil(t, parseErr)
 	assert.Equal(t, models.FormatPromQL, r.FormatType)
-	parsed := parsed{
-		queryOpts: setup.QueryOpts,
-		fetchOpts: setup.FetchOpts,
-		params:    r,
+	parsed := ParsedOptions{
+		QueryOpts: setup.QueryOpts,
+		FetchOpts: setup.FetchOpts,
+		Params:    r,
 	}
 
 	result, err := read(context.TODO(), parsed, promRead.opts)

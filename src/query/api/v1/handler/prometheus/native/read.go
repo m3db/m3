@@ -130,7 +130,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
 
-	parsed, rErr := parseRequest(ctx, r, h.opts)
+	ParsedOptions, rErr := ParseRequest(ctx, r, h.opts)
 	if rErr != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		logger.Error("could not parse request", zap.Error(rErr.Inner()))
@@ -138,15 +138,15 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsed.cancelWatcher = handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
-	result, err := read(ctx, parsed, h.opts)
+	ParsedOptions.CancelWatcher = handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
+	result, err := read(ctx, ParsedOptions, h.opts)
 	if err != nil {
 		sp := xopentracing.SpanFromContextOrNoop(ctx)
 		sp.LogFields(opentracinglog.Error(err))
 		opentracingext.Error.Set(sp, true)
 		logger.Error("range query error",
 			zap.Error(err),
-			zap.Any("parsed", parsed))
+			zap.Any("ParsedOptions", ParsedOptions))
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -156,8 +156,8 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	handleroptions.AddWarningHeaders(w, result.Meta)
 
-	if parsed.params.FormatType == models.FormatM3QL {
-		renderM3QLResultsJSON(w, result.Series, parsed.params)
+	if ParsedOptions.Params.FormatType == models.FormatM3QL {
+		renderM3QLResultsJSON(w, result.Series, ParsedOptions.Params)
 		h.promReadMetrics.fetchSuccess.Inc(1)
 		return
 	}
@@ -165,24 +165,26 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.fetchSuccess.Inc(1)
 	keepNans := h.opts.Config().ResultOptions.KeepNans
 	// TODO: Support multiple result types
-	renderResultsJSON(w, result, parsed.params, keepNans)
+	renderResultsJSON(w, result, ParsedOptions.Params, keepNans)
 }
 
-type parsed struct {
-	queryOpts     *executor.QueryOptions
-	fetchOpts     *storage.FetchOptions
-	params        models.RequestParams
-	cancelWatcher handler.CancelWatcher
+// ParsedOptions are parsed options for the query.
+type ParsedOptions struct {
+	QueryOpts     *executor.QueryOptions
+	FetchOpts     *storage.FetchOptions
+	Params        models.RequestParams
+	CancelWatcher handler.CancelWatcher
 }
 
-func parseRequest(
+// ParseRequest parses the given request.
+func ParseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
-) (parsed, *xhttp.ParseError) {
+) (ParsedOptions, *xhttp.ParseError) {
 	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
 	if rErr != nil {
-		return parsed{}, rErr
+		return ParsedOptions{}, rErr
 	}
 
 	queryOpts := &executor.QueryOptions{
@@ -204,18 +206,18 @@ func parseRequest(
 	params, rErr := parseParams(r, engine.Options(),
 		opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
 	if rErr != nil {
-		return parsed{}, rErr
+		return ParsedOptions{}, rErr
 	}
 
 	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
 	if err := validateRequest(&params, maxPoints); err != nil {
-		return parsed{}, xhttp.NewParseError(err, http.StatusBadRequest)
+		return ParsedOptions{}, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return parsed{
-		queryOpts: queryOpts,
-		fetchOpts: fetchOpts,
-		params:    params,
+	return ParsedOptions{
+		QueryOpts: queryOpts,
+		FetchOpts: fetchOpts,
+		Params:    params,
 	}, nil
 }
 

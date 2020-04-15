@@ -108,11 +108,11 @@ func (h *PromReadInstantHandler) ServeHTTP(
 	}
 
 	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
-	parsed := parsed{
-		queryOpts:     queryOpts,
-		fetchOpts:     fetchOpts,
-		params:        params,
-		cancelWatcher: cancelWatcher,
+	parsed := ParsedOptions{
+		QueryOpts:     queryOpts,
+		FetchOpts:     fetchOpts,
+		Params:        params,
+		CancelWatcher: cancelWatcher,
 	}
 
 	result, err := read(ctx, parsed, h.opts)
