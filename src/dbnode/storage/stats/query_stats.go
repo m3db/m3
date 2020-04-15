@@ -34,6 +34,9 @@ type queryStats struct {
 	stopCh     chan struct{}
 }
 
+type noOpQueryStats struct {
+}
+
 // QueryStats provides an interface for updating query stats.
 type QueryStats interface {
 	Update(newDocs int) error
@@ -54,6 +57,11 @@ func NewQueryStats(tracker QueryStatsTracker) QueryStats {
 		recentDocs: atomic.NewInt64(0),
 		stopCh:     make(chan struct{}),
 	}
+}
+
+// NoOpQueryStats returns inactive query stats.
+func NoOpQueryStats() QueryStats {
+	return &noOpQueryStats{}
 }
 
 // UpdateQueryStats adds new query stats which are being tracked.
@@ -100,4 +108,14 @@ func (q *queryStats) Stop() {
 		return
 	}
 	close(q.stopCh)
+}
+
+func (q *noOpQueryStats) Update(newDocs int) error {
+	return nil
+}
+
+func (q *noOpQueryStats) Stop() {
+}
+
+func (q *noOpQueryStats) Start() {
 }
