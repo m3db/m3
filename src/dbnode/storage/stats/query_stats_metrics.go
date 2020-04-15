@@ -28,10 +28,13 @@ import (
 	"github.com/uber-go/tally"
 )
 
+const defaultLookback = time.Second * 5
+
 // Tracker implementation that emits query stats as metrics.
 type queryStatsMetricsTracker struct {
 	sync.Mutex
 	recentDocs tally.Gauge
+	totalDocs  tally.Counter
 }
 
 // DefaultQueryStatsTrackerForMetrics provides a tracker
@@ -41,17 +44,17 @@ func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTrack
 		MetricsScope().
 		SubScope("query-stats")
 	return &queryStatsMetricsTracker{
-		recentDocs: scope.Gauge("recentDocs"),
+		recentDocs: scope.Gauge("recent-docs-per-block"),
+		totalDocs:  scope.Counter("total-docs-per-block"),
 	}
 }
 
 func (t *queryStatsMetricsTracker) TrackDocs(recentDocs int) error {
-	t.Lock()
 	t.recentDocs.Update(float64(recentDocs))
-	t.Unlock()
+	t.totalDocs.Inc(int64(recentDocs))
 	return nil
 }
 
 func (t *queryStatsMetricsTracker) Lookback() time.Duration {
-	return time.Second
+	return defaultLookback
 }
