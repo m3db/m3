@@ -122,7 +122,7 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 
 	blockSize := namespaceIndexOptions.BlockSize()
 
-	idx := NewMocknamespaceIndex(ctrl)
+	idx := NewMockNamespaceIndex(ctrl)
 	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
 		DoAndReturn(func(t time.Time) xtime.UnixNano {
 			return xtime.ToUnixNano(t.Truncate(blockSize))
@@ -325,7 +325,7 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 
 	blockSize := namespaceIndexOptions.BlockSize()
 
-	idx := NewMocknamespaceIndex(ctrl)
+	idx := NewMockNamespaceIndex(ctrl)
 	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
 		DoAndReturn(func(t time.Time) xtime.UnixNano {
 			return xtime.ToUnixNano(t.Truncate(blockSize))
