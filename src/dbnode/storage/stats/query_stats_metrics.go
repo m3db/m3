@@ -21,7 +21,6 @@
 package stats
 
 import (
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -32,7 +31,6 @@ const defaultLookback = time.Second * 5
 
 // Tracker implementation that emits query stats as metrics.
 type queryStatsMetricsTracker struct {
-	sync.Mutex
 	recentDocs tally.Gauge
 	totalDocs  tally.Counter
 }
