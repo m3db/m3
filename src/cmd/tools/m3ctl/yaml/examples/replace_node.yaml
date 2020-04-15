@@ -1,0 +1,14 @@
+---
+operation: replaceNode
+request:
+  leavingInstanceIDs:
+  - oldnodeid1
+  candidates:
+  - id: newnodeid1
+    isolationGroup: newnodeisogroup1
+    zone: etcdzone1
+    weight: 100
+    endpoint: node11:9000
+    hostname: node11
+    port: 9000
+
