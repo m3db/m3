@@ -299,6 +299,25 @@ func parseRequest(
 
 			case *promql.MatrixSelector:
 				evalRange = n.Range
+
+				if n.Offset > 0 {
+					offsetMilliseconds := time.Duration(n.Offset) * time.Millisecond
+					start = start.Add(-1 * offsetMilliseconds)
+					end = end.Add(-1 * offsetMilliseconds)
+				}
+
+				matchers, err := toLabelMatchers(n.LabelMatchers)
+				if err != nil {
+					return err
+				}
+
+				query := &prompb.Query{
+					StartTimestampMs: storage.TimeToPromTimestamp(start),
+					EndTimestampMs:   storage.TimeToPromTimestamp(end),
+					Matchers:         matchers,
+				}
+
+				req.Queries = append(req.Queries, query)
 			}
 			return nil
 		})
