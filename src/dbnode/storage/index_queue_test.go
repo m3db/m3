@@ -48,7 +48,7 @@ func testNamespaceIndexOptions() index.Options {
 }
 
 func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (NamespaceIndex, *MocknamespaceIndexInsertQueue) {
-	q := NewMockNamespaceIndexInsertQueue(ctrl)
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
 	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
@@ -64,7 +64,7 @@ func TestNamespaceIndexHappyPath(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	q := NewMockNamespaceIndexInsertQueue(ctrl)
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
 	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
@@ -84,7 +84,7 @@ func TestNamespaceIndexStartErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	q := NewMockNamespaceIndexInsertQueue(ctrl)
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
 	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
@@ -100,7 +100,7 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	q := NewMockNamespaceIndexInsertQueue(ctrl)
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
 	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
