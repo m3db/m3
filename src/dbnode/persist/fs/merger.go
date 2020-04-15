@@ -259,9 +259,7 @@ func (m *merger) Merge(
 			err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist)
 
 			if err == nil {
-				if onFlushErr := onFlush.OnFlushNewSeries(shard, startTime, id, tags); onFlushErr != nil {
-					err = onFlushErr
-				}
+				err = onFlush.OnFlushNewSeries(shard, startTime, id, tags)
 			}
 
 			// Context is safe to close after persisting data to disk.
