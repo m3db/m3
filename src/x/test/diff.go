@@ -45,3 +45,16 @@ func MustPrettyJSON(t *testing.T, str string) string {
 	require.NoError(t, err)
 	return string(pretty)
 }
+
+// JSONMap is an untyped JSON map representation.
+type JSONMap map[string]interface{}
+
+// JSONArray is an untyped JSON array representation.
+type JSONArray []interface{}
+
+// MustPrettyJSONObject returns an indented JSON string of the object.
+func MustPrettyJSONObject(t *testing.T, value interface{}) string {
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return MustPrettyJSON(t, string(data))
+}

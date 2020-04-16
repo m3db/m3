@@ -61,7 +61,7 @@ func testPromReadHandlerRead(
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
-	promRead := setup.Handlers.Read
+	promRead := setup.Handlers.read
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
 	m := block.Metadata{
@@ -120,7 +120,7 @@ func testM3PromReadHandlerRead(
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
-	promRead := setup.Handlers.Read
+	promRead := setup.Handlers.read
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
 	meta := block.Metadata{
@@ -174,8 +174,8 @@ type testSetup struct {
 }
 
 type testSetupHandlers struct {
-	Read        *PromReadHandler
-	InstantRead *PromReadInstantHandler
+	read        *promReadHandler
+	instantRead *promReadHandler
 }
 
 func newTestSetup() *testSetup {
@@ -207,14 +207,14 @@ func newTestSetup() *testSetup {
 			},
 		})
 
-	read := NewPromReadHandler(opts)
-	instantRead := NewPromReadInstantHandler(opts)
+	read := NewPromReadHandler(opts).(*promReadHandler)
+	instantRead := NewPromReadInstantHandler(opts).(*promReadHandler)
 
 	return &testSetup{
 		Storage: mockStorage,
 		Handlers: testSetupHandlers{
-			Read:        read,
-			InstantRead: instantRead,
+			read:        read,
+			instantRead: instantRead,
 		},
 		QueryOpts:   &executor.QueryOptions{},
 		FetchOpts:   storage.NewFetchOptions(),
@@ -225,8 +225,8 @@ func newTestSetup() *testSetup {
 
 func TestPromReadHandlerServeHTTPMaxComputedDatapoints(t *testing.T) {
 	setup := newTestSetup()
-	opts := setup.Handlers.Read.opts
-	setup.Handlers.Read.opts = opts.SetConfig(config.Configuration{
+	opts := setup.Handlers.read.opts
+	setup.Handlers.read.opts = opts.SetConfig(config.Configuration{
 		Limits: config.LimitsConfiguration{
 			PerQuery: config.PerQueryLimitsConfiguration{
 				PrivateMaxComputedDatapoints: 3599,
@@ -243,7 +243,7 @@ func TestPromReadHandlerServeHTTPMaxComputedDatapoints(t *testing.T) {
 	req := newReadRequest(t, params)
 
 	recorder := httptest.NewRecorder()
-	setup.Handlers.Read.ServeHTTP(recorder, req)
+	setup.Handlers.read.ServeHTTP(recorder, req)
 	resp := recorder.Result()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -270,12 +270,12 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 
 	cases := []struct {
 		name          string
-		params        *models.RequestParams
+		params        models.RequestParams
 		max           int
 		errorExpected bool
 	}{{
 		name: "under limit",
-		params: &models.RequestParams{
+		params: models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
@@ -284,7 +284,7 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 		errorExpected: false,
 	}, {
 		name: "at limit",
-		params: &models.RequestParams{
+		params: models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
@@ -293,7 +293,7 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 		errorExpected: false,
 	}, {
 		name: "over limit",
-		params: &models.RequestParams{
+		params: models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
@@ -302,7 +302,7 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 		errorExpected: true,
 	}, {
 		name: "large query, limit disabled (0)",
-		params: &models.RequestParams{
+		params: models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
@@ -311,7 +311,7 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 		errorExpected: false,
 	}, {
 		name: "large query, limit disabled (negative)",
-		params: &models.RequestParams{
+		params: models.RequestParams{
 			Step:  time.Second,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),
@@ -320,7 +320,7 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 		errorExpected: false,
 	}, {
 		name: "uneven step over limit",
-		params: &models.RequestParams{
+		params: models.RequestParams{
 			Step:  34 * time.Minute,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 11),
@@ -329,7 +329,7 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 		errorExpected: true,
 	}, {
 		name: "uneven step under limit",
-		params: &models.RequestParams{
+		params: models.RequestParams{
 			Step:  34 * time.Minute,
 			Start: dt(2018, 1, 1, 0),
 			End:   dt(2018, 1, 1, 1),

@@ -95,7 +95,7 @@ func testPromReadInstantHandler(
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 	setup := newTestSetup()
-	promReadInstant := setup.Handlers.InstantRead
+	promReadInstant := setup.Handlers.instantRead
 
 	seriesMeta := test.NewSeriesMeta("dummy", len(values))
 	meta := block.Metadata{
@@ -178,7 +178,7 @@ func testPromReadInstantHandler(
 
 func TestPromReadInstantHandlerStorageError(t *testing.T) {
 	setup := newTestSetup()
-	promReadInstant := setup.Handlers.InstantRead
+	promReadInstant := setup.Handlers.instantRead
 
 	storageErr := fmt.Errorf("storage err")
 	setup.Storage.SetFetchBlocksResult(block.Result{}, storageErr)

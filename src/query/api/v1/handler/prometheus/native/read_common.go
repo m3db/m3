@@ -22,22 +22,134 @@ package native
 
 import (
 	"context"
+	"fmt"
 	"math"
+	"net/http"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
+	"github.com/uber-go/tally"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
+
+type promReadMetrics struct {
+	fetchSuccess      tally.Counter
+	fetchErrorsServer tally.Counter
+	fetchErrorsClient tally.Counter
+	fetchTimerSuccess tally.Timer
+	maxDatapoints     tally.Gauge
+}
+
+func newPromReadMetrics(scope tally.Scope) promReadMetrics {
+	return promReadMetrics{
+		fetchSuccess: scope.Counter("fetch.success"),
+		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).
+			Counter("fetch.errors"),
+		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
+			Counter("fetch.errors"),
+		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
+		maxDatapoints:     scope.Gauge("max_datapoints"),
+	}
+}
+
+// ReadResponse is the response that gets returned to the user
+type ReadResponse struct {
+	Results []ts.Series `json:"results,omitempty"`
+}
 
 // ReadResult is a result from a remote read.
 type ReadResult struct {
 	Series []*ts.Series
 	Meta   block.ResultMetadata
+}
+
+// ParseRequest parses the given request.
+func ParseRequest(
+	ctx context.Context,
+	r *http.Request,
+	instantaneous bool,
+	opts options.HandlerOptions,
+) (ParsedOptions, *xhttp.ParseError) {
+	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	if rErr != nil {
+		return ParsedOptions{}, rErr
+	}
+
+	queryOpts := &executor.QueryOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOpts.Limit,
+		}}
+
+	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
+	if restrictOpts != nil {
+		restrict := &models.RestrictFetchTypeQueryContextOptions{
+			MetricsType:   uint(restrictOpts.MetricsType),
+			StoragePolicy: restrictOpts.StoragePolicy,
+		}
+
+		queryOpts.QueryContextOptions.RestrictFetchType = restrict
+	}
+
+	engine := opts.Engine()
+	var params models.RequestParams
+	if instantaneous {
+		params, rErr = parseInstantaneousParams(r, engine.Options(),
+			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+	} else {
+		params, rErr = parseParams(r, engine.Options(),
+			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+	}
+
+	if rErr != nil {
+		return ParsedOptions{}, rErr
+	}
+
+	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
+	if err := validateRequest(params, maxPoints); err != nil {
+		return ParsedOptions{}, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	return ParsedOptions{
+		QueryOpts: queryOpts,
+		FetchOpts: fetchOpts,
+		Params:    params,
+	}, nil
+}
+
+func validateRequest(params models.RequestParams, maxPoints int) error {
+	// Impose a rough limit on the number of returned time series.
+	// This is intended to prevent things like querying from the beginning of
+	// time with a 1s step size.
+	numSteps := int(params.End.Sub(params.Start) / params.Step)
+	if maxPoints > 0 && numSteps > maxPoints {
+		return fmt.Errorf(
+			"querying from %v to %v with step size %v would result in too many "+
+				"datapoints (end - start / step > %d). Either decrease the query "+
+				"resolution (?step=XX), decrease the time window, or increase "+
+				"the limit (`limits.maxComputedDatapoints`)",
+			params.Start, params.End, params.Step, maxPoints,
+		)
+	}
+
+	return nil
+}
+
+// ParsedOptions are parsed options for the query.
+type ParsedOptions struct {
+	QueryOpts     *executor.QueryOptions
+	FetchOpts     *storage.FetchOptions
+	Params        models.RequestParams
+	CancelWatcher handler.CancelWatcher
 }
 
 func read(
@@ -75,6 +187,8 @@ func read(
 	// Detect clients closing connections.
 	if cancelWatcher != nil {
 		ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
+		defer cancel()
+
 		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 

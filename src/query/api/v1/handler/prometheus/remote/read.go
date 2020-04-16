@@ -141,7 +141,6 @@ func WriteSnappyCompressed(
 
 	data, err := proto.Marshal(resp)
 	if err != nil {
-		// h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to marshal read results to protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return err
