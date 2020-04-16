@@ -147,6 +147,10 @@ type ShardTimeRanges interface {
 
 	Copy() ShardTimeRanges
 
+	// IsSuperset returns whether the current shard time ranges are a
+	// superset of the other shard time ranges.
+	IsSuperset(other ShardTimeRanges) bool
+
 	// Equal returns whether two shard time ranges are equal.
 	Equal(other ShardTimeRanges) bool
 

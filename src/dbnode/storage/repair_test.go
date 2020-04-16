@@ -678,7 +678,7 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 			ns1.EXPECT().Repair(gomock.Any(), tc.expectedNS1Repair.repairRange)
 			ns2.EXPECT().Repair(gomock.Any(), tc.expectedNS2Repair.repairRange)
 
-			mockDatabase.EXPECT().GetOwnedNamespaces().Return(namespaces, nil)
+			mockDatabase.EXPECT().OwnedNamespaces().Return(namespaces, nil)
 			require.Nil(t, repairer.Repair())
 		})
 	}

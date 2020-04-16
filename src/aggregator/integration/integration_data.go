@@ -210,6 +210,8 @@ func generateTestDataset(opts datasetGenOpts) (testDataset, error) {
 				mu = generateTestForwardedMetric(metricType, opts.ids[i], timestamp.UnixNano(), intervalIdx, i, opts.valueGenOpts.forwarded)
 			case timedMetric:
 				mu = generateTestTimedMetric(metricType, opts.ids[i], timestamp.UnixNano(), intervalIdx, i, opts.valueGenOpts.timed)
+			case passthroughMetric:
+				mu = generateTestPassthroughMetric(metricType, opts.ids[i], timestamp.UnixNano(), intervalIdx, i, opts.valueGenOpts.passthrough)
 			default:
 				return nil, fmt.Errorf("unrecognized metric category: %v", opts.category)
 			}
@@ -273,6 +275,24 @@ func generateTestTimedMetric(
 			ID:        metricid.RawID(id),
 			TimeNanos: timeNanos,
 			Value:     valueGenOpts.timedValueGenFn(intervalIdx, idIdx),
+		},
+	}
+}
+
+func generateTestPassthroughMetric(
+	metricType metric.Type,
+	id string,
+	timeNanos int64,
+	intervalIdx, idIdx int,
+	valueGenOpts passthroughValueGenOpts,
+) metricUnion {
+	return metricUnion{
+		category: passthroughMetric,
+		passthrough: aggregated.Metric{
+			Type:      metricType,
+			ID:        metricid.RawID(id),
+			TimeNanos: timeNanos,
+			Value:     valueGenOpts.passthroughValueGenFn(intervalIdx, idIdx),
 		},
 	}
 }
@@ -402,6 +422,9 @@ func computeExpectedAggregationBuckets(
 					values, err = addForwardedMetricToAggregation(values, mu.forwarded)
 				case timedMetric:
 					values, err = addTimedMetricToAggregation(values, mu.timed)
+				case passthroughMetric:
+					// Passthrough metrics need no aggregation.
+					err = nil
 				default:
 					err = fmt.Errorf("unrecognized metric category: %v", mu.category)
 				}
@@ -691,6 +714,7 @@ const (
 	untimedMetric metricCategory = iota
 	forwardedMetric
 	timedMetric
+	passthroughMetric
 )
 
 func (c metricCategory) TimestampNanosFn() timestampNanosFn {
@@ -707,16 +731,21 @@ func (c metricCategory) TimestampNanosFn() timestampNanosFn {
 		return func(windowStartAtNanos int64, resolution time.Duration) int64 {
 			return windowStartAtNanos + resolution.Nanoseconds()
 		}
+	case passthroughMetric:
+		return func(windowStartAtNanos int64, _ time.Duration) int64 {
+			return windowStartAtNanos
+		}
 	default:
 		panic(fmt.Errorf("unknown category type: %v", c))
 	}
 }
 
 type metricUnion struct {
-	category  metricCategory
-	untimed   unaggregated.MetricUnion
-	forwarded aggregated.ForwardedMetric
-	timed     aggregated.Metric
+	category    metricCategory
+	untimed     unaggregated.MetricUnion
+	forwarded   aggregated.ForwardedMetric
+	timed       aggregated.Metric
+	passthrough aggregated.Metric
 }
 
 func (mu metricUnion) Type() metric.Type {
@@ -727,6 +756,8 @@ func (mu metricUnion) Type() metric.Type {
 		return mu.forwarded.Type
 	case timedMetric:
 		return mu.timed.Type
+	case passthroughMetric:
+		return mu.passthrough.Type
 	default:
 		panic(fmt.Errorf("unknown category type: %v", mu.category))
 	}
@@ -740,6 +771,8 @@ func (mu metricUnion) ID() metricid.RawID {
 		return mu.forwarded.ID
 	case timedMetric:
 		return mu.timed.ID
+	case passthroughMetric:
+		return mu.passthrough.ID
 	default:
 		panic(fmt.Errorf("unknown category type: %v", mu.category))
 	}
@@ -752,16 +785,18 @@ const (
 	stagedMetadatasType
 	forwardMetadataType
 	timedMetadataType
+	passthroughMetadataType
 )
 
 type metadataFn func(idx int) metadataUnion
 
 type metadataUnion struct {
-	mType           metadataType
-	policiesList    policy.PoliciesList
-	stagedMetadatas metadata.StagedMetadatas
-	forwardMetadata metadata.ForwardMetadata
-	timedMetadata   metadata.TimedMetadata
+	mType               metadataType
+	policiesList        policy.PoliciesList
+	stagedMetadatas     metadata.StagedMetadatas
+	forwardMetadata     metadata.ForwardMetadata
+	timedMetadata       metadata.TimedMetadata
+	passthroughMetadata policy.StoragePolicy
 }
 
 func (mu metadataUnion) expectedAggregationKeys(
@@ -777,6 +812,8 @@ func (mu metadataUnion) expectedAggregationKeys(
 		return computeExpectedAggregationKeysFromForwardMetadata(mu.forwardMetadata), nil
 	case timedMetadataType:
 		return computeExpectedAggregationKeysFromTimedMetadata(mu.timedMetadata), nil
+	case passthroughMetadataType:
+		return computeExpectedAggregationKeysFromPassthroughMetadata(mu.passthroughMetadata), nil
 	default:
 		return nil, fmt.Errorf("unexpected metadata type: %v", mu.mType)
 	}
@@ -873,6 +910,17 @@ func computeExpectedAggregationKeysFromTimedMetadata(
 	}
 }
 
+func computeExpectedAggregationKeysFromPassthroughMetadata(
+	metadata policy.StoragePolicy,
+) aggregationKeys {
+	return aggregationKeys{
+		{
+			aggregationID: maggregation.DefaultID,
+			storagePolicy: metadata,
+		},
+	}
+}
+
 func computeExpectedAggregationKeysFromForwardMetadata(
 	metadata metadata.ForwardMetadata,
 ) aggregationKeys {
@@ -947,6 +995,21 @@ var defaultTimedValueGenOpts = timedValueGenOpts{
 	timedValueGenFn: defaultTimedValueGenFn,
 }
 
+type passthroughValueGenFn func(intervalIdx, idIdx int) float64
+
+func defaultPassthroughValueGenFn(intervalIdx, _ int) float64 {
+	testVal := 123.456
+	return testVal + float64(intervalIdx)
+}
+
+type passthroughValueGenOpts struct {
+	passthroughValueGenFn passthroughValueGenFn
+}
+
+var defaultPassthroughValueGenOpts = passthroughValueGenOpts{
+	passthroughValueGenFn: defaultPassthroughValueGenFn,
+}
+
 type forwardedValueGenFn func(intervalIdx, idIdx int) []float64
 
 func defaultForwardedValueGenFn(intervalIdx, _ int) []float64 {
@@ -967,15 +1030,17 @@ var defaultForwardedValueGenOpts = forwardedValueGenOpts{
 }
 
 type valueGenOpts struct {
-	untimed   untimedValueGenOpts
-	timed     timedValueGenOpts
-	forwarded forwardedValueGenOpts
+	untimed     untimedValueGenOpts
+	timed       timedValueGenOpts
+	forwarded   forwardedValueGenOpts
+	passthrough passthroughValueGenOpts
 }
 
 var defaultValueGenOpts = valueGenOpts{
-	untimed:   defaultUntimedValueGenOpts,
-	timed:     defaultTimedValueGenOpts,
-	forwarded: defaultForwardedValueGenOpts,
+	untimed:     defaultUntimedValueGenOpts,
+	timed:       defaultTimedValueGenOpts,
+	forwarded:   defaultForwardedValueGenOpts,
+	passthrough: defaultPassthroughValueGenOpts,
 }
 
 type datasetGenOpts struct {

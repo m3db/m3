@@ -145,7 +145,7 @@ func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdata
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
 	if len(ns) != 0 {
-		db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
+		db.EXPECT().OwnedNamespaces().Return(ns, nil).AnyTimes()
 	}
 	return db
 }
@@ -355,7 +355,7 @@ func TestDatabaseNamespaces(t *testing.T) {
 	assert.Equal(t, "testns2", result[1].ID().String())
 }
 
-func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
+func TestOwnedNamespacesErrorIfClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -367,7 +367,7 @@ func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
 	require.NoError(t, d.Open())
 	require.NoError(t, d.Terminate())
 
-	_, err := d.GetOwnedNamespaces()
+	_, err := d.OwnedNamespaces()
 	require.Equal(t, errDatabaseIsClosed, err)
 }
 
@@ -782,7 +782,7 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	nsOptions := namespace.NewOptions().
 		SetWritesToCommitLog(commitlogEnabled)
 
-	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
@@ -964,7 +964,7 @@ func testDatabaseWriteBatch(t *testing.T,
 	nsOptions := namespace.NewOptions().
 		SetWritesToCommitLog(commitlogEnabled)
 
-	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
@@ -1189,7 +1189,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 	nsOptions := namespace.NewOptions().
 		SetWritesToCommitLog(false)
-	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()

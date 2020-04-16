@@ -1,0 +1,11 @@
+---
+operation: newNode
+request:
+  instances:
+    - id: node1
+      isolationGroup: isoGroup1
+      zone: embedded
+      weight: 100
+      endpoint: targetHostname1:9000
+      hostname: newNodeHostname1
+      port: 9000

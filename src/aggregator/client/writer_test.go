@@ -802,14 +802,15 @@ func testWriterConcurrentWriteStress(
 	defer ctrl.Finish()
 
 	var (
-		numIter     = 3000
-		shard       = uint32(0)
-		counters    = make([]unaggregated.Counter, numIter)
-		timers      = make([]unaggregated.BatchTimer, numIter)
-		gauges      = make([]unaggregated.Gauge, numIter)
-		forwarded   = make([]aggregated.ForwardedMetric, numIter)
-		resultsLock sync.Mutex
-		results     [][]byte
+		numIter       = 3000
+		shard         = uint32(0)
+		counters      = make([]unaggregated.Counter, numIter)
+		timers        = make([]unaggregated.BatchTimer, numIter)
+		gauges        = make([]unaggregated.Gauge, numIter)
+		forwarded     = make([]aggregated.ForwardedMetric, numIter)
+		passthroughed = make([]aggregated.Metric, numIter)
+		resultsLock   sync.Mutex
+		results       [][]byte
 	)
 
 	// Construct metrics input.
@@ -841,6 +842,12 @@ func testWriterConcurrentWriteStress(
 			TimeNanos: int64(i),
 			Values:    forwardedVals,
 		}
+		passthroughed[i] = aggregated.Metric{
+			Type:      metric.GaugeType,
+			ID:        []byte(fmt.Sprintf("passthroughed%d", i)),
+			TimeNanos: int64(i),
+			Value:     float64(i),
+		}
 	}
 
 	queue := NewMockinstanceQueue(ctrl)
@@ -863,7 +870,7 @@ func testWriterConcurrentWriteStress(
 	w.queue = queue
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
 
 	go func() {
 		defer wg.Done()
@@ -940,14 +947,30 @@ func testWriterConcurrentWriteStress(
 		}
 	}()
 
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < numIter; i++ {
+			payload := payloadUnion{
+				payloadType: passthroughType,
+				passthrough: passthroughPayload{
+					metric:        passthroughed[i],
+					storagePolicy: testPassthroughMetadata,
+				},
+			}
+			require.NoError(t, w.Write(shard, payload))
+		}
+	}()
+
 	wg.Wait()
 	w.Flush()
 
 	var (
-		resCounters  = make([]unaggregated.Counter, 0, numIter)
-		resTimers    = make([]unaggregated.BatchTimer, 0, numIter)
-		resGauges    = make([]unaggregated.Gauge, 0, numIter)
-		resForwarded = make([]aggregated.ForwardedMetric, 0, numIter)
+		resCounters      = make([]unaggregated.Counter, 0, numIter)
+		resTimers        = make([]unaggregated.BatchTimer, 0, numIter)
+		resGauges        = make([]unaggregated.Gauge, 0, numIter)
+		resForwarded     = make([]aggregated.ForwardedMetric, 0, numIter)
+		resPassthroughed = make([]aggregated.Metric, 0, numIter)
 	)
 	for i := 0; i < len(results); i++ {
 		buf := bytes.NewBuffer(results[i])
@@ -971,6 +994,10 @@ func testWriterConcurrentWriteStress(
 				require.Equal(t, testForwardMetadata, msgResult.ForwardedMetricWithMetadata.ForwardMetadata)
 				metric := cloneForwardedMetric(msgResult.ForwardedMetricWithMetadata.ForwardedMetric)
 				resForwarded = append(resForwarded, metric)
+			case encoding.PassthroughMetricWithMetadataType:
+				require.Equal(t, testPassthroughMetadata, msgResult.PassthroughMetricWithMetadata.StoragePolicy)
+				metric := clonePassthroughedMetric(msgResult.PassthroughMetricWithMetadata.Metric)
+				resPassthroughed = append(resPassthroughed, metric)
 			default:
 				require.Fail(t, "unrecognized message type %v", msgResult.Type)
 			}
@@ -1076,5 +1103,12 @@ func cloneForwardedMetric(m aggregated.ForwardedMetric) aggregated.ForwardedMetr
 	cloned := m
 	cloned.ID = append([]byte(nil), m.ID...)
 	cloned.Values = append([]float64(nil), m.Values...)
+	return cloned
+}
+
+func clonePassthroughedMetric(m aggregated.Metric) aggregated.Metric {
+	cloned := m
+	cloned.ID = append([]byte(nil), m.ID...)
+	cloned.Value = m.Value
 	return cloned
 }

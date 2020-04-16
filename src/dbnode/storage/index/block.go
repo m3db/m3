@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
+	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
@@ -147,6 +148,7 @@ type block struct {
 	opts                            Options
 	iopts                           instrument.Options
 	nsMD                            namespace.Metadata
+	queryStats                      stats.QueryStats
 
 	compact blockCompact
 
@@ -231,6 +233,7 @@ func NewBlock(
 		nsMD:                            md,
 		metrics:                         newBlockMetrics(iopts.MetricsScope()),
 		logger:                          iopts.Logger(),
+		queryStats:                      indexOpts.QueryStats(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorFn = b.executorWithRLock
@@ -965,6 +968,11 @@ func (b *block) addQueryResults(
 	results BaseResults,
 	batch []doc.Document,
 ) ([]doc.Document, int, error) {
+	// update recently queried docs to monitor memory.
+	if err := b.queryStats.Update(len(batch)); err != nil {
+		return batch, 0, err
+	}
+
 	// checkout the lifetime of the query before adding results.
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {
@@ -1198,6 +1206,11 @@ func (b *block) addAggregateResults(
 	results AggregateResults,
 	batch []AggregateResultsEntry,
 ) ([]AggregateResultsEntry, int, error) {
+	// update recently queried docs to monitor memory.
+	if err := b.queryStats.Update(len(batch)); err != nil {
+		return batch, 0, err
+	}
+
 	// checkout the lifetime of the query before adding results.
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {

@@ -65,6 +65,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
@@ -135,8 +136,14 @@ type RunOptions struct {
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
 
+	// QueryStatsTracker exposes an interface for tracking query stats.
+	QueryStatsTracker stats.QueryStatsTracker
+
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
+
+	// StorageOptions are options to apply to the database storage options.
+	StorageOptions StorageOptions
 }
 
 // Run runs the server programmatically given a filename for the
@@ -394,6 +401,15 @@ func Run(runOpts RunOptions) {
 	}
 	defer stopReporting()
 
+	// Setup query stats tracking.
+	tracker := runOpts.QueryStatsTracker
+	if runOpts.QueryStatsTracker == nil {
+		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
+	}
+	queryStats := stats.NewQueryStats(tracker)
+	queryStats.Start()
+	defer queryStats.Stop()
+
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
@@ -406,7 +422,8 @@ func Run(runOpts RunOptions) {
 			CacheRegexp: plCacheConfig.CacheRegexpOrDefault(),
 			CacheTerms:  plCacheConfig.CacheTermsOrDefault(),
 		}).
-		SetMmapReporter(mmapReporter)
+		SetMmapReporter(mmapReporter).
+		SetQueryStats(queryStats)
 	opts = opts.SetIndexOptions(indexOpts)
 
 	if tick := cfg.Tick; tick != nil {
@@ -777,6 +794,10 @@ func Run(runOpts RunOptions) {
 			SetRepairOptions(repairOpts)
 	} else {
 		opts = opts.SetRepairEnabled(false)
+	}
+
+	if runOpts.StorageOptions.OnColdFlush != nil {
+		opts = opts.SetOnColdFlush(runOpts.StorageOptions.OnColdFlush)
 	}
 
 	// Set bootstrap options - We need to create a topology map provider from the

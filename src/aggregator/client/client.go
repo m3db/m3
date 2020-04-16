@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -75,6 +76,12 @@ type Client interface {
 		metadata metadata.TimedMetadata,
 	) error
 
+	// WritePassthrough writes passthrough metrics.
+	WritePassthrough(
+		metric aggregated.Metric,
+		storagePolicy policy.StoragePolicy,
+	) error
+
 	// WriteTimedWithStagedMetadatas writes timed metrics with staged metadatas.
 	WriteTimedWithStagedMetadatas(
 		metric aggregated.Metric,
@@ -113,6 +120,7 @@ type clientMetrics struct {
 	writeUntimedCounter    instrument.MethodMetrics
 	writeUntimedBatchTimer instrument.MethodMetrics
 	writeUntimedGauge      instrument.MethodMetrics
+	writePassthrough       instrument.MethodMetrics
 	writeForwarded         instrument.MethodMetrics
 	flush                  instrument.MethodMetrics
 	shardNotOwned          tally.Counter
@@ -124,6 +132,7 @@ func newClientMetrics(scope tally.Scope, sampleRate float64) clientMetrics {
 		writeUntimedCounter:    instrument.NewMethodMetrics(scope, "writeUntimedCounter", sampleRate),
 		writeUntimedBatchTimer: instrument.NewMethodMetrics(scope, "writeUntimedBatchTimer", sampleRate),
 		writeUntimedGauge:      instrument.NewMethodMetrics(scope, "writeUntimedGauge", sampleRate),
+		writePassthrough:       instrument.NewMethodMetrics(scope, "writePassthrough", sampleRate),
 		writeForwarded:         instrument.NewMethodMetrics(scope, "writeForwarded", sampleRate),
 		flush:                  instrument.NewMethodMetrics(scope, "flush", sampleRate),
 		shardNotOwned:          scope.Counter("shard-not-owned"),
@@ -259,6 +268,23 @@ func (c *client) WriteTimed(
 	}
 	err := c.write(metric.ID, metric.TimeNanos, payload)
 	c.metrics.writeForwarded.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	return err
+}
+
+func (c *client) WritePassthrough(
+	metric aggregated.Metric,
+	storagePolicy policy.StoragePolicy,
+) error {
+	callStart := c.nowFn()
+	payload := payloadUnion{
+		payloadType: passthroughType,
+		passthrough: passthroughPayload{
+			metric:        metric,
+			storagePolicy: storagePolicy,
+		},
+	}
+	err := c.write(metric.ID, metric.TimeNanos, payload)
+	c.metrics.writePassthrough.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
 	return err
 }
 

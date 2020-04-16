@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	aggruntime "github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -55,6 +56,10 @@ import (
 var (
 	errNoKVClientConfiguration = errors.New("no kv client configuration")
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
+)
+
+var (
+	defaultNumPassthroughWriters = 8
 )
 
 // AggregatorConfiguration contains aggregator configuration.
@@ -111,6 +116,11 @@ type AggregatorConfiguration struct {
 	// Resign timeout.
 	ResignTimeout time.Duration `yaml:"resignTimeout"`
 
+	// ShutdownWaitTimeout if non-zero will be how long the aggregator waits from
+	// receiving a shutdown signal to exit. This can make coordinating graceful
+	// shutdowns between two replicas safer.
+	ShutdownWaitTimeout time.Duration `yaml:"shutdownWaitTimeout"`
+
 	// Flush times manager.
 	FlushTimesManager flushTimesManagerConfiguration `yaml:"flushTimesManager"`
 
@@ -122,6 +132,9 @@ type AggregatorConfiguration struct {
 
 	// Flushing handler configuration.
 	Flush handler.FlushHandlerConfiguration `yaml:"flush"`
+
+	// Passthrough controls the passthrough knobs.
+	Passthrough *passthroughConfiguration `yaml:"passthrough"`
 
 	// Forwarding configuration.
 	Forwarding forwardingConfiguration `yaml:"forwarding"`
@@ -367,6 +380,18 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return nil, err
 	}
 	opts = opts.SetFlushHandler(flushHandler)
+
+	// Set passthrough writer.
+	aggShardFn, err := hashType.AggregatedShardFn()
+	if err != nil {
+		return nil, err
+	}
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("passthrough-writer"))
+	passthroughWriter, err := c.newPassthroughWriter(flushHandler, iOpts, aggShardFn)
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetPassthroughWriter(passthroughWriter)
 
 	// Set max allowed forwarding delay function.
 	jitterEnabled := flushManagerOpts.JitterEnabled()
@@ -858,4 +883,41 @@ func setMetricPrefix(
 		return opts
 	}
 	return fn([]byte(*str))
+}
+
+// PassthroughConfiguration contains the knobs for pass-through server.
+type passthroughConfiguration struct {
+	// Enabled controls whether the passthrough server/writer is enabled.
+	Enabled bool `yaml:"enabled"`
+
+	// NumWriters controls the number of passthrough writers used.
+	NumWriters int `yaml:"numWriters"`
+}
+
+func (c *AggregatorConfiguration) newPassthroughWriter(
+	flushHandler handler.Handler,
+	iOpts instrument.Options,
+	shardFn sharding.AggregatedShardFn,
+) (writer.Writer, error) {
+	// fallback gracefully
+	if c.Passthrough == nil || !c.Passthrough.Enabled {
+		iOpts.Logger().Info("passthrough writer disabled, blackholing all passthrough writes")
+		return writer.NewBlackholeWriter(), nil
+	}
+
+	count := defaultNumPassthroughWriters
+	if c.Passthrough.NumWriters != 0 {
+		count = c.Passthrough.NumWriters
+	}
+
+	writers := make([]writer.Writer, 0, count)
+	for i := 0; i < count; i++ {
+		writer, err := flushHandler.NewWriter(iOpts.MetricsScope())
+		if err != nil {
+			return nil, err
+		}
+		writers = append(writers, writer)
+	}
+
+	return writer.NewShardedWriter(writers, shardFn, iOpts)
 }

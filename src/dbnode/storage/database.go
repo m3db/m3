@@ -203,7 +203,7 @@ func NewDatabase(
 	// Wait till first namespaces value is received and set the value.
 	// Its important that this happens before the mediator is started to prevent
 	// a race condition where the namespaces haven't been initialized yet and
-	// GetOwnedNamespaces() returns an empty slice which makes the cleanup logic
+	// OwnedNamespaces() returns an empty slice which makes the cleanup logic
 	// in the background Tick think it can clean up files that it shouldn't.
 	logger.Info("resolving namespaces with namespace watch")
 	<-watch.C()
@@ -1023,7 +1023,7 @@ func (d *db) ownedNamespacesWithLock() []databaseNamespace {
 	return namespaces
 }
 
-func (d *db) GetOwnedNamespaces() ([]databaseNamespace, error) {
+func (d *db) OwnedNamespaces() ([]databaseNamespace, error) {
 	d.RLock()
 	defer d.RUnlock()
 	if d.state == databaseClosed {
