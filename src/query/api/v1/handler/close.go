@@ -29,6 +29,7 @@ import (
 )
 
 // CancelWatcher is an interface that wraps a WatchForCancel method.
+// TODO: make this generic middleware, rather than applied per function.
 type CancelWatcher interface {
 	// WatchForCancel watches on the given context, and applies
 	// the given cancellation function.
