@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -395,11 +396,14 @@ func TestReadWithOptions(t *testing.T) {
 }
 
 type cancelWatcher struct {
+	sync.Mutex
 	count int
 }
 
 var _ handler.CancelWatcher = (*cancelWatcher)(nil)
 
 func (c *cancelWatcher) WatchForCancel(context.Context, context.CancelFunc) {
+	c.Lock()
 	c.count++
+	c.Unlock()
 }
