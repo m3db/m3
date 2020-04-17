@@ -30,11 +30,11 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
-	xjson "github.com/m3db/m3/src/x/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
