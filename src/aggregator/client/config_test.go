@@ -62,7 +62,9 @@ encoder:
       low: 0.001
       high: 0.01
 flushSize: 1440
+maxBatchSize: 42
 maxTimerBatchSize: 140
+batchFlushDeadline: 123ms
 queueSize: 1000
 queueDropType: oldest
 connection:
@@ -103,6 +105,8 @@ func TestConfigUnmarshal(t *testing.T) {
 	require.Equal(t, 0.01, cfg.Encoder.BytesPool.Watermark.RefillHighWatermark)
 	require.Equal(t, 1440, cfg.FlushSize)
 	require.Equal(t, 140, cfg.MaxTimerBatchSize)
+	require.Equal(t, 42, cfg.MaxBatchSize)
+	require.Equal(t, 123*time.Millisecond, cfg.BatchFlushDeadline)
 	require.Equal(t, 1000, cfg.QueueSize)
 	require.Equal(t, DropOldest, *cfg.QueueDropType)
 	require.Equal(t, time.Second, cfg.Connection.ConnectionTimeout)
@@ -151,7 +155,8 @@ func TestNewClientOptions(t *testing.T) {
 	require.Equal(t, time.Minute, opts.ShardCutoffLingerDuration())
 	require.Equal(t, 1440, opts.FlushSize())
 	require.Equal(t, 140, opts.MaxTimerBatchSize())
-	require.Equal(t, 140, opts.MaxTimerBatchSize())
+	require.Equal(t, 42, opts.MaxBatchSize())
+	require.Equal(t, 123*time.Millisecond, opts.BatchFlushDeadline())
 	require.Equal(t, DropOldest, opts.QueueDropType())
 	require.Equal(t, time.Second, opts.ConnectionOptions().ConnectionTimeout())
 	require.Equal(t, true, opts.ConnectionOptions().ConnectionKeepAlive())
