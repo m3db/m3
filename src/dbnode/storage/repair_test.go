@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -560,7 +561,8 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 }
 
 type expectedRepair struct {
-	repairRange xtime.Range
+	expectedRepairRange xtime.Range
+	mockRepairResult    error
 }
 
 func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
@@ -594,9 +596,15 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 		expectedNS2Repair expectedRepair
 	}{
 		{
-			title:             "repairs most recent block if no repair state",
-			expectedNS1Repair: expectedRepair{xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)}},
-			expectedNS2Repair: expectedRepair{xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)}},
+			title: "repairs most recent block if no repair state",
+			expectedNS1Repair: expectedRepair{
+				xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
+				nil,
+			},
+			expectedNS2Repair: expectedRepair{
+				xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
+				nil,
+			},
 		},
 		{
 			title: "repairs next unrepaired block in reverse order if some (but not all) blocks have been repaired",
@@ -614,8 +622,14 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 					},
 				},
 			},
-			expectedNS1Repair: expectedRepair{xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
-			expectedNS2Repair: expectedRepair{xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
+			expectedNS1Repair: expectedRepair{
+				xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+				nil,
+			},
+			expectedNS2Repair: expectedRepair{
+				xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+				nil,
+			},
 		},
 		{
 			title: "repairs least recently repaired block if all blocks have been repaired",
@@ -641,8 +655,14 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 					},
 				},
 			},
-			expectedNS1Repair: expectedRepair{xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
-			expectedNS2Repair: expectedRepair{xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)}},
+			expectedNS1Repair: expectedRepair{
+				xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+				nil,
+			},
+			expectedNS2Repair: expectedRepair{
+				xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+				nil,
+			},
 		},
 	}
 
@@ -675,11 +695,131 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 			ns1.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
 			ns2.EXPECT().ID().Return(ident.StringID("ns2")).AnyTimes()
 
-			ns1.EXPECT().Repair(gomock.Any(), tc.expectedNS1Repair.repairRange)
-			ns2.EXPECT().Repair(gomock.Any(), tc.expectedNS2Repair.repairRange)
+			ns1.EXPECT().Repair(gomock.Any(), tc.expectedNS1Repair.expectedRepairRange)
+			ns2.EXPECT().Repair(gomock.Any(), tc.expectedNS2Repair.expectedRepairRange)
 
 			mockDatabase.EXPECT().OwnedNamespaces().Return(namespaces, nil)
 			require.Nil(t, repairer.Repair())
+		})
+	}
+}
+
+// Database repairer repairs blocks in decreasing time ranges for each namespace. If database repairer fails to
+// repair a time range of a namespace then instead of skipping repair of all past time ranges of that namespace, test
+// that database repaier tries to repair the past corrupt time range of that namespace.
+func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		rOpts = retention.NewOptions().
+			SetRetentionPeriod(retention.NewOptions().BlockSize() * 2)
+		nsOpts = namespace.NewOptions().
+			SetRetentionOptions(rOpts)
+		blockSize = rOpts.BlockSize()
+
+		// Set current time such that the previous block is flushable.
+		now = time.Now().Truncate(blockSize).Add(rOpts.BufferPast()).Add(time.Second)
+
+		flushTimeStart = retention.FlushTimeStart(rOpts, now)
+		flushTimeEnd   = retention.FlushTimeEnd(rOpts, now)
+
+		//flushTimeStartNano = xtime.ToUnixNano(flushTimeStart)
+		flushTimeEndNano = xtime.ToUnixNano(flushTimeEnd)
+	)
+	require.NoError(t, nsOpts.Validate())
+	// Ensure only two flushable blocks in retention to make test logic simpler.
+	require.Equal(t, blockSize, flushTimeEnd.Sub(flushTimeStart))
+
+	testCases := []struct {
+		title              string
+		repairState        repairStatesByNs
+		expectedNS1Repairs []expectedRepair
+		expectedNS2Repairs []expectedRepair
+	}{
+		{
+			title: "Test that corrupt ns1 time range (flushTimeEnd, flushTimeEnd + blockSize) does not prevent past time ranges (flushTimeStart, flushTimeStart + blockSize) from being repaired. Also test that least recently repaired policy is honored even when repairing one of the time ranges (flushTimeStart, flushTimeStart + blockSize) on ns2 fails.",
+			repairState: repairStatesByNs{
+				"ns2": namespaceRepairStateByTime{
+					flushTimeEndNano: repairState{
+						Status:      repairSuccess,
+						LastAttempt: time.Time{},
+					},
+				},
+			},
+			expectedNS1Repairs: []expectedRepair{
+				{
+					xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
+					errors.New("ns1 repair error"),
+				},
+				{
+					xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+					nil,
+				},
+			},
+			expectedNS2Repairs: []expectedRepair{
+				{
+					xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
+					errors.New("ns2 repair error"),
+				},
+				{
+					xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
+					nil,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			opts := DefaultTestOptions().SetRepairOptions(testRepairOptions(ctrl))
+			mockDatabase := NewMockdatabase(ctrl)
+
+			databaseRepairer, err := newDatabaseRepairer(mockDatabase, opts)
+			require.NoError(t, err)
+			repairer := databaseRepairer.(*dbRepairer)
+			repairer.nowFn = func() time.Time {
+				return now
+			}
+			if tc.repairState == nil {
+				tc.repairState = repairStatesByNs{}
+			}
+			repairer.repairStatesByNs = tc.repairState
+
+			mockDatabase.EXPECT().IsBootstrapped().Return(true)
+
+			var (
+				ns1        = NewMockdatabaseNamespace(ctrl)
+				ns2        = NewMockdatabaseNamespace(ctrl)
+				namespaces = []databaseNamespace{ns1, ns2}
+			)
+			ns1.EXPECT().Options().Return(nsOpts).AnyTimes()
+			ns2.EXPECT().Options().Return(nsOpts).AnyTimes()
+
+			ns1.EXPECT().ID().Return(ident.StringID("ns1")).AnyTimes()
+			ns2.EXPECT().ID().Return(ident.StringID("ns2")).AnyTimes()
+
+			//Setup expected ns1 repair invocations for each repaired time range
+			var ns1RepairExpectations = make([]*gomock.Call, len(tc.expectedNS1Repairs))
+			for i, ns1Repair := range tc.expectedNS1Repairs {
+				ns1RepairExpectations[i] = ns1.EXPECT().
+					Repair(gomock.Any(), ns1Repair.expectedRepairRange).
+					Return(ns1Repair.mockRepairResult)
+			}
+			gomock.InOrder(ns1RepairExpectations...)
+
+			//Setup expected ns2 repair invocations for each repaired time range
+			var ns2RepairExpectations = make([]*gomock.Call, len(tc.expectedNS2Repairs))
+			for i, ns2Repair := range tc.expectedNS2Repairs {
+				ns2RepairExpectations[i] = ns2.EXPECT().
+					Repair(gomock.Any(), ns2Repair.expectedRepairRange).
+					Return(ns2Repair.mockRepairResult)
+			}
+			gomock.InOrder(ns2RepairExpectations...)
+
+			mockDatabase.EXPECT().OwnedNamespaces().Return(namespaces, nil)
+
+			require.NotNil(t, repairer.Repair())
 		})
 	}
 }
