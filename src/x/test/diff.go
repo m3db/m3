@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	xjson "github.com/m3db/m3/src/x/json"
+
 	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/stretchr/testify/require"
 )
@@ -36,8 +38,15 @@ func Diff(expected, actual string) string {
 	return dmp.DiffPrettyText(diffs)
 }
 
-// MustPrettyJSON returns an indented version of the JSON.
-func MustPrettyJSON(t *testing.T, str string) string {
+// MustPrettyJSONMap returns an indented JSON string of the object.
+func MustPrettyJSONMap(t *testing.T, value xjson.Map) string {
+	pretty, err := json.MarshalIndent(value, "", "  ")
+	require.NoError(t, err)
+	return string(pretty)
+}
+
+// MustPrettyJSONString returns an indented version of the JSON.
+func MustPrettyJSONString(t *testing.T, str string) string {
 	var unmarshalled map[string]interface{}
 	err := json.Unmarshal([]byte(str), &unmarshalled)
 	require.NoError(t, err)

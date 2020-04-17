@@ -127,6 +127,8 @@ type FetchOptions struct {
 	// IncludeResolution if set, appends resolution information to fetch results.
 	// Currently only used for graphite queries.
 	IncludeResolution bool
+	// Timeout is the timeout for the request.
+	Timeout time.Duration
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for

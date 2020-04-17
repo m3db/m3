@@ -217,6 +217,51 @@ func TestUnaggregatedIteratorDecodeForwardedMetricWithMetadata(t *testing.T) {
 	require.Equal(t, io.EOF, it.Err())
 	require.Equal(t, len(inputs), i)
 }
+func TestUnaggregatedIteratorDecodePassthroughMetricWithMetadata(t *testing.T) {
+	inputs := []aggregated.PassthroughMetricWithMetadata{
+		{
+			Metric:        testPassthroughMetric1,
+			StoragePolicy: testPassthroughMetadata1,
+		},
+		{
+			Metric:        testPassthroughMetric2,
+			StoragePolicy: testPassthroughMetadata1,
+		},
+		{
+			Metric:        testPassthroughMetric1,
+			StoragePolicy: testPassthroughMetadata2,
+		},
+		{
+			Metric:        testPassthroughMetric2,
+			StoragePolicy: testPassthroughMetadata2,
+		},
+	}
+
+	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
+	for _, input := range inputs {
+		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type:                          encoding.PassthroughMetricWithMetadataType,
+			PassthroughMetricWithMetadata: input,
+		}))
+	}
+	dataBuf := enc.Relinquish()
+	defer dataBuf.Close()
+
+	var (
+		i      int
+		stream = bytes.NewReader(dataBuf.Bytes())
+	)
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	defer it.Close()
+	for it.Next() {
+		res := it.Current()
+		require.Equal(t, encoding.PassthroughMetricWithMetadataType, res.Type)
+		require.Equal(t, inputs[i], res.PassthroughMetricWithMetadata)
+		i++
+	}
+	require.Equal(t, io.EOF, it.Err())
+	require.Equal(t, len(inputs), i)
+}
 
 func TestUnaggregatedIteratorDecodeTimedMetricWithMetadata(t *testing.T) {
 	inputs := []aggregated.TimedMetricWithMetadata{
@@ -286,6 +331,10 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 			Metric:        testTimedMetric1,
 			TimedMetadata: testTimedMetadata1,
 		},
+		aggregated.PassthroughMetricWithMetadata{
+			Metric:        testPassthroughMetric1,
+			StoragePolicy: testPassthroughMetadata1,
+		},
 		unaggregated.CounterWithMetadatas{
 			Counter:         testCounter2,
 			StagedMetadatas: testStagedMetadatas1,
@@ -338,6 +387,10 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 			Metric:        testTimedMetric2,
 			TimedMetadata: testTimedMetadata2,
 		},
+		aggregated.PassthroughMetricWithMetadata{
+			Metric:        testPassthroughMetric2,
+			StoragePolicy: testPassthroughMetadata2,
+		},
 	}
 
 	numIter := 1000
@@ -370,6 +423,11 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 				msg = encoding.UnaggregatedMessageUnion{
 					Type: encoding.TimedMetricWithMetadataType,
 					TimedMetricWithMetadata: input,
+				}
+			case aggregated.PassthroughMetricWithMetadata:
+				msg = encoding.UnaggregatedMessageUnion{
+					Type: encoding.PassthroughMetricWithMetadataType,
+					PassthroughMetricWithMetadata: input,
 				}
 			default:
 				require.Fail(t, "unrecognized type %T", input)
@@ -405,6 +463,9 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 		case aggregated.TimedMetricWithMetadata:
 			require.Equal(t, encoding.TimedMetricWithMetadataType, res.Type)
 			require.True(t, cmp.Equal(expectedRes, res.TimedMetricWithMetadata, testCmpOpts...))
+		case aggregated.PassthroughMetricWithMetadata:
+			require.Equal(t, encoding.PassthroughMetricWithMetadataType, res.Type)
+			require.True(t, cmp.Equal(expectedRes, res.PassthroughMetricWithMetadata, testCmpOpts...))
 		default:
 			require.Fail(t, "unknown input type: %T", inputs[j])
 		}

@@ -252,6 +252,8 @@ aggregator:
                 watermark:
                   low: 0.2
                   high: 0.5
+  passthrough:
+    enabled: true
   forwarding:
     maxConstDelay: 1m # Need to add some buffer window, since timed metrics by default are delayed by 1min.
   entryTTL: 1h

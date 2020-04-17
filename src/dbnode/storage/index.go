@@ -100,6 +100,7 @@ type nsIndex struct {
 
 	indexFilesetsBeforeFn indexFilesetsBeforeFn
 	deleteFilesFn         deleteFilesFn
+	readIndexInfoFilesFn  readIndexInfoFilesFn
 
 	newBlockFn          newBlockFn
 	logger              *zap.Logger
@@ -179,6 +180,11 @@ type indexFilesetsBeforeFn func(dir string,
 	exclusiveTime time.Time,
 ) ([]string, error)
 
+type readIndexInfoFilesFn func(filePathPrefix string,
+	namespace ident.ID,
+	readerBufferSize int,
+) []fs.ReadIndexInfoFileResult
+
 type newNamespaceIndexOpts struct {
 	md              namespace.Metadata
 	shardSet        sharding.ShardSet
@@ -211,7 +217,7 @@ func newNamespaceIndex(
 	nsMD namespace.Metadata,
 	shardSet sharding.ShardSet,
 	opts Options,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
 		shardSet:        shardSet,
@@ -227,7 +233,7 @@ func newNamespaceIndexWithInsertQueueFn(
 	shardSet sharding.ShardSet,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
 	opts Options,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
 		shardSet:        shardSet,
@@ -243,7 +249,7 @@ func newNamespaceIndexWithNewBlockFn(
 	shardSet sharding.ShardSet,
 	newBlockFn newBlockFn,
 	opts Options,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
 		shardSet:        shardSet,
@@ -256,7 +262,7 @@ func newNamespaceIndexWithNewBlockFn(
 // newNamespaceIndexWithOptions returns a new namespaceIndex with the provided configuration options.
 func newNamespaceIndexWithOptions(
 	newIndexOpts newNamespaceIndexOpts,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	var (
 		nsMD            = newIndexOpts.md
 		shardSet        = newIndexOpts.shardSet
@@ -298,6 +304,7 @@ func newNamespaceIndexWithOptions(
 		coldWritesEnabled:     nsMD.Options().ColdWritesEnabled(),
 
 		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
+		readIndexInfoFilesFn:  fs.ReadIndexInfoFiles,
 		deleteFilesFn:         fs.DeleteFiles,
 
 		newBlockFn: newBlockFn,
@@ -471,6 +478,10 @@ func (i *nsIndex) reportStats() error {
 
 func (i *nsIndex) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
 	return xtime.ToUnixNano(writeTime.Truncate(i.blockSize))
+}
+
+func (i *nsIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) {
+	return i.ensureBlockPresent(blockStart)
 }
 
 // NB(prateek): including the call chains leading to this point:
@@ -1515,6 +1526,55 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 
 	// and delete them
 	return i.deleteFilesFn(filesets)
+}
+
+func (i *nsIndex) CleanupDuplicateFileSets() error {
+	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
+	infoFiles := i.readIndexInfoFilesFn(
+		fsOpts.FilePathPrefix(),
+		i.nsMetadata.ID(),
+		fsOpts.InfoReaderBufferSize(),
+	)
+
+	segmentsOrderByVolumeIndexByVolumeType := make(map[idxpersist.IndexVolumeType][]fs.Segments)
+	for _, file := range infoFiles {
+		seg := fs.NewSegments(file.Info, file.ID.VolumeIndex, file.AbsoluteFilepaths)
+		volumeType := seg.VolumeType()
+		if _, ok := segmentsOrderByVolumeIndexByVolumeType[volumeType]; !ok {
+			segmentsOrderByVolumeIndexByVolumeType[volumeType] = make([]fs.Segments, 0)
+		}
+		segmentsOrderByVolumeIndexByVolumeType[volumeType] = append(segmentsOrderByVolumeIndexByVolumeType[volumeType], seg)
+	}
+
+	// Ensure that segments are soroted by volume index.
+	for _, segs := range segmentsOrderByVolumeIndexByVolumeType {
+		sort.SliceStable(segs, func(i, j int) bool {
+			return segs[i].VolumeIndex() < segs[j].VolumeIndex()
+		})
+	}
+
+	multiErr := xerrors.NewMultiError()
+	// Check for dupes and remove.
+	filesToDelete := make([]string, 0)
+	for _, segmentsOrderByVolumeIndex := range segmentsOrderByVolumeIndexByVolumeType {
+		shardTimeRangesCovered := result.NewShardTimeRanges()
+		currSegments := make([]fs.Segments, 0)
+		for _, seg := range segmentsOrderByVolumeIndex {
+			if seg.ShardTimeRanges().IsSuperset(shardTimeRangesCovered) {
+				// Mark dupe segments for deletion.
+				for _, currSeg := range currSegments {
+					filesToDelete = append(filesToDelete, currSeg.AbsoluteFilepaths()...)
+				}
+				currSegments = []fs.Segments{seg}
+				shardTimeRangesCovered = seg.ShardTimeRanges().Copy()
+				continue
+			}
+			currSegments = append(currSegments, seg)
+			shardTimeRangesCovered.AddRanges(seg.ShardTimeRanges())
+		}
+	}
+	multiErr = multiErr.Add(i.deleteFilesFn(filesToDelete))
+	return multiErr.FinalError()
 }
 
 func (i *nsIndex) Close() error {
