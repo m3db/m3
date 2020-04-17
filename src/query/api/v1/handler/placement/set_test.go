@@ -144,7 +144,10 @@ func TestPlacementSetHandler(t *testing.T) {
 			DryRun:    !setTestPlacementReqProto.Confirm,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, expectedBody, body,
-			xtest.Diff(xtest.MustPrettyJSON(t, expectedBody), xtest.MustPrettyJSON(t, body)))
+
+		expected := xtest.MustPrettyJSONString(t, expectedBody)
+		actual := xtest.MustPrettyJSONString(t, body)
+
+		assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 	})
 }

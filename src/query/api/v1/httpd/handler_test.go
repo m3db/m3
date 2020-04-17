@@ -157,7 +157,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
 	h.Router().ServeHTTP(res, req)
-	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "GET method not defined")
+	require.Equal(t, http.StatusMethodNotAllowed, res.Code)
 }
 
 func TestPromRemoteReadPost(t *testing.T) {
@@ -171,7 +171,7 @@ func TestPromRemoteReadPost(t *testing.T) {
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
 	h.Router().ServeHTTP(res, req)
-	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
+	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
 }
 
 func TestPromNativeReadGet(t *testing.T) {
@@ -184,7 +184,7 @@ func TestPromNativeReadGet(t *testing.T) {
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router().ServeHTTP(res, req)
-	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
+	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
 }
 
 func TestPromNativeReadPost(t *testing.T) {
@@ -197,7 +197,7 @@ func TestPromNativeReadPost(t *testing.T) {
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router().ServeHTTP(res, req)
-	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
+	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
 }
 
 func TestJSONWritePost(t *testing.T) {
@@ -210,7 +210,7 @@ func TestJSONWritePost(t *testing.T) {
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router().ServeHTTP(res, req)
-	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
+	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
 }
 
 func TestRoutesGet(t *testing.T) {

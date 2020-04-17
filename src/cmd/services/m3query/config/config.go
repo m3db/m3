@@ -217,7 +217,7 @@ func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
 // instance. Limits are split between per-query and global limits.
 type LimitsConfiguration struct {
 	// deprecated: use PerQuery.MaxComputedDatapoints instead.
-	DeprecatedMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+	DeprecatedMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
 
 	// Global configures limits which apply across all queries running on this
 	// instance.
@@ -232,7 +232,7 @@ type LimitsConfiguration struct {
 // LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints. See
 // LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints for a comment on
 // the semantics.
-func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
+func (lc LimitsConfiguration) MaxComputedDatapoints() int {
 	if lc.PerQuery.PrivateMaxComputedDatapoints != 0 {
 		return lc.PerQuery.PrivateMaxComputedDatapoints
 	}
@@ -245,7 +245,7 @@ func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
 type GlobalLimitsConfiguration struct {
 	// MaxFetchedDatapoints limits the total number of datapoints actually
 	// fetched by all queries at any given time.
-	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
 }
 
 // AsLimitManagerOptions converts this configuration to
@@ -264,14 +264,14 @@ type PerQueryLimitsConfiguration struct {
 	// N.B.: the hacky "Private" prefix is to indicate that callers should use
 	// LimitsConfiguration.MaxComputedDatapoints() instead of accessing
 	// this field directly.
-	PrivateMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+	PrivateMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
 
 	// MaxFetchedDatapoints limits the number of datapoints actually used by a
 	// given query.
-	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
 
 	// MaxFetchedSeries limits the number of time series returned by a storage node.
-	MaxFetchedSeries int64 `yaml:"maxFetchedSeries"`
+	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
 }
 
 // AsLimitManagerOptions converts this configuration to
@@ -294,7 +294,7 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleropti
 	}
 }
 
-func toLimitManagerOptions(limit int64) cost.LimitManagerOptions {
+func toLimitManagerOptions(limit int) cost.LimitManagerOptions {
 	return cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
 		Threshold: cost.Cost(limit),
 		Enabled:   limit > 0,

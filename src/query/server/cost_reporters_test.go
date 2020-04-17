@@ -47,7 +47,7 @@ func (c enforcerTestCtx) Close() {
 }
 
 func TestNewConfiguredChainedEnforcer(t *testing.T) {
-	setup := func(t *testing.T, perQueryLimit, globalLimit int64) enforcerTestCtx {
+	setup := func(t *testing.T, perQueryLimit, globalLimit int) enforcerTestCtx {
 		s := tally.NewTestScope("", nil)
 		iopts := instrument.NewOptions().SetMetricsScope(s)
 
