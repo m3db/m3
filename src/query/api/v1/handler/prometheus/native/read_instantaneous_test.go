@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
+	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
@@ -132,47 +133,41 @@ func testPromReadInstantHandler(
 	at1, value1, err := result.Data.Result[1].Value.parse()
 	require.NoError(t, err)
 
-	var jsonWarnings string
-	if len(jsonWarning) > 0 {
-		jsonWarnings = fmt.Sprintf(`
-		"warnings": [
-			"%s"
-		],
-		`, jsonWarning)
-	}
-
-	expected := xtest.MustPrettyJSON(t, fmt.Sprintf(`
-	{
-		"status": "success",%s
-		"data": {
-			"resultType": "vector", 
-			"result": [
-				{
-					"metric": {
+	expectedResp := xjson.Map{
+		"status": "success",
+		"data": xjson.Map{
+			"resultType": "vector",
+			"result": xjson.Array{
+				xjson.Map{
+					"metric": xjson.Map{
 						"__name__": "dummy0",
-						"dummy0": "dummy0"
+						"dummy0":   "dummy0",
 					},
-					"value": [
-						%d,
-						"%d"
-					]
+					"value": xjson.Array{
+						at0.Unix(),
+						strconv.Itoa(value0),
+					},
 				},
-				{
-					"metric": {
+				xjson.Map{
+					"metric": xjson.Map{
 						"__name__": "dummy1",
-						"dummy1": "dummy1"
+						"dummy1":   "dummy1",
 					},
-					"value": [
-						%d,
-						"%d"
-					]
-				}
-			]
-		}
+					"value": xjson.Array{
+						at1.Unix(),
+						strconv.Itoa(value1),
+					},
+				},
+			},
+		},
 	}
-	`, jsonWarnings, at0.Unix(), value0, at1.Unix(), value1))
 
-	actual := xtest.MustPrettyJSON(t, recorder.Body.String())
+	if len(jsonWarning) != 0 {
+		expectedResp["warnings"] = xjson.Array{jsonWarning}
+	}
+
+	expected := xtest.MustPrettyJSONMap(t, expectedResp)
+	actual := xtest.MustPrettyJSONString(t, recorder.Body.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 

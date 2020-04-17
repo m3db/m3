@@ -34,6 +34,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
+	xjson "github.com/m3db/m3/src/x/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,13 +72,14 @@ func TestConfigGetBootstrappersHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	expectedResponse := `
-	{
-		"values": ["filesystem", "commitlog", "peers", "uninitialized_topology"]
+	expectedResp := xjson.Map{
+		"values": xjson.Array{"filesystem", "commitlog", "peers", "uninitialized_topology"},
 	}
-	`
-	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
+
+	expected := xtest.MustPrettyJSONMap(t, expectedResp)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
 func TestConfigGetBootstrappersHandlerNotFound(t *testing.T) {

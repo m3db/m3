@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -190,72 +191,70 @@ func TestRenderResultsJSON(t *testing.T) {
 	readResult := ReadResult{Series: series}
 	renderResultsJSON(buffer, readResult, params, true)
 
-	expected := xtest.MustPrettyJSON(t, `
-	{
+	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
-		"warnings": [
-			"m3db exceeded query limit: results not exhaustive"
-		],
-		"data": {
+		"warnings": xjson.Array{
+			"m3db exceeded query limit: results not exhaustive",
+		},
+		"data": xjson.Map{
 			"resultType": "matrix",
-			"result": [
-				{
-					"metric": {
+			"result": xjson.Array{
+				xjson.Map{
+					"metric": xjson.Map{
 						"bar": "baz",
-						"qux": "qaz"
+						"qux": "qaz",
 					},
-					"values": [
-						[
+					"values": xjson.Array{
+						xjson.Array{
 							1535948880,
-							"1"
-						],
-						[
+							"1",
+						},
+						xjson.Array{
 							1535948890,
-							"NaN"
-						]
-					],
-					"step_size_ms": 10000
+							"NaN",
+						},
+					},
+					"step_size_ms": 10000,
 				},
-				{
-					"metric": {
+				xjson.Map{
+					"metric": xjson.Map{
 						"baz": "bar",
-						"qaz": "qux"
+						"qaz": "qux",
 					},
-					"values": [
-						[
+					"values": xjson.Array{
+						xjson.Array{
 							1535948880,
-							"2"
-						],
-						[
+							"2",
+						},
+						xjson.Array{
 							1535948890,
-							"2"
-						]
-					],
-					"step_size_ms": 10000
+							"2",
+						},
+					},
+					"step_size_ms": 10000,
 				},
-				{
-					"metric": {
+				xjson.Map{
+					"metric": xjson.Map{
 						"biz": "baz",
-						"qux": "qaz"
+						"qux": "qaz",
 					},
-					"values": [
-						[
+					"values": xjson.Array{
+						xjson.Array{
 							1535948880,
-							"NaN"
-						],
-						[
+							"NaN",
+						},
+						xjson.Array{
 							1535948890,
-							"NaN"
-						]
-					],
-					"step_size_ms": 10000
-				}
-			]
-		}
-	}
-	`)
+							"NaN",
+						},
+					},
+					"step_size_ms": 10000,
+				},
+			},
+		},
+	})
 
-	actual := xtest.MustPrettyJSON(t, buffer.String())
+	actual := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
@@ -301,52 +300,50 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 	}
 
 	renderResultsJSON(buffer, readResult, params, false)
-	expected := xtest.MustPrettyJSON(t, `
-	{
+	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
-		"warnings": [
+		"warnings": xjson.Array{
 			"foo_bar",
-			"baz_qux"
-		],
-		"data": {
+			"baz_qux",
+		},
+		"data": xjson.Map{
 			"resultType": "matrix",
-			"result": [
-				{
-					"metric": {
+			"result": xjson.Array{
+				xjson.Map{
+					"metric": xjson.Map{
 						"bar": "baz",
-						"qux": "qaz"
+						"qux": "qaz",
 					},
-					"values": [
-						[
+					"values": xjson.Array{
+						xjson.Array{
 							1535948880,
-							"1"
-						]
-					],
-					"step_size_ms": 10000
+							"1",
+						},
+					},
+					"step_size_ms": 10000,
 				},
-				{
-					"metric": {
+				xjson.Map{
+					"metric": xjson.Map{
 						"baz": "bar",
-						"qaz": "qux"
+						"qaz": "qux",
 					},
-					"values": [
-						[
+					"values": xjson.Array{
+						xjson.Array{
 							1535948880,
-							"2"
-						],
-						[
+							"2",
+						},
+						xjson.Array{
 							1535948890,
-							"2"
-						]
-					],
-					"step_size_ms": 10000
-				}
-			]
-		}
-	}
-	`)
+							"2",
+						},
+					},
+					"step_size_ms": 10000,
+				},
+			},
+		},
+	})
 
-	actual := xtest.MustPrettyJSON(t, buffer.String())
+	actual := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
@@ -374,37 +371,35 @@ func TestRenderInstantaneousResultsJSON(t *testing.T) {
 	}
 
 	renderResultsInstantaneousJSON(buffer, readResult)
-	expected := xtest.MustPrettyJSON(t, `
-	{
+	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
-		"data": {
+		"data": xjson.Map{
 			"resultType": "vector",
-			"result": [
-				{
-					"metric": {
+			"result": xjson.Array{
+				xjson.Map{
+					"metric": xjson.Map{
 						"bar": "baz",
-						"qux": "qaz"
+						"qux": "qaz",
 					},
-					"value": [
+					"value": xjson.Array{
 						1535948880,
-						"1"
-					]
+						"1",
+					},
 				},
-				{
-					"metric": {
+				xjson.Map{
+					"metric": xjson.Map{
 						"baz": "bar",
-						"qaz": "qux"
+						"qaz": "qux",
 					},
-					"value": [
+					"value": xjson.Array{
 						1535948880,
-						"2"
-					]
- 				}
-			]
-		}
-	}
-	`)
-	actual := xtest.MustPrettyJSON(t, buffer.String())
+						"2",
+					},
+				},
+			},
+		},
+	})
+	actual := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
