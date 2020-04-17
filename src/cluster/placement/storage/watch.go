@@ -28,7 +28,8 @@ import (
 )
 
 var (
-	errPlacementNotAvailable = errors.New("placement is not available")
+	errPlacementNotAvailable            = errors.New("placement is not available")
+	errStagedPlacementNoActivePlacement = errors.New("staged placement with no active placement")
 )
 
 type w struct {
@@ -50,6 +51,9 @@ func (w *w) Get() (placement.Placement, error) {
 		p, err := placementsFromValue(v)
 		if err != nil {
 			return nil, err
+		}
+		if len(p) == 0 {
+			return nil, errStagedPlacementNoActivePlacement
 		}
 
 		return p[len(p)-1], nil

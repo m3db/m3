@@ -49,10 +49,10 @@ func Serve(
 	if m3msgAddr != "" {
 		m3msgServer, err := m3msgserver.NewServer(m3msgAddr, m3msgServerOpts, aggregator, iOpts)
 		if err != nil {
-			return fmt.Errorf("could not create m3msg server: %v", err)
+			return fmt.Errorf("could not create m3msg server: addr=%s, err=%v", m3msgAddr, err)
 		}
 		if err := m3msgServer.ListenAndServe(); err != nil {
-			return fmt.Errorf("could not start m3msg server at %s: %v", rawTCPAddr, err)
+			return fmt.Errorf("could not start m3msg server at: addr=%s, err=%v", m3msgAddr, err)
 		}
 		defer m3msgServer.Close()
 		log.Info("m3msg server listening", zap.String("addr", m3msgAddr))
@@ -61,7 +61,7 @@ func Serve(
 	if rawTCPAddr != "" {
 		rawTCPServer := rawtcpserver.NewServer(rawTCPAddr, aggregator, rawTCPServerOpts)
 		if err := rawTCPServer.ListenAndServe(); err != nil {
-			return fmt.Errorf("could not start raw TCP server at %s: %v", rawTCPAddr, err)
+			return fmt.Errorf("could not start raw TCP server at: addr=%s, err=%v", rawTCPAddr, err)
 		}
 		defer rawTCPServer.Close()
 		log.Info("raw TCP server listening", zap.String("addr", rawTCPAddr))
@@ -70,7 +70,7 @@ func Serve(
 	if httpAddr != "" {
 		httpServer := httpserver.NewServer(httpAddr, aggregator, httpServerOpts, iOpts)
 		if err := httpServer.ListenAndServe(); err != nil {
-			return fmt.Errorf("could not start http server at %s: %v", httpAddr, err)
+			return fmt.Errorf("could not start http server at: addr=%s, err=%v", httpAddr, err)
 		}
 		defer httpServer.Close()
 		log.Info("http server listening", zap.String("addr", httpAddr))

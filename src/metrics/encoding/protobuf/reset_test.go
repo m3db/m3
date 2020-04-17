@@ -114,8 +114,8 @@ var (
 	}
 )
 
-func TestResetMetricWithMetadatasProtoNilProto(t *testing.T) {
-	require.NotPanics(t, func() { resetMetricWithMetadatasProto(nil) })
+func TestReuseMetricWithMetadatasProtoNilProto(t *testing.T) {
+	require.NotPanics(t, func() { ReuseMetricWithMetadatasProto(nil) })
 }
 
 func TestResetAggregatedMetricProto(t *testing.T) {
@@ -145,7 +145,7 @@ func TestResetAggregatedMetricProto(t *testing.T) {
 	require.True(t, cap(input.Metric.TimedMetric.Id) > 0)
 }
 
-func TestResetMetricWithMetadatasProtoOnlyCounter(t *testing.T) {
+func TestReuseMetricWithMetadatasProtoOnlyCounter(t *testing.T) {
 	input := &metricpb.MetricWithMetadatas{
 		Type: metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS,
 		CounterWithMetadatas: &metricpb.CounterWithMetadatas{
@@ -160,13 +160,13 @@ func TestResetMetricWithMetadatasProtoOnlyCounter(t *testing.T) {
 			Metadatas: testMetadatasAfterResetProto,
 		},
 	}
-	resetMetricWithMetadatasProto(input)
+	ReuseMetricWithMetadatasProto(input)
 	require.Equal(t, expected, input)
 	require.True(t, cap(input.CounterWithMetadatas.Counter.Id) > 0)
 	require.True(t, cap(input.CounterWithMetadatas.Metadatas.Metadatas) > 0)
 }
 
-func TestResetMetricWithMetadatasProtoOnlyBatchTimer(t *testing.T) {
+func TestReuseMetricWithMetadatasProtoOnlyBatchTimer(t *testing.T) {
 	input := &metricpb.MetricWithMetadatas{
 		Type: metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
 		BatchTimerWithMetadatas: &metricpb.BatchTimerWithMetadatas{
@@ -181,13 +181,13 @@ func TestResetMetricWithMetadatasProtoOnlyBatchTimer(t *testing.T) {
 			Metadatas:  testMetadatasAfterResetProto,
 		},
 	}
-	resetMetricWithMetadatasProto(input)
+	ReuseMetricWithMetadatasProto(input)
 	require.Equal(t, expected, input)
 	require.True(t, cap(input.BatchTimerWithMetadatas.BatchTimer.Id) > 0)
 	require.True(t, cap(input.BatchTimerWithMetadatas.Metadatas.Metadatas) > 0)
 }
 
-func TestResetMetricWithMetadatasProtoOnlyGauge(t *testing.T) {
+func TestReuseMetricWithMetadatasProtoOnlyGauge(t *testing.T) {
 	input := &metricpb.MetricWithMetadatas{
 		Type: metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
 		GaugeWithMetadatas: &metricpb.GaugeWithMetadatas{
@@ -202,13 +202,13 @@ func TestResetMetricWithMetadatasProtoOnlyGauge(t *testing.T) {
 			Metadatas: testMetadatasAfterResetProto,
 		},
 	}
-	resetMetricWithMetadatasProto(input)
+	ReuseMetricWithMetadatasProto(input)
 	require.Equal(t, expected, input)
 	require.True(t, cap(input.GaugeWithMetadatas.Gauge.Id) > 0)
 	require.True(t, cap(input.GaugeWithMetadatas.Metadatas.Metadatas) > 0)
 }
 
-func TestResetMetricWithMetadatasProtoOnlyForwardedMetric(t *testing.T) {
+func TestReuseMetricWithMetadatasProtoOnlyForwardedMetric(t *testing.T) {
 	input := &metricpb.MetricWithMetadatas{
 		Type: metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
 		ForwardedMetricWithMetadata: &metricpb.ForwardedMetricWithMetadata{
@@ -223,14 +223,14 @@ func TestResetMetricWithMetadatasProtoOnlyForwardedMetric(t *testing.T) {
 			Metadata: testForwardMetadataAfterResetProto,
 		},
 	}
-	resetMetricWithMetadatasProto(input)
+	ReuseMetricWithMetadatasProto(input)
 	require.Equal(t, expected, input)
 	require.True(t, cap(input.ForwardedMetricWithMetadata.Metric.Id) > 0)
 	require.True(t, cap(input.ForwardedMetricWithMetadata.Metric.Values) > 0)
 	require.True(t, cap(input.ForwardedMetricWithMetadata.Metadata.Pipeline.Ops) > 0)
 }
 
-func TestResetMetricWithMetadatasProtoAll(t *testing.T) {
+func TestReuseMetricWithMetadatasProtoAll(t *testing.T) {
 	input := &metricpb.MetricWithMetadatas{
 		Type: metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
 		CounterWithMetadatas: &metricpb.CounterWithMetadatas{
@@ -269,7 +269,7 @@ func TestResetMetricWithMetadatasProtoAll(t *testing.T) {
 			Metadata: testForwardMetadataAfterResetProto,
 		},
 	}
-	resetMetricWithMetadatasProto(input)
+	ReuseMetricWithMetadatasProto(input)
 	require.Equal(t, expected, input)
 	require.True(t, cap(input.CounterWithMetadatas.Counter.Id) > 0)
 	require.True(t, cap(input.CounterWithMetadatas.Metadatas.Metadatas) > 0)

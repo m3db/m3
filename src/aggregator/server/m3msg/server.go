@@ -90,8 +90,8 @@ func (s *server) handleMessage(
 ) error {
 	defer msg.Ack()
 
-	// Reset the protobuf message for unpacking.
-	protobuf.ResetMetricWithMetadatasProto(pb)
+	// Reset and reuse the protobuf message for unpacking.
+	protobuf.ReuseMetricWithMetadatasProto(pb)
 
 	// Unmarshal the message.
 	if err := pb.Unmarshal(msg.Bytes()); err != nil {
