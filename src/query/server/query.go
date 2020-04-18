@@ -628,7 +628,7 @@ func newDownsampler(
 		TagOptions:            tagOptions,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to create downsampler: %w", err)
+		return nil, fmt.Errorf("unable to create downsampler: %v", err)
 	}
 
 	return downsampler, nil

@@ -230,7 +230,7 @@ func (w *consumerServiceWriterImpl) Init(t initType) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("consumer service writer init error: %w", err)
+	return fmt.Errorf("consumer service writer init error: %v", err)
 }
 
 func (w *consumerServiceWriterImpl) process(update interface{}) error {
