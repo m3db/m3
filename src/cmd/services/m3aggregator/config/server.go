@@ -49,6 +49,7 @@ func (c *M3MsgServerConfiguration) NewServerOptions(
 	instrumentOpts instrument.Options,
 ) (m3msg.Options, error) {
 	opts := m3msg.NewOptions().
+		SetInstrumentOptions(instrumentOpts).
 		SetServerOptions(c.Server.NewOptions(instrumentOpts)).
 		SetConsumerOptions(c.Consumer.NewOptions(instrumentOpts))
 	if err := opts.Validate(); err != nil {
