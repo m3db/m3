@@ -246,6 +246,7 @@ func NewOptions() Options {
 		shardFn:                    sharding.DefaultHash.MustShardFn(),
 		shardCutoverWarmupDuration: defaultShardCutoverWarmupDuration,
 		shardCutoffLingerDuration:  defaultShardCutoffLingerDuration,
+		watcherOpts:                placement.NewStagedPlacementWatcherOptions(),
 		connOpts:                   NewConnectionOptions(),
 		flushSize:                  defaultFlushSize,
 		maxTimerBatchSize:          defaultMaxTimerBatchSize,
