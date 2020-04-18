@@ -52,6 +52,7 @@ type Configuration struct {
 	FlushSize                  int                             `yaml:"flushSize"`
 	MaxBatchSize               int                             `yaml:"maxBatchSize"`
 	MaxTimerBatchSize          int                             `yaml:"maxTimerBatchSize"`
+	BatchFlushDeadline         time.Duration                   `yaml:"batchFlushDeadline"`
 	QueueSize                  int                             `yaml:"queueSize"`
 	QueueDropType              *DropType                       `yaml:"queueDropType"`
 	Connection                 ConnectionConfiguration         `yaml:"connection"`
@@ -169,6 +170,9 @@ func (c *Configuration) newClientOptions(
 		}
 		if c.MaxTimerBatchSize != 0 {
 			opts = opts.SetMaxTimerBatchSize(c.MaxTimerBatchSize)
+		}
+		if c.BatchFlushDeadline != 0 {
+			opts = opts.SetBatchFlushDeadline(c.BatchFlushDeadline)
 		}
 		if c.QueueSize != 0 {
 			opts = opts.SetInstanceQueueSize(c.QueueSize)
