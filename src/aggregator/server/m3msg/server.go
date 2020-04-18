@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/msg/consumer"
-	"github.com/m3db/m3/src/x/instrument"
 	xserver "github.com/m3db/m3/src/x/server"
 
 	"go.uber.org/zap"
@@ -43,9 +42,8 @@ type server struct {
 // NewServer creates a new M3Msg server.
 func NewServer(
 	address string,
-	opts Options,
 	aggregator aggregator.Aggregator,
-	instrumentOpts instrument.Options,
+	opts Options,
 ) (xserver.Server, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -53,7 +51,7 @@ func NewServer(
 
 	s := &server{
 		aggregator: aggregator,
-		logger:     instrumentOpts.Logger(),
+		logger:     opts.InstrumentOptions().Logger(),
 	}
 	handler := consumer.NewConsumerHandler(s.Consume, opts.ConsumerOptions())
 	return xserver.NewServer(address, handler, opts.ServerOptions()), nil

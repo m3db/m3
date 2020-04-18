@@ -28,6 +28,7 @@ import (
 	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/x/instrument"
+
 	"go.uber.org/zap"
 )
 
@@ -47,7 +48,7 @@ func Serve(
 	defer aggregator.Close()
 
 	if m3msgAddr != "" {
-		m3msgServer, err := m3msgserver.NewServer(m3msgAddr, m3msgServerOpts, aggregator, iOpts)
+		m3msgServer, err := m3msgserver.NewServer(m3msgAddr, aggregator, m3msgServerOpts)
 		if err != nil {
 			return fmt.Errorf("could not create m3msg server: addr=%s, err=%v", m3msgAddr, err)
 		}

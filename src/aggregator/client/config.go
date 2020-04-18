@@ -39,6 +39,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
+var (
+	errNoM3MsgOptions = errors.New("m3msg aggregator client: missing m3msg options")
+)
+
 // Configuration contains client configuration.
 type Configuration struct {
 	Type                       AggregatorClientType            `yaml:"type"`
@@ -103,7 +107,7 @@ func (c *Configuration) newClientOptions(
 	case M3MsgAggregatorClient:
 		m3msgCfg := c.M3Msg
 		if m3msgCfg == nil {
-			return nil, fmt.Errorf("m3msg aggregator client: missing m3msg options")
+			return nil, errNoM3MsgOptions
 		}
 
 		m3msgOpts, err := m3msgCfg.NewM3MsgOptions(kvClient, instrumentOpts)

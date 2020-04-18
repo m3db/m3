@@ -24,18 +24,26 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/msg/consumer"
+	"github.com/m3db/m3/src/x/instrument"
 	xserver "github.com/m3db/m3/src/x/server"
 )
 
 var (
-	errNoServerOptions   = errors.New("no server options")
-	errNoConsumerOptions = errors.New("no consumer options")
+	errNoInstrumentOptions = errors.New("no instrument options")
+	errNoServerOptions     = errors.New("no server options")
+	errNoConsumerOptions   = errors.New("no consumer options")
 )
 
 // Options is a set of M3Msg options.
 type Options interface {
 	// Validate validates the options.
 	Validate() error
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
 
 	// SetServerOptions sets the server options.
 	SetServerOptions(value xserver.Options) Options
@@ -51,8 +59,9 @@ type Options interface {
 }
 
 type options struct {
-	serverOpts   xserver.Options
-	consumerOpts consumer.Options
+	instrumentOpts instrument.Options
+	serverOpts     xserver.Options
+	consumerOpts   consumer.Options
 }
 
 // NewOptions returns a set of M3Msg options.
@@ -61,6 +70,9 @@ func NewOptions() Options {
 }
 
 func (o *options) Validate() error {
+	if o.instrumentOpts == nil {
+		return errNoInstrumentOptions
+	}
 	if o.serverOpts == nil {
 		return errNoServerOptions
 	}
@@ -68,6 +80,16 @@ func (o *options) Validate() error {
 		return errNoConsumerOptions
 	}
 	return nil
+}
+
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
+	opts := *o
+	opts.instrumentOpts = value
+	return &opts
+}
+
+func (o *options) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
 }
 
 func (o *options) SetServerOptions(value xserver.Options) Options {

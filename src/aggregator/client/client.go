@@ -226,7 +226,8 @@ func NewClient(opts Options) (Client, error) {
 	default:
 		return nil, fmt.Errorf("unrecognized client type: %v", clientType)
 	}
-	c := &client{
+
+	return &client{
 		aggregatorClientType:       clientType,
 		m3msg:                      msgClient,
 		opts:                       opts,
@@ -237,9 +238,7 @@ func NewClient(opts Options) (Client, error) {
 		shardFn:                    opts.ShardFn(),
 		placementWatcher:           placementWatcher,
 		metrics:                    newClientMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
-	}
-
-	return c, nil
+	}, nil
 }
 
 func (c *client) Init() error {
@@ -670,7 +669,7 @@ func (m *message) Encode(
 
 	size := m.metric.Size()
 	if size > cap(m.buf) {
-		const growthFactor = 1.5
+		const growthFactor = 2
 		m.buf = make([]byte, int(growthFactor*float64(size)))
 	}
 
