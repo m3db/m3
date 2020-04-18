@@ -98,14 +98,14 @@ func newDownsampler(opts downsamplerOptions) (*downsampler, error) {
 
 func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 	return newMetricsAppender(metricsAppenderOptions{
-		agg:                    d.agg.aggregator,
-		clientRemote:           d.agg.clientRemote,
-		defaultStagedMetadatas: d.agg.defaultStagedMetadatas,
-		clockOpts:              d.agg.clockOpts,
-		tagEncoder:             d.agg.pools.tagEncoderPool.Get(),
-		matcher:                d.agg.matcher,
-		metricTagsIteratorPool: d.agg.pools.metricTagsIteratorPool,
-		debugLogging:           d.debugLogging,
-		logger:                 d.logger,
+		agg:                          d.agg.aggregator,
+		clientRemote:                 d.agg.clientRemote,
+		defaultStagedMetadatasProtos: d.agg.defaultStagedMetadatasProtos,
+		clockOpts:                    d.agg.clockOpts,
+		tagEncoder:                   d.agg.pools.tagEncoderPool.Get(),
+		matcher:                      d.agg.matcher,
+		metricTagsIteratorPool:       d.agg.pools.metricTagsIteratorPool,
+		debugLogging:                 d.debugLogging,
+		logger:                       d.logger,
 	}), nil
 }

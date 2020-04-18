@@ -74,7 +74,7 @@ func generateOptionsNowAndBlockSize() (Options, time.Time, time.Duration) {
 func setupForwardIndex(
 	t *testing.T,
 	ctrl *gomock.Controller,
-) (namespaceIndex, time.Time, time.Duration) {
+) (NamespaceIndex, time.Time, time.Duration) {
 	newFn := func(
 		fn nsIndexInsertBatchFn,
 		md namespace.Metadata,
@@ -419,7 +419,7 @@ func writeToShard(
 func verifyShard(
 	ctx context.Context,
 	t *testing.T,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 	now time.Time,
 	next time.Time,
 	id string,
@@ -465,7 +465,7 @@ func writeToShardAndVerify(
 	ctx context.Context,
 	t *testing.T,
 	shard *dbShard,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 	now time.Time,
 	next time.Time,
 	id string,
@@ -479,7 +479,7 @@ func testShardForwardWriteTaggedSyncRefCount(
 	t *testing.T,
 	now time.Time,
 	next time.Time,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 	opts Options,
 ) {
 	shard := testDatabaseShardWithIndexFn(t, opts, idx)
@@ -524,7 +524,7 @@ func testShardForwardWriteTaggedAsyncRefCount(
 	t *testing.T,
 	now time.Time,
 	next time.Time,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 	opts Options,
 ) {
 	testReporterOpts := xmetrics.NewTestStatsReporterOptions()

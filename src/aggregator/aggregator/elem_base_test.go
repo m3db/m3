@@ -37,25 +37,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func mustNewOp(t require.TestingT, ttype transformation.Type) transformation.Op {
+	op, err := ttype.NewOp()
+	require.NoError(t, err)
+	return op
+}
+
 func TestElemBaseID(t *testing.T) {
 	e := &elemBase{}
 	e.resetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, true, applied.DefaultPipeline, 0, NoPrefixNoSuffix)
 	require.Equal(t, testCounterID, e.ID())
 }
 
+func requirePipelinesMatch(t require.TestingT, expected, actual parsedPipeline) {
+	// Compare transform types
+	require.Equal(t, len(expected.Transformations), len(actual.Transformations))
+	for i := range expected.Transformations {
+		require.Equal(t, expected.Transformations[i].Type(), actual.Transformations[i].Type())
+	}
+
+	// Note: transformations are now constructed each time, so not equal, nil out before comparison
+	expectedWithoutTransforms := expected
+	expectedWithoutTransforms.Transformations = nil
+	actualWithoutTransforms := actual
+	actualWithoutTransforms.Transformations = nil
+	require.Equal(t, expectedWithoutTransforms, actualWithoutTransforms)
+}
+
 func TestElemBaseResetSetData(t *testing.T) {
 	expectedParsedPipeline := parsedPipeline{
 		HasDerivativeTransform: true,
-		Transformations: applied.NewPipeline([]applied.OpUnion{
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-			},
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
-			},
-		}),
+		Transformations: []transformation.Op{
+			mustNewOp(t, transformation.Absolute),
+			mustNewOp(t, transformation.PerSecond),
+		},
 		HasRollup: true,
 		Rollup: applied.RollupOp{
 			ID:            []byte("foo.bar"),
@@ -78,24 +93,25 @@ func TestElemBaseResetSetData(t *testing.T) {
 	require.Equal(t, testAggregationTypesExpensive, e.aggTypes)
 	require.False(t, e.useDefaultAggregation)
 	require.True(t, e.aggOpts.HasExpensiveAggregations)
-	require.Equal(t, expectedParsedPipeline, e.parsedPipeline)
+
+	requirePipelinesMatch(t, expectedParsedPipeline, e.parsedPipeline)
+
 	require.Equal(t, 3, e.numForwardedTimes)
 	require.False(t, e.tombstoned)
 	require.False(t, e.closed)
 	require.Equal(t, WithPrefixWithSuffix, e.idPrefixSuffixType)
 }
 
-func TestElemBaseResetSetDataInvalidPipeline(t *testing.T) {
-	invalidPipeline := applied.NewPipeline([]applied.OpUnion{
+func TestElemBaseResetSetDataNoRollup(t *testing.T) {
+	pipelineNoRollup := applied.NewPipeline([]applied.OpUnion{
 		{
 			Type:           pipeline.TransformationOpType,
 			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
 	e := &elemBase{}
-	err := e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypes, false, invalidPipeline, 0, WithPrefixWithSuffix)
-	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "has no rollup operations"))
+	err := e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypes, false, pipelineNoRollup, 0, WithPrefixWithSuffix)
+	require.NoError(t, err)
 }
 
 func TestElemBaseForwardedIDWithDefaultPipeline(t *testing.T) {
@@ -338,7 +354,6 @@ func TestParsePipelineNoTransformation(t *testing.T) {
 	})
 	expected := parsedPipeline{
 		HasDerivativeTransform: false,
-		Transformations:        applied.NewPipeline([]applied.OpUnion{}),
 		HasRollup:              true,
 		Rollup: applied.RollupOp{
 			ID:            []byte("foo"),
@@ -367,7 +382,7 @@ func TestParsePipelineNoTransformation(t *testing.T) {
 	}
 	parsed, err := newParsedPipeline(p)
 	require.NoError(t, err)
-	require.Equal(t, expected, parsed)
+	requirePipelinesMatch(t, expected, parsed)
 }
 
 func TestParsePipelineWithNonDerivativeTransformation(t *testing.T) {
@@ -404,13 +419,8 @@ func TestParsePipelineWithNonDerivativeTransformation(t *testing.T) {
 	})
 	expected := parsedPipeline{
 		HasDerivativeTransform: false,
-		Transformations: applied.NewPipeline([]applied.OpUnion{
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-			},
-		}),
-		HasRollup: true,
+		Transformations:        []transformation.Op{mustNewOp(t, transformation.Absolute)},
+		HasRollup:              true,
 		Rollup: applied.RollupOp{
 			ID:            []byte("foo"),
 			AggregationID: maggregation.MustCompressTypes(maggregation.Count),
@@ -438,7 +448,7 @@ func TestParsePipelineWithNonDerivativeTransformation(t *testing.T) {
 	}
 	parsed, err := newParsedPipeline(p)
 	require.NoError(t, err)
-	require.Equal(t, expected, parsed)
+	requirePipelinesMatch(t, expected, parsed)
 }
 
 func TestParsePipelineWithDerivativeTransformation(t *testing.T) {
@@ -479,16 +489,10 @@ func TestParsePipelineWithDerivativeTransformation(t *testing.T) {
 	})
 	expected := parsedPipeline{
 		HasDerivativeTransform: true,
-		Transformations: applied.NewPipeline([]applied.OpUnion{
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
-			},
-			{
-				Type:           pipeline.TransformationOpType,
-				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-			},
-		}),
+		Transformations: []transformation.Op{
+			mustNewOp(t, transformation.PerSecond),
+			mustNewOp(t, transformation.Absolute),
+		},
 		HasRollup: true,
 		Rollup: applied.RollupOp{
 			ID:            []byte("foo"),
@@ -517,7 +521,7 @@ func TestParsePipelineWithDerivativeTransformation(t *testing.T) {
 	}
 	parsed, err := newParsedPipeline(p)
 	require.NoError(t, err)
-	require.Equal(t, expected, parsed)
+	requirePipelinesMatch(t, expected, parsed)
 }
 
 func TestParsePipelineInvalidOperationType(t *testing.T) {
@@ -543,8 +547,7 @@ func TestParsePipelineNoRollupOperation(t *testing.T) {
 		},
 	})
 	_, err := newParsedPipeline(p)
-	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "has no rollup operations"))
+	require.NoError(t, err)
 }
 
 func TestParsePipelineTransformationDerivativeOrderTooHigh(t *testing.T) {

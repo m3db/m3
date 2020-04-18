@@ -203,7 +203,8 @@ func TestForEachInfoFile(t *testing.T) {
 			shard:          shard,
 		},
 		testReaderBufferSize,
-		func(fname string, _ FileSetFileIdentifier, data []byte) {
+		func(file FileSetFile, data []byte) {
+			fname := file.AbsoluteFilepaths[0]
 			fnames = append(fnames, fname)
 			res = append(res, data...)
 		})

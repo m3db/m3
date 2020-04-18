@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -141,13 +142,12 @@ func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
 	// Error case where required fields are not set
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-    {
-        "name": "testNamespace"
-    }
-    `
+	jsonInput := xjson.Map{
+		"name": "testNamespace",
+	}
 
-	req := httptest.NewRequest("POST", "/schema", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/schema",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
@@ -209,14 +209,13 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 	schemaHandler := NewSchemaHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
-	jsonInput := `
-    {
-        "name": "no-such-namespace"
-    }
-    `
+	jsonInput := xjson.Map{
+		"name": "no-such-namespace",
+	}
 
 	// Ensure adding to an non-existing namespace returns 404
-	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/namespace",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	registry := nsproto.Registry{
@@ -269,12 +268,12 @@ func TestSchemaReset(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-    {
-        "name": "testNamespace"
-    }
-	`
-	req := httptest.NewRequest("DELETE", "/schema", strings.NewReader(jsonInput))
+	jsonInput := xjson.Map{
+		"name": "testNamespace",
+	}
+
+	req := httptest.NewRequest("DELETE", "/schema",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	schemaHandler.ServeHTTP(svcDefaults, w, req)
@@ -284,7 +283,8 @@ func TestSchemaReset(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("DELETE", "/schema", strings.NewReader(jsonInput))
+	req = httptest.NewRequest("DELETE", "/schema",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 	req.Header.Add("Force", "true")
 

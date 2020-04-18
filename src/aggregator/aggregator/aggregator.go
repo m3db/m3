@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/placement"
@@ -39,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -71,8 +73,14 @@ type Aggregator interface {
 	// AddTimed adds a timed metric with metadata.
 	AddTimed(metric aggregated.Metric, metadata metadata.TimedMetadata) error
 
+	// AddTimedWithStagedMetadatas adds a timed metric with staged metadatas.
+	AddTimedWithStagedMetadatas(metric aggregated.Metric, metas metadata.StagedMetadatas) error
+
 	// AddForwarded adds a forwarded metric with metadata.
 	AddForwarded(metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
+
+	// AddPassthrough adds a passthrough metric with storage policy.
+	AddPassthrough(metric aggregated.Metric, storagePolicy policy.StoragePolicy) error
 
 	// Resign stops the aggregator from participating in leader election and resigns
 	// from ongoing campaign if any.
@@ -100,6 +108,7 @@ type aggregator struct {
 	electionManager   ElectionManager
 	flushManager      FlushManager
 	flushHandler      handler.Handler
+	passthroughWriter writer.Writer
 	adminClient       client.AdminClient
 	resignTimeout     time.Duration
 
@@ -134,6 +143,7 @@ func NewAggregator(opts Options) Aggregator {
 		electionManager:   opts.ElectionManager(),
 		flushManager:      opts.FlushManager(),
 		flushHandler:      opts.FlushHandler(),
+		passthroughWriter: opts.PassthroughWriter(),
 		adminClient:       opts.AdminClient(),
 		resignTimeout:     opts.ResignTimeout(),
 		doneCh:            make(chan struct{}),
@@ -209,6 +219,25 @@ func (agg *aggregator) AddTimed(
 	return nil
 }
 
+func (agg *aggregator) AddTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	metas metadata.StagedMetadatas,
+) error {
+	callStart := agg.nowFn()
+	agg.metrics.timed.Inc(1)
+	shard, err := agg.shardFor(metric.ID)
+	if err != nil {
+		agg.metrics.addTimed.ReportError(err)
+		return err
+	}
+	if err = shard.AddTimedWithStagedMetadatas(metric, metas); err != nil {
+		agg.metrics.addTimed.ReportError(err)
+		return err
+	}
+	agg.metrics.addTimed.ReportSuccess(agg.nowFn().Sub(callStart))
+	return nil
+}
+
 func (agg *aggregator) AddForwarded(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
@@ -232,6 +261,43 @@ func (agg *aggregator) AddForwarded(
 		metadata.NumForwardedTimes,
 		forwardingDelay,
 	)
+	return nil
+}
+
+func (agg *aggregator) AddPassthrough(
+	metric aggregated.Metric,
+	storagePolicy policy.StoragePolicy,
+) error {
+	callStart := agg.nowFn()
+	agg.metrics.passthrough.Inc(1)
+
+	if agg.electionManager.ElectionState() == FollowerState {
+		agg.metrics.addPassthrough.ReportFollowerNoop()
+		return nil
+	}
+
+	pw, err := agg.passWriter()
+	if err != nil {
+		agg.metrics.addPassthrough.ReportError(err)
+		return err
+	}
+
+	mp := aggregated.ChunkedMetricWithStoragePolicy{
+		ChunkedMetric: aggregated.ChunkedMetric{
+			ChunkedID: id.ChunkedID{
+				Data: []byte(metric.ID),
+			},
+			TimeNanos: metric.TimeNanos,
+			Value:     metric.Value,
+		},
+		StoragePolicy: storagePolicy,
+	}
+
+	if err := pw.Write(mp); err != nil {
+		agg.metrics.addPassthrough.ReportError(err)
+		return err
+	}
+	agg.metrics.addPassthrough.ReportSuccess(agg.nowFn().Sub(callStart))
 	return nil
 }
 
@@ -262,11 +328,27 @@ func (agg *aggregator) Close() error {
 		agg.closeShardSetWithLock()
 	}
 	agg.flushHandler.Close()
+	agg.passthroughWriter.Close()
 	if agg.adminClient != nil {
 		agg.adminClient.Close()
 	}
 	agg.state = aggregatorClosed
 	return nil
+}
+
+func (agg *aggregator) passWriter() (writer.Writer, error) {
+	agg.RLock()
+	defer agg.RUnlock()
+
+	if agg.state != aggregatorOpen {
+		return nil, errAggregatorNotOpenOrClosed
+	}
+
+	if agg.electionManager.ElectionState() == FollowerState {
+		return writer.NewBlackholeWriter(), nil
+	}
+
+	return agg.passthroughWriter, nil
 }
 
 func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
@@ -738,6 +820,29 @@ func (m *aggregatorAddTimedMetrics) ReportError(err error) {
 	}
 }
 
+type aggregatorAddPassthroughMetrics struct {
+	aggregatorAddMetricMetrics
+	followerNoop tally.Counter
+}
+
+func newAggregatorAddPassthroughMetrics(
+	scope tally.Scope,
+	samplingRate float64,
+) aggregatorAddPassthroughMetrics {
+	return aggregatorAddPassthroughMetrics{
+		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
+		followerNoop:               scope.Counter("follower-noop"),
+	}
+}
+
+func (m *aggregatorAddPassthroughMetrics) ReportError(err error) {
+	m.aggregatorAddMetricMetrics.ReportError(err)
+}
+
+func (m *aggregatorAddPassthroughMetrics) ReportFollowerNoop() {
+	m.followerNoop.Inc(1)
+}
+
 type latencyBucketKey struct {
 	resolution        time.Duration
 	numForwardedTimes int
@@ -908,19 +1013,21 @@ func newAggregatorShardSetIDMetrics(scope tally.Scope) aggregatorShardSetIDMetri
 }
 
 type aggregatorMetrics struct {
-	counters     tally.Counter
-	timers       tally.Counter
-	timerBatches tally.Counter
-	gauges       tally.Counter
-	forwarded    tally.Counter
-	timed        tally.Counter
-	addUntimed   aggregatorAddUntimedMetrics
-	addTimed     aggregatorAddTimedMetrics
-	addForwarded aggregatorAddForwardedMetrics
-	placement    aggregatorPlacementMetrics
-	shards       aggregatorShardsMetrics
-	shardSetID   aggregatorShardSetIDMetrics
-	tick         aggregatorTickMetrics
+	counters       tally.Counter
+	timers         tally.Counter
+	timerBatches   tally.Counter
+	gauges         tally.Counter
+	forwarded      tally.Counter
+	timed          tally.Counter
+	passthrough    tally.Counter
+	addUntimed     aggregatorAddUntimedMetrics
+	addTimed       aggregatorAddTimedMetrics
+	addForwarded   aggregatorAddForwardedMetrics
+	addPassthrough aggregatorAddPassthroughMetrics
+	placement      aggregatorPlacementMetrics
+	shards         aggregatorShardsMetrics
+	shardSetID     aggregatorShardSetIDMetrics
+	tick           aggregatorTickMetrics
 }
 
 func newAggregatorMetrics(
@@ -931,24 +1038,27 @@ func newAggregatorMetrics(
 	addUntimedScope := scope.SubScope("addUntimed")
 	addTimedScope := scope.SubScope("addTimed")
 	addForwardedScope := scope.SubScope("addForwarded")
+	addPassthroughScope := scope.SubScope("addPassthrough")
 	placementScope := scope.SubScope("placement")
 	shardsScope := scope.SubScope("shards")
 	shardSetIDScope := scope.SubScope("shard-set-id")
 	tickScope := scope.SubScope("tick")
 	return aggregatorMetrics{
-		counters:     scope.Counter("counters"),
-		timers:       scope.Counter("timers"),
-		timerBatches: scope.Counter("timer-batches"),
-		gauges:       scope.Counter("gauges"),
-		forwarded:    scope.Counter("forwarded"),
-		timed:        scope.Counter("timed"),
-		addUntimed:   newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
-		addTimed:     newAggregatorAddTimedMetrics(addTimedScope, samplingRate),
-		addForwarded: newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate, maxAllowedForwardingDelayFn),
-		placement:    newAggregatorPlacementMetrics(placementScope),
-		shards:       newAggregatorShardsMetrics(shardsScope),
-		shardSetID:   newAggregatorShardSetIDMetrics(shardSetIDScope),
-		tick:         newAggregatorTickMetrics(tickScope),
+		counters:       scope.Counter("counters"),
+		timers:         scope.Counter("timers"),
+		timerBatches:   scope.Counter("timer-batches"),
+		gauges:         scope.Counter("gauges"),
+		forwarded:      scope.Counter("forwarded"),
+		timed:          scope.Counter("timed"),
+		passthrough:    scope.Counter("passthrough"),
+		addUntimed:     newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
+		addTimed:       newAggregatorAddTimedMetrics(addTimedScope, samplingRate),
+		addForwarded:   newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate, maxAllowedForwardingDelayFn),
+		addPassthrough: newAggregatorAddPassthroughMetrics(addPassthroughScope, samplingRate),
+		placement:      newAggregatorPlacementMetrics(placementScope),
+		shards:         newAggregatorShardsMetrics(shardsScope),
+		shardSetID:     newAggregatorShardSetIDMetrics(shardSetIDScope),
+		tick:           newAggregatorTickMetrics(tickScope),
 	}
 }
 

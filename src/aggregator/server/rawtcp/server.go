@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 	xserver "github.com/m3db/m3/src/x/server"
 
 	"github.com/uber-go/tally"
@@ -61,6 +62,7 @@ type handlerMetrics struct {
 	addUntimedErrors         tally.Counter
 	addTimedErrors           tally.Counter
 	addForwardedErrors       tally.Counter
+	addPassthroughErrors     tally.Counter
 	unknownErrorTypeErrors   tally.Counter
 	decodeErrors             tally.Counter
 	errLogRateLimited        tally.Counter
@@ -72,6 +74,7 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 		addUntimedErrors:         scope.Counter("add-untimed-errors"),
 		addTimedErrors:           scope.Counter("add-timed-errors"),
 		addForwardedErrors:       scope.Counter("add-forwarded-errors"),
+		addPassthroughErrors:     scope.Counter("add-passthrough-errors"),
 		unknownErrorTypeErrors:   scope.Counter("unknown-error-type-errors"),
 		decodeErrors:             scope.Counter("decode-errors"),
 		errLogRateLimited:        scope.Counter("error-log-rate-limited"),
@@ -124,13 +127,15 @@ func (s *handler) Handle(conn net.Conn) {
 
 	// Iterate over the incoming metrics stream and queue up metrics.
 	var (
-		untimedMetric   unaggregated.MetricUnion
-		stagedMetadatas metadata.StagedMetadatas
-		forwardedMetric aggregated.ForwardedMetric
-		forwardMetadata metadata.ForwardMetadata
-		timedMetric     aggregated.Metric
-		timedMetadata   metadata.TimedMetadata
-		err             error
+		untimedMetric       unaggregated.MetricUnion
+		stagedMetadatas     metadata.StagedMetadatas
+		forwardedMetric     aggregated.ForwardedMetric
+		forwardMetadata     metadata.ForwardMetadata
+		timedMetric         aggregated.Metric
+		timedMetadata       metadata.TimedMetadata
+		passthroughMetric   aggregated.Metric
+		passthroughMetadata policy.StoragePolicy
+		err                 error
 	)
 	for it.Next() {
 		current := it.Current()
@@ -155,6 +160,14 @@ func (s *handler) Handle(conn net.Conn) {
 			timedMetric = current.TimedMetricWithMetadata.Metric
 			timedMetadata = current.TimedMetricWithMetadata.TimedMetadata
 			err = toAddTimedError(s.aggregator.AddTimed(timedMetric, timedMetadata))
+		case encoding.TimedMetricWithMetadatasType:
+			timedMetric = current.TimedMetricWithMetadatas.Metric
+			stagedMetadatas = current.TimedMetricWithMetadatas.StagedMetadatas
+			err = toAddTimedError(s.aggregator.AddTimedWithStagedMetadatas(timedMetric, stagedMetadatas))
+		case encoding.PassthroughMetricWithMetadataType:
+			passthroughMetric = current.PassthroughMetricWithMetadata.Metric
+			passthroughMetadata = current.PassthroughMetricWithMetadata.StoragePolicy
+			err = toAddPassthroughError(s.aggregator.AddPassthrough(passthroughMetric, passthroughMetadata))
 		default:
 			err = newUnknownMessageTypeError(current.Type)
 		}
@@ -197,6 +210,15 @@ func (s *handler) Handle(conn net.Conn) {
 		case addTimedError:
 			s.metrics.addTimedErrors.Inc(1)
 			s.log.Error("error adding timed metric",
+				zap.String("remoteAddress", remoteAddress),
+				zap.Stringer("id", timedMetric.ID),
+				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
+				zap.Float64("value", timedMetric.Value),
+				zap.Error(err),
+			)
+		case addPassthroughError:
+			s.metrics.addPassthroughErrors.Inc(1)
+			s.log.Error("error adding passthrough metric",
 				zap.String("remoteAddress", remoteAddress),
 				zap.Stringer("id", timedMetric.ID),
 				zap.Time("timestamp", time.Unix(0, timedMetric.TimeNanos)),
@@ -281,3 +303,16 @@ func toAddForwardedError(err error) error {
 }
 
 func (e addForwardedError) Error() string { return e.err.Error() }
+
+type addPassthroughError struct {
+	err error
+}
+
+func toAddPassthroughError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return addPassthroughError{err: err}
+}
+
+func (e addPassthroughError) Error() string { return e.err.Error() }

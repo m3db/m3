@@ -345,6 +345,13 @@ func (r *indexReader) validateSegmentFileDigest(segmentIdx, fileIdx int) error {
 	return nil
 }
 
+func (r *indexReader) IndexVolumeType() idxpersist.IndexVolumeType {
+	if r.info.IndexVolumeType == nil {
+		return idxpersist.DefaultIndexVolumeType
+	}
+	return idxpersist.IndexVolumeType(r.info.IndexVolumeType.Value)
+}
+
 func (r *indexReader) Close() error {
 	r.reset(r.opts)
 	return nil

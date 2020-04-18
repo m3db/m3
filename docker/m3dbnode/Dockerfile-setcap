@@ -32,5 +32,7 @@ COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode \
 RUN apk add --no-cache curl jq libcap && \
   setcap cap_sys_resource=+ep /bin/m3dbnode
 
+ENV GODEBUG madvdontneed=1
+
 ENTRYPOINT [ "/bin/m3dbnode" ]
 CMD [ "-f", "/etc/m3dbnode/m3dbnode.yml" ]

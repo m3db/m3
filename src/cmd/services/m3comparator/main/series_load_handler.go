@@ -76,32 +76,37 @@ func (l *seriesLoadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (l *seriesLoadHandler) getSeriesIterators(
-	name string) encoding.SeriesIterators {
+	name string) (encoding.SeriesIterators, error) {
 	l.RLock()
 	defer l.RUnlock()
 
 	logger := l.iterOpts.iOpts.Logger()
 	seriesMap, found := l.nameIDSeriesMap[name]
 	if !found || len(seriesMap.series) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	iters := make([]encoding.SeriesIterator, 0, len(seriesMap.series))
 	for _, series := range seriesMap.series {
 		encoder := l.iterOpts.encoderPool.Get()
 		dps := series.Datapoints
-		encoder.Reset(time.Now(), len(dps), nil)
+		startTime := time.Time{}
+		if len(dps) > 0 {
+			startTime = dps[0].Timestamp.Truncate(time.Hour)
+		}
+
+		encoder.Reset(startTime, len(dps), nil)
 		for _, dp := range dps {
 			err := encoder.Encode(ts.Datapoint{
 				Timestamp:      dp.Timestamp,
-				Value:          dp.Value,
+				Value:          float64(dp.Value),
 				TimestampNanos: xtime.ToUnixNano(dp.Timestamp),
-			}, xtime.Second, nil)
+			}, xtime.Nanosecond, nil)
 
 			if err != nil {
 				encoder.Close()
 				logger.Error("error encoding datapoints", zap.Error(err))
-				return nil
+				return nil, err
 			}
 		}
 
@@ -138,7 +143,7 @@ func (l *seriesLoadHandler) getSeriesIterators(
 	return encoding.NewSeriesIterators(
 		iters,
 		l.iterOpts.iteratorPools.MutableSeriesIterators(),
-	)
+	), nil
 }
 
 func calculateSeriesRange(seriesList []parser.Series) (time.Time, time.Time) {

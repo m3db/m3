@@ -47,17 +47,17 @@ var (
 	}
 	testBatchTimer = unaggregated.MetricUnion{
 		Type:          metric.TimerType,
-		ID:            id.RawID("testCounter"),
+		ID:            id.RawID("testBatchTimer"),
 		BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
 	}
 	testGauge = unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
-		ID:       id.RawID("testCounter"),
+		ID:       id.RawID("testGauge"),
 		GaugeVal: 123.456,
 	}
 	testTimed = aggregated.Metric{
 		Type:      metric.CounterType,
-		ID:        []byte("testForwarded"),
+		ID:        []byte("testTimed"),
 		TimeNanos: 12345,
 		Value:     -13.5,
 	}
@@ -66,6 +66,12 @@ var (
 		ID:        []byte("testForwarded"),
 		TimeNanos: 12345,
 		Values:    []float64{908, -13.5},
+	}
+	testPassthrough = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testPassthrough"),
+		TimeNanos: 12345,
+		Value:     -12.3,
 	}
 	testInvalid = unaggregated.MetricUnion{
 		Type: metric.UnknownType,
@@ -91,6 +97,7 @@ var (
 		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
+	testPassthroughStoragePolicy = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
 )
 
 func TestAggregator(t *testing.T) {
@@ -154,6 +161,17 @@ func TestAggregator(t *testing.T) {
 	require.NoError(t, agg.AddForwarded(testForwarded, testForwardMetadata))
 
 	require.Equal(t, 5, agg.NumMetricsAdded())
+
+	// Add valid passthrough metrics with storage policy.
+	expected.PassthroughMetricWithMetadata = append(
+		expected.PassthroughMetricWithMetadata,
+		aggregated.PassthroughMetricWithMetadata{
+			Metric:        testPassthrough,
+			StoragePolicy: testPassthroughStoragePolicy,
+		},
+	)
+	require.NoError(t, agg.AddPassthrough(testPassthrough, testPassthroughStoragePolicy))
+	require.Equal(t, 6, agg.NumMetricsAdded())
 
 	res := agg.Snapshot()
 	require.Equal(t, expected, res)

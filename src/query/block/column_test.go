@@ -22,24 +22,87 @@ package block
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
-func TestColumnBuilderInfoTypes(t *testing.T) {
-	ctx := models.NewQueryContext(context.Background(),
+func makeTestQueryContext() *models.QueryContext {
+	return models.NewQueryContext(context.Background(),
 		tally.NoopScope, cost.NoopChainedEnforcer(),
 		models.QueryContextOptions{})
+}
 
+func TestColumnBuilderInfoTypes(t *testing.T) {
+	ctx := makeTestQueryContext()
 	builder := NewColumnBlockBuilder(ctx, Metadata{}, []SeriesMeta{})
 	block := builder.Build()
 	assert.Equal(t, BlockDecompressed, block.Info().blockType)
 
 	block = builder.BuildAsType(BlockScalar)
 	assert.Equal(t, BlockScalar, block.Info().blockType)
+}
+
+func TestSetRow(t *testing.T) {
+	buildMeta := func(i int) SeriesMeta {
+		name := fmt.Sprint(i)
+
+		return SeriesMeta{
+			Name: []byte(name),
+			Tags: models.MustMakeTags("name", name),
+		}
+	}
+
+	size := 10
+	metas := make([]SeriesMeta, size)
+	for i := range metas {
+		metas[i] = buildMeta(i)
+	}
+
+	ctx := makeTestQueryContext()
+	builder := NewColumnBlockBuilder(ctx, Metadata{
+		Bounds: models.Bounds{StepSize: time.Minute, Duration: time.Minute},
+	}, nil)
+
+	require.NoError(t, builder.AddCols(1))
+	builder.PopulateColumns(size)
+	// NB: set the row metas backwards.
+	j := 0
+	for i := size - 1; i >= 0; i-- {
+		err := builder.SetRow(j, []float64{float64(i)}, metas[i])
+		require.NoError(t, err)
+		j++
+	}
+
+	bl := builder.Build()
+	it, err := bl.StepIter()
+	require.NoError(t, err)
+
+	actualMetas := it.SeriesMeta()
+	for i, m := range actualMetas {
+		ex := fmt.Sprint(size - 1 - i)
+		assert.Equal(t, ex, string(m.Name))
+		require.Equal(t, 1, m.Tags.Len())
+		tag, found := m.Tags.Get([]byte("name"))
+		require.True(t, found)
+		assert.Equal(t, ex, string(tag))
+	}
+
+	assert.True(t, it.Next())
+	exVals := make([]float64, size)
+	for i := range exVals {
+		exVals[i] = float64(size - 1 - i)
+	}
+
+	vals := it.Current().Values()
+	assert.Equal(t, exVals, vals)
+	assert.False(t, it.Next())
+	assert.NoError(t, it.Err())
 }

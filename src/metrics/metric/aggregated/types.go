@@ -33,8 +33,9 @@ import (
 )
 
 var (
-	errNilForwardedMetricWithMetadataProto = errors.New("nil forwarded metric with metadata proto message")
-	errNilTimedMetricWithMetadataProto     = errors.New("nil timed metric with metadata proto message")
+	errNilForwardedMetricWithMetadataProto   = errors.New("nil forwarded metric with metadata proto message")
+	errNilTimedMetricWithMetadataProto       = errors.New("nil timed metric with metadata proto message")
+	errNilPassthroughMetricWithMetadataProto = errors.New("nil passthrough metric with metadata proto message")
 )
 
 // Metric is a metric, which is essentially a named value at certain time.
@@ -228,4 +229,54 @@ func (tm *TimedMetricWithMetadata) FromProto(pb *metricpb.TimedMetricWithMetadat
 		return err
 	}
 	return tm.TimedMetadata.FromProto(pb.Metadata)
+}
+
+// TimedMetricWithMetadatas is a timed metric with staged metadatas.
+type TimedMetricWithMetadatas struct {
+	Metric
+	metadata.StagedMetadatas
+}
+
+// ToProto converts the timed metric with metadata to a protobuf message in place.
+func (tm TimedMetricWithMetadatas) ToProto(pb *metricpb.TimedMetricWithMetadatas) error {
+	if err := tm.Metric.ToProto(&pb.Metric); err != nil {
+		return err
+	}
+	return tm.StagedMetadatas.ToProto(&pb.Metadatas)
+}
+
+// FromProto converts the protobuf message to a timed metric with metadata in place.
+func (tm *TimedMetricWithMetadatas) FromProto(pb *metricpb.TimedMetricWithMetadatas) error {
+	if pb == nil {
+		return errNilTimedMetricWithMetadataProto
+	}
+	if err := tm.Metric.FromProto(pb.Metric); err != nil {
+		return err
+	}
+	return tm.StagedMetadatas.FromProto(pb.Metadatas)
+}
+
+// PassthroughMetricWithMetadata is a passthrough metric with metadata.
+type PassthroughMetricWithMetadata struct {
+	Metric
+	policy.StoragePolicy
+}
+
+// ToProto converts the passthrough metric with metadata to a protobuf message in place.
+func (pm PassthroughMetricWithMetadata) ToProto(pb *metricpb.TimedMetricWithStoragePolicy) error {
+	if err := pm.Metric.ToProto(&pb.TimedMetric); err != nil {
+		return err
+	}
+	return pm.StoragePolicy.ToProto(&pb.StoragePolicy)
+}
+
+// FromProto converts the protobuf message to a timed metric with metadata in place.
+func (pm *PassthroughMetricWithMetadata) FromProto(pb *metricpb.TimedMetricWithStoragePolicy) error {
+	if pb == nil {
+		return errNilPassthroughMetricWithMetadataProto
+	}
+	if err := pm.Metric.FromProto(pb.TimedMetric); err != nil {
+		return err
+	}
+	return pm.StoragePolicy.FromProto(pb.StoragePolicy)
 }

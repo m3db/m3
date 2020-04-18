@@ -42,7 +42,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(opts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return(nil, nil).AnyTimes()
+	db.EXPECT().OwnedNamespaces().Return(nil, nil).AnyTimes()
 	db.EXPECT().BootstrapState().Return(DatabaseBootstrapState{}).AnyTimes()
 	m, err := newMediator(db, nil, opts)
 	require.NoError(t, err)

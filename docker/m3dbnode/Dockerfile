@@ -33,5 +33,7 @@ COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode \
   /go/src/github.com/m3db/m3/scripts/m3dbnode_bootstrapped.sh \
   /bin/
 
+ENV GODEBUG madvdontneed=1
+
 ENTRYPOINT [ "/bin/m3dbnode" ]
 CMD [ "-f", "/etc/m3dbnode/m3dbnode.yml" ]

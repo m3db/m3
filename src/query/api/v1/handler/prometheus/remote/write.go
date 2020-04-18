@@ -23,6 +23,7 @@ package remote
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -241,7 +242,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
 				defer cancel()
 
-				if err := h.forward(ctx, result, target); err != nil {
+				if err := h.forward(ctx, result, r.Header, target); err != nil {
 					h.metrics.forwardErrors.Inc(1)
 					logger := logging.WithContext(h.forwardContext, h.instrumentOpts)
 					logger.Error("forward error", zap.Error(err))
@@ -339,6 +340,13 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.metrics.writeSuccess.Inc(1)
 }
 
+// parseRequest extracts the Prometheus write request from the request body and
+// headers. WARNING: it is not guaranteed that the tags returned in the request
+// body are in sorted order. It is expected that the caller ensures the tags are
+// sorted before passing them to storage, which currently happens in write() ->
+// newTSPromIter() -> storage.PromLabelsToM3Tags() -> tags.AddTags(). This is
+// the only path written metrics are processed, but future write paths must
+// uphold the same guarantees.
 func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
 ) (*prompb.WriteRequest, ingest.WriteOptions, prometheus.ParsePromCompressedRequestResult, *xhttp.ParseError) {
@@ -398,6 +406,19 @@ func (h *PromWriteHandler) parseRequest(
 			xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
+	if mapStr := r.Header.Get(handleroptions.MapTagsByJSONHeader); mapStr != "" {
+		var opts handleroptions.MapTagsOptions
+		if err := json.Unmarshal([]byte(mapStr), &opts); err != nil {
+			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
+				xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		if err := mapTags(&req, opts); err != nil {
+			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
+				xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+	}
+
 	return &req, opts, result, nil
 }
 
@@ -413,6 +434,7 @@ func (h *PromWriteHandler) write(
 func (h *PromWriteHandler) forward(
 	ctx context.Context,
 	request prometheus.ParsePromCompressedRequestResult,
+	headers http.Header,
 	target handleroptions.PromWriteHandlerForwardTargetOptions,
 ) error {
 	method := target.Method
@@ -423,6 +445,25 @@ func (h *PromWriteHandler) forward(
 	req, err := http.NewRequest(method, url, bytes.NewReader(request.CompressedBody))
 	if err != nil {
 		return err
+	}
+
+	// There are multiple headers that impact coordinator behavior on the write
+	// (map tags, storage policy, etc.) that we must forward to the target
+	// coordinator to guarantee same behavior as the coordinator that originally
+	// received the request.
+	if headers != nil {
+		for h := range headers {
+			if strings.HasPrefix(h, handleroptions.M3HeaderPrefix) {
+				req.Header.Add(h, headers.Get(h))
+			}
+		}
+	}
+
+	if targetHeaders := target.Headers; targetHeaders != nil {
+		// If headers set, attach to request.
+		for name, value := range targetHeaders {
+			req.Header.Add(name, value)
+		}
 	}
 
 	resp, err := h.forwardHTTPClient.Do(req.WithContext(ctx))

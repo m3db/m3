@@ -27,14 +27,15 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -56,8 +57,8 @@ func newEngine(
 	return NewEngine(engineOpts)
 }
 
-func TestEngine_Execute(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestExecute(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	store, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(),
 		gomock.Any()).Return(nil, client.FetchResponseMetadata{Exhaustive: false}, fmt.Errorf("dummy"))
@@ -70,8 +71,8 @@ func TestEngine_Execute(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestEngine_ExecuteExpr(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestExecuteExpr(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
@@ -84,7 +85,12 @@ func TestEngine_ExecuteExpr(t *testing.T) {
 		models.NewTagOptions(), promql.NewParseOptions())
 	require.NoError(t, err)
 
-	engine := newEngine(mock.NewMockStorage(), defaultLookbackDuration,
+	store := storage.NewMockStorage(ctrl)
+	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(block.Result{
+			Blocks: []block.Block{block.NewMockBlock(ctrl)},
+		}, nil)
+	engine := newEngine(store, defaultLookbackDuration,
 		mockParent, instrument.NewOptions())
 	_, err = engine.ExecuteExpr(context.TODO(), parser,
 		&QueryOptions{}, storage.NewFetchOptions(), models.RequestParams{
