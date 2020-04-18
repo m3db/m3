@@ -33,7 +33,7 @@ const (
 
 	// By default the keep alive period is fairly short for fast
 	// breaking of stale connections.
-	defaultTCPConnectionKeepAlivePeriod = 5 * time.Second
+	defaultTCPConnectionKeepAlivePeriod = 10 * time.Second
 )
 
 // Options provide a set of server options
