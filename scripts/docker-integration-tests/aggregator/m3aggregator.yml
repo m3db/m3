@@ -154,6 +154,7 @@ aggregator:
     envVarName: M3AGGREGATOR_HOST_ID
   instanceID:
     type: host_id
+  verboseErrors: true
   metricPrefix: ""
   counterPrefix: ""
   timerPrefix: ""
@@ -230,6 +231,7 @@ aggregator:
   hashType: murmur32
   bufferDurationBeforeShardCutover: 10m
   bufferDurationAfterShardCutoff: 10m
+  bufferDurationForFutureTimedMetric: 10m # Allow test to write into future.
   resignTimeout: 1m
   flushTimesManager:
     kvConfig:
@@ -318,13 +320,13 @@ aggregator:
                 flushInterval: 1s
                 writeBufferSize: 16384
                 readBufferSize: 256
+  passthrough:
+    enabled: true
   forwarding:
-    maxSingleDelay: 5s
-  entryTTL: 6h
+    maxConstDelay: 1m # Need to add some buffer window, since timed metrics by default are delayed by 1min.
+  entryTTL: 1h
   entryCheckInterval: 10m
   maxTimerBatchSizePerWrite: 140
-  defaultStoragePolicies:
-    - 10s:2d
   maxNumCachedSourceSets: 2
   discardNaNAggregatedValues: true
   entryPool:

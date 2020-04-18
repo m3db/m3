@@ -110,7 +110,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return(nil, nil).AnyTimes()
+	db.EXPECT().OwnedNamespaces().Return(nil, nil).AnyTimes()
 
 	cl := commitlog.NewMockCommitLog(ctrl)
 	cl.EXPECT().RotateLogs().Return(testCommitlogFile, nil).AnyTimes()
@@ -187,7 +187,7 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return(nil, nil)
+	db.EXPECT().OwnedNamespaces().Return(nil, nil)
 
 	cl := commitlog.NewMockCommitLog(ctrl)
 	cl.EXPECT().RotateLogs().Return(testCommitlogFile, nil).AnyTimes()
@@ -234,7 +234,7 @@ func TestFlushManagerNamespaceFlushTimesErr(t *testing.T) {
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, fakeErr).AnyTimes()
 	ns.EXPECT().ColdFlush(gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return([]databaseNamespace{ns}, nil)
+	db.EXPECT().OwnedNamespaces().Return([]databaseNamespace{ns}, nil)
 
 	cl := commitlog.NewMockCommitLog(ctrl)
 	cl.EXPECT().RotateLogs().Return(testCommitlogFile, nil).AnyTimes()
@@ -272,7 +272,7 @@ func TestFlushManagerFlushDoneSnapshotError(t *testing.T) {
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return(nil, nil)
+	db.EXPECT().OwnedNamespaces().Return(nil, nil)
 
 	cl := commitlog.NewMockCommitLog(ctrl)
 	cl.EXPECT().RotateLogs().Return(testCommitlogFile, nil).AnyTimes()
@@ -308,7 +308,7 @@ func TestFlushManagerFlushDoneIndexError(t *testing.T) {
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return(nil, nil)
+	db.EXPECT().OwnedNamespaces().Return(nil, nil)
 
 	cl := commitlog.NewMockCommitLog(ctrl)
 	cl.EXPECT().RotateLogs().Return(testCommitlogFile, nil).AnyTimes()
@@ -352,7 +352,7 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return([]databaseNamespace{ns}, nil)
+	db.EXPECT().OwnedNamespaces().Return([]databaseNamespace{ns}, nil)
 
 	cl := commitlog.NewMockCommitLog(ctrl)
 	cl.EXPECT().RotateLogs().Return(testCommitlogFile, nil).AnyTimes()
@@ -397,7 +397,7 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	testOpts := DefaultTestOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return([]databaseNamespace{ns}, nil)
+	db.EXPECT().OwnedNamespaces().Return([]databaseNamespace{ns}, nil)
 
 	cl := commitlog.NewMockCommitLog(ctrl)
 	cl.EXPECT().RotateLogs().Return(testCommitlogFile, nil).AnyTimes()

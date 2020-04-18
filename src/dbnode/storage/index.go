@@ -100,6 +100,7 @@ type nsIndex struct {
 
 	indexFilesetsBeforeFn indexFilesetsBeforeFn
 	deleteFilesFn         deleteFilesFn
+	readIndexInfoFilesFn  readIndexInfoFilesFn
 
 	newBlockFn          newBlockFn
 	logger              *zap.Logger
@@ -179,6 +180,11 @@ type indexFilesetsBeforeFn func(dir string,
 	exclusiveTime time.Time,
 ) ([]string, error)
 
+type readIndexInfoFilesFn func(filePathPrefix string,
+	namespace ident.ID,
+	readerBufferSize int,
+) []fs.ReadIndexInfoFileResult
+
 type newNamespaceIndexOpts struct {
 	md              namespace.Metadata
 	shardSet        sharding.ShardSet
@@ -211,7 +217,7 @@ func newNamespaceIndex(
 	nsMD namespace.Metadata,
 	shardSet sharding.ShardSet,
 	opts Options,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
 		shardSet:        shardSet,
@@ -227,7 +233,7 @@ func newNamespaceIndexWithInsertQueueFn(
 	shardSet sharding.ShardSet,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
 	opts Options,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
 		shardSet:        shardSet,
@@ -243,7 +249,7 @@ func newNamespaceIndexWithNewBlockFn(
 	shardSet sharding.ShardSet,
 	newBlockFn newBlockFn,
 	opts Options,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
 		shardSet:        shardSet,
@@ -256,7 +262,7 @@ func newNamespaceIndexWithNewBlockFn(
 // newNamespaceIndexWithOptions returns a new namespaceIndex with the provided configuration options.
 func newNamespaceIndexWithOptions(
 	newIndexOpts newNamespaceIndexOpts,
-) (namespaceIndex, error) {
+) (NamespaceIndex, error) {
 	var (
 		nsMD            = newIndexOpts.md
 		shardSet        = newIndexOpts.shardSet
@@ -279,6 +285,7 @@ func newNamespaceIndexWithOptions(
 	indexOpts = indexOpts.SetInstrumentOptions(instrumentOpts)
 
 	nowFn := indexOpts.ClockOptions().NowFn()
+	logger := indexOpts.InstrumentOptions().Logger()
 	idx := &nsIndex{
 		state: nsIndexState{
 			closeCh: make(chan struct{}),
@@ -297,11 +304,12 @@ func newNamespaceIndexWithOptions(
 		coldWritesEnabled:     nsMD.Options().ColdWritesEnabled(),
 
 		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
+		readIndexInfoFilesFn:  fs.ReadIndexInfoFiles,
 		deleteFilesFn:         fs.DeleteFiles,
 
 		newBlockFn: newBlockFn,
 		opts:       newIndexOpts.opts,
-		logger:     indexOpts.InstrumentOptions().Logger(),
+		logger:     logger,
 		nsMetadata: nsMD,
 
 		resultsPool:          indexOpts.QueryResultsPool(),
@@ -322,6 +330,21 @@ func newNamespaceIndexWithOptions(
 	dice, err := newForwardIndexDice(newIndexOpts.opts)
 	if err != nil {
 		return nil, err
+	}
+
+	if dice.enabled {
+		logger.Info("namespace forward indexing configured",
+			zap.Stringer("namespace", nsMD.ID()),
+			zap.Bool("enabled", dice.enabled),
+			zap.Duration("threshold", dice.forwardIndexThreshold),
+			zap.Float64("rate", dice.forwardIndexDice.Rate()))
+	} else {
+		idxOpts := newIndexOpts.opts.IndexOptions()
+		logger.Info("namespace forward indexing not enabled",
+			zap.Stringer("namespace", nsMD.ID()),
+			zap.Bool("enabled", false),
+			zap.Float64("threshold", idxOpts.ForwardIndexThreshold()),
+			zap.Float64("probability", idxOpts.ForwardIndexProbability()))
 	}
 
 	idx.forwardIndexDice = dice
@@ -380,13 +403,13 @@ func (i *nsIndex) reportStats() error {
 	i.state.RLock()
 	defer i.state.RUnlock()
 
-	foregroundLevels := i.metrics.BlockMetrics.ForegroundSegments.Levels
+	foregroundLevels := i.metrics.blockMetrics.ForegroundSegments.Levels
 	foregroundLevelStats := make([]nsIndexCompactionLevelStats, len(foregroundLevels))
 
-	backgroundLevels := i.metrics.BlockMetrics.BackgroundSegments.Levels
+	backgroundLevels := i.metrics.blockMetrics.BackgroundSegments.Levels
 	backgroundLevelStats := make([]nsIndexCompactionLevelStats, len(backgroundLevels))
 
-	flushedLevels := i.metrics.BlockMetrics.FlushedSegments.Levels
+	flushedLevels := i.metrics.blockMetrics.FlushedSegments.Levels
 	flushedLevelStats := make([]nsIndexCompactionLevelStats, len(flushedLevels))
 
 	// iterate known blocks in a defined order of time (newest first)
@@ -457,6 +480,10 @@ func (i *nsIndex) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
 	return xtime.ToUnixNano(writeTime.Truncate(i.blockSize))
 }
 
+func (i *nsIndex) BlockForBlockStart(blockStart time.Time) (index.Block, error) {
+	return i.ensureBlockPresent(blockStart)
+}
+
 // NB(prateek): including the call chains leading to this point:
 //
 // - For new entry (previously unseen in the shard):
@@ -484,7 +511,7 @@ func (i *nsIndex) WriteBatch(
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
-		i.metrics.InsertAfterClose.Inc(1)
+		i.metrics.insertAfterClose.Inc(1)
 		err := errDbIndexUnableToWriteClosed
 		batch.MarkUnmarkedEntriesError(err)
 		return err
@@ -572,19 +599,25 @@ func (i *nsIndex) writeBatches(
 				return
 			}
 
-			if forwardIndexDice.roll(ts) {
-				forwardEntryTimestamp := ts.Truncate(blockSize).Add(blockSize)
-				xNanoTimestamp := xtime.ToUnixNano(forwardEntryTimestamp)
-				if entry.OnIndexSeries.NeedsIndexUpdate(xNanoTimestamp) {
-					forwardIndexEntry := entry
-					forwardIndexEntry.Timestamp = forwardEntryTimestamp
-					forwardIndexEntry.OnIndexSeries.OnIndexPrepare()
-					forwardIndexBatch.Append(forwardIndexEntry, d)
+			if forwardIndexEnabled {
+				if forwardIndexDice.roll(ts) {
+					i.metrics.forwardIndexHits.Inc(1)
+					forwardEntryTimestamp := ts.Truncate(blockSize).Add(blockSize)
+					xNanoTimestamp := xtime.ToUnixNano(forwardEntryTimestamp)
+					if entry.OnIndexSeries.NeedsIndexUpdate(xNanoTimestamp) {
+						forwardIndexEntry := entry
+						forwardIndexEntry.Timestamp = forwardEntryTimestamp
+						forwardIndexEntry.OnIndexSeries.OnIndexPrepare()
+						forwardIndexBatch.Append(forwardIndexEntry, d)
+					}
+				} else {
+					i.metrics.forwardIndexMisses.Inc(1)
 				}
 			}
 		})
 
 	if forwardIndexEnabled && forwardIndexBatch.Len() > 0 {
+		i.metrics.forwardIndexCounter.Inc(int64(forwardIndexBatch.Len()))
 		batch.AppendAll(forwardIndexBatch)
 	}
 
@@ -609,7 +642,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 			zap.Int("numWrites", batch.Len()),
 			zap.Error(err),
 		)
-		i.metrics.AsyncInsertErrors.Inc(int64(batch.Len()))
+		i.metrics.asyncInsertErrors.Inc(int64(batch.Len()))
 		return
 	}
 
@@ -623,16 +656,16 @@ func (i *nsIndex) writeBatchForBlockStart(
 	now := i.nowFn()
 	for idx := range pending {
 		took := now.Sub(pending[idx].EnqueuedAt)
-		i.metrics.InsertEndToEndLatency.Record(took)
+		i.metrics.insertEndToEndLatency.Record(took)
 	}
 
 	// NB: we don't need to do anything to the OnIndexSeries refs in `inserts` at this point,
 	// the index.Block WriteBatch assumes responsibility for calling the appropriate methods.
 	if n := result.NumSuccess; n > 0 {
-		i.metrics.AsyncInsertSuccess.Inc(n)
+		i.metrics.asyncInsertSuccess.Inc(n)
 	}
 	if n := result.NumError; n > 0 {
-		i.metrics.AsyncInsertErrors.Inc(n)
+		i.metrics.asyncInsertErrors.Inc(n)
 	}
 
 	if err != nil {
@@ -784,7 +817,7 @@ func (i *nsIndex) Flush(
 			)
 		}
 	}
-	i.metrics.BlocksEvictedMutableSegments.Inc(int64(evicted))
+	i.metrics.blocksEvictedMutableSegments.Inc(int64(evicted))
 	return nil
 }
 
@@ -1495,6 +1528,55 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 	return i.deleteFilesFn(filesets)
 }
 
+func (i *nsIndex) CleanupDuplicateFileSets() error {
+	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
+	infoFiles := i.readIndexInfoFilesFn(
+		fsOpts.FilePathPrefix(),
+		i.nsMetadata.ID(),
+		fsOpts.InfoReaderBufferSize(),
+	)
+
+	segmentsOrderByVolumeIndexByVolumeType := make(map[idxpersist.IndexVolumeType][]fs.Segments)
+	for _, file := range infoFiles {
+		seg := fs.NewSegments(file.Info, file.ID.VolumeIndex, file.AbsoluteFilepaths)
+		volumeType := seg.VolumeType()
+		if _, ok := segmentsOrderByVolumeIndexByVolumeType[volumeType]; !ok {
+			segmentsOrderByVolumeIndexByVolumeType[volumeType] = make([]fs.Segments, 0)
+		}
+		segmentsOrderByVolumeIndexByVolumeType[volumeType] = append(segmentsOrderByVolumeIndexByVolumeType[volumeType], seg)
+	}
+
+	// Ensure that segments are soroted by volume index.
+	for _, segs := range segmentsOrderByVolumeIndexByVolumeType {
+		sort.SliceStable(segs, func(i, j int) bool {
+			return segs[i].VolumeIndex() < segs[j].VolumeIndex()
+		})
+	}
+
+	multiErr := xerrors.NewMultiError()
+	// Check for dupes and remove.
+	filesToDelete := make([]string, 0)
+	for _, segmentsOrderByVolumeIndex := range segmentsOrderByVolumeIndexByVolumeType {
+		shardTimeRangesCovered := result.NewShardTimeRanges()
+		currSegments := make([]fs.Segments, 0)
+		for _, seg := range segmentsOrderByVolumeIndex {
+			if seg.ShardTimeRanges().IsSuperset(shardTimeRangesCovered) {
+				// Mark dupe segments for deletion.
+				for _, currSeg := range currSegments {
+					filesToDelete = append(filesToDelete, currSeg.AbsoluteFilepaths()...)
+				}
+				currSegments = []fs.Segments{seg}
+				shardTimeRangesCovered = seg.ShardTimeRanges().Copy()
+				continue
+			}
+			currSegments = append(currSegments, seg)
+			shardTimeRangesCovered.AddRanges(seg.ShardTimeRanges())
+		}
+	}
+	multiErr = multiErr.Add(i.deleteFilesFn(filesToDelete))
+	return multiErr.FinalError()
+}
+
 func (i *nsIndex) Close() error {
 	i.state.Lock()
 	if !i.isOpenWithRLock() {
@@ -1555,13 +1637,16 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
-	AsyncInsertSuccess           tally.Counter
-	AsyncInsertErrors            tally.Counter
-	InsertAfterClose             tally.Counter
-	QueryAfterClose              tally.Counter
-	InsertEndToEndLatency        tally.Timer
-	BlocksEvictedMutableSegments tally.Counter
-	BlockMetrics                 nsIndexBlocksMetrics
+	asyncInsertSuccess           tally.Counter
+	asyncInsertErrors            tally.Counter
+	insertAfterClose             tally.Counter
+	queryAfterClose              tally.Counter
+	forwardIndexHits             tally.Counter
+	forwardIndexMisses           tally.Counter
+	forwardIndexCounter          tally.Counter
+	insertEndToEndLatency        tally.Timer
+	blocksEvictedMutableSegments tally.Counter
+	blockMetrics                 nsIndexBlocksMetrics
 }
 
 func newNamespaceIndexMetrics(
@@ -1571,21 +1656,30 @@ func newNamespaceIndexMetrics(
 	scope := iopts.MetricsScope()
 	blocksScope := scope.SubScope("blocks")
 	return nsIndexMetrics{
-		AsyncInsertSuccess: scope.Counter("index-success"),
-		AsyncInsertErrors: scope.Tagged(map[string]string{
+		asyncInsertSuccess: scope.Counter("index-success"),
+		asyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "async-insert",
 		}).Counter("index-error"),
-		InsertAfterClose: scope.Tagged(map[string]string{
+		insertAfterClose: scope.Tagged(map[string]string{
 			"error_type": "insert-closed",
 		}).Counter("insert-after-close"),
-		QueryAfterClose: scope.Tagged(map[string]string{
+		queryAfterClose: scope.Tagged(map[string]string{
 			"error_type": "query-closed",
 		}).Counter("query-after-error"),
-		InsertEndToEndLatency: instrument.MustCreateSampledTimer(
+		forwardIndexHits: scope.Tagged(map[string]string{
+			"status": "hit",
+		}).Counter("forward-index"),
+		forwardIndexMisses: scope.Tagged(map[string]string{
+			"status": "miss",
+		}).Counter("forward-index"),
+		forwardIndexCounter: scope.Tagged(map[string]string{
+			"status": "count",
+		}).Counter("forward-index"),
+		insertEndToEndLatency: instrument.MustCreateSampledTimer(
 			scope.Timer("insert-end-to-end-latency"),
 			iopts.MetricsSamplingRate()),
-		BlocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
-		BlockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
+		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
+		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
 	}
 }
 

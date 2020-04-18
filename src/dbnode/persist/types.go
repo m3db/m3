@@ -204,3 +204,29 @@ const (
 	// FileSetIndexContentType indicates that the fileset files contain time series index metadata
 	FileSetIndexContentType
 )
+
+// OnFlushSeries performs work on a per series level.
+type OnFlushSeries interface {
+	OnFlushNewSeries(
+		shard uint32,
+		blockStart time.Time,
+		id ident.ID,
+		tags ident.Tags,
+	) error
+}
+
+// NoOpColdFlushNamespace is a no-op impl of OnFlushSeries.
+type NoOpColdFlushNamespace struct{}
+
+// OnFlushNewSeries is a no-op.
+func (n *NoOpColdFlushNamespace) OnFlushNewSeries(
+	shard uint32,
+	blockStart time.Time,
+	id ident.ID,
+	tags ident.Tags,
+) error {
+	return nil
+}
+
+// Done is a no-op.
+func (n *NoOpColdFlushNamespace) Done() error { return nil }

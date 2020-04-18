@@ -291,10 +291,15 @@ func filterNaNSeries(
 
 func renderResultsJSON(
 	w io.Writer,
-	series []*ts.Series,
+	result ReadResult,
 	params models.RequestParams,
 	keepNans bool,
 ) {
+	var (
+		series   = result.Series
+		warnings = result.Meta.WarningStrings()
+	)
+
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
 	if !keepNans {
 		series = filterNaNSeries(series, params.Start, params.End)
@@ -305,6 +310,16 @@ func renderResultsJSON(
 
 	jw.BeginObjectField("status")
 	jw.WriteString("success")
+
+	if len(warnings) > 0 {
+		jw.BeginObjectField("warnings")
+		jw.BeginArray()
+		for _, warn := range warnings {
+			jw.WriteString(warn)
+		}
+
+		jw.EndArray()
+	}
 
 	jw.BeginObjectField("data")
 	jw.BeginObject()
@@ -349,8 +364,8 @@ func renderResultsJSON(
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			jw.EndArray()
 		}
-		jw.EndArray()
 
+		jw.EndArray()
 		fixedStep, ok := s.Values().(ts.FixedResolutionMutableValues)
 		if ok {
 			jw.BeginObjectField("step_size_ms")
@@ -359,7 +374,6 @@ func renderResultsJSON(
 		jw.EndObject()
 	}
 	jw.EndArray()
-
 	jw.EndObject()
 
 	jw.EndObject()
@@ -368,13 +382,28 @@ func renderResultsJSON(
 
 func renderResultsInstantaneousJSON(
 	w io.Writer,
-	series []*ts.Series,
+	result ReadResult,
 ) {
+	var (
+		series   = result.Series
+		warnings = result.Meta.WarningStrings()
+	)
+
 	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
 	jw.WriteString("success")
+
+	if len(warnings) > 0 {
+		jw.BeginObjectField("warnings")
+		jw.BeginArray()
+		for _, warn := range warnings {
+			jw.WriteString(warn)
+		}
+
+		jw.EndArray()
+	}
 
 	jw.BeginObjectField("data")
 	jw.BeginObject()

@@ -170,7 +170,11 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		resultLock sync.Mutex
 	)
 	handler := &capturingHandler{results: &results, resultLock: &resultLock}
-	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
+	pw, err := handler.NewWriter(tally.NoopScope)
+	if err != nil {
+		panic(err.Error())
+	}
+	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler).SetPassthroughWriter(pw)
 
 	// Set up entry pool.
 	runtimeOpts := runtime.NewOptions()

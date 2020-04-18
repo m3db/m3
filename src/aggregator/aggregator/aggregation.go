@@ -53,12 +53,12 @@ func newTimerAggregation(t aggregation.Timer) timerAggregation {
 	return timerAggregation{Timer: t}
 }
 
-func (a *timerAggregation) Add(_ time.Time, value float64) {
-	a.Timer.Add(value)
+func (a *timerAggregation) Add(timestamp time.Time, value float64) {
+	a.Timer.Add(timestamp, value)
 }
 
-func (a *timerAggregation) AddUnion(_ time.Time, mu unaggregated.MetricUnion) {
-	a.Timer.AddBatch(mu.BatchTimerVal)
+func (a *timerAggregation) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) {
+	a.Timer.AddBatch(timestamp, mu.BatchTimerVal)
 }
 
 // gaugeAggregation is a gauge aggregation.

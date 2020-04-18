@@ -39,12 +39,14 @@ import (
 type aggregator struct {
 	sync.RWMutex
 
-	numMetricsAdded              int
-	countersWithMetadatas        []unaggregated.CounterWithMetadatas
-	batchTimersWithMetadatas     []unaggregated.BatchTimerWithMetadatas
-	gaugesWithMetadatas          []unaggregated.GaugeWithMetadatas
-	forwardedMetricsWithMetadata []aggregated.ForwardedMetricWithMetadata
-	timedMetricsWithMetadata     []aggregated.TimedMetricWithMetadata
+	numMetricsAdded                int
+	countersWithMetadatas          []unaggregated.CounterWithMetadatas
+	batchTimersWithMetadatas       []unaggregated.BatchTimerWithMetadatas
+	gaugesWithMetadatas            []unaggregated.GaugeWithMetadatas
+	forwardedMetricsWithMetadata   []aggregated.ForwardedMetricWithMetadata
+	timedMetricsWithMetadata       []aggregated.TimedMetricWithMetadata
+	timedMetricsWithMetadatas      []aggregated.TimedMetricWithMetadatas
+	passthroughMetricsWithMetadata []aggregated.PassthroughMetricWithMetadata
 }
 
 // NewAggregator creates a new capturing aggregator.
@@ -111,6 +113,26 @@ func (agg *aggregator) AddTimed(
 	return nil
 }
 
+func (agg *aggregator) AddTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	sm metadata.StagedMetadatas,
+) error {
+	// Clone the metric and timed metadata to ensure it cannot be mutated externally.
+	metric = cloneTimedMetric(metric)
+	sm = cloneStagedMetadatas(sm)
+
+	agg.Lock()
+	defer agg.Unlock()
+
+	tms := aggregated.TimedMetricWithMetadatas{
+		Metric:          metric,
+		StagedMetadatas: sm,
+	}
+	agg.timedMetricsWithMetadatas = append(agg.timedMetricsWithMetadatas, tms)
+	agg.numMetricsAdded++
+	return nil
+}
+
 func (agg *aggregator) AddForwarded(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
@@ -131,6 +153,26 @@ func (agg *aggregator) AddForwarded(
 	return nil
 }
 
+func (agg *aggregator) AddPassthrough(
+	metric aggregated.Metric,
+	storagePolicy policy.StoragePolicy,
+) error {
+	// Clone the metric and timed metadata to ensure it cannot be mutated externally.
+	metric = cloneTimedMetric(metric)
+	storagePolicy = cloneStoragePolicy(storagePolicy)
+
+	agg.Lock()
+	defer agg.Unlock()
+
+	pm := aggregated.PassthroughMetricWithMetadata{
+		Metric:        metric,
+		StoragePolicy: storagePolicy,
+	}
+	agg.passthroughMetricsWithMetadata = append(agg.passthroughMetricsWithMetadata, pm)
+	agg.numMetricsAdded++
+	return nil
+}
+
 func (agg *aggregator) Resign() error              { return nil }
 func (agg *aggregator) Status() aggr.RuntimeStatus { return aggr.RuntimeStatus{} }
 func (agg *aggregator) Close() error               { return nil }
@@ -146,17 +188,19 @@ func (agg *aggregator) Snapshot() SnapshotResult {
 	agg.Lock()
 
 	result := SnapshotResult{
-		CountersWithMetadatas:        agg.countersWithMetadatas,
-		BatchTimersWithMetadatas:     agg.batchTimersWithMetadatas,
-		GaugesWithMetadatas:          agg.gaugesWithMetadatas,
-		ForwardedMetricsWithMetadata: agg.forwardedMetricsWithMetadata,
-		TimedMetricWithMetadata:      agg.timedMetricsWithMetadata,
+		CountersWithMetadatas:         agg.countersWithMetadatas,
+		BatchTimersWithMetadatas:      agg.batchTimersWithMetadatas,
+		GaugesWithMetadatas:           agg.gaugesWithMetadatas,
+		ForwardedMetricsWithMetadata:  agg.forwardedMetricsWithMetadata,
+		TimedMetricWithMetadata:       agg.timedMetricsWithMetadata,
+		PassthroughMetricWithMetadata: agg.passthroughMetricsWithMetadata,
 	}
 	agg.countersWithMetadatas = nil
 	agg.batchTimersWithMetadatas = nil
 	agg.gaugesWithMetadatas = nil
 	agg.forwardedMetricsWithMetadata = nil
 	agg.timedMetricsWithMetadata = nil
+	agg.passthroughMetricsWithMetadata = nil
 	agg.numMetricsAdded = 0
 
 	agg.Unlock()
@@ -240,5 +284,10 @@ func cloneTimedMetric(metric aggregated.Metric) aggregated.Metric {
 
 func cloneTimedMetadata(meta metadata.TimedMetadata) metadata.TimedMetadata {
 	cloned := meta
+	return cloned
+}
+
+func cloneStoragePolicy(sp policy.StoragePolicy) policy.StoragePolicy {
+	cloned := sp
 	return cloned
 }

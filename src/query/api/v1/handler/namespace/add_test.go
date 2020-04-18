@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -73,14 +74,13 @@ func TestNamespaceAddHandler(t *testing.T) {
 	// Error case where required fields are not set
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-        {
-            "name": "testNamespace",
-            "options": {}
-        }
-    `
+	jsonInput := xjson.Map{
+		"name":    "testNamespace",
+		"options": xjson.Map{},
+	}
 
-	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/namespace",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	addHandler.ServeHTTP(svcDefaults, w, req)

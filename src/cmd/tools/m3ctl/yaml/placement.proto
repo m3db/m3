@@ -1,0 +1,12 @@
+syntax = "proto3";
+package yaml;
+
+import "github.com/m3db/m3/src/query/generated/proto/admin/placement.proto";
+message PlacementInitRequestYaml {
+  string operation = 1;
+  admin.PlacementInitRequest request = 2;
+}
+message PlacementReplaceRequestYaml {
+  string operation = 3;
+  admin.PlacementReplaceRequest request = 4;
+}

@@ -563,7 +563,7 @@ func (r *dbRepairer) Repair() error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	namespaces, err := r.database.GetOwnedNamespaces()
+	namespaces, err := r.database.OwnedNamespaces()
 	if err != nil {
 		return err
 	}

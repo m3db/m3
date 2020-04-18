@@ -23,7 +23,6 @@ package test
 import (
 	"bytes"
 	"io"
-	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
@@ -66,12 +65,21 @@ func GeneratePromWriteRequest() *prompb.WriteRequest {
 // GeneratePromWriteRequestBody generates a Prometheus remote
 // write request body.
 func GeneratePromWriteRequestBody(
-	t *testing.T,
+	t require.TestingT,
 	req *prompb.WriteRequest,
 ) io.Reader {
+	return bytes.NewReader(GeneratePromWriteRequestBodyBytes(t, req))
+}
+
+// GeneratePromWriteRequestBodyBytes generates a Prometheus remote
+// write request body.
+func GeneratePromWriteRequestBodyBytes(
+	t require.TestingT,
+	req *prompb.WriteRequest,
+) []byte {
 	data, err := proto.Marshal(req)
 	require.NoError(t, err)
 
 	compressed := snappy.Encode(nil, data)
-	return bytes.NewReader(compressed)
+	return compressed
 }

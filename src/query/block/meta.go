@@ -159,6 +159,25 @@ func (w Warnings) addWarnings(warnings ...Warning) Warnings {
 	return w
 }
 
+// WarningStrings converts warnings to a slice of strings for presentation.
+func (m ResultMetadata) WarningStrings() []string {
+	size := len(m.Warnings)
+	if !m.Exhaustive {
+		size++
+	}
+
+	strs := make([]string, 0, size)
+	for _, warn := range m.Warnings {
+		strs = append(strs, warn.Header())
+	}
+
+	if !m.Exhaustive {
+		strs = append(strs, "m3db exceeded query limit: results not exhaustive")
+	}
+
+	return strs
+}
+
 // Warning is a message that indicates potential partial or incomplete results.
 type Warning struct {
 	// Name is the name of the store originating the warning.

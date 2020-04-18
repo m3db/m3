@@ -67,6 +67,7 @@ function prometheus_remote_write {
   local expect_status_err=$7
   local metrics_type=$8
   local metrics_storage_policy=$9
+  local map_tags_header=${10}
 
   network=$(docker network ls --format '{{.ID}}' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
@@ -75,6 +76,7 @@ function prometheus_remote_write {
     -t __name__:${metric_name}                            \
     -h "M3-Metrics-Type: ${metrics_type}"                 \
     -h "M3-Storage-Policy: ${metrics_storage_policy}"     \
+    -h "M3-Map-Tags-JSON: ${map_tags_header}"          \
     -d ${datapoint_timestamp},${datapoint_value} | grep -v promremotecli_log) || true)
   success=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .success)
   status=$(echo $out | grep -v promremotecli_log | docker run --rm -i $JQ_IMAGE jq .statusCode)
@@ -109,7 +111,7 @@ function test_prometheus_remote_write_restrict_metrics_type {
     true "Expected request to succeed" \
     200 "Expected request to return status code 200" \
     unaggregated
-  
+
   echo "Test write with aggregated metrics type works as expected"
   prometheus_remote_write \
     $METRIC_NAME_TEST_RESTRICT_WRITE now 84.84 \
@@ -118,14 +120,28 @@ function test_prometheus_remote_write_restrict_metrics_type {
     aggregated 15s:10h
 }
 
+function test_prometheus_remote_write_map_tags {
+  echo "Test map tags header works as expected"
+  prometheus_remote_write \
+    $METRIC_NAME_TEST_RESTRICT_WRITE now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200" \
+    unaggregated "" '{"tagMappers":[{"write":{"tag":"globaltag","value":"somevalue"}}]}'
+
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
+    endpoint=query query="$METRIC_NAME_TEST_RESTRICT_WRITE" params="" \
+    metrics_type="unaggregated" jq_path=".data.result[0].metric.globaltag" expected_value="somevalue" \
+    retry_with_backoff prometheus_query_native
+}
+
 function test_query_limits_applied {
-  # Test the default series limit applied when directly querying 
+  # Test the default series limit applied when directly querying
   # coordinator (limit set to 100 in m3coordinator.yml)
   echo "Test query limit with coordinator defaults"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 100 ]]'
 
-  # Test the default series limit applied when directly querying 
+  # Test the default series limit applied when directly querying
   # coordinator (limit set by header)
   echo "Test query limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
@@ -162,7 +178,7 @@ function test_query_restrict_metrics_type {
   params_range="start=${hour_ago}"'&'"end=${now}"'&'"step=30s"
   jq_path_instant=".data.result[0].value[1]"
   jq_path_range=".data.result[0].values[][1]"
-  
+
   # Test restricting to unaggregated metrics
   echo "Test query restrict to unaggregated metrics type (instant)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 \
@@ -195,6 +211,7 @@ test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
 test_query_limits_applied
 test_query_restrict_metrics_type
+test_prometheus_remote_write_map_tags
 
 echo "Running function correctness tests"
 test_correctness

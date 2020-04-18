@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -1551,4 +1552,32 @@ func (m *MockOptions) MmapReporter() mmap.Reporter {
 func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
+}
+
+// SetQueryStats mocks base method
+func (m *MockOptions) SetQueryStats(value stats.QueryStats) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetQueryStats", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetQueryStats indicates an expected call of SetQueryStats
+func (mr *MockOptionsMockRecorder) SetQueryStats(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryStats", reflect.TypeOf((*MockOptions)(nil).SetQueryStats), value)
+}
+
+// QueryStats mocks base method
+func (m *MockOptions) QueryStats() stats.QueryStats {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryStats")
+	ret0, _ := ret[0].(stats.QueryStats)
+	return ret0
+}
+
+// QueryStats indicates an expected call of QueryStats
+func (mr *MockOptionsMockRecorder) QueryStats() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryStats", reflect.TypeOf((*MockOptions)(nil).QueryStats))
 }
