@@ -204,8 +204,8 @@ func NewClient(opts Options) (Client, error) {
 		var (
 			writerMgrScope = instrumentOpts.MetricsScope().SubScope("writer-manager")
 			writerMgrOpts  = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
-			writerMgr      = newInstanceWriterManager(writerMgrOpts)
 		)
+		writerMgr = newInstanceWriterManager(writerMgrOpts)
 		onPlacementsAddedFn := func(placements []placement.Placement) {
 			for _, placement := range placements {
 				writerMgr.AddInstances(placement.Instances()) // nolint: errcheck
@@ -412,13 +412,20 @@ func (c *client) Close() error {
 		return errClientIsUninitializedOrClosed
 	}
 
-	if c.aggregatorClientType == M3MsgAggregatorClient {
+	var err error
+	switch c.aggregatorClientType {
+	case M3MsgAggregatorClient:
 		c.m3msg.producer.Close(producer.WaitForConsumption)
+	case LegacyAggregatorClient:
+		c.placementWatcher.Unwatch() // nolint: errcheck
+		err = c.writerMgr.Close()
+	default:
+		return fmt.Errorf("unrecognized client type: %v", c.aggregatorClientType)
 	}
 
 	c.state = clientClosed
-	c.placementWatcher.Unwatch() // nolint: errcheck
-	return c.writerMgr.Close()
+
+	return err
 }
 
 func (c *client) write(metricID id.RawID, timeNanos int64, payload payloadUnion) error {
