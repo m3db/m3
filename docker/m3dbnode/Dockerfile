@@ -3,7 +3,7 @@
 # dependency tool we have. Until we migrate to a new version of glide or go
 # modules, we need to use this older base image.
 # https://github.com/m3db/m3/issues/628
-FROM golang:1.14-alpine3.11 AS builder
+FROM golang:1.13-alpine3.11 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install Glide
