@@ -25,12 +25,17 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
+	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/x/instrument"
+
+	"go.uber.org/zap"
 )
 
 // Serve starts serving RPC traffic.
 func Serve(
+	m3msgAddr string,
+	m3msgServerOpts m3msgserver.Options,
 	rawTCPAddr string,
 	rawTCPServerOpts rawtcpserver.Options,
 	httpAddr string,
@@ -39,22 +44,38 @@ func Serve(
 	doneCh chan struct{},
 	iOpts instrument.Options,
 ) error {
-	log := rawTCPServerOpts.InstrumentOptions().Logger().Sugar()
+	log := iOpts.Logger()
 	defer aggregator.Close()
 
-	rawTCPServer := rawtcpserver.NewServer(rawTCPAddr, aggregator, rawTCPServerOpts)
-	if err := rawTCPServer.ListenAndServe(); err != nil {
-		return fmt.Errorf("could not start raw TCP server at %s: %v", rawTCPAddr, err)
+	if m3msgAddr != "" {
+		m3msgServer, err := m3msgserver.NewServer(m3msgAddr, aggregator, m3msgServerOpts)
+		if err != nil {
+			return fmt.Errorf("could not create m3msg server: addr=%s, err=%v", m3msgAddr, err)
+		}
+		if err := m3msgServer.ListenAndServe(); err != nil {
+			return fmt.Errorf("could not start m3msg server at: addr=%s, err=%v", m3msgAddr, err)
+		}
+		defer m3msgServer.Close()
+		log.Info("m3msg server listening", zap.String("addr", m3msgAddr))
 	}
-	defer rawTCPServer.Close()
-	log.Infof("raw TCP server: listening on %s", rawTCPAddr)
 
-	httpServer := httpserver.NewServer(httpAddr, aggregator, httpServerOpts, iOpts)
-	if err := httpServer.ListenAndServe(); err != nil {
-		return fmt.Errorf("could not start http server at %s: %v", httpAddr, err)
+	if rawTCPAddr != "" {
+		rawTCPServer := rawtcpserver.NewServer(rawTCPAddr, aggregator, rawTCPServerOpts)
+		if err := rawTCPServer.ListenAndServe(); err != nil {
+			return fmt.Errorf("could not start raw TCP server at: addr=%s, err=%v", rawTCPAddr, err)
+		}
+		defer rawTCPServer.Close()
+		log.Info("raw TCP server listening", zap.String("addr", rawTCPAddr))
 	}
-	defer httpServer.Close()
-	log.Infof("http server: listening on %s", httpAddr)
+
+	if httpAddr != "" {
+		httpServer := httpserver.NewServer(httpAddr, aggregator, httpServerOpts, iOpts)
+		if err := httpServer.ListenAndServe(); err != nil {
+			return fmt.Errorf("could not start http server at: addr=%s, err=%v", httpAddr, err)
+		}
+		defer httpServer.Close()
+		log.Info("http server listening", zap.String("addr", httpAddr))
+	}
 
 	// Wait for exit signal.
 	<-doneCh
