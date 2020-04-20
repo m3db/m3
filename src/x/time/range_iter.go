@@ -26,6 +26,7 @@ import "container/list"
 type RangeIter struct {
 	ranges *list.List
 	cur    *list.Element
+	eof    bool
 }
 
 func newRangeIter(ranges *list.List) *RangeIter {
@@ -37,12 +38,16 @@ func (it *RangeIter) Next() bool {
 	if it.ranges == nil {
 		return false
 	}
+	if it.eof {
+		return false
+	}
 	if it.cur == nil {
 		it.cur = it.ranges.Front()
 	} else {
 		it.cur = it.cur.Next()
 	}
-	return it.cur != nil
+	it.eof = it.cur == nil
+	return !it.eof
 }
 
 // Value returns the current time range.

@@ -134,24 +134,18 @@ func (r shardTimeRanges) IsSuperset(other ShardTimeRanges) bool {
 		// and the block sizes are expected to line up.
 		// The logic is that if we finish iterating through otherIt then
 		// the current ranges are a superset of the other ranges.
+	otherIteratorNext:
 		for otherIt.Next() {
-			otherValue := otherIt.Value()
-			itHasNext := it.Next()
-			for ; itHasNext; itHasNext = it.Next() {
-				value := it.Value()
-				if value.Equal(otherValue) {
-					break
+			for it.Next() {
+				if otherIt.Value().Equal(it.Value()) {
+					continue otherIteratorNext
 				}
-			}
-			// We've reached the end of the current iterator so we should stop going.
-			if !itHasNext {
-				break
 			}
 		}
 
 		// If there is an unmatched range (not empty) left in `otherIt` then the current shard ranges
 		// are NOT a superset of the other shard ranges.
-		if !otherIt.Value().IsEmpty() {
+		if otherIt.Next() {
 			return false
 		}
 	}
