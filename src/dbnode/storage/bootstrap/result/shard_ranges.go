@@ -136,16 +136,20 @@ func (r shardTimeRanges) IsSuperset(other ShardTimeRanges) bool {
 		// the current ranges are a superset of the other ranges.
 	otherIteratorNext:
 		for otherIt.Next() {
-			for it.Next() {
+			var itHasNext bool
+			for itHasNext = it.Next(); itHasNext; itHasNext = it.Next() {
 				if otherIt.Value().Equal(it.Value()) {
 					continue otherIteratorNext
 				}
+			}
+			if !itHasNext {
+				break otherIteratorNext
 			}
 		}
 
 		// If there is an unmatched range (not empty) left in `otherIt` then the current shard ranges
 		// are NOT a superset of the other shard ranges.
-		if otherIt.Next() {
+		if !otherIt.Value().IsEmpty() {
 			return false
 		}
 	}
