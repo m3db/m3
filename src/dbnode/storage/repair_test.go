@@ -598,12 +598,10 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 		{
 			title: "repairs most recent block if no repair state",
 			expectedNS1Repair: expectedRepair{
-				xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
-				nil,
+				expectedRepairRange: xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
 			},
 			expectedNS2Repair: expectedRepair{
-				xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
-				nil,
+				expectedRepairRange: xtime.Range{Start: flushTimeEnd, End: flushTimeEnd.Add(blockSize)},
 			},
 		},
 		{
@@ -623,12 +621,10 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 				},
 			},
 			expectedNS1Repair: expectedRepair{
-				xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
-				nil,
+				expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
 			},
 			expectedNS2Repair: expectedRepair{
-				xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
-				nil,
+				expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
 			},
 		},
 		{
@@ -656,12 +652,10 @@ func TestDatabaseRepairPrioritizationLogic(t *testing.T) {
 				},
 			},
 			expectedNS1Repair: expectedRepair{
-				xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
-				nil,
+				expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
 			},
 			expectedNS2Repair: expectedRepair{
-				xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
-				nil,
+				expectedRepairRange: xtime.Range{Start: flushTimeStart, End: flushTimeStart.Add(blockSize)},
 			},
 		},
 	}
@@ -738,7 +732,11 @@ func TestDatabaseRepairSkipsPoisonShard(t *testing.T) {
 		expectedNS2Repairs []expectedRepair
 	}{
 		{
-			title: "Test that corrupt ns1 time range (flushTimeEnd, flushTimeEnd + blockSize) does not prevent past time ranges (flushTimeStart, flushTimeStart + blockSize) from being repaired. Also test that least recently repaired policy is honored even when repairing one of the time ranges (flushTimeStart, flushTimeStart + blockSize) on ns2 fails.",
+			// Test that corrupt ns1 time range (flushTimeEnd, flushTimeEnd + blockSize) does not prevent past time
+			// ranges (flushTimeStart, flushTimeStart + blockSize) from being repaired. Also test that least recently
+			// repaired policy is honored even when repairing one of the time ranges (flushTimeStart, flushTimeStart +
+			// blockSize) on ns2 fails.
+			title: "attempts to keep repairing time ranges before poison time ranges",
 			repairState: repairStatesByNs{
 				"ns2": namespaceRepairStateByTime{
 					flushTimeEndNano: repairState{
