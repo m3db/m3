@@ -78,7 +78,7 @@ func (o *segments) VolumeType() idxpersist.IndexVolumeType {
 	return o.volumeType
 }
 
-func (o *segments) AbsoluteFilepaths() []string {
+func (o *segments) AbsoluteFilePaths() []string {
 	return o.absoluteFilepaths
 }
 

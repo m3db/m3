@@ -110,7 +110,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 							Shard:       shard,
 							VolumeIndex: 0,
 						},
-						AbsoluteFilepaths:  []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
+						AbsoluteFilePaths:  []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
 						CachedSnapshotTime: testBlockStart,
 						CachedSnapshotID:   testSnapshotUUID0,
 					},
@@ -134,7 +134,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 							Shard:       shard,
 							VolumeIndex: 0,
 						},
-						AbsoluteFilepaths:  []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
+						AbsoluteFilePaths:  []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
 						CachedSnapshotTime: testBlockStart,
 						CachedSnapshotID:   testSnapshotUUID0,
 					},
@@ -193,7 +193,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 							Shard:       shard,
 							VolumeIndex: 0,
 						},
-						AbsoluteFilepaths: []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
+						AbsoluteFilePaths: []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
 						// Zero these out so it will try to look them up and return an error, indicating the files
 						// are corrupt.
 						CachedSnapshotTime: time.Time{},

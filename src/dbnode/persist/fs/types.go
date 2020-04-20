@@ -567,6 +567,6 @@ type Segments interface {
 	ShardTimeRanges() result.ShardTimeRanges
 	VolumeType() idxpersist.IndexVolumeType
 	VolumeIndex() int
-	AbsoluteFilepaths() []string
+	AbsoluteFilePaths() []string
 	BlockStart() time.Time
 }

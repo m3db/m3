@@ -1538,7 +1538,7 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 
 	segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart := make(map[time.Time]map[idxpersist.IndexVolumeType][]fs.Segments)
 	for _, file := range infoFiles {
-		seg := fs.NewSegments(file.Info, file.ID.VolumeIndex, file.AbsoluteFilepaths)
+		seg := fs.NewSegments(file.Info, file.ID.VolumeIndex, file.AbsoluteFilePaths)
 		blockStart := seg.BlockStart()
 		segmentsOrderByVolumeIndexByVolumeType, ok := segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart[blockStart]
 		if !ok {
@@ -1573,7 +1573,7 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 				if seg.ShardTimeRanges().IsSuperset(shardTimeRangesCovered) {
 					// Mark dupe segments for deletion.
 					for _, currSeg := range currSegments {
-						filesToDelete = append(filesToDelete, currSeg.AbsoluteFilepaths()...)
+						filesToDelete = append(filesToDelete, currSeg.AbsoluteFilePaths()...)
 					}
 					currSegments = []fs.Segments{seg}
 					shardTimeRangesCovered = seg.ShardTimeRanges().Copy()
