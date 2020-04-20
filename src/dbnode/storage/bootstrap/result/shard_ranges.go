@@ -119,15 +119,11 @@ func (r shardTimeRanges) Equal(other ShardTimeRanges) bool {
 // IsSuperset returns whether the current shard time ranges is a superset of the
 // other shard time ranges.
 func (r shardTimeRanges) IsSuperset(other ShardTimeRanges) bool {
-	if len(r) < other.Len() {
+	if len(r) < other.Len() || other.Len() == 0 {
 		return false
 	}
 	for shard, ranges := range r {
 		otherRanges := other.GetOrAdd(shard)
-		// Can still be a superset if other ranges does not exist for a shard.
-		if otherRanges == nil {
-			continue
-		}
 		if ranges.Len() < otherRanges.Len() {
 			return false
 		}
@@ -140,9 +136,8 @@ func (r shardTimeRanges) IsSuperset(other ShardTimeRanges) bool {
 		// the current ranges are a superset of the other ranges.
 		for otherIt.Next() {
 			otherValue := otherIt.Value()
-			itHasNext := false
-			for it.Next() {
-				itHasNext = true
+			itHasNext := it.Next()
+			for ; itHasNext; itHasNext = it.Next() {
 				value := it.Value()
 				if value.Equal(otherValue) {
 					break

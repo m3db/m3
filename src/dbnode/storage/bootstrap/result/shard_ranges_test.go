@@ -70,8 +70,42 @@ func TestShardTimeRangesIsSuperset(t *testing.T) {
 	for _, r := range sr2 {
 		ranges2.AddRanges(r)
 	}
+	sr3 := []ShardTimeRanges{
+		NewShardTimeRangesFromRange(times[1], times[2], 1, 2, 3),
+	}
+	ranges3 := NewShardTimeRanges()
+	for _, r := range sr3 {
+		ranges3.AddRanges(r)
+	}
 
 	require.True(t, ranges1.IsSuperset(ranges2))
-	require.False(t, ranges2.IsSuperset(ranges1))
 	require.True(t, ranges1.IsSuperset(ranges1))
+	require.True(t, ranges1.IsSuperset(ranges3))
+
+	// Reverse sanity checks.
+	require.False(t, ranges2.IsSuperset(ranges1))
+	require.False(t, ranges3.IsSuperset(ranges1))
+
+	// Added some more false checks for non overlapping time ranges and no time ranges.
+	sr1 = []ShardTimeRanges{
+		NewShardTimeRangesFromRange(times[0], times[1], 1, 2, 3),
+	}
+	ranges1 = NewShardTimeRanges()
+	for _, r := range sr1 {
+		ranges1.AddRanges(r)
+	}
+	sr2 = []ShardTimeRanges{
+		NewShardTimeRangesFromRange(times[1], times[2], 1, 2, 3),
+	}
+	ranges2 = NewShardTimeRanges()
+	for _, r := range sr2 {
+		ranges2.AddRanges(r)
+	}
+	ranges3 = NewShardTimeRanges()
+
+	require.False(t, ranges2.IsSuperset(ranges1))
+	require.False(t, ranges1.IsSuperset(ranges2))
+	require.False(t, ranges2.IsSuperset(ranges3))
+	require.False(t, ranges3.IsSuperset(ranges1))
+	require.False(t, ranges3.IsSuperset(ranges2))
 }

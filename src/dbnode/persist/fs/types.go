@@ -568,4 +568,5 @@ type Segments interface {
 	VolumeType() idxpersist.IndexVolumeType
 	VolumeIndex() int
 	AbsoluteFilepaths() []string
+	BlockStart() time.Time
 }
