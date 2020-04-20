@@ -664,7 +664,7 @@ func forEachInfoFile(
 		filePathPrefix: args.filePathPrefix,
 		namespace:      args.namespace,
 		shard:          args.shard,
-		pattern:        infoFilePattern,
+		pattern:        filesetFilePattern,
 	})
 	if err != nil {
 		return
@@ -758,9 +758,11 @@ func forEachInfoFile(
 		if err != nil {
 			continue
 		}
-		if len(matched[i].AbsoluteFilepaths) != 1 {
-			continue
-		}
+		// Sort the matched fileset files so info file comes first.
+		suffix := infoFileSuffix + fileSuffix
+		sort.SliceStable(matched[i].AbsoluteFilepaths, func(j, k int) bool {
+			return strings.HasSuffix(matched[i].AbsoluteFilepaths[j], suffix)
+		})
 
 		fn(matched[i], infoData)
 	}
