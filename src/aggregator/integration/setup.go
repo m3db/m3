@@ -34,6 +34,7 @@ import (
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
+	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
@@ -56,8 +57,10 @@ var (
 
 type testServerSetup struct {
 	opts             testServerOptions
+	m3msgAddr        string
 	rawTCPAddr       string
 	httpAddr         string
+	m3msgServerOpts  m3msgserver.Options
 	rawTCPServerOpts rawtcpserver.Options
 	httpServerOpts   httpserver.Options
 	aggregator       aggregator.Aggregator
@@ -80,6 +83,10 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	if opts == nil {
 		opts = newTestServerOptions()
 	}
+
+	// TODO: based on environment variable, use M3MSG aggregator as default
+	// server and client, run both legacy and M3MSG tests by setting it to
+	// different type in the Makefile.
 
 	// Set up worker pool.
 	workerPool := xsync.NewWorkerPool(opts.WorkerPoolSize())
@@ -160,7 +167,10 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetConnectionOptions(opts.ClientConnectionOptions()).
 		SetShardFn(opts.ShardFn()).
 		SetStagedPlacementWatcherOptions(placementWatcherOpts)
-	adminClient := aggclient.NewClient(clientOpts).(aggclient.AdminClient)
+	c, err := aggclient.NewClient(clientOpts)
+	require.NoError(t, err)
+	adminClient, ok := c.(aggclient.AdminClient)
+	require.True(t, ok)
 	require.NoError(t, adminClient.Init())
 	aggregatorOpts = aggregatorOpts.SetAdminClient(adminClient)
 
@@ -252,6 +262,8 @@ func (ts *testServerSetup) startServer() error {
 
 	go func() {
 		if err := serve.Serve(
+			ts.m3msgAddr,
+			ts.m3msgServerOpts,
 			ts.rawTCPAddr,
 			ts.rawTCPServerOpts,
 			ts.httpAddr,

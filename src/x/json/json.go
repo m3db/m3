@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,39 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+// Package json allows for easy duck typing of JSON, i.e. for test stubs
+// to compare JSON output against (such as src/x/test.MustPrettyJSON).
+package json
 
 import (
-	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/log"
+	"bytes"
+	"encoding/json"
+	"io"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-// Configuration contains top-level configuration.
-type Configuration struct {
-	// Logging configuration.
-	Logging log.Configuration `yaml:"logging"`
+// Map is an untyped JSON map representation.
+type Map map[string]interface{}
 
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+// Array is an untyped JSON array representation.
+type Array []interface{}
 
-	// M3Msg server configuration.
-	// Optional.
-	M3Msg *M3MsgServerConfiguration `yaml:"m3msg"`
-
-	// Raw TCP server configuration.
-	// Optional.
-	RawTCP *RawTCPServerConfiguration `yaml:"rawtcp"`
-
-	// HTTP server configuration.
-	// Optional.
-	HTTP *HTTPServerConfiguration `yaml:"http"`
-
-	// Client configuration for key value store.
-	KVClient KVClientConfiguration `yaml:"kvClient" validate:"nonzero"`
-
-	// Runtime options configuration.
-	RuntimeOptions RuntimeOptionsConfiguration `yaml:"runtimeOptions"`
-
-	// Aggregator configuration.
-	Aggregator AggregatorConfiguration `yaml:"aggregator"`
+// MustNewTestReader returns a io.Reader reader to the JSON value.
+func MustNewTestReader(t *testing.T, value interface{}) io.Reader {
+	reader := bytes.NewBuffer(nil)
+	require.NoError(t, json.NewEncoder(reader).Encode(value))
+	return reader
 }

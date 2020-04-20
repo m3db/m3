@@ -73,7 +73,6 @@ type fileSystemSource struct {
 	persistManager    *bootstrapper.SharedPersistManager
 	compactor         *bootstrapper.SharedCompactor
 	metrics           fileSystemSourceMetrics
-	builder           *result.IndexBuilder
 }
 
 type fileSystemSourceMetrics struct {
@@ -91,12 +90,6 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 	iopts = iopts.SetMetricsScope(scope)
 	opts = opts.SetInstrumentOptions(iopts)
 
-	alloc := opts.ResultOptions().IndexDocumentsBuilderAllocator()
-	segBuilder, err := alloc()
-	if err != nil {
-		return nil, err
-	}
-
 	s := &fileSystemSource{
 		opts:        opts,
 		fsopts:      opts.FilesystemOptions(),
@@ -109,7 +102,6 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		compactor: &bootstrapper.SharedCompactor{
 			Compactor: opts.Compactor(),
 		},
-		builder: result.NewIndexBuilder(segBuilder),
 		metrics: fileSystemSourceMetrics{
 			persistedIndexBlocksRead:  scope.Counter("persist-index-blocks-read"),
 			persistedIndexBlocksWrite: scope.Counter("persist-index-blocks-write"),
@@ -143,6 +135,13 @@ func (s *fileSystemSource) Read(
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
 
+	alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
+	segBuilder, err := alloc()
+	if err != nil {
+		return bootstrap.NamespaceResults{}, err
+	}
+	builder := result.NewIndexBuilder(segBuilder)
+
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
 	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
@@ -158,7 +157,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions)
+			namespace.DataRunOptions.RunOptions, builder)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -186,7 +185,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions)
+			namespace.IndexRunOptions.RunOptions, builder)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -261,6 +260,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	runOpts bootstrap.RunOptions,
 	readerPool *bootstrapper.ReaderPool,
 	readersCh <-chan bootstrapper.TimeWindowReaders,
+	builder *result.IndexBuilder,
 ) *runResult {
 	var (
 		runResult  = newRunResult()
@@ -270,10 +270,10 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
 		// it is not thread safe and requires reset after every processed index block.
-		s.builder.Builder().Reset(0)
+		builder.Builder().Reset(0)
 
 		s.loadShardReadersDataIntoShardResult(run, ns, accumulator,
-			runOpts, runResult, resultOpts, timeWindowReaders, readerPool)
+			runOpts, runResult, resultOpts, timeWindowReaders, readerPool, builder)
 	}
 
 	return runResult
@@ -326,6 +326,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	ropts result.Options,
 	timeWindowReaders bootstrapper.TimeWindowReaders,
 	readerPool *bootstrapper.ReaderPool,
+	builder *result.IndexBuilder,
 ) {
 	var (
 		blockPool            = ropts.DatabaseBlockOptions().DatabaseBlockPool()
@@ -371,7 +372,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 						runResult, start, blockSize, blockPool, seriesCachePolicy)
 				case bootstrapIndexRunType:
 					// We can just read the entry and index if performing an index run.
-					batch, err = s.readNextEntryAndMaybeIndex(r, batch)
+					batch, err = s.readNextEntryAndMaybeIndex(r, batch, builder)
 					if err != nil {
 						s.log.Error("readNextEntryAndMaybeIndex failed",
 							zap.String("error", err.Error()),
@@ -385,7 +386,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 			// NB(bodu): Only flush if we've experienced no errors up to this point.
 			if err == nil && len(batch) > 0 {
-				batch, err = s.builder.FlushBatch(batch)
+				batch, err = builder.FlushBatch(batch)
 				if err != nil {
 					s.log.Error("FlushBatch failed",
 						zap.String("error", err.Error()),
@@ -511,7 +512,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 				ns,
 				requestedRanges,
-				s.builder.Builder(),
+				builder.Builder(),
 				s.persistManager,
 				s.opts.ResultOptions(),
 				existingIndexBlock.Fulfilled(),
@@ -533,7 +534,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 				ns,
 				requestedRanges,
-				s.builder.Builder(),
+				builder.Builder(),
 				s.compactor,
 				s.opts.ResultOptions(),
 				s.opts.FilesystemOptions().MmapReporter(),
@@ -636,6 +637,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
 	batch []doc.Document,
+	builder *result.IndexBuilder,
 ) ([]doc.Document, error) {
 	// If performing index run, then simply read the metadata and add to segment.
 	id, tagsIter, _, _, err := r.ReadMetadata()
@@ -654,7 +656,7 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 	batch = append(batch, d)
 
 	if len(batch) >= index.DocumentArrayPoolCapacity {
-		return s.builder.FlushBatch(batch)
+		return builder.FlushBatch(batch)
 	}
 
 	return batch, nil
@@ -666,6 +668,7 @@ func (s *fileSystemSource) read(
 	accumulator bootstrap.NamespaceDataAccumulator,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
+	builder *result.IndexBuilder,
 ) (*runResult, error) {
 	var (
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
@@ -729,7 +732,7 @@ func (s *fileSystemSource) read(
 	go bootstrapper.EnqueueReaders(md, runOpts, runtimeOpts, s.fsopts, shardsTimeRanges,
 		readerPool, readersCh, blockSize, s.log)
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
-		accumulator, runOpts, readerPool, readersCh)
+		accumulator, runOpts, readerPool, readersCh, builder)
 
 	// Merge any existing results if necessary.
 	setOrMergeResult(bootstrapFromDataReadersResult)

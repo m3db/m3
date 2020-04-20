@@ -156,6 +156,17 @@ func (h *Handler) RegisterRoutes() error {
 			Tagged(v1APIGroup),
 		))
 
+	// Register custom endpoints.
+	for _, custom := range h.customHandlers {
+		handler, err := custom.Handler(nativeSourceOpts)
+		if err != nil {
+			return err
+		}
+
+		h.router.HandleFunc(custom.Route(), handler.ServeHTTP).
+			Methods(custom.Methods()...)
+	}
+
 	nativePromReadHandler := native.NewPromReadHandler(nativeSourceOpts)
 	h.router.HandleFunc(remote.PromReadURL,
 		wrapped(promRemoteReadHandler).ServeHTTP,
@@ -278,17 +289,6 @@ func (h *Handler) RegisterRoutes() error {
 				wrapped(experimentalAnnotatedWriteHandler).ServeHTTP,
 			).Methods(annotated.WriteHTTPMethod)
 		}
-	}
-
-	// Register custom endpoints.
-	for _, custom := range h.customHandlers {
-		handler, err := custom.Handler(h.options)
-		if err != nil {
-			return err
-		}
-
-		h.router.HandleFunc(custom.Route(), handler.ServeHTTP).
-			Methods(custom.Methods()...)
 	}
 
 	h.registerHealthEndpoints()
