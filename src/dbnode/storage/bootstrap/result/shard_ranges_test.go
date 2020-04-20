@@ -105,7 +105,7 @@ func TestShardTimeRangesIsSuperset(t *testing.T) {
 
 	require.False(t, ranges2.IsSuperset(ranges1))
 	require.False(t, ranges1.IsSuperset(ranges2))
-	require.False(t, ranges2.IsSuperset(ranges3))
+	require.True(t, ranges2.IsSuperset(ranges3))
 	require.False(t, ranges3.IsSuperset(ranges1))
 	require.False(t, ranges3.IsSuperset(ranges2))
 }
