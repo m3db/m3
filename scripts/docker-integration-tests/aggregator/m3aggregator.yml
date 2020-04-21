@@ -69,14 +69,9 @@ metrics:
   samplingRate: 1.0
   extended: none
 
-http:
-  listenAddress: 0.0.0.0:6001
-  readTimeout: 60s
-  writeTimeout: 60s
-
 m3msg:
   server:
-    listenAddress: 0.0.0.0:6002
+    listenAddress: 0.0.0.0:6000
     retry:
       maxBackoff: 10s
       jitter: true
@@ -86,6 +81,11 @@ m3msg:
       watermark:
         low: 0.2
         high: 0.5
+
+http:
+  listenAddress: 0.0.0.0:6001
+  readTimeout: 60s
+  writeTimeout: 60s
 
 kvClient:
   etcd:

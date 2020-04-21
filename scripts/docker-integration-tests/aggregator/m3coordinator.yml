@@ -82,8 +82,7 @@ downsample:
               namespaces:
                 placement: /placement
             connection:
-              # NB(r): Test integration test with high number of connections.
-              numConnections: 32
+              numConnections: 4
             messagePool:
               size: 16384
               watermark:
