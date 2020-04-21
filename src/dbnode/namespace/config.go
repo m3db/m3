@@ -84,6 +84,7 @@ func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 	if v := mc.ColdWritesEnabled; v != nil {
 		opts = opts.SetColdWritesEnabled(*v)
 	}
+	opts = opts.SetColdWritesEnabled(true)
 	return NewMetadata(ident.StringID(mc.ID), opts)
 }
 

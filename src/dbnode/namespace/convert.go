@@ -113,7 +113,7 @@ func ToMetadata(
 		SetSchemaHistory(sr).
 		SetRetentionOptions(ropts).
 		SetIndexOptions(iopts).
-		SetColdWritesEnabled(opts.ColdWritesEnabled)
+		SetColdWritesEnabled(true)
 
 	return NewMetadata(ident.StringID(id), mopts)
 }
