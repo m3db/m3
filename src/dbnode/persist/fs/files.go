@@ -50,6 +50,7 @@ var (
 	timeZero time.Time
 
 	errSnapshotTimeAndIDZero = errors.New("tried to read snapshot time and ID of zero value")
+	errNonSnapshotFileset    = errors.New("tried to determine snapshot time and id of non-snapshot")
 )
 
 const (
@@ -103,7 +104,7 @@ const (
 // FileSetFile represents a set of FileSet files for a given block start
 type FileSetFile struct {
 	ID                FileSetFileIdentifier
-	AbsoluteFilepaths []string
+	AbsoluteFilePaths []string
 
 	CachedSnapshotTime              time.Time
 	CachedSnapshotID                uuid.UUID
@@ -117,11 +118,8 @@ func (f *FileSetFile) SnapshotTimeAndID() (time.Time, uuid.UUID, error) {
 	if f.IsZero() {
 		return time.Time{}, nil, errSnapshotTimeAndIDZero
 	}
-	if len(f.AbsoluteFilepaths) > 0 &&
-		!strings.Contains(f.AbsoluteFilepaths[0], snapshotDirName) {
-		return time.Time{}, nil, fmt.Errorf(
-			"tried to determine snapshot time and id of non-snapshot: %s",
-			f.AbsoluteFilepaths[0])
+	if _, ok := f.SnapshotFilepath(); !ok {
+		return time.Time{}, nil, errNonSnapshotFileset
 	}
 
 	if !f.CachedSnapshotTime.IsZero() || f.CachedSnapshotID != nil {
@@ -140,9 +138,36 @@ func (f *FileSetFile) SnapshotTimeAndID() (time.Time, uuid.UUID, error) {
 	return f.CachedSnapshotTime, f.CachedSnapshotID, nil
 }
 
+// InfoFilePath returns the info file path of a filesetfile (if found).
+func (f *FileSetFile) InfoFilePath() (string, bool) {
+	return f.filepath(infoFileSuffix)
+}
+
+// SnapshotFilepath returns the info file path of a filesetfile (if found).
+func (f *FileSetFile) SnapshotFilepath() (string, bool) {
+	return f.filepath(snapshotDirName)
+}
+
 // IsZero returns whether the FileSetFile is a zero value.
 func (f FileSetFile) IsZero() bool {
-	return len(f.AbsoluteFilepaths) == 0
+	return len(f.AbsoluteFilePaths) == 0
+}
+
+func (f *FileSetFile) filepath(pathContains string) (string, bool) {
+	var (
+		found    bool
+		foundIdx int
+	)
+	for idx, path := range f.AbsoluteFilePaths {
+		if strings.Contains(path, pathContains) {
+			found = true
+			foundIdx = idx
+		}
+	}
+	if found {
+		return f.AbsoluteFilePaths[foundIdx], true
+	}
+	return "", false
 }
 
 // HasCompleteCheckpointFile returns a bool indicating whether the given set of
@@ -159,7 +184,7 @@ func (f *FileSetFile) HasCompleteCheckpointFile() bool {
 }
 
 func (f *FileSetFile) evalHasCompleteCheckpointFile() LazyEvalBool {
-	for _, fileName := range f.AbsoluteFilepaths {
+	for _, fileName := range f.AbsoluteFilePaths {
 		if strings.Contains(fileName, checkpointFileSuffix) {
 			exists, err := CompleteCheckpointFileExists(fileName)
 			if err != nil {
@@ -182,7 +207,7 @@ type FileSetFilesSlice []FileSetFile
 func (f FileSetFilesSlice) Filepaths() []string {
 	flattened := []string{}
 	for _, fileset := range f {
-		flattened = append(flattened, fileset.AbsoluteFilepaths...)
+		flattened = append(flattened, fileset.AbsoluteFilePaths...)
 	}
 
 	return flattened
@@ -262,9 +287,9 @@ type SnapshotMetadata struct {
 	CheckpointFilePath  string
 }
 
-// AbsoluteFilepaths returns a slice of all the absolute filepaths associated
+// AbsoluteFilePaths returns a slice of all the absolute filepaths associated
 // with a snapshot metadata.
-func (s SnapshotMetadata) AbsoluteFilepaths() []string {
+func (s SnapshotMetadata) AbsoluteFilePaths() []string {
 	return []string{s.MetadataFilePath, s.CheckpointFilePath}
 }
 
@@ -289,7 +314,7 @@ type SnapshotMetadataIdentifier struct {
 func NewFileSetFile(id FileSetFileIdentifier, filePathPrefix string) FileSetFile {
 	return FileSetFile{
 		ID:                id,
-		AbsoluteFilepaths: []string{},
+		AbsoluteFilePaths: []string{},
 		filePathPrefix:    filePathPrefix,
 	}
 }
@@ -664,7 +689,7 @@ func forEachInfoFile(
 		filePathPrefix: args.filePathPrefix,
 		namespace:      args.namespace,
 		shard:          args.shard,
-		pattern:        infoFilePattern,
+		pattern:        filesetFilePattern,
 	})
 	if err != nil {
 		return
@@ -758,7 +783,8 @@ func forEachInfoFile(
 		if err != nil {
 			continue
 		}
-		if len(matched[i].AbsoluteFilepaths) != 1 {
+		// Guarantee that every matched fileset has an info file.
+		if _, ok := matched[i].InfoFilePath(); !ok {
 			continue
 		}
 
@@ -815,14 +841,14 @@ func ReadInfoFiles(
 		},
 		readerBufferSize,
 		func(file FileSetFile, data []byte) {
-			filepath := file.AbsoluteFilepaths[0]
+			filePath, _ := file.InfoFilePath()
 			decoder.Reset(msgpack.NewByteDecoderStream(data))
 			info, err := decoder.DecodeIndexInfo()
 			infoFileResults = append(infoFileResults, ReadInfoFileResult{
 				Info: info,
 				Err: readInfoFileResultError{
 					err:      err,
-					filepath: filepath,
+					filepath: filePath,
 				},
 			})
 		})
@@ -833,7 +859,7 @@ func ReadInfoFiles(
 type ReadIndexInfoFileResult struct {
 	ID                FileSetFileIdentifier
 	Info              index.IndexVolumeInfo
-	AbsoluteFilepaths []string
+	AbsoluteFilePaths []string
 	Err               ReadInfoFileResultError
 }
 
@@ -854,14 +880,14 @@ func ReadIndexInfoFiles(
 		},
 		readerBufferSize,
 		func(file FileSetFile, data []byte) {
-			filepath := file.AbsoluteFilepaths[0]
+			filepath, _ := file.InfoFilePath()
 			id := file.ID
 			var info index.IndexVolumeInfo
 			err := info.Unmarshal(data)
 			infoFileResults = append(infoFileResults, ReadIndexInfoFileResult{
 				ID:                id,
 				Info:              info,
-				AbsoluteFilepaths: file.AbsoluteFilepaths,
+				AbsoluteFilePaths: file.AbsoluteFilePaths,
 				Err: readInfoFileResultError{
 					err:      err,
 					filepath: filepath,
@@ -1058,7 +1084,7 @@ func DeleteFileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, bl
 		return fmt.Errorf("fileset for blockStart: %d does not exist", blockStart.Unix())
 	}
 
-	return DeleteFiles(fileset.AbsoluteFilepaths)
+	return DeleteFiles(fileset.AbsoluteFilePaths)
 }
 
 // DataFileSetsBefore returns all the flush data fileset paths whose timestamps are earlier than a given time.
@@ -1260,7 +1286,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 		latestBlockStart = currentFileBlockStart
 		latestVolumeIndex = volumeIndex
 
-		latestFileSetFile.AbsoluteFilepaths = append(latestFileSetFile.AbsoluteFilepaths, file)
+		latestFileSetFile.AbsoluteFilePaths = append(latestFileSetFile.AbsoluteFilePaths, file)
 	}
 	filesetFiles = append(filesetFiles, latestFileSetFile)
 
