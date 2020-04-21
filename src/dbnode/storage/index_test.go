@@ -104,7 +104,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 					Value: volumeType,
 				},
 			},
-			AbsoluteFilepaths: []string{fset1.Name()},
+			AbsoluteFilePaths: []string{fset1.Name()},
 		},
 		{
 			Info: indexpb.IndexVolumeInfo{
@@ -115,7 +115,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 					Value: volumeType,
 				},
 			},
-			AbsoluteFilepaths: []string{fset2.Name()},
+			AbsoluteFilePaths: []string{fset2.Name()},
 		},
 		{
 			Info: indexpb.IndexVolumeInfo{
@@ -126,7 +126,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 					Value: volumeType,
 				},
 			},
-			AbsoluteFilepaths: []string{fset3.Name()},
+			AbsoluteFilePaths: []string{fset3.Name()},
 		},
 	}
 
@@ -179,7 +179,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 					Value: volumeType,
 				},
 			},
-			AbsoluteFilepaths: []string{fset1.Name()},
+			AbsoluteFilePaths: []string{fset1.Name()},
 		},
 		{
 			Info: indexpb.IndexVolumeInfo{
@@ -190,7 +190,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 					Value: volumeType,
 				},
 			},
-			AbsoluteFilepaths: []string{fset2.Name()},
+			AbsoluteFilePaths: []string{fset2.Name()},
 		},
 	}
 
