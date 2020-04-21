@@ -119,7 +119,7 @@ func TestPromReadParsing(t *testing.T) {
 		SetTimeoutOpts(timeoutOpts)
 
 	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
-	r, fetchOpts, err := parseRequest(context.TODO(), req, opts)
+	r, fetchOpts, err := ParseRequest(context.TODO(), req, opts)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, len(r.Queries), 1)
 	fmt.Println(fetchOpts)
@@ -135,7 +135,7 @@ func TestPromFetchTimeoutParsing(t *testing.T) {
 
 func TestPromReadParsingBad(t *testing.T) {
 	req := httptest.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
-	_, _, err := parseRequest(context.TODO(), req, options.EmptyHandlerOptions())
+	_, _, err := ParseRequest(context.TODO(), req, options.EmptyHandlerOptions())
 	require.NotNil(t, err, "unable to parse request")
 }
 
