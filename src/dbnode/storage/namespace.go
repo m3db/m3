@@ -313,7 +313,7 @@ func newDatabaseNamespace(
 
 	seriesOpts := NewSeriesOptionsFromOptions(opts, nopts.RetentionOptions()).
 		SetStats(series.NewStats(scope)).
-		SetColdWritesEnabled(nopts.ColdWritesEnabled())
+		SetColdWritesEnabled(true) // ALWAYS TRUE ALWAYS TRUE
 	if err := seriesOpts.Validate(); err != nil {
 		return nil, fmt.Errorf(
 			"unable to create namespace %v, invalid series options: %v",
