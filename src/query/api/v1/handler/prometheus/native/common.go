@@ -301,7 +301,7 @@ func RenderResultsJSON(
 	w io.Writer,
 	result ReadResult,
 	opts RenderResultsOptions,
-) {
+) error {
 	var (
 		series   = result.Series
 		warnings = result.Meta.WarningStrings()
@@ -384,7 +384,7 @@ func RenderResultsJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	jw.Close()
+	return jw.Close()
 }
 
 // renderResultsInstantaneousJSON renders results in JSON for instant queries.
