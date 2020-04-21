@@ -105,7 +105,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
-	req, fetchOpts, rErr := parseRequest(ctx, r, h.opts)
+	req, fetchOpts, rErr := ParseRequest(ctx, r, h.opts)
 	if rErr != nil {
 		err := rErr.Inner()
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
@@ -259,7 +259,8 @@ type ReadResult struct {
 	Result []*prompb.QueryResult
 }
 
-func parseRequest(
+// ParseRequest parses the compressed request
+func ParseRequest(
 	ctx context.Context,
 	r *http.Request,
 	opts options.HandlerOptions,
