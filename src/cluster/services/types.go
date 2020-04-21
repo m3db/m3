@@ -142,6 +142,12 @@ type OverrideOptions interface {
 
 	// SetNamespaceOptions sets namespace options.
 	SetNamespaceOptions(opts NamespaceOptions) OverrideOptions
+
+	// KVOverrideOptions is the custom kv override options.
+	KVOverrideOptions() kv.OverrideOptions
+
+	// SetKVOverrideOptions sets the custom kv override options.
+	SetKVOverrideOptions(opts kv.OverrideOptions) OverrideOptions
 }
 
 // Watch is a watcher that issues notification when a service is updated.

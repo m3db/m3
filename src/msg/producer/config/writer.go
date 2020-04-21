@@ -132,7 +132,13 @@ func (c *WriterConfiguration) NewOptions(
 	if c.TopicWatchInitTimeout != nil {
 		opts = opts.SetTopicWatchInitTimeout(*c.TopicWatchInitTimeout)
 	}
-	sd, err := cs.Services(c.PlacementServiceOverride.NewOptions())
+
+	overrides, err := c.PlacementServiceOverride.NewOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	sd, err := cs.Services(overrides)
 	if err != nil {
 		return nil, err
 	}

@@ -25,6 +25,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
@@ -201,6 +202,7 @@ func (c campaignOpts) SetLeaderValue(v string) CampaignOptions {
 
 type overrideOptions struct {
 	namespaceOpts NamespaceOptions
+	kv            kv.OverrideOptions
 }
 
 // NewOverrideOptions constructs a new OverrideOptions.
@@ -216,6 +218,15 @@ func (o overrideOptions) NamespaceOptions() NamespaceOptions {
 
 func (o overrideOptions) SetNamespaceOptions(opts NamespaceOptions) OverrideOptions {
 	o.namespaceOpts = opts
+	return o
+}
+
+func (o overrideOptions) KVOverrideOptions() kv.OverrideOptions {
+	return o.kv
+}
+
+func (o overrideOptions) SetKVOverrideOptions(opts kv.OverrideOptions) OverrideOptions {
+	o.kv = opts
 	return o
 }
 

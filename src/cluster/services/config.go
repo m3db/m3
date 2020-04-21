@@ -22,17 +22,30 @@ package services
 
 import (
 	"time"
+
+	"github.com/m3db/m3/src/cluster/kv"
 )
 
 // OverrideConfiguration configs the override options.
 type OverrideConfiguration struct {
-	Namespaces NamespacesConfiguration `yaml:"namespaces"`
+	Namespaces NamespacesConfiguration   `yaml:"namespaces"`
+	KV         *kv.OverrideConfiguration `yaml:"kv"`
 }
 
 // NewOptions creates a new override options.
-func (cfg OverrideConfiguration) NewOptions() OverrideOptions {
-	return NewOverrideOptions().
+func (cfg OverrideConfiguration) NewOptions() (OverrideOptions, error) {
+	opts := NewOverrideOptions().
 		SetNamespaceOptions(cfg.Namespaces.NewOptions())
+
+	if cfg.KV != nil {
+		kvOverrideOpts, err := cfg.KV.NewOverrideOptions()
+		if err != nil {
+			return nil, err
+		}
+		opts = opts.SetKVOverrideOptions(kvOverrideOpts)
+	}
+
+	return opts, nil
 }
 
 // NamespacesConfiguration configs the NamespaceOptions.

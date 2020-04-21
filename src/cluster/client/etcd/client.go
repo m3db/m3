@@ -39,8 +39,8 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 
-	"go.etcd.io/etcd/clientv3"
 	"github.com/uber-go/tally"
+	"go.etcd.io/etcd/clientv3"
 	"go.uber.org/zap"
 )
 
@@ -133,7 +133,7 @@ func (c *csclient) createServices(opts services.OverrideOptions) (services.Servi
 	cacheFileExtraFields := []string{nOpts.PlacementNamespace(), nOpts.MetadataNamespace()}
 	return services.NewServices(c.sdOpts.
 		SetHeartbeatGen(c.heartbeatGen()).
-		SetKVGen(c.kvGen(c.cacheFileFn(cacheFileExtraFields...))).
+		SetKVGen(c.kvGen(c.cacheFileFn(cacheFileExtraFields...), opts.KVOverrideOptions())).
 		SetLeaderGen(c.leaderGen()).
 		SetNamespaceOptions(nOpts).
 		SetInstrumentsOptions(instrument.NewOptions().
@@ -151,11 +151,15 @@ func (c *csclient) createTxnStore(opts kv.OverrideOptions) (kv.TxnStore, error) 
 	return c.txnGen(opts, c.cacheFileFn())
 }
 
-func (c *csclient) kvGen(fn cacheFileForZoneFn) services.KVGen {
+func (c *csclient) kvGen(fn cacheFileForZoneFn, overrides kv.OverrideOptions) services.KVGen {
 	return services.KVGen(func(zone string) (kv.Store, error) {
 		// we don't validate or sanitize the options here because we're using
 		// them as a container for zone.
-		opts := kv.NewOverrideOptions().SetZone(zone)
+		opts := kv.NewOverrideOptions()
+		if overrides != nil {
+			opts = overrides
+		}
+		opts = opts.SetZone(zone)
 		return c.txnGen(opts, fn)
 	})
 }
