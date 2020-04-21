@@ -145,18 +145,9 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keepNans := h.opts.Config().ResultOptions.KeepNans
-	renderResultsJSON(w, result, parsedOptions.Params, keepNans)
-}
-
-/*
-conflicted:
-	keepNans := h.opts.Config().ResultOptions.KeepNans
-	// TODO: Support multiple result types
-	RenderResultsJSON(w, result, RenderResultsOptions{
-		Start:    parsed.params.Start,
-		End:      parsed.params.End,
-		KeepNaNs: keepNans,
+	renderResultsJSON(w, result, renderResultsOptions{
+		start:    parsedOptions.Params.Start,
+		end:      parsedOptions.Params.End,
+		keepNaNs: h.opts.Config().ResultOptions.KeepNans,
 	})
 }
-*/

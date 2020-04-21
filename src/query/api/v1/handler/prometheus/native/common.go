@@ -291,7 +291,9 @@ func filterNaNSeries(
 
 // RenderResultsOptions is a set of options for rendering the result.
 type renderResultsOptions struct {
-	KeepNaNs bool
+	keepNaNs bool
+	start    time.Time
+	end      time.Time
 }
 
 // renderResultsJSON renders results in JSON for range queries.
@@ -306,8 +308,8 @@ func renderResultsJSON(
 	)
 
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
-	if !opts.KeepNaNs {
-		series = filterNaNSeries(series, opts.Start, opts.End)
+	if !opts.keepNaNs {
+		series = filterNaNSeries(series, opts.start, opts.end)
 	}
 
 	jw := json.NewWriter(w)
@@ -352,7 +354,7 @@ func renderResultsJSON(
 			dp := vals.DatapointAt(i)
 
 			// If keepNaNs is set to false and the value is NaN, drop it from the response.
-			if !opts.KeepNaNs && math.IsNaN(dp.Value) {
+			if !opts.keepNaNs && math.IsNaN(dp.Value) {
 				continue
 			}
 
@@ -360,7 +362,7 @@ func renderResultsJSON(
 			// would be at the result node but that would make it inefficient since
 			// we would need to create another block just for the sake of restricting
 			// the bounds.
-			if dp.Timestamp.Before(opts.Start) {
+			if dp.Timestamp.Before(opts.start) {
 				continue
 			}
 
