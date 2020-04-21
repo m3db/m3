@@ -145,9 +145,9 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderResultsJSON(w, result, renderResultsOptions{
-		start:    parsedOptions.Params.Start,
-		end:      parsedOptions.Params.End,
-		keepNaNs: h.opts.Config().ResultOptions.KeepNans,
+	RenderResultsJSON(w, result, RenderResultsOptions{
+		Start:    parsedOptions.Params.Start,
+		End:      parsedOptions.Params.End,
+		KeepNaNs: h.opts.Config().ResultOptions.KeepNans,
 	})
 }

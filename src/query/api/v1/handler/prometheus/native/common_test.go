@@ -189,10 +189,10 @@ func TestRenderResultsJSON(t *testing.T) {
 	}
 
 	readResult := ReadResult{Series: series}
-	renderResultsJSON(buffer, readResult, renderResultsOptions{
-		start:    params.Start,
-		end:      params.End,
-		keepNaNs: true,
+	RenderResultsJSON(buffer, readResult, RenderResultsOptions{
+		Start:    params.Start,
+		End:      params.End,
+		KeepNaNs: true,
 	})
 
 	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
@@ -303,10 +303,10 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 		Meta:   meta,
 	}
 
-	renderResultsJSON(buffer, readResult, renderResultsOptions{
-		start:    params.Start,
-		end:      params.End,
-		keepNaNs: false,
+	RenderResultsJSON(buffer, readResult, RenderResultsOptions{
+		Start:    params.Start,
+		End:      params.End,
+		KeepNaNs: false,
 	})
 
 	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
