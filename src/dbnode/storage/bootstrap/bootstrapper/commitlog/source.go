@@ -656,7 +656,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 							zap.Time("blockStart", mostRecentSnapshot.ID.BlockStart),
 							zap.Uint32("shard", mostRecentSnapshot.ID.Shard),
 							zap.Int("index", mostRecentSnapshot.ID.VolumeIndex),
-							zap.Strings("filepaths", mostRecentSnapshot.AbsoluteFilepaths),
+							zap.Strings("filepaths", mostRecentSnapshot.AbsoluteFilePaths),
 							zap.Error(err),
 						).
 						Error("error resolving snapshot time for snapshot file")

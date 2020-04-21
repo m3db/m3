@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/producer/writer"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -83,6 +84,7 @@ type WriterConfiguration struct {
 	TopicName                         string                         `yaml:"topicName" validate:"nonzero"`
 	TopicServiceOverride              kv.OverrideConfiguration       `yaml:"topicServiceOverride"`
 	TopicWatchInitTimeout             *time.Duration                 `yaml:"topicWatchInitTimeout"`
+	PlacementOptions                  placement.Configuration        `yaml:"placement"`
 	PlacementServiceOverride          services.OverrideConfiguration `yaml:"placementServiceOverride"`
 	PlacementWatchInitTimeout         *time.Duration                 `yaml:"placementWatchInitTimeout"`
 	MessagePool                       *pool.ObjectPoolConfiguration  `yaml:"messagePool"`
@@ -103,20 +105,26 @@ func (c *WriterConfiguration) NewOptions(
 	cs client.Client,
 	iOpts instrument.Options,
 ) (writer.Options, error) {
-	opts := writer.NewOptions().SetTopicName(c.TopicName)
+	opts := writer.NewOptions().
+		SetTopicName(c.TopicName).
+		SetPlacementOptions(c.PlacementOptions.NewOptions()).
+		SetInstrumentOptions(iOpts)
+
 	kvOpts, err := c.TopicServiceOverride.NewOverrideOptions()
 	if err != nil {
 		return nil, err
 	}
-	ts, err := topic.NewService(
-		topic.NewServiceOptions().
-			SetConfigService(cs).
-			SetKVOverrideOptions(kvOpts),
-	)
+
+	topicServiceOpts := topic.NewServiceOptions().
+		SetConfigService(cs).
+		SetKVOverrideOptions(kvOpts)
+	ts, err := topic.NewService(topicServiceOpts)
 	if err != nil {
 		return nil, err
 	}
+
 	opts = opts.SetTopicService(ts)
+
 	if c.TopicWatchInitTimeout != nil {
 		opts = opts.SetTopicWatchInitTimeout(*c.TopicWatchInitTimeout)
 	}
@@ -124,7 +132,9 @@ func (c *WriterConfiguration) NewOptions(
 	if err != nil {
 		return nil, err
 	}
+
 	opts = opts.SetServiceDiscovery(sd)
+
 	if c.PlacementWatchInitTimeout != nil {
 		opts = opts.SetPlacementWatchInitTimeout(*c.PlacementWatchInitTimeout)
 	}
@@ -161,5 +171,6 @@ func (c *WriterConfiguration) NewOptions(
 	if c.Connection != nil {
 		opts = opts.SetConnectionOptions(c.Connection.NewOptions(iOpts))
 	}
-	return opts.SetInstrumentOptions(iOpts), nil
+
+	return opts, nil
 }

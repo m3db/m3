@@ -59,7 +59,8 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	cache := cache.NewCache(opts.CacheOptions())
 	matcher, err := matcher.NewMatcher(cache, opts.MatcherOptions())
 	require.NoError(t, err)
-	client := aggclient.NewClient(opts.AggregatorClientOptions())
+	client, err := aggclient.NewClient(opts.AggregatorClientOptions())
+	require.NoError(t, err)
 	reporter := aggreporter.NewReporter(matcher, client, opts.AggregatorReporterOptions())
 
 	// Create server.
