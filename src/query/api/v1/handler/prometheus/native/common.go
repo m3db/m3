@@ -289,20 +289,27 @@ func filterNaNSeries(
 	return filtered
 }
 
-func renderResultsJSON(
+// RenderResultsOptions is a set of options for rendering the result.
+type RenderResultsOptions struct {
+	KeepNaNs bool
+	Start    time.Time
+	End      time.Time
+}
+
+// RenderResultsJSON renders results in JSON for range queries.
+func RenderResultsJSON(
 	w io.Writer,
 	result ReadResult,
-	params models.RequestParams,
-	keepNans bool,
-) {
+	opts RenderResultsOptions,
+) error {
 	var (
 		series   = result.Series
 		warnings = result.Meta.WarningStrings()
 	)
 
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
-	if !keepNans {
-		series = filterNaNSeries(series, params.Start, params.End)
+	if !opts.KeepNaNs {
+		series = filterNaNSeries(series, opts.Start, opts.End)
 	}
 
 	jw := json.NewWriter(w)
@@ -347,7 +354,7 @@ func renderResultsJSON(
 			dp := vals.DatapointAt(i)
 
 			// If keepNaNs is set to false and the value is NaN, drop it from the response.
-			if !keepNans && math.IsNaN(dp.Value) {
+			if !opts.KeepNaNs && math.IsNaN(dp.Value) {
 				continue
 			}
 
@@ -355,7 +362,7 @@ func renderResultsJSON(
 			// would be at the result node but that would make it inefficient since
 			// we would need to create another block just for the sake of restricting
 			// the bounds.
-			if dp.Timestamp.Before(params.Start) {
+			if dp.Timestamp.Before(opts.Start) {
 				continue
 			}
 
@@ -377,9 +384,10 @@ func renderResultsJSON(
 	jw.EndObject()
 
 	jw.EndObject()
-	jw.Close()
+	return jw.Close()
 }
 
+// renderResultsInstantaneousJSON renders results in JSON for instant queries.
 func renderResultsInstantaneousJSON(
 	w io.Writer,
 	result ReadResult,

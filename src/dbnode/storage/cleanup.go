@@ -403,9 +403,9 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseName
 					m.metrics.corruptSnapshotFile.Inc(1)
 					logger.With(
 						zap.Error(err),
-						zap.Strings("files", snapshot.AbsoluteFilepaths),
+						zap.Strings("files", snapshot.AbsoluteFilePaths),
 					).Warn("corrupt snapshot file during cleanup, marking files for deletion")
-					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilepaths...)
+					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
 					continue
 				}
 
@@ -413,7 +413,7 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseName
 					// If the UUID of the snapshot files doesn't match the most recent snapshot
 					// then its safe to delete because it means we have a more recently complete set.
 					m.metrics.deletedSnapshotFile.Inc(1)
-					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilepaths...)
+					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths...)
 				}
 			}
 		}
@@ -422,7 +422,7 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseName
 	// Delete all snapshot metadatas prior to the most recent one.
 	for _, snapshot := range sortedSnapshotMetadatas[:len(sortedSnapshotMetadatas)-1] {
 		m.metrics.deletedSnapshotMetadataFile.Inc(1)
-		filesToDelete = append(filesToDelete, snapshot.AbsoluteFilepaths()...)
+		filesToDelete = append(filesToDelete, snapshot.AbsoluteFilePaths()...)
 	}
 
 	// Delete corrupt snapshot metadata files.

@@ -157,7 +157,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
 	h.Router().ServeHTTP(res, req)
-	require.Equal(t, http.StatusMethodNotAllowed, res.Code)
+	require.Equal(t, http.StatusBadRequest, res.Code)
 }
 
 func TestPromRemoteReadPost(t *testing.T) {
