@@ -2173,6 +2173,7 @@ func (s *dbShard) ColdFlush(
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
 ) error {
+	s.logger.Info("dbShard ColdFlush started...")
 	// We don't flush data when the shard is still bootstrapping.
 	s.RLock()
 	if s.bootstrapState != Bootstrapped {
@@ -2315,6 +2316,8 @@ func (s *dbShard) ColdFlush(
 			continue
 		}
 	}
+	s.logger.Info("dbShard ColdFlush started finished",
+		zap.Int("num_dirty_blocks", len(dirtySeriesToWrite)))
 
 	return multiErr.FinalError()
 }
