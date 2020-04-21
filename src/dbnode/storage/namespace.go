@@ -1099,6 +1099,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
+	n.log.Info("ns ColdFlush begin...")
 
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {

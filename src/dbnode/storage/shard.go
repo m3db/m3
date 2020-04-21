@@ -862,6 +862,10 @@ func (s *dbShard) writeAndIndex(
 	if err != nil {
 		return ts.Series{}, false, err
 	}
+	s.logger.Info("writeAndIndex",
+		zap.String("seriesID", id.String()),
+		zap.Any("timestamp", timestamp),
+		zap.Float64("value", value))
 
 	writable := entry != nil
 
