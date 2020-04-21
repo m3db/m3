@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"bufio"
+	"io"
 	"os"
 
 	"github.com/m3db/m3/src/dbnode/digest"
@@ -37,16 +38,18 @@ const (
 )
 
 type chunkReader struct {
-	fd        *os.File
-	buffer    *bufio.Reader
-	remaining int
-	charBuff  []byte
+	fd          *os.File
+	buffer      *bufio.Reader
+	chunkData 	[]byte
+	remaining   int
+	charBuff    []byte
 }
 
 func newChunkReader(bufferLen int) *chunkReader {
 	return &chunkReader{
-		buffer:   bufio.NewReaderSize(nil, bufferLen),
-		charBuff: make([]byte, 1),
+		buffer:   	bufio.NewReaderSize(nil, bufferLen),
+		chunkData: 	make([]byte, bufferLen),
+		charBuff: 	make([]byte, 1),
 	}
 }
 
@@ -80,13 +83,26 @@ func (r *chunkReader) readHeader() error {
 		return err
 	}
 
-	// Verify data checksum
-	data, err := r.buffer.Peek(int(size))
+	// Setup a chunk data buffer so that chunk data can be loaded into it.
+	chunkDataSize := int(size)
+	if chunkDataSize > cap(r.chunkData) {
+		r.chunkData = make([]byte, chunkDataSize)
+	} else {
+		//Reuse existing chunk data buffer if possible 
+		r.chunkData = r.chunkData[:chunkDataSize]
+	}
+
+	// To validate checksum of chunk data all the chunk data needs to be loaded into memory at once. Chunk data size is // not bounded to the flush size so peeking chunk data in order to compute checksum may result in bufio's buffer 
+	// full error. To circumnavigate this issue load the chunk data into chunk reader's buffer to compute checksum 
+	// instead of trying to compute checksum off of fixed size r.buffer by peeking. 
+	// See https://github.com/m3db/m3/pull/2148 for details.
+	_, err = io.ReadFull(r.buffer, r.chunkData)
 	if err != nil {
 		return err
 	}
 
-	if digest.Checksum(data) != checksumData {
+	// Verify data checksum
+	if digest.Checksum(r.chunkData) != checksumData {
 		return errCommitLogReaderChunkSizeChecksumMismatch
 	}
 
@@ -103,12 +119,13 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 	if r.remaining < size {
 		// Copy any remaining
 		if r.remaining > 0 {
-			n, err := r.buffer.Read(p[:r.remaining])
+			chunkDataOffset := len(r.chunkData) - r.remaining 
+			n := copy(p, r.chunkData[chunkDataOffset:])
+			if n != r.remaining {
+				panic("Unexpected number of bytes written from chunk data to buffer")
+			}
 			r.remaining -= n
 			read += n
-			if err != nil {
-				return read, err
-			}
 		}
 
 		// Read next header
@@ -125,10 +142,14 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 		return read, err
 	}
 
-	n, err := r.buffer.Read(p)
+	chunkDataOffset := len(r.chunkData) - r.remaining 
+	n := copy(p, r.chunkData[chunkDataOffset:][:len(p)])
+	if n != len(p) {
+		panic("Unexpected number of bytes written from chunk data to buffer")
+	}
 	r.remaining -= n
 	read += n
-	return read, err
+	return read, nil
 }
 
 func (r *chunkReader) ReadByte() (c byte, err error) {

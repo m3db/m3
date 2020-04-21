@@ -299,7 +299,6 @@ func (w *writer) write(data []byte) error {
 	dataLen := len(data)
 	sizeLen := binary.PutUvarint(w.sizeBuffer, uint64(dataLen))
 	totalLen := sizeLen + dataLen
-
 	// Avoid writing across the checksum boundary if we can avoid it
 	if w.buffer.Buffered() > 0 && totalLen > w.buffer.Available() {
 		if err := w.buffer.Flush(); err != nil {
@@ -349,6 +348,9 @@ func (w *fsChunkWriter) sync() error {
 	return w.fd.Sync()
 }
 
+// Writes a custom header in front of p to a file and returns number of bytes of p successfully written to the file.
+// If the header or p is not fully written to the file, then this method returns number of bytes of p actually written
+// to the file and an error explaining the reason of failure to write fully to the file.
 func (w *fsChunkWriter) Write(p []byte) (int, error) {
 	size := len(p)
 
@@ -379,9 +381,15 @@ func (w *fsChunkWriter) Write(p []byte) (int, error) {
 
 	// Write contents to file descriptor
 	n, err := w.fd.Write(w.buff)
+	// Count bytes successfully written from slice p
+	pBytesWritten := n - chunkHeaderLen
+	if pBytesWritten < 0 {
+		pBytesWritten = 0
+	}
+
 	if err != nil {
 		w.flushFn(err)
-		return n, err
+		return pBytesWritten, err
 	}
 
 	// Fsync if required to
@@ -391,5 +399,5 @@ func (w *fsChunkWriter) Write(p []byte) (int, error) {
 
 	// Fire flush callback
 	w.flushFn(err)
-	return n, err
+	return pBytesWritten, err
 }
