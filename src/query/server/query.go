@@ -198,9 +198,7 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	buildInfoOpts := instrumentOptions.SetMetricsScope(
-		instrumentOptions.MetricsScope().SubScope("build_info"))
-	buildReporter := instrument.NewBuildReporter(buildInfoOpts)
+	buildReporter := instrument.NewBuildReporter(instrumentOptions)
 	if err := buildReporter.Start(); err != nil {
 		logger.Fatal("could not start build reporter", zap.Error(err))
 	}
