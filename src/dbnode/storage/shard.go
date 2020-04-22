@@ -862,10 +862,6 @@ func (s *dbShard) writeAndIndex(
 	if err != nil {
 		return ts.Series{}, false, err
 	}
-	s.logger.Info("writeAndIndex",
-		zap.String("seriesID", id.String()),
-		zap.Any("timestamp", timestamp),
-		zap.Float64("value", value))
 
 	writable := entry != nil
 
@@ -2319,10 +2315,6 @@ func (s *dbShard) ColdFlush(
 			continue
 		}
 	}
-	s.logger.Info("dbShard ColdFlush started finished",
-		zap.Int("shard", int(s.shard)),
-		zap.Int("num_dirty_blocks", len(dirtySeriesToWrite)),
-		zap.Any("dirtySeriesToWrite", dirtySeriesToWrite))
 
 	return multiErr.FinalError()
 }
