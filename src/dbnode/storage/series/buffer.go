@@ -355,10 +355,6 @@ func (b *dbBuffer) Write(
 	}
 
 	log := b.opts.InstrumentOptions().Logger()
-	log.Info("series buffer write",
-		zap.Any("writeType", writeType),
-		zap.Any("timestamp", timestamp),
-		zap.Float64("value", value))
 	return buckets.write(timestamp, value, unit, annotation, writeType, wOpts.SchemaDesc)
 }
 
