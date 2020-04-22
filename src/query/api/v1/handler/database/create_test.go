@@ -188,7 +188,10 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "localhost",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -347,7 +350,10 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "localhost",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -458,7 +464,10 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "localhost",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -575,7 +584,10 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "localhost",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -822,7 +834,10 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "host1",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					},
 					"host2": {
 						"id": "host2",
@@ -833,7 +848,10 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "host2",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -959,7 +977,10 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "host1",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					},
 					"host2": {
 						"id": "host2",
@@ -970,7 +991,10 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "host2",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
