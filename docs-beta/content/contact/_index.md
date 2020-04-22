@@ -1,12 +1,12 @@
 +++
 title = "Contact"
 date = 2020-04-01T20:23:37-04:00
-weight = 7
+weight = 9
 chapter = true
-pre = "<b>7. </b>"
+pre = "<b>9. </b>"
 +++
 
-### Section 7
+### Section 9
 
 # Contact Us
 

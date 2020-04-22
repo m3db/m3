@@ -1,12 +1,12 @@
 +++
 title = "Media"
 date = 2020-04-01T20:23:23-04:00
-weight = 9
+weight = 11
 chapter = true
-pre = "<b>9. </b>"
+pre = "<b>11. </b>"
 +++
 
-### Section 9
+### Section 11
 
 # Media Coverage
 
