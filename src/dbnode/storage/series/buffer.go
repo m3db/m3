@@ -354,7 +354,6 @@ func (b *dbBuffer) Write(
 		value = wOpts.TransformOptions.ForceValue
 	}
 
-	log := b.opts.InstrumentOptions().Logger()
 	return buckets.write(timestamp, value, unit, annotation, writeType, wOpts.SchemaDesc)
 }
 
