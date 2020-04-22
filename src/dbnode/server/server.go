@@ -570,9 +570,10 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:   iopts,
-			HashingSeed:      cfg.Hashing.Seed,
-			NewDirectoryMode: newDirectoryMode,
+			InstrumentOpts:         iopts,
+			HashingSeed:            cfg.Hashing.Seed,
+			NewDirectoryMode:       newDirectoryMode,
+			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -581,8 +582,9 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts: iopts,
-			HostID:         hostID,
+			InstrumentOpts:         iopts,
+			HostID:                 hostID,
+			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize static config", zap.Error(err))
