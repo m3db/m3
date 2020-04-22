@@ -299,6 +299,7 @@ func (w *writer) write(data []byte) error {
 	dataLen := len(data)
 	sizeLen := binary.PutUvarint(w.sizeBuffer, uint64(dataLen))
 	totalLen := sizeLen + dataLen
+
 	// Avoid writing across the checksum boundary if we can avoid it
 	if w.buffer.Buffered() > 0 && totalLen > w.buffer.Available() {
 		if err := w.buffer.Flush(); err != nil {
