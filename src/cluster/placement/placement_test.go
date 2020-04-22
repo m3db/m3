@@ -386,7 +386,8 @@ func TestInstance(t *testing.T) {
 		SetShardSetID(0).
 		SetZone("zone").
 		SetHostname("host1").
-		SetPort(123)
+		SetPort(123).
+		SetMetadata(InstanceMetadata{DebugPort: 456})
 	assert.NotNil(t, i1.Shards())
 	s := shard.NewShards([]shard.Shard{
 		shard.NewShard(1).SetState(shard.Available),
@@ -395,7 +396,7 @@ func TestInstance(t *testing.T) {
 	})
 	i1.SetShards(s)
 	description := fmt.Sprintf(
-		"Instance[ID=id, IsolationGroup=isolationGroup, Zone=zone, Weight=1, Endpoint=endpoint, Hostname=host1, Port=123, ShardSetID=0, Shards=%s]",
+		"Instance[ID=id, IsolationGroup=isolationGroup, Zone=zone, Weight=1, Endpoint=endpoint, Hostname=host1, Port=123, ShardSetID=0, Shards=%s, Metadata={DebugPort:456}]",
 		s.String())
 	assert.Equal(t, description, i1.String())
 
@@ -536,6 +537,7 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 				Weight:         1,
 				Shards:         protoShards,
 				ShardSetId:     0,
+				Metadata:       &placementpb.InstanceMetadata{DebugPort: 123},
 			},
 			"i2": &placementpb.Instance{
 				Id:             "i2",
@@ -545,6 +547,7 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 				Weight:         1,
 				Shards:         protoShards,
 				ShardSetId:     1,
+				Metadata:       &placementpb.InstanceMetadata{DebugPort: 456},
 			},
 		},
 		ReplicaFactor: 2,
@@ -564,7 +567,9 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	assert.Equal(t, uint32(1), p.MaxShardSetID())
 	instances := p.Instances()
 	assert.Equal(t, uint32(0), instances[0].ShardSetID())
+	assert.Equal(t, uint32(123), instances[0].Metadata().DebugPort)
 	assert.Equal(t, uint32(1), instances[1].ShardSetID())
+	assert.Equal(t, uint32(456), instances[1].Metadata().DebugPort)
 
 	placementProtoNew, err := p.Proto()
 	assert.NoError(t, err)
@@ -639,7 +644,10 @@ func TestPlacementInstanceToProto(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("e1").
 		SetWeight(1).
-		SetShards(shards)
+		SetShards(shards).
+		SetMetadata(InstanceMetadata{
+			DebugPort: 123,
+		})
 
 	instanceProto, err := instance.Proto()
 	assert.NoError(t, err)
@@ -656,6 +664,9 @@ func TestPlacementInstanceToProto(t *testing.T) {
 		Endpoint:       "e1",
 		Weight:         1,
 		Shards:         protoShards,
+		Metadata: &placementpb.InstanceMetadata{
+			DebugPort: 123,
+		},
 	}
 
 	assert.Equal(t, expInstance, instanceProto)
