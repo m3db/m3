@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -55,6 +56,8 @@ var (
 	errUpdateOpenLeaseSeekerManagerNotOpen           = errors.New("cant update open lease because seeker manager is not open")
 	errConcurrentUpdateOpenLeaseNotAllowed           = errors.New("concurrent open lease updates are not allowed")
 	errOutOfOrderUpdateOpenLease                     = errors.New("received update open lease volumes out of order")
+	errShardClosed                                   = errors.New("shard is closed")
+	errInvariantSeekersStillBorrowedMsg              = "seekers still borrowed"
 )
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
@@ -136,6 +139,7 @@ type seekersByTime struct {
 	sync.RWMutex
 	shard    uint32
 	accessed bool
+	closed   bool
 	seekers  map[xtime.UnixNano]rotatableSeekers
 }
 
@@ -485,6 +489,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	descriptor block.LeaseDescriptor,
 	state block.LeaseState,
 ) (*sync.WaitGroup, block.UpdateOpenLeaseResult, error) {
+	// Open new seekers.
 	newActiveSeekers, err := m.newSeekersAndBloom(descriptor.Shard, descriptor.BlockStart, state.Volume)
 	if err != nil {
 		return nil, 0, err
@@ -495,6 +500,8 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
 		updateOpenLeaseResult = block.NoOpenLease
 	)
+
+	// Attempt to acquire lock for the seekers from blockStartNano.
 	seekers, ok := m.acquireByTimeLockWaitGroupAware(blockStartNano, byTime)
 	defer byTime.Unlock()
 	if !ok {
@@ -504,7 +511,6 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		return nil, updateOpenLeaseResult, nil
 	}
 
-	// Existing seekers exist.
 	updateOpenLeaseResult = block.UpdateOpenLease
 	if seekers.active.volume > state.Volume {
 		// Ignore any close errors because its not relevant from the callers perspective.
@@ -512,6 +518,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		return nil, 0, errOutOfOrderUpdateOpenLease
 	}
 
+	// Hot-swap.
 	seekers.inactive = seekers.active
 	seekers.active = newActiveSeekers
 
@@ -536,9 +543,83 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		m.closeSeekersAndLogError(descriptor, seekers.inactive.seekers)
 		seekers.inactive = seekersAndBloom{}
 	}
+
 	byTime.seekers[blockStartNano] = seekers
 
 	return wg, updateOpenLeaseResult, nil
+}
+
+func (m *seekerManager) RelinquishShard(shard uint32) error {
+	byTime := m.seekersByTime(shard)
+
+	// Indicate this shard is closed so its seekers can't be borrowed and no
+	// new seekers can be opened.
+	byTime.Lock()
+	byTime.closed = true
+	byTime.Unlock()
+
+	for blockStart, _ := range byTime.seekers {
+		seekers, _ := m.acquireByTimeLockWaitGroupAware(blockStart, byTime)
+		for _, s := range []seekersAndBloom{seekers.active, seekers.inactive} {
+			anySeekersAreBorrowed := false
+			for _, seeker := range s.seekers {
+				if seeker.isBorrowed {
+					anySeekersAreBorrowed = true
+					break
+				}
+			}
+
+			// If any of the seekers are borrowed setup a waitgroup which will be used to
+			// signal when they've all been returned (the last seeker that is returned via
+			// the Return() API will call wg.Done()).
+			if anySeekersAreBorrowed {
+				if s.wg != nil {
+					wg := &sync.WaitGroup{}
+					wg.Add(1)
+					s.wg = wg
+				}
+			}
+
+			// Wait until all seekers are returned.
+			byTime.Unlock()
+			if s.wg != nil {
+				s.wg.Wait()
+			}
+			byTime.Lock()
+
+			// Iterate over them again to close.
+			for _, seeker := range s.seekers {
+				// This is usually a noop since all seekers should be returned at
+				// this point.
+				if seeker.isBorrowed {
+					err := instrument.InvariantErrorf(errInvariantSeekersStillBorrowedMsg)
+					instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(), func(l *zap.Logger) {
+						l.Error(
+							"unable to relinquish shard",
+							zap.Error(err),
+							zap.Int("shard", int(shard)),
+						)
+					})
+					byTime.Unlock()
+					return err
+				}
+
+				err := seeker.seeker.Close()
+				if err != nil {
+					m.logger.Error(
+						"error closing seeker in relinquish shard",
+						zap.Error(err),
+						zap.Int("shard", int(shard)),
+					)
+				}
+			}
+		}
+		byTime.Unlock()
+	}
+	m.logger.Info("relinquishing shard completed",
+		zap.Uint32("shard", shard),
+	)
+	return nil
 }
 
 // acquireByTimeLockWaitGroupAware grabs a lock on the shard and checks if
@@ -596,7 +677,8 @@ func (m *seekerManager) closeSeekersAndLogError(descriptor block.LeaseDescriptor
 	}
 }
 
-// getOrOpenSeekersWithLock checks if the seekers are already open / initialized. If they are, then it
+// getOrOpenSeekersWithLock first checks if the seekers have been closed. Then
+// if they are already open / initialized. If they are, then it
 // returns them. Then, it checks if a different goroutine is in the process of opening them , if so it
 // registers itself as waiting until the other goroutine completes. If neither of those conditions occur,
 // then it begins the process of opening the seekers itself. First, it creates a waitgroup that other
@@ -606,6 +688,13 @@ func (m *seekerManager) closeSeekersAndLogError(descriptor block.LeaseDescriptor
 // open the Seeker (I/O heavy), re-acquire the lock (so that the waiting goroutines don't get it before us),
 // and then notify the waiting goroutines that we've finished.
 func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
+	// If the shard is marked as closed we're not allowing any operations,
+	// other than closing already open seekers. For more details see
+	// RelinquishShard().
+	if byTime.closed {
+		return seekersAndBloom{}, errShardClosed
+	}
+
 	seekers, ok := byTime.seekers[start]
 	if ok && seekers.active.wg == nil {
 		// Seekers are already open

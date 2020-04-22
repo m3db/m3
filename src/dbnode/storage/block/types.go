@@ -460,6 +460,9 @@ type Leaser interface {
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) (UpdateOpenLeaseResult, error)
+
+	// RelinquishShard releases all shard-specific resources of a Lease.
+	RelinquishShard(shard uint32) error
 }
 
 // Options represents the options for a database block

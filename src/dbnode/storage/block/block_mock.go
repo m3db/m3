@@ -1520,6 +1520,20 @@ func (mr *MockLeaserMockRecorder) UpdateOpenLease(descriptor, state interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOpenLease", reflect.TypeOf((*MockLeaser)(nil).UpdateOpenLease), descriptor, state)
 }
 
+// RelinquishShard mocks base method
+func (m *MockLeaser) RelinquishShard(shard uint32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RelinquishShard", shard)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RelinquishShard indicates an expected call of RelinquishShard
+func (mr *MockLeaserMockRecorder) RelinquishShard(shard interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RelinquishShard", reflect.TypeOf((*MockLeaser)(nil).RelinquishShard), shard)
+}
+
 // MockOptions is a mock of Options interface
 type MockOptions struct {
 	ctrl     *gomock.Controller
