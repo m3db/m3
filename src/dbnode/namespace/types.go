@@ -25,9 +25,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xclose "github.com/m3db/m3/src/x/close"
 )
 
 // Options controls namespace behavior
@@ -255,6 +255,14 @@ type DynamicOptions interface {
 	// NamespaceRegistryKey returns the kv-store key used for the
 	// NamespaceRegistry
 	NamespaceRegistryKey() string
+
+	// SetForceColdWritesEnabled sets whether or not to force enable cold writes
+	// for all ns.
+	SetForceColdWritesEnabled(enabled bool) DynamicOptions
+
+	// ForceColdWritesEnabled returns whether or not to force enable cold writes
+	// for all ns.
+	ForceColdWritesEnabled() bool
 }
 
 // NamespaceWatch watches for namespace updates.
