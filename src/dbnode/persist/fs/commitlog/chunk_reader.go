@@ -86,7 +86,12 @@ func (r *chunkReader) readHeader() error {
 	// Setup a chunk data buffer so that chunk data can be loaded into it.
 	chunkDataSize := int(size)
 	if chunkDataSize > cap(r.chunkData) {
-		r.chunkData = make([]byte, chunkDataSize)
+		// Increase chunkData capacity so that it can fit the new chunkData.
+		chunkDataCap := cap(r.chunkData)
+		for chunkDataCap < chunkDataSize {
+			chunkDataCap *= 2
+		}
+		r.chunkData = make([]byte, chunkDataSize, chunkDataCap)
 	} else {
 		//Reuse existing chunk data buffer if possible
 		r.chunkData = r.chunkData[:chunkDataSize]
