@@ -24,5 +24,6 @@ import "github.com/m3db/m3/src/dbnode/storage"
 
 // StorageOptions are options to apply to the database storage options.
 type StorageOptions struct {
-	OnColdFlush storage.OnColdFlush
+	OnColdFlush            storage.OnColdFlush
+	ForceColdWritesEnabled bool
 }

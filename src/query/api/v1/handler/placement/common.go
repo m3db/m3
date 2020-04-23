@@ -210,22 +210,10 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 	res := make([]placement.Instance, 0, len(instancesProto))
 
 	for _, instanceProto := range instancesProto {
-		shards, err := shard.NewShardsFromProto(instanceProto.Shards)
+		instance, err := placement.NewInstanceFromProto(instanceProto)
 		if err != nil {
 			return nil, err
 		}
-
-		instance := placement.NewInstance().
-			SetEndpoint(instanceProto.Endpoint).
-			SetHostname(instanceProto.Hostname).
-			SetID(instanceProto.Id).
-			SetPort(instanceProto.Port).
-			SetIsolationGroup(instanceProto.IsolationGroup).
-			SetShards(shards).
-			SetShardSetID(instanceProto.ShardSetId).
-			SetWeight(instanceProto.Weight).
-			SetZone(instanceProto.Zone)
-
 		res = append(res, instance)
 	}
 
