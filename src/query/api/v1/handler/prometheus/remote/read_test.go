@@ -74,7 +74,7 @@ type testVals struct {
 
 func buildBody(query string, start time.Time) io.Reader {
 	vals := url.Values{}
-	vals.Add("expr", query)
+	vals.Add("query", query)
 	vals.Add("start", start.Format(time.RFC3339))
 	vals.Add("end", start.Add(time.Hour).Format(time.RFC3339))
 	qs := vals.Encode()
@@ -122,14 +122,6 @@ func TestParseExpr(t *testing.T) {
 		q(start.Add(time.Minute*-61), start,
 			[]*prompb.LabelMatcher{
 				{Name: b("__name__"), Value: b("foo"), Type: prompb.LabelMatcher_EQ}}),
-	}
-
-	for i, q := range expected {
-		fmt.Println(i, q.String())
-	}
-
-	for i, q := range readReq.Queries {
-		fmt.Println(i, q.String())
 	}
 
 	assert.Equal(t, expected, readReq.Queries)

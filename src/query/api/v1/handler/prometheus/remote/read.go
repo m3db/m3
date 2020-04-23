@@ -264,7 +264,7 @@ type ReadResult struct {
 // fetches, rather than the full query application.
 func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
 	var req *prompb.ReadRequest
-	exprParam := strings.TrimSpace(r.FormValue("expr"))
+	exprParam := strings.TrimSpace(r.FormValue("query"))
 	if len(exprParam) == 0 {
 		return nil, xhttp.NewParseError(
 			fmt.Errorf("cannot parse params: no expr"),
@@ -287,69 +287,45 @@ func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	var (
-		evalRange time.Duration
-	)
-
 	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
 		var (
-			start = queryStart
-			end   = queryEnd
+			start         = queryStart
+			end           = queryEnd
+			offset        time.Duration
+			labelMatchers []*labels.Matcher
 		)
 
-		switch n := node.(type) {
-		case *promql.VectorSelector:
-			if evalRange > 0 {
-				start = start.Add(-1 * evalRange)
-				evalRange = 0
+		if n, ok := node.(*promql.MatrixSelector); ok {
+			if n.Range > 0 {
+				start = start.Add(-1 * n.Range)
 			}
 
-			if n.Offset > 0 {
-				offset := time.Duration(n.Offset)
-				start = start.Add(-1 * offset)
-				end = end.Add(-1 * offset)
-			}
-
-			matchers, err := toLabelMatchers(n.LabelMatchers)
-			if err != nil {
-				return err
-			}
-
-			query := &prompb.Query{
-				StartTimestampMs: storage.TimeToPromTimestamp(start),
-				EndTimestampMs:   storage.TimeToPromTimestamp(end),
-				Matchers:         matchers,
-			}
-
-			req.Queries = append(req.Queries, query)
-
-		case *promql.MatrixSelector:
-			evalRange = n.Range
-			if evalRange > 0 {
-				start = start.Add(-1 * evalRange)
-				evalRange = 0
-			}
-
-			if n.Offset > 0 {
-				offset := time.Duration(n.Offset)
-				start = start.Add(-1 * offset)
-				end = end.Add(-1 * offset)
-			}
-
-			matchers, err := toLabelMatchers(n.LabelMatchers)
-			if err != nil {
-				return err
-			}
-
-			query := &prompb.Query{
-				StartTimestampMs: storage.TimeToPromTimestamp(start),
-				EndTimestampMs:   storage.TimeToPromTimestamp(end),
-				Matchers:         matchers,
-			}
-
-			req.Queries = append(req.Queries, query)
+			offset = n.Offset
+			labelMatchers = n.LabelMatchers
+		} else if n, ok := node.(*promql.VectorSelector); ok {
+			offset = n.Offset
+			labelMatchers = n.LabelMatchers
+		} else {
+			return nil
 		}
 
+		if offset > 0 {
+			start = start.Add(-1 * offset)
+			end = end.Add(-1 * offset)
+		}
+
+		matchers, err := toLabelMatchers(labelMatchers)
+		if err != nil {
+			return err
+		}
+
+		query := &prompb.Query{
+			StartTimestampMs: storage.TimeToPromTimestamp(start),
+			EndTimestampMs:   storage.TimeToPromTimestamp(end),
+			Matchers:         matchers,
+		}
+
+		req.Queries = append(req.Queries, query)
 		return nil
 	})
 
@@ -365,7 +341,7 @@ func ParseRequest(
 	var req *prompb.ReadRequest
 	var rErr *xhttp.ParseError
 	switch {
-	case r.Method == http.MethodGet && strings.TrimSpace(r.FormValue("expr")) != "":
+	case r.Method == http.MethodGet && strings.TrimSpace(r.FormValue("query")) != "":
 		req, rErr = ParseExpr(r)
 	default:
 		req, rErr = parseCompressedRequest(r)
