@@ -62,7 +62,9 @@ func TestNewConsumerWriter(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRouter := NewMockackRouter(ctrl)
+
 	opts := testOptions()
+
 	w := newConsumerWriter(lis.Addr().String(), mockRouter, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
 	require.Equal(t, 0, len(w.resetCh))
 
@@ -87,7 +89,7 @@ func TestNewConsumerWriter(t *testing.T) {
 
 	w.Close()
 	// Make sure the connection is closed after closing the consumer writer.
-	_, err = w.conn.Read([]byte{})
+	_, err = w.writeState.conns[0].conn.Read([]byte{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "closed network connection")
 }
@@ -114,7 +116,7 @@ func TestConsumerWriterSignalResetConnection(t *testing.T) {
 	w.nowFn = func() time.Time { return now.Add(1 * time.Hour) }
 	require.Equal(t, 1, len(w.resetCh))
 	require.False(t, w.resetTooSoon())
-	require.NoError(t, w.resetWithConnectFn(w.connectFn))
+	require.NoError(t, w.resetWithConnectFn(w.newConnectFn(connectOptions{retry: false})))
 	require.Equal(t, 1, called)
 	require.Equal(t, 1, len(w.resetCh))
 
@@ -123,7 +125,7 @@ func TestConsumerWriterSignalResetConnection(t *testing.T) {
 
 	w.nowFn = func() time.Time { return now.Add(2 * time.Hour) }
 	require.False(t, w.resetTooSoon())
-	require.NoError(t, w.resetWithConnectFn(w.connectFn))
+	require.NoError(t, w.resetWithConnectFn(w.newConnectFn(connectOptions{retry: false})))
 	require.Equal(t, 2, called)
 }
 
@@ -141,7 +143,7 @@ func TestConsumerWriterResetConnection(t *testing.T) {
 		require.Equal(t, "badAddress", addr)
 		return conn, nil
 	}
-	w.resetWithConnectFn(w.connectWithRetry)
+	w.resetWithConnectFn(w.newConnectFn(connectOptions{retry: true}))
 	require.Equal(t, 1, called)
 }
 
@@ -189,7 +191,10 @@ func TestConsumerWriterWriteErrorTriggerReset(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, errInvalidConnection, err)
 	require.Equal(t, 0, len(w.resetCh))
-	w.validConn.Store(true)
+	w.writeState.Lock()
+	w.writeState.validConns = true
+	w.writeState.Unlock()
+
 	err = write(w, &testMsg)
 	require.NoError(t, err)
 	for {
@@ -218,13 +223,17 @@ func TestConsumerWriterFlushWriteAfterFlushErrorTriggerReset(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, errInvalidConnection, err)
 	require.Equal(t, 0, len(w.resetCh))
-	w.validConn.Store(true)
+	w.writeState.Lock()
+	w.writeState.validConns = true
+	w.writeState.Unlock()
 
 	// The write will be buffered in the bufio.Writer, and will
 	// not return err because it has not tried to flush yet.
 	require.NoError(t, write(w, &testMsg))
 
-	require.Error(t, w.rw.Flush())
+	w.writeState.Lock()
+	require.Error(t, w.writeState.conns[0].rw.Flush())
+	w.writeState.Unlock()
 
 	// Flush err will be stored in bufio.Writer, the next time
 	// Write is called, the err will be returned.
@@ -240,9 +249,11 @@ func TestConsumerWriterReadErrorTriggerReset(t *testing.T) {
 	opts := testOptions()
 	w := newConsumerWriter("badAddr", nil, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
 	<-w.resetCh
-	w.validConn.Store(true)
+	w.writeState.Lock()
+	w.writeState.validConns = true
+	w.writeState.Unlock()
 	require.Equal(t, 0, len(w.resetCh))
-	err := w.readAcks()
+	err := w.readAcks(0)
 	require.Error(t, err)
 	require.Equal(t, errInvalidConnection, err)
 	require.Equal(t, 1, len(w.resetCh))
@@ -256,7 +267,9 @@ func TestAutoReset(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRouter := NewMockackRouter(ctrl)
+
 	opts := testOptions()
+
 	w := newConsumerWriter(
 		"badAddress",
 		mockRouter,
@@ -287,12 +300,12 @@ func TestAutoReset(t *testing.T) {
 
 	w.Init()
 
-	var u uninitializedReadWriter
-	for {
-		w.writeLock.Lock()
-		c := w.conn
-		w.writeLock.Unlock()
-		if c != u {
+	start := time.Now()
+	for time.Since(start) < 15*time.Second {
+		w.writeState.Lock()
+		validConns := w.writeState.validConns
+		w.writeState.Unlock()
+		if validConns {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -324,13 +337,15 @@ func TestConsumerWriterCloseWhileDecoding(t *testing.T) {
 	require.NoError(t, err)
 	defer lis.Close()
 
-	w := newConsumerWriter(lis.Addr().String(), nil, testOptions(), testConsumerWriterMetrics()).(*consumerWriterImpl)
+	opts := testOptions()
+
+	w := newConsumerWriter(lis.Addr().String(), nil, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		wg.Done()
-		require.Error(t, w.decoder.Decode(&testMsg))
+		require.Error(t, w.writeState.conns[0].decoder.Decode(&testMsg))
 	}()
 	wg.Wait()
 	time.Sleep(time.Second)
@@ -344,19 +359,28 @@ func TestConsumerWriterResetWhileDecoding(t *testing.T) {
 	require.NoError(t, err)
 	defer lis.Close()
 
-	w := newConsumerWriter(lis.Addr().String(), nil, testOptions(), testConsumerWriterMetrics()).(*consumerWriterImpl)
+	opts := testOptions()
+
+	w := newConsumerWriter(lis.Addr().String(), nil, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		wg.Done()
-		w.decodeLock.Lock()
-		require.Error(t, w.decoder.Decode(&testMsg))
-		w.decodeLock.Unlock()
+
+		w.writeState.Lock()
+		conn := w.writeState.conns[0]
+		w.writeState.Unlock()
+
+		require.Error(t, conn.decoder.Decode(&testMsg))
 	}()
 	wg.Wait()
 	time.Sleep(time.Second)
-	w.reset(new(net.TCPConn))
+	w.reset(resetOptions{
+		connections: []io.ReadWriteCloser{new(net.TCPConn)},
+		at:          w.nowFn(),
+		validConns:  true,
+	})
 }
 
 func testOptions() Options {
@@ -374,6 +398,7 @@ func testOptions() Options {
 
 func testConnectionOptions() ConnectionOptions {
 	return NewConnectionOptions().
+		SetNumConnections(1).
 		SetRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetFlushInterval(100 * time.Millisecond).
 		SetResetDelay(100 * time.Millisecond)

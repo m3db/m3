@@ -198,9 +198,7 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	buildInfoOpts := instrumentOptions.SetMetricsScope(
-		instrumentOptions.MetricsScope().SubScope("build_info"))
-	buildReporter := instrument.NewBuildReporter(buildInfoOpts)
+	buildReporter := instrument.NewBuildReporter(instrumentOptions)
 	if err := buildReporter.Start(); err != nil {
 		logger.Fatal("could not start build reporter", zap.Error(err))
 	}
@@ -402,7 +400,7 @@ func Run(runOpts RunOptions) {
 		runOpts.ListenerCh <- listener
 	}
 	go func() {
-		logger.Info("starting API server", zap.String("address", listenAddress))
+		logger.Info("starting API server", zap.Stringer("address", listener.Addr()))
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("server serve error",
 				zap.String("address", listenAddress),

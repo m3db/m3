@@ -41,18 +41,18 @@ curl -vvvsSf -X POST -H "Cluster-Environment-Name: override_test_env" localhost:
             "isolation_group": "availability-zone-a",
             "zone": "embedded",
             "weight": 100,
-            "endpoint": "m3aggregator01:6000",
+            "endpoint": "m3aggregator01:6002",
             "hostname": "m3aggregator01",
-            "port": 6000
+            "port": 6002
         },
         {
             "id": "m3aggregator02",
             "isolation_group": "availability-zone-b",
             "zone": "embedded",
             "weight": 100,
-            "endpoint": "m3aggregator02:6000",
+            "endpoint": "m3aggregator02:6002",
             "hostname": "m3aggregator02",
-            "port": 6000
+            "port": 6002
         }
     ]
 }'

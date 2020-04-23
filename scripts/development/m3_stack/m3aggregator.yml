@@ -7,7 +7,7 @@ metrics:
   prometheus:
     onError: none
     handlerPath: /metrics
-    listenAddress: 0.0.0.0:6002
+    listenAddress: 0.0.0.0:6003
     timerType: histogram
     defaultHistogramBuckets:
       - upper: 0.002
@@ -74,58 +74,18 @@ http:
   readTimeout: 60s
   writeTimeout: 60s
 
-rawtcp:
-  listenAddress: 0.0.0.0:6000
-  keepAliveEnabled: true
-  keepAlivePeriod: 1m
-  retry:
-    initialBackoff: 5ms
-    backoffFactor: 2.0
-    maxBackoff: 1s
-    forever: true
-    jitter: true
-  readBufferSize: 1440
-  msgpackIterator:
-    ignoreHigherVersion: false
-    readerBufferSize: 1440
-    largeFloatsSize: 1024
-    largeFloatsPool:
-      buckets:
-        - count: 1024
-          capacity: 2048
-        - count: 512
-          capacity: 4096
-        - count: 256
-          capacity: 8192
-        - count: 128
-          capacity: 16384
-        - count: 64
-          capacity: 32768
-        - count: 32
-          capacity: 65536
+m3msg:
+  server:
+    listenAddress: 0.0.0.0:6002
+    retry:
+      maxBackoff: 10s
+      jitter: true
+  consumer:
+    messagePool:
+      size: 16384
       watermark:
-        low: 0.001
-        high: 0.002
-  protobufIterator:
-    initBufferSize: 1440
-    maxMessageSize: 50000000  # max message size is 50MB
-    bytesPool:
-      buckets:
-        - count: 1024
-          capacity: 2048
-        - count: 512
-          capacity: 4096
-        - count: 256
-          capacity: 8192
-        - count: 128
-          capacity: 16384
-        - count: 64
-          capacity: 32768
-        - count: 32
-          capacity: 65536
-      watermark:
-        low: 0.001
-        high: 0.002
+        low: 0.2
+        high: 0.5
 
 kvClient:
   etcd:
@@ -186,39 +146,24 @@ aggregator:
         - count: 1024
           capacity: 64
   client:
-    placementKV:
-      namespace: /placement
-      zone: embedded
-      environment: default_env
-    placementWatcher:
-      key: m3aggregator
-      initWatchTimeout: 15s
-    hashType: murmur32
-    shardCutoffLingerDuration: 1m
-    encoder:
-      initBufferSize: 100
-      maxMessageSize: 50000000
-      bytesPool:
-        buckets:
-          - capacity: 16
-            count: 10
-          - capacity: 32
-            count: 20
-        watermark:
-          low: 0.001
-          high: 0.01
-    flushSize: 1440
-    maxTimerBatchSize: 140
-    queueSize: 1000
-    queueDropType: oldest
-    connection:
-      connectionTimeout: 1s
-      connectionKeepAlive: true
-      writeTimeout: 1s
-      initReconnectThreshold: 2
-      maxReconnectThreshold: 5000
-      reconnectThresholdMultiplier: 2
-      maxReconnectDuration: 1m
+    type: m3msg
+    m3msg:
+      producer:
+        writer:
+          topicName: aggregator_ingest
+          topicServiceOverride:
+            zone: embedded
+            environment: default_env
+          placement:
+            isStaged: true
+          placementServiceOverride:
+            namespaces:
+              placement: /placement
+          messagePool:
+            size: 16384
+            watermark:
+              low: 0.2
+              high: 0.5
   placementManager:
     kvConfig:
       namespace: /placement
@@ -302,22 +247,11 @@ aggregator:
               topicServiceOverride:
                 zone: embedded
                 environment: default_env
-              messageRetry:
-                initialBackoff: 1m
-                maxBackoff: 2m
-              messageQueueNewWritesScanInterval: 1s
-              ackErrorRetry:
-                initialBackoff: 2s
-                maxBackoff: 10s
-              connection:
-                dialTimeout: 5s
-                writeTimeout: 5s
-                retry:
-                  initialBackoff: 1s
-                  maxBackoff: 10s
-                flushInterval: 1s
-                writeBufferSize: 16384
-                readBufferSize: 256
+              messagePool:
+                size: 16384
+                watermark:
+                  low: 0.2
+                  high: 0.5
   forwarding:
     maxSingleDelay: 5s
   entryTTL: 1h

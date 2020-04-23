@@ -29,9 +29,9 @@ import (
 )
 
 var (
-	defaultAckBufferSize        = 100
-	defaultAckFlushInterval     = time.Second
-	defaultConnectionBufferSize = 16384
+	defaultAckBufferSize        = 1048576
+	defaultAckFlushInterval     = 200 * time.Millisecond
+	defaultConnectionBufferSize = 1048576
 )
 
 type options struct {

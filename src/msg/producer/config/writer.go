@@ -39,6 +39,7 @@ import (
 
 // ConnectionConfiguration configs the connection options.
 type ConnectionConfiguration struct {
+	NumConnections  *int                 `yaml:"numConnections"`
 	DialTimeout     *time.Duration       `yaml:"dialTimeout"`
 	WriteTimeout    *time.Duration       `yaml:"writeTimeout"`
 	KeepAlivePeriod *time.Duration       `yaml:"keepAlivePeriod"`
@@ -52,6 +53,9 @@ type ConnectionConfiguration struct {
 // NewOptions creates connection options.
 func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.ConnectionOptions {
 	opts := writer.NewConnectionOptions()
+	if c.NumConnections != nil {
+		opts = opts.SetNumConnections(*c.NumConnections)
+	}
 	if c.DialTimeout != nil {
 		opts = opts.SetDialTimeout(*c.DialTimeout)
 	}
