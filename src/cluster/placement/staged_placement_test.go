@@ -43,6 +43,9 @@ var (
 						&placementpb.Shard{Id: 0},
 						&placementpb.Shard{Id: 1},
 					},
+					Metadata: &placementpb.InstanceMetadata{
+						DebugPort: 1,
+					},
 				},
 				"instance2": &placementpb.Instance{
 					Id:       "instance2",
@@ -50,6 +53,9 @@ var (
 					Shards: []*placementpb.Shard{
 						&placementpb.Shard{Id: 2},
 						&placementpb.Shard{Id: 3},
+					},
+					Metadata: &placementpb.InstanceMetadata{
+						DebugPort: 2,
 					},
 				},
 				"instance3": &placementpb.Instance{
@@ -59,6 +65,9 @@ var (
 						&placementpb.Shard{Id: 0},
 						&placementpb.Shard{Id: 1},
 					},
+					Metadata: &placementpb.InstanceMetadata{
+						DebugPort: 3,
+					},
 				},
 				"instance4": &placementpb.Instance{
 					Id:       "instance4",
@@ -66,6 +75,9 @@ var (
 					Shards: []*placementpb.Shard{
 						&placementpb.Shard{Id: 2},
 						&placementpb.Shard{Id: 3},
+					},
+					Metadata: &placementpb.InstanceMetadata{
+						DebugPort: 4,
 					},
 				},
 			},
@@ -82,6 +94,9 @@ var (
 						&placementpb.Shard{Id: 1},
 						&placementpb.Shard{Id: 2},
 						&placementpb.Shard{Id: 3},
+					},
+					Metadata: &placementpb.InstanceMetadata{
+						DebugPort: 1,
 					},
 				},
 			},
@@ -102,14 +117,16 @@ var (
 						SetShards(shard.NewShards([]shard.Shard{
 							shard.NewShard(0).SetState(shard.Initializing),
 							shard.NewShard(1).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 1}),
 					NewInstance().
 						SetID("instance3").
 						SetEndpoint("instance3_endpoint").
 						SetShards(shard.NewShards([]shard.Shard{
 							shard.NewShard(0).SetState(shard.Initializing),
 							shard.NewShard(1).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 3}),
 				},
 				1: []Instance{
 					NewInstance().
@@ -118,14 +135,16 @@ var (
 						SetShards(shard.NewShards([]shard.Shard{
 							shard.NewShard(0).SetState(shard.Initializing),
 							shard.NewShard(1).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 1}),
 					NewInstance().
 						SetID("instance3").
 						SetEndpoint("instance3_endpoint").
 						SetShards(shard.NewShards([]shard.Shard{
 							shard.NewShard(0).SetState(shard.Initializing),
 							shard.NewShard(1).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 3}),
 				},
 				2: []Instance{
 					NewInstance().
@@ -134,14 +153,16 @@ var (
 						SetShards(shard.NewShards([]shard.Shard{
 							shard.NewShard(2).SetState(shard.Initializing),
 							shard.NewShard(3).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 2}),
 					NewInstance().
 						SetID("instance4").
 						SetEndpoint("instance4_endpoint").
 						SetShards(shard.NewShards([]shard.Shard{
 							shard.NewShard(2).SetState(shard.Initializing),
 							shard.NewShard(3).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 4}),
 				},
 				3: []Instance{
 					NewInstance().
@@ -150,14 +171,16 @@ var (
 						SetShards(shard.NewShards([]shard.Shard{
 							shard.NewShard(2).SetState(shard.Initializing),
 							shard.NewShard(3).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 2}),
 					NewInstance().
 						SetID("instance4").
 						SetEndpoint("instance4_endpoint").
 						SetShards(shard.NewShards([]shard.Shard{
 							shard.NewShard(2).SetState(shard.Initializing),
 							shard.NewShard(3).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 4}),
 				},
 			},
 			instances: map[string]Instance{
@@ -167,28 +190,32 @@ var (
 					SetShards(shard.NewShards([]shard.Shard{
 						shard.NewShard(0).SetState(shard.Initializing),
 						shard.NewShard(1).SetState(shard.Initializing),
-					})),
+					})).
+					SetMetadata(InstanceMetadata{DebugPort: 1}),
 				"instance2": NewInstance().
 					SetID("instance2").
 					SetEndpoint("instance2_endpoint").
 					SetShards(shard.NewShards([]shard.Shard{
 						shard.NewShard(2).SetState(shard.Initializing),
 						shard.NewShard(3).SetState(shard.Initializing),
-					})),
+					})).
+					SetMetadata(InstanceMetadata{DebugPort: 2}),
 				"instance3": NewInstance().
 					SetID("instance3").
 					SetEndpoint("instance3_endpoint").
 					SetShards(shard.NewShards([]shard.Shard{
 						shard.NewShard(0).SetState(shard.Initializing),
 						shard.NewShard(1).SetState(shard.Initializing),
-					})),
+					})).
+					SetMetadata(InstanceMetadata{DebugPort: 3}),
 				"instance4": NewInstance().
 					SetID("instance4").
 					SetEndpoint("instance4_endpoint").
 					SetShards(shard.NewShards([]shard.Shard{
 						shard.NewShard(2).SetState(shard.Initializing),
 						shard.NewShard(3).SetState(shard.Initializing),
-					})),
+					})).
+					SetMetadata(InstanceMetadata{DebugPort: 4}),
 			},
 		},
 		&placement{
@@ -204,7 +231,8 @@ var (
 							shard.NewShard(1).SetState(shard.Initializing),
 							shard.NewShard(2).SetState(shard.Initializing),
 							shard.NewShard(3).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 1}),
 				},
 				1: []Instance{
 					NewInstance().
@@ -215,7 +243,8 @@ var (
 							shard.NewShard(1).SetState(shard.Initializing),
 							shard.NewShard(2).SetState(shard.Initializing),
 							shard.NewShard(3).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 1}),
 				},
 				2: []Instance{
 					NewInstance().
@@ -226,7 +255,8 @@ var (
 							shard.NewShard(1).SetState(shard.Initializing),
 							shard.NewShard(2).SetState(shard.Initializing),
 							shard.NewShard(3).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 1}),
 				},
 				3: []Instance{
 					NewInstance().
@@ -237,7 +267,8 @@ var (
 							shard.NewShard(1).SetState(shard.Initializing),
 							shard.NewShard(2).SetState(shard.Initializing),
 							shard.NewShard(3).SetState(shard.Initializing),
-						})),
+						})).
+						SetMetadata(InstanceMetadata{DebugPort: 1}),
 				},
 			},
 			instances: map[string]Instance{
@@ -249,7 +280,8 @@ var (
 						shard.NewShard(1).SetState(shard.Initializing),
 						shard.NewShard(2).SetState(shard.Initializing),
 						shard.NewShard(3).SetState(shard.Initializing),
-					})),
+					})).
+					SetMetadata(InstanceMetadata{DebugPort: 1}),
 			},
 		},
 	}
