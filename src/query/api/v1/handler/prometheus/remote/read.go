@@ -395,8 +395,12 @@ func Read(
 	for i, promQuery := range r.Queries {
 		i, promQuery := i, promQuery // Capture vars for lambda.
 		go func() {
-			defer wg.Done()
 			ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
+			defer func() {
+				wg.Done()
+				cancel()
+			}()
+
 			cancelFuncs[i] = cancel
 			query, err := storage.PromReadQueryToM3(promQuery)
 			if err != nil {
