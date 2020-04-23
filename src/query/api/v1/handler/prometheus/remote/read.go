@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -259,6 +260,78 @@ type ReadResult struct {
 	Result []*prompb.QueryResult
 }
 
+// ParseExpr parses a prometheus request expression into the constituent
+// fetches, rather than the full query application.
+func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
+	var req *prompb.ReadRequest
+	exprParam := strings.TrimSpace(r.FormValue("query"))
+	if len(exprParam) == 0 {
+		return nil, xhttp.NewParseError(
+			fmt.Errorf("cannot parse params: no expr"),
+			http.StatusBadRequest)
+	}
+
+	queryStart, err := util.ParseTimeString(r.FormValue("start"))
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	queryEnd, err := util.ParseTimeString(r.FormValue("end"))
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	req = &prompb.ReadRequest{}
+	expr, err := promql.ParseExpr(exprParam)
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
+		var (
+			start         = queryStart
+			end           = queryEnd
+			offset        time.Duration
+			labelMatchers []*labels.Matcher
+		)
+
+		if n, ok := node.(*promql.MatrixSelector); ok {
+			if n.Range > 0 {
+				start = start.Add(-1 * n.Range)
+			}
+
+			offset = n.Offset
+			labelMatchers = n.LabelMatchers
+		} else if n, ok := node.(*promql.VectorSelector); ok {
+			offset = n.Offset
+			labelMatchers = n.LabelMatchers
+		} else {
+			return nil
+		}
+
+		if offset > 0 {
+			start = start.Add(-1 * offset)
+			end = end.Add(-1 * offset)
+		}
+
+		matchers, err := toLabelMatchers(labelMatchers)
+		if err != nil {
+			return err
+		}
+
+		query := &prompb.Query{
+			StartTimestampMs: storage.TimeToPromTimestamp(start),
+			EndTimestampMs:   storage.TimeToPromTimestamp(end),
+			Matchers:         matchers,
+		}
+
+		req.Queries = append(req.Queries, query)
+		return nil
+	})
+
+	return req, nil
+}
+
 // ParseRequest parses the compressed request
 func ParseRequest(
 	ctx context.Context,
@@ -266,96 +339,16 @@ func ParseRequest(
 	opts options.HandlerOptions,
 ) (*prompb.ReadRequest, *storage.FetchOptions, *xhttp.ParseError) {
 	var req *prompb.ReadRequest
+	var rErr *xhttp.ParseError
 	switch {
-	case r.Method == http.MethodGet && strings.TrimSpace(r.FormValue("expr")) != "":
-		exprParam := strings.TrimSpace(r.FormValue("expr"))
-		queryStart, err := util.ParseTimeString(r.FormValue("start"))
-		if err != nil {
-			return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
-		}
-
-		queryEnd, err := util.ParseTimeString(r.FormValue("end"))
-		if err != nil {
-			return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
-		}
-
-		req = &prompb.ReadRequest{}
-
-		expr, err := promql.ParseExpr(exprParam)
-		if err != nil {
-			return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
-		}
-
-		var (
-			evalRange time.Duration
-		)
-		promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
-			var (
-				start = queryStart
-				end   = queryEnd
-			)
-
-			switch n := node.(type) {
-			case *promql.VectorSelector:
-				if evalRange > 0 {
-					start = start.Add(-1 * evalRange)
-					evalRange = 0
-				}
-
-				if n.Offset > 0 {
-					offsetMilliseconds := time.Duration(n.Offset) * time.Millisecond
-					start = start.Add(-1 * offsetMilliseconds)
-					end = end.Add(-1 * offsetMilliseconds)
-				}
-
-				matchers, err := toLabelMatchers(n.LabelMatchers)
-				if err != nil {
-					return err
-				}
-
-				query := &prompb.Query{
-					StartTimestampMs: storage.TimeToPromTimestamp(start),
-					EndTimestampMs:   storage.TimeToPromTimestamp(end),
-					Matchers:         matchers,
-				}
-
-				req.Queries = append(req.Queries, query)
-
-			case *promql.MatrixSelector:
-				evalRange = n.Range
-				if evalRange > 0 {
-					start = start.Add(-1 * evalRange)
-					evalRange = 0
-				}
-
-				if n.Offset > 0 {
-					offsetMilliseconds := time.Duration(n.Offset) * time.Millisecond
-					start = start.Add(-1 * offsetMilliseconds)
-					end = end.Add(-1 * offsetMilliseconds)
-				}
-
-				matchers, err := toLabelMatchers(n.LabelMatchers)
-				if err != nil {
-					return err
-				}
-
-				query := &prompb.Query{
-					StartTimestampMs: storage.TimeToPromTimestamp(start),
-					EndTimestampMs:   storage.TimeToPromTimestamp(end),
-					Matchers:         matchers,
-				}
-
-				req.Queries = append(req.Queries, query)
-
-			}
-			return nil
-		})
+	case r.Method == http.MethodGet && strings.TrimSpace(r.FormValue("query")) != "":
+		req, rErr = ParseExpr(r)
 	default:
-		var rErr *xhttp.ParseError
 		req, rErr = parseCompressedRequest(r)
-		if rErr != nil {
-			return nil, nil, rErr
-		}
+	}
+
+	if rErr != nil {
+		return nil, nil, rErr
 	}
 
 	timeout := opts.TimeoutOpts().FetchTimeout
@@ -402,8 +395,12 @@ func Read(
 	for i, promQuery := range r.Queries {
 		i, promQuery := i, promQuery // Capture vars for lambda.
 		go func() {
-			defer wg.Done()
 			ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
+			defer func() {
+				wg.Done()
+				cancel()
+			}()
+
 			cancelFuncs[i] = cancel
 			query, err := storage.PromReadQueryToM3(promQuery)
 			if err != nil {

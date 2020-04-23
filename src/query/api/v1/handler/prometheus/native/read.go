@@ -145,9 +145,16 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RenderResultsJSON(w, result, RenderResultsOptions{
+	err = RenderResultsJSON(w, result, RenderResultsOptions{
 		Start:    parsedOptions.Params.Start,
 		End:      parsedOptions.Params.End,
 		KeepNaNs: h.opts.Config().ResultOptions.KeepNans,
 	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		logger.Error("failed to render results", zap.Error(err))
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
 }
