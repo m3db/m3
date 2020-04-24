@@ -72,7 +72,7 @@ func Run(opts RunOptions) {
 	instrumentOpts := instrument.NewOptions().
 		SetLogger(logger).
 		SetMetricsScope(scope).
-		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: cfg.Metrics.SampleRate()}).
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
 	buildReporter := instrument.NewBuildReporter(instrumentOpts)

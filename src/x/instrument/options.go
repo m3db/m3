@@ -40,6 +40,7 @@ type options struct {
 	scope          tally.Scope
 	tracer         opentracing.Tracer
 	samplingRate   float64
+	timerOptions   TimerOptions
 	reportInterval time.Duration
 }
 
@@ -86,14 +87,14 @@ func (o *options) SetTracer(tracer opentracing.Tracer) Options {
 	return &opts
 }
 
-func (o *options) SetMetricsSamplingRate(value float64) Options {
+func (o *options) SetTimerOptions(value TimerOptions) Options {
 	opts := *o
-	opts.samplingRate = value
+	opts.timerOptions = value
 	return &opts
 }
 
-func (o *options) MetricsSamplingRate() float64 {
-	return o.samplingRate
+func (o *options) TimerOptions() TimerOptions {
+	return o.timerOptions
 }
 
 func (o *options) SetReportInterval(value time.Duration) Options {

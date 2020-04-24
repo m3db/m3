@@ -162,7 +162,7 @@ func initShardWriters(
 		sws = make([]shardWriter, numberOfShards)
 		m   = newMessageWriterMetrics(
 			opts.InstrumentOptions().MetricsScope(),
-			opts.InstrumentOptions().MetricsSamplingRate(),
+			opts.InstrumentOptions().TimerOptions(),
 		)
 		mPool messagePool
 	)
