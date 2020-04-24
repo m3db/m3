@@ -126,9 +126,6 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 		if r.chunkDataRemaining > 0 {
 			chunkDataOffset := len(r.chunkData) - r.chunkDataRemaining
 			n := copy(p, r.chunkData[chunkDataOffset:])
-			if n != r.chunkDataRemaining {
-				panic("Unexpected number of bytes written from chunk data to buffer")
-			}
 			r.chunkDataRemaining -= n
 			read += n
 		}
@@ -149,9 +146,6 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 
 	chunkDataOffset := len(r.chunkData) - r.chunkDataRemaining
 	n := copy(p, r.chunkData[chunkDataOffset:][:len(p)])
-	if n != len(p) {
-		panic("Unexpected number of bytes written from chunk data to buffer")
-	}
 	r.chunkDataRemaining -= n
 	read += n
 	return read, nil
