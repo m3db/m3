@@ -84,6 +84,11 @@ func (rm *RefCountedMessage) DecReads() {
 	rm.RUnlock()
 }
 
+// NumRef returns the number of references remaining.
+func (rm *RefCountedMessage) NumRef() int32 {
+	return rm.refCount.Load()
+}
+
 // Size returns the size of the message.
 func (rm *RefCountedMessage) Size() uint64 {
 	return rm.size
