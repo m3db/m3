@@ -7,7 +7,7 @@ metrics:
   prometheus:
     onError: none
     handlerPath: /metrics
-    listenAddress: 0.0.0.0:6003
+    listenAddress: 0.0.0.0:6002
     timerType: histogram
   sanitization: prometheus
   samplingRate: 1.0
@@ -20,7 +20,7 @@ http:
 
 m3msg:
   server:
-    listenAddress: 0.0.0.0:6002
+    listenAddress: 0.0.0.0:6000
     retry:
       maxBackoff: 10s
       jitter: true

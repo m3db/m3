@@ -82,9 +82,9 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
                     "isolation_group": "rack-a",
                     "zone": "embedded",
                     "weight": 1024,
-                    "endpoint": "m3aggregator01:6002",
+                    "endpoint": "m3aggregator01:6000",
                     "hostname": "m3aggregator01",
-                    "port": 6002
+                    "port": 6000
                 }
             ]
         }'
@@ -99,18 +99,18 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
                     "isolation_group": "rack-a",
                     "zone": "embedded",
                     "weight": 1024,
-                    "endpoint": "m3aggregator01:6002",
+                    "endpoint": "m3aggregator01:6000",
                     "hostname": "m3aggregator01",
-                    "port": 6002
+                    "port": 6000
                 },
                 {
                     "id": "m3aggregator02",
                     "isolation_group": "rack-b",
                     "zone": "embedded",
                     "weight": 1024,
-                    "endpoint": "m3aggregator02:6002",
+                    "endpoint": "m3aggregator02:6000",
                     "hostname": "m3aggregator02",
-                    "port": 6002
+                    "port": 6000
                 }
             ]
         }'
