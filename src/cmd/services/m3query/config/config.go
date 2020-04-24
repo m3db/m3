@@ -154,9 +154,6 @@ type Configuration struct {
 	// stanza not able to startup the binary since we parse YAML in strict mode
 	// by default).
 	DeprecatedCache CacheConfiguration `yaml:"cache"`
-
-	// WriteTimestampOffset offsets all writes by specified duration into the past.
-	WriteTimestampOffset time.Duration `yaml:"writeTimestampOffset"`
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
