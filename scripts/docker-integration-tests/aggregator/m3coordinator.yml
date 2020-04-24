@@ -81,6 +81,8 @@ downsample:
             placementServiceOverride:
               namespaces:
                 placement: /placement
+            connection:
+              numConnections: 4
             messagePool:
               size: 16384
               watermark:

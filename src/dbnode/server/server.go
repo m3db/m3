@@ -326,7 +326,7 @@ func Run(runOpts RunOptions) {
 		iopts = opts.InstrumentOptions().
 			SetLogger(logger).
 			SetMetricsScope(scope).
-			SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+			SetTimerOptions(instrument.TimerOptions{StandardSampleRate: cfg.Metrics.SampleRate()}).
 			SetTracer(tracer)
 	)
 	opts = opts.SetInstrumentOptions(iopts)

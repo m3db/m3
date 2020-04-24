@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
-	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -131,14 +130,17 @@ type clientMetrics struct {
 	shardNotWriteable      tally.Counter
 }
 
-func newClientMetrics(scope tally.Scope, sampleRate float64) clientMetrics {
+func newClientMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) clientMetrics {
 	return clientMetrics{
-		writeUntimedCounter:    instrument.NewMethodMetrics(scope, "writeUntimedCounter", sampleRate),
-		writeUntimedBatchTimer: instrument.NewMethodMetrics(scope, "writeUntimedBatchTimer", sampleRate),
-		writeUntimedGauge:      instrument.NewMethodMetrics(scope, "writeUntimedGauge", sampleRate),
-		writePassthrough:       instrument.NewMethodMetrics(scope, "writePassthrough", sampleRate),
-		writeForwarded:         instrument.NewMethodMetrics(scope, "writeForwarded", sampleRate),
-		flush:                  instrument.NewMethodMetrics(scope, "flush", sampleRate),
+		writeUntimedCounter:    instrument.NewMethodMetrics(scope, "writeUntimedCounter", opts),
+		writeUntimedBatchTimer: instrument.NewMethodMetrics(scope, "writeUntimedBatchTimer", opts),
+		writeUntimedGauge:      instrument.NewMethodMetrics(scope, "writeUntimedGauge", opts),
+		writePassthrough:       instrument.NewMethodMetrics(scope, "writePassthrough", opts),
+		writeForwarded:         instrument.NewMethodMetrics(scope, "writeForwarded", opts),
+		flush:                  instrument.NewMethodMetrics(scope, "flush", opts),
 		shardNotOwned:          scope.Counter("shard-not-owned"),
 		shardNotWriteable:      scope.Counter("shard-not-writeable"),
 	}
@@ -198,13 +200,11 @@ func NewClient(opts Options) (Client, error) {
 		msgClient = m3msgClient{
 			producer:    producer,
 			numShards:   producer.NumShards(),
-			messagePool: newMessagePool(opts.EncoderOptions()),
+			messagePool: newMessagePool(),
 		}
 	case LegacyAggregatorClient:
-		var (
-			writerMgrScope = instrumentOpts.MetricsScope().SubScope("writer-manager")
-			writerMgrOpts  = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
-		)
+		writerMgrScope := instrumentOpts.MetricsScope().SubScope("writer-manager")
+		writerMgrOpts := opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
 		writerMgr = newInstanceWriterManager(writerMgrOpts)
 		onPlacementsAddedFn := func(placements []placement.Placement) {
 			for _, placement := range placements {
@@ -237,7 +237,8 @@ func NewClient(opts Options) (Client, error) {
 		writerMgr:                  writerMgr,
 		shardFn:                    opts.ShardFn(),
 		placementWatcher:           placementWatcher,
-		metrics:                    newClientMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
+		metrics: newClientMetrics(instrumentOpts.MetricsScope(),
+			instrumentOpts.TimerOptions()),
 	}, nil
 }
 
@@ -531,12 +532,10 @@ type messagePool struct {
 	pool sync.Pool
 }
 
-func newMessagePool(
-	encoderOpts protobuf.UnaggregatedOptions,
-) *messagePool {
+func newMessagePool() *messagePool {
 	p := &messagePool{}
 	p.pool.New = func() interface{} {
-		return newMessage(encoderOpts, p)
+		return newMessage(p)
 	}
 	return p
 }
@@ -553,9 +552,8 @@ func (m *messagePool) Put(msg *message) {
 var _ producer.Message = (*message)(nil)
 
 type message struct {
-	pool    *messagePool
-	shard   uint32
-	encoder protobuf.UnaggregatedEncoder
+	pool  *messagePool
+	shard uint32
 
 	metric metricpb.MetricWithMetadatas
 	cm     metricpb.CounterWithMetadatas
@@ -568,13 +566,9 @@ type message struct {
 	buf []byte
 }
 
-func newMessage(
-	encoderOpts protobuf.UnaggregatedOptions,
-	pool *messagePool,
-) *message {
+func newMessage(pool *messagePool) *message {
 	return &message{
-		pool:    pool,
-		encoder: protobuf.NewUnaggregatedEncoder(encoderOpts),
+		pool: pool,
 	}
 }
 

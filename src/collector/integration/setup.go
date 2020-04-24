@@ -24,6 +24,7 @@ import (
 	"errors"
 	"flag"
 	"testing"
+	"time"
 
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	aggserver "github.com/m3db/m3/src/collector/integration/server"
@@ -59,7 +60,10 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	cache := cache.NewCache(opts.CacheOptions())
 	matcher, err := matcher.NewMatcher(cache, opts.MatcherOptions())
 	require.NoError(t, err)
-	client, err := aggclient.NewClient(opts.AggregatorClientOptions())
+	clientOpts := opts.AggregatorClientOptions().
+		SetConnectionOptions(opts.AggregatorClientOptions().ConnectionOptions().
+			SetWriteTimeout(time.Second)) // CI is slow, prefer slow write than drop data.
+	client, err := aggclient.NewClient(clientOpts)
 	require.NoError(t, err)
 	reporter := aggreporter.NewReporter(matcher, client, opts.AggregatorReporterOptions())
 

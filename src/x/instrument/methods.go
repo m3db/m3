@@ -32,6 +32,169 @@ var (
 	nullStopWatchStart tally.Stopwatch
 )
 
+// TimerType is a type of timer, standard or histogram timer.
+type TimerType uint
+
+const (
+	// StandardTimerType is a standard timer type back by a regular timer.
+	StandardTimerType TimerType = iota
+	// HistogramTimerType is a histogram timer backed by a histogram.
+	HistogramTimerType
+)
+
+// TimerOptions is a set of timer options when creating a timer.
+type TimerOptions struct {
+	Type               TimerType
+	StandardSampleRate float64
+	HistogramBuckets   tally.Buckets
+}
+
+// NewTimer creates a new timer based on the timer options.
+func (o TimerOptions) NewTimer(scope tally.Scope, name string) tally.Timer {
+	return NewTimer(scope, name, o)
+}
+
+// DefaultHistogramTimerHistogramBuckets returns a set of default
+// histogram timer histogram buckets, from 2ms up to 1hr.
+func DefaultHistogramTimerHistogramBuckets() tally.Buckets {
+	return tally.ValueBuckets{
+		0.002,
+		0.004,
+		0.006,
+		0.008,
+		0.01,
+		0.02,
+		0.04,
+		0.06,
+		0.08,
+		0.1,
+		0.2,
+		0.4,
+		0.6,
+		0.8,
+		1,
+		1.5,
+		2,
+		2.5,
+		3,
+		3.5,
+		4,
+		4.5,
+		5,
+		5.5,
+		6,
+		6.5,
+		7,
+		7.5,
+		8,
+		8.5,
+		9,
+		9.5,
+		10,
+		15,
+		20,
+		25,
+		30,
+		35,
+		40,
+		45,
+		50,
+		55,
+		60,
+		300,
+		600,
+		900,
+		1200,
+		1500,
+		1800,
+		2100,
+		2400,
+		2700,
+		3000,
+		3300,
+		3600,
+	}
+}
+
+// DefaultSummaryQuantileObjectives is a set of default summary
+// quantile objectives and allowed error thresholds.
+func DefaultSummaryQuantileObjectives() map[float64]float64 {
+	return map[float64]float64{
+		0.5:   0.01,
+		0.75:  0.001,
+		0.95:  0.001,
+		0.99:  0.001,
+		0.999: 0.0001,
+	}
+}
+
+// NewStandardTimerOptions returns a set of standard timer options for
+// standard timer types.
+func NewStandardTimerOptions() TimerOptions {
+	return TimerOptions{Type: StandardTimerType}
+}
+
+// HistogramTimerOptions is a set of histogram timer options.
+type HistogramTimerOptions struct {
+	HistogramBuckets tally.Buckets
+}
+
+// NewHistogramTimerOptions returns a set of histogram timer options
+// and if no histogram buckets are set it will use the default
+// histogram buckets defined.
+func NewHistogramTimerOptions(opts HistogramTimerOptions) TimerOptions {
+	result := TimerOptions{Type: HistogramTimerType}
+	if opts.HistogramBuckets.Len() > 0 {
+		result.HistogramBuckets = opts.HistogramBuckets
+	} else {
+		result.HistogramBuckets = DefaultHistogramTimerHistogramBuckets()
+	}
+	return result
+}
+
+var _ tally.Timer = (*timer)(nil)
+
+// timer is a timer that can be backed by a timer or a histogram
+// depending on TimerOptions.
+type timer struct {
+	TimerOptions
+	timer     tally.Timer
+	histogram tally.Histogram
+}
+
+// NewTimer returns a new timer that is backed by a timer or a histogram
+// based on the timer options.
+func NewTimer(scope tally.Scope, name string, opts TimerOptions) tally.Timer {
+	t := &timer{TimerOptions: opts}
+	switch t.Type {
+	case HistogramTimerType:
+		t.histogram = scope.Histogram(name, opts.HistogramBuckets)
+	default:
+		t.timer = scope.Timer(name)
+		if rate := opts.StandardSampleRate; validRate(rate) {
+			t.timer = newSampledTimer(t.timer, rate)
+		}
+	}
+	return t
+}
+
+func (t *timer) Record(v time.Duration) {
+	switch t.Type {
+	case HistogramTimerType:
+		t.histogram.RecordDuration(v)
+	default:
+		t.timer.Record(v)
+	}
+}
+
+func (t *timer) Start() tally.Stopwatch {
+	return tally.NewStopwatch(time.Now(), t)
+}
+
+func (t *timer) RecordStopwatch(stopwatchStart time.Time) {
+	t.Record(time.Since(stopwatchStart))
+}
+
 // sampledTimer is a sampled timer that implements the tally timer interface.
 // NB(xichen): the sampling logic should eventually be implemented in tally.
 type sampledTimer struct {
@@ -43,13 +206,25 @@ type sampledTimer struct {
 
 // NewSampledTimer creates a new sampled timer.
 func NewSampledTimer(base tally.Timer, rate float64) (tally.Timer, error) {
-	if rate <= 0.0 || rate > 1.0 {
+	if !validRate(rate) {
 		return nil, fmt.Errorf("sampling rate %f must be between 0.0 and 1.0", rate)
+	}
+	return newSampledTimer(base, rate), nil
+}
+
+func validRate(rate float64) bool {
+	return rate > 0.0 && rate <= 1.0
+}
+
+func newSampledTimer(base tally.Timer, rate float64) tally.Timer {
+	if rate == 1.0 {
+		// Avoid the overhead of working out if should sample each time.
+		return base
 	}
 	return &sampledTimer{
 		Timer: base,
 		rate:  uint64(1.0 / rate),
-	}, nil
+	}
 }
 
 // MustCreateSampledTimer creates a new sampled timer, and panics if an error
@@ -118,12 +293,12 @@ func (m *MethodMetrics) ReportSuccessOrError(e error, d time.Duration) {
 }
 
 // NewMethodMetrics returns a new Method metrics for the given method name.
-func NewMethodMetrics(scope tally.Scope, methodName string, samplingRate float64) MethodMetrics {
+func NewMethodMetrics(scope tally.Scope, methodName string, opts TimerOptions) MethodMetrics {
 	return MethodMetrics{
 		Errors:         scope.Counter(methodName + ".errors"),
 		Success:        scope.Counter(methodName + ".success"),
-		ErrorsLatency:  MustCreateSampledTimer(scope.Timer(methodName+".errors-latency"), samplingRate),
-		SuccessLatency: MustCreateSampledTimer(scope.Timer(methodName+".success-latency"), samplingRate),
+		ErrorsLatency:  NewTimer(scope, methodName+".errors-latency", opts),
+		SuccessLatency: NewTimer(scope, methodName+".success-latency", opts),
 	}
 }
 
@@ -140,14 +315,14 @@ type BatchMethodMetrics struct {
 func NewBatchMethodMetrics(
 	scope tally.Scope,
 	methodName string,
-	samplingRate float64,
+	opts TimerOptions,
 ) BatchMethodMetrics {
 	return BatchMethodMetrics{
 		RetryableErrors:    scope.Counter(methodName + ".retryable-errors"),
 		NonRetryableErrors: scope.Counter(methodName + ".non-retryable-errors"),
 		Errors:             scope.Counter(methodName + ".errors"),
 		Success:            scope.Counter(methodName + ".success"),
-		Latency:            MustCreateSampledTimer(scope.Timer(methodName+".latency"), samplingRate),
+		Latency:            NewTimer(scope, methodName+".latency", opts),
 	}
 }
 

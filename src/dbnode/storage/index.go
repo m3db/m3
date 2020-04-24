@@ -1686,9 +1686,8 @@ func newNamespaceIndexMetrics(
 		forwardIndexCounter: scope.Tagged(map[string]string{
 			"status": "count",
 		}).Counter("forward-index"),
-		insertEndToEndLatency: instrument.MustCreateSampledTimer(
-			scope.Timer("insert-end-to-end-latency"),
-			iopts.MetricsSamplingRate()),
+		insertEndToEndLatency: instrument.NewTimer(scope,
+			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
 		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
 	}

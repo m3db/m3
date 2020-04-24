@@ -55,7 +55,7 @@ type reporterMetrics struct {
 
 func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
 	scope := instrumentOpts.MetricsScope()
-	samplingRate := instrumentOpts.MetricsSamplingRate()
+	timerOpts := instrumentOpts.TimerOptions()
 	hostName := "unknown"
 	if name, err := os.Hostname(); err == nil {
 		hostName = name
@@ -64,10 +64,10 @@ func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
 	}
 	hostScope := scope.Tagged(map[string]string{"host": hostName})
 	return reporterMetrics{
-		reportCounter:    instrument.NewMethodMetrics(scope, "report-counter", samplingRate),
-		reportBatchTimer: instrument.NewMethodMetrics(scope, "report-batch-timer", samplingRate),
-		reportGauge:      instrument.NewMethodMetrics(scope, "report-gauge", samplingRate),
-		flush:            instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		reportCounter:    instrument.NewMethodMetrics(scope, "report-counter", timerOpts),
+		reportBatchTimer: instrument.NewMethodMetrics(scope, "report-batch-timer", timerOpts),
+		reportGauge:      instrument.NewMethodMetrics(scope, "report-gauge", timerOpts),
+		flush:            instrument.NewMethodMetrics(scope, "flush", timerOpts),
 		reportPending:    hostScope.Gauge("report-pending"),
 	}
 }
