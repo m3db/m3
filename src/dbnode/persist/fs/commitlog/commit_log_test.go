@@ -113,7 +113,7 @@ func newTestOptions(
 	return opts, scope
 }
 
-func randomByteArray(len int) []byte {
+func randomByteSlice(len int) []byte {
 	arr := make([]byte, len)
 	rand.Read(arr)
 	return arr
@@ -375,40 +375,40 @@ func TestCommitLogWrite(t *testing.T) {
 		{
 			"Buffer almost full after first write. Second write almost fills the buffer",
 			[]testWrite{
-				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteArray(opts.FlushSize() - 200), nil},
-				{testSeries(1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150), time.Now(), 456.789, xtime.Second, randomByteArray(40), nil},
+				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize() - 200), nil},
+				{testSeries(1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150), time.Now(), 456.789, xtime.Second, randomByteSlice(40), nil},
 			},
 		},
 		{
 			"Buffer almost full after first write. Second write almost fills 2*buffer total",
 			[]testWrite{
-				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteArray(opts.FlushSize() - 200), nil},
-				{testSeries(1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150), time.Now(), 456.789, xtime.Second, randomByteArray(40 + opts.FlushSize()), nil},
+				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize() - 200), nil},
+				{testSeries(1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150), time.Now(), 456.789, xtime.Second, randomByteSlice(40 + opts.FlushSize()), nil},
 			},
 		},
 		{
 			"Buffer almost full after first write. Second write almost fills 3*buffer total",
 			[]testWrite{
-				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteArray(opts.FlushSize() - 200), nil},
-				{testSeries(1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150), time.Now(), 456.789, xtime.Second, randomByteArray(40 + 2*opts.FlushSize()), nil},
+				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize() - 200), nil},
+				{testSeries(1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150), time.Now(), 456.789, xtime.Second, randomByteSlice(40 + 2*opts.FlushSize()), nil},
 			},
 		},
 		{
 			"Attempts to perform a write equal to the flush size",
 			[]testWrite{
-				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteArray(opts.FlushSize()), nil},
+				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteSlice(opts.FlushSize()), nil},
 			},
 		},
 		{
 			"Attempts to perform a write double the flush size",
 			[]testWrite{
-				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteArray(2 * opts.FlushSize()), nil},
+				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteSlice(2 * opts.FlushSize()), nil},
 			},
 		},
 		{
 			"Attempts to perform a write three times the flush size",
 			[]testWrite{
-				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteArray(3 * opts.FlushSize()), nil},
+				{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, randomByteSlice(3 * opts.FlushSize()), nil},
 			},
 		},
 	}
