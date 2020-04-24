@@ -94,6 +94,8 @@ func TestNewConsumerWriter(t *testing.T) {
 	require.Contains(t, err.Error(), "closed network connection")
 }
 
+// TODO: tests for multiple connection writers.
+
 func TestConsumerWriterSignalResetConnection(t *testing.T) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -108,7 +110,7 @@ func TestConsumerWriterSignalResetConnection(t *testing.T) {
 		return uninitializedReadWriter{}, nil
 	}
 
-	w.notifyReset()
+	w.notifyReset(nil)
 	require.Equal(t, 1, len(w.resetCh))
 	require.True(t, w.resetTooSoon())
 
@@ -447,5 +449,5 @@ func write(w consumerWriter, m proto.Marshaler) error {
 	if err != nil {
 		return err
 	}
-	return w.Write(testEncoder.Bytes())
+	return w.Write(0, testEncoder.Bytes())
 }

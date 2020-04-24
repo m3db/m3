@@ -43,7 +43,7 @@ const (
 	gracefulShutdownTimeout = 15 * time.Second
 )
 
-// RunOptions is the server options for running the aggregator server.
+// RunOptions are the server options for running the aggregator server.
 type RunOptions struct {
 	Config config.Configuration
 }

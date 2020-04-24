@@ -260,12 +260,12 @@ func (w *messageWriterImpl) write(
 		return err
 	}
 	var (
-		written = false
+		// NB(r): Always select the same connection index per shard.
+		connIndex = int(w.replicatedShardID % uint64(w.numConnections))
+		written   = false
 	)
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
-		// NB(r): Always select the same connection index per connection.
 		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
-		connIndex := int(w.replicatedShardID % uint64(w.numConnections))
 		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
 			w.m.oneConsumerWriteError.Inc(1)
 			continue
