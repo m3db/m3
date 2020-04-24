@@ -103,6 +103,9 @@ type Configuration struct {
 	// UseV2BatchAPIs determines whether the V2 batch APIs are used. Note that the M3DB nodes must
 	// have support for the V2 APIs in order for this feature to be used.
 	UseV2BatchAPIs *bool `yaml:"useV2BatchAPIs"`
+
+	// WriteTimestampOffset offsets all writes by specified duration into the past.
+	WriteTimestampOffset *time.Duration `yaml:"writeTimestampOffset"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -238,6 +241,12 @@ func (c Configuration) NewClient(
 	for _, opt := range custom {
 		customAdmin = append(customAdmin, func(v AdminOptions) AdminOptions {
 			return opt(Options(v)).(AdminOptions)
+		})
+	}
+
+	if c.WriteTimestampOffset != nil {
+		customAdmin = append(customAdmin, func(v AdminOptions) AdminOptions {
+			return v.SetWriteTimestampOffset(*c.WriteTimestampOffset)
 		})
 	}
 

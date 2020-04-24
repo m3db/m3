@@ -407,6 +407,7 @@ func TestConfiguration(t *testing.T) {
     asyncWriteWorkerPoolSize: null
     asyncWriteMaxConcurrency: null
     useV2BatchAPIs: null
+    writeTimestampOffset: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms

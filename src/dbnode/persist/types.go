@@ -90,6 +90,8 @@ type Manager interface {
 
 	// StartIndexPersist begins a flush for index data.
 	StartIndexPersist() (IndexFlush, error)
+
+	Close()
 }
 
 // Preparer can generate a PreparedDataPersist object for writing data for
