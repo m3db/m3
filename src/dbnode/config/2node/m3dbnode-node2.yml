@@ -1,0 +1,108 @@
+coordinator:
+  listenAddress:
+    value: "0.0.0.0:8201"
+
+  local:
+    namespaces:
+      - namespace: default
+        type: unaggregated
+        retention: 48h
+
+  logging:
+    level: info
+
+  metrics:
+    scope:
+      prefix: "coordinator"
+    prometheus:
+      handlerPath: /metrics
+      listenAddress: 0.0.0.0:0 # until https://github.com/m3db/m3/issues/682 is resolved
+    sanitization: prometheus
+    samplingRate: 1.0
+    extended: none
+
+  limits:
+    maxComputedDatapoints: 10000
+
+  tagOptions:
+    # Configuration setting for generating metric IDs from tags.
+    idScheme: quoted
+
+db:
+  logging:
+    level: info
+
+  metrics:
+    prometheus:
+      handlerPath: /metrics
+    sanitization: prometheus
+    samplingRate: 1.0
+    extended: detailed
+
+  listenAddress: 0.0.0.0:10000
+  clusterListenAddress: 0.0.0.0:10001
+  httpNodeListenAddress: 0.0.0.0:10002
+  httpClusterListenAddress: 0.0.0.0:10003
+  debugListenAddress: 0.0.0.0:10004
+
+  hostID:
+    resolver: config
+    value: node2
+
+  client:
+    writeConsistencyLevel: majority
+    readConsistencyLevel: unstrict_majority
+
+  gcPercentage: 100
+
+  writeNewSeriesAsync: true
+  writeNewSeriesLimitPerSecond: 1048576
+  writeNewSeriesBackoffDuration: 2ms
+
+  bootstrap:
+    bootstrappers:
+        - filesystem
+        - commitlog
+        - peers
+        - uninitialized_topology
+    commitlog:
+      returnUnfulfilledForCorruptCommitLogFiles: false
+
+  cache:
+    series:
+      policy: lru
+    postingsList:
+      size: 262144
+
+  commitlog:
+    flushMaxBytes: 524288
+    flushEvery: 1s
+    queue:
+      calculationType: fixed
+      size: 2097152
+
+  fs:
+    filePathPrefix: /tmp/m3db/node2/m3db
+
+  config:
+      service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /tmp/m3db/node2/m3kv
+          etcdClusters:
+              - zone: embedded
+                endpoints:
+                    - 127.0.0.1:2379
+
+# Don't spin up an etcd cluster on the second node
+#      seedNodes:
+#          initialCluster:
+#              - hostID: node2
+#                endpoint: http://127.0.0.1:2380
+
+  # un-comment the lines below to enable Jaeger tracing. See https://www.jaegertracing.io/docs/1.9/getting-started/
+  # for quick local setup (which this config will send data to).
+
+  # tracing:
+  #  backend: jaeger
