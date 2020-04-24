@@ -27,7 +27,9 @@ import (
 	"os"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/server"
+	tsdb "github.com/m3db/m3/src/query/ts/m3db"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/configflag"
 	"github.com/m3db/m3/src/x/etcd"
@@ -50,7 +52,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	customAdminOpt := func(opts client.AdminOptions) client.AdminOptions {
+		return opts.SetWriteTimestampOffset(cfg.WriteTimestampOffset)
+	}
+	customTSDBOptionsFn := func(opts tsdb.Options) tsdb.Options {
+		return opts.SetCustomAdminOptions([]client.CustomAdminOption{customAdminOpt})
+	}
 	server.Run(server.RunOptions{
-		Config: cfg,
+		Config:                 cfg,
+		ApplyCustomTSDBOptions: customTSDBOptionsFn,
 	})
 }
