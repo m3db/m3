@@ -89,7 +89,7 @@ func main() {
 		NewOptions().
 		SetLogger(rawLogger).
 		SetMetricsScope(scope).
-		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: conf.Metrics.SampleRate})
+		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: conf.Metrics.SampleRate()})
 	datumRegistry := datums.NewDefaultRegistry(conf.M3nsch.NumPointsPerDatum)
 	agentOpts := agent.NewOptions(iopts).
 		SetConcurrency(conf.M3nsch.Concurrency).
