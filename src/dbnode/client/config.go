@@ -244,12 +244,6 @@ func (c Configuration) NewClient(
 		})
 	}
 
-	if c.WriteTimestampOffset != nil {
-		customAdmin = append(customAdmin, func(v AdminOptions) AdminOptions {
-			return v.SetWriteTimestampOffset(*c.WriteTimestampOffset)
-		})
-	}
-
 	v, err := c.NewAdminClient(params, customAdmin...)
 	if err != nil {
 		return nil, err
@@ -409,6 +403,10 @@ func (c Configuration) NewAdminClient(
 	opts := v.(AdminOptions)
 	for _, opt := range custom {
 		opts = opt(opts)
+	}
+
+	if c.WriteTimestampOffset != nil {
+		opts = opts.SetWriteTimestampOffset(*c.WriteTimestampOffset)
 	}
 
 	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)
