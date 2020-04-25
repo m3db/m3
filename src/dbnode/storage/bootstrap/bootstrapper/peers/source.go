@@ -57,7 +57,6 @@ type peersSource struct {
 	nowFn          clock.NowFn
 	persistManager *bootstrapper.SharedPersistManager
 	compactor      *bootstrapper.SharedCompactor
-	builder        *result.IndexBuilder
 }
 
 type persistenceFlush struct {
@@ -74,11 +73,6 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 	}
 
 	iopts := opts.ResultOptions().InstrumentOptions()
-	alloc := opts.ResultOptions().IndexDocumentsBuilderAllocator()
-	segBuilder, err := alloc()
-	if err != nil {
-		return nil, err
-	}
 	return &peersSource{
 		opts:  opts,
 		log:   iopts.Logger().With(zap.String("bootstrapper", "peers")),
@@ -89,7 +83,6 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 		compactor: &bootstrapper.SharedCompactor{
 			Compactor: opts.Compactor(),
 		},
-		builder: result.NewIndexBuilder(segBuilder),
 	}, nil
 }
 
@@ -152,6 +145,13 @@ func (s *peersSource) Read(
 	s.log.Info("bootstrapping time series data success",
 		zap.Duration("took", nowFn().Sub(start)))
 
+	alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
+	segBuilder, err := alloc()
+	if err != nil {
+		return bootstrap.NamespaceResults{}, err
+	}
+	builder := result.NewIndexBuilder(segBuilder)
+
 	start = nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	for _, elem := range namespaces.Namespaces.Iter() {
@@ -167,6 +167,7 @@ func (s *peersSource) Read(
 
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
+			builder,
 			namespace.IndexRunOptions.RunOptions)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
@@ -639,6 +640,7 @@ func (s *peersSource) flush(
 func (s *peersSource) readIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	builder *result.IndexBuilder,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
 	if err := s.validateRunOpts(opts); err != nil {
@@ -677,12 +679,13 @@ func (s *peersSource) readIndex(
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
 		// it is not thread safe and requires reset after every processed index block.
-		s.builder.Builder().Reset(0)
+		builder.Builder().Reset(0)
 
 		// NB(bodu): This is fetching the data for all shards for a block of time.
 		remainingRanges, timesWithErrors := s.processReaders(
 			ns,
 			r,
+			builder,
 			timeWindowReaders,
 			readerPool,
 			idxOpts,
@@ -697,6 +700,7 @@ func (s *peersSource) readIndex(
 func (s *peersSource) readNextEntryAndMaybeIndex(
 	r fs.DataFileSetReader,
 	batch []doc.Document,
+	builder *result.IndexBuilder,
 ) ([]doc.Document, error) {
 	// If performing index run, then simply read the metadata and add to segment.
 	id, tagsIter, _, _, err := r.ReadMetadata()
@@ -715,7 +719,7 @@ func (s *peersSource) readNextEntryAndMaybeIndex(
 	batch = append(batch, d)
 
 	if len(batch) >= index.DocumentArrayPoolCapacity {
-		return s.builder.FlushBatch(batch)
+		return builder.FlushBatch(batch)
 	}
 
 	return batch, nil
@@ -724,6 +728,7 @@ func (s *peersSource) readNextEntryAndMaybeIndex(
 func (s *peersSource) processReaders(
 	ns namespace.Metadata,
 	r result.IndexBootstrapResult,
+	builder *result.IndexBuilder,
 	timeWindowReaders bootstrapper.TimeWindowReaders,
 	readerPool *bootstrapper.ReaderPool,
 	idxOpts namespace.IndexOptions,
@@ -752,13 +757,13 @@ func (s *peersSource) processReaders(
 			r.IndexResults().AddBlockIfNotExists(start, idxOpts)
 			numEntries := reader.Entries()
 			for i := 0; err == nil && i < numEntries; i++ {
-				batch, err = s.readNextEntryAndMaybeIndex(reader, batch)
+				batch, err = s.readNextEntryAndMaybeIndex(reader, batch, builder)
 				totalEntries++
 			}
 
 			// NB(bodu): Only flush if we've experienced no errors up until this point.
 			if err == nil && len(batch) > 0 {
-				batch, err = s.builder.FlushBatch(batch)
+				batch, err = builder.FlushBatch(batch)
 			}
 
 			// Validate the read results
@@ -832,7 +837,7 @@ func (s *peersSource) processReaders(
 		indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
 			ns,
 			requestedRanges,
-			s.builder.Builder(),
+			builder.Builder(),
 			s.persistManager,
 			s.opts.ResultOptions(),
 			existingIndexBlock.Fulfilled(),
@@ -852,7 +857,7 @@ func (s *peersSource) processReaders(
 		indexBlock, err = bootstrapper.BuildBootstrapIndexSegment(
 			ns,
 			requestedRanges,
-			s.builder.Builder(),
+			builder.Builder(),
 			s.compactor,
 			s.opts.ResultOptions(),
 			s.opts.IndexOptions().MmapReporter(),
