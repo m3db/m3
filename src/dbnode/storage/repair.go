@@ -563,7 +563,7 @@ func (r *dbRepairer) Repair() error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	namespaces, err := r.database.GetOwnedNamespaces()
+	namespaces, err := r.database.OwnedNamespaces()
 	if err != nil {
 		return err
 	}
@@ -606,8 +606,9 @@ func (r *dbRepairer) Repair() error {
 
 			if err := r.repairNamespaceBlockstart(n, blockStart); err != nil {
 				multiErr = multiErr.Add(err)
+			} else {
+				hasRepairedABlockStart = true
 			}
-			hasRepairedABlockStart = true
 
 			return true
 		})

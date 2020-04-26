@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
@@ -283,7 +284,8 @@ type IndexWriterOpenOptions struct {
 	FileSetType persist.FileSetType
 	Shards      map[uint32]struct{}
 	// Only used when writing snapshot files
-	Snapshot IndexWriterSnapshotOptions
+	Snapshot        IndexWriterSnapshotOptions
+	IndexVolumeType idxpersist.IndexVolumeType
 }
 
 // IndexFileSetWriter is a index file set writer.
@@ -544,6 +546,7 @@ type Merger interface {
 		nextVolumeIndex int,
 		flushPreparer persist.FlushPreparer,
 		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
 	) error
 }
 
@@ -558,3 +561,12 @@ type NewMergerFn func(
 	contextPool context.Pool,
 	nsOpts namespace.Options,
 ) Merger
+
+// Segments represents on index segments on disk for an index volume.
+type Segments interface {
+	ShardTimeRanges() result.ShardTimeRanges
+	VolumeType() idxpersist.IndexVolumeType
+	VolumeIndex() int
+	AbsoluteFilePaths() []string
+	BlockStart() time.Time
+}

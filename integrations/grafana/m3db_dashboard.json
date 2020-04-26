@@ -4384,7 +4384,7 @@
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.2814048282536148,
-              "refId": "A"
+              "refId": "B"
             }
           ],
           "thresholds": [],

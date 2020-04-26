@@ -40,4 +40,6 @@ type PromWriteHandlerForwardTargetOptions struct {
 	URL string `yaml:"url"`
 	// Method defaults to POST if not set.
 	Method string `yaml:"method"`
+	// Headers to send along with requests to the target.
+	Headers map[string]string `yaml:"headers"`
 }

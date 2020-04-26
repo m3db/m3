@@ -29,7 +29,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3ctl/config"
+	"github.com/m3db/m3/src/cmd/services/r2ctl/config"
 	"github.com/m3db/m3/src/ctl/auth"
 	"github.com/m3db/m3/src/ctl/server/http"
 	"github.com/m3db/m3/src/ctl/service/health"
@@ -102,7 +102,7 @@ func main() {
 	instrumentOpts := instrument.NewOptions().
 		SetLogger(rawLogger).
 		SetMetricsScope(scope).
-		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: cfg.Metrics.SampleRate()}).
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
 	// Create R2 store.

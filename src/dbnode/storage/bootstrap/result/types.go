@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -53,25 +54,30 @@ type IndexBootstrapResult interface {
 	SetUnfulfilled(unfulfilled ShardTimeRanges)
 
 	// Add adds an index block result.
-	Add(block IndexBlock, unfulfilled ShardTimeRanges)
+	Add(blocks IndexBlockByVolumeType, unfulfilled ShardTimeRanges)
 
 	// NumSeries returns the total number of series across all segments.
 	NumSeries() int
 }
 
 // IndexResults is a set of index blocks indexed by block start.
-type IndexResults map[xtime.UnixNano]IndexBlock
+type IndexResults map[xtime.UnixNano]IndexBlockByVolumeType
 
 // IndexBuilder wraps a index segment builder w/ batching.
 type IndexBuilder struct {
 	builder segment.DocumentsBuilder
 }
 
-// IndexBlock contains the bootstrap data structures for an index block.
-type IndexBlock struct {
+// IndexBlockByVolumeType contains the bootstrap data structures for an index block by volume type.
+type IndexBlockByVolumeType struct {
 	blockStart time.Time
-	segments   []segment.Segment
-	fulfilled  ShardTimeRanges
+	data       map[persist.IndexVolumeType]IndexBlock
+}
+
+// IndexBlock is an index block for a index volume type.
+type IndexBlock struct {
+	segments  []segment.Segment
+	fulfilled ShardTimeRanges
 }
 
 // DocumentsBuilderAllocator allocates a new DocumentsBuilder type when
@@ -140,6 +146,10 @@ type ShardTimeRanges interface {
 	Iter() map[uint32]xtime.Ranges
 
 	Copy() ShardTimeRanges
+
+	// IsSuperset returns whether the current shard time ranges are a
+	// superset of the other shard time ranges.
+	IsSuperset(other ShardTimeRanges) bool
 
 	// Equal returns whether two shard time ranges are equal.
 	Equal(other ShardTimeRanges) bool

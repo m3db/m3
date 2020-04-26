@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/pborman/uuid"
@@ -89,6 +90,8 @@ type Manager interface {
 
 	// StartIndexPersist begins a flush for index data.
 	StartIndexPersist() (IndexFlush, error)
+
+	Close()
 }
 
 // Preparer can generate a PreparedDataPersist object for writing data for
@@ -153,6 +156,7 @@ type IndexPrepareOptions struct {
 	BlockStart        time.Time
 	FileSetType       FileSetType
 	Shards            map[uint32]struct{}
+	IndexVolumeType   idxpersist.IndexVolumeType
 }
 
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains
@@ -202,3 +206,29 @@ const (
 	// FileSetIndexContentType indicates that the fileset files contain time series index metadata
 	FileSetIndexContentType
 )
+
+// OnFlushSeries performs work on a per series level.
+type OnFlushSeries interface {
+	OnFlushNewSeries(
+		shard uint32,
+		blockStart time.Time,
+		id ident.ID,
+		tags ident.Tags,
+	) error
+}
+
+// NoOpColdFlushNamespace is a no-op impl of OnFlushSeries.
+type NoOpColdFlushNamespace struct{}
+
+// OnFlushNewSeries is a no-op.
+func (n *NoOpColdFlushNamespace) OnFlushNewSeries(
+	shard uint32,
+	blockStart time.Time,
+	id ident.ID,
+	tags ident.Tags,
+) error {
+	return nil
+}
+
+// Done is a no-op.
+func (n *NoOpColdFlushNamespace) Done() error { return nil }

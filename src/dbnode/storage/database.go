@@ -203,7 +203,7 @@ func NewDatabase(
 	// Wait till first namespaces value is received and set the value.
 	// Its important that this happens before the mediator is started to prevent
 	// a race condition where the namespaces haven't been initialized yet and
-	// GetOwnedNamespaces() returns an empty slice which makes the cleanup logic
+	// OwnedNamespaces() returns an empty slice which makes the cleanup logic
 	// in the background Tick think it can clean up files that it shouldn't.
 	logger.Info("resolving namespaces with namespace watch")
 	<-watch.C()
@@ -537,6 +537,9 @@ func (d *db) terminateWithLock() error {
 }
 
 func (d *db) Terminate() error {
+	// NB(bodu): Wait for fs processes to finish.
+	d.mediator.WaitForFileSystemProcesses()
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -544,6 +547,9 @@ func (d *db) Terminate() error {
 }
 
 func (d *db) Close() error {
+	// NB(bodu): Wait for fs processes to finish.
+	d.mediator.WaitForFileSystemProcesses()
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -587,7 +593,12 @@ func (d *db) Write(
 		return nil
 	}
 
-	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	dp := ts.Datapoint{
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
+	}
+
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
@@ -616,7 +627,12 @@ func (d *db) WriteTagged(
 		return nil
 	}
 
-	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	dp := ts.Datapoint{
+		Timestamp:      timestamp,
+		TimestampNanos: xtime.ToUnixNano(timestamp),
+		Value:          value,
+	}
+
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
@@ -1007,7 +1023,7 @@ func (d *db) ownedNamespacesWithLock() []databaseNamespace {
 	return namespaces
 }
 
-func (d *db) GetOwnedNamespaces() ([]databaseNamespace, error) {
+func (d *db) OwnedNamespaces() ([]databaseNamespace, error) {
 	d.RLock()
 	defer d.RUnlock()
 	if d.state == databaseClosed {

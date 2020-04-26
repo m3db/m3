@@ -52,34 +52,42 @@ clusters:
       readConsistencyLevel: unstrict_majority
 
 downsample:
+  rules:
+    rollupRules:
+      - name: "requests per second by status code"
+        filter: "__name__:http_requests app:* status_code:* endpoint:*"
+        transforms:
+          - transform:
+              type: "PerSecond"
+          - rollup:
+              metricName: "http_requests_by_status_code"
+              groupBy: ["app", "status_code", "endpoint"]
+              aggregations: ["Sum"]
+        storagePolicies:
+          - resolution: 10s
+            retention: 6h
   remoteAggregator:
     client:
-      placementKV:
-        namespace: /placement
-        environment: override_test_env
-      placementWatcher:
-        key: m3aggregator
-        initWatchTimeout: 10s
-      hashType: murmur32
-      shardCutoffLingerDuration: 1m
-      flushSize: 1440
-      maxTimerBatchSize: 1120
-      queueSize: 10000
-      queueDropType: oldest
-      encoder:
-        initBufferSize: 2048
-        maxMessageSize: 10485760
-        bytesPool:
-          buckets:
-            - capacity: 2048
-              count: 4096
-            - capacity: 4096
-              count: 4096
-          watermark:
-            low: 0.7
-            high: 1.0
-      connection:
-        writeTimeout: 250ms
+      type: m3msg
+      m3msg:
+        producer:
+          writer:
+            topicName: aggregator_ingest
+            topicServiceOverride:
+              zone: embedded
+              environment: override_test_env
+            placement:
+              isStaged: true
+            placementServiceOverride:
+              namespaces:
+                placement: /placement
+            connection:
+              numConnections: 4
+            messagePool:
+              size: 16384
+              watermark:
+                low: 0.2
+                high: 0.5
 
 ingest:
   ingester:

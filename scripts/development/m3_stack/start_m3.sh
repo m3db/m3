@@ -52,7 +52,8 @@ else
 fi
 
 # Use standard coordinator config when bringing up coordinator first time
-cp ./m3coordinator-standard.yml ${RELATIVE}/bin/m3coordinator.yml
+# Note: Use ".tmp" suffix to be git ignored.
+cp ./m3coordinator-standard.yml ./m3coordinator.yml.tmp
 
 if [[ "$M3COORDINATOR_DEV_IMG" == "0" ]] || [[ "$FORCE_BUILD" == true ]] || [[ "$BUILD_M3COORDINATOR" == true ]]; then
     prepare_build_cmd "make m3coordinator-linux-amd64"
@@ -115,8 +116,27 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
         }'
     fi
 
-    echo "Initializing m3msg topic for ingestion"
-    curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
+    echo "Initializing m3msg inbound topic for m3aggregator ingestion from m3coordinators"
+    curl -vvvsSf -X POST -H "Topic-Name: aggregator_ingest" -H "Cluster-Environment-Name: default_env" localhost:7201/api/v1/topic/init -d '{
+        "numberOfShards": 64
+    }'
+
+    echo "Adding m3aggregator as a consumer to the aggregator ingest topic"
+    curl -vvvsSf -X POST -H "Topic-Name: aggregator_ingest" -H "Cluster-Environment-Name: default_env" localhost:7201/api/v1/topic -d '{
+    "consumerService": {
+        "serviceId": {
+        "name": "m3aggregator",
+        "environment": "default_env",
+        "zone": "embedded"
+        },
+        "consumptionType": "REPLICATED",
+        "messageTtlNanos": "600000000000"
+    }
+    }' # msgs will be discarded after 600000000000ns = 10mins
+
+    # Create outbound m3msg topic for m3 aggregators to coordinators
+    echo "Initializing m3msg outbound topic for m3 aggregators to coordinators"
+    curl -vvvsSf -X POST -H "Topic-Name: aggregated_metrics" -H "Cluster-Environment-Name: default_env" localhost:7201/api/v1/topic/init -d '{
         "numberOfShards": 64
     }'
 
@@ -283,8 +303,8 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
     echo "Done validating topology"
 
     # Do this after placement for m3coordinator is created.
-    echo "Adding m3coordinator as a consumer to the topic"
-    curl -vvvsSf -X POST localhost:7201/api/v1/topic -d '{
+    echo "Adding coordinator as a consumer to the aggregator outbound topic"
+    curl -vvvsSf -X POST -H "Topic-Name: aggregated_metrics" -H "Cluster-Environment-Name: default_env" localhost:7201/api/v1/topic -d '{
         "consumerService": {
                 "serviceId": {
                 "name": "m3coordinator",
@@ -298,7 +318,9 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
 
     # Restart with aggregator coordinator config
     docker-compose -f docker-compose.yml stop m3coordinator01
-    cp ./m3coordinator-aggregator.yml ${RELATIVE}/bin/m3coordinator.yml
+
+    # Note: Use ".tmp" suffix to be git ignored.
+    cp ./m3coordinator-aggregator.yml ./m3coordinator.yml.tmp
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 
     # May not necessarily flush

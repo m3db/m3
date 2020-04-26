@@ -107,7 +107,7 @@ type messageWriterMetrics struct {
 
 func newMessageWriterMetrics(
 	scope tally.Scope,
-	samplingRate float64,
+	opts instrument.TimerOptions,
 ) messageWriterMetrics {
 	return messageWriterMetrics{
 		writeSuccess:          scope.Counter("write-success"),
@@ -133,10 +133,10 @@ func newMessageWriterMetrics(
 			map[string]string{"reason": "ttl-expire"},
 		).Counter("message-dropped"),
 		messageRetry:          scope.Counter("message-retry"),
-		messageConsumeLatency: instrument.MustCreateSampledTimer(scope.Timer("message-consume-latency"), samplingRate),
-		messageWriteDelay:     instrument.MustCreateSampledTimer(scope.Timer("message-write-delay"), samplingRate),
-		scanBatchLatency:      instrument.MustCreateSampledTimer(scope.Timer("scan-batch-latency"), samplingRate),
-		scanTotalLatency:      instrument.MustCreateSampledTimer(scope.Timer("scan-total-latency"), samplingRate),
+		messageConsumeLatency: instrument.NewTimer(scope, "message-consume-latency", opts),
+		messageWriteDelay:     instrument.NewTimer(scope, "message-write-delay", opts),
+		scanBatchLatency:      instrument.NewTimer(scope, "scan-batch-latency", opts),
+		scanTotalLatency:      instrument.NewTimer(scope, "scan-total-latency", opts),
 	}
 }
 
@@ -149,6 +149,7 @@ type messageWriterImpl struct {
 	retryOpts         retry.Options
 	r                 *rand.Rand
 	encoder           proto.Encoder
+	numConnections    int
 
 	msgID            uint64
 	queue            *list.List
@@ -186,6 +187,7 @@ func newMessageWriter(
 		retryOpts:         opts.MessageRetryOptions(),
 		r:                 rand.New(rand.NewSource(nowFn().UnixNano())),
 		encoder:           proto.NewEncoder(opts.EncoderOptions()),
+		numConnections:    opts.ConnectionOptions().NumConnections(),
 		msgID:             0,
 		queue:             list.New(),
 		acks:              newAckHelper(opts.InitialAckMapSize()),
@@ -258,10 +260,13 @@ func (w *messageWriterImpl) write(
 		return err
 	}
 	var (
-		written = false
+		// NB(r): Always select the same connection index per shard.
+		connIndex = int(w.replicatedShardID % uint64(w.numConnections))
+		written   = false
 	)
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
-		if err := consumerWriters[randIndex(iterationIndexes, i)].Write(w.encoder.Bytes()); err != nil {
+		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
+		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
 			w.m.oneConsumerWriteError.Inc(1)
 			continue
 		}
@@ -298,9 +303,10 @@ func (w *messageWriterImpl) nextRetryNanos(writeTimes int, nowNanos int64) int64
 }
 
 func (w *messageWriterImpl) Ack(meta metadata) bool {
-	acked, initNanos := w.acks.ack(meta)
+	// acked, initNanos := w.acks.ack(meta)
+	acked, _ := w.acks.ack(meta)
 	if acked {
-		w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - initNanos))
+		// w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - initNanos))
 		w.m.messageAcked.Inc(1)
 		return true
 	}
@@ -360,13 +366,13 @@ func (w *messageWriterImpl) scanMessageQueue() {
 		iterationIndexes = w.iterationIndexes
 		w.Unlock()
 		if !fullScan && len(msgsToWrite) == 0 {
-			w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+			// w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 			// If this is not a full scan, abort after the iteration batch
 			// that no new messages were found.
 			break
 		}
 		if skipWrites {
-			w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+			// w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 			continue
 		}
 		if err := w.writeBatch(iterationIndexes, consumerWriters, msgsToWrite); err != nil {
@@ -374,10 +380,10 @@ func (w *messageWriterImpl) scanMessageQueue() {
 			// to avoid meaningless attempts but continue to clean up the queue.
 			skipWrites = true
 		}
-		w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+		// w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 	}
 	afterScan := w.nowFn()
-	w.m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
+	// w.m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
 	if fullScan {
 		w.nextFullScan = afterScan.Add(w.opts.MessageQueueFullScanInterval())
 	}
@@ -386,18 +392,18 @@ func (w *messageWriterImpl) scanMessageQueue() {
 func (w *messageWriterImpl) writeBatch(
 	iterationIndexes []int,
 	consumerWriters []consumerWriter,
-	toBeRetried []*message,
+	messages []*message,
 ) error {
 	if len(consumerWriters) == 0 {
 		// Not expected in a healthy/valid placement.
-		w.m.noWritersError.Inc(int64(len(toBeRetried)))
+		w.m.noWritersError.Inc(int64(len(messages)))
 		return errNoWriters
 	}
-	for _, m := range toBeRetried {
+	for _, m := range messages {
 		if err := w.write(iterationIndexes, consumerWriters, m); err != nil {
 			return err
 		}
-		w.m.messageWriteDelay.Record(time.Duration(w.nowFn().UnixNano() - m.InitNanos()))
+		// w.m.messageWriteDelay.Record(time.Duration(w.nowFn().UnixNano() - m.InitNanos()))
 	}
 	return nil
 }

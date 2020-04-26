@@ -52,11 +52,18 @@ const (
 	GRPCStorageType BackendStorageType = "grpc"
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
+	// NoopEtcdStorageType is for a noop backend which returns empty results for
+	// any query and blackholes any writes, but requires that a valid etcd cluster
+	// is defined and can be connected to. Primarily used for standalone
+	// coordinators used only to serve m3admin APIs.
+	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
 	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
 		"generation scheme is required in coordinator configuration settings. " +
 		"More information is available here: %s"
+
+	defaultQueryTimeout = 30 * time.Second
 )
 
 var (
@@ -124,6 +131,9 @@ type Configuration struct {
 	// Carbon is the carbon configuration.
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
+	// Query is the query configuration.
+	Query QueryConfiguration `yaml:"query"`
+
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
 
@@ -190,11 +200,24 @@ type ResultOptions struct {
 	KeepNans bool `yaml:"keepNans"`
 }
 
+// QueryConfiguration is the query configuration.
+type QueryConfiguration struct {
+	Timeout *time.Duration `yaml:"timeout"`
+}
+
+// TimeoutOrDefault returns the configured timeout or default value.
+func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
+	if v := c.Timeout; v != nil {
+		return *v
+	}
+	return defaultQueryTimeout
+}
+
 // LimitsConfiguration represents limitations on resource usage in the query
 // instance. Limits are split between per-query and global limits.
 type LimitsConfiguration struct {
 	// deprecated: use PerQuery.MaxComputedDatapoints instead.
-	DeprecatedMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+	DeprecatedMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
 
 	// Global configures limits which apply across all queries running on this
 	// instance.
@@ -209,7 +232,7 @@ type LimitsConfiguration struct {
 // LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints. See
 // LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints for a comment on
 // the semantics.
-func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
+func (lc LimitsConfiguration) MaxComputedDatapoints() int {
 	if lc.PerQuery.PrivateMaxComputedDatapoints != 0 {
 		return lc.PerQuery.PrivateMaxComputedDatapoints
 	}
@@ -222,7 +245,7 @@ func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
 type GlobalLimitsConfiguration struct {
 	// MaxFetchedDatapoints limits the total number of datapoints actually
 	// fetched by all queries at any given time.
-	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
 }
 
 // AsLimitManagerOptions converts this configuration to
@@ -241,14 +264,14 @@ type PerQueryLimitsConfiguration struct {
 	// N.B.: the hacky "Private" prefix is to indicate that callers should use
 	// LimitsConfiguration.MaxComputedDatapoints() instead of accessing
 	// this field directly.
-	PrivateMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+	PrivateMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
 
 	// MaxFetchedDatapoints limits the number of datapoints actually used by a
 	// given query.
-	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
 
 	// MaxFetchedSeries limits the number of time series returned by a storage node.
-	MaxFetchedSeries int64 `yaml:"maxFetchedSeries"`
+	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
 }
 
 // AsLimitManagerOptions converts this configuration to
@@ -271,7 +294,7 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleropti
 	}
 }
 
-func toLimitManagerOptions(limit int64) cost.LimitManagerOptions {
+func toLimitManagerOptions(limit int) cost.LimitManagerOptions {
 	return cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
 		Threshold: cost.Cost(limit),
 		Enabled:   limit > 0,

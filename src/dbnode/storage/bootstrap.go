@@ -226,7 +226,7 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 
-	namespaces, err := m.database.GetOwnedNamespaces()
+	namespaces, err := m.database.OwnedNamespaces()
 	if err != nil {
 		return err
 	}

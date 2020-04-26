@@ -55,7 +55,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	namespaces := []databaseNamespace{ns}
 
 	db := NewMockdatabase(ctrl)
-	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil)
+	db.EXPECT().OwnedNamespaces().Return(namespaces, nil)
 
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()
@@ -140,7 +140,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 		Return(id).
 		Times(2)
 	db.EXPECT().
-		GetOwnedNamespaces().
+		OwnedNamespaces().
 		Return([]databaseNamespace{ns}, nil).
 		Times(2)
 

@@ -31,12 +31,17 @@ type istream struct {
 	r         *bufio.Reader // encoded stream
 	err       error         // error encountered
 	current   byte          // current byte we are working off of
+	buffer    []byte        // buffer for reading in multiple bytes
 	remaining uint          // bits remaining in current to be read
 }
 
 // NewIStream creates a new Istream
 func NewIStream(reader io.Reader, bufioSize int) IStream {
-	return &istream{r: bufio.NewReaderSize(reader, bufioSize)}
+	return &istream{
+		r: bufio.NewReaderSize(reader, bufioSize),
+		// Buffer meant to hold uint64 size of bytes.
+		buffer: make([]byte, 8),
+	}
 }
 
 // ReadBit reads the next Bit
@@ -98,15 +103,21 @@ func (is *istream) ReadBits(numBits uint) (uint64, error) {
 		return 0, is.err
 	}
 	var res uint64
-	for numBits >= 8 {
-		byteRead, err := is.ReadByte()
+	numBytes := numBits / 8
+	if numBytes > 0 {
+		// Use Read call rather than individual ReadByte calls since it has
+		// optimized path for when the iterator is aligned on a byte boundary.
+		bytes := is.buffer[0:numBytes]
+		_, err := is.Read(bytes)
 		if err != nil {
 			return 0, err
 		}
-		res = (res << 8) | uint64(byteRead)
-		numBits -= 8
+		for _, b := range bytes {
+			res = (res << 8) | uint64(b)
+		}
 	}
 
+	numBits = numBits % 8
 	for numBits > 0 {
 		// This is equivalent to calling is.ReadBit() in a loop but some manual inlining
 		// has been performed to optimize this loop as its heavily used in the hot path.

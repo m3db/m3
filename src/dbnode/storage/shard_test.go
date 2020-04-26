@@ -74,7 +74,7 @@ func testDatabaseShard(t *testing.T, opts Options) *dbShard {
 func testDatabaseShardWithIndexFn(
 	t *testing.T,
 	opts Options,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 ) *dbShard {
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
@@ -638,7 +638,7 @@ func TestShardColdFlush(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, coldVersion)
 	}
-	err = shard.ColdFlush(preparer, resources, nsCtx)
+	err = shard.ColdFlush(preparer, resources, nsCtx, &persist.NoOpColdFlushNamespace{})
 	require.NoError(t, err)
 	// After a cold flush, t0-t6 previously dirty block starts should be updated
 	// to version 1.
@@ -704,7 +704,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	}
 	nsCtx := namespace.Context{}
 
-	shard.ColdFlush(preparer, resources, nsCtx)
+	shard.ColdFlush(preparer, resources, nsCtx, &persist.NoOpColdFlushNamespace{})
 	// After a cold flush, t0-t3 should remain version 0, since nothing should
 	// actually be merged.
 	for i := t0; i.Before(t3.Add(blockSize)); i = i.Add(blockSize) {
@@ -735,6 +735,7 @@ func (m *noopMerger) Merge(
 	nextVersion int,
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
+	onFlush persist.OnFlushSeries,
 ) error {
 	return nil
 }

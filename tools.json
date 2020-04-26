@@ -37,10 +37,6 @@
       "Commit": "19b88da8fc15428620782ba18f68423130e7ac7d"
     },
     {
-      "Repository": "github.com/garethr/kubeval",
-      "Commit": "c44f5193dc944abc00e60a1b041ce48b0ae03dfb"
-    },
-    {
       "Repository": "github.com/google/go-jsonnet/cmd/jsonnet",
       "Commit": "71a3e169581ece942e77bfc47840a806eb868ca8"
     }

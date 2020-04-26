@@ -53,7 +53,7 @@ type indexReader struct {
 	volumeIndex  int
 
 	currIdx                int
-	info                   index.IndexInfo
+	info                   index.IndexVolumeInfo
 	expectedDigest         index.IndexDigests
 	expectedDigestOfDigest uint32
 	readDigests            indexReaderReadDigests
@@ -343,6 +343,13 @@ func (r *indexReader) validateSegmentFileDigest(segmentIdx, fileIdx int) error {
 			segmentIdx, fileIdx, expected, actual)
 	}
 	return nil
+}
+
+func (r *indexReader) IndexVolumeType() idxpersist.IndexVolumeType {
+	if r.info.IndexVolumeType == nil {
+		return idxpersist.DefaultIndexVolumeType
+	}
+	return idxpersist.IndexVolumeType(r.info.IndexVolumeType.Value)
 }
 
 func (r *indexReader) Close() error {

@@ -21,7 +21,7 @@
 package options
 
 import (
-	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -36,11 +36,21 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
 const defaultTimeout = 30 * time.Second
+
+// OptionTransformFn transforms given handler options.
+type OptionTransformFn func(opts HandlerOptions) HandlerOptions
+
+// CustomHandlerOptions is a list of custom handler options.
+type CustomHandlerOptions struct {
+	CustomHandlers    []CustomHandler
+	OptionTransformFn OptionTransformFn
+}
 
 // CustomHandler allows for custom third party http handlers.
 type CustomHandler interface {
@@ -51,6 +61,10 @@ type CustomHandler interface {
 	// Handler is the custom handler itself.
 	Handler(handlerOptions HandlerOptions) (http.Handler, error)
 }
+
+// RemoteReadRenderer renders remote read output.
+type RemoteReadRenderer func(io.Writer, []*ts.Series,
+	models.RequestParams, bool)
 
 // HandlerOptions represents handler options.
 type HandlerOptions interface {
@@ -137,7 +151,7 @@ type HandlerOptions interface {
 	// SetNowFn sets the now function.
 	SetNowFn(f clock.NowFn) HandlerOptions
 
-	// InstrumentOpts returns the instrumentation optoins.
+	// InstrumentOpts returns the instrumentation options.
 	InstrumentOpts() instrument.Options
 	// SetInstrumentOpts sets instrumentation options.
 	SetInstrumentOpts(opts instrument.Options) HandlerOptions
@@ -190,17 +204,11 @@ func NewHandlerOptions(
 	placementServiceNames []string,
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
 ) (HandlerOptions, error) {
-	var timeoutOpts = &prometheus.TimeoutOpts{}
-	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
-		timeoutOpts.FetchTimeout = defaultTimeout
-	} else {
-		timeout := *embeddedDbCfg.Client.FetchTimeout
-		if timeout <= 0 {
-			return nil,
-				fmt.Errorf("m3db client fetch timeout should be > 0, is %d", timeout)
-		}
-
-		timeoutOpts.FetchTimeout = timeout
+	timeout := cfg.Query.TimeoutOrDefault()
+	if embeddedDbCfg != nil &&
+		embeddedDbCfg.Client.FetchTimeout != nil &&
+		*embeddedDbCfg.Client.FetchTimeout > timeout {
+		timeout = *embeddedDbCfg.Client.FetchTimeout
 	}
 
 	return &handlerOptions{
@@ -213,7 +221,6 @@ func NewHandlerOptions(
 		embeddedDbCfg:         embeddedDbCfg,
 		createdAt:             time.Now(),
 		tagOptions:            tagOptions,
-		timeoutOpts:           timeoutOpts,
 		enforcer:              enforcer,
 		fetchOptionsBuilder:   fetchOptionsBuilder,
 		queryContextOptions:   queryContextOptions,
@@ -222,6 +229,9 @@ func NewHandlerOptions(
 		placementServiceNames: placementServiceNames,
 		serviceOptionDefaults: serviceOptionDefaults,
 		nowFn:                 time.Now,
+		timeoutOpts: &prometheus.TimeoutOpts{
+			FetchTimeout: timeout,
+		},
 	}, nil
 }
 

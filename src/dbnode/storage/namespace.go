@@ -127,7 +127,7 @@ type dbNamespace struct {
 
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
-	reverseIndex    namespaceIndex
+	reverseIndex    NamespaceIndex
 
 	tickWorkers            xsync.WorkerPool
 	tickWorkersConcurrency int
@@ -215,7 +215,10 @@ type databaseNamespaceIndexStatusMetrics struct {
 	numSegments tally.Gauge
 }
 
-func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
+func newDatabaseNamespaceMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) databaseNamespaceMetrics {
 	const (
 		// NB: tally.Timer when backed by a Prometheus Summary type is *very* expensive
 		// for high frequency measurements. Overriding sampling rate for writes to avoid this issue.
@@ -229,18 +232,18 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	statusScope := scope.SubScope("status")
 	indexStatusScope := statusScope.SubScope("index")
 	return databaseNamespaceMetrics{
-		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
-		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", samplingRate),
-		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", samplingRate),
-		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", samplingRate),
-		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
-		write:               instrument.NewMethodMetrics(scope, "write", overrideWriteSamplingRate),
-		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", overrideWriteSamplingRate),
-		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", samplingRate),
-		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", samplingRate),
+		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", opts),
+		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", opts),
+		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", opts),
+		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", opts),
+		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", opts),
+		write:               instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", opts),
+		read:                instrument.NewMethodMetrics(scope, "read", opts),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", opts),
+		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
 		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart:      scope.Counter("bootstrap.start"),
 		bootstrapEnd:        scope.Counter("bootstrap.end"),
@@ -321,7 +324,7 @@ func newDatabaseNamespace(
 	}
 
 	var (
-		index namespaceIndex
+		index NamespaceIndex
 		err   error
 	)
 	if metadata.Options().IndexOptions().Enabled() {
@@ -349,7 +352,7 @@ func newDatabaseNamespace(
 		reverseIndex:           index,
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
-		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
+		metrics:                newDatabaseNamespaceMetrics(scope, iops.TimerOptions()),
 	}
 
 	sl, err := opts.SchemaRegistry().RegisterListener(id, n)
@@ -411,6 +414,10 @@ func (n *dbNamespace) Options() namespace.Options {
 	return n.nopts
 }
 
+func (n *dbNamespace) StorageOptions() Options {
+	return n.opts
+}
+
 func (n *dbNamespace) ID() ident.ID {
 	return n.id
 }
@@ -432,7 +439,7 @@ func (n *dbNamespace) Schema() namespace.SchemaDescr {
 
 func (n *dbNamespace) NumSeries() int64 {
 	var count int64
-	for _, shard := range n.GetOwnedShards() {
+	for _, shard := range n.OwnedShards() {
 		count += shard.NumSeries()
 	}
 	return count
@@ -530,7 +537,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, startTime time.Time) error {
 	n.namespaceReaderMgr.tick()
 
 	// Fetch the owned shards.
-	shards := n.GetOwnedShards()
+	shards := n.OwnedShards()
 	if len(shards) == 0 {
 		return nil
 	}
@@ -765,7 +772,7 @@ func (n *dbNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, er
 		wg           sync.WaitGroup
 		multiErrLock sync.Mutex
 		multiErr     xerrors.MultiError
-		shards       = n.GetOwnedShards()
+		shards       = n.OwnedShards()
 	)
 	for _, shard := range shards {
 		shard := shard
@@ -901,7 +908,7 @@ func (n *dbNamespace) Bootstrap(
 	n.log.Info("bootstrap marking all shards as bootstrapped",
 		zap.Stringer("namespace", n.id),
 		zap.Int("numShards", len(bootstrappedShards)))
-	for _, shard := range n.GetOwnedShards() {
+	for _, shard := range n.OwnedShards() {
 		// Make sure it was bootstrapped during this bootstrap run.
 		shardID := shard.ID()
 		bootstrapped := false
@@ -1017,7 +1024,7 @@ func (n *dbNamespace) WarmFlush(
 	}
 
 	multiErr := xerrors.NewMultiError()
-	shards := n.GetOwnedShards()
+	shards := n.OwnedShards()
 	for _, shard := range shards {
 		if !shard.IsBootstrapped() {
 			n.log.
@@ -1128,20 +1135,36 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	}
 
 	multiErr := xerrors.NewMultiError()
-	shards := n.GetOwnedShards()
+	shards := n.OwnedShards()
 
 	resources, err := newColdFlushReuseableResources(n.opts)
 	if err != nil {
 		return err
 	}
+
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	if err != nil {
+		return err
+	}
+
 	for _, shard := range shards {
-		err := shard.ColdFlush(flushPersist, resources, nsCtx)
+		err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 			// Continue with remaining shards.
 		}
 	}
+
+	if err := onColdFlushNs.Done(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	// TODO: Don't write checkpoints for shards until this time,
+	// otherwise it's possible to cold flush data but then not
+	// have the OnColdFlush processor actually successfully finish.
+	// Should only lay down files once onColdFlush.ColdFlushDone()
+	// finishes without an error.
 
 	res := multiErr.FinalError()
 	n.metrics.flushColdData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
@@ -1163,7 +1186,7 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 		return nil
 	}
 
-	shards := n.GetOwnedShards()
+	shards := n.OwnedShards()
 	err := n.reverseIndex.Flush(flush, shards)
 	n.metrics.flushIndex.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
@@ -1198,7 +1221,7 @@ func (n *dbNamespace) Snapshot(
 	}
 
 	multiErr := xerrors.NewMultiError()
-	shards := n.GetOwnedShards()
+	shards := n.OwnedShards()
 	for _, shard := range shards {
 		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist, nsCtx)
 		if err != nil {
@@ -1300,7 +1323,7 @@ func (n *dbNamespace) Repair(
 	)
 
 	multiErr := xerrors.NewMultiError()
-	shards := n.GetOwnedShards()
+	shards := n.OwnedShards()
 	numShards := len(shards)
 	if numShards > 0 {
 		throttlePerShard = time.Duration(
@@ -1364,7 +1387,7 @@ func (n *dbNamespace) Repair(
 	return multiErr.FinalError()
 }
 
-func (n *dbNamespace) GetOwnedShards() []databaseShard {
+func (n *dbNamespace) OwnedShards() []databaseShard {
 	n.RLock()
 	shards := n.shardSet.AllIDs()
 	databaseShards := make([]databaseShard, len(shards))
@@ -1375,7 +1398,7 @@ func (n *dbNamespace) GetOwnedShards() []databaseShard {
 	return databaseShards
 }
 
-func (n *dbNamespace) GetIndex() (namespaceIndex, error) {
+func (n *dbNamespace) Index() (NamespaceIndex, error) {
 	n.RLock()
 	defer n.RUnlock()
 	if !n.metadata.Options().IndexOptions().Enabled() {

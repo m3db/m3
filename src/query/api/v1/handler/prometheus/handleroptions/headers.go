@@ -28,37 +28,59 @@ import (
 )
 
 const (
+	// M3HeaderPrefix is the prefix all M3-specific headers that affect query or
+	// write behavior (not necessarily m3admin headers) are guaranteed to have.
+	M3HeaderPrefix = "M3-"
+
 	// WarningsHeader is the M3 warnings header when to display a warning to a user.
-	WarningsHeader = "M3-Warnings"
+	WarningsHeader = M3HeaderPrefix + "Warnings"
 
 	// RetryHeader is the M3 retry header to display when it is safe to retry.
-	RetryHeader = "M3-Retry"
+	RetryHeader = M3HeaderPrefix + "Retry"
 
 	// ServedByHeader is the M3 query storage execution breakdown.
-	ServedByHeader = "M3-Storage-By"
+	ServedByHeader = M3HeaderPrefix + "Storage-By"
 
 	// DeprecatedHeader is the M3 deprecated header.
-	DeprecatedHeader = "M3-Deprecated"
+	DeprecatedHeader = M3HeaderPrefix + "Deprecated"
 
 	// MetricsTypeHeader sets the write or read metrics type to restrict
 	// metrics to.
 	// Valid values are "unaggregated" or "aggregated".
-	MetricsTypeHeader = "M3-Metrics-Type"
+	MetricsTypeHeader = M3HeaderPrefix + "Metrics-Type"
+
+	// WriteTypeHeader is a header that controls if default
+	// writes should be written to both unaggregated and aggregated
+	// namespaces, or if unaggregated values are skipped and
+	// only aggregated values are written.
+	// Valid values are "default" or "aggregate".
+	WriteTypeHeader = M3HeaderPrefix + "Write-Type"
+
+	// DefaultWriteType is the default write type.
+	DefaultWriteType = "default"
+
+	// AggregateWriteType is the aggregate write type. This writes to
+	// only aggregated namespaces
+	AggregateWriteType = "aggregate"
 
 	// MetricsStoragePolicyHeader specifies the resolution and retention of
 	// metrics being written or read.
 	// In the form of a storage policy string, e.g. "1m:14d".
 	// Only required if the metrics type header does not specify unaggregated
 	// metrics type.
-	MetricsStoragePolicyHeader = "M3-Storage-Policy"
+	MetricsStoragePolicyHeader = M3HeaderPrefix + "Storage-Policy"
 
 	// RestrictByTagsJSONHeader provides tag options to enforces on queries,
 	// in JSON format. See `handler.stringTagOptions` for definitions.`
-	RestrictByTagsJSONHeader = "M3-Restrict-By-Tags-JSON"
+	RestrictByTagsJSONHeader = M3HeaderPrefix + "Restrict-By-Tags-JSON"
+
+	// MapTagsByJSONHeader provides the ability to mutate tags of timeseries in
+	// incoming write requests. See `MapTagsOptions` for structure.
+	MapTagsByJSONHeader = M3HeaderPrefix + "Map-Tags-JSON"
 
 	// LimitMaxSeriesHeader is the M3 limit timeseries header that limits
 	// the number of time series returned by each storage node.
-	LimitMaxSeriesHeader = "M3-Limit-Max-Series"
+	LimitMaxSeriesHeader = M3HeaderPrefix + "Limit-Max-Series"
 
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
@@ -80,7 +102,7 @@ const (
 	HeaderForce = "Force"
 
 	// LimitHeader is the header added when returned series are limited.
-	LimitHeader = "M3-Results-Limited"
+	LimitHeader = M3HeaderPrefix + "Results-Limited"
 
 	// LimitHeaderSeriesLimitApplied is the header applied when fetch results are
 	// maxed.

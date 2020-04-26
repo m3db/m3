@@ -128,7 +128,7 @@ func (it *unaggregatedIterator) decodeMessage(size int) error {
 		it.err = err
 		return err
 	}
-	resetMetricWithMetadatasProto(&it.pb)
+	ReuseMetricWithMetadatasProto(&it.pb)
 	if err := it.pb.Unmarshal(it.buf[:size]); err != nil {
 		it.err = err
 		return err
@@ -149,6 +149,12 @@ func (it *unaggregatedIterator) decodeMessage(size int) error {
 	case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA:
 		it.msg.Type = encoding.TimedMetricWithMetadataType
 		it.err = it.msg.TimedMetricWithMetadata.FromProto(it.pb.TimedMetricWithMetadata)
+	case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS:
+		it.msg.Type = encoding.TimedMetricWithMetadatasType
+		it.err = it.msg.TimedMetricWithMetadatas.FromProto(it.pb.TimedMetricWithMetadatas)
+	case metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_STORAGE_POLICY:
+		it.msg.Type = encoding.PassthroughMetricWithMetadataType
+		it.err = it.msg.PassthroughMetricWithMetadata.FromProto(it.pb.TimedMetricWithStoragePolicy)
 	default:
 		it.err = fmt.Errorf("unrecognized message type: %v", it.pb.Type)
 	}

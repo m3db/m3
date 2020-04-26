@@ -203,7 +203,9 @@ func TestForEachInfoFile(t *testing.T) {
 			shard:          shard,
 		},
 		testReaderBufferSize,
-		func(fname string, _ FileSetFileIdentifier, data []byte) {
+		func(file FileSetFile, data []byte) {
+			fname, ok := file.InfoFilePath()
+			require.True(t, ok)
 			fnames = append(fnames, fname)
 			res = append(res, data...)
 		})
@@ -840,7 +842,7 @@ func TestSnapshotFileHasCompleteCheckpointFile(t *testing.T) {
 
 	// Check validates a valid checkpoint file
 	f := FileSetFile{
-		AbsoluteFilepaths: []string{checkpointFilePath},
+		AbsoluteFilePaths: []string{checkpointFilePath},
 	}
 	require.Equal(t, true, f.HasCompleteCheckpointFile())
 
@@ -848,14 +850,14 @@ func TestSnapshotFileHasCompleteCheckpointFile(t *testing.T) {
 	err = ioutil.WriteFile(checkpointFilePath, []byte{42}, defaultNewFileMode)
 	require.NoError(t, err)
 	f = FileSetFile{
-		AbsoluteFilepaths: []string{checkpointFilePath},
+		AbsoluteFilePaths: []string{checkpointFilePath},
 	}
 	require.Equal(t, false, f.HasCompleteCheckpointFile())
 
 	// Check ignores index file path
 	indexFilePath := path.Join(dir, "123-index-0.db")
 	f = FileSetFile{
-		AbsoluteFilepaths: []string{indexFilePath},
+		AbsoluteFilePaths: []string{indexFilePath},
 	}
 	require.Equal(t, false, f.HasCompleteCheckpointFile())
 }
@@ -1113,7 +1115,7 @@ func TestSnapshotFileSnapshotTimeAndIDZeroValue(t *testing.T) {
 
 func TestSnapshotFileSnapshotTimeAndIDNotSnapshot(t *testing.T) {
 	f := FileSetFile{}
-	f.AbsoluteFilepaths = []string{"/var/lib/m3db/data/fileset-data.db"}
+	f.AbsoluteFilePaths = []string{"/var/lib/m3db/data/fileset-data.db"}
 	_, _, err := f.SnapshotTimeAndID()
 	require.Error(t, err)
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -161,7 +161,7 @@ type dbShard struct {
 	namespaceReaderMgr       databaseNamespaceReaderManager
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
-	reverseIndex             namespaceIndex
+	reverseIndex             NamespaceIndex
 	insertQueue              *dbShardInsertQueue
 	lookup                   *shardMap
 	list                     *list.List
@@ -248,7 +248,7 @@ func newDatabaseShard(
 	blockRetriever block.DatabaseBlockRetriever,
 	namespaceReaderMgr databaseNamespaceReaderManager,
 	increasingIndex increasingIndex,
-	reverseIndex namespaceIndex,
+	reverseIndex NamespaceIndex,
 	needsBootstrap bool,
 	opts Options,
 	seriesOpts series.Options,
@@ -1651,6 +1651,11 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		if err := proto.Unmarshal(encodedPageToken, token); err != nil {
 			return nil, nil, xerrors.NewInvalidParamsError(errShardInvalidPageToken)
 		}
+	} else {
+		// NB(bodu): Allow callers to specify that they only want results from disk.
+		if opts.OnlyDisk {
+			token.FlushedSeriesPhase = &pagetoken.PageToken_FlushedSeriesPhase{}
+		}
 	}
 
 	// NB(r): If returning mixed in memory and disk results, then we return anything
@@ -2182,6 +2187,7 @@ func (s *dbShard) ColdFlush(
 	flushPreparer persist.FlushPreparer,
 	resources coldFlushReuseableResources,
 	nsCtx namespace.Context,
+	onFlush persist.OnFlushSeries,
 ) error {
 	// We don't flush data when the shard is still bootstrapping.
 	s.RLock()
@@ -2279,7 +2285,7 @@ func (s *dbShard) ColdFlush(
 		}
 
 		nextVersion := coldVersion + 1
-		err = merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx)
+		err = merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx, onFlush)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
