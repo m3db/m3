@@ -1,14 +1,13 @@
 +++
 title = "How To Guides"
 date = 2020-04-01T19:26:56-04:00
-weight = 3
+weight = 5
 chapter = true
-pre = "<b>3. </b>"
+pre = "<b>5. </b>"
 +++
 
-### Section 3
+### Section 4
 
 # How To Guides
 
-Aggregation, Sending Metrics (for Prometheus and Graphite), and Querying (for Prometheus and Graphite)
 
