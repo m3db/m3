@@ -49,6 +49,17 @@ func (m MatchType) String() string {
 	}
 }
 
+// Clone clones a matcher object.
+func (m Matcher) Clone() Matcher {
+	return Matcher{
+		Type:  m.Type,
+		Name:  append(make([]byte, len(m.Name)), m.Name...),
+		Value: append(make([]byte, len(m.Value)), m.Value...),
+
+		re: m.re,
+	}
+}
+
 // NewMatcher returns a matcher object.
 func NewMatcher(t MatchType, n, v []byte) (Matcher, error) {
 	m := Matcher{
