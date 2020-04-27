@@ -67,6 +67,18 @@ const (
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
 
+	// NSPrepareBootstrap is the operation name for the dbNamespace PrepareBootstrap path.
+	NSPrepareBootstrap = "storage.dbNamespace.PrepareBootstrap"
+
+	// NSBootstrap is the operation name for the dbNamespace Bootstrap path.
+	NSBootstrap = "storage.dbNamespace.Bootstrap"
+
+	// ShardPrepareBootstrap is the operation name for the dbShard PrepareBootstrap path.
+	ShardPrepareBootstrap = "storage.dbShard.PrepareBootstrap"
+
+	// ShardBootstrap is the operation name for the dbShard Bootstrap path.
+	ShardBootstrap = "storage.dbShard.Bootstrap"
+
 	// NSIdxQuery is the operation name for the nsIndex Query path.
 	NSIdxQuery = "storage.nsIndex.Query"
 
@@ -87,4 +99,19 @@ const (
 
 	// BlockAggregate is the operation name for the index block aggregate path.
 	BlockAggregate = "storage/index.block.Aggregate"
+
+	// BootstrapProcessRun is the operation name for the bootstrap process Run path.
+	BootstrapProcessRun = "bootstrap.bootstrapProcess.Run"
+
+	// BootstrapperUninitializedSourceRead is the operation for the uninitializedTopologySource Read path.
+	BootstrapperUninitializedSourceRead = "bootstrapper.uninitialized.uninitializedTopologySource.Read"
+
+	// BootstrapperCommitLogSourceRead is the operation for the commit log Read path.
+	BootstrapperCommitLogSourceRead = "bootstrapper.commitlog.commitLogSource.Read"
+
+	// BootstrapperPeersSourceRead is the operation for the peers Read path.
+	BootstrapperPeersSourceRead = "bootstrapper.peers.peersSource.Read"
+
+	// BootstrapperFilesystemSourceRead is the operation for the peers Read path.
+	BootstrapperFilesystemSourceRead = "bootstrapper.fs.filesystemSource.Read"
 )

@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/x/context"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -75,6 +76,7 @@ func (b baseBootstrapper) String() string {
 }
 
 func (b baseBootstrapper) Bootstrap(
+	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
 	logFields := []zapcore.Field{
@@ -135,7 +137,7 @@ func (b baseBootstrapper) Bootstrap(
 	b.log.Info("bootstrap from source started", logFields...)
 
 	// Run the bootstrap source.
-	currResults, err := b.src.Read(curr)
+	currResults, err := b.src.Read(ctx, curr)
 
 	logFields = append(logFields, zap.Duration("took", nowFn().Sub(begin)))
 	if err != nil {
@@ -164,7 +166,7 @@ func (b baseBootstrapper) Bootstrap(
 	// If there are some time ranges the current bootstrapper could not fulfill,
 	// that we can attempt then pass it along to the next bootstrapper.
 	if next.Namespaces.Len() > 0 {
-		nextResults, err := b.next.Bootstrap(next)
+		nextResults, err := b.next.Bootstrap(ctx, next)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
