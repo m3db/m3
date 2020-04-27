@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +64,7 @@ func newTestBootstrapperSource(
 	if opts.read != nil {
 		src.read = opts.read
 	} else {
-		src.read = func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error) {
+		src.read = func(ctx context.Context, namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error) {
 			return bootstrap.NewNamespaceResults(namespaces), nil
 		}
 	}
@@ -100,7 +101,7 @@ type testBootstrapper struct {
 type testBootstrapperSourceOptions struct {
 	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
 	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	read           func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error)
+	read           func(ctx context.Context, namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error)
 }
 
 var _ bootstrap.Source = &testBootstrapperSource{}
@@ -108,7 +109,7 @@ var _ bootstrap.Source = &testBootstrapperSource{}
 type testBootstrapperSource struct {
 	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
 	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	read           func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error)
+	read           func(ctx context.Context, namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error)
 }
 
 func (t testBootstrapperSource) AvailableData(
@@ -128,9 +129,10 @@ func (t testBootstrapperSource) AvailableIndex(
 }
 
 func (t testBootstrapperSource) Read(
+	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
-	return t.read(namespaces)
+	return t.read(ctx, namespaces)
 }
 
 func (t testBootstrapperSource) String() string {
