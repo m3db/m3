@@ -21,7 +21,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -53,6 +55,9 @@ func main() {
 		pPromAddress  = flag.String("promAdress", "0.0.0.0:9090", "prom address")
 		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201", "query address")
 
+		pComparatorAddress = flag.String("comparator", "", "comparator address")
+		pRegressionDir     = flag.String("regressionDir", "", "optional directory for regression tests")
+
 		pStart = flag.Int64("s", now.Add(time.Hour*-3).Unix(), "start time")
 		pEnd   = flag.Int64("e", now.Unix(), "start end")
 	)
@@ -63,9 +68,14 @@ func main() {
 		promAddress  = *pPromAddress
 		queryAddress = *pQueryAddress
 
+		regressionDir     = *pRegressionDir
+		comparatorAddress = *pComparatorAddress
+
 		start = *pStart
 		end   = *pEnd
 	)
+
+	fmt.Println(queryFile, start, end)
 
 	if len(queryFile) == 0 {
 		paramError("No query found", log)
@@ -106,9 +116,114 @@ func main() {
 	}
 
 	if multiErr.LastError() != nil {
-		log.Error("mismatched queries detected")
-		os.Exit(1)
+		log.Error("mismatched queries detected in base queries")
+		if len(regressionDir) == 0 {
+			log.Info("no regression directory supplied.")
+			os.Exit(1)
+		}
 	}
+
+	err := runRegressionSuite(regressionDir, comparatorAddress,
+		promAddress, queryAddress, log)
+	if err != nil {
+		log.Error("failure or mismatched queries detected in regression suite",
+			zap.Error(err))
+		os.Exit(1)
+	} else {
+		log.Info("regression success")
+	}
+}
+
+func runRegressionSuite(
+	regressionDir string,
+	comparatorAddress string,
+	promAddress string,
+	queryAddress string,
+	log *zap.Logger,
+) error {
+	fmt.Println("dir", regressionDir, "add", comparatorAddress)
+	if len(regressionDir) == 0 {
+		log.Info("no regression directory supplied.")
+		return nil
+	}
+
+	if len(comparatorAddress) == 0 {
+		err := errors.New("no comparator address")
+		log.Error("regression turned on but no comparator address", zap.Error(err))
+		return err
+	}
+
+	regressions, err := utils.ParseRegressionFilesToPromQLQueryGroup(regressionDir, log)
+	if err != nil {
+		log.Error("could not parse regressions to PromQL queries", zap.Error(err))
+		return err
+	}
+
+	var multiErr xerrors.MultiError
+	for _, regressionGroup := range regressions {
+		if err := runRegression(
+			regressionGroup,
+			comparatorAddress,
+			promAddress,
+			queryAddress,
+			log,
+		); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	if err := multiErr.LastError(); err != nil {
+		log.Error("mismatched queries detected in regression queries", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func runRegression(
+	queryGroup utils.PromQLRegressionQueryGroup,
+	comparatorAddress string,
+	promAddress string,
+	queryAddress string,
+	log *zap.Logger,
+) error {
+	log.Info("running query group", zap.String("group", queryGroup.QueryGroup))
+
+	data, err := json.Marshal(queryGroup.Data)
+	if err != nil {
+		log.Error("could not marshall data", zap.Error(err))
+		return err
+	}
+
+	comparatorURL := fmt.Sprintf("http://%s", comparatorAddress)
+	resp, err := http.Post(comparatorURL, "application/json", bytes.NewReader(data))
+	if err != nil {
+		log.Error("could not seed regression data", zap.Error(err))
+		return err
+	}
+
+	if resp.StatusCode/200 != 1 {
+		log.Error("seed status code not 2XX",
+			zap.Int("code", resp.StatusCode),
+			zap.String("status", resp.Status))
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+
+	var multiErr xerrors.MultiError
+	for _, query := range queryGroup.Queries {
+		promURL := fmt.Sprintf("http://%s%s", promAddress, query)
+		queryURL := fmt.Sprintf("http://%s%s", queryAddress, query)
+		if err := runComparison(promURL, queryURL, log); err != nil {
+			multiErr = multiErr.Add(err)
+			log.Error(
+				"mismatched query",
+				zap.String("promURL", promURL),
+				zap.String("queryURL", queryURL),
+			)
+		}
+	}
+
+	return multiErr.FinalError()
 }
 
 func runQueryGroup(
