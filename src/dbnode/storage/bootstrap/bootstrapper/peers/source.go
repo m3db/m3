@@ -62,6 +62,7 @@ type peersSource struct {
 }
 
 type persistenceFlush struct {
+	wg                *sync.WaitGroup
 	nsMetadata        namespace.Metadata
 	shard             uint32
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
@@ -296,7 +297,7 @@ func (s *peersSource) readData(
 		wg.Add(1)
 		workers.Go(func() {
 			defer wg.Done()
-			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata, session,
+			s.fetchBootstrapBlocksFromPeers(&wg, shard, ranges, nsMetadata, session,
 				accumulator, resultOpts, result, &resultLock, shouldPersist,
 				persistenceQueue, shardRetrieverMgr, blockSize)
 		})
@@ -328,27 +329,45 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 	// If performing a bootstrap with persistence enabled then flush one
 	// at a time as shard results are gathered.
 	for flush := range persistenceQueue {
-		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
-			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
-		if err == nil {
-			continue
-		}
-
-		// Remove results and make unfulfilled if an error occurred.
-		s.log.Error("peers bootstrapper bootstrap with persistence flush encountered error",
-			zap.Error(err))
-
-		// Make unfulfilled.
-		lock.Lock()
-		unfulfilled := bootstrapResult.Unfulfilled().Copy()
-		unfulfilled.AddRanges(result.NewShardTimeRanges().Set(
-			flush.shard,
-			xtime.NewRanges(flush.timeRange),
-		))
-		bootstrapResult.SetUnfulfilled(unfulfilled)
-		lock.Unlock()
+		s.handlePersistenceFlush(
+			opts,
+			flush,
+			persistFlush,
+			bootstrapResult,
+			lock,
+		)
 	}
 	close(doneCh)
+}
+
+func (s *peersSource) handlePersistenceFlush(
+	opts bootstrap.RunOptions,
+	flush persistenceFlush,
+	persistFlush persist.FlushPreparer,
+	bootstrapResult result.DataBootstrapResult,
+	lock *sync.Mutex,
+) {
+	defer flush.wg.Done()
+	err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
+		flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
+	if err == nil {
+		// NB(bodu): We only considered the peers bootstrapper's work to be done AFTER it flushes everything to disk.
+		return
+	}
+
+	// Remove results and make unfulfilled if an error occurred.
+	s.log.Error("peers bootstrapper bootstrap with persistence flush encountered error",
+		zap.Error(err))
+
+	// Make unfulfilled.
+	lock.Lock()
+	unfulfilled := bootstrapResult.Unfulfilled().Copy()
+	unfulfilled.AddRanges(result.NewShardTimeRanges().Set(
+		flush.shard,
+		xtime.NewRanges(flush.timeRange),
+	))
+	bootstrapResult.SetUnfulfilled(unfulfilled)
+	lock.Unlock()
 }
 
 // fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
@@ -358,6 +377,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 // 						  persistenceQueue. The persistenceQueue worker will eventually
 // 						  add the results once its performed the flush.
 func (s *peersSource) fetchBootstrapBlocksFromPeers(
+	wg *sync.WaitGroup,
 	shard uint32,
 	ranges xtime.Ranges,
 	nsMetadata namespace.Metadata,
@@ -395,7 +415,10 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			}
 
 			if shouldPersist {
+				// NB(bodu): Add an additional wait on any flush work that needs to be done.
+				wg.Add(1)
 				persistenceQueue <- persistenceFlush{
+					wg:                wg,
 					nsMetadata:        nsMetadata,
 					shard:             shard,
 					shardRetrieverMgr: shardRetrieverMgr,
