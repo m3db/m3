@@ -1175,10 +1175,10 @@ type shardedHostQueue struct {
 func newShardedHostQueue(
 	host topology.Host,
 	hostQueueOpts hostQueueOpts,
-	numShards int,
 ) (hostQueue, error) {
-	queues := make([]hostQueue, 0, numShards)
-	for i := 0; i < numShards; i++ {
+	opts := hostQueueOpts.opts
+	queues := make([]hostQueue, 0, opts.HostQueueShards())
+	for i := 0; i < opts.HostQueueShards(); i++ {
 		queue, err := newHostQueue(host, hostQueueOpts)
 		if err != nil {
 			return nil, err
@@ -1193,9 +1193,16 @@ func newShardedHostQueue(
 
 // Open the host queue.
 func (q *shardedHostQueue) Open() {
+	var wg sync.WaitGroup
 	for _, elem := range q.queues {
-		elem.Open()
+		elem := elem
+		wg.Add(1)
+		go func() {
+			elem.Open()
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 }
 
 // Len returns the length of the queue.

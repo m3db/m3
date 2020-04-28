@@ -85,6 +85,9 @@ const (
 	// defaultTruncateRequestTimeout is the default truncate request timeout
 	defaultTruncateRequestTimeout = 60 * time.Second
 
+	// defaultHostQueueShards is the number of host queue shards to use by default.
+	defaultHostQueueShards = 1
+
 	// defaultIdentifierPoolSize is the default identifier pool size
 	defaultIdentifierPoolSize = 8192
 
@@ -241,6 +244,7 @@ type options struct {
 	tagDecoderPoolSize                      int
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
+	hostQueueShards                         int
 	streamBlocksRetrier                     xretry.Retrier
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                  int
@@ -342,6 +346,7 @@ func newOptions() *options {
 		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
 		writeRetrier:                            defaultWriteRetrier,
 		fetchRetrier:                            defaultFetchRetrier,
+		hostQueueShards:                         defaultHostQueueShards,
 		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
 		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
 		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
@@ -677,6 +682,16 @@ func (o *options) SetFetchRetrier(value xretry.Retrier) Options {
 
 func (o *options) FetchRetrier() xretry.Retrier {
 	return o.fetchRetrier
+}
+
+func (o *options) SetHostQueueShards(value int) Options {
+	opts := *o
+	opts.hostQueueShards = value
+	return &opts
+}
+
+func (o *options) HostQueueShards() int {
+	return o.hostQueueShards
 }
 
 func (o *options) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {

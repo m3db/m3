@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	goruntime "runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -241,13 +240,13 @@ type hostQueueOpts struct {
 	writeTaggedBatchRawV2RequestElementArrayPool writeTaggedBatchRawV2RequestElementArrayPool
 	fetchBatchRawV2RequestPool                   fetchBatchRawV2RequestPool
 	fetchBatchRawV2RequestElementArrayPool       fetchBatchRawV2RequestElementArrayPool
+	numShards                                    int
 	opts                                         Options
 }
 
 type newHostQueueFn func(
 	host topology.Host,
 	hostQueueOpts hostQueueOpts,
-	numShards int,
 ) (hostQueue, error)
 
 func newSession(opts Options) (clientSession, error) {
@@ -957,8 +956,6 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 	fetchBatchRawV2RequestElementArrayPool := newFetchBatchRawV2RequestElementArrayPool(fetchBatchRawV2RequestElementArrayPoolOpts, s.opts.FetchBatchSize())
 	fetchBatchRawV2RequestElementArrayPool.Init()
 
-	queueShards := int(math.Max(1, float64(goruntime.NumCPU())/2.0))
-
 	hostQueue, err := s.newHostQueueFn(host, hostQueueOpts{
 		writeBatchRawRequestPool:                     writeBatchRequestPool,
 		writeBatchRawV2RequestPool:                   writeBatchV2RequestPool,
@@ -971,7 +968,7 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 		fetchBatchRawV2RequestPool:                   fetchBatchRawV2RequestPool,
 		fetchBatchRawV2RequestElementArrayPool:       fetchBatchRawV2RequestElementArrayPool,
 		opts:                                         s.opts,
-	}, queueShards)
+	})
 	if err != nil {
 		return nil, err
 	}
