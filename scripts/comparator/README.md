@@ -19,3 +19,46 @@ This docker-compose file will setup the following environment:
 ## Grafana
 
 Use Grafana by navigating to `http://localhost:3000` and using `admin` for both the username and password. The dashboard should already be populated and working, it should be named `Dashboard <git-reference>`.
+
+## Comparator tests diagram
+
+```
+                    ┌───────────────────┐                            
+                    │                   │                            
+                    │ m3comparator      │                            
+                    │                   │                            
+                    │   1. random data  │                            
+                    │   2. loaded data  │                            
+                    │                   │ ┌───────────────┐          
+                    └───────────────────┘ │   raw data    │          
+                              ▲           │ (GRPC M3Query │          
+                              │           │Remote Storage)│          
+                              │           └───────────────┘          
+                              └──────────────────────────┐           
+                                                         │           
+                                                         │           
+                                                         │           
+┌───────────────────────┐                     ┌─────────────────────┐
+│                       │                     │                     │
+│                       │                     │                     │
+│                       │                     │                     │
+│     prometheus        │────────────────────▶│      m3query        │
+│                       │  ┌────────────┐     │                     │
+│                       │  │  raw data  │     │                     │
+│                       │  │(Prom Remote│     │                     │
+└───────────────────────┘  │   Read)    │     └─────────────────────┘
+            ▲              └────────────┘                ▲           
+            │                                            │           
+            │                                            │           
+            │                                            │           
+            └────────────────────┬───────────────────────┘           
+    ┌───────────┐                │                ┌───────────┐      
+    │   query   │                │                │   query   │      
+    │ (PromQL)  │                │                │ (PromQL)  │      
+    └───────────┘                │                └───────────┘      
+                          ┌────────────┐                             
+                          │            │                             
+                          │ compare.go │                             
+                          │            │                             
+                          └────────────┘                             
+```
