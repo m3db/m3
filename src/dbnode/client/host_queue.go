@@ -1165,3 +1165,86 @@ func (s namespaceWriteTaggedBatchOpsSlice) resetAt(
 	s[index].ops = nil
 	s[index].elems = nil
 }
+
+var _ hostQueue = (*shardedHostQueue)(nil)
+
+type shardedHostQueue struct {
+	queues []hostQueue
+}
+
+func newShardedHostQueue(
+	host topology.Host,
+	hostQueueOpts hostQueueOpts,
+	numShards int,
+) (hostQueue, error) {
+	queues := make([]hostQueue, 0, numShards)
+	for i := 0; i < numShards; i++ {
+		queue, err := newHostQueue(host, hostQueueOpts)
+		if err != nil {
+			return nil, err
+		}
+		queues = append(queues, queue)
+	}
+
+	return &shardedHostQueue{
+		queues: queues,
+	}, nil
+}
+
+// Open the host queue.
+func (q *shardedHostQueue) Open() {
+	for _, elem := range q.queues {
+		elem.Open()
+	}
+}
+
+// Len returns the length of the queue.
+func (q *shardedHostQueue) Len() int {
+	total := 0
+	for _, elem := range q.queues {
+		total += elem.Len()
+	}
+	return total
+}
+
+// Enqueue an operation.
+func (q *shardedHostQueue) Enqueue(op op) error {
+	var shard int
+	if write, ok := op.(writeOp); ok {
+		shard = int(write.ShardID())
+	}
+
+	queue := q.queues[shard%len(q.queues)]
+	return queue.Enqueue(op)
+}
+
+// Host gets the host.
+func (q *shardedHostQueue) Host() topology.Host {
+	return q.queues[0].Host()
+}
+
+// ConnectionCount gets the current open connection count.
+func (q *shardedHostQueue) ConnectionCount() int {
+	total := 0
+	for _, elem := range q.queues {
+		total += elem.ConnectionCount()
+	}
+	return total
+}
+
+// ConnectionPool gets the connection pool.
+func (q *shardedHostQueue) ConnectionPool() connectionPool {
+	return q.queues[0].ConnectionPool()
+}
+
+// BorrowConnection will borrow a connection and execute a user function.
+func (q *shardedHostQueue) BorrowConnection(fn withConnectionFn) error {
+	return q.queues[0].BorrowConnection(fn)
+}
+
+// Close the host queue, will flush any operations still pending.
+func (q *shardedHostQueue) Close() {
+	for _, elem := range q.queues {
+		elem.Close()
+	}
+}
