@@ -1230,13 +1230,25 @@ func (q *shardedHostQueue) Host() topology.Host {
 	return q.queues[0].Host()
 }
 
-// ConnectionCount gets the current open connection count.
+// ConnectionCount gets the current open connection count,
+// for a sharded host queue we return the minimum
+// connections for a given host so it's not estimated to
+// have a connection count higher than the "worst" host queue.
+// This is due to fact that connection count is used to determine
+// whether the set of queues is ready to write to or not.
 func (q *shardedHostQueue) ConnectionCount() int {
-	total := 0
+	min := 0
 	for _, elem := range q.queues {
-		total += elem.ConnectionCount()
+		value := elem.ConnectionCount()
+		if min == 0 {
+			min = value
+			continue
+		}
+		if value < min {
+			min = value
+		}
 	}
-	return total
+	return min
 }
 
 // ConnectionPool gets the connection pool.
