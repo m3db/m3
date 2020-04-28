@@ -123,9 +123,8 @@ func main() {
 		}
 	}
 
-	err := runRegressionSuite(regressionDir, comparatorAddress,
-		promAddress, queryAddress, log)
-	if err != nil {
+	if err := runRegressionSuite(regressionDir, comparatorAddress,
+		promAddress, queryAddress, log); err != nil {
 		log.Error("failure or mismatched queries detected in regression suite",
 			zap.Error(err))
 		os.Exit(1)
