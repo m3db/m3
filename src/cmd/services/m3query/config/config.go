@@ -551,7 +551,7 @@ type ExperimentalAPIConfiguration struct {
 // allows running multiple sub-processes of an instance reusing the
 // same listen ports.
 type MultiProcessConfiguration struct {
-	// Enabled is whether ot enable multi-process execution.
+	// Enabled is whether to enable multi-process execution.
 	Enabled bool `yaml:"enabled"`
 	// Count is the number of sub-processes to run, leave zero
 	// to auto-detect based on number of CPUs.

@@ -21,7 +21,6 @@
 package net
 
 import (
-	"fmt"
 	gonet "net"
 
 	"github.com/valyala/tcplisten"
@@ -70,9 +69,7 @@ func (o ListenerOptions) Listen(
 		if protocol == "tcp" {
 			protocol = "tcp4"
 		}
-		fmt.Printf("!! using REUSE port for address=%s\n", address)
 		return reusePortConfig.NewListener(protocol, address)
 	}
-	fmt.Printf("!! using STANDARD port for address=%s\n", address)
 	return gonet.Listen(protocol, address)
 }

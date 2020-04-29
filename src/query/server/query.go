@@ -85,6 +85,7 @@ const (
 	serviceName                = "m3query"
 	cpuProfileDuration         = 5 * time.Second
 	multiProcessInstanceEnvVar = "MULTIPROCESS_INSTANCE"
+	multiProcessParentInstance = "0"
 	multiProcessMetricTagID    = "multiprocess_id"
 	goMaxProcsEnvVar           = "GOMAXPROCS"
 )
@@ -188,14 +189,18 @@ func Run(runOpts RunOptions) {
 	if cfg.MultiProcess.Enabled {
 		multiProcessInstance := os.Getenv(multiProcessInstanceEnvVar)
 		if multiProcessInstance == "" {
-			logger = logger.With(zap.String("processID", "parent"))
-			count := cfg.MultiProcess.Count
-			if count == 0 {
-				perCPU := defaultPerCPUMultiProcess
-				if v := cfg.MultiProcess.PerCPU; v > 0 {
-					perCPU = v
-				}
-				count = int(math.Max(1, float64(runtime.NumCPU())*perCPU))
+			logger = logger.With(zap.String("processID", multiProcessParentInstance))
+
+			perCPU := defaultPerCPUMultiProcess
+			if v := cfg.MultiProcess.PerCPU; v > 0 {
+				// Allow config to override per CPU factor for determining count.
+				perCPU = v
+			}
+
+			count := int(math.Max(1, float64(runtime.NumCPU())*perCPU))
+			if v := cfg.MultiProcess.Count; v > 0 {
+				// Allow config to override per CPU auto derived count.
+				count = v
 			}
 
 			logger.Info("starting multi-process subprocesses",
@@ -211,12 +216,13 @@ func Run(runOpts RunOptions) {
 					defer wg.Done()
 
 					newEnv := []string{
-						fmt.Sprintf("%s=%d", multiProcessInstanceEnvVar, i),
+						fmt.Sprintf("%s=%d", multiProcessInstanceEnvVar, i+1),
 					}
 
 					// Set GOMAXPROCS correctly if configured.
 					if v := cfg.MultiProcess.GoMaxProcs; v > 0 {
-						newEnv = append(newEnv, fmt.Sprintf("%s=%d", goMaxProcsEnvVar, v))
+						newEnv = append(newEnv,
+							fmt.Sprintf("%s=%d", goMaxProcsEnvVar, v))
 					}
 
 					newEnv = append(newEnv, os.Environ()...)
