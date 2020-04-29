@@ -347,11 +347,11 @@ func (s *peersSource) handlePersistenceFlush(
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 ) {
+	// We added an additional wait per flush.
 	defer flush.wg.Done()
 	err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
 		flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 	if err == nil {
-		// NB(bodu): We only considered the peers bootstrapper's work to be done AFTER it flushes everything to disk.
 		return
 	}
 
@@ -416,6 +416,8 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 
 			if shouldPersist {
 				// NB(bodu): Add an additional wait on any flush work that needs to be done.
+				// We only consider the peers bootstrapper's work to be done AFTER it
+				// flushes everything to disk.
 				wg.Add(1)
 				persistenceQueue <- persistenceFlush{
 					wg:                wg,
