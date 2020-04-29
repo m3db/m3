@@ -86,6 +86,7 @@ const (
 	cpuProfileDuration         = 5 * time.Second
 	multiProcessInstanceEnvVar = "MULTIPROCESS_INSTANCE"
 	multiProcessMetricTagID    = "multiprocess_id"
+	goMaxProcsEnvVar           = "GOMAXPROCS"
 )
 
 var (
@@ -210,9 +211,17 @@ func Run(runOpts RunOptions) {
 					defer wg.Done()
 
 					newEnv := []string{
-						fmt.Sprintf("%s=%s",
-							multiProcessInstanceEnvVar, strconv.Itoa(i)),
+						fmt.Sprintf("%s=%d", multiProcessInstanceEnvVar, i),
 					}
+
+					// Try to set GOMAXPROCS correctly if not forced.
+					if os.Getenv(goMaxProcsEnvVar) == "" {
+						autoMaxProcs := int(math.Max(1,
+							math.Ceil(float64(runtime.NumCPU())/float64(count))))
+						newEnv = append(newEnv,
+							fmt.Sprintf("%s=%d", goMaxProcsEnvVar, autoMaxProcs))
+					}
+
 					newEnv = append(newEnv, os.Environ()...)
 
 					opts := panicmon.ExecutorOptions{Env: newEnv}
