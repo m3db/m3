@@ -560,4 +560,6 @@ type MultiProcessConfiguration struct {
 	// zero to use the default of 0.5 per CPU (i.e. one process for
 	// every two CPUs).
 	PerCPU float64 `yaml:"perCPU"`
+	// GoMaxProcs if set will explicitly set the child GOMAXPROCs env var.
+	GoMaxProcs int `yaml:"goMaxProcs"`
 }

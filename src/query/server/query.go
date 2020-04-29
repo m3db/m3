@@ -214,12 +214,9 @@ func Run(runOpts RunOptions) {
 						fmt.Sprintf("%s=%d", multiProcessInstanceEnvVar, i),
 					}
 
-					// Try to set GOMAXPROCS correctly if not forced.
-					if os.Getenv(goMaxProcsEnvVar) == "" {
-						autoMaxProcs := int(math.Max(1,
-							math.Ceil(float64(runtime.NumCPU())/float64(count))))
-						newEnv = append(newEnv,
-							fmt.Sprintf("%s=%d", goMaxProcsEnvVar, autoMaxProcs))
+					// Set GOMAXPROCS correctly if configured.
+					if v := cfg.MultiProcess.GoMaxProcs; v > 0 {
+						newEnv = append(newEnv, fmt.Sprintf("%s=%d", goMaxProcsEnvVar, v))
 					}
 
 					newEnv = append(newEnv, os.Environ()...)
