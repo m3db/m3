@@ -23,12 +23,16 @@ package server
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -61,7 +65,9 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xnet "github.com/m3db/m3/src/x/net"
 	xos "github.com/m3db/m3/src/x/os"
+	"github.com/m3db/m3/src/x/panicmon"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xserver "github.com/m3db/m3/src/x/server"
@@ -76,8 +82,10 @@ import (
 )
 
 const (
-	serviceName        = "m3query"
-	cpuProfileDuration = 5 * time.Second
+	serviceName                = "m3query"
+	cpuProfileDuration         = 5 * time.Second
+	multiProcessInstanceEnvVar = "MULTIPROCESS_INSTANCE"
+	multiProcessMetricTagID    = "multiprocess_id"
 )
 
 var (
@@ -93,6 +101,7 @@ var (
 
 	defaultDownsamplerAndWriterWorkerPoolSize = 1024
 	defaultCarbonIngesterWorkerPoolSize       = 1024
+	defaultPerCPUMultiProcess                 = 0.5
 )
 
 type cleanupFn func() error
@@ -158,7 +167,10 @@ type CustomTSDBOptionsFn func(tsdb.Options) tsdb.Options
 func Run(runOpts RunOptions) {
 	rand.Seed(time.Now().UnixNano())
 
-	cfg := runOpts.Config
+	var (
+		cfg          = runOpts.Config
+		listenerOpts = xnet.NewListenerOptions()
+	)
 
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
@@ -171,6 +183,109 @@ func Run(runOpts RunOptions) {
 	defer logger.Sync()
 
 	xconfig.WarnOnDeprecation(cfg, logger)
+
+	if cfg.MultiProcess.Enabled {
+		multiProcessInstance := os.Getenv(multiProcessInstanceEnvVar)
+		if multiProcessInstance == "" {
+			logger = logger.With(zap.String("processID", "parent"))
+			count := cfg.MultiProcess.Count
+			if count == 0 {
+				perCPU := defaultPerCPUMultiProcess
+				if v := cfg.MultiProcess.PerCPU; v > 0 {
+					perCPU = v
+				}
+				count = int(math.Max(1, float64(runtime.NumCPU())*perCPU))
+			}
+
+			logger.Info("starting multi-process subprocesses",
+				zap.Int("count", count))
+			var (
+				wg       sync.WaitGroup
+				statuses = make([]panicmon.StatusCode, count)
+			)
+			for i := 0; i < count; i++ {
+				i := i
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					newEnv := []string{
+						fmt.Sprintf("%s=%s",
+							multiProcessInstanceEnvVar, strconv.Itoa(i)),
+					}
+					newEnv = append(newEnv, os.Environ()...)
+
+					opts := panicmon.ExecutorOptions{Env: newEnv}
+					exec := panicmon.NewExecutor(opts)
+					status, err := exec.Run(os.Args)
+					if err != nil {
+						logger.Error("process failed", zap.Error(err))
+					}
+
+					statuses[i] = status
+				}()
+			}
+
+			wg.Wait()
+
+			exitNotOk := 0
+			for _, v := range statuses {
+				if v != 0 {
+					exitNotOk++
+				}
+			}
+			if exitNotOk > 0 {
+				logger.Fatal("processes exited with failures",
+					zap.Any("statuses", statuses))
+			}
+			return
+		}
+
+		// Otherwise is already a sub-process, make sure listener options
+		// will reuse ports so multiple processes can listen on the same
+		// listen port.
+		listenerOpts = xnet.NewListenerOptions(xnet.ListenerReusePort(true))
+
+		// Configure instrumentation to be correctly partitioned.
+		logger = logger.With(zap.String("processID", multiProcessInstance))
+
+		instance, err := strconv.Atoi(multiProcessInstance)
+		if err != nil {
+			logger.Fatal("multi-process process ID is non-integer", zap.Error(err))
+		}
+
+		// Set the root scope multi-process process ID.
+		if cfg.Metrics.RootScope == nil {
+			cfg.Metrics.RootScope = &instrument.ScopeConfiguration{}
+		}
+		if cfg.Metrics.RootScope.CommonTags == nil {
+			cfg.Metrics.RootScope.CommonTags = make(map[string]string)
+		}
+		cfg.Metrics.RootScope.CommonTags[multiProcessMetricTagID] = multiProcessInstance
+
+		// Listen on a different Prometheus metrics handler listen port.
+		if cfg.Metrics.PrometheusReporter != nil && cfg.Metrics.PrometheusReporter.ListenAddress != "" {
+			// Simply increment the listen address port by instance number.
+			host, port, err := net.SplitHostPort(cfg.Metrics.PrometheusReporter.ListenAddress)
+			if err != nil {
+				logger.Fatal("could not split host:port for prometheus metrics reporter",
+					zap.Error(err))
+			}
+
+			portValue, err := strconv.Atoi(port)
+			if err != nil {
+				logger.Fatal("prometheus metric reporter port is non-integer",
+					zap.Error(err))
+			}
+			if portValue > 0 {
+				// Increment port value by process ID if valid port.
+				address := net.JoinHostPort(host, strconv.Itoa(portValue+instance))
+				cfg.Metrics.PrometheusReporter.ListenAddress = address
+				logger.Info("multi-process prometheus metrics reporter listen address configured",
+					zap.String("address", address))
+			}
+		}
+	}
 
 	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
@@ -409,7 +524,7 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	listener, err := net.Listen("tcp", listenAddress)
+	listener, err := listenerOpts.Listen("tcp", listenAddress)
 	if err != nil {
 		logger.Fatal("unable to listen on listen address",
 			zap.String("address", listenAddress),
@@ -443,7 +558,7 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("unable to create m3msg server", zap.Error(err))
 		}
 
-		listener, err := net.Listen("tcp", cfg.Ingest.M3Msg.Server.ListenAddress)
+		listener, err := listenerOpts.Listen("tcp", cfg.Ingest.M3Msg.Server.ListenAddress)
 		if err != nil {
 			logger.Fatal("unable to open m3msg server", zap.Error(err))
 		}
@@ -463,8 +578,8 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
-		server, ok := startCarbonIngestion(cfg.Carbon, instrumentOptions,
-			logger, m3dbClusters, downsamplerAndWriter)
+		server, ok := startCarbonIngestion(cfg.Carbon, listenerOpts,
+			instrumentOptions, logger, m3dbClusters, downsamplerAndWriter)
 		if ok {
 			defer server.Close()
 		}
@@ -942,6 +1057,7 @@ func startGRPCServer(
 
 func startCarbonIngestion(
 	cfg *config.CarbonConfiguration,
+	listenerOpts xnet.ListenerOptions,
 	iOpts instrument.Options,
 	logger *zap.Logger,
 	m3dbClusters m3.Clusters,
@@ -1045,7 +1161,9 @@ func startCarbonIngestion(
 
 	// Start server.
 	var (
-		serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
+		serverOpts = xserver.NewOptions().
+				SetInstrumentOptions(carbonIOpts).
+				SetListenerOptions(listenerOpts)
 		carbonListenAddress = ingesterCfg.ListenAddressOrDefault()
 		carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
 	)

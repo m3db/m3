@@ -154,6 +154,9 @@ type Configuration struct {
 	// stanza not able to startup the binary since we parse YAML in strict mode
 	// by default).
 	DeprecatedCache CacheConfiguration `yaml:"cache"`
+
+	// MultiProcess is the multi-process configuration.
+	MultiProcess MultiProcessConfiguration `yaml:"multiProcess"`
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
@@ -542,4 +545,19 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 // ExperimentalAPIConfiguration is the configuration for the experimental API group.
 type ExperimentalAPIConfiguration struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+// MultiProcessConfiguration is the multi-process configuration which
+// allows running multiple sub-processes of an instance reusing the
+// same listen ports.
+type MultiProcessConfiguration struct {
+	// Enabled is whether ot enable multi-process execution.
+	Enabled bool `yaml:"enabled"`
+	// Count is the number of sub-processes to run, leave zero
+	// to auto-detect based on number of CPUs.
+	Count int `yaml:"count"`
+	// PerCPU is the factor of processes to run per CPU, leave
+	// zero to use the default of 0.5 per CPU (i.e. one process for
+	// every two CPUs).
+	PerCPU float64 `yaml:"perCPU"`
 }
