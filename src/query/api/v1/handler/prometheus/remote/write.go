@@ -68,9 +68,6 @@ const (
 
 	// defaultForwardingTimeout is the default forwarding timeout.
 	defaultForwardingTimeout = 15 * time.Second
-
-	// defaultForwardingRetryLimit is the default limit for retrying failed forwards.
-	defaultForwardingRetryLimit = 3
 )
 
 var (
@@ -117,9 +114,10 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		return nil, errNoNowFn
 	}
 
-	metrics, err := newPromWriteMetrics(options.InstrumentOpts().MetricsScope().
-		Tagged(map[string]string{"handler": "remote-write"}),
-	)
+	scope := options.InstrumentOpts().
+		MetricsScope().
+		Tagged(map[string]string{"handler": "remote-write"})
+	metrics, err := newPromWriteMetrics(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -141,9 +139,6 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	forwardHTTPOpts.DisableCompression = true // Already snappy compressed.
 	forwardHTTPOpts.RequestTimeout = forwardTimeout
 
-	forwardRetrierOpts := retry.NewOptions().SetMaxRetries(defaultForwardingRetryLimit)
-	forwardRetrier := retry.NewRetrier(forwardRetrierOpts)
-
 	return &PromWriteHandler{
 		downsamplerAndWriter:   downsamplerAndWriter,
 		tagOptions:             tagOptions,
@@ -152,7 +147,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
 		forwardingBoundWorkers: forwardingBoundWorkers,
 		forwardContext:         context.Background(),
-		forwardRetrier:         forwardRetrier,
+		forwardRetrier:         retry.NewRetrier(forwarding.Retry.NewOptions(scope)),
 		nowFn:                  nowFn,
 		metrics:                metrics,
 		instrumentOpts:         instrumentOpts,
