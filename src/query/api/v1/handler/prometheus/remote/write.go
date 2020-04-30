@@ -260,7 +260,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			target := target // Capture for lambda.
 			forward := func() {
 				if err := h.forwardRetrier.Attempt(func() error {
-					// Consider propgating baggage without tying
+					// Consider propagating baggage without tying
 					// context to request context in future.
 					ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
 					defer cancel()
