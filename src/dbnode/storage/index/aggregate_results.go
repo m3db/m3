@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 const missingDocumentFields = "invalid document fields: empty %s"
@@ -39,9 +38,7 @@ type aggregatedResults struct {
 
 	resultsMap *AggregateResultsMap
 
-	idPool    ident.Pool
-	bytesPool pool.CheckedBytesPool
-
+	idPool     ident.Pool
 	pool       AggregateResultsPool
 	valuesPool AggregateValuesPool
 }
@@ -52,15 +49,21 @@ func NewAggregateResults(
 	aggregateOpts AggregateResultsOptions,
 	opts Options,
 ) AggregateResults {
-	return &aggregatedResults{
+	results := &aggregatedResults{
 		nsID:          namespaceID,
 		aggregateOpts: aggregateOpts,
-		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
-		idPool:        opts.IdentifierPool(),
-		bytesPool:     opts.CheckedBytesPool(),
-		pool:          opts.AggregateResultsPool(),
-		valuesPool:    opts.AggregateValuesPool(),
 	}
+
+	if opts != nil {
+		results.idPool = opts.IdentifierPool()
+		results.pool = opts.AggregateResultsPool()
+		results.valuesPool = opts.AggregateValuesPool()
+		results.resultsMap = newAggregateResultsMap(opts.IdentifierPool())
+	} else {
+		results.resultsMap = newAggregateResultsMap(nil)
+	}
+
+	return results
 }
 
 func (r *aggregatedResults) Reset(
@@ -78,7 +81,15 @@ func (r *aggregatedResults) Reset(
 
 	// make an independent copy of the new nsID
 	if nsID != nil {
-		nsID = r.idPool.Clone(nsID)
+		if r.idPool != nil {
+			nsID = r.idPool.Clone(nsID)
+		} else {
+			// NB: Can copy bytes here since they will be GC'ed
+			// after the result is used.
+			idBytes := nsID.Bytes()
+			b := append(make([]byte, 0, len(idBytes)), idBytes...)
+			nsID = ident.BytesID(b)
+		}
 	}
 	r.nsID = nsID
 
@@ -114,7 +125,11 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) int {
 		f := entry.Field
 		aggValues, ok := r.resultsMap.Get(f)
 		if !ok {
-			aggValues = r.valuesPool.Get()
+			if r.valuesPool != nil {
+				aggValues = r.valuesPool.Get()
+			} else {
+				aggValues = NewAggregateValues(nil)
+			}
 			// we can avoid the copy because we assume ownership of the passed ident.ID,
 			// but still need to finalize it.
 			r.resultsMap.SetUnsafe(f, aggValues, AggregateResultsMapSetUnsafeOptions{
@@ -214,7 +229,14 @@ func (r *aggregatedResults) addTermWithLock(
 
 	// Set results map to an empty AggregateValues since we only care about
 	// existence of the term in the map, rather than its set of values.
-	r.resultsMap.Set(termID, r.valuesPool.Get())
+	var aggValue AggregateValues
+	if r.valuesPool != nil {
+		aggValue = r.valuesPool.Get()
+	} else {
+		aggValue = NewAggregateValues(nil)
+	}
+
+	r.resultsMap.Set(termID, aggValue)
 	return nil
 }
 
@@ -262,11 +284,19 @@ func (r *aggregatedResults) addFieldWithLock(
 		return nil
 	}
 
-	aggValues := r.valuesPool.Get()
-	if err := aggValues.addValue(valueID); err != nil {
-		// Return these values to the pool.
-		r.valuesPool.Put(aggValues)
-		return err
+	var aggValues AggregateValues
+	if r.valuesPool != nil {
+		aggValues = r.valuesPool.Get()
+		if err := aggValues.addValue(valueID); err != nil {
+			// Return these values to the pool.
+			r.valuesPool.Put(aggValues)
+			return err
+		}
+	} else {
+		aggValues = NewAggregateValues(nil)
+		if err := aggValues.addValue(valueID); err != nil {
+			return err
+		}
 	}
 
 	r.resultsMap.Set(termID, aggValues)
@@ -300,5 +330,6 @@ func (r *aggregatedResults) Finalize() {
 		return
 	}
 
+	// ????
 	r.pool.Put(r)
 }

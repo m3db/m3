@@ -132,9 +132,6 @@ var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabl
 // NewOptions returns a new Options object with default properties.
 func NewOptions() Options {
 	resultsPool := NewQueryResultsPool(pool.NewObjectPoolOptions())
-	aggResultsPool := NewAggregateResultsPool(pool.NewObjectPoolOptions())
-	aggValuesPool := NewAggregateValuesPool(pool.NewObjectPoolOptions())
-
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
@@ -168,9 +165,6 @@ func NewOptions() Options {
 		fstOpts:                         fst.NewOptions().SetInstrumentOptions(instrumentOpts),
 		bytesPool:                       bytesPool,
 		idPool:                          idPool,
-		resultsPool:                     resultsPool,
-		aggResultsPool:                  aggResultsPool,
-		aggValuesPool:                   aggValuesPool,
 		docArrayPool:                    docArrayPool,
 		aggResultsEntryArrayPool:        aggResultsEntryArrayPool,
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
@@ -180,10 +174,6 @@ func NewOptions() Options {
 	resultsPool.Init(func() QueryResults {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
 	})
-	aggResultsPool.Init(func() AggregateResults {
-		return NewAggregateResults(nil, AggregateResultsOptions{}, opts)
-	})
-	aggValuesPool.Init(func() AggregateValues { return NewAggregateValues(opts) })
 	return opts
 }
 

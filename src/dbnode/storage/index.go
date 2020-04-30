@@ -1056,11 +1056,16 @@ func (i *nsIndex) AggregateQuery(
 	defer sp.Finish()
 
 	// Get results and set the filters, namespace ID and size limit.
-	results := i.aggregateResultsPool.Get()
 	aopts := index.AggregateResultsOptions{
 		SizeLimit:   opts.Limit,
 		FieldFilter: opts.FieldFilter,
 		Type:        opts.Type,
+	}
+	var results index.AggregateResults
+	if i.aggregateResultsPool != nil {
+		results = i.aggregateResultsPool.Get()
+	} else {
+		results = index.NewAggregateResults(nil, aopts, nil)
 	}
 	ctx.RegisterFinalizer(results)
 	// use appropriate fn to query underlying blocks.

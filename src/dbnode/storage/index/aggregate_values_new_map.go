@@ -41,7 +41,13 @@ func NewAggregateValuesMap(idPool ident.Pool) *AggregateValuesMap {
 			return x.Equal(y)
 		},
 		copy: func(k ident.ID) ident.ID {
-			return idPool.Clone(k)
+			if idPool != nil {
+				return idPool.Clone(k)
+			}
+			
+			bs := k.Bytes()
+			b := append(make([]byte, 0, len(bs)), bs...)
+			return ident.BytesID(b)
 		},
 		finalize: func(k ident.ID) {
 			k.Finalize()

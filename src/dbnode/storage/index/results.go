@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 var (
@@ -42,10 +41,9 @@ type results struct {
 
 	resultsMap *ResultsMap
 
-	idPool    ident.Pool
-	bytesPool pool.CheckedBytesPool
+	idPool ident.Pool
+	pool   QueryResultsPool
 
-	pool       QueryResultsPool
 	noFinalize bool
 }
 
@@ -55,14 +53,20 @@ func NewQueryResults(
 	opts QueryResultsOptions,
 	indexOpts Options,
 ) QueryResults {
-	return &results{
-		nsID:       namespaceID,
-		opts:       opts,
-		resultsMap: newResultsMap(indexOpts.IdentifierPool()),
-		idPool:     indexOpts.IdentifierPool(),
-		bytesPool:  indexOpts.CheckedBytesPool(),
-		pool:       indexOpts.QueryResultsPool(),
+	results := &results{
+		nsID: namespaceID,
+		opts: opts,
 	}
+
+	if indexOpts != nil {
+		results.resultsMap = newResultsMap(indexOpts.IdentifierPool())
+		results.idPool = indexOpts.IdentifierPool()
+		results.pool = indexOpts.QueryResultsPool()
+	} else {
+		results.resultsMap = newResultsMap(nil)
+	}
+
+	return results
 }
 
 func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
@@ -76,10 +80,18 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	}
 	// Make an independent copy of the new nsID.
 	if nsID != nil {
-		nsID = r.idPool.Clone(nsID)
+		if r.idPool != nil {
+			nsID = r.idPool.Clone(nsID)
+		} else {
+			// NB: Can copy bytes here since they will be GC'ed
+			// after the result is used.
+			idBytes := nsID.Bytes()
+			b := append(make([]byte, 0, len(idBytes)), idBytes...)
+			nsID = ident.BytesID(b)
+		}
 	}
-	r.nsID = nsID
 
+	r.nsID = nsID
 	// Reset all values from map first
 	for _, entry := range r.resultsMap.Iter() {
 		tags := entry.Value()
@@ -182,5 +194,6 @@ func (r *results) Finalize() {
 	if r.pool == nil {
 		return
 	}
+
 	r.pool.Put(r)
 }

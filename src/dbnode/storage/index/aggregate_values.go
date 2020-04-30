@@ -22,22 +22,23 @@ package index
 
 import (
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 // AggregateValues is a collection of unique identity values backed by a pool.
 // NB: there are no synchronization guarantees provided by default.
 type AggregateValues struct {
 	valuesMap *AggregateValuesMap
-	bytesPool pool.CheckedBytesPool
 	pool      AggregateValuesPool
 }
 
 // NewAggregateValues returns a new AggregateValues object.
 func NewAggregateValues(opts Options) AggregateValues {
+	if opts == nil {
+		return AggregateValues{valuesMap: NewAggregateValuesMap(nil)}
+	}
+
 	return AggregateValues{
 		valuesMap: NewAggregateValuesMap(opts.IdentifierPool()),
-		bytesPool: opts.CheckedBytesPool(),
 		pool:      opts.AggregateValuesPool(),
 	}
 }
