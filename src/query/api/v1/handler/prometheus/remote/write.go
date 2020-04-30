@@ -47,6 +47,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/retry"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -67,6 +68,9 @@ const (
 
 	// defaultForwardingTimeout is the default forwarding timeout.
 	defaultForwardingTimeout = 15 * time.Second
+
+	// defaultForwardingRetryLimit is the default limit for retrying failed forwards.
+	defaultForwardingRetryLimit = 3
 )
 
 var (
@@ -85,6 +89,7 @@ type PromWriteHandler struct {
 	forwardHTTPClient      *http.Client
 	forwardingBoundWorkers xsync.WorkerPool
 	forwardContext         context.Context
+	forwardRetrier         retry.Retrier
 	nowFn                  clock.NowFn
 	instrumentOpts         instrument.Options
 	metrics                promWriteMetrics
@@ -136,6 +141,9 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	forwardHTTPOpts.DisableCompression = true // Already snappy compressed.
 	forwardHTTPOpts.RequestTimeout = forwardTimeout
 
+	forwardRetrierOpts := retry.NewOptions().SetMaxRetries(defaultForwardingRetryLimit)
+	forwardRetrier := retry.NewRetrier(forwardRetrierOpts)
+
 	return &PromWriteHandler{
 		downsamplerAndWriter:   downsamplerAndWriter,
 		tagOptions:             tagOptions,
@@ -144,6 +152,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
 		forwardingBoundWorkers: forwardingBoundWorkers,
 		forwardContext:         context.Background(),
+		forwardRetrier:         forwardRetrier,
 		nowFn:                  nowFn,
 		metrics:                metrics,
 		instrumentOpts:         instrumentOpts,
@@ -237,12 +246,13 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, target := range targets {
 			target := target // Capture for lambda.
 			forward := func() {
-				// Consider propgating baggage without tying
-				// context to request context in future.
-				ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
-				defer cancel()
-
-				if err := h.forward(ctx, result, r.Header, target); err != nil {
+				if err := h.forwardRetrier.Attempt(func() error {
+					// Consider propgating baggage without tying
+					// context to request context in future.
+					ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
+					defer cancel()
+					return h.forward(ctx, result, r.Header, target)
+				}); err != nil {
 					h.metrics.forwardErrors.Inc(1)
 					logger := logging.WithContext(h.forwardContext, h.instrumentOpts)
 					logger.Error("forward error", zap.Error(err))
