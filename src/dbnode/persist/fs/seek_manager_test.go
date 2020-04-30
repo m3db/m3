@@ -77,9 +77,9 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	for shard, byTime := range m.seekersByShardIdx {
 		_, exists := shardSet[uint32(shard)]
 		if !exists {
-			require.False(t, byTime.accessed)
+			require.Equal(t, byTimeSeekersInit, byTime.state)
 		} else {
-			require.True(t, byTime.accessed)
+			require.Equal(t, byTimeSeekersAccessed, byTime.state)
 			require.Equal(t, int(shard), int(byTime.shard))
 		}
 	}
@@ -371,6 +371,261 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	testSeekerManagerOpenCloseLoop(t, testCase)
 }
 
+func TestSeekerManagerCloseShardIndices(t *testing.T) {
+	testCase := testSeekerManagerOpenCloseLoopCase{
+		initialState: &testSeekerManagerOpenCloseLoopState{
+			borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+			shards:          []uint32{2, 5, 9, 478},
+			nsMetadata:      testNs1Metadata(t),
+			clock:           settableClock{},
+			startTime:       time.Unix(1588503952, 0),
+		},
+		steps: []testSeekerManagerOpenCloseLoopStep{
+			{
+				title: "Cache shard indices",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					// Force all the seekers to be opened
+					require.NoError(t, m.CacheShardIndices(state.shards))
+
+				},
+			},
+			{
+				title: "Close some shard indices",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.CloseShardIndices([]uint32{2, 9, 478})
+				},
+			},
+			{
+				title: "Test that closed shard indices are closed even though they are in rentention window",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					for _, shard := range state.shards {
+						byTime := m.seekersByTime(shard)
+						byTime.RLock()
+						_, ok := byTime.seekers[blockStartNano]
+						if shard == 2 || shard == 9 || shard == 478 {
+							// Check that expected shards are closed
+							require.False(t, ok)
+						} else {
+							// Check that remaining shards are not closed
+							require.Equal(t, defaultTestingFetchConcurrency,
+								len(m.seekersByTime(shard).seekers[blockStartNano].active.seekers))
+						}
+						byTime.RUnlock()
+					}
+					m.RUnlock()
+				},
+			},
+		},
+	}
+
+	t.Run("Test that closing shard indices closes seekers", func(t *testing.T) {
+		testSeekerManagerOpenCloseLoop(t, testCase)
+	})
+
+	testCase = testSeekerManagerOpenCloseLoopCase{
+		initialState: &testSeekerManagerOpenCloseLoopState{
+			borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+			shards:          []uint32{2, 5},
+			nsMetadata:      testNs1Metadata(t),
+			clock:           settableClock{},
+			startTime:       time.Unix(1588503952, 0),
+		},
+		steps: []testSeekerManagerOpenCloseLoopStep{
+			{
+				title: "Cache shard indices",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					// Force all the seekers to be opened
+					require.NoError(t, m.CacheShardIndices(state.shards))
+
+				},
+			},
+			{
+				title: "Borrow from one of the two open shards",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					blockStartNano := state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+					seeker, err := m.Borrow(5, blockStartNano)
+					state.borrowedSeekers = append(state.borrowedSeekers, seeker)
+					require.Nil(t, err)
+				},
+			},
+			{
+				title: "Try to close all shard indices",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.CloseShardIndices(state.shards)
+				},
+			},
+			{
+				title: "Test that borrowed from shard was not closed",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					for _, shard := range state.shards {
+						byTime := m.seekersByTime(shard)
+						byTime.RLock()
+						_, ok := byTime.seekers[blockStartNano]
+						if shard == 5 {
+							// Check that borrowed shard was closed
+							require.Equal(t, defaultTestingFetchConcurrency,
+								len(m.seekersByTime(shard).seekers[blockStartNano].active.seekers))
+						} else {
+							// Check that remaining shards are closed
+							require.False(t, ok)
+						}
+						byTime.RUnlock()
+					}
+					m.RUnlock()
+				},
+			},
+			{
+				title: "Return the borrowed shard",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					blockStartTime := state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+					err := m.Return(5, blockStartTime, state.borrowedSeekers[0])
+					require.Nil(t, err)
+				},
+			},
+			{
+				title: "Test that all shards are now closed",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					for _, shard := range state.shards {
+						byTime := m.seekersByTime(shard)
+						byTime.RLock()
+						_, ok := byTime.seekers[blockStartNano]
+						require.False(t, ok)
+						byTime.RUnlock()
+					}
+					m.RUnlock()
+				},
+			},
+		},
+	}
+
+	t.Run("Test that shard index does not close if a seeker is borrowed", func(t *testing.T) {
+		testSeekerManagerOpenCloseLoop(t, testCase)
+	})
+
+	testCase = testSeekerManagerOpenCloseLoopCase{
+		initialState: &testSeekerManagerOpenCloseLoopState{
+			borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+			shards:          []uint32{5},
+			nsMetadata:      testNs1Metadata(t),
+			clock:           settableClock{},
+			startTime:       time.Unix(1588503952, 0),
+		},
+		steps: []testSeekerManagerOpenCloseLoopStep{
+			{
+				title: "Cache shard index",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					// Force all the seekers to be opened
+					require.NoError(t, m.CacheShardIndices(state.shards))
+
+				},
+			},
+			{
+				title: "Close shard index",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.CloseShardIndices(state.shards)
+				},
+			},
+			{
+				title: "Test that borrowing a seeker after closing a shard index reopens the shard index",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					blockStartTime := state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+					seeker, _ := m.Borrow(5, blockStartTime)
+					state.borrowedSeekers = append(state.borrowedSeekers, seeker)
+				},
+			},
+			{
+				title: "Test that closed shard index is now open because it was borrowed",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					byTime := m.seekersByTime(5)
+					byTime.RLock()
+					require.Equal(t, defaultTestingFetchConcurrency, len(byTime.seekers[blockStartNano].active.seekers))
+					byTime.RUnlock()
+					m.RUnlock()
+				},
+			},
+			{
+				title: "Return the shard index",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					blockStartTime := state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+					m.Return(5, blockStartTime, state.borrowedSeekers[0])
+				},
+			},
+		},
+	}
+
+	t.Run("Tests that borrowing from a closed shard index reopens it", func(t *testing.T) {
+		testSeekerManagerOpenCloseLoop(t, testCase)
+	})
+
+	testCase = testSeekerManagerOpenCloseLoopCase{
+		initialState: &testSeekerManagerOpenCloseLoopState{
+			borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+			shards:          []uint32{5},
+			nsMetadata:      testNs1Metadata(t),
+			clock:           settableClock{},
+			startTime:       time.Unix(1588503952, 0),
+		},
+		steps: []testSeekerManagerOpenCloseLoopStep{
+			{
+				title: "Cache shard index",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					// Force all the seekers to be opened
+					require.NoError(t, m.CacheShardIndices(state.shards))
+
+				},
+			},
+			{
+				title: "Close shard index",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.CloseShardIndices(state.shards)
+				},
+			},
+			{
+				title: "Test that testing a seeker after closing a shard index reopens the shard index",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					blockStartTime := state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+					_, err := m.Test(ident.StringID("random-id"), 5, blockStartTime)
+					require.Nil(t, err)
+				},
+			},
+			{
+				title: "Test that closed shard index is now open because it was used for testing",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					byTime := m.seekersByTime(5)
+					byTime.RLock()
+					require.Equal(t, defaultTestingFetchConcurrency, len(byTime.seekers[blockStartNano].active.seekers))
+					byTime.RUnlock()
+					m.RUnlock()
+				},
+			},
+		},
+	}
+
+	t.Run("Tests that testing from a closed shard index reopens it", func(t *testing.T) {
+		testSeekerManagerOpenCloseLoop(t, testCase)
+	})
+}
+
 // TestSeekerManagerOpenCloseLoop tests the openCloseLoop of the SeekerManager
 // by making sure that it makes the right decisions with regards to cleaning
 // up resources based on their state.
@@ -386,11 +641,14 @@ func testSeekerManagerOpenCloseLoop(t *testing.T, testCase testSeekerManagerOpen
 	m.opts = m.opts.SetClockOptions(clockOpts)
 
 	m.newOpenSeekerFn = func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
-		mock := NewMockDataFileSetSeeker(ctrl)
-		mock.EXPECT().ConcurrentClone().Return(mock, nil).AnyTimes()
-		mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
-		mock.EXPECT().Close().Return(nil).AnyTimes()
-		return mock, nil
+		mockBloomFilter := NewMockManagedBloomFilter(ctrl)
+		mockBloomFilter.EXPECT().Test(gomock.Any()).Return(true)
+
+		mockDataFileSeeker := NewMockDataFileSetSeeker(ctrl)
+		mockDataFileSeeker.EXPECT().ConcurrentClone().Return(mockDataFileSeeker, nil).AnyTimes()
+		mockDataFileSeeker.EXPECT().ConcurrentIDBloomFilter().Return(mockBloomFilter).AnyTimes()
+		mockDataFileSeeker.EXPECT().Close().Return(nil).AnyTimes()
+		return mockDataFileSeeker, nil
 	}
 
 	// Notified everytime the openCloseLoop ticks

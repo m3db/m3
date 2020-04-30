@@ -261,6 +261,19 @@ type DataFileSetSeekerManager interface {
 	// to improve times when seeking to a block.
 	CacheShardIndices(shards []uint32) error
 
+	// Closes seekers for shards. This functionality is needed when shards move out of
+	// a node on topology change and file descriptors backing shards need to be closed 
+	// so that the shards' fileset files can be deleted from disk.
+	// This operation is best effort and the actual file descriptors are closed asynchronous
+	// to this this method. 
+	// Seekers are not closed until all the borrowed seekers are returned. If a seeker is 
+	// borrowed (Borrow()) or tested (Test()) after closing shard indices, then the seeker 
+	// will be reopened. 
+	// Seeker manager is not responsible to track the lifecycle of a shard. Its the reponsibility 
+	// of the caller to not borrow or test a seeker after closing the seeker if they want seeker 
+	// to finally be closed.
+	CloseShardIndices(shards []uint32)
+
 	// Borrow returns an open seeker for a given shard, block start time, and
 	// volume.
 	Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error)
