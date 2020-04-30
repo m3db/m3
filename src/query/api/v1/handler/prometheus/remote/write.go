@@ -75,6 +75,16 @@ var (
 	errNoTagOptions                 = errors.New("no tag options set")
 	errNoNowFn                      = errors.New("no now fn set")
 	errUnaggregatedStoragePolicySet = errors.New("storage policy should not be set for unaggregated metrics")
+
+	defaultForwardingRetryForever = false
+	defaultForwardingRetryJitter  = true
+	defaultForwardRetryConfig     = retry.Configuration{
+		InitialBackoff: time.Second * 2,
+		BackoffFactor:  2,
+		MaxRetries:     1,
+		Forever:        &defaultForwardingRetryForever,
+		Jitter:         &defaultForwardingRetryJitter,
+	}
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
@@ -139,6 +149,11 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	forwardHTTPOpts.DisableCompression = true // Already snappy compressed.
 	forwardHTTPOpts.RequestTimeout = forwardTimeout
 
+	forwardRetryConfig := defaultForwardRetryConfig
+	if forwarding.Retry != nil {
+		forwardRetryConfig = *forwarding.Retry
+	}
+
 	return &PromWriteHandler{
 		downsamplerAndWriter:   downsamplerAndWriter,
 		tagOptions:             tagOptions,
@@ -147,7 +162,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
 		forwardingBoundWorkers: forwardingBoundWorkers,
 		forwardContext:         context.Background(),
-		forwardRetrier:         retry.NewRetrier(forwarding.Retry.NewOptions(scope)),
+		forwardRetrier:         retry.NewRetrier(forwardRetryConfig.NewOptions(scope)),
 		nowFn:                  nowFn,
 		metrics:                metrics,
 		instrumentOpts:         instrumentOpts,
