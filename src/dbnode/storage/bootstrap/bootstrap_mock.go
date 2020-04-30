@@ -139,6 +139,43 @@ func (mr *MockProcessMockRecorder) Run(ctx, start, namespaces interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockProcess)(nil).Run), ctx, start, namespaces)
 }
 
+// MockHook is a mock of Hook interface
+type MockHook struct {
+	ctrl     *gomock.Controller
+	recorder *MockHookMockRecorder
+}
+
+// MockHookMockRecorder is the mock recorder for MockHook
+type MockHookMockRecorder struct {
+	mock *MockHook
+}
+
+// NewMockHook creates a new mock instance
+func NewMockHook(ctrl *gomock.Controller) *MockHook {
+	mock := &MockHook{ctrl: ctrl}
+	mock.recorder = &MockHookMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockHook) EXPECT() *MockHookMockRecorder {
+	return m.recorder
+}
+
+// Run mocks base method
+func (m *MockHook) Run() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Run")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Run indicates an expected call of Run
+func (mr *MockHookMockRecorder) Run() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockHook)(nil).Run))
+}
+
 // MockNamespaceDataAccumulator is a mock of NamespaceDataAccumulator interface
 type MockNamespaceDataAccumulator struct {
 	ctrl     *gomock.Controller
