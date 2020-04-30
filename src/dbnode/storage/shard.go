@@ -628,7 +628,17 @@ func (s *dbShard) Close() error {
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
 	_, err := s.tickAndExpire(cancellable, tickPolicyCloseShard, namespace.Context{})
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Asynchronously purge the pre-parsed indexes and close the file descriptors 
+	// to the fileset files backing this shard. 
+	if err := s.closeShardIndex(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *dbShard) isClosing() bool {
@@ -2113,6 +2123,31 @@ func (s *dbShard) cacheShardIndices() error {
 	}
 
 	s.logger.Debug("caching shard indices completed successfully",
+		zap.Uint32("shard", s.ID()))
+	return nil
+}
+
+func (s *dbShard) closeShardIndex() error {
+	retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
+	// May be nil depending on the caching policy.
+	if retrieverMgr == nil {
+		return nil
+	}
+
+	retriever, err := retrieverMgr.Retriever(s.namespace)
+	if err != nil {
+		return err
+	}
+
+	s.logger.Debug("closing shard indices", zap.Uint32("shard", s.ID()))
+	if err := retriever.CloseShardIndices([]uint32{s.ID()}); err != nil {
+		s.logger.Error("closing shard indices error",
+			zap.Uint32("shard", s.ID()),
+			zap.Error(err))
+		return err
+	}
+
+	s.logger.Debug("closing shard indices completed successfully",
 		zap.Uint32("shard", s.ID()))
 	return nil
 }

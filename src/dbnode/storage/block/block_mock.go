@@ -868,6 +868,20 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) CacheShardIndices(shards inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheShardIndices", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).CacheShardIndices), shards)
 }
 
+// CloseShardIndices mocks base method
+func (m *MockDatabaseBlockRetriever) CloseShardIndices(shards []uint32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseShardIndices", shards)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CloseShardIndices indicates an expected call of CloseShardIndices
+func (mr *MockDatabaseBlockRetrieverMockRecorder) CloseShardIndices(shards interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseShardIndices", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).CacheShardIndices), shards)
+}
+
 // Stream mocks base method
 func (m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock, nsCtx namespace.Context) (xio.BlockReader, error) {
 	m.ctrl.T.Helper()
