@@ -153,6 +153,9 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	if forwarding.Retry != nil {
 		forwardRetryConfig = *forwarding.Retry
 	}
+	forwardRetryOpts := forwardRetryConfig.NewOptions(
+		scope.SubScope("forwarding-retry"),
+	)
 
 	return &PromWriteHandler{
 		downsamplerAndWriter:   downsamplerAndWriter,
@@ -162,7 +165,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
 		forwardingBoundWorkers: forwardingBoundWorkers,
 		forwardContext:         context.Background(),
-		forwardRetrier:         retry.NewRetrier(forwardRetryConfig.NewOptions(scope)),
+		forwardRetrier:         retry.NewRetrier(forwardRetryOpts),
 		nowFn:                  nowFn,
 		metrics:                metrics,
 		instrumentOpts:         instrumentOpts,
