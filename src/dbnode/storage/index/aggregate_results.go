@@ -49,21 +49,14 @@ func NewAggregateResults(
 	aggregateOpts AggregateResultsOptions,
 	opts Options,
 ) AggregateResults {
-	results := &aggregatedResults{
+	return &aggregatedResults{
 		nsID:          namespaceID,
 		aggregateOpts: aggregateOpts,
+		idPool:        opts.IdentifierPool(),
+		pool:          opts.AggregateResultsPool(),
+		valuesPool:    opts.AggregateValuesPool(),
+		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
 	}
-
-	if opts != nil {
-		results.idPool = opts.IdentifierPool()
-		results.pool = opts.AggregateResultsPool()
-		results.valuesPool = opts.AggregateValuesPool()
-		results.resultsMap = newAggregateResultsMap(opts.IdentifierPool())
-	} else {
-		results.resultsMap = newAggregateResultsMap(nil)
-	}
-
-	return results
 }
 
 func (r *aggregatedResults) Reset(
@@ -330,6 +323,5 @@ func (r *aggregatedResults) Finalize() {
 		return
 	}
 
-	// ????
 	r.pool.Put(r)
 }

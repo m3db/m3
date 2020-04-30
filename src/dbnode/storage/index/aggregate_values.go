@@ -33,10 +33,6 @@ type AggregateValues struct {
 
 // NewAggregateValues returns a new AggregateValues object.
 func NewAggregateValues(opts Options) AggregateValues {
-	if opts == nil {
-		return AggregateValues{valuesMap: NewAggregateValuesMap(nil)}
-	}
-
 	return AggregateValues{
 		valuesMap: NewAggregateValuesMap(opts.IdentifierPool()),
 		pool:      opts.AggregateValuesPool(),

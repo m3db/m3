@@ -131,7 +131,6 @@ var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabl
 
 // NewOptions returns a new Options object with default properties.
 func NewOptions() Options {
-	resultsPool := NewQueryResultsPool(pool.NewObjectPoolOptions())
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
@@ -171,9 +170,6 @@ func NewOptions() Options {
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 		queryStats:                      stats.NoOpQueryStats(),
 	}
-	resultsPool.Init(func() QueryResults {
-		return NewQueryResults(nil, QueryResultsOptions{}, opts)
-	})
 	return opts
 }
 
