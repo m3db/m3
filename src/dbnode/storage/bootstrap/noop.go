@@ -51,5 +51,14 @@ func (b noOpBootstrapProcess) Run(
 	start time.Time,
 	namespaces []ProcessNamespace,
 ) (NamespaceResults, error) {
+	// Run hooks if any for testing purposes.
+	for _, ns := range namespaces {
+		if err := ns.Hooks.BootstrapSourceBegin(); err != nil {
+			return NamespaceResults{}, err
+		}
+		if err := ns.Hooks.BootstrapSourceEnd(); err != nil {
+			return NamespaceResults{}, err
+		}
+	}
 	return NewNamespaceResults(NewNamespaces(namespaces)), nil
 }
