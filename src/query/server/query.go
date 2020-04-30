@@ -227,8 +227,9 @@ func Run(runOpts RunOptions) {
 
 					newEnv = append(newEnv, os.Environ()...)
 
-					opts := panicmon.ExecutorOptions{Env: newEnv}
-					exec := panicmon.NewExecutor(opts)
+					exec := panicmon.NewExecutor(panicmon.ExecutorOptions{
+						Env: env,
+					})
 					status, err := exec.Run(os.Args)
 					if err != nil {
 						logger.Error("process failed", zap.Error(err))
@@ -291,7 +292,7 @@ func Run(runOpts RunOptions) {
 			}
 			if portValue > 0 {
 				// Increment port value by process ID if valid port.
-				address := net.JoinHostPort(host, strconv.Itoa(portValue+instance))
+				address := net.JoinHostPort(host, strconv.Itoa(portValue+instance-1))
 				cfg.Metrics.PrometheusReporter.ListenAddress = address
 				logger.Info("multi-process prometheus metrics reporter listen address configured",
 					zap.String("address", address))
