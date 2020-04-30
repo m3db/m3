@@ -79,10 +79,15 @@ type NamespaceHooks struct {
 	opts NamespaceHooksOptions
 }
 
+// Hook wraps a runnable callback.
+type Hook interface {
+	Run() error
+}
+
 // NamespaceHooksOptions is a set of hooks options.
 type NamespaceHooksOptions struct {
-	BootstrapSourceBegin func() error
-	BootstrapSourceEnd   func() error
+	BootstrapSourceBegin Hook
+	BootstrapSourceEnd   Hook
 }
 
 // NewNamespaceHooks returns a new set of bootstrap hooks.
@@ -95,7 +100,7 @@ func (h NamespaceHooks) BootstrapSourceBegin() error {
 	if h.opts.BootstrapSourceBegin == nil {
 		return nil
 	}
-	return h.opts.BootstrapSourceBegin()
+	return h.opts.BootstrapSourceBegin.Run()
 }
 
 // BootstrapSourceEnd is a hook to call when a bootstrap source ends.
@@ -103,7 +108,7 @@ func (h NamespaceHooks) BootstrapSourceEnd() error {
 	if h.opts.BootstrapSourceEnd == nil {
 		return nil
 	}
-	return h.opts.BootstrapSourceEnd()
+	return h.opts.BootstrapSourceEnd.Run()
 }
 
 // Namespaces are a set of namespaces being bootstrapped.
