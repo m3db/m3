@@ -283,7 +283,7 @@ func Run(runOpts RunOptions) {
 
 			logger.Info("using seed nodes etcd cluster",
 				zap.String("zone", zone), zap.Strings("endpoints", endpoints))
-			service.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
+			service.Service.ETCDClusters = []etcd.ClusterConfig{{
 				Zone:      zone,
 				Endpoints: endpoints,
 			}}
@@ -1534,6 +1534,8 @@ func withEncodingAndPoolingOptions(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
+	aggregateQueryValuesPool := index.NewAggregateValuesPool(
+		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-values-pool")))
 
 	// Set value transformation options.
 	opts = opts.SetTruncateType(cfg.Transforms.TruncateBy)
@@ -1564,6 +1566,7 @@ func withEncodingAndPoolingOptions(
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).
 		SetAggregateResultsPool(aggregateQueryResultsPool).
+		SetAggregateValuesPool(aggregateQueryValuesPool).
 		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
 		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
 
@@ -1576,6 +1579,11 @@ func withEncodingAndPoolingOptions(
 		// NB(r): Need to initialize after setting the index opts so
 		// it sees the same reference of the options as is set for the DB.
 		return index.NewAggregateResults(nil, index.AggregateResultsOptions{}, indexOpts)
+	})
+	aggregateQueryValuesPool.Init(func() index.AggregateValues {
+		// NB(r): Need to initialize after setting the index opts so
+		// it sees the same reference of the options as is set for the DB.
+		return index.NewAggregateValues(indexOpts)
 	})
 
 	return opts.SetIndexOptions(indexOpts)
