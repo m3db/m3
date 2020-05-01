@@ -50,7 +50,23 @@ func optionsWithDocsArrayPool(opts Options, size, capacity int) Options {
 	})
 	docArrayPool.Init()
 
-	return opts.SetDocumentArrayPool(docArrayPool)
+	poolOpts := pool.NewObjectPoolOptions().SetSize(10)
+	resultsPool := NewQueryResultsPool(poolOpts)
+	aggResultsPool := NewAggregateResultsPool(poolOpts)
+	aggValuesPool := NewAggregateValuesPool(poolOpts)
+
+	resultsPool.Init(func() QueryResults {
+		return NewQueryResults(nil, QueryResultsOptions{}, opts)
+	})
+	aggResultsPool.Init(func() AggregateResults {
+		return NewAggregateResults(nil, AggregateResultsOptions{}, opts)
+	})
+	aggValuesPool.Init(func() AggregateValues { return NewAggregateValues(opts) })
+
+	return opts.SetDocumentArrayPool(docArrayPool).
+		SetQueryResultsPool(resultsPool).
+		SetAggregateResultsPool(aggResultsPool).
+		SetAggregateValuesPool(aggValuesPool)
 }
 
 func TestResultsInsertInvalid(t *testing.T) {
@@ -112,7 +128,7 @@ func TestResultsInsertContains(t *testing.T) {
 func TestResultsInsertDoesNotCopy(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc"), Fields: []doc.Field{
-		doc.Field{Name: []byte("name"), Value: []byte("value")},
+		{Name: []byte("name"), Value: []byte("value")},
 	}}
 	size, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
