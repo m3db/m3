@@ -78,8 +78,8 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	if nsID != nil {
 		nsID = r.idPool.Clone(nsID)
 	}
-
 	r.nsID = nsID
+
 	// Reset all values from map first
 	for _, entry := range r.resultsMap.Iter() {
 		tags := entry.Value()
@@ -182,6 +182,5 @@ func (r *results) Finalize() {
 	if r.pool == nil {
 		return
 	}
-
 	r.pool.Put(r)
 }

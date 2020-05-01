@@ -55,12 +55,11 @@ func NewAggregateResults(
 	return &aggregatedResults{
 		nsID:          namespaceID,
 		aggregateOpts: aggregateOpts,
-		// makes a map every time.
-		resultsMap: newAggregateResultsMap(opts.IdentifierPool()),
-		idPool:     opts.IdentifierPool(),
-		bytesPool:  opts.CheckedBytesPool(),
-		pool:       opts.AggregateResultsPool(),
-		valuesPool: opts.AggregateValuesPool(),
+		resultsMap:    newAggregateResultsMap(opts.IdentifierPool()),
+		idPool:        opts.IdentifierPool(),
+		bytesPool:     opts.CheckedBytesPool(),
+		pool:          opts.AggregateResultsPool(),
+		valuesPool:    opts.AggregateValuesPool(),
 	}
 }
 
@@ -122,7 +121,6 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) int {
 				NoCopyKey:     true,
 				NoFinalizeKey: false,
 			})
-
 		} else {
 			// because we already have a entry for this field, we release the ident back to
 			// the underlying pool.
