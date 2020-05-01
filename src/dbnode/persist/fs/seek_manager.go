@@ -684,11 +684,13 @@ func (m *seekerManager) openLatestSeekersWithActiveWaitGroup(
 		return seekersAndBloom{}, fmt.Errorf("err opening latest lease: %v", err)
 	}
 
-	//m.logger.Info("seekerManager created a borrowable block from latest lease state",
-	//	zap.Any("namespace", m.namespace),
-	//	zap.Any("shard", byTime.shard),
-	//	zap.Any("blockStart", blockStart),
-	//	zap.Int("volume", state.Volume))
+	if state.Volume > 1 {
+		m.logger.Info("seekerManager created a borrowable block from latest lease state",
+			zap.Any("namespace", m.namespace),
+			zap.Any("shard", byTime.shard),
+			zap.Any("blockStart", blockStart),
+			zap.Int("volume", state.Volume))
+	}
 	return m.newSeekersAndBloom(byTime.shard, blockStart, state.Volume)
 }
 
