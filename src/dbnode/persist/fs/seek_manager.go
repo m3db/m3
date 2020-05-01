@@ -509,11 +509,24 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	if seekers.active.volume > state.Volume {
 		// Ignore any close errors because its not relevant from the callers perspective.
 		m.closeSeekersAndLogError(descriptor, newActiveSeekers.seekers)
+		m.logger.Error("seekers.active.volume > state.Volume for borrowable block",
+			zap.Any("namespace", m.namespace),
+			zap.Any("descriptor.namespace", descriptor.Namespace),
+			zap.Any("shard", descriptor.Shard),
+			zap.Any("blockStart", descriptor.BlockStart),
+			zap.Int("seekers.active.volume", seekers.active.volume),
+			zap.Int("state.Volume", state.Volume))
 		return nil, 0, errOutOfOrderUpdateOpenLease
 	}
 
 	seekers.inactive = seekers.active
 	seekers.active = newActiveSeekers
+	m.logger.Info("seekerManager successfully updated open lease for borrowable block",
+		zap.Any("namespace", m.namespace),
+		zap.Any("descriptor.namespace", descriptor.Namespace),
+		zap.Any("shard", descriptor.Shard),
+		zap.Any("blockStart", descriptor.BlockStart),
+		zap.Int("seekers.active.volume", seekers.active.volume))
 
 	anySeekersAreBorrowed := false
 	for _, seeker := range seekers.inactive.seekers {
@@ -671,6 +684,11 @@ func (m *seekerManager) openLatestSeekersWithActiveWaitGroup(
 		return seekersAndBloom{}, fmt.Errorf("err opening latest lease: %v", err)
 	}
 
+	m.logger.Info("seekerManager created a borrowable block from latest lease state",
+		zap.Any("namespace", m.namespace),
+		zap.Any("shard", byTime.shard),
+		zap.Any("blockStart", blockStart),
+		zap.Int("volume", state.Volume))
 	return m.newSeekersAndBloom(byTime.shard, blockStart, state.Volume)
 }
 
