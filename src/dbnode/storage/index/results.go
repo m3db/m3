@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 var (
@@ -41,9 +42,10 @@ type results struct {
 
 	resultsMap *ResultsMap
 
-	idPool ident.Pool
-	pool   QueryResultsPool
+	idPool    ident.Pool
+	bytesPool pool.CheckedBytesPool
 
+	pool       QueryResultsPool
 	noFinalize bool
 }
 
@@ -58,6 +60,7 @@ func NewQueryResults(
 		opts:       opts,
 		resultsMap: newResultsMap(indexOpts.IdentifierPool()),
 		idPool:     indexOpts.IdentifierPool(),
+		bytesPool:  indexOpts.CheckedBytesPool(),
 		pool:       indexOpts.QueryResultsPool(),
 	}
 }

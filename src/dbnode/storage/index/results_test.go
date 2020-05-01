@@ -50,23 +50,7 @@ func optionsWithDocsArrayPool(opts Options, size, capacity int) Options {
 	})
 	docArrayPool.Init()
 
-	poolOpts := pool.NewObjectPoolOptions().SetSize(10)
-	resultsPool := NewQueryResultsPool(poolOpts)
-	aggResultsPool := NewAggregateResultsPool(poolOpts)
-	aggValuesPool := NewAggregateValuesPool(poolOpts)
-
-	resultsPool.Init(func() QueryResults {
-		return NewQueryResults(nil, QueryResultsOptions{}, opts)
-	})
-	aggResultsPool.Init(func() AggregateResults {
-		return NewAggregateResults(nil, AggregateResultsOptions{}, opts)
-	})
-	aggValuesPool.Init(func() AggregateValues { return NewAggregateValues(opts) })
-
-	return opts.SetDocumentArrayPool(docArrayPool).
-		SetQueryResultsPool(resultsPool).
-		SetAggregateResultsPool(aggResultsPool).
-		SetAggregateValuesPool(aggValuesPool)
+	return opts.SetDocumentArrayPool(docArrayPool)
 }
 
 func TestResultsInsertInvalid(t *testing.T) {
