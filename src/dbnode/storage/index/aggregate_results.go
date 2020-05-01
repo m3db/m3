@@ -210,8 +210,7 @@ func (r *aggregatedResults) addTermWithLock(
 
 	// Set results map to an empty AggregateValues since we only care about
 	// existence of the term in the map, rather than its set of values.
-	aggValue := r.valuesPool.Get()
-	r.resultsMap.Set(termID, aggValue)
+	r.resultsMap.Set(termID, r.valuesPool.Get())
 	return nil
 }
 

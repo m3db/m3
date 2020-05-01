@@ -53,20 +53,13 @@ func NewQueryResults(
 	opts QueryResultsOptions,
 	indexOpts Options,
 ) QueryResults {
-	results := &results{
-		nsID: namespaceID,
-		opts: opts,
+	return &results{
+		nsID:       namespaceID,
+		opts:       opts,
+		resultsMap: newResultsMap(indexOpts.IdentifierPool()),
+		idPool:     indexOpts.IdentifierPool(),
+		pool:       indexOpts.QueryResultsPool(),
 	}
-
-	if indexOpts != nil {
-		results.resultsMap = newResultsMap(indexOpts.IdentifierPool())
-		results.idPool = indexOpts.IdentifierPool()
-		results.pool = indexOpts.QueryResultsPool()
-	} else {
-		results.resultsMap = newResultsMap(nil)
-	}
-
-	return results
 }
 
 func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
@@ -80,15 +73,7 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	}
 	// Make an independent copy of the new nsID.
 	if nsID != nil {
-		if r.idPool != nil {
-			nsID = r.idPool.Clone(nsID)
-		} else {
-			// NB: Can copy bytes here since they will be GC'ed
-			// after the result is used.
-			idBytes := nsID.Bytes()
-			b := append(make([]byte, 0, len(idBytes)), idBytes...)
-			nsID = ident.BytesID(b)
-		}
+		nsID = r.idPool.Clone(nsID)
 	}
 
 	r.nsID = nsID
