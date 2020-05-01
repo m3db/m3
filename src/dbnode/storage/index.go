@@ -1062,7 +1062,6 @@ func (i *nsIndex) AggregateQuery(
 		FieldFilter: opts.FieldFilter,
 		Type:        opts.Type,
 	}
-	ctx.RegisterFinalizer(results)
 	// use appropriate fn to query underlying blocks.
 	// default to block.Query()
 	fn := i.execBlockQueryFn
@@ -1077,6 +1076,7 @@ func (i *nsIndex) AggregateQuery(
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(i.nsMetadata.ID(), aopts)
+	ctx.RegisterFinalizer(results)
 	exhaustive, err := i.query(ctx, query, results, opts.QueryOptions, fn, logFields)
 	if err != nil {
 		return index.AggregateQueryResult{}, err
