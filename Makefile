@@ -16,7 +16,8 @@ gopath_bin_path      := $(GOPATH)/bin
 m3_package           := github.com/m3db/m3
 m3_package_path      := $(gopath_prefix)/$(m3_package)
 mockgen_package      := github.com/golang/mock/mockgen
-retool_bin_path      := $(m3_package_path)/_tools/bin
+retool_path          := $(m3_package_path)/_tools
+retool_bin_path      := $(retool_path)/bin
 combined_bin_paths   := $(retool_bin_path):$(gopath_bin_path)
 retool_src_prefix    := $(m3_package_path)/_tools/src
 retool_package       := github.com/twitchtv/retool
@@ -203,6 +204,7 @@ install-tools: install-retool
 	@echo "Installing retool dependencies"
 	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) sync
 	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) build
+	chmod -R +w $(retool_path)
 
 	@# NB(r): to ensure correct version of mock-gen is present we match the version
 	@# of the retool installed mockgen, and if not a match in binary contents, then
