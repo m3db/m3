@@ -321,18 +321,18 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	// By default use histogram timers for timers that
+	// are constructed allowing for type to be picked
+	// by the caller using instrument.NewTimer(...).
+	timerOpts := instrument.NewHistogramTimerOptions(instrument.HistogramTimerOptions{})
+	timerOpts.StandardSampleRate = cfg.Metrics.SampleRate()
+
 	var (
 		opts  = storage.NewOptions()
 		iopts = opts.InstrumentOptions().
 			SetLogger(logger).
 			SetMetricsScope(scope).
-			SetTimerOptions(instrument.TimerOptions{
-				// By default use histogram timers for timers that
-				// are constructed allowing for type to be picked
-				// by the caller using instrument.NewTimer(...).
-				Type:               instrument.HistogramTimerType,
-				StandardSampleRate: cfg.Metrics.SampleRate(),
-			}).
+			SetTimerOptions(timerOpts).
 			SetTracer(tracer)
 	)
 	opts = opts.SetInstrumentOptions(iopts)
