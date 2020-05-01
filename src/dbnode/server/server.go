@@ -326,7 +326,13 @@ func Run(runOpts RunOptions) {
 		iopts = opts.InstrumentOptions().
 			SetLogger(logger).
 			SetMetricsScope(scope).
-			SetTimerOptions(instrument.TimerOptions{StandardSampleRate: cfg.Metrics.SampleRate()}).
+			SetTimerOptions(instrument.TimerOptions{
+				// By default use histogram timers for timers that
+				// are constructed allowing for type to be picked
+				// by the caller using instrument.NewTimer(...).
+				Type:               instrument.HistogramTimerType,
+				StandardSampleRate: cfg.Metrics.SampleRate(),
+			}).
 			SetTracer(tracer)
 	)
 	opts = opts.SetInstrumentOptions(iopts)
