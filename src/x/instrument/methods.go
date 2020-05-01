@@ -146,7 +146,7 @@ type HistogramTimerOptions struct {
 // histogram buckets defined.
 func NewHistogramTimerOptions(opts HistogramTimerOptions) TimerOptions {
 	result := TimerOptions{Type: HistogramTimerType}
-	if opts.HistogramBuckets.Len() > 0 {
+	if opts.HistogramBuckets != nil && opts.HistogramBuckets.Len() > 0 {
 		result.HistogramBuckets = opts.HistogramBuckets
 	} else {
 		result.HistogramBuckets = DefaultHistogramTimerHistogramBuckets()
