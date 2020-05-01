@@ -131,7 +131,7 @@ type aggregator struct {
 func NewAggregator(opts Options) Aggregator {
 	iOpts := opts.InstrumentOptions()
 	scope := iOpts.MetricsScope()
-	samplingRate := iOpts.MetricsSamplingRate()
+	timerOpts := iOpts.TimerOptions()
 	return &aggregator{
 		opts:              opts,
 		nowFn:             opts.ClockOptions().NowFn(),
@@ -148,7 +148,7 @@ func NewAggregator(opts Options) Aggregator {
 		resignTimeout:     opts.ResignTimeout(),
 		doneCh:            make(chan struct{}),
 		sleepFn:           time.Sleep,
-		metrics:           newAggregatorMetrics(scope, samplingRate, opts.MaxAllowedForwardingDelayFn()),
+		metrics:           newAggregatorMetrics(scope, timerOpts, opts.MaxAllowedForwardingDelayFn()),
 		logger:            iOpts.Logger(),
 	}
 }
@@ -713,11 +713,11 @@ type aggregatorAddMetricMetrics struct {
 
 func newAggregatorAddMetricMetrics(
 	scope tally.Scope,
-	samplingRate float64,
+	opts instrument.TimerOptions,
 ) aggregatorAddMetricMetrics {
 	return aggregatorAddMetricMetrics{
 		success:        scope.Counter("success"),
-		successLatency: instrument.MustCreateSampledTimer(scope.Timer("success-latency"), samplingRate),
+		successLatency: instrument.NewTimer(scope, "success-latency", opts),
 		shardNotOwned: scope.Tagged(map[string]string{
 			"reason": "shard-not-owned",
 		}).Counter("errors"),
@@ -767,10 +767,10 @@ type aggregatorAddUntimedMetrics struct {
 
 func newAggregatorAddUntimedMetrics(
 	scope tally.Scope,
-	samplingRate float64,
+	opts instrument.TimerOptions,
 ) aggregatorAddUntimedMetrics {
 	return aggregatorAddUntimedMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
+		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, opts),
 		invalidMetricTypes: scope.Tagged(map[string]string{
 			"reason": "invalid-metric-types",
 		}).Counter("errors"),
@@ -794,10 +794,10 @@ type aggregatorAddTimedMetrics struct {
 
 func newAggregatorAddTimedMetrics(
 	scope tally.Scope,
-	samplingRate float64,
+	opts instrument.TimerOptions,
 ) aggregatorAddTimedMetrics {
 	return aggregatorAddTimedMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
+		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, opts),
 		tooFarInTheFuture: scope.Tagged(map[string]string{
 			"reason": "too-far-in-the-future",
 		}).Counter("errors"),
@@ -827,10 +827,10 @@ type aggregatorAddPassthroughMetrics struct {
 
 func newAggregatorAddPassthroughMetrics(
 	scope tally.Scope,
-	samplingRate float64,
+	opts instrument.TimerOptions,
 ) aggregatorAddPassthroughMetrics {
 	return aggregatorAddPassthroughMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
+		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, opts),
 		followerNoop:               scope.Counter("follower-noop"),
 	}
 }
@@ -859,11 +859,11 @@ type aggregatorAddForwardedMetrics struct {
 
 func newAggregatorAddForwardedMetrics(
 	scope tally.Scope,
-	samplingRate float64,
+	opts instrument.TimerOptions,
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorAddForwardedMetrics {
 	return aggregatorAddForwardedMetrics{
-		aggregatorAddMetricMetrics:  newAggregatorAddMetricMetrics(scope, samplingRate),
+		aggregatorAddMetricMetrics:  newAggregatorAddMetricMetrics(scope, opts),
 		scope:                       scope,
 		maxAllowedForwardingDelayFn: maxAllowedForwardingDelayFn,
 		forwardingLatency:           make(map[latencyBucketKey]tally.Histogram),
@@ -1032,7 +1032,7 @@ type aggregatorMetrics struct {
 
 func newAggregatorMetrics(
 	scope tally.Scope,
-	samplingRate float64,
+	opts instrument.TimerOptions,
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorMetrics {
 	addUntimedScope := scope.SubScope("addUntimed")
@@ -1051,10 +1051,10 @@ func newAggregatorMetrics(
 		forwarded:      scope.Counter("forwarded"),
 		timed:          scope.Counter("timed"),
 		passthrough:    scope.Counter("passthrough"),
-		addUntimed:     newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
-		addTimed:       newAggregatorAddTimedMetrics(addTimedScope, samplingRate),
-		addForwarded:   newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate, maxAllowedForwardingDelayFn),
-		addPassthrough: newAggregatorAddPassthroughMetrics(addPassthroughScope, samplingRate),
+		addUntimed:     newAggregatorAddUntimedMetrics(addUntimedScope, opts),
+		addTimed:       newAggregatorAddTimedMetrics(addTimedScope, opts),
+		addForwarded:   newAggregatorAddForwardedMetrics(addForwardedScope, opts, maxAllowedForwardingDelayFn),
+		addPassthrough: newAggregatorAddPassthroughMetrics(addPassthroughScope, opts),
 		placement:      newAggregatorPlacementMetrics(placementScope),
 		shards:         newAggregatorShardsMetrics(shardsScope),
 		shardSetID:     newAggregatorShardSetIDMetrics(shardSetIDScope),

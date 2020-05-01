@@ -21,10 +21,13 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -63,6 +66,66 @@ var (
 		FetchTimeout: 15 * time.Second,
 	}
 )
+
+type testVals struct {
+	start time.Time
+	query string
+}
+
+func buildBody(query string, start time.Time) io.Reader {
+	vals := url.Values{}
+	vals.Add("query", query)
+	vals.Add("start", start.Format(time.RFC3339))
+	vals.Add("end", start.Add(time.Hour).Format(time.RFC3339))
+	qs := vals.Encode()
+	return bytes.NewBuffer([]byte(qs))
+}
+
+func TestParseExpr(t *testing.T) {
+	query := "" +
+		`up{a="b"} + 7 - sum(rate(down{c!="d"}[2m])) + ` +
+		`left{e=~"f"} offset 30m and right{g!~"h"} + ` + `
+		max_over_time(foo[1m] offset 1h)`
+
+	start := time.Now().Truncate(time.Hour)
+	req := httptest.NewRequest(http.MethodPost, "/", buildBody(query, start))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	readReq, err := ParseExpr(req)
+	require.NoError(t, err)
+
+	q := func(start, end time.Time, matchers []*prompb.LabelMatcher) *prompb.Query {
+		return &prompb.Query{
+			StartTimestampMs: start.Unix() * 1000,
+			EndTimestampMs:   end.Unix() * 1000,
+			Matchers:         matchers,
+		}
+	}
+
+	b := func(s string) []byte { return []byte(s) }
+	expected := []*prompb.Query{
+		q(start, start.Add(time.Hour),
+			[]*prompb.LabelMatcher{
+				{Name: b("a"), Value: b("b"), Type: prompb.LabelMatcher_EQ},
+				{Name: b("__name__"), Value: b("up"), Type: prompb.LabelMatcher_EQ}}),
+		q(start.Add(time.Minute*-2), start.Add(time.Hour),
+			[]*prompb.LabelMatcher{
+				{Name: b("c"), Value: b("d"), Type: prompb.LabelMatcher_NEQ},
+				{Name: b("__name__"), Value: b("down"), Type: prompb.LabelMatcher_EQ}}),
+		q(start.Add(time.Minute*-30), start.Add(time.Minute*30),
+			[]*prompb.LabelMatcher{
+				{Name: b("e"), Value: b("f"), Type: prompb.LabelMatcher_RE},
+				{Name: b("__name__"), Value: b("left"), Type: prompb.LabelMatcher_EQ}}),
+		q(start, start.Add(time.Hour),
+			[]*prompb.LabelMatcher{
+				{Name: b("g"), Value: b("h"), Type: prompb.LabelMatcher_NRE},
+				{Name: b("__name__"), Value: b("right"), Type: prompb.LabelMatcher_EQ}}),
+		q(start.Add(time.Minute*-61), start,
+			[]*prompb.LabelMatcher{
+				{Name: b("__name__"), Value: b("foo"), Type: prompb.LabelMatcher_EQ}}),
+	}
+
+	assert.Equal(t, expected, readReq.Queries)
+}
 
 func newEngine(
 	s storage.Storage,
@@ -119,7 +182,7 @@ func TestPromReadParsing(t *testing.T) {
 		SetTimeoutOpts(timeoutOpts)
 
 	req := httptest.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
-	r, fetchOpts, err := parseRequest(context.TODO(), req, opts)
+	r, fetchOpts, err := ParseRequest(context.TODO(), req, opts)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, len(r.Queries), 1)
 	fmt.Println(fetchOpts)
@@ -135,7 +198,7 @@ func TestPromFetchTimeoutParsing(t *testing.T) {
 
 func TestPromReadParsingBad(t *testing.T) {
 	req := httptest.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
-	_, _, err := parseRequest(context.TODO(), req, options.EmptyHandlerOptions())
+	_, _, err := ParseRequest(context.TODO(), req, options.EmptyHandlerOptions())
 	require.NotNil(t, err, "unable to parse request")
 }
 

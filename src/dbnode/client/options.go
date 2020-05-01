@@ -269,6 +269,7 @@ type options struct {
 	asyncWriteMaxConcurrency                int
 	useV2BatchAPIs                          bool
 	iterationOptions                        index.IterationOptions
+	writeTimestampOffset                    time.Duration
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -987,4 +988,14 @@ func (o *options) SetIterationOptions(value index.IterationOptions) Options {
 
 func (o *options) IterationOptions() index.IterationOptions {
 	return o.iterationOptions
+}
+
+func (o *options) SetWriteTimestampOffset(value time.Duration) AdminOptions {
+	opts := *o
+	opts.writeTimestampOffset = value
+	return &opts
+}
+
+func (o *options) WriteTimestampOffset() time.Duration {
+	return o.writeTimestampOffset
 }

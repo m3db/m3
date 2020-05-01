@@ -30,11 +30,14 @@ import (
 	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -127,14 +130,17 @@ type clientMetrics struct {
 	shardNotWriteable      tally.Counter
 }
 
-func newClientMetrics(scope tally.Scope, sampleRate float64) clientMetrics {
+func newClientMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) clientMetrics {
 	return clientMetrics{
-		writeUntimedCounter:    instrument.NewMethodMetrics(scope, "writeUntimedCounter", sampleRate),
-		writeUntimedBatchTimer: instrument.NewMethodMetrics(scope, "writeUntimedBatchTimer", sampleRate),
-		writeUntimedGauge:      instrument.NewMethodMetrics(scope, "writeUntimedGauge", sampleRate),
-		writePassthrough:       instrument.NewMethodMetrics(scope, "writePassthrough", sampleRate),
-		writeForwarded:         instrument.NewMethodMetrics(scope, "writeForwarded", sampleRate),
-		flush:                  instrument.NewMethodMetrics(scope, "flush", sampleRate),
+		writeUntimedCounter:    instrument.NewMethodMetrics(scope, "writeUntimedCounter", opts),
+		writeUntimedBatchTimer: instrument.NewMethodMetrics(scope, "writeUntimedBatchTimer", opts),
+		writeUntimedGauge:      instrument.NewMethodMetrics(scope, "writeUntimedGauge", opts),
+		writePassthrough:       instrument.NewMethodMetrics(scope, "writePassthrough", opts),
+		writeForwarded:         instrument.NewMethodMetrics(scope, "writeForwarded", opts),
+		flush:                  instrument.NewMethodMetrics(scope, "flush", opts),
 		shardNotOwned:          scope.Counter("shard-not-owned"),
 		shardNotWriteable:      scope.Counter("shard-not-writeable"),
 	}
@@ -144,43 +150,86 @@ func newClientMetrics(scope tally.Scope, sampleRate float64) clientMetrics {
 type client struct {
 	sync.RWMutex
 
-	opts                       Options
+	opts                 Options
+	aggregatorClientType AggregatorClientType
+	state                clientState
+
+	m3msg m3msgClient
+
 	nowFn                      clock.NowFn
 	shardCutoverWarmupDuration time.Duration
 	shardCutoffLingerDuration  time.Duration
 	writerMgr                  instanceWriterManager
 	shardFn                    sharding.ShardFn
 	placementWatcher           placement.StagedPlacementWatcher
-	state                      clientState
-	metrics                    clientMetrics
+
+	metrics clientMetrics
+}
+
+type m3msgClient struct {
+	producer    producer.Producer
+	numShards   uint32
+	messagePool *messagePool
 }
 
 // NewClient creates a new client.
-func NewClient(opts Options) Client {
+func NewClient(opts Options) (Client, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	var (
-		instrumentOpts = opts.InstrumentOptions()
-		writerMgrScope = instrumentOpts.MetricsScope().SubScope("writer-manager")
-		writerMgrOpts  = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
-		writerMgr      = newInstanceWriterManager(writerMgrOpts)
+		clientType       = opts.AggregatorClientType()
+		instrumentOpts   = opts.InstrumentOptions()
+		msgClient        m3msgClient
+		writerMgr        instanceWriterManager
+		placementWatcher placement.StagedPlacementWatcher
 	)
-	onPlacementsAddedFn := func(placements []placement.Placement) {
-		for _, placement := range placements {
-			writerMgr.AddInstances(placement.Instances()) // nolint: errcheck
+	switch clientType {
+	case M3MsgAggregatorClient:
+		m3msgOpts := opts.M3MsgOptions()
+		if err := m3msgOpts.Validate(); err != nil {
+			return nil, err
 		}
-	}
-	onPlacementsRemovedFn := func(placements []placement.Placement) {
-		for _, placement := range placements {
-			writerMgr.RemoveInstances(placement.Instances()) // nolint: errcheck
+
+		producer := m3msgOpts.Producer()
+		if err := producer.Init(); err != nil {
+			return nil, err
 		}
+
+		msgClient = m3msgClient{
+			producer:    producer,
+			numShards:   producer.NumShards(),
+			messagePool: newMessagePool(),
+		}
+	case LegacyAggregatorClient:
+		writerMgrScope := instrumentOpts.MetricsScope().SubScope("writer-manager")
+		writerMgrOpts := opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
+		writerMgr = newInstanceWriterManager(writerMgrOpts)
+		onPlacementsAddedFn := func(placements []placement.Placement) {
+			for _, placement := range placements {
+				writerMgr.AddInstances(placement.Instances()) // nolint: errcheck
+			}
+		}
+		onPlacementsRemovedFn := func(placements []placement.Placement) {
+			for _, placement := range placements {
+				writerMgr.RemoveInstances(placement.Instances()) // nolint: errcheck
+			}
+		}
+		activeStagedPlacementOpts := placement.NewActiveStagedPlacementOptions().
+			SetClockOptions(opts.ClockOptions()).
+			SetOnPlacementsAddedFn(onPlacementsAddedFn).
+			SetOnPlacementsRemovedFn(onPlacementsRemovedFn)
+		placementWatcherOpts := opts.StagedPlacementWatcherOptions().
+			SetActiveStagedPlacementOptions(activeStagedPlacementOpts)
+		placementWatcher = placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	default:
+		return nil, fmt.Errorf("unrecognized client type: %v", clientType)
 	}
-	activeStagedPlacementOpts := placement.NewActiveStagedPlacementOptions().
-		SetClockOptions(opts.ClockOptions()).
-		SetOnPlacementsAddedFn(onPlacementsAddedFn).
-		SetOnPlacementsRemovedFn(onPlacementsRemovedFn)
-	placementWatcherOpts := opts.StagedPlacementWatcherOptions().SetActiveStagedPlacementOptions(activeStagedPlacementOpts)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 
 	return &client{
+		aggregatorClientType:       clientType,
+		m3msg:                      msgClient,
 		opts:                       opts,
 		nowFn:                      opts.ClockOptions().NowFn(),
 		shardCutoverWarmupDuration: opts.ShardCutoverWarmupDuration(),
@@ -188,8 +237,9 @@ func NewClient(opts Options) Client {
 		writerMgr:                  writerMgr,
 		shardFn:                    opts.ShardFn(),
 		placementWatcher:           placementWatcher,
-		metrics:                    newClientMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
-	}
+		metrics: newClientMetrics(instrumentOpts.MetricsScope(),
+			instrumentOpts.TimerOptions()),
+	}, nil
 }
 
 func (c *client) Init() error {
@@ -199,8 +249,20 @@ func (c *client) Init() error {
 	if c.state != clientUninitialized {
 		return errClientIsInitializedOrClosed
 	}
+
+	switch c.aggregatorClientType {
+	case M3MsgAggregatorClient:
+		// Nothing more to do.
+	case LegacyAggregatorClient:
+		if err := c.placementWatcher.Watch(); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unrecognized client type: %v", c.aggregatorClientType)
+	}
+
 	c.state = clientInitialized
-	return c.placementWatcher.Watch()
+	return nil
 }
 
 func (c *client) WriteUntimedCounter(
@@ -323,15 +385,23 @@ func (c *client) WriteForwarded(
 }
 
 func (c *client) Flush() error {
-	callStart := c.nowFn()
+	var (
+		callStart = c.nowFn()
+		err       error
+	)
 	c.RLock()
+	defer c.RUnlock()
+
 	if c.state != clientInitialized {
-		c.RUnlock()
 		return errClientIsUninitializedOrClosed
 	}
-	err := c.writerMgr.Flush()
-	c.RUnlock()
-	c.metrics.flush.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+
+	switch c.aggregatorClientType {
+	case LegacyAggregatorClient:
+		err = c.writerMgr.Flush()
+		c.metrics.flush.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	}
+
 	return err
 }
 
@@ -342,12 +412,35 @@ func (c *client) Close() error {
 	if c.state != clientInitialized {
 		return errClientIsUninitializedOrClosed
 	}
+
+	var err error
+	switch c.aggregatorClientType {
+	case M3MsgAggregatorClient:
+		c.m3msg.producer.Close(producer.WaitForConsumption)
+	case LegacyAggregatorClient:
+		c.placementWatcher.Unwatch() // nolint: errcheck
+		err = c.writerMgr.Close()
+	default:
+		return fmt.Errorf("unrecognized client type: %v", c.aggregatorClientType)
+	}
+
 	c.state = clientClosed
-	c.placementWatcher.Unwatch() // nolint: errcheck
-	return c.writerMgr.Close()
+
+	return err
 }
 
 func (c *client) write(metricID id.RawID, timeNanos int64, payload payloadUnion) error {
+	switch c.aggregatorClientType {
+	case LegacyAggregatorClient:
+		return c.writeLegacy(metricID, timeNanos, payload)
+	case M3MsgAggregatorClient:
+		return c.writeM3Msg(metricID, timeNanos, payload)
+	default:
+		return fmt.Errorf("unrecognized client type: %v", c.aggregatorClientType)
+	}
+}
+
+func (c *client) writeLegacy(metricID id.RawID, timeNanos int64, payload payloadUnion) error {
 	c.RLock()
 	if c.state != clientInitialized {
 		c.RUnlock()
@@ -387,10 +480,28 @@ func (c *client) write(metricID id.RawID, timeNanos int64, payload payloadUnion)
 			multiErr = multiErr.Add(err)
 		}
 	}
+
 	onPlacementDoneFn()
 	onStagedPlacementDoneFn()
 	c.RUnlock()
 	return multiErr.FinalError()
+}
+
+func (c *client) writeM3Msg(metricID id.RawID, timeNanos int64, payload payloadUnion) error {
+	shard := c.shardFn(metricID, c.m3msg.numShards)
+
+	msg := c.m3msg.messagePool.Get()
+	if err := msg.Encode(shard, payload); err != nil {
+		msg.Finalize(producer.Dropped)
+		return err
+	}
+
+	if err := c.m3msg.producer.Produce(msg); err != nil {
+		msg.Finalize(producer.Dropped)
+		return err
+	}
+
+	return nil
 }
 
 func (c *client) shouldWriteForShard(nowNanos int64, shard shard.Shard) bool {
@@ -413,4 +524,176 @@ func (c *client) writeTimeRangeFor(shard shard.Shard) (int64, int64) {
 	return earliestNanos, latestNanos
 }
 
-func (c *client) nowNanos() int64 { return c.nowFn().UnixNano() }
+func (c *client) nowNanos() int64 {
+	return c.nowFn().UnixNano()
+}
+
+type messagePool struct {
+	pool sync.Pool
+}
+
+func newMessagePool() *messagePool {
+	p := &messagePool{}
+	p.pool.New = func() interface{} {
+		return newMessage(p)
+	}
+	return p
+}
+
+func (m *messagePool) Get() *message {
+	return m.pool.Get().(*message)
+}
+
+func (m *messagePool) Put(msg *message) {
+	m.pool.Put(msg)
+}
+
+// Ensure message implements m3msg producer message interface.
+var _ producer.Message = (*message)(nil)
+
+type message struct {
+	pool  *messagePool
+	shard uint32
+
+	metric metricpb.MetricWithMetadatas
+	cm     metricpb.CounterWithMetadatas
+	bm     metricpb.BatchTimerWithMetadatas
+	gm     metricpb.GaugeWithMetadatas
+	fm     metricpb.ForwardedMetricWithMetadata
+	tm     metricpb.TimedMetricWithMetadata
+	tms    metricpb.TimedMetricWithMetadatas
+
+	buf []byte
+}
+
+func newMessage(pool *messagePool) *message {
+	return &message{
+		pool: pool,
+	}
+}
+
+func (m *message) Encode(
+	shard uint32,
+	payload payloadUnion,
+) error {
+	m.shard = shard
+
+	switch payload.payloadType {
+	case untimedType:
+		switch payload.untimed.metric.Type {
+		case metric.CounterType:
+			value := unaggregated.CounterWithMetadatas{
+				Counter:         payload.untimed.metric.Counter(),
+				StagedMetadatas: payload.untimed.metadatas,
+			}
+			if err := value.ToProto(&m.cm); err != nil {
+				return err
+			}
+
+			m.metric = metricpb.MetricWithMetadatas{
+				Type:                 metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS,
+				CounterWithMetadatas: &m.cm,
+			}
+		case metric.TimerType:
+			value := unaggregated.BatchTimerWithMetadatas{
+				BatchTimer:      payload.untimed.metric.BatchTimer(),
+				StagedMetadatas: payload.untimed.metadatas,
+			}
+			if err := value.ToProto(&m.bm); err != nil {
+				return err
+			}
+
+			m.metric = metricpb.MetricWithMetadatas{
+				Type:                    metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
+				BatchTimerWithMetadatas: &m.bm,
+			}
+		case metric.GaugeType:
+			value := unaggregated.GaugeWithMetadatas{
+				Gauge:           payload.untimed.metric.Gauge(),
+				StagedMetadatas: payload.untimed.metadatas,
+			}
+			if err := value.ToProto(&m.gm); err != nil {
+				return err
+			}
+
+			m.metric = metricpb.MetricWithMetadatas{
+				Type:               metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
+				GaugeWithMetadatas: &m.gm,
+			}
+		default:
+			return fmt.Errorf("unrecognized metric type: %v",
+				payload.untimed.metric.Type)
+		}
+	case forwardedType:
+		value := aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: payload.forwarded.metric,
+			ForwardMetadata: payload.forwarded.metadata,
+		}
+		if err := value.ToProto(&m.fm); err != nil {
+			return err
+		}
+
+		m.metric = metricpb.MetricWithMetadatas{
+			Type:                        metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
+			ForwardedMetricWithMetadata: &m.fm,
+		}
+	case timedType:
+		value := aggregated.TimedMetricWithMetadata{
+			Metric:        payload.timed.metric,
+			TimedMetadata: payload.timed.metadata,
+		}
+		if err := value.ToProto(&m.tm); err != nil {
+			return err
+		}
+
+		m.metric = metricpb.MetricWithMetadatas{
+			Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
+			TimedMetricWithMetadata: &m.tm,
+		}
+	case timedWithStagedMetadatasType:
+		value := aggregated.TimedMetricWithMetadatas{
+			Metric:          payload.timedWithStagedMetadatas.metric,
+			StagedMetadatas: payload.timedWithStagedMetadatas.metadatas,
+		}
+		if err := value.ToProto(&m.tms); err != nil {
+			return err
+		}
+
+		m.metric = metricpb.MetricWithMetadatas{
+			Type:                     metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATAS,
+			TimedMetricWithMetadatas: &m.tms,
+		}
+	default:
+		return fmt.Errorf("unrecognized payload type: %v",
+			payload.payloadType)
+	}
+
+	size := m.metric.Size()
+	if size > cap(m.buf) {
+		const growthFactor = 2
+		m.buf = make([]byte, int(growthFactor*float64(size)))
+	}
+
+	// Resize buffer to exactly how long we need for marshalling.
+	m.buf = m.buf[:size]
+
+	_, err := m.metric.MarshalTo(m.buf)
+	return err
+}
+
+func (m *message) Shard() uint32 {
+	return m.shard
+}
+
+func (m *message) Bytes() []byte {
+	return m.buf
+}
+
+func (m *message) Size() int {
+	return len(m.buf)
+}
+
+func (m *message) Finalize(reason producer.FinalizeReason) {
+	// Return to pool.
+	m.pool.Put(m)
+}

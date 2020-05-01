@@ -36,37 +36,43 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
-		SetWeight(1)
+		SetWeight(1).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 1})
 	i2 := placement.NewInstance().
 		SetID("i2").
 		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
-		SetWeight(1)
+		SetWeight(1).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 2})
 	i3 := placement.NewInstance().
 		SetID("i3").
 		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
-		SetWeight(2)
+		SetWeight(2).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 3})
 	i4 := placement.NewInstance().
 		SetID("i4").
 		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
-		SetWeight(2)
+		SetWeight(2).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 4})
 	i5 := placement.NewInstance().
 		SetID("i5").
 		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(3).
-		SetWeight(3)
+		SetWeight(3).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 5})
 	i6 := placement.NewInstance().
 		SetID("i6").
 		SetIsolationGroup("r6").
 		SetEndpoint("endpoint6").
 		SetShardSetID(3).
-		SetWeight(3)
+		SetWeight(3).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 6})
 
 	instances := []placement.Instance{i1, i2, i3, i4, i5, i6}
 
@@ -100,17 +106,25 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetIsolationGroup("r7").
 		SetEndpoint("endpoint7").
 		SetShardSetID(4).
-		SetWeight(4)
+		SetWeight(4).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 7})
 	i8 := placement.NewInstance().
 		SetID("i8").
 		SetIsolationGroup("r8").
 		SetEndpoint("endpoint8").
 		SetShardSetID(4).
-		SetWeight(4)
+		SetWeight(4).
+		SetMetadata(placement.InstanceMetadata{DebugPort: 8})
 	p, err = a.AddInstances(p, []placement.Instance{i7, i8})
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(4), p.MaxShardSetID())
 	validateDistribution(t, p, 1.01)
+
+	// validate InstanceMetadata is still set on all instances
+	var zero placement.InstanceMetadata
+	for _, inst := range p.Instances() {
+		assert.NotEqual(t, zero, inst.Metadata())
+	}
 
 	newI1, ok := p.Instance("i1")
 	assert.True(t, ok)

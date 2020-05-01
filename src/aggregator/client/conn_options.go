@@ -32,7 +32,7 @@ import (
 const (
 	defaultConnectionTimeout            = 2 * time.Second
 	defaultConnectionKeepAlive          = true
-	defaultWriteTimeout                 = 100 * time.Millisecond
+	defaultWriteTimeout                 = time.Duration(0)
 	defaultInitReconnectThreshold       = 2
 	defaultMaxReconnectThreshold        = 5000
 	defaultReconnectThresholdMultiplier = 2

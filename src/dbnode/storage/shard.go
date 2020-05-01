@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -55,6 +56,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -1851,7 +1853,14 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	return result, nil, nil
 }
 
-func (s *dbShard) PrepareBootstrap() error {
+func (s *dbShard) PrepareBootstrap(ctx context.Context) error {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.ShardPrepareBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(log.Int("shard", int(s.shard)))
+	}
+
 	// Iterate flushed time ranges to determine which blocks are retrievable.
 	// NB(r): This must be done before bootstrap since during bootstrapping
 	// series will load blocks into series with series.LoadBlock(...) which
@@ -1915,7 +1924,14 @@ func (s *dbShard) UpdateFlushStates() {
 	}
 }
 
-func (s *dbShard) Bootstrap() error {
+func (s *dbShard) Bootstrap(ctx context.Context) error {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.ShardBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(log.Int("shard", int(s.shard)))
+	}
+
 	s.Lock()
 	if s.bootstrapState == Bootstrapped {
 		s.Unlock()
@@ -1931,7 +1947,7 @@ func (s *dbShard) Bootstrap() error {
 	multiErr := xerrors.NewMultiError()
 
 	// Initialize the flush states if we haven't called prepare bootstrap.
-	if err := s.PrepareBootstrap(); err != nil {
+	if err := s.PrepareBootstrap(ctx); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 

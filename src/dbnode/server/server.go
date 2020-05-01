@@ -326,7 +326,13 @@ func Run(runOpts RunOptions) {
 		iopts = opts.InstrumentOptions().
 			SetLogger(logger).
 			SetMetricsScope(scope).
-			SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+			SetTimerOptions(instrument.TimerOptions{
+				// By default use histogram timers for timers that
+				// are constructed allowing for type to be picked
+				// by the caller using instrument.NewTimer(...).
+				Type:               instrument.HistogramTimerType,
+				StandardSampleRate: cfg.Metrics.SampleRate(),
+			}).
 			SetTracer(tracer)
 	)
 	opts = opts.SetInstrumentOptions(iopts)
@@ -570,9 +576,10 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:   iopts,
-			HashingSeed:      cfg.Hashing.Seed,
-			NewDirectoryMode: newDirectoryMode,
+			InstrumentOpts:         iopts,
+			HashingSeed:            cfg.Hashing.Seed,
+			NewDirectoryMode:       newDirectoryMode,
+			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -581,8 +588,9 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts: iopts,
-			HostID:         hostID,
+			InstrumentOpts:         iopts,
+			HostID:                 hostID,
+			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize static config", zap.Error(err))

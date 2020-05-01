@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -215,6 +216,9 @@ type bootstrapNamespace struct {
 }
 
 func (m *bootstrapManager) bootstrap() error {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	// NB(r): construct new instance of the bootstrap process to avoid
 	// state being kept around by bootstrappers.
 	process, err := m.processProvider.Provide()
@@ -256,7 +260,7 @@ func (m *bootstrapManager) bootstrap() error {
 		i, namespace := i, namespace
 		prepareWg.Add(1)
 		go func() {
-			shards, err := namespace.PrepareBootstrap()
+			shards, err := namespace.PrepareBootstrap(ctx)
 
 			prepareLock.Lock()
 			defer func() {
@@ -306,19 +310,7 @@ func (m *bootstrapManager) bootstrap() error {
 		// actually exist on disk (since bootstrappers can write
 		// new blocks to disk).
 		hooks := bootstrap.NewNamespaceHooks(bootstrap.NamespaceHooksOptions{
-			BootstrapSourceEnd: func() error {
-				var wg sync.WaitGroup
-				for _, shard := range ns.shards {
-					shard := shard
-					wg.Add(1)
-					go func() {
-						shard.UpdateFlushStates()
-						wg.Done()
-					}()
-				}
-				wg.Wait()
-				return nil
-			},
+			BootstrapSourceEnd: newBootstrapSourceEndHook(ns.shards),
 		})
 
 		accumulator := NewDatabaseNamespaceDataAccumulator(ns.namespace)
@@ -338,7 +330,7 @@ func (m *bootstrapManager) bootstrap() error {
 	m.log.Info("bootstrap started", logFields...)
 
 	// Run the bootstrap.
-	bootstrapResult, err := process.Run(start, targets)
+	bootstrapResult, err := process.Run(ctx, start, targets)
 
 	bootstrapDuration := m.nowFn().Sub(start)
 	m.bootstrapDuration.Record(bootstrapDuration)
@@ -369,7 +361,7 @@ func (m *bootstrapManager) bootstrap() error {
 			return err
 		}
 
-		if err := namespace.Bootstrap(result); err != nil {
+		if err := namespace.Bootstrap(ctx, result); err != nil {
 			m.log.Info("bootstrap error", append(logFields, []zapcore.Field{
 				zap.String("namespace", id.String()),
 				zap.Error(err),

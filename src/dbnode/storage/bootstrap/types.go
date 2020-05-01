@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -54,7 +55,11 @@ type ProcessProvider interface {
 // with the mindset that it will always be set to default values from the constructor.
 type Process interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(start time.Time, namespaces []ProcessNamespace) (NamespaceResults, error)
+	Run(
+		ctx context.Context,
+		start time.Time,
+		namespaces []ProcessNamespace,
+	) (NamespaceResults, error)
 }
 
 // ProcessNamespace is a namespace to pass to the bootstrap process.
@@ -74,10 +79,15 @@ type NamespaceHooks struct {
 	opts NamespaceHooksOptions
 }
 
+// Hook wraps a runnable callback.
+type Hook interface {
+	Run() error
+}
+
 // NamespaceHooksOptions is a set of hooks options.
 type NamespaceHooksOptions struct {
-	BootstrapSourceBegin func() error
-	BootstrapSourceEnd   func() error
+	BootstrapSourceBegin Hook
+	BootstrapSourceEnd   Hook
 }
 
 // NewNamespaceHooks returns a new set of bootstrap hooks.
@@ -90,7 +100,7 @@ func (h NamespaceHooks) BootstrapSourceBegin() error {
 	if h.opts.BootstrapSourceBegin == nil {
 		return nil
 	}
-	return h.opts.BootstrapSourceBegin()
+	return h.opts.BootstrapSourceBegin.Run()
 }
 
 // BootstrapSourceEnd is a hook to call when a bootstrap source ends.
@@ -98,7 +108,7 @@ func (h NamespaceHooks) BootstrapSourceEnd() error {
 	if h.opts.BootstrapSourceEnd == nil {
 		return nil
 	}
-	return h.opts.BootstrapSourceEnd()
+	return h.opts.BootstrapSourceEnd.Run()
 }
 
 // Namespaces are a set of namespaces being bootstrapped.
@@ -375,7 +385,7 @@ type Bootstrapper interface {
 	// A bootstrapper should only return an error should it want to entirely
 	// cancel the bootstrapping of the node, i.e. non-recoverable situation
 	// like not being able to read from the filesystem.
-	Bootstrap(namespaces Namespaces) (NamespaceResults, error)
+	Bootstrap(ctx context.Context, namespaces Namespaces) (NamespaceResults, error)
 }
 
 // Source represents a bootstrap source. Note that a source can and will be reused so
@@ -401,5 +411,5 @@ type Source interface {
 	// A bootstrapper source should only return an error should it want to
 	// entirely cancel the bootstrapping of the node, i.e. non-recoverable
 	// situation like not being able to read from the filesystem.
-	Read(namespaces Namespaces) (NamespaceResults, error)
+	Read(ctx context.Context, namespaces Namespaces) (NamespaceResults, error)
 }

@@ -157,6 +157,29 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 			Registry: registry,
 			OnError:  onError,
 		}
+
+		// Use default instrument package default histogram buckets if not set.
+		if len(mc.PrometheusReporter.DefaultHistogramBuckets) == 0 {
+			for _, v := range DefaultHistogramTimerHistogramBuckets().AsValues() {
+				bucket := prometheus.HistogramObjective{
+					Upper: v,
+				}
+				mc.PrometheusReporter.DefaultHistogramBuckets =
+					append(mc.PrometheusReporter.DefaultHistogramBuckets, bucket)
+			}
+		}
+
+		if len(mc.PrometheusReporter.DefaultSummaryObjectives) == 0 {
+			for k, v := range DefaultSummaryQuantileObjectives() {
+				q := prometheus.SummaryObjective{
+					Percentile:   k,
+					AllowedError: v,
+				}
+				mc.PrometheusReporter.DefaultSummaryObjectives =
+					append(mc.PrometheusReporter.DefaultSummaryObjectives, q)
+			}
+		}
+
 		r, err := mc.PrometheusReporter.NewReporter(opts)
 		if err != nil {
 			return nil, nil, MetricsConfigurationReporters{}, err

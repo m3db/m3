@@ -91,10 +91,13 @@ type flushTimesManagerMetrics struct {
 	flushTimesPersist         instrument.MethodMetrics
 }
 
-func newFlushTimesManagerMetrics(scope tally.Scope) flushTimesManagerMetrics {
+func newFlushTimesManagerMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) flushTimesManagerMetrics {
 	return flushTimesManagerMetrics{
 		flushTimesUnmarshalErrors: scope.Counter("flush-times-unmarshal-errors"),
-		flushTimesPersist:         instrument.NewMethodMetrics(scope, "flush-times-persist", 1.0),
+		flushTimesPersist:         instrument.NewMethodMetrics(scope, "flush-times-persist", opts),
 	}
 }
 
@@ -126,7 +129,8 @@ func NewFlushTimesManager(opts FlushTimesManagerOptions) FlushTimesManager {
 		flushTimesKeyFmt:         opts.FlushTimesKeyFmt(),
 		flushTimesStore:          opts.FlushTimesStore(),
 		flushTimesPersistRetrier: opts.FlushTimesPersistRetrier(),
-		metrics:                  newFlushTimesManagerMetrics(instrumentOpts.MetricsScope()),
+		metrics: newFlushTimesManagerMetrics(instrumentOpts.MetricsScope(),
+			instrumentOpts.TimerOptions()),
 	}
 	mgr.Lock()
 	mgr.resetWithLock()

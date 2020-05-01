@@ -4,15 +4,24 @@
  
 ## Features
 
+- **M3Ctl**: Add M3 command line tool for calling APIs and using YAML files to apply commands ([#2097](https://github.com/m3db/m3/pull/2097))
+
 - **M3Coordinator**: Add public API to write annotations (i.e. arbitrary bytes), next to datapoints for things like storing exemplars ([#2022](https://github.com/m3db/m3/pull/2022), [#2029](https://github.com/m3db/m3/pull/2029), [#2031](https://github.com/m3db/m3/pull/2031))
 - **M3Coordinator**: Add support for mapping rules, allowing metrics to be stored at different resolutions based on their labels/tags ([#2036](https://github.com/m3db/m3/pull/2036))
 - **M3Coordinator**: Add Graphite mapping rule support ([#2060](https://github.com/m3db/m3/pull/2060)) ([#2063](https://github.com/m3db/m3/pull/2063))
 - **M3Coordinator**: Add community contributed InfluxDB write endpoint (at /api/v1/influxdb/write) ([#2083](https://github.com/m3db/m3/pull/2083))
 - **M3Coordinator**: Add headers to pass along with request to remote write forward targets ([#2249](https://github.com/m3db/m3/pull/2249))
 - **M3Coordinator**: Add in-place M3Msg topic consumer updates with a PUT request ([#2186](https://github.com/m3db/m3/pull/2186))
+- **M3Coordinator**: Add ability to rewrite tags for Prometheus remote write requests using header ([#2255](https://github.com/m3db/m3/pull/2255))
 - **M3Query**: Add header to support enforcing all queries in request to implicitly always include a given label/tag matcher ([#2053](https://github.com/m3db/m3/pull/2053))
 - **M3Query**: Return headers indicating incomplete results for cross-regional fanout queries when remote fails or hits a limit ([#2053](https://github.com/m3db/m3/pull/2053))
 - **M3Query**: Refactor query server to allow for custom handlers ([#2073](https://github.com/m3db/m3/pull/2073))
+- **M3Query**: Add remote read debug parameters to look at raw data for a PromQL query and/or get results as JSON ([#2276](https://github.com/m3db/m3/pull/2276))
+- **M3Query**: Add warnings for Prometheus queries to Prometheus query JSON response ([#2265](https://github.com/m3db/m3/pull/2265))
+- **M3Query**: Add ability to set default query timeout by config ([#2226](https://github.com/m3db/m3/pull/2226))
+- **M3Aggregator**: Add M3Msg aggregator client for high throughput point to point clustered buffered delivery of metrics to aggregator ([#2171](https://github.com/m3db/m3/pull/2171))
+- **M3Aggregator**: Add rollup rule support for metrics aggregated with pre-existing timestamps, such as Prometheus metrics ([#2251](https://github.com/m3db/m3/pull/2251))
+- **M3Aggregator**: Add aggregator passthrough functionality for aggregation in a local region forwarding to a remote region for storage ([#2235](https://github.com/m3db/m3/pull/2235))
 
 ## Performance
 

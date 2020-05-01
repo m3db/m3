@@ -345,10 +345,10 @@ type databaseNamespace interface {
 	// PrepareBootstrap prepares the namespace for bootstrapping by ensuring
 	// it's shards know which flushed files reside on disk, so that calls
 	// to series.LoadBlock(...) will succeed.
-	PrepareBootstrap() ([]databaseShard, error)
+	PrepareBootstrap(ctx context.Context) ([]databaseShard, error)
 
 	// Bootstrap marks shards as bootstrapped for the namespace.
-	Bootstrap(bootstrapResult bootstrap.NamespaceResult) error
+	Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error
 
 	// WarmFlush flushes in-memory WarmWrites.
 	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
@@ -499,11 +499,11 @@ type databaseShard interface {
 
 	// PrepareBootstrap prepares the shard for bootstrapping by ensuring
 	// it knows which flushed files reside on disk.
-	PrepareBootstrap() error
+	PrepareBootstrap(ctx context.Context) error
 
 	// Bootstrap bootstraps the shard after all provided data
 	// has been loaded using LoadBootstrapBlocks.
-	Bootstrap() error
+	Bootstrap(ctx context.Context) error
 
 	// UpdateFlushStates updates all the flush states for the current shard
 	// by checking the file volumes that exist on disk at a point in time.

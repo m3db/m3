@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -136,6 +137,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 
 	test := newTestBootstrapperSource(testBootstrapperSourceOptions{
 		read: func(
+			ctx context.Context,
 			namespaces bootstrap.Namespaces,
 		) (bootstrap.NamespaceResults, error) {
 			<-signalCh
@@ -145,7 +147,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 			if err != nil {
 				return bootstrap.NamespaceResults{}, err
 			}
-			return bs.Bootstrap(namespaces)
+			return bs.Bootstrap(ctx, namespaces)
 		},
 	}, bootstrapOpts, bs)
 

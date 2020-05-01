@@ -118,23 +118,23 @@ type serviceMetrics struct {
 	overloadRejected        tally.Counter
 }
 
-func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
+func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
 	return serviceMetrics{
-		fetch:                   instrument.NewMethodMetrics(scope, "fetch", samplingRate),
-		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", samplingRate),
-		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", samplingRate),
-		write:                   instrument.NewMethodMetrics(scope, "write", samplingRate),
-		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", samplingRate),
-		fetchBlocks:             instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata:     instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		repair:                  instrument.NewMethodMetrics(scope, "repair", samplingRate),
-		truncate:                instrument.NewMethodMetrics(scope, "truncate", samplingRate),
+		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
+		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
+		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", opts),
+		write:                   instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", opts),
+		fetchBlocks:             instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata:     instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		repair:                  instrument.NewMethodMetrics(scope, "repair", opts),
+		truncate:                instrument.NewMethodMetrics(scope, "truncate", opts),
 		fetchBatchRawRPCS:       scope.Counter("fetchBatchRaw-rpcs"),
-		fetchBatchRaw:           instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
+		fetchBatchRaw:           instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", opts),
 		writeBatchRawRPCs:       scope.Counter("writeBatchRaw-rpcs"),
-		writeBatchRaw:           instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
+		writeBatchRaw:           instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", opts),
 		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
-		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", samplingRate),
+		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
 	}
 }
@@ -300,7 +300,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 		logger:  iopts.Logger(),
 		opts:    opts,
 		nowFn:   opts.ClockOptions().NowFn(),
-		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
+		metrics: newServiceMetrics(scope, iopts.TimerOptions()),
 		pools: pools{
 			id:                      opts.IdentifierPool(),
 			checkedBytesWrapper:     opts.CheckedBytesWrapperPool(),

@@ -170,7 +170,7 @@ func (h *Handler) RegisterRoutes() error {
 	nativePromReadHandler := native.NewPromReadHandler(nativeSourceOpts)
 	h.router.HandleFunc(remote.PromReadURL,
 		wrapped(promRemoteReadHandler).ServeHTTP,
-	).Methods(remote.PromReadHTTPMethod)
+	).Methods(remote.PromReadHTTPMethods...)
 	h.router.HandleFunc(remote.PromWriteURL,
 		panicOnly(promRemoteWriteHandler).ServeHTTP,
 	).Methods(remote.PromWriteHTTPMethod)

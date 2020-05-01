@@ -560,6 +560,12 @@ type Options interface {
 
 	// IterationOptions returns experimental iteration options.
 	IterationOptions() index.IterationOptions
+
+	// SetWriteTimestampOffset sets the write timestamp offset.
+	SetWriteTimestampOffset(value time.Duration) AdminOptions
+
+	// WriteTimestampOffset returns the write timestamp offset.
+	WriteTimestampOffset() time.Duration
 }
 
 // AdminOptions is a set of administration client options.

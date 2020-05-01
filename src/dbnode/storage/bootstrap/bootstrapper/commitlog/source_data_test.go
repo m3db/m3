@@ -104,7 +104,10 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, md)
 	defer tester.Finish()
 
-	res, err := src.Read(tester.Namespaces)
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	res, err := src.Read(ctx, tester.Namespaces)
 	require.Error(t, err)
 	require.Nil(t, res.Results)
 	tester.EnsureNoLoadedBlocks()
@@ -328,7 +331,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 					VolumeIndex: 0,
 				},
 				// Make sure path passes the "is snapshot" check in SnapshotTimeAndID method.
-				AbsoluteFilepaths:               []string{"snapshots/checkpoint"},
+				AbsoluteFilePaths:               []string{"snapshots/checkpoint"},
 				CachedHasCompleteCheckpointFile: fs.EvalTrue,
 				CachedSnapshotTime:              start.Add(time.Minute),
 			},

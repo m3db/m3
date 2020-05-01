@@ -129,6 +129,11 @@ type RunOptions struct {
 	// ready signal once it is open.
 	DownsamplerReadyCh chan<- struct{}
 
+	// InstrumentOptionsReadyCh is a programmatic channel to receive a set of
+	// instrument options and metric reporters that is delivered when
+	// constructed.
+	InstrumentOptionsReadyCh chan<- InstrumentOptionsReady
+
 	// CustomHandlerOptions contains custom handler options.
 	CustomHandlerOptions options.CustomHandlerOptions
 
@@ -137,6 +142,13 @@ type RunOptions struct {
 
 	// ApplyCustomTSDBOptions is a transform that allows for custom tsdb options.
 	ApplyCustomTSDBOptions CustomTSDBOptionsFn
+}
+
+// InstrumentOptionsReady is a set of instrument options
+// and metric reporters that is delivered when constructed.
+type InstrumentOptionsReady struct {
+	InstrumentOptions instrument.Options
+	MetricsReporters  instrument.MetricsConfigurationReporters
 }
 
 // CustomTSDBOptionsFn is a transformation function for TSDB Options.
@@ -160,7 +172,7 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
-	scope, closer, _, err := cfg.Metrics.NewRootScopeAndReporters(
+	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
 			OnError: func(err error) {
 				// NB(r): Required otherwise collisions when registering metrics will
@@ -183,27 +195,29 @@ func Run(runOpts RunOptions) {
 		logger.Info("tracing disabled for m3query; set `tracing.backend` to enable")
 	}
 
+	opentracing.SetGlobalTracer(tracer)
+
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
 		SetLogger(logger).
 		SetTracer(tracer)
 
-	opentracing.SetGlobalTracer(tracer)
+	if runOpts.InstrumentOptionsReadyCh != nil {
+		runOpts.InstrumentOptionsReadyCh <- InstrumentOptionsReady{
+			InstrumentOptions: instrumentOptions,
+			MetricsReporters:  reporters,
+		}
+	}
 
 	// Close metrics scope
 	defer func() {
-		if e := recover(); e != nil {
-			logger.Warn("recovered from panic", zap.String("e", fmt.Sprintf("%v", e)))
-		}
 		logger.Info("closing metrics scope")
 		if err := closer.Close(); err != nil {
 			logger.Error("unable to close metrics scope", zap.Error(err))
 		}
 	}()
 
-	buildInfoOpts := instrumentOptions.SetMetricsScope(
-		instrumentOptions.MetricsScope().SubScope("build_info"))
-	buildReporter := instrument.NewBuildReporter(buildInfoOpts)
+	buildReporter := instrument.NewBuildReporter(instrumentOptions)
 	if err := buildReporter.Start(); err != nil {
 		logger.Fatal("could not start build reporter", zap.Error(err))
 	}
@@ -405,7 +419,7 @@ func Run(runOpts RunOptions) {
 		runOpts.ListenerCh <- listener
 	}
 	go func() {
-		logger.Info("starting API server", zap.String("address", listenAddress))
+		logger.Info("starting API server", zap.Stringer("address", listener.Addr()))
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("server serve error",
 				zap.String("address", listenAddress),
@@ -631,7 +645,7 @@ func newDownsampler(
 		TagOptions:            tagOptions,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create downsampler")
+		return nil, fmt.Errorf("unable to create downsampler: %v", err)
 	}
 
 	return downsampler, nil

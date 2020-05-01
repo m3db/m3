@@ -31,8 +31,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go/log"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -151,6 +154,7 @@ type bootstrapProcess struct {
 }
 
 func (b bootstrapProcess) Run(
+	ctx context.Context,
 	at time.Time,
 	namespaces []ProcessNamespace,
 ) (NamespaceResults, error) {
@@ -209,42 +213,71 @@ func (b bootstrapProcess) Run(
 		namespacesRunFirst,
 		namespacesRunSecond,
 	} {
-		for _, entry := range namespaces.Namespaces.Iter() {
-			namespace := entry.Value()
-			logFields := b.logFields(namespace.Metadata, namespace.Shards,
-				namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
-			b.logBootstrapRun(logFields)
-		}
-
-		begin := b.nowFn()
-		res, err := b.bootstrapper.Bootstrap(namespaces)
-		took := b.nowFn().Sub(begin)
+		res, err := b.runPass(ctx, namespaces)
 		if err != nil {
-			b.log.Error("bootstrap process error",
-				zap.Duration("took", took),
-				zap.Error(err))
 			return NamespaceResults{}, err
-		}
-
-		for _, entry := range namespaces.Namespaces.Iter() {
-			namespace := entry.Value()
-			nsID := namespace.Metadata.ID()
-
-			result, ok := res.Results.Get(nsID)
-			if !ok {
-				return NamespaceResults{},
-					fmt.Errorf("result missing for namespace: %v", nsID.String())
-			}
-
-			logFields := b.logFields(namespace.Metadata, namespace.Shards,
-				namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
-			b.logBootstrapResult(result, logFields, took)
 		}
 
 		bootstrapResult = MergeNamespaceResults(bootstrapResult, res)
 	}
 
 	return bootstrapResult, nil
+}
+
+func (b bootstrapProcess) runPass(
+	ctx context.Context,
+	namespaces Namespaces,
+) (NamespaceResults, error) {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.BootstrapProcessRun)
+	defer span.Finish()
+
+	i := 0
+	for _, entry := range namespaces.Namespaces.Iter() {
+		ns := entry.Value()
+		idx := i
+		i++
+
+		if sampled {
+			ext := fmt.Sprintf("[%d]", idx)
+			span.LogFields(
+				log.String("namespace"+ext, ns.Metadata.ID().String()),
+				log.Int("shards"+ext, len(ns.Shards)),
+				log.String("dataRange"+ext, ns.DataTargetRange.Range.String()),
+				log.String("indexRange"+ext, ns.IndexTargetRange.Range.String()),
+			)
+		}
+
+		logFields := b.logFields(ns.Metadata, ns.Shards,
+			ns.DataTargetRange.Range, ns.IndexTargetRange.Range)
+		b.logBootstrapRun(logFields)
+	}
+
+	begin := b.nowFn()
+	res, err := b.bootstrapper.Bootstrap(ctx, namespaces)
+	took := b.nowFn().Sub(begin)
+	if err != nil {
+		b.log.Error("bootstrap process error",
+			zap.Duration("took", took),
+			zap.Error(err))
+		return NamespaceResults{}, err
+	}
+
+	for _, entry := range namespaces.Namespaces.Iter() {
+		namespace := entry.Value()
+		nsID := namespace.Metadata.ID()
+
+		result, ok := res.Results.Get(nsID)
+		if !ok {
+			return NamespaceResults{},
+				fmt.Errorf("result missing for namespace: %v", nsID.String())
+		}
+
+		logFields := b.logFields(namespace.Metadata, namespace.Shards,
+			namespace.DataTargetRange.Range, namespace.IndexTargetRange.Range)
+		b.logBootstrapResult(result, logFields, took)
+	}
+
+	return res, nil
 }
 
 func (b bootstrapProcess) logFields(

@@ -102,7 +102,7 @@ func main() {
 	instrumentOpts := instrument.NewOptions().
 		SetLogger(rawLogger).
 		SetMetricsScope(scope).
-		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: cfg.Metrics.SampleRate()}).
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
 	// Create R2 store.

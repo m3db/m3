@@ -36,11 +36,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -129,8 +131,12 @@ func (s *fileSystemSource) AvailableIndex(
 }
 
 func (s *fileSystemSource) Read(
+	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
+	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
+	defer span.Finish()
+
 	results := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
@@ -151,6 +157,7 @@ func (s *fileSystemSource) Read(
 	}
 	s.log.Info("bootstrapping time series data start",
 		dataLogFields...)
+	span.LogEvent("bootstrap_data_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -170,9 +177,11 @@ func (s *fileSystemSource) Read(
 	}
 	s.log.Info("bootstrapping time series data success",
 		append(dataLogFields, zap.Duration("took", nowFn().Sub(start)))...)
+	span.LogEvent("bootstrap_data_done")
 
 	start = nowFn()
 	s.log.Info("bootstrapping index metadata start")
+	span.LogEvent("bootstrap_index_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -202,6 +211,7 @@ func (s *fileSystemSource) Read(
 	}
 	s.log.Info("bootstrapping index metadata success",
 		zap.Stringer("took", nowFn().Sub(start)))
+	span.LogEvent("bootstrap_index_done")
 
 	return results, nil
 }

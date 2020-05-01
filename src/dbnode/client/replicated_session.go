@@ -51,6 +51,7 @@ type replicatedSession struct {
 	log                  *zap.Logger
 	metrics              replicatedSessionMetrics
 	outCh                chan error
+	writeTimestampOffset time.Duration
 }
 
 type replicatedSessionMetrics struct {
@@ -92,6 +93,7 @@ func newReplicatedSession(opts Options, asyncOpts []Options, options ...replicat
 		scope:                scope,
 		log:                  opts.InstrumentOptions().Logger(),
 		metrics:              newReplicatedSessionMetrics(scope),
+		writeTimestampOffset: opts.WriteTimestampOffset(),
 	}
 
 	// Apply options
@@ -193,7 +195,7 @@ func (s replicatedSession) Write(namespace, id ident.ID, t time.Time, value floa
 	return s.replicate(replicatedParams{
 		namespace:  namespace,
 		id:         id,
-		t:          t,
+		t:          t.Add(-s.writeTimestampOffset),
 		value:      value,
 		unit:       unit,
 		annotation: annotation,
@@ -205,7 +207,7 @@ func (s replicatedSession) WriteTagged(namespace, id ident.ID, tags ident.TagIte
 	return s.replicate(replicatedParams{
 		namespace:  namespace,
 		id:         id,
-		t:          t,
+		t:          t.Add(-s.writeTimestampOffset),
 		value:      value,
 		unit:       unit,
 		annotation: annotation,

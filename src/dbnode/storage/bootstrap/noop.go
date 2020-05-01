@@ -22,6 +22,8 @@ package bootstrap
 
 import (
 	"time"
+
+	"github.com/m3db/m3/src/x/context"
 )
 
 type noOpBootstrapProcessProvider struct{}
@@ -45,8 +47,18 @@ func (b noOpBootstrapProcessProvider) Provide() (Process, error) {
 type noOpBootstrapProcess struct{}
 
 func (b noOpBootstrapProcess) Run(
+	ctx context.Context,
 	start time.Time,
 	namespaces []ProcessNamespace,
 ) (NamespaceResults, error) {
+	// Run hooks if any for testing purposes.
+	for _, ns := range namespaces {
+		if err := ns.Hooks.BootstrapSourceBegin(); err != nil {
+			return NamespaceResults{}, err
+		}
+		if err := ns.Hooks.BootstrapSourceEnd(); err != nil {
+			return NamespaceResults{}, err
+		}
+	}
 	return NewNamespaceResults(NewNamespaces(namespaces)), nil
 }
