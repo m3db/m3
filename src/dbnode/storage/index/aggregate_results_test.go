@@ -147,6 +147,16 @@ func TestAggResultsSameName(t *testing.T) {
 	assert.True(t, aggVals.Map().Contains(ident.StringID("biz")))
 }
 
+func assertNoValuesInNameOnlyAggregate(t *testing.T, v AggregateValues) {
+	assert.False(t, v.hasValues)
+	assert.Nil(t, v.valuesMap)
+	assert.Nil(t, v.pool)
+
+	assert.Equal(t, 0, v.Size())
+	assert.Nil(t, v.Map())
+	assert.False(t, v.HasValues())
+}
+
 func TestAggResultsTermOnlySameName(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{
 		Type: AggregateTagNames,
@@ -159,7 +169,7 @@ func TestAggResultsTermOnlySameName(t *testing.T) {
 	rMap := res.Map()
 	aggVals, ok := rMap.Get(ident.StringID("foo"))
 	require.True(t, ok)
-	require.Equal(t, 0, aggVals.Size())
+	assertNoValuesInNameOnlyAggregate(t, aggVals)
 
 	d2 := genDoc("foo", "biz")
 	size, err = res.AddDocuments([]doc.Document{d2})
@@ -168,20 +178,8 @@ func TestAggResultsTermOnlySameName(t *testing.T) {
 
 	aggVals, ok = rMap.Get(ident.StringID("foo"))
 	require.True(t, ok)
-	require.Equal(t, 0, aggVals.Size())
-}
-
-func assertContains(t *testing.T,
-	ex map[string][]string, ac *AggregateResultsMap) {
-	require.Equal(t, len(ex), ac.Len())
-	for k, v := range ex {
-		aggVals, ok := ac.Get(ident.StringID(k))
-		require.True(t, ok)
-		require.Equal(t, len(v), aggVals.Size())
-		for _, actual := range v {
-			require.True(t, aggVals.Map().Contains(ident.StringID(actual)))
-		}
-	}
+	require.False(t, aggVals.hasValues)
+	assertNoValuesInNameOnlyAggregate(t, aggVals)
 }
 
 func addMultipleDocuments(t *testing.T, res AggregateResults) int {
@@ -233,28 +231,28 @@ var mergeTests = []struct {
 		name: "no limit no filter",
 		opts: AggregateResultsOptions{},
 		expected: map[string][]string{
-			"foo":  []string{"bar", "biz", "baz"},
-			"fizz": []string{"bar"},
-			"buzz": []string{"bar", "bag"},
-			"qux":  []string{"qaz"},
+			"foo":  {"bar", "biz", "baz"},
+			"fizz": {"bar"},
+			"buzz": {"bar", "bag"},
+			"qux":  {"qaz"},
 		},
 	},
 	{
 		name: "with limit no filter",
 		opts: AggregateResultsOptions{SizeLimit: 2},
 		expected: map[string][]string{
-			"foo":  []string{"bar", "biz", "baz"},
-			"fizz": []string{"bar"},
+			"foo":  {"bar", "biz", "baz"},
+			"fizz": {"bar"},
 		},
 	},
 	{
 		name: "no limit empty filter",
 		opts: AggregateResultsOptions{FieldFilter: toFilter()},
 		expected: map[string][]string{
-			"foo":  []string{"bar", "biz", "baz"},
-			"fizz": []string{"bar"},
-			"buzz": []string{"bar", "bag"},
-			"qux":  []string{"qaz"},
+			"foo":  {"bar", "biz", "baz"},
+			"fizz": {"bar"},
+			"buzz": {"bar", "bag"},
+			"qux":  {"qaz"},
 		},
 	},
 	{
@@ -266,7 +264,7 @@ var mergeTests = []struct {
 		name: "empty limit with filter",
 		opts: AggregateResultsOptions{FieldFilter: toFilter("buzz")},
 		expected: map[string][]string{
-			"buzz": []string{"bar", "bag"},
+			"buzz": {"bar", "bag"},
 		},
 	},
 	{
@@ -274,8 +272,8 @@ var mergeTests = []struct {
 		opts: AggregateResultsOptions{
 			SizeLimit: 2, FieldFilter: toFilter("buzz", "qux", "fizz")},
 		expected: map[string][]string{
-			"fizz": []string{"bar"},
-			"buzz": []string{"bar", "bag"},
+			"fizz": {"bar"},
+			"buzz": {"bar", "bag"},
 		},
 	},
 }
@@ -287,16 +285,36 @@ func TestAggResultsMerge(t *testing.T) {
 			size := addMultipleDocuments(t, res)
 
 			require.Equal(t, len(tt.expected), size)
-			assertContains(t, tt.expected, res.Map())
+			ac := res.Map()
+			require.Equal(t, len(tt.expected), ac.Len())
+			for k, v := range tt.expected {
+				aggVals, ok := ac.Get(ident.StringID(k))
+				require.True(t, ok)
+				require.Equal(t, len(v), aggVals.Size())
+				for _, actual := range v {
+					require.True(t, aggVals.Map().Contains(ident.StringID(actual)))
+				}
+			}
 		})
+	}
+}
 
+func TestAggResultsMergeNameOnly(t *testing.T) {
+	for _, tt := range mergeTests {
 		t.Run(tt.name+" name only", func(t *testing.T) {
 			tt.opts.Type = AggregateTagNames
 			res := NewAggregateResults(nil, tt.opts, testOpts)
 			size := addMultipleDocuments(t, res)
 
 			require.Equal(t, len(tt.expected), size)
-			assertContains(t, expectedTermsOnly(tt.expected), res.Map())
+
+			ac := res.Map()
+			require.Equal(t, len(tt.expected), ac.Len())
+			for k := range tt.expected {
+				aggVals, ok := ac.Get(ident.StringID(k))
+				require.True(t, ok)
+				assertNoValuesInNameOnlyAggregate(t, aggVals)
+			}
 		})
 	}
 }
@@ -366,9 +384,7 @@ func TestAggResultsNameOnlyInsertCopies(t *testing.T) {
 		// than the original.
 		require.False(t, xtest.ByteSlicesBackedBySameData(n, name))
 		found = true
-		v := entry.Value()
-		require.NotNil(t, v.Map())
-		require.Equal(t, 0, v.Size())
+		assertNoValuesInNameOnlyAggregate(t, entry.Value())
 	}
 
 	require.True(t, found)
