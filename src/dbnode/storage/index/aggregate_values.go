@@ -53,6 +53,11 @@ func MustNewAggregateValues(opts Options, ids ...ident.ID) AggregateValues {
 	return m
 }
 
+// HasValues returns true if this has an aggregate values map.
+func (v *AggregateValues) HasValues() bool {
+	return v.hasValues
+}
+
 // Map returns a map from an ID -> empty struct to signify existence of the
 // ID in the set this structure represents.
 func (v *AggregateValues) Map() *AggregateValuesMap {
@@ -61,6 +66,10 @@ func (v *AggregateValues) Map() *AggregateValuesMap {
 
 // Size returns the number of IDs tracked.
 func (v *AggregateValues) Size() int {
+	if !v.hasValues {
+		return 0
+	}
+
 	return v.valuesMap.Len()
 }
 

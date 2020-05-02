@@ -151,6 +151,10 @@ func assertNoValuesInNameOnlyAggregate(t *testing.T, v AggregateValues) {
 	assert.False(t, v.hasValues)
 	assert.Nil(t, v.valuesMap)
 	assert.Nil(t, v.pool)
+
+	assert.Equal(t, 0, v.Size())
+	assert.Nil(t, v.Map())
+	assert.False(t, v.HasValues())
 }
 
 func TestAggResultsTermOnlySameName(t *testing.T) {
