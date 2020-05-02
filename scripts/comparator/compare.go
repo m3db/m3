@@ -105,13 +105,23 @@ func main() {
 
 	var multiErr xerrors.MultiError
 	for _, queryGroup := range queries {
-		if err := runQueryGroup(
-			queryGroup,
-			promAddress,
-			queryAddress,
-			log,
-		); err != nil {
-			multiErr = multiErr.Add(err)
+		runs := 1
+		if queryGroup.Reruns > 1 {
+			runs = queryGroup.Reruns
+		}
+
+		for i := 0; i < runs; i++ {
+			log.Info("running query group",
+				zap.String("group", queryGroup.QueryGroup),
+				zap.Int("run", i+1))
+			if err := runQueryGroup(
+				queryGroup,
+				promAddress,
+				queryAddress,
+				log,
+			); err != nil {
+				multiErr = multiErr.Add(err)
+			}
 		}
 	}
 
@@ -160,14 +170,25 @@ func runRegressionSuite(
 
 	var multiErr xerrors.MultiError
 	for _, regressionGroup := range regressions {
-		if err := runRegression(
-			regressionGroup,
-			comparatorAddress,
-			promAddress,
-			queryAddress,
-			log,
-		); err != nil {
-			multiErr = multiErr.Add(err)
+		runs := 1
+		if regressionGroup.Reruns > 1 {
+			runs = regressionGroup.Reruns
+		}
+
+		for i := 0; i < runs; i++ {
+			log.Info("running query group",
+				zap.String("group", regressionGroup.QueryGroup),
+				zap.Int("run", i+1))
+
+			if err := runRegression(
+				regressionGroup,
+				comparatorAddress,
+				promAddress,
+				queryAddress,
+				log,
+			); err != nil {
+				multiErr = multiErr.Add(err)
+			}
 		}
 	}
 
@@ -186,8 +207,6 @@ func runRegression(
 	queryAddress string,
 	log *zap.Logger,
 ) error {
-	log.Info("running query group", zap.String("group", queryGroup.QueryGroup))
-
 	data, err := json.Marshal(queryGroup.Data)
 	if err != nil {
 		log.Error("could not marshall data", zap.Error(err))
@@ -231,8 +250,6 @@ func runQueryGroup(
 	queryAddress string,
 	log *zap.Logger,
 ) error {
-	log.Info("running query group", zap.String("group", queryGroup.QueryGroup))
-
 	var multiErr xerrors.MultiError
 	for _, query := range queryGroup.Queries {
 		promURL := fmt.Sprintf("http://%s%s", promAddress, query)

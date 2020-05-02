@@ -41,6 +41,8 @@ type InputQuery struct {
 	Queries []string `json:"queries"`
 	// Steps is the list of step sizes for these queries.
 	Steps []string `json:"steps"`
+	// Reruns is the number of times to rerun this query group.
+	Reruns int `json:"reruns"`
 }
 
 // PromQLQueryGroup is a list of constructed PromQL query groups.
@@ -49,6 +51,8 @@ type PromQLQueryGroup struct {
 	QueryGroup string
 	// Queries is a list of PromQL compatible queries.
 	Queries []string
+	// Reruns is the number of times to rerun this query group.
+	Reruns int
 }
 
 func (q InputQueries) constructPromQL(
@@ -78,9 +82,15 @@ func (q InputQuery) constructPromQL(start int64, end int64) PromQLQueryGroup {
 		}
 	}
 
+	runs := 1
+	if q.Reruns > 1 {
+		runs = q.Reruns
+	}
+
 	return PromQLQueryGroup{
 		QueryGroup: q.QueryGroup,
 		Queries:    queries,
+		Reruns:     runs,
 	}
 }
 

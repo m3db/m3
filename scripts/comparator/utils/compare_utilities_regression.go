@@ -40,6 +40,7 @@ type RegressionQuery struct {
 	StartMillis int64           `json:"startMillis"`
 	EndMillis   int64           `json:"endMillis"`
 	Step        int             `json:"step"`
+	Retries     int             `json:"retries"`
 	Data        []parser.Series `json:"data"`
 }
 
@@ -72,7 +73,8 @@ func parseRegressionFileToQueries(
 // PromQLRegressionQueryGroup is a PromQLQueryGroup with a given data set.
 type PromQLRegressionQueryGroup struct {
 	PromQLQueryGroup
-	Data []parser.Series
+	Retries int
+	Data    []parser.Series
 }
 
 func (q RegressionQuery) constructPromQL() PromQLRegressionQueryGroup {
@@ -83,12 +85,18 @@ func (q RegressionQuery) constructPromQL() PromQLRegressionQueryGroup {
 	values.Add("end", fmt.Sprint(q.EndMillis))
 	query := "/api/v1/query_range?" + values.Encode()
 
+	retries := 1
+	if q.Retries > 1 {
+		retries = q.Retries
+	}
+
 	return PromQLRegressionQueryGroup{
 		PromQLQueryGroup: PromQLQueryGroup{
 			QueryGroup: q.Name,
 			Queries:    []string{query},
 		},
-		Data: q.Data,
+		Data:    q.Data,
+		Retries: retries,
 	}
 }
 
