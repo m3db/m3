@@ -27,6 +27,7 @@ import (
 // AggregateValues is a collection of unique identity values backed by a pool.
 // NB: there are no synchronization guarantees provided by default.
 type AggregateValues struct {
+	hasValues bool
 	valuesMap *AggregateValuesMap
 	pool      AggregateValuesPool
 }
@@ -34,6 +35,7 @@ type AggregateValues struct {
 // NewAggregateValues returns a new AggregateValues object.
 func NewAggregateValues(opts Options) AggregateValues {
 	return AggregateValues{
+		hasValues: true,
 		valuesMap: NewAggregateValuesMap(opts.IdentifierPool()),
 		pool:      opts.AggregateValuesPool(),
 	}
@@ -63,6 +65,11 @@ func (v *AggregateValues) Size() int {
 }
 
 func (v *AggregateValues) finalize() {
+	// NB: if this aggregate values has no values, no need to finalize.
+	if !v.hasValues {
+		return
+	}
+
 	// NB: resetting the value map will already finalize all copies of the keys.
 	v.valuesMap.Reset()
 
