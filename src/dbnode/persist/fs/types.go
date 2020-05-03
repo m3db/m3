@@ -119,6 +119,22 @@ type DataReaderOpenOptions struct {
 	FileSetType persist.FileSetType
 }
 
+// ManagedBloomFilter is a container object that implements lifecycle
+// management on-top of a BloomFilter. I.E it wraps a bloom filter such that
+// all resources are released when the Close() method is called.
+type ManagedBloomFilter interface {
+	io.Closer
+
+	// Test tests whether a value is in the bloom filter
+	Test(value []byte) bool
+
+	// M returns the number of elements in the bloom filter
+	M() uint
+
+	// K returns the number of hash functions in the bloom filter
+	K() uint
+}
+
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
 type DataFileSetReader interface {
 	io.Closer
@@ -202,7 +218,7 @@ type DataFileSetSeeker interface {
 	// be used to quickly disqualify ID's that definitely do not exist. I.E if the
 	// Test() method returns true, the ID may exist on disk, but if it returns
 	// false, it definitely does not.
-	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
+	ConcurrentIDBloomFilter() ManagedBloomFilter
 
 	// ConcurrentClone clones a seeker, creating a copy that uses the same underlying resources
 	// (mmaps), but that is capable of seeking independently. The original can continue
@@ -231,7 +247,7 @@ type ConcurrentDataFileSetSeeker interface {
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker
-	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
+	ConcurrentIDBloomFilter() ManagedBloomFilter
 }
 
 // DataFileSetSeekerManager provides management of seekers for a TSDB namespace.

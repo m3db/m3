@@ -119,7 +119,7 @@ type seekerUnreadBuf struct {
 type seekersAndBloom struct {
 	wg          *sync.WaitGroup
 	seekers     []borrowableSeeker
-	bloomFilter *ManagedConcurrentBloomFilter
+	bloomFilter ManagedBloomFilter
 	volume      int
 }
 

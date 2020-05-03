@@ -119,6 +119,85 @@ func (mr *MockDataFileSetWriterMockRecorder) WriteAll(arg0, arg1, arg2, arg3 int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteAll", reflect.TypeOf((*MockDataFileSetWriter)(nil).WriteAll), arg0, arg1, arg2, arg3)
 }
 
+// MockManagedBloomFilter is a mock of ManagedBloomFilter interface
+type MockManagedBloomFilter struct {
+	ctrl     *gomock.Controller
+	recorder *MockManagedBloomFilterMockRecorder
+}
+
+// MockManagedBloomFilterMockRecorder is the mock recorder for MockManagedBloomFilter
+type MockManagedBloomFilterMockRecorder struct {
+	mock *MockManagedBloomFilter
+}
+
+// NewMockManagedBloomFilter creates a new mock instance
+func NewMockManagedBloomFilter(ctrl *gomock.Controller) *MockManagedBloomFilter {
+	mock := &MockManagedBloomFilter{ctrl: ctrl}
+	mock.recorder = &MockManagedBloomFilterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockManagedBloomFilter) EXPECT() *MockManagedBloomFilterMockRecorder {
+	return m.recorder
+}
+
+// Close mocks base method
+func (m *MockManagedBloomFilter) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockManagedBloomFilterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockManagedBloomFilter)(nil).Close))
+}
+
+// K mocks base method
+func (m *MockManagedBloomFilter) K() uint {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "K")
+	ret0, _ := ret[0].(uint)
+	return ret0
+}
+
+// K indicates an expected call of K
+func (mr *MockManagedBloomFilterMockRecorder) K() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "K", reflect.TypeOf((*MockManagedBloomFilter)(nil).K))
+}
+
+// M mocks base method
+func (m *MockManagedBloomFilter) M() uint {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "M")
+	ret0, _ := ret[0].(uint)
+	return ret0
+}
+
+// M indicates an expected call of M
+func (mr *MockManagedBloomFilterMockRecorder) M() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "M", reflect.TypeOf((*MockManagedBloomFilter)(nil).M))
+}
+
+// Test mocks base method
+func (m *MockManagedBloomFilter) Test(arg0 []byte) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Test", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Test indicates an expected call of Test
+func (mr *MockManagedBloomFilterMockRecorder) Test(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Test", reflect.TypeOf((*MockManagedBloomFilter)(nil).Test), arg0)
+}
+
 // MockDataFileSetReader is a mock of DataFileSetReader interface
 type MockDataFileSetReader struct {
 	ctrl     *gomock.Controller
@@ -386,10 +465,10 @@ func (mr *MockDataFileSetSeekerMockRecorder) ConcurrentClone() *gomock.Call {
 }
 
 // ConcurrentIDBloomFilter mocks base method
-func (m *MockDataFileSetSeeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
+func (m *MockDataFileSetSeeker) ConcurrentIDBloomFilter() ManagedBloomFilter {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConcurrentIDBloomFilter")
-	ret0, _ := ret[0].(*ManagedConcurrentBloomFilter)
+	ret0, _ := ret[0].(ManagedBloomFilter)
 	return ret0
 }
 
@@ -1123,10 +1202,10 @@ func (mr *MockConcurrentDataFileSetSeekerMockRecorder) Close() *gomock.Call {
 }
 
 // ConcurrentIDBloomFilter mocks base method
-func (m *MockConcurrentDataFileSetSeeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
+func (m *MockConcurrentDataFileSetSeeker) ConcurrentIDBloomFilter() ManagedBloomFilter {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConcurrentIDBloomFilter")
-	ret0, _ := ret[0].(*ManagedConcurrentBloomFilter)
+	ret0, _ := ret[0].(ManagedBloomFilter)
 	return ret0
 }
 

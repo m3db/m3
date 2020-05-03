@@ -76,7 +76,7 @@ type seeker struct {
 
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
-	bloomFilter *ManagedConcurrentBloomFilter
+	bloomFilter ManagedBloomFilter
 	indexLookup *nearestIndexOffsetLookup
 
 	isClone bool
@@ -138,7 +138,7 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 	}
 }
 
-func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
+func (s *seeker) ConcurrentIDBloomFilter() ManagedBloomFilter {
 	return s.bloomFilter
 }
 
