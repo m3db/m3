@@ -151,6 +151,19 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 	return nil
 }
 
+func (r *blockRetriever) CleanupShardIndices(shards []uint32) error {
+	r.RLock()
+	if r.status != blockRetrieverOpen {
+		r.RUnlock()
+		return errBlockRetrieverNotOpen
+	}
+	seekerMgr := r.seekerMgr
+	r.RUnlock()
+
+	seekerMgr.CleanupShardIndices(shards)
+	return nil
+}
+
 func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 	r.RLock()
 	if r.status != blockRetrieverOpen {

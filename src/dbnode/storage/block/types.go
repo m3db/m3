@@ -271,6 +271,12 @@ type DatabaseBlockRetriever interface {
 	// to improve times when streaming a block.
 	CacheShardIndices(shards []uint32) error
 
+	// CleanupShardIndices purge pre-parsed indexes for the given shards and
+	// close file descriptors to the fileset files for the given shards.
+	// Shard indices are closed on a best effort basis and may fail without
+	// returning an error.
+	CleanupShardIndices(shards []uint32) error
+
 	// Stream will stream a block for a given shard, id and start.
 	Stream(
 		ctx context.Context,

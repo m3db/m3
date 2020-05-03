@@ -386,10 +386,10 @@ func (mr *MockDataFileSetSeekerMockRecorder) ConcurrentClone() *gomock.Call {
 }
 
 // ConcurrentIDBloomFilter mocks base method
-func (m *MockDataFileSetSeeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
+func (m *MockDataFileSetSeeker) ConcurrentIDBloomFilter() ManagedBloomFilter {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConcurrentIDBloomFilter")
-	ret0, _ := ret[0].(*ManagedConcurrentBloomFilter)
+	ret0, _ := ret[0].(ManagedBloomFilter)
 	return ret0
 }
 

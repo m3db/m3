@@ -868,6 +868,20 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) CacheShardIndices(shards inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheShardIndices", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).CacheShardIndices), shards)
 }
 
+// CleanupShardIndices mocks base method
+func (m *MockDatabaseBlockRetriever) CleanupShardIndices(shards []uint32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanupShardIndices", shards)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupShardIndices indicates an expected call of CleanupShardIndices
+func (mr *MockDatabaseBlockRetrieverMockRecorder) CleanupShardIndices(shards interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupShardIndices", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).CacheShardIndices), shards)
+}
+
 // Stream mocks base method
 func (m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock, nsCtx namespace.Context) (xio.BlockReader, error) {
 	m.ctrl.T.Helper()

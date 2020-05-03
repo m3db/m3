@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -76,9 +77,9 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	for shard, byTime := range m.seekersByShardIdx {
 		_, exists := shardSet[uint32(shard)]
 		if !exists {
-			require.False(t, byTime.accessed)
+			require.Equal(t, byTimeSeekersInit, byTime.state)
 		} else {
-			require.True(t, byTime.accessed)
+			require.Equal(t, byTimeSeekersAccessed, byTime.state)
 			require.Equal(t, int(shard), int(byTime.shard))
 		}
 	}
@@ -238,171 +239,451 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	require.NoError(t, m.Close())
 }
 
+type settableClock struct {
+	currentTime time.Time
+}
+
+func (clock *settableClock) getNow() time.Time {
+	return clock.currentTime
+}
+
+// Represents operations performed on a seek manager.
+// TestSeekerManagerOpenCloseLoop() is setup in such a way that
+// atleast one openCloseLoop iteration completes between each step's execution.
+// This helps produce consistent results across multiple test runs.
+type testOpenCloseLoopStep struct {
+	title string
+	step  func(m *seekerManager, state *testOpenCloseLoopCase)
+}
+
+type testOpenCloseLoopCase struct {
+	borrowedSeekers []ConcurrentDataFileSetSeeker
+	shards          []uint32
+	clock           settableClock
+	startTime       time.Time
+	nsMetadata      namespace.Metadata
+	// Steps is a series of steps for the test. It is guaranteed that at least
+	// one (not exactly one!) tick of the openCloseLoop will occur between every step.
+	steps []testOpenCloseLoopStep
+}
+
+type testOpenCloseLoopContext struct {
+	tickCh        chan struct{}
+	cleanupCh     chan struct{}
+	seekerManager *seekerManager
+}
+
 // TestSeekerManagerOpenCloseLoop tests the openCloseLoop of the SeekerManager
 // by making sure that it makes the right decisions with regards to cleaning
 // up resources based on their state.
 func TestSeekerManagerOpenCloseLoop(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+	testContext := testOpenCloseLoopSetup(t)
+	defer testOpenCloseLoopTeardown(t, testContext)
+
+	testOpenCloseLoopExecute(t, testContext, &testOpenCloseLoopCase{
+		borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+		shards:          []uint32{2, 5, 9, 478, 1023},
+		nsMetadata:      testNs1Metadata(t),
+		clock:           settableClock{},
+		startTime:       time.Unix(1588503952, 0),
+		steps: []testOpenCloseLoopStep{
+			{
+				title: "Cache shard indices",
+				step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+					// Force all the seekers to be opened
+					require.NoError(t, m.CacheShardIndices(state.shards))
+
+				},
+			},
+			{
+				title: "Make sure it didn't clean up the seekers which are still in retention",
+				step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					for _, shard := range state.shards {
+						require.Equal(t, defaultTestingFetchConcurrency,
+							len(m.seekersByTime(shard).seekers[blockStartNano].active.seekers))
+					}
+					m.RUnlock()
+				},
+			},
+			{
+				title: "Borrow a seeker from each shard and then modify the clock such that they're out of retention",
+				step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+					blockStartNano := state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+					for _, shard := range state.shards {
+						seeker, err := m.Borrow(shard, blockStartNano)
+						require.NoError(t, err)
+						require.NotNil(t, seeker)
+						state.borrowedSeekers = append(state.borrowedSeekers, seeker)
+					}
+					state.clock.currentTime = state.clock.currentTime.
+						Add((10 * state.nsMetadata.Options().RetentionOptions().RetentionPeriod()))
+				},
+			},
+			{
+				title: "Make sure the seeker manager cant be closed while seekers are borrowed",
+				step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+					require.Equal(t, errCantCloseSeekerManagerWhileSeekersAreBorrowed, m.Close())
+				},
+			},
+			{
+				title: "Make sure that none of the seekers were cleaned up during the openCloseLoop tick (because they're still borrowed)",
+				step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					for _, shard := range state.shards {
+						require.Equal(t, defaultTestingFetchConcurrency,
+							len(m.seekersByTime(shard).seekers[blockStartNano].active.seekers))
+					}
+					m.RUnlock()
+				},
+			},
+			{
+				title: "Return the borrowed seekers",
+				step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+					blockStartNano := state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+					for i, seeker := range state.borrowedSeekers {
+						require.NoError(t, m.Return(state.shards[i], blockStartNano, seeker))
+					}
+				},
+			},
+			{
+				title: "Make sure that the returned seekers were cleaned up during the openCloseLoop tick",
+				step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					for _, shard := range state.shards {
+						byTime := m.seekersByTime(shard)
+						byTime.RLock()
+						_, ok := byTime.seekers[blockStartNano]
+						byTime.RUnlock()
+						require.False(t, ok)
+					}
+					m.RUnlock()
+				},
+			},
+		},
+	})
+}
+
+func TestSeekerManagerCleanupShardIndices(t *testing.T) {
+	t.Run("Test that closing shard indices closes seekers", func(t *testing.T) {
+		testContext := testOpenCloseLoopSetup(t)
+		defer testOpenCloseLoopTeardown(t, testContext)
+
+		testOpenCloseLoopExecute(t, testContext, &testOpenCloseLoopCase{
+			borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+			shards:          []uint32{2, 5, 9, 478},
+			nsMetadata:      testNs1Metadata(t),
+			clock:           settableClock{},
+			startTime:       time.Unix(1588503952, 0),
+			steps: []testOpenCloseLoopStep{
+				{
+					title: "Cache shard indices",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						// Force all the seekers to be opened
+						require.NoError(t, m.CacheShardIndices(state.shards))
+
+					},
+				},
+				{
+					title: "Close some shard indices",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						m.CleanupShardIndices([]uint32{2, 9, 478})
+					},
+				},
+				{
+					title: "Test that closed shard indices are closed even though they are in rentention window",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						m.RLock()
+						blockStartNano := xtime.ToUnixNano(state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+						for _, shard := range state.shards {
+							byTime := m.seekersByTime(shard)
+							byTime.RLock()
+							_, ok := byTime.seekers[blockStartNano]
+							if shard == 2 || shard == 9 || shard == 478 {
+								// Check that expected shards are closed
+								require.False(t, ok)
+							} else {
+								// Check that remaining shards are not closed
+								require.Equal(t, defaultTestingFetchConcurrency,
+									len(m.seekersByTime(shard).seekers[blockStartNano].active.seekers))
+							}
+							byTime.RUnlock()
+						}
+						m.RUnlock()
+					},
+				},
+			}})
+	})
+
+	t.Run("Test that shard index does not close if a seeker is borrowed", func(t *testing.T) {
+		testContext := testOpenCloseLoopSetup(t)
+		defer testOpenCloseLoopTeardown(t, testContext)
+
+		testOpenCloseLoopExecute(t, testContext, &testOpenCloseLoopCase{
+			borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+			shards:          []uint32{2, 5},
+			nsMetadata:      testNs1Metadata(t),
+			clock:           settableClock{},
+			startTime:       time.Unix(1588503952, 0),
+			steps: []testOpenCloseLoopStep{
+				{
+					title: "Cache shard indices",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						// Force all the seekers to be opened
+						require.NoError(t, m.CacheShardIndices(state.shards))
+
+					},
+				},
+				{
+					title: "Borrow from one of the two open shards",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						blockStartNano := state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+						seeker, err := m.Borrow(5, blockStartNano)
+						state.borrowedSeekers = append(state.borrowedSeekers, seeker)
+						require.Nil(t, err)
+					},
+				},
+				{
+					title: "Try to close all shard indices",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						m.CleanupShardIndices(state.shards)
+					},
+				},
+				{
+					title: "Test that borrowed from shard was not closed",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						m.RLock()
+						blockStartNano := xtime.ToUnixNano(state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+						for _, shard := range state.shards {
+							byTime := m.seekersByTime(shard)
+							byTime.RLock()
+							_, ok := byTime.seekers[blockStartNano]
+							if shard == 5 {
+								// Check that borrowed shard was closed
+								require.Equal(t, defaultTestingFetchConcurrency,
+									len(m.seekersByTime(shard).seekers[blockStartNano].active.seekers))
+							} else {
+								// Check that remaining shards are closed
+								require.False(t, ok)
+							}
+							byTime.RUnlock()
+						}
+						m.RUnlock()
+					},
+				},
+				{
+					title: "Return the borrowed shard",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						blockStartTime := state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+						err := m.Return(5, blockStartTime, state.borrowedSeekers[0])
+						require.Nil(t, err)
+					},
+				},
+				{
+					title: "Test that all shards are now closed",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						m.RLock()
+						blockStartNano := xtime.ToUnixNano(state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+						for _, shard := range state.shards {
+							byTime := m.seekersByTime(shard)
+							byTime.RLock()
+							_, ok := byTime.seekers[blockStartNano]
+							require.False(t, ok)
+							byTime.RUnlock()
+						}
+						m.RUnlock()
+					},
+				},
+			},
+		})
+	})
+
+	t.Run("Tests that borrowing from a closed shard index reopens it", func(t *testing.T) {
+		testContext := testOpenCloseLoopSetup(t)
+		defer testOpenCloseLoopTeardown(t, testContext)
+
+		testOpenCloseLoopExecute(t, testContext, &testOpenCloseLoopCase{
+			borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+			shards:          []uint32{5},
+			nsMetadata:      testNs1Metadata(t),
+			clock:           settableClock{},
+			startTime:       time.Unix(1588503952, 0),
+			steps: []testOpenCloseLoopStep{
+				{
+					title: "Cache shard index",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						// Force all the seekers to be opened
+						require.NoError(t, m.CacheShardIndices(state.shards))
+
+					},
+				},
+				{
+					title: "Cleanup shard index",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						m.CleanupShardIndices(state.shards)
+					},
+				},
+				{
+					title: "Test that borrowing a seeker after closing a shard index reopens the shard index",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						blockStartTime := state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+						seeker, _ := m.Borrow(5, blockStartTime)
+						state.borrowedSeekers = append(state.borrowedSeekers, seeker)
+					},
+				},
+				{
+					title: "Test that closed shard index is now open because it was borrowed",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						m.RLock()
+						blockStartNano := xtime.ToUnixNano(state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+						byTime := m.seekersByTime(5)
+						byTime.RLock()
+						require.Equal(t, defaultTestingFetchConcurrency, len(byTime.seekers[blockStartNano].active.seekers))
+						byTime.RUnlock()
+						m.RUnlock()
+					},
+				},
+				{
+					title: "Return the shard index",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						blockStartTime := state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+						m.Return(5, blockStartTime, state.borrowedSeekers[0])
+					},
+				},
+			},
+		})
+	})
+
+	t.Run("Tests that testing from a closed shard index reopens it", func(t *testing.T) {
+		testContext := testOpenCloseLoopSetup(t)
+		defer testOpenCloseLoopTeardown(t, testContext)
+
+		testOpenCloseLoopExecute(t, testContext, &testOpenCloseLoopCase{
+			borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+			shards:          []uint32{5},
+			nsMetadata:      testNs1Metadata(t),
+			clock:           settableClock{},
+			startTime:       time.Unix(1588503952, 0),
+			steps: []testOpenCloseLoopStep{
+				{
+					title: "Cache shard index",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						// Force all the seekers to be opened
+						require.NoError(t, m.CacheShardIndices(state.shards))
+
+					},
+				},
+				{
+					title: "Cleanup shard index",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						m.CleanupShardIndices(state.shards)
+					},
+				},
+				{
+					title: "Test that testing a seeker after closing a shard index reopens the shard index",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						blockStartTime := state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+						_, err := m.Test(ident.StringID("random-id"), 5, blockStartTime)
+						require.Nil(t, err)
+					},
+				},
+				{
+					title: "Test that closed shard index is now open because it was used for testing",
+					step: func(m *seekerManager, state *testOpenCloseLoopCase) {
+						m.RLock()
+						blockStartNano := xtime.ToUnixNano(state.startTime.
+							Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+						byTime := m.seekersByTime(5)
+						byTime.RLock()
+						require.Equal(t, defaultTestingFetchConcurrency, len(byTime.seekers[blockStartNano].active.seekers))
+						byTime.RUnlock()
+						m.RUnlock()
+					},
+				},
+			},
+		})
+	})
+}
+
+func testOpenCloseLoopSetup(t *testing.T) *testOpenCloseLoopContext {
+	defer leaktest.CheckTimeout(t, 10*time.Minute)()
 
 	ctrl := gomock.NewController(t)
+	testContext := &testOpenCloseLoopContext{}
 
-	shards := []uint32{2, 5, 9, 478, 1023}
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
-	clockOpts := m.opts.ClockOptions()
-	now := clockOpts.NowFn()()
-	startNano := xtime.ToUnixNano(now)
+	testContext.seekerManager = m
 
-	fakeTime := now
-	fakeTimeLock := sync.Mutex{}
-	// Setup a function that will allow us to dynamically modify the clock in
-	// a concurrency-safe way
-	newNowFn := func() time.Time {
-		fakeTimeLock.Lock()
-		defer fakeTimeLock.Unlock()
-		return fakeTime
+	m.newOpenSeekerFn = func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
+		fakeBloomFilter := NewTestManagedBloomFilter(2, 2, make([]byte, 100))
+		mockDataFileSeeker := NewMockDataFileSetSeeker(ctrl)
+		mockDataFileSeeker.EXPECT().ConcurrentClone().Return(mockDataFileSeeker, nil).AnyTimes()
+		mockDataFileSeeker.EXPECT().ConcurrentIDBloomFilter().Return(fakeBloomFilter).AnyTimes()
+		mockDataFileSeeker.EXPECT().Close().Return(nil).AnyTimes()
+		return mockDataFileSeeker, nil
 	}
-	clockOpts = clockOpts.SetNowFn(newNowFn)
-	m.opts = m.opts.SetClockOptions(clockOpts)
-
-	// Initialize some seekers for a time period
-	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
-		byTime.Lock()
-		defer byTime.Unlock()
-
-		// Don't overwrite if called again
-		if len(byTime.seekers) != 0 {
-			return nil
-		}
-
-		// Don't re-open if they should have expired
-		fakeTimeLock.Lock()
-		defer fakeTimeLock.Unlock()
-		if !fakeTime.Equal(now) {
-			return nil
-		}
-
-		mock := NewMockDataFileSetSeeker(ctrl)
-		mock.EXPECT().Close().Return(nil)
-		mocks := []borrowableSeeker{}
-		mocks = append(mocks, borrowableSeeker{seeker: mock})
-		byTime.seekers[startNano] = rotatableSeekers{
-			active: seekersAndBloom{
-				seekers:     mocks,
-				bloomFilter: nil,
-			},
-		}
-		return nil
-	}
-
-	// Force all the seekers to be opened
-	require.NoError(t, m.CacheShardIndices(shards))
 
 	// Notified everytime the openCloseLoop ticks
-	tickCh := make(chan struct{})
-	cleanupCh := make(chan struct{})
+	testContext.tickCh = make(chan struct{})
+	testContext.cleanupCh = make(chan struct{})
 	m.sleepFn = func(_ time.Duration) {
-		tickCh <- struct{}{}
+		testContext.tickCh <- struct{}{}
 	}
 
-	metadata := testNs1Metadata(t)
-	seekers := []ConcurrentDataFileSetSeeker{}
+	return testContext
+}
 
-	require.NoError(t, m.Open(metadata))
-	// Steps is a series of steps for the test. It is guaranteed that at least
-	// one (not exactly one!) tick of the openCloseLoop will occur between every step.
-	steps := []struct {
-		title string
-		step  func()
-	}{
-		{
-			title: "Make sure it didn't clean up the seekers which are still in retention",
-			step: func() {
-				m.RLock()
-				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
-				}
-				m.RUnlock()
-			},
-		},
-		{
-			title: "Borrow a seeker from each shard and then modify the clock such that they're out of retention",
-			step: func() {
-				for _, shard := range shards {
-					seeker, err := m.Borrow(shard, now)
-					require.NoError(t, err)
-					require.NotNil(t, seeker)
-					seekers = append(seekers, seeker)
-				}
+func testOpenCloseLoopExecute(t *testing.T, testContext *testOpenCloseLoopContext, testCase *testOpenCloseLoopCase) {
+	// Set mock clock's current time to mock test start time
+	testCase.clock.currentTime = testCase.startTime
+	clockOpts := testContext.seekerManager.opts.ClockOptions().SetNowFn(testCase.clock.getNow)
+	testContext.seekerManager.opts = testContext.seekerManager.opts.SetClockOptions(clockOpts)
 
-				fakeTimeLock.Lock()
-				fakeTime = fakeTime.Add(10 * metadata.Options().RetentionOptions().RetentionPeriod())
-				fakeTimeLock.Unlock()
-			},
-		},
-		{
-			title: "Make sure the seeker manager cant be closed while seekers are borrowed",
-			step: func() {
-				require.Equal(t, errCantCloseSeekerManagerWhileSeekersAreBorrowed, m.Close())
-			},
-		},
-		{
-			title: "Make sure that none of the seekers were cleaned up during the openCloseLoop tick (because they're still borrowed)",
-			step: func() {
-				m.RLock()
-				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
-				}
-				m.RUnlock()
-			},
-		},
-		{
-			title: "Return the borrowed seekers",
-			step: func() {
-				for i, seeker := range seekers {
-					require.NoError(t, m.Return(shards[i], now, seeker))
-				}
-			},
-		},
-		{
-			title: "Make sure that the returned seekers were cleaned up during the openCloseLoop tick",
-			step: func() {
-				m.RLock()
-				for _, shard := range shards {
-					byTime := m.seekersByTime(shard)
-					byTime.RLock()
-					_, ok := byTime.seekers[startNano]
-					byTime.RUnlock()
-					require.False(t, ok)
-				}
-				m.RUnlock()
-			},
-		},
-	}
+	require.NoError(t, testContext.seekerManager.Open(testCase.nsMetadata))
 
-	for _, step := range steps {
+	for _, step := range testCase.steps {
 		// Wait for two notifications between steps to guarantee that the entirety
 		// of the openCloseLoop is executed at least once
-		<-tickCh
-		<-tickCh
-		step.step()
+		<-testContext.tickCh
+		<-testContext.tickCh
+		step.step(testContext.seekerManager, testCase)
 	}
+}
 
+func testOpenCloseLoopTeardown(t *testing.T, testContext *testOpenCloseLoopContext) {
 	// Background goroutine that will pull notifications off the tickCh so that
 	// the openCloseLoop is not blocked when we call Close()
 	go func() {
 		for {
 			select {
-			case <-tickCh:
+			case <-testContext.tickCh:
 				continue
-			case <-cleanupCh:
+			case <-testContext.cleanupCh:
 				return
 			}
 		}
 	}()
 
 	// Restore previous interval once the openCloseLoop ends
-	require.NoError(t, m.Close())
+	require.NoError(t, testContext.seekerManager.Close())
 	// Make sure there are no goroutines still trying to write into the tickCh
 	// to prevent the test itself from interfering with the goroutine leak test
-	close(cleanupCh)
+	close(testContext.cleanupCh)
 }

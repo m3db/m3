@@ -73,6 +73,14 @@ const (
 	seekerManagerClosed
 )
 
+type byTimeSeekersState int
+
+const (
+	byTimeSeekersInit byTimeSeekersState = iota
+	byTimeSeekersAccessed
+	byTimeSeekersClosed
+)
+
 // seekerManager provides functionality around borrowableSeekers such as
 // opening and closing them, as well as lending them out to a Retriever.
 // There is a single seekerManager per namespace which contains all
@@ -119,7 +127,7 @@ type seekerUnreadBuf struct {
 type seekersAndBloom struct {
 	wg          *sync.WaitGroup
 	seekers     []borrowableSeeker
-	bloomFilter *ManagedConcurrentBloomFilter
+	bloomFilter ManagedBloomFilter
 	volume      int
 }
 
@@ -134,9 +142,15 @@ type borrowableSeeker struct {
 // blockStart. The accessed field allows for pre-caching those seekers.
 type seekersByTime struct {
 	sync.RWMutex
-	shard    uint32
-	accessed bool
-	seekers  map[xtime.UnixNano]rotatableSeekers
+	shard uint32
+	// Seekers for a shard can be marked closed. Seek manager will periodically close
+	// file descriptors for closed seekers in open/close loop. Seekers for blocks which
+	// fall outside the rentention period are automatically closed by open/close loop
+	// periodically but sekeers for a shard might need to be closed pro-actively by marking
+	// them closed. For eg. when a shard leaves a node.
+	// Seekers can also be marked accessed to be prefetched in open/close loop.
+	state   byTimeSeekersState
+	seekers map[xtime.UnixNano]rotatableSeekers
 }
 
 // rotatableSeekers is a wrapper around seekersAndBloom that allows for rotating
@@ -229,7 +243,7 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 
 		byTime.Lock()
 		// Track accessed to precache in open/close loop
-		byTime.accessed = true
+		byTime.state = byTimeSeekersAccessed
 		byTime.Unlock()
 
 		wg.Add(1)
@@ -245,6 +259,17 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 
 	wg.Wait()
 	return multiErr.FinalError()
+}
+
+func (m *seekerManager) CleanupShardIndices(shards []uint32) {
+	for _, shard := range shards {
+		byTime := m.seekersByTime(shard)
+
+		byTime.Lock()
+		// Track state to close FDs in open/close loop
+		byTime.state = byTimeSeekersClosed
+		byTime.Unlock()
+	}
 }
 
 func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, error) {
@@ -264,6 +289,11 @@ func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, 
 
 	byTime.Lock()
 	defer byTime.Unlock()
+
+	// Mark byTime seekers accessed so that open/close loop does not
+	// try to close byTime seekers if this function was called after
+	// these seekers were marked closed using CleanupShardIndices()
+	byTime.state = byTimeSeekersAccessed
 
 	// Check if raced with another call to this method
 	if seekers, ok := byTime.seekers[startNano]; ok && seekers.active.wg == nil {
@@ -286,7 +316,7 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFil
 	byTime.Lock()
 	defer byTime.Unlock()
 	// Track accessed to precache in open/close loop
-	byTime.accessed = true
+	byTime.state = byTimeSeekersAccessed
 
 	startNano := xtime.ToUnixNano(start)
 	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
@@ -912,14 +942,30 @@ func (m *seekerManager) openCloseLoop() {
 			break
 		}
 
-		for _, byTime := range m.seekersByShardIdx {
+		// Record seekers for all shard/block combinations to open and close
+		for shardIdx, byTime := range m.seekersByShardIdx {
 			byTime.RLock()
-			accessed := byTime.accessed
-			byTime.RUnlock()
-			if !accessed {
-				continue
+			byTimeSeekersState := byTime.state
+			// Record seekers for a shard which need to be opened
+			if byTimeSeekersState == byTimeSeekersAccessed {
+				shouldTryOpen = append(shouldTryOpen, byTime)
 			}
-			shouldTryOpen = append(shouldTryOpen, byTime)
+			// Record seekers for a shard which need to be closed. A seeker for a block might need to be closed either
+			// because a block falls out of retention window or because a shard leaves a node.
+			// Capture seekers to open and seekers to close under the same byTime.rLock to avoid a race condition
+			// wherein a seeker is opened and closed quickly in succession which results in one iteration of this loop
+			// opening and closing the same seeker resulting in wasted work.
+			for blockStartNano := range byTime.seekers {
+				blockStart := blockStartNano.ToTime()
+				if byTime.state == byTimeSeekersClosed || blockStart.Before(earliestSeekableBlockStart) {
+					shouldClose = append(shouldClose, seekerManagerPendingClose{
+						shard:      uint32(shardIdx),
+						blockStart: blockStart,
+					})
+				}
+			}
+
+			byTime.RUnlock()
 		}
 		m.RUnlock()
 
@@ -929,20 +975,6 @@ func (m *seekerManager) openCloseLoop() {
 		}
 
 		m.RLock()
-		for shard, byTime := range m.seekersByShardIdx {
-			byTime.RLock()
-			for blockStartNano := range byTime.seekers {
-				blockStart := blockStartNano.ToTime()
-				if blockStart.Before(earliestSeekableBlockStart) {
-					shouldClose = append(shouldClose, seekerManagerPendingClose{
-						shard:      uint32(shard),
-						blockStart: blockStart,
-					})
-				}
-			}
-			byTime.RUnlock()
-		}
-
 		if len(shouldClose) > 0 {
 			for _, elem := range shouldClose {
 				byTime := m.seekersByShardIdx[elem.shard]
