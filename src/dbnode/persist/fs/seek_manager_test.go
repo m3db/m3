@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -238,64 +239,159 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	require.NoError(t, m.Close())
 }
 
+type settableClock struct {
+	currentTime time.Time
+}
+
+func (clock *settableClock) getNow() time.Time {
+	return clock.currentTime
+}
+
+// Represents operations performed on a seek manager.
+// TestSeekerManagerOpenCloseLoop() is setup in such a way that
+// atleast one openCloseLoop iteration completes between each step's execution.
+// This helps produce consistent results across multiple test runs.
+type testSeekerManagerOpenCloseLoopStep struct {
+	title string
+	step  func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState)
+}
+
+// Seek manager is stateful. It tracks borrowed seekers.
+// A test case may want to borrow and return seekers within a single test run.
+// This struct allows such tests to track which seekers need to be returned.
+type testSeekerManagerOpenCloseLoopState struct {
+	borrowedSeekers []ConcurrentDataFileSetSeeker
+	shards          []uint32
+	clock           settableClock
+	startTime       time.Time
+	nsMetadata      namespace.Metadata
+}
+
+type testSeekerManagerOpenCloseLoopCase struct {
+	// Steps is a series of steps for the test. It is guaranteed that at least
+	// one (not exactly one!) tick of the openCloseLoop will occur between every step.
+	steps        []testSeekerManagerOpenCloseLoopStep
+	initialState *testSeekerManagerOpenCloseLoopState
+}
+
+func TestSeekerManagerOpenCloseLoop(t *testing.T) {
+	testCase := testSeekerManagerOpenCloseLoopCase{
+		initialState: &testSeekerManagerOpenCloseLoopState{
+			borrowedSeekers: []ConcurrentDataFileSetSeeker{},
+			shards:          []uint32{2, 5, 9, 478, 1023},
+			nsMetadata:      testNs1Metadata(t),
+			clock:           settableClock{},
+			startTime:       time.Unix(1588503952, 0),
+		},
+		steps: []testSeekerManagerOpenCloseLoopStep{
+			{
+				title: "Cache shard indices",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					// Force all the seekers to be opened
+					require.NoError(t, m.CacheShardIndices(state.shards))
+
+				},
+			},
+			{
+				title: "Make sure it didn't clean up the seekers which are still in retention",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					for _, shard := range state.shards {
+						require.Equal(t, defaultTestingFetchConcurrency,
+							len(m.seekersByTime(shard).seekers[blockStartNano].active.seekers))
+					}
+					m.RUnlock()
+				},
+			},
+			{
+				title: "Borrow a seeker from each shard and then modify the clock such that they're out of retention",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					blockStartNano := state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+					for _, shard := range state.shards {
+						seeker, err := m.Borrow(shard, blockStartNano)
+						require.NoError(t, err)
+						require.NotNil(t, seeker)
+						state.borrowedSeekers = append(state.borrowedSeekers, seeker)
+					}
+					state.clock.currentTime = state.clock.currentTime.
+						Add((10 * state.nsMetadata.Options().RetentionOptions().RetentionPeriod()))
+				},
+			},
+			{
+				title: "Make sure the seeker manager cant be closed while seekers are borrowed",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					require.Equal(t, errCantCloseSeekerManagerWhileSeekersAreBorrowed, m.Close())
+				},
+			},
+			{
+				title: "Make sure that none of the seekers were cleaned up during the openCloseLoop tick (because they're still borrowed)",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					for _, shard := range state.shards {
+						require.Equal(t, defaultTestingFetchConcurrency,
+							len(m.seekersByTime(shard).seekers[blockStartNano].active.seekers))
+					}
+					m.RUnlock()
+				},
+			},
+			{
+				title: "Return the borrowed seekers",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					blockStartNano := state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize())
+					for i, seeker := range state.borrowedSeekers {
+						require.NoError(t, m.Return(state.shards[i], blockStartNano, seeker))
+					}
+				},
+			},
+			{
+				title: "Make sure that the returned seekers were cleaned up during the openCloseLoop tick",
+				step: func(m *seekerManager, state *testSeekerManagerOpenCloseLoopState) {
+					m.RLock()
+					blockStartNano := xtime.ToUnixNano(state.startTime.
+						Truncate(state.nsMetadata.Options().RetentionOptions().BlockSize()))
+					for _, shard := range state.shards {
+						byTime := m.seekersByTime(shard)
+						byTime.RLock()
+						_, ok := byTime.seekers[blockStartNano]
+						byTime.RUnlock()
+						require.False(t, ok)
+					}
+					m.RUnlock()
+				},
+			},
+		},
+	}
+
+	testSeekerManagerOpenCloseLoop(t, testCase)
+}
+
 // TestSeekerManagerOpenCloseLoop tests the openCloseLoop of the SeekerManager
 // by making sure that it makes the right decisions with regards to cleaning
 // up resources based on their state.
-func TestSeekerManagerOpenCloseLoop(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+func testSeekerManagerOpenCloseLoop(t *testing.T, testCase testSeekerManagerOpenCloseLoopCase) {
+	defer leaktest.CheckTimeout(t, 10*time.Minute)()
 
 	ctrl := gomock.NewController(t)
 
-	shards := []uint32{2, 5, 9, 478, 1023}
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
-	clockOpts := m.opts.ClockOptions()
-	now := clockOpts.NowFn()()
-	startNano := xtime.ToUnixNano(now)
-
-	fakeTime := now
-	fakeTimeLock := sync.Mutex{}
-	// Setup a function that will allow us to dynamically modify the clock in
-	// a concurrency-safe way
-	newNowFn := func() time.Time {
-		fakeTimeLock.Lock()
-		defer fakeTimeLock.Unlock()
-		return fakeTime
-	}
-	clockOpts = clockOpts.SetNowFn(newNowFn)
+	// Set mock clock's current time to mock test start time
+	testCase.initialState.clock.currentTime = testCase.initialState.startTime
+	clockOpts := m.opts.ClockOptions().SetNowFn(testCase.initialState.clock.getNow)
 	m.opts = m.opts.SetClockOptions(clockOpts)
 
-	// Initialize some seekers for a time period
-	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
-		byTime.Lock()
-		defer byTime.Unlock()
-
-		// Don't overwrite if called again
-		if len(byTime.seekers) != 0 {
-			return nil
-		}
-
-		// Don't re-open if they should have expired
-		fakeTimeLock.Lock()
-		defer fakeTimeLock.Unlock()
-		if !fakeTime.Equal(now) {
-			return nil
-		}
-
+	m.newOpenSeekerFn = func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
 		mock := NewMockDataFileSetSeeker(ctrl)
-		mock.EXPECT().Close().Return(nil)
-		mocks := []borrowableSeeker{}
-		mocks = append(mocks, borrowableSeeker{seeker: mock})
-		byTime.seekers[startNano] = rotatableSeekers{
-			active: seekersAndBloom{
-				seekers:     mocks,
-				bloomFilter: nil,
-			},
-		}
-		return nil
+		mock.EXPECT().ConcurrentClone().Return(mock, nil).AnyTimes()
+		mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
+		mock.EXPECT().Close().Return(nil).AnyTimes()
+		return mock, nil
 	}
-
-	// Force all the seekers to be opened
-	require.NoError(t, m.CacheShardIndices(shards))
 
 	// Notified everytime the openCloseLoop ticks
 	tickCh := make(chan struct{})
@@ -304,87 +400,14 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 		tickCh <- struct{}{}
 	}
 
-	metadata := testNs1Metadata(t)
-	seekers := []ConcurrentDataFileSetSeeker{}
+	require.NoError(t, m.Open(testCase.initialState.nsMetadata))
 
-	require.NoError(t, m.Open(metadata))
-	// Steps is a series of steps for the test. It is guaranteed that at least
-	// one (not exactly one!) tick of the openCloseLoop will occur between every step.
-	steps := []struct {
-		title string
-		step  func()
-	}{
-		{
-			title: "Make sure it didn't clean up the seekers which are still in retention",
-			step: func() {
-				m.RLock()
-				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
-				}
-				m.RUnlock()
-			},
-		},
-		{
-			title: "Borrow a seeker from each shard and then modify the clock such that they're out of retention",
-			step: func() {
-				for _, shard := range shards {
-					seeker, err := m.Borrow(shard, now)
-					require.NoError(t, err)
-					require.NotNil(t, seeker)
-					seekers = append(seekers, seeker)
-				}
-
-				fakeTimeLock.Lock()
-				fakeTime = fakeTime.Add(10 * metadata.Options().RetentionOptions().RetentionPeriod())
-				fakeTimeLock.Unlock()
-			},
-		},
-		{
-			title: "Make sure the seeker manager cant be closed while seekers are borrowed",
-			step: func() {
-				require.Equal(t, errCantCloseSeekerManagerWhileSeekersAreBorrowed, m.Close())
-			},
-		},
-		{
-			title: "Make sure that none of the seekers were cleaned up during the openCloseLoop tick (because they're still borrowed)",
-			step: func() {
-				m.RLock()
-				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
-				}
-				m.RUnlock()
-			},
-		},
-		{
-			title: "Return the borrowed seekers",
-			step: func() {
-				for i, seeker := range seekers {
-					require.NoError(t, m.Return(shards[i], now, seeker))
-				}
-			},
-		},
-		{
-			title: "Make sure that the returned seekers were cleaned up during the openCloseLoop tick",
-			step: func() {
-				m.RLock()
-				for _, shard := range shards {
-					byTime := m.seekersByTime(shard)
-					byTime.RLock()
-					_, ok := byTime.seekers[startNano]
-					byTime.RUnlock()
-					require.False(t, ok)
-				}
-				m.RUnlock()
-			},
-		},
-	}
-
-	for _, step := range steps {
+	for _, step := range testCase.steps {
 		// Wait for two notifications between steps to guarantee that the entirety
 		// of the openCloseLoop is executed at least once
 		<-tickCh
 		<-tickCh
-		step.step()
+		step.step(m, testCase.initialState)
 	}
 
 	// Background goroutine that will pull notifications off the tickCh so that
