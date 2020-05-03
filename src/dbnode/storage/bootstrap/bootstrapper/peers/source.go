@@ -798,8 +798,8 @@ func (s *peersSource) processReaders(
 					xtime.NewRanges(timeRange),
 				))
 			} else {
-				s.log.Error(err.Error(),
-					zap.String("timeRange.start", fmt.Sprintf("%v", start)))
+				s.log.Error("error processing readers", zap.Error(err),
+					zap.Time("timeRange.start", start))
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}

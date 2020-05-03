@@ -309,7 +309,7 @@ func (s *commitLogSource) Read(
 			datapointsRead += worker.datapointsRead
 		}
 		s.log.Info("read commit logs done",
-			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
+			zap.Duration("took", s.nowFn().Sub(startCommitLogsRead)),
 			zap.Int("datapointsRead", datapointsRead),
 			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace),
 			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard),
