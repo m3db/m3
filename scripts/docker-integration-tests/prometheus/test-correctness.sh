@@ -63,7 +63,6 @@ function test_exists {
   EXPECTED_EXISTS=$2
   EXPECTED_NOT_EXISTS=$3
   EXPECTED_COUNT=$4
-  echo $QUERY "IS METRIC NAME"
   RESPONSE=$(curl -sSL "http://localhost:7201/api/v1/query?query=$METRIC_NAME\{$QUERY\}")
   ACTUAL_COUNT_EXISTS=$(echo $RESPONSE | jq .data.result[].metric.$EXPECTED_EXISTS | grep extra | wc -l)
   ACTUAL_COUNT_NOT_EXISTS=$(echo $RESPONSE | jq .data.result[].metric.$EXPECTED_NOT_EXISTS | grep extra | wc -l)
@@ -95,8 +94,28 @@ function test_parse_threshold {
   test $(echo $THRESHOLD | jq .query.name) = '"fetch"' 
 }
 
+function test_duplicates {
+  now=$(date +"%s")
+  start=$(( $now - 100 ))
+  end=$(( $now + 100 ))
+  QUERY="query=$METRIC_NAME&start=$start&end=$end&format=json"
+  ACTUAL=$(curl "localhost:7201/api/v1/prom/remote/read?$QUERY" | jq .[][].series[].tags[])
+  EXPECTED=$(echo '[ "__name__", "'${METRIC_NAME}'" ] [ "val", "extra" ] [ "val", "0" ]' | jq)
+  test "$ACTUAL"="$EXPECTED"
+}
+
+function test_debug_prom_returns_duplicates {
+  export METRIC_NAME="duplicate_$t"
+  # NB: this writes metrics of the form `duplicate_t{val="extra", val="1"}`
+  #     with a duplicated `val` tag.
+  write_metrics 1 val
+  retry_with_backoff ATTEMPTS=3 TIMEOUT=1 test_duplicates
+}
+
 function test_correctness {
   test_parse_threshold
   test_replace 
   test_empty_matcher
+
+  test_debug_prom_returns_duplicates
 }

@@ -361,9 +361,7 @@ func sanitizeRegex(value []byte) []byte {
 		case anchorStart:
 			lIndex = i + 1
 		case anchorEnd:
-			// NB: no need to keep reading if anchorEnd discovered.
 			rIndex = i
-			break
 		case escapeChar:
 			escape = true
 		case startGroup:
