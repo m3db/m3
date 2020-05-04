@@ -31,6 +31,10 @@ import (
 
 const missingDocumentFields = "invalid document fields: empty %s"
 
+// NB: emptyValues is an AggregateValues with no values, used for tracking
+// terms only rather than terms and values.
+var emptyValues = AggregateValues{hasValues: false}
+
 type aggregatedResults struct {
 	sync.RWMutex
 
@@ -214,7 +218,7 @@ func (r *aggregatedResults) addTermWithLock(
 
 	// Set results map to an empty AggregateValues since we only care about
 	// existence of the term in the map, rather than its set of values.
-	r.resultsMap.Set(termID, r.valuesPool.Get())
+	r.resultsMap.Set(termID, emptyValues)
 	return nil
 }
 

@@ -812,12 +812,14 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 			TagName: entry.Key().Bytes(),
 		}
 		tagValues := entry.Value()
-		tagValuesMap := tagValues.Map()
-		responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
-		for _, entry := range tagValuesMap.Iter() {
-			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
-				TagValue: entry.Key().Bytes(),
-			})
+		if tagValues.HasValues() {
+			tagValuesMap := tagValues.Map()
+			responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
+			for _, entry := range tagValuesMap.Iter() {
+				responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
+					TagValue: entry.Key().Bytes(),
+				})
+			}
 		}
 		response.Results = append(response.Results, responseElem)
 	}
