@@ -480,6 +480,10 @@ func (t Tags) Validate() error {
 			if len(tags.Tags[i].Name) == 0 {
 				return fmt.Errorf("tag name empty: index=%d", i)
 			}
+			if len(tags.Tags[i].Value) == 0 {
+				return fmt.Errorf("tag value empty: index=%d, name=%s",
+					i, tags.Tags[i].Name)
+			}
 			if i == 0 {
 				continue // Don't check order/unique attributes.
 			}
@@ -498,6 +502,10 @@ func (t Tags) Validate() error {
 		for i := 0; i < n; i++ {
 			if len(t.Tags[i].Name) == 0 {
 				return fmt.Errorf("tag name empty: index=%d", i)
+			}
+			if len(t.Tags[i].Value) == 0 {
+				return fmt.Errorf("tag value empty: index=%d, name=%s",
+					i, t.Tags[i].Name)
 			}
 			if i == 0 {
 				continue // Don't check order/unique attributes.

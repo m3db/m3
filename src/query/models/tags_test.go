@@ -424,7 +424,13 @@ func TestWriteTagLengthMeta(t *testing.T) {
 
 func TestTagsValidateEmptyNameQuoted(t *testing.T) {
 	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
-	tags = tags.AddTag(Tag{Name: nil, Value: []byte("bar")})
+	tags = tags.AddTag(Tag{Name: []byte(""), Value: []byte("bar")})
+	require.Error(t, tags.Validate())
+}
+
+func TestTagsValidateEmptyValueQuoted(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
+	tags = tags.AddTag(Tag{Name: []byte("foo"), Value: []byte("")})
 	require.Error(t, tags.Validate())
 }
 
@@ -441,6 +447,10 @@ func TestTagsValidateOutOfOrderQuoted(t *testing.T) {
 		},
 	}
 	require.Error(t, tags.Validate())
+
+	// Test fixes after normalize.
+	tags.Normalize()
+	require.NoError(t, tags.Validate())
 }
 
 func TestTagsValidateDuplicateQuoted(t *testing.T) {
@@ -479,6 +489,10 @@ func TestTagsValidateOutOfOrderGraphite(t *testing.T) {
 		},
 	}
 	require.Error(t, tags.Validate())
+
+	// Test fixes after normalize.
+	tags.Normalize()
+	require.NoError(t, tags.Validate())
 }
 
 func TestTagsValidateDuplicateGraphite(t *testing.T) {
