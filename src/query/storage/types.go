@@ -371,3 +371,8 @@ type Attributes struct {
 	// from.
 	Resolution time.Duration
 }
+
+// Validate validates a storage attributes.
+func (a Attributes) Validate() error {
+	return ValidateMetricsType(a.MetricsType)
+}
