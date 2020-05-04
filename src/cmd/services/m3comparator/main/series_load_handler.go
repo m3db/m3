@@ -188,6 +188,11 @@ func (l *seriesLoadHandler) serveHTTP(r *http.Request) error {
 	l.Lock()
 	defer l.Unlock()
 
+	if r.Method == http.MethodDelete {
+		l.nameIDSeriesMap = make(map[string]idSeriesMap)
+		return nil
+	}
+
 	logger := l.iterOpts.iOpts.Logger()
 	body := r.Body
 	defer body.Close()
