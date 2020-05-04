@@ -326,7 +326,57 @@ func getUnaryOpType(opType promql.ItemType) (string, error) {
 	}
 }
 
-const promDefaultName = "__name__"
+const (
+	promDefaultName = "__name__"
+	anchorStart     = byte('^')
+	anchorEnd       = byte('$')
+	escapeChar      = byte('\\')
+	startGroup      = byte('[')
+	endGroup        = byte(']')
+)
+
+func sanitizeRegex(value []byte) []byte {
+	lIndex := 0
+	rIndex := len(value)
+	escape := false
+	inGroup := false
+	for i, b := range value {
+		if escape {
+			escape = false
+			continue
+		}
+
+		if inGroup {
+			switch b {
+			case escapeChar:
+				escape = true
+			case endGroup:
+				inGroup = false
+			}
+
+			continue
+		}
+
+		switch b {
+		case anchorStart:
+			lIndex = i + 1
+		case anchorEnd:
+			// NB: no need to keep reading if anchorEnd discovered.
+			rIndex = i
+			break
+		case escapeChar:
+			escape = true
+		case startGroup:
+			inGroup = true
+		}
+	}
+
+	if lIndex > rIndex {
+		return []byte{}
+	}
+
+	return value[lIndex:rIndex]
+}
 
 // LabelMatchersToModelMatcher parses promql matchers to model matchers.
 func LabelMatchersToModelMatcher(
@@ -335,6 +385,7 @@ func LabelMatchersToModelMatcher(
 ) (models.Matchers, error) {
 	matchers := make(models.Matchers, 0, len(lMatchers))
 	for _, m := range lMatchers {
+		// here.
 		matchType, err := promTypeToM3(m.Type)
 		if err != nil {
 			return nil, err
@@ -358,6 +409,13 @@ func LabelMatchersToModelMatcher(
 			} else if matchType == models.MatchEqual {
 				matchType = models.MatchNotField
 			}
+		}
+
+		if matchType == models.MatchRegexp || matchType == models.MatchNotRegexp {
+			// NB: special case here since tags such as `{foo=~"$bar"}` are valid in
+			// prometheus regex patterns, but invalid with m3 index queries. Simplify
+			// these matchers here.
+			value = sanitizeRegex(value)
 		}
 
 		match, err := models.NewMatcher(matchType, name, value)
