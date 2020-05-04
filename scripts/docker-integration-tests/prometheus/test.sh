@@ -68,12 +68,21 @@ function prometheus_remote_write {
   local metrics_type=$8
   local metrics_storage_policy=$9
   local map_tags_header=${10}
+  
+  local optional_tags=""
+  for i in $(seq 0 10); do
+    local optional_tag_name=$(eval "\$TAG_NAME_$i")
+    local optional_tag_value=$(eval "\$TAG_VALUE_$i")
+    if [[ "$optional_tag" != "" ]]; then
+      optional_tags = "$optional_tags -t ${optional_tag_name}:${optional_tag_value}"
+    fi
+  done
 
   network=$(docker network ls --format '{{.ID}}' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://coordinator01:7201/api/v1/prom/remote/write \
-    -t __name__:${metric_name}                            \
+    -t __name__:${metric_name} ${optional_tags}           \
     -h "M3-Metrics-Type: ${metrics_type}"                 \
     -h "M3-Storage-Policy: ${metrics_storage_policy}"     \
     -h "M3-Map-Tags-JSON: ${map_tags_header}"          \
@@ -92,8 +101,31 @@ function prometheus_remote_write {
   return 0
 }
 
+function test_prometheus_remote_write_empty_label_name_returns_400_status_code {
+  echo "Test write empty name for a label returns HTTP 400"
+  now=$(date +"%s")
+  TAG_NAME_0="non_empty_name" TAG_VALUE_0="foo" \
+    TAG_NAME_1="" TAG_VALUE_1="bar" \
+    prometheus_remote_write \
+    "foo" $now 42 \
+    false "Expected request to fail" \
+    400 "Expected request to return status code 400"
+}
+
+function test_prometheus_remote_write_duplicate_label_returns_400_status_code {
+  echo "Test write with duplicate labels returns HTTP 400"
+  now=$(date +"%s")
+  hour_ago=$(( now - 3600 ))
+  TAG_NAME_0="dupe_name" TAG_VALUE_0="foo" \
+    TAG_NAME_1="non_dupe_name" TAG_VALUE_1="bar" \
+    TAG_NAME_2="dupe_name" TAG_VALUE_2="baz" \
+    prometheus_remote_write \
+    "foo" $now 42 \
+    false "Expected request to fail" \
+    400 "Expected request to return status code 400"
+}
+
 function test_prometheus_remote_write_too_old_returns_400_status_code {
-  # Test writing too far into the past returns an HTTP 400 status code
   echo "Test write into the past returns HTTP 400"
   now=$(date +"%s")
   hour_ago=$(( now - 3600 ))
@@ -207,6 +239,8 @@ function test_query_restrict_metrics_type {
 echo "Running prometheus tests"
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
+test_prometheus_remote_write_empty_label_name_returns_400_status_code
+test_prometheus_remote_write_duplicate_label_returns_400_status_code
 test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
 test_query_limits_applied

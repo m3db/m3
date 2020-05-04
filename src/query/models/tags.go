@@ -22,6 +22,7 @@ package models
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -30,6 +31,10 @@ import (
 	"github.com/m3db/m3/src/query/util/writer"
 
 	"github.com/cespare/xxhash"
+)
+
+var (
+	errNoTags = errors.New("no tags")
 )
 
 // NewTags builds a tags with the given size and tag options.
@@ -460,13 +465,25 @@ func (t Tags) Normalize() Tags {
 	return t
 }
 
-// Validate will validate the tags are ordered and there are no duplicates.
+// Validate will validate there are tag values, and the
+// tags are ordered and there are no duplicates.
 func (t Tags) Validate() error {
 	n := t.Len()
+	if n == 0 {
+		return errNoTags
+	}
+
 	if t.Opts.IDSchemeType() == TypeGraphite {
 		// Graphite tags are sorted numerically rather than lexically.
 		tags := sortableTagsNumericallyAsc(t)
-		for i := 1; i < n; i++ {
+		for i := 0; i < n; i++ {
+			if len(tags.Tags[i].Name) == 0 {
+				return fmt.Errorf("tag name empty: index=%d", i)
+			}
+			if i == 0 {
+				continue // Don't check order/unique attributes.
+			}
+
 			if !tags.Less(i-1, i) {
 				return fmt.Errorf("tags out of order: '%s' appears after '%s'",
 					tags.Tags[i-1].Name, tags.Tags[i].Name)
@@ -478,7 +495,14 @@ func (t Tags) Validate() error {
 		}
 	} else {
 		// Sorted alphanumerically otherwise.
-		for i := 1; i < n; i++ {
+		for i := 0; i < n; i++ {
+			if len(t.Tags[i].Name) == 0 {
+				return fmt.Errorf("tag name empty: index=%d", i)
+			}
+			if i == 0 {
+				continue // Don't check order/unique attributes.
+			}
+
 			cmp := bytes.Compare(t.Tags[i-1].Name, t.Tags[i].Name)
 			if cmp > 0 {
 				return fmt.Errorf("tags out of order: '%s' appears after '%s'",
