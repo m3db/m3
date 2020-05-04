@@ -39,8 +39,16 @@ type Series struct {
 	Datapoints Datapoints `json:"datapoints"`
 }
 
+// Tag is a simple JSON serieazeable representation of a tag.
+type Tag [2]string
+
+// NewTag creates a new tag with a given name and value.
+func NewTag(name, value string) Tag {
+	return Tag{name, value}
+}
+
 // Tags is a simple JSON serieazeable representation of tags.
-type Tags map[string]string
+type Tags []Tag
 
 // Datapoints is a JSON serializeable list of values for the series.
 type Datapoints []Datapoint
@@ -80,8 +88,8 @@ func (v *Value) UnmarshalJSON(data []byte) error {
 func (r *Series) IDOrGenID() string {
 	if len(r.id) == 0 {
 		tags := make(sort.StringSlice, len(r.Tags))
-		for k, v := range r.Tags {
-			tags = append(tags, fmt.Sprintf("%s:%s,", k, v))
+		for _, v := range r.Tags {
+			tags = append(tags, fmt.Sprintf("%s:%s,", v[0], v[1]))
 		}
 
 		sort.Sort(tags)

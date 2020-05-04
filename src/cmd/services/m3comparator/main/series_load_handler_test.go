@@ -188,10 +188,11 @@ func TestIngestSeries(t *testing.T) {
 
 func readTags(it encoding.SeriesIterator) parser.Tags {
 	tagIter := it.Tags()
-	tags := make(parser.Tags, tagIter.Len())
+	tags := make(parser.Tags, 0, tagIter.Len())
 	for tagIter.Next() {
 		tag := tagIter.Current()
-		tags[tag.Name.String()] = tag.Value.String()
+		newTag := parser.NewTag(tag.Name.String(), tag.Value.String())
+		tags = append(tags, newTag)
 	}
 
 	return tags
