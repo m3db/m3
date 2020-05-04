@@ -185,7 +185,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 			},
 		})
 		if err != nil {
-			logger.Error("downsampler flush error constructing write", zap.Error(err))
+			logger.Error("downsampler flush error creating write query", zap.Error(err))
 			w.handler.metrics.flushErrors.Inc(1)
 			return
 		}

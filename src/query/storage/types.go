@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
@@ -163,71 +162,6 @@ const (
 	FanoutForceEnable
 )
 
-// NewFetchOptions creates a new fetch options.
-func NewFetchOptions() *FetchOptions {
-	return &FetchOptions{
-		Limit:     0,
-		BlockType: models.TypeSingleBlock,
-		FanoutOptions: &FanoutOptions{
-			FanoutUnaggregated:        FanoutDefault,
-			FanoutAggregated:          FanoutDefault,
-			FanoutAggregatedOptimized: FanoutDefault,
-		},
-		Enforcer: cost.NoopChainedEnforcer(),
-		Scope:    tally.NoopScope,
-	}
-}
-
-// LookbackDurationOrDefault returns either the default lookback duration or
-// overridden lookback duration if set.
-func (o *FetchOptions) LookbackDurationOrDefault(
-	defaultValue time.Duration,
-) time.Duration {
-	if o.LookbackDuration == nil {
-		return defaultValue
-	}
-	return *o.LookbackDuration
-}
-
-// QueryFetchOptions returns fetch options for a given query.
-func (o *FetchOptions) QueryFetchOptions(
-	queryCtx *models.QueryContext,
-	blockType models.FetchedBlockType,
-) (*FetchOptions, error) {
-	r := o.Clone()
-	if r.Limit <= 0 {
-		r.Limit = queryCtx.Options.LimitMaxTimeseries
-	}
-
-	// Use inbuilt options for type restriction if none found.
-	if r.RestrictQueryOptions.GetRestrictByType() == nil &&
-		queryCtx.Options.RestrictFetchType != nil {
-		v := queryCtx.Options.RestrictFetchType
-		restrict := &RestrictByType{
-			MetricsType:   MetricsType(v.MetricsType),
-			StoragePolicy: v.StoragePolicy,
-		}
-
-		if err := restrict.Validate(); err != nil {
-			return nil, err
-		}
-
-		if r.RestrictQueryOptions == nil {
-			r.RestrictQueryOptions = &RestrictQueryOptions{}
-		}
-
-		r.RestrictQueryOptions.RestrictByType = restrict
-	}
-
-	return r, nil
-}
-
-// Clone will clone and return the fetch options.
-func (o *FetchOptions) Clone() *FetchOptions {
-	result := *o
-	return &result
-}
-
 // RestrictByType are specific restrictions to stick to a single data type.
 type RestrictByType struct {
 	// MetricsType restricts the type of metrics being returned.
@@ -311,86 +245,6 @@ type WriteQueryOptions struct {
 	Unit       xtime.Unit
 	Annotation []byte
 	Attributes Attributes
-}
-
-// Validate will validate the write query options.
-func (o WriteQueryOptions) Validate() error {
-	if err := o.validate(); err != nil {
-		// NB(r): Always make sure returns invalid params error
-		// here so that 4XX is returned to client on remote write endpoint.
-		return xerrors.NewInvalidParamsError(err)
-	}
-	return nil
-}
-
-func (o WriteQueryOptions) validate() error {
-	if err := o.Tags.Validate(); err != nil {
-		return err
-	}
-	if len(o.Datapoints) == 0 {
-		return errWriteQueryNoDatapoints
-	}
-	if err := o.Unit.Validate(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// NewWriteQuery returns a new write query after validation the options.
-func NewWriteQuery(opts WriteQueryOptions) (*WriteQuery, error) {
-	q := &WriteQuery{}
-	if err := q.Reset(opts); err != nil {
-		return nil, err
-	}
-	return q, nil
-}
-
-// Reset resets the write query for reuse.
-func (q *WriteQuery) Reset(opts WriteQueryOptions) error {
-	if err := opts.Validate(); err != nil {
-		return err
-	}
-	q.opts = opts
-	return nil
-}
-
-// Tags returns the tags.
-func (q WriteQuery) Tags() models.Tags {
-	return q.opts.Tags
-}
-
-// Datapoints returns the datapoints.
-func (q WriteQuery) Datapoints() ts.Datapoints {
-	return q.opts.Datapoints
-}
-
-// Unit returns the unit.
-func (q WriteQuery) Unit() xtime.Unit {
-	return q.opts.Unit
-}
-
-// Annotation returns the annotation.
-func (q WriteQuery) Annotation() []byte {
-	return q.opts.Annotation
-}
-
-// Attributes returns the attributes.
-func (q WriteQuery) Attributes() Attributes {
-	return q.opts.Attributes
-}
-
-// Validate validates the write query.
-func (q *WriteQuery) Validate() error {
-	return q.opts.Validate()
-}
-
-// Options returns the options used to create the write query.
-func (q WriteQuery) Options() WriteQueryOptions {
-	return q.opts
-}
-
-func (q *WriteQuery) String() string {
-	return string(q.opts.Tags.ID())
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
