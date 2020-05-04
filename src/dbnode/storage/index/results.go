@@ -119,9 +119,7 @@ func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
 	return nil
 }
 
-func (r *results) addDocumentWithLock(
-	d doc.Document,
-) (bool, int, error) {
+func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
 	if len(d.ID) == 0 {
 		return false, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}
@@ -141,7 +139,7 @@ func (r *results) addDocumentWithLock(
 	}
 
 	// i.e. it doesn't exist in the map, so we create the tags wrapping
-	// fields prodided by the document.
+	// fields provided by the document.
 	tags := convert.ToMetricTags(d, convert.Opts{NoClone: true})
 
 	// It is assumed that the document is valid for the lifetime of the index

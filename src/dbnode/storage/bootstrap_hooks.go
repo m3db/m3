@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,31 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handleroptions
+package storage
 
 import (
-	"time"
+	"sync"
 
-	"github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 )
 
-// PromWriteHandlerForwardingOptions is the forwarding
-// options for prometheus write handler.
-type PromWriteHandlerForwardingOptions struct {
-	// MaxConcurrency is the max parallel forwarding and if zero will be unlimited.
-	MaxConcurrency int                                    `yaml:"maxConcurrency"`
-	Timeout        time.Duration                          `yaml:"timeout"`
-	Retry          *retry.Configuration                   `yaml:"retry"`
-	Targets        []PromWriteHandlerForwardTargetOptions `yaml:"targets"`
+type bootstrapSourceEndHook struct {
+	shards []databaseShard
 }
 
-// PromWriteHandlerForwardTargetOptions is a prometheus write
-// handler forwarder target.
-type PromWriteHandlerForwardTargetOptions struct {
-	// URL of the target to send to.
-	URL string `yaml:"url"`
-	// Method defaults to POST if not set.
-	Method string `yaml:"method"`
-	// Headers to send along with requests to the target.
-	Headers map[string]string `yaml:"headers"`
+func newBootstrapSourceEndHook(shards []databaseShard) bootstrap.Hook {
+	return &bootstrapSourceEndHook{shards: shards}
+}
+
+func (h *bootstrapSourceEndHook) Run() error {
+	var wg sync.WaitGroup
+	for _, shard := range h.shards {
+		shard := shard
+		wg.Add(1)
+		go func() {
+			shard.UpdateFlushStates()
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	return nil
 }
