@@ -476,13 +476,9 @@ func (t Tags) Validate() error {
 	if t.Opts.IDSchemeType() == TypeGraphite {
 		// Graphite tags are sorted numerically rather than lexically.
 		tags := sortableTagsNumericallyAsc(t)
-		for i := 0; i < n; i++ {
-			if len(tags.Tags[i].Name) == 0 {
+		for i, tag := range tags.Tags {
+			if len(tag.Name) == 0 {
 				return fmt.Errorf("tag name empty: index=%d", i)
-			}
-			if len(tags.Tags[i].Value) == 0 {
-				return fmt.Errorf("tag value empty: index=%d, name=%s",
-					i, tags.Tags[i].Name)
 			}
 			if i == 0 {
 				continue // Don't check order/unique attributes.
@@ -492,18 +488,21 @@ func (t Tags) Validate() error {
 				return fmt.Errorf("tags out of order: '%s' appears after '%s'",
 					tags.Tags[i-1].Name, tags.Tags[i].Name)
 			}
-			if bytes.Compare(tags.Tags[i-1].Name, tags.Tags[i].Name) == 0 {
+
+			prev := tags.Tags[i-1]
+			if bytes.Compare(prev.Name, tag.Name) == 0 {
 				return fmt.Errorf("tags duplicate: '%s' appears more than once",
 					tags.Tags[i-1].Name)
 			}
 		}
 	} else {
-		// Sorted alphanumerically otherwise.
-		for i := 0; i < n; i++ {
-			if len(t.Tags[i].Name) == 0 {
+		// Sorted alphanumerically otherwise, use bytes.Compare once for
+		// both order and unique test.
+		for i, tag := range t.Tags {
+			if len(tag.Name) == 0 {
 				return fmt.Errorf("tag name empty: index=%d", i)
 			}
-			if len(t.Tags[i].Value) == 0 {
+			if len(tag.Value) == 0 {
 				return fmt.Errorf("tag value empty: index=%d, name=%s",
 					i, t.Tags[i].Name)
 			}
@@ -511,14 +510,15 @@ func (t Tags) Validate() error {
 				continue // Don't check order/unique attributes.
 			}
 
-			cmp := bytes.Compare(t.Tags[i-1].Name, t.Tags[i].Name)
+			prev := t.Tags[i-1]
+			cmp := bytes.Compare(prev.Name, t.Tags[i].Name)
 			if cmp > 0 {
 				return fmt.Errorf("tags out of order: '%s' appears after '%s'",
-					t.Tags[i-1].Name, t.Tags[i].Name)
+					prev.Name, tag.Name)
 			}
 			if cmp == 0 {
 				return fmt.Errorf("tags duplicate: '%s' appears more than once",
-					t.Tags[i-1].Name)
+					prev.Name)
 			}
 		}
 	}
