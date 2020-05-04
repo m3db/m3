@@ -415,11 +415,17 @@ func (t Tags) Add(other Tags) Tags {
 	return t.Normalize()
 }
 
+// Ensure Tags implements sort interface.
+var _ sort.Interface = Tags{}
+
 func (t Tags) Len() int      { return len(t.Tags) }
 func (t Tags) Swap(i, j int) { t.Tags[i], t.Tags[j] = t.Tags[j], t.Tags[i] }
 func (t Tags) Less(i, j int) bool {
 	return bytes.Compare(t.Tags[i].Name, t.Tags[j].Name) == -1
 }
+
+// Ensure sortableTagsNumericallyAsc implements sort interface.
+var _ sort.Interface = sortableTagsNumericallyAsc{}
 
 type sortableTagsNumericallyAsc Tags
 
@@ -444,8 +450,8 @@ func (t sortableTagsNumericallyAsc) Less(i, j int) bool {
 // Normalize normalizes the tags by sorting them in place.
 // In the future, it might also ensure other things like uniqueness.
 func (t Tags) Normalize() Tags {
-	// Graphite tags are sorted numerically rather than lexically.
 	if t.Opts.IDSchemeType() == TypeGraphite {
+		// Graphite tags are sorted numerically rather than lexically.
 		sort.Sort(sortableTagsNumericallyAsc(t))
 	} else {
 		sort.Sort(t)
@@ -454,7 +460,40 @@ func (t Tags) Normalize() Tags {
 	return t
 }
 
-// HashedID returns the hashed ID for the tags.
+// Validate will validate the tags are ordered and there are no duplicates.
+func (t Tags) Validate() error {
+	n := t.Len()
+	if t.Opts.IDSchemeType() == TypeGraphite {
+		// Graphite tags are sorted numerically rather than lexically.
+		tags := sortableTagsNumericallyAsc(t)
+		for i := 1; i < n; i++ {
+			if !tags.Less(i-1, i) {
+				return fmt.Errorf("tags out of order: '%s' appears after '%s'",
+					tags.Tags[i-1].Name, tags.Tags[i].Name)
+			}
+			if bytes.Compare(tags.Tags[i-1].Name, tags.Tags[i].Name) == 0 {
+				return fmt.Errorf("tags duplicate: '%s' appears more than once",
+					tags.Tags[i-1].Name)
+			}
+		}
+	} else {
+		// Sorted alphanumerically otherwise.
+		for i := 1; i < n; i++ {
+			cmp := bytes.Compare(t.Tags[i-1].Name, t.Tags[i].Name)
+			if cmp > 0 {
+				return fmt.Errorf("tags out of order: '%s' appears after '%s'",
+					t.Tags[i-1].Name, t.Tags[i].Name)
+			}
+			if cmp == 0 {
+				return fmt.Errorf("tags duplicate: '%s' appears more than once",
+					t.Tags[i-1].Name)
+			}
+		}
+	}
+	return nil
+}
+
+// Reset resets the tags for reuse.
 func (t Tags) Reset() Tags {
 	t.Tags = t.Tags[:0]
 	return t

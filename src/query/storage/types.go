@@ -22,6 +22,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,9 +32,14 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+)
+
+var (
+	errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
 )
 
 // Type describes the type of storage.
@@ -291,6 +297,15 @@ type Querier interface {
 // WriteQuery represents the input timeseries that is written to the database.
 // TODO: rename WriteQuery to WriteRequest or something similar.
 type WriteQuery struct {
+	// opts as a field allows the options to be unexported
+	// and the Validate method on WriteQueryOptions to be reused.
+	opts WriteQueryOptions
+}
+
+// WriteQueryOptions is a set of options to use to construct a write query.
+// These are passed by options so that they can be validated when creating
+// a write query, which helps knowing a constructed write query is valid.
+type WriteQueryOptions struct {
 	Tags       models.Tags
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
@@ -298,8 +313,84 @@ type WriteQuery struct {
 	Attributes Attributes
 }
 
+// Validate will validate the write query options.
+func (o WriteQueryOptions) Validate() error {
+	if err := o.validate(); err != nil {
+		// NB(r): Always make sure returns invalid params error
+		// here so that 4XX is returned to client on remote write endpoint.
+		return xerrors.NewInvalidParamsError(err)
+	}
+	return nil
+}
+
+func (o WriteQueryOptions) validate() error {
+	if err := o.Tags.Validate(); err != nil {
+		return err
+	}
+	if len(o.Datapoints) == 0 {
+		return errWriteQueryNoDatapoints
+	}
+	if err := o.Unit.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NewWriteQuery returns a new write query after validation the options.
+func NewWriteQuery(opts WriteQueryOptions) (*WriteQuery, error) {
+	q := &WriteQuery{}
+	if err := q.Reset(opts); err != nil {
+		return nil, err
+	}
+	return q, nil
+}
+
+// Reset resets the write query for reuse.
+func (q *WriteQuery) Reset(opts WriteQueryOptions) error {
+	if err := opts.Validate(); err != nil {
+		return err
+	}
+	q.opts = opts
+	return nil
+}
+
+// Tags returns the tags.
+func (q WriteQuery) Tags() models.Tags {
+	return q.opts.Tags
+}
+
+// Datapoints returns the datapoints.
+func (q WriteQuery) Datapoints() ts.Datapoints {
+	return q.opts.Datapoints
+}
+
+// Unit returns the unit.
+func (q WriteQuery) Unit() xtime.Unit {
+	return q.opts.Unit
+}
+
+// Annotation returns the annotation.
+func (q WriteQuery) Annotation() []byte {
+	return q.opts.Annotation
+}
+
+// Attributes returns the attributes.
+func (q WriteQuery) Attributes() Attributes {
+	return q.opts.Attributes
+}
+
+// Validate validates the write query.
+func (q *WriteQuery) Validate() error {
+	return q.opts.Validate()
+}
+
+// Options returns the options used to create the write query.
+func (q WriteQuery) Options() WriteQueryOptions {
+	return q.opts
+}
+
 func (q *WriteQuery) String() string {
-	return string(q.Tags.ID())
+	return string(q.opts.Tags.ID())
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
