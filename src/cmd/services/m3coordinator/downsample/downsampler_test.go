@@ -779,7 +779,7 @@ CheckAllWritesArrivedLoop:
 			}
 
 			if attrs := expectedWrite.attributes; attrs != nil {
-				assert.Equal(t, *attrs, write.Attributes)
+				assert.Equal(t, *attrs, write.Attributes())
 			}
 		}
 	}
