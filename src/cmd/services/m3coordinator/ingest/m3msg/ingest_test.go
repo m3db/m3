@@ -74,36 +74,36 @@ func TestIngest(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	require.Equal(t,
-		storage.WriteQuery{
-			Annotation: nil,
-			Attributes: storage.Attributes{
-				MetricsType: storage.AggregatedMetricsType,
-				Resolution:  time.Minute,
-				Retention:   40 * 24 * time.Hour,
-			},
-			Datapoints: ts.Datapoints{
-				ts.Datapoint{
-					Timestamp: time.Unix(0, metricNanos),
-					Value:     val,
-				},
-			},
-			Tags: models.NewTags(2, nil).AddTags(
-				[]models.Tag{
-					models.Tag{
-						Name:  []byte("__name__"),
-						Value: []byte("foo"),
-					},
-					{
-						Name:  []byte("app"),
-						Value: []byte("bar"),
-					},
-				},
-			),
-			Unit: xtime.Second,
+	expected, err := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Annotation: nil,
+		Attributes: storage.Attributes{
+			MetricsType: storage.AggregatedMetricsType,
+			Resolution:  time.Minute,
+			Retention:   40 * 24 * time.Hour,
 		},
-		*appender.received[0],
-	)
+		Datapoints: ts.Datapoints{
+			ts.Datapoint{
+				Timestamp: time.Unix(0, metricNanos),
+				Value:     val,
+			},
+		},
+		Tags: models.NewTags(2, nil).AddTags(
+			[]models.Tag{
+				models.Tag{
+					Name:  []byte("__name__"),
+					Value: []byte("foo"),
+				},
+				{
+					Name:  []byte("app"),
+					Value: []byte("bar"),
+				},
+			},
+		),
+		Unit: xtime.Second,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, *expected, *appender.received[0])
 
 	// Make sure the op is put back to pool.
 	op := ingester.p.Get().(*ingestOp)

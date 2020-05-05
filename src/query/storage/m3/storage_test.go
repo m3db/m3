@@ -159,28 +159,32 @@ func newFetchReq() *storage.FetchQuery {
 	}
 }
 
-func newWriteQuery() *storage.WriteQuery {
+func newWriteQuery(t *testing.T) *storage.WriteQuery {
 	tags := models.EmptyTags().AddTags([]models.Tag{
 		{Name: []byte("foo"), Value: []byte("bar")},
 		{Name: []byte("biz"), Value: []byte("baz")},
 	})
 
-	datapoints := ts.Datapoints{{
-		Timestamp: time.Now(),
-		Value:     1.0,
-	},
-		{
-			Timestamp: time.Now().Add(-10 * time.Second),
-			Value:     2.0,
-		}}
-	return &storage.WriteQuery{
-		Tags:       tags,
-		Unit:       xtime.Millisecond,
-		Datapoints: datapoints,
+	q, err := storage.NewWriteQuery(storage.WriteQueryOptions{
+		Tags: tags,
+		Unit: xtime.Millisecond,
+		Datapoints: ts.Datapoints{
+			{
+				Timestamp: time.Now(),
+				Value:     1.0,
+			},
+			{
+				Timestamp: time.Now().Add(-10 * time.Second),
+				Value:     2.0,
+			},
+		},
 		Attributes: storage.Attributes{
 			MetricsType: storage.UnaggregatedMetricsType,
 		},
-	}
+	})
+	require.NoError(t, err)
+
+	return q
 }
 
 func setupLocalWrite(t *testing.T, ctrl *gomock.Controller) storage.Storage {
@@ -203,7 +207,7 @@ func TestLocalWriteSuccess(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	store := setupLocalWrite(t, ctrl)
-	writeQuery := newWriteQuery()
+	writeQuery := newWriteQuery(t)
 	err := store.Write(context.TODO(), writeQuery)
 	assert.NoError(t, err)
 	assert.NoError(t, store.Close())
@@ -213,14 +217,20 @@ func TestLocalWriteAggregatedNoClusterNamespaceError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	store, _ := setup(t, ctrl)
-	writeQuery := newWriteQuery()
+
+	opts := newWriteQuery(t).Options()
+
 	// Use unsupported retention/resolution
-	writeQuery.Attributes = storage.Attributes{
+	opts.Attributes = storage.Attributes{
 		MetricsType: storage.AggregatedMetricsType,
 		Retention:   1234,
 		Resolution:  5678,
 	}
-	err := store.Write(context.TODO(), writeQuery)
+
+	writeQuery, err := storage.NewWriteQuery(opts)
+	require.NoError(t, err)
+
+	err = store.Write(context.TODO(), writeQuery)
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "no configured cluster namespace"),
 		fmt.Sprintf("unexpected error string: %v", err.Error()))
@@ -230,13 +240,19 @@ func TestLocalWriteAggregatedInvalidMetricsTypeError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	store, _ := setup(t, ctrl)
-	writeQuery := newWriteQuery()
+
+	opts := newWriteQuery(t).Options()
+
 	// Use unsupported retention/resolution
-	writeQuery.Attributes = storage.Attributes{
+	opts.Attributes = storage.Attributes{
 		MetricsType: storage.MetricsType(math.MaxUint64),
 		Retention:   30 * 24 * time.Hour,
 	}
-	err := store.Write(context.TODO(), writeQuery)
+
+	writeQuery, err := storage.NewWriteQuery(opts)
+	require.NoError(t, err)
+
+	err = store.Write(context.TODO(), writeQuery)
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "invalid write request"),
 		fmt.Sprintf("unexpected error string: %v", err.Error()))
@@ -247,18 +263,23 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 	defer ctrl.Finish()
 	store, sessions := setup(t, ctrl)
 
-	writeQuery := newWriteQuery()
-	writeQuery.Attributes = storage.Attributes{
+	opts := newWriteQuery(t).Options()
+
+	// Use unsupported retention/resolution
+	opts.Attributes = storage.Attributes{
 		MetricsType: storage.AggregatedMetricsType,
 		Retention:   30 * 24 * time.Hour,
 		Resolution:  time.Minute,
 	}
 
+	writeQuery, err := storage.NewWriteQuery(opts)
+	require.NoError(t, err)
+
 	session := sessions.aggregated1MonthRetention1MinuteResolution
 	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(len(writeQuery.Datapoints))
+		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(len(writeQuery.Datapoints()))
 
-	err := store.Write(context.TODO(), writeQuery)
+	err = store.Write(context.TODO(), writeQuery)
 	assert.NoError(t, err)
 	assert.NoError(t, store.Close())
 }
