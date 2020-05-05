@@ -498,6 +498,7 @@ func TestSeekerManagerCloseShardLease(t *testing.T) {
 			Shard:     shard,
 		})
 	}
+	// Wait until the open/close loop has finished closing all the shards marked to be closed.
 	wg.Wait()
 
 	// Verify that volumes have been reset
