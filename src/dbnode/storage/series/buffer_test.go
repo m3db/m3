@@ -138,6 +138,69 @@ func TestBufferWriteTooPast(t *testing.T) {
 	assert.True(t, strings.Contains(err.Error(), "past_limit="))
 }
 
+func maxDuration(a, b time.Duration) time.Duration {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func TestBufferWriteColdTooFutureRetention(t *testing.T) {
+	opts := newBufferTestOptions().SetColdWritesEnabled(true)
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	futureRetention := time.Second +
+		maxDuration(rops.BufferFuture(), rops.FutureRetentionPeriod())
+	wasWritten, err := buffer.Write(ctx, curr.Add(futureRetention), 1,
+		xtime.Second, nil, WriteOptions{})
+	assert.False(t, wasWritten)
+	assert.Error(t, err)
+	assert.True(t, xerrors.IsInvalidParams(err))
+	assert.True(t, strings.Contains(err.Error(), "datapoint too far in future and out of retention"))
+	assert.True(t, strings.Contains(err.Error(), "id=foo"))
+	assert.True(t, strings.Contains(err.Error(), "timestamp="))
+	assert.True(t, strings.Contains(err.Error(), "future_limit="))
+}
+
+func TestBufferWriteColdTooPastRetention(t *testing.T) {
+	opts := newBufferTestOptions().SetColdWritesEnabled(true)
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer.Reset(databaseBufferResetOptions{
+		ID:      ident.StringID("foo"),
+		Options: opts,
+	})
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	pastRetention := time.Second +
+		maxDuration(rops.BufferPast(), rops.RetentionPeriod())
+	wasWritten, err := buffer.Write(ctx, curr.Add(-pastRetention), 1, xtime.Second,
+		nil, WriteOptions{})
+	assert.False(t, wasWritten)
+	assert.Error(t, err)
+	assert.True(t, xerrors.IsInvalidParams(err))
+	assert.True(t, strings.Contains(err.Error(), "datapoint too far in past and out of retention"))
+	assert.True(t, strings.Contains(err.Error(), "id=foo"))
+	assert.True(t, strings.Contains(err.Error(), "timestamp="))
+	assert.True(t, strings.Contains(err.Error(), "past_limit="))
+}
+
 func TestBufferWriteError(t *testing.T) {
 	var (
 		opts   = newBufferTestOptions()

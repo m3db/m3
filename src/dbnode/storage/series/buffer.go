@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -328,16 +327,31 @@ func (b *dbBuffer) Write(
 				// want writes out of retention to fail.
 				return false, nil
 			}
-			return false, m3dberrors.ErrTooPast
+			return false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("datapoint too far in past and out of retention: "+
+					"id=%s, off_by=%s, timestamp=%s, retention_past_limit=%s, "+
+					"timestamp_unix_nanos=%d, retention_past_limit_unix_nanos=%d",
+					b.id.Bytes(), retentionLimit.Sub(timestamp).String(),
+					timestamp.Format(errTimestampFormat),
+					retentionLimit.Format(errTimestampFormat),
+					timestamp.UnixNano(), retentionLimit.UnixNano()))
 		}
 
-		if !now.Add(ropts.FutureRetentionPeriod()).Add(blockSize).After(timestamp) {
+		futureRetentionLimit := now.Add(ropts.FutureRetentionPeriod())
+		if !futureRetentionLimit.After(timestamp) {
 			if wOpts.SkipOutOfRetention {
 				// Allow for datapoint to be skipped since caller does not
 				// want writes out of retention to fail.
 				return false, nil
 			}
-			return false, m3dberrors.ErrTooFuture
+			return false, xerrors.NewInvalidParamsError(
+				fmt.Errorf("datapoint too far in future and out of retention: "+
+					"id=%s, off_by=%s, timestamp=%s, retention_future_limit=%s, "+
+					"timestamp_unix_nanos=%d, retention_future_limit_unix_nanos=%d",
+					b.id.Bytes(), timestamp.Sub(futureRetentionLimit).String(),
+					timestamp.Format(errTimestampFormat),
+					futureRetentionLimit.Format(errTimestampFormat),
+					timestamp.UnixNano(), futureRetentionLimit.UnixNano()))
 		}
 
 		b.opts.Stats().IncColdWrites()
