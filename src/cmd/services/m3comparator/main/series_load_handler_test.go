@@ -40,7 +40,11 @@ const seriesStr = `
     {
         "start": "2020-03-30T11:39:45Z",
         "end": "2020-03-30T11:58:00Z",
-        "tags": {"__name__": "series_name","abc": "def","tag_a": "foo"},
+        "tags": [
+            ["__name__", "series_name"],
+            ["abc", "def"],
+            ["tag_a", "foo"]
+        ],
         "datapoints": [
             { "val": "7076", "ts": "2020-03-30T11:39:51.288Z" },
             { "val": "7076", "ts": "2020-03-30T11:39:57.478Z" },

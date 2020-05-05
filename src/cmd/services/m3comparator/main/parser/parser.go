@@ -47,8 +47,33 @@ func NewTag(name, value string) Tag {
 	return Tag{name, value}
 }
 
+// Name returns the tag name.
+func (t Tag) Name() string {
+	return t[0]
+}
+
+// Value returns the tag value.
+func (t Tag) Value() string {
+	return t[1]
+}
+
 // Tags is a simple JSON serieazeable representation of tags.
 type Tags []Tag
+
+// Get returns a list of tag values with the given name.
+func (t Tags) Get(name string) []string {
+	// NB: this is almost always going to be 0
+	values := make([]string, 0, 2)
+	// NB: This list isn't expected to get very long so it uses array lookup.
+	// If this is a problem in the future, `Tags` be converted to a map.
+	for _, t := range t {
+		if t.Name() == name {
+			values = append(values, t.Value())
+		}
+	}
+
+	return values
+}
 
 // Datapoints is a JSON serializeable list of values for the series.
 type Datapoints []Datapoint
