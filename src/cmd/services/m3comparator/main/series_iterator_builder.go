@@ -24,6 +24,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -75,15 +76,17 @@ func buildBlockReader(
 }
 
 func buildTagIteratorAndID(
-	tagMap tagMap,
+	parsedTags parser.Tags,
 	opts models.TagOptions,
 ) (ident.TagIterator, ident.ID) {
 	var (
 		tags      = ident.Tags{}
-		modelTags = models.NewTags(len(tagMap), opts)
+		modelTags = models.NewTags(len(parsedTags), opts)
 	)
 
-	for name, value := range tagMap {
+	for _, tag := range parsedTags {
+		name := tag.Name()
+		value := tag.Value()
 		modelTags = modelTags.AddOrUpdateTag(models.Tag{
 			Name:  []byte(name),
 			Value: []byte(value),

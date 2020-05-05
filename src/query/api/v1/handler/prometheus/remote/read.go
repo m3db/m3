@@ -494,9 +494,9 @@ func filterLabels(
 }
 
 func tagsConvert(ts models.Tags) comparator.Tags {
-	tags := make(comparator.Tags, ts.Len())
+	tags := make(comparator.Tags, 0, ts.Len())
 	for _, t := range ts.Tags {
-		tags[string(t.Name)] = string(t.Value)
+		tags = append(tags, comparator.NewTag(string(t.Name), string(t.Value)))
 	}
 
 	return tags
