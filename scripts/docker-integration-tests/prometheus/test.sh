@@ -73,7 +73,7 @@ function prometheus_remote_write {
     local optional_tag_name=$(eval "echo \$TAG_NAME_$i")
     local optional_tag_value=$(eval "echo \$TAG_VALUE_$i")
     if [[ "$optional_tag_name" != "" ]] || [[ "$optional_tag_value" != "" ]]; then
-      optional_tags = "$optional_tags -t ${optional_tag_name}:${optional_tag_value}"
+      optional_tags="$optional_tags -t ${optional_tag_name}:${optional_tag_value}"
     fi
   done
 

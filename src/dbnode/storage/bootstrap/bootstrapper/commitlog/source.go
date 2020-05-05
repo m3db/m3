@@ -940,7 +940,7 @@ func (s *commitLogSource) logAccumulateOutcome(
 		errs += worker.numErrors
 	}
 	if errs > 0 {
-		s.log.Error("error bootstrapping from commit log", zap.Int("accmulateErrors", errs))
+		s.log.Error("error bootstrapping from commit log", zap.Int("accumulateErrors", errs))
 	}
 	if err := iter.Err(); err != nil {
 		s.log.Error("error reading commit log", zap.Error(err))

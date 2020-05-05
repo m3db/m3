@@ -194,7 +194,8 @@ func TestFanoutWriteError(t *testing.T) {
 
 	writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Datapoints: datapoints,
-		Tags:       models.NewTags(0, nil),
+		Tags:       models.MustMakeTags("foo", "bar"),
+		Unit:       xtime.Second,
 	})
 	require.NoError(t, err)
 
@@ -208,7 +209,7 @@ func TestFanoutWriteSuccess(t *testing.T) {
 
 	writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Datapoints: datapoints,
-		Tags:       models.NewTags(0, nil),
+		Tags:       models.MustMakeTags("foo", "bar"),
 		Unit:       xtime.Second,
 		Attributes: storage.Attributes{
 			MetricsType: storage.UnaggregatedMetricsType,

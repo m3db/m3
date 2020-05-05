@@ -695,7 +695,7 @@ CheckAllWritesArrivedLoop:
 					zap.Int("numAllWrites", len(allWrites)))
 				for _, write := range allWrites {
 					logger.Info("accumulated write",
-						zap.ByteString("tags", write.Tags.ID()),
+						zap.ByteString("tags", write.Tags().ID()),
 						zap.Any("datapoints", write.Datapoints),
 						zap.Any("attributes", write.Attributes))
 				}
@@ -736,8 +736,8 @@ CheckAllWritesArrivedLoop:
 			zap.Int("numAllWrites", len(allWrites)))
 		for _, write := range allWrites {
 			logger.Info("accumulated write",
-				zap.ByteString("tags", write.Tags.ID()),
-				zap.Any("datapoints", write.Datapoints))
+				zap.ByteString("tags", write.Tags().ID()),
+				zap.Any("datapoints", write.Datapoints()))
 		}
 	}
 
@@ -752,11 +752,11 @@ CheckAllWritesArrivedLoop:
 		for i, expectedValue := range expectedValues {
 			write := writesForNameAndAttrs[i]
 
-			assert.Equal(t, expectedWrite.tags, tagsToStringMap(write.Tags))
+			assert.Equal(t, expectedWrite.tags, tagsToStringMap(write.Tags()))
 
-			require.Equal(t, 1, len(write.Datapoints))
+			require.Equal(t, 1, len(write.Datapoints()))
 
-			actualValue := write.Datapoints[0].Value
+			actualValue := write.Datapoints()[0].Value
 			if allowedError == 0 {
 				// Exact match value.
 				assert.Equal(t, expectedValue.value, actualValue)
@@ -773,8 +773,8 @@ CheckAllWritesArrivedLoop:
 			if expectedOffset := expectedValue.offset; expectedOffset > 0 {
 				// Check if distance between datapoints as expected (use
 				// absolute offset from first write).
-				firstTimestamp := writesForNameAndAttrs[0].Datapoints[0].Timestamp
-				actualOffset := write.Datapoints[0].Timestamp.Sub(firstTimestamp)
+				firstTimestamp := writesForNameAndAttrs[0].Datapoints()[0].Timestamp
+				actualOffset := write.Datapoints()[0].Timestamp.Sub(firstTimestamp)
 				assert.Equal(t, expectedOffset, actualOffset)
 			}
 
@@ -1114,12 +1114,12 @@ func findWrites(
 ) ([]*storage.WriteQuery, bool) {
 	var results []*storage.WriteQuery
 	for _, w := range writes {
-		if t, ok := w.Tags.Get([]byte(nameTag)); ok {
+		if t, ok := w.Tags().Get([]byte(nameTag)); ok {
 			if !bytes.Equal(t, []byte(name)) {
 				// Does not match name.
 				continue
 			}
-			if optionalMatchAttrs != nil && w.Attributes != *optionalMatchAttrs {
+			if optionalMatchAttrs != nil && w.Attributes() != *optionalMatchAttrs {
 				// Tried to match attributes and not matched.
 				continue
 			}

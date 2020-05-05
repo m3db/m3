@@ -103,7 +103,7 @@ func TestIngest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, expected, *appender.received[0])
+	require.Equal(t, *expected, *appender.received[0])
 
 	// Make sure the op is put back to pool.
 	op := ingester.p.Get().(*ingestOp)
