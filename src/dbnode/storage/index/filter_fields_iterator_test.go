@@ -31,7 +31,7 @@ import (
 )
 
 func TestNewFilterFieldsIteratorError(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	s := segment.NewMockSegment(ctrl)
@@ -40,7 +40,7 @@ func TestNewFilterFieldsIteratorError(t *testing.T) {
 }
 
 func TestNewFilterFieldsIteratorNoMatchesInSegment(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b")}
@@ -55,7 +55,7 @@ func TestNewFilterFieldsIteratorNoMatchesInSegment(t *testing.T) {
 }
 
 func TestNewFilterFieldsIteratorFirstMatch(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
@@ -76,7 +76,7 @@ func TestNewFilterFieldsIteratorFirstMatch(t *testing.T) {
 }
 
 func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
@@ -97,7 +97,7 @@ func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
 }
 
 func TestNewFilterFieldsIteratorEndMatch(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
@@ -118,7 +118,7 @@ func TestNewFilterFieldsIteratorEndMatch(t *testing.T) {
 }
 
 func TestNewFilterFieldsIteratorAllMatch(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
@@ -143,7 +143,7 @@ func TestNewFilterFieldsIteratorAllMatch(t *testing.T) {
 }
 
 func TestNewFilterFieldsIteratorRandomMatch(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}

@@ -22,6 +22,7 @@ package models
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -30,6 +31,10 @@ import (
 	"github.com/m3db/m3/src/query/util/writer"
 
 	"github.com/cespare/xxhash"
+)
+
+var (
+	errNoTags = errors.New("no tags")
 )
 
 // NewTags builds a tags with the given size and tag options.
@@ -415,11 +420,17 @@ func (t Tags) Add(other Tags) Tags {
 	return t.Normalize()
 }
 
+// Ensure Tags implements sort interface.
+var _ sort.Interface = Tags{}
+
 func (t Tags) Len() int      { return len(t.Tags) }
 func (t Tags) Swap(i, j int) { t.Tags[i], t.Tags[j] = t.Tags[j], t.Tags[i] }
 func (t Tags) Less(i, j int) bool {
 	return bytes.Compare(t.Tags[i].Name, t.Tags[j].Name) == -1
 }
+
+// Ensure sortableTagsNumericallyAsc implements sort interface.
+var _ sort.Interface = sortableTagsNumericallyAsc{}
 
 type sortableTagsNumericallyAsc Tags
 
@@ -444,8 +455,8 @@ func (t sortableTagsNumericallyAsc) Less(i, j int) bool {
 // Normalize normalizes the tags by sorting them in place.
 // In the future, it might also ensure other things like uniqueness.
 func (t Tags) Normalize() Tags {
-	// Graphite tags are sorted numerically rather than lexically.
 	if t.Opts.IDSchemeType() == TypeGraphite {
+		// Graphite tags are sorted numerically rather than lexically.
 		sort.Sort(sortableTagsNumericallyAsc(t))
 	} else {
 		sort.Sort(t)
@@ -454,7 +465,67 @@ func (t Tags) Normalize() Tags {
 	return t
 }
 
-// HashedID returns the hashed ID for the tags.
+// Validate will validate there are tag values, and the
+// tags are ordered and there are no duplicates.
+func (t Tags) Validate() error {
+	n := t.Len()
+	if n == 0 {
+		return errNoTags
+	}
+
+	if t.Opts.IDSchemeType() == TypeGraphite {
+		// Graphite tags are sorted numerically rather than lexically.
+		tags := sortableTagsNumericallyAsc(t)
+		for i, tag := range tags.Tags {
+			if len(tag.Name) == 0 {
+				return fmt.Errorf("tag name empty: index=%d", i)
+			}
+			if i == 0 {
+				continue // Don't check order/unique attributes.
+			}
+
+			if !tags.Less(i-1, i) {
+				return fmt.Errorf("tags out of order: '%s' appears after '%s'",
+					tags.Tags[i-1].Name, tags.Tags[i].Name)
+			}
+
+			prev := tags.Tags[i-1]
+			if bytes.Compare(prev.Name, tag.Name) == 0 {
+				return fmt.Errorf("tags duplicate: '%s' appears more than once",
+					tags.Tags[i-1].Name)
+			}
+		}
+	} else {
+		// Sorted alphanumerically otherwise, use bytes.Compare once for
+		// both order and unique test.
+		for i, tag := range t.Tags {
+			if len(tag.Name) == 0 {
+				return fmt.Errorf("tag name empty: index=%d", i)
+			}
+			if len(tag.Value) == 0 {
+				return fmt.Errorf("tag value empty: index=%d, name=%s",
+					i, t.Tags[i].Name)
+			}
+			if i == 0 {
+				continue // Don't check order/unique attributes.
+			}
+
+			prev := t.Tags[i-1]
+			cmp := bytes.Compare(prev.Name, t.Tags[i].Name)
+			if cmp > 0 {
+				return fmt.Errorf("tags out of order: '%s' appears after '%s'",
+					prev.Name, tag.Name)
+			}
+			if cmp == 0 {
+				return fmt.Errorf("tags duplicate: '%s' appears more than once",
+					prev.Name)
+			}
+		}
+	}
+	return nil
+}
+
+// Reset resets the tags for reuse.
 func (t Tags) Reset() Tags {
 	t.Tags = t.Tags[:0]
 	return t

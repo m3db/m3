@@ -171,7 +171,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 			return
 		}
 
-		err = w.handler.storage.Write(w.ctx, &storage.WriteQuery{
+		writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 			Tags: tags,
 			Datapoints: ts.Datapoints{ts.Datapoint{
 				Timestamp: time.Unix(0, mp.TimeNanos),
@@ -185,6 +185,12 @@ func (w *downsamplerFlushHandlerWriter) Write(
 			},
 		})
 		if err != nil {
+			logger.Error("downsampler flush error creating write query", zap.Error(err))
+			w.handler.metrics.flushErrors.Inc(1)
+			return
+		}
+
+		if err := w.handler.storage.Write(w.ctx, writeQuery); err != nil {
 			logger.Error("downsampler flush error failed write", zap.Error(err))
 			w.handler.metrics.flushErrors.Inc(1)
 			return

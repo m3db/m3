@@ -100,9 +100,6 @@ func NewIngester(
 				m:       m,
 				logger:  opts.InstrumentOptions.Logger(),
 				sampler: opts.Sampler,
-				q: storage.WriteQuery{
-					Tags: models.NewTags(0, tagOpts),
-				},
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
@@ -152,6 +149,8 @@ type ingestOp struct {
 	value       float64
 	sp          policy.StoragePolicy
 	callback    m3msg.Callbackable
+	tags        models.Tags
+	datapoints  ts.Datapoints
 	q           storage.WriteQuery
 }
 
@@ -199,17 +198,22 @@ func (op *ingestOp) resetWriteQuery() error {
 		return err
 	}
 	op.resetDataPoints()
-	op.q.Unit = convert.UnitForM3DB(op.sp.Resolution().Precision)
-	op.q.Attributes.MetricsType = storage.AggregatedMetricsType
-	op.q.Attributes.Resolution = op.sp.Resolution().Window
-	op.q.Attributes.Retention = op.sp.Retention().Duration()
-	return nil
+	return op.q.Reset(storage.WriteQueryOptions{
+		Tags:       op.tags,
+		Datapoints: op.datapoints,
+		Unit:       convert.UnitForM3DB(op.sp.Resolution().Precision),
+		Attributes: storage.Attributes{
+			MetricsType: storage.AggregatedMetricsType,
+			Resolution:  op.sp.Resolution().Window,
+			Retention:   op.sp.Retention().Duration(),
+		},
+	})
 }
 
 func (op *ingestOp) resetTags() error {
 	op.it.Reset(op.id)
-	op.q.Tags.Tags = op.q.Tags.Tags[:0]
-	op.q.Tags.Opts = op.tagOpts
+	op.tags.Tags = op.tags.Tags[:0]
+	op.tags.Opts = op.tagOpts
 	for op.it.Next() {
 		name, value := op.it.Current()
 
@@ -219,30 +223,30 @@ func (op *ingestOp) resetTags() error {
 		// and this tag is interpreted, eventually need to handle more cleanly.
 		if bytes.Equal(name, downsample.MetricsOptionIDSchemeTagName) {
 			if bytes.Equal(value, downsample.GraphiteIDSchemeTagValue) &&
-				op.q.Tags.Opts.IDSchemeType() != models.TypeGraphite {
+				op.tags.Opts.IDSchemeType() != models.TypeGraphite {
 				// Restart iteration with graphite tag options parsing
 				op.it.Reset(op.id)
-				op.q.Tags.Tags = op.q.Tags.Tags[:0]
-				op.q.Tags.Opts = op.q.Tags.Opts.SetIDSchemeType(models.TypeGraphite)
+				op.tags.Tags = op.tags.Tags[:0]
+				op.tags.Opts = op.tags.Opts.SetIDSchemeType(models.TypeGraphite)
 			}
 			// Continue, whether we updated and need to restart iteration,
 			// or if passing for the second time
 			continue
 		}
 
-		op.q.Tags = op.q.Tags.AddTagWithoutNormalizing(models.Tag{
+		op.tags = op.tags.AddTagWithoutNormalizing(models.Tag{
 			Name:  name,
 			Value: value,
 		}.Clone())
 	}
-	op.q.Tags.Normalize()
+	op.tags.Normalize()
 	return op.it.Err()
 }
 
 func (op *ingestOp) resetDataPoints() {
-	if len(op.q.Datapoints) != 1 {
-		op.q.Datapoints = make(ts.Datapoints, 1)
+	if len(op.datapoints) != 1 {
+		op.datapoints = make(ts.Datapoints, 1)
 	}
-	op.q.Datapoints[0].Timestamp = time.Unix(0, op.metricNanos)
-	op.q.Datapoints[0].Value = op.value
+	op.datapoints[0].Timestamp = time.Unix(0, op.metricNanos)
+	op.datapoints[0].Value = op.value
 }
