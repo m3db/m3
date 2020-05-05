@@ -402,6 +402,8 @@ type LeaseManager interface {
 	) (UpdateLeasesResult, error)
 	// SetLeaseVerifier sets the LeaseVerifier (for delayed initialization).
 	SetLeaseVerifier(leaseVerifier LeaseVerifier) error
+	// CloseShardLeases closes all shard leases.
+	CloseShardLeases(descriptor ShardLeaseDescriptor)
 }
 
 // UpdateLeasesResult is the result of a call to update leases.
@@ -410,10 +412,16 @@ type UpdateLeasesResult struct {
 	LeasersNoOpenLease  int
 }
 
+// ShardLeaseDescriptor describes a lease (like an ID).
+type ShardLeaseDescriptor struct {
+	Namespace ident.ID
+	Shard     uint32
+}
+
 // LeaseDescriptor describes a lease (like an ID).
 type LeaseDescriptor struct {
-	Namespace  ident.ID
-	Shard      uint32
+	ShardLeaseDescriptor
+
 	BlockStart time.Time
 }
 
@@ -460,6 +468,9 @@ type Leaser interface {
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) (UpdateOpenLeaseResult, error)
+
+	// CloseShardLease closes all block leases for a shard.
+	CloseShardLease(descriptor ShardLeaseDescriptor)
 }
 
 // Options represents the options for a database block

@@ -192,6 +192,15 @@ func (m *leaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
 	return nil
 }
 
+// CloseShardLeases closes all shard leases.
+func (m *leaseManager) CloseShardLeases(descriptor ShardLeaseDescriptor) {
+	m.Lock()
+	defer m.Unlock()
+	for _, l := range m.leasers {
+		l.CloseShardLease(descriptor)
+	}
+}
+
 func (m *leaseManager) isRegistered(leaser Leaser) bool {
 	for _, l := range m.leasers {
 		if l == leaser {

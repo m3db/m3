@@ -123,6 +123,24 @@ type seekersAndBloom struct {
 	volume      int
 }
 
+func (s seekersAndBloom) close() error {
+	multiErr := xerrors.NewMultiError()
+	for _, seeker := range s.seekers {
+		multiErr = multiErr.Add(seeker.seeker.Close())
+	}
+	return multiErr.FinalError()
+}
+
+// Returns true if any seekers are borrowed.
+func (s seekersAndBloom) anyBorrowed() bool {
+	for _, seeker := range s.seekers {
+		if seeker.isBorrowed {
+			return true
+		}
+	}
+	return false
+}
+
 // borrowableSeeker is just a seeker with an additional field for keeping
 // track of whether or not it has been borrowed.
 type borrowableSeeker struct {
@@ -130,13 +148,22 @@ type borrowableSeeker struct {
 	isBorrowed bool
 }
 
+type seekersByTimeState int
+
+const (
+	seekersByTimeNotCached seekersByTimeState = iota
+	seekersByTimeCached
+	seekersByTimeClosed
+)
+
 // seekersByTime contains all seekers for a specific shard, accessible by
-// blockStart. The accessed field allows for pre-caching those seekers.
+// blockStart. The state field describes whether the underlying seekers are
+// not cached, cached or marked as closed.
 type seekersByTime struct {
 	sync.RWMutex
-	shard    uint32
-	accessed bool
-	seekers  map[xtime.UnixNano]rotatableSeekers
+	shard   uint32
+	state   seekersByTimeState
+	seekers map[xtime.UnixNano]rotatableSeekers
 }
 
 // rotatableSeekers is a wrapper around seekersAndBloom that allows for rotating
@@ -144,7 +171,11 @@ type seekersByTime struct {
 // to inactive while the seeker manager waits for any outstanding stale seekers
 // to be returned.
 type rotatableSeekers struct {
-	active   seekersAndBloom
+	// Active seekers for the latest volume which will serve queries.
+	active seekersAndBloom
+	// We hold on to inactive seekers while we wait for any borrowed seekers to be returned.
+	// These are cleaned up after all borrowed seekers have been returned. An inactive
+	// seeker is created when a new volume is flushed to disk.
 	inactive seekersAndBloom
 }
 
@@ -228,8 +259,8 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 		byTime := m.seekersByTime(shard)
 
 		byTime.Lock()
-		// Track accessed to precache in open/close loop
-		byTime.accessed = true
+		// Mark seekers to be precached in open/close loop
+		byTime.state = seekersByTimeCached
 		byTime.Unlock()
 
 		wg.Add(1)
@@ -285,8 +316,8 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFil
 
 	byTime.Lock()
 	defer byTime.Unlock()
-	// Track accessed to precache in open/close loop
-	byTime.accessed = true
+	// Mark seekers to be precached in open/close loop
+	byTime.state = seekersByTimeCached
 
 	startNano := xtime.ToUnixNano(start)
 	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
@@ -348,54 +379,40 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentD
 // and inactive seekers. For more details on this read the comment above the UpdateOpenLease() method.
 func (m *seekerManager) returnSeekerWithLock(seekers rotatableSeekers, seeker ConcurrentDataFileSetSeeker) (bool, error) {
 	// Check if the seeker being returned is an active seeker first.
-	for i, compareSeeker := range seekers.active.seekers {
-		if seeker == compareSeeker.seeker {
-			compareSeeker.isBorrowed = false
-			seekers.active.seekers[i] = compareSeeker
-			return true, nil
-		}
+	if m.markBorrowedSeekerAsReturned(&seekers.active, seeker) {
+		// We can return right away if we've returned an active seeker.
+		return true, nil
 	}
 
 	// If no match was found in the active seekers, it's possible that an inactive seeker is being returned.
-	for i, compareSeeker := range seekers.inactive.seekers {
-		if seeker == compareSeeker.seeker {
-			compareSeeker.isBorrowed = false
-			seekers.inactive.seekers[i] = compareSeeker
-
-			// The goroutine that returns the last outstanding inactive seeker is responsible for notifying any
-			// goroutines waiting for all inactive seekers to be returned and clearing out the inactive seekers
-			// state entirely.
-			allAreReturned := true
-			for _, inactiveSeeker := range seekers.inactive.seekers {
-				if inactiveSeeker.isBorrowed {
-					allAreReturned = false
-					break
-				}
-			}
-
-			if !allAreReturned {
-				return true, nil
-			}
-
-			// All the inactive seekers have been returned so it's safe to signal and clear them out.
-			multiErr := xerrors.NewMultiError()
-			for _, inactiveSeeker := range seekers.inactive.seekers {
-				multiErr = multiErr.Add(inactiveSeeker.seeker.Close())
-			}
-
-			// Clear out inactive state.
-			allInactiveSeekersClosedWg := seekers.inactive.wg
-			seekers.inactive = seekersAndBloom{}
-			if allInactiveSeekersClosedWg != nil {
-				// Signal completion regardless of any errors encountered while closing.
-				allInactiveSeekersClosedWg.Done()
-			}
-
-			return true, multiErr.FinalError()
+	if m.markBorrowedSeekerAsReturned(&seekers.inactive, seeker) {
+		// The goroutine that returns the last outstanding inactive seeker is responsible for notifying any
+		// goroutines waiting for all inactive seekers to be returned and clearing out the inactive seekers
+		// state entirely.
+		if seekers.inactive.anyBorrowed() {
+			return true, nil
 		}
+
+		err := seekers.inactive.close()
+		if seekers.inactive.wg != nil {
+			// Signal completion regardless of any errors encountered while closing.
+			seekers.inactive.wg.Done()
+		}
+		return true, err
 	}
 
 	return false, nil
+}
+
+func (m *seekerManager) markBorrowedSeekerAsReturned(seekers *seekersAndBloom, seeker ConcurrentDataFileSetSeeker) bool {
+	for i, compareSeeker := range seekers.seekers {
+		if seeker == compareSeeker.seeker {
+			compareSeeker.isBorrowed = false
+			seekers.seekers[i] = compareSeeker
+			return true
+		}
+	}
+	return false
 }
 
 // UpdateOpenLease() implements block.Leaser. The contract of this API is that once the function
@@ -508,23 +525,15 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	updateOpenLeaseResult = block.UpdateOpenLease
 	if seekers.active.volume > state.Volume {
 		// Ignore any close errors because its not relevant from the callers perspective.
-		m.closeSeekersAndLogError(descriptor, newActiveSeekers.seekers)
+		m.closeSeekersAndLogError(descriptor, newActiveSeekers)
 		return nil, 0, errOutOfOrderUpdateOpenLease
 	}
 
 	seekers.inactive = seekers.active
 	seekers.active = newActiveSeekers
 
-	anySeekersAreBorrowed := false
-	for _, seeker := range seekers.inactive.seekers {
-		if seeker.isBorrowed {
-			anySeekersAreBorrowed = true
-			break
-		}
-	}
-
 	var wg *sync.WaitGroup
-	if anySeekersAreBorrowed {
+	if seekers.inactive.anyBorrowed() {
 		// If any of the seekers are borrowed setup a waitgroup which will be used to
 		// signal when they've all been returned (the last seeker that is returned via
 		// the Return() API will call wg.Done()).
@@ -533,7 +542,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		seekers.inactive.wg = wg
 	} else {
 		// If none of the existing seekers are currently borrowed then we can just close them all.
-		m.closeSeekersAndLogError(descriptor, seekers.inactive.seekers)
+		m.closeSeekersAndLogError(descriptor, seekers.inactive)
 		seekers.inactive = seekersAndBloom{}
 	}
 	byTime.seekers[blockStartNano] = seekers
@@ -579,17 +588,13 @@ func (m *seekerManager) acquireByTimeLockWaitGroupAware(
 
 // closeSeekersAndLogError is a helper function that closes all the seekers in a slice of borrowableSeeker
 // and emits a log if any errors occurred.
-func (m *seekerManager) closeSeekersAndLogError(descriptor block.LeaseDescriptor, seekers []borrowableSeeker) {
-	var multiErr = xerrors.NewMultiError()
-	for _, seeker := range seekers {
-		multiErr = multiErr.Add(seeker.seeker.Close())
-	}
-	if multiErr.FinalError() != nil {
+func (m *seekerManager) closeSeekersAndLogError(descriptor block.LeaseDescriptor, seeker seekersAndBloom) {
+	if err := seeker.close(); err != nil {
 		// Log the error but don't return it since its not relevant from
 		// the callers perspective.
 		m.logger.Error(
 			"error closing seeker in update open lease",
-			zap.Error(multiErr.FinalError()),
+			zap.Error(err),
 			zap.String("namespace", descriptor.Namespace.String()),
 			zap.Int("shard", int(descriptor.Shard)),
 			zap.Time("blockStart", descriptor.BlockStart))
@@ -663,8 +668,10 @@ func (m *seekerManager) openLatestSeekersWithActiveWaitGroup(
 	blm := m.blockRetrieverOpts.BlockLeaseManager()
 	blockStart := start.ToTime()
 	state, err := blm.OpenLatestLease(m, block.LeaseDescriptor{
-		Namespace:  m.namespace,
-		Shard:      byTime.shard,
+		ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+			Namespace: m.namespace,
+			Shard:     byTime.shard,
+		},
 		BlockStart: blockStart,
 	})
 	if err != nil {
@@ -813,6 +820,18 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 	return byTime
 }
 
+// CloseShardLease closes all block leases for a shard.
+func (m *seekerManager) CloseShardLease(descriptor block.ShardLeaseDescriptor) {
+	if !m.namespace.Equal(descriptor.Namespace) {
+		return
+	}
+
+	byTime := m.seekersByTime(descriptor.Shard)
+	byTime.Lock()
+	defer byTime.Unlock()
+	byTime.state = seekersByTimeClosed
+}
+
 func (m *seekerManager) Close() error {
 	m.Lock()
 
@@ -827,21 +846,17 @@ func (m *seekerManager) Close() error {
 		byTime.Lock()
 		for _, seekersForBlock := range byTime.seekers {
 			// Ensure active seekers are all returned.
-			for _, seeker := range seekersForBlock.active.seekers {
-				if seeker.isBorrowed {
-					byTime.Unlock()
-					m.Unlock()
-					return errCantCloseSeekerManagerWhileSeekersAreBorrowed
-				}
+			if seekersForBlock.active.anyBorrowed() {
+				byTime.Unlock()
+				m.Unlock()
+				return errCantCloseSeekerManagerWhileSeekersAreBorrowed
 			}
 
 			// Ensure inactive seekers are all returned.
-			for _, seeker := range seekersForBlock.inactive.seekers {
-				if seeker.isBorrowed {
-					byTime.Unlock()
-					m.Unlock()
-					return errCantCloseSeekerManagerWhileSeekersAreBorrowed
-				}
+			if seekersForBlock.inactive.anyBorrowed() {
+				byTime.Unlock()
+				m.Unlock()
+				return errCantCloseSeekerManagerWhileSeekersAreBorrowed
 			}
 		}
 		byTime.Unlock()
@@ -885,7 +900,7 @@ func (m *seekerManager) openCloseLoop() {
 	var (
 		shouldTryOpen []*seekersByTime
 		shouldClose   []seekerManagerPendingClose
-		closing       []borrowableSeeker
+		closing       []seekersAndBloom
 	)
 	resetSlices := func() {
 		for i := range shouldTryOpen {
@@ -897,7 +912,7 @@ func (m *seekerManager) openCloseLoop() {
 		}
 		shouldClose = shouldClose[:0]
 		for i := range closing {
-			closing[i] = borrowableSeeker{}
+			closing[i] = seekersAndBloom{}
 		}
 		closing = closing[:0]
 	}
@@ -914,16 +929,16 @@ func (m *seekerManager) openCloseLoop() {
 
 		for _, byTime := range m.seekersByShardIdx {
 			byTime.RLock()
-			accessed := byTime.accessed
+			state := byTime.state
 			byTime.RUnlock()
-			if !accessed {
+			if state != seekersByTimeCached {
 				continue
 			}
 			shouldTryOpen = append(shouldTryOpen, byTime)
 		}
 		m.RUnlock()
 
-		// Try opening any unopened times for accessed seekers
+		// Try opening any unopened times for seekers marked to be precached.
 		for _, byTime := range shouldTryOpen {
 			m.openAnyUnopenSeekersFn(byTime)
 		}
@@ -933,7 +948,8 @@ func (m *seekerManager) openCloseLoop() {
 			byTime.RLock()
 			for blockStartNano := range byTime.seekers {
 				blockStart := blockStartNano.ToTime()
-				if blockStart.Before(earliestSeekableBlockStart) {
+				if byTime.state == seekersByTimeClosed ||
+					blockStart.Before(earliestSeekableBlockStart) {
 					shouldClose = append(shouldClose, seekerManagerPendingClose{
 						shard:      uint32(shard),
 						blockStart: blockStart,
@@ -948,30 +964,29 @@ func (m *seekerManager) openCloseLoop() {
 				byTime := m.seekersByShardIdx[elem.shard]
 				blockStartNano := xtime.ToUnixNano(elem.blockStart)
 				byTime.Lock()
-				seekers := byTime.seekers[blockStartNano]
+				seekers, ok := byTime.seekers[blockStartNano]
+				if !ok {
+					continue
+				}
+
 				allSeekersAreReturned := true
 
 				// Ensure no active seekers are still borrowed.
-				for _, seeker := range seekers.active.seekers {
-					if seeker.isBorrowed {
-						allSeekersAreReturned = false
-						break
-					}
+				if seekers.active.anyBorrowed() {
+					allSeekersAreReturned = false
 				}
 
-				// Ensure no ianctive seekers are still borrowed.
-				for _, seeker := range seekers.inactive.seekers {
-					if seeker.isBorrowed {
-						allSeekersAreReturned = false
-						break
-					}
+				// Ensure no inactive seekers are still borrowed.
+				if seekers.inactive.anyBorrowed() {
+					allSeekersAreReturned = false
+					break
 				}
 				// Never close seekers unless they've all been returned because
 				// some of them are clones of the original and can't be used once
 				// the parent is closed (because they share underlying resources)
 				if allSeekersAreReturned {
-					closing = append(closing, seekers.active.seekers...)
-					closing = append(closing, seekers.inactive.seekers...)
+					closing = append(closing, seekers.active)
+					closing = append(closing, seekers.inactive)
 					delete(byTime.seekers, blockStartNano)
 				}
 				byTime.Unlock()
@@ -980,10 +995,9 @@ func (m *seekerManager) openCloseLoop() {
 		m.RUnlock()
 
 		// Close after releasing lock so any IO is done out of lock
-		for _, seeker := range closing {
-			err := seeker.seeker.Close()
-			if err != nil {
-				m.logger.Error("err closing seeker in SeekerManager openCloseLoop", zap.Error(err))
+		for _, seekersAndBloom := range closing {
+			if err := seekersAndBloom.close(); err != nil {
+				m.logger.Error("err closing seekersAndBloom in SeekerManager openCloseLoop", zap.Error(err))
 			}
 		}
 
@@ -998,23 +1012,17 @@ func (m *seekerManager) openCloseLoop() {
 		byTime.Lock()
 		for _, seekersForBlock := range byTime.seekers {
 			// Close the active seekers.
-			for _, seeker := range seekersForBlock.active.seekers {
-				// We don't need to check if the seeker is borrowed here because we don't allow the
-				// SeekerManager to be closed if any seekers are still outstanding.
-				err := seeker.seeker.Close()
-				if err != nil {
-					m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
-				}
+			// We don't need to check if the seeker is borrowed here because we don't allow the
+			// SeekerManager to be closed if any seekers are still outstanding.
+			if err := seekersForBlock.active.close(); err != nil {
+				m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
 			}
 
 			// Close the inactive seekers.
-			for _, seeker := range seekersForBlock.inactive.seekers {
-				// We don't need to check if the seeker is borrowed here because we don't allow the
-				// SeekerManager to be closed if any seekers are still outstanding.
-				err := seeker.seeker.Close()
-				if err != nil {
-					m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
-				}
+			// We don't need to check if the seeker is borrowed here because we don't allow the
+			// SeekerManager to be closed if any seekers are still outstanding.
+			if err := seekersForBlock.inactive.close(); err != nil {
+				m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
 			}
 		}
 		byTime.seekers = nil

@@ -612,6 +612,12 @@ func (s *dbShard) Close() error {
 		stopwatch.Stop()
 	}()
 
+	// NB(bodu): Close all block lease state for this shard.
+	s.opts.BlockLeaseManager().CloseShardLeases(block.ShardLeaseDescriptor{
+		Namespace: s.namespace.ID(),
+		Shard:     s.shard,
+	})
+
 	// NB(prateek): wait till any existing ticks are finished. In the usual
 	// case, no other ticks are running, and tickWg count is at 0, so the
 	// call to Wait() will return immediately.
@@ -2303,8 +2309,10 @@ func (s *dbShard) ColdFlush(
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
 		_, err = s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
-			Namespace:  s.namespace.ID(),
-			Shard:      s.ID(),
+			ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+				Namespace: s.namespace.ID(),
+				Shard:     s.ID(),
+			},
 			BlockStart: startTime,
 		}, block.LeaseState{Volume: nextVersion})
 		// After writing the full block successfully **and** propagating the new lease to the

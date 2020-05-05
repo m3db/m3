@@ -33,8 +33,10 @@ import (
 
 var (
 	testBlockDescriptor = block.LeaseDescriptor{
-		Namespace:  ident.StringID("test-ns"),
-		Shard:      0,
+		ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+			Namespace: ident.StringID("test-ns"),
+			Shard:     0,
+		},
 		BlockStart: time.Now().Truncate(2 * time.Hour),
 	}
 	testBlockLeaseState = block.LeaseState{Volume: 0}

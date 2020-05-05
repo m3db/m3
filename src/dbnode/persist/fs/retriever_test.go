@@ -432,8 +432,10 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 						// Run in a loop since the open seeker function is configured to randomly fail
 						// sometimes.
 						_, err := leaser.UpdateOpenLease(block.LeaseDescriptor{
-							Namespace:  nsMeta.ID(),
-							Shard:      shard,
+							ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+								Namespace: nsMeta.ID(),
+								Shard:     shard,
+							},
 							BlockStart: blockStart,
 						}, block.LeaseState{Volume: volume})
 						// Ignore errOutOfOrderUpdateOpenLease because the goroutines in this test are not coordinated

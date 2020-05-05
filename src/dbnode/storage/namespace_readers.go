@@ -175,8 +175,10 @@ func (m *namespaceReaderManager) latestVolume(
 	blockStart time.Time,
 ) (int, error) {
 	state, err := m.blockLeaseManager.OpenLatestLease(m, block.LeaseDescriptor{
-		Namespace:  m.namespace.ID(),
-		Shard:      shard,
+		ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+			Namespace: m.namespace.ID(),
+			Shard:     shard,
+		},
 		BlockStart: blockStart,
 	})
 	if err != nil {
@@ -485,4 +487,27 @@ func (m *namespaceReaderManager) UpdateOpenLease(
 	}
 
 	return block.UpdateOpenLease, nil
+}
+
+// CloseShardLease closes all open readers for a shard.
+func (m *namespaceReaderManager) CloseShardLease(descriptor block.ShardLeaseDescriptor) {
+	if !m.namespace.ID().Equal(descriptor.Namespace) {
+		return
+	}
+
+	m.Lock()
+	defer m.Unlock()
+	// Close and remove open readers for the given shard.
+	for readerKey, cachedReader := range m.openReaders {
+		if readerKey.shard == descriptor.Shard {
+			delete(m.openReaders, readerKey)
+			if err := m.closeAndPushReaderWithLock(cachedReader.reader); err != nil {
+				// Best effort on closing the reader and caching it. If it
+				// fails, we can always allocate a new reader.
+				m.logger.Error("error closing reader on put from reader cache", zap.Error(err))
+			}
+		}
+	}
+
+	return
 }

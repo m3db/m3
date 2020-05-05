@@ -325,7 +325,11 @@ func TestNamespaceReadersUpdateOpenLease(t *testing.T) {
 	// than the update lease volume, so those are expected to be closed, and
 	// put in the slice of closed readers.
 	res, err := nsReaderMgrImpl.UpdateOpenLease(block.LeaseDescriptor{
-		Namespace: nsID, Shard: shard, BlockStart: start,
+		ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+			Namespace: nsID,
+			Shard:     shard,
+		},
+		BlockStart: start,
 	}, block.LeaseState{Volume: 2})
 	require.NoError(t, err)
 	require.Equal(t, block.UpdateOpenLease, res)
@@ -336,7 +340,11 @@ func TestNamespaceReadersUpdateOpenLease(t *testing.T) {
 
 	// Test attempting update lease on wrong namespace.
 	res, err = nsReaderMgrImpl.UpdateOpenLease(block.LeaseDescriptor{
-		Namespace: ident.StringID("wrong-ns"), Shard: shard, BlockStart: start,
+		ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+			Namespace: ident.StringID("wrong-ns"),
+			Shard:     shard,
+		},
+		BlockStart: start,
 	}, block.LeaseState{Volume: 2})
 	require.NoError(t, err)
 	require.Equal(t, block.NoOpenLease, res)

@@ -76,9 +76,9 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	for shard, byTime := range m.seekersByShardIdx {
 		_, exists := shardSet[uint32(shard)]
 		if !exists {
-			require.False(t, byTime.accessed)
+			require.Equal(t, seekersByTimeNotCached, byTime.state)
 		} else {
-			require.True(t, byTime.accessed)
+			require.Equal(t, seekersByTimeCached, byTime.state)
 			require.Equal(t, int(shard), int(byTime.shard))
 		}
 	}
@@ -106,18 +106,14 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		mock := NewMockDataFileSetSeeker(ctrl)
 		// ConcurrentClone() will be called fetchConcurrency-1 times because the original can be used
 		// as one of the clones.
-		for i := 0; i < defaultTestingFetchConcurrency-1; i++ {
-			mock.EXPECT().ConcurrentClone().Return(mock, nil)
-		}
-		for i := 0; i < defaultTestingFetchConcurrency; i++ {
-			mock.EXPECT().Close().DoAndReturn(func() error {
-				mockSeekerStatsLock.Lock()
-				numMockSeekerCloses++
-				mockSeekerStatsLock.Unlock()
-				return nil
-			})
-			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
-		}
+		mock.EXPECT().ConcurrentClone().Times(defaultTestingFetchConcurrency-1).Return(mock, nil)
+		mock.EXPECT().Close().Times(defaultTestingFetchConcurrency).DoAndReturn(func() error {
+			mockSeekerStatsLock.Lock()
+			numMockSeekerCloses++
+			mockSeekerStatsLock.Unlock()
+			return nil
+		})
+		mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
 		return mock, nil
 	}
 	m.sleepFn = func(_ time.Duration) {
@@ -144,8 +140,10 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	// Ensure that UpdateOpenLease() updates the volumes.
 	for _, shard := range shards {
 		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
-			Namespace:  metadata.ID(),
-			Shard:      shard,
+			ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+				Namespace: metadata.ID(),
+				Shard:     shard,
+			},
 			BlockStart: blockStart,
 		}, block.LeaseState{Volume: 1})
 		require.NoError(t, err)
@@ -166,8 +164,10 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	// Ensure that UpdateOpenLease() ignores updates for the wrong namespace.
 	for _, shard := range shards {
 		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
-			Namespace:  ident.StringID("some-other-ns"),
-			Shard:      shard,
+			ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+				Namespace: ident.StringID("some-other-ns"),
+				Shard:     shard,
+			},
 			BlockStart: blockStart,
 		}, block.LeaseState{Volume: 2})
 		require.NoError(t, err)
@@ -185,8 +185,10 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	// Ensure that UpdateOpenLease() returns an error for out-of-order updates.
 	for _, shard := range shards {
 		_, err := m.UpdateOpenLease(block.LeaseDescriptor{
-			Namespace:  metadata.ID(),
-			Shard:      shard,
+			ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+				Namespace: metadata.ID(),
+				Shard:     shard,
+			},
 			BlockStart: blockStart,
 		}, block.LeaseState{Volume: 0})
 		require.Equal(t, errOutOfOrderUpdateOpenLease, err)
@@ -405,4 +407,125 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	// Make sure there are no goroutines still trying to write into the tickCh
 	// to prevent the test itself from interfering with the goroutine leak test
 	close(cleanupCh)
+}
+
+func TestSeekerManagerCloseShardLease(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+
+	var (
+		ctrl   = gomock.NewController(t)
+		shards = []uint32{2, 4}
+		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	)
+	defer ctrl.Finish()
+
+	var (
+		wg                                      sync.WaitGroup
+		mockSeekerStatsLock                     sync.Mutex
+		numMockSeekerClosesByShardAndBlockStart = make(map[uint32]map[time.Time]int)
+	)
+	m.newOpenSeekerFn = func(
+		shard uint32,
+		blockStart time.Time,
+		volume int,
+	) (DataFileSetSeeker, error) {
+		// We expect `defaultTestingFetchConcurrency` number of calls to Close because we return this
+		// many numbers of clones and each clone will need to be closed.
+		wg.Add(defaultTestingFetchConcurrency)
+
+		mock := NewMockDataFileSetSeeker(ctrl)
+		// ConcurrentClone() will be called fetchConcurrency-1 times because the original can be used
+		// as one of the clones.
+		mock.EXPECT().ConcurrentClone().Times(defaultTestingFetchConcurrency-1).Return(mock, nil)
+		mock.EXPECT().Close().Times(defaultTestingFetchConcurrency).DoAndReturn(func() error {
+			mockSeekerStatsLock.Lock()
+			numMockSeekerClosesByBlockStart, ok := numMockSeekerClosesByShardAndBlockStart[shard]
+			if !ok {
+				numMockSeekerClosesByBlockStart = make(map[time.Time]int)
+				numMockSeekerClosesByShardAndBlockStart[shard] = numMockSeekerClosesByBlockStart
+			}
+			numMockSeekerClosesByBlockStart[blockStart]++
+			mockSeekerStatsLock.Unlock()
+			wg.Done()
+			return nil
+		})
+		mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
+		return mock, nil
+	}
+	m.sleepFn = func(_ time.Duration) {
+		time.Sleep(time.Millisecond)
+	}
+
+	metadata := testNs1Metadata(t)
+	// Pick a start time thats within retention so the background loop doesn't close
+	// the seeker.
+	blockStart := time.Now().Truncate(metadata.Options().RetentionOptions().BlockSize())
+	require.NoError(t, m.Open(metadata))
+
+	for _, shard := range shards {
+		seeker, err := m.Borrow(shard, blockStart)
+		require.NoError(t, err)
+		require.NoError(t, m.Return(shard, blockStart, seeker))
+	}
+
+	// Ensure that UpdateOpenLease() updates the volumes.
+	for _, shard := range shards {
+		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
+			ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+				Namespace: metadata.ID(),
+				Shard:     shard,
+			},
+			BlockStart: blockStart,
+		}, block.LeaseState{Volume: 1})
+		require.NoError(t, err)
+		require.Equal(t, block.UpdateOpenLease, updateResult)
+
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		byTime.RUnlock()
+	}
+
+	mockSeekerStatsLock.Lock()
+	for _, numMockSeekerClosesByBlockStart := range numMockSeekerClosesByShardAndBlockStart {
+		require.Equal(t, defaultTestingFetchConcurrency, numMockSeekerClosesByBlockStart[blockStart])
+	}
+	mockSeekerStatsLock.Unlock()
+
+	// Close shard leases
+	for _, shard := range shards {
+		m.CloseShardLease(block.ShardLeaseDescriptor{
+			Namespace: metadata.ID(),
+			Shard:     shard,
+		})
+	}
+	wg.Wait()
+
+	// Verify that volumes have been reset
+	for _, shard := range shards {
+		seeker, err := m.Borrow(shard, blockStart)
+		require.NoError(t, err)
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
+		require.Equal(t, defaultTestingFetchConcurrency, len(seekers.active.seekers))
+		require.Equal(t, 0, seekers.active.volume)
+		byTime.RUnlock()
+
+		require.NoError(t, m.Return(shard, blockStart, seeker))
+	}
+
+	mockSeekerStatsLock.Lock()
+	for _, numMockSeekerClosesByBlockStart := range numMockSeekerClosesByShardAndBlockStart {
+		for start, numMockSeekerCloses := range numMockSeekerClosesByBlockStart {
+			if blockStart == start {
+				// NB(bodu): These get closed twice since they've been closed once already due to updating their block lease.
+				require.Equal(t, defaultTestingFetchConcurrency*2, numMockSeekerCloses)
+				continue
+			}
+			require.Equal(t, defaultTestingFetchConcurrency, numMockSeekerCloses)
+		}
+	}
+	mockSeekerStatsLock.Unlock()
+
+	require.NoError(t, m.Close())
 }

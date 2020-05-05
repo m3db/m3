@@ -105,8 +105,10 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	leaseState := block.LeaseState{}
 	for i := 0; i < 100; i++ {
 		leaseDescriptor := block.LeaseDescriptor{
-			Namespace:  ns0.ID(),
-			Shard:      uint32(0),
+			ShardLeaseDescriptor: block.ShardLeaseDescriptor{
+				Namespace: ns0.ID(),
+				Shard:     uint32(0),
+			},
 			BlockStart: time.Now().Truncate(ns0.Options().RetentionOptions().BlockSize()),
 		}
 		wg.Add(2)

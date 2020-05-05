@@ -83,8 +83,10 @@ func TestOpenLease(t *testing.T) {
 		verifier  = NewMockLeaseVerifier(ctrl)
 		leaseMgr  = NewLeaseManager(verifier)
 		leaseDesc = LeaseDescriptor{
-			Namespace:  ident.StringID("test-ns"),
-			Shard:      1,
+			ShardLeaseDescriptor: ShardLeaseDescriptor{
+				Namespace: ident.StringID("test-ns"),
+				Shard:     1,
+			},
 			BlockStart: time.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
@@ -106,8 +108,10 @@ func TestOpenLeaseErrorIfNoVerifier(t *testing.T) {
 		leaser    = NewMockLeaser(ctrl)
 		leaseMgr  = NewLeaseManager(nil)
 		leaseDesc = LeaseDescriptor{
-			Namespace:  ident.StringID("test-ns"),
-			Shard:      1,
+			ShardLeaseDescriptor: ShardLeaseDescriptor{
+				Namespace: ident.StringID("test-ns"),
+				Shard:     1,
+			},
 			BlockStart: time.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
@@ -133,8 +137,10 @@ func TestOpenLatestLease(t *testing.T) {
 		verifier  = NewMockLeaseVerifier(ctrl)
 		leaseMgr  = NewLeaseManager(verifier)
 		leaseDesc = LeaseDescriptor{
-			Namespace:  ident.StringID("test-ns"),
-			Shard:      1,
+			ShardLeaseDescriptor: ShardLeaseDescriptor{
+				Namespace: ident.StringID("test-ns"),
+				Shard:     1,
+			},
 			BlockStart: time.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
@@ -158,8 +164,10 @@ func TestOpenLatestLeaseErrorIfNoVerifier(t *testing.T) {
 		leaser    = NewMockLeaser(ctrl)
 		leaseMgr  = NewLeaseManager(nil)
 		leaseDesc = LeaseDescriptor{
-			Namespace:  ident.StringID("test-ns"),
-			Shard:      1,
+			ShardLeaseDescriptor: ShardLeaseDescriptor{
+				Namespace: ident.StringID("test-ns"),
+				Shard:     1,
+			},
 			BlockStart: time.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
@@ -187,8 +195,10 @@ func TestUpdateOpenLeases(t *testing.T) {
 		leaseMgr = NewLeaseManager(verifier)
 
 		leaseDesc = LeaseDescriptor{
-			Namespace:  ident.StringID("test-ns"),
-			Shard:      1,
+			ShardLeaseDescriptor: ShardLeaseDescriptor{
+				Namespace: ident.StringID("test-ns"),
+				Shard:     1,
+			},
 			BlockStart: time.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{
@@ -253,8 +263,10 @@ func TestUpdateOpenLeasesErrorIfNoVerifier(t *testing.T) {
 	var (
 		leaseMgr  = NewLeaseManager(nil)
 		leaseDesc = LeaseDescriptor{
-			Namespace:  ident.StringID("test-ns"),
-			Shard:      1,
+			ShardLeaseDescriptor: ShardLeaseDescriptor{
+				Namespace: ident.StringID("test-ns"),
+				Shard:     1,
+			},
 			BlockStart: time.Now().Truncate(2 * time.Hour),
 		}
 		leaseState = LeaseState{

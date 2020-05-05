@@ -56,3 +56,5 @@ func (n *NoopLeaseManager) UpdateOpenLeases(
 func (n *NoopLeaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
 	return nil
 }
+
+func (n *NoopLeaseManager) CloseShardLeases(descriptor ShardLeaseDescriptor) {}
