@@ -170,7 +170,7 @@ func TestBufferWriteColdTooFutureRetention(t *testing.T) {
 	assert.True(t, strings.Contains(err.Error(), "datapoint too far in future and out of retention"))
 	assert.True(t, strings.Contains(err.Error(), "id=foo"))
 	assert.True(t, strings.Contains(err.Error(), "timestamp="))
-	assert.True(t, strings.Contains(err.Error(), "future_limit="))
+	assert.True(t, strings.Contains(err.Error(), "retention_future_limit="))
 }
 
 func TestBufferWriteColdTooPastRetention(t *testing.T) {
@@ -198,7 +198,7 @@ func TestBufferWriteColdTooPastRetention(t *testing.T) {
 	assert.True(t, strings.Contains(err.Error(), "datapoint too far in past and out of retention"))
 	assert.True(t, strings.Contains(err.Error(), "id=foo"))
 	assert.True(t, strings.Contains(err.Error(), "timestamp="))
-	assert.True(t, strings.Contains(err.Error(), "past_limit="))
+	assert.True(t, strings.Contains(err.Error(), "retention_past_limit="))
 }
 
 func TestBufferWriteError(t *testing.T) {
