@@ -22,6 +22,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -124,7 +125,7 @@ func (l *seriesLoadHandler) getSeriesIterators(
 		sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
 		multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
 
-		tagIter, id := buildTagIteratorAndID(tagMap(series.Tags), l.iterOpts.tagOptions)
+		tagIter, id := buildTagIteratorAndID(series.Tags, l.iterOpts.tagOptions)
 		iter := encoding.NewSeriesIterator(
 			encoding.SeriesIteratorOptions{
 				ID:             id,
@@ -210,14 +211,21 @@ func (l *seriesLoadHandler) serveHTTP(r *http.Request) error {
 
 	// NB: keep consistent start/end for the entire ingested set.
 	start, end := calculateSeriesRange(seriesList)
-	name := string(l.iterOpts.tagOptions.MetricName())
+	nameKey := string(l.iterOpts.tagOptions.MetricName())
 	nameMap := make(nameIDSeriesMap, len(seriesList))
 	for _, series := range seriesList {
-		name, found := series.Tags[name]
-		if !found || len(series.Datapoints) == 0 {
+		names := series.Tags.Get(nameKey)
+		if len(names) != 1 || len(series.Datapoints) == 0 {
+			if len(names) > 1 {
+				err := fmt.Errorf("series has duplicate __name__ tags: %v", names)
+				logger.Error("bad __name__ variable", zap.Error(err))
+				return err
+			}
+
 			continue
 		}
 
+		name := names[0]
 		seriesMap, found := nameMap[name]
 		if !found {
 			seriesMap = idSeriesMap{

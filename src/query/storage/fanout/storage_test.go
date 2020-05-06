@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -190,25 +191,33 @@ func TestFanoutWriteError(t *testing.T) {
 	store := setupFanoutWrite(t, true, fmt.Errorf("write error"))
 	datapoints := make(ts.Datapoints, 1)
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
-	err := store.Write(context.TODO(), &storage.WriteQuery{
+
+	writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Datapoints: datapoints,
-		Tags:       models.NewTags(0, nil),
+		Tags:       models.MustMakeTags("foo", "bar"),
+		Unit:       xtime.Second,
 	})
-	assert.Error(t, err)
+	require.NoError(t, err)
+
+	assert.Error(t, store.Write(context.TODO(), writeQuery))
 }
 
 func TestFanoutWriteSuccess(t *testing.T) {
 	store := setupFanoutWrite(t, true, nil)
 	datapoints := make(ts.Datapoints, 1)
 	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
-	err := store.Write(context.TODO(), &storage.WriteQuery{
+
+	writeQuery, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Datapoints: datapoints,
-		Tags:       models.NewTags(0, nil),
+		Tags:       models.MustMakeTags("foo", "bar"),
+		Unit:       xtime.Second,
 		Attributes: storage.Attributes{
 			MetricsType: storage.UnaggregatedMetricsType,
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
+	assert.NoError(t, store.Write(context.TODO(), writeQuery))
 }
 
 func TestCompleteTagsError(t *testing.T) {

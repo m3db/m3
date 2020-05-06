@@ -89,6 +89,14 @@ func (tu Unit) IsValid() bool {
 	return tu > 0 && int(tu) < unitCount
 }
 
+// Validate will validate the time unit.
+func (tu Unit) Validate() error {
+	if !tu.IsValid() {
+		return errUnrecognizedTimeUnit
+	}
+	return nil
+}
+
 // String returns the string representation for the time unit
 func (tu Unit) String() string {
 	if tu < 1 || int(tu) >= unitCount {

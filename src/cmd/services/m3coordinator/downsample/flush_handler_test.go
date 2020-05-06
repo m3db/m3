@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/mock"
-	"github.com/m3db/m3/src/x/serialize"
-	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -95,7 +95,7 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	require.Equal(t, 1, len(writes))
 
 	// Ensure tag pointers _DO_NOT_ match but equal to same content
-	tags := writes[0].Tags.Tags
+	tags := writes[0].Tags().Tags
 	require.Equal(t, 1, len(tags))
 
 	tag := tags[0]

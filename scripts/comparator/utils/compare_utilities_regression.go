@@ -139,6 +139,7 @@ func ParseRegressionFilesToPromQLQueryGroup(
 		group, err := parseRegressionFileToPromQLQueryGroup(filePath, log)
 		if err != nil {
 			log.Error("failed to parse file", zap.String("path", filePath), zap.Error(err))
+			return nil, err
 		}
 
 		groups = append(groups, group)
