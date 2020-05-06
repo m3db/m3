@@ -123,7 +123,7 @@ type seekersAndBloom struct {
 	volume      int
 }
 
-func (s seekersAndBloom) close() error {
+func (s seekersAndBloom) closeWithLock() error {
 	multiErr := xerrors.NewMultiError()
 	for _, seeker := range s.seekers {
 		multiErr = multiErr.Add(seeker.seeker.Close())
@@ -393,7 +393,7 @@ func (m *seekerManager) returnSeekerWithLock(seekers rotatableSeekers, seeker Co
 			return true, nil
 		}
 
-		err := seekers.inactive.close()
+		err := seekers.inactive.closeWithLock()
 		if seekers.inactive.wg != nil {
 			// Signal completion regardless of any errors encountered while closing.
 			seekers.inactive.wg.Done()
@@ -589,7 +589,7 @@ func (m *seekerManager) acquireByTimeLockWaitGroupAware(
 // closeSeekersAndLogError is a helper function that closes all the seekers in a slice of borrowableSeeker
 // and emits a log if any errors occurred.
 func (m *seekerManager) closeSeekersAndLogError(descriptor block.LeaseDescriptor, seeker seekersAndBloom) {
-	if err := seeker.close(); err != nil {
+	if err := seeker.closeWithLock(); err != nil {
 		// Log the error but don't return it since its not relevant from
 		// the callers perspective.
 		m.logger.Error(
@@ -996,7 +996,7 @@ func (m *seekerManager) openCloseLoop() {
 
 		// Close after releasing lock so any IO is done out of lock
 		for _, seekersAndBloom := range closing {
-			if err := seekersAndBloom.close(); err != nil {
+			if err := seekersAndBloom.closeWithLock(); err != nil {
 				m.logger.Error("err closing seekersAndBloom in SeekerManager openCloseLoop", zap.Error(err))
 			}
 		}
@@ -1014,14 +1014,14 @@ func (m *seekerManager) openCloseLoop() {
 			// Close the active seekers.
 			// We don't need to check if the seeker is borrowed here because we don't allow the
 			// SeekerManager to be closed if any seekers are still outstanding.
-			if err := seekersForBlock.active.close(); err != nil {
+			if err := seekersForBlock.active.closeWithLock(); err != nil {
 				m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
 			}
 
 			// Close the inactive seekers.
 			// We don't need to check if the seeker is borrowed here because we don't allow the
 			// SeekerManager to be closed if any seekers are still outstanding.
-			if err := seekersForBlock.inactive.close(); err != nil {
+			if err := seekersForBlock.inactive.closeWithLock(); err != nil {
 				m.logger.Error("err closing seeker in SeekerManager at end of openCloseLoop", zap.Error(err))
 			}
 		}
