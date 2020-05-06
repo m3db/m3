@@ -115,8 +115,10 @@ func (q *querier) FetchCompressed(
 	options *storage.FetchOptions,
 ) (m3.SeriesFetchResult, m3.Cleanup, error) {
 	var (
-		iters encoding.SeriesIterators
-		err   error
+		iters        encoding.SeriesIterators
+		randomSeries []series
+		ignoreFilter bool
+		err          error
 	)
 
 	name := q.opts.tagOptions.MetricName()
@@ -134,14 +136,29 @@ func (q *querier) FetchCompressed(
 	const blockSize = time.Hour * 12
 
 	if iters == nil || iters.Len() == 0 {
-		series, err := q.generateRandomSeries(query, blockSize)
+		randomSeries, ignoreFilter, err = q.generateRandomSeries(query, blockSize)
 		if err != nil {
 			return m3.SeriesFetchResult{}, noop, err
 		}
-		iters, err = buildSeriesIterators(series, query.Start, blockSize, q.opts)
+		iters, err = buildSeriesIterators(randomSeries, query.Start, blockSize, q.opts)
 		if err != nil {
 			return m3.SeriesFetchResult{}, noop, err
 		}
+	}
+
+	if !ignoreFilter {
+		filteredIters := filter(iters, query.TagMatchers)
+
+		cleanup := func() error {
+			iters.Close()
+			filteredIters.Close()
+			return nil
+		}
+
+		return m3.SeriesFetchResult{
+			SeriesIterators: filteredIters,
+			Metadata:        block.NewResultMetadata(),
+		}, cleanup, nil
 	}
 
 	cleanup := func() error {
@@ -158,7 +175,7 @@ func (q *querier) FetchCompressed(
 func (q *querier) generateRandomSeries(
 	query *storage.FetchQuery,
 	blockSize time.Duration,
-) ([]series, error) {
+) (series []series, ignoreFilter bool, err error) {
 	var (
 		start = query.Start.Truncate(blockSize)
 		end   = query.End.Truncate(blockSize).Add(blockSize)
@@ -168,12 +185,15 @@ func (q *querier) generateRandomSeries(
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(metricNameTag, matcher.Name) {
 			if matched, _ := regexp.Match(`^multi_\d+$`, matcher.Value); matched {
-				return q.generateMultiSeriesMetrics(string(matcher.Value), start, end, time.Second*30, blockSize)
+				series, err = q.generateMultiSeriesMetrics(string(matcher.Value), start, end, time.Second*30, blockSize)
+				return
 			}
 		}
 	}
 
-	return q.generateSingleSeriesMetrics(query, start, end, blockSize)
+	ignoreFilter = true
+	series, err = q.generateSingleSeriesMetrics(query, start, end, blockSize)
+	return
 }
 
 func (q *querier) generateSingleSeriesMetrics(
