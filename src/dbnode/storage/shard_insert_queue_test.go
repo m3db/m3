@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"go.uber.org/zap"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
@@ -65,7 +66,7 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 		timeLock.Lock()
 		defer timeLock.Unlock()
 		return currTime
-	}, tally.NoopScope)
+	}, tally.NoopScope, zap.NewNop())
 
 	q.insertBatchBackoff = backoff
 
@@ -143,7 +144,7 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 		timeLock.Lock()
 		defer timeLock.Unlock()
 		return currTime
-	}, tally.NoopScope)
+	}, tally.NoopScope, zap.NewNop())
 
 	q.insertPerSecondLimit = 2
 
@@ -204,7 +205,7 @@ func TestShardInsertQueueFlushedOnClose(t *testing.T) {
 	q := newDatabaseShardInsertQueue(func(value []dbShardInsert) error {
 		atomic.AddInt64(&numInsertObserved, int64(len(value)))
 		return nil
-	}, func() time.Time { return currTime }, tally.NoopScope)
+	}, func() time.Time { return currTime }, tally.NoopScope, zap.NewNop())
 
 	require.NoError(t, q.Start())
 

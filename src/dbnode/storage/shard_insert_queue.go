@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/uber-go/tally"
@@ -72,11 +73,13 @@ type dbShardInsertQueue struct {
 	closeCh      chan struct{}
 
 	metrics dbShardInsertQueueMetrics
+	logger  *zap.Logger
 }
 
 type dbShardInsertQueueMetrics struct {
 	insertsNoPendingWrite tally.Counter
 	insertsPendingWrite   tally.Counter
+	insertsBatchErrors    tally.Counter
 }
 
 func newDatabaseShardInsertQueueMetrics(
@@ -91,6 +94,7 @@ func newDatabaseShardInsertQueueMetrics(
 		insertsPendingWrite: scope.Tagged(map[string]string{
 			insertPendingWriteTagName: "yes",
 		}).Counter(insertName),
+		insertsBatchErrors: scope.Counter("inserts-batch.errors"),
 	}
 }
 
@@ -175,6 +179,7 @@ func newDatabaseShardInsertQueue(
 	insertEntryBatchFn dbShardInsertEntryBatchFn,
 	nowFn clock.NowFn,
 	scope tally.Scope,
+	logger *zap.Logger,
 ) *dbShardInsertQueue {
 	currBatch := &dbShardInsertBatch{}
 	currBatch.reset()
@@ -187,6 +192,7 @@ func newDatabaseShardInsertQueue(
 		notifyInsert:       make(chan struct{}, 1),
 		closeCh:            make(chan struct{}, 1),
 		metrics:            newDatabaseShardInsertQueueMetrics(subscope),
+		logger:             logger,
 	}
 }
 
@@ -237,7 +243,11 @@ func (q *dbShardInsertQueue) insertLoop() {
 		}
 
 		if len(batch.inserts) > 0 {
-			q.insertEntryBatchFn(batch.inserts)
+			if err := q.insertEntryBatchFn(batch.inserts); err != nil {
+				q.metrics.insertsBatchErrors.Inc(1)
+				q.logger.Error("shard insert queue batch insert failed",
+					zap.Error(err))
+			}
 		}
 		batch.wg.Done()
 
