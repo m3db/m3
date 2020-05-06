@@ -76,7 +76,7 @@ func main() {
 		iOpts:         iOpts,
 	}
 
-	seriesLoader := newSeriesLoadHandler(opts)
+	seriesLoader := newHTTPSeriesLoadHandler(opts)
 	querier := &querier{opts: opts, handler: seriesLoader}
 	server := remote.NewGRPCServer(
 		querier,
