@@ -165,7 +165,7 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
+			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
 			querier := &querier{opts: iteratorOpts, handler: emptySeriesLoader(ctrl)}

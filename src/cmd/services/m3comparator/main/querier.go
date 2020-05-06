@@ -164,17 +164,13 @@ func (q *querier) generateRandomSeries(
 		end   = query.End.Truncate(blockSize).Add(blockSize)
 	)
 
-	multiSeriesMetrics := ""
+	metricNameTag := q.opts.tagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
-		if bytes.Equal(q.opts.tagOptions.MetricName(), matcher.Name) {
+		if bytes.Equal(metricNameTag, matcher.Name) {
 			if matched, _ := regexp.Match(`^multi_\d+$`, matcher.Value); matched {
-				multiSeriesMetrics = string(matcher.Value)
+				return q.generateMultiSeriesMetrics(string(matcher.Value), start, end, time.Second*30, blockSize)
 			}
 		}
-	}
-
-	if multiSeriesMetrics != "" {
-		return q.generateMultiSeriesMetrics(multiSeriesMetrics, start, end, time.Second*30, blockSize)
 	}
 
 	return q.generateSingleSeriesMetrics(query, start, end, blockSize)
@@ -199,9 +195,11 @@ func (q *querier) generateSingleSeriesMetrics(
 	q.Lock()
 	defer q.Unlock()
 	rand.Seed(start.Unix())
+
+	metricNameTag := q.opts.tagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		// filter if name, otherwise return all.
-		if bytes.Equal(q.opts.tagOptions.MetricName(), matcher.Name) {
+		if bytes.Equal(metricNameTag, matcher.Name) {
 			value := string(matcher.Value)
 			for _, gen := range gens {
 				if value == gen.name {
@@ -218,12 +216,12 @@ func (q *querier) generateSingleSeriesMetrics(
 				return nil, err
 			}
 
-			actualGens = make([]seriesGen, count)
+			actualGens = make([]seriesGen, 0, count)
 			for i := 0; i < count; i++ {
-				actualGens[i] = seriesGen{
+				actualGens = append(actualGens, seriesGen{
 					res:  time.Second * 15,
 					name: fmt.Sprintf("foo_%d", i),
-				}
+				})
 			}
 
 			break
@@ -270,7 +268,7 @@ func (q *querier) generateMultiSeriesMetrics(
 	defer q.Unlock()
 	rand.Seed(start.Unix())
 
-	seriesList := make([]series, seriesCount)
+	seriesList := make([]series, 0, seriesCount)
 	for i := 0; i < seriesCount; i++ {
 		tags := parser.Tags{
 			parser.NewTag("__name__", metricsName),
@@ -284,7 +282,7 @@ func (q *querier) generateMultiSeriesMetrics(
 			return nil, err
 		}
 
-		seriesList[i] = series
+		seriesList = append(seriesList, series)
 	}
 
 	return seriesList, nil
