@@ -5319,7 +5319,6 @@
             {
               "expr": "rate(dbindex_index_error{instance=~\"$instance\"}[$step])",
               "format": "time_series",
-              "hide": "false",
               "intervalFactor": 1,
               "refId": "A"
             }
@@ -5501,14 +5500,12 @@
             {
               "expr": "rate(dbshard_insert_async_errors{instance=~\"$instance\"}[$step])",
               "format": "time_series",
-              "hide": "false",
               "intervalFactor": 1,
               "refId": "A"
             },
             {
               "expr": "rate(dbshard_insert_queue_inserts_batch_errors{instance=~\"$instance\"}[$step])",
               "format": "time_series",
-              "hide": "false",
               "intervalFactor": 1,
               "refId": "B"
             }
