@@ -5234,12 +5234,6 @@
               "hide": false,
               "intervalFactor": 1,
               "refId": "A"
-            },
-            {
-              "expr": "rate(dbindex_index_error{instance=~\"$instance\"}[$step])",
-              "format": "time_series",
-              "intervalFactor": 1,
-              "refId": "B"
             }
           ],
           "thresholds": [],
@@ -5287,7 +5281,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$datasource",
           "fill": 1,
           "fillGradient": 0,
           "gridPos": {
@@ -5297,7 +5291,7 @@
             "y": 105
           },
           "hiddenSeries": false,
-          "id": 114,
+          "id": 116,
           "legend": {
             "avg": false,
             "current": false,
@@ -5323,19 +5317,18 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(dbshard_insert_async_errors{instance=~\"$instance\"}[$step])",
+              "expr": "rate(dbindex_index_error{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "hide": "false",
+              "intervalFactor": 1,
               "refId": "A"
-            },
-            {
-              "expr": "rate(dbshard_insert_queue_inserts_batch_errors{instance=~\"$instance\"}[$step])",
-              "refId": "B"
             }
           ],
           "thresholds": [],
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Shard Insert Errors",
+          "title": "Index Errors",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -5445,6 +5438,102 @@
           "yaxes": [
             {
               "format": "s",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "$datasource",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 112
+          },
+          "hiddenSeries": false,
+          "id": 114,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
+          "percentage": false,
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "rate(dbshard_insert_async_errors{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "hide": "false",
+              "intervalFactor": 1,
+              "refId": "A"
+            },
+            {
+              "expr": "rate(dbshard_insert_queue_inserts_batch_errors{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "hide": "false",
+              "intervalFactor": 1,
+              "refId": "B"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Shard Insert Errors",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
               "label": null,
               "logBase": 1,
               "max": null,

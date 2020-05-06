@@ -27,12 +27,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
-	"go.uber.org/zap"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 func TestShardInsertQueueBatchBackoff(t *testing.T) {

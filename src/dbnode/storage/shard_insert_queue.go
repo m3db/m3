@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"go.uber.org/zap"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 var (
