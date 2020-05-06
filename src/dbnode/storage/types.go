@@ -639,8 +639,16 @@ type NamespaceIndex interface {
 		shards []databaseShard,
 	) error
 
+	// DebugMemorySegments allows for debugging memory segments.
+	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
+
 	// Close will release the index resources and close the index.
 	Close() error
+}
+
+// DebugMemorySegmentsOptions is a set of options to debug memory segments.
+type DebugMemorySegmentsOptions struct {
+	OutputDirectory string
 }
 
 // namespaceIndexTickResult are details about the work performed by the namespaceIndex

@@ -1580,6 +1580,67 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 	return multiErr.FinalError()
 }
 
+func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
+	i.state.RLock()
+	defer i.state.RLock()
+	if i.state.closed {
+		return errDbIndexAlreadyClosed
+	}
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	// Create a new set of file system options to output to new directory.
+	fsOpts := i.opts.CommitLogOptions().
+		FilesystemOptions().
+		SetFilePathPrefix(opts.OutputDirectory)
+
+	for _, block := range i.state.blocksByTime {
+		segmentsData, err := block.MemorySegmentsData(ctx)
+		if err != nil {
+			return err
+		}
+
+		for numSegment, segmentData := range segmentsData {
+			indexWriter, err := fs.NewIndexWriter(fsOpts)
+			if err != nil {
+				return err
+			}
+
+			fileSetID := fs.FileSetFileIdentifier{
+				FileSetContentType: persist.FileSetIndexContentType,
+				Namespace:          i.nsMetadata.ID(),
+				BlockStart:         block.StartTime(),
+				VolumeIndex:        numSegment,
+			}
+			openOpts := fs.IndexWriterOpenOptions{
+				Identifier:      fileSetID,
+				BlockSize:       i.blockSize,
+				FileSetType:     persist.FileSetFlushType,
+				IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+			}
+			if err := indexWriter.Open(openOpts); err != nil {
+				return err
+			}
+
+			segWriter, err := idxpersist.NewFSTSegmentDataFileSetWriter(segmentData)
+			if err != nil {
+				return err
+			}
+
+			if err := indexWriter.WriteSegmentFileSet(segWriter); err != nil {
+				return err
+			}
+
+			if err := indexWriter.Close(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (i *nsIndex) Close() error {
 	i.state.Lock()
 	if !i.isOpenWithRLock() {
