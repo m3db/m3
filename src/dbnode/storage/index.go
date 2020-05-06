@@ -669,14 +669,6 @@ func (i *nsIndex) writeBatchForBlockStart(
 	}
 
 	if err != nil {
-		// NB: dropping duplicate id error messages from logs as they're expected when we see
-		// repeated inserts. as long as a block has an ID, it's not an error so we don't need
-		// to pollute the logs with these messages.
-		if partialError, ok := err.(*m3ninxindex.BatchPartialError); ok {
-			err = partialError.FilterDuplicateIDErrors()
-		}
-	}
-	if err != nil {
 		i.logger.Error("error writing to index block", zap.Error(err))
 	}
 }

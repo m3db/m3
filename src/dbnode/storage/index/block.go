@@ -521,6 +521,17 @@ func (b *block) writeBatchResult(
 		return WriteBatchResult{NumError: int64(inserts.Len())}, err
 	}
 
+	// NB: dropping duplicate id error messages from logs as they're expected when we see
+	// repeated inserts. as long as a block has an ID, it's not an error so we don't need
+	// to pollute the logs with these messages.
+	partialErr = partialErr.FilterDuplicateIDErrors()
+	if partialErr == nil {
+		inserts.MarkUnmarkedEntriesSuccess()
+		return WriteBatchResult{
+			NumSuccess: int64(inserts.Len()),
+		}, nil
+	}
+
 	numErr := len(partialErr.Errs())
 	for _, err := range partialErr.Errs() {
 		// Avoid marking these as success.
