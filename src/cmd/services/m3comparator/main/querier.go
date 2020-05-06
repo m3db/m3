@@ -166,7 +166,6 @@ func (q *querier) generateRandomSeries(
 
 	multiSeriesMetrics := ""
 	for _, matcher := range query.TagMatchers {
-		// filter if name, otherwise return all.
 		if bytes.Equal(q.opts.tagOptions.MetricName(), matcher.Name) {
 			if matched, _ := regexp.Match(`^multi_\d+$`, matcher.Value); matched {
 				multiSeriesMetrics = string(matcher.Value)
