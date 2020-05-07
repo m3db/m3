@@ -1811,8 +1811,8 @@ func TestUpsertProto(t *testing.T) {
 		expectedData []DecodedTestValue
 	}{
 		{
-			"Upsert proto",
-			[]writeAttempt{
+			desc: "Upsert proto",
+			writes: []writeAttempt{
 				{
 					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
 					expectedWritten: true,
@@ -1824,13 +1824,13 @@ func TestUpsertProto(t *testing.T) {
 					expectErr:       false,
 				},
 			},
-			[]DecodedTestValue{
+			expectedData: []DecodedTestValue{
 				{curr, 0, xtime.Second, []byte("two")},
 			},
 		},
 		{
-			"Duplicate proto",
-			[]writeAttempt{
+			desc: "Duplicate proto",
+			writes: []writeAttempt{
 				{
 					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
 					expectedWritten: true,
@@ -1844,13 +1844,13 @@ func TestUpsertProto(t *testing.T) {
 					expectErr:       false,
 				},
 			},
-			[]DecodedTestValue{
+			expectedData: []DecodedTestValue{
 				{curr, 0, xtime.Second, []byte("one")},
 			},
 		},
 		{
-			"Two datapoints different proto",
-			[]writeAttempt{
+			desc: "Two datapoints different proto",
+			writes: []writeAttempt{
 				{
 					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
 					expectedWritten: true,
@@ -1862,14 +1862,14 @@ func TestUpsertProto(t *testing.T) {
 					expectErr:       false,
 				},
 			},
-			[]DecodedTestValue{
+			expectedData: []DecodedTestValue{
 				{curr, 0, xtime.Second, []byte("one")},
 				{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
 			},
 		},
 		{
-			"Two datapoints same proto",
-			[]writeAttempt{
+			desc: "Two datapoints same proto",
+			writes: []writeAttempt{
 				{
 					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
 					expectedWritten: true,
@@ -1881,7 +1881,7 @@ func TestUpsertProto(t *testing.T) {
 					expectErr:       false,
 				},
 			},
-			[]DecodedTestValue{
+			expectedData: []DecodedTestValue{
 				{curr, 0, xtime.Second, []byte("one")},
 				// This is special cased in the proto encoder. It has logic
 				// handling the case where two values are the same and writes
