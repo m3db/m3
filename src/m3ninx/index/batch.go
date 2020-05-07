@@ -113,6 +113,10 @@ func (e *BatchPartialError) Error() string {
 // NB(prateek): it mutates the order of errors in the original error to avoid
 // allocations.
 func (e *BatchPartialError) FilterDuplicateIDErrors() *BatchPartialError {
+	if e == nil {
+		return nil
+	}
+
 	// cheap to do the copy as it's just pointers for the slices
 	var (
 		errs = e.errs

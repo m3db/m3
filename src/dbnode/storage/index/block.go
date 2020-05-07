@@ -515,7 +515,7 @@ func (b *block) writeBatchResult(
 	}
 
 	partialErr, ok := err.(*m3ninxindex.BatchPartialError)
-	if !ok {
+	if !ok || partialErr == nil {
 		// NB: marking all the inserts as failure, cause we don't know which ones failed.
 		inserts.MarkUnmarkedEntriesError(err)
 		return WriteBatchResult{NumError: int64(inserts.Len())}, err
