@@ -12843,25 +12843,17 @@ func (p *DebugIndexMemorySegmentsRequest) String() string {
 	return fmt.Sprintf("DebugIndexMemorySegmentsRequest(%+v)", *p)
 }
 
-// Attributes:
-//  - Written
 type DebugIndexMemorySegmentsResult_ struct {
-	Written int64 `thrift:"written,1,required" db:"written" json:"written"`
 }
 
 func NewDebugIndexMemorySegmentsResult_() *DebugIndexMemorySegmentsResult_ {
 	return &DebugIndexMemorySegmentsResult_{}
 }
 
-func (p *DebugIndexMemorySegmentsResult_) GetWritten() int64 {
-	return p.Written
-}
 func (p *DebugIndexMemorySegmentsResult_) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
-
-	var issetWritten bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -12871,16 +12863,8 @@ func (p *DebugIndexMemorySegmentsResult_) Read(iprot thrift.TProtocol) error {
 		if fieldTypeId == thrift.STOP {
 			break
 		}
-		switch fieldId {
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-			issetWritten = true
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
+		if err := iprot.Skip(fieldTypeId); err != nil {
+			return err
 		}
 		if err := iprot.ReadFieldEnd(); err != nil {
 			return err
@@ -12888,18 +12872,6 @@ func (p *DebugIndexMemorySegmentsResult_) Read(iprot thrift.TProtocol) error {
 	}
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	if !issetWritten {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Written is not set"))
-	}
-	return nil
-}
-
-func (p *DebugIndexMemorySegmentsResult_) ReadField1(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
-		return thrift.PrependError("error reading field 1: ", err)
-	} else {
-		p.Written = v
 	}
 	return nil
 }
@@ -12909,9 +12881,6 @@ func (p *DebugIndexMemorySegmentsResult_) Write(oprot thrift.TProtocol) error {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
 	}
 	if p != nil {
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
 	}
 	if err := oprot.WriteFieldStop(); err != nil {
 		return thrift.PrependError("write field stop error: ", err)
@@ -12920,19 +12889,6 @@ func (p *DebugIndexMemorySegmentsResult_) Write(oprot thrift.TProtocol) error {
 		return thrift.PrependError("write struct stop error: ", err)
 	}
 	return nil
-}
-
-func (p *DebugIndexMemorySegmentsResult_) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("written", thrift.I64, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:written: ", p), err)
-	}
-	if err := oprot.WriteI64(int64(p.Written)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.written (1) field write error: ", p), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:written: ", p), err)
-	}
-	return err
 }
 
 func (p *DebugIndexMemorySegmentsResult_) String() string {
