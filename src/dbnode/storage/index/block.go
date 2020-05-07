@@ -1500,8 +1500,8 @@ func (b *block) EvictMutableSegments() error {
 }
 
 func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
-	b.Lock()
-	defer b.Unlock()
+	b.RLock()
+	defer b.RUnlock()
 	if b.state == blockStateClosed {
 		return nil, errBlockAlreadyClosed
 	}
