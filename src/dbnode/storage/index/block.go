@@ -524,12 +524,19 @@ func (b *block) writeBatchResult(
 	// NB: dropping duplicate id error messages from logs as they're expected when we see
 	// repeated inserts. as long as a block has an ID, it's not an error so we don't need
 	// to pollute the logs with these messages.
-	partialErr = partialErr.FilterDuplicateIDErrors()
-	if partialErr == nil {
+	filteredErr := partialErr.FilterDuplicateIDErrors()
+	if filteredErr == nil {
 		inserts.MarkUnmarkedEntriesSuccess()
 		return WriteBatchResult{
 			NumSuccess: int64(inserts.Len()),
 		}, nil
+	}
+
+	partialErr, ok = filteredErr.(*m3ninxindex.BatchPartialError)
+	if !ok || partialErr == nil {
+		// NB: marking all the inserts as failure, cause we don't know which ones failed.
+		inserts.MarkUnmarkedEntriesError(err)
+		return WriteBatchResult{NumError: int64(inserts.Len())}, err
 	}
 
 	numErr := len(partialErr.Errs())

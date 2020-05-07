@@ -112,7 +112,7 @@ func (e *BatchPartialError) Error() string {
 // any DuplicateIDError(s).
 // NB(prateek): it mutates the order of errors in the original error to avoid
 // allocations.
-func (e *BatchPartialError) FilterDuplicateIDErrors() *BatchPartialError {
+func (e *BatchPartialError) FilterDuplicateIDErrors() error {
 	if e == nil {
 		return nil
 	}
@@ -122,7 +122,6 @@ func (e *BatchPartialError) FilterDuplicateIDErrors() *BatchPartialError {
 		errs = e.errs
 		i    = 0
 	)
-
 	for i < len(errs) {
 		if errs[i].Err == ErrDuplicateID {
 			errs[i], errs[len(errs)-1] = errs[len(errs)-1], errs[i]
