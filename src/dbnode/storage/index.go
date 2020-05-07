@@ -669,7 +669,14 @@ func (i *nsIndex) writeBatchForBlockStart(
 	}
 
 	if err != nil {
-		i.logger.Error("error writing to index block", zap.Error(err))
+		partialErr, ok := err.(*m3ninxindex.BatchPartialError)
+		if ok {
+			if partialErr != nil {
+				i.logger.Error("error writing to index block", zap.Any("err", partialErr))
+			}
+		} else {
+			i.logger.Error("error writing to index block", zap.Error(err))
+		}
 	}
 }
 
