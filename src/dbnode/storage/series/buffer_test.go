@@ -1814,14 +1814,14 @@ func TestUpsertProto(t *testing.T) {
 			desc: "Upsert proto",
 			writes: []writeAttempt{
 				{
-					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
-					expectedWritten: true,
-					expectErr:       false,
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
 				},
 				{
-					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("two")},
-					expectedWritten: true,
-					expectErr:       false,
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("two")},
+					expectWritten: true,
+					expectErr:     false,
 				},
 			},
 			expectedData: []DecodedTestValue{
@@ -1832,16 +1832,16 @@ func TestUpsertProto(t *testing.T) {
 			desc: "Duplicate proto",
 			writes: []writeAttempt{
 				{
-					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
-					expectedWritten: true,
-					expectErr:       false,
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
 				},
 				{
 					data: DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
 					// Writes with the same value and the same annotation should
 					// not be written.
-					expectedWritten: false,
-					expectErr:       false,
+					expectWritten: false,
+					expectErr:     false,
 				},
 			},
 			expectedData: []DecodedTestValue{
@@ -1852,14 +1852,14 @@ func TestUpsertProto(t *testing.T) {
 			desc: "Two datapoints different proto",
 			writes: []writeAttempt{
 				{
-					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
-					expectedWritten: true,
-					expectErr:       false,
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
 				},
 				{
-					data:            DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
-					expectedWritten: true,
-					expectErr:       false,
+					data:          DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
+					expectWritten: true,
+					expectErr:     false,
 				},
 			},
 			expectedData: []DecodedTestValue{
@@ -1871,14 +1871,14 @@ func TestUpsertProto(t *testing.T) {
 			desc: "Two datapoints same proto",
 			writes: []writeAttempt{
 				{
-					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
-					expectedWritten: true,
-					expectErr:       false,
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
 				},
 				{
-					data:            DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("one")},
-					expectedWritten: true,
-					expectErr:       false,
+					data:          DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
 				},
 			},
 			expectedData: []DecodedTestValue{
@@ -1910,7 +1910,7 @@ func TestUpsertProto(t *testing.T) {
 				} else {
 					assert.NoError(t, err)
 				}
-				require.Equal(t, write.expectedWritten, wasWritten)
+				assert.Equal(t, write.expectWritten, wasWritten)
 
 				ctx.Close()
 			}
@@ -1928,7 +1928,7 @@ func TestUpsertProto(t *testing.T) {
 }
 
 type writeAttempt struct {
-	data            DecodedTestValue
-	expectedWritten bool
-	expectErr       bool
+	data          DecodedTestValue
+	expectWritten bool
+	expectErr     bool
 }

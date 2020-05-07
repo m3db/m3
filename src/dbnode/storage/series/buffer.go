@@ -1169,6 +1169,7 @@ func (b *BufferBucket) write(
 			}
 			continue
 		}
+
 		if timestamp.After(lastWriteAt) {
 			idx = i
 			break
