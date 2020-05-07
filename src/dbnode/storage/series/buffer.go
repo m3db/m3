@@ -1151,19 +1151,6 @@ func (b *BufferBucket) write(
 	idx := -1
 	for i := range b.encoders {
 		lastWriteAt := b.encoders[i].lastWriteAt
-		if timestamp.Equal(lastWriteAt) {
-			last, err := b.encoders[i].encoder.LastEncoded()
-			if err != nil {
-				return false, err
-			}
-			if last.Value == value {
-				// No-op since matches the current value. Propagates up to callers that
-				// no value was written.
-				return false, nil
-			}
-			continue
-		}
-
 		if timestamp.After(lastWriteAt) {
 			idx = i
 			break
