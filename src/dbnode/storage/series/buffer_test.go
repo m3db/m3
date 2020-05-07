@@ -1807,14 +1807,22 @@ func TestUpsertProto(t *testing.T) {
 
 	tests := []struct {
 		desc         string
-		writeData    []DecodedTestValue
+		writes       []writeAttempt
 		expectedData []DecodedTestValue
 	}{
 		{
 			"Upsert proto",
-			[]DecodedTestValue{
-				{curr, 0, xtime.Second, []byte("one")},
-				{curr, 0, xtime.Second, []byte("two")},
+			[]writeAttempt{
+				{
+					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectedWritten: true,
+					expectErr:       false,
+				},
+				{
+					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("two")},
+					expectedWritten: true,
+					expectErr:       false,
+				},
 			},
 			[]DecodedTestValue{
 				{curr, 0, xtime.Second, []byte("two")},
@@ -1822,9 +1830,19 @@ func TestUpsertProto(t *testing.T) {
 		},
 		{
 			"Duplicate proto",
-			[]DecodedTestValue{
-				{curr, 0, xtime.Second, []byte("one")},
-				{curr, 0, xtime.Second, []byte("one")},
+			[]writeAttempt{
+				{
+					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectedWritten: true,
+					expectErr:       false,
+				},
+				{
+					data: DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					// Writes with the same value and the same annotation should
+					// not be written.
+					expectedWritten: false,
+					expectErr:       false,
+				},
 			},
 			[]DecodedTestValue{
 				{curr, 0, xtime.Second, []byte("one")},
@@ -1832,9 +1850,17 @@ func TestUpsertProto(t *testing.T) {
 		},
 		{
 			"Two datapoints different proto",
-			[]DecodedTestValue{
-				{curr, 0, xtime.Second, []byte("one")},
-				{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
+			[]writeAttempt{
+				{
+					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectedWritten: true,
+					expectErr:       false,
+				},
+				{
+					data:            DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
+					expectedWritten: true,
+					expectErr:       false,
+				},
 			},
 			[]DecodedTestValue{
 				{curr, 0, xtime.Second, []byte("one")},
@@ -1842,16 +1868,25 @@ func TestUpsertProto(t *testing.T) {
 			},
 		},
 		{
-			// This is special cased in the proto encoder. It has logic handling
-			// the case where two values are the same and writes that nothing
-			// has changed instead of re-encoding the blob again.
 			"Two datapoints same proto",
-			[]DecodedTestValue{
-				{curr, 0, xtime.Second, []byte("one")},
-				{curr.Add(time.Second), 0, xtime.Second, []byte("one")},
+			[]writeAttempt{
+				{
+					data:            DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectedWritten: true,
+					expectErr:       false,
+				},
+				{
+					data:            DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("one")},
+					expectedWritten: true,
+					expectErr:       false,
+				},
 			},
 			[]DecodedTestValue{
 				{curr, 0, xtime.Second, []byte("one")},
+				// This is special cased in the proto encoder. It has logic
+				// handling the case where two values are the same and writes
+				// that nothing has changed instead of re-encoding the blob
+				// again.
 				{curr.Add(time.Second), 0, xtime.Second, nil},
 			},
 		},
@@ -1865,8 +1900,19 @@ func TestUpsertProto(t *testing.T) {
 				Options: opts,
 			})
 
-			for _, v := range test.writeData {
-				verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+			for _, write := range test.writes {
+				ctx := context.NewContext()
+				wasWritten, err := buffer.Write(ctx, write.data.Timestamp,
+					write.data.Value, write.data.Unit, write.data.Annotation,
+					WriteOptions{SchemaDesc: nsCtx.Schema})
+				if write.expectErr {
+					assert.Error(t, err)
+				} else {
+					assert.NoError(t, err)
+				}
+				require.Equal(t, write.expectedWritten, wasWritten)
+
+				ctx.Close()
 			}
 
 			ctx := context.NewContext()
@@ -1879,4 +1925,10 @@ func TestUpsertProto(t *testing.T) {
 			requireReaderValuesEqual(t, test.expectedData, results, opts, nsCtx)
 		})
 	}
+}
+
+type writeAttempt struct {
+	data            DecodedTestValue
+	expectedWritten bool
+	expectErr       bool
 }

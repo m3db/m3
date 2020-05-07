@@ -21,6 +21,7 @@
 package series
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sort"
@@ -1151,6 +1152,23 @@ func (b *BufferBucket) write(
 	idx := -1
 	for i := range b.encoders {
 		lastWriteAt := b.encoders[i].lastWriteAt
+		if timestamp.Equal(lastWriteAt) {
+			lastDatapoint, err := b.encoders[i].encoder.LastEncoded()
+			if err != nil {
+				return false, err
+			}
+			lastAnnotation, err := b.encoders[i].encoder.LastAnnotation()
+			if err != nil {
+				return false, err
+			}
+
+			if lastDatapoint.Value == value && bytes.Equal(lastAnnotation, annotation) {
+				// No-op since matches the current value. Propagates up to callers that
+				// no value was written.
+				return false, nil
+			}
+			continue
+		}
 		if timestamp.After(lastWriteAt) {
 			idx = i
 			break
