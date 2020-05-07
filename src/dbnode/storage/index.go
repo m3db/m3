@@ -1617,6 +1617,7 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 				Identifier:      fileSetID,
 				BlockSize:       i.blockSize,
 				FileSetType:     persist.FileSetFlushType,
+				Shards:          map[uint32]struct{}{0: struct{}{}},
 				IndexVolumeType: idxpersist.DefaultIndexVolumeType,
 			}
 			if err := indexWriter.Open(openOpts); err != nil {
