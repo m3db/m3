@@ -1795,3 +1795,88 @@ func TestBufferLoadColdWrite(t *testing.T) {
 	coldFlushBlockStarts := buffer.ColdFlushBlockStarts(nil)
 	require.Equal(t, 1, coldFlushBlockStarts.Len())
 }
+
+func TestUpsertProto(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	var nsCtx namespace.Context
+
+	tests := []struct {
+		desc         string
+		writeData    []DecodedTestValue
+		expectedData []DecodedTestValue
+	}{
+		{
+			"Upsert proto",
+			[]DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				{curr, 0, xtime.Second, []byte("two")},
+			},
+			[]DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("two")},
+			},
+		},
+		{
+			"Duplicate proto",
+			[]DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				{curr, 0, xtime.Second, []byte("one")},
+			},
+			[]DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+			},
+		},
+		{
+			"Two datapoints different proto",
+			[]DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
+			},
+			[]DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
+			},
+		},
+		{
+			// This is special cased in the proto encoder. It has logic handling
+			// the case where two values are the same and writes that nothing
+			// has changed instead of re-encoding the blob again.
+			"Two datapoints same proto",
+			[]DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				{curr.Add(time.Second), 0, xtime.Second, []byte("one")},
+			},
+			[]DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				{curr.Add(time.Second), 0, xtime.Second, nil},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			buffer := newDatabaseBuffer().(*dbBuffer)
+			buffer.Reset(databaseBufferResetOptions{
+				ID:      ident.StringID("foo"),
+				Options: opts,
+			})
+
+			for _, v := range test.writeData {
+				verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+			}
+
+			ctx := context.NewContext()
+			defer ctx.Close()
+
+			results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+			assert.NoError(t, err)
+			assert.NotNil(t, results)
+
+			requireReaderValuesEqual(t, test.expectedData, results, opts, nsCtx)
+		})
+	}
+}
