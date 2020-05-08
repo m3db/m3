@@ -93,7 +93,7 @@ func (r *chunkReader) readHeader() error {
 		}
 		r.chunkData = make([]byte, chunkDataSize, chunkDataCap)
 	} else {
-		//Reuse existing chunk data buffer if possible
+		// Reuse existing chunk data buffer if possible.
 		r.chunkData = r.chunkData[:chunkDataSize]
 	}
 
