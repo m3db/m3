@@ -266,7 +266,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h2,
-	}, testDoc1DupeID())
+	}, doc.Document{})
 	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
 	require.Equal(t, int64(1), res.NumSuccess)
@@ -276,7 +276,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry WriteBatchEntry,
-		doc doc.Document,
+		_ doc.Document,
 		result WriteBatchEntryResult,
 	) {
 		verified++
@@ -284,7 +284,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 			require.NoError(t, result.Err)
 		} else {
 			require.Error(t, result.Err)
-			require.Equal(t, index.ErrDuplicateID, result.Err)
+			require.Equal(t, doc.ErrEmptyDocument, result.Err)
 		}
 	})
 	require.Equal(t, 2, verified)
@@ -326,7 +326,7 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h2,
-	}, testDoc1DupeID())
+	}, doc.Document{})
 
 	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
