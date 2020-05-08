@@ -4,9 +4,10 @@ date: 2020-04-21T20:48:58-04:00
 draft: true
 ---
 
-Prometheus
+### Prometheus
 As mentioned in our integrations guide, M3DB can be used as a remote read/write endpoint for Prometheus.
 If you run Prometheus on your Kubernetes cluster you can easily point it at M3DB in your Prometheus server config:
+
 remote_read:
   - url: "http://m3coordinator.m3db.svc.cluster.local:7201/api/v1/prom/remote/read"
     # To test reading even when local Prometheus has the data
@@ -20,12 +21,13 @@ remote_write:
         replacement: m3db_remote
 
 
-Prometheus
-This document is a getting started guide to integrating M3DB with Prometheus.
-M3 Coordinator configuration
+### M3 Coordinator configuration
 To write to a remote M3DB cluster the simplest configuration is to run m3coordinator as a sidecar alongside Prometheus.
+
 Start by downloading the config template. Update the namespaces and the client section for a new cluster to match your cluster's configuration.
+
 You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up. You can leave the namespace storage metrics type as unaggregated since it's required by default to have a cluster that receives all Prometheus metrics unaggregated. In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters. You can read more about our aggregation functionality here.
+
 It should look something like:
 listenAddress:
   type: "config"
@@ -92,7 +94,7 @@ Or, use the docker container:
 docker pull quay.io/m3db/m3coordinator:latest
 docker run -p 7201:7201 --name m3coordinator -v <config-name.yml>:/etc/m3coordinator/m3coordinator.yml quay.io/m3db/m3coordinator:latest
 
-Prometheus configuration
+### Prometheus configuration
 Add to your Prometheus configuration the m3coordinator sidecar remote read/write endpoints, something like:
 remote_read:
   - url: "http://localhost:7201/api/v1/prom/remote/read"

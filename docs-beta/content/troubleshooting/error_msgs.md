@@ -4,22 +4,21 @@ date: 2020-04-21T21:04:36-04:00
 draft: true
 ---
 
-Troubleshooting
-Some common problems and resolutions
-Ports 9001-9004 aren't open after starting m3db.
+### Some common problems and resolutions
+- Ports 9001-9004 aren't open after starting m3db.
 These ports will not open until a namespace and placement have been created and the nodes have bootstrapped.
-Bootstrapping is slow
+- Bootstrapping is slow
 Double check your configuration against the bootstrapping guide. The nodes will log what bootstrapper they are using and what time range they are using it for.
 If you're using the commitlog bootstrapper, and it seems to be slow, ensure that snapshotting is enabled for your namespace. Enabling snapshotting will require a node restart to take effect.
 If an m3db node hasn't been able to snapshot for awhile, or is stuck in the commitlog bootstrapping phase for a long time due to accumulating a large number of commitlogs, consider using the peers bootstrapper. In situations where a large number of commitlogs need to be read, the peers bootstrapper will outperform the commitlog bootstrapper (faster and less memory usage) due to the fact that it will receive already-compressed data from its peers. Keep in mind that this will only work with a replication factor of 3 or larger and if the nodes peers are healthy and bootstrapped. Review the bootstrapping guide for more information.
-Nodes a crashing with memory allocation errors, but there's plenty of available memory
+- Nodes a crashing with memory allocation errors, but there's plenty of available memory
 Ensure you've set vm.max_map_count to something like 262,144 using sysctl. Find out more in the Clustering the Hard Way document.
-What to do if my M3DB node is OOM’ing?
+- What to do if my M3DB node is OOM’ing?
 Ensure that you are not co-locating coordinator, etcd or query nodes with your M3DB nodes. Colocation or embedded mode is fine for a development environment, but highly discouraged in production.
 Check to make sure you are running adequate block sizes based on the retention of your namespace. See namespace configuration for more information.
 Ensure that you use at most 50-60% memory utilization in the normal running state. You want to ensure enough overhead to handle bursts of metrics, especially ones with new IDs as those will take more memory initially.
 High cardinality metrics can also lead to OOMs especially if you are not adequately provisioned. If you have many unique timeseries such as ones containing UUIDs or timestamps as tag values, you should consider mitigating their cardinality.
-Using the /debug/dump API
+- Using the /debug/dump API
 The /debug/dump API returns a number of helpful debugging outputs. Currently, we support the following:
 CPU profile: determines where a program spends its time while actively consuming CPU cycles (as opposed to while sleeping or waiting for I/O). Currently set to take a 5 second profile.
 Heap profile: reports memory allocation samples; used to monitor current and historical memory usage, and to check for memory leaks.

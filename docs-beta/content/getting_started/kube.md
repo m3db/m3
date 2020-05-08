@@ -4,26 +4,30 @@ date: 2020-04-21T20:47:43-04:00
 draft: true
 ---
 
-M3DB on Kubernetes
-Please note: If possible PLEASE USE THE OPERATOR to deploy to Kubernetes if you can. It is a considerly more streamlined setup.
+### M3DB on Kubernetes
+
+**Please note:** If possible PLEASE USE THE OPERATOR to deploy to Kubernetes if you can. It is a considerly more streamlined setup.
+
 The operator leverages custom resource definitions (CRDs) to automatically handle operations such as managing cluster topology.
 The guide below provides static manifests to bootstrap a cluster on Kubernetes and should be considered as a guide to running M3 on Kubernetes, if and only if you have significant custom requirements not satisified by the operator.
-Prerequisites
+
+**Prerequisites**
 M3DB performs better when it has access to fast disks. Every incoming write is written to a commit log, which at high volumes of writes can be sensitive to spikes in disk latency. Additionally the random seeks into files when loading cold files benefit from lower random read latency.
 Because of this, the included manifests reference a StorageClass named fast. Manifests are provided to provide such a StorageClass on AWS / Azure / GCP using the respective cloud provider's premium disk class.
 If you do not already have a StorageClass named fast, create one using one of the provided manifests:
-# AWS EBS (class io1)
+#### AWS EBS (class io1)
 kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-fast-aws.yaml
 
-# Azure premium LRS
+#### Azure premium LRS
 kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-fast-azure.yaml
 
-# GCE Persistent SSD
+#### GCE Persistent SSD
 kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-fast-gcp.yaml
 
 If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify them manifests.
 If your Kubernetes cluster spans multiple availability zones, it's important to specify a Volume Binding Mode of WaitForFirstConsumer in your StorageClass to delay the binding of the PersistentVolume until the Pod is created.
-Kernel Configuration
+
+**Kernel Configuration**
 We provide a Kubernetes daemonset that can make setting host-level sysctls easier. Please see the kernel docs for more.
 Note that our default StatefulSet spec will give the M3DB container CAP_SYS_RESOURCE so it may raise its file limits. Uncomment the securityContext on the m3db container in the StatefulSet if running with a Pod Security Policy or similar enforcement mechanism that prevents adding capabilities to containers.
 Deploying
@@ -46,12 +50,12 @@ m3dbnode-1   1/1       Running   0          22m
 m3dbnode-2   1/1       Running   0          22m
 
 You can now proceed to initialize a namespace and placement for the cluster the same as you would for our other how-to guides:
-# Open a local connection to the coordinator service:
+#### Open a local connection to the coordinator service:
 $ kubectl -n m3db port-forward svc/m3coordinator 7201
 Forwarding from 127.0.0.1:7201 -> 7201
 Forwarding from [::1]:7201 -> 7201
 
-# Create an initial cluster topology
+#### Create an initial cluster topology
 curl -sSf -X POST localhost:7201/api/v1/placement/init -d '{
     "num_shards": 1024,
     "replication_factor": 3,
@@ -86,7 +90,7 @@ curl -sSf -X POST localhost:7201/api/v1/placement/init -d '{
     ]
 }'
 
-# Create a namespace to hold your metrics
+#### Create a namespace to hold your metrics
 curl -X POST localhost:7201/api/v1/namespace -d '{
   "name": "default",
   "options": {
@@ -189,7 +193,7 @@ $ curl -sSf -X POST http://localhost:9003/query -d '{
   "exhaustive": true
 }
 
-Adding nodes
+#### Adding nodes
 You can easily scale your M3DB cluster by scaling the StatefulSet and informing the cluster topology of the change:
 kubectl -n m3db scale --replicas=4 statefulset/m3dbnode
 

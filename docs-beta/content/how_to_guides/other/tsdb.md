@@ -1,17 +1,20 @@
 ---
-title: "II. Integrating with general TSDB"
+title: "Integrating with general TSDB"
 date: 2020-04-21T20:50:45-04:00
 draft: true
 ---
 
-Using M3DB as a general purpose time series database
-Overview
+### Using M3DB as a general purpose time series database
+
+#### Overview
 M3 has native integrations that make it particularly easy to use it as a metrics storage for Prometheus and Graphite. M3DB can also be used as a general purpose distributed time series database by itself.
 Data Model
-IDs and Tags
+
+#### IDs and Tags
 M3DB's data model allows multiple namespaces, each of which can be configured and tuned independently.
 Each namespace can also be configured with its own schema (see "Schema Modeling" section below).
 Within a namespace, each time series is uniquely identified by an ID which can be any valid string / byte array. In addition, tags can be attached to any series which makes the series queryable using the inverted index.
+
 M3DB's inverted index supports term (exact match) and regular expression queries over all tag values, and individual tag queries can be arbitrarily combined using AND, OR, and NOT operators.
 For example, imagine an application that tracks a fleet of vehicles. One potential structure for the time series could be as follows:
 
@@ -46,10 +49,12 @@ This would allow users to issue queries that answer questions like:
 "What time series IDs exist where the "version" tag matches the regular expression: 0_1_[12]"
 TODO(rartoul): Discuss the ability to perform limited amounts of aggregation queries here as well.
 TODO(rartoul): Discuss ID / tags mutability.
-Data Points
+
+#### Data Points
 Each time series in M3DB stores data as a stream of data points in the form of <timestamp, value> tuples. Timestamp resolution can be as granular as individual nanoseconds.
 The value portion of the tuple is a Protobuf message that matches the configured namespace schema, which requires that all values in the current time series must also match this schema. This limitation may be lifted in the future.
-Schema Modeling
+
+#### Schema Modeling
 Every M3DB namespace can be configured with a Protobuf-defined schema that every value in the time series must conform to
 For example, continuing with the vehicle fleet tracking example introduced earlier, a schema might look as follows:
 syntax = "proto3";
@@ -73,6 +78,7 @@ Oneof fields
 Options of any type
 Custom field types
 Compression
+
 While M3DB supports schemas that contain nested messages, repeated fields, and map fields, currently it can only effectively compress top level scalar fields. For example, M3DB can compress every field in the following schema:
 syntax = "proto3";
 
@@ -96,16 +102,19 @@ message VehicleLocation {
 
 While the latter schema is valid, the attributes field will not be compressed; users should weigh the tradeoffs between more expressive schema and better compression for each use case.
 For more details on the compression scheme and its limitations, review the documentation for M3DB's compressed Protobuf encoding.
-Getting Started
-M3DB setup
+
+### Getting Started
+
+#### M3DB setup
 For more advanced setups, it's best to follow the guides on how to configure an M3DB cluster manually or using Kubernetes. However, this tutorial will walk you through configuring a single node setup locally for development.
+
 First, run the following command to pull the latest M3DB image:
 docker pull quay.io/m3db/m3dbnode:latest
 
 Next, run the following command to start the M3DB container:
 docker run -p 7201:7201 -p 7203:7203 -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 2379:2379 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db -v $(pwd)/src/dbnode/config/m3dbnode-local-etcd-proto.yml:/etc/m3dbnode/m3dbnode.yml -v <PATH_TO_SCHEMA_Protobuf_FILE>:/etc/m3dbnode/default_schema.proto quay.io/m3db/m3dbnode:latest
 
-Breaking that down:
+#### Breaking that down:
 All the -p flags expose the necessary ports.
 The -v $(pwd)/m3db_data:/var/lib/m3db section creates a bind mount that enables M3DB to persist data between container restarts.
 The -v <PATH_TO_YAML_CONFIG_FILE>:/etc/m3dbnode/m3dbnode.yml section mounts the specified configuration file in the container which allows configuration changes by restarting the container (rather than rebuilding it). This example file can be used as a good starting point. It configures the database to have the Protobuf feature enabled and expects one namespace with the name default and a Protobuf message name of VehicleLocation for the schema. You'll need to update that portion of the config if you intend to use a different schema than the example one used throughout this document. Note that hard-coding paths to the schema should only be done for local development and testing. For production use-cases, M3DB supports storing the current schema in etcd so that it can be update dynamically. TODO(rartoul): Document how to do that as well as what kind of schema changes are safe / backwards compatible.
@@ -119,7 +128,8 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 
 Note that the retentionTime is set artificially low to conserve resources.
 After a few moments, the M3DB container should finish bootstrapping. At this point it should be ready to serve write and read queries.
-Clients
+
+#### Clients
 Note: M3DB only has a Go client; this is unlikely to change in the future due to the fact that the client is "fat" and contains a substantial amount of logic that would be difficult to port to other languages.
 Users interested in interacting with M3DB directly from Go applications can reference this runnable example to get an understanding of how to interact with M3DB in Go. Note that the example above uses the same default namespace and VehicleLocation schema used throughout this document so it can be run directly against an M3DB docker container setup using the "M3DB setup" instructions above.
 M3DB will eventually support other languages by exposing an M3Coordinator endpoint which will allow users to write/read from M3DB directly using GRPC/JSON.

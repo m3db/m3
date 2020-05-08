@@ -14,8 +14,6 @@ Email
 
 Slack
 
-Gitter
-
 GitHub
 
 LinkedIn

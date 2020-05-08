@@ -6,8 +6,10 @@ chapter = true
 pre = "<b>2. </b>"
 +++
 
-### Section 1
+### About M3
 
-# Overview
+#### Contributing to the Project 
+#### Glossary
+#### Release notes
 
 

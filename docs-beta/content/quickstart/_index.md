@@ -6,9 +6,7 @@ chapter = true
 pre = "<b>3. </b>"
 +++
 
-### Chapter X
-
-M3DB Single Node Deployment
+### M3DB Single Node Deployment
 Deploying a single-node cluster is a great way to experiment with M3DB and get a feel for what it has to offer. Our Docker image by default configures a single M3DB instance as one binary containing:
 An M3DB storage instance (m3dbnode) for timeseries storage. This includes an embedded tag-based metrics index, as well as as an embedded etcd server for storing the above mentioned cluster topology and runtime configuration.
 A "coordinator" instance (m3coordinator) for writing and querying tagged metrics, as well as managing cluster topology and runtime configuration.
