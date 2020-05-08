@@ -1355,6 +1355,11 @@ func DataDirPath(prefix string) string {
 	return path.Join(prefix, dataDirName)
 }
 
+// IndexDataDirPath returns the path to the index data directory belonging to a db
+func IndexDataDirPath(prefix string) string {
+	return path.Join(prefix, indexDirName, dataDirName)
+}
+
 // SnapshotDirPath returns the path to the snapshot directory belong to a db
 func SnapshotDirPath(prefix string) string {
 	return path.Join(prefix, snapshotDirName)

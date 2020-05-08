@@ -1510,6 +1510,37 @@ func (b *block) EvictMutableSegments() error {
 	return multiErr.FinalError()
 }
 
+func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
+	b.RLock()
+	defer b.RUnlock()
+	if b.state == blockStateClosed {
+		return nil, errBlockAlreadyClosed
+	}
+
+	// NB(r): This is for debug operations, do not bother about allocations.
+	var results []fst.SegmentData
+	for _, segs := range [][]*readableSeg{
+		b.foregroundSegments,
+		b.backgroundSegments,
+	} {
+		for _, seg := range segs {
+			fstSegment, ok := seg.Segment().(fst.Segment)
+			if !ok {
+				return nil, fmt.Errorf("segment not fst segment: created=%v", seg.createdAt)
+			}
+
+			segmentData, err := fstSegment.SegmentData(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			results = append(results, segmentData)
+		}
+	}
+
+	return results, nil
+}
+
 func (b *block) Close() error {
 	b.Lock()
 	defer b.Unlock()
