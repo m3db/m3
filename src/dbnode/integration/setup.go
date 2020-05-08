@@ -32,6 +32,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
@@ -98,6 +100,7 @@ type testSetup struct {
 	schemaReg namespace.SchemaRegistry
 
 	logger *zap.Logger
+	scope  tally.TestScope
 
 	db                cluster.Database
 	storageOpts       storage.Options
@@ -188,6 +191,10 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		storageOpts = storageOpts.SetInstrumentOptions(
 			storageOpts.InstrumentOptions().SetLogger(logger))
 	}
+
+	scope := tally.NewTestScope("", nil)
+	storageOpts = storageOpts.SetInstrumentOptions(
+		storageOpts.InstrumentOptions().SetMetricsScope(scope))
 
 	// Use specified series cache policy from environment if set.
 	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))
@@ -394,6 +401,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		opts:                        opts,
 		schemaReg:                   schemaReg,
 		logger:                      logger,
+		scope:                       scope,
 		storageOpts:                 storageOpts,
 		blockLeaseManager:           blockLeaseManager,
 		fsOpts:                      fsOpts,

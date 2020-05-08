@@ -24,121 +24,183 @@ package integration
 
 import (
 	"fmt"
+	"os"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/topology"
 	xclock "github.com/m3db/m3/src/x/clock"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/atomic"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
-func TestIndexSingleNodeHighConcurrency(t *testing.T) {
+func TestIndexSingleNodeHighConcurrencyStandard(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
+	testIndexSingleNodeHighConcurrency(t, testIndexHighConcurrencyOptions{
+		concurrency: 8,
+		writeEach:   100,
+		numTags:     10,
+	})
+}
+
+var testScope tally.TestScope
+
+func TestMain(m *testing.M) {
+	exitVal := m.Run()
+	fmt.Println("test main exit")
+	if testScope != nil {
+		for k, v := range testScope.Snapshot().Counters() {
+			fmt.Printf("%s=%v\n", k, v.Value())
+		}
+	}
+
+	os.Exit(exitVal)
+}
+
+func TestIndexSingleNodeHighConcurrencyHighCardinality(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
+	testIndexSingleNodeHighConcurrency(t, testIndexHighConcurrencyOptions{
+		concurrency: 8,
+		writeEach:   50000,
+		numTags:     2,
+	})
+}
+
+type testIndexHighConcurrencyOptions struct {
+	concurrency int
+	writeEach   int
+	numTags     int
+}
+
+func testIndexSingleNodeHighConcurrency(
+	t *testing.T,
+	opts testIndexHighConcurrencyOptions,
+) {
+	// Test setup
+	md, err := namespace.NewMetadata(testNamespaces[0],
+		namespace.NewOptions().
+			SetRetentionOptions(defaultIntegrationTestRetentionOpts).
+			SetCleanupEnabled(false).
+			SetSnapshotEnabled(false).
+			SetFlushEnabled(false).
+			SetColdWritesEnabled(true).
+			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)))
+	require.NoError(t, err)
+
+	testOpts := newTestOptions(t).
+		SetNamespaces([]namespace.Metadata{md}).
+		SetWriteNewSeriesAsync(true).
+		// Use default time functions (server time not frozen).
+		SetNowFn(time.Now)
+	testSetup, err := newTestSetup(t, testOpts, nil)
+	require.NoError(t, err)
+	defer testSetup.close()
+
+	testScope = testSetup.scope
+
+	// Start the server
+	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	require.NoError(t, testSetup.startServer())
+
+	// Stop the server
+	defer func() {
+		require.NoError(t, testSetup.stopServer())
+		log.Debug("server is now down")
+	}()
+
+	client := testSetup.m3dbClient
+	session, err := client.DefaultSession()
+	require.NoError(t, err)
+
 	var (
-		concurrency = 10
-		writeEach   = 100
-		numTags     = 10
+		insertWg        sync.WaitGroup
+		numTotalErrors  = atomic.NewUint32(0)
+		numTotalSuccess = atomic.NewUint32(0)
 	)
+	nowFn := testSetup.db.Options().ClockOptions().NowFn()
+	start := time.Now()
+	log.Info("starting data write",
+		zap.Time("serverTime", nowFn()))
 
-	levels := []topology.ReadConsistencyLevel{
-		topology.ReadConsistencyLevelOne,
-		topology.ReadConsistencyLevelUnstrictMajority,
-		topology.ReadConsistencyLevelMajority,
-		topology.ReadConsistencyLevelAll,
-	}
-	for _, lvl := range levels {
-		t.Run(
-			fmt.Sprintf("running test for %v", lvl),
-			func(t *testing.T) {
-				// Test setup
-				md, err := namespace.NewMetadata(testNamespaces[0],
-					namespace.NewOptions().
-						SetRetentionOptions(defaultIntegrationTestRetentionOpts).
-						SetCleanupEnabled(false).
-						SetSnapshotEnabled(false).
-						SetFlushEnabled(false).
-						SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)))
-				require.NoError(t, err)
+	workerPool := xsync.NewWorkerPool(5000)
+	workerPool.Init()
 
-				testOpts := newTestOptions(t).
-					SetNamespaces([]namespace.Metadata{md}).
-					SetWriteNewSeriesAsync(true)
-				testSetup, err := newTestSetup(t, testOpts, nil)
-				require.NoError(t, err)
-				defer testSetup.close()
+	for i := 0; i < opts.concurrency; i++ {
+		idx := i
+		insertWg.Add(1)
+		go func() {
+			defer insertWg.Done()
 
-				// Start the server
-				log := testSetup.storageOpts.InstrumentOptions().Logger()
-				require.NoError(t, testSetup.startServer())
+			for j := 0; j < opts.writeEach; j++ {
+				j := j
+				insertWg.Add(1)
+				workerPool.Go(func() {
+					defer insertWg.Done()
 
-				// Stop the server
-				defer func() {
-					require.NoError(t, testSetup.stopServer())
-					log.Debug("server is now down")
-				}()
+					id, tags := genIDTags(idx, j, opts.numTags)
+					now := time.Now()
 
-				client := testSetup.m3dbClient
-				session, err := client.DefaultSession()
-				require.NoError(t, err)
-
-				var (
-					insertWg       sync.WaitGroup
-					numTotalErrors uint32
-				)
-				now := testSetup.db.Options().ClockOptions().NowFn()()
-				start := time.Now()
-				log.Info("starting data write")
-
-				for i := 0; i < concurrency; i++ {
-					insertWg.Add(1)
-					idx := i
-					go func() {
-						numErrors := uint32(0)
-						for j := 0; j < writeEach; j++ {
-							id, tags := genIDTags(idx, j, numTags)
-							err := session.WriteTagged(md.ID(), id, tags, now, float64(1.0), xtime.Second, nil)
-							if err != nil {
-								numErrors++
-							}
+					for k := 0; k < 2; k++ {
+						if k == 1 {
+							now = now.Add(-4 * time.Hour)
 						}
-						atomic.AddUint32(&numTotalErrors, numErrors)
-						insertWg.Done()
-					}()
-				}
 
-				insertWg.Wait()
-				require.Zero(t, numTotalErrors)
-				log.Info("test data written", zap.Duration("took", time.Since(start)))
-				log.Info("waiting to see if data is indexed")
+						err := session.WriteTagged(md.ID(), id, tags, now,
+							float64(j), xtime.Second, nil)
+						if err != nil {
+							if v := numTotalErrors.Inc(); (v-1)%100 == 0 && (v-1) < 1000 {
+								log.Error("err writing", zap.Error(err))
+							}
+						} else {
+							numTotalSuccess.Inc()
+						}
+					}
 
-				var (
-					fetchWg sync.WaitGroup
-				)
-				for i := 0; i < concurrency; i++ {
-					fetchWg.Add(1)
-					idx := i
-					go func() {
-						id, tags := genIDTags(idx, writeEach-1, numTags)
-						indexed := xclock.WaitUntil(func() bool {
-							found := isIndexed(t, session, md.ID(), id, tags)
-							return found
-						}, 30*time.Second)
-						assert.True(t, indexed)
-						fetchWg.Done()
-					}()
-				}
-				fetchWg.Wait()
-				log.Info("data is indexed", zap.Duration("took", time.Since(start)))
-			})
+				})
+			}
+		}()
 	}
+
+	insertWg.Wait()
+
+	require.Equal(t, int(0), int(numTotalErrors.Load()))
+
+	log.Info("test data written",
+		zap.Duration("took", time.Since(start)),
+		zap.Int("written", int(numTotalSuccess.Load())),
+		zap.Time("serverTime", nowFn()))
+
+	log.Info("waiting to see if data is indexed")
+
+	var (
+		fetchWg sync.WaitGroup
+	)
+	for i := 0; i < opts.concurrency; i++ {
+		fetchWg.Add(1)
+		idx := i
+		go func() {
+			id, tags := genIDTags(idx, opts.writeEach-1, opts.numTags)
+			indexed := xclock.WaitUntil(func() bool {
+				found := isIndexed(t, session, md.ID(), id, tags)
+				return found
+			}, 30*time.Second)
+			assert.True(t, indexed)
+			fetchWg.Done()
+		}()
+	}
+	fetchWg.Wait()
+	log.Info("data is indexed", zap.Duration("took", time.Since(start)))
 }
