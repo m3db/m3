@@ -132,7 +132,7 @@ func (s seekersAndBloom) closeWithLock() error {
 }
 
 // Returns true if any seekers are borrowed.
-func (s seekersAndBloom) anyBorrowed() bool {
+func (s seekersAndBloom) anyBorrowedWithLock() bool {
 	for _, seeker := range s.seekers {
 		if seeker.isBorrowed {
 			return true
@@ -389,7 +389,7 @@ func (m *seekerManager) returnSeekerWithLock(seekers rotatableSeekers, seeker Co
 		// The goroutine that returns the last outstanding inactive seeker is responsible for notifying any
 		// goroutines waiting for all inactive seekers to be returned and clearing out the inactive seekers
 		// state entirely.
-		if seekers.inactive.anyBorrowed() {
+		if seekers.inactive.anyBorrowedWithLock() {
 			return true, nil
 		}
 
@@ -533,7 +533,7 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 	seekers.active = newActiveSeekers
 
 	var wg *sync.WaitGroup
-	if seekers.inactive.anyBorrowed() {
+	if seekers.inactive.anyBorrowedWithLock() {
 		// If any of the seekers are borrowed setup a waitgroup which will be used to
 		// signal when they've all been returned (the last seeker that is returned via
 		// the Return() API will call wg.Done()).
@@ -846,14 +846,14 @@ func (m *seekerManager) Close() error {
 		byTime.Lock()
 		for _, seekersForBlock := range byTime.seekers {
 			// Ensure active seekers are all returned.
-			if seekersForBlock.active.anyBorrowed() {
+			if seekersForBlock.active.anyBorrowedWithLock() {
 				byTime.Unlock()
 				m.Unlock()
 				return errCantCloseSeekerManagerWhileSeekersAreBorrowed
 			}
 
 			// Ensure inactive seekers are all returned.
-			if seekersForBlock.inactive.anyBorrowed() {
+			if seekersForBlock.inactive.anyBorrowedWithLock() {
 				byTime.Unlock()
 				m.Unlock()
 				return errCantCloseSeekerManagerWhileSeekersAreBorrowed
@@ -972,12 +972,12 @@ func (m *seekerManager) openCloseLoop() {
 				allSeekersAreReturned := true
 
 				// Ensure no active seekers are still borrowed.
-				if seekers.active.anyBorrowed() {
+				if seekers.active.anyBorrowedWithLock() {
 					allSeekersAreReturned = false
 				}
 
 				// Ensure no inactive seekers are still borrowed.
-				if seekers.inactive.anyBorrowed() {
+				if seekers.inactive.anyBorrowedWithLock() {
 					allSeekersAreReturned = false
 					break
 				}
