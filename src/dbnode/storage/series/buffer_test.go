@@ -77,14 +77,35 @@ func newBufferTestOptions() Options {
 }
 
 // Writes to buffer, verifying no error and that further writes should happen.
-func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer,
-	v DecodedTestValue, schema namespace.SchemaDescr) {
+func verifyWriteToBufferSuccess(
+	t *testing.T,
+	buffer databaseBuffer,
+	v DecodedTestValue,
+	schema namespace.SchemaDescr,
+) {
+	verifyWriteToBuffer(t, buffer, v, schema, true, false)
+}
+
+func verifyWriteToBuffer(
+	t *testing.T,
+	buffer databaseBuffer,
+	v DecodedTestValue,
+	schema namespace.SchemaDescr,
+	expectWritten bool,
+	expectErr bool,
+) {
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	wasWritten, err := buffer.Write(ctx, v.Timestamp, v.Value, v.Unit,
 		v.Annotation, WriteOptions{SchemaDesc: schema})
-	require.NoError(t, err)
-	require.True(t, wasWritten)
-	ctx.Close()
+
+	if expectErr {
+		require.Error(t, err)
+	} else {
+		require.NoError(t, err)
+	}
+	require.Equal(t, expectWritten, wasWritten)
 }
 
 func TestBufferWriteTooFuture(t *testing.T) {
@@ -253,7 +274,7 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 	}
 
 	for _, v := range data {
-		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+		verifyWriteToBufferSuccess(t, buffer, v, nsCtx.Schema)
 	}
 
 	ctx := context.NewContext()
@@ -287,7 +308,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nil)
+		verifyWriteToBufferSuccess(t, buffer, v, nil)
 	}
 
 	ctx := context.NewContext()
@@ -333,7 +354,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		if v.Timestamp.After(curr) {
 			curr = v.Timestamp
 		}
-		verifyWriteToBuffer(t, buffer, v, nil)
+		verifyWriteToBufferSuccess(t, buffer, v, nil)
 	}
 
 	buckets, ok := buffer.bucketVersionsAt(start)
@@ -923,7 +944,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nil)
+		verifyWriteToBufferSuccess(t, buffer, v, nil)
 	}
 
 	var encoders []encoding.Encoder
@@ -1013,7 +1034,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nil)
+		verifyWriteToBufferSuccess(t, buffer, v, nil)
 	}
 
 	buckets, exists := buffer.bucketVersionsAt(start)
@@ -1195,7 +1216,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	// Perform the writes.
 	for _, v := range data {
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+		verifyWriteToBufferSuccess(t, buffer, v, nsCtx.Schema)
 	}
 
 	// Verify internal state.
@@ -1295,7 +1316,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for _, v := range warmData {
 		// Set curr so that every write is a warm write.
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+		verifyWriteToBufferSuccess(t, buffer, v, nsCtx.Schema)
 	}
 
 	// Also add cold writes to the buffer to verify that Snapshot will capture
@@ -1318,7 +1339,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 
 	// Perform cold writes.
 	for _, v := range coldData {
-		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+		verifyWriteToBufferSuccess(t, buffer, v, nsCtx.Schema)
 	}
 
 	// Verify internal state.
@@ -1901,18 +1922,8 @@ func TestUpsertProto(t *testing.T) {
 			})
 
 			for _, write := range test.writes {
-				ctx := context.NewContext()
-				wasWritten, err := buffer.Write(ctx, write.data.Timestamp,
-					write.data.Value, write.data.Unit, write.data.Annotation,
-					WriteOptions{SchemaDesc: nsCtx.Schema})
-				if write.expectErr {
-					assert.Error(t, err)
-				} else {
-					assert.NoError(t, err)
-				}
-				assert.Equal(t, write.expectWritten, wasWritten)
-
-				ctx.Close()
+				verifyWriteToBuffer(t, buffer, write.data, nsCtx.Schema,
+					write.expectWritten, write.expectErr)
 			}
 
 			ctx := context.NewContext()
