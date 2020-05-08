@@ -213,7 +213,7 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 	for i := range s.states {
 		if s.states[i].blockStart.Equal(t) {
 			s.states[i].success = true
-			break
+			return
 		}
 	}
 

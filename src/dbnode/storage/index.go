@@ -154,6 +154,8 @@ type nsIndexState struct {
 	// shardsFilterID is set every time the shards change to correctly
 	// only return IDs that this node owns.
 	shardsFilterID func(ident.ID) bool
+
+	shardsAssigned map[uint32]struct{}
 }
 
 // NB: nsIndexRuntimeOptions does not contain its own mutex as some of the variables
@@ -292,7 +294,8 @@ func newNamespaceIndexWithOptions(
 			runtimeOpts: nsIndexRuntimeOptions{
 				insertMode: indexOpts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
 			},
-			blocksByTime: make(map[xtime.UnixNano]index.Block),
+			blocksByTime:   make(map[xtime.UnixNano]index.Block),
+			shardsAssigned: make(map[uint32]struct{}),
 		},
 
 		nowFn:                 nowFn,
@@ -984,8 +987,10 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 	// NB(r): Allocate the filter function once, it can be used outside
 	// of locks as it depends on no internal state.
 	set := bitset.NewBitSet(uint(shardSet.Max()))
+	assigned := make(map[uint32]struct{})
 	for _, shardID := range shardSet.AllIDs() {
 		set.Set(uint(shardID))
+		assigned[shardID] = struct{}{}
 	}
 
 	i.state.Lock()
@@ -993,6 +998,7 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 		// NB(r): Use a bitset for fast lookups.
 		return set.Test(uint(shardSet.Lookup(id)))
 	}
+	i.state.shardsAssigned = assigned
 	i.state.Unlock()
 }
 
@@ -1625,6 +1631,7 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 				Identifier:      fileSetID,
 				BlockSize:       i.blockSize,
 				FileSetType:     persist.FileSetFlushType,
+				Shards:          i.state.shardsAssigned,
 				IndexVolumeType: idxpersist.DefaultIndexVolumeType,
 			}
 			if err := indexWriter.Open(openOpts); err != nil {
