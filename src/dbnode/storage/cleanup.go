@@ -72,6 +72,7 @@ type cleanupManager struct {
 	deleteInactiveDirectoriesFn deleteInactiveDirectoriesFn
 	cleanupInProgress           bool
 	metrics                     cleanupManagerMetrics
+	logger                      *zap.Logger
 }
 
 type cleanupManagerMetrics struct {
@@ -119,12 +120,14 @@ func newCleanupManager(
 		deleteFilesFn:               fs.DeleteFiles,
 		deleteInactiveDirectoriesFn: fs.DeleteInactiveDirectories,
 		metrics:                     newCleanupManagerMetrics(scope),
+		logger:                      opts.InstrumentOptions().Logger(),
 	}
 }
 
 func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	// Don't perform any cleanup if we are not boostrapped yet.
 	if !isBootstrapped {
+		m.logger.Debug("database is still bootstrapping, terminating cleanup")
 		return nil
 	}
 
