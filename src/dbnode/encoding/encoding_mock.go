@@ -136,6 +136,21 @@ func (mr *MockEncoderMockRecorder) LastEncoded() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastEncoded", reflect.TypeOf((*MockEncoder)(nil).LastEncoded))
 }
 
+// LastAnnotation mocks base method
+func (m *MockEncoder) LastAnnotation() (ts.Annotation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LastAnnotation")
+	ret0, _ := ret[0].(ts.Annotation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LastAnnotation indicates an expected call of LastAnnotation
+func (mr *MockEncoderMockRecorder) LastAnnotation() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastAnnotation", reflect.TypeOf((*MockEncoder)(nil).LastAnnotation))
+}
+
 // Len mocks base method
 func (m *MockEncoder) Len() int {
 	m.ctrl.T.Helper()
