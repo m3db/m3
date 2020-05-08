@@ -143,7 +143,7 @@ type RunOptions struct {
 	// ApplyCustomTSDBOptions is a transform that allows for custom tsdb options.
 	ApplyCustomTSDBOptions CustomTSDBOptionsFn
 
-	// CustomWriteStorageFn is a custom write storage transform.
+	// BackendStorageTransform is a custom backend storage transform.
 	BackendStorageTransform BackendStorageTransform
 }
 
