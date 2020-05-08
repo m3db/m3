@@ -24,6 +24,7 @@ package integration
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -150,7 +151,8 @@ func genIDTags(i int, j int, numTags int) (ident.ID, ident.TagIterator) {
 		))
 	}
 	tags = append(tags,
-		ident.StringTag("commoni", fmt.Sprintf("%d", i)),
+		ident.StringTag("common_i", strconv.Itoa(i)),
+		ident.StringTag("common_j", strconv.Itoa(j)),
 		ident.StringTag("shared", "shared"))
 	return ident.StringID(id), ident.NewTagsIterator(ident.NewTags(tags...))
 }
