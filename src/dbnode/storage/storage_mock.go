@@ -2189,6 +2189,20 @@ func (mr *MockNamespaceIndexMockRecorder) Flush(flush, shards interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockNamespaceIndex)(nil).Flush), flush, shards)
 }
 
+// DebugMemorySegments mocks base method
+func (m *MockNamespaceIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DebugMemorySegments", opts)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DebugMemorySegments indicates an expected call of DebugMemorySegments
+func (mr *MockNamespaceIndexMockRecorder) DebugMemorySegments(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugMemorySegments", reflect.TypeOf((*MockNamespaceIndex)(nil).DebugMemorySegments), opts)
+}
+
 // Close mocks base method
 func (m *MockNamespaceIndex) Close() error {
 	m.ctrl.T.Helper()

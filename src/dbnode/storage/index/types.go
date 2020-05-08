@@ -362,6 +362,9 @@ type Block interface {
 	// data the mutable segments should have held at this time.
 	EvictMutableSegments() error
 
+	// MemorySegmentsData returns all in memory segments data.
+	MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error)
+
 	// Close will release any held resources and close the Block.
 	Close() error
 }
