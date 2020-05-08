@@ -197,30 +197,43 @@ type dbShardRuntimeOptions struct {
 }
 
 type dbShardMetrics struct {
-	create                  tally.Counter
-	close                   tally.Counter
-	closeStart              tally.Counter
-	closeLatency            tally.Timer
-	insertAsyncInsertErrors tally.Counter
-	insertAsyncWriteErrors  tally.Counter
-	seriesTicked            tally.Gauge
+	create                              tally.Counter
+	close                               tally.Counter
+	closeStart                          tally.Counter
+	closeLatency                        tally.Timer
+	seriesTicked                        tally.Gauge
+	insertAsyncInsertErrors             tally.Counter
+	insertAsyncWriteInternalErrors      tally.Counter
+	insertAsyncWriteInvalidParamsErrors tally.Counter
+	insertAsyncIndexErrors              tally.Counter
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
+	const insertErrorName = "insert-async.errors"
 	return dbShardMetrics{
 		create:       scope.Counter("create"),
 		close:        scope.Counter("close"),
 		closeStart:   scope.Counter("close-start"),
 		closeLatency: scope.Timer("close-latency"),
-		insertAsyncInsertErrors: scope.Tagged(map[string]string{
-			"error_type": "insert-series",
-		}).Counter("insert-async.errors"),
-		insertAsyncWriteErrors: scope.Tagged(map[string]string{
-			"error_type": "write-value",
-		}).Counter("insert-async.errors"),
 		seriesTicked: scope.Tagged(map[string]string{
 			"shard": fmt.Sprintf("%d", shardID),
 		}).Gauge("series-ticked"),
+		insertAsyncInsertErrors: scope.Tagged(map[string]string{
+			"error_type":    "insert-series",
+			"suberror_type": "shard-entry-insert-error",
+		}).Counter(insertErrorName),
+		insertAsyncWriteInternalErrors: scope.Tagged(map[string]string{
+			"error_type":    "write-value",
+			"suberror_type": "internal-error",
+		}).Counter(insertErrorName),
+		insertAsyncWriteInvalidParamsErrors: scope.Tagged(map[string]string{
+			"error_type":    "write-value",
+			"suberror_type": "invalid-params-error",
+		}).Counter(insertErrorName),
+		insertAsyncIndexErrors: scope.Tagged(map[string]string{
+			"error_type":    "reverse-index",
+			"suberror_type": "write-batch-error",
+		}).Counter(insertErrorName),
 	}
 }
 
@@ -284,7 +297,7 @@ func newDatabaseShard(
 		metrics:              newDatabaseShardMetrics(shard, scope),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
-		s.nowFn, scope)
+		s.nowFn, scope, opts.InstrumentOptions().Logger())
 
 	registerRuntimeOptionsListener := func(listener runtime.OptionsListener) {
 		elem := opts.RuntimeOptionsManager().RegisterListener(listener)
@@ -1467,7 +1480,12 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
 				write.unit, annotationBytes, write.opts)
 			if err != nil {
-				s.metrics.insertAsyncWriteErrors.Inc(1)
+				if xerrors.IsInvalidParams(err) {
+					s.metrics.insertAsyncWriteInvalidParamsErrors.Inc(1)
+				} else {
+					s.metrics.insertAsyncWriteInternalErrors.Inc(1)
+					s.logger.Error("error with async insert write", zap.Error(err))
+				}
 			}
 
 			if write.annotation != nil {
@@ -1516,8 +1534,11 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 	var err error
 	// index all requested entries in batch.
-	if indexBatch.Len() > 0 {
+	if n := indexBatch.Len(); n > 0 {
 		err = s.reverseIndex.WriteBatch(indexBatch)
+		if err != nil {
+			s.metrics.insertAsyncIndexErrors.Inc(int64(n))
+		}
 	}
 
 	// Avoid goroutine spinning up to close this context
