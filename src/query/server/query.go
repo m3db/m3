@@ -157,8 +157,11 @@ type InstrumentOptionsReady struct {
 // CustomTSDBOptionsFn is a transformation function for TSDB Options.
 type CustomTSDBOptionsFn func(tsdb.Options) tsdb.Options
 
-// BackendStorageTransform is a transformation for backend storage.
-type BackendStorageTransform func(storage.Storage) storage.Storage
+// BackendStorageTransform is a transformation function for backend storage.
+type BackendStorageTransform func(
+	storage.Storage,
+	instrument.Options,
+) storage.Storage
 
 // Run runs the server programmatically given a filename for the configuration file.
 func Run(runOpts RunOptions) {
@@ -352,7 +355,7 @@ func Run(runOpts RunOptions) {
 	defer chainedEnforceCloser.Close()
 
 	if fn := runOpts.BackendStorageTransform; fn != nil {
-		backendStorage = fn(backendStorage)
+		backendStorage = fn(backendStorage, instrumentOptions)
 	}
 
 	engineOpts := executor.NewEngineOptions().
