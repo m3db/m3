@@ -565,13 +565,14 @@ func (i *nsIndex) writeBatches(
 		return
 	}
 	var (
-		now                 = i.nowFn()
-		blockSize           = i.blockSize
-		futureLimit         = now.Add(1 * i.bufferFuture)
-		pastLimit           = now.Add(-1 * i.bufferPast)
-		batchOptions        = batch.Options()
-		forwardIndexDice    = i.forwardIndexDice
-		forwardIndexEnabled = forwardIndexDice.enabled
+		now                        = i.nowFn()
+		blockSize                  = i.blockSize
+		futureLimit                = now.Add(1 * i.bufferFuture)
+		pastLimit                  = now.Add(-1 * i.bufferPast)
+		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
+		batchOptions               = batch.Options()
+		forwardIndexDice           = i.forwardIndexDice
+		forwardIndexEnabled        = forwardIndexDice.enabled
 
 		forwardIndexBatch *index.WriteBatch
 	)
@@ -592,13 +593,29 @@ func (i *nsIndex) writeBatches(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
 			ts := entry.Timestamp
+			// NB(bodu): Always check first to see if the write is within retention.
+			if !ts.After(earliestBlockStartToRetain) {
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+				return
+			}
+
 			if !futureLimit.After(ts) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
 				return
 			}
 
 			if !ts.After(pastLimit) {
-				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+				// NB(bodu): We only mark entries as too far in the past if
+				// cold writes are not enabled.
+				var err error
+				if !i.coldWritesEnabled {
+					err = m3dberrors.ErrTooPast
+				}
+				// NB(bodu): When we mark a index cold write with a <nil> error
+				// we are recording an indexing attempt for this series and will not
+				// attempt to index the series again. This is correct for cold index writes
+				// because they are not handled in warm index writes path.
+				batch.MarkUnmarkedEntryError(err, idx)
 				return
 			}
 
