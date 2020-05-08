@@ -186,6 +186,9 @@ type agg struct {
 
 // Configuration configurates a downsampler.
 type Configuration struct {
+	// Matcher is the configuration for the downsampler matcher.
+	Matcher MatcherConfiguration `yaml:"matcher"`
+
 	// Rules is a set of downsample rules. If set, this overrides any rules set
 	// in the KV store (and the rules in KV store are not evaluated at all).
 	Rules *RulesConfiguration `yaml:"rules"`
@@ -212,6 +215,18 @@ type Configuration struct {
 
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
+}
+
+// MatcherConfiguration is the configuration for the rule matcher.
+type MatcherConfiguration struct {
+	// Cache if non-zero will set the capacity of the rules matching cache.
+	Cache MatcherCacheConfiguration `yaml:"cache"`
+}
+
+// MatcherCacheConfiguration is the configuration for the rule matcher cache.
+type MatcherCacheConfiguration struct {
+	// Capacity if non-zero will set the capacity of the rules matching cache.
+	Capacity int `yaml:"capacity"`
 }
 
 // RulesConfiguration is a set of rules configuration to use for downsampling.
@@ -658,7 +673,12 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		matcherOpts = matcherOpts.SetKVStore(kvTxnMemStore)
 	}
 
-	matcher, err := o.newAggregatorMatcher(matcherOpts)
+	matcherCacheCapacity := defaultMatcherCacheCapacity
+	if v := cfg.Matcher.Cache.Capacity; v > 0 {
+		matcherCacheCapacity = v
+	}
+
+	matcher, err := o.newAggregatorMatcher(matcherOpts, matcherCacheCapacity)
 	if err != nil {
 		return agg{}, err
 	}
@@ -929,15 +949,15 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 
 func (o DownsamplerOptions) newAggregatorMatcher(
 	opts matcher.Options,
+	capacity int,
 ) (matcher.Matcher, error) {
 	cacheOpts := cache.NewOptions().
-		SetCapacity(defaultMatcherCacheCapacity).
+		SetCapacity(capacity).
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
 			SetMetricsScope(opts.InstrumentOptions().MetricsScope().SubScope("matcher-cache")))
 
 	cache := cache.NewCache(cacheOpts)
-
 	return matcher.NewMatcher(cache, opts)
 }
 

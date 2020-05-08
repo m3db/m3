@@ -80,24 +80,24 @@ type serviceMetrics struct {
 	updateRuleSet           instrument.MethodMetrics
 }
 
-func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
+func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
 	return serviceMetrics{
-		fetchNamespaces:         instrument.NewMethodMetrics(scope, "fetchNamespaces", samplingRate),
-		fetchNamespace:          instrument.NewMethodMetrics(scope, "fetchNamespace", samplingRate),
-		createNamespace:         instrument.NewMethodMetrics(scope, "createNamespace", samplingRate),
-		deleteNamespace:         instrument.NewMethodMetrics(scope, "deleteNamespace", samplingRate),
-		validateRuleSet:         instrument.NewMethodMetrics(scope, "validateRuleSet", samplingRate),
-		fetchMappingRule:        instrument.NewMethodMetrics(scope, "fetchMappingRule", samplingRate),
-		createMappingRule:       instrument.NewMethodMetrics(scope, "createMappingRule", samplingRate),
-		updateMappingRule:       instrument.NewMethodMetrics(scope, "updateMappingRule", samplingRate),
-		deleteMappingRule:       instrument.NewMethodMetrics(scope, "deleteMappingRule", samplingRate),
-		fetchMappingRuleHistory: instrument.NewMethodMetrics(scope, "fetchMappingRuleHistory", samplingRate),
-		fetchRollupRule:         instrument.NewMethodMetrics(scope, "fetchRollupRule", samplingRate),
-		createRollupRule:        instrument.NewMethodMetrics(scope, "createRollupRule", samplingRate),
-		updateRollupRule:        instrument.NewMethodMetrics(scope, "updateRollupRule", samplingRate),
-		deleteRollupRule:        instrument.NewMethodMetrics(scope, "deleteRollupRule", samplingRate),
-		fetchRollupRuleHistory:  instrument.NewMethodMetrics(scope, "fetchRollupRuleHistory", samplingRate),
-		updateRuleSet:           instrument.NewMethodMetrics(scope, "updateRuleSet", samplingRate),
+		fetchNamespaces:         instrument.NewMethodMetrics(scope, "fetchNamespaces", opts),
+		fetchNamespace:          instrument.NewMethodMetrics(scope, "fetchNamespace", opts),
+		createNamespace:         instrument.NewMethodMetrics(scope, "createNamespace", opts),
+		deleteNamespace:         instrument.NewMethodMetrics(scope, "deleteNamespace", opts),
+		validateRuleSet:         instrument.NewMethodMetrics(scope, "validateRuleSet", opts),
+		fetchMappingRule:        instrument.NewMethodMetrics(scope, "fetchMappingRule", opts),
+		createMappingRule:       instrument.NewMethodMetrics(scope, "createMappingRule", opts),
+		updateMappingRule:       instrument.NewMethodMetrics(scope, "updateMappingRule", opts),
+		deleteMappingRule:       instrument.NewMethodMetrics(scope, "deleteMappingRule", opts),
+		fetchMappingRuleHistory: instrument.NewMethodMetrics(scope, "fetchMappingRuleHistory", opts),
+		fetchRollupRule:         instrument.NewMethodMetrics(scope, "fetchRollupRule", opts),
+		createRollupRule:        instrument.NewMethodMetrics(scope, "createRollupRule", opts),
+		updateRollupRule:        instrument.NewMethodMetrics(scope, "updateRollupRule", opts),
+		deleteRollupRule:        instrument.NewMethodMetrics(scope, "deleteRollupRule", opts),
+		fetchRollupRuleHistory:  instrument.NewMethodMetrics(scope, "fetchRollupRuleHistory", opts),
+		updateRuleSet:           instrument.NewMethodMetrics(scope, "updateRuleSet", opts),
 	}
 }
 
@@ -154,7 +154,7 @@ func NewService(
 		authService: authService,
 		logger:      iOpts.Logger(),
 		nowFn:       clockOpts.NowFn(),
-		metrics:     newServiceMetrics(iOpts.MetricsScope(), iOpts.MetricsSamplingRate()),
+		metrics:     newServiceMetrics(iOpts.MetricsScope(), iOpts.TimerOptions()),
 	}
 }
 

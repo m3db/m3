@@ -215,7 +215,10 @@ type databaseNamespaceIndexStatusMetrics struct {
 	numSegments tally.Gauge
 }
 
-func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
+func newDatabaseNamespaceMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) databaseNamespaceMetrics {
 	const (
 		// NB: tally.Timer when backed by a Prometheus Summary type is *very* expensive
 		// for high frequency measurements. Overriding sampling rate for writes to avoid this issue.
@@ -229,18 +232,18 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	statusScope := scope.SubScope("status")
 	indexStatusScope := statusScope.SubScope("index")
 	return databaseNamespaceMetrics{
-		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
-		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", samplingRate),
-		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", samplingRate),
-		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", samplingRate),
-		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
-		write:               instrument.NewMethodMetrics(scope, "write", overrideWriteSamplingRate),
-		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", overrideWriteSamplingRate),
-		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", samplingRate),
-		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", samplingRate),
+		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", opts),
+		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", opts),
+		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", opts),
+		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", opts),
+		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", opts),
+		write:               instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", opts),
+		read:                instrument.NewMethodMetrics(scope, "read", opts),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", opts),
+		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
 		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart:      scope.Counter("bootstrap.start"),
 		bootstrapEnd:        scope.Counter("bootstrap.end"),
@@ -349,7 +352,7 @@ func newDatabaseNamespace(
 		reverseIndex:           index,
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
-		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
+		metrics:                newDatabaseNamespaceMetrics(scope, iops.TimerOptions()),
 	}
 
 	sl, err := opts.SchemaRegistry().RegisterListener(id, n)
@@ -757,7 +760,14 @@ func (n *dbNamespace) AggregateQuery(
 	return res, err
 }
 
-func (n *dbNamespace) PrepareBootstrap() ([]databaseShard, error) {
+func (n *dbNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, error) {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.NSPrepareBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(opentracinglog.String("namespace", n.id.String()))
+	}
+
 	var (
 		wg           sync.WaitGroup
 		multiErrLock sync.Mutex
@@ -770,7 +780,7 @@ func (n *dbNamespace) PrepareBootstrap() ([]databaseShard, error) {
 		go func() {
 			defer wg.Done()
 
-			err := shard.PrepareBootstrap()
+			err := shard.PrepareBootstrap(ctx)
 			if err != nil {
 				multiErrLock.Lock()
 				multiErr = multiErr.Add(err)
@@ -844,8 +854,16 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 }
 
 func (n *dbNamespace) Bootstrap(
+	ctx context.Context,
 	bootstrapResult bootstrap.NamespaceResult,
 ) error {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.NSBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(opentracinglog.String("namespace", n.id.String()))
+	}
+
 	callStart := n.nowFn()
 
 	n.Lock()
@@ -920,7 +938,7 @@ func (n *dbNamespace) Bootstrap(
 		wg.Add(1)
 		shard := shard
 		workers.Go(func() {
-			err := shard.Bootstrap()
+			err := shard.Bootstrap(ctx)
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -124,18 +125,55 @@ func (m *MockProcess) EXPECT() *MockProcessMockRecorder {
 }
 
 // Run mocks base method
-func (m *MockProcess) Run(start time.Time, namespaces []ProcessNamespace) (NamespaceResults, error) {
+func (m *MockProcess) Run(ctx context.Context, start time.Time, namespaces []ProcessNamespace) (NamespaceResults, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Run", start, namespaces)
+	ret := m.ctrl.Call(m, "Run", ctx, start, namespaces)
 	ret0, _ := ret[0].(NamespaceResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Run indicates an expected call of Run
-func (mr *MockProcessMockRecorder) Run(start, namespaces interface{}) *gomock.Call {
+func (mr *MockProcessMockRecorder) Run(ctx, start, namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockProcess)(nil).Run), start, namespaces)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockProcess)(nil).Run), ctx, start, namespaces)
+}
+
+// MockHook is a mock of Hook interface
+type MockHook struct {
+	ctrl     *gomock.Controller
+	recorder *MockHookMockRecorder
+}
+
+// MockHookMockRecorder is the mock recorder for MockHook
+type MockHookMockRecorder struct {
+	mock *MockHook
+}
+
+// NewMockHook creates a new mock instance
+func NewMockHook(ctrl *gomock.Controller) *MockHook {
+	mock := &MockHook{ctrl: ctrl}
+	mock.recorder = &MockHookMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockHook) EXPECT() *MockHookMockRecorder {
+	return m.recorder
+}
+
+// Run mocks base method
+func (m *MockHook) Run() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Run")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Run indicates an expected call of Run
+func (mr *MockHookMockRecorder) Run() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockHook)(nil).Run))
 }
 
 // MockNamespaceDataAccumulator is a mock of NamespaceDataAccumulator interface
@@ -525,18 +563,18 @@ func (mr *MockBootstrapperMockRecorder) String() *gomock.Call {
 }
 
 // Bootstrap mocks base method
-func (m *MockBootstrapper) Bootstrap(namespaces Namespaces) (NamespaceResults, error) {
+func (m *MockBootstrapper) Bootstrap(ctx context.Context, namespaces Namespaces) (NamespaceResults, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", namespaces)
+	ret := m.ctrl.Call(m, "Bootstrap", ctx, namespaces)
 	ret0, _ := ret[0].(NamespaceResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockBootstrapperMockRecorder) Bootstrap(namespaces interface{}) *gomock.Call {
+func (mr *MockBootstrapperMockRecorder) Bootstrap(ctx, namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockBootstrapper)(nil).Bootstrap), namespaces)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockBootstrapper)(nil).Bootstrap), ctx, namespaces)
 }
 
 // MockSource is a mock of Source interface
@@ -593,16 +631,16 @@ func (mr *MockSourceMockRecorder) AvailableIndex(ns, shardsTimeRanges, opts inte
 }
 
 // Read mocks base method
-func (m *MockSource) Read(namespaces Namespaces) (NamespaceResults, error) {
+func (m *MockSource) Read(ctx context.Context, namespaces Namespaces) (NamespaceResults, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Read", namespaces)
+	ret := m.ctrl.Call(m, "Read", ctx, namespaces)
 	ret0, _ := ret[0].(NamespaceResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Read indicates an expected call of Read
-func (mr *MockSourceMockRecorder) Read(namespaces interface{}) *gomock.Call {
+func (mr *MockSourceMockRecorder) Read(ctx, namespaces interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockSource)(nil).Read), namespaces)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockSource)(nil).Read), ctx, namespaces)
 }

@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
@@ -52,7 +53,7 @@ type seriesBlock []ts.Datapoint
 type tagMap map[string]string
 type series struct {
 	blocks []seriesBlock
-	tags   tagMap
+	tags   parser.Tags
 }
 
 func generateSeriesBlock(
@@ -81,7 +82,7 @@ func generateSeries(
 	end time.Time,
 	blockSize time.Duration,
 	resolution time.Duration,
-	tags tagMap,
+	tags parser.Tags,
 ) (series, error) {
 	numBlocks := int(math.Ceil(float64(end.Sub(start)) / float64(blockSize)))
 	if numBlocks == 0 {
@@ -203,13 +204,13 @@ func (q *querier) generateRandomIters(
 
 	seriesList := make([]series, 0, len(actualGens))
 	for _, gen := range actualGens {
-		tagMap := map[string]string{
-			"__name__": gen.name,
-			"foobar":   "qux",
-			"name":     gen.name,
+		tags := parser.Tags{ 
+			parser.NewTag("__name__", gen.name),
+			parser.NewTag("foobar",   "qux"),
+			parser.NewTag("name",     gen.name),
 		}
 
-		series, err := generateSeries(start, end, blockSize, gen.res, tagMap)
+		series, err := generateSeries(start, end, blockSize, gen.res, tags)
 		if err != nil {
 			return nil, err
 		}

@@ -1346,32 +1346,32 @@ func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocksMetadataV2(ctx, shardID,
 }
 
 // PrepareBootstrap mocks base method
-func (m *MockdatabaseNamespace) PrepareBootstrap() ([]databaseShard, error) {
+func (m *MockdatabaseNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PrepareBootstrap")
+	ret := m.ctrl.Call(m, "PrepareBootstrap", ctx)
 	ret0, _ := ret[0].([]databaseShard)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PrepareBootstrap indicates an expected call of PrepareBootstrap
-func (mr *MockdatabaseNamespaceMockRecorder) PrepareBootstrap() *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) PrepareBootstrap(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).PrepareBootstrap))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).PrepareBootstrap), ctx)
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseNamespace) Bootstrap(bootstrapResult bootstrap.NamespaceResult) error {
+func (m *MockdatabaseNamespace) Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", bootstrapResult)
+	ret := m.ctrl.Call(m, "Bootstrap", ctx, bootstrapResult)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(bootstrapResult interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(ctx, bootstrapResult interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), bootstrapResult)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), ctx, bootstrapResult)
 }
 
 // WarmFlush mocks base method
@@ -1812,31 +1812,31 @@ func (mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(ctx, start, end, 
 }
 
 // PrepareBootstrap mocks base method
-func (m *MockdatabaseShard) PrepareBootstrap() error {
+func (m *MockdatabaseShard) PrepareBootstrap(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PrepareBootstrap")
+	ret := m.ctrl.Call(m, "PrepareBootstrap", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // PrepareBootstrap indicates an expected call of PrepareBootstrap
-func (mr *MockdatabaseShardMockRecorder) PrepareBootstrap() *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) PrepareBootstrap(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).PrepareBootstrap))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).PrepareBootstrap), ctx)
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseShard) Bootstrap() error {
+func (m *MockdatabaseShard) Bootstrap(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap")
+	ret := m.ctrl.Call(m, "Bootstrap", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseShardMockRecorder) Bootstrap() *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) Bootstrap(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap), ctx)
 }
 
 // UpdateFlushStates mocks base method
@@ -2187,6 +2187,20 @@ func (m *MockNamespaceIndex) Flush(flush persist.IndexFlush, shards []databaseSh
 func (mr *MockNamespaceIndexMockRecorder) Flush(flush, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockNamespaceIndex)(nil).Flush), flush, shards)
+}
+
+// DebugMemorySegments mocks base method
+func (m *MockNamespaceIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DebugMemorySegments", opts)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DebugMemorySegments indicates an expected call of DebugMemorySegments
+func (mr *MockNamespaceIndexMockRecorder) DebugMemorySegments(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugMemorySegments", reflect.TypeOf((*MockNamespaceIndex)(nil).DebugMemorySegments), opts)
 }
 
 // Close mocks base method

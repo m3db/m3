@@ -115,6 +115,11 @@ func (c *Configuration) newClientOptions(
 			return nil, err
 		}
 
+		// Allow M3Msg options to override the timer options for instrument options.
+		opts = opts.SetInstrumentOptions(
+			opts.InstrumentOptions().SetTimerOptions(m3msgOpts.TimerOptions()))
+
+		// Set the M3Msg options configured.
 		opts = opts.SetM3MsgOptions(m3msgOpts)
 	case LegacyAggregatorClient:
 		placementKV := c.PlacementKV
@@ -277,13 +282,19 @@ func (c *M3MsgConfiguration) NewM3MsgOptions(
 	kvClient m3clusterclient.Client,
 	instrumentOpts instrument.Options,
 ) (M3MsgOptions, error) {
+	opts := NewM3MsgOptions()
+
+	// For M3Msg clients we want to use the default timer options
+	// as defined by the default M3Msg options for low overhead
+	// timers.
+	instrumentOpts = instrumentOpts.SetTimerOptions(opts.TimerOptions())
+
 	producer, err := c.Producer.NewProducer(kvClient, instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	opts := NewM3MsgOptions().
-		SetProducer(producer)
+	opts = opts.SetProducer(producer)
 
 	// Validate the options.
 	if err := opts.Validate(); err != nil {

@@ -158,7 +158,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	connectionOpts := aggclient.NewConnectionOptions().
 		SetInitReconnectThreshold(1).
 		SetMaxReconnectThreshold(1).
-		SetMaxReconnectDuration(2 * time.Second)
+		SetMaxReconnectDuration(2 * time.Second).
+		SetWriteTimeout(time.Second)
 
 	// Create servers.
 	servers := make([]*testServerSetup, 0, len(multiServerSetup))

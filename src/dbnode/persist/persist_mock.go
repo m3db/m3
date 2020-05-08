@@ -102,6 +102,18 @@ func (mr *MockManagerMockRecorder) StartIndexPersist() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartIndexPersist", reflect.TypeOf((*MockManager)(nil).StartIndexPersist))
 }
 
+// Close mocks base method
+func (m *MockManager) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (mr *MockManagerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockManager)(nil).Close))
+}
+
 // MockPreparer is a mock of Preparer interface
 type MockPreparer struct {
 	ctrl     *gomock.Controller

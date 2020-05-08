@@ -154,7 +154,6 @@ func testM3PromReadHandlerRead(
 	assert.Equal(t, map[string]string{"__name__": "dummy1", "dummy1": "dummy1"},
 		m3qlResp[1].Tags)
 	assert.Equal(t, 10000, m3qlResp[1].StepSizeMs)
-
 }
 
 func newReadRequest(t *testing.T, params url.Values) *http.Request {

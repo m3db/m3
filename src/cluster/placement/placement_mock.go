@@ -327,6 +327,34 @@ func (mr *MockInstanceMockRecorder) SetPort(value interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPort", reflect.TypeOf((*MockInstance)(nil).SetPort), value)
 }
 
+// Metadata mocks base method
+func (m *MockInstance) Metadata() InstanceMetadata {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Metadata")
+	ret0, _ := ret[0].(InstanceMetadata)
+	return ret0
+}
+
+// Metadata indicates an expected call of Metadata
+func (mr *MockInstanceMockRecorder) Metadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockInstance)(nil).Metadata))
+}
+
+// SetMetadata mocks base method
+func (m *MockInstance) SetMetadata(value InstanceMetadata) Instance {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMetadata", value)
+	ret0, _ := ret[0].(Instance)
+	return ret0
+}
+
+// SetMetadata indicates an expected call of SetMetadata
+func (mr *MockInstanceMockRecorder) SetMetadata(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMetadata", reflect.TypeOf((*MockInstance)(nil).SetMetadata), value)
+}
+
 // Proto mocks base method
 func (m *MockInstance) Proto() (*placementpb.Instance, error) {
 	m.ctrl.T.Helper()

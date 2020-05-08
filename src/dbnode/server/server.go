@@ -283,7 +283,7 @@ func Run(runOpts RunOptions) {
 
 			logger.Info("using seed nodes etcd cluster",
 				zap.String("zone", zone), zap.Strings("endpoints", endpoints))
-			service.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
+			service.Service.ETCDClusters = []etcd.ClusterConfig{{
 				Zone:      zone,
 				Endpoints: endpoints,
 			}}
@@ -321,12 +321,18 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	// By default use histogram timers for timers that
+	// are constructed allowing for type to be picked
+	// by the caller using instrument.NewTimer(...).
+	timerOpts := instrument.NewHistogramTimerOptions(instrument.HistogramTimerOptions{})
+	timerOpts.StandardSampleRate = cfg.Metrics.SampleRate()
+
 	var (
 		opts  = storage.NewOptions()
 		iopts = opts.InstrumentOptions().
 			SetLogger(logger).
 			SetMetricsScope(scope).
-			SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+			SetTimerOptions(timerOpts).
 			SetTracer(tracer)
 	)
 	opts = opts.SetInstrumentOptions(iopts)
@@ -570,9 +576,10 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating dynamic config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:   iopts,
-			HashingSeed:      cfg.Hashing.Seed,
-			NewDirectoryMode: newDirectoryMode,
+			InstrumentOpts:         iopts,
+			HashingSeed:            cfg.Hashing.Seed,
+			NewDirectoryMode:       newDirectoryMode,
+			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -581,8 +588,9 @@ func Run(runOpts RunOptions) {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts: iopts,
-			HostID:         hostID,
+			InstrumentOpts:         iopts,
+			HostID:                 hostID,
+			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize static config", zap.Error(err))
@@ -1526,6 +1534,8 @@ func withEncodingAndPoolingOptions(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-query-results-pool")))
 	aggregateQueryResultsPool := index.NewAggregateResultsPool(
 		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-results-pool")))
+	aggregateQueryValuesPool := index.NewAggregateValuesPool(
+		poolOptions(policy.IndexResultsPool, scope.SubScope("index-aggregate-values-pool")))
 
 	// Set value transformation options.
 	opts = opts.SetTruncateType(cfg.Transforms.TruncateBy)
@@ -1556,6 +1566,7 @@ func withEncodingAndPoolingOptions(
 		SetCheckedBytesPool(bytesPool).
 		SetQueryResultsPool(queryResultsPool).
 		SetAggregateResultsPool(aggregateQueryResultsPool).
+		SetAggregateValuesPool(aggregateQueryValuesPool).
 		SetForwardIndexProbability(cfg.Index.ForwardIndexProbability).
 		SetForwardIndexThreshold(cfg.Index.ForwardIndexThreshold)
 
@@ -1568,6 +1579,11 @@ func withEncodingAndPoolingOptions(
 		// NB(r): Need to initialize after setting the index opts so
 		// it sees the same reference of the options as is set for the DB.
 		return index.NewAggregateResults(nil, index.AggregateResultsOptions{}, indexOpts)
+	})
+	aggregateQueryValuesPool.Init(func() index.AggregateValues {
+		// NB(r): Need to initialize after setting the index opts so
+		// it sees the same reference of the options as is set for the DB.
+		return index.NewAggregateValues(indexOpts)
 	})
 
 	return opts.SetIndexOptions(indexOpts)

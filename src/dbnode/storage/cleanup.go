@@ -72,6 +72,7 @@ type cleanupManager struct {
 	deleteInactiveDirectoriesFn deleteInactiveDirectoriesFn
 	cleanupInProgress           bool
 	metrics                     cleanupManagerMetrics
+	logger                      *zap.Logger
 }
 
 type cleanupManagerMetrics struct {
@@ -119,10 +120,17 @@ func newCleanupManager(
 		deleteFilesFn:               fs.DeleteFiles,
 		deleteInactiveDirectoriesFn: fs.DeleteInactiveDirectories,
 		metrics:                     newCleanupManagerMetrics(scope),
+		logger:                      opts.InstrumentOptions().Logger(),
 	}
 }
 
 func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
+	// Don't perform any cleanup if we are not boostrapped yet.
+	if !isBootstrapped {
+		m.logger.Debug("database is still bootstrapping, terminating cleanup")
+		return nil
+	}
+
 	m.Lock()
 	m.cleanupInProgress = true
 	m.Unlock()
@@ -149,7 +157,7 @@ func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 			"encountered errors when cleaning up index files for %v: %v", t, err))
 	}
 
-	if err := m.cleanupDuplicateIndexFiles(namespaces, isBootstrapped); err != nil {
+	if err := m.cleanupDuplicateIndexFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up index files for %v: %v", t, err))
 	}
@@ -259,12 +267,7 @@ func (m *cleanupManager) cleanupExpiredIndexFiles(t time.Time, namespaces []data
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespace, isBootstrapped bool) error {
-	// NB(bodu): Do not cleanup duplicate index files while we are bootstrapping since bootrapping and removing
-	// files from disk is racy if performed concurrently.
-	if !isBootstrapped {
-		return nil
-	}
+func (m *cleanupManager) cleanupDuplicateIndexFiles(namespaces []databaseNamespace) error {
 	multiErr := xerrors.NewMultiError()
 	for _, n := range namespaces {
 		if !n.Options().CleanupEnabled() || !n.Options().IndexOptions().Enabled() {

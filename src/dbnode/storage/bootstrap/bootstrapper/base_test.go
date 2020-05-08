@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -146,8 +147,12 @@ func testBaseBootstrapperEmptyRange(t *testing.T, withIndex bool) {
 	defer tester.Finish()
 
 	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
-	src.EXPECT().Read(matcher).DoAndReturn(
-		func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error) {
+	src.EXPECT().
+		Read(gomock.Any(), matcher).
+		DoAndReturn(func(
+			ctx context.Context,
+			namespaces bootstrap.Namespaces,
+		) (bootstrap.NamespaceResults, error) {
 			return nsResults, nil
 		})
 
@@ -190,8 +195,12 @@ func testBaseBootstrapperCurrentNoUnfulfilled(t *testing.T, withIndex bool) {
 	defer tester.Finish()
 
 	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
-	src.EXPECT().Read(matcher).DoAndReturn(
-		func(namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error) {
+	src.EXPECT().
+		Read(gomock.Any(), matcher).
+		DoAndReturn(func(
+			ctx context.Context,
+			namespaces bootstrap.Namespaces,
+		) (bootstrap.NamespaceResults, error) {
 			return nsResults, nil
 		})
 
@@ -236,8 +245,8 @@ func testBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T, withIndex bool) {
 	defer tester.Finish()
 
 	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
-	src.EXPECT().Read(matcher).Return(currResult, nil)
-	next.EXPECT().Bootstrap(matcher).Return(nextResult, nil)
+	src.EXPECT().Read(gomock.Any(), matcher).Return(currResult, nil)
+	next.EXPECT().Bootstrap(gomock.Any(), matcher).Return(nextResult, nil)
 
 	tester.TestBootstrapWith(base)
 	tester.TestUnfulfilledForNamespaceIsEmpty(testNs)
@@ -270,8 +279,8 @@ func testBasebootstrapperNext(
 	emptyResult := testEmptyResult(testNs)
 	nextResult := testResult(testNs, withIndex, testShard, nextUnfulfilled)
 	matcher := bootstrap.NamespaceMatcher{Namespaces: tester.Namespaces}
-	src.EXPECT().Read(matcher).Return(emptyResult, nil)
-	next.EXPECT().Bootstrap(matcher).Return(nextResult, nil)
+	src.EXPECT().Read(gomock.Any(), matcher).Return(emptyResult, nil)
+	next.EXPECT().Bootstrap(gomock.Any(), matcher).Return(nextResult, nil)
 
 	tester.TestBootstrapWith(base)
 

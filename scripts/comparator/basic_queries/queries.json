@@ -80,5 +80,17 @@
       "30s", 
       "1m"
     ]
+  },
+  {
+    "queryGroup":"topk",
+    "reruns": 5,
+    "queries":[
+      "topk(2, quack)",
+      "topk(2, avg_over_time(quack[30s]))",
+      "topk(2, avg(avg_over_time(quack[30s])) by (name))"
+    ],
+    "steps" : [
+      "1m"
+    ]
   }
 ]

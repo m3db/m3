@@ -40,7 +40,11 @@ const seriesStr = `
     {
         "start": "2020-03-30T11:39:45Z",
         "end": "2020-03-30T11:58:00Z",
-        "tags": {"__name__": "series_name","abc": "def","tag_a": "foo"},
+        "tags": [
+            ["__name__", "series_name"],
+            ["abc", "def"],
+            ["tag_a", "foo"]
+        ],
         "datapoints": [
             { "val": "7076", "ts": "2020-03-30T11:39:51.288Z" },
             { "val": "7076", "ts": "2020-03-30T11:39:57.478Z" },
@@ -188,10 +192,11 @@ func TestIngestSeries(t *testing.T) {
 
 func readTags(it encoding.SeriesIterator) parser.Tags {
 	tagIter := it.Tags()
-	tags := make(parser.Tags, tagIter.Len())
+	tags := make(parser.Tags, 0, tagIter.Len())
 	for tagIter.Next() {
 		tag := tagIter.Current()
-		tags[tag.Name.String()] = tag.Value.String()
+		newTag := parser.NewTag(tag.Name.String(), tag.Value.String())
+		tags = append(tags, newTag)
 	}
 
 	return tags

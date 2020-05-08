@@ -149,7 +149,7 @@ function test_aggregated_graphite_metric {
   # aggregation policy to average each tile and we are emitting
   # values 40 and 44 to get an average of 42 each tile
   echo "Read back aggregated averaged metric"
-  ATTEMPTS=40 TIMEOUT=1 MAX_TIMEOUT=4 retry_with_backoff read_carbon foo.bar.* 42
+  ATTEMPTS=100 TIMEOUT=1 MAX_TIMEOUT=4 retry_with_backoff read_carbon foo.bar.* 42
 
   # echo "Finished with carbon metrics"
   kill $METRIC_EMIT_PID

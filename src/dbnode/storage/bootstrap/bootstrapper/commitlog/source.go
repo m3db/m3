@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -168,8 +169,12 @@ type readNamespaceResult struct {
 // TODO(rartoul): Make this take the SnapshotMetadata files into account to reduce the
 // number of commitlogs / snapshots that we need to read.
 func (s *commitLogSource) Read(
+	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
+	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperCommitLogSourceRead)
+	defer span.Finish()
+
 	timeRangesEmpty := true
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
@@ -202,6 +207,8 @@ func (s *commitLogSource) Read(
 
 	startSnapshotsRead := s.nowFn()
 	s.log.Info("read snapshots start")
+	span.LogEvent("read_snapshots_start")
+
 	for _, elem := range namespaceIter {
 		ns := elem.Value()
 		accumulator := ns.DataAccumulator
@@ -252,6 +259,7 @@ func (s *commitLogSource) Read(
 
 	s.log.Info("read snapshots done",
 		zap.Duration("took", s.nowFn().Sub(startSnapshotsRead)))
+	span.LogEvent("read_snapshots_done")
 
 	// Setup the series accumulator pipeline.
 	var (
@@ -294,17 +302,19 @@ func (s *commitLogSource) Read(
 		startCommitLogsRead                        = s.nowFn()
 	)
 	s.log.Info("read commit logs start")
+	span.LogEvent("read_commitlogs_start")
 	defer func() {
 		datapointsRead := 0
 		for _, worker := range workers {
 			datapointsRead += worker.datapointsRead
 		}
-		s.log.Info("read finished",
-			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
+		s.log.Info("read commit logs done",
+			zap.Duration("took", s.nowFn().Sub(startCommitLogsRead)),
 			zap.Int("datapointsRead", datapointsRead),
 			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace),
 			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard),
 			zap.Int("datapointsSkippedShardNoLongerOwned", datapointsSkippedShardNoLongerOwned))
+		span.LogEvent("read_commitlogs_done")
 	}()
 
 	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
@@ -930,7 +940,7 @@ func (s *commitLogSource) logAccumulateOutcome(
 		errs += worker.numErrors
 	}
 	if errs > 0 {
-		s.log.Error("error bootstrapping from commit log", zap.Int("accmulateErrors", errs))
+		s.log.Error("error bootstrapping from commit log", zap.Int("accumulateErrors", errs))
 	}
 	if err := iter.Err(); err != nil {
 		s.log.Error("error reading commit log", zap.Error(err))

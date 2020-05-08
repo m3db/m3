@@ -36,11 +36,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -129,8 +131,12 @@ func (s *fileSystemSource) AvailableIndex(
 }
 
 func (s *fileSystemSource) Read(
+	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
+	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceRead)
+	defer span.Finish()
+
 	results := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}
@@ -151,6 +157,7 @@ func (s *fileSystemSource) Read(
 	}
 	s.log.Info("bootstrapping time series data start",
 		dataLogFields...)
+	span.LogEvent("bootstrap_data_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -170,9 +177,11 @@ func (s *fileSystemSource) Read(
 	}
 	s.log.Info("bootstrapping time series data success",
 		append(dataLogFields, zap.Duration("took", nowFn().Sub(start)))...)
+	span.LogEvent("bootstrap_data_done")
 
 	start = nowFn()
 	s.log.Info("bootstrapping index metadata start")
+	span.LogEvent("bootstrap_index_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		md := namespace.Metadata
@@ -201,7 +210,8 @@ func (s *fileSystemSource) Read(
 		results.Results.Set(md.ID(), result)
 	}
 	s.log.Info("bootstrapping index metadata success",
-		zap.Stringer("took", nowFn().Sub(start)))
+		zap.Duration("took", nowFn().Sub(start)))
+	span.LogEvent("bootstrap_index_done")
 
 	return results, nil
 }
@@ -374,9 +384,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					// We can just read the entry and index if performing an index run.
 					batch, err = s.readNextEntryAndMaybeIndex(r, batch, builder)
 					if err != nil {
-						s.log.Error("readNextEntryAndMaybeIndex failed",
-							zap.String("error", err.Error()),
-							zap.String("timeRangeStart", fmt.Sprintf("%v", timeRange.Start)))
+						s.log.Error("readNextEntryAndMaybeIndex failed", zap.Error(err),
+							zap.Time("timeRangeStart", timeRange.Start))
 					}
 					totalEntries++
 				default:
@@ -388,9 +397,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			if err == nil && len(batch) > 0 {
 				batch, err = builder.FlushBatch(batch)
 				if err != nil {
-					s.log.Error("FlushBatch failed",
-						zap.String("error", err.Error()),
-						zap.String("timeRangeStart", fmt.Sprintf("%v", timeRange.Start)))
+					s.log.Error("builder FlushBatch failed", zap.Error(err),
+						zap.Time("timeRangeStart", timeRange.Start))
 				}
 			}
 
@@ -422,9 +430,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					// NB(bodu): By default, we always load bootstrapped data into the default index volume.
 					idxpersist.DefaultIndexVolumeType, ns.Options().IndexOptions())
 				if err != nil {
-					s.log.Error("MarkFulfilled failed",
-						zap.String("error", err.Error()),
-						zap.String("timeRangeStart", fmt.Sprintf("%v", timeRange.Start)))
+					s.log.Error("indexResults MarkFulfilled failed", zap.Error(err),
+						zap.Time("timeRangeStart", timeRange.Start))
 				}
 			}
 
@@ -433,8 +440,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				totalFulfilledRanges.AddRanges(fulfilled)
 				remainingRanges.Subtract(fulfilled)
 			} else {
-				s.log.Error(err.Error(),
-					zap.String("timeRangeStart", fmt.Sprintf("%v", timeRange.Start)))
+				s.log.Error("unknown error", zap.Error(err),
+					zap.Time("timeRangeStart", timeRange.Start))
 				timesWithErrors = append(timesWithErrors, timeRange.Start)
 			}
 		}
