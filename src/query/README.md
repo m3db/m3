@@ -1,6 +1,6 @@
 ## WARNING: This is Alpha software and not intended for use until a stable release.
 
-# M3Coordinator [![GoDoc][doc-img]][doc]
+# M3Coordinator
 
 M3Coordinator is a service which provides APIs for reading/writing to [M3DB](https://github.com/m3db/m3) at a global and placement specific level.
 It also acts as a bridge between [Prometheus](https://github.com/prometheus/prometheus) and [M3DB](https://github.com/m3db/m3). Using this bridge, [M3DB](https://github.com/m3db/m3) acts as a long term storage for [Prometheus](https://github.com/prometheus/prometheus) using the [remote read/write endpoints](https://github.com/prometheus/prometheus/blob/master/prompb/remote.proto).
@@ -26,17 +26,15 @@ Finally, you can spin up the two containers using `docker-compose` within the `d
 
     $ docker-compose up
 
-> Note: The default local ports for Prometheus and m3coordinator are `9090` and `7201`, respectively, and the default `prometheus.yml` file is `docker/prometheus.yml`
->
->If you want to override these, you can pass in the following environment variables to the `docker-compose` command:
->
-> `LOCAL_PROM_PORT`
->
-> `LOCAL_M3COORD_PORT`
->
-> `LOCAL_PROM_YML`
->
-> (e.g. `$ LOCAL_PROM_PORT=XXXX LOCAL_M3COORD_PORT=XXXX LOCAL_PROM_YML=/path/to/yml docker-compose up`)
+*Note:* The default local ports for Prometheus and m3coordinator are `9090` and `7201`, respectively, and the default `prometheus.yml` file is `docker/prometheus.yml`
+
+If you want to override these, you can pass in the following environment variables to the `docker-compose` command:
+
+ - `LOCAL_PROM_PORT`
+ - `LOCAL_M3COORD_PORT`
+ - `LOCAL_PROM_YML`
+
+(e.g. `$ LOCAL_PROM_PORT=XXXX LOCAL_M3COORD_PORT=XXXX LOCAL_PROM_YML=/path/to/yml docker-compose up`)
 
 **Running m3coordinator locally (on mac only) and Prometheus in Docker container (for development):**
 
