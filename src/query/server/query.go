@@ -161,6 +161,7 @@ type CustomTSDBOptionsFn func(tsdb.Options) tsdb.Options
 type BackendStorageTransform func(
 	storage.Storage,
 	tsdb.Options,
+	instrument.Options,
 ) storage.Storage
 
 // Run runs the server programmatically given a filename for the configuration file.
