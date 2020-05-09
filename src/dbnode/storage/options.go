@@ -160,6 +160,7 @@ type options struct {
 	onColdFlush                    OnColdFlush
 	memoryTracker                  MemoryTracker
 	mmapReporter                   mmap.Reporter
+	debugSkipIndexEvery            int
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -771,6 +772,16 @@ func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {
 
 func (o *options) MmapReporter() mmap.Reporter {
 	return o.mmapReporter
+}
+
+func (o *options) SetDebugSkipIndexEvery(value int) Options {
+	opts := *o
+	opts.debugSkipIndexEvery = value
+	return &opts
+}
+
+func (o *options) DebugSkipIndexEvery() int {
+	return o.debugSkipIndexEvery
 }
 
 type noOpColdFlush struct{}

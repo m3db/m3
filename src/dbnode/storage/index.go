@@ -73,6 +73,7 @@ var (
 	errDbIndexUnableToCleanupClosed       = errors.New("unable to cleanup database index, already closed")
 	errDbIndexTerminatingTickCancellation = errors.New("terminating tick early due to cancellation")
 	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
+	errDebugSkipIndex                     = errors.New("debug skip index entry")
 )
 
 const (
@@ -125,6 +126,8 @@ type nsIndex struct {
 	// forwardIndexDice determines if an incoming index write should be dual
 	// written to the next block.
 	forwardIndexDice forwardIndexDice
+
+	debugSkipIndexEvery int
 }
 
 type nsIndexState struct {
@@ -320,6 +323,8 @@ func newNamespaceIndexWithOptions(
 
 		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
+
+		debugSkipIndexEvery: newIndexOpts.opts.DebugSkipIndexEvery(),
 	}
 
 	// Assign shard set upfront.
@@ -573,6 +578,10 @@ func (i *nsIndex) writeBatches(
 		batchOptions               = batch.Options()
 		forwardIndexDice           = i.forwardIndexDice
 		forwardIndexEnabled        = forwardIndexDice.enabled
+		total                      int
+		notSkipped                 int
+		forwardIndexHits           int
+		forwardIndexMiss           int
 
 		forwardIndexBatch *index.WriteBatch
 	)
@@ -587,11 +596,19 @@ func (i *nsIndex) writeBatches(
 		// is not enabled.
 		forwardIndexBatch = index.NewWriteBatch(batchOptions)
 	}
+
 	// Ensure timestamp is not too old/new based on retention policies and that
 	// doc is valid. Add potential forward writes to the forwardWriteBatch.
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
+			total++
+
+			if i.debugSkipIndexEvery > 0 && idx%i.debugSkipIndexEvery == 0 {
+				batch.MarkUnmarkedEntryError(errDebugSkipIndex, idx)
+				return
+			}
+
 			ts := entry.Timestamp
 			// NB(bodu): Always check first to see if the write is within retention.
 			if !ts.After(earliestBlockStartToRetain) {
@@ -621,7 +638,7 @@ func (i *nsIndex) writeBatches(
 
 			if forwardIndexEnabled {
 				if forwardIndexDice.roll(ts) {
-					i.metrics.forwardIndexHits.Inc(1)
+					forwardIndexHits++
 					forwardEntryTimestamp := ts.Truncate(blockSize).Add(blockSize)
 					xNanoTimestamp := xtime.ToUnixNano(forwardEntryTimestamp)
 					if entry.OnIndexSeries.NeedsIndexUpdate(xNanoTimestamp) {
@@ -631,9 +648,11 @@ func (i *nsIndex) writeBatches(
 						forwardIndexBatch.Append(forwardIndexEntry, d)
 					}
 				} else {
-					i.metrics.forwardIndexMisses.Inc(1)
+					forwardIndexMiss++
 				}
 			}
+
+			notSkipped++
 		})
 
 	if forwardIndexEnabled && forwardIndexBatch.Len() > 0 {
@@ -645,11 +664,22 @@ func (i *nsIndex) writeBatches(
 	// for each block, making sure to not try to insert any entries already marked
 	// with a result.
 	batch.ForEachUnmarkedBatchByBlockStart(i.writeBatchForBlockStart)
+
+	// Track index insertions.
+	// Note: attemptTotal should = attemptSkip + attemptWrite.
+	i.metrics.asyncInsertAttemptTotal.Inc(int64(total))
+	i.metrics.asyncInsertAttemptSkip.Inc(int64(total - notSkipped))
+	i.metrics.forwardIndexHits.Inc(int64(forwardIndexHits))
+	i.metrics.forwardIndexMisses.Inc(int64(forwardIndexMiss))
 }
 
 func (i *nsIndex) writeBatchForBlockStart(
 	blockStart time.Time, batch *index.WriteBatch,
 ) {
+	// NB(r): Capture pending entries so we can emit the latencies
+	pending := batch.PendingEntries()
+	numPending := len(pending)
+
 	// NB(r): Notice we acquire each lock only to take a reference to the
 	// block we release it so we don't block the tick, etc when we insert
 	// batches since writing batches can take significant time when foreground
@@ -662,13 +692,13 @@ func (i *nsIndex) writeBatchForBlockStart(
 			zap.Int("numWrites", batch.Len()),
 			zap.Error(err),
 		)
-		i.metrics.asyncInsertErrors.Inc(int64(batch.Len()))
+		i.metrics.asyncInsertErrors.Inc(int64(numPending))
 		return
 	}
 
-	// NB(r): Capture pending entries so we can emit the latencies
-	pending := batch.PendingEntries()
-	numPending := len(pending)
+	// Track attempted write.
+	// Note: attemptTotal should = attemptSkip + attemptWrite.
+	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
 	// i.e. we have the block and the inserts, perform the writes.
 	result, err := block.WriteBatch(batch)
@@ -1738,6 +1768,10 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
+	asyncInsertAttemptTotal tally.Counter
+	asyncInsertAttemptSkip  tally.Counter
+	asyncInsertAttemptWrite tally.Counter
+
 	asyncInsertSuccess           tally.Counter
 	asyncInsertErrors            tally.Counter
 	insertAfterClose             tally.Counter
@@ -1754,9 +1788,22 @@ func newNamespaceIndexMetrics(
 	opts index.Options,
 	iopts instrument.Options,
 ) nsIndexMetrics {
+	const (
+		indexAttemptName = "index-attempt"
+		forwardIndexName = "forward-index"
+	)
 	scope := iopts.MetricsScope()
 	blocksScope := scope.SubScope("blocks")
 	return nsIndexMetrics{
+		asyncInsertAttemptTotal: scope.Tagged(map[string]string{
+			"stage": "process",
+		}).Counter(indexAttemptName),
+		asyncInsertAttemptSkip: scope.Tagged(map[string]string{
+			"stage": "skip",
+		}).Counter(indexAttemptName),
+		asyncInsertAttemptWrite: scope.Tagged(map[string]string{
+			"stage": "write",
+		}).Counter(indexAttemptName),
 		asyncInsertSuccess: scope.Counter("index-success"),
 		asyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "async-insert",
@@ -1769,13 +1816,13 @@ func newNamespaceIndexMetrics(
 		}).Counter("query-after-error"),
 		forwardIndexHits: scope.Tagged(map[string]string{
 			"status": "hit",
-		}).Counter("forward-index"),
+		}).Counter(forwardIndexName),
 		forwardIndexMisses: scope.Tagged(map[string]string{
 			"status": "miss",
-		}).Counter("forward-index"),
+		}).Counter(forwardIndexName),
 		forwardIndexCounter: scope.Tagged(map[string]string{
 			"status": "count",
-		}).Counter("forward-index"),
+		}).Counter(forwardIndexName),
 		insertEndToEndLatency: instrument.NewTimer(scope,
 			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),

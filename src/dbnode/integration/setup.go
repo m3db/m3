@@ -136,7 +136,14 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
-func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup, error) {
+type storageOption func(storage.Options) storage.Options
+
+func newTestSetup(
+	t *testing.T,
+	opts testOptions,
+	fsOpts fs.Options,
+	storageOptFns ...storageOption,
+) (*testSetup, error) {
 	if opts == nil {
 		opts = newTestOptions(t)
 	}
@@ -394,6 +401,10 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	// Set debugging options if environment vars set
 	if debugFilePrefix := os.Getenv("TEST_DEBUG_FILE_PREFIX"); debugFilePrefix != "" {
 		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)
+	}
+
+	for _, fn := range storageOptFns {
+		storageOpts = fn(storageOpts)
 	}
 
 	return &testSetup{

@@ -1099,6 +1099,12 @@ type Options interface {
 
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
+
+	// SetDebugSkipIndexEvery sets the Nth entry that will skip being indexed.
+	SetDebugSkipIndexEvery(value int) Options
+
+	// DebugSkipIndexEvery returns the Nth entry that will skip being indexed.
+	DebugSkipIndexEvery() int
 }
 
 // MemoryTracker tracks memory.
