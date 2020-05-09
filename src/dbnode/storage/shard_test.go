@@ -1373,7 +1373,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	s.EXPECT().Tick(gomock.Any(), gomock.Any()).Do(func(interface{}, interface{}) {
 		// Emulate a write taking place just after tick for this series
 		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(),
-			gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+			gomock.Any(), gomock.Any(), gomock.Any()).Return(true, series.WarmWrite, nil)
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
