@@ -22,7 +22,6 @@ package storage
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -392,12 +391,9 @@ func TestShardColdWriteInsertSkipsIndexInsertQueue(t *testing.T) {
 	}
 	assert.Equal(t, indexWrites[0].ID, warmWriteID.Bytes())
 
-	// Make sure ref counts are correct.
+	// Make sure the ref counts are correct.
 	entryFn := func(entry *lookup.Entry) bool {
-		// Ensure the readerwriter count is incremented while we operate
-		// on this series
-		log.Println("shard entry ref counts:", entry.Series.ID(), entry.ReaderWriterCount())
-		//assert.Equal(t, int32(1), entry.ReaderWriterCount())
+		assert.Equal(t, int32(2), entry.ReaderWriterCount())
 		return true
 	}
 	shard.forEachShardEntry(entryFn)
