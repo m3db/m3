@@ -339,6 +339,8 @@ func TestShardColdWriteInsertSkipsIndexInsertQueue(t *testing.T) {
 			lock.Lock()
 			indexWrites = append(indexWrites, batch.PendingDocs()...)
 			lock.Unlock()
+			// Mark successful.
+			batch.MarkUnmarkedEntriesSuccess()
 		}).Return(nil).AnyTimes()
 
 	shard := testDatabaseShardWithIndexFn(t, opts, idx, true)
@@ -368,32 +370,33 @@ func TestShardColdWriteInsertSkipsIndexInsertQueue(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	// Make sure we've written our cold data first.
-	for {
-		entry, _, err := shard.tryRetrieveWritableSeries(coldWriteID)
-		assert.NoError(t, err)
-		if entry != nil && !entry.NeedsIndexUpdate(writeBlockStart) {
-			// We take a ref when we retrieve the entry so we need to dec here.
-			entry.DecrementReaderWriterCount()
-			break
+	ensureIndexedFn := func(t *testing.T, id ident.ID, blockStart xtime.UnixNano) {
+		for {
+			entry, _, err := shard.tryRetrieveWritableSeries(id)
+			assert.NoError(t, err)
+			if entry != nil {
+				// We take a ref when we retrieve the entry so we need to dec here.
+				entry.DecrementReaderWriterCount()
+				if !entry.NeedsIndexUpdate(blockStart) {
+					break
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 
-	// Sanity check to make sure only warm writes are making it to the index.
-	for {
-		lock.RLock()
-		if len(indexWrites) == 1 {
-			break
-		}
-		lock.RUnlock()
-		time.Sleep(10 * time.Millisecond)
-	}
+	// Make sure we've written our cold data first.
+	ensureIndexedFn(t, coldWriteID, writeBlockStart)
+	// Make sure we've written our warm data next.
+	ensureIndexedFn(t, warmWriteID, xtime.ToUnixNano(now.Truncate(indexBlockSize)))
+	assert.Len(t, indexWrites, 1)
 	assert.Equal(t, indexWrites[0].ID, warmWriteID.Bytes())
 
 	// Make sure the ref counts are correct.
 	entryFn := func(entry *lookup.Entry) bool {
-		assert.Equal(t, int32(2), entry.ReaderWriterCount())
+		// forEachShardEntry takes a ref so we make sure that we have only have 1
+		// outstanding ref for each shard entry.
+		assert.Equal(t, int32(1), entry.ReaderWriterCount())
 		return true
 	}
 	shard.forEachShardEntry(entryFn)

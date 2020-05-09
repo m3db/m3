@@ -1503,6 +1503,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		if inserts[i].opts.hasPendingIndexing {
 			pendingIndex := inserts[i].opts.pendingIndex
+			// increment the ref on the entry, as the original one was transferred to the
+			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
+			entry.OnIndexPrepare()
 
 			// Don't insert cold writes into the index insert queue.
 			if s.coldWritesEnabled && writeType == series.ColdWrite {
@@ -1512,11 +1515,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 				// Entries in the shard insert queue are either of:
 				// - new entries
 				// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
-				entry.OnIndexFinalizeNoRef(indexBlockStart)
+				entry.OnIndexFinalize(indexBlockStart)
 			} else {
-				// increment the ref on the entry, as the original one was transferred to the
-				// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
-				entry.OnIndexPrepare()
 
 				id := entry.Series.ID()
 				tags := entry.Series.Tags().Values()
