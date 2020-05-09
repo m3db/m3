@@ -355,7 +355,7 @@ func Run(runOpts RunOptions) {
 
 	defer chainedEnforceCloser.Close()
 	if fn := runOpts.BackendStorageTransform; fn != nil {
-		backendStorage = fn(backendStorage, tsdbOpts)
+		backendStorage = fn(backendStorage, tsdbOpts, instrumentOptions)
 	}
 
 	engineOpts := executor.NewEngineOptions().
