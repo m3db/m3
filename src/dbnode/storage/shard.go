@@ -1461,6 +1461,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	ctx := s.contextPool.Get()
 	// TODO(prateek): pool this type
 	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
+	warmIndexBlockStart := time.Now().Truncate(indexBlockSize)
 	indexBatch := index.NewWriteBatch(index.WriteBatchOptions{
 		InitialCapacity: numPendingIndexing,
 		IndexBlockSize:  indexBlockSize,
@@ -1510,7 +1511,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			entry.OnIndexPrepare()
 
 			// Don't insert cold writes into the index insert queue.
-			if s.coldWritesEnabled && writeType == series.ColdWrite {
+			if s.coldWritesEnabled &&
+				writeType == series.ColdWrite &&
+				pendingIndex.timestamp.Before(warmIndexBlockStart) {
 				indexBlockStart := s.reverseIndex.BlockStartForWriteTime(pendingIndex.timestamp)
 				// NB(bodu): We finalize this entry w/o decrementing the entry ref count
 				// unless the entry is marked as having its ref count incremented.
