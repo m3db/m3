@@ -1512,6 +1512,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 				// Entries in the shard insert queue are either of:
 				// - new entries
 				// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
+				// Also, currently `releaseEntryRef` will always be true if `hasPendingIndex` is also true
+				// but we can do the check below just to be safe in case things change.
 				entryFinalizeFn := entry.OnIndexFinalizeNoRef
 				if releaseEntryRef {
 					entryFinalizeFn = entry.OnIndexFinalize
