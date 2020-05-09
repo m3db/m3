@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	xlog "log"
 	"math"
 	"sync"
 	"time"
@@ -1518,7 +1517,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 					entryFinalizeFn = entry.OnIndexFinalize
 				}
 				entryFinalizeFn(indexBlockStart)
-				xlog.Println("cold write entry ref count:", entry.Series.ID(), entry.ReaderWriterCount())
 				continue
 			}
 
@@ -1553,7 +1551,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if releaseEntryRef {
 			entry.DecrementReaderWriterCount()
 		}
-		xlog.Println("warm write entry ref count:", entry.Series.ID(), entry.ReaderWriterCount())
 	}
 
 	var err error
