@@ -207,6 +207,7 @@ type dbShardMetrics struct {
 	insertAsyncWriteInternalErrors      tally.Counter
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
+	insertColdWriteSkipIndex            tally.Counter
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
@@ -235,6 +236,7 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"error_type":    "reverse-index",
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
+		insertColdWriteSkipIndex: scope.Counter("insert-cold-write-skip-index"),
 	}
 }
 
@@ -1516,6 +1518,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 				// - new entries
 				// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
 				entry.OnIndexFinalize(indexBlockStart)
+				s.metrics.insertColdWriteSkipIndex.Inc(1)
 			} else {
 
 				id := entry.Series.ID()
