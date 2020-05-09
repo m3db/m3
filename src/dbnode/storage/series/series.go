@@ -288,12 +288,13 @@ func (s *dbSeries) Write(
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts WriteOptions,
-) (bool, error) {
+) (bool, WriteType, error) {
+	var writeType WriteType
 	s.Lock()
 	matchUniqueIndex := wOpts.MatchUniqueIndex
 	if matchUniqueIndex {
 		if s.uniqueIndex == 0 {
-			return false, errSeriesMatchUniqueIndexInvalid
+			return false, writeType, errSeriesMatchUniqueIndexInvalid
 		}
 		if s.uniqueIndex != wOpts.MatchUniqueIndexValue {
 			// NB(r): Match unique index allows for a caller to
@@ -301,13 +302,13 @@ func (s *dbSeries) Write(
 			// later while keeping a direct reference to the series
 			// while the shard and namespace continues to own and manage
 			// the lifecycle of the series.
-			return false, errSeriesMatchUniqueIndexFailed
+			return false, writeType, errSeriesMatchUniqueIndexFailed
 		}
 	}
 
-	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
+	wasWritten, writeType, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
 	s.Unlock()
-	return wasWritten, err
+	return wasWritten, writeType, err
 }
 
 func (s *dbSeries) ReadEncoded(

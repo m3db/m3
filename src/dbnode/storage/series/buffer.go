@@ -81,7 +81,7 @@ type databaseBuffer interface {
 		unit xtime.Unit,
 		annotation []byte,
 		wOpts WriteOptions,
-	) (bool, error)
+	) (bool, WriteType, error)
 
 	Snapshot(
 		ctx context.Context,
@@ -257,7 +257,7 @@ func (b *dbBuffer) Write(
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts WriteOptions,
-) (bool, error) {
+) (bool, WriteType, error) {
 	var (
 		ropts        = b.opts.RetentionOptions()
 		bufferPast   = ropts.BufferPast()
@@ -273,7 +273,7 @@ func (b *dbBuffer) Write(
 	case wOpts.BootstrapWrite:
 		exists, err := b.blockRetriever.IsBlockRetrievable(blockStart)
 		if err != nil {
-			return false, err
+			return false, writeType, err
 		}
 		// Bootstrap writes are allowed to be outside of time boundaries
 		// and determined as cold or warm writes depending on whether
@@ -287,7 +287,7 @@ func (b *dbBuffer) Write(
 	case !pastLimit.Before(timestamp):
 		writeType = ColdWrite
 		if !b.opts.ColdWritesEnabled() {
-			return false, xerrors.NewInvalidParamsError(
+			return false, writeType, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in past: "+
 					"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
 					"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
@@ -300,7 +300,7 @@ func (b *dbBuffer) Write(
 	case !futureLimit.After(timestamp):
 		writeType = ColdWrite
 		if !b.opts.ColdWritesEnabled() {
-			return false, xerrors.NewInvalidParamsError(
+			return false, writeType, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in future: "+
 					"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
 					"timestamp_unix_nanos=%d, future_limit_unix_nanos=%d",
@@ -326,9 +326,9 @@ func (b *dbBuffer) Write(
 			if wOpts.SkipOutOfRetention {
 				// Allow for datapoint to be skipped since caller does not
 				// want writes out of retention to fail.
-				return false, nil
+				return false, writeType, nil
 			}
-			return false, xerrors.NewInvalidParamsError(
+			return false, writeType, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in past and out of retention: "+
 					"id=%s, off_by=%s, timestamp=%s, retention_past_limit=%s, "+
 					"timestamp_unix_nanos=%d, retention_past_limit_unix_nanos=%d",
@@ -343,9 +343,9 @@ func (b *dbBuffer) Write(
 			if wOpts.SkipOutOfRetention {
 				// Allow for datapoint to be skipped since caller does not
 				// want writes out of retention to fail.
-				return false, nil
+				return false, writeType, nil
 			}
-			return false, xerrors.NewInvalidParamsError(
+			return false, writeType, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in future and out of retention: "+
 					"id=%s, off_by=%s, timestamp=%s, retention_future_limit=%s, "+
 					"timestamp_unix_nanos=%d, retention_future_limit_unix_nanos=%d",
@@ -369,7 +369,8 @@ func (b *dbBuffer) Write(
 		value = wOpts.TransformOptions.ForceValue
 	}
 
-	return buckets.write(timestamp, value, unit, annotation, writeType, wOpts.SchemaDesc)
+	ok, err := buckets.write(timestamp, value, unit, annotation, writeType, wOpts.SchemaDesc)
+	return ok, writeType, err
 }
 
 func (b *dbBuffer) IsEmpty() bool {

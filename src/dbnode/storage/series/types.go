@@ -75,7 +75,7 @@ type DatabaseSeries interface {
 		unit xtime.Unit,
 		annotation []byte,
 		wOpts WriteOptions,
-	) (bool, error)
+	) (bool, WriteType, error)
 
 	// ReadEncoded reads encoded blocks.
 	ReadEncoded(
