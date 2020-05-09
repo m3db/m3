@@ -178,7 +178,7 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx NamespaceIndex) {
 	var (
 		now   = time.Now()
 		opts  = DefaultTestOptions()
-		shard = testDatabaseShardWithIndexFn(t, opts, idx)
+		shard = testDatabaseShardWithIndexFn(t, opts, idx, false)
 	)
 
 	shard.SetRuntimeOptions(runtime.NewOptions().
@@ -400,7 +400,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 	opts = opts.
 		SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(true))
 	defer shard.Close()

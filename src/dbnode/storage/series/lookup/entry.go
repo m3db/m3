@@ -151,13 +151,26 @@ func (entry *Entry) OnIndexSuccess(blockStartNanos xtime.UnixNano) {
 	entry.reverseIndex.Unlock()
 }
 
-// OnIndexFinalize marks any attempt for the given block start is finished.
+// OnIndexFinalize marks any attempt for the given block start as finished
+// and decrements the entry ref count.
 func (entry *Entry) OnIndexFinalize(blockStartNanos xtime.UnixNano) {
+	entry.onIndexFinalize(blockStartNanos, true)
+}
+
+// OnIndexFinalizeNoRef marks any attempt for the given block start as finished
+// without decrementing the entry ref count.
+func (entry *Entry) OnIndexFinalizeNoRef(blockStartNanos xtime.UnixNano) {
+	entry.onIndexFinalize(blockStartNanos, false)
+}
+
+func (entry *Entry) onIndexFinalize(blockStartNanos xtime.UnixNano, entryRefCountIncremented bool) {
 	entry.reverseIndex.Lock()
 	entry.reverseIndex.setAttemptWithWLock(blockStartNanos, false)
 	entry.reverseIndex.Unlock()
-	// indicate the index has released held reference for provided write
-	entry.DecrementReaderWriterCount()
+	if entryRefCountIncremented {
+		// indicate the index has released held reference for provided write
+		entry.DecrementReaderWriterCount()
+	}
 }
 
 // entryIndexState is used to capture the state of indexing for a single shard

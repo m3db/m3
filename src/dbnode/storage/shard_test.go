@@ -68,15 +68,16 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 }
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
-	return testDatabaseShardWithIndexFn(t, opts, nil)
+	return testDatabaseShardWithIndexFn(t, opts, nil, false)
 }
 
 func testDatabaseShardWithIndexFn(
 	t *testing.T,
 	opts Options,
 	idx NamespaceIndex,
+	coldWritesEnabled bool,
 ) *dbShard {
-	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetColdWritesEnabled(coldWritesEnabled))
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions()).
