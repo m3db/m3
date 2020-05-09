@@ -1512,37 +1512,30 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 				// Entries in the shard insert queue are either of:
 				// - new entries
 				// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
-				// Also, currently `releaseEntryRef` will always be true if `hasPendingIndex` is also true
-				// but we can do the check below just to be safe in case things change.
-				entryFinalizeFn := entry.OnIndexFinalizeNoRef
-				if releaseEntryRef {
-					entryFinalizeFn = entry.OnIndexFinalize
+				entry.OnIndexFinalizeNoRef(indexBlockStart)
+			} else {
+				// increment the ref on the entry, as the original one was transferred to the
+				// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
+				entry.OnIndexPrepare()
+
+				id := entry.Series.ID()
+				tags := entry.Series.Tags().Values()
+
+				var d doc.Document
+				d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
+				d.Fields = make(doc.Fields, 0, len(tags))
+				for _, tag := range tags {
+					d.Fields = append(d.Fields, doc.Field{
+						Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
+						Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
+					})
 				}
-				entryFinalizeFn(indexBlockStart)
-				continue
+				indexBatch.Append(index.WriteBatchEntry{
+					Timestamp:     pendingIndex.timestamp,
+					OnIndexSeries: entry,
+					EnqueuedAt:    pendingIndex.enqueuedAt,
+				}, d)
 			}
-
-			// increment the ref on the entry, as the original one was transferred to the
-			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
-			entry.OnIndexPrepare()
-
-			id := entry.Series.ID()
-			tags := entry.Series.Tags().Values()
-
-			var d doc.Document
-			d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
-			d.Fields = make(doc.Fields, 0, len(tags))
-			for _, tag := range tags {
-				d.Fields = append(d.Fields, doc.Field{
-					Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
-					Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
-				})
-			}
-			indexBatch.Append(index.WriteBatchEntry{
-				Timestamp:     pendingIndex.timestamp,
-				OnIndexSeries: entry,
-				EnqueuedAt:    pendingIndex.enqueuedAt,
-			}, d)
 		}
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
