@@ -1099,6 +1099,14 @@ type Options interface {
 
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
+
+	// SetDoNotIndexWithFieldsMap sets a map which if fields match it
+	// will not index those metrics.
+	SetDoNotIndexWithFieldsMap(value map[string]string) Options
+
+	// DoNotIndexWithFieldsMap returns a map which if fields match it
+	// will not index those metrics.
+	DoNotIndexWithFieldsMap() map[string]string
 }
 
 // MemoryTracker tracks memory.

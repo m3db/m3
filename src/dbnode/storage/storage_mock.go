@@ -4189,6 +4189,34 @@ func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
 }
 
+// SetDoNotIndexWithFieldsMap mocks base method
+func (m *MockOptions) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetDoNotIndexWithFieldsMap", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetDoNotIndexWithFieldsMap indicates an expected call of SetDoNotIndexWithFieldsMap
+func (mr *MockOptionsMockRecorder) SetDoNotIndexWithFieldsMap(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).SetDoNotIndexWithFieldsMap), value)
+}
+
+// DoNotIndexWithFieldsMap mocks base method
+func (m *MockOptions) DoNotIndexWithFieldsMap() map[string]string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DoNotIndexWithFieldsMap")
+	ret0, _ := ret[0].(map[string]string)
+	return ret0
+}
+
+// DoNotIndexWithFieldsMap indicates an expected call of DoNotIndexWithFieldsMap
+func (mr *MockOptionsMockRecorder) DoNotIndexWithFieldsMap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).DoNotIndexWithFieldsMap))
+}
+
 // MockMemoryTracker is a mock of MemoryTracker interface
 type MockMemoryTracker struct {
 	ctrl     *gomock.Controller

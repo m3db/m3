@@ -1,4 +1,4 @@
-# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][fossa] [![Gitter chat][gitter-img]][gitter]
+# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][fossa] 
 
 <p align="center"><img src="docs/theme/assets/images/M3-logo.png" alt="M3 Logo" width="256" height="270"></p>
 
@@ -8,7 +8,7 @@ More information:
 
 - [Documentation](https://m3db.github.io/m3/)
 - [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
-- [Slack (primary chat channel)](http://bit.ly/m3slack)
+- [Slack](http://bit.ly/m3slack)
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 - [Twitter](https://twitter.com/m3db_io)
 
@@ -142,5 +142,3 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 [cov]: https://codecov.io/gh/m3db/m3
 [fossa-img]: https://app.fossa.io/api/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3.svg?type=shield
 [fossa]: https://app.fossa.io/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3?ref=badge_shield
-[gitter-img]: https://badges.gitter.im/m3db.png
-[gitter]: https://gitter.im/m3db/Lobby
