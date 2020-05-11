@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sort"
@@ -73,7 +74,7 @@ var (
 	errDbIndexUnableToCleanupClosed       = errors.New("unable to cleanup database index, already closed")
 	errDbIndexTerminatingTickCancellation = errors.New("terminating tick early due to cancellation")
 	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
-	errDebugSkipIndex                     = errors.New("debug skip index entry")
+	errDbIndexDoNotIndexSeries            = errors.New("series matched do not index fields")
 )
 
 const (
@@ -127,7 +128,7 @@ type nsIndex struct {
 	// written to the next block.
 	forwardIndexDice forwardIndexDice
 
-	debugSkipIndexEvery int
+	doNotIndexWithFields []doc.Field
 }
 
 type nsIndexState struct {
@@ -291,6 +292,17 @@ func newNamespaceIndexWithOptions(
 
 	nowFn := indexOpts.ClockOptions().NowFn()
 	logger := indexOpts.InstrumentOptions().Logger()
+
+	var doNotIndexWithFields []doc.Field
+	if m := newIndexOpts.opts.DoNotIndexWithFieldsMap(); m != nil && len(m) != 0 {
+		for k, v := range m {
+			doNotIndexWithFields = append(doNotIndexWithFields, doc.Field{
+				Name:  []byte(k),
+				Value: []byte(v),
+			})
+		}
+	}
+
 	idx := &nsIndex{
 		state: nsIndexState{
 			closeCh: make(chan struct{}),
@@ -324,7 +336,7 @@ func newNamespaceIndexWithOptions(
 		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
 
-		debugSkipIndexEvery: newIndexOpts.opts.DebugSkipIndexEvery(),
+		doNotIndexWithFields: doNotIndexWithFields,
 	}
 
 	// Assign shard set upfront.
@@ -604,9 +616,26 @@ func (i *nsIndex) writeBatches(
 			d doc.Document, _ index.WriteBatchEntryResult) {
 			total++
 
-			if i.debugSkipIndexEvery > 0 && idx%i.debugSkipIndexEvery == 0 {
-				batch.MarkUnmarkedEntryError(errDebugSkipIndex, idx)
-				return
+			if len(i.doNotIndexWithFields) != 0 {
+				// This feature rarely used, do not optimize and just do n*m checks.
+				drop := true
+				for _, matchField := range i.doNotIndexWithFields {
+					matchedField := false
+					for _, actualField := range d.Fields {
+						if bytes.Compare(actualField.Name, matchField.Name) == 0 {
+							matchedField = bytes.Compare(actualField.Value, matchField.Value) == 0
+							break
+						}
+					}
+					if !matchedField {
+						drop = false
+						break
+					}
+				}
+				if drop {
+					batch.MarkUnmarkedEntryError(errDbIndexDoNotIndexSeries, idx)
+					return
+				}
 			}
 
 			ts := entry.Timestamp

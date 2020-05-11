@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage"
 	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -113,7 +114,7 @@ func testIndexSingleNodeHighConcurrency(
 	testSetup, err := newTestSetup(t, testOpts, nil,
 		func(s storage.Options) storage.Options {
 			if opts.skipWrites {
-				return s.SetDebugSkipIndexEvery(2)
+				return s.SetDoNotIndexWithFieldsMap(map[string]string{"skip": "true"})
 			}
 			return s
 		})
@@ -159,16 +160,24 @@ func testIndexSingleNodeHighConcurrency(
 				workerPool.Go(func() {
 					defer wg.Done()
 
-					id, tags := genIDTags(i, j, opts.numTags)
-					now := time.Now()
-					timestamp := now
+					var genOpts []genIDTagsOption
+					if opts.skipWrites && j%2 == 0 {
+						genOpts = append(genOpts, genIDTagsOption(func(t ident.Tags) ident.Tags {
+							t.Append(ident.Tag{
+								Name:  ident.StringID("skip"),
+								Value: ident.StringID("true"),
+							})
+							return t
+						}))
+					}
 
+					id, tags := genIDTags(i, j, opts.numTags, genOpts...)
+					timestamp := time.Now()
 					err := session.WriteTagged(md.ID(), id, tags,
 						timestamp, float64(j), xtime.Second, nil)
 					if err != nil {
-						// Only count errors that aren't bad writes.
-						numTotalErrors.Inc()
 						if n := numTotalErrors.Inc(); n < 10 {
+							// Log the first 10 errors for visibility but not flood.
 							log.Error("sampled write error", zap.Error(err))
 						}
 					} else {
@@ -218,31 +227,46 @@ func testIndexSingleNodeHighConcurrency(
 	// Now check all of them are individually indexed.
 	var (
 		fetchWg        sync.WaitGroup
-		allIndexed     = true
-		allIndexedLock sync.Mutex
+		notIndexedErrs []error
+		notIndexedLock sync.Mutex
 	)
 	for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
 		fetchWg.Add(1)
-		idx := i
+		i := i
 		go func() {
 			defer fetchWg.Done()
 
-			id, tags := genIDTags(idx, opts.enqueuePerWorker-1, opts.numTags)
-			indexed := xclock.WaitUntil(func() bool {
-				found := isIndexed(t, session, md.ID(), id, tags)
-				return found
-			}, 30*time.Second)
-			assert.True(t, indexed)
+			for j := 0; j < opts.enqueuePerWorker; j++ {
+				if opts.skipWrites && j%2 == 0 {
+					continue // not meant to be indexed.
+				}
 
-			allIndexedLock.Lock()
-			allIndexed = allIndexed && indexed
-			allIndexedLock.Unlock()
+				j := j
+				fetchWg.Add(1)
+				workerPool.Go(func() {
+					defer fetchWg.Done()
+
+					id, tags := genIDTags(i, j, opts.numTags)
+					indexed := xclock.WaitUntil(func() bool {
+						found := isIndexed(t, session, md.ID(), id, tags)
+						return found
+					}, 30*time.Second)
+					if !indexed {
+						err := fmt.Errorf("not indexed series: i=%d, j=%d", i, j)
+						notIndexedLock.Lock()
+						notIndexedErrs = append(notIndexedErrs, err)
+						notIndexedLock.Unlock()
+					}
+				})
+			}
 		}()
 	}
 	fetchWg.Wait()
 	log.Info("data indexing verify done",
-		zap.Bool("allIndexed", allIndexed),
+		zap.Int("notIndexed", len(notIndexedErrs)),
 		zap.Duration("took", time.Since(start)))
+	require.Equal(t, 0, len(notIndexedErrs),
+		fmt.Sprintf("not indexed errors: %v", notIndexedErrs[:min(5, len(notIndexedErrs))]))
 
 	// Make sure attempted total indexing = skipped + written.
 	counters = testSetup.scope.Snapshot().Counters()
@@ -270,4 +294,11 @@ func multiplyBy(n int) func(int) int {
 	return func(x int) int {
 		return n * x
 	}
+}
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
 }

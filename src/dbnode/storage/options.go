@@ -160,7 +160,7 @@ type options struct {
 	onColdFlush                    OnColdFlush
 	memoryTracker                  MemoryTracker
 	mmapReporter                   mmap.Reporter
-	debugSkipIndexEvery            int
+	doNotIndexWithFieldsMap        map[string]string
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -774,14 +774,14 @@ func (o *options) MmapReporter() mmap.Reporter {
 	return o.mmapReporter
 }
 
-func (o *options) SetDebugSkipIndexEvery(value int) Options {
+func (o *options) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
 	opts := *o
-	opts.debugSkipIndexEvery = value
+	opts.doNotIndexWithFieldsMap = value
 	return &opts
 }
 
-func (o *options) DebugSkipIndexEvery() int {
-	return o.debugSkipIndexEvery
+func (o *options) DoNotIndexWithFieldsMap() map[string]string {
+	return o.doNotIndexWithFieldsMap
 }
 
 type noOpColdFlush struct{}
