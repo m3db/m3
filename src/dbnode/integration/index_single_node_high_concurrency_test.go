@@ -62,7 +62,7 @@ func TestIndexSingleNodeHighConcurrencyFewTagsHighCardinalityNoSkipWrites(t *tes
 	testIndexSingleNodeHighConcurrency(t, testIndexHighConcurrencyOptions{
 		concurrencyEnqueueWorker: 8,
 		concurrencyWrites:        5000,
-		enqueuePerWorker:         50000,
+		enqueuePerWorker:         10000,
 		numTags:                  2,
 	})
 }
