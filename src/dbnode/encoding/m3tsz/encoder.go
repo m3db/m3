@@ -314,6 +314,15 @@ func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
 	return result, nil
 }
 
+// LastAnnotation returns the last encoded annotation.
+func (enc *encoder) LastAnnotation() (ts.Annotation, error) {
+	if enc.numEncoded == 0 {
+		return nil, errNoEncodedDatapoints
+	}
+
+	return enc.tsEncoderState.PrevAnnotation, nil
+}
+
 // Len returns the length of the final data stream that would be generated
 // by a call to Stream().
 func (enc *encoder) Len() int {

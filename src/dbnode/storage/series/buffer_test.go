@@ -77,14 +77,35 @@ func newBufferTestOptions() Options {
 }
 
 // Writes to buffer, verifying no error and that further writes should happen.
-func verifyWriteToBuffer(t *testing.T, buffer databaseBuffer,
-	v DecodedTestValue, schema namespace.SchemaDescr) {
+func verifyWriteToBufferSuccess(
+	t *testing.T,
+	buffer databaseBuffer,
+	v DecodedTestValue,
+	schema namespace.SchemaDescr,
+) {
+	verifyWriteToBuffer(t, buffer, v, schema, true, false)
+}
+
+func verifyWriteToBuffer(
+	t *testing.T,
+	buffer databaseBuffer,
+	v DecodedTestValue,
+	schema namespace.SchemaDescr,
+	expectWritten bool,
+	expectErr bool,
+) {
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	wasWritten, err := buffer.Write(ctx, v.Timestamp, v.Value, v.Unit,
 		v.Annotation, WriteOptions{SchemaDesc: schema})
-	require.NoError(t, err)
-	require.True(t, wasWritten)
-	ctx.Close()
+
+	if expectErr {
+		require.Error(t, err)
+	} else {
+		require.NoError(t, err)
+	}
+	require.Equal(t, expectWritten, wasWritten)
 }
 
 func TestBufferWriteTooFuture(t *testing.T) {
@@ -253,7 +274,7 @@ func testBufferWriteRead(t *testing.T, opts Options, setAnn setAnnotation) {
 	}
 
 	for _, v := range data {
-		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+		verifyWriteToBufferSuccess(t, buffer, v, nsCtx.Schema)
 	}
 
 	ctx := context.NewContext()
@@ -287,7 +308,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nil)
+		verifyWriteToBufferSuccess(t, buffer, v, nil)
 	}
 
 	ctx := context.NewContext()
@@ -333,7 +354,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		if v.Timestamp.After(curr) {
 			curr = v.Timestamp
 		}
-		verifyWriteToBuffer(t, buffer, v, nil)
+		verifyWriteToBufferSuccess(t, buffer, v, nil)
 	}
 
 	buckets, ok := buffer.bucketVersionsAt(start)
@@ -923,7 +944,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nil)
+		verifyWriteToBufferSuccess(t, buffer, v, nil)
 	}
 
 	var encoders []encoding.Encoder
@@ -1013,7 +1034,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 
 	for _, v := range data {
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nil)
+		verifyWriteToBufferSuccess(t, buffer, v, nil)
 	}
 
 	buckets, exists := buffer.bucketVersionsAt(start)
@@ -1195,7 +1216,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 	// Perform the writes.
 	for _, v := range data {
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+		verifyWriteToBufferSuccess(t, buffer, v, nsCtx.Schema)
 	}
 
 	// Verify internal state.
@@ -1295,7 +1316,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 	for _, v := range warmData {
 		// Set curr so that every write is a warm write.
 		curr = v.Timestamp
-		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+		verifyWriteToBufferSuccess(t, buffer, v, nsCtx.Schema)
 	}
 
 	// Also add cold writes to the buffer to verify that Snapshot will capture
@@ -1318,7 +1339,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 
 	// Perform cold writes.
 	for _, v := range coldData {
-		verifyWriteToBuffer(t, buffer, v, nsCtx.Schema)
+		verifyWriteToBufferSuccess(t, buffer, v, nsCtx.Schema)
 	}
 
 	// Verify internal state.
@@ -1794,4 +1815,131 @@ func TestBufferLoadColdWrite(t *testing.T) {
 	// Ensure bootstrapped blocks are loaded as cold writes.
 	coldFlushBlockStarts := buffer.ColdFlushBlockStarts(nil)
 	require.Equal(t, 1, coldFlushBlockStarts.Len())
+}
+
+func TestUpsertProto(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	var nsCtx namespace.Context
+
+	tests := []struct {
+		desc         string
+		writes       []writeAttempt
+		expectedData []DecodedTestValue
+	}{
+		{
+			desc: "Upsert proto",
+			writes: []writeAttempt{
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("two")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+			},
+			expectedData: []DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("two")},
+			},
+		},
+		{
+			desc: "Duplicate proto",
+			writes: []writeAttempt{
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+				{
+					data: DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					// Writes with the same value and the same annotation should
+					// not be written.
+					expectWritten: false,
+					expectErr:     false,
+				},
+			},
+			expectedData: []DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+			},
+		},
+		{
+			desc: "Two datapoints different proto",
+			writes: []writeAttempt{
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+				{
+					data:          DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+			},
+			expectedData: []DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
+			},
+		},
+		{
+			desc: "Two datapoints same proto",
+			writes: []writeAttempt{
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+				{
+					data:          DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+			},
+			expectedData: []DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				// This is special cased in the proto encoder. It has logic
+				// handling the case where two values are the same and writes
+				// that nothing has changed instead of re-encoding the blob
+				// again.
+				{curr.Add(time.Second), 0, xtime.Second, nil},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			buffer := newDatabaseBuffer().(*dbBuffer)
+			buffer.Reset(databaseBufferResetOptions{
+				ID:      ident.StringID("foo"),
+				Options: opts,
+			})
+
+			for _, write := range test.writes {
+				verifyWriteToBuffer(t, buffer, write.data, nsCtx.Schema,
+					write.expectWritten, write.expectErr)
+			}
+
+			ctx := context.NewContext()
+			defer ctx.Close()
+
+			results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+			assert.NoError(t, err)
+			assert.NotNil(t, results)
+
+			requireReaderValuesEqual(t, test.expectedData, results, opts, nsCtx)
+		})
+	}
+}
+
+type writeAttempt struct {
+	data          DecodedTestValue
+	expectWritten bool
+	expectErr     bool
 }
