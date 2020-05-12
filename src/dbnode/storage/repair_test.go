@@ -270,7 +270,8 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 
 		databaseShardRepairer := newShardRepairer(opts, rpOpts)
 		repairer := databaseShardRepairer.(shardRepairer)
-		repairer.recordFn = func(nsID ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
+		repairer.recordFn = func(origin topology.Host, nsID ident.ID, shard databaseShard,
+			diffRes repair.MetadataComparisonResult) {
 			resNamespace = nsID
 			resShard = shard
 			resDiff = diffRes
@@ -507,7 +508,8 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 
 	databaseShardRepairer := newShardRepairer(opts, rpOpts)
 	repairer := databaseShardRepairer.(shardRepairer)
-	repairer.recordFn = func(nsID ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
+	repairer.recordFn = func(origin topology.Host, nsID ident.ID, shard databaseShard,
+		diffRes repair.MetadataComparisonResult) {
 		resNamespace = nsID
 		resShard = shard
 		resDiff = diffRes
