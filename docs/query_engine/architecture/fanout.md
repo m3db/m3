@@ -6,4 +6,4 @@ Since m3query does not currently have a view into the M3DB index, fanout to mult
 
 The general approach is therefore to attempt to fanout to any namespace which has a complete view of all metrics, for example, `Unaggregated`, and take that if it fulfills the query range; if not, m3query will attempt to stitch together namespaces with longer retentions to try and build the most complete possible view of stored metrics.
 
-For further details, please ask questions on [our gitter](https://gitter.im/m3db/Lobby), and we'll be happy to help!
+For further details, please ask questions on [Slack](http://bit.ly/m3slack), and we'll be happy to help!

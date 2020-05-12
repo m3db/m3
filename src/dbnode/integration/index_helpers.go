@@ -24,6 +24,7 @@ package integration
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -140,7 +141,9 @@ func generateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime
 	return writes
 }
 
-func genIDTags(i int, j int, numTags int) (ident.ID, ident.TagIterator) {
+type genIDTagsOption func(ident.Tags) ident.Tags
+
+func genIDTags(i int, j int, numTags int, opts ...genIDTagsOption) (ident.ID, ident.TagIterator) {
 	id := fmt.Sprintf("foo.%d.%d", i, j)
 	tags := make([]ident.Tag, 0, numTags)
 	for i := 0; i < numTags; i++ {
@@ -150,9 +153,16 @@ func genIDTags(i int, j int, numTags int) (ident.ID, ident.TagIterator) {
 		))
 	}
 	tags = append(tags,
-		ident.StringTag("commoni", fmt.Sprintf("%d", i)),
+		ident.StringTag("common_i", strconv.Itoa(i)),
+		ident.StringTag("common_j", strconv.Itoa(j)),
 		ident.StringTag("shared", "shared"))
-	return ident.StringID(id), ident.NewTagsIterator(ident.NewTags(tags...))
+
+	result := ident.NewTags(tags...)
+	for _, fn := range opts {
+		result = fn(result)
+	}
+
+	return ident.StringID(id), ident.NewTagsIterator(result)
 }
 
 func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) bool {

@@ -1942,6 +1942,39 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
 }
 
+func (s *service) DebugIndexMemorySegments(
+	ctx thrift.Context,
+	req *rpc.DebugIndexMemorySegmentsRequest,
+) (
+	*rpc.DebugIndexMemorySegmentsResult_,
+	error,
+) {
+	db, err := s.startRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var multiErr xerrors.MultiError
+	for _, ns := range db.Namespaces() {
+		idx, err := ns.Index()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := idx.DebugMemorySegments(storage.DebugMemorySegmentsOptions{
+			OutputDirectory: req.Directory,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := multiErr.FinalError(); err != nil {
+		return nil, err
+	}
+
+	return &rpc.DebugIndexMemorySegmentsResult_{}, nil
+}
+
 func (s *service) SetDatabase(db storage.Database) error {
 	s.state.Lock()
 	defer s.state.Unlock()
