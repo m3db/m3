@@ -67,6 +67,7 @@ type Encoder struct {
 	lastEncodedDP   ts.Datapoint
 	customFields    []customFieldState
 	nonCustomFields []marshalledField
+	prevAnnotation  ts.Annotation
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -168,6 +169,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	enc.numEncoded++
 	enc.lastEncodedDP = dp
+	enc.prevAnnotation = protoBytes
 	enc.stats.IncUncompressedBytes(len(protoBytes))
 	return nil
 }
@@ -294,6 +296,16 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 	// but set it again to be safe.
 	enc.lastEncodedDP.Value = 0
 	return enc.lastEncodedDP, nil
+}
+
+// LastAnnotation returns the last encoded annotation (which contain the bytes
+// used for ProtoBuf data).
+func (enc *Encoder) LastAnnotation() (ts.Annotation, error) {
+	if enc.numEncoded == 0 {
+		return nil, errNoEncodedDatapoints
+	}
+
+	return enc.prevAnnotation, nil
 }
 
 // Len returns the length of the data stream.
