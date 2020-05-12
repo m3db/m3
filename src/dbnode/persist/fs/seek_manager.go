@@ -397,6 +397,7 @@ func (m *seekerManager) returnSeekerWithLock(seekers rotatableSeekers, seeker Co
 		if seekers.inactive.wg != nil {
 			// Signal completion regardless of any errors encountered while closing.
 			seekers.inactive.wg.Done()
+			seekers.inactive.wg = nil
 		}
 		return true, err
 	}
