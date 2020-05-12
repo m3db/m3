@@ -546,6 +546,10 @@ func (s *peersSource) flush(
 			//    we just peer-bootstrapped because the operator has already made it
 			//    clear that they only want data to be returned if it came from peers
 			//    (they made this decision by turning off the Filesystem bootstrapper).
+			// 3) We have received a shard/block we previously owned. For example, when a
+			//    node was added to this replication group and was later removed.
+			//    Although we take writes while bootstrapping, we do not allow flushes
+			//    so it is safe to delete on disk data.
 			DeleteIfExists: true,
 		}
 		prepared, err := flush.PrepareData(prepareOpts)
