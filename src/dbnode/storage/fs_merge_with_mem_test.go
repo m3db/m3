@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -170,7 +171,7 @@ func TestForEachRemaining(t *testing.T) {
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id1, xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
 		Return(fetchedBlocks, nil)
-	mergeWith.ForEachRemaining(ctx, 0, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
+	mergeWith.ForEachRemaining(ctx, 0, func(seriesID ident.ID, tags ident.Tags, result block.FetchBlockResult) error {
 		forEachCalls = append(forEachCalls, seriesID)
 		return nil
 	}, nsCtx)
@@ -196,7 +197,7 @@ func TestForEachRemaining(t *testing.T) {
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id4, xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
 		Return(fetchedBlocks, nil)
-	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
+	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesID ident.ID, tags ident.Tags, result block.FetchBlockResult) error {
 		forEachCalls = append(forEachCalls, seriesID)
 		return nil
 	}, nsCtx)
@@ -211,7 +212,7 @@ func TestForEachRemaining(t *testing.T) {
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id8, xtime.UnixNano(4).ToTime(), version+1, gomock.Any()).
 		Return(fetchedBlocks, nil)
-	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
+	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, result block.FetchBlockResult) error {
 		// This function won't be called with the above error.
 		return errors.New("unreachable")
 	}, nsCtx)
@@ -220,7 +221,7 @@ func TestForEachRemaining(t *testing.T) {
 	// Test call with bad function execution.
 	shard.EXPECT().
 		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, true, nil)
-	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error {
+	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, result block.FetchBlockResult) error {
 		return errors.New("bad")
 	}, nsCtx)
 	assert.Error(t, err)

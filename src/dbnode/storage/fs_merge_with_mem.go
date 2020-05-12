@@ -23,6 +23,7 @@ package storage
 import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -75,7 +76,8 @@ func (m *fsMergeWithMem) Read(
 	// it.
 	m.dirtySeriesToWrite[blockStart].Remove(element)
 
-	return m.fetchBlocks(ctx, element.Value, blockStart, nsCtx)
+	result, ok, err := m.fetchBlocks(ctx, element.Value, blockStart, nsCtx)
+	return result.Blocks, ok, err
 }
 
 func (m *fsMergeWithMem) fetchBlocks(
@@ -83,24 +85,24 @@ func (m *fsMergeWithMem) fetchBlocks(
 	id ident.ID,
 	blockStart xtime.UnixNano,
 	nsCtx namespace.Context,
-) ([]xio.BlockReader, bool, error) {
+) (block.FetchBlockResult, bool, error) {
 	startTime := blockStart.ToTime()
 	currVersion, err := m.retriever.RetrievableBlockColdVersion(startTime)
 	if err != nil {
-		return nil, false, err
+		return block.FetchBlockResult{}, false, err
 	}
 	nextVersion := currVersion + 1
 
-	blocks, err := m.shard.FetchBlocksForColdFlush(ctx, id, startTime, nextVersion, nsCtx)
+	result, err := m.shard.FetchBlocksForColdFlush(ctx, id, startTime, nextVersion, nsCtx)
 	if err != nil {
-		return nil, false, err
+		return block.FetchBlockResult{}, false, err
 	}
 
-	if len(blocks) > 0 {
-		return blocks, true, nil
+	if len(result.Blocks) > 0 {
+		return result, true, nil
 	}
 
-	return nil, false, nil
+	return block.FetchBlockResult{}, false, nil
 }
 
 // The data passed to ForEachRemaining (through the fs.ForEachRemainingFn) is

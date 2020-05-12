@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -253,13 +254,13 @@ func (m *merger) Merge(
 	ctx.Reset()
 	err = mergeWith.ForEachRemaining(
 		ctx, blockStart,
-		func(id ident.ID, tags ident.Tags, mergeWithData []xio.BlockReader) error {
+		func(id ident.ID, tags ident.Tags, mergeWithData block.FetchBlockResult) error {
 			segmentReaders = segmentReaders[:0]
-			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData)
+			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData.Blocks)
 			err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist)
 
 			if err == nil {
-				err = onFlush.OnFlushNewSeries(shard, startTime, id, tags)
+				err = onFlush.OnFlushNewSeries(shard, startTime, mergeWithData.FirstWriteAt, id, tags)
 			}
 
 			// Context is safe to close after persisting data to disk.

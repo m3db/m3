@@ -212,6 +212,7 @@ type OnFlushSeries interface {
 	OnFlushNewSeries(
 		shard uint32,
 		blockStart time.Time,
+		firstWriteAt time.Time,
 		id ident.ID,
 		tags ident.Tags,
 	) error
@@ -224,6 +225,7 @@ type NoOpColdFlushNamespace struct{}
 func (n *NoOpColdFlushNamespace) OnFlushNewSeries(
 	shard uint32,
 	blockStart time.Time,
+	firstWriteAt time.Time,
 	id ident.ID,
 	tags ident.Tags,
 ) error {

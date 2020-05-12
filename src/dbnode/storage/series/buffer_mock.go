@@ -122,10 +122,10 @@ func (mr *MockdatabaseBufferMockRecorder) ReadEncoded(ctx, start, end, nsCtx int
 }
 
 // FetchBlocksForColdFlush mocks base method
-func (m *MockdatabaseBuffer) FetchBlocksForColdFlush(ctx context.Context, start time.Time, version int, nsCtx namespace.Context) ([]xio.BlockReader, error) {
+func (m *MockdatabaseBuffer) FetchBlocksForColdFlush(ctx context.Context, start time.Time, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, start, version, nsCtx)
-	ret0, _ := ret[0].([]xio.BlockReader)
+	ret0, _ := ret[0].(block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

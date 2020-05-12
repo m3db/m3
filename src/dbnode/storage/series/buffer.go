@@ -112,7 +112,7 @@ type databaseBuffer interface {
 		start time.Time,
 		version int,
 		nsCtx namespace.Context,
-	) ([]xio.BlockReader, error)
+	) (block.FetchBlockResult, error)
 
 	FetchBlocks(
 		ctx context.Context,
@@ -682,27 +682,27 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 	start time.Time,
 	version int,
 	nsCtx namespace.Context,
-) ([]xio.BlockReader, error) {
+) (block.FetchBlockResult, error) {
 	res := b.fetchBlocks(ctx, []time.Time{start},
-		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx})
+		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx}, true)
 	if len(res) == 0 {
 		// The lifecycle of calling this function is preceded by first checking
 		// which blocks have cold data that have not yet been flushed.
 		// If we don't get data here, it means that it has since fallen out of
 		// retention and has been evicted.
-		return nil, nil
+		return block.FetchBlockResult{}, nil
 	}
 	if len(res) != 1 {
 		// Must be only one result if anything at all, since fetchBlocks returns
 		// one result per block start.
-		return nil, fmt.Errorf("fetchBlocks did not return just one block for block start %s", start)
+		return block.FetchBlockResult{}, fmt.Errorf("fetchBlocks did not return just one block for block start %s", start)
 	}
 
-	blocks := res[0].Blocks
+	result := res[0]
 
 	buckets, exists := b.bucketVersionsAt(start)
 	if !exists {
-		return nil, fmt.Errorf("buckets do not exist with block start %s", start)
+		return block.FetchBlockResult{}, fmt.Errorf("buckets do not exist with block start %s", start)
 	}
 	if bucket, exists := buckets.writableBucket(ColdWrite); exists {
 		// Update the version of the writable bucket (effectively making it not
@@ -719,17 +719,18 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 	// fail need to get cold flushed as well. These kinds of buckets will have
 	// a non-writable version.
 
-	return blocks, nil
+	return result, nil
 }
 
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time, nsCtx namespace.Context) []block.FetchBlockResult {
-	return b.fetchBlocks(ctx, starts, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
+	return b.fetchBlocks(ctx, starts, streamsOptions{filterWriteType: false, nsCtx: nsCtx}, false)
 }
 
 func (b *dbBuffer) fetchBlocks(
 	ctx context.Context,
 	starts []time.Time,
 	sOpts streamsOptions,
+	fetchFirstWriteAt bool,
 ) []block.FetchBlockResult {
 	var res []block.FetchBlockResult
 
@@ -740,7 +741,15 @@ func (b *dbBuffer) fetchBlocks(
 		}
 
 		if streams := buckets.streams(ctx, sOpts); len(streams) > 0 {
-			res = append(res, block.NewFetchBlockResult(start, streams, nil))
+			result := block.NewFetchBlockResult(
+				start,
+				streams,
+				nil,
+			)
+			if fetchFirstWriteAt {
+				result.FirstWriteAt = buckets.firstWriteAt(sOpts)
+			}
+			res = append(res, result)
 		}
 	}
 
@@ -966,6 +975,22 @@ func (b *BufferBucketVersions) streams(ctx context.Context, opts streamsOptions)
 	return res
 }
 
+func (b *BufferBucketVersions) firstWriteAt(opts streamsOptions) time.Time {
+	var res time.Time
+	for _, bucket := range b.buckets {
+		if !opts.filterWriteType || bucket.writeType == opts.writeType {
+			// Get the earliest valid first write time.
+			if res.IsZero() {
+				res = bucket.firstWriteAt
+			}
+			if bucket.firstWriteAt.Before(res) {
+				res = bucket.firstWriteAt
+			}
+		}
+	}
+	return res
+}
+
 func (b *BufferBucketVersions) streamsLen() int {
 	res := 0
 	for _, bucket := range b.buckets {
@@ -1102,6 +1127,7 @@ type BufferBucket struct {
 	loadedBlocks []block.DatabaseBlock
 	version      int
 	writeType    WriteType
+	firstWriteAt time.Time
 }
 
 type inOrderEncoder struct {
@@ -1128,6 +1154,7 @@ func (b *BufferBucket) resetTo(
 	// We would only ever create a bucket for it to be writable.
 	b.version = writableBucketVersion
 	b.writeType = writeType
+	b.firstWriteAt = time.Time{}
 }
 
 func (b *BufferBucket) reset() {
@@ -1176,13 +1203,20 @@ func (b *BufferBucket) write(
 		}
 	}
 
+	var err error
+	defer func() {
+		if err == nil && b.firstWriteAt.IsZero() {
+			b.firstWriteAt = timestamp
+		}
+	}()
+
 	// Upsert/last-write-wins semantics.
 	// NB(r): We push datapoints with the same timestamp but differing
 	// value into a new encoder later in the stack of in order encoders
 	// since an encoder is immutable.
 	// The encoders pushed later will surface their values first.
 	if idx != -1 {
-		err := b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
+		err = b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
 		return err == nil, err
 	}
 
@@ -1201,7 +1235,7 @@ func (b *BufferBucket) write(
 	})
 
 	idx = len(b.encoders) - 1
-	err := b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
+	err = b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
 	if err != nil {
 		encoder.Close()
 		b.encoders = b.encoders[:idx]
