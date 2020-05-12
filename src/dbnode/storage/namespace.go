@@ -507,6 +507,9 @@ func (n *dbNamespace) assignShardSet(
 		if br := n.blockRetriever; br != nil {
 			br.AssignShardSet(shardSet)
 		}
+		if mgr := n.namespaceReaderMgr; mgr != nil {
+			mgr.assignShardSet(shardSet)
+		}
 	}
 
 	n.Unlock()
