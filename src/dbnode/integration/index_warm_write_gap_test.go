@@ -37,10 +37,10 @@ import (
 )
 
 /*
- * This test runs the following situation, Now is 1p, data blockSize is 30m, index blockSize is 1h,
+ * This test runs the following situation, Now is 1p, data blockSize is 1h, index blockSize is 2h,
  * retention period 2h, buffer past 10mins, and buffer future 20mins. We write & index 50 metrics
- * between (12p, 12.20p). We then ensure that index writes within this warm write -> start of buffer
- * past gap are indexed:
+ * between (12p, 12.50p). We then ensure that index writes within this warm index start -> start of buffer
+ * past gap are indexed.
  *
  */
 func TestWarmIndexWriteGap(t *testing.T) {
@@ -52,8 +52,8 @@ func TestWarmIndexWriteGap(t *testing.T) {
 		numWrites       = 50
 		numTags         = 10
 		retentionPeriod = 2 * time.Hour
-		dataBlockSize   = 30 * time.Minute
-		indexBlockSize  = time.Hour
+		dataBlockSize   = time.Hour
+		indexBlockSize  = 2 * time.Hour
 		bufferFuture    = 20 * time.Minute
 		bufferPast      = 10 * time.Minute
 	)
@@ -69,7 +69,8 @@ func TestWarmIndexWriteGap(t *testing.T) {
 					SetBlockSize(dataBlockSize)).
 			SetIndexOptions(
 				namespace.NewIndexOptions().
-					SetBlockSize(indexBlockSize).SetEnabled(true)))
+					SetBlockSize(indexBlockSize).SetEnabled(true)).
+			SetColdWritesEnabled(true))
 	require.NoError(t, err)
 
 	testOpts := newTestOptions(t).
@@ -81,8 +82,8 @@ func TestWarmIndexWriteGap(t *testing.T) {
 
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
 	// Issue writes in the gap between warm index start and start of buffer past.
-	t1 := t0.Add(-indexBlockSize)
-	t2 := t0.Add(-dataBlockSize + bufferPast)
+	t1 := t0.Truncate(indexBlockSize)
+	t2 := t0.Truncate(dataBlockSize).Add(-bufferPast)
 	testSetup.setNowFn(t0)
 
 	writesPeriod0 := generateTestIndexWrite(0, numWrites, numTags, t1, t2)

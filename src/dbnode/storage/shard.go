@@ -1461,7 +1461,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	ctx := s.contextPool.Get()
 	// TODO(prateek): pool this type
 	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
-	warmIndexBlockStart := time.Now().Truncate(indexBlockSize)
+	warmIndexBlockStart := s.nowFn().Truncate(indexBlockSize)
 	indexBatch := index.NewWriteBatch(index.WriteBatchOptions{
 		InitialCapacity: numPendingIndexing,
 		IndexBlockSize:  indexBlockSize,
