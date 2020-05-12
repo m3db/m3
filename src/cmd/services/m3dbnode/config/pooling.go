@@ -90,7 +90,7 @@ var (
 		},
 		"tagDecoder": defaultPoolPolicy,
 		"context": poolPolicyDefault{
-			size:                65536,
+			size:                32768,
 			refillLowWaterMark:  0,
 			refillHighWaterMark: 0,
 		},
