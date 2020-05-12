@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
@@ -997,6 +998,18 @@ func NewMockDataFileSetSeekerManager(ctrl *gomock.Controller) *MockDataFileSetSe
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockDataFileSetSeekerManager) EXPECT() *MockDataFileSetSeekerManagerMockRecorder {
 	return m.recorder
+}
+
+// AssignShardSet mocks base method
+func (m *MockDataFileSetSeekerManager) AssignShardSet(arg0 sharding.ShardSet) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AssignShardSet", arg0)
+}
+
+// AssignShardSet indicates an expected call of AssignShardSet
+func (mr *MockDataFileSetSeekerManagerMockRecorder) AssignShardSet(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).AssignShardSet), arg0)
 }
 
 // Borrow mocks base method

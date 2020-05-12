@@ -24,8 +24,10 @@ import (
 	"sync"
 	"time"
 
+	shardTypes "github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -72,6 +74,8 @@ type databaseNamespaceReaderManager interface {
 
 	put(reader fs.DataFileSetReader) error
 
+	assignShardSet(shardSet sharding.ShardSet)
+
 	tick()
 
 	close()
@@ -105,6 +109,7 @@ type namespaceReaderManager struct {
 
 	closedReaders []cachedReader
 	openReaders   map[cachedOpenReaderKey]cachedReader
+	shardSet      sharding.ShardSet
 
 	metrics namespaceReaderManagerMetrics
 }
@@ -162,6 +167,7 @@ func newNamespaceReaderManager(
 		bytesPool:         opts.BytesPool(),
 		logger:            opts.InstrumentOptions().Logger(),
 		openReaders:       make(map[cachedOpenReaderKey]cachedReader),
+		shardSet:          sharding.NewEmptyShardSet(sharding.DefaultHashFn(1)),
 		metrics:           newNamespaceReaderManagerMetrics(namespaceScope),
 	}
 
@@ -197,6 +203,22 @@ func (m *namespaceReaderManager) filesetExistsAt(
 
 	return m.filesetExistsFn(m.fsOpts.FilePathPrefix(),
 		m.namespace.ID(), shard, blockStart, latestVolume)
+}
+
+func (m *namespaceReaderManager) assignShardSet(shardSet sharding.ShardSet) {
+	m.Lock()
+	defer m.Unlock()
+	m.shardSet = shardSet
+}
+
+func (m *namespaceReaderManager) isShardAvailableWithLock(shard uint32) bool {
+	shardState, err := m.shardSet.LookupStateByID(shard)
+	// NB(bodu): LookupStateByID returns ErrInvalidShardID when shard
+	// does not exist in the shard map which means the shard is not available.
+	if err != nil {
+		return false
+	}
+	return shardState == shardTypes.Available
 }
 
 type cachedReaderForKeyResult struct {
@@ -446,7 +468,11 @@ func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 	for key, elem := range m.openReaders {
 		// Mutate the for-loop copy in place before checking the threshold
 		elem.ticksSinceUsed++
-		if elem.ticksSinceUsed >= threshold {
+		if elem.ticksSinceUsed >= threshold ||
+			// Also check to see if shard is still available and remove cached readers for
+			// shards that are no longer available. This ensures cached readers are eventually
+			// consistent with shard state.
+			!m.isShardAvailableWithLock(key.shard) {
 			// Close before removing ref
 			if err := elem.reader.Close(); err != nil {
 				m.logger.Error("error closing reader from reader cache", zap.Error(err))
@@ -454,6 +480,7 @@ func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 			delete(m.openReaders, key)
 			continue
 		}
+
 		// Save the mutated copy back to the map
 		m.openReaders[key] = elem
 	}

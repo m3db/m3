@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -405,4 +407,129 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	// Make sure there are no goroutines still trying to write into the tickCh
 	// to prevent the test itself from interfering with the goroutine leak test
 	close(cleanupCh)
+}
+
+func TestSeekerManagerAssignShardSet(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
+
+	var (
+		ctrl   = gomock.NewController(t)
+		shards = []uint32{1}
+		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	)
+	defer ctrl.Finish()
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1))
+	require.NoError(t, err)
+	m.AssignShardSet(shardSet)
+
+	var (
+		wg                                      sync.WaitGroup
+		mockSeekerStatsLock                     sync.Mutex
+		numMockSeekerClosesByShardAndBlockStart = make(map[uint32]map[time.Time]int)
+	)
+	m.newOpenSeekerFn = func(
+		shard uint32,
+		blockStart time.Time,
+		volume int,
+	) (DataFileSetSeeker, error) {
+		// We expect `defaultTestingFetchConcurrency` number of calls to Close because we return this
+		// many numbers of clones and each clone will need to be closed.
+		wg.Add(defaultTestingFetchConcurrency)
+
+		mock := NewMockDataFileSetSeeker(ctrl)
+		// ConcurrentClone() will be called fetchConcurrency-1 times because the original can be used
+		// as one of the clones.
+		mock.EXPECT().ConcurrentClone().Times(defaultTestingFetchConcurrency-1).Return(mock, nil)
+		mock.EXPECT().Close().Times(defaultTestingFetchConcurrency).DoAndReturn(func() error {
+			mockSeekerStatsLock.Lock()
+			numMockSeekerClosesByBlockStart, ok := numMockSeekerClosesByShardAndBlockStart[shard]
+			if !ok {
+				numMockSeekerClosesByBlockStart = make(map[time.Time]int)
+				numMockSeekerClosesByShardAndBlockStart[shard] = numMockSeekerClosesByBlockStart
+			}
+			numMockSeekerClosesByBlockStart[blockStart]++
+			mockSeekerStatsLock.Unlock()
+			wg.Done()
+			return nil
+		})
+		mock.EXPECT().ConcurrentIDBloomFilter().Return(nil).AnyTimes()
+		return mock, nil
+	}
+	m.sleepFn = func(_ time.Duration) {
+		time.Sleep(time.Millisecond)
+	}
+
+	metadata := testNs1Metadata(t)
+	// Pick a start time thats within retention so the background loop doesn't close
+	// the seeker.
+	blockStart := time.Now().Truncate(metadata.Options().RetentionOptions().BlockSize())
+	require.NoError(t, m.Open(metadata))
+
+	for _, shard := range shards {
+		seeker, err := m.Borrow(shard, blockStart)
+		require.NoError(t, err)
+		require.NoError(t, m.Return(shard, blockStart, seeker))
+	}
+
+	// Ensure that UpdateOpenLease() updates the volumes.
+	for _, shard := range shards {
+		updateResult, err := m.UpdateOpenLease(block.LeaseDescriptor{
+			Namespace:  metadata.ID(),
+			Shard:      shard,
+			BlockStart: blockStart,
+		}, block.LeaseState{Volume: 1})
+		require.NoError(t, err)
+		require.Equal(t, block.UpdateOpenLease, updateResult)
+
+		byTime := m.seekersByTime(shard)
+		byTime.RLock()
+		byTime.RUnlock()
+	}
+
+	mockSeekerStatsLock.Lock()
+	for _, numMockSeekerClosesByBlockStart := range numMockSeekerClosesByShardAndBlockStart {
+		require.Equal(t, defaultTestingFetchConcurrency, numMockSeekerClosesByBlockStart[blockStart])
+	}
+	mockSeekerStatsLock.Unlock()
+
+	// Shards have moved off the node so we assign an empty shard set.
+	m.AssignShardSet(sharding.NewEmptyShardSet(sharding.DefaultHashFn(1)))
+	// Wait until the open/close loop has finished closing all the shards marked to be closed.
+	wg.Wait()
+
+	// Verify that shards are no longer available.
+	for _, shard := range shards {
+		ok, err := m.Test(nil, shard, blockStart)
+		require.NoError(t, err)
+		require.False(t, ok)
+		_, err = m.Borrow(shard, blockStart)
+		require.Equal(t, errShardNotAvailable, err)
+	}
+
+	// Verify that we see the expected # of closes per block start.
+	mockSeekerStatsLock.Lock()
+	for _, numMockSeekerClosesByBlockStart := range numMockSeekerClosesByShardAndBlockStart {
+		for start, numMockSeekerCloses := range numMockSeekerClosesByBlockStart {
+			if blockStart == start {
+				// NB(bodu): These get closed twice since they've been closed once already due to updating their block lease.
+				require.Equal(t, defaultTestingFetchConcurrency*2, numMockSeekerCloses)
+				continue
+			}
+			require.Equal(t, defaultTestingFetchConcurrency, numMockSeekerCloses)
+		}
+	}
+	mockSeekerStatsLock.Unlock()
+
+	// Shards have moved back to the node so we assign a populated shard set again.
+	m.AssignShardSet(shardSet)
+	// Ensure that we can (once again) borrow the shards.
+	for _, shard := range shards {
+		seeker, err := m.Borrow(shard, blockStart)
+		require.NoError(t, err)
+		require.NoError(t, m.Return(shard, blockStart, seeker))
+	}
+
+	require.NoError(t, m.Close())
 }

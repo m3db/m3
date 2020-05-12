@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -166,6 +167,12 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 	// this is fine, it just means that the Retriever could be closed while a
 	// call to CacheShardIndices is still outstanding.
 	return seekerMgr.CacheShardIndices(shards)
+}
+
+func (r *blockRetriever) AssignShardSet(shardSet sharding.ShardSet) {
+	if seekerMgr := r.seekerMgr; seekerMgr != nil {
+		seekerMgr.AssignShardSet(shardSet)
+	}
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
