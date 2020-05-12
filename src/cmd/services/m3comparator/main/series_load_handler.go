@@ -89,7 +89,30 @@ func (l *httpSeriesLoadHandler) getSeriesIterators(
 	defer l.RUnlock()
 
 	logger := l.iterOpts.iOpts.Logger()
-	seriesMap, found := l.nameIDSeriesMap[name]
+	var seriesMap idSeriesMap
+	found := false
+	if len(name) > 0 {
+		seriesMap, found = l.nameIDSeriesMap[name]
+	} else {
+		seriesMap = idSeriesMap{
+			series: make(map[string]parser.Series),
+			start:  time.Unix(1<<63-62135596801, 999999999),
+			end:    time.Unix(0, 0),
+		}
+		for _, series := range l.nameIDSeriesMap {
+			found = true
+			for k, v := range series.series {
+				seriesMap.series[k] = v
+			}
+			if series.start.Before(seriesMap.start) {
+				seriesMap.start = series.start
+			}
+			if series.end.After(seriesMap.end) {
+				seriesMap.end = series.end
+			}
+		}
+	}
+
 	if !found || len(seriesMap.series) == 0 {
 		return nil, nil
 	}
@@ -198,6 +221,7 @@ func (l *httpSeriesLoadHandler) serveHTTP(r *http.Request) error {
 
 	if r.Method == http.MethodDelete {
 		l.nameIDSeriesMap = make(map[string]idSeriesMap)
+		logger.Info("clearing all series")
 		return nil
 	}
 

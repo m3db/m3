@@ -203,25 +203,83 @@ func TestClearData(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 
-	handler := newSeriesLoadHandler(opts)
+	handler := newHTTPSeriesLoadHandler(opts)
 	handler.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 
-    iters, err := handler.getSeriesIterators("series_name")
+	iters, err := handler.getSeriesIterators("series_name")
 	require.NoError(t, err)
 	require.Equal(t, 1, len(iters.Iters()))
-    
-    // Call clear data
-    req, err = http.NewRequest(http.MethodDelete, "", nil)
+
+	// Call clear data
+	req, err = http.NewRequest(http.MethodDelete, "", nil)
 	require.NoError(t, err)
 
-    handler.ServeHTTP(recorder, req)
+	handler.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusOK, recorder.Code)
 
-    iters, err = handler.getSeriesIterators("series_name")
+	iters, err = handler.getSeriesIterators("series_name")
 	require.NoError(t, err)
 	require.Nil(t, iters)
+}
+
+const seriesStr2 = `
+[
+    {
+        "start": "2020-03-30T11:39:45Z",
+        "end": "2020-03-30T11:58:00Z",
+        "tags": [
+            ["__name__", "series_name"],
+            ["abc", "def"],
+            ["tag_a", "foo"]
+        ],
+        "datapoints": [
+            { "val": "7076", "ts": "2020-03-30T11:39:51.288Z" },
+            { "val": "7079", "ts": "2020-03-30T11:40:18.886Z" },
+            { "val": "7094", "ts": "2020-03-30T11:57:57.478Z" }
+        ]
+    },
+    {
+        "start": "2020-03-30T11:39:45Z",
+        "end": "2020-03-30T11:58:00Z",
+        "tags": [
+            ["__name__", "series_name2"],
+            ["abc", "def"],
+            ["tag_a", "foo"]
+        ],
+        "datapoints": [
+            { "val": "8076", "ts": "2020-03-30T11:39:51.288Z" },
+            { "val": "8094", "ts": "2020-03-30T11:57:57.478Z" }
+        ]
+    }
+]`
+
+func TestNoNameQuerying(t *testing.T) {
+	opts := iteratorOptions{
+		encoderPool:   encoderPool,
+		iteratorPools: iterPools,
+		tagOptions:    tagOptions,
+		iOpts:         iOpts,
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(seriesStr2))
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+
+	handler := newHTTPSeriesLoadHandler(opts)
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	iters, err := handler.getSeriesIterators("series_name")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(iters.Iters()))
+
+	iters, err = handler.getSeriesIterators("")
+	require.NoError(t, err)
+	require.Equal(t, 2, len(iters.Iters()))
 }
 
 func readTags(it encoding.SeriesIterator) parser.Tags {
