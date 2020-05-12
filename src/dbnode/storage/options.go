@@ -160,6 +160,7 @@ type options struct {
 	onColdFlush                    OnColdFlush
 	memoryTracker                  MemoryTracker
 	mmapReporter                   mmap.Reporter
+	doNotIndexWithFieldsMap        map[string]string
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -771,6 +772,16 @@ func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {
 
 func (o *options) MmapReporter() mmap.Reporter {
 	return o.mmapReporter
+}
+
+func (o *options) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
+	opts := *o
+	opts.doNotIndexWithFieldsMap = value
+	return &opts
+}
+
+func (o *options) DoNotIndexWithFieldsMap() map[string]string {
+	return o.doNotIndexWithFieldsMap
 }
 
 type noOpColdFlush struct{}

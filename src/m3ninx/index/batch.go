@@ -108,10 +108,10 @@ func (e *BatchPartialError) Error() string {
 	return b.String()
 }
 
-// FilterDuplicateIDErrors returns a new BatchPartialError (or nil), without
-// any DuplicateIDError(s).
-// NB(prateek): it mutates the order of errors in the original error to avoid
-// allocations.
+// FilterDuplicateIDErrors returns a new BatchPartialError (or nil), without any DuplicateIDError(s).
+// NB(prateek): it mutates the order of errors in the original error to avoid allocations.
+// NB(bodu): we return an `error` here since go does not evaluate `nil` errors correctly when
+// we return a custom type (*BatchPartialError) here and cast it to `error`.
 func (e *BatchPartialError) FilterDuplicateIDErrors() error {
 	// cheap to do the copy as it's just pointers for the slices
 	var (
