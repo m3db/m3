@@ -2189,6 +2189,20 @@ func (mr *MockNamespaceIndexMockRecorder) Flush(flush, shards interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockNamespaceIndex)(nil).Flush), flush, shards)
 }
 
+// DebugMemorySegments mocks base method
+func (m *MockNamespaceIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DebugMemorySegments", opts)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DebugMemorySegments indicates an expected call of DebugMemorySegments
+func (mr *MockNamespaceIndexMockRecorder) DebugMemorySegments(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugMemorySegments", reflect.TypeOf((*MockNamespaceIndex)(nil).DebugMemorySegments), opts)
+}
+
 // Close mocks base method
 func (m *MockNamespaceIndex) Close() error {
 	m.ctrl.T.Helper()
@@ -4173,6 +4187,34 @@ func (m *MockOptions) MmapReporter() mmap.Reporter {
 func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
+}
+
+// SetDoNotIndexWithFieldsMap mocks base method
+func (m *MockOptions) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetDoNotIndexWithFieldsMap", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetDoNotIndexWithFieldsMap indicates an expected call of SetDoNotIndexWithFieldsMap
+func (mr *MockOptionsMockRecorder) SetDoNotIndexWithFieldsMap(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).SetDoNotIndexWithFieldsMap), value)
+}
+
+// DoNotIndexWithFieldsMap mocks base method
+func (m *MockOptions) DoNotIndexWithFieldsMap() map[string]string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DoNotIndexWithFieldsMap")
+	ret0, _ := ret[0].(map[string]string)
+	return ret0
+}
+
+// DoNotIndexWithFieldsMap indicates an expected call of DoNotIndexWithFieldsMap
+func (mr *MockOptionsMockRecorder) DoNotIndexWithFieldsMap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).DoNotIndexWithFieldsMap))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface
