@@ -291,6 +291,7 @@ func (s *dbSeries) Write(
 ) (bool, WriteType, error) {
 	var writeType WriteType
 	s.Lock()
+	defer s.Unlock()
 	matchUniqueIndex := wOpts.MatchUniqueIndex
 	if matchUniqueIndex {
 		if s.uniqueIndex == 0 {
@@ -307,7 +308,6 @@ func (s *dbSeries) Write(
 	}
 
 	wasWritten, writeType, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
-	s.Unlock()
 	return wasWritten, writeType, err
 }
 

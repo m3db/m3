@@ -1510,20 +1510,17 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
 			entry.OnIndexPrepare()
 
-			// Don't insert cold writes into the index insert queue.
+			// Don't insert cold index writes into the index insert queue.
 			if s.coldWritesEnabled &&
 				writeType == series.ColdWrite &&
 				pendingIndex.timestamp.Before(warmIndexBlockStart) {
 				indexBlockStart := s.reverseIndex.BlockStartForWriteTime(pendingIndex.timestamp)
-				// NB(bodu): We finalize this entry w/o decrementing the entry ref count
-				// unless the entry is marked as having its ref count incremented.
-				// Entries in the shard insert queue are either of:
-				// - new entries
-				// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
+				// NB(bodu): We finalize this entry to record an index attempt. This means that
+				// we will not attempt to index this series for this time block again.
+				// entry.NeedsIndexUpdate(indexBlockStart) will evaluate falsy.
 				entry.OnIndexFinalize(indexBlockStart)
 				s.metrics.insertColdWriteSkipIndex.Inc(1)
 			} else {
-
 				id := entry.Series.ID()
 				tags := entry.Series.Tags().Values()
 
@@ -1549,6 +1546,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			entry.Series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment, block.nsCtx)
 		}
 
+		// Entries in the shard insert queue are either of:
+		// - new entries
+		// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
 		if releaseEntryRef {
 			entry.DecrementReaderWriterCount()
 		}

@@ -651,7 +651,7 @@ func (i *nsIndex) writeBatches(
 				return
 			}
 
-			if !ts.After(pastLimit) {
+			if ts.Before(pastLimit) {
 				// NB(bodu): We only mark entries as too far in the past if
 				// cold writes are not enabled.
 				if !i.coldWritesEnabled {
@@ -660,7 +660,7 @@ func (i *nsIndex) writeBatches(
 				}
 				// We allow index writes that are between mutable block start and
 				// start of buffer past to go through.
-				if !ts.After(warmBlockStart) {
+				if ts.Before(warmBlockStart) {
 					// NB(bodu): When we mark a index cold write with a <nil> error
 					// we are recording an indexing attempt for this series and will not
 					// attempt to index the series again. This is correct for cold index writes
