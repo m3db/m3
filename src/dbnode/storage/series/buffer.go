@@ -684,7 +684,7 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, error) {
 	res := b.fetchBlocks(ctx, []time.Time{start},
-		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx, fetchFirstWrite: true})
+		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx})
 	if len(res) == 0 {
 		// The lifecycle of calling this function is preceded by first checking
 		// which blocks have cold data that have not yet been flushed.
@@ -723,7 +723,7 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 }
 
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time, nsCtx namespace.Context) []block.FetchBlockResult {
-	return b.fetchBlocks(ctx, starts, streamsOptions{filterWriteType: false, nsCtx: nsCtx, fetchFirstWrite: false})
+	return b.fetchBlocks(ctx, starts, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
 }
 
 func (b *dbBuffer) fetchBlocks(
@@ -745,9 +745,7 @@ func (b *dbBuffer) fetchBlocks(
 				streams,
 				nil,
 			)
-			if sOpts.fetchFirstWrite {
-				result.FirstWrite = buckets.firstWrite(sOpts)
-			}
+			result.FirstWrite = buckets.firstWrite(sOpts)
 			res = append(res, result)
 		}
 	}
@@ -1117,7 +1115,6 @@ type streamsOptions struct {
 	filterWriteType bool
 	writeType       WriteType
 	nsCtx           namespace.Context
-	fetchFirstWrite bool
 }
 
 // BufferBucket is a specific version of a bucket of encoders, which is where
