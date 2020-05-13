@@ -1518,6 +1518,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 				// NB(bodu): We to mark this entry as indexed for `indexBlockStart`. This means that
 				// we will not attempt to index this series for this time block again.
 				entry.OnIndexSuccess(indexBlockStart)
+				// Finalize the entry since we are done w/ it at this point.
+				entry.OnIndexFinalize(indexBlockStart)
 				s.metrics.insertColdWriteSkipIndex.Inc(1)
 			} else {
 				id := entry.Series.ID()
