@@ -1728,7 +1728,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	reader, err := buffer.FetchBlocksForColdFlush(ctx, blockStart1, 4, nsCtx)
 	assert.NoError(t, err)
 	// Verify that we got the correct data and that version is correct set.
-	requireReaderValuesEqual(t, expected[blockStartNano1], [][]xio.BlockReader{reader}, opts, nsCtx)
+	requireReaderValuesEqual(t, expected[blockStartNano1], [][]xio.BlockReader{reader.Blocks}, opts, nsCtx)
 	assert.Equal(t, 4, buffer.bucketsMap[blockStartNano1].buckets[0].version)
 
 	// Try to fetch from block1 again, this should not be an error because we
@@ -1739,14 +1739,14 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 
 	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart3, 1, nsCtx)
 	assert.NoError(t, err)
-	requireReaderValuesEqual(t, expected[blockStartNano3], [][]xio.BlockReader{reader}, opts, nsCtx)
+	requireReaderValuesEqual(t, expected[blockStartNano3], [][]xio.BlockReader{reader.Blocks}, opts, nsCtx)
 	assert.Equal(t, 1, buffer.bucketsMap[blockStartNano3].buckets[0].version)
 
 	// Try to fetch from a block that only has warm buckets. It has no data
 	// but is not an error.
 	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
 	assert.NoError(t, err)
-	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{reader}, opts, nsCtx)
+	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{reader.Blocks}, opts, nsCtx)
 }
 
 // TestBufferLoadWarmWrite tests the Load method, ensuring that blocks are successfully loaded into
