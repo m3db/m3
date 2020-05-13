@@ -1056,17 +1056,17 @@ func (mr *MockDataFileSetSeekerManagerMockRecorder) Close() *gomock.Call {
 }
 
 // Open mocks base method
-func (m *MockDataFileSetSeekerManager) Open(arg0 namespace.Metadata) error {
+func (m *MockDataFileSetSeekerManager) Open(arg0 namespace.Metadata, arg1 sharding.ShardSet) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Open", arg0)
+	ret := m.ctrl.Call(m, "Open", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Open indicates an expected call of Open
-func (mr *MockDataFileSetSeekerManagerMockRecorder) Open(arg0 interface{}) *gomock.Call {
+func (mr *MockDataFileSetSeekerManagerMockRecorder) Open(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Open), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Open), arg0, arg1)
 }
 
 // Return mocks base method

@@ -52,7 +52,14 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	shards := []uint32{2, 5, 9, 478, 1023}
+	metadata := testNs1Metadata(t)
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	require.NoError(t, m.Open(metadata, shardSet))
 	byTimes := make(map[uint32]*seekersByTime)
 	var mu sync.Mutex
 	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
@@ -70,13 +77,13 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	}
 
 	// Assert seeksByShardIdx match expectations
-	shardSet := make(map[uint32]struct{}, len(shards))
+	shardSetMap := make(map[uint32]struct{}, len(shards))
 	for _, shard := range shards {
-		shardSet[shard] = struct{}{}
+		shardSetMap[shard] = struct{}{}
 	}
 
 	for shard, byTime := range m.seekersByShardIdx {
-		_, exists := shardSet[uint32(shard)]
+		_, exists := shardSetMap[uint32(shard)]
 		if !exists {
 			require.False(t, byTime.accessed)
 		} else {
@@ -84,6 +91,8 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 			require.Equal(t, int(shard), int(byTime.shard))
 		}
 	}
+
+	require.NoError(t, m.Close())
 }
 
 func TestSeekerManagerUpdateOpenLease(t *testing.T) {
@@ -127,14 +136,20 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 	}
 
 	metadata := testNs1Metadata(t)
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
 	// Pick a start time thats within retention so the background loop doesn't close
 	// the seeker.
 	blockStart := time.Now().Truncate(metadata.Options().RetentionOptions().BlockSize())
-	require.NoError(t, m.Open(metadata))
+	require.NoError(t, m.Open(metadata, shardSet))
 	for _, shard := range shards {
 		seeker, err := m.Borrow(shard, blockStart)
 		require.NoError(t, err)
-		byTime := m.seekersByTime(shard)
+		byTime, ok := m.seekersByTime(shard)
+		require.True(t, ok)
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
 		require.Equal(t, defaultTestingFetchConcurrency, len(seekers.active.seekers))
@@ -153,7 +168,8 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, block.UpdateOpenLease, updateResult)
 
-		byTime := m.seekersByTime(shard)
+		byTime, ok := m.seekersByTime(shard)
+		require.True(t, ok)
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
 		require.Equal(t, defaultTestingFetchConcurrency, len(seekers.active.seekers))
@@ -175,7 +191,8 @@ func TestSeekerManagerUpdateOpenLease(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, block.NoOpenLease, updateResult)
 
-		byTime := m.seekersByTime(shard)
+		byTime, ok := m.seekersByTime(shard)
+		require.True(t, ok)
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(blockStart)]
 		require.Equal(t, defaultTestingFetchConcurrency, len(seekers.active.seekers))
@@ -225,11 +242,17 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	}
 
 	metadata := testNs1Metadata(t)
-	require.NoError(t, m.Open(metadata))
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
+	require.NoError(t, m.Open(metadata, shardSet))
 	for _, shard := range shards {
 		seeker, err := m.Borrow(shard, time.Time{})
 		require.NoError(t, err)
-		byTime := m.seekersByTime(shard)
+		byTime, ok := m.seekersByTime(shard)
+		require.True(t, ok)
 		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
 		require.Equal(t, defaultTestingFetchConcurrency, len(seekers.active.seekers))
@@ -249,7 +272,14 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
+	metadata := testNs1Metadata(t)
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
+	require.NoError(t, m.Open(metadata, shardSet))
 	clockOpts := m.opts.ClockOptions()
 	now := clockOpts.NowFn()()
 	startNano := xtime.ToUnixNano(now)
@@ -306,10 +336,8 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 		tickCh <- struct{}{}
 	}
 
-	metadata := testNs1Metadata(t)
 	seekers := []ConcurrentDataFileSetSeeker{}
 
-	require.NoError(t, m.Open(metadata))
 	// Steps is a series of steps for the test. It is guaranteed that at least
 	// one (not exactly one!) tick of the openCloseLoop will occur between every step.
 	steps := []struct {
@@ -321,7 +349,10 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			step: func() {
 				m.RLock()
 				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
+					byTime, ok := m.seekersByTime(shard)
+					require.True(t, ok)
+
+					require.Equal(t, 1, len(byTime.seekers[startNano].active.seekers))
 				}
 				m.RUnlock()
 			},
@@ -352,7 +383,9 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			step: func() {
 				m.RLock()
 				for _, shard := range shards {
-					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].active.seekers))
+					byTime, ok := m.seekersByTime(shard)
+					require.True(t, ok)
+					require.Equal(t, 1, len(byTime.seekers[startNano].active.seekers))
 				}
 				m.RUnlock()
 			},
@@ -370,9 +403,10 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			step: func() {
 				m.RLock()
 				for _, shard := range shards {
-					byTime := m.seekersByTime(shard)
+					byTime, ok := m.seekersByTime(shard)
+					require.True(t, ok)
 					byTime.RLock()
-					_, ok := byTime.seekers[startNano]
+					_, ok = byTime.seekers[startNano]
 					byTime.RUnlock()
 					require.False(t, ok)
 				}
@@ -414,15 +448,10 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 
 	var (
 		ctrl   = gomock.NewController(t)
-		shards = []uint32{1}
+		shards = []uint32{1, 2}
 		m      = NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
 	)
 	defer ctrl.Finish()
-	shardSet, err := sharding.NewShardSet(
-		sharding.NewShards(shards, shard.Available),
-		sharding.DefaultHashFn(1))
-	require.NoError(t, err)
-	m.AssignShardSet(shardSet)
 
 	var (
 		wg                                      sync.WaitGroup
@@ -462,10 +491,15 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 	}
 
 	metadata := testNs1Metadata(t)
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
 	// Pick a start time thats within retention so the background loop doesn't close
 	// the seeker.
 	blockStart := time.Now().Truncate(metadata.Options().RetentionOptions().BlockSize())
-	require.NoError(t, m.Open(metadata))
+	require.NoError(t, m.Open(metadata, shardSet))
 
 	for _, shard := range shards {
 		seeker, err := m.Borrow(shard, blockStart)
@@ -483,7 +517,8 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, block.UpdateOpenLease, updateResult)
 
-		byTime := m.seekersByTime(shard)
+		byTime, ok := m.seekersByTime(shard)
+		require.True(t, ok)
 		byTime.RLock()
 		byTime.RUnlock()
 	}
@@ -502,10 +537,10 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 	// Verify that shards are no longer available.
 	for _, shard := range shards {
 		ok, err := m.Test(nil, shard, blockStart)
-		require.NoError(t, err)
+		require.Equal(t, errShardNotExists, err)
 		require.False(t, ok)
 		_, err = m.Borrow(shard, blockStart)
-		require.Equal(t, errShardNotAvailable, err)
+		require.Equal(t, errShardNotExists, err)
 	}
 
 	// Verify that we see the expected # of closes per block start.

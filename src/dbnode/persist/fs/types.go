@@ -240,7 +240,10 @@ type DataFileSetSeekerManager interface {
 	io.Closer
 
 	// Open opens the seekers for a given namespace.
-	Open(md namespace.Metadata) error
+	Open(
+		md namespace.Metadata,
+		shardSet sharding.ShardSet,
+	) error
 
 	// CacheShardIndices will pre-parse the indexes for given shards
 	// to improve times when seeking to a block.
@@ -268,7 +271,10 @@ type DataBlockRetriever interface {
 	block.DatabaseBlockRetriever
 
 	// Open the block retriever to retrieve from a namespace
-	Open(md namespace.Metadata) error
+	Open(
+		md namespace.Metadata,
+		shardSet sharding.ShardSet,
+	) error
 }
 
 // RetrievableDataBlockSegmentReader is a retrievable block reader

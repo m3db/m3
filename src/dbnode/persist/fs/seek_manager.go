@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	shardTypes "github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -55,9 +54,10 @@ var (
 	errCantCloseSeekerManagerWhileSeekersAreBorrowed = errors.New("cant close seeker manager while seekers are borrowed")
 	errReturnedUnmanagedSeeker                       = errors.New("cant return a seeker not managed by the seeker manager")
 	errUpdateOpenLeaseSeekerManagerNotOpen           = errors.New("cant update open lease because seeker manager is not open")
+	errCacheShardIndicesSeekerManagerNotOpen         = errors.New("cant cache shard indices because seeker manager is not open")
 	errConcurrentUpdateOpenLeaseNotAllowed           = errors.New("concurrent open lease updates are not allowed")
 	errOutOfOrderUpdateOpenLease                     = errors.New("received update open lease volumes out of order")
-	errShardNotAvailable                             = errors.New("shard not available")
+	errShardNotExists                                = errors.New("shard not exists")
 )
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
@@ -199,7 +199,6 @@ func NewSeekerManager(
 		bytesPool:                   bytesPool,
 		filePathPrefix:              opts.FilePathPrefix(),
 		opts:                        opts,
-		shardSet:                    sharding.NewEmptyShardSet(sharding.DefaultHashFn(1)),
 		blockRetrieverOpts:          blockRetrieverOpts,
 		fetchConcurrency:            blockRetrieverOpts.FetchConcurrency(),
 		cacheShardIndicesWorkers:    cacheShardIndicesWorkers,
@@ -218,6 +217,7 @@ func NewSeekerManager(
 // through the seekers.
 func (m *seekerManager) Open(
 	nsMetadata namespace.Metadata,
+	shardSet sharding.ShardSet,
 ) error {
 	m.Lock()
 	if m.status != seekerManagerNotOpen {
@@ -227,6 +227,7 @@ func (m *seekerManager) Open(
 
 	m.namespace = nsMetadata.ID()
 	m.namespaceMetadata = nsMetadata
+	m.shardSet = shardSet
 	m.status = seekerManagerOpen
 	go m.openCloseLoop()
 	m.Unlock()
@@ -242,13 +243,23 @@ func (m *seekerManager) Open(
 }
 
 func (m *seekerManager) CacheShardIndices(shards []uint32) error {
+	m.RLock()
+	if m.status == seekerManagerNotOpen {
+		m.RUnlock()
+		return errCacheShardIndicesSeekerManagerNotOpen
+	}
+	m.RUnlock()
+
 	var (
 		multiErr    = xerrors.NewMultiError()
 		resultsLock sync.Mutex
 		wg          sync.WaitGroup
 	)
 	for _, shard := range shards {
-		byTime := m.seekersByTime(shard)
+		byTime, ok := m.seekersByTime(shard)
+		if !ok {
+			multiErr = multiErr.Add(errShardNotExists)
+		}
 
 		byTime.Lock()
 		// Track accessed to precache in open/close loop
@@ -277,12 +288,11 @@ func (m *seekerManager) AssignShardSet(shardSet sharding.ShardSet) {
 }
 
 func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, error) {
-	if !m.isShardAvailable(shard) {
-		return false, nil
-	}
-
 	startNano := xtime.ToUnixNano(start)
-	byTime := m.seekersByTime(shard)
+	byTime, ok := m.seekersByTime(shard)
+	if !ok {
+		return false, errShardNotExists
+	}
 
 	// Try fast RLock() first.
 	byTime.RLock()
@@ -314,11 +324,10 @@ func (m *seekerManager) Test(id ident.ID, shard uint32, start time.Time) (bool, 
 // Borrow returns a "borrowed" seeker which the caller has exclusive access to
 // until it's returned later.
 func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error) {
-	if !m.isShardAvailable(shard) {
-		return nil, errShardNotAvailable
+	byTime, ok := m.seekersByTime(shard)
+	if !ok {
+		return nil, errShardNotExists
 	}
-
-	byTime := m.seekersByTime(shard)
 
 	byTime.Lock()
 	defer byTime.Unlock()
@@ -352,24 +361,19 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFil
 	return availableSeeker.seeker, nil
 }
 
-func (m *seekerManager) isShardAvailable(shard uint32) bool {
-	m.RLock()
-	defer m.RUnlock()
-	return m.isShardAvailableWithLock(shard)
-}
-
-func (m *seekerManager) isShardAvailableWithLock(shard uint32) bool {
-	shardState, err := m.shardSet.LookupStateByID(shard)
+func (m *seekerManager) shardExistsWithLock(shard uint32) bool {
+	_, err := m.shardSet.LookupStateByID(shard)
 	// NB(bodu): LookupStateByID returns ErrInvalidShardID when shard
 	// does not exist in the shard map which means the shard is not available.
-	if err != nil {
-		return false
-	}
-	return shardState == shardTypes.Available
+	return err != sharding.ErrInvalidShardID
 }
 
 func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error {
-	byTime := m.seekersByTime(shard)
+	byTime, ok := m.seekersByTime(shard)
+	if !ok {
+		return errShardNotExists
+	}
+
 	byTime.Lock()
 	defer byTime.Unlock()
 
@@ -530,8 +534,12 @@ func (m *seekerManager) updateOpenLeaseHotSwapSeekers(
 		return nil, 0, err
 	}
 
+	byTime, ok := m.seekersByTime(descriptor.Shard)
+	if !ok {
+		return nil, 0, errShardNotExists
+	}
+
 	var (
-		byTime                = m.seekersByTime(descriptor.Shard)
 		blockStartNano        = xtime.ToUnixNano(descriptor.BlockStart)
 		updateOpenLeaseResult = block.NoOpenLease
 	)
@@ -807,14 +815,18 @@ func (m *seekerManager) newOpenSeeker(
 	return seeker, nil
 }
 
-func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
+func (m *seekerManager) seekersByTime(shard uint32) (*seekersByTime, bool) {
 	m.RLock()
+	if !m.shardExistsWithLock(shard) {
+		m.RUnlock()
+		return nil, false
+	}
+
 	if int(shard) < len(m.seekersByShardIdx) {
 		byTime := m.seekersByShardIdx[shard]
 		m.RUnlock()
-		return byTime
+		return byTime, true
 	}
-
 	m.RUnlock()
 
 	m.Lock()
@@ -823,7 +835,7 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 	// Check if raced with another call to this method
 	if int(shard) < len(m.seekersByShardIdx) {
 		byTime := m.seekersByShardIdx[shard]
-		return byTime
+		return byTime, true
 	}
 
 	seekersByShardIdx := make([]*seekersByTime, shard+1)
@@ -838,7 +850,7 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 	m.seekersByShardIdx = seekersByShardIdx
 	byTime := m.seekersByShardIdx[shard]
 
-	return byTime
+	return byTime, true
 }
 
 func (m *seekerManager) Close() error {
@@ -960,7 +972,7 @@ func (m *seekerManager) openCloseLoop() {
 				if blockStart.Before(earliestSeekableBlockStart) ||
 					// Close seekers for shards that are no longer available. This
 					// ensure that seekers are eventually consistent w/ shard state.
-					!m.isShardAvailableWithLock(uint32(shard)) {
+					!m.shardExistsWithLock(uint32(shard)) {
 					shouldClose = append(shouldClose, seekerManagerPendingClose{
 						shard:      uint32(shard),
 						blockStart: blockStart,

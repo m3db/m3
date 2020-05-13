@@ -958,18 +958,18 @@ func (m *MockDatabaseBlockRetrieverManager) EXPECT() *MockDatabaseBlockRetriever
 }
 
 // Retriever mocks base method
-func (m *MockDatabaseBlockRetrieverManager) Retriever(nsMetadata namespace.Metadata) (DatabaseBlockRetriever, error) {
+func (m *MockDatabaseBlockRetrieverManager) Retriever(nsMetadata namespace.Metadata, shardSet sharding.ShardSet) (DatabaseBlockRetriever, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Retriever", nsMetadata)
+	ret := m.ctrl.Call(m, "Retriever", nsMetadata, shardSet)
 	ret0, _ := ret[0].(DatabaseBlockRetriever)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Retriever indicates an expected call of Retriever
-func (mr *MockDatabaseBlockRetrieverManagerMockRecorder) Retriever(nsMetadata interface{}) *gomock.Call {
+func (mr *MockDatabaseBlockRetrieverManagerMockRecorder) Retriever(nsMetadata, shardSet interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Retriever", reflect.TypeOf((*MockDatabaseBlockRetrieverManager)(nil).Retriever), nsMetadata)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Retriever", reflect.TypeOf((*MockDatabaseBlockRetrieverManager)(nil).Retriever), nsMetadata, shardSet)
 }
 
 // MockDatabaseShardBlockRetrieverManager is a mock of DatabaseShardBlockRetrieverManager interface

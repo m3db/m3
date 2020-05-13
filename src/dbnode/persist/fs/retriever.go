@@ -126,7 +126,10 @@ func NewBlockRetriever(
 	}, nil
 }
 
-func (r *blockRetriever) Open(ns namespace.Metadata) error {
+func (r *blockRetriever) Open(
+	ns namespace.Metadata,
+	shardSet sharding.ShardSet,
+) error {
 	r.Lock()
 	defer r.Unlock()
 
@@ -135,7 +138,7 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 	}
 
 	seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts, r.opts)
-	if err := seekerMgr.Open(ns); err != nil {
+	if err := seekerMgr.Open(ns, shardSet); err != nil {
 		return err
 	}
 
@@ -170,9 +173,14 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 }
 
 func (r *blockRetriever) AssignShardSet(shardSet sharding.ShardSet) {
-	if seekerMgr := r.seekerMgr; seekerMgr != nil {
-		seekerMgr.AssignShardSet(shardSet)
+	// NB(bodu): Block retriever will always be open before calling this method.
+	// But have this check anyways to be safe.
+	r.RLock()
+	defer r.RUnlock()
+	if r.status != blockRetrieverOpen {
+		return
 	}
+	r.seekerMgr.AssignShardSet(shardSet)
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {

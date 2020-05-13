@@ -24,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	shardTypes "github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -211,14 +210,11 @@ func (m *namespaceReaderManager) assignShardSet(shardSet sharding.ShardSet) {
 	m.shardSet = shardSet
 }
 
-func (m *namespaceReaderManager) isShardAvailableWithLock(shard uint32) bool {
-	shardState, err := m.shardSet.LookupStateByID(shard)
+func (m *namespaceReaderManager) shardExistsWithLock(shard uint32) bool {
+	_, err := m.shardSet.LookupStateByID(shard)
 	// NB(bodu): LookupStateByID returns ErrInvalidShardID when shard
 	// does not exist in the shard map which means the shard is not available.
-	if err != nil {
-		return false
-	}
-	return shardState == shardTypes.Available
+	return err != sharding.ErrInvalidShardID
 }
 
 type cachedReaderForKeyResult struct {
@@ -472,7 +468,7 @@ func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 			// Also check to see if shard is still available and remove cached readers for
 			// shards that are no longer available. This ensures cached readers are eventually
 			// consistent with shard state.
-			!m.isShardAvailableWithLock(key.shard) {
+			!m.shardExistsWithLock(key.shard) {
 			// Close before removing ref
 			if err := elem.reader.Close(); err != nil {
 				m.logger.Error("error closing reader from reader cache", zap.Error(err))

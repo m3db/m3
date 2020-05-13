@@ -302,7 +302,10 @@ type DatabaseShardBlockRetriever interface {
 // for different namespaces.
 type DatabaseBlockRetrieverManager interface {
 	// Retriever provides the DatabaseBlockRetriever for the given namespace.
-	Retriever(nsMetadata namespace.Metadata) (DatabaseBlockRetriever, error)
+	Retriever(
+		nsMetadata namespace.Metadata,
+		shardSet sharding.ShardSet,
+	) (DatabaseBlockRetriever, error)
 }
 
 // DatabaseShardBlockRetrieverManager creates and holds shard block

@@ -2137,15 +2137,10 @@ func (s *dbShard) loadBlock(
 }
 
 func (s *dbShard) cacheShardIndices() error {
-	retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
+	retriever := s.DatabaseBlockRetriever
 	// May be nil depending on the caching policy.
-	if retrieverMgr == nil {
+	if retriever == nil {
 		return nil
-	}
-
-	retriever, err := retrieverMgr.Retriever(s.namespace)
-	if err != nil {
-		return err
 	}
 
 	s.logger.Debug("caching shard indices", zap.Uint32("shard", s.ID()))

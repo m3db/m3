@@ -364,7 +364,10 @@ func newDatabaseNamespace(
 			metadata.ID().String(), err)
 	}
 	n.schemaListener = sl
-	n.assignShardSet(shardSet, nopts.BootstrapEnabled(), true)
+	n.assignShardSet(shardSet, assignShardSetOptions{
+		needsBootstrap:    nopts.BootstrapEnabled(),
+		initialAssignment: true,
+	})
 	go n.reportStatusLoop(opts.InstrumentOptions().ReportInterval())
 
 	return n, nil
@@ -457,13 +460,20 @@ func (n *dbNamespace) Shards() []Shard {
 }
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
-	n.assignShardSet(shardSet, n.nopts.BootstrapEnabled(), false)
+	n.assignShardSet(shardSet, assignShardSetOptions{
+		needsBootstrap:    n.nopts.BootstrapEnabled(),
+		initialAssignment: false,
+	})
+}
+
+type assignShardSetOptions struct {
+	needsBootstrap    bool
+	initialAssignment bool
 }
 
 func (n *dbNamespace) assignShardSet(
 	shardSet sharding.ShardSet,
-	needsBootstrap bool,
-	initialAssignment bool,
+	opts assignShardSetOptions,
 ) {
 	var (
 		incoming = make(map[uint32]struct{}, len(shardSet.All()))
@@ -490,31 +500,31 @@ func (n *dbNamespace) assignShardSet(
 	for _, shard := range n.shardSet.AllIDs() {
 		// We create shards if its an initial assignment or if its not an initial assignment
 		// and the shard doesn't already exist.
-		if initialAssignment ||
-			(int(shard) >= len(existing) || existing[shard] == nil) {
-			n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
-				needsBootstrap, n.opts, n.seriesOpts)
-			// NB(bodu): We only record shard add metrics for shards created in non
-			// initial assignments.
-			if !initialAssignment {
-				n.metrics.shards.add.Inc(1)
-			}
-		} else {
+		if !opts.initialAssignment && int(shard) < len(existing) && existing[shard] != nil {
 			n.shards[shard] = existing[shard]
+			continue
+		}
+
+		// Otherwise it's the initial assignment or there isn't an existing
+		// shard created for this shard ID.
+		n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
+			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
+			opts.needsBootstrap, n.opts, n.seriesOpts)
+		// NB(bodu): We only record shard add metrics for shards created in non
+		// initial assignments.
+		if !opts.initialAssignment {
+			n.metrics.shards.add.Inc(1)
 		}
 	}
 
-	if !initialAssignment {
-		if idx := n.reverseIndex; idx != nil {
-			idx.AssignShardSet(shardSet)
-		}
-		if br := n.blockRetriever; br != nil {
-			br.AssignShardSet(shardSet)
-		}
-		if mgr := n.namespaceReaderMgr; mgr != nil {
-			mgr.assignShardSet(shardSet)
-		}
+	if idx := n.reverseIndex; idx != nil {
+		idx.AssignShardSet(shardSet)
+	}
+	if br := n.blockRetriever; br != nil {
+		br.AssignShardSet(shardSet)
+	}
+	if mgr := n.namespaceReaderMgr; mgr != nil {
+		mgr.assignShardSet(shardSet)
 	}
 
 	n.Unlock()
@@ -1319,7 +1329,10 @@ func (n *dbNamespace) Truncate() (int64, error) {
 	// namespace, which means the memory will be reclaimed the next time GC kicks in and returns the
 	// reclaimed memory to the OS. In the future, we might investigate whether it's worth returning
 	// the pooled objects to the pools if the pool is low and needs replenishing.
-	n.assignShardSet(n.shardSet, false, true)
+	n.assignShardSet(n.shardSet, assignShardSetOptions{
+		needsBootstrap:    false,
+		initialAssignment: true,
+	})
 
 	// NB(xichen): possibly also clean up disk files and force a GC here to reclaim memory immediately
 	return totalNumSeries, nil

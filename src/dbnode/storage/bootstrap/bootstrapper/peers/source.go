@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
@@ -240,7 +241,8 @@ func (s *peersSource) readData(
 
 		s.log.Info("peers bootstrapper resolving block retriever", zap.Stringer("namespace", namespace))
 
-		r, err := retrieverMgr.Retriever(nsMetadata)
+		// TODO(bodu): Discuss right approach here.
+		r, err := retrieverMgr.Retriever(nsMetadata, sharding.NewEmptyShardSet(sharding.DefaultHashFn(1)))
 		if err != nil {
 			return nil, err
 		}
