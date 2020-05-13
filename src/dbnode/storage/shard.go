@@ -183,6 +183,7 @@ type dbShard struct {
 	metrics                  dbShardMetrics
 	ticking                  bool
 	shard                    uint32
+	coldWritesEnabled        bool
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -206,6 +207,7 @@ type dbShardMetrics struct {
 	insertAsyncWriteInternalErrors      tally.Counter
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
+	insertColdWriteSkipIndex            tally.Counter
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
@@ -234,6 +236,7 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"error_type":    "reverse-index",
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
+		insertColdWriteSkipIndex: scope.Counter("insert-cold-write-skip-index"),
 	}
 }
 
@@ -293,6 +296,7 @@ func newDatabaseShard(
 		contextPool:          opts.ContextPool(),
 		flushState:           newShardFlushState(),
 		tickWg:               &sync.WaitGroup{},
+		coldWritesEnabled:    namespaceMetadata.Options().ColdWritesEnabled(),
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
 	}
@@ -921,7 +925,7 @@ func (s *dbShard) writeAndIndex(
 		// Perform write. No need to copy the annotation here because we're using it
 		// synchronously and all downstream code will copy anthing they need to maintain
 		// a reference to.
-		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wOpts)
+		wasWritten, _, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wOpts)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
@@ -1457,6 +1461,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	ctx := s.contextPool.Get()
 	// TODO(prateek): pool this type
 	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
+	warmIndexBlockStart := s.nowFn().Truncate(indexBlockSize)
 	indexBatch := index.NewWriteBatch(index.WriteBatchOptions{
 		InitialCapacity: numPendingIndexing,
 		IndexBlockSize:  indexBlockSize,
@@ -1465,6 +1470,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		var (
 			entry           = inserts[i].entry
 			releaseEntryRef = inserts[i].opts.entryRefCountIncremented
+			writeType       series.WriteType
+			err             error
 		)
 
 		if inserts[i].opts.hasPendingWrite {
@@ -1477,7 +1484,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// operation and there is nothing further to do with this value.
 			// TODO: Consider propagating the `wasWritten` argument back to the caller
 			// using waitgroup (or otherwise) in the future.
-			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
+			_, writeType, err = entry.Series.Write(ctx, write.timestamp, write.value,
 				write.unit, annotationBytes, write.opts)
 			if err != nil {
 				if xerrors.IsInvalidParams(err) {
@@ -1503,23 +1510,36 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
 			entry.OnIndexPrepare()
 
-			id := entry.Series.ID()
-			tags := entry.Series.Tags().Values()
+			// Don't insert cold index writes into the index insert queue.
+			if s.coldWritesEnabled &&
+				writeType == series.ColdWrite &&
+				pendingIndex.timestamp.Before(warmIndexBlockStart) {
+				indexBlockStart := s.reverseIndex.BlockStartForWriteTime(pendingIndex.timestamp)
+				// NB(bodu): We to mark this entry as indexed for `indexBlockStart`. This means that
+				// we will not attempt to index this series for this time block again.
+				entry.OnIndexSuccess(indexBlockStart)
+				// Finalize the entry since we are done w/ it at this point.
+				entry.OnIndexFinalize(indexBlockStart)
+				s.metrics.insertColdWriteSkipIndex.Inc(1)
+			} else {
+				id := entry.Series.ID()
+				tags := entry.Series.Tags().Values()
 
-			var d doc.Document
-			d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
-			d.Fields = make(doc.Fields, 0, len(tags))
-			for _, tag := range tags {
-				d.Fields = append(d.Fields, doc.Field{
-					Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
-					Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
-				})
+				var d doc.Document
+				d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
+				d.Fields = make(doc.Fields, 0, len(tags))
+				for _, tag := range tags {
+					d.Fields = append(d.Fields, doc.Field{
+						Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
+						Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
+					})
+				}
+				indexBatch.Append(index.WriteBatchEntry{
+					Timestamp:     pendingIndex.timestamp,
+					OnIndexSeries: entry,
+					EnqueuedAt:    pendingIndex.enqueuedAt,
+				}, d)
 			}
-			indexBatch.Append(index.WriteBatchEntry{
-				Timestamp:     pendingIndex.timestamp,
-				OnIndexSeries: entry,
-				EnqueuedAt:    pendingIndex.enqueuedAt,
-			}, d)
 		}
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
@@ -1527,6 +1547,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			entry.Series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment, block.nsCtx)
 		}
 
+		// Entries in the shard insert queue are either of:
+		// - new entries
+		// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
 		if releaseEntryRef {
 			entry.DecrementReaderWriterCount()
 		}
