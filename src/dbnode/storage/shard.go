@@ -1515,10 +1515,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 				writeType == series.ColdWrite &&
 				pendingIndex.timestamp.Before(warmIndexBlockStart) {
 				indexBlockStart := s.reverseIndex.BlockStartForWriteTime(pendingIndex.timestamp)
-				// NB(bodu): We finalize this entry to record an index attempt. This means that
+				// NB(bodu): We to mark this entry as indexed for `indexBlockStart`. This means that
 				// we will not attempt to index this series for this time block again.
-				// entry.NeedsIndexUpdate(indexBlockStart) will evaluate falsy.
-				entry.OnIndexFinalize(indexBlockStart)
+				entry.OnIndexSuccess(indexBlockStart)
 				s.metrics.insertColdWriteSkipIndex.Inc(1)
 			} else {
 				id := entry.Series.ID()
