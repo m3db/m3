@@ -60,7 +60,8 @@ type recordFn func(
 	origin topology.Host,
 	namespace ident.ID,
 	shard databaseShard,
-	diffRes repair.MetadataComparisonResult)
+	diffRes repair.MetadataComparisonResult,
+)
 
 // TODO(rartoul): See if we can find a way to guard against too much metadata.
 type shardRepairer struct {
@@ -211,7 +212,7 @@ func (r shardRepairer) Repair(
 	)
 
 	// Shard repair can fail due to transient network errors due to the significant amount of data fetched from peers.
-	// So collect and emit metadata comparision metrics before fetching blocks from peer to repair.
+	// So collect and emit metadata comparison metrics before fetching blocks from peer to repair.
 	r.recordFn(origin, nsCtx.ID, shard, metadataRes)
 
 	originID := origin.ID()
@@ -282,7 +283,7 @@ func (r shardRepairer) Repair(
 		session := sessions[i].session
 		perSeriesReplicaIter, err := session.FetchBlocksFromPeers(nsMeta, shard.ID(), level, metadatasToFetchBlocksFor, rsOpts)
 		if err != nil {
-			return metadataRes, err
+			return repair.MetadataComparisonResult{}, err
 		}
 
 		for perSeriesReplicaIter.Next() {
@@ -290,7 +291,7 @@ func (r shardRepairer) Repair(
 			// TODO(rartoul): Handle tags in both branches: https://github.com/m3db/m3/issues/1848
 			if existing, ok := results.BlockAt(id, block.StartTime()); ok {
 				if err := existing.Merge(block); err != nil {
-					return metadataRes, err
+					return repair.MetadataComparisonResult{}, err
 				}
 			} else {
 				results.AddBlock(id, ident.Tags{}, block)
@@ -299,7 +300,7 @@ func (r shardRepairer) Repair(
 	}
 
 	if err := r.loadDataIntoShard(shard, results); err != nil {
-		return metadataRes, err
+		return repair.MetadataComparisonResult{}, err
 	}
 
 	return metadataRes, nil
@@ -396,31 +397,35 @@ func (r shardRepairer) recordDifferences(
 // computeMaximumBlockSizeDifferenceAsPercentage returns a metric which represents maximum divergence of a shard with
 // any of its peers. A positive divergence means that origin shard has more data than its peer and a negative
 // divergence means that origin shard has lesser data than its peer.  Since sizes for all the blocks in rentention
-// window are not redily available, exact divergence of a shard from its peer cannot be calculated. So this method
+// window are not readily available, exact divergence of a shard from its peer cannot be calculated. So this method
 // settles for returning maximum divergence of a block/shard with any of its peers. Divergence(as percentage) of shard
 // is upper bounded by divergence of block/shard so this metric can be used to monitor severity of divergence.
 func (r shardRepairer) computeMaximumBlockSizeDifference(
 	origin topology.Host,
 	diffRes repair.MetadataComparisonResult,
 ) (int64, float64) {
-	var maxBlockSizeDiffAsRatio float64 = 0
-	var maxBlockSizeDiff int64 = 0
+	var (
+		maxBlockSizeDiffAsRatio float64
+		maxBlockSizeDiff        int64
+	)
 	// Iterate over all the series which differ in size between origin and a peer.
 	for _, entry := range diffRes.SizeDifferences.Series().Iter() {
 		series := entry.Value()
 		replicaBlocksMetadata := diffRes.SizeDifferences.GetOrAdd(series.ID)
 		// Iterate over all the time ranges which had a mismatched series between origin and a peer.
 		for _, replicasMetadata := range replicaBlocksMetadata.Blocks() {
-			// Setting minimum origin block size to 1 so that percetages off of origin block size can be calculated
-			// without worrying about divide by zero errors. Exact percentages are not required so setting a non-zero
-			// size for an empty block is acceptable.
-			var originBlockSize int64 = 1
-			// Represents maximum size difference of a block with one of its peers.
-			var maxPeerBlockSizeDiff int64 = 0
+			var (
+				// Setting minimum origin block size to 1 so that percetages off of origin block size can be calculated
+				// without worrying about divide by zero errors. Exact percentages are not required so setting a
+				// non-zero size for an empty block is acceptable.
+				originBlockSize int64 = 1
+				// Represents maximum size difference of a block with one of its peers.
+				maxPeerBlockSizeDiff int64
+			)
 			// Record the block size on the origin.
 			for _, replicaMetadata := range replicasMetadata.Metadata() {
-				if replicaMetadata.Host.ID() == origin.ID() {
-					originBlockSize = int64(math.Max(float64(originBlockSize), float64(replicaMetadata.Size)))
+				if replicaMetadata.Host.ID() == origin.ID() && replicaMetadata.Size > 0 {
+					originBlockSize = replicaMetadata.Size
 					break
 				}
 			}

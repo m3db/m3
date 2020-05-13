@@ -510,9 +510,9 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 		ctx   = context.NewContext()
 		nsCtx = namespace.Context{ID: namespaceID}
 	)
-	require.NoError(t, err)
-	resDiff, _ := repairer.Repair(ctx, nsCtx, nsMeta, repairTimeRange, shard)
+	resDiff, err := repairer.Repair(ctx, nsCtx, nsMeta, repairTimeRange, shard)
 
+	require.NoError(t, err)
 	require.Equal(t, int64(2), resDiff.NumSeries)
 	require.Equal(t, int64(3), resDiff.NumBlocks)
 
@@ -572,10 +572,11 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 		countersSnapshot["repair.blocks+namespace=testNamespace,resultType=total,shard=0"].Value())
 	// Validate that first block's divergence is emitted instead of second block because first block is diverged
 	// more than second block from its peers.
+	scopeTags := map[string]string{"namespace": "testNamespace", "resultType": "sizeDiff", "shard": "0"}
 	require.Equal(t, float64(sizes[0]-sizes[2]),
-		gaugesSnapshot["repair.max-block-size-diff+namespace=testNamespace,resultType=sizeDiff,shard=0"].Value())
+		gaugesSnapshot[tally.KeyForPrefixedStringMap("repair.max-block-size-diff", scopeTags)].Value())
 	require.Equal(t, float64(100*(sizes[0]-sizes[2]))/float64(sizes[0]),
-		gaugesSnapshot["repair.max-block-size-diff-as-percentage+namespace=testNamespace,resultType=sizeDiff,shard=0"].Value())
+		gaugesSnapshot[tally.KeyForPrefixedStringMap("repair.max-block-size-diff-as-percentage", scopeTags)].Value())
 }
 
 type expectedRepair struct {
