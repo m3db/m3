@@ -259,6 +259,7 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 		byTime, ok := m.seekersByTime(shard)
 		if !ok {
 			multiErr = multiErr.Add(errShardNotExists)
+			continue
 		}
 
 		byTime.Lock()
