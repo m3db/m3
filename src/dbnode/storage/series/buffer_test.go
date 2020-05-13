@@ -148,7 +148,9 @@ func TestBufferWriteTooPast(t *testing.T) {
 	})
 	ctx := context.NewContext()
 	defer ctx.Close()
-	wasWritten, _, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second,
+	// Writes are inclusive on buffer past start border. Must be before that inclusive border to
+	// be a cold write. To test this we write a second further into the past.
+	wasWritten, _, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()-time.Second), 1, xtime.Second,
 		nil, WriteOptions{})
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
