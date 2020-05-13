@@ -36,10 +36,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	logger, _ = zap.NewProduction()
-)
-
 /*
  * This test runs the following situation, Now is 1p, data blockSize is 1h, index blockSize is 2h,
  * retention period 2h, buffer past 10mins, and buffer future 20mins. We write & index 50 metrics

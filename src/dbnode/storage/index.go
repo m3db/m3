@@ -666,8 +666,8 @@ func (i *nsIndex) writeBatches(
 					// attempt to index the series again. This is correct for cold index writes
 					// because they are not handled in warm index writes path.
 					batch.MarkUnmarkedEntryError(nil, idx)
+					return
 				}
-				return
 			}
 
 			if forwardIndexEnabled {
