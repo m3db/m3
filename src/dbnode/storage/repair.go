@@ -395,9 +395,9 @@ const (
 )
 
 type repairState struct {
-	LastSuccessfullAttempt time.Time
-	LastAttempt            time.Time
-	Status                 repairStatus
+	LastSuccessfulAttempt time.Time
+	LastAttempt           time.Time
+	Status                repairStatus
 }
 
 type namespaceRepairStateByTime map[xtime.UnixNano]repairState
@@ -596,8 +596,8 @@ func (r *dbRepairer) Repair() error {
 				leastRecentlyRepairedBlockStartLastRepairTime = repairState.LastAttempt
 			}
 
-			if repairState.LastSuccessfullAttempt.Before(leastRecentlySuccessfullyRepairedBlockStartLastRepairTime) {
-				leastRecentlySuccessfullyRepairedBlockStartLastRepairTime = repairState.LastSuccessfullAttempt
+			if repairState.LastSuccessfulAttempt.Before(leastRecentlySuccessfullyRepairedBlockStartLastRepairTime) {
+				leastRecentlySuccessfullyRepairedBlockStartLastRepairTime = repairState.LastSuccessfulAttempt
 			}
 			return true
 		})
@@ -703,7 +703,7 @@ func (r *dbRepairer) markRepairAttempt(
 	repairState.Status = repairStatus
 	repairState.LastAttempt = repairTime
 	if repairStatus == repairSuccess {
-		repairState.LastSuccessfullAttempt = repairTime
+		repairState.LastSuccessfulAttempt = repairTime
 	}
 	r.repairStatesByNs.setRepairState(namespace, blockStart, repairState)
 }
