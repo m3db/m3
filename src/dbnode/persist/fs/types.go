@@ -514,7 +514,7 @@ type BlockRetrieverOptions interface {
 
 // ForEachRemainingFn is the function that is run on each of the remaining
 // series of the merge target that did not intersect with the fileset.
-type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error
+type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags, data block.FetchBlockResult) error
 
 // MergeWith is an interface that the fs merger uses to merge data with.
 type MergeWith interface {

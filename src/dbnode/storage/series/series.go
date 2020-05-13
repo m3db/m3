@@ -327,14 +327,14 @@ func (s *dbSeries) FetchBlocksForColdFlush(
 	start time.Time,
 	version int,
 	nsCtx namespace.Context,
-) ([]xio.BlockReader, error) {
+) (block.FetchBlockResult, error) {
 	// This needs a write lock because the version on underlying buckets need
 	// to be modified.
 	s.Lock()
-	br, err := s.buffer.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
+	result, err := s.buffer.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
 	s.Unlock()
 
-	return br, err
+	return result, err
 }
 
 func (s *dbSeries) FetchBlocks(

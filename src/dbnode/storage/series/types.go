@@ -99,7 +99,7 @@ type DatabaseSeries interface {
 		start time.Time,
 		version int,
 		nsCtx namespace.Context,
-	) ([]xio.BlockReader, error)
+	) (block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata returns the blocks metadata.
 	FetchBlocksMetadata(

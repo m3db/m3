@@ -56,6 +56,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -98,6 +99,7 @@ type testSetup struct {
 	schemaReg namespace.SchemaRegistry
 
 	logger *zap.Logger
+	scope  tally.TestScope
 
 	db                cluster.Database
 	storageOpts       storage.Options
@@ -133,7 +135,14 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
-func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup, error) {
+type storageOption func(storage.Options) storage.Options
+
+func newTestSetup(
+	t *testing.T,
+	opts testOptions,
+	fsOpts fs.Options,
+	storageOptFns ...storageOption,
+) (*testSetup, error) {
 	if opts == nil {
 		opts = newTestOptions(t)
 	}
@@ -188,6 +197,10 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		storageOpts = storageOpts.SetInstrumentOptions(
 			storageOpts.InstrumentOptions().SetLogger(logger))
 	}
+
+	scope := tally.NewTestScope("", nil)
+	storageOpts = storageOpts.SetInstrumentOptions(
+		storageOpts.InstrumentOptions().SetMetricsScope(scope))
 
 	// Use specified series cache policy from environment if set.
 	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))
@@ -389,11 +402,16 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)
 	}
 
+	for _, fn := range storageOptFns {
+		storageOpts = fn(storageOpts)
+	}
+
 	return &testSetup{
 		t:                           t,
 		opts:                        opts,
 		schemaReg:                   schemaReg,
 		logger:                      logger,
+		scope:                       scope,
 		storageOpts:                 storageOpts,
 		blockLeaseManager:           blockLeaseManager,
 		fsOpts:                      fsOpts,
