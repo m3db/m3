@@ -284,7 +284,7 @@ func (b *dbBuffer) Write(
 			writeType = ColdWrite
 		}
 
-	case !pastLimit.Before(timestamp):
+	case timestamp.Before(pastLimit):
 		writeType = ColdWrite
 		if !b.opts.ColdWritesEnabled() {
 			return false, writeType, xerrors.NewInvalidParamsError(
