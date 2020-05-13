@@ -359,7 +359,7 @@ func newTestSetup(
 			// Do not need a block retriever for CacheAll policy
 		default:
 			blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-				func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
+				func(md namespace.Metadata, shardSet sharding.ShardSet) (block.DatabaseBlockRetriever, error) {
 					retrieverOpts := fs.NewBlockRetrieverOptions().
 						SetBlockLeaseManager(blockLeaseManager)
 					retriever, err := fs.NewBlockRetriever(retrieverOpts, fsOpts)
@@ -367,7 +367,7 @@ func newTestSetup(
 						return nil, err
 					}
 
-					if err := retriever.Open(md); err != nil {
+					if err := retriever.Open(md, shardSet); err != nil {
 						return nil, err
 					}
 					return retriever, nil
