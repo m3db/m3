@@ -105,10 +105,10 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocks(arg0, arg1, arg2 interface
 }
 
 // FetchBlocksForColdFlush mocks base method
-func (m *MockDatabaseSeries) FetchBlocksForColdFlush(arg0 context.Context, arg1 time.Time, arg2 int, arg3 namespace.Context) ([]xio.BlockReader, error) {
+func (m *MockDatabaseSeries) FetchBlocksForColdFlush(arg0 context.Context, arg1 time.Time, arg2 int, arg3 namespace.Context) (block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].([]xio.BlockReader)
+	ret0, _ := ret[0].(block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
