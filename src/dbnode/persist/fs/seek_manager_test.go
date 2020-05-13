@@ -317,6 +317,14 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 		return nil
 	}
 
+	// Notified everytime the openCloseLoop ticks
+	tickCh := make(chan struct{})
+	cleanupCh := make(chan struct{})
+
+	m.sleepFn = func(_ time.Duration) {
+		tickCh <- struct{}{}
+	}
+
 	shards := []uint32{2, 5, 9, 478, 1023}
 	metadata := testNs1Metadata(t)
 	shardSet, err := sharding.NewShardSet(
@@ -328,16 +336,6 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 
 	// Force all the seekers to be opened
 	require.NoError(t, m.CacheShardIndices(shards))
-
-	// Notified everytime the openCloseLoop ticks
-	tickCh := make(chan struct{})
-	cleanupCh := make(chan struct{})
-
-	m.Lock()
-	m.sleepFn = func(_ time.Duration) {
-		tickCh <- struct{}{}
-	}
-	m.Unlock()
 
 	seekers := []ConcurrentDataFileSetSeeker{}
 
