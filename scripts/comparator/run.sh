@@ -73,3 +73,5 @@ $comparator -input=$QUERY_FILE \
 -e=$END \
 -comparator=$COMPARATOR_WRITE \
 -regressionDir=$REGRESSION_DIR
+
+go test -v -timeout 30s -count=1 github.com/m3db/m3/src/query/test/
