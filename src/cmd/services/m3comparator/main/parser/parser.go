@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-// Series is a flat JSON serieazeable representation of the series.
+// Series is a flat JSON serializable representation of the series.
 type Series struct {
 	id string
 
@@ -39,7 +39,7 @@ type Series struct {
 	Datapoints Datapoints `json:"datapoints"`
 }
 
-// Tag is a simple JSON serieazeable representation of a tag.
+// Tag is a simple JSON serializable representation of a tag.
 type Tag [2]string
 
 // NewTag creates a new tag with a given name and value.
@@ -57,7 +57,7 @@ func (t Tag) Value() string {
 	return t[1]
 }
 
-// Tags is a simple JSON serieazeable representation of tags.
+// Tags is a simple JSON serializable representation of tags.
 type Tags []Tag
 
 // Get returns a list of tag values with the given name.

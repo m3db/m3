@@ -26,7 +26,9 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,26 +44,47 @@ import (
 var _ m3.Querier = (*querier)(nil)
 
 type querier struct {
-	opts    iteratorOptions
-	handler *seriesLoadHandler
+	iteratorOpts      iteratorOptions
+	handler           seriesLoadHandler
+	blockSize         time.Duration
+	defaultResolution time.Duration
 	sync.Mutex
+}
+
+func newQuerier(
+	iteratorOpts iteratorOptions,
+	handler seriesLoadHandler,
+	blockSize time.Duration,
+	defaultResolution time.Duration,
+) (*querier, error) {
+	if blockSize <= 0 {
+		return nil, fmt.Errorf("blockSize must be positive, got %d", blockSize)
+	}
+	if defaultResolution <= 0 {
+		return nil, fmt.Errorf("defaultResolution must be positive, got %d", defaultResolution)
+	}
+	return &querier{
+		iteratorOpts:      iteratorOpts,
+		handler:           handler,
+		blockSize:         blockSize,
+		defaultResolution: defaultResolution,
+	}, nil
 }
 
 func noop() error { return nil }
 
 type seriesBlock []ts.Datapoint
-type tagMap map[string]string
+
 type series struct {
 	blocks []seriesBlock
 	tags   parser.Tags
 }
 
-func generateSeriesBlock(
+func (q *querier) generateSeriesBlock(
 	start time.Time,
-	blockSize time.Duration,
 	resolution time.Duration,
 ) seriesBlock {
-	numPoints := int(blockSize / resolution)
+	numPoints := int(q.blockSize / resolution)
 	dps := make(seriesBlock, 0, numPoints)
 	for i := 0; i < numPoints; i++ {
 		stamp := start.Add(resolution * time.Duration(i))
@@ -77,22 +100,21 @@ func generateSeriesBlock(
 	return dps
 }
 
-func generateSeries(
+func (q *querier) generateSeries(
 	start time.Time,
 	end time.Time,
-	blockSize time.Duration,
 	resolution time.Duration,
 	tags parser.Tags,
 ) (series, error) {
-	numBlocks := int(math.Ceil(float64(end.Sub(start)) / float64(blockSize)))
+	numBlocks := int(math.Ceil(float64(end.Sub(start)) / float64(q.blockSize)))
 	if numBlocks == 0 {
 		return series{}, fmt.Errorf("comparator querier: no blocks generated")
 	}
 
 	blocks := make([]seriesBlock, 0, numBlocks)
 	for i := 0; i < numBlocks; i++ {
-		blocks = append(blocks, generateSeriesBlock(start, blockSize, resolution))
-		start = start.Add(blockSize)
+		blocks = append(blocks, q.generateSeriesBlock(start, resolution))
+		start = start.Add(q.blockSize)
 	}
 
 	return series{
@@ -117,7 +139,7 @@ func (q *querier) FetchCompressed(
 		err   error
 	)
 
-	name := q.opts.tagOptions.MetricName()
+	name := q.iteratorOpts.tagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(name, matcher.Name) {
 			iters, err = q.handler.getSeriesIterators(string(matcher.Value))
@@ -130,7 +152,11 @@ func (q *querier) FetchCompressed(
 	}
 
 	if iters == nil || iters.Len() == 0 {
-		iters, err = q.generateRandomIters(query)
+		series, err := q.generateRandomSeries(query)
+		if err != nil {
+			return m3.SeriesFetchResult{}, noop, err
+		}
+		iters, err = buildSeriesIterators(series, query.Start, q.blockSize, q.iteratorOpts)
 		if err != nil {
 			return m3.SeriesFetchResult{}, noop, err
 		}
@@ -147,15 +173,33 @@ func (q *querier) FetchCompressed(
 	}, cleanup, nil
 }
 
-func (q *querier) generateRandomIters(
+func (q *querier) generateRandomSeries(
 	query *storage.FetchQuery,
-) (encoding.SeriesIterators, error) {
+) ([]series, error) {
 	var (
-		blockSize = time.Hour * 12
-		start     = query.Start.Truncate(blockSize)
-		end       = query.End.Truncate(blockSize).Add(blockSize)
-		opts      = q.opts
-		gens      = []seriesGen{
+		start = query.Start.Truncate(q.blockSize)
+		end   = query.End.Truncate(q.blockSize).Add(q.blockSize)
+	)
+
+	metricNameTag := q.iteratorOpts.tagOptions.MetricName()
+	for _, matcher := range query.TagMatchers {
+		if bytes.Equal(metricNameTag, matcher.Name) {
+			if matched, _ := regexp.Match(`^multi_\d+$`, matcher.Value); matched {
+				return q.generateMultiSeriesMetrics(string(matcher.Value), start, end)
+			}
+		}
+	}
+
+	return q.generateSingleSeriesMetrics(query, start, end)
+}
+
+func (q *querier) generateSingleSeriesMetrics(
+	query *storage.FetchQuery,
+	start time.Time,
+	end time.Time,
+) ([]series, error) {
+	var (
+		gens = []seriesGen{
 			{"foo", time.Second},
 			{"bar", time.Second * 15},
 			{"quail", time.Minute},
@@ -167,9 +211,11 @@ func (q *querier) generateRandomIters(
 	q.Lock()
 	defer q.Unlock()
 	rand.Seed(start.Unix())
+
+	metricNameTag := q.iteratorOpts.tagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		// filter if name, otherwise return all.
-		if bytes.Equal(opts.tagOptions.MetricName(), matcher.Name) {
+		if bytes.Equal(metricNameTag, matcher.Name) {
 			value := string(matcher.Value)
 			for _, gen := range gens {
 				if value == gen.name {
@@ -186,12 +232,12 @@ func (q *querier) generateRandomIters(
 				return nil, err
 			}
 
-			actualGens = make([]seriesGen, count)
+			actualGens = make([]seriesGen, 0, count)
 			for i := 0; i < count; i++ {
-				actualGens[i] = seriesGen{
-					res:  time.Second * 15,
+				actualGens = append(actualGens, seriesGen{
+					res:  q.defaultResolution,
 					name: fmt.Sprintf("foo_%d", i),
-				}
+				})
 			}
 
 			break
@@ -204,13 +250,13 @@ func (q *querier) generateRandomIters(
 
 	seriesList := make([]series, 0, len(actualGens))
 	for _, gen := range actualGens {
-		tags := parser.Tags{ 
+		tags := parser.Tags{
 			parser.NewTag("__name__", gen.name),
-			parser.NewTag("foobar",   "qux"),
-			parser.NewTag("name",     gen.name),
+			parser.NewTag("foobar", "qux"),
+			parser.NewTag("name", gen.name),
 		}
 
-		series, err := generateSeries(start, end, blockSize, gen.res, tags)
+		series, err := q.generateSeries(start, end, gen.res, tags)
 		if err != nil {
 			return nil, err
 		}
@@ -218,7 +264,42 @@ func (q *querier) generateRandomIters(
 		seriesList = append(seriesList, series)
 	}
 
-	return buildSeriesIterators(seriesList, query.Start, blockSize, opts)
+	return seriesList, nil
+}
+
+func (q *querier) generateMultiSeriesMetrics(
+	metricsName string,
+	start time.Time,
+	end time.Time,
+) ([]series, error) {
+	suffix := strings.TrimPrefix(metricsName, "multi_")
+	seriesCount, err := strconv.Atoi(suffix)
+	if err != nil {
+		return nil, err
+	}
+
+	q.Lock()
+	defer q.Unlock()
+	rand.Seed(start.Unix())
+
+	seriesList := make([]series, 0, seriesCount)
+	for i := 0; i < seriesCount; i++ {
+		tags := parser.Tags{
+			parser.NewTag("__name__", metricsName),
+			parser.NewTag("id", strconv.Itoa(i)),
+			parser.NewTag("parity", strconv.Itoa(i%2)),
+			parser.NewTag("const", "x"),
+		}
+
+		series, err := q.generateSeries(start, end, q.defaultResolution, tags)
+		if err != nil {
+			return nil, err
+		}
+
+		seriesList = append(seriesList, series)
+	}
+
+	return seriesList, nil
 }
 
 // SearchCompressed fetches matching tags based on a query.
