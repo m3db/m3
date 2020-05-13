@@ -214,7 +214,7 @@ func (m *namespaceReaderManager) shardExistsWithLock(shard uint32) bool {
 	_, err := m.shardSet.LookupStateByID(shard)
 	// NB(bodu): LookupStateByID returns ErrInvalidShardID when shard
 	// does not exist in the shard map which means the shard is not available.
-	return err != sharding.ErrInvalidShardID
+	return err == nil
 }
 
 type cachedReaderForKeyResult struct {

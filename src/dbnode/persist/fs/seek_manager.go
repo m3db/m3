@@ -366,7 +366,7 @@ func (m *seekerManager) shardExistsWithLock(shard uint32) bool {
 	_, err := m.shardSet.LookupStateByID(shard)
 	// NB(bodu): LookupStateByID returns ErrInvalidShardID when shard
 	// does not exist in the shard map which means the shard is not available.
-	return err != sharding.ErrInvalidShardID
+	return err == nil
 }
 
 func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error {
@@ -832,6 +832,9 @@ func (m *seekerManager) seekersByTime(shard uint32) (*seekersByTime, bool) {
 
 	m.Lock()
 	defer m.Unlock()
+	if !m.shardExistsWithLock(shard) {
+		return nil, false
+	}
 
 	// Check if raced with another call to this method
 	if int(shard) < len(m.seekersByShardIdx) {
