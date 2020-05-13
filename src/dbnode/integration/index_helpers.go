@@ -129,7 +129,7 @@ type testIndexWrite struct {
 func generateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime time.Time) testIndexWrites {
 	writes := make([]testIndexWrite, 0, numWrites)
 	step := endTime.Sub(startTime) / time.Duration(numWrites+1)
-	for i := 1; i <= numWrites; i++ {
+	for i := 0; i <= numWrites; i++ {
 		id, tags := genIDTags(periodID, i, numTags)
 		writes = append(writes, testIndexWrite{
 			id:    id,
