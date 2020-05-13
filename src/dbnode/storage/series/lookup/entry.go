@@ -131,7 +131,8 @@ func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) boo
 		return false
 	}
 
-	entry.reverseIndex.setAttemptWithWLock(indexBlockStartForWrite, true)
+	entry.reverseIndex.setResultWithWLock(indexBlockStartForWrite,
+		indexStateResult{setAttempt: true, attempt: true})
 	entry.reverseIndex.Unlock()
 	return true
 }
@@ -147,14 +148,26 @@ func (entry *Entry) OnIndexPrepare() {
 // OnIndexSuccess marks the given block start as successfully indexed.
 func (entry *Entry) OnIndexSuccess(blockStartNanos xtime.UnixNano) {
 	entry.reverseIndex.Lock()
-	entry.reverseIndex.setSuccessWithWLock(blockStartNanos)
+	entry.reverseIndex.setResultWithWLock(blockStartNanos,
+		indexStateResult{setSuccess: true, success: true})
 	entry.reverseIndex.Unlock()
 }
 
 // OnIndexFinalize marks any attempt for the given block start is finished.
 func (entry *Entry) OnIndexFinalize(blockStartNanos xtime.UnixNano) {
 	entry.reverseIndex.Lock()
-	entry.reverseIndex.setAttemptWithWLock(blockStartNanos, false)
+	entry.reverseIndex.setResultWithWLock(blockStartNanos,
+		indexStateResult{setAttempt: true, attempt: false})
+	entry.reverseIndex.Unlock()
+	// indicate the index has released held reference for provided write
+	entry.DecrementReaderWriterCount()
+}
+
+// OnIndexSuccessAndFinalize marks the given block start as successfully indexed.
+func (entry *Entry) OnIndexSuccessAndFinalize(blockStartNanos xtime.UnixNano) {
+	entry.reverseIndex.Lock()
+	entry.reverseIndex.setResultWithWLock(blockStartNanos,
+		indexStateResult{setSuccess: true, success: true, setAttempt: true, attempt: false})
 	entry.reverseIndex.Unlock()
 	// indicate the index has released held reference for provided write
 	entry.DecrementReaderWriterCount()
@@ -209,36 +222,38 @@ func (s *entryIndexState) indexedOrAttemptedWithRLock(t xtime.UnixNano) bool {
 	return false
 }
 
-func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
+type indexStateResult struct {
+	setSuccess bool
+	success    bool
+	setAttempt bool
+	attempt    bool
+}
+
+func (s *entryIndexState) setResultWithWLock(t xtime.UnixNano, r indexStateResult) {
 	for i := range s.states {
 		if s.states[i].blockStart.Equal(t) {
-			s.states[i].success = true
+			if r.setSuccess {
+				s.states[i].success = r.success
+			}
+			if r.setAttempt {
+				s.states[i].attempt = r.attempt
+			}
 			return
 		}
+	}
+
+	state := entryIndexBlockState{blockStart: t}
+	if r.setSuccess {
+		state.success = r.success
+	}
+	if r.setAttempt {
+		state.attempt = r.attempt
 	}
 
 	// NB(r): If not inserted state yet that means we need to make an insertion,
 	// this will happen if synchronously indexing and we haven't called
 	// NeedIndexUpdate before we indexed the series.
-	s.insertBlockState(entryIndexBlockState{
-		blockStart: t,
-		success:    true,
-	})
-}
-
-func (s *entryIndexState) setAttemptWithWLock(t xtime.UnixNano, attempt bool) {
-	// first check if we have the block start in the slice already
-	for i := range s.states {
-		if s.states[i].blockStart.Equal(t) {
-			s.states[i].attempt = attempt
-			return
-		}
-	}
-
-	s.insertBlockState(entryIndexBlockState{
-		blockStart: t,
-		attempt:    attempt,
-	})
+	s.insertBlockState(state)
 }
 
 func (s *entryIndexState) insertBlockState(newState entryIndexBlockState) {
