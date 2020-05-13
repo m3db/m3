@@ -260,7 +260,13 @@ func (m *merger) Merge(
 			err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist)
 
 			if err == nil {
-				err = onFlush.OnFlushNewSeries(shard, startTime, mergeWithData.FirstWriteAt, id, tags)
+				err = onFlush.OnFlushNewSeries(persist.OnFlushNewSeriesEvent{
+					Shard:      shard,
+					BlockStart: startTime,
+					FirstWrite: mergeWithData.FirstWrite,
+					ID:         id,
+					Tags:       tags,
+				})
 			}
 
 			// Context is safe to close after persisting data to disk.

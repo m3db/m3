@@ -69,10 +69,10 @@ type FilteredBlocksMetadataIter interface {
 // FetchBlockResult captures the block start time, the readers for the underlying streams, the
 // corresponding checksum and any errors encountered.
 type FetchBlockResult struct {
-	Start        time.Time
-	FirstWriteAt time.Time
-	Blocks       []xio.BlockReader
-	Err          error
+	Start      time.Time
+	FirstWrite time.Time
+	Blocks     []xio.BlockReader
+	Err        error
 }
 
 // FetchBlocksMetadataOptions are options used when fetching blocks metadata.

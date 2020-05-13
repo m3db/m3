@@ -77,7 +77,10 @@ func (m *fsMergeWithMem) Read(
 	m.dirtySeriesToWrite[blockStart].Remove(element)
 
 	result, ok, err := m.fetchBlocks(ctx, element.Value, blockStart, nsCtx)
-	return result.Blocks, ok, err
+	if err != nil {
+		return nil, false, err
+	}
+	return result.Blocks, ok, nil
 }
 
 func (m *fsMergeWithMem) fetchBlocks(

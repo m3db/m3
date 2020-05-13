@@ -207,28 +207,25 @@ const (
 	FileSetIndexContentType
 )
 
+// OnFlushNewSeriesEvent is the fields related to a flush of a new series.
+type OnFlushNewSeriesEvent struct {
+	Shard      uint32
+	BlockStart time.Time
+	FirstWrite time.Time
+	ID         ident.ID
+	Tags       ident.Tags
+}
+
 // OnFlushSeries performs work on a per series level.
 type OnFlushSeries interface {
-	OnFlushNewSeries(
-		shard uint32,
-		blockStart time.Time,
-		firstWriteAt time.Time,
-		id ident.ID,
-		tags ident.Tags,
-	) error
+	OnFlushNewSeries(OnFlushNewSeriesEvent) error
 }
 
 // NoOpColdFlushNamespace is a no-op impl of OnFlushSeries.
 type NoOpColdFlushNamespace struct{}
 
 // OnFlushNewSeries is a no-op.
-func (n *NoOpColdFlushNamespace) OnFlushNewSeries(
-	shard uint32,
-	blockStart time.Time,
-	firstWriteAt time.Time,
-	id ident.ID,
-	tags ident.Tags,
-) error {
+func (n *NoOpColdFlushNamespace) OnFlushNewSeries(event OnFlushNewSeriesEvent) error {
 	return nil
 }
 

@@ -3019,17 +3019,17 @@ func (m *MockOnColdFlushNamespace) EXPECT() *MockOnColdFlushNamespaceMockRecorde
 }
 
 // OnFlushNewSeries mocks base method
-func (m *MockOnColdFlushNamespace) OnFlushNewSeries(shard uint32, blockStart, firstWriteAt time.Time, id ident.ID, tags ident.Tags) error {
+func (m *MockOnColdFlushNamespace) OnFlushNewSeries(arg0 persist.OnFlushNewSeriesEvent) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OnFlushNewSeries", shard, blockStart, firstWriteAt, id, tags)
+	ret := m.ctrl.Call(m, "OnFlushNewSeries", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // OnFlushNewSeries indicates an expected call of OnFlushNewSeries
-func (mr *MockOnColdFlushNamespaceMockRecorder) OnFlushNewSeries(shard, blockStart, firstWriteAt, id, tags interface{}) *gomock.Call {
+func (mr *MockOnColdFlushNamespaceMockRecorder) OnFlushNewSeries(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).OnFlushNewSeries), shard, blockStart, firstWriteAt, id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).OnFlushNewSeries), arg0)
 }
 
 // Done mocks base method

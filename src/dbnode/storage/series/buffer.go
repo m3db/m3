@@ -684,7 +684,7 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, error) {
 	res := b.fetchBlocks(ctx, []time.Time{start},
-		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx}, true)
+		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx, fetchFirstWrite: true})
 	if len(res) == 0 {
 		// The lifecycle of calling this function is preceded by first checking
 		// which blocks have cold data that have not yet been flushed.
@@ -723,14 +723,13 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 }
 
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time, nsCtx namespace.Context) []block.FetchBlockResult {
-	return b.fetchBlocks(ctx, starts, streamsOptions{filterWriteType: false, nsCtx: nsCtx}, false)
+	return b.fetchBlocks(ctx, starts, streamsOptions{filterWriteType: false, nsCtx: nsCtx, fetchFirstWrite: false})
 }
 
 func (b *dbBuffer) fetchBlocks(
 	ctx context.Context,
 	starts []time.Time,
 	sOpts streamsOptions,
-	fetchFirstWriteAt bool,
 ) []block.FetchBlockResult {
 	var res []block.FetchBlockResult
 
@@ -746,8 +745,8 @@ func (b *dbBuffer) fetchBlocks(
 				streams,
 				nil,
 			)
-			if fetchFirstWriteAt {
-				result.FirstWriteAt = buckets.firstWriteAt(sOpts)
+			if sOpts.fetchFirstWrite {
+				result.FirstWrite = buckets.firstWrite(sOpts)
 			}
 			res = append(res, result)
 		}
@@ -967,25 +966,27 @@ func (b *BufferBucketVersions) resetTo(
 func (b *BufferBucketVersions) streams(ctx context.Context, opts streamsOptions) []xio.BlockReader {
 	var res []xio.BlockReader
 	for _, bucket := range b.buckets {
-		if !opts.filterWriteType || bucket.writeType == opts.writeType {
-			res = append(res, bucket.streams(ctx)...)
+		if opts.filterWriteType && bucket.writeType != opts.writeType {
+			continue
 		}
+		res = append(res, bucket.streams(ctx)...)
 	}
 
 	return res
 }
 
-func (b *BufferBucketVersions) firstWriteAt(opts streamsOptions) time.Time {
+func (b *BufferBucketVersions) firstWrite(opts streamsOptions) time.Time {
 	var res time.Time
 	for _, bucket := range b.buckets {
-		if !opts.filterWriteType || bucket.writeType == opts.writeType {
-			// Get the earliest valid first write time.
-			if res.IsZero() {
-				res = bucket.firstWriteAt
-			}
-			if bucket.firstWriteAt.Before(res) {
-				res = bucket.firstWriteAt
-			}
+		if opts.filterWriteType && bucket.writeType != opts.writeType {
+			continue
+		}
+		// Get the earliest valid first write time.
+		if res.IsZero() {
+			res = bucket.firstWrite
+		}
+		if bucket.firstWrite.Before(res) {
+			res = bucket.firstWrite
 		}
 	}
 	return res
@@ -1096,16 +1097,17 @@ func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsO
 	res := make([]xio.SegmentReader, 0, len(buckets))
 
 	for _, bucket := range buckets {
-		if !opts.filterWriteType || bucket.writeType == opts.writeType {
-			stream, ok, err := bucket.mergeToStream(ctx, opts.nsCtx)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				continue
-			}
-			res = append(res, stream)
+		if opts.filterWriteType && bucket.writeType != opts.writeType {
+			continue
 		}
+		stream, ok, err := bucket.mergeToStream(ctx, opts.nsCtx)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		res = append(res, stream)
 	}
 
 	return res, nil
@@ -1115,6 +1117,7 @@ type streamsOptions struct {
 	filterWriteType bool
 	writeType       WriteType
 	nsCtx           namespace.Context
+	fetchFirstWrite bool
 }
 
 // BufferBucket is a specific version of a bucket of encoders, which is where
@@ -1127,7 +1130,7 @@ type BufferBucket struct {
 	loadedBlocks []block.DatabaseBlock
 	version      int
 	writeType    WriteType
-	firstWriteAt time.Time
+	firstWrite   time.Time
 }
 
 type inOrderEncoder struct {
@@ -1154,7 +1157,7 @@ func (b *BufferBucket) resetTo(
 	// We would only ever create a bucket for it to be writable.
 	b.version = writableBucketVersion
 	b.writeType = writeType
-	b.firstWriteAt = time.Time{}
+	b.firstWrite = time.Time{}
 }
 
 func (b *BufferBucket) reset() {
@@ -1205,8 +1208,8 @@ func (b *BufferBucket) write(
 
 	var err error
 	defer func() {
-		if err == nil && b.firstWriteAt.IsZero() {
-			b.firstWriteAt = timestamp
+		if err == nil && b.firstWrite.IsZero() {
+			b.firstWrite = timestamp
 		}
 	}()
 
