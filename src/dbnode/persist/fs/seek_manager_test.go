@@ -270,16 +270,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	ctrl := gomock.NewController(t)
-
-	shards := []uint32{2, 5, 9, 478, 1023}
-	metadata := testNs1Metadata(t)
-	shardSet, err := sharding.NewShardSet(
-		sharding.NewShards(shards, shard.Available),
-		sharding.DefaultHashFn(1),
-	)
-	require.NoError(t, err)
 	m := NewSeekerManager(nil, testDefaultOpts, defaultTestBlockRetrieverOptions).(*seekerManager)
-	require.NoError(t, m.Open(metadata, shardSet))
 	clockOpts := m.opts.ClockOptions()
 	now := clockOpts.NowFn()()
 	startNano := xtime.ToUnixNano(now)
@@ -326,15 +317,27 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 		return nil
 	}
 
+	shards := []uint32{2, 5, 9, 478, 1023}
+	metadata := testNs1Metadata(t)
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
+	require.NoError(t, m.Open(metadata, shardSet))
+
 	// Force all the seekers to be opened
 	require.NoError(t, m.CacheShardIndices(shards))
 
 	// Notified everytime the openCloseLoop ticks
 	tickCh := make(chan struct{})
 	cleanupCh := make(chan struct{})
+
+	m.Lock()
 	m.sleepFn = func(_ time.Duration) {
 		tickCh <- struct{}{}
 	}
+	m.Unlock()
 
 	seekers := []ConcurrentDataFileSetSeeker{}
 
