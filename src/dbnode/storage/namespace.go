@@ -488,15 +488,20 @@ func (n *dbNamespace) assignShardSet(
 	n.shardSet = shardSet
 	n.shards = make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range n.shardSet.AllIDs() {
-		if int(shard) < len(existing) && existing[shard] != nil {
-			n.shards[shard] = existing[shard]
-		} else {
+		// We create shards if its an initial assignment or if its not an initial assignment
+		// and the shard doesn't already exist.
+		if initialAssignment ||
+			(int(shard) >= len(existing) || existing[shard] == nil) {
 			n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
 				n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 				needsBootstrap, n.opts, n.seriesOpts)
+			// NB(bodu): We only record shard add metrics for shards created in non
+			// initial assignments.
 			if !initialAssignment {
 				n.metrics.shards.add.Inc(1)
 			}
+		} else {
+			n.shards[shard] = existing[shard]
 		}
 	}
 
