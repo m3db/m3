@@ -78,7 +78,7 @@ func newOpenTestBlockRetriever(
 
 	nsPath := NamespaceDataDirPath(opts.fsOpts.FilePathPrefix(), testNs1ID)
 	require.NoError(t, os.MkdirAll(nsPath, opts.fsOpts.NewDirectoryMode()))
-	require.NoError(t, retriever.Open(testNs1Metadata(t), nil))
+	require.NoError(t, retriever.Open(testNs1Metadata(t)))
 
 	return retriever, func() {
 		require.NoError(t, retriever.Close())
@@ -701,7 +701,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	)
 
 	mockSeekerManager := NewMockDataFileSetSeekerManager(ctrl)
-	mockSeekerManager.EXPECT().Open(gomock.Any(), gomock.Any()).Return(nil)
+	mockSeekerManager.EXPECT().Open(gomock.Any()).Return(nil)
 	mockSeekerManager.EXPECT().Test(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	mockSeekerManager.EXPECT().Borrow(gomock.Any(), gomock.Any()).Return(mockSeeker, nil)
 	mockSeekerManager.EXPECT().Return(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
