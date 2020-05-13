@@ -55,6 +55,11 @@ var (
 	metricNameTag = string(iteratorOpts.tagOptions.MetricName())
 )
 
+const (
+	blockSize         = time.Hour * 12
+	defaultResolution = time.Second * 30
+)
+
 func TestFetchCompressedReturnsPreloadedData(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -66,7 +71,7 @@ func TestFetchCompressedReturnsPreloadedData(t *testing.T) {
 
 	seriesLoader := &testSeriesLoadHandler{iters}
 
-	querier := &querier{opts: iteratorOpts, handler: seriesLoader}
+	querier, _ := newQuerier(iteratorOpts, seriesLoader, blockSize, defaultResolution)
 
 	query := matcherQuery(t, metricNameTag, "preloaded")
 
@@ -168,7 +173,7 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
-			querier := &querier{opts: iteratorOpts, handler: emptySeriesLoader(ctrl)}
+			querier, _ := newQuerier(iteratorOpts, emptySeriesLoader(ctrl), blockSize, defaultResolution)
 
 			result, cleanup, err := querier.FetchCompressed(nil, tt.givenQuery, nil)
 			assert.NoError(t, err)
