@@ -323,18 +323,14 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		newClOpts = opts.
 				CommitLogOptions().
 				SetFilesystemOptions(fsOpts)
-		mockRetriever    = block.NewMockDatabaseBlockRetriever(ctrl)
-		mockRetrieverMgr = block.NewMockDatabaseBlockRetrieverManager(ctrl)
+		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
-	opts = opts.
-		SetCommitLogOptions(newClOpts).
-		SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+	opts = opts.SetCommitLogOptions(newClOpts)
 
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
-
 	mockRetriever.EXPECT().CacheShardIndices([]uint32{s.ID()}).Return(nil)
-	mockRetrieverMgr.EXPECT().Retriever(s.namespace).Return(mockRetriever, nil)
+	s.setBlockRetriever(mockRetriever)
 
 	ctx := context.NewContext()
 	defer ctx.Close()

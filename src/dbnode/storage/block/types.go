@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -281,6 +282,8 @@ type DatabaseBlockRetriever interface {
 		onRetrieve OnRetrieveBlock,
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
+
+	AssignShardSet(shardSet sharding.ShardSet)
 }
 
 // DatabaseShardBlockRetriever is a block retriever bound to a shard.
@@ -299,7 +302,10 @@ type DatabaseShardBlockRetriever interface {
 // for different namespaces.
 type DatabaseBlockRetrieverManager interface {
 	// Retriever provides the DatabaseBlockRetriever for the given namespace.
-	Retriever(nsMetadata namespace.Metadata) (DatabaseBlockRetriever, error)
+	Retriever(
+		nsMetadata namespace.Metadata,
+		shardSet sharding.ShardSet,
+	) (DatabaseBlockRetriever, error)
 }
 
 // DatabaseShardBlockRetrieverManager creates and holds shard block

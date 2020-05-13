@@ -59,6 +59,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -549,12 +550,12 @@ func Run(runOpts RunOptions) {
 				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
 		}
 		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-			func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
+			func(md namespace.Metadata, shardSet sharding.ShardSet) (block.DatabaseBlockRetriever, error) {
 				retriever, err := fs.NewBlockRetriever(retrieverOpts, fsopts)
 				if err != nil {
 					return nil, err
 				}
-				if err := retriever.Open(md); err != nil {
+				if err := retriever.Open(md, shardSet); err != nil {
 					return nil, err
 				}
 				return retriever, nil

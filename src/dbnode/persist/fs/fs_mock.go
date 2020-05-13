@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
@@ -999,6 +1000,18 @@ func (m *MockDataFileSetSeekerManager) EXPECT() *MockDataFileSetSeekerManagerMoc
 	return m.recorder
 }
 
+// AssignShardSet mocks base method
+func (m *MockDataFileSetSeekerManager) AssignShardSet(arg0 sharding.ShardSet) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AssignShardSet", arg0)
+}
+
+// AssignShardSet indicates an expected call of AssignShardSet
+func (mr *MockDataFileSetSeekerManagerMockRecorder) AssignShardSet(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).AssignShardSet), arg0)
+}
+
 // Borrow mocks base method
 func (m *MockDataFileSetSeekerManager) Borrow(arg0 uint32, arg1 time.Time) (ConcurrentDataFileSetSeeker, error) {
 	m.ctrl.T.Helper()
@@ -1043,17 +1056,17 @@ func (mr *MockDataFileSetSeekerManagerMockRecorder) Close() *gomock.Call {
 }
 
 // Open mocks base method
-func (m *MockDataFileSetSeekerManager) Open(arg0 namespace.Metadata) error {
+func (m *MockDataFileSetSeekerManager) Open(arg0 namespace.Metadata, arg1 sharding.ShardSet) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Open", arg0)
+	ret := m.ctrl.Call(m, "Open", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Open indicates an expected call of Open
-func (mr *MockDataFileSetSeekerManagerMockRecorder) Open(arg0 interface{}) *gomock.Call {
+func (mr *MockDataFileSetSeekerManagerMockRecorder) Open(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Open), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetSeekerManager)(nil).Open), arg0, arg1)
 }
 
 // Return mocks base method
