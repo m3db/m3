@@ -129,3 +129,36 @@ func BenchmarkObjectPoolGetPut(b *testing.B) {
 		pool.Put(o)
 	}
 }
+
+// go test -benchmem -run=^$ github.com/m3db/m3/src/x/pool -bench '^(BenchmarkObjectPoolParallel)$' -cpu 1,2,4,6,8
+func BenchmarkObjectPoolParallel(b *testing.B) {
+	type poolObj struct {
+		arr  []byte
+		a, b int
+		c    *bool
+		ts   time.Time
+	}
+
+	p := NewObjectPool(
+		NewObjectPoolOptions().
+			SetSize(1024))
+	p.Init(func() interface{} {
+		return &poolObj{
+			arr: make([]byte, 0, 16),
+		}
+	})
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			op := p.Get()
+			obj, ok := op.(*poolObj)
+			if !ok {
+				b.Fail()
+			}
+			// do something with object:
+			obj.a = b.N
+			obj.b = len(obj.arr)
+			obj.ts = time.Now()
+			p.Put(op)
+		}
+	})
+}
