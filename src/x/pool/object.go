@@ -89,12 +89,6 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 }
 
 func (p *objectPool) Init(alloc Allocator) {
-	if !atomic.CompareAndSwapInt32(&p.initialized, 0, 1) {
-		fn := p.opts.OnPoolAccessErrorFn()
-		fn(errPoolAlreadyInitialized)
-		return
-	}
-
 	p.alloc = alloc
 
 	for i := 0; i < cap(p.values); i++ {
@@ -105,12 +99,6 @@ func (p *objectPool) Init(alloc Allocator) {
 }
 
 func (p *objectPool) Get() interface{} {
-	if atomic.LoadInt32(&p.initialized) != 1 {
-		fn := p.opts.OnPoolAccessErrorFn()
-		fn(errPoolGetBeforeInitialized)
-		return p.alloc()
-	}
-
 	var v interface{}
 	select {
 	case v = <-p.values:
@@ -129,12 +117,6 @@ func (p *objectPool) Get() interface{} {
 }
 
 func (p *objectPool) Put(obj interface{}) {
-	if atomic.LoadInt32(&p.initialized) != 1 {
-		fn := p.opts.OnPoolAccessErrorFn()
-		fn(errPoolPutBeforeInitialized)
-		return
-	}
-
 	select {
 	case p.values <- obj:
 	default:
