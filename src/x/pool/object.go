@@ -23,7 +23,10 @@ package pool
 import (
 	"errors"
 	"math"
+	"runtime"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/uber-go/tally"
 )
@@ -32,15 +35,15 @@ var (
 	errPoolAlreadyInitialized   = errors.New("object pool already initialized")
 	errPoolGetBeforeInitialized = errors.New("object pool get before initialized")
 	errPoolPutBeforeInitialized = errors.New("object pool put before initialized")
+
+	_defaultShardCount = int(math.Max(math.Ceil(float64(runtime.GOMAXPROCS(0)/2.0)), 1.0))
 )
 
-const (
-	// TODO(r): Use tally sampling when available
-	sampleObjectPoolLengthEvery = 100
-)
+const _emitMetricsRate = 2 * time.Second
 
 type objectPool struct {
-	opts                ObjectPoolOptions
+	wg                  sync.WaitGroup
+	done                chan struct{}
 	values              chan interface{}
 	alloc               Allocator
 	size                int
@@ -67,9 +70,7 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 	m := opts.InstrumentOptions().MetricsScope()
 
 	p := &objectPool{
-		opts:   opts,
-		values: make(chan interface{}, opts.Size()),
-		size:   opts.Size(),
+		size: opts.Size(),
 		refillLowWatermark: int(math.Ceil(
 			opts.RefillLowWatermark() * float64(opts.Size()))),
 		refillHighWatermark: int(math.Ceil(
@@ -87,19 +88,39 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 	return p
 }
 
+// Init initializes and allocates object pool
 func (p *objectPool) Init(alloc Allocator) {
 	if p.alloc != nil {
 		panic("pool already initalized")
 	}
 	p.alloc = alloc
 
+	p.done = make(chan struct{})
+	p.values = make(chan interface{}, p.size)
+
 	for i := 0; i < cap(p.values); i++ {
 		p.values <- p.alloc()
 	}
 
-	p.setGauges()
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+
+		ticker := time.NewTicker(_emitMetricsRate)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				p.setGauges()
+			case <-p.done:
+				return
+			}
+		}
+	}()
 }
 
+// Get returns an object from the pool
 func (p *objectPool) Get() interface{} {
 	var v interface{}
 	select {
@@ -109,8 +130,6 @@ func (p *objectPool) Get() interface{} {
 		p.metrics.getOnEmpty.Inc(1)
 	}
 
-	p.trySetGauges()
-
 	if p.refillLowWatermark > 0 && len(p.values) <= p.refillLowWatermark {
 		p.tryFill()
 	}
@@ -118,6 +137,7 @@ func (p *objectPool) Get() interface{} {
 	return v
 }
 
+// Put puts object back into the object pool
 func (p *objectPool) Put(obj interface{}) {
 	select {
 	case p.values <- obj:
@@ -125,13 +145,6 @@ func (p *objectPool) Put(obj interface{}) {
 		p.metrics.putOnFull.Inc(1)
 	}
 
-	p.trySetGauges()
-}
-
-func (p *objectPool) trySetGauges() {
-	if atomic.AddInt32(&p.dice, 1)%sampleObjectPoolLengthEvery == 0 {
-		p.setGauges()
-	}
 }
 
 func (p *objectPool) setGauges() {
@@ -155,4 +168,10 @@ func (p *objectPool) tryFill() {
 			}
 		}
 	}()
+}
+
+// Close stops background processes
+func (p *objectPool) Close() {
+	close(p.done)
+	p.wg.Wait()
 }
