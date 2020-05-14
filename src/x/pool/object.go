@@ -47,7 +47,6 @@ type objectPool struct {
 	refillLowWatermark  int
 	refillHighWatermark int
 	filling             int32
-	initialized         int32
 	dice                int32
 	metrics             objectPoolMetrics
 }
@@ -89,6 +88,9 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 }
 
 func (p *objectPool) Init(alloc Allocator) {
+	if p.alloc != nil {
+		panic("pool already initalized")
+	}
 	p.alloc = alloc
 
 	for i := 0; i < cap(p.values); i++ {

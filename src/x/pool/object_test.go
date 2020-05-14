@@ -61,6 +61,14 @@ func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 	assert.Equal(t, 75, len(pool.values))
 }
 
+func TestObjectPoolDoubleInit(t *testing.T) {
+	pool := NewObjectPool(NewObjectPoolOptions().SetSize(1))
+	pool.Init(func() interface{} { return nil })
+	assert.Panics(t, func() {
+		pool.Init(func() interface{} { return nil })
+	})
+}
+
 func BenchmarkObjectPoolGetPut(b *testing.B) {
 	opts := NewObjectPoolOptions().SetSize(1)
 	pool := NewObjectPool(opts)
