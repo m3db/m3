@@ -981,10 +981,8 @@ func (b *BufferBucketVersions) firstWrite(opts streamsOptions) time.Time {
 			continue
 		}
 		// Get the earliest valid first write time.
-		if res.IsZero() {
-			res = bucket.firstWrite
-		}
-		if bucket.firstWrite.Before(res) {
+		if res.IsZero() ||
+			(bucket.firstWrite.Before(res) && !bucket.firstWrite.IsZero()) {
 			res = bucket.firstWrite
 		}
 	}
@@ -1206,8 +1204,9 @@ func (b *BufferBucket) write(
 
 	var err error
 	defer func() {
+		nowFn := b.opts.ClockOptions().NowFn()
 		if err == nil && b.firstWrite.IsZero() {
-			b.firstWrite = timestamp
+			b.firstWrite = nowFn()
 		}
 	}()
 
