@@ -33,5 +33,26 @@ clusters:
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
 
+carbon:
+  ingester:
+    listenAddress: "0.0.0.0:7204"
+    rules:
+      - pattern: .*min.aggregate.*
+        aggregation:
+          type: min
+        policies:
+          - resolution: 5s
+            retention: 10h
+      - pattern: .*already-aggregated.*
+        aggregation:
+          enabled: false
+        policies:
+          - resolution: 5s
+            retention: 10h
+      - pattern: .*
+        policies:
+          - resolution: 5s
+            retention: 10h
+
 tagOptions:
   idScheme: quoted

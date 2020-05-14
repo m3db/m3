@@ -24,7 +24,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	dockertest "github.com/ory/dockertest"
@@ -61,6 +64,11 @@ var (
 // TODO: consider having this work on underlying structures.
 type Coordinator interface {
 	Admin
+
+	// WriteCarbon writes a carbon metric datapoint at a given time.
+	WriteCarbon(port int, metric string, v float64, t time.Time) error
+	// RunQuery runs the given query with a given verification function.
+	RunQuery(verifier GoalStateVerifier, query string) error
 }
 
 // Admin is a wrapper for admin functions.
@@ -77,8 +85,8 @@ type Admin interface {
 	CreateDatabase(admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error)
 	// GetPlacement gets placements.
 	GetPlacement() (admin.PlacementGetResponse, error)
-	// WaitForPlacements blocks until the given placement IDs are present.
-	WaitForPlacements(ids []string) error
+	// WaitForInstances blocks until the given instance is available.
+	WaitForInstances(ids []string) error
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
@@ -188,7 +196,7 @@ func (c *coordinator) WaitForNamespace(name string) error {
 	})
 }
 
-func (c *coordinator) WaitForPlacements(
+func (c *coordinator) WaitForInstances(
 	ids []string,
 ) error {
 	if c.resource.closed {
@@ -234,7 +242,8 @@ func (c *coordinator) CreateDatabase(
 
 	url := c.resource.getURL(7201, "api/v1/database/create")
 	logger := c.resource.logger.With(
-		zapMethod("createDatabase"), zap.String("request", addRequest.String()))
+		zapMethod("createDatabase"), zap.String("url", url),
+		zap.String("request", addRequest.String()))
 
 	b, err := json.Marshal(addRequest)
 	if err != nil {
@@ -265,7 +274,8 @@ func (c *coordinator) AddNamespace(
 
 	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace")
 	logger := c.resource.logger.With(
-		zapMethod("addNamespace"), zap.String("request", addRequest.String()))
+		zapMethod("addNamespace"), zap.String("url", url),
+		zap.String("request", addRequest.String()))
 
 	b, err := json.Marshal(addRequest)
 	if err != nil {
@@ -285,6 +295,59 @@ func (c *coordinator) AddNamespace(
 	}
 
 	return response, nil
+}
+
+func (c *coordinator) WriteCarbon(
+	port int, metric string, v float64, t time.Time,
+) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	url := c.resource.getURL(7204, "")
+	logger := c.resource.logger.With(
+		zapMethod("writeCarbon"), zap.String("url", url))
+
+	con, err := net.Dial("tcp", url)
+	if err != nil {
+		logger.Error("could not dial", zap.Error(err))
+	}
+
+	write := fmt.Sprintf("%s %f %d", metric, v, t.Unix())
+	logger.Info("writing", zap.String("metric", write))
+	n, err := con.Write([]byte(write))
+	if err != nil {
+		logger.Error("could not write", zap.Error(err))
+	}
+
+	if n != len(write) {
+		err := fmt.Errorf("wrote %d, wanted %d", n, len(write))
+		logger.Error("write failure", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func (c *coordinator) RunQuery(
+	verifier GoalStateVerifier, query string,
+) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	url := c.resource.getURL(7201, query)
+	logger := c.resource.logger.With(
+		zapMethod("runQuery"), zap.String("url", url))
+	resp, err := http.Get(url)
+	if err != nil {
+		logger.Error("failed get", zap.Error(err))
+		return err
+	}
+
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	return verifier(string(b), err)
 }
 
 func (c *coordinator) Close() error {

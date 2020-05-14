@@ -100,10 +100,6 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 		iOpts: iOpts,
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
 	success := false
 	dbNodes := Nodes{dbNode}
 	defer func() {
@@ -111,26 +107,32 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 		// is responsible for closing the resources.
 		if !success {
 			for _, dbNode := range dbNodes {
-				dbNode.Close()
+				if dbNode != nil {
+					dbNode.Close()
+				}
 			}
 		}
 	}()
-
-	coordinator, err := newDockerHTTPCoordinator(pool, dockerResourceOptions{
-		iOpts: iOpts,
-	})
 
 	if err != nil {
 		return nil, err
 	}
 
+	coordinator, err := newDockerHTTPCoordinator(pool, dockerResourceOptions{
+		iOpts: iOpts,
+	})
+
 	defer func() {
 		// NB: only defer close in the failure case, otherwise calling function
 		// is responsible for closing the resources.
-		if !success {
+		if !success && coordinator != nil {
 			coordinator.Close()
 		}
 	}()
+
+	if err != nil {
+		return nil, err
+	}
 
 	logger := iOpts.Logger().With(zap.String("source", "harness"))
 	hosts := make([]*admin.Host, 0, len(dbNodes))
@@ -194,7 +196,7 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 	}
 
 	logger.Info("waiting for placements", zap.Strings("placement ids", ids))
-	if err := coordinator.WaitForPlacements(ids); err != nil {
+	if err := coordinator.WaitForInstances(ids); err != nil {
 		return nil, err
 	}
 
