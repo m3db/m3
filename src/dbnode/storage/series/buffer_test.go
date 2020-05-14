@@ -1572,6 +1572,19 @@ func TestColdFlushBlockStarts(t *testing.T) {
 			},
 		},
 		blockData{
+			start:     blockStart2,
+			writeType: ColdWrite,
+			data: [][]DecodedTestValue{
+				{
+					{blockStart2.Add(secs(2)), 4, xtime.Second, nil},
+					{blockStart2.Add(secs(5)), 5, xtime.Second, nil},
+					{blockStart2.Add(secs(11)), 6, xtime.Second, nil},
+					{blockStart2.Add(secs(15)), 7, xtime.Second, nil},
+					{blockStart2.Add(secs(40)), 8, xtime.Second, nil},
+				},
+			},
+		},
+		blockData{
 			start:     blockStart3,
 			writeType: ColdWrite,
 			data: [][]DecodedTestValue{
@@ -1733,7 +1746,7 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	assert.True(t, wasWritten)
 	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart2, 1, nsCtx)
 	assert.NoError(t, err)
-	assert.Equal(t, now, result.FirstWritet)
+	assert.Equal(t, now, result.FirstWrite)
 
 	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart3, 1, nsCtx)
 	assert.NoError(t, err)
