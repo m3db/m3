@@ -24,11 +24,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	dockertest "github.com/ory/dockertest"
 	"go.uber.org/zap"
@@ -43,7 +40,6 @@ const (
 	defaultCoordinatorSource     = "coordinator"
 	defaultCoordinatorName       = "coord01"
 	defaultCoordinatorDockerfile = "./m3coordinator.Dockerfile"
-	defaultCoordinatorPort       = "7201/tcp"
 )
 
 func zapMethod(s string) zapcore.Field { return zap.String("method", s) }
@@ -55,7 +51,6 @@ var (
 		source:        defaultCoordinatorSource,
 		containerName: defaultCoordinatorName,
 		dockerFile:    defaultCoordinatorDockerfile,
-		defaultPort:   defaultCoordinatorPort,
 		portList:      defaultCoordinatorList,
 	}
 )
@@ -76,16 +71,14 @@ type Admin interface {
 	// NB: if the name string is empty, this will instead
 	// check for a successful response.
 	WaitForNamespace(name string) error
-	// CreateNamespace creates a namespace.
-	// CreateNamespace(admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error)
+	// AddNamespace adds a namespace.
+	AddNamespace(admin.NamespaceAddRequest) (admin.NamespaceGetResponse, error)
 	// CreateDatabase creates a database.
 	CreateDatabase(admin.DatabaseCreateRequest) (admin.DatabaseCreateResponse, error)
 	// GetPlacement gets placements.
 	GetPlacement() (admin.PlacementGetResponse, error)
 	// WaitForPlacements blocks until the given placement IDs are present.
 	WaitForPlacements(ids []string) error
-	// GetPlacementWithID gets placements for a certain ID.
-	// GetPlacementWithID(id string) (admin.PlacementGetResponse, error)
 	// Close closes the wrapper and releases any held resources, including
 	// deleting docker containers.
 	Close() error
@@ -112,42 +105,12 @@ func newDockerHTTPCoordinator(
 	}, nil
 }
 
-func toResponse(
-	resp *http.Response,
-	response proto.Message,
-	logger *zap.Logger,
-) error {
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode/100 != 2 {
-		logger.Error("status code not 2xx",
-			zap.Int("status code", resp.StatusCode),
-			zap.String("status", resp.Status))
-		return fmt.Errorf("status code %d", resp.StatusCode)
-	}
-
-	err = jsonpb.Unmarshal(bytes.NewReader(b), response)
-	defer resp.Body.Close()
-
-	if err != nil {
-		logger.Error("unable to unmarshal response",
-			zap.Error(err),
-			zap.Any("response", response))
-		return err
-	}
-
-	return nil
-}
-
 func (c *coordinator) GetNamespace() (admin.NamespaceGetResponse, error) {
 	if c.resource.closed {
 		return admin.NamespaceGetResponse{}, errClosed
 	}
 
-	url := fmt.Sprintf("%s/api/v1/namespace", c.resource.baseURL)
+	url := c.resource.getURL(7201, "api/v1/namespace")
 	logger := c.resource.logger.With(
 		zapMethod("getNamespace"), zap.String("url", url))
 
@@ -170,7 +133,7 @@ func (c *coordinator) GetPlacement() (admin.PlacementGetResponse, error) {
 		return admin.PlacementGetResponse{}, errClosed
 	}
 
-	url := fmt.Sprintf("%s/api/v1/placement", c.resource.baseURL)
+	url := c.resource.getURL(7201, "api/v1/placement")
 	logger := c.resource.logger.With(
 		zapMethod("getPlacement"), zap.String("url", url))
 
@@ -269,7 +232,7 @@ func (c *coordinator) CreateDatabase(
 		return admin.DatabaseCreateResponse{}, errClosed
 	}
 
-	url := fmt.Sprintf("%s/api/v1/database/create", c.resource.baseURL)
+	url := c.resource.getURL(7201, "api/v1/database/create")
 	logger := c.resource.logger.With(
 		zapMethod("createDatabase"), zap.String("request", addRequest.String()))
 
@@ -293,6 +256,41 @@ func (c *coordinator) CreateDatabase(
 	return response, nil
 }
 
+func (c *coordinator) AddNamespace(
+	addRequest admin.NamespaceAddRequest,
+) (admin.NamespaceGetResponse, error) {
+	if c.resource.closed {
+		return admin.NamespaceGetResponse{}, errClosed
+	}
+
+	url := c.resource.getURL(7201, "api/v1/services/m3db/namespace")
+	logger := c.resource.logger.With(
+		zapMethod("addNamespace"), zap.String("request", addRequest.String()))
+
+	b, err := json.Marshal(addRequest)
+	if err != nil {
+		logger.Error("failed to marshal", zap.Error(err))
+		return admin.NamespaceGetResponse{}, err
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewReader(b))
+	if err != nil {
+		logger.Error("failed post", zap.Error(err))
+		return admin.NamespaceGetResponse{}, err
+	}
+
+	var response admin.NamespaceGetResponse
+	if err := toResponse(resp, &response, logger); err != nil {
+		return admin.NamespaceGetResponse{}, err
+	}
+
+	return response, nil
+}
+
 func (c *coordinator) Close() error {
+	if c.resource.closed {
+		return errClosed
+	}
+
 	return c.resource.close()
 }

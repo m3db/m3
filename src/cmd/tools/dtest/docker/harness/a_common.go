@@ -21,11 +21,17 @@
 package harness
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"strconv"
 
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3/src/x/instrument"
 	dockertest "github.com/ory/dockertest"
 	dc "github.com/ory/dockertest/docker"
@@ -44,7 +50,6 @@ type dockerResourceOptions struct {
 	source           string
 	containerName    string
 	dockerFile       string
-	defaultPort      string
 	portList         []int
 	mounts           []string
 	iOpts            instrument.Options
@@ -69,10 +74,6 @@ func (o dockerResourceOptions) withDefaults(
 		o.dockerFile = defaultOpts.dockerFile
 	}
 
-	if len(o.defaultPort) == 0 {
-		o.defaultPort = defaultOpts.defaultPort
-	}
-
 	if len(o.portList) == 0 {
 		o.portList = defaultOpts.portList
 	}
@@ -89,8 +90,7 @@ func (o dockerResourceOptions) withDefaults(
 }
 
 type dockerResource struct {
-	baseURL string
-	closed  bool
+	closed bool
 
 	logger *zap.Logger
 
@@ -188,7 +188,6 @@ func newDockerResource(
 		containerName = resourceOpts.containerName
 		dockerFile    = resourceOpts.dockerFile
 		iOpts         = resourceOpts.iOpts
-		defaultPort   = resourceOpts.defaultPort
 		portList      = resourceOpts.portList
 
 		logger = iOpts.Logger().With(
@@ -216,25 +215,8 @@ func newDockerResource(
 		return nil, err
 	}
 
-	url := fmt.Sprintf("http://%s:%s",
-		resource.GetBoundIP(defaultPort), resource.GetPort(defaultPort))
-
-	// NB: 8 == len("http://:"")
-	if len(url) <= 8 {
-		err := errors.New("could not get host port for resource")
-		if purgeErr := pool.Purge(resource); purgeErr != nil {
-			logger.Error("could not tear down failed resource",
-				zap.Error(purgeErr), zap.String("base error", err.Error()))
-			return nil, purgeErr
-		}
-
-		logger.Error("no host port for port", zap.String("port", defaultPort))
-		return nil, errors.New("could not get host port")
-	}
-
 	return &dockerResource{
-		baseURL:  url,
-		logger:   logger.With(zap.String("base", url)),
+		logger:   logger,
 		resource: resource,
 		pool:     pool,
 	}, nil
@@ -243,6 +225,73 @@ func newDockerResource(
 func (c *dockerResource) getPort(bindPort int) (int, error) {
 	port := c.resource.GetPort(fmt.Sprintf("%d/tcp", bindPort))
 	return strconv.Atoi(port)
+}
+
+func (c *dockerResource) getURL(port int, path string) string {
+	tcpPort := fmt.Sprintf("%d/tcp", port)
+	return fmt.Sprintf("http://%s:%s/%s",
+		c.resource.GetBoundIP(tcpPort), c.resource.GetPort(tcpPort), path)
+}
+
+func toResponse(
+	resp *http.Response,
+	response proto.Message,
+	logger *zap.Logger,
+) error {
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("could not read body", zap.Error(err))
+		return err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		logger.Error("status code not 2xx",
+			zap.Int("status code", resp.StatusCode),
+			zap.String("status", resp.Status))
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+
+	err = jsonpb.Unmarshal(bytes.NewReader(b), response)
+	if err != nil {
+		logger.Error("unable to unmarshal response",
+			zap.Error(err),
+			zap.Any("response", response))
+		return err
+	}
+
+	return nil
+}
+
+func toResponseThrift(
+	resp *http.Response,
+	response interface{},
+	logger *zap.Logger,
+) error {
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("could not read body", zap.Error(err))
+		return err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		logger.Error("status code not 2xx",
+			zap.Int("status code", resp.StatusCode),
+			zap.String("status", resp.Status))
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+
+	err = json.Unmarshal(b, response)
+
+	if err != nil {
+		logger.Error("unable to unmarshal response",
+			zap.Error(err),
+			zap.Any("response", response))
+		return err
+	}
+
+	return nil
 }
 
 func (c *dockerResource) close() error {

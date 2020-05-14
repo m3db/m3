@@ -21,15 +21,24 @@
 package harness
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	dockertest "github.com/ory/dockertest"
+	"github.com/ory/dockertest/docker"
+	"go.uber.org/zap"
 )
 
 const (
 	defaultDBNodeSource     = "dbnode"
 	defaultDBNodeName       = "dbnode01"
 	defaultDBNodeDockerfile = "./m3dbnode.Dockerfile"
-	defaultDBNodePort       = "9000/tcp"
 )
 
 var (
@@ -39,7 +48,6 @@ var (
 		source:        defaultDBNodeSource,
 		containerName: defaultDBNodeName,
 		dockerFile:    defaultDBNodeDockerfile,
-		defaultPort:   defaultDBNodePort,
 		portList:      defaultDBNodePortList,
 	}
 )
@@ -49,7 +57,20 @@ var (
 // endpoints for series data.
 // TODO: consider having this work on underlying structures.
 type Node interface {
+	// HostDetails returns this node's host details.
 	HostDetails() (*admin.Host, error)
+	// WaitForBootstrap blocks until the node has bootstrapped.
+	WaitForBootstrap() error
+	// WritePoint writes a datapoint to the node directly.
+	WritePoint(rpc.WriteRequest) error
+	// Fetch fetches datapoints.
+	Fetch(rpc.FetchRequest) (rpc.FetchResult_, error)
+	// CheckForCheckpoint checks for a checkpointed file.
+	CheckForCheckpoint() error
+	// Restart restarts this container.
+	Restart() error
+	// Close closes the wrapper and releases any held resources, including
+	// deleting docker containers.
 	Close() error
 }
 
@@ -62,6 +83,8 @@ func newDockerHTTPNode(
 	opts dockerResourceOptions,
 ) (Node, error) {
 	opts = opts.withDefaults(defaultDBNodeOptions)
+	opts.mounts = []string{setupMount("/etc/m3coordinator/")}
+
 	resource, err := newDockerResource(pool, opts)
 	if err != nil {
 		return nil, err
@@ -88,6 +111,174 @@ func (c *dbNode) HostDetails() (*admin.Host, error) {
 	}, nil
 }
 
+func (c *dbNode) Health() (rpc.NodeHealthResult_, error) {
+	if c.resource.closed {
+		return rpc.NodeHealthResult_{}, errClosed
+	}
+
+	url := c.resource.getURL(9002, "health")
+	logger := c.resource.logger.With(zapMethod("health"), zap.String("url", url))
+	resp, err := http.Get(url)
+	if err != nil {
+		logger.Error("failed get", zap.Error(err))
+		return rpc.NodeHealthResult_{}, err
+	}
+
+	var response rpc.NodeHealthResult_
+	if err := toResponseThrift(resp, &response, logger); err != nil {
+		return rpc.NodeHealthResult_{}, err
+	}
+
+	return response, nil
+}
+
+func (c *dbNode) WaitForBootstrap() error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	logger := c.resource.logger.With(zapMethod("waitForBootstrap"))
+	return c.resource.pool.Retry(func() error {
+		health, err := c.Health()
+		if err != nil {
+			return err
+		}
+
+		if !health.GetBootstrapped() {
+			err = fmt.Errorf("not bootstrapped")
+			logger.Error("could not get health", zap.Error(err))
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (c *dbNode) WritePoint(w rpc.WriteRequest) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	url := c.resource.getURL(9003, "write")
+	logger := c.resource.logger.With(
+		zapMethod("writePoint"), zap.String("url", url))
+
+	b, err := json.Marshal(w)
+	if err != nil {
+		logger.Error("could not marshal write request", zap.Error(err))
+		return err
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewReader(b))
+	if err != nil {
+		logger.Error("failed post", zap.Error(err))
+		return err
+	}
+
+	if resp.StatusCode/100 != 2 {
+		logger.Error("status code not 2xx",
+			zap.Int("status code", resp.StatusCode),
+			zap.String("status", resp.Status))
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *dbNode) Fetch(w rpc.FetchRequest) (rpc.FetchResult_, error) {
+	if c.resource.closed {
+		return rpc.FetchResult_{}, errClosed
+	}
+
+	url := c.resource.getURL(9003, "fetch")
+	logger := c.resource.logger.With(zapMethod("fetch"), zap.String("url", url))
+
+	b, err := json.Marshal(w)
+	if err != nil {
+		logger.Error("could not marshal fetch request", zap.Error(err))
+		return rpc.FetchResult_{}, err
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewReader(b))
+	if err != nil {
+		logger.Error("failed post", zap.Error(err))
+		return rpc.FetchResult_{}, err
+	}
+
+	var response rpc.FetchResult_
+	if err := toResponseThrift(resp, &response, logger); err != nil {
+		return rpc.FetchResult_{}, err
+	}
+
+	return response, nil
+}
+
+func (c *dbNode) Restart() error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	logger := c.resource.logger.With(zapMethod("restart"))
+	logger.Info("restarting container", zap.String("conatiner", defaultDBNodeName))
+	err := c.resource.pool.Client.RestartContainer(defaultDBNodeName, 60)
+	if err != nil {
+		logger.Error("could not restart", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func (c *dbNode) CheckForCheckpoint() error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	logger := c.resource.logger.With(zapMethod("checkForCheckpoint"))
+	return c.resource.pool.Retry(func() error {
+		client := c.resource.pool.Client
+		exec, err := client.CreateExec(docker.CreateExecOptions{
+			AttachStdout: true,
+			Container:    defaultDBNodeName,
+			Cmd: []string{
+				"find",
+				"/var/lib/m3db/data/coldWritesRepairAndNoIndex",
+				"-name",
+				"*1-checkpoint.db"},
+		})
+
+		if err != nil {
+			logger.Error("failed generating exec", zap.Error(err))
+			return err
+		}
+
+		var outputBuf bytes.Buffer
+		logger.Info("success", zap.String("execID", exec.ID))
+		err = client.StartExec(exec.ID, docker.StartExecOptions{
+			OutputStream: &outputBuf,
+		})
+
+		if err != nil {
+			logger.Error("failed starting exec", zap.Error(err))
+			return err
+		}
+
+		out := outputBuf.String()
+		if len(out) == 0 {
+			logger.Error("no output")
+			return errors.New("no output")
+		}
+
+		checkpoints := strings.Split(outputBuf.String(), "\n")
+		logger.Info("completed exec", zap.Strings("checkpoints", checkpoints))
+		return nil
+	})
+}
+
 func (c *dbNode) Close() error {
+	if c.resource.closed {
+		return errClosed
+	}
+
 	return c.resource.close()
 }
