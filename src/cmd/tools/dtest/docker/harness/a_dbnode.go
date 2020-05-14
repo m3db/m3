@@ -23,22 +23,19 @@ package harness
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	dockertest "github.com/ory/dockertest"
-	"github.com/ory/dockertest/docker"
 	"go.uber.org/zap"
 )
 
 const (
-	defaultDBNodeSource     = "dbnode"
-	defaultDBNodeName       = "dbnode01"
-	defaultDBNodeDockerfile = "./m3dbnode.Dockerfile"
+	defaultDBNodeSource        = "dbnode"
+	defaultDBNodeContainerName = "dbnode01"
+	defaultDBNodeDockerfile    = "./m3dbnode.Dockerfile"
 )
 
 var (
@@ -46,27 +43,34 @@ var (
 
 	defaultDBNodeOptions = dockerResourceOptions{
 		source:        defaultDBNodeSource,
-		containerName: defaultDBNodeName,
+		containerName: defaultDBNodeContainerName,
 		dockerFile:    defaultDBNodeDockerfile,
 		portList:      defaultDBNodePortList,
 	}
 )
+
+// GoalStateVerifier is a function that applies on Exec output.
+type GoalStateVerifier func(string, error) error
 
 // Node is a wrapper for a db node. It provides a wrapper on HTTP
 // endpoints that expose cluster management APIs as well as read and write
 // endpoints for series data.
 // TODO: consider having this work on underlying structures.
 type Node interface {
-	// HostDetails returns this node's host details.
-	HostDetails() (*admin.Host, error)
+	// HostDetails returns this node's host details on the given port.
+	HostDetails(port int) (*admin.Host, error)
 	// WaitForBootstrap blocks until the node has bootstrapped.
 	WaitForBootstrap() error
 	// WritePoint writes a datapoint to the node directly.
-	WritePoint(rpc.WriteRequest) error
+	WritePoint(req rpc.WriteRequest) error
 	// Fetch fetches datapoints.
-	Fetch(rpc.FetchRequest) (rpc.FetchResult_, error)
-	// CheckForCheckpoint checks for a checkpointed file.
-	CheckForCheckpoint() error
+	Fetch(req rpc.FetchRequest) (rpc.FetchResult_, error)
+	// Exec executes the given commands on the node container, returning
+	// stdout and stderr from the container.
+	Exec(commands ...string) (string, error)
+	// GoalStateExec executes the given commands on the node container, retrying
+	// until applying the verifier returns no error or the default timeout.
+	GoalStateExec(verifier GoalStateVerifier, commands ...string) error
 	// Restart restarts this container.
 	Restart() error
 	// Close closes the wrapper and releases any held resources, including
@@ -75,6 +79,8 @@ type Node interface {
 }
 
 type dbNode struct {
+	opts dockerResourceOptions
+
 	resource *dockerResource
 }
 
@@ -83,20 +89,20 @@ func newDockerHTTPNode(
 	opts dockerResourceOptions,
 ) (Node, error) {
 	opts = opts.withDefaults(defaultDBNodeOptions)
-	opts.mounts = []string{setupMount("/etc/m3coordinator/")}
-
 	resource, err := newDockerResource(pool, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	return &dbNode{
+		opts: opts,
+
 		resource: resource,
 	}, nil
 }
 
-func (c *dbNode) HostDetails() (*admin.Host, error) {
-	port, err := c.resource.getPort(9000)
+func (c *dbNode) HostDetails(p int) (*admin.Host, error) {
+	port, err := c.resource.getPort(p)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +112,7 @@ func (c *dbNode) HostDetails() (*admin.Host, error) {
 		IsolationGroup: "rack-a",
 		Zone:           "embedded",
 		Weight:         1024,
-		Address:        defaultDBNodeName,
+		Address:        c.opts.containerName,
 		Port:           uint32(port),
 	}, nil
 }
@@ -154,7 +160,7 @@ func (c *dbNode) WaitForBootstrap() error {
 	})
 }
 
-func (c *dbNode) WritePoint(w rpc.WriteRequest) error {
+func (c *dbNode) WritePoint(req rpc.WriteRequest) error {
 	if c.resource.closed {
 		return errClosed
 	}
@@ -163,7 +169,7 @@ func (c *dbNode) WritePoint(w rpc.WriteRequest) error {
 	logger := c.resource.logger.With(
 		zapMethod("writePoint"), zap.String("url", url))
 
-	b, err := json.Marshal(w)
+	b, err := json.Marshal(req)
 	if err != nil {
 		logger.Error("could not marshal write request", zap.Error(err))
 		return err
@@ -185,7 +191,7 @@ func (c *dbNode) WritePoint(w rpc.WriteRequest) error {
 	return nil
 }
 
-func (c *dbNode) Fetch(w rpc.FetchRequest) (rpc.FetchResult_, error) {
+func (c *dbNode) Fetch(req rpc.FetchRequest) (rpc.FetchResult_, error) {
 	if c.resource.closed {
 		return rpc.FetchResult_{}, errClosed
 	}
@@ -193,7 +199,7 @@ func (c *dbNode) Fetch(w rpc.FetchRequest) (rpc.FetchResult_, error) {
 	url := c.resource.getURL(9003, "fetch")
 	logger := c.resource.logger.With(zapMethod("fetch"), zap.String("url", url))
 
-	b, err := json.Marshal(w)
+	b, err := json.Marshal(req)
 	if err != nil {
 		logger.Error("could not marshal fetch request", zap.Error(err))
 		return rpc.FetchResult_{}, err
@@ -218,9 +224,10 @@ func (c *dbNode) Restart() error {
 		return errClosed
 	}
 
+	cName := c.opts.containerName
 	logger := c.resource.logger.With(zapMethod("restart"))
-	logger.Info("restarting container", zap.String("conatiner", defaultDBNodeName))
-	err := c.resource.pool.Client.RestartContainer(defaultDBNodeName, 60)
+	logger.Info("restarting container", zap.String("container", cName))
+	err := c.resource.pool.Client.RestartContainer(cName, 60)
 	if err != nil {
 		logger.Error("could not restart", zap.Error(err))
 		return err
@@ -229,50 +236,23 @@ func (c *dbNode) Restart() error {
 	return nil
 }
 
-func (c *dbNode) CheckForCheckpoint() error {
+func (c *dbNode) Exec(commands ...string) (string, error) {
+	if c.resource.closed {
+		return "", errClosed
+	}
+
+	return c.resource.exec(commands...)
+}
+
+func (c *dbNode) GoalStateExec(
+	verifier GoalStateVerifier,
+	commands ...string,
+) error {
 	if c.resource.closed {
 		return errClosed
 	}
 
-	logger := c.resource.logger.With(zapMethod("checkForCheckpoint"))
-	return c.resource.pool.Retry(func() error {
-		client := c.resource.pool.Client
-		exec, err := client.CreateExec(docker.CreateExecOptions{
-			AttachStdout: true,
-			Container:    defaultDBNodeName,
-			Cmd: []string{
-				"find",
-				"/var/lib/m3db/data/coldWritesRepairAndNoIndex",
-				"-name",
-				"*1-checkpoint.db"},
-		})
-
-		if err != nil {
-			logger.Error("failed generating exec", zap.Error(err))
-			return err
-		}
-
-		var outputBuf bytes.Buffer
-		logger.Info("success", zap.String("execID", exec.ID))
-		err = client.StartExec(exec.ID, docker.StartExecOptions{
-			OutputStream: &outputBuf,
-		})
-
-		if err != nil {
-			logger.Error("failed starting exec", zap.Error(err))
-			return err
-		}
-
-		out := outputBuf.String()
-		if len(out) == 0 {
-			logger.Error("no output")
-			return errors.New("no output")
-		}
-
-		checkpoints := strings.Split(outputBuf.String(), "\n")
-		logger.Info("completed exec", zap.Strings("checkpoints", checkpoints))
-		return nil
-	})
+	return c.resource.goalStateExec(verifier, commands...)
 }
 
 func (c *dbNode) Close() error {
