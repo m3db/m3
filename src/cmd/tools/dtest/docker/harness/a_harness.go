@@ -33,6 +33,8 @@ import (
 )
 
 const (
+	timeout = time.Second * 60
+
 	aggName         = "aggregated"
 	unaggName       = "unaggregated"
 	coldWriteNsName = "coldWritesRepairAndNoIndex"
@@ -82,7 +84,7 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 		return nil, err
 	}
 
-	pool.MaxWait = time.Second * 60
+	pool.MaxWait = timeout
 	err = setupNetwork(pool)
 	if err != nil {
 		return nil, err
@@ -134,7 +136,7 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 	hosts := make([]*admin.Host, 0, len(dbNodes))
 	ids := make([]string, 0, len(dbNodes))
 	for _, n := range dbNodes {
-		h, err := n.HostDetails()
+		h, err := n.HostDetails(9000)
 		if err != nil {
 			logger.Error("could not get host details", zap.Error(err))
 			return nil, err

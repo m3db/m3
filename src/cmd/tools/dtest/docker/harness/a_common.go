@@ -28,7 +28,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
@@ -42,7 +41,7 @@ var (
 	networkName = "d-test"
 	volumeName  = "d-test"
 
-	errClosed = errors.New("coordinator container has been closed")
+	errClosed = errors.New("container has been closed")
 )
 
 type dockerResourceOptions struct {
@@ -55,7 +54,7 @@ type dockerResourceOptions struct {
 	iOpts            instrument.Options
 }
 
-// Fill unset fields with default values.
+// NB: this will fill unset fields with given default values.
 func (o dockerResourceOptions) withDefaults(
 	defaultOpts dockerResourceOptions) dockerResourceOptions {
 	if o.overrideDefaults {
@@ -87,15 +86,6 @@ func (o dockerResourceOptions) withDefaults(
 	}
 
 	return o
-}
-
-type dockerResource struct {
-	closed bool
-
-	logger *zap.Logger
-
-	resource *dockertest.Resource
-	pool     *dockertest.Pool
 }
 
 func newOptions(name string) *dockertest.RunOptions {
@@ -179,60 +169,6 @@ func setupMount(dest string) string {
 	return fmt.Sprintf("%s:%s", src, dest)
 }
 
-func newDockerResource(
-	pool *dockertest.Pool,
-	resourceOpts dockerResourceOptions,
-) (*dockerResource, error) {
-	var (
-		source        = resourceOpts.source
-		containerName = resourceOpts.containerName
-		dockerFile    = resourceOpts.dockerFile
-		iOpts         = resourceOpts.iOpts
-		portList      = resourceOpts.portList
-
-		logger = iOpts.Logger().With(
-			zap.String("source", source),
-			zap.String("container name", containerName),
-		)
-	)
-
-	if err := pool.RemoveContainerByName(containerName); err != nil {
-		logger.Error("could not remove container from pool", zap.Error(err))
-		return nil, err
-	}
-
-	opts := exposePorts(newOptions(containerName), portList)
-	opts.Mounts = resourceOpts.mounts
-
-	logger.Info("building container with options", zap.Any("options", opts))
-	resource, err := pool.BuildAndRunWithOptions(dockerFile, opts,
-		func(c *dc.HostConfig) {
-			c.NetworkMode = networkName
-		})
-
-	if err != nil {
-		logger.Error("could not build and run container", zap.Error(err))
-		return nil, err
-	}
-
-	return &dockerResource{
-		logger:   logger,
-		resource: resource,
-		pool:     pool,
-	}, nil
-}
-
-func (c *dockerResource) getPort(bindPort int) (int, error) {
-	port := c.resource.GetPort(fmt.Sprintf("%d/tcp", bindPort))
-	return strconv.Atoi(port)
-}
-
-func (c *dockerResource) getURL(port int, path string) string {
-	tcpPort := fmt.Sprintf("%d/tcp", port)
-	return fmt.Sprintf("http://%s:%s/%s",
-		c.resource.GetBoundIP(tcpPort), c.resource.GetPort(tcpPort), path)
-}
-
 func toResponse(
 	resp *http.Response,
 	response proto.Message,
@@ -292,15 +228,4 @@ func toResponseThrift(
 	}
 
 	return nil
-}
-
-func (c *dockerResource) close() error {
-	if c.closed {
-		c.logger.Error("closing closed resource", zap.Error(errClosed))
-		return errClosed
-	}
-
-	c.closed = true
-	c.logger.Info("closing resource")
-	return c.pool.Purge(c.resource)
 }

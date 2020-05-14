@@ -1,6 +1,9 @@
 package harness
 
 import (
+	"errors"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +52,28 @@ func verifyFetch(t *testing.T, res rpc.FetchResult_, exDps ...dp) {
 	}
 }
 
+func hasFileVerifier(filter string) GoalStateVerifier {
+	return func(out string, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if len(filter) == 0 {
+			return nil
+		}
+
+		re := regexp.MustCompile(filter)
+		lines := strings.Split(out, "\n")
+		for _, line := range lines {
+			if re.MatchString(line) {
+				return nil
+			}
+		}
+
+		return errors.New("no matches")
+	}
+}
+
 func TestHarness(t *testing.T) {
 	dockerResources, err := setupSingleM3DBNode()
 	require.NoError(t, err)
@@ -73,7 +98,12 @@ func TestHarness(t *testing.T) {
 	require.NoError(t, err)
 	verifyFetch(t, fetch, coldDp, warmDp)
 
-	err = node.CheckForCheckpoint()
+	err = node.GoalStateExec(hasFileVerifier(".*1-checkpoint.db"),
+		"find",
+		"/var/lib/m3db/data/coldWritesRepairAndNoIndex",
+		"-name",
+		"*1-checkpoint.db")
+
 	assert.NoError(t, err)
 
 	err = node.Restart()
