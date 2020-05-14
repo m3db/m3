@@ -54,6 +54,7 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
+	logger, _          = zap.NewProduction()
 )
 
 const (
@@ -263,12 +264,13 @@ func (b *dbBuffer) Write(
 		bufferPast   = ropts.BufferPast()
 		bufferFuture = ropts.BufferFuture()
 		now          = b.nowFn()
-		pastLimit    = now.Add(-1 * bufferPast)
-		futureLimit  = now.Add(bufferFuture)
+		pastLimit    = now.Add(-1 * bufferPast).Truncate(time.Second)
+		futureLimit  = now.Add(bufferFuture).Truncate(time.Second)
 		blockSize    = ropts.BlockSize()
 		blockStart   = timestamp.Truncate(blockSize)
 		writeType    WriteType
 	)
+
 	switch {
 	case wOpts.BootstrapWrite:
 		exists, err := b.blockRetriever.IsBlockRetrievable(blockStart)
@@ -740,7 +742,8 @@ func (b *dbBuffer) fetchBlocks(
 			continue
 		}
 
-		if streams := buckets.streams(ctx, sOpts); len(streams) > 0 {
+		streams := buckets.streams(ctx, sOpts)
+		if len(streams) > 0 {
 			result := block.NewFetchBlockResult(
 				start,
 				streams,

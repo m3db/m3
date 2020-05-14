@@ -1572,19 +1572,6 @@ func TestColdFlushBlockStarts(t *testing.T) {
 			},
 		},
 		blockData{
-			start:     blockStart2,
-			writeType: ColdWrite,
-			data: [][]DecodedTestValue{
-				{
-					{blockStart2.Add(secs(2)), 4, xtime.Second, nil},
-					{blockStart2.Add(secs(5)), 5, xtime.Second, nil},
-					{blockStart2.Add(secs(11)), 6, xtime.Second, nil},
-					{blockStart2.Add(secs(15)), 7, xtime.Second, nil},
-					{blockStart2.Add(secs(40)), 8, xtime.Second, nil},
-				},
-			},
-		},
-		blockData{
 			start:     blockStart3,
 			writeType: ColdWrite,
 			data: [][]DecodedTestValue{
@@ -1694,19 +1681,6 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 			},
 		},
 		blockData{
-			start:     blockStart2,
-			writeType: ColdWrite,
-			data: [][]DecodedTestValue{
-				{
-					{blockStart2.Add(secs(2)), 4, xtime.Second, nil},
-					{blockStart2.Add(secs(5)), 5, xtime.Second, nil},
-					{blockStart2.Add(secs(11)), 6, xtime.Second, nil},
-					{blockStart2.Add(secs(15)), 7, xtime.Second, nil},
-					{blockStart2.Add(secs(40)), 8, xtime.Second, nil},
-				},
-			},
-		},
-		blockData{
 			start:     blockStart3,
 			writeType: ColdWrite,
 			data: [][]DecodedTestValue{
@@ -1749,6 +1723,18 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, now, result.FirstWrite)
 
+	// Verify that writing to a cold block updates the first write time. No data in blockStart2 yet.
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart2, 1, nsCtx)
+	assert.NoError(t, err)
+	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
+	assert.Equal(t, time.Time{}, result.FirstWrite)
+	wasWritten, _, err := buffer.Write(ctx, blockStart2, 1,
+		xtime.Second, nil, WriteOptions{})
+	assert.True(t, wasWritten)
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart2, 1, nsCtx)
+	assert.NoError(t, err)
+	assert.Equal(t, now, result.FirstWritet)
+
 	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart3, 1, nsCtx)
 	assert.NoError(t, err)
 	requireReaderValuesEqual(t, expected[blockStartNano3], [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
@@ -1761,14 +1747,6 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	assert.NoError(t, err)
 	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
 	assert.Equal(t, time.Time{}, result.FirstWrite)
-
-	// Verify that writing to the block updates the first write ts.
-	wasWritten, _, err := buffer.Write(ctx, blockStart4, 1,
-		xtime.Second, nil, WriteOptions{})
-	assert.True(t, wasWritten)
-	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
-	assert.NoError(t, err)
-	assert.Equal(t, now, result.FirstWrite)
 }
 
 // TestBufferLoadWarmWrite tests the Load method, ensuring that blocks are successfully loaded into
