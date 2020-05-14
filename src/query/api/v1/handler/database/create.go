@@ -86,33 +86,68 @@ const (
 
 	minRecommendCalculateBlockSize = 30 * time.Minute
 	maxRecommendCalculateBlockSize = 24 * time.Hour
+
+	// Amount to multiply a calculated data block size by to generate a reasonable
+	// index block size.
+	dataToIndexBlockSizeScalingFactor = 2
 )
 
 type recommendedBlockSize struct {
 	forRetentionLessThanOrEqual time.Duration
-	blockSize                   time.Duration
+	dataBlockSize               time.Duration
 }
 
+// TODO(rartoul): Consider replacing these values with target numbers of
+// data block sizes and index blocksizes. I.E existing configuration could
+// be closely approximated with targets of 90 blocks for data and 45 blocks
+// for index.
 var recommendedBlockSizesByRetentionAsc = []recommendedBlockSize{
 	{
 		forRetentionLessThanOrEqual: 12 * time.Hour,
-		blockSize:                   30 * time.Minute,
+		dataBlockSize:               30 * time.Minute,
 	},
 	{
 		forRetentionLessThanOrEqual: 24 * time.Hour,
-		blockSize:                   time.Hour,
+		dataBlockSize:               time.Hour,
 	},
 	{
+		// 2 days.
+		forRetentionLessThanOrEqual: 48 * time.Hour,
+		dataBlockSize:               time.Hour,
+	},
+	{
+		// One week.
 		forRetentionLessThanOrEqual: 7 * 24 * time.Hour,
-		blockSize:                   2 * time.Hour,
+		dataBlockSize:               4 * time.Hour,
 	},
 	{
+		// One month.
 		forRetentionLessThanOrEqual: 30 * 24 * time.Hour,
-		blockSize:                   12 * time.Hour,
+		dataBlockSize:               12 * time.Hour,
 	},
 	{
+		// 3 months.
+		forRetentionLessThanOrEqual: 30 * 3 * 24 * time.Hour,
+		// One day.
+		dataBlockSize: 24 * time.Hour,
+	},
+	{
+		// 6 months.
+		forRetentionLessThanOrEqual: 30 * 6 * 24 * time.Hour,
+		// 2 days.
+		dataBlockSize: 48 * time.Hour,
+	},
+	{
+		// One year.
 		forRetentionLessThanOrEqual: 365 * 24 * time.Hour,
-		blockSize:                   24 * time.Hour,
+		// 4 days.
+		dataBlockSize: 96 * time.Hour,
+	},
+	{
+		// Five years.
+		forRetentionLessThanOrEqual: 5 * 365 * 24 * time.Hour,
+		// One week.
+		dataBlockSize: 168 * time.Hour,
 	},
 }
 
@@ -392,56 +427,56 @@ func defaultedNamespaceAddRequest(
 
 		retentionPeriod := retentionOpts.RetentionPeriod()
 
-		var blockSize time.Duration
+		var dataBlockSize time.Duration
 		switch {
 		case r.BlockSize != nil && r.BlockSize.Time != "":
 			value, err := time.ParseDuration(r.BlockSize.Time)
 			if err != nil {
 				return nil, fmt.Errorf("invalid block size time: %v", err)
 			}
-			blockSize = value
+			dataBlockSize = value
 
 		case r.BlockSize != nil && r.BlockSize.ExpectedSeriesDatapointsPerHour > 0:
 			value := r.BlockSize.ExpectedSeriesDatapointsPerHour
-			blockSize = time.Duration(blockSizeFromExpectedSeriesScalar / value)
+			dataBlockSize = time.Duration(blockSizeFromExpectedSeriesScalar / value)
 			// Snap to the nearest 5mins
-			blockSizeCeil := blockSize.Truncate(5*time.Minute) + 5*time.Minute
-			blockSizeFloor := blockSize.Truncate(5 * time.Minute)
+			blockSizeCeil := dataBlockSize.Truncate(5*time.Minute) + 5*time.Minute
+			blockSizeFloor := dataBlockSize.Truncate(5 * time.Minute)
 			if blockSizeFloor%time.Hour == 0 ||
 				blockSizeFloor%30*time.Minute == 0 ||
 				blockSizeFloor%15*time.Minute == 0 ||
 				blockSizeFloor%10*time.Minute == 0 {
 				// Try snap to hour or 30min or 15min or 10min boundary if possible
-				blockSize = blockSizeFloor
+				dataBlockSize = blockSizeFloor
 			} else {
-				blockSize = blockSizeCeil
+				dataBlockSize = blockSizeCeil
 			}
 
-			if blockSize < minRecommendCalculateBlockSize {
-				blockSize = minRecommendCalculateBlockSize
-			} else if blockSize > maxRecommendCalculateBlockSize {
-				blockSize = maxRecommendCalculateBlockSize
+			if dataBlockSize < minRecommendCalculateBlockSize {
+				dataBlockSize = minRecommendCalculateBlockSize
+			} else if dataBlockSize > maxRecommendCalculateBlockSize {
+				dataBlockSize = maxRecommendCalculateBlockSize
 			}
 
 		default:
 			// Use the maximum block size if we don't find a way to
 			// recommended one based on request parameters
 			max := recommendedBlockSizesByRetentionAsc[len(recommendedBlockSizesByRetentionAsc)-1]
-			blockSize = max.blockSize
+			dataBlockSize = max.dataBlockSize
 			for _, elem := range recommendedBlockSizesByRetentionAsc {
 				if retentionPeriod <= elem.forRetentionLessThanOrEqual {
-					blockSize = elem.blockSize
+					dataBlockSize = elem.dataBlockSize
 					break
 				}
 			}
 
 		}
 
-		retentionOpts = retentionOpts.SetBlockSize(blockSize)
+		retentionOpts = retentionOpts.SetBlockSize(dataBlockSize)
 
 		indexOpts := opts.IndexOptions().
 			SetEnabled(true).
-			SetBlockSize(blockSize)
+			SetBlockSize(dataBlockSize * dataToIndexBlockSizeScalingFactor)
 
 		opts = opts.SetRetentionOptions(retentionOpts).
 			SetIndexOptions(indexOpts)
