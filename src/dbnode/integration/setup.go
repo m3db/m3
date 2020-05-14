@@ -111,7 +111,7 @@ type testSetup struct {
 	shardSet          sharding.ShardSet
 	getNowFn          clock.NowFn
 	setNowFn          nowSetterFn
-	tchannelClient    rpc.TChanNode
+	tchannelClient    TestTChannelClientHealth
 	m3dbClient        client.Client
 	// We need two distinct clients where one has the origin set to the same ID as the
 	// node itself (I.E) the client will behave exactly as if it is the node itself
@@ -267,7 +267,7 @@ func newTestSetup(
 	topoInit := opts.ClusterDatabaseTopologyInitializer()
 	if topoInit == nil {
 		topoInit, err = newTopologyInitializerForShardSet(id, tchannelNodeAddr, shardSet)
-		if err != nil {
+		if err != nil {	
 			return nil, err
 		}
 	}
@@ -278,7 +278,7 @@ func newTestSetup(
 	}
 
 	// Set up tchannel client
-	channel, tc, err := tchannelClient(tchannelNodeAddr)
+	tchanClient, err := NewTChannelClient(tchannelNodeAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -421,12 +421,11 @@ func newTestSetup(
 		shardSet:                    shardSet,
 		getNowFn:                    getNowFn,
 		setNowFn:                    setNowFn,
-		tchannelClient:              tc,
+		tchannelClient:              tchanClient,
 		m3dbClient:                  adminClient.(client.Client),
 		m3dbAdminClient:             adminClient,
 		m3dbVerificationAdminClient: verificationAdminClient,
 		workerPool:                  workerPool,
-		channel:                     channel,
 		filePathPrefix:              filePathPrefix,
 		namespaces:                  opts.Namespaces(),
 		doneCh:                      make(chan struct{}),
@@ -644,27 +643,33 @@ func (ts *testSetup) stopServer() error {
 
 func (ts *testSetup) writeBatch(namespace ident.ID, seriesList generate.SeriesBlock) error {
 	if ts.opts.UseTChannelClientForWriting() {
-		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.WriteRequestTimeout(), namespace, seriesList)
+		return ts.tchannelClient.TChannelClientWriteBatch(
+			ts.opts.WriteRequestTimeout(), namespace, seriesList)
 	}
 	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, namespace, seriesList)
 }
 
 func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]generate.TestValue, error) {
 	if ts.opts.UseTChannelClientForReading() {
-		return tchannelClientFetch(ts.tchannelClient, ts.opts.ReadRequestTimeout(), req)
+		fetched, err := ts.tchannelClient.TChannelClientFetch(ts.opts.ReadRequestTimeout(), req)
+		if err != nil {
+			return nil, err
+		}
+		dp := toDatapoints(fetched)
+		return dp, nil
 	}
 	return m3dbClientFetch(ts.m3dbClient, req)
 }
 
 func (ts *testSetup) truncate(req *rpc.TruncateRequest) (int64, error) {
 	if ts.opts.UseTChannelClientForTruncation() {
-		return tchannelClientTruncate(ts.tchannelClient, ts.opts.TruncateRequestTimeout(), req)
+		return ts.tchannelClient.TChannelClientTruncate(ts.opts.TruncateRequestTimeout(), req)
 	}
 	return m3dbClientTruncate(ts.m3dbClient, req)
 }
 
 func (ts *testSetup) health() (*rpc.NodeHealthResult_, error) {
-	return tchannelClientHealth(ts.tchannelClient)
+	return ts.tchannelClient.TChannelClientHealth()
 }
 
 func (ts *testSetup) close() {

@@ -17,8 +17,8 @@ type dp struct {
 	v float64
 }
 
-func writeReq(ns, id string, dp dp) rpc.WriteRequest {
-	return rpc.WriteRequest{
+func writeReq(ns, id string, dp dp) *rpc.WriteRequest {
+	return &rpc.WriteRequest{
 		NameSpace: ns,
 		ID:        id,
 		Datapoint: &rpc.Datapoint{
@@ -28,8 +28,8 @@ func writeReq(ns, id string, dp dp) rpc.WriteRequest {
 	}
 }
 
-func fetchReq(ns, id string) rpc.FetchRequest {
-	return rpc.FetchRequest{
+func fetchReq(ns, id string) *rpc.FetchRequest {
+	return &rpc.FetchRequest{
 		NameSpace:  ns,
 		ID:         id,
 		RangeStart: 0,
@@ -41,7 +41,7 @@ func ago(mins time.Duration) time.Time {
 	return time.Now().Add(time.Minute * -mins)
 }
 
-func verifyFetch(t *testing.T, res rpc.FetchResult_, exDps ...dp) {
+func verifyFetch(t *testing.T, res *rpc.FetchResult_, exDps ...dp) {
 	dps := res.GetDatapoints()
 	require.Equal(t, len(dps), len(exDps))
 

@@ -21,13 +21,12 @@
 package harness
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/integration"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+
 	dockertest "github.com/ory/dockertest"
 	"go.uber.org/zap"
 )
@@ -49,7 +48,7 @@ var (
 	}
 )
 
-// GoalStateVerifier is a function that applies on Exec output.
+// GoalStateVerifier verifies that the given results are valid.
 type GoalStateVerifier func(string, error) error
 
 // Node is a wrapper for a db node. It provides a wrapper on HTTP
@@ -59,12 +58,14 @@ type GoalStateVerifier func(string, error) error
 type Node interface {
 	// HostDetails returns this node's host details on the given port.
 	HostDetails(port int) (*admin.Host, error)
+	// Health gives this node's health.
+	Health() (*rpc.NodeHealthResult_, error)
 	// WaitForBootstrap blocks until the node has bootstrapped.
 	WaitForBootstrap() error
 	// WritePoint writes a datapoint to the node directly.
-	WritePoint(req rpc.WriteRequest) error
+	WritePoint(req *rpc.WriteRequest) error
 	// Fetch fetches datapoints.
-	Fetch(req rpc.FetchRequest) (rpc.FetchResult_, error)
+	Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error)
 	// Exec executes the given commands on the node container, returning
 	// stdout and stderr from the container.
 	Exec(commands ...string) (string, error)
@@ -81,7 +82,8 @@ type Node interface {
 type dbNode struct {
 	opts dockerResourceOptions
 
-	resource *dockerResource
+	tchanClient integration.TestTChannelClientHealth
+	resource    *dockerResource
 }
 
 func newDockerHTTPNode(
@@ -94,10 +96,20 @@ func newDockerHTTPNode(
 		return nil, err
 	}
 
+	port := "9003/tcp"
+	address := resource.resource.GetHostPort(port)
+	tchanClient, err := integration.NewTChannelClient(address)
+
+	if err != nil {
+		resource.close()
+		return nil, err
+	}
+
 	return &dbNode{
 		opts: opts,
 
-		resource: resource,
+		tchanClient: tchanClient,
+		resource:    resource,
 	}, nil
 }
 
@@ -117,25 +129,18 @@ func (c *dbNode) HostDetails(p int) (*admin.Host, error) {
 	}, nil
 }
 
-func (c *dbNode) Health() (rpc.NodeHealthResult_, error) {
+func (c *dbNode) Health() (*rpc.NodeHealthResult_, error) {
 	if c.resource.closed {
-		return rpc.NodeHealthResult_{}, errClosed
+		return nil, errClosed
 	}
 
-	url := c.resource.getURL(9002, "health")
-	logger := c.resource.logger.With(zapMethod("health"), zap.String("url", url))
-	resp, err := http.Get(url)
+	logger := c.resource.logger.With(zapMethod("health"))
+	res, err := c.tchanClient.TChannelClientHealth()
 	if err != nil {
-		logger.Error("failed get", zap.Error(err))
-		return rpc.NodeHealthResult_{}, err
+		logger.Error("failed get", zap.Error(err), zap.Any("res", res))
 	}
 
-	var response rpc.NodeHealthResult_
-	if err := toResponseThrift(resp, &response, logger); err != nil {
-		return rpc.NodeHealthResult_{}, err
-	}
-
-	return response, nil
+	return res, err
 }
 
 func (c *dbNode) WaitForBootstrap() error {
@@ -160,63 +165,36 @@ func (c *dbNode) WaitForBootstrap() error {
 	})
 }
 
-func (c *dbNode) WritePoint(req rpc.WriteRequest) error {
+func (c *dbNode) WritePoint(req *rpc.WriteRequest) error {
 	if c.resource.closed {
 		return errClosed
 	}
 
-	url := c.resource.getURL(9003, "write")
-	logger := c.resource.logger.With(
-		zapMethod("writePoint"), zap.String("url", url))
-
-	b, err := json.Marshal(req)
+	logger := c.resource.logger.With(zapMethod("write"))
+	err := c.tchanClient.TChannelClientWrite(timeout, req)
 	if err != nil {
-		logger.Error("could not marshal write request", zap.Error(err))
+		logger.Error("could not write", zap.Error(err))
 		return err
 	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewReader(b))
-	if err != nil {
-		logger.Error("failed post", zap.Error(err))
-		return err
-	}
-
-	if resp.StatusCode/100 != 2 {
-		logger.Error("status code not 2xx",
-			zap.Int("status code", resp.StatusCode),
-			zap.String("status", resp.Status))
-		return fmt.Errorf("status code %d", resp.StatusCode)
-	}
-
+	logger.Info("wrote")
 	return nil
 }
 
-func (c *dbNode) Fetch(req rpc.FetchRequest) (rpc.FetchResult_, error) {
+func (c *dbNode) Fetch(req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 	if c.resource.closed {
-		return rpc.FetchResult_{}, errClosed
+		return nil, errClosed
 	}
 
-	url := c.resource.getURL(9003, "fetch")
-	logger := c.resource.logger.With(zapMethod("fetch"), zap.String("url", url))
-
-	b, err := json.Marshal(req)
+	logger := c.resource.logger.With(zapMethod("fetch"))
+	dps, err := c.tchanClient.TChannelClientFetch(timeout, req)
 	if err != nil {
-		logger.Error("could not marshal fetch request", zap.Error(err))
-		return rpc.FetchResult_{}, err
+		logger.Error("could not fetch", zap.Error(err))
+		return nil, err
 	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewReader(b))
-	if err != nil {
-		logger.Error("failed post", zap.Error(err))
-		return rpc.FetchResult_{}, err
-	}
-
-	var response rpc.FetchResult_
-	if err := toResponseThrift(resp, &response, logger); err != nil {
-		return rpc.FetchResult_{}, err
-	}
-
-	return response, nil
+	logger.Info("fetched", zap.Int("num_points", len(dps.GetDatapoints())))
+	return dps, nil
 }
 
 func (c *dbNode) Restart() error {
