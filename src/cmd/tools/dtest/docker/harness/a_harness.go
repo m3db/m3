@@ -21,29 +21,76 @@
 package harness
 
 import (
+	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	dockertest "github.com/ory/dockertest"
 	"go.uber.org/zap"
 )
 
-func setupColdWrites() error {
-	pool, err := dockertest.NewPool("")
-	if err != nil {
-		return err
+const (
+	aggName         = "aggregated"
+	unaggName       = "unaggregated"
+	coldWriteNsName = "coldWritesRepairAndNoIndex"
+	retention       = "6h"
+)
+
+// Nodes is a slice of nodes.
+type Nodes []Node
+
+func (n Nodes) waitForHealthy() error {
+	var (
+		multiErr xerrors.MultiError
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+	)
+
+	for _, node := range n {
+		wg.Add(1)
+		node := node
+		go func() {
+			defer wg.Done()
+			err := node.WaitForBootstrap()
+			if err != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+			}
+		}()
 	}
 
-	pool.MaxWait = time.Second * 10
+	wg.Wait()
+	return multiErr.FinalError()
+}
+
+type cleanup func()
+
+type dockerResources struct {
+	coordinator Coordinator
+	nodes       Nodes
+
+	cleanup cleanup
+}
+
+func setupSingleM3DBNode() (*dockerResources, error) {
+	pool, err := dockertest.NewPool("")
+	if err != nil {
+		return nil, err
+	}
+
+	pool.MaxWait = time.Second * 60
 	err = setupNetwork(pool)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = setupVolume(pool)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	iOpts := instrument.NewOptions()
@@ -52,12 +99,19 @@ func setupColdWrites() error {
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	dbNodes := []Node{dbNode}
+	success := false
+	dbNodes := Nodes{dbNode}
 	defer func() {
-		dbNode.Close()
+		// NB: only defer close in the failure case, otherwise calling function
+		// is responsible for closing the resources.
+		if !success {
+			for _, dbNode := range dbNodes {
+				dbNode.Close()
+			}
+		}
 	}()
 
 	coordinator, err := newDockerHTTPCoordinator(pool, dockerResourceOptions{
@@ -65,11 +119,15 @@ func setupColdWrites() error {
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer func() {
-		coordinator.Close()
+		// NB: only defer close in the failure case, otherwise calling function
+		// is responsible for closing the resources.
+		if !success {
+			coordinator.Close()
+		}
 	}()
 
 	logger := iOpts.Logger().With(zap.String("source", "harness"))
@@ -79,7 +137,7 @@ func setupColdWrites() error {
 		h, err := n.HostDetails()
 		if err != nil {
 			logger.Error("could not get host details", zap.Error(err))
-			return err
+			return nil, err
 		}
 
 		hosts = append(hosts, h)
@@ -87,54 +145,98 @@ func setupColdWrites() error {
 	}
 
 	var (
-		aggName   = "aggregated"
-		unaggName = "unaggregated"
-		retention = "6h"
+		aggDatabase = admin.DatabaseCreateRequest{
+			Type:              "cluster",
+			NamespaceName:     aggName,
+			RetentionTime:     retention,
+			NumShards:         4,
+			ReplicationFactor: 1,
+			Hosts:             hosts,
+		}
+
+		unaggDatabase = admin.DatabaseCreateRequest{
+			NamespaceName: unaggName,
+			RetentionTime: retention,
+		}
+
+		coldWriteNamespace = admin.NamespaceAddRequest{
+			Name: coldWriteNsName,
+			Options: &namespace.NamespaceOptions{
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    true,
+				SnapshotEnabled:   true,
+				RepairEnabled:     true,
+				ColdWritesEnabled: true,
+				RetentionOptions: &namespace.RetentionOptions{
+					RetentionPeriodNanos:                     int64(4 * time.Hour),
+					BlockSizeNanos:                           int64(time.Hour),
+					BufferFutureNanos:                        int64(time.Minute * 10),
+					BufferPastNanos:                          int64(time.Minute * 10),
+					BlockDataExpiry:                          true,
+					BlockDataExpiryAfterNotAccessPeriodNanos: int64(time.Minute * 5),
+				},
+			},
+		}
 	)
-
-	aggDatabase := admin.DatabaseCreateRequest{
-		Type:              "cluster",
-		NamespaceName:     aggName,
-		RetentionTime:     retention,
-		NumShards:         4,
-		ReplicationFactor: 1,
-		Hosts:             hosts,
-	}
-
-	unaggDatabase := admin.DatabaseCreateRequest{
-		NamespaceName: unaggName,
-		RetentionTime: retention,
-	}
 
 	logger.Info("waiting for coordinator")
 	if err := coordinator.WaitForNamespace(""); err != nil {
-		return err
+		return nil, err
 	}
 
 	logger.Info("creating database", zap.Any("request", aggDatabase))
 	if _, err := coordinator.CreateDatabase(aggDatabase); err != nil {
-		return err
+		return nil, err
 	}
 
 	logger.Info("waiting for placements", zap.Strings("placement ids", ids))
 	if err := coordinator.WaitForPlacements(ids); err != nil {
-		return err
+		return nil, err
 	}
 
 	logger.Info("waiting for namespace", zap.String("name", aggName))
 	if err := coordinator.WaitForNamespace(aggName); err != nil {
-		return err
+		return nil, err
 	}
 
 	logger.Info("creating namespace", zap.Any("request", unaggDatabase))
 	if _, err := coordinator.CreateDatabase(unaggDatabase); err != nil {
-		return err
+		return nil, err
 	}
 
 	logger.Info("waiting for namespace", zap.String("name", unaggName))
 	if err := coordinator.WaitForNamespace(unaggName); err != nil {
-		return err
+		return nil, err
 	}
 
-	return err
+	logger.Info("creating namespace", zap.Any("request", coldWriteNamespace))
+	if _, err := coordinator.AddNamespace(coldWriteNamespace); err != nil {
+		return nil, err
+	}
+
+	logger.Info("waiting for namespace", zap.String("name", coldWriteNsName))
+	if err := coordinator.WaitForNamespace(unaggName); err != nil {
+		return nil, err
+	}
+
+	logger.Info("waiting for healthy")
+	if err := dbNodes.waitForHealthy(); err != nil {
+		return nil, err
+	}
+
+	logger.Info("all healthy")
+	success = true
+	return &dockerResources{
+		coordinator: coordinator,
+		nodes:       dbNodes,
+
+		cleanup: func() {
+			coordinator.Close()
+			for _, dbNode := range dbNodes {
+				dbNode.Close()
+			}
+		},
+	}, err
 }
