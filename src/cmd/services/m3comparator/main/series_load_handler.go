@@ -47,24 +47,31 @@ type idSeriesMap struct {
 
 type nameIDSeriesMap map[string]idSeriesMap
 
-type seriesLoadHandler struct {
+type seriesLoadHandler interface {
+	getSeriesIterators(string) (encoding.SeriesIterators, error)
+}
+
+type httpSeriesLoadHandler struct {
 	sync.RWMutex
 	nameIDSeriesMap nameIDSeriesMap
 	iterOpts        iteratorOptions
 }
 
-var _ http.Handler = (*seriesLoadHandler)(nil)
+var (
+	_ http.Handler      = (*httpSeriesLoadHandler)(nil)
+	_ seriesLoadHandler = (*httpSeriesLoadHandler)(nil)
+)
 
-// newSeriesLoadHandler builds a handler that can load series
+// newHTTPSeriesLoadHandler builds a handler that can load series
 // to the comparator via an http endpoint.
-func newSeriesLoadHandler(iterOpts iteratorOptions) *seriesLoadHandler {
-	return &seriesLoadHandler{
+func newHTTPSeriesLoadHandler(iterOpts iteratorOptions) *httpSeriesLoadHandler {
+	return &httpSeriesLoadHandler{
 		iterOpts:        iterOpts,
 		nameIDSeriesMap: make(nameIDSeriesMap),
 	}
 }
 
-func (l *seriesLoadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (l *httpSeriesLoadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := l.iterOpts.iOpts.Logger()
 	err := l.serveHTTP(r)
 	if err != nil {
@@ -76,7 +83,7 @@ func (l *seriesLoadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (l *seriesLoadHandler) getSeriesIterators(
+func (l *httpSeriesLoadHandler) getSeriesIterators(
 	name string) (encoding.SeriesIterators, error) {
 	l.RLock()
 	defer l.RUnlock()
@@ -185,7 +192,7 @@ func calculateSeriesRange(seriesList []parser.Series) (time.Time, time.Time) {
 	return start, end
 }
 
-func (l *seriesLoadHandler) serveHTTP(r *http.Request) error {
+func (l *httpSeriesLoadHandler) serveHTTP(r *http.Request) error {
 	l.Lock()
 	defer l.Unlock()
 

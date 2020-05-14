@@ -266,7 +266,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 				unit xtime.Unit,
 				annotation []byte,
 				_ series.WriteOptions,
-			) (bool, error) {
+			) (bool, series.WriteType, error) {
 				a.Lock()
 				a.writeMap[stringID] = append(
 					a.writeMap[stringID], series.DecodedTestValue{
@@ -276,7 +276,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 						Annotation: annotation,
 					})
 				a.Unlock()
-				return true, nil
+				return true, series.WarmWrite, nil
 			}).AnyTimes()
 
 	result := CheckoutSeriesResult{

@@ -48,7 +48,7 @@ const (
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = 10 * time.Second
-	defaultMaxWiredBlocks                       = uint(1 << 18) // 262,144
+	defaultMaxWiredBlocks                       = uint(1 << 16) // 65,536
 )
 
 var (

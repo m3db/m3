@@ -26,9 +26,6 @@ package persist
 
 import (
 	"reflect"
-	"time"
-
-	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
@@ -332,15 +329,15 @@ func (m *MockOnFlushSeries) EXPECT() *MockOnFlushSeriesMockRecorder {
 }
 
 // OnFlushNewSeries mocks base method
-func (m *MockOnFlushSeries) OnFlushNewSeries(shard uint32, blockStart time.Time, id ident.ID, tags ident.Tags) error {
+func (m *MockOnFlushSeries) OnFlushNewSeries(arg0 OnFlushNewSeriesEvent) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OnFlushNewSeries", shard, blockStart, id, tags)
+	ret := m.ctrl.Call(m, "OnFlushNewSeries", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // OnFlushNewSeries indicates an expected call of OnFlushNewSeries
-func (mr *MockOnFlushSeriesMockRecorder) OnFlushNewSeries(shard, blockStart, id, tags interface{}) *gomock.Call {
+func (mr *MockOnFlushSeriesMockRecorder) OnFlushNewSeries(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnFlushSeries)(nil).OnFlushNewSeries), shard, blockStart, id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnFlushSeries)(nil).OnFlushNewSeries), arg0)
 }

@@ -1781,10 +1781,10 @@ func (mr *MockdatabaseShardMockRecorder) FetchBlocks(ctx, id, starts, nsCtx inte
 }
 
 // FetchBlocksForColdFlush mocks base method
-func (m *MockdatabaseShard) FetchBlocksForColdFlush(ctx context.Context, seriesID ident.ID, start time.Time, version int, nsCtx namespace.Context) ([]xio.BlockReader, error) {
+func (m *MockdatabaseShard) FetchBlocksForColdFlush(ctx context.Context, seriesID ident.ID, start time.Time, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, seriesID, start, version, nsCtx)
-	ret0, _ := ret[0].([]xio.BlockReader)
+	ret0, _ := ret[0].(block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3019,17 +3019,17 @@ func (m *MockOnColdFlushNamespace) EXPECT() *MockOnColdFlushNamespaceMockRecorde
 }
 
 // OnFlushNewSeries mocks base method
-func (m *MockOnColdFlushNamespace) OnFlushNewSeries(shard uint32, blockStart time.Time, id ident.ID, tags ident.Tags) error {
+func (m *MockOnColdFlushNamespace) OnFlushNewSeries(arg0 persist.OnFlushNewSeriesEvent) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OnFlushNewSeries", shard, blockStart, id, tags)
+	ret := m.ctrl.Call(m, "OnFlushNewSeries", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // OnFlushNewSeries indicates an expected call of OnFlushNewSeries
-func (mr *MockOnColdFlushNamespaceMockRecorder) OnFlushNewSeries(shard, blockStart, id, tags interface{}) *gomock.Call {
+func (mr *MockOnColdFlushNamespaceMockRecorder) OnFlushNewSeries(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).OnFlushNewSeries), shard, blockStart, id, tags)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlushNewSeries", reflect.TypeOf((*MockOnColdFlushNamespace)(nil).OnFlushNewSeries), arg0)
 }
 
 // Done mocks base method
@@ -4187,6 +4187,34 @@ func (m *MockOptions) MmapReporter() mmap.Reporter {
 func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
+}
+
+// SetDoNotIndexWithFieldsMap mocks base method
+func (m *MockOptions) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetDoNotIndexWithFieldsMap", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetDoNotIndexWithFieldsMap indicates an expected call of SetDoNotIndexWithFieldsMap
+func (mr *MockOptionsMockRecorder) SetDoNotIndexWithFieldsMap(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).SetDoNotIndexWithFieldsMap), value)
+}
+
+// DoNotIndexWithFieldsMap mocks base method
+func (m *MockOptions) DoNotIndexWithFieldsMap() map[string]string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DoNotIndexWithFieldsMap")
+	ret0, _ := ret[0].(map[string]string)
+	return ret0
+}
+
+// DoNotIndexWithFieldsMap indicates an expected call of DoNotIndexWithFieldsMap
+func (mr *MockOptionsMockRecorder) DoNotIndexWithFieldsMap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).DoNotIndexWithFieldsMap))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface

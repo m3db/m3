@@ -159,7 +159,6 @@ func (bsc BootstrapConfiguration) New(
 				SetPersistManager(opts.PersistManager()).
 				SetCompactor(compactor).
 				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool())
 			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
@@ -195,7 +194,6 @@ func (bsc BootstrapConfiguration) New(
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetCompactor(compactor).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetContextPool(opts.ContextPool())
 			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
