@@ -1,0 +1,61 @@
+# FAILING because we return vector resultType in place of scalar.
+
+# FAILING. eval instant at 50m 12.34e6
+#	12340000
+
+# FAILING. eval instant at 50m 12.34e+6
+#	12340000
+
+# FAILING. eval instant at 50m 12.34e-6
+#	0.00001234
+
+# FAILING. eval instant at 50m 1+1
+#	2
+
+# FAILING. eval instant at 50m 1-1
+#	0
+
+# FAILING. eval instant at 50m 1 - -1
+#	2
+
+# FAILING. eval instant at 50m .2
+#	0.2
+
+# FAILING. eval instant at 50m +0.2
+#	0.2
+
+# FAILING. eval instant at 50m -0.2e-6
+#	-0.0000002
+
+# FAILING. eval instant at 50m +Inf
+#	+Inf
+
+# FAILING. eval instant at 50m inF
+#	+Inf
+
+# FAILING. eval instant at 50m -inf
+#	-Inf
+
+# FAILING. eval instant at 50m NaN
+#	NaN
+
+# FAILING. eval instant at 50m nan
+#	NaN
+
+# FAILING. eval instant at 50m 2.
+#	2
+
+# FAILING. eval instant at 50m 1 / 0
+#	+Inf
+
+# FAILING. eval instant at 50m ((1) / (0))
+#	+Inf
+
+# FAILING. eval instant at 50m -1 / 0
+#	-Inf
+
+# FAILING. eval instant at 50m 0 / 0
+#	NaN
+
+# FAILING. eval instant at 50m 1 % 0
+#	NaN
