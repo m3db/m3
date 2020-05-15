@@ -420,6 +420,7 @@ func newTestBufferBucketWithCustomData(
 ) (*BufferBucket, []DecodedTestValue) {
 	b := &BufferBucket{opts: opts}
 	b.resetTo(bd.start, bd.writeType, opts)
+	b.firstWrite = opts.ClockOptions().NowFn()()
 	data := bd.data
 
 	// Empty all existing encoders.
@@ -472,9 +473,10 @@ func newTestBufferBucketVersionsWithCustomData(
 ) (*BufferBucketVersions, []DecodedTestValue) {
 	newBucket, vals := newTestBufferBucketWithCustomData(t, bd, opts, setAnn)
 	return &BufferBucketVersions{
-		buckets: []*BufferBucket{newBucket},
-		start:   newBucket.start,
-		opts:    opts,
+		buckets:    []*BufferBucket{newBucket},
+		start:      newBucket.start,
+		opts:       opts,
+		bucketPool: opts.BufferBucketPool(),
 	}, vals
 }
 
@@ -1663,7 +1665,13 @@ func TestColdFlushBlockStarts(t *testing.T) {
 }
 
 func TestFetchBlocksForColdFlush(t *testing.T) {
-	opts := newBufferTestOptions()
+	now := time.Now()
+	opts := newBufferTestOptions().SetColdWritesEnabled(true)
+	opts = opts.SetClockOptions(
+		opts.ClockOptions().SetNowFn(func() time.Time {
+			return now
+		}),
+	)
 	rops := opts.RetentionOptions()
 	blockSize := rops.BlockSize()
 	blockStart4 := time.Now().Truncate(blockSize)
@@ -1682,19 +1690,6 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 					{blockStart1, 1, xtime.Second, nil},
 					{blockStart1.Add(secs(5)), 2, xtime.Second, nil},
 					{blockStart1.Add(secs(10)), 3, xtime.Second, nil},
-				},
-			},
-		},
-		blockData{
-			start:     blockStart2,
-			writeType: ColdWrite,
-			data: [][]DecodedTestValue{
-				{
-					{blockStart2.Add(secs(2)), 4, xtime.Second, nil},
-					{blockStart2.Add(secs(5)), 5, xtime.Second, nil},
-					{blockStart2.Add(secs(11)), 6, xtime.Second, nil},
-					{blockStart2.Add(secs(15)), 7, xtime.Second, nil},
-					{blockStart2.Add(secs(40)), 8, xtime.Second, nil},
 				},
 			},
 		},
@@ -1727,28 +1722,44 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	nsCtx := namespace.Context{Schema: testSchemaDesc}
-	reader, err := buffer.FetchBlocksForColdFlush(ctx, blockStart1, 4, nsCtx)
+	result, err := buffer.FetchBlocksForColdFlush(ctx, blockStart1, 4, nsCtx)
 	assert.NoError(t, err)
 	// Verify that we got the correct data and that version is correct set.
-	requireReaderValuesEqual(t, expected[blockStartNano1], [][]xio.BlockReader{reader.Blocks}, opts, nsCtx)
+	requireReaderValuesEqual(t, expected[blockStartNano1], [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
 	assert.Equal(t, 4, buffer.bucketsMap[blockStartNano1].buckets[0].version)
+	assert.Equal(t, now, result.FirstWrite)
 
 	// Try to fetch from block1 again, this should not be an error because we
 	// would want to fetch blocks with buckets that failed to flush fully a
 	// previous time.
-	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart1, 9, nsCtx)
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart1, 9, nsCtx)
 	assert.NoError(t, err)
+	assert.Equal(t, now, result.FirstWrite)
 
-	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart3, 1, nsCtx)
+	// Verify that writing to a cold block updates the first write time. No data in blockStart2 yet.
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart2, 1, nsCtx)
 	assert.NoError(t, err)
-	requireReaderValuesEqual(t, expected[blockStartNano3], [][]xio.BlockReader{reader.Blocks}, opts, nsCtx)
+	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
+	assert.Equal(t, time.Time{}, result.FirstWrite)
+	wasWritten, _, err := buffer.Write(ctx, blockStart2, 1,
+		xtime.Second, nil, WriteOptions{})
+	assert.True(t, wasWritten)
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart2, 1, nsCtx)
+	assert.NoError(t, err)
+	assert.Equal(t, now, result.FirstWrite)
+
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart3, 1, nsCtx)
+	assert.NoError(t, err)
+	requireReaderValuesEqual(t, expected[blockStartNano3], [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
 	assert.Equal(t, 1, buffer.bucketsMap[blockStartNano3].buckets[0].version)
+	assert.Equal(t, now, result.FirstWrite)
 
 	// Try to fetch from a block that only has warm buckets. It has no data
 	// but is not an error.
-	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
 	assert.NoError(t, err)
-	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{reader.Blocks}, opts, nsCtx)
+	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
+	assert.Equal(t, time.Time{}, result.FirstWrite)
 }
 
 // TestBufferLoadWarmWrite tests the Load method, ensuring that blocks are successfully loaded into
