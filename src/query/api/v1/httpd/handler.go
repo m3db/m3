@@ -22,11 +22,15 @@ package httpd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
+	"os"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/zap"
 	"github.com/m3db/m3/src/query/api/experimental/annotated"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
@@ -36,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prom"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
@@ -43,9 +48,14 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/logging"
 	xdebug "github.com/m3db/m3/src/x/debug"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/net/http/cors"
+	"github.com/m3db/m3/src/x/tcp"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/util/httputil"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
@@ -155,6 +165,19 @@ func (h *Handler) RegisterRoutes() error {
 			Tagged(nativeSource).
 			Tagged(v1APIGroup),
 		))
+
+	handlers, err := prom.NewPrometheusReadHandlers(prom.Options{
+		PromQLEngine: newPromQLEngine(instrumentOpts),
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, a := range handlers {
+		fmt.Printf("ROUTE: %+v\n", a.Route())
+	}
+
+	h.customHandlers = append(h.customHandlers, handlers...)
 
 	// Register custom endpoints.
 	for _, custom := range h.customHandlers {
@@ -369,4 +392,35 @@ func (h *Handler) registerRoutesEndpoint() {
 			Routes: routes,
 		})
 	}).Methods(http.MethodGet)
+}
+
+func setupPrometheusMetricsHandler(listenAddress string) error {
+	// Setup handler for the prometheus default registry that is used by
+	// the promql engine to emit internal metrics.
+	listener, err := tcp.NewTCPListener(listenAddress, 10*time.Second)
+	if err != nil {
+		return errors.New("error setting up listener")
+	}
+	go func() {
+		if err := http.Serve(listener, nil); err != nil {
+			fmt.Fprintf(os.Stderr, "unable to server promql metrics handlers configuration: %v\n", err)
+			os.Exit(1)
+		}
+	}()
+	http.Handle("/metrics", promhttp.Handler())
+	return nil
+}
+
+func newPromQLEngine(instrumentOpts instrument.Options) *promql.Engine {
+	var (
+		kitLogger = zap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
+		opts      = promql.EngineOpts{
+			Logger: log.With(kitLogger, "component", "query engine"),
+			//Reg:    prometheus.DefaultRegisterer,
+			MaxConcurrent: 20,
+			MaxSamples:    50000000,
+			Timeout:       2 * time.Minute,
+		}
+	)
+	return promql.NewEngine(opts)
 }
