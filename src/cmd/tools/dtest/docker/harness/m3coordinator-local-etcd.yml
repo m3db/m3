@@ -16,6 +16,10 @@ metrics:
 
 clusters:
   - namespaces:
+      - namespace: agg
+        type: aggregated
+        retention: 10h
+        resolution: 5s
       - namespace: default
         type: unaggregated
         retention: 48h

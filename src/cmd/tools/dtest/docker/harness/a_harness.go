@@ -33,10 +33,10 @@ import (
 )
 
 const (
-	timeout = time.Second * 60
+	timeout = time.Minute * 1
 
 	aggName         = "aggregated"
-	unaggName       = "unaggregated"
+	unaggName       = "default"
 	coldWriteNsName = "coldWritesRepairAndNoIndex"
 	retention       = "6h"
 )

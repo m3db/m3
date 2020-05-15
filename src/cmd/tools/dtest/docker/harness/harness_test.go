@@ -2,6 +2,8 @@ package harness
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -74,14 +76,66 @@ func hasFileVerifier(filter string) GoalStateVerifier {
 	}
 }
 
-func TestHarness(t *testing.T) {
-	dockerResources, err := setupSingleM3DBNode()
-	require.NoError(t, err)
+var singleDBNodeDockerResources *dockerResources
 
-	defer dockerResources.cleanup()
-	require.Equal(t, 1, len(dockerResources.nodes))
-	node := dockerResources.nodes[0]
+func TestMain(m *testing.M) {
+	var err error
+	singleDBNodeDockerResources, err = setupSingleM3DBNode()
 
+	if err != nil {
+		if singleDBNodeDockerResources.cleanup != nil {
+			singleDBNodeDockerResources.cleanup()
+		}
+
+		fmt.Println("could not set up db docker containers", err)
+		os.Exit(1)
+	}
+
+	if l := len(singleDBNodeDockerResources.nodes); l != 1 {
+		singleDBNodeDockerResources.cleanup()
+		fmt.Println("should only have a single node, have", l)
+		os.Exit(1)
+	}
+
+	code := m.Run()
+	// singleDBNodeDockerResources.cleanup()
+	os.Exit(code)
+}
+
+func renderVerifier() GoalStateVerifier {
+	return func(s string, err error) error {
+		if err != nil {
+			fmt.Println("Got err", err)
+			return err
+		}
+
+		fmt.Println("Got s", s)
+		return fmt.Errorf(s)
+	}
+}
+
+func graphiteQuery(target string, start time.Time) string {
+	from := start.Add(time.Minute * -5).Unix()
+	until := start.Add(time.Minute * 5).Unix()
+	return fmt.Sprintf("api/v1/graphite/render?target=%s&from=%d&until=%d",
+		target, from, until)
+}
+
+func TestCarbon(t *testing.T) {
+	coord := singleDBNodeDockerResources.coordinator
+
+	aggMetric := "foo.min.aggregate.baz"
+	timestamp := time.Now()
+	assert.NoError(t, coord.WriteCarbon(7204, aggMetric, 41, timestamp))
+	assert.NoError(t, coord.WriteCarbon(7204, aggMetric, 42, timestamp))
+	assert.NoError(t, coord.WriteCarbon(7204, aggMetric, 40, timestamp))
+	time.Sleep(time.Minute)
+	err := coord.RunQuery(renderVerifier(), graphiteQuery(aggMetric, timestamp))
+	assert.NoError(t, err)
+}
+
+func testColdWritesSimple(t *testing.T) {
+	node := singleDBNodeDockerResources.nodes[0]
 	warmDp := dp{t: ago(20), v: 12.3456789}
 	req := writeReq(coldWriteNsName, "foo", warmDp)
 	require.NoError(t, node.WritePoint(req))
