@@ -39,6 +39,9 @@ type ObjectPool interface {
 
 	// Put returns an object to the pool.
 	Put(obj interface{})
+
+	// Close cleans up all background tasks of the pool.
+	Close()
 }
 
 // ObjectPoolOptions provides options for an object pool.
@@ -48,6 +51,12 @@ type ObjectPoolOptions interface {
 
 	// Size returns the size of the object pool.
 	Size() int
+
+	// SetSize sets the shard count of the object pool.
+	SetShardCount(value int) ObjectPoolOptions
+
+	// Size returns the shard count of the object pool.
+	ShardCount() int
 
 	// SetRefillLowWatermark sets the refill low watermark value between [0, 1),
 	// if zero then no refills occur.

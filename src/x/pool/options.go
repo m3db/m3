@@ -20,16 +20,26 @@
 
 package pool
 
-import "github.com/m3db/m3/src/x/instrument"
+import (
+	"math"
+	"runtime"
+
+	"github.com/m3db/m3/src/x/instrument"
+)
+
+var (
+	defaultShardCount = int(math.Max(math.Ceil(float64(runtime.GOMAXPROCS(0))), 1.0))
+	defaultSize       = defaultShardCount * 2048
+)
 
 const (
-	defaultSize                = 4096
 	defaultRefillLowWatermark  = 0.0
 	defaultRefillHighWatermark = 0.0
 )
 
 type objectPoolOptions struct {
 	size                int
+	shardCount          int
 	refillLowWatermark  float64
 	refillHighWatermark float64
 	instrumentOpts      instrument.Options
@@ -39,6 +49,7 @@ type objectPoolOptions struct {
 func NewObjectPoolOptions() ObjectPoolOptions {
 	return &objectPoolOptions{
 		size:                defaultSize,
+		shardCount:          defaultShardCount,
 		refillLowWatermark:  defaultRefillLowWatermark,
 		refillHighWatermark: defaultRefillHighWatermark,
 		instrumentOpts:      instrument.NewOptions(),
@@ -53,6 +64,16 @@ func (o *objectPoolOptions) SetSize(value int) ObjectPoolOptions {
 
 func (o *objectPoolOptions) Size() int {
 	return o.size
+}
+
+func (o *objectPoolOptions) SetShardCount(value int) ObjectPoolOptions {
+	opts := *o
+	opts.shardCount = value
+	return &opts
+}
+
+func (o *objectPoolOptions) ShardCount() int {
+	return o.shardCount
 }
 
 func (o *objectPoolOptions) SetRefillLowWatermark(value float64) ObjectPoolOptions {

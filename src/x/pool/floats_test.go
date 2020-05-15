@@ -58,5 +58,5 @@ func getFloatsPool(bucketSizes int, bucketCaps []int) *floatsPool {
 		}
 	}
 
-	return NewFloatsPool(buckets, nil).(*floatsPool)
+	return NewFloatsPool(buckets, NewObjectPoolOptions().SetShardCount(1)).(*floatsPool)
 }

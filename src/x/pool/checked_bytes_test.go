@@ -100,6 +100,7 @@ func TestAppendByteChecked(t *testing.T) {
 	b2.IncRef()
 	assert.Equal(t, 3, b2.Cap())
 	assert.Equal(t, b1.Bytes()[:3], b2.Bytes()[:3])
+	assert.Equal(t, 0, b2.Len())
 }
 
 func getCheckedBytesPool(
@@ -114,8 +115,9 @@ func getCheckedBytesPool(
 		}
 	}
 
-	return NewCheckedBytesPool(buckets, nil, func(s []Bucket) BytesPool {
-		return NewBytesPool(s, nil)
+	opts := NewObjectPoolOptions().SetShardCount(1)
+	return NewCheckedBytesPool(buckets, opts, func(s []Bucket) BytesPool {
+		return NewBytesPool(s, opts)
 	}).(*checkedBytesPool)
 }
 
@@ -125,5 +127,5 @@ func checkedBytesPoolBucketLen(
 ) int {
 	bucketizedPool := p.pool.(*bucketizedObjectPool)
 	objectPool := bucketizedPool.buckets[bucket].pool.(*objectPool)
-	return len(objectPool.values)
+	return getPoolObjectSize(objectPool)
 }

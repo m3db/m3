@@ -23,12 +23,12 @@ package pool
 import (
 	"errors"
 	"math"
-	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/uber-go/tally"
+	"golang.org/x/sys/cpu"
 )
 
 var (
@@ -36,21 +36,28 @@ var (
 	errPoolGetBeforeInitialized = errors.New("object pool get before initialized")
 	errPoolPutBeforeInitialized = errors.New("object pool put before initialized")
 
-	_defaultShardCount = int(math.Max(math.Ceil(float64(runtime.GOMAXPROCS(0)/2.0)), 1.0))
+	_ unsafe.Pointer // prevent goimports from removing "unsafe" import
 )
 
 const _emitMetricsRate = 2 * time.Second
 
+type poolShard struct {
+	mtx sync.Mutex
+	// removing false sharing speeds up pool microbenchmarks by up to 30% for contended cases
+	_      cpu.CacheLinePad
+	values []interface{}
+	_      cpu.CacheLinePad
+}
+
 type objectPool struct {
+	alloc               Allocator
 	wg                  sync.WaitGroup
 	done                chan struct{}
-	values              chan interface{}
-	alloc               Allocator
-	size                int
+	shardSize           int
+	shardCount          uint32
+	shards              []poolShard
 	refillLowWatermark  int
 	refillHighWatermark int
-	filling             int32
-	dice                int32
 	metrics             objectPoolMetrics
 }
 
@@ -68,13 +75,18 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 	}
 
 	m := opts.InstrumentOptions().MetricsScope()
+	shards := opts.ShardCount()
+	size := int(math.Max(math.Ceil(float64(opts.Size()/shards)), 1.0))
 
 	p := &objectPool{
-		size: opts.Size(),
+		done:       make(chan struct{}),
+		shards:     make([]poolShard, shards),
+		shardCount: uint32(shards),
+		shardSize:  size,
 		refillLowWatermark: int(math.Ceil(
-			opts.RefillLowWatermark() * float64(opts.Size()))),
+			opts.RefillLowWatermark() * float64(size))),
 		refillHighWatermark: int(math.Ceil(
-			opts.RefillHighWatermark() * float64(opts.Size()))),
+			opts.RefillHighWatermark() * float64(size))),
 		metrics: objectPoolMetrics{
 			free:       m.Gauge("free"),
 			total:      m.Gauge("total"),
@@ -82,8 +94,6 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 			putOnFull:  m.Counter("put-on-full"),
 		},
 	}
-
-	p.setGauges()
 
 	return p
 }
@@ -95,11 +105,12 @@ func (p *objectPool) Init(alloc Allocator) {
 	}
 	p.alloc = alloc
 
-	p.done = make(chan struct{})
-	p.values = make(chan interface{}, p.size)
-
-	for i := 0; i < cap(p.values); i++ {
-		p.values <- p.alloc()
+	for i := range p.shards {
+		values := make([]interface{}, 0, p.shardSize)
+		for j := 0; j < p.shardSize; j++ {
+			values = append(values, alloc())
+		}
+		p.shards[i].values = values
 	}
 
 	p.wg.Add(1)
@@ -122,52 +133,85 @@ func (p *objectPool) Init(alloc Allocator) {
 
 // Get returns an object from the pool
 func (p *objectPool) Get() interface{} {
-	var v interface{}
-	select {
-	case v = <-p.values:
-	default:
-		v = p.alloc()
+	var (
+		// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+		// inlined manually
+		shardID = int((uint64(FastRand()) * uint64(p.shardCount)) >> 32)
+		shard   = &p.shards[shardID]
+		value   interface{}
+		num     int
+	)
+
+	shard.mtx.Lock()
+	num = len(shard.values)
+	if num > 0 {
+		value = shard.values[num-1]
+		shard.values[num-1] = nil
+		shard.values = shard.values[:num-1]
+	}
+	shard.mtx.Unlock()
+
+	if num <= p.refillLowWatermark {
+		p.tryFill(shard)
+	}
+
+	if num <= 0 {
+		value = p.alloc()
 		p.metrics.getOnEmpty.Inc(1)
 	}
-
-	if p.refillLowWatermark > 0 && len(p.values) <= p.refillLowWatermark {
-		p.tryFill()
-	}
-
-	return v
+	return value
 }
 
 // Put puts object back into the object pool
 func (p *objectPool) Put(obj interface{}) {
-	select {
-	case p.values <- obj:
-	default:
+	var (
+		// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+		// inlined manually
+		shard    = int((uint64(FastRand()) * uint64(p.shardCount)) >> 32)
+		mtx      = &p.shards[shard].mtx
+		hasSpace bool
+	)
+
+	mtx.Lock()
+	values := p.shards[shard].values
+	hasSpace = len(values) < cap(values)
+
+	if hasSpace {
+		p.shards[shard].values = append(values, obj)
+	}
+	mtx.Unlock()
+
+	if !hasSpace {
 		p.metrics.putOnFull.Inc(1)
 	}
-
 }
 
 func (p *objectPool) setGauges() {
-	p.metrics.free.Update(float64(len(p.values)))
-	p.metrics.total.Update(float64(p.size))
+	var free, total int
+
+	for i := range p.shards {
+		shard := &p.shards[i]
+		shard.mtx.Lock()
+		free += len(shard.values)
+		total += cap(shard.values)
+		shard.mtx.Unlock()
+	}
+
+	p.metrics.free.Update(float64(free))
+	p.metrics.total.Update(float64(total))
 }
 
-func (p *objectPool) tryFill() {
-	if !atomic.CompareAndSwapInt32(&p.filling, 0, 1) {
+func (p *objectPool) tryFill(shard *poolShard) {
+	if p.refillLowWatermark <= 0 {
 		return
 	}
 
-	go func() {
-		defer atomic.StoreInt32(&p.filling, 0)
-
-		for len(p.values) < p.refillHighWatermark {
-			select {
-			case p.values <- p.alloc():
-			default:
-				return
-			}
-		}
-	}()
+	shard.mtx.Lock()
+	for len(shard.values) < p.refillHighWatermark {
+		shard.values = append(shard.values, p.alloc())
+	}
+	shard.mtx.Unlock()
+	return
 }
 
 // Close stops background processes
@@ -175,3 +219,8 @@ func (p *objectPool) Close() {
 	close(p.done)
 	p.wg.Wait()
 }
+
+// FastRand is a thread-local rand function from Go runtime.
+// This looks nasty but better than using math/rand + sync.Pool.
+//go:linkname FastRand runtime.fastrand
+func FastRand() uint32

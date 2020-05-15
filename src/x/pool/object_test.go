@@ -27,8 +27,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func getPoolObjectSize(p *objectPool) int {
+	var count int
+	for i := range p.shards {
+		count += len(p.shards[i].values)
+	}
+	return count
+}
+
 func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 	opts := NewObjectPoolOptions().
+		SetShardCount(1).
 		SetSize(100).
 		SetRefillLowWatermark(0.25).
 		SetRefillHighWatermark(0.75)
@@ -37,28 +46,48 @@ func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 	pool.Init(func() interface{} {
 		return 1
 	})
+	defer pool.Close()
 
-	assert.Equal(t, 100, len(pool.values))
-
-	for i := 0; i < 74; i++ {
-		pool.Get()
-	}
-
-	assert.Equal(t, 26, len(pool.values))
-
-	// This should trigger a refill
-	pool.Get()
-
-	start := time.Now()
-	for time.Since(start) < 10*time.Second {
-		if len(pool.values) == 75 {
-			break
+	for i := 0; i < 75; i++ {
+		v := pool.Get()
+		i, ok := v.(int)
+		if !ok || i != 1 {
+			t.Fail()
 		}
-		time.Sleep(time.Millisecond)
 	}
 
 	// Assert refilled
-	assert.Equal(t, 75, len(pool.values))
+	size := getPoolObjectSize(pool)
+	if size < 25 {
+		t.Fatalf("pool was not refiled, size %v is less than high watermark", size)
+	}
+}
+
+func TestObjectPoolRefillOnLowWaterMarkSharded(t *testing.T) {
+	opts := NewObjectPoolOptions().
+		SetSize(2000).
+		SetRefillLowWatermark(0.25).
+		SetRefillHighWatermark(0.75)
+
+	pool := NewObjectPool(opts).(*objectPool)
+	pool.Init(func() interface{} {
+		return 1
+	})
+	defer pool.Close()
+
+	for i := 0; i < 2500; i++ {
+		v := pool.Get()
+		i, ok := v.(int)
+		if !ok || i != 1 {
+			t.Fail()
+		}
+	}
+
+	// Assert refilled
+	size := getPoolObjectSize(pool)
+	if size < 500 {
+		t.Fatalf("pool was not refiled, size %v is less than 500", size)
+	}
 }
 
 func TestObjectPoolDoubleInit(t *testing.T) {
@@ -76,6 +105,7 @@ func BenchmarkObjectPoolGetPut(b *testing.B) {
 		return 1
 	})
 
+	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		o := pool.Get()
 		pool.Put(o)
@@ -91,14 +121,14 @@ func BenchmarkObjectPoolParallel(b *testing.B) {
 		ts   time.Time
 	}
 
-	p := NewObjectPool(
-		NewObjectPoolOptions().
-			SetSize(1024))
+	p := NewObjectPool(NewObjectPoolOptions().SetSize(1024))
 	p.Init(func() interface{} {
 		return &poolObj{
 			arr: make([]byte, 0, 16),
 		}
 	})
+	defer p.Close()
+
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			op := p.Get()
