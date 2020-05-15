@@ -41,40 +41,42 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-// TestTChannelClientHealth is a test only TChannel client that exposes db methods.
-type TestTChannelClientHealth struct {
-	Address string
-	Channel *tchannel.Channel
-	Node    rpc.TChanNode
+// TestTChannelClient is a test only TChannel client that exposes db methods.
+type TestTChannelClient struct {
+	address string
+	channel *tchannel.Channel
+	name    string
+	node    rpc.TChanNode
 }
 
 // NewTChannelClient creates a new client on the given address.
-func NewTChannelClient(address string) (TestTChannelClientHealth, error) {
-	channel, err := tchannel.NewChannel("integration-test", nil)
+func NewTChannelClient(name, address string) (*TestTChannelClient, error) {
+	channel, err := tchannel.NewChannel(name, nil)
 	if err != nil {
-		return TestTChannelClientHealth{}, err
+		return &TestTChannelClient{}, err
 	}
 
 	endpoint := &thrift.ClientOptions{HostPort: address}
 	thriftClient := thrift.NewClient(channel, nchannel.ChannelName, endpoint)
 	client := rpc.NewTChanNodeClient(thriftClient)
-	return TestTChannelClientHealth{
-		Address: address,
-		Channel: channel,
-		Node:    client,
+	return &TestTChannelClient{
+		name:    name,
+		address: address,
+		channel: channel,
+		node:    client,
 	}, nil
 }
 
 // TChannelClientWrite writes a datapoint using a tchannel client.
-func (client TestTChannelClientHealth) TChannelClientWrite(
+func (client *TestTChannelClient) TChannelClientWrite(
 	timeout time.Duration, req *rpc.WriteRequest,
 ) error {
 	ctx, _ := thrift.NewContext(timeout)
-	return client.Node.Write(ctx, req)
+	return client.node.Write(ctx, req)
 }
 
 // TChannelClientWriteBatch writes a data map using a tchannel client.
-func (client TestTChannelClientHealth) TChannelClientWriteBatch(
+func (client *TestTChannelClient) TChannelClientWriteBatch(
 	timeout time.Duration, namespace ident.ID, seriesList generate.SeriesBlock,
 ) error {
 	var elems []*rpc.WriteBatchRawRequestElement
@@ -98,23 +100,23 @@ func (client TestTChannelClientHealth) TChannelClientWriteBatch(
 		NameSpace: namespace.Bytes(),
 		Elements:  elems,
 	}
-	return client.Node.WriteBatchRaw(ctx, batchReq)
+	return client.node.WriteBatchRaw(ctx, batchReq)
 }
 
 // TChannelClientFetch fulfills a fetch request using a tchannel client.
-func (client TestTChannelClientHealth) TChannelClientFetch(
+func (client *TestTChannelClient) TChannelClientFetch(
 	timeout time.Duration, req *rpc.FetchRequest,
 ) (*rpc.FetchResult_, error) {
 	ctx, _ := thrift.NewContext(timeout)
-	return client.Node.Fetch(ctx, req)
+	return client.node.Fetch(ctx, req)
 }
 
 // TChannelClientTruncate fulfills a namespace truncation request using a tchannel client.
-func (client TestTChannelClientHealth) TChannelClientTruncate(
+func (client *TestTChannelClient) TChannelClientTruncate(
 	timeout time.Duration, req *rpc.TruncateRequest,
 ) (int64, error) {
 	ctx, _ := thrift.NewContext(timeout)
-	truncated, err := client.Node.Truncate(ctx, req)
+	truncated, err := client.node.Truncate(ctx, req)
 	if err != nil {
 		return 0, err
 	}
@@ -122,9 +124,11 @@ func (client TestTChannelClientHealth) TChannelClientTruncate(
 }
 
 // TChannelClientHealth fulfills a client health request using a tchannel client.
-func (client TestTChannelClientHealth) TChannelClientHealth() (*rpc.NodeHealthResult_, error) {
-	ctx, _ := thrift.NewContext(time.Minute)
-	return client.Node.Health(ctx)
+func (client *TestTChannelClient) TChannelClientHealth(
+	timeout time.Duration,
+) (*rpc.NodeHealthResult_, error) {
+	ctx, _ := thrift.NewContext(timeout)
+	return client.node.Health(ctx)
 }
 
 func m3dbAdminClient(opts client.AdminOptions) (client.AdminClient, error) {

@@ -304,13 +304,14 @@ func (c *coordinator) WriteCarbon(
 		return errClosed
 	}
 
-	url := c.resource.getURL(7204, "")
+	url := c.resource.getURL(port, "")
 	logger := c.resource.logger.With(
 		zapMethod("writeCarbon"), zap.String("url", url))
 
 	con, err := net.Dial("tcp", url)
 	if err != nil {
 		logger.Error("could not dial", zap.Error(err))
+		return err
 	}
 
 	write := fmt.Sprintf("%s %f %d", metric, v, t.Unix())

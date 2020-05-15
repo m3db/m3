@@ -109,7 +109,7 @@ type testSetup struct {
 	shardSet          sharding.ShardSet
 	getNowFn          clock.NowFn
 	setNowFn          nowSetterFn
-	tchannelClient    TestTChannelClientHealth
+	tchannelClient    *TestTChannelClient
 	m3dbClient        client.Client
 	// We need two distinct clients where one has the origin set to the same ID as the
 	// node itself (I.E) the client will behave exactly as if it is the node itself
@@ -254,7 +254,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	topoInit := opts.ClusterDatabaseTopologyInitializer()
 	if topoInit == nil {
 		topoInit, err = newTopologyInitializerForShardSet(id, tchannelNodeAddr, shardSet)
-		if err != nil {	
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -265,7 +265,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	// Set up tchannel client
-	tchanClient, err := NewTChannelClient(tchannelNodeAddr)
+	tchanClient, err := NewTChannelClient("integration-test", tchannelNodeAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -651,7 +651,7 @@ func (ts *testSetup) truncate(req *rpc.TruncateRequest) (int64, error) {
 }
 
 func (ts *testSetup) health() (*rpc.NodeHealthResult_, error) {
-	return ts.tchannelClient.TChannelClientHealth()
+	return ts.tchannelClient.TChannelClientHealth(5 * time.Second)
 }
 
 func (ts *testSetup) close() {

@@ -82,7 +82,7 @@ type Node interface {
 type dbNode struct {
 	opts dockerResourceOptions
 
-	tchanClient integration.TestTChannelClientHealth
+	tchanClient *integration.TestTChannelClient
 	resource    *dockerResource
 }
 
@@ -96,15 +96,21 @@ func newDockerHTTPNode(
 		return nil, err
 	}
 
-	port := "9003/tcp"
-	address := resource.resource.GetHostPort(port)
-	tchanClient, err := integration.NewTChannelClient(address)
+	completed := false
+	defer func() {
+		if !completed {
+			resource.close()
+		}
+	}()
 
+	addr := resource.resource.GetHostPort("9000/tcp")
+	tchanClient, err := integration.NewTChannelClient("client", addr)
 	if err != nil {
-		resource.close()
 		return nil, err
 	}
 
+	resource.logger.Info("set up tchanClient", zap.String("node_addr", addr))
+	completed = true
 	return &dbNode{
 		opts: opts,
 
@@ -135,7 +141,7 @@ func (c *dbNode) Health() (*rpc.NodeHealthResult_, error) {
 	}
 
 	logger := c.resource.logger.With(zapMethod("health"))
-	res, err := c.tchanClient.TChannelClientHealth()
+	res, err := c.tchanClient.TChannelClientHealth(timeout)
 	if err != nil {
 		logger.Error("failed get", zap.Error(err), zap.Any("res", res))
 	}
