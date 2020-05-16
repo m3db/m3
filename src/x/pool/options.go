@@ -21,14 +21,11 @@
 package pool
 
 import (
-	"math"
-	"runtime"
-
 	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (
-	defaultShardCount = int(math.Max(math.Ceil(float64(runtime.GOMAXPROCS(0))), 1.0))
+	defaultShardCount = 2
 	defaultSize       = defaultShardCount * 2048
 )
 

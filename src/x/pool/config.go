@@ -27,6 +27,9 @@ type ObjectPoolConfiguration struct {
 	// The size of the pool.
 	Size int `yaml:"size"`
 
+	// Number of shards to create.
+	ShardCount int `yaml:"shardCount"`
+
 	// The watermark configuration.
 	Watermark WatermarkConfiguration `yaml:"watermark"`
 }
@@ -39,9 +42,14 @@ func (c *ObjectPoolConfiguration) NewObjectPoolOptions(
 	if c.Size != 0 {
 		size = c.Size
 	}
+	shardCount := defaultShardCount
+	if c.ShardCount != 0 {
+		shardCount = c.ShardCount
+	}
 	return NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetSize(size).
+		SetShardCount(shardCount).
 		SetRefillLowWatermark(c.Watermark.RefillLowWatermark).
 		SetRefillHighWatermark(c.Watermark.RefillHighWatermark)
 }
@@ -51,6 +59,9 @@ type BucketizedPoolConfiguration struct {
 	// The pool bucket configuration.
 	Buckets []BucketConfiguration `yaml:"buckets"`
 
+	// Number of shards to create for each bucket.
+	ShardCount int `yaml:"shardCount"`
+
 	// The watermark configuration.
 	Watermark WatermarkConfiguration `yaml:"watermark"`
 }
@@ -59,8 +70,13 @@ type BucketizedPoolConfiguration struct {
 func (c *BucketizedPoolConfiguration) NewObjectPoolOptions(
 	instrumentOpts instrument.Options,
 ) ObjectPoolOptions {
+	shardCount := defaultShardCount
+	if c.ShardCount != 0 {
+		shardCount = c.ShardCount
+	}
 	return NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts).
+		SetShardCount(shardCount).
 		SetRefillLowWatermark(c.Watermark.RefillLowWatermark).
 		SetRefillHighWatermark(c.Watermark.RefillHighWatermark)
 }

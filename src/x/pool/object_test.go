@@ -21,6 +21,8 @@
 package pool
 
 import (
+	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -65,6 +67,7 @@ func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 
 func TestObjectPoolRefillOnLowWaterMarkSharded(t *testing.T) {
 	opts := NewObjectPoolOptions().
+		SetShardCount(4).
 		SetSize(2000).
 		SetRefillLowWatermark(0.25).
 		SetRefillHighWatermark(0.75)
@@ -99,10 +102,12 @@ func TestObjectPoolDoubleInit(t *testing.T) {
 }
 
 func BenchmarkObjectPoolGetPut(b *testing.B) {
-	opts := NewObjectPoolOptions().SetSize(1)
+	opts := NewObjectPoolOptions().
+		SetSize(1).
+		SetShardCount(1)
 	pool := NewObjectPool(opts)
 	pool.Init(func() interface{} {
-		return 1
+		return make([]byte, 0, 16)
 	})
 
 	b.ResetTimer()
@@ -112,13 +117,92 @@ func BenchmarkObjectPoolGetPut(b *testing.B) {
 	}
 }
 
-// go test -benchmem -run=^$ github.com/m3db/m3/src/x/pool -bench '^(BenchmarkObjectPoolParallel)$' -cpu 1,2,4,6,8
+func BenchmarkObjectPoolGetMultiPutContended(b *testing.B) {
+	numprocs := runtime.GOMAXPROCS(0) / 2
+	if numprocs < 2 {
+		numprocs = 2
+	}
+	if numprocs > 8 {
+		numprocs = 8 // cap shard count, as pool size is divided by shards
+	}
+
+	opts := NewObjectPoolOptions().
+		SetShardCount(numprocs).
+		SetSize(256)
+	p := NewObjectPool(opts)
+	p.Init(func() interface{} {
+		return make([]byte, 0, 32)
+	})
+	objs := make([]interface{}, 16)
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := 0; i < len(objs); i++ {
+				o := p.Get()
+				objs[i] = o
+			}
+
+			for _, obj := range objs {
+				o, ok := obj.([]byte)
+				if !ok {
+					b.Fail()
+				}
+				o = strconv.AppendInt(o[:0], 12344321, 10)
+				p.Put(o)
+			}
+		}
+	})
+}
+
+func BenchmarkObjectPoolGetMultiPutContendedWithRefill(b *testing.B) {
+	numprocs := runtime.GOMAXPROCS(0) / 2
+	if numprocs < 2 {
+		numprocs = 2
+	}
+	if numprocs > 8 {
+		numprocs = 8 // cap shard count, as pool size is divided by shards
+	}
+
+	opts := NewObjectPoolOptions().
+		SetShardCount(numprocs).
+		SetSize(32).
+		SetRefillLowWatermark(0.05).
+		SetRefillHighWatermark(0.25)
+
+	p := NewObjectPool(opts)
+	p.Init(func() interface{} {
+		return make([]byte, 0, 32)
+	})
+	objs := make([]interface{}, 16)
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := 0; i < len(objs); i++ {
+				o := p.Get()
+				objs[i] = o
+			}
+
+			for _, obj := range objs {
+				o, ok := obj.([]byte)
+				if !ok {
+					b.Fail()
+				}
+				o = strconv.AppendInt(o[:0], 12344321, 10)
+				p.Put(o)
+			}
+		}
+	})
+}
+
+// go test -benchmem -run=^$ github.com/m3db/m3/src/x/pool -bench '^(BenchmarkObjectPoolParallel)$' -cpu 1,2,4,6,8,12
 func BenchmarkObjectPoolParallel(b *testing.B) {
 	type poolObj struct {
 		arr  []byte
 		a, b int
 		c    *bool
-		ts   time.Time
+		ts   int64
 	}
 
 	p := NewObjectPool(NewObjectPoolOptions().SetSize(1024))
@@ -129,6 +213,9 @@ func BenchmarkObjectPoolParallel(b *testing.B) {
 	})
 	defer p.Close()
 
+	now := time.Now()
+
+	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			op := p.Get()
@@ -139,7 +226,7 @@ func BenchmarkObjectPoolParallel(b *testing.B) {
 			// do something with object:
 			obj.a = b.N
 			obj.b = len(obj.arr)
-			obj.ts = time.Now()
+			obj.ts = now.Unix() + int64(b.N)
 			p.Put(op)
 		}
 	})

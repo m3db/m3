@@ -30,7 +30,8 @@ import (
 
 func TestObjectPoolConfiguration(t *testing.T) {
 	cfg := ObjectPoolConfiguration{
-		Size: 1,
+		Size:       1,
+		ShardCount: 42,
 		Watermark: WatermarkConfiguration{
 			RefillLowWatermark:  0.1,
 			RefillHighWatermark: 0.5,
@@ -38,6 +39,7 @@ func TestObjectPoolConfiguration(t *testing.T) {
 	}
 	opts := cfg.NewObjectPoolOptions(instrument.NewOptions()).(*objectPoolOptions)
 	require.Equal(t, 1, opts.size)
+	require.Equal(t, 42, opts.shardCount)
 	require.Equal(t, 0.1, opts.refillLowWatermark)
 	require.Equal(t, 0.5, opts.refillHighWatermark)
 }
@@ -48,6 +50,7 @@ func TestBucketizedPoolConfiguration(t *testing.T) {
 			{Count: 1, Capacity: 10},
 			{Count: 2, Capacity: 20},
 		},
+		ShardCount: 42,
 		Watermark: WatermarkConfiguration{
 			RefillLowWatermark:  0.1,
 			RefillHighWatermark: 0.5,
@@ -59,6 +62,7 @@ func TestBucketizedPoolConfiguration(t *testing.T) {
 	}
 	require.Equal(t, expectedBuckets, cfg.NewBuckets())
 	opts := cfg.NewObjectPoolOptions(instrument.NewOptions()).(*objectPoolOptions)
+	require.Equal(t, 42, opts.shardCount)
 	require.Equal(t, 0.1, opts.refillLowWatermark)
 	require.Equal(t, 0.5, opts.refillHighWatermark)
 }
