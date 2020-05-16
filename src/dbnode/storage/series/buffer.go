@@ -54,6 +54,7 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
+	logger, _          = zap.NewProduction()
 )
 
 const (
@@ -263,12 +264,13 @@ func (b *dbBuffer) Write(
 		bufferPast   = ropts.BufferPast()
 		bufferFuture = ropts.BufferFuture()
 		now          = b.nowFn()
-		pastLimit    = now.Add(-1 * bufferPast)
-		futureLimit  = now.Add(bufferFuture)
+		pastLimit    = now.Add(-1 * bufferPast).Truncate(time.Second)
+		futureLimit  = now.Add(bufferFuture).Truncate(time.Second)
 		blockSize    = ropts.BlockSize()
 		blockStart   = timestamp.Truncate(blockSize)
 		writeType    WriteType
 	)
+
 	switch {
 	case wOpts.BootstrapWrite:
 		exists, err := b.blockRetriever.IsBlockRetrievable(blockStart)
@@ -740,7 +742,8 @@ func (b *dbBuffer) fetchBlocks(
 			continue
 		}
 
-		if streams := buckets.streams(ctx, sOpts); len(streams) > 0 {
+		streams := buckets.streams(ctx, sOpts)
+		if len(streams) > 0 {
 			result := block.NewFetchBlockResult(
 				start,
 				streams,
@@ -981,10 +984,8 @@ func (b *BufferBucketVersions) firstWrite(opts streamsOptions) time.Time {
 			continue
 		}
 		// Get the earliest valid first write time.
-		if res.IsZero() {
-			res = bucket.firstWrite
-		}
-		if bucket.firstWrite.Before(res) {
+		if res.IsZero() ||
+			(bucket.firstWrite.Before(res) && !bucket.firstWrite.IsZero()) {
 			res = bucket.firstWrite
 		}
 	}
@@ -1206,8 +1207,9 @@ func (b *BufferBucket) write(
 
 	var err error
 	defer func() {
+		nowFn := b.opts.ClockOptions().NowFn()
 		if err == nil && b.firstWrite.IsZero() {
-			b.firstWrite = timestamp
+			b.firstWrite = nowFn()
 		}
 	}()
 
