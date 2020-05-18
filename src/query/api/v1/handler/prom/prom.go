@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/prometheus/promql"
 )
 
-const prometheusHandlerPrefix = "/prometheus"
+const prometheusHandlerPrefix = ""
 
 // Options areoptions for the prometheus read handlers.
 type Options struct {
@@ -64,7 +64,6 @@ func (h *promHandler) Methods() []string {
 func (h *promHandler) Handler(
 	opts options.HandlerOptions,
 ) (http.Handler, error) {
-	fmt.Printf("STORAGE: %+v %T\n", opts.Storage(), opts.Storage())
 	queryable := prometheus.NewPrometheusQueryable(
 		prometheus.PrometheusOptions{
 			Storage:           opts.Storage(),

@@ -172,11 +172,6 @@ func (h *Handler) RegisterRoutes() error {
 	if err != nil {
 		return err
 	}
-
-	for _, a := range handlers {
-		fmt.Printf("ROUTE: %+v\n", a.Route())
-	}
-
 	h.customHandlers = append(h.customHandlers, handlers...)
 
 	// Register custom endpoints.
@@ -197,10 +192,10 @@ func (h *Handler) RegisterRoutes() error {
 	h.router.HandleFunc(remote.PromWriteURL,
 		panicOnly(promRemoteWriteHandler).ServeHTTP,
 	).Methods(remote.PromWriteHTTPMethod)
-	h.router.HandleFunc(native.PromReadURL,
+	h.router.HandleFunc("/experimental"+native.PromReadURL,
 		wrapped(nativePromReadHandler).ServeHTTP,
 	).Methods(native.PromReadHTTPMethods...)
-	h.router.HandleFunc(native.PromReadInstantURL,
+	h.router.HandleFunc("/experimental"+native.PromReadInstantURL,
 		wrapped(native.NewPromReadInstantHandler(h.options)).ServeHTTP,
 	).Methods(native.PromReadInstantHTTPMethods...)
 
