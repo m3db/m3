@@ -66,7 +66,7 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if t := r.FormValue("timeout"); t != "" {
 		timeout, err := parseDuration(t)
 		if err != nil {
-			err = fmt.Errorf("invalid parameter 'timeout': %w", err)
+			err = fmt.Errorf("invalid parameter 'timeout': %v", err)
 			respondError(w, err, http.StatusBadRequest)
 			return
 		}

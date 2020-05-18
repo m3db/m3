@@ -112,17 +112,17 @@ func parseRequest(r *http.Request) (readRequest, error) {
 
 	params.start, err = parseTime(r.FormValue(startParam))
 	if err != nil {
-		return readRequest{}, fmt.Errorf("invalid parameter 'start': %w", err)
+		return readRequest{}, fmt.Errorf("invalid parameter 'start': %v", err)
 	}
 
 	params.end, err = parseTime(r.FormValue(endParam))
 	if err != nil {
-		return params, fmt.Errorf("invalid parameter 'end': %w", err)
+		return params, fmt.Errorf("invalid parameter 'end': %v", err)
 	}
 
 	params.step, err = parseDuration(r.FormValue("step"))
 	if err != nil {
-		return params, fmt.Errorf("invalid parameter 'step': %w", err)
+		return params, fmt.Errorf("invalid parameter 'step': %v", err)
 	}
 
 	if params.step <= 0 {
@@ -132,7 +132,7 @@ func parseRequest(r *http.Request) (readRequest, error) {
 	if to := r.FormValue("timeout"); to != "" {
 		params.timeout, err = parseDuration(to)
 		if err != nil {
-			return params, fmt.Errorf("invalid parameter 'timeout': %w", err)
+			return params, fmt.Errorf("invalid parameter 'timeout': %v", err)
 		}
 	}
 
