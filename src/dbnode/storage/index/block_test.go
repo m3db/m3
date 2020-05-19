@@ -1601,9 +1601,9 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 
 	// Wait for compaction to finish
 	for {
-		b.RLock()
+		b.mutableSegments.RLock()
 		compacting := b.mutableSegments.compact.compactingBackground
-		b.RUnlock()
+		b.mutableSegments.RUnlock()
 		if !compacting {
 			break
 		}
