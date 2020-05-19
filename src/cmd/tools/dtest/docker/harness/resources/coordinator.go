@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package harness
+package resources
 
 import (
 	"bytes"
@@ -30,22 +30,16 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+
 	dockertest "github.com/ory/dockertest"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-)
-
-const (
-	coordinatorDockerfile = "./m3coordinator.Dockerfile"
 )
 
 const (
 	defaultCoordinatorSource     = "coordinator"
 	defaultCoordinatorName       = "coord01"
-	defaultCoordinatorDockerfile = "./m3coordinator.Dockerfile"
+	defaultCoordinatorDockerfile = "resources/config/m3coordinator.Dockerfile"
 )
-
-func zapMethod(s string) zapcore.Field { return zap.String("method", s) }
 
 var (
 	defaultCoordinatorList = []int{7201, 7203, 7204}
@@ -101,7 +95,7 @@ func newDockerHTTPCoordinator(
 	opts dockerResourceOptions,
 ) (Coordinator, error) {
 	opts = opts.withDefaults(defaultCoordinatorOptions)
-	opts.mounts = []string{setupMount("/etc/m3coordinator/")}
+	opts.mounts = []string{"/etc/m3coordinator/"}
 
 	resource, err := newDockerResource(pool, opts)
 	if err != nil {
@@ -259,9 +253,11 @@ func (c *coordinator) CreateDatabase(
 
 	var response admin.DatabaseCreateResponse
 	if err := toResponse(resp, &response, logger); err != nil {
+		logger.Error("failed response", zap.Error(err))
 		return admin.DatabaseCreateResponse{}, err
 	}
 
+	logger.Info("created database")
 	return response, nil
 }
 
@@ -304,9 +300,11 @@ func (c *coordinator) WriteCarbon(
 		return errClosed
 	}
 
-	url := c.resource.getURL(port, "")
+	url := c.resource.resource.GetHostPort(fmt.Sprintf("%d/tcp", port))
 	logger := c.resource.logger.With(
-		zapMethod("writeCarbon"), zap.String("url", url))
+		zapMethod("writeCarbon"), zap.String("url", url),
+		zap.String("at time", time.Now().String()),
+		zap.String("at ts", t.String()))
 
 	con, err := net.Dial("tcp", url)
 	if err != nil {
@@ -327,7 +325,38 @@ func (c *coordinator) WriteCarbon(
 		return err
 	}
 
-	return nil
+	logger.Info("write success", zap.Int("bytes written", n))
+	return con.Close()
+	// return nil
+}
+
+func (c *coordinator) query(
+	verifier GoalStateVerifier, query string,
+) error {
+	if c.resource.closed {
+		return errClosed
+	}
+
+	url := c.resource.getURL(7201, query)
+	logger := c.resource.logger.With(
+		zapMethod("query"), zap.String("url", url))
+	logger.Info("running")
+	resp, err := http.Get(url)
+	if err != nil {
+		logger.Error("failed get", zap.Error(err))
+		return err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		logger.Error("status code not 2xx",
+			zap.Int("status code", resp.StatusCode),
+			zap.String("status", resp.Status))
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	return verifier(string(b), err)
 }
 
 func (c *coordinator) RunQuery(
@@ -337,18 +366,22 @@ func (c *coordinator) RunQuery(
 		return errClosed
 	}
 
-	url := c.resource.getURL(7201, query)
-	logger := c.resource.logger.With(
-		zapMethod("runQuery"), zap.String("url", url))
-	resp, err := http.Get(url)
-	if err != nil {
-		logger.Error("failed get", zap.Error(err))
+	logger := c.resource.logger.With(zapMethod("runQuery"),
+		zap.String("query", query))
+	err := c.resource.pool.Retry(func() error {
+		err := c.query(verifier, query)
+		if err != nil {
+			logger.Info("retrying", zap.Error(err))
+		}
+
 		return err
+	})
+
+	if err != nil {
+		logger.Error("failed run", zap.Error(err))
 	}
 
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	return verifier(string(b), err)
+	return err
 }
 
 func (c *coordinator) Close() error {

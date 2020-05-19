@@ -18,23 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package harness
+package resources
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 
+	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
-	"github.com/m3db/m3/src/x/instrument"
 	dockertest "github.com/ory/dockertest"
 	dc "github.com/ory/dockertest/docker"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -43,6 +44,8 @@ var (
 
 	errClosed = errors.New("container has been closed")
 )
+
+func zapMethod(s string) zapcore.Field { return zap.String("method", s) }
 
 type dockerResourceOptions struct {
 	overrideDefaults bool
@@ -162,11 +165,9 @@ func exposePorts(
 	return opts
 }
 
-func setupMount(dest string) string {
-	src := os.TempDir()
-	src = "/Users/arnikola/go/src/github.com/m3db/m3/scripts/" +
-		"docker-integration-tests/cold_writes_simple"
-	return fmt.Sprintf("%s:%s", src, dest)
+func getDockerfile(file string) string {
+	src, _ := os.Getwd()
+	return fmt.Sprintf("%s/%s", src, file)
 }
 
 func toResponse(
@@ -189,37 +190,6 @@ func toResponse(
 	}
 
 	err = jsonpb.Unmarshal(bytes.NewReader(b), response)
-	if err != nil {
-		logger.Error("unable to unmarshal response",
-			zap.Error(err),
-			zap.Any("response", response))
-		return err
-	}
-
-	return nil
-}
-
-func toResponseThrift(
-	resp *http.Response,
-	response interface{},
-	logger *zap.Logger,
-) error {
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		logger.Error("could not read body", zap.Error(err))
-		return err
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
-		logger.Error("status code not 2xx",
-			zap.Int("status code", resp.StatusCode),
-			zap.String("status", resp.Status))
-		return fmt.Errorf("status code %d", resp.StatusCode)
-	}
-
-	err = json.Unmarshal(b, response)
-
 	if err != nil {
 		logger.Error("unable to unmarshal response",
 			zap.Error(err),

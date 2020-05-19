@@ -18,14 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package harness
+package resources
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	dockertest "github.com/ory/dockertest"
 	"go.uber.org/zap"
@@ -34,7 +36,7 @@ import (
 const (
 	defaultDBNodeSource        = "dbnode"
 	defaultDBNodeContainerName = "dbnode01"
-	defaultDBNodeDockerfile    = "./m3dbnode.Dockerfile"
+	defaultDBNodeDockerfile    = "resources/config/m3dbnode.Dockerfile"
 )
 
 var (
@@ -43,13 +45,41 @@ var (
 	defaultDBNodeOptions = dockerResourceOptions{
 		source:        defaultDBNodeSource,
 		containerName: defaultDBNodeContainerName,
-		dockerFile:    defaultDBNodeDockerfile,
+		dockerFile:    getDockerfile(defaultDBNodeDockerfile),
 		portList:      defaultDBNodePortList,
 	}
 )
 
 // GoalStateVerifier verifies that the given results are valid.
 type GoalStateVerifier func(string, error) error
+
+// Nodes is a slice of nodes.
+type Nodes []Node
+
+func (n Nodes) waitForHealthy() error {
+	var (
+		multiErr xerrors.MultiError
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+	)
+
+	for _, node := range n {
+		wg.Add(1)
+		node := node
+		go func() {
+			defer wg.Done()
+			err := node.WaitForBootstrap()
+			if err != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	return multiErr.FinalError()
+}
 
 // Node is a wrapper for a db node. It provides a wrapper on HTTP
 // endpoints that expose cluster management APIs as well as read and write
