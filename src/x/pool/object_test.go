@@ -21,7 +21,6 @@
 package pool
 
 import (
-	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -118,16 +117,8 @@ func BenchmarkObjectPoolGetPut(b *testing.B) {
 }
 
 func BenchmarkObjectPoolGetMultiPutContended(b *testing.B) {
-	numprocs := runtime.GOMAXPROCS(0) / 2
-	if numprocs < 2 {
-		numprocs = 2
-	}
-	if numprocs > 8 {
-		numprocs = 8 // cap shard count, as pool size is divided by shards
-	}
-
 	opts := NewObjectPoolOptions().
-		SetShardCount(numprocs).
+		SetShardCount(8).
 		SetSize(256)
 	p := NewObjectPool(opts)
 	p.Init(func() interface{} {
@@ -156,16 +147,8 @@ func BenchmarkObjectPoolGetMultiPutContended(b *testing.B) {
 }
 
 func BenchmarkObjectPoolGetMultiPutContendedWithRefill(b *testing.B) {
-	numprocs := runtime.GOMAXPROCS(0) / 2
-	if numprocs < 2 {
-		numprocs = 2
-	}
-	if numprocs > 8 {
-		numprocs = 8 // cap shard count, as pool size is divided by shards
-	}
-
 	opts := NewObjectPoolOptions().
-		SetShardCount(numprocs).
+		SetShardCount(8).
 		SetSize(32).
 		SetRefillLowWatermark(0.05).
 		SetRefillHighWatermark(0.25)

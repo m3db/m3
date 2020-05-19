@@ -77,16 +77,15 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 	m := opts.InstrumentOptions().MetricsScope()
 	shards := opts.ShardCount()
 	size := int(math.Max(math.Ceil(float64(opts.Size()/shards)), 1.0))
-
+	lowW := int(math.Ceil(opts.RefillLowWatermark() * float64(size)))
+	highW := int(math.Ceil(opts.RefillHighWatermark() * float64(size)))
 	p := &objectPool{
-		done:       make(chan struct{}),
-		shards:     make([]poolShard, shards),
-		shardCount: uint32(shards),
-		shardSize:  size,
-		refillLowWatermark: int(math.Ceil(
-			opts.RefillLowWatermark() * float64(size))),
-		refillHighWatermark: int(math.Ceil(
-			opts.RefillHighWatermark() * float64(size))),
+		done:                make(chan struct{}),
+		shards:              make([]poolShard, shards),
+		shardCount:          uint32(shards),
+		shardSize:           size,
+		refillLowWatermark:  lowW,
+		refillHighWatermark: highW,
 		metrics: objectPoolMetrics{
 			free:       m.Gauge("free"),
 			total:      m.Gauge("total"),
@@ -134,56 +133,48 @@ func (p *objectPool) Init(alloc Allocator) {
 // Get returns an object from the pool
 func (p *objectPool) Get() interface{} {
 	var (
-		// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
-		// inlined manually
-		shardID = int((uint64(FastRand()) * uint64(p.shardCount)) >> 32)
+		shardID = FastRandn(p.shardCount)
 		shard   = &p.shards[shardID]
 		value   interface{}
-		num     int
 	)
 
 	shard.mtx.Lock()
-	num = len(shard.values)
-	if num > 0 {
+	num := len(shard.values)
+	switch {
+	case num <= p.refillLowWatermark:
+		if num == 0 {
+			p.metrics.getOnEmpty.Inc(1)
+		}
+		for len(shard.values) < p.refillHighWatermark {
+			shard.values = append(shard.values, p.alloc())
+		}
+		value = p.alloc()
+	case num > 0:
 		value = shard.values[num-1]
 		shard.values[num-1] = nil
 		shard.values = shard.values[:num-1]
+	default:
+		value = p.alloc()
 	}
 	shard.mtx.Unlock()
 
-	if num <= p.refillLowWatermark {
-		p.tryFill(shard)
-	}
-
-	if num <= 0 {
-		value = p.alloc()
-		p.metrics.getOnEmpty.Inc(1)
-	}
 	return value
 }
 
 // Put puts object back into the object pool
 func (p *objectPool) Put(obj interface{}) {
 	var (
-		// https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
-		// inlined manually
-		shard    = int((uint64(FastRand()) * uint64(p.shardCount)) >> 32)
-		mtx      = &p.shards[shard].mtx
-		hasSpace bool
+		shardID = FastRandn(p.shardCount)
+		shard   = &p.shards[shardID]
 	)
 
-	mtx.Lock()
-	values := p.shards[shard].values
-	hasSpace = len(values) < cap(values)
-
-	if hasSpace {
-		p.shards[shard].values = append(values, obj)
-	}
-	mtx.Unlock()
-
-	if !hasSpace {
+	shard.mtx.Lock()
+	if len(shard.values) < cap(shard.values) {
+		shard.values = append(shard.values, obj)
+	} else {
 		p.metrics.putOnFull.Inc(1)
 	}
+	shard.mtx.Unlock()
 }
 
 func (p *objectPool) setGauges() {
@@ -201,19 +192,6 @@ func (p *objectPool) setGauges() {
 	p.metrics.total.Update(float64(total))
 }
 
-func (p *objectPool) tryFill(shard *poolShard) {
-	if p.refillLowWatermark <= 0 {
-		return
-	}
-
-	shard.mtx.Lock()
-	for len(shard.values) < p.refillHighWatermark {
-		shard.values = append(shard.values, p.alloc())
-	}
-	shard.mtx.Unlock()
-	return
-}
-
 // Close stops background processes
 func (p *objectPool) Close() {
 	close(p.done)
@@ -224,3 +202,22 @@ func (p *objectPool) Close() {
 // This looks nasty but better than using math/rand + sync.Pool.
 //go:linkname FastRand runtime.fastrand
 func FastRand() uint32
+
+// FastRandn is a fair, bounded random function using runtime.fastrand
+// https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+func FastRandn(max uint32) uint32 {
+	var (
+		random32bit = uint64(FastRand())
+		multiresult = random32bit * uint64(max)
+		leftover    = uint32(multiresult)
+	)
+	if leftover < max {
+		threshold := -max % max
+		for leftover < threshold {
+			random32bit = uint64(FastRand())
+			multiresult = random32bit * uint64(max)
+			leftover = uint32(multiresult)
+		}
+	}
+	return uint32(multiresult >> 32)
+}
