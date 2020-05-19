@@ -103,7 +103,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 
 		// Reset state
 		bl.(*block).Lock()
-		bl.(*block).foregroundSegments = nil
+		bl.(*block).mutableSegments.foregroundSegments = nil
 		bl.(*block).Unlock()
 	}
 	b.StopTimer()

@@ -417,7 +417,7 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 	require.True(t, ok)
 
 	seg := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg, testOpts)}
 	randErr := fmt.Errorf("random-err")
 	seg.EXPECT().Reader().Return(nil, randErr)
 
@@ -442,7 +442,7 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg3 := segment.NewMockMutableSegment(ctrl)
 
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	b.shardRangesSegmentsByVolumeType = map[idxpersist.IndexVolumeType][]blockShardRangesSegments{
 		idxpersist.DefaultIndexVolumeType: []blockShardRangesSegments{
 			blockShardRangesSegments{segments: []segment.Segment{seg2, seg3}},
@@ -909,7 +909,7 @@ func TestBlockTickSingleSegment(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	result, err := blk.Tick(nil)
@@ -931,7 +931,7 @@ func TestBlockTickMultipleSegment(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
@@ -961,7 +961,7 @@ func TestBlockTickAfterSeal(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	result, err := blk.Tick(nil)
@@ -1567,8 +1567,8 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 
 	// Move the segment to background
 	b.Lock()
-	b.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
-		{Segment: b.foregroundSegments[0].Segment()},
+	b.mutableSegments.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
+		{Segment: b.mutableSegments.foregroundSegments[0].Segment()},
 	})
 	b.Unlock()
 
@@ -1592,17 +1592,17 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 
 	// Move last segment to background, this should kick off a background compaction
 	b.Lock()
-	b.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
-		{Segment: b.foregroundSegments[0].Segment()},
+	b.mutableSegments.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
+		{Segment: b.mutableSegments.foregroundSegments[0].Segment()},
 	})
-	require.Equal(t, 2, len(b.backgroundSegments))
-	require.True(t, b.compact.compactingBackground)
+	require.Equal(t, 2, len(b.mutableSegments.backgroundSegments))
+	require.True(t, b.mutableSegments.compact.compactingBackground)
 	b.Unlock()
 
 	// Wait for compaction to finish
 	for {
 		b.RLock()
-		compacting := b.compact.compactingBackground
+		compacting := b.mutableSegments.compact.compactingBackground
 		b.RUnlock()
 		if !compacting {
 			break
@@ -1612,8 +1612,8 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 
 	// Make sure compacted into a single segment
 	b.RLock()
-	require.Equal(t, 1, len(b.backgroundSegments))
-	require.Equal(t, 3, int(b.backgroundSegments[0].Segment().Size()))
+	require.Equal(t, 1, len(b.mutableSegments.backgroundSegments))
+	require.Equal(t, 3, int(b.mutableSegments.backgroundSegments[0].Segment().Size()))
 	b.RUnlock()
 }
 
@@ -1646,7 +1646,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
 		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
@@ -1684,7 +1684,7 @@ func TestBlockAggregate(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
 		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
@@ -1755,7 +1755,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
 		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {

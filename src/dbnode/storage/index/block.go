@@ -29,14 +29,11 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/storage/index/segments"
 	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -45,7 +42,6 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -61,16 +57,12 @@ var (
 	// ErrUnableReportStatsBlockClosed is returned from Stats when the block is closed.
 	ErrUnableReportStatsBlockClosed = errors.New("unable to report stats, block is closed")
 
-	errUnableToWriteBlockClosed                = errors.New("unable to write, index block is closed")
-	errUnableToWriteBlockSealed                = errors.New("unable to write, index block is sealed")
-	errUnableToWriteBlockConcurrent            = errors.New("unable to write, index block is being written to already")
-	errUnableToBootstrapBlockClosed            = errors.New("unable to bootstrap, block is closed")
-	errUnableToTickBlockClosed                 = errors.New("unable to tick, block is closed")
-	errBlockAlreadyClosed                      = errors.New("unable to close, block already closed")
-	errForegroundCompactorNoPlan               = errors.New("index foreground compactor failed to generate a plan")
-	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
-	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
-	errCancelledQuery                          = errors.New("query was cancelled")
+	errUnableToWriteBlockClosed     = errors.New("unable to write, index block is closed")
+	errUnableToWriteBlockSealed     = errors.New("unable to write, index block is sealed")
+	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
+	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
+	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
+	errCancelledQuery               = errors.New("query was cancelled")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
@@ -133,56 +125,40 @@ func (s shardRangesSegmentsByVolumeType) forEachSegmentGroup(cb func(group block
 type block struct {
 	sync.RWMutex
 
-	state                             blockState
-	hasEvictedMutableSegmentsAnyTimes bool
+	state blockState
 
-	foregroundSegments              []*readableSeg
-	backgroundSegments              []*readableSeg
+	mutableSegments                 *mutableSegments
 	shardRangesSegmentsByVolumeType shardRangesSegmentsByVolumeType
 	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
 	newExecutorFn                   newExecutorFn
 	blockStart                      time.Time
 	blockEnd                        time.Time
 	blockSize                       time.Duration
-	blockOpts                       BlockOptions
 	opts                            Options
 	iopts                           instrument.Options
 	nsMD                            namespace.Metadata
 	queryStats                      stats.QueryStats
-
-	compact blockCompact
 
 	metrics blockMetrics
 	logger  *zap.Logger
 }
 
 type blockMetrics struct {
-	rotateActiveSegment                tally.Counter
-	rotateActiveSegmentAge             tally.Timer
-	rotateActiveSegmentSize            tally.Histogram
-	foregroundCompactionPlanRunLatency tally.Timer
-	foregroundCompactionTaskRunLatency tally.Timer
-	backgroundCompactionPlanRunLatency tally.Timer
-	backgroundCompactionTaskRunLatency tally.Timer
-	segmentFreeMmapSuccess             tally.Counter
-	segmentFreeMmapError               tally.Counter
-	segmentFreeMmapSkipNotImmutable    tally.Counter
+	rotateActiveSegment             tally.Counter
+	rotateActiveSegmentAge          tally.Timer
+	rotateActiveSegmentSize         tally.Histogram
+	segmentFreeMmapSuccess          tally.Counter
+	segmentFreeMmapError            tally.Counter
+	segmentFreeMmapSkipNotImmutable tally.Counter
 }
 
 func newBlockMetrics(s tally.Scope) blockMetrics {
-	s = s.SubScope("index").SubScope("block")
-	foregroundScope := s.Tagged(map[string]string{"compaction-type": "foreground"})
-	backgroundScope := s.Tagged(map[string]string{"compaction-type": "background"})
 	segmentFreeMmap := "segment-free-mmap"
 	return blockMetrics{
 		rotateActiveSegment:    s.Counter("rotate-active-segment"),
 		rotateActiveSegmentAge: s.Timer("rotate-active-segment-age"),
 		rotateActiveSegmentSize: s.Histogram("rotate-active-segment-size",
 			append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)),
-		foregroundCompactionPlanRunLatency: foregroundScope.Timer("compaction-plan-run-latency"),
-		foregroundCompactionTaskRunLatency: foregroundScope.Timer("compaction-task-run-latency"),
-		backgroundCompactionPlanRunLatency: backgroundScope.Timer("compaction-plan-run-latency"),
-		backgroundCompactionTaskRunLatency: backgroundScope.Timer("compaction-task-run-latency"),
 		segmentFreeMmapSuccess: s.Tagged(map[string]string{
 			"result":    "success",
 			"skip_type": "none",
@@ -217,23 +193,32 @@ type BlockOptions struct {
 func NewBlock(
 	blockStart time.Time,
 	md namespace.Metadata,
-	opts BlockOptions,
-	indexOpts Options,
+	blockOpts BlockOptions,
+	opts Options,
 ) (Block, error) {
 	blockSize := md.Options().IndexOptions().BlockSize()
-	iopts := indexOpts.InstrumentOptions()
+	iopts := opts.InstrumentOptions()
+	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
+	mutableSegments := newMutableSegments(
+		blockStart,
+		opts,
+		blockOpts,
+		iopts,
+		scope,
+	)
 	b := &block{
 		state:                           blockStateOpen,
 		blockStart:                      blockStart,
 		blockEnd:                        blockStart.Add(blockSize),
 		blockSize:                       blockSize,
+		mutableSegments:                 mutableSegments,
 		shardRangesSegmentsByVolumeType: make(shardRangesSegmentsByVolumeType),
-		opts:                            indexOpts,
+		opts:                            opts,
 		iopts:                           iopts,
 		nsMD:                            md,
-		metrics:                         newBlockMetrics(iopts.MetricsScope()),
+		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
-		queryStats:                      indexOpts.QueryStats(),
+		queryStats:                      opts.QueryStats(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
 	b.newExecutorFn = b.executorWithRLock
@@ -249,258 +234,14 @@ func (b *block) EndTime() time.Time {
 	return b.blockEnd
 }
 
-func (b *block) maybeBackgroundCompactWithLock() {
-	if b.compact.compactingBackground || b.state != blockStateOpen {
-		return
-	}
-
-	// Create a logical plan.
-	segs := make([]compaction.Segment, 0, len(b.backgroundSegments))
-	for _, seg := range b.backgroundSegments {
-		segs = append(segs, compaction.Segment{
-			Age:     seg.Age(),
-			Size:    seg.Segment().Size(),
-			Type:    segments.FSTType,
-			Segment: seg.Segment(),
-		})
-	}
-
-	plan, err := compaction.NewPlan(segs, b.opts.BackgroundCompactionPlannerOptions())
-	if err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
-			l.Error("index background compaction plan error", zap.Error(err))
-		})
-		return
-	}
-
-	if len(plan.Tasks) == 0 {
-		return
-	}
-
-	// Kick off compaction.
-	b.compact.compactingBackground = true
-	go func() {
-		b.backgroundCompactWithPlan(plan)
-
-		b.Lock()
-		b.compact.compactingBackground = false
-		b.cleanupBackgroundCompactWithLock()
-		b.Unlock()
-	}()
-}
-
-func (b *block) shouldEvictCompactedSegmentsWithLock() bool {
-	// NB(r): The frozen/compacted segments are derived segments of the
-	// active mutable segment, if we ever evict that segment then
-	// we don't need the frozen/compacted segments either and should
-	// shed them from memory.
-	return b.state == blockStateClosed ||
-		b.hasEvictedMutableSegmentsAnyTimes
-}
-
-func (b *block) cleanupBackgroundCompactWithLock() {
-	if b.state == blockStateOpen {
-		// See if we need to trigger another compaction.
-		b.maybeBackgroundCompactWithLock()
-		return
-	}
-
-	// Check if need to close all the compacted segments due to
-	// having evicted mutable segments or the block being closed.
-	if !b.shouldEvictCompactedSegmentsWithLock() {
-		return
-	}
-
-	// Evict compacted segments.
-	b.closeCompactedSegments(b.backgroundSegments)
-	b.backgroundSegments = nil
-
-	// Free compactor resources.
-	if b.compact.backgroundCompactor == nil {
-		return
-	}
-
-	if err := b.compact.backgroundCompactor.Close(); err != nil {
-		instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
-			l.Error("error closing index block background compactor", zap.Error(err))
-		})
-	}
-	b.compact.backgroundCompactor = nil
-}
-
-func (b *block) closeCompactedSegments(segments []*readableSeg) {
-	for _, seg := range segments {
-		err := seg.Segment().Close()
-		if err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
-				l.Error("could not close compacted segment", zap.Error(err))
-			})
-		}
-	}
-}
-
-func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
-	sw := b.metrics.backgroundCompactionPlanRunLatency.Start()
-	defer sw.Stop()
-
-	n := b.compact.numBackground
-	b.compact.numBackground++
-
-	logger := b.logger.With(
-		zap.Time("block", b.blockStart),
-		zap.Int("numBackgroundCompaction", n),
-	)
-	log := n%compactDebugLogEvery == 0
-	if log {
-		for i, task := range plan.Tasks {
-			summary := task.Summary()
-			logger.Debug("planned background compaction task",
-				zap.Int("task", i),
-				zap.Int("numMutable", summary.NumMutable),
-				zap.Int("numFST", summary.NumFST),
-				zap.String("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
-				zap.Int64("cumulativeSize", summary.CumulativeSize),
-			)
-		}
-	}
-
-	for i, task := range plan.Tasks {
-		err := b.backgroundCompactWithTask(task, log,
-			logger.With(zap.Int("task", i)))
-		if err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
-				l.Error("error compacting segments", zap.Error(err))
-			})
-			return
-		}
-	}
-}
-
-func (b *block) backgroundCompactWithTask(
-	task compaction.Task,
-	log bool,
-	logger *zap.Logger,
-) error {
-	if log {
-		logger.Debug("start compaction task")
-	}
-
-	segments := make([]segment.Segment, 0, len(task.Segments))
-	for _, seg := range task.Segments {
-		segments = append(segments, seg.Segment)
-	}
-
-	start := time.Now()
-	compacted, err := b.compact.backgroundCompactor.Compact(segments, mmap.ReporterOptions{
-		Context: mmap.Context{
-			Name: mmapIndexBlockName,
-		},
-		Reporter: b.opts.MmapReporter(),
-	})
-	took := time.Since(start)
-	b.metrics.backgroundCompactionTaskRunLatency.Record(took)
-
-	if log {
-		logger.Debug("done compaction task", zap.Duration("took", took))
-	}
-
-	if err != nil {
-		return err
-	}
-
-	// Rotate out the replaced frozen segments and add the compacted one.
-	b.Lock()
-	defer b.Unlock()
-
-	result := b.addCompactedSegmentFromSegments(b.backgroundSegments,
-		segments, compacted)
-	b.backgroundSegments = result
-
-	return nil
-}
-
-func (b *block) addCompactedSegmentFromSegments(
-	current []*readableSeg,
-	segmentsJustCompacted []segment.Segment,
-	compacted segment.Segment,
-) []*readableSeg {
-	result := make([]*readableSeg, 0, len(current))
-	for _, existing := range current {
-		keepCurr := true
-		for _, seg := range segmentsJustCompacted {
-			if existing.Segment() == seg {
-				// Do not keep this one, it was compacted just then.
-				keepCurr = false
-				break
-			}
-		}
-
-		if keepCurr {
-			result = append(result, existing)
-			continue
-		}
-
-		err := existing.Segment().Close()
-		if err != nil {
-			// Already compacted, not much we can do about not closing it.
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
-				l.Error("unable to close compacted block", zap.Error(err))
-			})
-		}
-	}
-
-	// Return all the ones we kept plus the new compacted segment
-	return append(result, newReadableSeg(compacted, b.opts))
-}
-
 func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.Lock()
+	defer b.Unlock()
 	if b.state != blockStateOpen {
-		b.Unlock()
 		return b.writeBatchResult(inserts, b.writeBatchErrorInvalidState(b.state))
 	}
-	if b.compact.compactingForeground {
-		b.Unlock()
-		return b.writeBatchResult(inserts, errUnableToWriteBlockConcurrent)
-	}
-	// Lazily allocate the segment builder and compactors
-	err := b.compact.allocLazyBuilderAndCompactors(b.blockOpts, b.opts)
-	if err != nil {
-		b.Unlock()
-		return b.writeBatchResult(inserts, err)
-	}
-
-	b.compact.compactingForeground = true
-	builder := b.compact.segmentBuilder
-	b.Unlock()
-
-	defer func() {
-		b.Lock()
-		b.compact.compactingForeground = false
-		b.cleanupForegroundCompactWithLock()
-		b.Unlock()
-	}()
-
-	builder.Reset(0)
-	insertResultErr := builder.InsertBatch(m3ninxindex.Batch{
-		Docs:                inserts.PendingDocs(),
-		AllowPartialUpdates: true,
-	})
-	if len(builder.Docs()) == 0 {
-		// No inserts, no need to compact.
-		return b.writeBatchResult(inserts, insertResultErr)
-	}
-
-	// We inserted some documents, need to compact immediately into a
-	// foreground segment from the segment builder before we can serve reads
-	// from an FST segment.
-	err = b.foregroundCompactWithBuilder(builder)
-	if err != nil {
-		return b.writeBatchResult(inserts, err)
-	}
-
 	// Return result from the original insertion since compaction was successful.
-	return b.writeBatchResult(inserts, insertResultErr)
+	return b.writeBatchResult(inserts, b.mutableSegments.WriteBatch(inserts))
 }
 
 func (b *block) writeBatchResult(
@@ -535,227 +276,8 @@ func (b *block) writeBatchResult(
 	}, partialErr
 }
 
-func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) error {
-	// We inserted some documents, need to compact immediately into a
-	// foreground segment.
-	b.Lock()
-	foregroundSegments := b.foregroundSegments
-	b.Unlock()
-
-	segs := make([]compaction.Segment, 0, len(foregroundSegments)+1)
-	segs = append(segs, compaction.Segment{
-		Age:     0,
-		Size:    int64(len(builder.Docs())),
-		Type:    segments.MutableType,
-		Builder: builder,
-	})
-	for _, seg := range foregroundSegments {
-		segs = append(segs, compaction.Segment{
-			Age:     seg.Age(),
-			Size:    seg.Segment().Size(),
-			Type:    segments.FSTType,
-			Segment: seg.Segment(),
-		})
-	}
-
-	plan, err := compaction.NewPlan(segs, b.opts.ForegroundCompactionPlannerOptions())
-	if err != nil {
-		return err
-	}
-
-	// Check plan
-	if len(plan.Tasks) == 0 {
-		// Should always generate a task when a mutable builder is passed to planner
-		return errForegroundCompactorNoPlan
-	}
-	if taskNumBuilders(plan.Tasks[0]) != 1 {
-		// First task of plan must include the builder, so we can avoid resetting it
-		// for the first task, but then safely reset it in consequent tasks
-		return errForegroundCompactorBadPlanFirstTask
-	}
-
-	// Move any unused segments to the background.
-	b.Lock()
-	b.maybeMoveForegroundSegmentsToBackgroundWithLock(plan.UnusedSegments)
-	b.Unlock()
-
-	n := b.compact.numForeground
-	b.compact.numForeground++
-
-	logger := b.logger.With(
-		zap.Time("block", b.blockStart),
-		zap.Int("numForegroundCompaction", n),
-	)
-	log := n%compactDebugLogEvery == 0
-	if log {
-		for i, task := range plan.Tasks {
-			summary := task.Summary()
-			logger.Debug("planned foreground compaction task",
-				zap.Int("task", i),
-				zap.Int("numMutable", summary.NumMutable),
-				zap.Int("numFST", summary.NumFST),
-				zap.Duration("cumulativeMutableAge", summary.CumulativeMutableAge),
-				zap.Int64("cumulativeSize", summary.CumulativeSize),
-			)
-		}
-	}
-
-	// Run the plan.
-	sw := b.metrics.foregroundCompactionPlanRunLatency.Start()
-	defer sw.Stop()
-
-	// Run the first task, without resetting the builder.
-	if err := b.foregroundCompactWithTask(
-		builder, plan.Tasks[0],
-		log, logger.With(zap.Int("task", 0)),
-	); err != nil {
-		return err
-	}
-
-	// Now run each consequent task, resetting the builder each time since
-	// the results from the builder have already been compacted in the first
-	// task.
-	for i := 1; i < len(plan.Tasks); i++ {
-		task := plan.Tasks[i]
-		if taskNumBuilders(task) > 0 {
-			// Only the first task should compact the builder
-			return errForegroundCompactorBadPlanSecondaryTask
-		}
-		// Now use the builder after resetting it.
-		builder.Reset(0)
-		if err := b.foregroundCompactWithTask(
-			builder, task,
-			log, logger.With(zap.Int("task", i)),
-		); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (b *block) maybeMoveForegroundSegmentsToBackgroundWithLock(
-	segments []compaction.Segment,
-) {
-	if len(segments) == 0 {
-		return
-	}
-	if b.compact.backgroundCompactor == nil {
-		// No longer performing background compaction due to evict/close.
-		return
-	}
-
-	b.logger.Debug("moving segments from foreground to background",
-		zap.Int("numSegments", len(segments)))
-
-	// If background compaction is still active, then we move any unused
-	// foreground segments into the background so that they might be
-	// compacted by the background compactor at some point.
-	i := 0
-	for _, currForeground := range b.foregroundSegments {
-		movedToBackground := false
-		for _, seg := range segments {
-			if currForeground.Segment() == seg.Segment {
-				b.backgroundSegments = append(b.backgroundSegments, currForeground)
-				movedToBackground = true
-				break
-			}
-		}
-		if movedToBackground {
-			continue // No need to keep this segment, we moved it.
-		}
-
-		b.foregroundSegments[i] = currForeground
-		i++
-	}
-
-	b.foregroundSegments = b.foregroundSegments[:i]
-
-	// Potentially kick off a background compaction.
-	b.maybeBackgroundCompactWithLock()
-}
-
-func (b *block) foregroundCompactWithTask(
-	builder segment.DocumentsBuilder,
-	task compaction.Task,
-	log bool,
-	logger *zap.Logger,
-) error {
-	if log {
-		logger.Debug("start compaction task")
-	}
-
-	segments := make([]segment.Segment, 0, len(task.Segments))
-	for _, seg := range task.Segments {
-		if seg.Segment == nil {
-			continue // This means the builder is being used.
-		}
-		segments = append(segments, seg.Segment)
-	}
-
-	start := time.Now()
-	compacted, err := b.compact.foregroundCompactor.CompactUsingBuilder(builder, segments, mmap.ReporterOptions{
-		Context: mmap.Context{
-			Name: mmapIndexBlockName,
-		},
-		Reporter: b.opts.MmapReporter(),
-	})
-	took := time.Since(start)
-	b.metrics.foregroundCompactionTaskRunLatency.Record(took)
-
-	if log {
-		logger.Debug("done compaction task", zap.Duration("took", took))
-	}
-
-	if err != nil {
-		return err
-	}
-
-	// Rotate in the ones we just compacted.
-	b.Lock()
-	defer b.Unlock()
-
-	result := b.addCompactedSegmentFromSegments(b.foregroundSegments,
-		segments, compacted)
-	b.foregroundSegments = result
-
-	return nil
-}
-
-func (b *block) cleanupForegroundCompactWithLock() {
-	// Check if we need to close all the compacted segments due to
-	// having evicted mutable segments or the block being closed.
-	if !b.shouldEvictCompactedSegmentsWithLock() {
-		return
-	}
-
-	// Evict compacted segments.
-	b.closeCompactedSegments(b.foregroundSegments)
-	b.foregroundSegments = nil
-
-	// Free compactor resources.
-	if b.compact.foregroundCompactor != nil {
-		if err := b.compact.foregroundCompactor.Close(); err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
-				l.Error("error closing index block foreground compactor", zap.Error(err))
-			})
-		}
-		b.compact.foregroundCompactor = nil
-	}
-
-	// Free segment builder resources.
-	if b.compact.segmentBuilder != nil {
-		if err := b.compact.segmentBuilder.Close(); err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l *zap.Logger) {
-				l.Error("error closing index block segment builder", zap.Error(err))
-			})
-		}
-		b.compact.segmentBuilder = nil
-	}
-}
-
 func (b *block) executorWithRLock() (search.Executor, error) {
-	expectedReaders := len(b.foregroundSegments) + len(b.backgroundSegments)
+	expectedReaders := b.mutableSegments.Len()
 	b.shardRangesSegmentsByVolumeType.forEachSegmentGroup(func(group blockShardRangesSegments) error {
 		expectedReaders += len(group.segments)
 		return nil
@@ -764,6 +286,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	var (
 		readers = make([]m3ninxindex.Reader, 0, expectedReaders)
 		success = false
+		err     error
 	)
 	defer func() {
 		// Cleanup in case any of the readers below fail.
@@ -774,13 +297,9 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 		}
 	}()
 
-	// Add foreground and background segments.
-	var foregroundErr, backgroundErr error
-	readers, foregroundErr = addReadersFromReadableSegments(readers,
-		b.foregroundSegments)
-	readers, backgroundErr = addReadersFromReadableSegments(readers,
-		b.backgroundSegments)
-	if err := xerrors.FirstError(foregroundErr, backgroundErr); err != nil {
+	// Add mutable segments.
+	readers, err = b.mutableSegments.AddReaders(readers)
+	if err != nil {
 		return nil, err
 	}
 
@@ -801,20 +320,14 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 }
 
 func (b *block) segmentsWithRLock() []segment.Segment {
-	numSegments := len(b.foregroundSegments) + len(b.backgroundSegments)
+	numSegments := b.mutableSegments.Len()
 	b.shardRangesSegmentsByVolumeType.forEachSegmentGroup(func(group blockShardRangesSegments) error {
 		numSegments += len(group.segments)
 		return nil
 	})
 
 	segments := make([]segment.Segment, 0, numSegments)
-	// Add foreground & background segments.
-	for _, seg := range b.foregroundSegments {
-		segments = append(segments, seg.Segment())
-	}
-	for _, seg := range b.backgroundSegments {
-		segments = append(segments, seg.Segment())
-	}
+	segments = b.mutableSegments.AddSegments(segments)
 
 	// Loop over the segments associated to shard time ranges.
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
@@ -1336,14 +849,9 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 	}
 
 	// Add foreground/background segments.
-	for _, seg := range b.foregroundSegments {
-		result.NumSegments++
-		result.NumDocs += seg.Segment().Size()
-	}
-	for _, seg := range b.backgroundSegments {
-		result.NumSegments++
-		result.NumDocs += seg.Segment().Size()
-	}
+	numSegments, numDocs := b.mutableSegments.numSegmentsAndDocs()
+	result.NumSegments += numSegments
+	result.NumDocs += numDocs
 
 	multiErr := xerrors.NewMultiError()
 
@@ -1395,24 +903,7 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 		return ErrUnableReportStatsBlockClosed
 	}
 
-	for _, seg := range b.foregroundSegments {
-		_, mutable := seg.Segment().(segment.MutableSegment)
-		reporter.ReportSegmentStats(BlockSegmentStats{
-			Type:    ActiveForegroundSegment,
-			Mutable: mutable,
-			Age:     seg.Age(),
-			Size:    seg.Segment().Size(),
-		})
-	}
-	for _, seg := range b.backgroundSegments {
-		_, mutable := seg.Segment().(segment.MutableSegment)
-		reporter.ReportSegmentStats(BlockSegmentStats{
-			Type:    ActiveBackgroundSegment,
-			Mutable: mutable,
-			Age:     seg.Age(),
-			Size:    seg.Segment().Size(),
-		})
-	}
+	b.mutableSegments.stats(reporter)
 
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
 		_, mutable := seg.(segment.MutableSegment)
@@ -1440,14 +931,8 @@ func (b *block) NeedsMutableSegmentsEvicted() bool {
 	b.RLock()
 	defer b.RUnlock()
 
-	// Check any foreground/background segments that can be evicted after a flush.
-	var anyMutableSegmentNeedsEviction bool
-	for _, seg := range b.foregroundSegments {
-		anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || seg.Segment().Size() > 0
-	}
-	for _, seg := range b.backgroundSegments {
-		anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || seg.Segment().Size() > 0
-	}
+	// Check any mutable segments that can be evicted after a flush.
+	anyMutableSegmentNeedsEviction := b.mutableSegments.NeedsEviction()
 
 	// Check boostrapped segments and to see if any of them need an eviction.
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
@@ -1467,17 +952,7 @@ func (b *block) EvictMutableSegments() error {
 		return fmt.Errorf("unable to evict mutable segments, block must be sealed, found: %v", b.state)
 	}
 
-	b.hasEvictedMutableSegmentsAnyTimes = true
-
-	// If not compacting, trigger a cleanup so that all frozen segments get
-	// closed, otherwise after the current running compaction the compacted
-	// segments will get closed.
-	if !b.compact.compactingForeground {
-		b.cleanupForegroundCompactWithLock()
-	}
-	if !b.compact.compactingBackground {
-		b.cleanupBackgroundCompactWithLock()
-	}
+	b.mutableSegments.Evict()
 
 	// Close any other mutable segments that was added.
 	multiErr := xerrors.NewMultiError()
@@ -1505,29 +980,7 @@ func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, erro
 	if b.state == blockStateClosed {
 		return nil, errBlockAlreadyClosed
 	}
-
-	// NB(r): This is for debug operations, do not bother about allocations.
-	var results []fst.SegmentData
-	for _, segs := range [][]*readableSeg{
-		b.foregroundSegments,
-		b.backgroundSegments,
-	} {
-		for _, seg := range segs {
-			fstSegment, ok := seg.Segment().(fst.Segment)
-			if !ok {
-				return nil, fmt.Errorf("segment not fst segment: created=%v", seg.createdAt)
-			}
-
-			segmentData, err := fstSegment.SegmentData(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			results = append(results, segmentData)
-		}
-	}
-
-	return results, nil
+	return b.mutableSegments.MemorySegmentsData(ctx)
 }
 
 func (b *block) Close() error {
@@ -1538,15 +991,7 @@ func (b *block) Close() error {
 	}
 	b.state = blockStateClosed
 
-	// If not compacting, trigger a cleanup so that all frozen segments get
-	// closed, otherwise after the current running compaction the compacted
-	// segments will get closed.
-	if !b.compact.compactingForeground {
-		b.cleanupForegroundCompactWithLock()
-	}
-	if !b.compact.compactingBackground {
-		b.cleanupBackgroundCompactWithLock()
-	}
+	b.mutableSegments.Close()
 
 	// Close any other added segments too.
 	var multiErr xerrors.MultiError
@@ -1577,67 +1022,6 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 	}
 }
 
-// blockCompact has several lazily allocated compaction components.
-type blockCompact struct {
-	segmentBuilder       segment.CloseableDocumentsBuilder
-	foregroundCompactor  *compaction.Compactor
-	backgroundCompactor  *compaction.Compactor
-	compactingForeground bool
-	compactingBackground bool
-	numForeground        int
-	numBackground        int
-}
-
-func (b *blockCompact) allocLazyBuilderAndCompactors(
-	blockOpts BlockOptions,
-	opts Options,
-) error {
-	var (
-		err      error
-		docsPool = opts.DocumentArrayPool()
-	)
-	if b.segmentBuilder == nil {
-		b.segmentBuilder, err = builder.NewBuilderFromDocuments(opts.SegmentBuilderOptions())
-		if err != nil {
-			return err
-		}
-	}
-
-	if b.foregroundCompactor == nil {
-		b.foregroundCompactor, err = compaction.NewCompactor(docsPool,
-			DocumentArrayPoolCapacity,
-			opts.SegmentBuilderOptions(),
-			opts.FSTSegmentOptions(),
-			compaction.CompactorOptions{
-				FSTWriterOptions: &fst.WriterOptions{
-					// DisableRegistry is set to true to trade a larger FST size
-					// for a faster FST compaction since we want to reduce the end
-					// to end latency for time to first index a metric.
-					DisableRegistry: true,
-				},
-				MmapDocsData: blockOpts.ForegroundCompactorMmapDocsData,
-			})
-		if err != nil {
-			return err
-		}
-	}
-
-	if b.backgroundCompactor == nil {
-		b.backgroundCompactor, err = compaction.NewCompactor(docsPool,
-			DocumentArrayPoolCapacity,
-			opts.SegmentBuilderOptions(),
-			opts.FSTSegmentOptions(),
-			compaction.CompactorOptions{
-				MmapDocsData: blockOpts.BackgroundCompactorMmapDocsData,
-			})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 type closable interface {
 	Close() error
 }
@@ -1653,29 +1037,4 @@ func (c *safeCloser) Close() error {
 	}
 	c.closed = true
 	return c.closable.Close()
-}
-
-func taskNumBuilders(task compaction.Task) int {
-	builders := 0
-	for _, seg := range task.Segments {
-		if seg.Builder != nil {
-			builders++
-			continue
-		}
-	}
-	return builders
-}
-
-func addReadersFromReadableSegments(
-	readers []m3ninxindex.Reader,
-	segments []*readableSeg,
-) ([]m3ninxindex.Reader, error) {
-	for _, seg := range segments {
-		reader, err := seg.Segment().Reader()
-		if err != nil {
-			return nil, err
-		}
-		readers = append(readers, reader)
-	}
-	return readers, nil
 }
