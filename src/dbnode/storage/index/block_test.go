@@ -1591,13 +1591,13 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	require.Equal(t, int64(0), res.NumError)
 
 	// Move last segment to background, this should kick off a background compaction
-	b.Lock()
+	b.mutableSegments.Lock()
 	b.mutableSegments.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
 		{Segment: b.mutableSegments.foregroundSegments[0].Segment()},
 	})
 	require.Equal(t, 2, len(b.mutableSegments.backgroundSegments))
 	require.True(t, b.mutableSegments.compact.compactingBackground)
-	b.Unlock()
+	b.mutableSegments.Unlock()
 
 	// Wait for compaction to finish
 	for {
@@ -1611,10 +1611,10 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	}
 
 	// Make sure compacted into a single segment
-	b.RLock()
+	b.mutableSegments.RLock()
 	require.Equal(t, 1, len(b.mutableSegments.backgroundSegments))
 	require.Equal(t, 3, int(b.mutableSegments.backgroundSegments[0].Segment().Size()))
-	b.RUnlock()
+	b.mutableSegments.RUnlock()
 }
 
 func TestBlockAggregateAfterClose(t *testing.T) {
