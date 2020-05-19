@@ -166,14 +166,6 @@ func (h *Handler) RegisterRoutes() error {
 			Tagged(v1APIGroup),
 		))
 
-	handlers, err := prom.NewPrometheusReadHandlers(prom.Options{
-		PromQLEngine: newPromQLEngine(instrumentOpts),
-	})
-	if err != nil {
-		return err
-	}
-	h.customHandlers = append(h.customHandlers, handlers...)
-
 	// Register custom endpoints.
 	for _, custom := range h.customHandlers {
 		handler, err := custom.Handler(nativeSourceOpts)
@@ -184,6 +176,16 @@ func (h *Handler) RegisterRoutes() error {
 		h.router.HandleFunc(custom.Route(), handler.ServeHTTP).
 			Methods(custom.Methods()...)
 	}
+
+	opts := prom.Options{
+		PromQLEngine: newPromQLEngine(instrumentOpts),
+	}
+	h.router.HandleFunc(native.PromReadURL,
+		wrapped(prom.NewQueryHandler(opts, nativeSourceOpts, false)).ServeHTTP,
+	).Methods(native.PromReadHTTPMethods...)
+	h.router.HandleFunc(native.PromReadInstantURL,
+		wrapped(prom.NewQueryHandler(opts, nativeSourceOpts, true)).ServeHTTP,
+	).Methods(native.PromReadInstantHTTPMethods...)
 
 	nativePromReadHandler := native.NewPromReadHandler(nativeSourceOpts)
 	h.router.HandleFunc(remote.PromReadURL,
