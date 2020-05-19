@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	defaultShardCount = 2
+	defaultShardCount = 1
 	defaultSize       = defaultShardCount * 2048
 )
 
