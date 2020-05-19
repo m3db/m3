@@ -199,12 +199,12 @@ func NewBlock(
 	blockSize := md.Options().IndexOptions().BlockSize()
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("index").SubScope("block")
+	iopts = iopts.SetMetricsScope(scope)
 	mutableSegments := newMutableSegments(
 		blockStart,
 		opts,
 		blockOpts,
 		iopts,
-		scope,
 	)
 	b := &block{
 		state:                           blockStateOpen,

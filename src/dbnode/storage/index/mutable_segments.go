@@ -99,14 +99,13 @@ func newMutableSegments(
 	opts Options,
 	blockOpts BlockOptions,
 	iopts instrument.Options,
-	scope tally.Scope,
 ) *mutableSegments {
 	m := &mutableSegments{
 		blockStart: blockStart,
 		opts:       opts,
 		blockOpts:  blockOpts,
 		iopts:      iopts,
-		metrics:    newMutableSegmentsMetrics(scope),
+		metrics:    newMutableSegmentsMetrics(iopts.MetricsScope()),
 		logger:     iopts.Logger(),
 	}
 	return m
