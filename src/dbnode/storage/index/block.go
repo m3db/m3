@@ -235,11 +235,12 @@ func (b *block) EndTime() time.Time {
 }
 
 func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
-	b.Lock()
-	defer b.Unlock()
+	b.RLock()
 	if b.state != blockStateOpen {
+		b.RUnlock()
 		return b.writeBatchResult(inserts, b.writeBatchErrorInvalidState(b.state))
 	}
+	b.RUnlock()
 	// Return result from the original insertion since compaction was successful.
 	return b.writeBatchResult(inserts, b.mutableSegments.WriteBatch(inserts))
 }
