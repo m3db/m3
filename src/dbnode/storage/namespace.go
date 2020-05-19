@@ -1221,7 +1221,7 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 	}
 
 	shards := n.OwnedShards()
-	err := n.reverseIndex.Flush(flush, shards)
+	err := n.reverseIndex.WarmFlush(flush, shards)
 	n.metrics.flushIndex.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
