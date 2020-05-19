@@ -849,7 +849,7 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 	}
 
 	// Add foreground/background segments.
-	numSegments, numDocs := b.mutableSegments.numSegmentsAndDocs()
+	numSegments, numDocs := b.mutableSegments.NumSegmentsAndDocs()
 	result.NumSegments += numSegments
 	result.NumDocs += numDocs
 
@@ -903,7 +903,7 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 		return ErrUnableReportStatsBlockClosed
 	}
 
-	b.mutableSegments.stats(reporter)
+	b.mutableSegments.Stats(reporter)
 
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
 		_, mutable := seg.(segment.MutableSegment)

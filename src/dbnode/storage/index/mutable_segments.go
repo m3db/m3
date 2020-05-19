@@ -246,6 +246,42 @@ func (m *mutableSegments) Evict() {
 	m.cleanupCompactWithLock()
 }
 
+func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
+	var (
+		numSegments, numDocs int64
+	)
+	for _, seg := range m.foregroundSegments {
+		numSegments++
+		numDocs += seg.Segment().Size()
+	}
+	for _, seg := range m.backgroundSegments {
+		numSegments++
+		numDocs += seg.Segment().Size()
+	}
+	return numSegments, numDocs
+}
+
+func (m *mutableSegments) Stats(reporter BlockStatsReporter) {
+	for _, seg := range m.foregroundSegments {
+		_, mutable := seg.Segment().(segment.MutableSegment)
+		reporter.ReportSegmentStats(BlockSegmentStats{
+			Type:    ActiveForegroundSegment,
+			Mutable: mutable,
+			Age:     seg.Age(),
+			Size:    seg.Segment().Size(),
+		})
+	}
+	for _, seg := range m.backgroundSegments {
+		_, mutable := seg.Segment().(segment.MutableSegment)
+		reporter.ReportSegmentStats(BlockSegmentStats{
+			Type:    ActiveBackgroundSegment,
+			Mutable: mutable,
+			Age:     seg.Age(),
+			Size:    seg.Segment().Size(),
+		})
+	}
+}
+
 func (m *mutableSegments) Close() {
 	m.Lock()
 	defer m.Unlock()
@@ -684,42 +720,6 @@ func (m *mutableSegments) cleanupCompactWithLock() {
 	}
 	if !m.compact.compactingBackground {
 		m.cleanupBackgroundCompactWithLock()
-	}
-}
-
-func (m *mutableSegments) numSegmentsAndDocs() (int64, int64) {
-	var (
-		numSegments, numDocs int64
-	)
-	for _, seg := range m.foregroundSegments {
-		numSegments++
-		numDocs += seg.Segment().Size()
-	}
-	for _, seg := range m.backgroundSegments {
-		numSegments++
-		numDocs += seg.Segment().Size()
-	}
-	return numSegments, numDocs
-}
-
-func (m *mutableSegments) stats(reporter BlockStatsReporter) {
-	for _, seg := range m.foregroundSegments {
-		_, mutable := seg.Segment().(segment.MutableSegment)
-		reporter.ReportSegmentStats(BlockSegmentStats{
-			Type:    ActiveForegroundSegment,
-			Mutable: mutable,
-			Age:     seg.Age(),
-			Size:    seg.Segment().Size(),
-		})
-	}
-	for _, seg := range m.backgroundSegments {
-		_, mutable := seg.Segment().(segment.MutableSegment)
-		reporter.ReportSegmentStats(BlockSegmentStats{
-			Type:    ActiveBackgroundSegment,
-			Mutable: mutable,
-			Age:     seg.Age(),
-			Size:    seg.Segment().Size(),
-		})
 	}
 }
 
