@@ -16,7 +16,7 @@ metrics:
 
 clusters:
   - namespaces:
-      - namespace: agg
+      - namespace: aggregated
         type: aggregated
         retention: 10h
         resolution: 5s
@@ -33,7 +33,7 @@ clusters:
           etcdClusters:
             - zone: embedded
               endpoints:
-                - 127.0.0.1:2379
+                - dbnode01:2379
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
 

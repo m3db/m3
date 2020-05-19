@@ -18,10 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package harness
+package resources
 
 import (
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/proto/namespace"
@@ -33,52 +32,37 @@ import (
 )
 
 const (
-	timeout = time.Minute * 1
+	timeout   = time.Second * 60
+	retention = "6h"
 
-	aggName         = "aggregated"
-	unaggName       = "default"
-	coldWriteNsName = "coldWritesRepairAndNoIndex"
-	retention       = "6h"
+	// AggName is the name of the aggregated namespace.
+	AggName = "aggregated"
+	// UnaggName is the name of the unaggregated namespace.
+	UnaggName = "default"
+	// ColdWriteNsName is the name for cold write namespace.
+	ColdWriteNsName = "coldWritesRepairAndNoIndex"
 )
 
-// Nodes is a slice of nodes.
-type Nodes []Node
-
-func (n Nodes) waitForHealthy() error {
-	var (
-		multiErr xerrors.MultiError
-		mu       sync.Mutex
-		wg       sync.WaitGroup
-	)
-
-	for _, node := range n {
-		wg.Add(1)
-		node := node
-		go func() {
-			defer wg.Done()
-			err := node.WaitForBootstrap()
-			if err != nil {
-				mu.Lock()
-				multiErr = multiErr.Add(err)
-				mu.Unlock()
-			}
-		}()
-	}
-
-	wg.Wait()
-	return multiErr.FinalError()
+// DockerResources represents a set of dockerized test components.
+type DockerResources interface {
+	// Cleanup closes and removes all corresponding containers.
+	Cleanup() error
+	// Nodes returns all node resources.
+	Nodes() Nodes
+	// Coordinator returns the coordinator resource.
+	Coordinator() Coordinator
 }
-
-type cleanup func()
 
 type dockerResources struct {
 	coordinator Coordinator
 	nodes       Nodes
 
-	cleanup cleanup
+	pool *dockertest.Pool
 }
 
-func setupSingleM3DBNode() (*dockerResources, error) {
+// SetupSingleM3DBNode creates docker resources representing a setup with a
+// single DB node.
+func SetupSingleM3DBNode() (DockerResources, error) {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return nil, err
@@ -151,7 +135,7 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 	var (
 		aggDatabase = admin.DatabaseCreateRequest{
 			Type:              "cluster",
-			NamespaceName:     aggName,
+			NamespaceName:     AggName,
 			RetentionTime:     retention,
 			NumShards:         4,
 			ReplicationFactor: 1,
@@ -159,12 +143,12 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 		}
 
 		unaggDatabase = admin.DatabaseCreateRequest{
-			NamespaceName: unaggName,
+			NamespaceName: UnaggName,
 			RetentionTime: retention,
 		}
 
 		coldWriteNamespace = admin.NamespaceAddRequest{
-			Name: coldWriteNsName,
+			Name: ColdWriteNsName,
 			Options: &namespace.NamespaceOptions{
 				BootstrapEnabled:  true,
 				FlushEnabled:      true,
@@ -200,8 +184,8 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 		return nil, err
 	}
 
-	logger.Info("waiting for namespace", zap.String("name", aggName))
-	if err := coordinator.WaitForNamespace(aggName); err != nil {
+	logger.Info("waiting for namespace", zap.String("name", AggName))
+	if err := coordinator.WaitForNamespace(AggName); err != nil {
 		return nil, err
 	}
 
@@ -210,8 +194,8 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 		return nil, err
 	}
 
-	logger.Info("waiting for namespace", zap.String("name", unaggName))
-	if err := coordinator.WaitForNamespace(unaggName); err != nil {
+	logger.Info("waiting for namespace", zap.String("name", UnaggName))
+	if err := coordinator.WaitForNamespace(UnaggName); err != nil {
 		return nil, err
 	}
 
@@ -220,8 +204,8 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 		return nil, err
 	}
 
-	logger.Info("waiting for namespace", zap.String("name", coldWriteNsName))
-	if err := coordinator.WaitForNamespace(unaggName); err != nil {
+	logger.Info("waiting for namespace", zap.String("name", ColdWriteNsName))
+	if err := coordinator.WaitForNamespace(UnaggName); err != nil {
 		return nil, err
 	}
 
@@ -236,11 +220,28 @@ func setupSingleM3DBNode() (*dockerResources, error) {
 		coordinator: coordinator,
 		nodes:       dbNodes,
 
-		cleanup: func() {
-			coordinator.Close()
-			for _, dbNode := range dbNodes {
-				dbNode.Close()
-			}
-		},
+		pool: pool,
 	}, err
 }
+
+func (r *dockerResources) Cleanup() error {
+	if r == nil {
+		return nil
+	}
+
+	var multiErr xerrors.MultiError
+	if r.coordinator != nil {
+		multiErr = multiErr.Add(r.coordinator.Close())
+	}
+
+	for _, dbNode := range r.nodes {
+		if dbNode != nil {
+			multiErr = multiErr.Add(dbNode.Close())
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
+func (r *dockerResources) Nodes() Nodes             { return r.nodes }
+func (r *dockerResources) Coordinator() Coordinator { return r.coordinator }
