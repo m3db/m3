@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -55,6 +56,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -181,6 +183,7 @@ type dbShard struct {
 	metrics                  dbShardMetrics
 	ticking                  bool
 	shard                    uint32
+	coldWritesEnabled        bool
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -195,30 +198,45 @@ type dbShardRuntimeOptions struct {
 }
 
 type dbShardMetrics struct {
-	create                  tally.Counter
-	close                   tally.Counter
-	closeStart              tally.Counter
-	closeLatency            tally.Timer
-	insertAsyncInsertErrors tally.Counter
-	insertAsyncWriteErrors  tally.Counter
-	seriesTicked            tally.Gauge
+	create                              tally.Counter
+	close                               tally.Counter
+	closeStart                          tally.Counter
+	closeLatency                        tally.Timer
+	seriesTicked                        tally.Gauge
+	insertAsyncInsertErrors             tally.Counter
+	insertAsyncWriteInternalErrors      tally.Counter
+	insertAsyncWriteInvalidParamsErrors tally.Counter
+	insertAsyncIndexErrors              tally.Counter
+	insertColdWriteSkipIndex            tally.Counter
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
+	const insertErrorName = "insert-async.errors"
 	return dbShardMetrics{
 		create:       scope.Counter("create"),
 		close:        scope.Counter("close"),
 		closeStart:   scope.Counter("close-start"),
 		closeLatency: scope.Timer("close-latency"),
-		insertAsyncInsertErrors: scope.Tagged(map[string]string{
-			"error_type": "insert-series",
-		}).Counter("insert-async.errors"),
-		insertAsyncWriteErrors: scope.Tagged(map[string]string{
-			"error_type": "write-value",
-		}).Counter("insert-async.errors"),
 		seriesTicked: scope.Tagged(map[string]string{
 			"shard": fmt.Sprintf("%d", shardID),
 		}).Gauge("series-ticked"),
+		insertAsyncInsertErrors: scope.Tagged(map[string]string{
+			"error_type":    "insert-series",
+			"suberror_type": "shard-entry-insert-error",
+		}).Counter(insertErrorName),
+		insertAsyncWriteInternalErrors: scope.Tagged(map[string]string{
+			"error_type":    "write-value",
+			"suberror_type": "internal-error",
+		}).Counter(insertErrorName),
+		insertAsyncWriteInvalidParamsErrors: scope.Tagged(map[string]string{
+			"error_type":    "write-value",
+			"suberror_type": "invalid-params-error",
+		}).Counter(insertErrorName),
+		insertAsyncIndexErrors: scope.Tagged(map[string]string{
+			"error_type":    "reverse-index",
+			"suberror_type": "write-batch-error",
+		}).Counter(insertErrorName),
+		insertColdWriteSkipIndex: scope.Counter("insert-cold-write-skip-index"),
 	}
 }
 
@@ -278,11 +296,12 @@ func newDatabaseShard(
 		contextPool:          opts.ContextPool(),
 		flushState:           newShardFlushState(),
 		tickWg:               &sync.WaitGroup{},
+		coldWritesEnabled:    namespaceMetadata.Options().ColdWritesEnabled(),
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
-		s.nowFn, scope)
+		s.nowFn, scope, opts.InstrumentOptions().Logger())
 
 	registerRuntimeOptionsListener := func(listener runtime.OptionsListener) {
 		elem := opts.RuntimeOptionsManager().RegisterListener(listener)
@@ -906,7 +925,7 @@ func (s *dbShard) writeAndIndex(
 		// Perform write. No need to copy the annotation here because we're using it
 		// synchronously and all downstream code will copy anthing they need to maintain
 		// a reference to.
-		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wOpts)
+		wasWritten, _, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wOpts)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
@@ -1442,6 +1461,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	ctx := s.contextPool.Get()
 	// TODO(prateek): pool this type
 	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
+	warmIndexBlockStart := s.nowFn().Truncate(indexBlockSize)
 	indexBatch := index.NewWriteBatch(index.WriteBatchOptions{
 		InitialCapacity: numPendingIndexing,
 		IndexBlockSize:  indexBlockSize,
@@ -1450,6 +1470,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		var (
 			entry           = inserts[i].entry
 			releaseEntryRef = inserts[i].opts.entryRefCountIncremented
+			writeType       series.WriteType
+			err             error
 		)
 
 		if inserts[i].opts.hasPendingWrite {
@@ -1462,10 +1484,15 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// operation and there is nothing further to do with this value.
 			// TODO: Consider propagating the `wasWritten` argument back to the caller
 			// using waitgroup (or otherwise) in the future.
-			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
+			_, writeType, err = entry.Series.Write(ctx, write.timestamp, write.value,
 				write.unit, annotationBytes, write.opts)
 			if err != nil {
-				s.metrics.insertAsyncWriteErrors.Inc(1)
+				if xerrors.IsInvalidParams(err) {
+					s.metrics.insertAsyncWriteInvalidParamsErrors.Inc(1)
+				} else {
+					s.metrics.insertAsyncWriteInternalErrors.Inc(1)
+					s.logger.Error("error with async insert write", zap.Error(err))
+				}
 			}
 
 			if write.annotation != nil {
@@ -1483,23 +1510,36 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
 			entry.OnIndexPrepare()
 
-			id := entry.Series.ID()
-			tags := entry.Series.Tags().Values()
+			// Don't insert cold index writes into the index insert queue.
+			if s.coldWritesEnabled &&
+				writeType == series.ColdWrite &&
+				pendingIndex.timestamp.Before(warmIndexBlockStart) {
+				indexBlockStart := s.reverseIndex.BlockStartForWriteTime(pendingIndex.timestamp)
+				// NB(bodu): We to mark this entry as indexed for `indexBlockStart`. This means that
+				// we will not attempt to index this series for this time block again.
+				entry.OnIndexSuccess(indexBlockStart)
+				// Finalize the entry since we are done w/ it at this point.
+				entry.OnIndexFinalize(indexBlockStart)
+				s.metrics.insertColdWriteSkipIndex.Inc(1)
+			} else {
+				id := entry.Series.ID()
+				tags := entry.Series.Tags().Values()
 
-			var d doc.Document
-			d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
-			d.Fields = make(doc.Fields, 0, len(tags))
-			for _, tag := range tags {
-				d.Fields = append(d.Fields, doc.Field{
-					Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
-					Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
-				})
+				var d doc.Document
+				d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
+				d.Fields = make(doc.Fields, 0, len(tags))
+				for _, tag := range tags {
+					d.Fields = append(d.Fields, doc.Field{
+						Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
+						Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
+					})
+				}
+				indexBatch.Append(index.WriteBatchEntry{
+					Timestamp:     pendingIndex.timestamp,
+					OnIndexSeries: entry,
+					EnqueuedAt:    pendingIndex.enqueuedAt,
+				}, d)
 			}
-			indexBatch.Append(index.WriteBatchEntry{
-				Timestamp:     pendingIndex.timestamp,
-				OnIndexSeries: entry,
-				EnqueuedAt:    pendingIndex.enqueuedAt,
-			}, d)
 		}
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
@@ -1507,6 +1547,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			entry.Series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment, block.nsCtx)
 		}
 
+		// Entries in the shard insert queue are either of:
+		// - new entries
+		// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
 		if releaseEntryRef {
 			entry.DecrementReaderWriterCount()
 		}
@@ -1514,8 +1557,11 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 	var err error
 	// index all requested entries in batch.
-	if indexBatch.Len() > 0 {
+	if n := indexBatch.Len(); n > 0 {
 		err = s.reverseIndex.WriteBatch(indexBatch)
+		if err != nil {
+			s.metrics.insertAsyncIndexErrors.Inc(int64(n))
+		}
 	}
 
 	// Avoid goroutine spinning up to close this context
@@ -1570,12 +1616,12 @@ func (s *dbShard) FetchBlocksForColdFlush(
 	start time.Time,
 	version int,
 	nsCtx namespace.Context,
-) ([]xio.BlockReader, error) {
+) (block.FetchBlockResult, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(seriesID)
 	s.RUnlock()
 	if entry == nil || err != nil {
-		return nil, err
+		return block.FetchBlockResult{}, err
 	}
 
 	return entry.Series.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
@@ -1851,7 +1897,14 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	return result, nil, nil
 }
 
-func (s *dbShard) PrepareBootstrap() error {
+func (s *dbShard) PrepareBootstrap(ctx context.Context) error {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.ShardPrepareBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(log.Int("shard", int(s.shard)))
+	}
+
 	// Iterate flushed time ranges to determine which blocks are retrievable.
 	// NB(r): This must be done before bootstrap since during bootstrapping
 	// series will load blocks into series with series.LoadBlock(...) which
@@ -1915,7 +1968,14 @@ func (s *dbShard) UpdateFlushStates() {
 	}
 }
 
-func (s *dbShard) Bootstrap() error {
+func (s *dbShard) Bootstrap(ctx context.Context) error {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.ShardBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(log.Int("shard", int(s.shard)))
+	}
+
 	s.Lock()
 	if s.bootstrapState == Bootstrapped {
 		s.Unlock()
@@ -1931,7 +1991,7 @@ func (s *dbShard) Bootstrap() error {
 	multiErr := xerrors.NewMultiError()
 
 	// Initialize the flush states if we haven't called prepare bootstrap.
-	if err := s.PrepareBootstrap(); err != nil {
+	if err := s.PrepareBootstrap(ctx); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -2077,15 +2137,10 @@ func (s *dbShard) loadBlock(
 }
 
 func (s *dbShard) cacheShardIndices() error {
-	retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
+	retriever := s.DatabaseBlockRetriever
 	// May be nil depending on the caching policy.
-	if retrieverMgr == nil {
+	if retriever == nil {
 		return nil
-	}
-
-	retriever, err := retrieverMgr.Retriever(s.namespace)
-	if err != nil {
-		return err
 	}
 
 	s.logger.Debug("caching shard indices", zap.Uint32("shard", s.ID()))

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
@@ -106,7 +107,7 @@ type messageWriterMetrics struct {
 
 func newMessageWriterMetrics(
 	scope tally.Scope,
-	samplingRate float64,
+	opts instrument.TimerOptions,
 ) messageWriterMetrics {
 	return messageWriterMetrics{
 		writeSuccess:          scope.Counter("write-success"),
@@ -131,11 +132,11 @@ func newMessageWriterMetrics(
 		messageDroppedTTLExpire: scope.Tagged(
 			map[string]string{"reason": "ttl-expire"},
 		).Counter("message-dropped"),
-		messageRetry: scope.Counter("message-retry"),
-		// messageConsumeLatency: instrument.MustCreateSampledTimer(scope.Timer("message-consume-latency"), samplingRate),
-		// messageWriteDelay:     instrument.MustCreateSampledTimer(scope.Timer("message-write-delay"), samplingRate),
-		// scanBatchLatency:      instrument.MustCreateSampledTimer(scope.Timer("scan-batch-latency"), samplingRate),
-		// scanTotalLatency:      instrument.MustCreateSampledTimer(scope.Timer("scan-total-latency"), samplingRate),
+		messageRetry:          scope.Counter("message-retry"),
+		messageConsumeLatency: instrument.NewTimer(scope, "message-consume-latency", opts),
+		messageWriteDelay:     instrument.NewTimer(scope, "message-write-delay", opts),
+		scanBatchLatency:      instrument.NewTimer(scope, "scan-batch-latency", opts),
+		scanTotalLatency:      instrument.NewTimer(scope, "scan-total-latency", opts),
 	}
 }
 
@@ -259,12 +260,12 @@ func (w *messageWriterImpl) write(
 		return err
 	}
 	var (
-		written = false
+		// NB(r): Always select the same connection index per shard.
+		connIndex = int(w.replicatedShardID % uint64(w.numConnections))
+		written   = false
 	)
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
-		// NB(r): Always select the same connection index per connection.
 		consumerWriter := consumerWriters[randIndex(iterationIndexes, i)]
-		connIndex := int(w.replicatedShardID % uint64(w.numConnections))
 		if err := consumerWriter.Write(connIndex, w.encoder.Bytes()); err != nil {
 			w.m.oneConsumerWriteError.Inc(1)
 			continue

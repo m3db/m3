@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/x/context"
 )
 
 const (
@@ -61,6 +62,7 @@ func (noop noOpNoneBootstrapper) String() string {
 }
 
 func (noop noOpNoneBootstrapper) Bootstrap(
+	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
 	results := bootstrap.NewNamespaceResults(namespaces)
@@ -117,6 +119,7 @@ func (noop noOpAllBootstrapper) String() string {
 }
 
 func (noop noOpAllBootstrapper) Bootstrap(
+	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
 	return bootstrap.NewNamespaceResults(namespaces), nil

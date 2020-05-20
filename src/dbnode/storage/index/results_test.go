@@ -112,7 +112,7 @@ func TestResultsInsertContains(t *testing.T) {
 func TestResultsInsertDoesNotCopy(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc"), Fields: []doc.Field{
-		doc.Field{Name: []byte("name"), Value: []byte("value")},
+		{Name: []byte("name"), Value: []byte("value")},
 	}}
 	size, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)

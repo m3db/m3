@@ -27,6 +27,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/util/writer"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -419,6 +420,96 @@ func TestWriteTagLengthMeta(t *testing.T) {
 	count := writeTagLengthMeta(buf, lengths)
 	require.Equal(t, 42, count)
 	assert.Equal(t, []byte("0,1,2,8,10,8,100,8,101,8,110,123456,12345!"), buf)
+}
+
+func TestTagsValidateEmptyNameQuoted(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
+	tags = tags.AddTag(Tag{Name: []byte(""), Value: []byte("bar")})
+	require.Error(t, tags.Validate())
+}
+
+func TestTagsValidateEmptyValueQuoted(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
+	tags = tags.AddTag(Tag{Name: []byte("foo"), Value: []byte("")})
+	require.Error(t, tags.Validate())
+}
+
+func TestTagsValidateOutOfOrderQuoted(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
+	tags.Tags = []Tag{
+		{
+			Name:  []byte("foo"),
+			Value: []byte("bar"),
+		},
+		{
+			Name:  []byte("bar"),
+			Value: []byte("baz"),
+		},
+	}
+	require.Error(t, tags.Validate())
+
+	// Test fixes after normalize.
+	tags.Normalize()
+	require.NoError(t, tags.Validate())
+}
+
+func TestTagsValidateDuplicateQuoted(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
+	tags = tags.AddTag(Tag{
+		Name:  []byte("foo"),
+		Value: []byte("bar"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  []byte("bar"),
+		Value: []byte("baz"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  []byte("foo"),
+		Value: []byte("qux"),
+	})
+	require.Error(t, tags.Validate())
+}
+
+func TestTagsValidateEmptyNameGraphite(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeGraphite))
+	tags = tags.AddTag(Tag{Name: nil, Value: []byte("bar")})
+	require.Error(t, tags.Validate())
+}
+
+func TestTagsValidateOutOfOrderGraphite(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeGraphite))
+	tags.Tags = []Tag{
+		{
+			Name:  graphite.TagName(10),
+			Value: []byte("foo"),
+		},
+		{
+			Name:  graphite.TagName(2),
+			Value: []byte("bar"),
+		},
+	}
+	require.Error(t, tags.Validate())
+
+	// Test fixes after normalize.
+	tags.Normalize()
+	require.NoError(t, tags.Validate())
+}
+
+func TestTagsValidateDuplicateGraphite(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeGraphite))
+	tags = tags.AddTag(Tag{
+		Name:  graphite.TagName(0),
+		Value: []byte("foo"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  graphite.TagName(1),
+		Value: []byte("bar"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  graphite.TagName(1),
+		Value: []byte("baz"),
+	})
+	require.Error(t, tags.Validate())
 }
 
 func buildTags(b *testing.B, count, length int, opts TagOptions, escape bool) Tags {

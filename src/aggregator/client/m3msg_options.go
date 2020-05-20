@@ -24,10 +24,20 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (
 	errM3MsgOptionsNoProducer = errors.New("no producer set")
+
+	// defaultM3MsgTimerOptions by defaults ensures to use
+	// low overhead timers for M3Msg clients (can't do this
+	// for legacy clients since people depend on those stats being
+	// non-histograms).
+	defaultM3MsgTimerOptions = instrument.TimerOptions{
+		Type:             instrument.HistogramTimerType,
+		HistogramBuckets: instrument.DefaultHistogramTimerHistogramBuckets(),
+	}
 )
 
 // M3MsgOptions is a set of M3Msg client options.
@@ -40,15 +50,24 @@ type M3MsgOptions interface {
 
 	// Producer gets the producer.
 	Producer() producer.Producer
+
+	// SetTimerOptions sets the instrument timer options.
+	SetTimerOptions(value instrument.TimerOptions) M3MsgOptions
+
+	// TimerOptions gets the instrument timer options.
+	TimerOptions() instrument.TimerOptions
 }
 
 type m3msgOptions struct {
-	producer producer.Producer
+	producer     producer.Producer
+	timerOptions instrument.TimerOptions
 }
 
 // NewM3MsgOptions returns a new set of M3Msg options.
 func NewM3MsgOptions() M3MsgOptions {
-	return &m3msgOptions{}
+	return &m3msgOptions{
+		timerOptions: defaultM3MsgTimerOptions,
+	}
 }
 
 func (o *m3msgOptions) Validate() error {
@@ -66,4 +85,14 @@ func (o *m3msgOptions) SetProducer(value producer.Producer) M3MsgOptions {
 
 func (o *m3msgOptions) Producer() producer.Producer {
 	return o.producer
+}
+
+func (o *m3msgOptions) SetTimerOptions(value instrument.TimerOptions) M3MsgOptions {
+	opts := *o
+	opts.timerOptions = value
+	return &opts
+}
+
+func (o *m3msgOptions) TimerOptions() instrument.TimerOptions {
+	return o.timerOptions
 }

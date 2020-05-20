@@ -345,10 +345,10 @@ type databaseNamespace interface {
 	// PrepareBootstrap prepares the namespace for bootstrapping by ensuring
 	// it's shards know which flushed files reside on disk, so that calls
 	// to series.LoadBlock(...) will succeed.
-	PrepareBootstrap() ([]databaseShard, error)
+	PrepareBootstrap(ctx context.Context) ([]databaseShard, error)
 
 	// Bootstrap marks shards as bootstrapped for the namespace.
-	Bootstrap(bootstrapResult bootstrap.NamespaceResult) error
+	Bootstrap(ctx context.Context, bootstrapResult bootstrap.NamespaceResult) error
 
 	// WarmFlush flushes in-memory WarmWrites.
 	WarmFlush(blockStart time.Time, flush persist.FlushPreparer) error
@@ -486,7 +486,7 @@ type databaseShard interface {
 		start time.Time,
 		version int,
 		nsCtx namespace.Context,
-	) ([]xio.BlockReader, error)
+	) (block.FetchBlockResult, error)
 
 	// FetchBlocksMetadataV2 retrieves blocks metadata.
 	FetchBlocksMetadataV2(
@@ -499,11 +499,11 @@ type databaseShard interface {
 
 	// PrepareBootstrap prepares the shard for bootstrapping by ensuring
 	// it knows which flushed files reside on disk.
-	PrepareBootstrap() error
+	PrepareBootstrap(ctx context.Context) error
 
 	// Bootstrap bootstraps the shard after all provided data
 	// has been loaded using LoadBootstrapBlocks.
-	Bootstrap() error
+	Bootstrap(ctx context.Context) error
 
 	// UpdateFlushStates updates all the flush states for the current shard
 	// by checking the file volumes that exist on disk at a point in time.
@@ -639,8 +639,16 @@ type NamespaceIndex interface {
 		shards []databaseShard,
 	) error
 
+	// DebugMemorySegments allows for debugging memory segments.
+	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
+
 	// Close will release the index resources and close the index.
 	Close() error
+}
+
+// DebugMemorySegmentsOptions is a set of options to debug memory segments.
+type DebugMemorySegmentsOptions struct {
+	OutputDirectory string
 }
 
 // namespaceIndexTickResult are details about the work performed by the namespaceIndex
@@ -1091,6 +1099,14 @@ type Options interface {
 
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
+
+	// SetDoNotIndexWithFieldsMap sets a map which if fields match it
+	// will not index those metrics.
+	SetDoNotIndexWithFieldsMap(value map[string]string) Options
+
+	// DoNotIndexWithFieldsMap returns a map which if fields match it
+	// will not index those metrics.
+	DoNotIndexWithFieldsMap() map[string]string
 }
 
 // MemoryTracker tracks memory.

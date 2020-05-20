@@ -151,7 +151,8 @@ func (entry *Entry) OnIndexSuccess(blockStartNanos xtime.UnixNano) {
 	entry.reverseIndex.Unlock()
 }
 
-// OnIndexFinalize marks any attempt for the given block start is finished.
+// OnIndexFinalize marks any attempt for the given block start as finished
+// and decrements the entry ref count.
 func (entry *Entry) OnIndexFinalize(blockStartNanos xtime.UnixNano) {
 	entry.reverseIndex.Lock()
 	entry.reverseIndex.setAttemptWithWLock(blockStartNanos, false)
@@ -213,7 +214,7 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 	for i := range s.states {
 		if s.states[i].blockStart.Equal(t) {
 			s.states[i].success = true
-			break
+			return
 		}
 	}
 

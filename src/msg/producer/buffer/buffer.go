@@ -23,10 +23,12 @@ package buffer
 import (
 	"container/list"
 	"errors"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
@@ -45,31 +47,76 @@ var (
 )
 
 type bufferMetrics struct {
-	messageDropped    tally.Counter
-	byteDropped       tally.Counter
+	messageDropped    counterPerNumRefBuckets
+	byteDropped       counterPerNumRefBuckets
 	messageTooLarge   tally.Counter
 	cleanupNoProgress tally.Counter
 	dropOldestSync    tally.Counter
 	dropOldestAsync   tally.Counter
 	messageBuffered   tally.Gauge
 	byteBuffered      tally.Gauge
-	// bufferScanBatch   tally.Timer
+	bufferScanBatch   tally.Timer
+}
+
+type counterPerNumRefBuckets struct {
+	buckets       []counterPerNumRefBucket
+	unknownBucket tally.Counter
+}
+
+type counterPerNumRefBucket struct {
+	// numRef is the counter for the number of references at time of count
+	// of the ref counted message.
+	numRef int
+	// counter is the actual counter for this bucket.
+	counter tally.Counter
+}
+
+func newCounterPerNumRefBuckets(
+	scope tally.Scope,
+	name string,
+	n int,
+) counterPerNumRefBuckets {
+	buckets := make([]counterPerNumRefBucket, 0, n)
+	for i := 0; i < n; i++ {
+		buckets = append(buckets, counterPerNumRefBucket{
+			numRef: i,
+			counter: scope.Tagged(map[string]string{
+				"num-replicas": strconv.Itoa(i),
+			}).Counter(name),
+		})
+	}
+	return counterPerNumRefBuckets{
+		buckets: buckets,
+		unknownBucket: scope.Tagged(map[string]string{
+			"num-replicas": "unknown",
+		}).Counter(name),
+	}
+}
+
+func (c counterPerNumRefBuckets) Inc(numRef int32, delta int64) {
+	for _, b := range c.buckets {
+		if b.numRef == int(numRef) {
+			b.counter.Inc(delta)
+			return
+		}
+	}
+	c.unknownBucket.Inc(delta)
 }
 
 func newBufferMetrics(
 	scope tally.Scope,
-	samplingRate float64,
+	opts instrument.TimerOptions,
 ) bufferMetrics {
 	return bufferMetrics{
-		messageDropped:    scope.Counter("buffer-message-dropped"),
-		byteDropped:       scope.Counter("buffer-byte-dropped"),
+		messageDropped:    newCounterPerNumRefBuckets(scope, "buffer-message-dropped", 10),
+		byteDropped:       newCounterPerNumRefBuckets(scope, "buffer-byte-dropped", 10),
 		messageTooLarge:   scope.Counter("message-too-large"),
 		cleanupNoProgress: scope.Counter("cleanup-no-progress"),
 		dropOldestSync:    scope.Counter("drop-oldest-sync"),
 		dropOldestAsync:   scope.Counter("drop-oldest-async"),
 		messageBuffered:   scope.Gauge("message-buffered"),
 		byteBuffered:      scope.Gauge("byte-buffered"),
-		// bufferScanBatch:   instrument.MustCreateSampledTimer(scope.Timer("buffer-scan-batch"), samplingRate),
+		bufferScanBatch:   instrument.NewTimer(scope, "buffer-scan-batch", opts),
 	}
 }
 
@@ -114,7 +161,7 @@ func NewBuffer(opts Options) (producer.Buffer, error) {
 		retrier:          retry.NewRetrier(opts.CleanupRetryOptions()),
 		m: newBufferMetrics(
 			opts.InstrumentOptions().MetricsScope(),
-			opts.InstrumentOptions().MetricsSamplingRate(),
+			opts.InstrumentOptions().TimerOptions(),
 		),
 		size:         atomic.NewUint64(0),
 		isClosed:     false,
@@ -289,8 +336,10 @@ func (b *buffer) cleanupBatchWithListLock(
 		if rm.Drop() {
 			b.bufferList.Remove(e)
 			removed++
-			b.m.messageDropped.Inc(1)
-			b.m.byteDropped.Inc(int64(rm.Size()))
+
+			numRef := rm.NumRef()
+			b.m.messageDropped.Inc(numRef, 1)
+			b.m.byteDropped.Inc(numRef, int64(rm.Size()))
 		}
 	}
 	return next, removed
@@ -347,8 +396,9 @@ func (b *buffer) dropOldestBatchUntilTargetWithListLock(
 		// There is a chance that the message is consumed right before
 		// the drop call which will lead drop to return false.
 		if rm.Drop() {
-			b.m.messageDropped.Inc(1)
-			b.m.byteDropped.Inc(int64(rm.Size()))
+			numRef := rm.NumRef()
+			b.m.messageDropped.Inc(numRef, 1)
+			b.m.byteDropped.Inc(numRef, int64(rm.Size()))
 		}
 	}
 	return false

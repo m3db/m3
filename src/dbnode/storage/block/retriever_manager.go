@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -34,6 +35,7 @@ import (
 // new database block retrievers
 type NewDatabaseBlockRetrieverFn func(
 	md namespace.Metadata,
+	shardSet sharding.ShardSet,
 ) (DatabaseBlockRetriever, error)
 
 // NewDatabaseBlockRetrieverManager creates a new manager
@@ -55,6 +57,7 @@ type blockRetrieverManager struct {
 
 func (m *blockRetrieverManager) Retriever(
 	md namespace.Metadata,
+	shardSet sharding.ShardSet,
 ) (DatabaseBlockRetriever, error) {
 	m.RLock()
 	retriever, ok := m.retrievers.Get(md.ID())
@@ -72,7 +75,7 @@ func (m *blockRetrieverManager) Retriever(
 	}
 
 	var err error
-	retriever, err = m.newRetrieverFn(md)
+	retriever, err = m.newRetrieverFn(md, shardSet)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +97,7 @@ func NewDatabaseShardBlockRetriever(
 ) DatabaseShardBlockRetriever {
 	return &shardBlockRetriever{
 		DatabaseBlockRetriever: r,
-		shard: shard,
+		shard:                  shard,
 	}
 }
 

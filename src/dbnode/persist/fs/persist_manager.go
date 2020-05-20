@@ -35,6 +35,7 @@ import (
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -92,6 +93,8 @@ type persistManager struct {
 	slept        time.Duration
 
 	metrics persistManagerMetrics
+
+	runtimeOptsListener xclose.SimpleCloser
 }
 
 type dataPersistManager struct {
@@ -190,13 +193,14 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 	}
 	pm.indexPM.newReaderFn = NewIndexReader
 	pm.indexPM.newPersistentSegmentFn = m3ninxpersist.NewSegment
-	opts.RuntimeOptionsManager().RegisterListener(pm)
+	pm.runtimeOptsListener = opts.RuntimeOptionsManager().RegisterListener(pm)
+
 	return pm, nil
 }
 
 func (pm *persistManager) reset() {
 	pm.status = persistManagerIdle
-	pm.start = timeZero
+	pm.start = timeZero 
 	pm.count = 0
 	pm.bytesWritten = 0
 	pm.worked = 0
@@ -591,6 +595,11 @@ func (pm *persistManager) DoneSnapshot(
 	}
 
 	return pm.doneShared()
+}
+
+// Close all resources.
+func (pm *persistManager) Close() {
+	pm.runtimeOptsListener.Close()
 }
 
 func (pm *persistManager) doneShared() error {

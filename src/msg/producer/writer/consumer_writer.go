@@ -338,10 +338,10 @@ func (w *consumerWriterImpl) continueFn(int) bool {
 }
 
 func (w *consumerWriterImpl) readAcks(idx int) error {
-	w.writeState.Lock()
+	w.writeState.RLock()
 	validConns := w.writeState.validConns
 	conn := w.writeState.conns[idx]
-	w.writeState.Unlock()
+	w.writeState.RUnlock()
 	if !validConns {
 		w.m.readInvalidConn.Inc(1)
 		return errInvalidConnection

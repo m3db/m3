@@ -50,6 +50,7 @@ const (
 
 // WriteJSONHandler represents a handler for the write json endpoint
 type WriteJSONHandler struct {
+	opts           options.HandlerOptions
 	store          storage.Storage
 	instrumentOpts instrument.Options
 }
@@ -57,6 +58,7 @@ type WriteJSONHandler struct {
 // NewWriteJSONHandler returns a new instance of handler.
 func NewWriteJSONHandler(opts options.HandlerOptions) http.Handler {
 	return &WriteJSONHandler{
+		opts:           opts,
 		store:          opts.Storage(),
 		instrumentOpts: opts.InstrumentOpts(),
 	}
@@ -79,7 +81,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeQuery, err := newStorageWriteQuery(req)
+	writeQuery, err := h.newWriteQuery(req)
 	if err != nil {
 		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("parsing error",
@@ -97,18 +99,18 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
+func (h *WriteJSONHandler) newWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 	parsedTime, err := util.ParseTimeString(req.Timestamp)
 	if err != nil {
 		return nil, err
 	}
 
-	tags := models.NewTags(len(req.Tags), nil)
+	tags := models.NewTags(len(req.Tags), h.opts.TagOptions())
 	for n, v := range req.Tags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
 	}
 
-	return &storage.WriteQuery{
+	return storage.NewWriteQuery(storage.WriteQueryOptions{
 		Tags: tags,
 		Datapoints: ts.Datapoints{
 			{
@@ -121,7 +123,7 @@ func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 		Attributes: storage.Attributes{
 			MetricsType: storage.UnaggregatedMetricsType,
 		},
-	}, nil
+	})
 }
 
 func parseRequest(r *http.Request) (*WriteQuery, *xhttp.ParseError) {

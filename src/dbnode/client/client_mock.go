@@ -2448,6 +2448,34 @@ func (mr *MockOptionsMockRecorder) IterationOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterationOptions", reflect.TypeOf((*MockOptions)(nil).IterationOptions))
 }
 
+// SetWriteTimestampOffset mocks base method
+func (m *MockOptions) SetWriteTimestampOffset(value time.Duration) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteTimestampOffset", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetWriteTimestampOffset indicates an expected call of SetWriteTimestampOffset
+func (mr *MockOptionsMockRecorder) SetWriteTimestampOffset(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteTimestampOffset", reflect.TypeOf((*MockOptions)(nil).SetWriteTimestampOffset), value)
+}
+
+// WriteTimestampOffset mocks base method
+func (m *MockOptions) WriteTimestampOffset() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTimestampOffset")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// WriteTimestampOffset indicates an expected call of WriteTimestampOffset
+func (mr *MockOptionsMockRecorder) WriteTimestampOffset() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTimestampOffset", reflect.TypeOf((*MockOptions)(nil).WriteTimestampOffset))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -3869,6 +3897,34 @@ func (m *MockAdminOptions) IterationOptions() index.IterationOptions {
 func (mr *MockAdminOptionsMockRecorder) IterationOptions() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterationOptions", reflect.TypeOf((*MockAdminOptions)(nil).IterationOptions))
+}
+
+// SetWriteTimestampOffset mocks base method
+func (m *MockAdminOptions) SetWriteTimestampOffset(value time.Duration) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteTimestampOffset", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetWriteTimestampOffset indicates an expected call of SetWriteTimestampOffset
+func (mr *MockAdminOptionsMockRecorder) SetWriteTimestampOffset(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteTimestampOffset", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteTimestampOffset), value)
+}
+
+// WriteTimestampOffset mocks base method
+func (m *MockAdminOptions) WriteTimestampOffset() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteTimestampOffset")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// WriteTimestampOffset indicates an expected call of WriteTimestampOffset
+func (mr *MockAdminOptionsMockRecorder) WriteTimestampOffset() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTimestampOffset", reflect.TypeOf((*MockAdminOptions)(nil).WriteTimestampOffset))
 }
 
 // SetOrigin mocks base method

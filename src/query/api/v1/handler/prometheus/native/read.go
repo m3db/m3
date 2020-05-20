@@ -145,6 +145,16 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keepNans := h.opts.Config().ResultOptions.KeepNans
-	renderResultsJSON(w, result, parsedOptions.Params, keepNans)
+	err = RenderResultsJSON(w, result, RenderResultsOptions{
+		Start:    parsedOptions.Params.Start,
+		End:      parsedOptions.Params.End,
+		KeepNaNs: h.opts.Config().ResultOptions.KeepNans,
+	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		logger.Error("failed to render results", zap.Error(err))
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
 }

@@ -118,23 +118,23 @@ type serviceMetrics struct {
 	overloadRejected        tally.Counter
 }
 
-func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
+func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
 	return serviceMetrics{
-		fetch:                   instrument.NewMethodMetrics(scope, "fetch", samplingRate),
-		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", samplingRate),
-		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", samplingRate),
-		write:                   instrument.NewMethodMetrics(scope, "write", samplingRate),
-		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", samplingRate),
-		fetchBlocks:             instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata:     instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		repair:                  instrument.NewMethodMetrics(scope, "repair", samplingRate),
-		truncate:                instrument.NewMethodMetrics(scope, "truncate", samplingRate),
+		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
+		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
+		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", opts),
+		write:                   instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", opts),
+		fetchBlocks:             instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata:     instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		repair:                  instrument.NewMethodMetrics(scope, "repair", opts),
+		truncate:                instrument.NewMethodMetrics(scope, "truncate", opts),
 		fetchBatchRawRPCS:       scope.Counter("fetchBatchRaw-rpcs"),
-		fetchBatchRaw:           instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
+		fetchBatchRaw:           instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", opts),
 		writeBatchRawRPCs:       scope.Counter("writeBatchRaw-rpcs"),
-		writeBatchRaw:           instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
+		writeBatchRaw:           instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", opts),
 		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
-		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", samplingRate),
+		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
 	}
 }
@@ -300,7 +300,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 		logger:  iopts.Logger(),
 		opts:    opts,
 		nowFn:   opts.ClockOptions().NowFn(),
-		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
+		metrics: newServiceMetrics(scope, iopts.TimerOptions()),
 		pools: pools{
 			id:                      opts.IdentifierPool(),
 			checkedBytesWrapper:     opts.CheckedBytesWrapperPool(),
@@ -812,12 +812,14 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 			TagName: entry.Key().Bytes(),
 		}
 		tagValues := entry.Value()
-		tagValuesMap := tagValues.Map()
-		responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
-		for _, entry := range tagValuesMap.Iter() {
-			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
-				TagValue: entry.Key().Bytes(),
-			})
+		if tagValues.HasValues() {
+			tagValuesMap := tagValues.Map()
+			responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
+			for _, entry := range tagValuesMap.Iter() {
+				responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
+					TagValue: entry.Key().Bytes(),
+				})
+			}
 		}
 		response.Results = append(response.Results, responseElem)
 	}
@@ -1938,6 +1940,39 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 		return nil, tterrors.NewBadRequestError(err)
 	}
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
+}
+
+func (s *service) DebugIndexMemorySegments(
+	ctx thrift.Context,
+	req *rpc.DebugIndexMemorySegmentsRequest,
+) (
+	*rpc.DebugIndexMemorySegmentsResult_,
+	error,
+) {
+	db, err := s.startRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var multiErr xerrors.MultiError
+	for _, ns := range db.Namespaces() {
+		idx, err := ns.Index()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := idx.DebugMemorySegments(storage.DebugMemorySegmentsOptions{
+			OutputDirectory: req.Directory,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := multiErr.FinalError(); err != nil {
+		return nil, err
+	}
+
+	return &rpc.DebugIndexMemorySegmentsResult_{}, nil
 }
 
 func (s *service) SetDatabase(db storage.Database) error {

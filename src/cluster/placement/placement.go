@@ -429,6 +429,10 @@ func NewInstanceFromProto(instance *placementpb.Instance) (Instance, error) {
 	if err != nil {
 		return nil, err
 	}
+	debugPort := uint32(0)
+	if instance.Metadata != nil {
+		debugPort = instance.Metadata.DebugPort
+	}
 
 	return NewInstance().
 		SetID(instance.Id).
@@ -439,7 +443,10 @@ func NewInstanceFromProto(instance *placementpb.Instance) (Instance, error) {
 		SetShards(shards).
 		SetShardSetID(instance.ShardSetId).
 		SetHostname(instance.Hostname).
-		SetPort(instance.Port), nil
+		SetPort(instance.Port).
+		SetMetadata(InstanceMetadata{
+			DebugPort: debugPort,
+		}), nil
 }
 
 type instance struct {
@@ -452,12 +459,13 @@ type instance struct {
 	port           uint32
 	weight         uint32
 	shardSetID     uint32
+	metadata       InstanceMetadata
 }
 
 func (i *instance) String() string {
 	return fmt.Sprintf(
-		"Instance[ID=%s, IsolationGroup=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s]",
-		i.id, i.isolationGroup, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(),
+		"Instance[ID=%s, IsolationGroup=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s, Metadata=%+v]",
+		i.id, i.isolationGroup, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(), i.metadata,
 	)
 }
 
@@ -542,6 +550,15 @@ func (i *instance) SetShards(s shard.Shards) Instance {
 	return i
 }
 
+func (i *instance) Metadata() InstanceMetadata {
+	return i.metadata
+}
+
+func (i *instance) SetMetadata(value InstanceMetadata) Instance {
+	i.metadata = value
+	return i
+}
+
 func (i *instance) Proto() (*placementpb.Instance, error) {
 	ss, err := i.Shards().Proto()
 	if err != nil {
@@ -558,6 +575,9 @@ func (i *instance) Proto() (*placementpb.Instance, error) {
 		ShardSetId:     i.ShardSetID(),
 		Hostname:       i.Hostname(),
 		Port:           i.Port(),
+		Metadata: &placementpb.InstanceMetadata{
+			DebugPort: i.Metadata().DebugPort,
+		},
 	}, nil
 }
 
@@ -592,7 +612,8 @@ func (i *instance) Clone() Instance {
 		SetHostname(i.Hostname()).
 		SetPort(i.Port()).
 		SetShardSetID(i.ShardSetID()).
-		SetShards(i.Shards().Clone())
+		SetShards(i.Shards().Clone()).
+		SetMetadata(i.Metadata())
 }
 
 // Instances is a slice of instances that can produce a debug string.

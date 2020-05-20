@@ -22,6 +22,8 @@ package handleroptions
 
 import (
 	"time"
+
+	"github.com/m3db/m3/src/x/retry"
 )
 
 // PromWriteHandlerForwardingOptions is the forwarding
@@ -30,6 +32,7 @@ type PromWriteHandlerForwardingOptions struct {
 	// MaxConcurrency is the max parallel forwarding and if zero will be unlimited.
 	MaxConcurrency int                                    `yaml:"maxConcurrency"`
 	Timeout        time.Duration                          `yaml:"timeout"`
+	Retry          *retry.Configuration                   `yaml:"retry"`
 	Targets        []PromWriteHandlerForwardTargetOptions `yaml:"targets"`
 }
 

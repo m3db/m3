@@ -130,14 +130,17 @@ type clientMetrics struct {
 	shardNotWriteable      tally.Counter
 }
 
-func newClientMetrics(scope tally.Scope, sampleRate float64) clientMetrics {
+func newClientMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) clientMetrics {
 	return clientMetrics{
-		writeUntimedCounter:    instrument.NewNoTimerMethodMetrics(scope, "writeUntimedCounter", sampleRate),
-		writeUntimedBatchTimer: instrument.NewNoTimerMethodMetrics(scope, "writeUntimedBatchTimer", sampleRate),
-		writeUntimedGauge:      instrument.NewNoTimerMethodMetrics(scope, "writeUntimedGauge", sampleRate),
-		writePassthrough:       instrument.NewNoTimerMethodMetrics(scope, "writePassthrough", sampleRate),
-		writeForwarded:         instrument.NewNoTimerMethodMetrics(scope, "writeForwarded", sampleRate),
-		flush:                  instrument.NewNoTimerMethodMetrics(scope, "flush", sampleRate),
+		writeUntimedCounter:    instrument.NewMethodMetrics(scope, "writeUntimedCounter", opts),
+		writeUntimedBatchTimer: instrument.NewMethodMetrics(scope, "writeUntimedBatchTimer", opts),
+		writeUntimedGauge:      instrument.NewMethodMetrics(scope, "writeUntimedGauge", opts),
+		writePassthrough:       instrument.NewMethodMetrics(scope, "writePassthrough", opts),
+		writeForwarded:         instrument.NewMethodMetrics(scope, "writeForwarded", opts),
+		flush:                  instrument.NewMethodMetrics(scope, "flush", opts),
 		shardNotOwned:          scope.Counter("shard-not-owned"),
 		shardNotWriteable:      scope.Counter("shard-not-writeable"),
 	}
@@ -234,7 +237,8 @@ func NewClient(opts Options) (Client, error) {
 		writerMgr:                  writerMgr,
 		shardFn:                    opts.ShardFn(),
 		placementWatcher:           placementWatcher,
-		metrics:                    newClientMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
+		metrics: newClientMetrics(instrumentOpts.MetricsScope(),
+			instrumentOpts.TimerOptions()),
 	}, nil
 }
 

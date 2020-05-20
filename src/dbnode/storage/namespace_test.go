@@ -323,16 +323,25 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
+
 	ns.bootstrapState = Bootstrapping
-	require.Equal(t,
-		errNamespaceIsBootstrapping, ns.Bootstrap(bootstrap.NamespaceResult{}))
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	err := ns.Bootstrap(ctx, bootstrap.NamespaceResult{})
+	require.Equal(t, errNamespaceIsBootstrapping, err)
 }
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
 		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
-	require.NoError(t, ns.Bootstrap(bootstrap.NamespaceResult{}))
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	require.NoError(t, ns.Bootstrap(ctx, bootstrap.NamespaceResult{}))
 	require.Equal(t, Bootstrapped, ns.bootstrapState)
 }
 
@@ -350,7 +359,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(shardID)
-		shard.EXPECT().Bootstrap().Return(errs[i])
+		shard.EXPECT().Bootstrap(gomock.Any()).Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardIDs = append(shardIDs, shardID)
 	}
@@ -360,7 +369,10 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		Shards:     shardIDs,
 	}
 
-	require.Equal(t, "foo", ns.Bootstrap(nsResult).Error())
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	require.Equal(t, "foo", ns.Bootstrap(ctx, nsResult).Error())
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }
 
@@ -392,7 +404,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(testShard.ID())
-		shard.EXPECT().Bootstrap().Return(nil)
+		shard.EXPECT().Bootstrap(gomock.Any()).Return(nil)
 		ns.shards[testShard.ID()] = shard
 		shardIDs = append(shardIDs, testShard.ID())
 	}
@@ -410,7 +422,10 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		Shards:     shardIDs,
 	}
 
-	require.Error(t, ns.Bootstrap(nsResult))
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	require.Error(t, ns.Bootstrap(ctx, nsResult))
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }
 
@@ -588,6 +603,7 @@ func TestNamespaceTruncate(t *testing.T) {
 	for _, shard := range testShardIDs {
 		mockShard := NewMockdatabaseShard(ctrl)
 		mockShard.EXPECT().NumSeries().Return(int64(shard.ID()))
+		mockShard.EXPECT().ID().Return(shard.ID())
 		ns.shards[shard.ID()] = mockShard
 	}
 
@@ -1181,15 +1197,19 @@ func TestNamespaceTicksIndex(t *testing.T) {
 	idx := NewMockNamespaceIndex(ctrl)
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	for _, s := range ns.shards {
 		if s != nil {
-			s.Bootstrap()
+			s.Bootstrap(ctx)
 		}
 	}
 
-	ctx := context.NewCancellable()
-	idx.EXPECT().Tick(ctx, gomock.Any()).Return(namespaceIndexTickResult{}, nil)
-	err := ns.Tick(ctx, time.Now())
+	cancel := context.NewCancellable()
+	idx.EXPECT().Tick(cancel, gomock.Any()).Return(namespaceIndexTickResult{}, nil)
+	err := ns.Tick(cancel, time.Now())
 	require.NoError(t, err)
 }
 

@@ -215,7 +215,10 @@ type databaseNamespaceIndexStatusMetrics struct {
 	numSegments tally.Gauge
 }
 
-func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
+func newDatabaseNamespaceMetrics(
+	scope tally.Scope,
+	opts instrument.TimerOptions,
+) databaseNamespaceMetrics {
 	const (
 		// NB: tally.Timer when backed by a Prometheus Summary type is *very* expensive
 		// for high frequency measurements. Overriding sampling rate for writes to avoid this issue.
@@ -229,18 +232,18 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	statusScope := scope.SubScope("status")
 	indexStatusScope := statusScope.SubScope("index")
 	return databaseNamespaceMetrics{
-		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
-		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", samplingRate),
-		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", samplingRate),
-		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", samplingRate),
-		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
-		write:               instrument.NewMethodMetrics(scope, "write", overrideWriteSamplingRate),
-		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", overrideWriteSamplingRate),
-		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", samplingRate),
-		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", samplingRate),
+		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", opts),
+		flushWarmData:       instrument.NewMethodMetrics(scope, "flushWarmData", opts),
+		flushColdData:       instrument.NewMethodMetrics(scope, "flushColdData", opts),
+		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", opts),
+		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", opts),
+		write:               instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", opts),
+		read:                instrument.NewMethodMetrics(scope, "read", opts),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", opts),
+		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
 		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart:      scope.Counter("bootstrap.start"),
 		bootstrapEnd:        scope.Counter("bootstrap.end"),
@@ -349,7 +352,7 @@ func newDatabaseNamespace(
 		reverseIndex:           index,
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
-		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
+		metrics:                newDatabaseNamespaceMetrics(scope, iops.TimerOptions()),
 	}
 
 	sl, err := opts.SchemaRegistry().RegisterListener(id, n)
@@ -361,7 +364,10 @@ func newDatabaseNamespace(
 			metadata.ID().String(), err)
 	}
 	n.schemaListener = sl
-	n.initShards(nopts.BootstrapEnabled())
+	n.assignShardSet(shardSet, assignShardSetOptions{
+		needsBootstrap:    nopts.BootstrapEnabled(),
+		initialAssignment: true,
+	})
 	go n.reportStatusLoop(opts.InstrumentOptions().ReportInterval())
 
 	return n, nil
@@ -454,6 +460,21 @@ func (n *dbNamespace) Shards() []Shard {
 }
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
+	n.assignShardSet(shardSet, assignShardSetOptions{
+		needsBootstrap:    n.nopts.BootstrapEnabled(),
+		initialAssignment: false,
+	})
+}
+
+type assignShardSetOptions struct {
+	needsBootstrap    bool
+	initialAssignment bool
+}
+
+func (n *dbNamespace) assignShardSet(
+	shardSet sharding.ShardSet,
+	opts assignShardSetOptions,
+) {
 	var (
 		incoming = make(map[uint32]struct{}, len(shardSet.All()))
 		existing []databaseShard
@@ -477,19 +498,35 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	n.shardSet = shardSet
 	n.shards = make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range n.shardSet.AllIDs() {
-		if int(shard) < len(existing) && existing[shard] != nil {
+		// We create shards if its an initial assignment or if its not an initial assignment
+		// and the shard doesn't already exist.
+		if !opts.initialAssignment && int(shard) < len(existing) && existing[shard] != nil {
 			n.shards[shard] = existing[shard]
-		} else {
-			bootstrapEnabled := n.nopts.BootstrapEnabled()
-			n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
-				bootstrapEnabled, n.opts, n.seriesOpts)
+			continue
+		}
+
+		// Otherwise it's the initial assignment or there isn't an existing
+		// shard created for this shard ID.
+		n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
+			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
+			opts.needsBootstrap, n.opts, n.seriesOpts)
+		// NB(bodu): We only record shard add metrics for shards created in non
+		// initial assignments.
+		if !opts.initialAssignment {
 			n.metrics.shards.add.Inc(1)
 		}
 	}
+
 	if idx := n.reverseIndex; idx != nil {
 		idx.AssignShardSet(shardSet)
 	}
+	if br := n.blockRetriever; br != nil {
+		br.AssignShardSet(shardSet)
+	}
+	if mgr := n.namespaceReaderMgr; mgr != nil {
+		mgr.assignShardSet(shardSet)
+	}
+
 	n.Unlock()
 	n.closeShards(closing, false)
 }
@@ -757,7 +794,14 @@ func (n *dbNamespace) AggregateQuery(
 	return res, err
 }
 
-func (n *dbNamespace) PrepareBootstrap() ([]databaseShard, error) {
+func (n *dbNamespace) PrepareBootstrap(ctx context.Context) ([]databaseShard, error) {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.NSPrepareBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(opentracinglog.String("namespace", n.id.String()))
+	}
+
 	var (
 		wg           sync.WaitGroup
 		multiErrLock sync.Mutex
@@ -770,7 +814,7 @@ func (n *dbNamespace) PrepareBootstrap() ([]databaseShard, error) {
 		go func() {
 			defer wg.Done()
 
-			err := shard.PrepareBootstrap()
+			err := shard.PrepareBootstrap(ctx)
 			if err != nil {
 				multiErrLock.Lock()
 				multiErr = multiErr.Add(err)
@@ -844,8 +888,16 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 }
 
 func (n *dbNamespace) Bootstrap(
+	ctx context.Context,
 	bootstrapResult bootstrap.NamespaceResult,
 ) error {
+	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.NSBootstrap)
+	defer span.Finish()
+
+	if sampled {
+		span.LogFields(opentracinglog.String("namespace", n.id.String()))
+	}
+
 	callStart := n.nowFn()
 
 	n.Lock()
@@ -920,7 +972,7 @@ func (n *dbNamespace) Bootstrap(
 		wg.Add(1)
 		shard := shard
 		workers.Go(func() {
-			err := shard.Bootstrap()
+			err := shard.Bootstrap(ctx)
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)
@@ -1277,7 +1329,10 @@ func (n *dbNamespace) Truncate() (int64, error) {
 	// namespace, which means the memory will be reclaimed the next time GC kicks in and returns the
 	// reclaimed memory to the OS. In the future, we might investigate whether it's worth returning
 	// the pooled objects to the pools if the pool is low and needs replenishing.
-	n.initShards(false)
+	n.assignShardSet(n.shardSet, assignShardSetOptions{
+		needsBootstrap:    false,
+		initialAssignment: true,
+	})
 
 	// NB(xichen): possibly also clean up disk files and force a GC here to reclaim memory immediately
 	return totalNumSeries, nil
@@ -1439,19 +1494,6 @@ func (n *dbNamespace) readableShardAtWithRLock(shardID uint32) (databaseShard, e
 		return nil, xerrors.NewRetryableError(errShardNotBootstrappedToRead)
 	}
 	return shard, nil
-}
-
-func (n *dbNamespace) initShards(needBootstrap bool) {
-	n.Lock()
-	shards := n.shardSet.AllIDs()
-	dbShards := make([]databaseShard, n.shardSet.Max()+1)
-	for _, shard := range shards {
-		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
-			needBootstrap, n.opts, n.seriesOpts)
-	}
-	n.shards = dbShards
-	n.Unlock()
 }
 
 func (n *dbNamespace) Close() error {

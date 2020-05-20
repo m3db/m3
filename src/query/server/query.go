@@ -129,6 +129,11 @@ type RunOptions struct {
 	// ready signal once it is open.
 	DownsamplerReadyCh chan<- struct{}
 
+	// InstrumentOptionsReadyCh is a programmatic channel to receive a set of
+	// instrument options and metric reporters that is delivered when
+	// constructed.
+	InstrumentOptionsReadyCh chan<- InstrumentOptionsReady
+
 	// CustomHandlerOptions contains custom handler options.
 	CustomHandlerOptions options.CustomHandlerOptions
 
@@ -137,10 +142,27 @@ type RunOptions struct {
 
 	// ApplyCustomTSDBOptions is a transform that allows for custom tsdb options.
 	ApplyCustomTSDBOptions CustomTSDBOptionsFn
+
+	// BackendStorageTransform is a custom backend storage transform.
+	BackendStorageTransform BackendStorageTransform
+}
+
+// InstrumentOptionsReady is a set of instrument options
+// and metric reporters that is delivered when constructed.
+type InstrumentOptionsReady struct {
+	InstrumentOptions instrument.Options
+	MetricsReporters  instrument.MetricsConfigurationReporters
 }
 
 // CustomTSDBOptionsFn is a transformation function for TSDB Options.
 type CustomTSDBOptionsFn func(tsdb.Options) tsdb.Options
+
+// BackendStorageTransform is a transformation function for backend storage.
+type BackendStorageTransform func(
+	storage.Storage,
+	tsdb.Options,
+	instrument.Options,
+) storage.Storage
 
 // Run runs the server programmatically given a filename for the configuration file.
 func Run(runOpts RunOptions) {
@@ -160,7 +182,7 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
-	scope, closer, _, err := cfg.Metrics.NewRootScopeAndReporters(
+	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
 			OnError: func(err error) {
 				// NB(r): Required otherwise collisions when registering metrics will
@@ -183,12 +205,19 @@ func Run(runOpts RunOptions) {
 		logger.Info("tracing disabled for m3query; set `tracing.backend` to enable")
 	}
 
+	opentracing.SetGlobalTracer(tracer)
+
 	instrumentOptions := instrument.NewOptions().
 		SetMetricsScope(scope).
 		SetLogger(logger).
 		SetTracer(tracer)
 
-	opentracing.SetGlobalTracer(tracer)
+	if runOpts.InstrumentOptionsReadyCh != nil {
+		runOpts.InstrumentOptionsReadyCh <- InstrumentOptionsReady{
+			InstrumentOptions: instrumentOptions,
+			MetricsReporters:  reporters,
+		}
+	}
 
 	// Close metrics scope
 	defer func() {
@@ -198,9 +227,7 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	buildInfoOpts := instrumentOptions.SetMetricsScope(
-		instrumentOptions.MetricsScope().SubScope("build_info"))
-	buildReporter := instrument.NewBuildReporter(buildInfoOpts)
+	buildReporter := instrument.NewBuildReporter(instrumentOptions)
 	if err := buildReporter.Start(); err != nil {
 		logger.Fatal("could not start build reporter", zap.Error(err))
 	}
@@ -327,6 +354,9 @@ func Run(runOpts RunOptions) {
 	}
 
 	defer chainedEnforceCloser.Close()
+	if fn := runOpts.BackendStorageTransform; fn != nil {
+		backendStorage = fn(backendStorage, tsdbOpts, instrumentOptions)
+	}
 
 	engineOpts := executor.NewEngineOptions().
 		SetStore(backendStorage).

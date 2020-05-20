@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-// Series is a flat JSON serieazeable representation of the series.
+// Series is a flat JSON serializable representation of the series.
 type Series struct {
 	id string
 
@@ -39,8 +39,41 @@ type Series struct {
 	Datapoints Datapoints `json:"datapoints"`
 }
 
-// Tags is a simple JSON serieazeable representation of tags.
-type Tags map[string]string
+// Tag is a simple JSON serializable representation of a tag.
+type Tag [2]string
+
+// NewTag creates a new tag with a given name and value.
+func NewTag(name, value string) Tag {
+	return Tag{name, value}
+}
+
+// Name returns the tag name.
+func (t Tag) Name() string {
+	return t[0]
+}
+
+// Value returns the tag value.
+func (t Tag) Value() string {
+	return t[1]
+}
+
+// Tags is a simple JSON serializable representation of tags.
+type Tags []Tag
+
+// Get returns a list of tag values with the given name.
+func (t Tags) Get(name string) []string {
+	// NB: this is almost always going to be 0
+	values := make([]string, 0, 2)
+	// NB: This list isn't expected to get very long so it uses array lookup.
+	// If this is a problem in the future, `Tags` be converted to a map.
+	for _, t := range t {
+		if t.Name() == name {
+			values = append(values, t.Value())
+		}
+	}
+
+	return values
+}
 
 // Datapoints is a JSON serializeable list of values for the series.
 type Datapoints []Datapoint
@@ -80,8 +113,8 @@ func (v *Value) UnmarshalJSON(data []byte) error {
 func (r *Series) IDOrGenID() string {
 	if len(r.id) == 0 {
 		tags := make(sort.StringSlice, len(r.Tags))
-		for k, v := range r.Tags {
-			tags = append(tags, fmt.Sprintf("%s:%s,", k, v))
+		for _, v := range r.Tags {
+			tags = append(tags, fmt.Sprintf("%s:%s,", v[0], v[1]))
 		}
 
 		sort.Sort(tags)

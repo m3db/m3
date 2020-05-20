@@ -78,7 +78,8 @@ func TestPlacementOptions(t *testing.T) {
 		o = o.SetIsStaged(true)
 		assert.True(t, o.IsStaged())
 
-		iopts := instrument.NewOptions().SetMetricsSamplingRate(0.5)
+		iopts := instrument.NewOptions().
+			SetTimerOptions(instrument.TimerOptions{StandardSampleRate: 0.5})
 		o = o.SetInstrumentOptions(iopts)
 		assert.Equal(t, iopts, o.InstrumentOptions())
 

@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -186,7 +187,11 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 
 	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
 	defer tester.Finish()
-	_, err = src.Read(tester.Namespaces)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	_, err = src.Read(ctx, tester.Namespaces)
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
 	tester.EnsureNoLoadedBlocks()
@@ -318,15 +323,6 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
 
 		opts = opts.SetAdminClient(mockAdminClient)
-
-		mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-
-		mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
-		mockRetrieverMgr.EXPECT().
-			Retriever(namespace.NewMetadataMatcher(testNsMd)).
-			Return(mockRetriever, nil)
-
-		opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
 		flushPreparer := persist.NewMockFlushPreparer(ctrl)
 		flushPreparer.EXPECT().DoneFlush()
@@ -565,14 +561,6 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		Return(mockAdminSession, nil).AnyTimes()
 
 	opts = opts.SetAdminClient(mockAdminClient)
-
-	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
-	mockRetrieverMgr.EXPECT().
-		Retriever(namespace.NewMetadataMatcher(testNsMd)).
-		Return(mockRetriever, nil)
-
-	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
 	flushPreprarer := persist.NewMockFlushPreparer(ctrl)
 	flushPreprarer.EXPECT().DoneFlush()

@@ -482,7 +482,7 @@ func testShardForwardWriteTaggedSyncRefCount(
 	idx NamespaceIndex,
 	opts Options,
 ) {
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(false))
 	defer shard.Close()
@@ -538,7 +538,7 @@ func testShardForwardWriteTaggedAsyncRefCount(
 			SetMetricsScope(scope).
 			SetReportInterval(100 * time.Millisecond))
 
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(true))
 	defer shard.Close()

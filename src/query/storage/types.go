@@ -22,6 +22,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -34,6 +35,10 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+)
+
+var (
+	errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
 )
 
 // Type describes the type of storage.
@@ -157,71 +162,6 @@ const (
 	FanoutForceEnable
 )
 
-// NewFetchOptions creates a new fetch options.
-func NewFetchOptions() *FetchOptions {
-	return &FetchOptions{
-		Limit:     0,
-		BlockType: models.TypeSingleBlock,
-		FanoutOptions: &FanoutOptions{
-			FanoutUnaggregated:        FanoutDefault,
-			FanoutAggregated:          FanoutDefault,
-			FanoutAggregatedOptimized: FanoutDefault,
-		},
-		Enforcer: cost.NoopChainedEnforcer(),
-		Scope:    tally.NoopScope,
-	}
-}
-
-// LookbackDurationOrDefault returns either the default lookback duration or
-// overridden lookback duration if set.
-func (o *FetchOptions) LookbackDurationOrDefault(
-	defaultValue time.Duration,
-) time.Duration {
-	if o.LookbackDuration == nil {
-		return defaultValue
-	}
-	return *o.LookbackDuration
-}
-
-// QueryFetchOptions returns fetch options for a given query.
-func (o *FetchOptions) QueryFetchOptions(
-	queryCtx *models.QueryContext,
-	blockType models.FetchedBlockType,
-) (*FetchOptions, error) {
-	r := o.Clone()
-	if r.Limit <= 0 {
-		r.Limit = queryCtx.Options.LimitMaxTimeseries
-	}
-
-	// Use inbuilt options for type restriction if none found.
-	if r.RestrictQueryOptions.GetRestrictByType() == nil &&
-		queryCtx.Options.RestrictFetchType != nil {
-		v := queryCtx.Options.RestrictFetchType
-		restrict := &RestrictByType{
-			MetricsType:   MetricsType(v.MetricsType),
-			StoragePolicy: v.StoragePolicy,
-		}
-
-		if err := restrict.Validate(); err != nil {
-			return nil, err
-		}
-
-		if r.RestrictQueryOptions == nil {
-			r.RestrictQueryOptions = &RestrictQueryOptions{}
-		}
-
-		r.RestrictQueryOptions.RestrictByType = restrict
-	}
-
-	return r, nil
-}
-
-// Clone will clone and return the fetch options.
-func (o *FetchOptions) Clone() *FetchOptions {
-	result := *o
-	return &result
-}
-
 // RestrictByType are specific restrictions to stick to a single data type.
 type RestrictByType struct {
 	// MetricsType restricts the type of metrics being returned.
@@ -291,15 +231,20 @@ type Querier interface {
 // WriteQuery represents the input timeseries that is written to the database.
 // TODO: rename WriteQuery to WriteRequest or something similar.
 type WriteQuery struct {
+	// opts as a field allows the options to be unexported
+	// and the Validate method on WriteQueryOptions to be reused.
+	opts WriteQueryOptions
+}
+
+// WriteQueryOptions is a set of options to use to construct a write query.
+// These are passed by options so that they can be validated when creating
+// a write query, which helps knowing a constructed write query is valid.
+type WriteQueryOptions struct {
 	Tags       models.Tags
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
 	Annotation []byte
 	Attributes Attributes
-}
-
-func (q *WriteQuery) String() string {
-	return string(q.Tags.ID())
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
@@ -425,4 +370,9 @@ type Attributes struct {
 	// Resolution indicates the retention of the namespace this metric originated
 	// from.
 	Resolution time.Duration
+}
+
+// Validate validates a storage attributes.
+func (a Attributes) Validate() error {
+	return ValidateMetricsType(a.MetricsType)
 }

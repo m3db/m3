@@ -113,7 +113,7 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 	logger.Info("initial namespace value received")
 
 	initValue := watch.Get()
-	m, err := getMapFromUpdate(initValue)
+	m, err := getMapFromUpdate(initValue, opts.ForceColdWritesEnabled())
 	if err != nil {
 		logger.Error("dynamic namespace registry received invalid initial value", zap.Error(err))
 		return nil, err
@@ -189,7 +189,7 @@ func (r *dynamicRegistry) run() {
 			continue
 		}
 
-		m, err := getMapFromUpdate(val)
+		m, err := getMapFromUpdate(val, r.opts.ForceColdWritesEnabled())
 		if err != nil {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warn("dynamic namespace registry received invalid update, skipping",
@@ -235,7 +235,7 @@ func (r *dynamicRegistry) Close() error {
 	return nil
 }
 
-func getMapFromUpdate(val kv.Value) (Map, error) {
+func getMapFromUpdate(val kv.Value, forceColdWritesEnabled bool) (Map, error) {
 	if val == nil {
 		return nil, errInvalidRegistry
 	}
@@ -245,5 +245,18 @@ func getMapFromUpdate(val kv.Value) (Map, error) {
 		return nil, errInvalidRegistry
 	}
 
-	return FromProto(protoRegistry)
+	m, err := FromProto(protoRegistry)
+	if err != nil {
+		return nil, err
+	}
+
+	// NB(bodu): Force cold writes to be enabled for all ns if specified.
+	if forceColdWritesEnabled {
+		m, err = NewMap(ForceColdWritesEnabledForMetadatas(m.Metadatas()))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return m, nil
 }
