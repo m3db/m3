@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sort"
@@ -73,6 +74,7 @@ var (
 	errDbIndexUnableToCleanupClosed       = errors.New("unable to cleanup database index, already closed")
 	errDbIndexTerminatingTickCancellation = errors.New("terminating tick early due to cancellation")
 	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
+	errDbIndexDoNotIndexSeries            = errors.New("series matched do not index fields")
 )
 
 const (
@@ -125,6 +127,8 @@ type nsIndex struct {
 	// forwardIndexDice determines if an incoming index write should be dual
 	// written to the next block.
 	forwardIndexDice forwardIndexDice
+
+	doNotIndexWithFields []doc.Field
 }
 
 type nsIndexState struct {
@@ -154,6 +158,8 @@ type nsIndexState struct {
 	// shardsFilterID is set every time the shards change to correctly
 	// only return IDs that this node owns.
 	shardsFilterID func(ident.ID) bool
+
+	shardsAssigned map[uint32]struct{}
 }
 
 // NB: nsIndexRuntimeOptions does not contain its own mutex as some of the variables
@@ -286,13 +292,25 @@ func newNamespaceIndexWithOptions(
 
 	nowFn := indexOpts.ClockOptions().NowFn()
 	logger := indexOpts.InstrumentOptions().Logger()
+
+	var doNotIndexWithFields []doc.Field
+	if m := newIndexOpts.opts.DoNotIndexWithFieldsMap(); m != nil && len(m) != 0 {
+		for k, v := range m {
+			doNotIndexWithFields = append(doNotIndexWithFields, doc.Field{
+				Name:  []byte(k),
+				Value: []byte(v),
+			})
+		}
+	}
+
 	idx := &nsIndex{
 		state: nsIndexState{
 			closeCh: make(chan struct{}),
 			runtimeOpts: nsIndexRuntimeOptions{
 				insertMode: indexOpts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
 			},
-			blocksByTime: make(map[xtime.UnixNano]index.Block),
+			blocksByTime:   make(map[xtime.UnixNano]index.Block),
+			shardsAssigned: make(map[uint32]struct{}),
 		},
 
 		nowFn:                 nowFn,
@@ -317,6 +335,8 @@ func newNamespaceIndexWithOptions(
 
 		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
 		metrics:          newNamespaceIndexMetrics(indexOpts, instrumentOpts),
+
+		doNotIndexWithFields: doNotIndexWithFields,
 	}
 
 	// Assign shard set upfront.
@@ -562,13 +582,19 @@ func (i *nsIndex) writeBatches(
 		return
 	}
 	var (
-		now                 = i.nowFn()
-		blockSize           = i.blockSize
-		futureLimit         = now.Add(1 * i.bufferFuture)
-		pastLimit           = now.Add(-1 * i.bufferPast)
-		batchOptions        = batch.Options()
-		forwardIndexDice    = i.forwardIndexDice
-		forwardIndexEnabled = forwardIndexDice.enabled
+		now                        = i.nowFn()
+		blockSize                  = i.blockSize
+		futureLimit                = now.Add(1 * i.bufferFuture)
+		pastLimit                  = now.Add(-1 * i.bufferPast)
+		warmBlockStart             = now.Truncate(i.blockSize)
+		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
+		batchOptions               = batch.Options()
+		forwardIndexDice           = i.forwardIndexDice
+		forwardIndexEnabled        = forwardIndexDice.enabled
+		total                      int
+		notSkipped                 int
+		forwardIndexHits           int
+		forwardIndexMiss           int
 
 		forwardIndexBatch *index.WriteBatch
 	)
@@ -583,25 +609,70 @@ func (i *nsIndex) writeBatches(
 		// is not enabled.
 		forwardIndexBatch = index.NewWriteBatch(batchOptions)
 	}
+
 	// Ensure timestamp is not too old/new based on retention policies and that
 	// doc is valid. Add potential forward writes to the forwardWriteBatch.
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
+			total++
+
+			if len(i.doNotIndexWithFields) != 0 {
+				// This feature rarely used, do not optimize and just do n*m checks.
+				drop := true
+				for _, matchField := range i.doNotIndexWithFields {
+					matchedField := false
+					for _, actualField := range d.Fields {
+						if bytes.Compare(actualField.Name, matchField.Name) == 0 {
+							matchedField = bytes.Compare(actualField.Value, matchField.Value) == 0
+							break
+						}
+					}
+					if !matchedField {
+						drop = false
+						break
+					}
+				}
+				if drop {
+					batch.MarkUnmarkedEntryError(errDbIndexDoNotIndexSeries, idx)
+					return
+				}
+			}
+
 			ts := entry.Timestamp
+			// NB(bodu): Always check first to see if the write is within retention.
+			if !ts.After(earliestBlockStartToRetain) {
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+				return
+			}
+
 			if !futureLimit.After(ts) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
 				return
 			}
 
-			if !ts.After(pastLimit) {
-				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
-				return
+			if ts.Before(pastLimit) {
+				// NB(bodu): We only mark entries as too far in the past if
+				// cold writes are not enabled.
+				if !i.coldWritesEnabled {
+					batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+					return
+				}
+				// We allow index writes that are between mutable block start and
+				// start of buffer past to go through.
+				if ts.Before(warmBlockStart) {
+					// NB(bodu): When we mark a index cold write with a <nil> error
+					// we are recording an indexing attempt for this series and will not
+					// attempt to index the series again. This is correct for cold index writes
+					// because they are not handled in warm index writes path.
+					batch.MarkUnmarkedEntryError(nil, idx)
+					return
+				}
 			}
 
 			if forwardIndexEnabled {
 				if forwardIndexDice.roll(ts) {
-					i.metrics.forwardIndexHits.Inc(1)
+					forwardIndexHits++
 					forwardEntryTimestamp := ts.Truncate(blockSize).Add(blockSize)
 					xNanoTimestamp := xtime.ToUnixNano(forwardEntryTimestamp)
 					if entry.OnIndexSeries.NeedsIndexUpdate(xNanoTimestamp) {
@@ -611,9 +682,11 @@ func (i *nsIndex) writeBatches(
 						forwardIndexBatch.Append(forwardIndexEntry, d)
 					}
 				} else {
-					i.metrics.forwardIndexMisses.Inc(1)
+					forwardIndexMiss++
 				}
 			}
+
+			notSkipped++
 		})
 
 	if forwardIndexEnabled && forwardIndexBatch.Len() > 0 {
@@ -625,11 +698,22 @@ func (i *nsIndex) writeBatches(
 	// for each block, making sure to not try to insert any entries already marked
 	// with a result.
 	batch.ForEachUnmarkedBatchByBlockStart(i.writeBatchForBlockStart)
+
+	// Track index insertions.
+	// Note: attemptTotal should = attemptSkip + attemptWrite.
+	i.metrics.asyncInsertAttemptTotal.Inc(int64(total))
+	i.metrics.asyncInsertAttemptSkip.Inc(int64(total - notSkipped))
+	i.metrics.forwardIndexHits.Inc(int64(forwardIndexHits))
+	i.metrics.forwardIndexMisses.Inc(int64(forwardIndexMiss))
 }
 
 func (i *nsIndex) writeBatchForBlockStart(
 	blockStart time.Time, batch *index.WriteBatch,
 ) {
+	// NB(r): Capture pending entries so we can emit the latencies
+	pending := batch.PendingEntries()
+	numPending := len(pending)
+
 	// NB(r): Notice we acquire each lock only to take a reference to the
 	// block we release it so we don't block the tick, etc when we insert
 	// batches since writing batches can take significant time when foreground
@@ -642,12 +726,13 @@ func (i *nsIndex) writeBatchForBlockStart(
 			zap.Int("numWrites", batch.Len()),
 			zap.Error(err),
 		)
-		i.metrics.asyncInsertErrors.Inc(int64(batch.Len()))
+		i.metrics.asyncInsertErrors.Inc(int64(numPending))
 		return
 	}
 
-	// NB(r): Capture pending entries so we can emit the latencies
-	pending := batch.PendingEntries()
+	// Track attempted write.
+	// Note: attemptTotal should = attemptSkip + attemptWrite.
+	i.metrics.asyncInsertAttemptWrite.Inc(int64(numPending))
 
 	// i.e. we have the block and the inserts, perform the writes.
 	result, err := block.WriteBatch(batch)
@@ -664,9 +749,6 @@ func (i *nsIndex) writeBatchForBlockStart(
 	if n := result.NumSuccess; n > 0 {
 		i.metrics.asyncInsertSuccess.Inc(n)
 	}
-	if n := result.NumError; n > 0 {
-		i.metrics.asyncInsertErrors.Inc(n)
-	}
 
 	if err != nil {
 		// NB: dropping duplicate id error messages from logs as they're expected when we see
@@ -677,6 +759,13 @@ func (i *nsIndex) writeBatchForBlockStart(
 		}
 	}
 	if err != nil {
+		numErrors := numPending - int(result.NumSuccess)
+		if partialError, ok := err.(*m3ninxindex.BatchPartialError); ok {
+			// If it was a batch partial error we know exactly how many failed
+			// after filtering out for duplicate ID errors.
+			numErrors = len(partialError.Errs())
+		}
+		i.metrics.asyncInsertErrors.Inc(int64(numErrors))
 		i.logger.Error("error writing to index block", zap.Error(err))
 	}
 }
@@ -984,8 +1073,10 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 	// NB(r): Allocate the filter function once, it can be used outside
 	// of locks as it depends on no internal state.
 	set := bitset.NewBitSet(uint(shardSet.Max()))
+	assigned := make(map[uint32]struct{})
 	for _, shardID := range shardSet.AllIDs() {
 		set.Set(uint(shardID))
+		assigned[shardID] = struct{}{}
 	}
 
 	i.state.Lock()
@@ -993,6 +1084,7 @@ func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
 		// NB(r): Use a bitset for fast lookups.
 		return set.Test(uint(shardSet.Lookup(id)))
 	}
+	i.state.shardsAssigned = assigned
 	i.state.Unlock()
 }
 
@@ -1588,6 +1680,68 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 	return multiErr.FinalError()
 }
 
+func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
+	i.state.RLock()
+	defer i.state.RLock()
+	if i.state.closed {
+		return errDbIndexAlreadyClosed
+	}
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	// Create a new set of file system options to output to new directory.
+	fsOpts := i.opts.CommitLogOptions().
+		FilesystemOptions().
+		SetFilePathPrefix(opts.OutputDirectory)
+
+	for _, block := range i.state.blocksByTime {
+		segmentsData, err := block.MemorySegmentsData(ctx)
+		if err != nil {
+			return err
+		}
+
+		for numSegment, segmentData := range segmentsData {
+			indexWriter, err := fs.NewIndexWriter(fsOpts)
+			if err != nil {
+				return err
+			}
+
+			fileSetID := fs.FileSetFileIdentifier{
+				FileSetContentType: persist.FileSetIndexContentType,
+				Namespace:          i.nsMetadata.ID(),
+				BlockStart:         block.StartTime(),
+				VolumeIndex:        numSegment,
+			}
+			openOpts := fs.IndexWriterOpenOptions{
+				Identifier:      fileSetID,
+				BlockSize:       i.blockSize,
+				FileSetType:     persist.FileSetFlushType,
+				Shards:          i.state.shardsAssigned,
+				IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+			}
+			if err := indexWriter.Open(openOpts); err != nil {
+				return err
+			}
+
+			segWriter, err := idxpersist.NewFSTSegmentDataFileSetWriter(segmentData)
+			if err != nil {
+				return err
+			}
+
+			if err := indexWriter.WriteSegmentFileSet(segWriter); err != nil {
+				return err
+			}
+
+			if err := indexWriter.Close(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (i *nsIndex) Close() error {
 	i.state.Lock()
 	if !i.isOpenWithRLock() {
@@ -1648,6 +1802,10 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
+	asyncInsertAttemptTotal tally.Counter
+	asyncInsertAttemptSkip  tally.Counter
+	asyncInsertAttemptWrite tally.Counter
+
 	asyncInsertSuccess           tally.Counter
 	asyncInsertErrors            tally.Counter
 	insertAfterClose             tally.Counter
@@ -1664,9 +1822,22 @@ func newNamespaceIndexMetrics(
 	opts index.Options,
 	iopts instrument.Options,
 ) nsIndexMetrics {
+	const (
+		indexAttemptName = "index-attempt"
+		forwardIndexName = "forward-index"
+	)
 	scope := iopts.MetricsScope()
 	blocksScope := scope.SubScope("blocks")
 	return nsIndexMetrics{
+		asyncInsertAttemptTotal: scope.Tagged(map[string]string{
+			"stage": "process",
+		}).Counter(indexAttemptName),
+		asyncInsertAttemptSkip: scope.Tagged(map[string]string{
+			"stage": "skip",
+		}).Counter(indexAttemptName),
+		asyncInsertAttemptWrite: scope.Tagged(map[string]string{
+			"stage": "write",
+		}).Counter(indexAttemptName),
 		asyncInsertSuccess: scope.Counter("index-success"),
 		asyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "async-insert",
@@ -1679,13 +1850,13 @@ func newNamespaceIndexMetrics(
 		}).Counter("query-after-error"),
 		forwardIndexHits: scope.Tagged(map[string]string{
 			"status": "hit",
-		}).Counter("forward-index"),
+		}).Counter(forwardIndexName),
 		forwardIndexMisses: scope.Tagged(map[string]string{
 			"status": "miss",
-		}).Counter("forward-index"),
+		}).Counter(forwardIndexName),
 		forwardIndexCounter: scope.Tagged(map[string]string{
 			"status": "count",
-		}).Counter("forward-index"),
+		}).Counter(forwardIndexName),
 		insertEndToEndLatency: instrument.NewTimer(scope,
 			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),

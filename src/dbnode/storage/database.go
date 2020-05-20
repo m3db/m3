@@ -369,7 +369,7 @@ func (d *db) newDatabaseNamespaceWithLock(
 		err       error
 	)
 	if mgr := d.opts.DatabaseBlockRetrieverManager(); mgr != nil {
-		retriever, err = mgr.Retriever(md)
+		retriever, err = mgr.Retriever(md, d.shardSet)
 		if err != nil {
 			return nil, err
 		}

@@ -68,15 +68,16 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 }
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
-	return testDatabaseShardWithIndexFn(t, opts, nil)
+	return testDatabaseShardWithIndexFn(t, opts, nil, false)
 }
 
 func testDatabaseShardWithIndexFn(
 	t *testing.T,
 	opts Options,
 	idx NamespaceIndex,
+	coldWritesEnabled bool,
 ) *dbShard {
-	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetColdWritesEnabled(coldWritesEnabled))
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions()).
@@ -322,18 +323,14 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		newClOpts = opts.
 				CommitLogOptions().
 				SetFilesystemOptions(fsOpts)
-		mockRetriever    = block.NewMockDatabaseBlockRetriever(ctrl)
-		mockRetrieverMgr = block.NewMockDatabaseBlockRetrieverManager(ctrl)
+		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
-	opts = opts.
-		SetCommitLogOptions(newClOpts).
-		SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+	opts = opts.SetCommitLogOptions(newClOpts)
 
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
-
 	mockRetriever.EXPECT().CacheShardIndices([]uint32{s.ID()}).Return(nil)
-	mockRetrieverMgr.EXPECT().Retriever(s.namespace).Return(mockRetriever, nil)
+	s.setBlockRetriever(mockRetriever)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -1372,7 +1369,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	s.EXPECT().Tick(gomock.Any(), gomock.Any()).Do(func(interface{}, interface{}) {
 		// Emulate a write taking place just after tick for this series
 		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(),
-			gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+			gomock.Any(), gomock.Any(), gomock.Any()).Return(true, series.WarmWrite, nil)
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()

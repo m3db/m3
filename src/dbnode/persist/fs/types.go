@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -239,11 +240,17 @@ type DataFileSetSeekerManager interface {
 	io.Closer
 
 	// Open opens the seekers for a given namespace.
-	Open(md namespace.Metadata) error
+	Open(
+		md namespace.Metadata,
+		shardSet sharding.ShardSet,
+	) error
 
 	// CacheShardIndices will pre-parse the indexes for given shards
 	// to improve times when seeking to a block.
 	CacheShardIndices(shards []uint32) error
+
+	// AssignShardSet assigns current per ns shardset.
+	AssignShardSet(shardSet sharding.ShardSet)
 
 	// Borrow returns an open seeker for a given shard, block start time, and
 	// volume.
@@ -264,7 +271,10 @@ type DataBlockRetriever interface {
 	block.DatabaseBlockRetriever
 
 	// Open the block retriever to retrieve from a namespace
-	Open(md namespace.Metadata) error
+	Open(
+		md namespace.Metadata,
+		shardSet sharding.ShardSet,
+	) error
 }
 
 // RetrievableDataBlockSegmentReader is a retrievable block reader
@@ -514,7 +524,7 @@ type BlockRetrieverOptions interface {
 
 // ForEachRemainingFn is the function that is run on each of the remaining
 // series of the merge target that did not intersect with the fileset.
-type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags, data []xio.BlockReader) error
+type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags, data block.FetchBlockResult) error
 
 // MergeWith is an interface that the fs merger uses to merge data with.
 type MergeWith interface {

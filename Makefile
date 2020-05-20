@@ -90,6 +90,7 @@ TOOLS :=               \
 	read_index_ids       \
 	read_data_files      \
 	read_index_files     \
+	read_index_segments  \
 	clone_fileset        \
 	dtest                \
 	verify_data_files    \
