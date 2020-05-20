@@ -132,11 +132,11 @@ func newMessageWriterMetrics(
 		messageDroppedTTLExpire: scope.Tagged(
 			map[string]string{"reason": "ttl-expire"},
 		).Counter("message-dropped"),
-		messageRetry:          scope.Counter("message-retry"),
-		messageConsumeLatency: instrument.NewTimer(scope, "message-consume-latency", opts),
-		messageWriteDelay:     instrument.NewTimer(scope, "message-write-delay", opts),
-		scanBatchLatency:      instrument.NewTimer(scope, "scan-batch-latency", opts),
-		scanTotalLatency:      instrument.NewTimer(scope, "scan-total-latency", opts),
+		messageRetry: scope.Counter("message-retry"),
+		// messageConsumeLatency: instrument.NewTimer(scope, "message-consume-latency", opts),
+		// messageWriteDelay:     instrument.NewTimer(scope, "message-write-delay", opts),
+		// scanBatchLatency:      instrument.NewTimer(scope, "scan-batch-latency", opts),
+		// scanTotalLatency:      instrument.NewTimer(scope, "scan-total-latency", opts),
 	}
 }
 
