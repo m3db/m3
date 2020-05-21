@@ -402,7 +402,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 				zap.Int("task", i),
 				zap.Int("numMutable", summary.NumMutable),
 				zap.Int("numFST", summary.NumFST),
-				zap.Stringer("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
+				zap.Stringer("cumulativeMutableAge", summary.CumulativeMutableAge),
 				zap.Int64("cumulativeSize", summary.CumulativeSize),
 			)
 		}

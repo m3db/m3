@@ -651,13 +651,11 @@ func (i *nsIndex) writeBatches(
 				return
 			}
 
-			if ts.Before(pastLimit) {
+			if ts.Before(pastLimit) && !i.coldWritesEnabled {
 				// NB(bodu): We only mark entries as too far in the past if
 				// cold writes are not enabled.
-				if !i.coldWritesEnabled {
-					batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
-					return
-				}
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+				return
 			}
 
 			if forwardIndexEnabled {
@@ -956,7 +954,7 @@ func (i *nsIndex) canFlushBlock(
 			return false, nil
 		}
 	case series.ColdWrite:
-		if !block.IsSealed() || !block.NeedsColdMutableSegmentsEvicted() {
+		if !block.NeedsColdMutableSegmentsEvicted() {
 			return false, nil
 		}
 	}
