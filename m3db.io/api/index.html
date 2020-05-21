@@ -460,6 +460,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#externalcoordinatorconfig" title="ExternalCoordinatorConfig" class="md-nav__link">
+    ExternalCoordinatorConfig
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#isolationgroup" title="IsolationGroup" class="md-nav__link">
     IsolationGroup
   </a>
@@ -589,6 +596,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#externalcoordinatorconfig" title="ExternalCoordinatorConfig" class="md-nav__link">
+    ExternalCoordinatorConfig
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#isolationgroup" title="IsolationGroup" class="md-nav__link">
     IsolationGroup
   </a>
@@ -690,6 +704,7 @@
 <ul>
 <li><a href="#clustercondition">ClusterCondition</a></li>
 <li><a href="#clusterspec">ClusterSpec</a></li>
+<li><a href="#externalcoordinatorconfig">ExternalCoordinatorConfig</a></li>
 <li><a href="#isolationgroup">IsolationGroup</a></li>
 <li><a href="#m3dbcluster">M3DBCluster</a></li>
 <li><a href="#m3dbclusterlist">M3DBClusterList</a></li>
@@ -904,9 +919,9 @@
 <td>false</td>
 </tr>
 <tr>
-<td>externalCoordinatorSelector</td>
-<td>Specify a \"controlling\" coordinator for the cluster It is expected that there is a separate standalone coordinator cluster It is externally managed - not managed by this operator It is expected to have a service endpoint Setup this db cluster, but do not assume a co-located coordinator Instead provide a selector here so we can point to a separate coordinator service Specify here the labels required for the selector</td>
-<td>map[string]string</td>
+<td>externalCoordinator</td>
+<td>Specify a \"controlling\" coordinator for the cluster.</td>
+<td>*<a href="#externalcoordinatorconfig">ExternalCoordinatorConfig</a></td>
 <td>false</td>
 </tr>
 <tr>
@@ -931,6 +946,27 @@
 <td>parallelPodManagement</td>
 <td>ParallelPodManagement sets StatefulSets created by the operator to have Parallel pod management instead of OrderedReady. This is an EXPERIMENTAL flag and subject to deprecation in a future release. This has not been tested in production and users should not depend on it without validating it for their own use case.</td>
 <td>bool</td>
+<td>true</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="externalcoordinatorconfig">ExternalCoordinatorConfig</h2>
+<p>ExternalCoordinatorConfig defines parameters for using an external coordinator to control the cluster.\n\n- It is expected that there is a separate standalone coordinator cluster. - It is externally managed - not managed by this operator. - It is expected to have a service endpoint.\n\nSetup this db cluster, but do not assume a co-located coordinator. Instead provide a selector here so we can point to a separate coordinator service.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>selector</td>
+<td></td>
+<td>map[string]string</td>
 <td>true</td>
 </tr>
 </tbody>
