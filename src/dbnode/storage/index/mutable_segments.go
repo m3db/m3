@@ -42,6 +42,7 @@ import (
 
 var (
 	errUnableToWriteBlockConcurrent            = errors.New("unable to write, index block is being written to already")
+	errMutableSegmentsAlreadyClosed            = errors.New("mutable segments already closed")
 	errForegroundCompactorNoPlan               = errors.New("index foreground compactor failed to generate a plan")
 	errForegroundCompactorBadPlanFirstTask     = errors.New("index foreground compactor generated plan without mutable segment in first task")
 	errForegroundCompactorBadPlanSecondaryTask = errors.New("index foreground compactor generated plan with mutable segment a secondary task")
@@ -113,6 +114,10 @@ func newMutableSegments(
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 	m.Lock()
+	if m.state == mutableSegmentsStateClosed {
+		return errMutableSegmentsAlreadyClosed
+	}
+
 	if m.compact.compactingForeground {
 		m.Unlock()
 		return errUnableToWriteBlockConcurrent
@@ -397,7 +402,7 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 				zap.Int("task", i),
 				zap.Int("numMutable", summary.NumMutable),
 				zap.Int("numFST", summary.NumFST),
-				zap.String("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
+				zap.Stringer("cumulativeMutableAge", summary.CumulativeMutableAge),
 				zap.Int64("cumulativeSize", summary.CumulativeSize),
 			)
 		}
