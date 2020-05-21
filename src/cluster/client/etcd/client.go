@@ -131,9 +131,15 @@ func (c *csclient) TxnStore(opts kv.OverrideOptions) (kv.TxnStore, error) {
 func (c *csclient) createServices(opts services.OverrideOptions) (services.Services, error) {
 	nOpts := opts.NamespaceOptions()
 	cacheFileExtraFields := []string{nOpts.PlacementNamespace(), nOpts.MetadataNamespace()}
+	overrides := opts.KVOverrideOptions()
+	c.logger.Info("services overrides",
+		zap.Any("env", overrides.Environment()),
+		zap.Any("namespace", overrides.Namespace()),
+		zap.Any("zone", overrides.Zone()),
+	)
 	return services.NewServices(c.sdOpts.
 		SetHeartbeatGen(c.heartbeatGen()).
-		SetKVGen(c.kvGen(c.cacheFileFn(cacheFileExtraFields...), opts.KVOverrideOptions())).
+		SetKVGen(c.kvGen(c.cacheFileFn(cacheFileExtraFields...), overrides)).
 		SetLeaderGen(c.leaderGen()).
 		SetNamespaceOptions(nOpts).
 		SetInstrumentsOptions(instrument.NewOptions().

@@ -143,6 +143,7 @@ func (w *writer) Init() error {
 	if err := w.value.Watch(); err != nil {
 		return fmt.Errorf("writer init error: %v", err)
 	}
+	w.logger.Info("watching key", zap.String("key", w.opts.TopicName()))
 	return nil
 }
 
