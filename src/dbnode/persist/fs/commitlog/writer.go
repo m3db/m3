@@ -83,6 +83,10 @@ type commitLogWriter interface {
 
 	// Close the reader
 	Close() error
+
+	// NB(bodu): Necessary because writers hold on to stale flushFn refs when we swap
+	// primary and secondary writers.
+	updateFlushFn(flushFn flushFn)
 }
 
 type chunkWriter interface {
@@ -92,6 +96,7 @@ type chunkWriter interface {
 	close() error
 	isOpen() bool
 	sync() error
+	updateFlushFn(flushFn flushFn)
 }
 
 type flushFn func(err error)
@@ -279,6 +284,10 @@ func (w *writer) sync() error {
 	return w.chunkWriter.sync()
 }
 
+func (w *writer) updateFlushFn(flushFn flushFn) {
+	w.chunkWriter.updateFlushFn(flushFn)
+}
+
 func (w *writer) Close() error {
 	if !w.isOpen() {
 		return nil
@@ -347,6 +356,10 @@ func (w *fsChunkWriter) isOpen() bool {
 
 func (w *fsChunkWriter) sync() error {
 	return w.fd.Sync()
+}
+
+func (w *fsChunkWriter) updateFlushFn(flushFn flushFn) {
+	w.flushFn = flushFn
 }
 
 // Writes a custom header in front of p to a file and returns number of bytes of p successfully written to the file.

@@ -222,6 +222,8 @@ func (w *mockCommitLogWriter) Close() error {
 	return w.closeFn()
 }
 
+func (w *mockCommitLogWriter) updateFlushFn(_ flushFn) {}
+
 func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 	commitLogI, err := NewCommitLog(opts)
 	require.NoError(t, err)

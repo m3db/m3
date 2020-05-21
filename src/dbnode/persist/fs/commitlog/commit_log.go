@@ -471,8 +471,8 @@ func (l *commitLog) write() {
 
 		// For writes requiring acks add to pending acks
 		if write.eventType == writeEventType && write.callbackFn != nil {
-			l.writerState.primary.pendingFlushFns = append(
-				l.writerState.primary.pendingFlushFns, write.callbackFn)
+			l.writerState.secondary.pendingFlushFns = append(
+				l.writerState.secondary.pendingFlushFns, write.callbackFn)
 		}
 
 		isRotateLogsEvent := write.eventType == rotateLogsEventType
@@ -658,6 +658,9 @@ func (l *commitLog) openWriters() (persist.CommitLogFile, persist.CommitLogFile,
 	// This consumes the standby secondary writer, but a new one will be prepared asynchronously by
 	// resetting the formerly primary writer.
 	l.writerState.primary, l.writerState.secondary = l.writerState.secondary, l.writerState.primary
+	// NB(bodu): We must update the flush fn refs here or else they become stale.
+	l.writerState.primary.writer.updateFlushFn(l.writerState.primary.onFlush)
+	l.writerState.secondary.writer.updateFlushFn(l.writerState.secondary.onFlush)
 	l.startSecondaryWriterAsyncReset()
 
 	var (
