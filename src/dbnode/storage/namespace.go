@@ -1181,7 +1181,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	// we actually cold flush the data to disk we will be making writes to the newly active mutable seg.
 	// This means that some series can live doubly in-mem and loaded from disk until the next cold flush
 	// where they will be evicted from the in-mem index.
-	onColdFlushDone, err := n.reverseIndex.ColdFlush()
+	onColdFlushDone, err := n.reverseIndex.ColdFlush(shards)
 	if err != nil {
 		return err
 	}
