@@ -1007,7 +1007,7 @@ func (b *block) NeedsColdMutableSegmentsEvicted() bool {
 	for _, coldSeg := range b.coldMutableSegments {
 		anyColdMutableSegmentNeedsEviction = anyColdMutableSegmentNeedsEviction || coldSeg.NeedsEviction()
 	}
-	return anyColdMutableSegmentNeedsEviction
+	return b.state == blockStateSealed && anyColdMutableSegmentNeedsEviction
 }
 
 func (b *block) EvictColdMutableSegments() error {
