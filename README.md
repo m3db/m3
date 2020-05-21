@@ -142,3 +142,4 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 [cov]: https://codecov.io/gh/m3db/m3
 [fossa-img]: https://app.fossa.io/api/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3.svg?type=shield
 [fossa]: https://app.fossa.io/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3?ref=badge_shield
+
