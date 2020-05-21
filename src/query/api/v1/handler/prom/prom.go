@@ -28,10 +28,12 @@ import (
 	"github.com/prometheus/prometheus/promql"
 )
 
+// Options defines options for PromQL handler.
 type Options struct {
 	PromQLEngine *promql.Engine
 }
 
+// NewQueryHandler creates a handler to handle PromQL requests.
 func NewQueryHandler(opts Options, hOpts options.HandlerOptions, instant bool) http.Handler {
 	queryable := prometheus.NewPrometheusQueryable(
 		prometheus.PrometheusOptions{

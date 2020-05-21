@@ -28,9 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,14 +50,25 @@ func setupTest(t *testing.T) testHandlers {
 	opts := Options{
 		PromQLEngine: testPromQLEngine,
 	}
+	timeoutOpts := &prometheus.TimeoutOpts{
+		FetchTimeout: 15 * time.Second,
+	}
 
 	fetchOptsBuilderCfg := handleroptions.FetchOptionsBuilderOptions{}
 	fetchOptsBuilder := handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
+	instrumentOpts := instrument.NewOptions()
+	engineOpts := executor.NewEngineOptions().
+		SetLookbackDuration(time.Minute).
+		SetGlobalEnforcer(nil).
+		SetInstrumentOptions(instrumentOpts)
+	engine := executor.NewEngine(engineOpts)
 	hOpts := options.EmptyHandlerOptions().
-		SetFetchOptionsBuilder(fetchOptsBuilder)
+		SetFetchOptionsBuilder(fetchOptsBuilder).
+		SetEngine(engine).
+		SetTimeoutOpts(timeoutOpts)
 	queryable := mockQueryable{}
 	readHandler := newReadHandler(opts, hOpts, queryable)
-	readInstantHandler := newReadHandler(opts, hOpts, queryable)
+	readInstantHandler := newReadInstantHandler(opts, hOpts, queryable)
 	return testHandlers{
 		readHandler:        readHandler,
 		readInstantHandler: readInstantHandler,
