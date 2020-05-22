@@ -44,14 +44,13 @@ const _emitMetricsRate = 2 * time.Second
 
 type poolShard struct {
 	mtx sync.Mutex
-	// removing false sharing speeds up pool microbenchmarks by up to 30% for contended cases
-	_          cpu.CacheLinePad
+	// removing false sharing speeds up pool microbenchmarks by up to 20-30% for contended cases
 	values     []interface{}
 	_          cpu.CacheLinePad
 	refilling  int32
-	_          cpu.CacheLinePad
 	getOnEmpty int64
 	putOnFull  int64
+	_          cpu.CacheLinePad
 }
 
 type objectPool struct {
@@ -143,10 +142,20 @@ func (p *objectPool) Get() interface{} {
 		value         interface{}
 		needAlloc     bool
 		countEstimate int
+		num           int
 	)
 
+	num = len(shard.values)
+	// optimistic/racy test for empty shard
+	if p.shardCount > 1 && (num <= 0 || num <= p.refillLowWatermark) {
+		// shard is likely empty, try again
+		shardID = FastRandn(p.shardCount)
+		shard = &p.shards[shardID]
+	}
+
 	shard.mtx.Lock()
-	num := len(shard.values)
+	shard = &p.shards[shardID]
+	num = len(shard.values)
 	switch {
 	case num > 0 && num > p.refillLowWatermark:
 		value = shard.values[num-1]
@@ -195,7 +204,16 @@ func (p *objectPool) Put(obj interface{}) {
 	var (
 		shardID = FastRandn(p.shardCount)
 		shard   = &p.shards[shardID]
+		num     int
 	)
+
+	num = len(shard.values)
+	// optimistic/racy test for empty shard
+	if p.shardCount > 1 && num >= cap(shard.values) {
+		// shard is likely empty, try again
+		shardID = FastRandn(p.shardCount)
+		shard = &p.shards[shardID]
+	}
 
 	shard.mtx.Lock()
 	if len(shard.values) < cap(shard.values) {
