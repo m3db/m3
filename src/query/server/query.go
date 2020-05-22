@@ -77,12 +77,8 @@ import (
 )
 
 const (
-	serviceName                = "m3query"
-	cpuProfileDuration         = 5 * time.Second
-	multiProcessInstanceEnvVar = "MULTIPROCESS_INSTANCE"
-	multiProcessParentInstance = "0"
-	multiProcessMetricTagID    = "multiprocess_id"
-	goMaxProcsEnvVar           = "GOMAXPROCS"
+	serviceName        = "m3query"
+	cpuProfileDuration = 5 * time.Second
 )
 
 var (
@@ -192,13 +188,15 @@ func Run(runOpts RunOptions) {
 	xconfig.WarnOnDeprecation(cfg, logger)
 
 	if cfg.MultiProcess.Enabled {
-		runResult, err := runMultiProcess(cfg, logger, listenerOpts)
+		runResult, err := multiProcessRun(cfg, logger, listenerOpts)
 		if err != nil {
-			logger.Fatal("failed to run multiprocess", zap.Error(err))
+			logger = logger.With(zap.String("processID", multiProcessProcessID()))
+			logger.Fatal("failed to run", zap.Error(err))
 		}
-
-		if runResult.isParent {
-			return // Done
+		if runResult.isParentCleanExit {
+			// Parent process clean exit.
+			os.Exit(0)
+			return
 		}
 
 		cfg = runResult.cfg

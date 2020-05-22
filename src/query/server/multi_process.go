@@ -37,74 +37,85 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	multiProcessInstanceEnvVar = "MULTIPROCESS_INSTANCE"
+	multiProcessParentInstance = "0"
+	multiProcessMetricTagID    = "multiprocess_id"
+	goMaxProcsEnvVar           = "GOMAXPROCS"
+)
+
 type multiProcessResult struct {
-	isParent       bool
-	childExitOK    bool
-	childExitCodes []panicmon.StatusCode
+	isParentCleanExit bool
 
 	cfg          config.Configuration
 	logger       *zap.Logger
 	listenerOpts xnet.ListenerOptions
 }
 
-func runMultiProcess(
+func multiProcessProcessID() string {
+	return os.Getenv(multiProcessInstanceEnvVar)
+}
+
+func multiProcessRun(
 	cfg config.Configuration,
 	logger *zap.Logger,
 	listenerOpts xnet.ListenerOptions,
 ) (multiProcessResult, error) {
-	r := multiProcessResult{
-		cfg:          cfg,
-		logger:       logger,
-		listenerOpts: listenerOpts,
-	}
-
-	multiProcessInstance := os.Getenv(multiProcessInstanceEnvVar)
+	multiProcessInstance := multiProcessProcessID()
 	if multiProcessInstance != "" {
 		// Otherwise is already a sub-process, make sure listener options
 		// will reuse ports so multiple processes can listen on the same
 		// listen port.
-		r.listenerOpts = xnet.NewListenerOptions(xnet.ListenerReusePort(true))
+		listenerOpts = xnet.NewListenerOptions(xnet.ListenerReusePort(true))
 
 		// Configure instrumentation to be correctly partitioned.
-		r.logger = r.logger.With(zap.String("processID", multiProcessInstance))
+		logger = logger.With(zap.String("processID", multiProcessInstance))
 
 		instance, err := strconv.Atoi(multiProcessInstance)
 		if err != nil {
-			r.logger.Fatal("multi-process process ID is non-integer", zap.Error(err))
+			return multiProcessResult{},
+				fmt.Errorf("multi-process process ID is non-integer: %v", err)
 		}
 
 		// Set the root scope multi-process process ID.
-		if r.cfg.Metrics.RootScope == nil {
-			r.cfg.Metrics.RootScope = &instrument.ScopeConfiguration{}
+		if cfg.Metrics.RootScope == nil {
+			cfg.Metrics.RootScope = &instrument.ScopeConfiguration{}
 		}
-		if r.cfg.Metrics.RootScope.CommonTags == nil {
-			r.cfg.Metrics.RootScope.CommonTags = make(map[string]string)
+		if cfg.Metrics.RootScope.CommonTags == nil {
+			cfg.Metrics.RootScope.CommonTags = make(map[string]string)
 		}
-		r.cfg.Metrics.RootScope.CommonTags[multiProcessMetricTagID] = multiProcessInstance
+		cfg.Metrics.RootScope.CommonTags[multiProcessMetricTagID] = multiProcessInstance
 
 		// Listen on a different Prometheus metrics handler listen port.
-		if r.cfg.Metrics.PrometheusReporter != nil && r.cfg.Metrics.PrometheusReporter.ListenAddress != "" {
-			// Simply increment the listen address port by instance number.
+		if cfg.Metrics.PrometheusReporter != nil && cfg.Metrics.PrometheusReporter.ListenAddress != "" {
+			// Simply increment the listen address port by instance numbe
 			host, port, err := net.SplitHostPort(cfg.Metrics.PrometheusReporter.ListenAddress)
 			if err != nil {
-				return r, fmt.Errorf("could not split host:port for metrics reporter: %v", err)
+				return multiProcessResult{},
+					fmt.Errorf("could not split host:port for metrics reporter: %v", err)
 			}
 
 			portValue, err := strconv.Atoi(port)
 			if err != nil {
-				return r, fmt.Errorf("prometheus metric reporter port is non-integer: %v", err)
+				return multiProcessResult{},
+					fmt.Errorf("prometheus metric reporter port is non-integer: %v", err)
 			}
 			if portValue > 0 {
 				// Increment port value by process ID if valid port.
 				address := net.JoinHostPort(host, strconv.Itoa(portValue+instance-1))
 				cfg.Metrics.PrometheusReporter.ListenAddress = address
-				r.logger.Info("multi-process prometheus metrics reporter listen address configured",
+				logger.Info("multi-process prometheus metrics reporter listen address configured",
 					zap.String("address", address))
 			}
 		}
+		return multiProcessResult{
+			cfg:          cfg,
+			logger:       logger,
+			listenerOpts: listenerOpts,
+		}, nil
 	}
 
-	r.logger = r.logger.With(zap.String("processID", multiProcessParentInstance))
+	logger = logger.With(zap.String("processID", multiProcessParentInstance))
 
 	perCPU := defaultPerCPUMultiProcess
 	if v := cfg.MultiProcess.PerCPU; v > 0 {
@@ -118,7 +129,7 @@ func runMultiProcess(
 		count = v
 	}
 
-	r.logger.Info("starting multi-process subprocesses",
+	logger.Info("starting multi-process subprocesses",
 		zap.Int("count", count))
 	var (
 		wg       sync.WaitGroup
@@ -147,7 +158,7 @@ func runMultiProcess(
 			})
 			status, err := exec.Run(os.Args)
 			if err != nil {
-				r.logger.Error("process failed", zap.Error(err))
+				logger.Error("process failed", zap.Error(err))
 			}
 
 			statuses[i] = status
@@ -163,12 +174,12 @@ func runMultiProcess(
 		}
 	}
 
-	r.isParent = true
-	r.childExitOK = exitNotOk == 0
-	r.childExitCodes = statuses
-
 	if exitNotOk > 0 {
-		return r, fmt.Errorf("child exit codes not ok: %v", statuses)
+		return multiProcessResult{},
+			fmt.Errorf("child exit codes not ok: %v", statuses)
 	}
-	return r, nil
+
+	return multiProcessResult{
+		isParentCleanExit: true,
+	}, nil
 }
