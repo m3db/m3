@@ -141,6 +141,10 @@ func (p *objectPool) Get() interface{} {
 	shard.mtx.Lock()
 	num := len(shard.values)
 	switch {
+	case num > 0 && num > p.refillLowWatermark:
+		value = shard.values[num-1]
+		shard.values[num-1] = nil
+		shard.values = shard.values[:num-1]
 	case num <= p.refillLowWatermark:
 		if num == 0 {
 			p.metrics.getOnEmpty.Inc(1)
@@ -148,12 +152,6 @@ func (p *objectPool) Get() interface{} {
 		for len(shard.values) < p.refillHighWatermark {
 			shard.values = append(shard.values, p.alloc())
 		}
-		value = p.alloc()
-	case num > 0:
-		value = shard.values[num-1]
-		shard.values[num-1] = nil
-		shard.values = shard.values[:num-1]
-	default:
 		value = p.alloc()
 	}
 	shard.mtx.Unlock()
