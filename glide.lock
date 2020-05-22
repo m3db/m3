@@ -1,5 +1,5 @@
-hash: baed617ba8848f4267525e942246b21bc23c660894dee1eebc40b3910467e067
-updated: 2020-02-10T15:18:46.492669-05:00
+hash: 1b959bbbc78eda5e994c36e198b7b567b9d2774dfe965bb88db31dbe6563cb1e
+updated: 2020-04-29T00:46:53.610918-04:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -465,6 +465,8 @@ imports:
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
   - codec
+- name: github.com/valyala/tcplisten
+  version: ceec8f93295a060cdb565ec25e4ccf17941dbd55
 - name: github.com/willf/bitset
   version: e553b05586428962bf7058d1044519d87ca72d74
 - name: github.com/xiang90/probing
