@@ -259,18 +259,31 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, target := range targets {
 			target := target // Capture for lambda.
 			forward := func() {
-				if err := h.forwardRetrier.Attempt(func() error {
+				now := h.nowFn()
+				err := h.forwardRetrier.Attempt(func() error {
 					// Consider propagating baggage without tying
 					// context to request context in future.
 					ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
 					defer cancel()
 					return h.forward(ctx, result, r.Header, target)
-				}); err != nil {
+				})
+
+				// Record forward ingestion delay.
+				// NB: this includes any time for retries.
+				for _, series := range req.Timeseries {
+					for _, sample := range series.Samples {
+						age := now.Sub(storage.PromTimestampToTime(sample.Timestamp))
+						h.metrics.forwardLatency.RecordDuration(age)
+					}
+				}
+
+				if err != nil {
 					h.metrics.forwardErrors.Inc(1)
 					logger := logging.WithContext(h.forwardContext, h.instrumentOpts)
 					logger.Error("forward error", zap.Error(err))
 					return
 				}
+
 				h.metrics.forwardSuccess.Inc(1)
 			}
 
@@ -517,6 +530,7 @@ func (h *PromWriteHandler) forward(
 		return fmt.Errorf("expected status code 2XX: actual=%v, method=%v, url=%v, resp=%s",
 			resp.StatusCode, method, url, response)
 	}
+
 	return nil
 }
 

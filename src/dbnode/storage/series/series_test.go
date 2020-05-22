@@ -92,7 +92,7 @@ func TestSeriesEmpty(t *testing.T) {
 // Writes to series, verifying no error and that further writes should happen.
 func verifyWriteToSeries(t *testing.T, series *dbSeries, v DecodedTestValue) {
 	ctx := context.NewContext()
-	wasWritten, err := series.Write(ctx, v.Timestamp, v.Value,
+	wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value,
 		v.Unit, v.Annotation, WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
@@ -189,7 +189,7 @@ func TestSeriesSamePointDoesNotWrite(t *testing.T) {
 	for i, v := range data {
 		curr = v.Timestamp
 		ctx := context.NewContext()
-		wasWritten, err := series.Write(ctx, v.Timestamp, v.Value, v.Unit, v.Annotation, WriteOptions{})
+		wasWritten, _, err := series.Write(ctx, v.Timestamp, v.Value, v.Unit, v.Annotation, WriteOptions{})
 		require.NoError(t, err)
 		if i == 0 || i == len(data)-1 {
 			require.True(t, wasWritten)
@@ -1159,7 +1159,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		value := startValue
 
 		for i := 0; i < numPoints; i++ {
-			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
+			wasWritten, _, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
 			expected = append(expected, ts.Datapoint{Timestamp: start, TimestampNanos: xtime.ToUnixNano(start), Value: value})
@@ -1171,7 +1171,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		start = now
 		value = startValue
 		for i := 0; i < numPoints/2; i++ {
-			wasWritten, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
+			wasWritten, _, err := series.Write(ctx, start, value, xtime.Second, nil, WriteOptions{})
 			require.NoError(t, err)
 			assert.True(t, wasWritten)
 			start = start.Add(10 * time.Second)
@@ -1252,15 +1252,15 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	wasWritten, err := series.Write(ctx, curr.Add(-3*time.Minute),
+	wasWritten, _, err := series.Write(ctx, curr.Add(-3*time.Minute),
 		1, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-2*time.Minute),
+	wasWritten, _, err = series.Write(ctx, curr.Add(-2*time.Minute),
 		2, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
-	wasWritten, err = series.Write(ctx, curr.Add(-1*time.Minute),
+	wasWritten, _, err = series.Write(ctx, curr.Add(-1*time.Minute),
 		3, xtime.Second, nil, WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)

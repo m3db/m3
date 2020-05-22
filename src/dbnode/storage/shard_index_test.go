@@ -72,7 +72,7 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 			}
 		}).Return(nil).AnyTimes()
 
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(false))
 	defer shard.Close()
 
@@ -122,7 +122,7 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 			lock.Unlock()
 		}).Return(nil).AnyTimes()
 
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
@@ -209,7 +209,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 			}
 		}).Return(nil)
 
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
@@ -281,7 +281,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 		AnyTimes()
 
 	opts := DefaultTestOptions()
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 

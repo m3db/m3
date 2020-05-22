@@ -54,6 +54,7 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
+	logger, _          = zap.NewProduction()
 )
 
 const (
@@ -81,7 +82,7 @@ type databaseBuffer interface {
 		unit xtime.Unit,
 		annotation []byte,
 		wOpts WriteOptions,
-	) (bool, error)
+	) (bool, WriteType, error)
 
 	Snapshot(
 		ctx context.Context,
@@ -112,7 +113,7 @@ type databaseBuffer interface {
 		start time.Time,
 		version int,
 		nsCtx namespace.Context,
-	) ([]xio.BlockReader, error)
+	) (block.FetchBlockResult, error)
 
 	FetchBlocks(
 		ctx context.Context,
@@ -257,23 +258,24 @@ func (b *dbBuffer) Write(
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts WriteOptions,
-) (bool, error) {
+) (bool, WriteType, error) {
 	var (
 		ropts        = b.opts.RetentionOptions()
 		bufferPast   = ropts.BufferPast()
 		bufferFuture = ropts.BufferFuture()
 		now          = b.nowFn()
-		pastLimit    = now.Add(-1 * bufferPast)
-		futureLimit  = now.Add(bufferFuture)
+		pastLimit    = now.Add(-1 * bufferPast).Truncate(time.Second)
+		futureLimit  = now.Add(bufferFuture).Truncate(time.Second)
 		blockSize    = ropts.BlockSize()
 		blockStart   = timestamp.Truncate(blockSize)
 		writeType    WriteType
 	)
+
 	switch {
 	case wOpts.BootstrapWrite:
 		exists, err := b.blockRetriever.IsBlockRetrievable(blockStart)
 		if err != nil {
-			return false, err
+			return false, writeType, err
 		}
 		// Bootstrap writes are allowed to be outside of time boundaries
 		// and determined as cold or warm writes depending on whether
@@ -284,10 +286,10 @@ func (b *dbBuffer) Write(
 			writeType = ColdWrite
 		}
 
-	case !pastLimit.Before(timestamp):
+	case timestamp.Before(pastLimit):
 		writeType = ColdWrite
 		if !b.opts.ColdWritesEnabled() {
-			return false, xerrors.NewInvalidParamsError(
+			return false, writeType, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in past: "+
 					"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
 					"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
@@ -300,7 +302,7 @@ func (b *dbBuffer) Write(
 	case !futureLimit.After(timestamp):
 		writeType = ColdWrite
 		if !b.opts.ColdWritesEnabled() {
-			return false, xerrors.NewInvalidParamsError(
+			return false, writeType, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in future: "+
 					"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
 					"timestamp_unix_nanos=%d, future_limit_unix_nanos=%d",
@@ -326,9 +328,9 @@ func (b *dbBuffer) Write(
 			if wOpts.SkipOutOfRetention {
 				// Allow for datapoint to be skipped since caller does not
 				// want writes out of retention to fail.
-				return false, nil
+				return false, writeType, nil
 			}
-			return false, xerrors.NewInvalidParamsError(
+			return false, writeType, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in past and out of retention: "+
 					"id=%s, off_by=%s, timestamp=%s, retention_past_limit=%s, "+
 					"timestamp_unix_nanos=%d, retention_past_limit_unix_nanos=%d",
@@ -343,9 +345,9 @@ func (b *dbBuffer) Write(
 			if wOpts.SkipOutOfRetention {
 				// Allow for datapoint to be skipped since caller does not
 				// want writes out of retention to fail.
-				return false, nil
+				return false, writeType, nil
 			}
-			return false, xerrors.NewInvalidParamsError(
+			return false, writeType, xerrors.NewInvalidParamsError(
 				fmt.Errorf("datapoint too far in future and out of retention: "+
 					"id=%s, off_by=%s, timestamp=%s, retention_future_limit=%s, "+
 					"timestamp_unix_nanos=%d, retention_future_limit_unix_nanos=%d",
@@ -369,7 +371,8 @@ func (b *dbBuffer) Write(
 		value = wOpts.TransformOptions.ForceValue
 	}
 
-	return buckets.write(timestamp, value, unit, annotation, writeType, wOpts.SchemaDesc)
+	ok, err := buckets.write(timestamp, value, unit, annotation, writeType, wOpts.SchemaDesc)
+	return ok, writeType, err
 }
 
 func (b *dbBuffer) IsEmpty() bool {
@@ -682,7 +685,7 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 	start time.Time,
 	version int,
 	nsCtx namespace.Context,
-) ([]xio.BlockReader, error) {
+) (block.FetchBlockResult, error) {
 	res := b.fetchBlocks(ctx, []time.Time{start},
 		streamsOptions{filterWriteType: true, writeType: ColdWrite, nsCtx: nsCtx})
 	if len(res) == 0 {
@@ -690,19 +693,19 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 		// which blocks have cold data that have not yet been flushed.
 		// If we don't get data here, it means that it has since fallen out of
 		// retention and has been evicted.
-		return nil, nil
+		return block.FetchBlockResult{}, nil
 	}
 	if len(res) != 1 {
 		// Must be only one result if anything at all, since fetchBlocks returns
 		// one result per block start.
-		return nil, fmt.Errorf("fetchBlocks did not return just one block for block start %s", start)
+		return block.FetchBlockResult{}, fmt.Errorf("fetchBlocks did not return just one block for block start %s", start)
 	}
 
-	blocks := res[0].Blocks
+	result := res[0]
 
 	buckets, exists := b.bucketVersionsAt(start)
 	if !exists {
-		return nil, fmt.Errorf("buckets do not exist with block start %s", start)
+		return block.FetchBlockResult{}, fmt.Errorf("buckets do not exist with block start %s", start)
 	}
 	if bucket, exists := buckets.writableBucket(ColdWrite); exists {
 		// Update the version of the writable bucket (effectively making it not
@@ -719,7 +722,7 @@ func (b *dbBuffer) FetchBlocksForColdFlush(
 	// fail need to get cold flushed as well. These kinds of buckets will have
 	// a non-writable version.
 
-	return blocks, nil
+	return result, nil
 }
 
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time, nsCtx namespace.Context) []block.FetchBlockResult {
@@ -739,8 +742,15 @@ func (b *dbBuffer) fetchBlocks(
 			continue
 		}
 
-		if streams := buckets.streams(ctx, sOpts); len(streams) > 0 {
-			res = append(res, block.NewFetchBlockResult(start, streams, nil))
+		streams := buckets.streams(ctx, sOpts)
+		if len(streams) > 0 {
+			result := block.NewFetchBlockResult(
+				start,
+				streams,
+				nil,
+			)
+			result.FirstWrite = buckets.firstWrite(sOpts)
+			res = append(res, result)
 		}
 	}
 
@@ -958,11 +968,27 @@ func (b *BufferBucketVersions) resetTo(
 func (b *BufferBucketVersions) streams(ctx context.Context, opts streamsOptions) []xio.BlockReader {
 	var res []xio.BlockReader
 	for _, bucket := range b.buckets {
-		if !opts.filterWriteType || bucket.writeType == opts.writeType {
-			res = append(res, bucket.streams(ctx)...)
+		if opts.filterWriteType && bucket.writeType != opts.writeType {
+			continue
 		}
+		res = append(res, bucket.streams(ctx)...)
 	}
 
+	return res
+}
+
+func (b *BufferBucketVersions) firstWrite(opts streamsOptions) time.Time {
+	var res time.Time
+	for _, bucket := range b.buckets {
+		if opts.filterWriteType && bucket.writeType != opts.writeType {
+			continue
+		}
+		// Get the earliest valid first write time.
+		if res.IsZero() ||
+			(bucket.firstWrite.Before(res) && !bucket.firstWrite.IsZero()) {
+			res = bucket.firstWrite
+		}
+	}
 	return res
 }
 
@@ -1071,16 +1097,17 @@ func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsO
 	res := make([]xio.SegmentReader, 0, len(buckets))
 
 	for _, bucket := range buckets {
-		if !opts.filterWriteType || bucket.writeType == opts.writeType {
-			stream, ok, err := bucket.mergeToStream(ctx, opts.nsCtx)
-			if err != nil {
-				return nil, err
-			}
-			if !ok {
-				continue
-			}
-			res = append(res, stream)
+		if opts.filterWriteType && bucket.writeType != opts.writeType {
+			continue
 		}
+		stream, ok, err := bucket.mergeToStream(ctx, opts.nsCtx)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		res = append(res, stream)
 	}
 
 	return res, nil
@@ -1102,6 +1129,7 @@ type BufferBucket struct {
 	loadedBlocks []block.DatabaseBlock
 	version      int
 	writeType    WriteType
+	firstWrite   time.Time
 }
 
 type inOrderEncoder struct {
@@ -1128,6 +1156,7 @@ func (b *BufferBucket) resetTo(
 	// We would only ever create a bucket for it to be writable.
 	b.version = writableBucketVersion
 	b.writeType = writeType
+	b.firstWrite = time.Time{}
 }
 
 func (b *BufferBucket) reset() {
@@ -1176,13 +1205,21 @@ func (b *BufferBucket) write(
 		}
 	}
 
+	var err error
+	defer func() {
+		nowFn := b.opts.ClockOptions().NowFn()
+		if err == nil && b.firstWrite.IsZero() {
+			b.firstWrite = nowFn()
+		}
+	}()
+
 	// Upsert/last-write-wins semantics.
 	// NB(r): We push datapoints with the same timestamp but differing
 	// value into a new encoder later in the stack of in order encoders
 	// since an encoder is immutable.
 	// The encoders pushed later will surface their values first.
 	if idx != -1 {
-		err := b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
+		err = b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
 		return err == nil, err
 	}
 
@@ -1201,7 +1238,7 @@ func (b *BufferBucket) write(
 	})
 
 	idx = len(b.encoders) - 1
-	err := b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
+	err = b.writeToEncoderIndex(idx, datapoint, unit, annotation, schema)
 	if err != nil {
 		encoder.Close()
 		b.encoders = b.encoders[:idx]

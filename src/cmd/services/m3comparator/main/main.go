@@ -76,8 +76,19 @@ func main() {
 		iOpts:         iOpts,
 	}
 
-	seriesLoader := newSeriesLoadHandler(opts)
-	querier := &querier{opts: opts, handler: seriesLoader}
+	seriesLoader := newHTTPSeriesLoadHandler(opts)
+
+	querier, err := newQuerier(
+		opts,
+		seriesLoader,
+		time.Hour*12,
+		time.Second*15,
+	)
+	if err != nil {
+		logger.Error("could not create querier", zap.Error(err))
+		return
+	}
+
 	server := remote.NewGRPCServer(
 		querier,
 		models.QueryContextOptions{},

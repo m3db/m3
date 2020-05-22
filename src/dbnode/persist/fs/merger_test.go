@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
@@ -587,7 +588,10 @@ func mockMergeWithFromData(
 				data, ok := mergeTargetData.Get(id)
 				if ok {
 					segReader := srPool.Get()
-					br := []xio.BlockReader{blockReaderFromData(data, segReader, startTime, blockSize)}
+					br := block.FetchBlockResult{
+						Start:  startTime,
+						Blocks: []xio.BlockReader{blockReaderFromData(data, segReader, startTime, blockSize)},
+					}
 					fn(id, ident.Tags{}, br)
 				}
 			}
