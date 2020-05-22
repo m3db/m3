@@ -31,10 +31,6 @@ import (
 var singleDBNodeDockerResources resources.DockerResources
 
 func TestMain(m *testing.M) {
-	if testing.Short() {
-		os.Exit(0) // Just skip if we're doing a short run.
-	}
-
 	var err error
 	singleDBNodeDockerResources, err = resources.SetupSingleM3DBNode()
 
