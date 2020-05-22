@@ -270,7 +270,8 @@ func testDatabaseShardRepairerRepair(t *testing.T, withLimit bool) {
 
 		databaseShardRepairer := newShardRepairer(opts, rpOpts)
 		repairer := databaseShardRepairer.(shardRepairer)
-		repairer.recordFn = func(nsID ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
+		repairer.recordFn = func(origin topology.Host, nsID ident.ID, shard databaseShard,
+			diffRes repair.MetadataComparisonResult) {
 			resNamespace = nsID
 			resShard = shard
 			resDiff = diffRes
@@ -370,11 +371,12 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 		copts  = opts.ClockOptions()
 		iopts  = opts.InstrumentOptions()
 		rtopts = defaultTestRetentionOpts
+		scope  = tally.NewTestScope("", nil)
 	)
 
 	opts = opts.
 		SetClockOptions(copts.SetNowFn(nowFn)).
-		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
+		SetInstrumentOptions(iopts.SetMetricsScope(scope))
 
 	var (
 		namespaceID     = ident.StringID("testNamespace")
@@ -387,7 +389,7 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 			IncludeLastRead:  false,
 		}
 
-		sizes     = []int64{1, 2, 3, 4}
+		sizes     = []int64{3423, 987, 8463, 578}
 		checksums = []uint32{4, 5, 6, 7}
 		lastRead  = now.Add(-time.Minute)
 		shardID   = uint32(0)
@@ -423,10 +425,12 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 
 	inputBlocks := []block.ReplicaMetadata{
 		{
-			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead),
+			// Peer block size size[2] is different from origin block size size[0]
+			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(30*time.Minute), sizes[2], &checksums[0], lastRead),
 		},
 		{
-			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Hour), sizes[0], &checksums[1], lastRead),
+			// Peer block size size[3] is different from origin block size size[1]
+			Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Hour), sizes[3], &checksums[1], lastRead),
 		},
 		{
 			// Mismatch checksum so should trigger repair of this series.
@@ -499,29 +503,16 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 			Return(peerBlocksIter, nil)
 	}
 
-	var (
-		resNamespace ident.ID
-		resShard     databaseShard
-		resDiff      repair.MetadataComparisonResult
-	)
-
 	databaseShardRepairer := newShardRepairer(opts, rpOpts)
 	repairer := databaseShardRepairer.(shardRepairer)
-	repairer.recordFn = func(nsID ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
-		resNamespace = nsID
-		resShard = shard
-		resDiff = diffRes
-	}
 
 	var (
 		ctx   = context.NewContext()
 		nsCtx = namespace.Context{ID: namespaceID}
 	)
-	require.NoError(t, err)
-	repairer.Repair(ctx, nsCtx, nsMeta, repairTimeRange, shard)
+	resDiff, err := repairer.Repair(ctx, nsCtx, nsMeta, repairTimeRange, shard)
 
-	require.Equal(t, namespaceID, resNamespace)
-	require.Equal(t, resShard, shard)
+	require.NoError(t, err)
 	require.Equal(t, int64(2), resDiff.NumSeries)
 	require.Equal(t, int64(3), resDiff.NumBlocks)
 
@@ -547,7 +538,19 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 	series, exists = sizeDiffSeries.Get(ident.StringID("foo"))
 	require.True(t, exists)
 	blocks = series.Metadata.Blocks()
-	require.Equal(t, 1, len(blocks))
+	require.Equal(t, 2, len(blocks))
+	// Validate first block
+	currBlock, exists = blocks[xtime.ToUnixNano(now.Add(30*time.Minute))]
+	require.True(t, exists)
+	require.Equal(t, now.Add(30*time.Minute), currBlock.Start())
+	expected = []block.ReplicaMetadata{
+		// Size difference for series "foo".
+		{Host: origin, Metadata: block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead)},
+		{Host: hosts[0], Metadata: inputBlocks[0].Metadata},
+		{Host: hosts[1], Metadata: inputBlocks[0].Metadata},
+	}
+	require.Equal(t, expected, currBlock.Metadata())
+	// Validate second block
 	currBlock, exists = blocks[xtime.ToUnixNano(now.Add(time.Hour))]
 	require.True(t, exists)
 	require.Equal(t, now.Add(time.Hour), currBlock.Start())
@@ -558,6 +561,22 @@ func TestDatabaseShardRepairerRepairMultiSession(t *testing.T) {
 		{Host: hosts[1], Metadata: inputBlocks[1].Metadata},
 	}
 	require.Equal(t, expected, currBlock.Metadata())
+
+	// Validate the expected metrics were emitted
+	scopeSnapshot := scope.Snapshot()
+	countersSnapshot := scopeSnapshot.Counters()
+	gaugesSnapshot := scopeSnapshot.Gauges()
+	require.Equal(t, int64(2),
+		countersSnapshot["repair.series+namespace=testNamespace,resultType=total,shard=0"].Value())
+	require.Equal(t, int64(3),
+		countersSnapshot["repair.blocks+namespace=testNamespace,resultType=total,shard=0"].Value())
+	// Validate that first block's divergence is emitted instead of second block because first block is diverged
+	// more than second block from its peers.
+	scopeTags := map[string]string{"namespace": "testNamespace", "resultType": "sizeDiff", "shard": "0"}
+	require.Equal(t, float64(sizes[0]-sizes[2]),
+		gaugesSnapshot[tally.KeyForPrefixedStringMap("repair.max-block-size-diff", scopeTags)].Value())
+	require.Equal(t, float64(100*(sizes[0]-sizes[2]))/float64(sizes[0]),
+		gaugesSnapshot[tally.KeyForPrefixedStringMap("repair.max-block-size-diff-as-percentage", scopeTags)].Value())
 }
 
 type expectedRepair struct {
