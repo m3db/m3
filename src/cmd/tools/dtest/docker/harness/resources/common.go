@@ -30,8 +30,8 @@ import (
 
 	"github.com/m3db/m3/src/x/instrument"
 
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	dockertest "github.com/ory/dockertest"
 	dc "github.com/ory/dockertest/docker"
 	"go.uber.org/zap"
