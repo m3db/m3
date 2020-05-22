@@ -14,7 +14,8 @@ More information:
 
 ## Community meetings
 
-M3 contributors and maintainers have monthly (every four weeks) meetings. Join our M3 meetup group to receive notifications on upcoming meetings: [https://www.meetup.com/M3-Community/](https://www.meetup.com/M3-Community/).
+M3 contributors and maintainers have monthly (every four weeks) meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
+[https://www.meetup.com/M3-Community/](https://www.meetup.com/M3-Community/).
 
 ## Test it out
 
