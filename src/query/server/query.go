@@ -23,16 +23,12 @@ package server
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/rand"
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 	"sort"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -67,7 +63,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xnet "github.com/m3db/m3/src/x/net"
 	xos "github.com/m3db/m3/src/x/os"
-	"github.com/m3db/m3/src/x/panicmon"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xserver "github.com/m3db/m3/src/x/server"
@@ -197,117 +192,18 @@ func Run(runOpts RunOptions) {
 	xconfig.WarnOnDeprecation(cfg, logger)
 
 	if cfg.MultiProcess.Enabled {
-		multiProcessInstance := os.Getenv(multiProcessInstanceEnvVar)
-		if multiProcessInstance == "" {
-			logger = logger.With(zap.String("processID", multiProcessParentInstance))
-
-			perCPU := defaultPerCPUMultiProcess
-			if v := cfg.MultiProcess.PerCPU; v > 0 {
-				// Allow config to override per CPU factor for determining count.
-				perCPU = v
-			}
-
-			count := int(math.Max(1, float64(runtime.NumCPU())*perCPU))
-			if v := cfg.MultiProcess.Count; v > 0 {
-				// Allow config to override per CPU auto derived count.
-				count = v
-			}
-
-			logger.Info("starting multi-process subprocesses",
-				zap.Int("count", count))
-			var (
-				wg       sync.WaitGroup
-				statuses = make([]panicmon.StatusCode, count)
-			)
-			for i := 0; i < count; i++ {
-				i := i
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-
-					newEnv := []string{
-						fmt.Sprintf("%s=%d", multiProcessInstanceEnvVar, i+1),
-					}
-
-					// Set GOMAXPROCS correctly if configured.
-					if v := cfg.MultiProcess.GoMaxProcs; v > 0 {
-						newEnv = append(newEnv,
-							fmt.Sprintf("%s=%d", goMaxProcsEnvVar, v))
-					}
-
-					newEnv = append(newEnv, os.Environ()...)
-
-					exec := panicmon.NewExecutor(panicmon.ExecutorOptions{
-						Env: env,
-					})
-					status, err := exec.Run(os.Args)
-					if err != nil {
-						logger.Error("process failed", zap.Error(err))
-					}
-
-					statuses[i] = status
-				}()
-			}
-
-			wg.Wait()
-
-			exitNotOk := 0
-			for _, v := range statuses {
-				if v != 0 {
-					exitNotOk++
-				}
-			}
-			if exitNotOk > 0 {
-				logger.Fatal("processes exited with failures",
-					zap.Any("statuses", statuses))
-			}
-			return
-		}
-
-		// Otherwise is already a sub-process, make sure listener options
-		// will reuse ports so multiple processes can listen on the same
-		// listen port.
-		listenerOpts = xnet.NewListenerOptions(xnet.ListenerReusePort(true))
-
-		// Configure instrumentation to be correctly partitioned.
-		logger = logger.With(zap.String("processID", multiProcessInstance))
-
-		instance, err := strconv.Atoi(multiProcessInstance)
+		runResult, err := runMultiProcess(cfg, logger, listenerOpts)
 		if err != nil {
-			logger.Fatal("multi-process process ID is non-integer", zap.Error(err))
+			logger.Fatal("failed to run multiprocess", zap.Error(err))
 		}
 
-		// Set the root scope multi-process process ID.
-		if cfg.Metrics.RootScope == nil {
-			cfg.Metrics.RootScope = &instrument.ScopeConfiguration{}
+		if runResult.isParent {
+			return // Done
 		}
-		if cfg.Metrics.RootScope.CommonTags == nil {
-			cfg.Metrics.RootScope.CommonTags = make(map[string]string)
-		}
-		cfg.Metrics.RootScope.CommonTags[multiProcessMetricTagID] = multiProcessInstance
 
-		// Listen on a different Prometheus metrics handler listen port.
-		if cfg.Metrics.PrometheusReporter != nil && cfg.Metrics.PrometheusReporter.ListenAddress != "" {
-			// Simply increment the listen address port by instance number.
-			host, port, err := net.SplitHostPort(cfg.Metrics.PrometheusReporter.ListenAddress)
-			if err != nil {
-				logger.Fatal("could not split host:port for prometheus metrics reporter",
-					zap.Error(err))
-			}
-
-			portValue, err := strconv.Atoi(port)
-			if err != nil {
-				logger.Fatal("prometheus metric reporter port is non-integer",
-					zap.Error(err))
-			}
-			if portValue > 0 {
-				// Increment port value by process ID if valid port.
-				address := net.JoinHostPort(host, strconv.Itoa(portValue+instance-1))
-				cfg.Metrics.PrometheusReporter.ListenAddress = address
-				logger.Info("multi-process prometheus metrics reporter listen address configured",
-					zap.String("address", address))
-			}
-		}
+		cfg = runResult.cfg
+		logger = runResult.logger
+		listenerOpts = runResult.listenerOpts
 	}
 
 	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
