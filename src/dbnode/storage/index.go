@@ -839,7 +839,7 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 		result.NumTotalDocs += blockTickResult.NumDocs
 
 		// seal any blocks that are sealable
-		if !blockStart.ToTime().After(lastSealableBlockStart) && !block.IsSealed() {
+		if blockStart.ToTime().Before(lastSealableBlockStart) && !block.IsSealed() {
 			multiErr = multiErr.Add(block.Seal())
 			result.NumBlocksSealed++
 		}
@@ -1563,6 +1563,15 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 		index.BlockOptions{}, i.opts.IndexOptions())
 	if err != nil { // unable to allocate the block, should never happen.
 		return nil, i.unableToAllocBlockInvariantError(err)
+	}
+
+	// NB(bodu): Use same time barrier as `Tick` to make sealing of cold index blocks consistent.
+	// We need to seal cold blocks write away for cold writes.
+	lastSealableBlockStart := retention.FlushTimeEndForBlockSize(i.blockSize, i.nowFn().Add(-i.bufferPast))
+	if blockStart.Before(lastSealableBlockStart) {
+		if err := block.Seal(); err != nil {
+			return nil, err
+		}
 	}
 
 	// add to tracked blocks map

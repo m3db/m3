@@ -1461,7 +1461,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	ctx := s.contextPool.Get()
 	// TODO(prateek): pool this type
 	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
-	warmIndexBlockStart := s.nowFn().Truncate(indexBlockSize)
 	indexBatch := index.NewWriteBatch(index.WriteBatchOptions{
 		InitialCapacity: numPendingIndexing,
 		IndexBlockSize:  indexBlockSize,
@@ -1470,7 +1469,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		var (
 			entry           = inserts[i].entry
 			releaseEntryRef = inserts[i].opts.entryRefCountIncremented
-			writeType       series.WriteType
 			err             error
 		)
 
@@ -1484,7 +1482,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// operation and there is nothing further to do with this value.
 			// TODO: Consider propagating the `wasWritten` argument back to the caller
 			// using waitgroup (or otherwise) in the future.
-			_, writeType, err = entry.Series.Write(ctx, write.timestamp, write.value,
+			_, _, err = entry.Series.Write(ctx, write.timestamp, write.value,
 				write.unit, annotationBytes, write.opts)
 			if err != nil {
 				if xerrors.IsInvalidParams(err) {
@@ -1511,35 +1509,23 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			entry.OnIndexPrepare()
 
 			// Don't insert cold index writes into the index insert queue.
-			if s.coldWritesEnabled &&
-				writeType == series.ColdWrite &&
-				pendingIndex.timestamp.Before(warmIndexBlockStart) {
-				indexBlockStart := s.reverseIndex.BlockStartForWriteTime(pendingIndex.timestamp)
-				// NB(bodu): We to mark this entry as indexed for `indexBlockStart`. This means that
-				// we will not attempt to index this series for this time block again.
-				entry.OnIndexSuccess(indexBlockStart)
-				// Finalize the entry since we are done w/ it at this point.
-				entry.OnIndexFinalize(indexBlockStart)
-				s.metrics.insertColdWriteSkipIndex.Inc(1)
-			} else {
-				id := entry.Series.ID()
-				tags := entry.Series.Tags().Values()
+			id := entry.Series.ID()
+			tags := entry.Series.Tags().Values()
 
-				var d doc.Document
-				d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
-				d.Fields = make(doc.Fields, 0, len(tags))
-				for _, tag := range tags {
-					d.Fields = append(d.Fields, doc.Field{
-						Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
-						Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
-					})
-				}
-				indexBatch.Append(index.WriteBatchEntry{
-					Timestamp:     pendingIndex.timestamp,
-					OnIndexSeries: entry,
-					EnqueuedAt:    pendingIndex.enqueuedAt,
-				}, d)
+			var d doc.Document
+			d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
+			d.Fields = make(doc.Fields, 0, len(tags))
+			for _, tag := range tags {
+				d.Fields = append(d.Fields, doc.Field{
+					Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
+					Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
+				})
 			}
+			indexBatch.Append(index.WriteBatchEntry{
+				Timestamp:     pendingIndex.timestamp,
+				OnIndexSeries: entry,
+				EnqueuedAt:    pendingIndex.enqueuedAt,
+			}, d)
 		}
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
