@@ -257,7 +257,6 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetIndexOptions(storageIdxOpts).
-		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 		SetPersistManager(persistMgr).
 		SetCompactor(newCompactor(t, storageIdxOpts))
 

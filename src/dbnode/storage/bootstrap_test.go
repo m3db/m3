@@ -147,3 +147,78 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	_, err = bsm.Bootstrap()
 	require.Nil(t, err)
 }
+
+func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	opts := DefaultTestOptions()
+	now := time.Now()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return now
+	}))
+
+	m := NewMockdatabaseMediator(ctrl)
+	m.EXPECT().DisableFileOps()
+	m.EXPECT().EnableFileOps().AnyTimes()
+
+	db := NewMockdatabase(ctrl)
+	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
+
+	numNamespaces := 3
+	namespaces := make([]databaseNamespace, 0, 3)
+	for i := 0; i < numNamespaces; i++ {
+		ns := NewMockdatabaseNamespace(ctrl)
+		id := ident.StringID("testBootstrap")
+		meta, err := namespace.NewMetadata(id, namespace.NewOptions())
+		require.NoError(t, err)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+
+		numShards := 8
+		shards := make([]databaseShard, 0, numShards)
+		for j := 0; j < numShards; j++ {
+			shard := NewMockdatabaseShard(ctrl)
+			shard.EXPECT().IsBootstrapped().Return(false)
+			shard.EXPECT().IsBootstrapped().Return(true)
+			shard.EXPECT().UpdateFlushStates().Times(2)
+			shard.EXPECT().ID().Return(uint32(j)).AnyTimes()
+			shards = append(shards, shard)
+		}
+
+		ns.EXPECT().PrepareBootstrap(gomock.Any()).Return(shards, nil).AnyTimes()
+		ns.EXPECT().Metadata().Return(meta).AnyTimes()
+
+		ns.EXPECT().
+			Bootstrap(gomock.Any(), gomock.Any()).
+			Return(nil).
+			Do(func(arg0, arg1 interface{}) {
+				defer wg.Done()
+
+				// Enqueue the second bootstrap
+				_, err := bsm.Bootstrap()
+				assert.Error(t, err)
+				assert.Equal(t, errBootstrapEnqueued, err)
+				assert.False(t, bsm.IsBootstrapped())
+				bsm.RLock()
+				assert.Equal(t, true, bsm.hasPending)
+				bsm.RUnlock()
+
+				// Expect the second bootstrap call
+				ns.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
+			})
+		ns.EXPECT().
+			ID().
+			Return(id).
+			Times(2)
+		namespaces = append(namespaces, ns)
+	}
+	db.EXPECT().
+		OwnedNamespaces().
+		Return(namespaces, nil).
+		Times(2)
+
+	_, err := bsm.Bootstrap()
+	require.Nil(t, err)
+}

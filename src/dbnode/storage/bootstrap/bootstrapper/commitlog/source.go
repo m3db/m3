@@ -309,7 +309,7 @@ func (s *commitLogSource) Read(
 			datapointsRead += worker.datapointsRead
 		}
 		s.log.Info("read commit logs done",
-			zap.Stringer("took", s.nowFn().Sub(startCommitLogsRead)),
+			zap.Duration("took", s.nowFn().Sub(startCommitLogsRead)),
 			zap.Int("datapointsRead", datapointsRead),
 			zap.Int("datapointsSkippedNotBootstrappingNamespace", datapointsSkippedNotBootstrappingNamespace),
 			zap.Int("datapointsSkippedNotBootstrappingShard", datapointsSkippedNotBootstrappingShard),
@@ -904,7 +904,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 		)
 		worker.datapointsRead++
 
-		_, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
+		_, _, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
 				SchemaDesc: namespace.namespaceContext.Schema,
 				// NB(r): Make sure this is the series we originally
@@ -940,7 +940,7 @@ func (s *commitLogSource) logAccumulateOutcome(
 		errs += worker.numErrors
 	}
 	if errs > 0 {
-		s.log.Error("error bootstrapping from commit log", zap.Int("accmulateErrors", errs))
+		s.log.Error("error bootstrapping from commit log", zap.Int("accumulateErrors", errs))
 	}
 	if err := iter.Err(); err != nil {
 		s.log.Error("error reading commit log", zap.Error(err))

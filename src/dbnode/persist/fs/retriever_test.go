@@ -34,7 +34,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -57,6 +59,7 @@ type testBlockRetrieverOptions struct {
 	retrieverOpts  BlockRetrieverOptions
 	fsOpts         Options
 	newSeekerMgrFn newSeekerMgrFn
+	shards         []uint32
 }
 
 type testCleanupFn func()
@@ -76,9 +79,15 @@ func newOpenTestBlockRetriever(
 		retriever.newSeekerMgrFn = opts.newSeekerMgrFn
 	}
 
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(opts.shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
+
 	nsPath := NamespaceDataDirPath(opts.fsOpts.FilePathPrefix(), testNs1ID)
 	require.NoError(t, os.MkdirAll(nsPath, opts.fsOpts.NewDirectoryMode()))
-	require.NoError(t, retriever.Open(testNs1Metadata(t)))
+	require.NoError(t, retriever.Open(testNs1Metadata(t), shardSet))
 
 	return retriever, func() {
 		require.NoError(t, retriever.Close())
@@ -198,6 +207,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 			SetFetchConcurrency(fetchConcurrency).
 			SetRetrieveRequestPool(retrieveRequestPool),
 		fsOpts: fsOpts,
+		shards: shards,
 	}
 
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
@@ -538,6 +548,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	opts := testBlockRetrieverOptions{
 		retrieverOpts: defaultTestBlockRetrieverOptions,
 		fsOpts:        fsOpts,
+		shards:        []uint32{shard},
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
@@ -584,6 +595,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	opts := testBlockRetrieverOptions{
 		retrieverOpts: defaultTestBlockRetrieverOptions,
 		fsOpts:        fsOpts,
+		shards:        []uint32{shard},
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
@@ -701,7 +713,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	)
 
 	mockSeekerManager := NewMockDataFileSetSeekerManager(ctrl)
-	mockSeekerManager.EXPECT().Open(gomock.Any()).Return(nil)
+	mockSeekerManager.EXPECT().Open(gomock.Any(), gomock.Any()).Return(nil)
 	mockSeekerManager.EXPECT().Test(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	mockSeekerManager.EXPECT().Borrow(gomock.Any(), gomock.Any()).Return(mockSeeker, nil)
 	mockSeekerManager.EXPECT().Return(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -721,6 +733,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 		retrieverOpts:  defaultTestBlockRetrieverOptions,
 		fsOpts:         fsOpts,
 		newSeekerMgrFn: newSeekerMgr,
+		shards:         []uint32{shard},
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()

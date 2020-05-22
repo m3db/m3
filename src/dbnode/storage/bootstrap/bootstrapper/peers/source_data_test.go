@@ -324,15 +324,6 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 
 		opts = opts.SetAdminClient(mockAdminClient)
 
-		mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-
-		mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
-		mockRetrieverMgr.EXPECT().
-			Retriever(namespace.NewMetadataMatcher(testNsMd)).
-			Return(mockRetriever, nil)
-
-		opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
-
 		flushPreparer := persist.NewMockFlushPreparer(ctrl)
 		flushPreparer.EXPECT().DoneFlush()
 		persists := make(map[string]int)
@@ -570,14 +561,6 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		Return(mockAdminSession, nil).AnyTimes()
 
 	opts = opts.SetAdminClient(mockAdminClient)
-
-	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
-	mockRetrieverMgr.EXPECT().
-		Retriever(namespace.NewMetadataMatcher(testNsMd)).
-		Return(mockRetriever, nil)
-
-	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
 	flushPreprarer := persist.NewMockFlushPreparer(ctrl)
 	flushPreprarer.EXPECT().DoneFlush()

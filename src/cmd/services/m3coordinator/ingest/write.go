@@ -259,7 +259,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 ) error {
 	storagePolicies, ok := d.writeOverrideStoragePolicies(overrides)
 	if !ok {
-		return d.store.Write(ctx, &storage.WriteQuery{
+		return d.writeWithOptions(ctx, storage.WriteQueryOptions{
 			Tags:       tags,
 			Datapoints: datapoints,
 			Unit:       unit,
@@ -279,7 +279,7 @@ func (d *downsamplerAndWriter) writeToStorage(
 
 		wg.Add(1)
 		d.workerPool.Go(func() {
-			err := d.store.Write(ctx, &storage.WriteQuery{
+			err := d.writeWithOptions(ctx, storage.WriteQueryOptions{
 				Tags:       tags,
 				Datapoints: datapoints,
 				Unit:       unit,
@@ -297,6 +297,17 @@ func (d *downsamplerAndWriter) writeToStorage(
 
 	wg.Wait()
 	return multiErr.FinalError()
+}
+
+func (d *downsamplerAndWriter) writeWithOptions(
+	ctx context.Context,
+	opts storage.WriteQueryOptions,
+) error {
+	writeQuery, err := storage.NewWriteQuery(opts)
+	if err != nil {
+		return err
+	}
+	return d.store.Write(ctx, writeQuery)
 }
 
 func (d *downsamplerAndWriter) WriteBatch(
@@ -330,7 +341,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 				p := p // Capture for lambda.
 				wg.Add(1)
 				d.workerPool.Go(func() {
-					err := d.store.Write(ctx, &storage.WriteQuery{
+					err := d.writeWithOptions(ctx, storage.WriteQueryOptions{
 						Tags:       tags,
 						Datapoints: datapoints,
 						Unit:       unit,

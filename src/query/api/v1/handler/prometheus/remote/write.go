@@ -47,6 +47,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/retry"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -74,6 +75,16 @@ var (
 	errNoTagOptions                 = errors.New("no tag options set")
 	errNoNowFn                      = errors.New("no now fn set")
 	errUnaggregatedStoragePolicySet = errors.New("storage policy should not be set for unaggregated metrics")
+
+	defaultForwardingRetryForever = false
+	defaultForwardingRetryJitter  = true
+	defaultForwardRetryConfig     = retry.Configuration{
+		InitialBackoff: time.Second * 2,
+		BackoffFactor:  2,
+		MaxRetries:     1,
+		Forever:        &defaultForwardingRetryForever,
+		Jitter:         &defaultForwardingRetryJitter,
+	}
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
@@ -85,6 +96,7 @@ type PromWriteHandler struct {
 	forwardHTTPClient      *http.Client
 	forwardingBoundWorkers xsync.WorkerPool
 	forwardContext         context.Context
+	forwardRetrier         retry.Retrier
 	nowFn                  clock.NowFn
 	instrumentOpts         instrument.Options
 	metrics                promWriteMetrics
@@ -112,9 +124,10 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		return nil, errNoNowFn
 	}
 
-	metrics, err := newPromWriteMetrics(options.InstrumentOpts().MetricsScope().
-		Tagged(map[string]string{"handler": "remote-write"}),
-	)
+	scope := options.InstrumentOpts().
+		MetricsScope().
+		Tagged(map[string]string{"handler": "remote-write"})
+	metrics, err := newPromWriteMetrics(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +149,14 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 	forwardHTTPOpts.DisableCompression = true // Already snappy compressed.
 	forwardHTTPOpts.RequestTimeout = forwardTimeout
 
+	forwardRetryConfig := defaultForwardRetryConfig
+	if forwarding.Retry != nil {
+		forwardRetryConfig = *forwarding.Retry
+	}
+	forwardRetryOpts := forwardRetryConfig.NewOptions(
+		scope.SubScope("forwarding-retry"),
+	)
+
 	return &PromWriteHandler{
 		downsamplerAndWriter:   downsamplerAndWriter,
 		tagOptions:             tagOptions,
@@ -144,6 +165,7 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 		forwardHTTPClient:      xhttp.NewHTTPClient(forwardHTTPOpts),
 		forwardingBoundWorkers: forwardingBoundWorkers,
 		forwardContext:         context.Background(),
+		forwardRetrier:         retry.NewRetrier(forwardRetryOpts),
 		nowFn:                  nowFn,
 		metrics:                metrics,
 		instrumentOpts:         instrumentOpts,
@@ -244,17 +266,31 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, target := range targets {
 			target := target // Capture for lambda.
 			forward := func() {
-				// Consider propgating baggage without tying
-				// context to request context in future.
-				ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
-				defer cancel()
+				now := h.nowFn()
+				err := h.forwardRetrier.Attempt(func() error {
+					// Consider propagating baggage without tying
+					// context to request context in future.
+					ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
+					defer cancel()
+					return h.forward(ctx, result, r.Header, target)
+				})
 
-				if err := h.forward(ctx, result, r.Header, target); err != nil {
+				// Record forward ingestion delay.
+				// NB: this includes any time for retries.
+				for _, series := range req.Timeseries {
+					for _, sample := range series.Samples {
+						age := now.Sub(storage.PromTimestampToTime(sample.Timestamp))
+						h.metrics.forwardLatency.RecordDuration(age)
+					}
+				}
+
+				if err != nil {
 					h.metrics.forwardErrors.Inc(1)
 					logger := logging.WithContext(h.forwardContext, h.instrumentOpts)
 					logger.Error("forward error", zap.Error(err))
 					return
 				}
+
 				h.metrics.forwardSuccess.Inc(1)
 			}
 
@@ -501,6 +537,7 @@ func (h *PromWriteHandler) forward(
 		return fmt.Errorf("expected status code 2XX: actual=%v, method=%v, url=%v, resp=%s",
 			resp.StatusCode, method, url, response)
 	}
+
 	return nil
 }
 

@@ -310,19 +310,7 @@ func (m *bootstrapManager) bootstrap() error {
 		// actually exist on disk (since bootstrappers can write
 		// new blocks to disk).
 		hooks := bootstrap.NewNamespaceHooks(bootstrap.NamespaceHooksOptions{
-			BootstrapSourceEnd: func() error {
-				var wg sync.WaitGroup
-				for _, shard := range ns.shards {
-					shard := shard
-					wg.Add(1)
-					go func() {
-						shard.UpdateFlushStates()
-						wg.Done()
-					}()
-				}
-				wg.Wait()
-				return nil
-			},
+			BootstrapSourceEnd: newBootstrapSourceEndHook(ns.shards),
 		})
 
 		accumulator := NewDatabaseNamespaceDataAccumulator(ns.namespace)

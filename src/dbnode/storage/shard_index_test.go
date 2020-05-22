@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
@@ -72,7 +73,7 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 			}
 		}).Return(nil).AnyTimes()
 
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(false))
 	defer shard.Close()
 
@@ -122,7 +123,7 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 			lock.Unlock()
 		}).Return(nil).AnyTimes()
 
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
@@ -209,7 +210,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 			}
 		}).Return(nil)
 
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
@@ -281,7 +282,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 		AnyTimes()
 
 	opts := DefaultTestOptions()
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
 
@@ -320,6 +321,85 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	// make sure we indexed the second write
 	assert.True(t, entry.IndexedForBlockStart(
 		xtime.ToUnixNano(nextWriteTime.Truncate(blockSize))))
+}
+
+func TestShardColdWriteInsertSkipsIndexInsertQueue(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+
+	opts := DefaultTestOptions()
+	lock := sync.RWMutex{}
+	indexWrites := []doc.Document{}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMockNamespaceIndex(ctrl)
+	idx.EXPECT().WriteBatch(gomock.Any()).Do(
+		func(batch *index.WriteBatch) {
+			lock.Lock()
+			indexWrites = append(indexWrites, batch.PendingDocs()...)
+			lock.Unlock()
+			// Mark successful.
+			batch.MarkUnmarkedEntriesSuccess()
+		}).Return(nil).AnyTimes()
+
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, true)
+	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
+	defer shard.Close()
+
+	indexBlockSize := shard.namespace.Options().IndexOptions().BlockSize()
+	writeTimestamp := time.Now().Add(-3 * indexBlockSize)
+	writeBlockStart := xtime.ToUnixNano(writeTimestamp.Truncate(indexBlockSize))
+	idx.EXPECT().BlockStartForWriteTime(writeTimestamp).Return(writeBlockStart)
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+	// Cold write foo.
+	coldWriteID := ident.StringID("foo")
+	_, wasWritten, err := shard.WriteTagged(ctx, coldWriteID,
+		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		writeTimestamp, 1.0, xtime.Second, nil, series.WriteOptions{})
+	assert.NoError(t, err)
+	assert.True(t, wasWritten)
+	// Warm write bar.
+	warmWriteID := ident.StringID("bar")
+	now := time.Now()
+	_, wasWritten, err = shard.WriteTagged(ctx, warmWriteID,
+		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
+		now, 1.0, xtime.Second, nil, series.WriteOptions{})
+	assert.NoError(t, err)
+	assert.True(t, wasWritten)
+
+	ensureIndexedFn := func(t *testing.T, id ident.ID, blockStart xtime.UnixNano) {
+		for {
+			entry, _, err := shard.tryRetrieveWritableSeries(id)
+			assert.NoError(t, err)
+			if entry != nil {
+				// We take a ref when we retrieve the entry so we need to dec here.
+				entry.DecrementReaderWriterCount()
+				if !entry.NeedsIndexUpdate(blockStart) {
+					break
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	// Make sure we've written our cold data first.
+	ensureIndexedFn(t, coldWriteID, writeBlockStart)
+	// Make sure we've written our warm data next.
+	ensureIndexedFn(t, warmWriteID, xtime.ToUnixNano(now.Truncate(indexBlockSize)))
+	assert.Len(t, indexWrites, 1)
+	assert.Equal(t, indexWrites[0].ID, warmWriteID.Bytes())
+
+	// Make sure the ref counts are correct.
+	entryFn := func(entry *lookup.Entry) bool {
+		// forEachShardEntry takes a ref so we make sure that we have only have 1
+		// outstanding ref for each shard entry.
+		assert.Equal(t, int32(1), entry.ReaderWriterCount())
+		return true
+	}
+	shard.forEachShardEntry(entryFn)
 }
 
 // TODO(prateek): wire tests above to use the field `ts`

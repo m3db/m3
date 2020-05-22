@@ -628,19 +628,20 @@ func (s *m3storage) Write(
 	var (
 		// TODO: Pool this once an ident pool is setup. We will have
 		// to stop calling NoFinalize() below if we do that.
-		idBuf = query.Tags.ID()
-		id    = ident.BytesID(idBuf)
+		tags       = query.Tags()
+		datapoints = query.Datapoints()
+		idBuf      = tags.ID()
+		id         = ident.BytesID(idBuf)
 	)
 	// Set id to NoFinalize to avoid cloning it in write operations
 	id.NoFinalize()
-	tagIterator := storage.TagsToIdentTagIterator(query.Tags)
+	tagIterator := storage.TagsToIdentTagIterator(tags)
 
-	if len(query.Datapoints) == 1 {
+	if len(datapoints) == 1 {
 		// Special case single datapoint because it is common and we
 		// can avoid the overhead of a waitgroup, goroutine, multierr,
 		// iterator duplication etc.
-		return s.writeSingle(
-			ctx, query, query.Datapoints[0], id, tagIterator)
+		return s.writeSingle(ctx, query, datapoints[0], id, tagIterator)
 	}
 
 	var (
@@ -648,7 +649,7 @@ func (s *m3storage) Write(
 		multiErr syncMultiErrs
 	)
 
-	for _, datapoint := range query.Datapoints {
+	for _, datapoint := range datapoints {
 		tagIter := tagIterator.Duplicate()
 		// capture var
 		datapoint := datapoint
@@ -687,7 +688,7 @@ func (s *m3storage) writeSingle(
 		err       error
 	)
 
-	attributes := query.Attributes
+	attributes := query.Attributes()
 	switch attributes.MetricsType {
 	case storage.UnaggregatedMetricsType:
 		namespace = s.clusters.UnaggregatedClusterNamespace()
@@ -714,5 +715,5 @@ func (s *m3storage) writeSingle(
 	namespaceID := namespace.NamespaceID()
 	session := namespace.Session()
 	return session.WriteTagged(namespaceID, identID, iterator,
-		datapoint.Timestamp, datapoint.Value, query.Unit, query.Annotation)
+		datapoint.Timestamp, datapoint.Value, query.Unit(), query.Annotation())
 }

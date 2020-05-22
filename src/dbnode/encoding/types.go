@@ -65,6 +65,11 @@ type Encoder interface {
 	// an error is returned.
 	LastEncoded() (ts.Datapoint, error)
 
+	// LastAnnotation returns the last encoded datapoint, useful for
+	// de-duplicating encoded values. If there are no previously encoded values
+	// an error is returned.
+	LastAnnotation() (ts.Annotation, error)
+
 	// Len returns the length of the encoded stream as returned by a call to Stream().
 	Len() int
 

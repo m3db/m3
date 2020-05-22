@@ -364,7 +364,10 @@ func newDatabaseNamespace(
 			metadata.ID().String(), err)
 	}
 	n.schemaListener = sl
-	n.initShards(nopts.BootstrapEnabled())
+	n.assignShardSet(shardSet, assignShardSetOptions{
+		needsBootstrap:    nopts.BootstrapEnabled(),
+		initialAssignment: true,
+	})
 	go n.reportStatusLoop(opts.InstrumentOptions().ReportInterval())
 
 	return n, nil
@@ -457,6 +460,21 @@ func (n *dbNamespace) Shards() []Shard {
 }
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
+	n.assignShardSet(shardSet, assignShardSetOptions{
+		needsBootstrap:    n.nopts.BootstrapEnabled(),
+		initialAssignment: false,
+	})
+}
+
+type assignShardSetOptions struct {
+	needsBootstrap    bool
+	initialAssignment bool
+}
+
+func (n *dbNamespace) assignShardSet(
+	shardSet sharding.ShardSet,
+	opts assignShardSetOptions,
+) {
 	var (
 		incoming = make(map[uint32]struct{}, len(shardSet.All()))
 		existing []databaseShard
@@ -480,19 +498,35 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	n.shardSet = shardSet
 	n.shards = make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range n.shardSet.AllIDs() {
-		if int(shard) < len(existing) && existing[shard] != nil {
+		// We create shards if its an initial assignment or if its not an initial assignment
+		// and the shard doesn't already exist.
+		if !opts.initialAssignment && int(shard) < len(existing) && existing[shard] != nil {
 			n.shards[shard] = existing[shard]
-		} else {
-			bootstrapEnabled := n.nopts.BootstrapEnabled()
-			n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
-				bootstrapEnabled, n.opts, n.seriesOpts)
+			continue
+		}
+
+		// Otherwise it's the initial assignment or there isn't an existing
+		// shard created for this shard ID.
+		n.shards[shard] = newDatabaseShard(metadata, shard, n.blockRetriever,
+			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
+			opts.needsBootstrap, n.opts, n.seriesOpts)
+		// NB(bodu): We only record shard add metrics for shards created in non
+		// initial assignments.
+		if !opts.initialAssignment {
 			n.metrics.shards.add.Inc(1)
 		}
 	}
+
 	if idx := n.reverseIndex; idx != nil {
 		idx.AssignShardSet(shardSet)
 	}
+	if br := n.blockRetriever; br != nil {
+		br.AssignShardSet(shardSet)
+	}
+	if mgr := n.namespaceReaderMgr; mgr != nil {
+		mgr.assignShardSet(shardSet)
+	}
+
 	n.Unlock()
 	n.closeShards(closing, false)
 }
@@ -1142,6 +1176,21 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		return err
 	}
 
+	// NB(bodu): The in-mem index will lag behind the TSDB in terms of new series writes. For a period of
+	// time between when we rotate out the active cold mutable index segments (happens here) and when
+	// we actually cold flush the data to disk we will be making writes to the newly active mutable seg.
+	// This means that some series can live doubly in-mem and loaded from disk until the next cold flush
+	// where they will be evicted from the in-mem index.
+	var (
+		onColdFlushDone OnColdFlushDone
+	)
+	if n.reverseIndex != nil {
+		onColdFlushDone, err = n.reverseIndex.ColdFlush(shards)
+		if err != nil {
+			return err
+		}
+	}
+
 	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
 	if err != nil {
 		return err
@@ -1158,6 +1207,9 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 
 	if err := onColdFlushNs.Done(); err != nil {
 		multiErr = multiErr.Add(err)
+	}
+	if onColdFlushDone != nil {
+		multiErr = multiErr.Add(onColdFlushDone())
 	}
 
 	// TODO: Don't write checkpoints for shards until this time,
@@ -1187,7 +1239,7 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 	}
 
 	shards := n.OwnedShards()
-	err := n.reverseIndex.Flush(flush, shards)
+	err := n.reverseIndex.WarmFlush(flush, shards)
 	n.metrics.flushIndex.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
@@ -1295,7 +1347,10 @@ func (n *dbNamespace) Truncate() (int64, error) {
 	// namespace, which means the memory will be reclaimed the next time GC kicks in and returns the
 	// reclaimed memory to the OS. In the future, we might investigate whether it's worth returning
 	// the pooled objects to the pools if the pool is low and needs replenishing.
-	n.initShards(false)
+	n.assignShardSet(n.shardSet, assignShardSetOptions{
+		needsBootstrap:    false,
+		initialAssignment: true,
+	})
 
 	// NB(xichen): possibly also clean up disk files and force a GC here to reclaim memory immediately
 	return totalNumSeries, nil
@@ -1457,19 +1512,6 @@ func (n *dbNamespace) readableShardAtWithRLock(shardID uint32) (databaseShard, e
 		return nil, xerrors.NewRetryableError(errShardNotBootstrappedToRead)
 	}
 	return shard, nil
-}
-
-func (n *dbNamespace) initShards(needBootstrap bool) {
-	n.Lock()
-	shards := n.shardSet.AllIDs()
-	dbShards := make([]databaseShard, n.shardSet.Max()+1)
-	for _, shard := range shards {
-		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
-			needBootstrap, n.opts, n.seriesOpts)
-	}
-	n.shards = dbShards
-	n.Unlock()
 }
 
 func (n *dbNamespace) Close() error {

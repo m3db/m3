@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -125,7 +126,10 @@ func NewBlockRetriever(
 	}, nil
 }
 
-func (r *blockRetriever) Open(ns namespace.Metadata) error {
+func (r *blockRetriever) Open(
+	ns namespace.Metadata,
+	shardSet sharding.ShardSet,
+) error {
 	r.Lock()
 	defer r.Unlock()
 
@@ -134,7 +138,7 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 	}
 
 	seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts, r.opts)
-	if err := seekerMgr.Open(ns); err != nil {
+	if err := seekerMgr.Open(ns, shardSet); err != nil {
 		return err
 	}
 
@@ -166,6 +170,17 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 	// this is fine, it just means that the Retriever could be closed while a
 	// call to CacheShardIndices is still outstanding.
 	return seekerMgr.CacheShardIndices(shards)
+}
+
+func (r *blockRetriever) AssignShardSet(shardSet sharding.ShardSet) {
+	// NB(bodu): Block retriever will always be open before calling this method.
+	// But have this check anyways to be safe.
+	r.RLock()
+	defer r.RUnlock()
+	if r.status != blockRetrieverOpen {
+		return
+	}
+	r.seekerMgr.AssignShardSet(shardSet)
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
