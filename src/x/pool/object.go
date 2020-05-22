@@ -24,6 +24,7 @@ import (
 	"errors"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -44,9 +45,11 @@ const _emitMetricsRate = 2 * time.Second
 type poolShard struct {
 	mtx sync.Mutex
 	// removing false sharing speeds up pool microbenchmarks by up to 30% for contended cases
-	_      cpu.CacheLinePad
-	values []interface{}
-	_      cpu.CacheLinePad
+	_         cpu.CacheLinePad
+	values    []interface{}
+	_         cpu.CacheLinePad
+	refilling int32
+	_         cpu.CacheLinePad
 }
 
 type objectPool struct {
@@ -133,9 +136,11 @@ func (p *objectPool) Init(alloc Allocator) {
 // Get returns an object from the pool
 func (p *objectPool) Get() interface{} {
 	var (
-		shardID = FastRandn(p.shardCount)
-		shard   = &p.shards[shardID]
-		value   interface{}
+		shardID       = FastRandn(p.shardCount)
+		shard         = &p.shards[shardID]
+		value         interface{}
+		needAlloc     bool
+		countEstimate int
 	)
 
 	shard.mtx.Lock()
@@ -149,14 +154,38 @@ func (p *objectPool) Get() interface{} {
 		if num == 0 {
 			p.metrics.getOnEmpty.Inc(1)
 		}
-		for len(shard.values) < p.refillHighWatermark {
-			shard.values = append(shard.values, p.alloc())
-		}
-		value = p.alloc()
+		needAlloc = true
+		countEstimate = p.refillHighWatermark - len(shard.values)
 	}
 	shard.mtx.Unlock()
 
+	if needAlloc {
+		if countEstimate > 0 {
+			p.refill(shard, countEstimate)
+		}
+		return p.alloc()
+	}
 	return value
+}
+
+func (p *objectPool) refill(shard *poolShard, countEstimate int) {
+	if !atomic.CompareAndSwapInt32(&shard.refilling, 0, 1) {
+		return // abort before expensive lock if already refilling
+	}
+
+	v := make([]interface{}, 0, countEstimate)
+	for i := 0; i < countEstimate; i++ {
+		v = append(v, p.alloc())
+	}
+
+	shard.mtx.Lock()
+	var j = p.refillHighWatermark - len(shard.values)
+	if countEstimate <= j {
+		j = countEstimate
+	}
+	shard.values = append(shard.values, v[:j]...)
+	shard.mtx.Unlock()
+	atomic.StoreInt32(&shard.refilling, 0)
 }
 
 // Put puts object back into the object pool
