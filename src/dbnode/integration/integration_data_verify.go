@@ -73,7 +73,7 @@ func toDatapoints(fetched *rpc.FetchResult_) []generate.TestValue {
 
 func verifySeriesMapForRange(
 	t *testing.T,
-	ts *testSetup,
+	ts TestSetup,
 	start, end time.Time,
 	namespace ident.ID,
 	input generate.SeriesBlock,
@@ -95,7 +95,7 @@ func verifySeriesMapForRange(
 		req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
 		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
-		fetched, err := ts.fetch(req)
+		fetched, err := ts.Fetch(req)
 
 		if !assert.NoError(t, err) {
 			return false
@@ -128,13 +128,13 @@ func verifySeriesMapForRange(
 		return false
 	}
 	for i, series := range actual {
-		if ts.assertEqual == nil {
+		if ts.ShouldBeEqual() {
 			if !assert.Equal(t, expected[i], series) {
 				return false
 			}
 		} else {
 			assert.Equal(t, expected[i].ID, series.ID)
-			if !ts.assertEqual(t, expected[i].Data, series.Data) {
+			if !ts.AssertEqual(t, expected[i].Data, series.Data) {
 				return false
 			}
 		}
@@ -143,7 +143,7 @@ func verifySeriesMapForRange(
 	// Now check the metadata of all the series match
 	ctx := context.NewContext()
 	defer ctx.Close()
-	for _, shard := range ts.db.ShardSet().AllIDs() {
+	for _, shard := range ts.DB().ShardSet().AllIDs() {
 		var (
 			opts      block.FetchBlocksMetadataOptions
 			pageToken storage.PageToken
@@ -157,7 +157,7 @@ func verifySeriesMapForRange(
 				break
 			}
 
-			results, nextPageToken, err := ts.db.FetchBlocksMetadataV2(ctx,
+			results, nextPageToken, err := ts.DB().FetchBlocksMetadataV2(ctx,
 				namespace, shard, start, end, 4096, pageToken, opts)
 			assert.NoError(t, err)
 
@@ -197,11 +197,12 @@ func verifySeriesMapForRange(
 						entry += tag.Name.String() + "=" + tag.Value.String()
 						actual += entry
 					}
-					ts.logger.Error("series does not match expected tags",
-						zap.String("id", id),
-						zap.String("expectedTags", expected),
-						zap.String("actualTags", actual),
-					)
+					ts.StorageOpts().InstrumentOptions().Logger().
+						Error("series does not match expected tags",
+							zap.String("id", id),
+							zap.String("expectedTags", expected),
+							zap.String("actualTags", actual),
+						)
 				}
 
 				if !assert.True(t, tagMatcher.Matches(actualTagsIter)) {
@@ -221,7 +222,7 @@ func containsSeries(ts *testSetup, namespace, seriesID ident.ID, start, end time
 	req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
 	req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 	req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
-	fetched, err := ts.fetch(req)
+	fetched, err := ts.Fetch(req)
 	return len(fetched) != 0, err
 }
 
@@ -270,11 +271,11 @@ func writeVerifyDebugOutput(
 
 func verifySeriesMaps(
 	t *testing.T,
-	ts *testSetup,
+	ts TestSetup,
 	namespace ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) bool {
-	debugFilePathPrefix := ts.opts.VerifySeriesDebugFilePathPrefix()
+	debugFilePathPrefix := ts.Opts().VerifySeriesDebugFilePathPrefix()
 	expectedDebugFilePath, ok := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-expected.log", namespace.String()))
 	if !ok {
 		return false
@@ -284,7 +285,7 @@ func verifySeriesMaps(
 		return false
 	}
 
-	nsMetadata, ok := ts.db.Namespace(namespace)
+	nsMetadata, ok := ts.DB().Namespace(namespace)
 	if !assert.True(t, ok) {
 		return false
 	}

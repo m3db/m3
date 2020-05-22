@@ -1,5 +1,3 @@
-// +build integration
-
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -83,9 +81,9 @@ func assertProtoDataEqual(t *testing.T, expected, actual []generate.TestValue) b
 }
 
 func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig generate.UpdateBlockConfig) {
-	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
-	}
+	// if testing.Short() {
+	// 	t.SkipNow() // Just skip if we're doing a short run
+	// }
 	// Test setup
 	testOpts := newTestOptions(t).
 		SetTickMinimumInterval(time.Second).
@@ -96,11 +94,11 @@ func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig g
 	}
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	// Input data setup
 	blockSize := namespace.NewOptions().RetentionOptions().BlockSize()
-	now := testSetup.getNowFn()
+	now := testSetup.NowFn()()
 	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
@@ -110,30 +108,30 @@ func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig g
 	}
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("round trip test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 
 	// Write test data
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	for _, input := range inputData {
-		testSetup.setNowFn(input.Start)
+		testSetup.SetNowFn(input.Start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
-		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
+		require.NoError(t, testSetup.WriteBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
-	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	testSetup.sleepFor10xTickMinimumInterval()
+	testSetup.SetNowFn(testSetup.NowFn()().Add(blockSize * 2))
+	testSetup.SleepFor10xTickMinimumInterval()
 
 	// Verify in-memory data match what we've written
 	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
