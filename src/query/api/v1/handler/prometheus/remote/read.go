@@ -174,6 +174,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		handleroptions.AddWarningHeaders(w, readResult.Meta)
+
 		err = json.NewEncoder(w).Encode(result)
 	default:
 		err = WriteSnappyCompressed(w, readResult, logger)
