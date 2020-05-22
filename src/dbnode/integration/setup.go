@@ -135,14 +135,30 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
-type storageOption func(storage.Options) storage.Options
+// TestSetup is a type setup.
+type TestSetup interface {
+	topology.MapProvider
 
-func newTestSetup(
-	t *testing.T,
-	opts testOptions,
-	fsOpts fs.Options,
-	storageOptFns ...storageOption,
-) (*testSetup, error) {
+	Opts() testOptions
+	AssertEqual(*testing.T, []generate.TestValue, []generate.TestValue) bool
+	DB() cluster.Database
+	TopologyInitializer() topology.Initializer
+	Fetch(req *rpc.FetchRequest) ([]generate.TestValue, error)
+	StorageOpts() storage.Options
+	SetStorageOpts(storage.Options)
+	Origin() topology.Host
+	ServerIsBootstrapped() bool
+	StopServer() error
+	StartServer() error
+	NowFn() clock.NowFn
+	SetNowFn(time.Time)
+	Close()
+	WriteBatch(ident.ID, generate.SeriesBlock) error
+	ShouldBeEqual() bool
+	SleepFor10xTickMinimumInterval()
+}
+
+func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (TestSetup, error) {
 	if opts == nil {
 		opts = newTestOptions(t)
 	}
@@ -479,6 +495,45 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 	// otherwise, we are guessing
 	return guess, true
 }
+func (ts *testSetup) ShouldBeEqual() bool {
+	return ts.assertEqual == nil
+}
+
+func (ts *testSetup) AssertEqual(t *testing.T, a, b []generate.TestValue) bool {
+	return ts.assertEqual(t, a, b)
+}
+
+func (ts *testSetup) DB() cluster.Database {
+	return ts.db
+}
+
+func (ts *testSetup) NowFn() clock.NowFn {
+	return ts.getNowFn
+}
+
+func (ts *testSetup) SetNowFn(t time.Time) {
+	ts.setNowFn(t)
+}
+
+func (ts *testSetup) Opts() testOptions {
+	return ts.opts
+}
+
+func (ts *testSetup) Origin() topology.Host {
+	return ts.origin
+}
+
+func (ts *testSetup) StorageOpts() storage.Options {
+	return ts.storageOpts
+}
+
+func (ts *testSetup) SetStorageOpts(opts storage.Options) {
+	ts.storageOpts = opts
+}
+
+func (ts *testSetup) TopologyInitializer() topology.Initializer {
+	return ts.topoInit
+}
 
 func (ts *testSetup) namespaceMetadataOrFail(id ident.ID) namespace.Metadata {
 	for _, md := range ts.namespaces {
@@ -509,36 +564,36 @@ func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options 
 		SetEncoderPool(storageOpts.EncoderPool())
 }
 
-func (ts *testSetup) serverIsBootstrapped() bool {
+func (ts *testSetup) ServerIsBootstrapped() bool {
 	resp, err := ts.health()
 	return err == nil && resp.Bootstrapped
 }
 
-func (ts *testSetup) serverIsUp() bool {
+func (ts *testSetup) ServerIsUp() bool {
 	_, err := ts.health()
 	return err == nil
 }
 
-func (ts *testSetup) serverIsDown() bool {
-	return !ts.serverIsUp()
+func (ts *testSetup) ServerIsDown() bool {
+	return !ts.ServerIsUp()
 }
 
 func (ts *testSetup) waitUntilServerIsBootstrapped() error {
-	if waitUntil(ts.serverIsBootstrapped, ts.opts.ServerStateChangeTimeout()) {
+	if waitUntil(ts.ServerIsBootstrapped, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStartTimedOut
 }
 
 func (ts *testSetup) waitUntilServerIsUp() error {
-	if waitUntil(ts.serverIsUp, ts.opts.ServerStateChangeTimeout()) {
+	if waitUntil(ts.ServerIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStopTimedOut
 }
 
 func (ts *testSetup) waitUntilServerIsDown() error {
-	if waitUntil(ts.serverIsDown, ts.opts.ServerStateChangeTimeout()) {
+	if waitUntil(ts.ServerIsDown, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStopTimedOut
@@ -548,7 +603,7 @@ func (ts *testSetup) startServerDontWaitBootstrap() error {
 	return ts.startServerBase(false)
 }
 
-func (ts *testSetup) startServer() error {
+func (ts *testSetup) StartServer() error {
 	return ts.startServerBase(true)
 }
 
@@ -618,7 +673,7 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 	return err
 }
 
-func (ts *testSetup) stopServer() error {
+func (ts *testSetup) StopServer() error {
 	ts.doneCh <- struct{}{}
 
 	if ts.m3dbClient.DefaultSessionActive() {
@@ -641,7 +696,7 @@ func (ts *testSetup) stopServer() error {
 	return nil
 }
 
-func (ts *testSetup) writeBatch(namespace ident.ID, seriesList generate.SeriesBlock) error {
+func (ts *testSetup) WriteBatch(namespace ident.ID, seriesList generate.SeriesBlock) error {
 	if ts.opts.UseTChannelClientForWriting() {
 		return ts.tchannelClient.TChannelClientWriteBatch(
 			ts.opts.WriteRequestTimeout(), namespace, seriesList)
@@ -649,7 +704,7 @@ func (ts *testSetup) writeBatch(namespace ident.ID, seriesList generate.SeriesBl
 	return m3dbClientWriteBatch(ts.m3dbClient, ts.workerPool, namespace, seriesList)
 }
 
-func (ts *testSetup) fetch(req *rpc.FetchRequest) ([]generate.TestValue, error) {
+func (ts *testSetup) Fetch(req *rpc.FetchRequest) ([]generate.TestValue, error) {
 	if ts.opts.UseTChannelClientForReading() {
 		fetched, err := ts.tchannelClient.TChannelClientFetch(ts.opts.ReadRequestTimeout(), req)
 		if err != nil {
@@ -672,7 +727,7 @@ func (ts *testSetup) health() (*rpc.NodeHealthResult_, error) {
 	return ts.tchannelClient.TChannelClientHealth(5 * time.Second)
 }
 
-func (ts *testSetup) close() {
+func (ts *testSetup) Close() {
 	if ts.channel != nil {
 		ts.channel.Close()
 	}
@@ -692,7 +747,7 @@ func (ts *testSetup) mustSetTickMinimumInterval(tickMinInterval time.Duration) {
 }
 
 // convenience wrapper used to ensure a tick occurs
-func (ts *testSetup) sleepFor10xTickMinimumInterval() {
+func (ts *testSetup) SleepFor10xTickMinimumInterval() {
 	// Check the runtime options manager instead of relying on ts.opts
 	// because the tick interval can change at runtime.
 	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
@@ -809,9 +864,9 @@ func newClients(
 	return adminClient, verificationAdminClient, nil
 }
 
-type testSetups []*testSetup
+type testSetups []TestSetup
 
-func (ts testSetups) parallel(fn func(s *testSetup)) {
+func (ts testSetups) parallel(fn func(s TestSetup)) {
 	var wg sync.WaitGroup
 	for _, setup := range ts {
 		s := setup
@@ -878,9 +933,9 @@ func newNodes(
 
 	nodeClose := func() { // Clean up running servers at end of test
 		log.Debug("servers closing")
-		nodes.parallel(func(s *testSetup) {
-			if s.serverIsBootstrapped() {
-				require.NoError(t, s.stopServer())
+		nodes.parallel(func(s TestSetup) {
+			if s.ServerIsBootstrapped() {
+				require.NoError(t, s.StopServer())
 			}
 		})
 		closeFn()

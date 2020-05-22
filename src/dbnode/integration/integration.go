@@ -142,7 +142,7 @@ func newDefaultBootstrappableTestSetups(
 ) (testSetups, closeFn) {
 	var (
 		replicas        = len(setupOpts)
-		setups          []*testSetup
+		setups          []TestSetup
 		cleanupFns      []func()
 		cleanupFnsMutex sync.RWMutex
 
@@ -208,9 +208,9 @@ func newDefaultBootstrappableTestSetups(
 
 		setup, err := newTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
-		topologyInitializer = setup.topoInit
+		topologyInitializer = setup.TopologyInitializer()
 
-		instrumentOpts := setup.storageOpts.InstrumentOptions()
+		instrumentOpts := setup.StorageOpts().InstrumentOptions()
 		logger := instrumentOpts.Logger()
 		logger = logger.With(zap.Int("instance", instance))
 		instrumentOpts = instrumentOpts.SetLogger(logger)
@@ -218,10 +218,10 @@ func newDefaultBootstrappableTestSetups(
 			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
 			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
 		}
-		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
+		setup.SetStorageOpts(setup.StorageOpts().SetInstrumentOptions(instrumentOpts))
 
 		var (
-			bsOpts            = newDefaulTestResultOptions(setup.storageOpts)
+			bsOpts            = newDefaulTestResultOptions(setup.StorageOpts())
 			finalBootstrapper bootstrap.BootstrapperProvider
 
 			adminOpts = client.NewAdminOptions().
@@ -257,11 +257,11 @@ func newDefaultBootstrappableTestSetups(
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 		adminClient := newMultiAddrAdminClient(
 			t, adminOpts, topologyInitializer, origin, instrumentOpts)
-		storageIdxOpts := setup.storageOpts.IndexOptions()
-		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+		storageIdxOpts := setup.StorageOpts().IndexOptions()
+		fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 		if usingPeersBootstrapper {
 			var (
-				runtimeOptsMgr = setup.storageOpts.RuntimeOptionsManager()
+				runtimeOptsMgr = setup.StorageOpts().RuntimeOptionsManager()
 				runtimeOpts    = runtimeOptsMgr.Get().
 						SetClientBootstrapConsistencyLevel(bootstrapConsistencyLevel)
 			)
@@ -274,10 +274,11 @@ func newDefaultBootstrappableTestSetups(
 				SetFilesystemOptions(fsOpts).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
-				SetPersistManager(setup.storageOpts.PersistManager()).
+				SetDatabaseBlockRetrieverManager(setup.StorageOpts().DatabaseBlockRetrieverManager()).
+				SetPersistManager(setup.StorageOpts().PersistManager()).
 				SetCompactor(newCompactor(t, storageIdxOpts)).
 				SetRuntimeOptionsManager(runtimeOptsMgr).
-				SetContextPool(setup.storageOpts.ContextPool())
+				SetContextPool(setup.StorageOpts().ContextPool())
 
 			finalBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, finalBootstrapper)
 			require.NoError(t, err)
@@ -290,6 +291,7 @@ func newDefaultBootstrappableTestSetups(
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
+			SetDatabaseBlockRetrieverManager(setup.StorageOpts().DatabaseBlockRetrieverManager()).
 			SetCompactor(newCompactor(t, storageIdxOpts)).
 			SetPersistManager(persistMgr)
 
@@ -298,28 +300,28 @@ func newDefaultBootstrappableTestSetups(
 
 		processOpts := bootstrap.NewProcessOptions().
 			SetTopologyMapProvider(setup).
-			SetOrigin(setup.origin)
+			SetOrigin(setup.Origin())
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)
 
-		setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(provider)
+		setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(provider))
 
 		if enableRepairs {
-			setup.storageOpts = setup.storageOpts.
+			setup.SetStorageOpts(setup.StorageOpts().
 				SetRepairEnabled(true).
 				SetRepairOptions(
-					setup.storageOpts.RepairOptions().
+					setup.StorageOpts().RepairOptions().
 						SetRepairThrottle(time.Millisecond).
 						SetRepairCheckInterval(time.Millisecond).
 						SetAdminClients([]client.AdminClient{adminClient}).
 						SetDebugShadowComparisonsPercentage(1.0).
 						// Avoid log spam.
-						SetDebugShadowComparisonsEnabled(false))
+						SetDebugShadowComparisonsEnabled(false)))
 		}
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {
-			setup.close()
+			setup.Close()
 		})
 	}
 
