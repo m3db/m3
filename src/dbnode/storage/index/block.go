@@ -328,6 +328,13 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Add cold mutable segments.
+	for _, coldSeg := range b.coldMutableSegments {
+		readers, err = coldSeg.AddReaders(readers)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// Loop over the segments associated to shard time ranges.
 	if err := b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
