@@ -203,6 +203,7 @@ type ResultOptions struct {
 // QueryConfiguration is the query configuration.
 type QueryConfiguration struct {
 	Timeout *time.Duration `yaml:"timeout"`
+	DefaultEngine string `yaml:"defaultEngine"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
