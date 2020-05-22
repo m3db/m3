@@ -138,7 +138,6 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetIndexOptions(storageIdxOpts).
-		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 		SetPersistManager(persistMgr).
 		SetCompactor(newCompactor(t, storageIdxOpts))
 	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)

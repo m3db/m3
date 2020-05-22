@@ -56,6 +56,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -98,6 +99,7 @@ type testSetup struct {
 	schemaReg namespace.SchemaRegistry
 
 	logger *zap.Logger
+	scope  tally.TestScope
 
 	db                cluster.Database
 	storageOpts       storage.Options
@@ -133,7 +135,7 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
-// TestSetup is a type setup.
+// TestSetup is a test setup.
 type TestSetup interface {
 	topology.MapProvider
 
@@ -156,7 +158,14 @@ type TestSetup interface {
 	SleepFor10xTickMinimumInterval()
 }
 
-func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (TestSetup, error) {
+type storageOption func(storage.Options) storage.Options
+
+func newTestSetup(
+	t *testing.T,
+	opts testOptions,
+	fsOpts fs.Options,
+	storageOptFns ...storageOption,
+) (*testSetup, error) {
 	if opts == nil {
 		opts = newTestOptions(t)
 	}
@@ -211,6 +220,10 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (TestSetup,
 		storageOpts = storageOpts.SetInstrumentOptions(
 			storageOpts.InstrumentOptions().SetLogger(logger))
 	}
+
+	scope := tally.NewTestScope("", nil)
+	storageOpts = storageOpts.SetInstrumentOptions(
+		storageOpts.InstrumentOptions().SetMetricsScope(scope))
 
 	// Use specified series cache policy from environment if set.
 	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))
@@ -369,7 +382,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (TestSetup,
 			// Do not need a block retriever for CacheAll policy
 		default:
 			blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-				func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
+				func(md namespace.Metadata, shardSet sharding.ShardSet) (block.DatabaseBlockRetriever, error) {
 					retrieverOpts := fs.NewBlockRetrieverOptions().
 						SetBlockLeaseManager(blockLeaseManager)
 					retriever, err := fs.NewBlockRetriever(retrieverOpts, fsOpts)
@@ -377,7 +390,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (TestSetup,
 						return nil, err
 					}
 
-					if err := retriever.Open(md); err != nil {
+					if err := retriever.Open(md, shardSet); err != nil {
 						return nil, err
 					}
 					return retriever, nil
@@ -412,11 +425,16 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (TestSetup,
 		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)
 	}
 
+	for _, fn := range storageOptFns {
+		storageOpts = fn(storageOpts)
+	}
+
 	return &testSetup{
 		t:                           t,
 		opts:                        opts,
 		schemaReg:                   schemaReg,
 		logger:                      logger,
+		scope:                       scope,
 		storageOpts:                 storageOpts,
 		blockLeaseManager:           blockLeaseManager,
 		fsOpts:                      fsOpts,

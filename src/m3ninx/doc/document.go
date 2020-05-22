@@ -30,7 +30,8 @@ import (
 
 var (
 	errReservedFieldName = fmt.Errorf("'%s' is a reserved field name", IDReservedFieldName)
-	errEmptyDocument     = errors.New("document cannot be empty")
+	// ErrEmptyDocument is an error for an empty document.
+	ErrEmptyDocument = errors.New("document cannot be empty")
 )
 
 // IDReservedFieldName is the field name reserved for IDs.
@@ -152,7 +153,7 @@ func (d Document) Equal(other Document) bool {
 // Validate returns a bool indicating whether the document is valid.
 func (d Document) Validate() error {
 	if len(d.Fields) == 0 && !d.HasID() {
-		return errEmptyDocument
+		return ErrEmptyDocument
 	}
 
 	for _, f := range d.Fields {

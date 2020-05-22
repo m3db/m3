@@ -904,7 +904,7 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 		)
 		worker.datapointsRead++
 
-		_, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
+		_, _, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
 				SchemaDesc: namespace.namespaceContext.Schema,
 				// NB(r): Make sure this is the series we originally

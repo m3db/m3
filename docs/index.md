@@ -33,7 +33,6 @@ Getting started with M3 is as easy as following one of the How-To guides.
 For support with any issues, questions about M3 or its operation, or to leave any comments, the team can be
 reached in a variety of ways:
 
-* [Slack (main chat channel)](http://bit.ly/m3slack)
-* [Gitter (old chat channel)](https://gitter.im/m3db/Lobby)
+* [Slack](http://bit.ly/m3slack)
 * [Email](https://groups.google.com/forum/#!forum/m3db)
 * [Github issues](https://github.com/m3db/m3/issues)

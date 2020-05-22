@@ -1,4 +1,4 @@
-# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][fossa] [![Gitter chat][gitter-img]][gitter]
+# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][fossa] 
 
 <p align="center"><img src="docs/theme/assets/images/M3-logo.png" alt="M3 Logo" width="256" height="270"></p>
 
@@ -8,24 +8,14 @@ More information:
 
 - [Documentation](https://m3db.github.io/m3/)
 - [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
-- [Slack (primary chat channel)](http://bit.ly/m3slack)
-- [Gitter (deprecated chat channel)](https://gitter.im/m3db/Lobby)
+- [Slack](http://bit.ly/m3slack)
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 - [Twitter](https://twitter.com/m3db_io)
 
 ## Community meetings
 
-M3 contributors and maintainers have monthly (every four weeks) meetings at 11:00 AM (USA Pacific) on Tuesday.
-
-An initial agenda is posted to the [community meeting shared Google doc](https://docs.google.com/document/d/1eGAd2A8FVtiip5wHxHnmSkz7e_qHc9k_4hGI0vUGdHM/edit?usp=sharing) a day before each meeting, and everyone is welcome to suggest additional topics or other agendas.
-
-You can add the following public Google Calendar if you're using Google Calendar (so that any changes are reflected in your own calendar when the invite is updated):
-[https://calendar.google.com/calendar?cid=aWc5YWFxZWw0azFmMnRoZDA2dHBtZzZva2tAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ](https://calendar.google.com/calendar?cid=aWc5YWFxZWw0azFmMnRoZDA2dHBtZzZva2tAZ3JvdXAuY2FsZW5kYXIuZ29vZ2xlLmNvbQ)
-
-For those not using Google Calendar, please download and import the following iCalendar (.ics) files to calendar system for the monthly invite:
-[https://calendar.google.com/calendar/ical/ig9aaqel4k1f2thd06tpmg6okk%40group.calendar.google.com/public/basic.ics](https://calendar.google.com/calendar/ical/ig9aaqel4k1f2thd06tpmg6okk%40group.calendar.google.com/public/basic.ics)
-
-Join Zoom Meeting: [us04web.zoom.us/j/519434268](https://us04web.zoom.us/j/519434268)
+M3 contributors and maintainers have monthly (every four weeks) meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
+[https://www.meetup.com/M3-Community/](https://www.meetup.com/M3-Community/).
 
 ## Test it out
 
@@ -143,5 +133,3 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 [cov]: https://codecov.io/gh/m3db/m3
 [fossa-img]: https://app.fossa.io/api/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3.svg?type=shield
 [fossa]: https://app.fossa.io/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3?ref=badge_shield
-[gitter-img]: https://badges.gitter.im/m3db.png
-[gitter]: https://gitter.im/m3db/Lobby

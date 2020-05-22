@@ -159,7 +159,7 @@ func TestIngestSeries(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 
-	handler := newSeriesLoadHandler(opts)
+	handler := newHTTPSeriesLoadHandler(opts)
 	handler.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusOK, recorder.Code)

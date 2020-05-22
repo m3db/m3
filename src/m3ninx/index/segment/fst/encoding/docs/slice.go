@@ -24,12 +24,15 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 var (
 	errDocNotFound = errors.New("doc not found")
 )
+
+var _ index.DocRetriever = (*SliceReader)(nil)
 
 // SliceReader is a docs slice reader for use with documents
 // stored in memory.
@@ -61,4 +64,16 @@ func (r *SliceReader) Read(id postings.ID) (doc.Document, error) {
 	}
 
 	return r.docs[idx], nil
+}
+
+// Doc implements DocRetriever and reads the document with postings ID.
+func (r *SliceReader) Doc(id postings.ID) (doc.Document, error) {
+	return r.Read(id)
+}
+
+// AllDocs returns a docs iterator.
+func (r *SliceReader) AllDocs() index.IDDocIterator {
+	postingsIter := postings.NewRangeIterator(r.offset,
+		r.offset+postings.ID(r.Len()))
+	return index.NewIDDocIterator(r, postingsIter)
 }

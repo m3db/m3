@@ -62,11 +62,10 @@ type peersSource struct {
 }
 
 type persistenceFlush struct {
-	nsMetadata        namespace.Metadata
-	shard             uint32
-	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
-	shardResult       result.ShardResult
-	timeRange         xtime.Range
+	nsMetadata  namespace.Metadata
+	shard       uint32
+	shardResult result.ShardResult
+	timeRange   xtime.Range
 }
 
 func newPeersSource(opts Options) (bootstrap.Source, error) {
@@ -215,10 +214,9 @@ func (s *peersSource) readData(
 	}
 
 	var (
-		namespace         = nsMetadata.ID()
-		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
-		persistFlush      persist.FlushPreparer
-		shouldPersist     = false
+		namespace     = nsMetadata.ID()
+		persistFlush  persist.FlushPreparer
+		shouldPersist = false
 		// TODO(bodu): We should migrate to series.CacheLRU only.
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
@@ -227,23 +225,14 @@ func (s *peersSource) readData(
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
-		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
 
 		// Neither of these should ever happen
-		if seriesCachePolicy != series.CacheAll && retrieverMgr == nil {
-			s.log.Fatal("tried to perform a bootstrap with persistence without retriever manager")
-		}
 		if seriesCachePolicy != series.CacheAll && persistManager == nil {
 			s.log.Fatal("tried to perform a bootstrap with persistence without persist manager")
 		}
 
 		s.log.Info("peers bootstrapper resolving block retriever", zap.Stringer("namespace", namespace))
-
-		r, err := retrieverMgr.Retriever(nsMetadata)
-		if err != nil {
-			return nil, err
-		}
 
 		persist, err := persistManager.StartFlushPersist()
 		if err != nil {
@@ -253,7 +242,6 @@ func (s *peersSource) readData(
 		defer persist.DoneFlush()
 
 		shouldPersist = true
-		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
 		persistFlush = persist
 	}
 
@@ -298,7 +286,7 @@ func (s *peersSource) readData(
 			defer wg.Done()
 			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata, session,
 				accumulator, resultOpts, result, &resultLock, shouldPersist,
-				persistenceQueue, shardRetrieverMgr, blockSize)
+				persistenceQueue, blockSize)
 		})
 	}
 
@@ -329,7 +317,7 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 	// at a time as shard results are gathered.
 	for flush := range persistenceQueue {
 		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
-			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
+			flush.shardResult, flush.timeRange)
 		if err == nil {
 			continue
 		}
@@ -368,7 +356,6 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	lock *sync.Mutex,
 	shouldPersist bool,
 	persistenceQueue chan persistenceFlush,
-	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	blockSize time.Duration,
 ) {
 	it := ranges.Iter()
@@ -396,11 +383,10 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 
 			if shouldPersist {
 				persistenceQueue <- persistenceFlush{
-					nsMetadata:        nsMetadata,
-					shard:             shard,
-					shardRetrieverMgr: shardRetrieverMgr,
-					shardResult:       shardResult,
-					timeRange:         xtime.Range{Start: blockStart, End: blockEnd},
+					nsMetadata:  nsMetadata,
+					shard:       shard,
+					shardResult: shardResult,
+					timeRange:   xtime.Range{Start: blockStart, End: blockEnd},
 				}
 				continue
 			}
@@ -482,7 +468,6 @@ func (s *peersSource) flush(
 	flush persist.FlushPreparer,
 	nsMetadata namespace.Metadata,
 	shard uint32,
-	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
@@ -546,6 +531,10 @@ func (s *peersSource) flush(
 			//    we just peer-bootstrapped because the operator has already made it
 			//    clear that they only want data to be returned if it came from peers
 			//    (they made this decision by turning off the Filesystem bootstrapper).
+			// 3) We have received a shard/block we previously owned. For example, when a
+			//    node was added to this replication group and was later removed.
+			//    Although we take writes while bootstrapping, we do not allow flushes
+			//    so it is safe to delete on disk data.
 			DeleteIfExists: true,
 		}
 		prepared, err := flush.PrepareData(prepareOpts)

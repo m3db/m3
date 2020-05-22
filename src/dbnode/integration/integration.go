@@ -274,8 +274,7 @@ func newDefaultBootstrappableTestSetups(
 				SetFilesystemOptions(fsOpts).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
-				SetDatabaseBlockRetrieverManager(setup.StorageOpts().DatabaseBlockRetrieverManager()).
-				SetPersistManager(setup.StorageOpts().PersistManager()).
+				SetPersistManager(setup.storageOpts.PersistManager()).
 				SetCompactor(newCompactor(t, storageIdxOpts)).
 				SetRuntimeOptionsManager(runtimeOptsMgr).
 				SetContextPool(setup.StorageOpts().ContextPool())
@@ -291,7 +290,6 @@ func newDefaultBootstrappableTestSetups(
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
-			SetDatabaseBlockRetrieverManager(setup.StorageOpts().DatabaseBlockRetrieverManager()).
 			SetCompactor(newCompactor(t, storageIdxOpts)).
 			SetPersistManager(persistMgr)
 
