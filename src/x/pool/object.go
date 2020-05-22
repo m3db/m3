@@ -45,11 +45,13 @@ const _emitMetricsRate = 2 * time.Second
 type poolShard struct {
 	mtx sync.Mutex
 	// removing false sharing speeds up pool microbenchmarks by up to 30% for contended cases
-	_         cpu.CacheLinePad
-	values    []interface{}
-	_         cpu.CacheLinePad
-	refilling int32
-	_         cpu.CacheLinePad
+	_          cpu.CacheLinePad
+	values     []interface{}
+	_          cpu.CacheLinePad
+	refilling  int32
+	_          cpu.CacheLinePad
+	getOnEmpty int64
+	putOnFull  int64
 }
 
 type objectPool struct {
@@ -125,7 +127,7 @@ func (p *objectPool) Init(alloc Allocator) {
 		for {
 			select {
 			case <-ticker.C:
-				p.setGauges()
+				p.emitMetrics()
 			case <-p.done:
 				return
 			}
@@ -152,7 +154,7 @@ func (p *objectPool) Get() interface{} {
 		shard.values = shard.values[:num-1]
 	case num <= p.refillLowWatermark:
 		if num == 0 {
-			p.metrics.getOnEmpty.Inc(1)
+			shard.getOnEmpty++
 		}
 		needAlloc = true
 		countEstimate = p.refillHighWatermark - len(shard.values)
@@ -199,12 +201,12 @@ func (p *objectPool) Put(obj interface{}) {
 	if len(shard.values) < cap(shard.values) {
 		shard.values = append(shard.values, obj)
 	} else {
-		p.metrics.putOnFull.Inc(1)
+		shard.putOnFull++
 	}
 	shard.mtx.Unlock()
 }
 
-func (p *objectPool) setGauges() {
+func (p *objectPool) emitMetrics() {
 	var free, total int
 
 	for i := range p.shards {
@@ -212,6 +214,10 @@ func (p *objectPool) setGauges() {
 		shard.mtx.Lock()
 		free += len(shard.values)
 		total += cap(shard.values)
+		p.metrics.getOnEmpty.Inc(shard.getOnEmpty)
+		shard.getOnEmpty = 0
+		p.metrics.putOnFull.Inc(shard.putOnFull)
+		shard.putOnFull = 0
 		shard.mtx.Unlock()
 	}
 
