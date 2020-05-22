@@ -2175,18 +2175,33 @@ func (mr *MockNamespaceIndexMockRecorder) Tick(c, startTime interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockNamespaceIndex)(nil).Tick), c, startTime)
 }
 
-// Flush mocks base method
-func (m *MockNamespaceIndex) Flush(flush persist.IndexFlush, shards []databaseShard) error {
+// WarmFlush mocks base method
+func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Flush", flush, shards)
+	ret := m.ctrl.Call(m, "WarmFlush", flush, shards)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Flush indicates an expected call of Flush
-func (mr *MockNamespaceIndexMockRecorder) Flush(flush, shards interface{}) *gomock.Call {
+// WarmFlush indicates an expected call of WarmFlush
+func (mr *MockNamespaceIndexMockRecorder) WarmFlush(flush, shards interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockNamespaceIndex)(nil).Flush), flush, shards)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlush), flush, shards)
+}
+
+// ColdFlush mocks base method
+func (m *MockNamespaceIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlush", shards)
+	ret0, _ := ret[0].(OnColdFlushDone)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ColdFlush indicates an expected call of ColdFlush
+func (mr *MockNamespaceIndexMockRecorder) ColdFlush(shards interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).ColdFlush), shards)
 }
 
 // DebugMemorySegments mocks base method
