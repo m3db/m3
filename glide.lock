@@ -645,16 +645,7 @@ imports:
   - internal/datastore
   - internal/log
   - internal/modules
-  - internal/remote_api
-- name: google.golang.org/genproto
-  version: ff3583edef7de132f219f0efc00e097cabcc0ec0
-  subpackages:
-  - googleapis/api/annotations
-  - googleapis/rpc/status
-  - protobuf/api
-  - protobuf/field_mask
-  - protobuf/ptype
-  - protobuf/source_context
+  - internal/remote_api 
 - name: google.golang.org/grpc
   version: 5b3c4e850e90a4cf6a20ebd46c8b32a0a3afcb9e
   subpackages:
