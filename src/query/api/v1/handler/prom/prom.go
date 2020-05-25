@@ -33,15 +33,22 @@ type Options struct {
 	PromQLEngine *promql.Engine
 }
 
-// NewQueryHandler creates a handler to handle PromQL requests.
-func NewQueryHandler(opts Options, hOpts options.HandlerOptions, instant bool) http.Handler {
+// NewReadHandler creates a handler to handle PromQL requests.
+func NewReadHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
 	queryable := prometheus.NewPrometheusQueryable(
 		prometheus.PrometheusOptions{
 			Storage:           hOpts.Storage(),
 			InstrumentOptions: hOpts.InstrumentOpts(),
 		})
-	if instant {
-		return newReadInstantHandler(opts, hOpts, queryable)
-	}
 	return newReadHandler(opts, hOpts, queryable)
+}
+
+// NewReadInstantHandler creates a handler to handle PromQL requests.
+func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
+	queryable := prometheus.NewPrometheusQueryable(
+		prometheus.PrometheusOptions{
+			Storage:           hOpts.Storage(),
+			InstrumentOptions: hOpts.InstrumentOpts(),
+		})
+	return newReadInstantHandler(opts, hOpts, queryable)
 }

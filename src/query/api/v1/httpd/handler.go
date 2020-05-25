@@ -22,16 +22,12 @@ package httpd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
-	"os"
 	"strings"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/zap"
 	"github.com/m3db/m3/src/query/api/experimental/annotated"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/database"
@@ -52,15 +48,15 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/net/http/cors"
-	"github.com/m3db/m3/src/x/tcp"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/prometheus/promql"
-	"github.com/prometheus/prometheus/util/httputil"
-	"go.uber.org/zap/zapcore"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/zap"
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/util/httputil"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -183,8 +179,8 @@ func (h *Handler) RegisterRoutes() error {
 	opts := prom.Options{
 		PromQLEngine: newPromQLEngine(instrumentOpts),
 	}
-	promqlQueryHandler := wrapped(prom.NewQueryHandler(opts, nativeSourceOpts, false))
-	promqlInstantQueryHandler := wrapped(prom.NewQueryHandler(opts, nativeSourceOpts, true))
+	promqlQueryHandler := wrapped(prom.NewReadHandler(opts, nativeSourceOpts))
+	promqlInstantQueryHandler := wrapped(prom.NewReadInstantHandler(opts, nativeSourceOpts))
 	nativePromReadHandler := wrapped(native.NewPromReadHandler(nativeSourceOpts))
 	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(h.options))
 
@@ -431,29 +427,11 @@ func (h *Handler) registerRoutesEndpoint() {
 	}).Methods(http.MethodGet)
 }
 
-func setupPrometheusMetricsHandler(listenAddress string) error {
-	// Setup handler for the prometheus default registry that is used by
-	// the promql engine to emit internal metrics.
-	listener, err := tcp.NewTCPListener(listenAddress, 10*time.Second)
-	if err != nil {
-		return errors.New("error setting up listener")
-	}
-	go func() {
-		if err := http.Serve(listener, nil); err != nil {
-			fmt.Fprintf(os.Stderr, "unable to server promql metrics handlers configuration: %v\n", err)
-			os.Exit(1)
-		}
-	}()
-	http.Handle("/metrics", promhttp.Handler())
-	return nil
-}
-
 func newPromQLEngine(instrumentOpts instrument.Options) *promql.Engine {
 	var (
 		kitLogger = zap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts      = promql.EngineOpts{
-			Logger: log.With(kitLogger, "component", "query engine"),
-			//Reg:    prometheus.DefaultRegisterer,
+			Logger:        log.With(kitLogger, "component", "query engine"),
 			MaxConcurrent: 20,
 			MaxSamples:    50000000,
 			Timeout:       2 * time.Minute,
