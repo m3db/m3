@@ -21,6 +21,7 @@
 package stats
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 )
 
 type testQueryStatsTracker struct {
+	sync.RWMutex
 	QueryStatsValues
 	lookback time.Duration
 }
@@ -36,8 +38,16 @@ type testQueryStatsTracker struct {
 var _ QueryStatsTracker = (*testQueryStatsTracker)(nil)
 
 func (t *testQueryStatsTracker) TrackStats(values QueryStatsValues) error {
+	t.Lock()
+	defer t.Unlock()
 	t.QueryStatsValues = values
 	return nil
+}
+
+func (t *testQueryStatsTracker) StatsValues() QueryStatsValues {
+	t.RLock()
+	defer t.RUnlock()
+	return t.QueryStatsValues
 }
 
 func (t *testQueryStatsTracker) Lookback() time.Duration {
@@ -76,6 +86,7 @@ func TestPeriodicallyResetRecentDocs(t *testing.T) {
 }
 
 func verifyStats(t *testing.T, tracker *testQueryStatsTracker, expectedNew int, expectedRecent int64) {
-	assert.Equal(t, expectedNew, tracker.NewDocs)
-	assert.Equal(t, expectedRecent, tracker.RecentDocs)
+	values := tracker.StatsValues()
+	assert.Equal(t, expectedNew, values.NewDocs)
+	assert.Equal(t, expectedRecent, values.RecentDocs)
 }
