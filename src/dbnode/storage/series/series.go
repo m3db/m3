@@ -288,12 +288,14 @@ func (s *dbSeries) Write(
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts WriteOptions,
-) (bool, error) {
+) (bool, WriteType, error) {
+	var writeType WriteType
 	s.Lock()
+	defer s.Unlock()
 	matchUniqueIndex := wOpts.MatchUniqueIndex
 	if matchUniqueIndex {
 		if s.uniqueIndex == 0 {
-			return false, errSeriesMatchUniqueIndexInvalid
+			return false, writeType, errSeriesMatchUniqueIndexInvalid
 		}
 		if s.uniqueIndex != wOpts.MatchUniqueIndexValue {
 			// NB(r): Match unique index allows for a caller to
@@ -301,13 +303,12 @@ func (s *dbSeries) Write(
 			// later while keeping a direct reference to the series
 			// while the shard and namespace continues to own and manage
 			// the lifecycle of the series.
-			return false, errSeriesMatchUniqueIndexFailed
+			return false, writeType, errSeriesMatchUniqueIndexFailed
 		}
 	}
 
-	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
-	s.Unlock()
-	return wasWritten, err
+	wasWritten, writeType, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
+	return wasWritten, writeType, err
 }
 
 func (s *dbSeries) ReadEncoded(
@@ -327,14 +328,14 @@ func (s *dbSeries) FetchBlocksForColdFlush(
 	start time.Time,
 	version int,
 	nsCtx namespace.Context,
-) ([]xio.BlockReader, error) {
+) (block.FetchBlockResult, error) {
 	// This needs a write lock because the version on underlying buckets need
 	// to be modified.
 	s.Lock()
-	br, err := s.buffer.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
+	result, err := s.buffer.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
 	s.Unlock()
 
-	return br, err
+	return result, err
 }
 
 func (s *dbSeries) FetchBlocks(

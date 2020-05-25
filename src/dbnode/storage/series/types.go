@@ -75,7 +75,7 @@ type DatabaseSeries interface {
 		unit xtime.Unit,
 		annotation []byte,
 		wOpts WriteOptions,
-	) (bool, error)
+	) (bool, WriteType, error)
 
 	// ReadEncoded reads encoded blocks.
 	ReadEncoded(
@@ -99,7 +99,7 @@ type DatabaseSeries interface {
 		start time.Time,
 		version int,
 		nsCtx namespace.Context,
-	) ([]xio.BlockReader, error)
+	) (block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata returns the blocks metadata.
 	FetchBlocksMetadata(

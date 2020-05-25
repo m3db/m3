@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -65,7 +64,6 @@ type options struct {
 	compactor                   *compaction.Compactor
 	bootstrapDataNumProcessors  int
 	bootstrapIndexNumProcessors int
-	blockRetrieverManager       block.DatabaseBlockRetrieverManager
 	runtimeOptsMgr              runtime.OptionsManager
 	identifierPool              ident.Pool
 }
@@ -182,18 +180,6 @@ func (o *options) SetBoostrapIndexNumProcessors(value int) Options {
 
 func (o *options) BoostrapIndexNumProcessors() int {
 	return o.bootstrapIndexNumProcessors
-}
-
-func (o *options) SetDatabaseBlockRetrieverManager(
-	value block.DatabaseBlockRetrieverManager,
-) Options {
-	opts := *o
-	opts.blockRetrieverManager = value
-	return &opts
-}
-
-func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
-	return o.blockRetrieverManager
 }
 
 func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {

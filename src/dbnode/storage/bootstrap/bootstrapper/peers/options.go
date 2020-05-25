@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -59,7 +58,6 @@ type options struct {
 	shardPersistenceConcurrency int
 	persistenceMaxQueueSize     int
 	persistManager              persist.Manager
-	blockRetrieverManager       block.DatabaseBlockRetrieverManager
 	runtimeOptionsManager       m3dbruntime.OptionsManager
 	contextPool                 context.Pool
 	fsOpts                      fs.Options
@@ -171,18 +169,6 @@ func (o *options) SetCompactor(value *compaction.Compactor) Options {
 
 func (o *options) Compactor() *compaction.Compactor {
 	return o.compactor
-}
-
-func (o *options) SetDatabaseBlockRetrieverManager(
-	value block.DatabaseBlockRetrieverManager,
-) Options {
-	opts := *o
-	opts.blockRetrieverManager = value
-	return &opts
-}
-
-func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
-	return o.blockRetrieverManager
 }
 
 func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options {
