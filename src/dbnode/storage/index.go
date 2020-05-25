@@ -805,7 +805,6 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 	var (
 		result                     = namespaceIndexTickResult{}
 		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, startTime)
-		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, startTime.Add(-i.bufferPast))
 	)
 
 	i.state.Lock()
@@ -839,7 +838,7 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 		result.NumTotalDocs += blockTickResult.NumDocs
 
 		// seal any blocks that are sealable
-		if !blockStart.ToTime().After(lastSealableBlockStart) && !block.IsSealed() {
+		if !blockStart.ToTime().After(i.lastSealableBlockStart(startTime)) && !block.IsSealed() {
 			multiErr = multiErr.Add(block.Seal())
 			result.NumBlocksSealed++
 		}
@@ -1565,12 +1564,24 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 		return nil, i.unableToAllocBlockInvariantError(err)
 	}
 
+	// NB(bodu): Use same time barrier as `Tick` to make sealing of cold index blocks consistent.
+	// We need to seal cold blocks write away for cold writes.
+	if !blockStart.After(i.lastSealableBlockStart(i.nowFn())) {
+		if err := block.Seal(); err != nil {
+			return nil, err
+		}
+	}
+
 	// add to tracked blocks map
 	i.state.blocksByTime[blockStartNanos] = block
 
 	// update ordered blockStarts slice, and latestBlock
 	i.updateBlockStartsWithLock()
 	return block, nil
+}
+
+func (i *nsIndex) lastSealableBlockStart(t time.Time) time.Time {
+	return retention.FlushTimeEndForBlockSize(i.blockSize, t.Add(-i.bufferPast))
 }
 
 func (i *nsIndex) updateBlockStartsWithLock() {

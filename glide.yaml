@@ -263,3 +263,6 @@ import:
 
   - package: github.com/twotwotwo/sorts
     version: bf5c1f2b8553dec28372aa6ac5a8bf53a20a4c5b
+
+  - package: github.com/valyala/tcplisten
+    version: ceec8f93295a060cdb565ec25e4ccf17941dbd55
