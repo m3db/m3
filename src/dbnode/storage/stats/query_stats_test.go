@@ -64,12 +64,12 @@ func TestPeriodicallyResetRecentDocs(t *testing.T) {
 
 	queryStats := NewQueryStats(tracker)
 	defer queryStats.Stop()
-	queryStats.Start()
 
 	err := queryStats.Update(1)
 	require.NoError(t, err)
 	verifyStats(t, tracker,  1, 1)
 
+	queryStats.Start()
 	time.Sleep(tracker.lookback * 2)
 
 	verifyStats(t, tracker,  0, 0)
