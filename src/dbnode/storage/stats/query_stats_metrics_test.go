@@ -21,41 +21,38 @@
 package stats
 
 import (
-	"time"
+	"testing"
 
 	"github.com/m3db/m3/src/x/instrument"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
-const defaultLookback = time.Second * 5
+func TestEmitQueryStatsBasedMetrics(t *testing.T) {
+	scope := tally.NewTestScope("", nil)
+	opts := instrument.NewOptions().SetMetricsScope(scope)
 
-// Tracker implementation that emits query stats as metrics.
-type queryStatsMetricsTracker struct {
-	recentDocs tally.Gauge
-	totalDocs  tally.Counter
+	tracker := DefaultQueryStatsTrackerForMetrics(opts)
+
+	err := tracker.TrackStats(QueryStatsValues{RecentDocs: 100, NewDocs: 5})
+	require.NoError(t, err)
+	verifyMetrics(t, scope, 100, 5)
+
+	err = tracker.TrackStats(QueryStatsValues{RecentDocs: 140, NewDocs: 10})
+	require.NoError(t, err)
+	verifyMetrics(t, scope, 140, 15)
 }
 
-var _ QueryStatsTracker = (*queryStatsMetricsTracker)(nil)
+func verifyMetrics(t *testing.T, scope tally.TestScope, expectedRecent float64, expectedTotal int64) {
+	snapshot := scope.Snapshot()
 
-// DefaultQueryStatsTrackerForMetrics provides a tracker
-// implementation that emits query stats as metrics.
-func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTracker {
-	scope := opts.
-		MetricsScope().
-		SubScope("query-stats")
-	return &queryStatsMetricsTracker{
-		recentDocs: scope.Gauge("recent-docs-per-block"),
-		totalDocs:  scope.Counter("total-docs-per-block"),
-	}
-}
+	recent, exists := snapshot.Gauges()["query-stats.recent-docs-per-block+"]
+	assert.True(t, exists)
+	assert.Equal(t, expectedRecent, recent.Value())
 
-func (t *queryStatsMetricsTracker) TrackStats(values QueryStatsValues) error {
-	t.recentDocs.Update(float64(values.RecentDocs))
-	t.totalDocs.Inc(int64(values.NewDocs))
-	return nil
-}
-
-func (t *queryStatsMetricsTracker) Lookback() time.Duration {
-	return defaultLookback
+	total, exists := snapshot.Counters()["query-stats.total-docs-per-block+"]
+	assert.True(t, exists)
+	assert.Equal(t, expectedTotal, total.Value())
 }
