@@ -64,10 +64,10 @@ import (
 )
 
 const (
-	healthURL = "/health"
-	routesURL = "/routes"
-	engineHeaderName = "X-M3-Engine"
-	engineUrlParam = "engine"
+	healthURL        = "/health"
+	routesURL        = "/routes"
+	engineHeaderName = "M3-Engine"
+	engineUrlParam   = "engine"
 )
 
 var (
