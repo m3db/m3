@@ -61,6 +61,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xnet "github.com/m3db/m3/src/x/net"
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -93,6 +94,7 @@ var (
 
 	defaultDownsamplerAndWriterWorkerPoolSize = 1024
 	defaultCarbonIngesterWorkerPoolSize       = 1024
+	defaultPerCPUMultiProcess                 = 0.5
 )
 
 type cleanupFn func() error
@@ -168,7 +170,10 @@ type BackendStorageTransform func(
 func Run(runOpts RunOptions) {
 	rand.Seed(time.Now().UnixNano())
 
-	cfg := runOpts.Config
+	var (
+		cfg          = runOpts.Config
+		listenerOpts = xnet.NewListenerOptions()
+	)
 
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
@@ -181,6 +186,23 @@ func Run(runOpts RunOptions) {
 	defer logger.Sync()
 
 	xconfig.WarnOnDeprecation(cfg, logger)
+
+	if cfg.MultiProcess.Enabled {
+		runResult, err := multiProcessRun(cfg, logger, listenerOpts)
+		if err != nil {
+			logger = logger.With(zap.String("processID", multiProcessProcessID()))
+			logger.Fatal("failed to run", zap.Error(err))
+		}
+		if runResult.isParentCleanExit {
+			// Parent process clean exit.
+			os.Exit(0)
+			return
+		}
+
+		cfg = runResult.cfg
+		logger = runResult.logger
+		listenerOpts = runResult.listenerOpts
+	}
 
 	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
@@ -422,7 +444,7 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	listener, err := net.Listen("tcp", listenAddress)
+	listener, err := listenerOpts.Listen("tcp", listenAddress)
 	if err != nil {
 		logger.Fatal("unable to listen on listen address",
 			zap.String("address", listenAddress),
@@ -456,7 +478,7 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("unable to create m3msg server", zap.Error(err))
 		}
 
-		listener, err := net.Listen("tcp", cfg.Ingest.M3Msg.Server.ListenAddress)
+		listener, err := listenerOpts.Listen("tcp", cfg.Ingest.M3Msg.Server.ListenAddress)
 		if err != nil {
 			logger.Fatal("unable to open m3msg server", zap.Error(err))
 		}
@@ -476,8 +498,8 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
-		server, ok := startCarbonIngestion(cfg.Carbon, instrumentOptions,
-			logger, m3dbClusters, downsamplerAndWriter)
+		server, ok := startCarbonIngestion(cfg.Carbon, listenerOpts,
+			instrumentOptions, logger, m3dbClusters, downsamplerAndWriter)
 		if ok {
 			defer server.Close()
 		}
@@ -955,6 +977,7 @@ func startGRPCServer(
 
 func startCarbonIngestion(
 	cfg *config.CarbonConfiguration,
+	listenerOpts xnet.ListenerOptions,
 	iOpts instrument.Options,
 	logger *zap.Logger,
 	m3dbClusters m3.Clusters,
@@ -1058,7 +1081,9 @@ func startCarbonIngestion(
 
 	// Start server.
 	var (
-		serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
+		serverOpts = xserver.NewOptions().
+				SetInstrumentOptions(carbonIOpts).
+				SetListenerOptions(listenerOpts)
 		carbonListenAddress = ingesterCfg.ListenAddressOrDefault()
 		carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
 	)

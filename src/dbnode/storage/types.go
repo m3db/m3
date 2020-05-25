@@ -486,7 +486,7 @@ type databaseShard interface {
 		start time.Time,
 		version int,
 		nsCtx namespace.Context,
-	) ([]xio.BlockReader, error)
+	) (block.FetchBlockResult, error)
 
 	// FetchBlocksMetadataV2 retrieves blocks metadata.
 	FetchBlocksMetadataV2(
@@ -632,12 +632,17 @@ type NamespaceIndex interface {
 	// data eviction, and so on.
 	Tick(c context.Cancellable, startTime time.Time) (namespaceIndexTickResult, error)
 
-	// Flush performs any flushes that the index has outstanding using
+	// WarmFlush performs any warm flushes that the index has outstanding using
 	// the owned shards of the database.
-	Flush(
+	WarmFlush(
 		flush persist.IndexFlush,
 		shards []databaseShard,
 	) error
+
+	// ColdFlush performs any cold flushes that the index has outstanding using
+	// the owned shards of the database. Also returns a callback to be called when
+	// cold flushing completes to perform houskeeping.
+	ColdFlush(shards []databaseShard) (OnColdFlushDone, error)
 
 	// DebugMemorySegments allows for debugging memory segments.
 	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
@@ -645,6 +650,9 @@ type NamespaceIndex interface {
 	// Close will release the index resources and close the index.
 	Close() error
 }
+
+// OnColdFlushDone is a callback that performs house keeping once cold flushing completes.
+type OnColdFlushDone func() error
 
 // DebugMemorySegmentsOptions is a set of options to debug memory segments.
 type DebugMemorySegmentsOptions struct {

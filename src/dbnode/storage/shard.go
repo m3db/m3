@@ -183,6 +183,7 @@ type dbShard struct {
 	metrics                  dbShardMetrics
 	ticking                  bool
 	shard                    uint32
+	coldWritesEnabled        bool
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -293,6 +294,7 @@ func newDatabaseShard(
 		contextPool:          opts.ContextPool(),
 		flushState:           newShardFlushState(),
 		tickWg:               &sync.WaitGroup{},
+		coldWritesEnabled:    namespaceMetadata.Options().ColdWritesEnabled(),
 		logger:               opts.InstrumentOptions().Logger(),
 		metrics:              newDatabaseShardMetrics(shard, scope),
 	}
@@ -921,7 +923,7 @@ func (s *dbShard) writeAndIndex(
 		// Perform write. No need to copy the annotation here because we're using it
 		// synchronously and all downstream code will copy anthing they need to maintain
 		// a reference to.
-		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wOpts)
+		wasWritten, _, err = entry.Series.Write(ctx, timestamp, value, unit, annotation, wOpts)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
@@ -1465,6 +1467,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		var (
 			entry           = inserts[i].entry
 			releaseEntryRef = inserts[i].opts.entryRefCountIncremented
+			err             error
 		)
 
 		if inserts[i].opts.hasPendingWrite {
@@ -1477,7 +1480,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// operation and there is nothing further to do with this value.
 			// TODO: Consider propagating the `wasWritten` argument back to the caller
 			// using waitgroup (or otherwise) in the future.
-			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
+			_, _, err = entry.Series.Write(ctx, write.timestamp, write.value,
 				write.unit, annotationBytes, write.opts)
 			if err != nil {
 				if xerrors.IsInvalidParams(err) {
@@ -1503,6 +1506,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
 			entry.OnIndexPrepare()
 
+			// Don't insert cold index writes into the index insert queue.
 			id := entry.Series.ID()
 			tags := entry.Series.Tags().Values()
 
@@ -1527,6 +1531,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			entry.Series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment, block.nsCtx)
 		}
 
+		// Entries in the shard insert queue are either of:
+		// - new entries
+		// - existing entries that we've taken a ref on (marked as entryRefCountIncremented)
 		if releaseEntryRef {
 			entry.DecrementReaderWriterCount()
 		}
@@ -1593,12 +1600,12 @@ func (s *dbShard) FetchBlocksForColdFlush(
 	start time.Time,
 	version int,
 	nsCtx namespace.Context,
-) ([]xio.BlockReader, error) {
+) (block.FetchBlockResult, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(seriesID)
 	s.RUnlock()
 	if entry == nil || err != nil {
-		return nil, err
+		return block.FetchBlockResult{}, err
 	}
 
 	return entry.Series.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
@@ -2114,15 +2121,10 @@ func (s *dbShard) loadBlock(
 }
 
 func (s *dbShard) cacheShardIndices() error {
-	retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
+	retriever := s.DatabaseBlockRetriever
 	// May be nil depending on the caching policy.
-	if retrieverMgr == nil {
+	if retriever == nil {
 		return nil
-	}
-
-	retriever, err := retrieverMgr.Retriever(s.namespace)
-	if err != nil {
-		return err
 	}
 
 	s.logger.Debug("caching shard indices", zap.Uint32("shard", s.ID()))

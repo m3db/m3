@@ -603,6 +603,7 @@ func TestNamespaceTruncate(t *testing.T) {
 	for _, shard := range testShardIDs {
 		mockShard := NewMockdatabaseShard(ctrl)
 		mockShard.EXPECT().NumSeries().Return(int64(shard.ID()))
+		mockShard.EXPECT().ID().Return(shard.ID())
 		ns.shards[shard.ID()] = mockShard
 	}
 

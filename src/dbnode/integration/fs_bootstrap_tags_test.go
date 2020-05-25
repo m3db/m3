@@ -76,7 +76,6 @@ func TestFilesystemBootstrapTagsWithIndexingDisabled(t *testing.T) {
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetIndexOptions(storageIdxOpts).
-		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 		SetPersistManager(persistMgr).
 		SetCompactor(newCompactor(t, storageIdxOpts))
 	bs, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
