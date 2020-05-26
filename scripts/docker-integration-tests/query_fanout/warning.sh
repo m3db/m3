@@ -61,7 +61,7 @@ function test_instant_query {
   EXPECTED_HEADER=$3||""
   trap clean_headers EXIT
   RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
-    "http://0.0.0.0:7201/api/v1/query?query=count($METRIC_NAME)")
+    "http://0.0.0.0:7201/m3query/api/v1/query?query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].value[1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
@@ -79,7 +79,7 @@ function test_range_query {
   end=$(($start+9))
 
   RESPONSE=$(curl -sSL -D $HEADER_FILE -H "M3-Limit-Max-Series:$LIMIT" \
-    "http://0.0.0.0:7201/api/v1/query_range?start=$start&end=$end&step=10&query=count($METRIC_NAME)")
+    "http://0.0.0.0:7201/m3query/api/v1/query_range?start=$start&end=$end&step=10&query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].values[0][1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
   test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
