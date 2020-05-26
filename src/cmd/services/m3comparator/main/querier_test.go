@@ -59,16 +59,13 @@ var (
 )
 
 const (
-	blockSize         = time.Hour * 12
-	defaultResolution = time.Second * 30
+	blockSize             = time.Hour * 12
+	defaultResolution     = time.Second * 30
+	metricsName           = "preloaded"
+	predefinedSeriesCount = 10
 )
 
 func TestFetchCompressed(t *testing.T) {
-	const (
-		metricsName           = "preloaded"
-		predefinedSeriesCount = 10
-	)
-
 	tests := []struct {
 		name          string
 		queryTagName  string
@@ -95,49 +92,7 @@ func TestFetchCompressed(t *testing.T) {
 			defer ctrl.Finish()
 
 			query := matcherQuery(t, tt.queryTagName, tt.queryTagValue)
-
-			metricsTag := ident.NewTags(ident.Tag{
-				Name:  ident.BytesID(tagOptions.MetricName()),
-				Value: ident.BytesID(metricsName),
-			},
-				ident.Tag{
-					Name:  ident.BytesID("tag1"),
-					Value: ident.BytesID("test"),
-				},
-			)
-			metricsTag2 := ident.NewTags(ident.Tag{
-				Name:  ident.BytesID(tagOptions.MetricName()),
-				Value: ident.BytesID(metricsName),
-			},
-				ident.Tag{
-					Name:  ident.BytesID("tag1"),
-					Value: ident.BytesID("test2"),
-				},
-			)
-
-			iters := make([]encoding.SeriesIterator, 0, predefinedSeriesCount)
-			for i := 0; i < predefinedSeriesCount; i++ {
-				m := metricsTag
-				if i > 5 {
-					m = metricsTag2
-				}
-				iters = append(iters, encoding.NewSeriesIterator(
-					encoding.SeriesIteratorOptions{
-						Namespace:      ident.StringID("ns"),
-						Tags:           ident.NewTagsIterator(m),
-						StartInclusive: xtime.ToUnixNano(query.Start),
-						EndExclusive:   xtime.ToUnixNano(query.End),
-					}, nil))
-			}
-
-			seriesIterators := encoding.NewMockSeriesIterators(ctrl)
-			seriesIterators.EXPECT().Len().Return(predefinedSeriesCount).MinTimes(1)
-			seriesIterators.EXPECT().Iters().Return(iters).Times(1)
-			seriesIterators.EXPECT().Close()
-
-			seriesLoader := &testSeriesLoadHandler{seriesIterators}
-
-			querier := &querier{iteratorOpts: iteratorOpts, handler: seriesLoader}
+			querier := setupQuerier(ctrl, query)
 
 			result, cleanup, err := querier.FetchCompressed(nil, query, nil)
 			assert.NoError(t, err)
@@ -314,4 +269,49 @@ func extractTags(seriesIter encoding.SeriesIterator) tagMap {
 	}
 
 	return tags
+}
+
+func setupQuerier(ctrl *gomock.Controller, query *storage.FetchQuery) *querier {
+	metricsTag := ident.NewTags(ident.Tag{
+		Name:  ident.BytesID(tagOptions.MetricName()),
+		Value: ident.BytesID(metricsName),
+	},
+		ident.Tag{
+			Name:  ident.BytesID("tag1"),
+			Value: ident.BytesID("test"),
+		},
+	)
+	metricsTag2 := ident.NewTags(ident.Tag{
+		Name:  ident.BytesID(tagOptions.MetricName()),
+		Value: ident.BytesID(metricsName),
+	},
+		ident.Tag{
+			Name:  ident.BytesID("tag1"),
+			Value: ident.BytesID("test2"),
+		},
+	)
+
+	iters := make([]encoding.SeriesIterator, 0, predefinedSeriesCount)
+	for i := 0; i < predefinedSeriesCount; i++ {
+		m := metricsTag
+		if i > 5 {
+			m = metricsTag2
+		}
+		iters = append(iters, encoding.NewSeriesIterator(
+			encoding.SeriesIteratorOptions{
+				Namespace:      ident.StringID("ns"),
+				Tags:           ident.NewTagsIterator(m),
+				StartInclusive: xtime.ToUnixNano(query.Start),
+				EndExclusive:   xtime.ToUnixNano(query.End),
+			}, nil))
+	}
+
+	seriesIterators := encoding.NewMockSeriesIterators(ctrl)
+	seriesIterators.EXPECT().Len().Return(predefinedSeriesCount).MinTimes(1)
+	seriesIterators.EXPECT().Iters().Return(iters).Times(1)
+	seriesIterators.EXPECT().Close()
+
+	seriesLoader := &testSeriesLoadHandler{seriesIterators}
+
+	return &querier{iteratorOpts: iteratorOpts, handler: seriesLoader}
 }
