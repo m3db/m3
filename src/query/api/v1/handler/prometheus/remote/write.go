@@ -173,15 +173,17 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 }
 
 type promWriteMetrics struct {
-	writeSuccess         tally.Counter
-	writeErrorsServer    tally.Counter
-	writeErrorsClient    tally.Counter
-	ingestLatency        tally.Histogram
-	ingestLatencyBuckets tally.DurationBuckets
-	forwardSuccess       tally.Counter
-	forwardErrors        tally.Counter
-	forwardDropped       tally.Counter
-	forwardLatency       tally.Histogram
+	writeSuccess             tally.Counter
+	writeErrorsServer        tally.Counter
+	writeErrorsClient        tally.Counter
+	writeBatchLatency        tally.Histogram
+	writeBatchLatencyBuckets tally.DurationBuckets
+	ingestLatency            tally.Histogram
+	ingestLatencyBuckets     tally.DurationBuckets
+	forwardSuccess           tally.Counter
+	forwardErrors            tally.Counter
+	forwardDropped           tally.Counter
+	forwardLatency           tally.Histogram
 }
 
 func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
@@ -217,6 +219,12 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	}
 	upTo24hBuckets = upTo24hBuckets[1:] // Remove the first 6h to get 1 hour aligned buckets
 
+	var writeLatencyBuckets tally.DurationBuckets
+	writeLatencyBuckets = append(writeLatencyBuckets, upTo1sBuckets...)
+	writeLatencyBuckets = append(writeLatencyBuckets, upTo10sBuckets...)
+	writeLatencyBuckets = append(writeLatencyBuckets, upTo60sBuckets...)
+	writeLatencyBuckets = append(writeLatencyBuckets, upTo60mBuckets...)
+
 	var ingestLatencyBuckets tally.DurationBuckets
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo1sBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo10sBuckets...)
@@ -224,26 +232,25 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60mBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo6hBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo24hBuckets...)
-
-	var forwardLatencyBuckets tally.DurationBuckets
-	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo1sBuckets...)
-	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo10sBuckets...)
-	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo60sBuckets...)
-	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo60mBuckets...)
 	return promWriteMetrics{
-		writeSuccess:         scope.SubScope("write").Counter("success"),
-		writeErrorsServer:    scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
-		writeErrorsClient:    scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
-		ingestLatency:        scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
-		ingestLatencyBuckets: ingestLatencyBuckets,
-		forwardSuccess:       scope.SubScope("forward").Counter("success"),
-		forwardErrors:        scope.SubScope("forward").Counter("errors"),
-		forwardDropped:       scope.SubScope("forward").Counter("dropped"),
-		forwardLatency:       scope.SubScope("forward").Histogram("latency", forwardLatencyBuckets),
+		writeSuccess:             scope.SubScope("write").Counter("success"),
+		writeErrorsServer:        scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
+		writeErrorsClient:        scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
+		writeBatchLatency:        scope.SubScope("write").Histogram("batch-latency", writeLatencyBuckets),
+		writeBatchLatencyBuckets: writeLatencyBuckets,
+		ingestLatency:            scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
+		ingestLatencyBuckets:     ingestLatencyBuckets,
+		forwardSuccess:           scope.SubScope("forward").Counter("success"),
+		forwardErrors:            scope.SubScope("forward").Counter("errors"),
+		forwardDropped:           scope.SubScope("forward").Counter("dropped"),
+		forwardLatency:           scope.SubScope("forward").Histogram("latency", writeLatencyBuckets),
 	}, nil
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	batchRequestStopwatch := h.metrics.writeBatchLatency.Start()
+	defer batchRequestStopwatch.Stop()
+
 	req, opts, result, rErr := h.parseRequest(r)
 	if rErr != nil {
 		h.metrics.writeErrorsClient.Inc(1)
@@ -259,18 +266,31 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, target := range targets {
 			target := target // Capture for lambda.
 			forward := func() {
-				if err := h.forwardRetrier.Attempt(func() error {
+				now := h.nowFn()
+				err := h.forwardRetrier.Attempt(func() error {
 					// Consider propagating baggage without tying
 					// context to request context in future.
 					ctx, cancel := context.WithTimeout(h.forwardContext, h.forwardTimeout)
 					defer cancel()
 					return h.forward(ctx, result, r.Header, target)
-				}); err != nil {
+				})
+
+				// Record forward ingestion delay.
+				// NB: this includes any time for retries.
+				for _, series := range req.Timeseries {
+					for _, sample := range series.Samples {
+						age := now.Sub(storage.PromTimestampToTime(sample.Timestamp))
+						h.metrics.forwardLatency.RecordDuration(age)
+					}
+				}
+
+				if err != nil {
 					h.metrics.forwardErrors.Inc(1)
 					logger := logging.WithContext(h.forwardContext, h.instrumentOpts)
 					logger.Error("forward error", zap.Error(err))
 					return
 				}
+
 				h.metrics.forwardSuccess.Inc(1)
 			}
 
@@ -517,6 +537,7 @@ func (h *PromWriteHandler) forward(
 		return fmt.Errorf("expected status code 2XX: actual=%v, method=%v, url=%v, resp=%s",
 			resp.StatusCode, method, url, response)
 	}
+
 	return nil
 }
 

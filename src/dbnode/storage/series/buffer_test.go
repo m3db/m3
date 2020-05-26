@@ -97,7 +97,7 @@ func verifyWriteToBuffer(
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	wasWritten, err := buffer.Write(ctx, v.Timestamp, v.Value, v.Unit,
+	wasWritten, _, err := buffer.Write(ctx, v.Timestamp, v.Value, v.Unit,
 		v.Annotation, WriteOptions{SchemaDesc: schema})
 
 	if expectErr {
@@ -123,7 +123,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	wasWritten, err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1,
+	wasWritten, _, err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1,
 		xtime.Second, nil, WriteOptions{})
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
@@ -148,7 +148,9 @@ func TestBufferWriteTooPast(t *testing.T) {
 	})
 	ctx := context.NewContext()
 	defer ctx.Close()
-	wasWritten, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second,
+	// Writes are inclusive on buffer past start border. Must be before that inclusive border to
+	// be a cold write. To test this we write a second further into the past.
+	wasWritten, _, err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()-time.Second), 1, xtime.Second,
 		nil, WriteOptions{})
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
@@ -183,7 +185,7 @@ func TestBufferWriteColdTooFutureRetention(t *testing.T) {
 
 	futureRetention := time.Second +
 		maxDuration(rops.BufferFuture(), rops.FutureRetentionPeriod())
-	wasWritten, err := buffer.Write(ctx, curr.Add(futureRetention), 1,
+	wasWritten, _, err := buffer.Write(ctx, curr.Add(futureRetention), 1,
 		xtime.Second, nil, WriteOptions{})
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
@@ -211,7 +213,7 @@ func TestBufferWriteColdTooPastRetention(t *testing.T) {
 
 	pastRetention := time.Second +
 		maxDuration(rops.BufferPast(), rops.RetentionPeriod())
-	wasWritten, err := buffer.Write(ctx, curr.Add(-pastRetention), 1, xtime.Second,
+	wasWritten, _, err := buffer.Write(ctx, curr.Add(-pastRetention), 1, xtime.Second,
 		nil, WriteOptions{})
 	assert.False(t, wasWritten)
 	assert.Error(t, err)
@@ -240,7 +242,7 @@ func TestBufferWriteError(t *testing.T) {
 	defer ctx.Close()
 
 	timeUnitNotExist := xtime.Unit(127)
-	wasWritten, err := buffer.Write(ctx, curr, 1, timeUnitNotExist, nil, WriteOptions{})
+	wasWritten, _, err := buffer.Write(ctx, curr, 1, timeUnitNotExist, nil, WriteOptions{})
 	require.False(t, wasWritten)
 	require.Error(t, err)
 }
@@ -418,6 +420,7 @@ func newTestBufferBucketWithCustomData(
 ) (*BufferBucket, []DecodedTestValue) {
 	b := &BufferBucket{opts: opts}
 	b.resetTo(bd.start, bd.writeType, opts)
+	b.firstWrite = opts.ClockOptions().NowFn()()
 	data := bd.data
 
 	// Empty all existing encoders.
@@ -470,9 +473,10 @@ func newTestBufferBucketVersionsWithCustomData(
 ) (*BufferBucketVersions, []DecodedTestValue) {
 	newBucket, vals := newTestBufferBucketWithCustomData(t, bd, opts, setAnn)
 	return &BufferBucketVersions{
-		buckets: []*BufferBucket{newBucket},
-		start:   newBucket.start,
-		opts:    opts,
+		buckets:    []*BufferBucket{newBucket},
+		start:      newBucket.start,
+		opts:       opts,
+		bucketPool: opts.BufferBucketPool(),
 	}, vals
 }
 
@@ -730,7 +734,7 @@ func TestIndexedBufferWriteOnlyWritesSinglePoint(t *testing.T) {
 				ForceValue:        forceValue,
 			},
 		}
-		wasWritten, err := buffer.Write(ctx, v.Timestamp, v.Value, v.Unit,
+		wasWritten, _, err := buffer.Write(ctx, v.Timestamp, v.Value, v.Unit,
 			v.Annotation, writeOpts)
 		require.NoError(t, err)
 		expectedWrite := i == 0
@@ -1124,7 +1128,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	wasWritten, err := buffer.Write(ctx, curr, 1, xtime.Second, nil, WriteOptions{})
+	wasWritten, _, err := buffer.Write(ctx, curr, 1, xtime.Second, nil, WriteOptions{})
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
@@ -1661,7 +1665,13 @@ func TestColdFlushBlockStarts(t *testing.T) {
 }
 
 func TestFetchBlocksForColdFlush(t *testing.T) {
-	opts := newBufferTestOptions()
+	now := time.Now()
+	opts := newBufferTestOptions().SetColdWritesEnabled(true)
+	opts = opts.SetClockOptions(
+		opts.ClockOptions().SetNowFn(func() time.Time {
+			return now
+		}),
+	)
 	rops := opts.RetentionOptions()
 	blockSize := rops.BlockSize()
 	blockStart4 := time.Now().Truncate(blockSize)
@@ -1680,19 +1690,6 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 					{blockStart1, 1, xtime.Second, nil},
 					{blockStart1.Add(secs(5)), 2, xtime.Second, nil},
 					{blockStart1.Add(secs(10)), 3, xtime.Second, nil},
-				},
-			},
-		},
-		blockData{
-			start:     blockStart2,
-			writeType: ColdWrite,
-			data: [][]DecodedTestValue{
-				{
-					{blockStart2.Add(secs(2)), 4, xtime.Second, nil},
-					{blockStart2.Add(secs(5)), 5, xtime.Second, nil},
-					{blockStart2.Add(secs(11)), 6, xtime.Second, nil},
-					{blockStart2.Add(secs(15)), 7, xtime.Second, nil},
-					{blockStart2.Add(secs(40)), 8, xtime.Second, nil},
 				},
 			},
 		},
@@ -1725,28 +1722,44 @@ func TestFetchBlocksForColdFlush(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	nsCtx := namespace.Context{Schema: testSchemaDesc}
-	reader, err := buffer.FetchBlocksForColdFlush(ctx, blockStart1, 4, nsCtx)
+	result, err := buffer.FetchBlocksForColdFlush(ctx, blockStart1, 4, nsCtx)
 	assert.NoError(t, err)
 	// Verify that we got the correct data and that version is correct set.
-	requireReaderValuesEqual(t, expected[blockStartNano1], [][]xio.BlockReader{reader}, opts, nsCtx)
+	requireReaderValuesEqual(t, expected[blockStartNano1], [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
 	assert.Equal(t, 4, buffer.bucketsMap[blockStartNano1].buckets[0].version)
+	assert.Equal(t, now, result.FirstWrite)
 
 	// Try to fetch from block1 again, this should not be an error because we
 	// would want to fetch blocks with buckets that failed to flush fully a
 	// previous time.
-	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart1, 9, nsCtx)
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart1, 9, nsCtx)
 	assert.NoError(t, err)
+	assert.Equal(t, now, result.FirstWrite)
 
-	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart3, 1, nsCtx)
+	// Verify that writing to a cold block updates the first write time. No data in blockStart2 yet.
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart2, 1, nsCtx)
 	assert.NoError(t, err)
-	requireReaderValuesEqual(t, expected[blockStartNano3], [][]xio.BlockReader{reader}, opts, nsCtx)
+	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
+	assert.Equal(t, time.Time{}, result.FirstWrite)
+	wasWritten, _, err := buffer.Write(ctx, blockStart2, 1,
+		xtime.Second, nil, WriteOptions{})
+	assert.True(t, wasWritten)
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart2, 1, nsCtx)
+	assert.NoError(t, err)
+	assert.Equal(t, now, result.FirstWrite)
+
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart3, 1, nsCtx)
+	assert.NoError(t, err)
+	requireReaderValuesEqual(t, expected[blockStartNano3], [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
 	assert.Equal(t, 1, buffer.bucketsMap[blockStartNano3].buckets[0].version)
+	assert.Equal(t, now, result.FirstWrite)
 
 	// Try to fetch from a block that only has warm buckets. It has no data
 	// but is not an error.
-	reader, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
+	result, err = buffer.FetchBlocksForColdFlush(ctx, blockStart4, 1, nsCtx)
 	assert.NoError(t, err)
-	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{reader}, opts, nsCtx)
+	requireReaderValuesEqual(t, []DecodedTestValue{}, [][]xio.BlockReader{result.Blocks}, opts, nsCtx)
+	assert.Equal(t, time.Time{}, result.FirstWrite)
 }
 
 // TestBufferLoadWarmWrite tests the Load method, ensuring that blocks are successfully loaded into

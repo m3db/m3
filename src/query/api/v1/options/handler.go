@@ -23,6 +23,7 @@ package options
 import (
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -42,6 +43,13 @@ import (
 )
 
 const defaultTimeout = 30 * time.Second
+
+type QueryEngine string
+
+const (
+	PromQL  QueryEngine = "prometheus"
+	M3Query QueryEngine = "m3query"
+)
 
 // OptionTransformFn transforms given handler options.
 type OptionTransformFn func(opts HandlerOptions) HandlerOptions
@@ -155,6 +163,8 @@ type HandlerOptions interface {
 	InstrumentOpts() instrument.Options
 	// SetInstrumentOpts sets instrumentation options.
 	SetInstrumentOpts(opts instrument.Options) HandlerOptions
+
+	DefaultQueryEngine() QueryEngine
 }
 
 // HandlerOptions represents handler options.
@@ -162,6 +172,7 @@ type handlerOptions struct {
 	storage               storage.Storage
 	downsamplerAndWriter  ingest.DownsamplerAndWriter
 	engine                executor.Engine
+	defaultEngine         QueryEngine
 	clusters              m3.Clusters
 	clusterClient         clusterclient.Client
 	config                config.Configuration
@@ -215,6 +226,7 @@ func NewHandlerOptions(
 		storage:               downsamplerAndWriter.Storage(),
 		downsamplerAndWriter:  downsamplerAndWriter,
 		engine:                engine,
+		defaultEngine:         getDefaultQueryEngine(cfg.Query.DefaultEngine),
 		clusters:              m3dbClusters,
 		clusterClient:         clusterClient,
 		config:                cfg,
@@ -415,4 +427,25 @@ func (o *handlerOptions) SetNowFn(n clock.NowFn) HandlerOptions {
 	options := *o
 	options.nowFn = n
 	return &options
+}
+
+func (o *handlerOptions) DefaultQueryEngine() QueryEngine {
+	return o.defaultEngine
+}
+
+func getDefaultQueryEngine(cfgEngine string) QueryEngine {
+	engine := PromQL
+	if strings.ToLower(cfgEngine) == string(M3Query) {
+		engine = M3Query
+	}
+	return engine
+}
+
+// IsQueryEngineSet returns true if value contains query engine value. Otherwise returns false.
+func IsQueryEngineSet(v string) bool {
+	if strings.ToLower(v) == string(PromQL) || strings.ToLower(v) == string(M3Query) {
+		return true
+	}
+
+	return false
 }

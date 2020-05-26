@@ -82,3 +82,9 @@ resultOptions:
 # for quick local setup (which this config will send data to).
 tracing:
   backend: jaeger
+
+# Query configuration.
+query:
+  timeout: <duration>
+  # The default query engine is 'prometheus' but it could be switched to 'm3query'
+  defaultEngine: <string>
