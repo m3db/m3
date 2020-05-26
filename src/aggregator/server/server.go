@@ -28,9 +28,6 @@ import (
 	"time"
 
 	m3aggregator "github.com/m3db/m3/src/aggregator/aggregator"
-	"github.com/m3db/m3/src/aggregator/server/http"
-	"github.com/m3db/m3/src/aggregator/server/m3msg"
-	"github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/config"
 	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	xconfig "github.com/m3db/m3/src/x/config"
@@ -45,8 +42,15 @@ const (
 
 // RunOptions are the server options for running the aggregator server.
 type RunOptions struct {
+	// Config is the aggregator configuration.
 	Config config.Configuration
+
+	// AdminOptions are additional options to apply to the aggregator server.
+	AdminOptions []AdminOption
 }
+
+// AdminOption is an additional option to apply to the aggregator server.
+type AdminOption func(opts serve.Options) (serve.Options, error)
 
 // Run runs the aggregator server.
 func Run(opts RunOptions) {
@@ -82,41 +86,49 @@ func Run(opts RunOptions) {
 
 	defer buildReporter.Stop()
 
-	var (
-		m3msgAddr        string
-		m3msgServerOpts  m3msg.Options
-		rawTCPAddr       string
-		rawTCPServerOpts rawtcp.Options
-		httpAddr         string
-		httpServerOpts   http.Options
-	)
+	serverOptions := serve.NewOptions(instrumentOpts)
 	if cfg.M3Msg != nil {
 		// Create the M3Msg server options.
-		m3msgAddr = cfg.M3Msg.Server.ListenAddress
 		m3msgInsrumentOpts := instrumentOpts.
 			SetMetricsScope(scope.
 				SubScope("m3msg-server").
 				Tagged(map[string]string{"server": "m3msg"}))
-		m3msgServerOpts, err = cfg.M3Msg.NewServerOptions(m3msgInsrumentOpts)
+		m3msgServerOpts, err := cfg.M3Msg.NewServerOptions(m3msgInsrumentOpts)
 		if err != nil {
 			logger.Fatal("could not create m3msg server options", zap.Error(err))
 		}
+
+		serverOptions = serverOptions.
+			SetM3msgAddr(cfg.M3Msg.Server.ListenAddress).
+			SetM3msgServerOpts(m3msgServerOpts)
 	}
 
 	if cfg.RawTCP != nil {
 		// Create the raw TCP server options.
-		rawTCPAddr = cfg.RawTCP.ListenAddress
 		rawTCPInstrumentOpts := instrumentOpts.
 			SetMetricsScope(scope.
 				SubScope("rawtcp-server").
 				Tagged(map[string]string{"server": "rawtcp"}))
-		rawTCPServerOpts = cfg.RawTCP.NewServerOptions(rawTCPInstrumentOpts)
+
+		serverOptions = serverOptions.
+			SetRawTCPAddr(cfg.RawTCP.ListenAddress).
+			SetRawTCPServerOpts(cfg.RawTCP.NewServerOptions(rawTCPInstrumentOpts))
 	}
 
 	if cfg.HTTP != nil {
 		// Create the http server options.
-		httpAddr = cfg.HTTP.ListenAddress
-		httpServerOpts = cfg.HTTP.NewServerOptions()
+		serverOptions = serverOptions.
+			SetHTTPAddr(cfg.HTTP.ListenAddress).
+			SetHTTPServerOpts(cfg.HTTP.NewServerOptions())
+	}
+
+	for i, transform := range opts.AdminOptions {
+		if opts, err := transform(serverOptions); err != nil {
+			logger.Fatal("could not apply transform",
+				zap.Int("index", i), zap.Error(err))
+		} else {
+			serverOptions = opts
+		}
 	}
 
 	// Create the kv client.
@@ -130,8 +142,9 @@ func Run(opts RunOptions) {
 	runtimeOptsManager := cfg.RuntimeOptions.NewRuntimeOptionsManager()
 
 	// Create the aggregator.
-	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(rawTCPAddr,
-		client, runtimeOptsManager,
+	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(
+		serverOptions.RawTCPAddr(),
+		client, serverOptions, runtimeOptsManager,
 		instrumentOpts.SetMetricsScope(scope.SubScope("aggregator")))
 	if err != nil {
 		logger.Fatal("error creating aggregator options", zap.Error(err))
@@ -149,15 +162,9 @@ func Run(opts RunOptions) {
 	closedCh := make(chan struct{})
 	go func() {
 		if err := serve.Serve(
-			m3msgAddr,
-			m3msgServerOpts,
-			rawTCPAddr,
-			rawTCPServerOpts,
-			httpAddr,
-			httpServerOpts,
 			aggregator,
 			doneCh,
-			instrumentOpts,
+			serverOptions,
 		); err != nil {
 			logger.Fatal("could not start serving traffic", zap.Error(err))
 		}

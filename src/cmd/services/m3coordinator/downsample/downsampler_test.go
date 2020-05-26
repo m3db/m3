@@ -48,8 +48,10 @@ import (
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -630,7 +632,7 @@ func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 }
 
 func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	// Create mock client
@@ -1138,7 +1140,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
 		Storage:               storage,
-		ClusterClient:         clusterclient.NewMockClient(gomock.NewController(t)),
+		ClusterClient:         clusterclient.NewMockClient(xtest.NewController(t)),
 		RulesKVStore:          rulesKVStore,
 		AutoMappingRules:      opts.autoMappingRules,
 		ClockOptions:          clockOpts,
@@ -1147,6 +1149,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		TagDecoderOptions:     tagDecoderOptions,
 		TagEncoderPoolOptions: tagEncoderPoolOptions,
 		TagDecoderPoolOptions: tagDecoderPoolOptions,
+		RWOptions:             xio.NewOptions(),
 	})
 	require.NoError(t, err)
 

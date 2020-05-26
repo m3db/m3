@@ -21,13 +21,13 @@
 package consumer
 
 import (
-	"bufio"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
+	xio "github.com/m3db/m3/src/x/io"
 
 	"github.com/uber-go/tally"
 )
@@ -64,6 +64,7 @@ func (l *listener) Accept() (Consumer, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return newConsumer(conn, l.msgPool, l.opts, l.m), nil
 }
 
@@ -92,7 +93,7 @@ type consumer struct {
 	mPool   *messagePool
 	encoder proto.Encoder
 	decoder proto.Decoder
-	w       *bufio.Writer
+	w       xio.ResettableWriter
 	conn    net.Conn
 
 	ackPb  msgpb.Ack
@@ -108,15 +109,23 @@ func newConsumer(
 	opts Options,
 	m metrics,
 ) *consumer {
+	var (
+		wOpts = xio.ResettableWriterOptions{
+			WriteBufferSize: opts.ConnectionWriteBufferSize(),
+		}
+
+		rwOpts   = opts.DecoderOptions().RWOptions()
+		writerFn = rwOpts.ResettableWriterFn()
+	)
+
 	return &consumer{
 		opts:    opts,
 		mPool:   mPool,
 		encoder: proto.NewEncoder(opts.EncoderOptions()),
 		decoder: proto.NewDecoder(
-			bufio.NewReaderSize(conn, opts.ConnectionReadBufferSize()),
-			opts.DecoderOptions(),
+			conn, opts.DecoderOptions(), opts.ConnectionReadBufferSize(),
 		),
-		w:      bufio.NewWriterSize(conn, opts.ConnectionWriteBufferSize()),
+		w:      writerFn(conn, wOpts),
 		conn:   conn,
 		closed: false,
 		doneCh: make(chan struct{}),
@@ -135,7 +144,8 @@ func (c *consumer) Init() {
 func (c *consumer) Message() (Message, error) {
 	m := c.mPool.Get()
 	m.reset(c)
-	if err := c.decoder.Decode(m); err != nil {
+	err := c.decoder.Decode(m)
+	if err != nil {
 		c.mPool.Put(m)
 		c.m.messageDecodeError.Inc(1)
 		return nil, err
@@ -197,6 +207,10 @@ func (c *consumer) encodeAckWithLock(ackLen int) error {
 	}
 	_, err = c.w.Write(c.encoder.Bytes())
 	if err != nil {
+		c.m.ackWriteError.Inc(1)
+		return err
+	}
+	if err := c.w.Flush(); err != nil {
 		c.m.ackWriteError.Inc(1)
 		return err
 	}

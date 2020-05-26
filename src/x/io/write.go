@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,57 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package proto
+package io
 
 import (
-	xio "github.com/m3db/m3/src/x/io"
-	"github.com/m3db/m3/src/x/pool"
+	"bufio"
+	"io"
 )
 
-var (
-	defaultMaxMessageSize = 4 * 1024 * 1024 // 4MB.
-)
+// ResettableWriter is a resettable writer.
+type ResettableWriter interface {
+	io.Writer
+	Flush() error
+	Reset(w io.Writer)
+}
 
-// NewOptions creates a new Options.
-func NewOptions() Options {
-	return &options{
-		maxMessageSize: defaultMaxMessageSize,
-		rwOpts:         xio.NewOptions(),
+// ResettableWriterOptions are options for a resettable writer.
+type ResettableWriterOptions struct {
+	WriteBufferSize int
+}
+
+// ResettableWriterFn creates a resettable writer.
+type ResettableWriterFn func(r io.Writer, opts ResettableWriterOptions) ResettableWriter
+
+// DefaultResettableWriterFn creates a default resettable writer.
+func DefaultResettableWriterFn() ResettableWriterFn {
+	return func(r io.Writer, opts ResettableWriterOptions) ResettableWriter {
+		return bufio.NewWriterSize(r, opts.WriteBufferSize)
 	}
-}
-
-type options struct {
-	maxMessageSize int
-	bytesPool      pool.BytesPool
-	rwOpts         xio.Options
-}
-
-func (opts *options) MaxMessageSize() int {
-	return opts.maxMessageSize
-}
-
-func (opts *options) SetMaxMessageSize(value int) Options {
-	o := *opts
-	o.maxMessageSize = value
-	return &o
-}
-
-func (opts *options) BytesPool() pool.BytesPool {
-	return opts.bytesPool
-}
-
-func (opts *options) SetBytesPool(value pool.BytesPool) Options {
-	o := *opts
-	o.bytesPool = value
-	return &o
-}
-
-func (opts *options) SetRWOptions(value xio.Options) Options {
-	o := *opts
-	o.rwOpts = value
-	return &o
-}
-
-func (opts *options) RWOptions() xio.Options {
-	return opts.rwOpts
 }

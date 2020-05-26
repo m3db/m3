@@ -99,7 +99,7 @@ func (it *unaggregatedIterator) Next() bool {
 		return false
 	}
 	if size > it.maxMessageSize {
-		it.err = fmt.Errorf("decoded message size %d is larger than supported max message size %d", size, it.maxMessageSize)
+		it.err = fmt.Errorf("unagg iterator, decoded message size %d is larger than supported max message size %d", size, it.maxMessageSize)
 		return false
 	}
 	it.ensureBufferSize(size)

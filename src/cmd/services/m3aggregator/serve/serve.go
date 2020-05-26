@@ -27,28 +27,23 @@ import (
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
 	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
-	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
 )
 
 // Serve starts serving RPC traffic.
 func Serve(
-	m3msgAddr string,
-	m3msgServerOpts m3msgserver.Options,
-	rawTCPAddr string,
-	rawTCPServerOpts rawtcpserver.Options,
-	httpAddr string,
-	httpServerOpts httpserver.Options,
 	aggregator aggregator.Aggregator,
 	doneCh chan struct{},
-	iOpts instrument.Options,
+	opts Options,
 ) error {
+	iOpts := opts.InstrumentOpts()
 	log := iOpts.Logger()
 	defer aggregator.Close()
 
-	if m3msgAddr != "" {
-		m3msgServer, err := m3msgserver.NewServer(m3msgAddr, aggregator, m3msgServerOpts)
+	if m3msgAddr := opts.M3msgAddr(); m3msgAddr != "" {
+		serverOpts := opts.M3msgServerOpts()
+		m3msgServer, err := m3msgserver.NewServer(m3msgAddr, aggregator, serverOpts)
 		if err != nil {
 			return fmt.Errorf("could not create m3msg server: addr=%s, err=%v", m3msgAddr, err)
 		}
@@ -59,8 +54,9 @@ func Serve(
 		log.Info("m3msg server listening", zap.String("addr", m3msgAddr))
 	}
 
-	if rawTCPAddr != "" {
-		rawTCPServer := rawtcpserver.NewServer(rawTCPAddr, aggregator, rawTCPServerOpts)
+	if rawTCPAddr := opts.RawTCPAddr(); rawTCPAddr != "" {
+		serverOpts := opts.RawTCPServerOpts()
+		rawTCPServer := rawtcpserver.NewServer(rawTCPAddr, aggregator, serverOpts)
 		if err := rawTCPServer.ListenAndServe(); err != nil {
 			return fmt.Errorf("could not start raw TCP server at: addr=%s, err=%v", rawTCPAddr, err)
 		}
@@ -68,8 +64,9 @@ func Serve(
 		log.Info("raw TCP server listening", zap.String("addr", rawTCPAddr))
 	}
 
-	if httpAddr != "" {
-		httpServer := httpserver.NewServer(httpAddr, aggregator, httpServerOpts, iOpts)
+	if httpAddr := opts.HTTPAddr(); httpAddr != "" {
+		serverOpts := opts.HTTPServerOpts()
+		httpServer := httpserver.NewServer(httpAddr, aggregator, serverOpts, iOpts)
 		if err := httpServer.ListenAndServe(); err != nil {
 			return fmt.Errorf("could not start http server at: addr=%s, err=%v", httpAddr, err)
 		}

@@ -61,6 +61,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -111,6 +112,7 @@ type DownsamplerOptions struct {
 	TagDecoderPoolOptions   pool.ObjectPoolOptions
 	OpenTimeout             time.Duration
 	TagOptions              models.TagOptions
+	RWOptions               xio.Options
 }
 
 // AutoMappingRule is a mapping rule to apply to metrics.
@@ -529,11 +531,13 @@ func (c RemoteAggregatorConfiguration) newClient(
 	kvClient clusterclient.Client,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (client.Client, error) {
 	if c.clientOverride != nil {
 		return c.clientOverride, nil
 	}
-	return c.Client.NewClient(kvClient, clockOpts, instrumentOpts)
+
+	return c.Client.NewClient(kvClient, clockOpts, instrumentOpts, rwOpts)
 }
 
 // BufferPastLimitConfiguration specifies a custom buffer past limit
@@ -686,9 +690,15 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	if remoteAgg := cfg.RemoteAggregator; remoteAgg != nil {
 		// If downsampling setup to use a remote aggregator instead of local
 		// aggregator, set that up instead.
-		client, err := remoteAgg.newClient(o.ClusterClient, clockOpts,
-			instrumentOpts.SetMetricsScope(instrumentOpts.MetricsScope().
-				SubScope("remote-aggregator-client")))
+		scope := instrumentOpts.MetricsScope().SubScope("remote-aggregator-client")
+		iOpts := instrumentOpts.SetMetricsScope(scope)
+		rwOpts := o.RWOptions
+		if rwOpts == nil {
+			logger.Info("no rw options set, using default")
+			rwOpts = xio.NewOptions()
+		}
+
+		client, err := remoteAgg.newClient(o.ClusterClient, clockOpts, iOpts, rwOpts)
 		if err != nil {
 			err = fmt.Errorf("could not create remote aggregator client: %v", err)
 			return agg{}, err

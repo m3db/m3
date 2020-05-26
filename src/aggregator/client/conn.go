@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/clock"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/retry"
 
 	"github.com/uber-go/tally"
@@ -39,6 +40,8 @@ const (
 
 var (
 	errNoActiveConnection = errors.New("no active connection")
+	errInvalidConnection  = errors.New("connection is invalid")
+	u                     uninitializedReadWriter
 )
 
 type sleepFn func(time.Duration)
@@ -62,6 +65,7 @@ type connection struct {
 	rngFn          retry.RngFn
 
 	conn                    *net.TCPConn
+	writer                  xio.ResettableWriter
 	numFailures             int
 	threshold               int
 	lastConnectAttemptNanos int64
@@ -90,11 +94,15 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 		nowFn:          opts.ClockOptions().NowFn(),
 		sleepFn:        time.Sleep,
 		threshold:      opts.InitReconnectThreshold(),
-		metrics:        newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		writer: opts.RWOptions().ResettableWriterFn()(u, xio.ResettableWriterOptions{
+			WriteBufferSize: 0,
+		}),
+		metrics: newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
 
+	// reset write conection
 	c.Lock()
 	if err := c.connectWithLockFn(); err != nil {
 		c.numFailures++
@@ -173,6 +181,7 @@ func (c *connection) connectWithLock() error {
 		return err
 	}
 
+	// this needs to be a writer not a conn.
 	tcpConn := conn.(*net.TCPConn)
 	if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
 		c.metrics.setKeepAliveError.Inc(1)
@@ -181,7 +190,9 @@ func (c *connection) connectWithLock() error {
 	if c.conn != nil {
 		c.conn.Close() // nolint: errcheck
 	}
+
 	c.conn = tcpConn
+	c.writer.Reset(tcpConn)
 	return nil
 }
 
@@ -215,7 +226,11 @@ func (c *connection) writeWithLock(data []byte) error {
 	if err := c.conn.SetWriteDeadline(c.nowFn().Add(c.writeTimeout)); err != nil {
 		c.metrics.setWriteDeadlineError.Inc(1)
 	}
-	if _, err := c.conn.Write(data); err != nil {
+	if _, err := c.writer.Write(data); err != nil {
+		c.metrics.writeError.Inc(1)
+		return err
+	}
+	if err := c.writer.Flush(); err != nil {
 		c.metrics.writeError.Inc(1)
 		return err
 	}
@@ -260,3 +275,9 @@ func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 			Counter(errorMetric),
 	}
 }
+
+type uninitializedReadWriter struct{}
+
+func (u uninitializedReadWriter) Read(p []byte) (int, error)  { return 0, errInvalidConnection }
+func (u uninitializedReadWriter) Write(p []byte) (int, error) { return 0, errInvalidConnection }
+func (u uninitializedReadWriter) Close() error                { return nil }

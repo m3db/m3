@@ -87,7 +87,7 @@ func TestM3msgServerWithProtobufHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	var a msgpb.Ack
-	dec := proto.NewDecoder(conn, opts.DecoderOptions())
+	dec := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
 	require.NoError(t, dec.Decode(&a))
 	require.Equal(t, 1, w.ingested())
 
