@@ -190,6 +190,40 @@ func TestIngestSeries(t *testing.T) {
 	assert.Equal(t, j, len(expected.Datapoints))
 }
 
+func TestClearData(t *testing.T) {
+	opts := iteratorOptions{
+		encoderPool:   encoderPool,
+		iteratorPools: iterPools,
+		tagOptions:    tagOptions,
+		iOpts:         iOpts,
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(seriesStr))
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+
+	handler := newHTTPSeriesLoadHandler(opts)
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	iters, err := handler.getSeriesIterators("series_name")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(iters.Iters()))
+
+	// Call clear data
+	req, err = http.NewRequest(http.MethodDelete, "", nil)
+	require.NoError(t, err)
+
+	handler.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	iters, err = handler.getSeriesIterators("series_name")
+	require.NoError(t, err)
+	require.Nil(t, iters)
+}
+
 func readTags(it encoding.SeriesIterator) parser.Tags {
 	tagIter := it.Tags()
 	tags := make(parser.Tags, 0, tagIter.Len())
