@@ -207,7 +207,7 @@ function prometheus_query_native {
   result=$(curl -s                                    \
     -H "M3-Metrics-Type: ${metrics_type}"             \
     -H "M3-Storage-Policy: ${metrics_storage_policy}" \
-    "0.0.0.0:7201/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}")
+    "0.0.0.0:7201/m3query/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}")
   test "$result" = "$expected_value"
   return $?
 }
