@@ -37,8 +37,16 @@ import (
 )
 
 var (
-	defaultDefaultShardConcurrency     = runtime.NumCPU()
-	defaultShardPersistenceConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
+	// DefaultShardConcurrency controls how many shards in parallel to stream
+	// for in memory data being streamed between peers (most recent block).
+	// Update BootstrapPeersConfiguration comment in
+	// src/cmd/services/m3dbnode/config package if this is changed.
+	DefaultShardConcurrency = runtime.NumCPU()
+	// DefaultShardPersistenceConcurrency controls how many shards in parallel to stream
+	// for historical data being streamed between peers (historical blocks).
+	// Update BootstrapPeersConfiguration comment in
+	// src/cmd/services/m3dbnode/config package if this is changed.
+	DefaultShardPersistenceConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
 	defaultPersistenceMaxQueueSize     = 0
 )
 
@@ -69,8 +77,8 @@ type options struct {
 func NewOptions() Options {
 	return &options{
 		resultOpts:                  result.NewOptions(),
-		defaultShardConcurrency:     defaultDefaultShardConcurrency,
-		shardPersistenceConcurrency: defaultShardPersistenceConcurrency,
+		defaultShardConcurrency:     DefaultShardConcurrency,
+		shardPersistenceConcurrency: DefaultShardPersistenceConcurrency,
 		persistenceMaxQueueSize:     defaultPersistenceMaxQueueSize,
 		// Use a zero pool, this should be overriden at config time.
 		contextPool: context.NewPool(context.NewOptions().
