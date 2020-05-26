@@ -203,23 +203,23 @@ func TestClearData(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 
-	handler := newSeriesLoadHandler(opts)
+	handler := newHTTPSeriesLoadHandler(opts)
 	handler.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 
-    iters, err := handler.getSeriesIterators("series_name")
+	iters, err := handler.getSeriesIterators("series_name")
 	require.NoError(t, err)
 	require.Equal(t, 1, len(iters.Iters()))
-    
-    // Call clear data
-    req, err = http.NewRequest(http.MethodDelete, "", nil)
+
+	// Call clear data
+	req, err = http.NewRequest(http.MethodDelete, "", nil)
 	require.NoError(t, err)
 
-    handler.ServeHTTP(recorder, req)
+	handler.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusOK, recorder.Code)
 
-    iters, err = handler.getSeriesIterators("series_name")
+	iters, err = handler.getSeriesIterators("series_name")
 	require.NoError(t, err)
 	require.Nil(t, iters)
 }
