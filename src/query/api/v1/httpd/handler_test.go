@@ -175,29 +175,55 @@ func TestPromRemoteReadPost(t *testing.T) {
 }
 
 func TestPromNativeReadGet(t *testing.T) {
-	req := httptest.NewRequest("GET", native.PromReadURL, nil)
-	res := httptest.NewRecorder()
-	ctrl := gomock.NewController(t)
-	storage, _ := m3.NewStorageAndSession(t, ctrl)
-
-	h, err := setupHandler(storage)
-	require.NoError(t, err, "unable to setup handler")
-	h.RegisterRoutes()
-	h.Router().ServeHTTP(res, req)
-	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
+    tests := []struct{
+        routePrefix string
+    }{
+        {""},
+        {"/prometheus"},
+        {"/m3query"},
+	}
+	
+	for _, tt := range tests {
+		url := tt.routePrefix + native.PromReadURL
+		t.Run("Testing endpoint GET " + url, func(t *testing.T){
+			req := httptest.NewRequest("GET", url, nil)
+			res := httptest.NewRecorder()
+			ctrl := gomock.NewController(t)
+			storage, _ := m3.NewStorageAndSession(t, ctrl)
+		
+			h, err := setupHandler(storage)
+			require.NoError(t, err, "unable to setup handler")
+			h.RegisterRoutes()
+			h.Router().ServeHTTP(res, req)
+			require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
+		})
+	}
 }
 
 func TestPromNativeReadPost(t *testing.T) {
-	req := httptest.NewRequest("POST", native.PromReadURL, nil)
-	res := httptest.NewRecorder()
-	ctrl := gomock.NewController(t)
-	storage, _ := m3.NewStorageAndSession(t, ctrl)
+    tests := []struct{
+        routePrefix string
+    }{
+        {""},
+        {"/prometheus"},
+        {"/m3query"},
+	}
 
-	h, err := setupHandler(storage)
-	require.NoError(t, err, "unable to setup handler")
-	h.RegisterRoutes()
-	h.Router().ServeHTTP(res, req)
-	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
+	for _, tt := range tests {
+		url := tt.routePrefix + native.PromReadURL
+		t.Run("Testing endpoint GET " + url, func(t *testing.T){
+			req := httptest.NewRequest("POST", url, nil)
+			res := httptest.NewRecorder()
+			ctrl := gomock.NewController(t)
+			storage, _ := m3.NewStorageAndSession(t, ctrl)
+
+			h, err := setupHandler(storage)
+			require.NoError(t, err, "unable to setup handler")
+			h.RegisterRoutes()
+			h.Router().ServeHTTP(res, req)
+			require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
+		})
+	}
 }
 
 func TestJSONWritePost(t *testing.T) {
