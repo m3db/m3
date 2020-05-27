@@ -24,11 +24,11 @@ package ts
 type MetricType int
 
 const (
-	// MetricTypeCounter is the counter metric type.
-	MetricTypeCounter MetricType = iota
-
 	// MetricTypeGauge is the gauge metric type.
-	MetricTypeGauge
+	MetricTypeGauge MetricType = iota
+
+	// MetricTypeCounter is the counter metric type.
+	MetricTypeCounter
 
 	// MetricTypeTimer is the timer metric type.
 	MetricTypeTimer
