@@ -364,9 +364,21 @@ func (c Configuration) NewAdminClient(
 	}
 	if c.WriteRetry != nil {
 		v = v.SetWriteRetrier(c.WriteRetry.NewRetrier(writeRequestScope))
+	} else {
+		// Have not set write retry explicitly, but would like metrics
+		// emitted for the write retrier with the scope for write requests.
+		retrierOpts := v.WriteRetrier().Options().
+			SetMetricsScope(writeRequestScope)
+		v = v.SetWriteRetrier(retry.NewRetrier(retrierOpts))
 	}
 	if c.FetchRetry != nil {
 		v = v.SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope))
+	} else {
+		// Have not set fetch retry explicitly, but would like metrics
+		// emitted for the fetch retrier with the scope for fetch requests.
+		retrierOpts := v.FetchRetrier().Options().
+			SetMetricsScope(fetchRequestScope)
+		v = v.SetFetchRetrier(retry.NewRetrier(retrierOpts))
 	}
 	if syncClientOverrides.TargetHostQueueFlushSize != nil {
 		v = v.SetHostQueueOpsFlushSize(*syncClientOverrides.TargetHostQueueFlushSize)

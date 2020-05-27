@@ -304,6 +304,7 @@ struct NodeHealthResult {
 	1: required bool ok
 	2: required string status
 	3: required bool bootstrapped
+	4: optional map<string,string> metadata
 }
 
 struct NodeBootstrappedResult {}
