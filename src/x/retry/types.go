@@ -50,6 +50,10 @@ type ContinueFn func(attempt int) bool
 
 // Retrier is a executor that can retry attempts on executing methods.
 type Retrier interface {
+	// Options returns the options used to construct the retrier, useful
+	// for changing instrumentation options, etc while preserving other options.
+	Options() Options
+
 	// Attempt will attempt to perform a function with retries.
 	Attempt(fn Fn) error
 
