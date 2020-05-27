@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"time"
 
 	prom "github.com/m3db/prometheus_client_golang/prometheus"
@@ -99,6 +100,7 @@ type MetricsConfigurationPrometheusReporter struct {
 
 // NewRootScopeAndReportersOptions is a set of options.
 type NewRootScopeAndReportersOptions struct {
+	PrometheusHandlerListener    net.Listener
 	PrometheusExternalRegistries []PrometheusExternalRegistry
 	PrometheusOnError            func(e error)
 }
@@ -155,8 +157,10 @@ func (mc *MetricsConfiguration) NewRootScopeAndReporters(
 			return nil, nil, MetricsConfigurationReporters{}, fmt.Errorf("could not create process collector: %v", err)
 		}
 		opts := PrometheusConfigurationOptions{
-			Registry: registry,
-			OnError:  onError,
+			Registry:           registry,
+			ExternalRegistries: opts.PrometheusExternalRegistries,
+			HandlerListener:    opts.PrometheusHandlerListener,
+			OnError:            onError,
 		}
 
 		// Use default instrument package default histogram buckets if not set.

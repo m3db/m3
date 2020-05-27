@@ -23,6 +23,7 @@ package instrument
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -32,10 +33,6 @@ import (
 	dto "github.com/m3db/prometheus_client_model/go"
 	extprom "github.com/prometheus/client_golang/prometheus"
 	"github.com/uber-go/tally/prometheus"
-)
-
-const (
-	promNameLabel = "__name__"
 )
 
 // PrometheusConfiguration is a configuration for a Prometheus reporter.
@@ -87,6 +84,8 @@ type PrometheusConfigurationOptions struct {
 	// ExternalRegistries if set (with combination of a specified Registry)
 	// will also
 	ExternalRegistries []PrometheusExternalRegistry
+	// HandlerListener is the listener to register the server handler on.
+	HandlerListener net.Listener
 	// HandlerOpts is the reporter HTTP handler options, not specifying will
 	// use defaults.
 	HandlerOpts promhttp.HandlerOpts
@@ -172,13 +171,29 @@ func (c PrometheusConfiguration) NewReporter(
 		handler = promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 	}
 
-	if addr := strings.TrimSpace(c.ListenAddress); addr == "" {
+	addr := strings.TrimSpace(c.ListenAddress)
+	if addr == "" && configOpts.HandlerListener == nil {
+		// If address not specified and server not specified, register
+		// on default mux.
 		http.Handle(path, handler)
 	} else {
 		mux := http.NewServeMux()
 		mux.Handle(path, handler)
+
+		listener := configOpts.HandlerListener
+		if listener == nil {
+			// Address must be specified if server was nil.
+			var err error
+			listener, err = net.Listen("tcp", addr)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"prometheus handler listen address error: %v", err)
+			}
+		}
+
 		go func() {
-			if err := http.ListenAndServe(addr, mux); err != nil {
+			server := &http.Server{Handler: mux}
+			if err := server.Serve(listener); err != nil {
 				opts.OnRegisterError(err)
 			}
 		}()
@@ -225,6 +240,11 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 				Name:   elem.Name,
 				Help:   elem.Help,
 				Metric: make([]*dto.Metric, 0, len(elem.Metric)),
+			}
+
+			if secondary.SubScope != "" && entry.Name != nil {
+				scopedName := fmt.Sprintf("%s_%s", secondary.SubScope, *entry.Name)
+				entry.Name = &scopedName
 			}
 
 			if v := elem.Type; v != nil {
@@ -291,19 +311,6 @@ func (g *multiGatherer) Gather() ([]*dto.MetricFamily, error) {
 				}
 
 				for _, labelElem := range metricElem.Label {
-					var labelName *string
-					if labelElem.Name != nil {
-						labelName = labelElem.Name
-					}
-
-					// Allow prefixing metric names.
-					if secondary.SubScope != "" &&
-						labelName != nil &&
-						*labelName == promNameLabel {
-						subScopedName := fmt.Sprintf("%s_%s", secondary.SubScope, *labelName)
-						labelName = &subScopedName
-					}
-
 					labelEntry := &dto.LabelPair{
 						Name:  labelElem.Name,
 						Value: labelElem.Value,

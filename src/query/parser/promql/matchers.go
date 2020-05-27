@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/parser/common"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
 	promql "github.com/prometheus/prometheus/promql/parser"
 )
@@ -329,12 +330,11 @@ func getUnaryOpType(opType promql.ItemType) (string, error) {
 }
 
 const (
-	promDefaultName = "__name__"
-	anchorStart     = byte('^')
-	anchorEnd       = byte('$')
-	escapeChar      = byte('\\')
-	startGroup      = byte('[')
-	endGroup        = byte(']')
+	anchorStart = byte('^')
+	anchorEnd   = byte('$')
+	escapeChar  = byte('\\')
+	startGroup  = byte('[')
+	endGroup    = byte(']')
 )
 
 func sanitizeRegex(value []byte) []byte {
@@ -392,7 +392,7 @@ func LabelMatchersToModelMatcher(
 		}
 
 		var name []byte
-		if m.Name == promDefaultName {
+		if m.Name == model.MetricNameLabel {
 			name = tagOpts.MetricName()
 		} else {
 			name = []byte(m.Name)

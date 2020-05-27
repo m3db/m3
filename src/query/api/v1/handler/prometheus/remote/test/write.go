@@ -29,6 +29,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +39,7 @@ func GeneratePromWriteRequest() *prompb.WriteRequest {
 	req := &prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{{
 			Labels: []prompb.Label{
-				{Name: []byte("__name__"), Value: []byte("first")},
+				{Name: []byte(model.MetricNameLabel), Value: []byte("first")},
 				{Name: []byte("foo"), Value: []byte("bar")},
 				{Name: []byte("biz"), Value: []byte("baz")},
 			},
@@ -49,7 +50,7 @@ func GeneratePromWriteRequest() *prompb.WriteRequest {
 		},
 			{
 				Labels: []prompb.Label{
-					{Name: []byte("__name__"), Value: []byte("second")},
+					{Name: []byte(model.MetricNameLabel), Value: []byte("second")},
 					{Name: []byte("foo"), Value: []byte("qux")},
 					{Name: []byte("bar"), Value: []byte("baz")},
 				},
