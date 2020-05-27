@@ -50,7 +50,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/promql"
+	promql "github.com/prometheus/prometheus/promql/parser"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -302,8 +302,9 @@ func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
 				start = start.Add(-1 * n.Range)
 			}
 
-			offset = n.Offset
-			labelMatchers = n.LabelMatchers
+			vectorSelector := n.VectorSelector.(*promql.VectorSelector)
+			offset = vectorSelector.Offset
+			labelMatchers = vectorSelector.LabelMatchers
 		} else if n, ok := node.(*promql.VectorSelector); ok {
 			offset = n.Offset
 			labelMatchers = n.LabelMatchers

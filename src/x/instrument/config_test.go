@@ -24,8 +24,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	tallyprom "github.com/uber-go/tally/prometheus"
 )
 
 func TestPrometheusDefaults(t *testing.T) {
@@ -34,7 +32,7 @@ func TestPrometheusDefaults(t *testing.T) {
 	cfg := MetricsConfiguration{
 		Sanitization: &sanitization,
 		SamplingRate: 1,
-		PrometheusReporter: &tallyprom.Configuration{
+		PrometheusReporter: &PrometheusConfiguration{
 			HandlerPath:   "/metrics",
 			ListenAddress: "0.0.0.0:0",
 			TimerType:     "histogram",
@@ -57,4 +55,8 @@ func TestPrometheusDefaults(t *testing.T) {
 	numQuantiles := len(DefaultSummaryQuantileObjectives())
 	require.True(t, numQuantiles > 0)
 	require.Equal(t, numQuantiles, len(cfg.PrometheusReporter.DefaultSummaryObjectives))
+}
+
+func TestPrometheusExternalRegistries(t *testing.T) {
+	// todo
 }

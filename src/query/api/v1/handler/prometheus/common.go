@@ -42,7 +42,7 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
-	"github.com/prometheus/prometheus/promql"
+	promqlparser "github.com/prometheus/prometheus/promql/parser"
 )
 
 const (
@@ -256,7 +256,7 @@ func ParseSeriesMatchQuery(
 
 	queries := make([]*storage.FetchQuery, len(matcherValues))
 	for i, s := range matcherValues {
-		promMatchers, err := promql.ParseMetricSelector(s)
+		promMatchers, err := promqlparser.ParseMetricSelector(s)
 		if err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}

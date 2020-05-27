@@ -69,9 +69,14 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/go-kit/kit/log"
+	kitlogzap "github.com/go-kit/kit/log/zap"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
+	extprom "github.com/prometheus/client_golang/prometheus"
+	prometheuspromql "github.com/prometheus/prometheus/promql"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -204,9 +209,16 @@ func Run(runOpts RunOptions) {
 		listenerOpts = runResult.listenerOpts
 	}
 
+	prometheusEngineRegistry := extprom.NewRegistry()
 	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
-			OnError: func(err error) {
+			PrometheusExternalRegistries: []instrument.PrometheusExternalRegistry{
+				{
+					Registry: prometheusEngineRegistry,
+					SubScope: "coordinator_prometheus_engine",
+				},
+			},
+			PrometheusOnError: func(err error) {
 				// NB(r): Required otherwise collisions when registering metrics will
 				// cause a panic.
 				logger.Error("register metric error", zap.Error(err))
@@ -412,10 +424,12 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	prometheusEngine := newPromQLEngine(cfg.Query, prometheusEngineRegistry,
+		instrumentOptions)
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
-		tagOptions, engine, m3dbClusters, clusterClient, cfg, runOpts.DBConfig,
-		chainedEnforcer, fetchOptsBuilder, queryCtxOpts, instrumentOptions,
-		cpuProfileDuration, []string{handleroptions.M3DBServiceName},
+		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
+		runOpts.DBConfig, chainedEnforcer, fetchOptsBuilder, queryCtxOpts,
+		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults)
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
@@ -1117,4 +1131,21 @@ func newDownsamplerAndWriter(storage storage.Storage, downsampler downsample.Dow
 	downAndWriteWorkerPool.Init()
 
 	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool), nil
+}
+
+func newPromQLEngine(
+	cfg config.QueryConfiguration,
+	registry *extprom.Registry,
+	instrumentOpts instrument.Options,
+) *prometheuspromql.Engine {
+	var (
+		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
+		opts      = prometheuspromql.EngineOpts{
+			Logger:     log.With(kitLogger, "component", "query engine"),
+			Reg:        registry,
+			MaxSamples: cfg.Prometheus.MaxSamplesPerQueryOrDefault(),
+			Timeout:    cfg.TimeoutOrDefault(),
+		}
+	)
+	return prometheuspromql.NewEngine(opts)
 }
