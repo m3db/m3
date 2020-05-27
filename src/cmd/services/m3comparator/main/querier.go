@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -133,7 +134,7 @@ func (q *querier) FetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (m3.SeriesFetchResult, m3.Cleanup, error) {
+) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
 	var (
 		iters        encoding.SeriesIterators
 		randomSeries []series
@@ -146,7 +147,7 @@ func (q *querier) FetchCompressed(
 		if bytes.Equal(name, matcher.Name) {
 			iters, err = q.handler.getSeriesIterators(string(matcher.Value))
 			if err != nil {
-				return m3.SeriesFetchResult{}, noop, err
+				return consolidators.SeriesFetchResult{}, noop, err
 			}
 
 			break
@@ -156,11 +157,11 @@ func (q *querier) FetchCompressed(
 	if iters == nil || iters.Len() == 0 {
 		randomSeries, ignoreFilter, err = q.generateRandomSeries(query)
 		if err != nil {
-			return m3.SeriesFetchResult{}, noop, err
+			return consolidators.SeriesFetchResult{}, noop, err
 		}
 		iters, err = buildSeriesIterators(randomSeries, query.Start, q.blockSize, q.iteratorOpts)
 		if err != nil {
-			return m3.SeriesFetchResult{}, noop, err
+			return consolidators.SeriesFetchResult{}, noop, err
 		}
 	}
 
@@ -173,7 +174,7 @@ func (q *querier) FetchCompressed(
 			return nil
 		}
 
-		return m3.SeriesFetchResult{
+		return consolidators.SeriesFetchResult{
 			SeriesIterators: filteredIters,
 			Metadata:        block.NewResultMetadata(),
 		}, cleanup, nil
@@ -184,7 +185,7 @@ func (q *querier) FetchCompressed(
 		return nil
 	}
 
-	return m3.SeriesFetchResult{
+	return consolidators.SeriesFetchResult{
 		SeriesIterators: iters,
 		Metadata:        block.NewResultMetadata(),
 	}, cleanup, nil
@@ -327,8 +328,8 @@ func (q *querier) SearchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (m3.TagResult, m3.Cleanup, error) {
-	return m3.TagResult{}, noop, fmt.Errorf("not impl")
+) (consolidators.TagResult, m3.Cleanup, error) {
+	return consolidators.TagResult{}, noop, fmt.Errorf("not impl")
 }
 
 // CompleteTagsCompressed returns autocompleted tag results.
