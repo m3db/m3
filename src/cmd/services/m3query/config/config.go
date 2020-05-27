@@ -223,18 +223,8 @@ func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
 
 // PrometheusQueryConfiguration is the prometheus query engine configuration.
 type PrometheusQueryConfiguration struct {
-	// MaxConcurrency is the maximum concurrency.
-	MaxConcurrency *int `yaml:"maxConcurrency"`
 	// MaxSamplesPerQuery is the limit on fetched samples per query.
 	MaxSamplesPerQuery *int `yaml:"maxSamplesPerQuery"`
-}
-
-// MaxConcurrencyOrDefault returns the max concurrency or default.
-func (c PrometheusQueryConfiguration) MaxConcurrencyOrDefault() int {
-	if v := c.MaxConcurrency; v != nil {
-		return *v
-	}
-	return defaultPrometheusMaxConcurrency
 }
 
 // MaxSamplesPerQueryOrDefault returns the max samples per query or default.
