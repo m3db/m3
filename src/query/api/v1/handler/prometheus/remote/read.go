@@ -289,6 +289,7 @@ func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
+	var vectorsInspected []*promql.VectorSelector
 	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
 		var (
 			start         = queryStart
@@ -303,9 +304,30 @@ func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
 			}
 
 			vectorSelector := n.VectorSelector.(*promql.VectorSelector)
+
+			// Check already inspected (matrix can be walked further into
+			// child vector selector).
+			for _, existing := range vectorsInspected {
+				if existing == vectorSelector {
+					return nil // Already inspected.
+				}
+			}
+
+			vectorsInspected = append(vectorsInspected, vectorSelector)
+
 			offset = vectorSelector.Offset
 			labelMatchers = vectorSelector.LabelMatchers
 		} else if n, ok := node.(*promql.VectorSelector); ok {
+			// Check already inspected (matrix can be walked further into
+			// child vector selector).
+			for _, existing := range vectorsInspected {
+				if existing == n {
+					return nil // Already inspected.
+				}
+			}
+
+			vectorsInspected = append(vectorsInspected, n)
+
 			offset = n.Offset
 			labelMatchers = n.LabelMatchers
 		} else {
