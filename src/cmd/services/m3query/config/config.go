@@ -65,7 +65,6 @@ const (
 
 	defaultQueryTimeout = 30 * time.Second
 
-	defaultPrometheusMaxConcurrency     = 20
 	defaultPrometheusMaxSamplesPerQuery = 100000000
 )
 
