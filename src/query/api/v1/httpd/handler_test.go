@@ -97,6 +97,7 @@ func setupHandler(
 		engine,
 		nil,
 		nil,
+		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
 		nil,
 		nil,
@@ -128,6 +129,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		downsamplerAndWriter,
 		makeTagOptions(),
 		engine,
+		nil,
 		nil,
 		nil,
 		cfg,
@@ -175,22 +177,22 @@ func TestPromRemoteReadPost(t *testing.T) {
 }
 
 func TestPromNativeReadGet(t *testing.T) {
-    tests := []struct{
-        routePrefix string
-    }{
-        {""},
-        {"/prometheus"},
-        {"/m3query"},
+	tests := []struct {
+		routePrefix string
+	}{
+		{""},
+		{"/prometheus"},
+		{"/m3query"},
 	}
-	
+
 	for _, tt := range tests {
 		url := tt.routePrefix + native.PromReadURL
-		t.Run("Testing endpoint GET " + url, func(t *testing.T){
+		t.Run("Testing endpoint GET "+url, func(t *testing.T) {
 			req := httptest.NewRequest("GET", url, nil)
 			res := httptest.NewRecorder()
 			ctrl := gomock.NewController(t)
 			storage, _ := m3.NewStorageAndSession(t, ctrl)
-		
+
 			h, err := setupHandler(storage)
 			require.NoError(t, err, "unable to setup handler")
 			h.RegisterRoutes()
@@ -201,17 +203,17 @@ func TestPromNativeReadGet(t *testing.T) {
 }
 
 func TestPromNativeReadPost(t *testing.T) {
-    tests := []struct{
-        routePrefix string
-    }{
-        {""},
-        {"/prometheus"},
-        {"/m3query"},
+	tests := []struct {
+		routePrefix string
+	}{
+		{""},
+		{"/prometheus"},
+		{"/m3query"},
 	}
 
 	for _, tt := range tests {
 		url := tt.routePrefix + native.PromReadURL
-		t.Run("Testing endpoint GET " + url, func(t *testing.T){
+		t.Run("Testing endpoint GET "+url, func(t *testing.T) {
 			req := httptest.NewRequest("POST", url, nil)
 			res := httptest.NewRecorder()
 			ctrl := gomock.NewController(t)
@@ -394,7 +396,7 @@ func TestCustomRoutes(t *testing.T) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
 	engine := newEngine(store, time.Minute, nil, instrumentOpts)
 	opts, err := options.NewHandlerOptions(
-		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil,
+		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, nil,
 		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
