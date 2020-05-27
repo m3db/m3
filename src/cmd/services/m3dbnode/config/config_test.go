@@ -421,6 +421,7 @@ func TestConfiguration(t *testing.T) {
       numProcessorsPerCPU: 0.42
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
+    peers: null
     cacheSeriesMetadata: null
   blockRetrieve: null
   cache:

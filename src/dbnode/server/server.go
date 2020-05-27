@@ -635,8 +635,13 @@ func Run(runOpts RunOptions) {
 		tchannelOpts.MaxIdleTime = cfg.TChannel.MaxIdleTime
 		tchannelOpts.IdleCheckInterval = cfg.TChannel.IdleCheckInterval
 	}
+	tchanOpts := ttnode.NewOptions(tchannelOpts).
+		SetInstrumentOptions(opts.InstrumentOptions())
+	if fn := runOpts.StorageOptions.TChanNodeServerFn; fn != nil {
+		tchanOpts = tchanOpts.SetTChanNodeServerFn(fn)
+	}
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
-		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
+		cfg.ListenAddress, contextPool, tchanOpts).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open tchannelthrift interface",
 			zap.String("address", cfg.ListenAddress), zap.Error(err))
