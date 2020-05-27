@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/tracepoint"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
@@ -50,25 +51,6 @@ var (
 		" aggregated and unaggregated namespace lookup disabled")
 	errNoNamespacesConfigured = goerrors.New("no namespaces configured")
 )
-
-type queryFanoutType uint
-
-const (
-	namespaceInvalid queryFanoutType = iota
-	namespaceCoversAllQueryRange
-	namespaceCoversPartialQueryRange
-)
-
-func (t queryFanoutType) String() string {
-	switch t {
-	case namespaceCoversAllQueryRange:
-		return "coversAllQueryRange"
-	case namespaceCoversPartialQueryRange:
-		return "coversPartialQueryRange"
-	default:
-		return "unknown"
-	}
-}
 
 type m3storage struct {
 	clusters Clusters
@@ -137,7 +119,7 @@ func (s *m3storage) FetchProm(
 // FetchResultToBlockResult converts an encoded SeriesIterator fetch result
 // into blocks.
 func FetchResultToBlockResult(
-	result SeriesFetchResult,
+	result consolidators.SeriesFetchResult,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 	opts m3db.Options,
@@ -202,10 +184,10 @@ func (s *m3storage) FetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (SeriesFetchResult, Cleanup, error) {
+) (consolidators.SeriesFetchResult, Cleanup, error) {
 	accumulator, err := s.fetchCompressed(ctx, query, options)
 	if err != nil {
-		return SeriesFetchResult{
+		return consolidators.SeriesFetchResult{
 			Metadata: block.NewResultMetadata(),
 		}, noop, err
 	}
@@ -233,7 +215,7 @@ func (s *m3storage) fetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (MultiFetchResult, error) {
+) (consolidators.MultiFetchResult, error) {
 	if err := options.BlockType.Validate(); err != nil {
 		// This is an invariant error; should not be able to get to here.
 		return nil, instrument.InvariantErrorf("invalid block type on "+
@@ -305,7 +287,7 @@ func (s *m3storage) fetchCompressed(
 		return nil, fmt.Errorf("unable to retrieve iterator pools: %v", err)
 	}
 
-	result := newMultiFetchResult(fanout, pools)
+	result := consolidators.NewMultiFetchResult(fanout, pools)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		wg.Add(1)
@@ -329,7 +311,7 @@ func (s *m3storage) fetchCompressed(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
-			fetchResult := SeriesFetchResult{
+			fetchResult := consolidators.SeriesFetchResult{
 				SeriesIterators: iters,
 				Metadata:        blockMeta,
 			}
@@ -537,9 +519,9 @@ func (s *m3storage) SearchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (TagResult, Cleanup, error) {
+) (consolidators.TagResult, Cleanup, error) {
 	// Check if the query was interrupted.
-	tagResult := TagResult{
+	tagResult := consolidators.TagResult{
 		Metadata: block.NewResultMetadata(),
 	}
 
@@ -557,7 +539,7 @@ func (s *m3storage) SearchCompressed(
 	var (
 		namespaces = s.clusters.ClusterNamespaces()
 		m3opts     = storage.FetchOptionsToM3Options(options, query)
-		result     = NewMultiFetchTagsResult()
+		result     = consolidators.NewMultiFetchTagsResult()
 		wg         sync.WaitGroup
 	)
 

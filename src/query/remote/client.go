@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -117,8 +118,8 @@ func (c *grpcClient) fetchRaw(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (m3.SeriesFetchResult, error) {
-	fetchResult := m3.SeriesFetchResult{
+) (consolidators.SeriesFetchResult, error) {
+	fetchResult := consolidators.SeriesFetchResult{
 		Metadata: block.NewResultMetadata(),
 	}
 

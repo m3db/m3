@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3
+package consolidators
 
 import (
 	"sync"
@@ -35,13 +35,13 @@ type multiSearchResult struct {
 	meta      block.ResultMetadata
 	err       xerrors.MultiError
 	seenIters []client.TaggedIDsIterator // track known iterators to avoid leaking
-	dedupeMap map[string]MultiTagResult
+	dedupeMap map[uint32]MultiTagResult
 }
 
 // NewMultiFetchTagsResult builds a new multi fetch tags result
 func NewMultiFetchTagsResult() MultiFetchTagsResult {
 	return &multiSearchResult{
-		dedupeMap: make(map[string]MultiTagResult, initSize),
+		dedupeMap: make(map[uint32]MultiTagResult, initSize),
 		meta:      block.NewResultMetadata(),
 	}
 }
@@ -110,7 +110,12 @@ func (r *multiSearchResult) Add(
 
 	for newIterator.Next() {
 		_, ident, tagIter := newIterator.Current()
-		id := ident.String()
+		id, err := tagIter.Hash()
+		if err != nil {
+			r.err = r.err.Add(err)
+			return
+		}
+
 		_, exists := r.dedupeMap[id]
 		if !exists {
 			r.dedupeMap[id] = MultiTagResult{

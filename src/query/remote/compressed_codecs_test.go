@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -224,7 +224,7 @@ func TestEncodeToCompressedFetchResult(t *testing.T) {
 		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
 			buildTestSeriesIterator(t)}, nil)
 	ip := test.MakeMockIteratorPool()
-	result := m3.SeriesFetchResult{
+	result := consolidators.SeriesFetchResult{
 		SeriesIterators: iters,
 	}
 
@@ -250,7 +250,7 @@ func TestDecodeCompressedFetchResult(t *testing.T) {
 	iters := encoding.NewSeriesIterators(
 		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
 			buildTestSeriesIterator(t)}, nil)
-	result := m3.SeriesFetchResult{
+	result := consolidators.SeriesFetchResult{
 		SeriesIterators: iters,
 	}
 
@@ -265,7 +265,7 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
 			buildTestSeriesIterator(t)}, nil)
 
-	result := m3.SeriesFetchResult{
+	result := consolidators.SeriesFetchResult{
 		SeriesIterators: iters,
 	}
 

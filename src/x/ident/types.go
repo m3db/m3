@@ -218,6 +218,9 @@ type TagIterator interface {
 
 	// Dupe returns an independent duplicate of the iterator.
 	Duplicate() TagIterator
+
+	// Hash computes a rolling hash for the contained Tags.
+	Hash() (uint32, error)
 }
 
 // TagsIterator represents a TagIterator that can be reset with a Tags

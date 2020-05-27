@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/x/ident"
@@ -75,14 +76,14 @@ func newMockStorage(
 			ctx context.Context,
 			query *storage.FetchQuery,
 			options *storage.FetchOptions,
-		) (m3.SeriesFetchResult, m3.Cleanup, error) {
+		) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
 			var cleanup = func() error { return nil }
 			if opts.cleanup != nil {
 				cleanup = opts.cleanup
 			}
 
 			if opts.err != nil {
-				return m3.SeriesFetchResult{
+				return consolidators.SeriesFetchResult{
 					Metadata: block.NewResultMetadata(),
 				}, cleanup, opts.err
 			}
@@ -101,7 +102,7 @@ func newMockStorage(
 				)
 			}
 
-			return m3.SeriesFetchResult{
+			return consolidators.SeriesFetchResult{
 				SeriesIterators: iters,
 				Metadata:        block.NewResultMetadata(),
 			}, cleanup, nil
@@ -432,7 +433,7 @@ func TestBatchedSearch(t *testing.T) {
 	for _, size := range sizes {
 		var (
 			msg     = fmt.Sprintf("batch size: %d", size)
-			tags    = make([]m3.MultiTagResult, 0, size)
+			tags    = make([]consolidators.MultiTagResult, 0, size)
 			names   = make([]string, 0, size)
 			cleaned = false
 		)
@@ -445,7 +446,7 @@ func TestBatchedSearch(t *testing.T) {
 
 		for i := 0; i < size; i++ {
 			name := fmt.Sprintf("%s_%d", seriesID, i)
-			tag := m3.MultiTagResult{
+			tag := consolidators.MultiTagResult{
 				ID: ident.StringID(name),
 				Iter: ident.NewTagsIterator(ident.NewTags(
 					ident.Tag{
@@ -460,7 +461,7 @@ func TestBatchedSearch(t *testing.T) {
 		}
 
 		store := m3.NewMockStorage(ctrl)
-		tagResult := m3.TagResult{
+		tagResult := consolidators.TagResult{
 			Tags:     tags,
 			Metadata: block.NewResultMetadata(),
 		}

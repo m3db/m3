@@ -21,6 +21,7 @@ package convert_test
 
 import (
 	"encoding/hex"
+	"hash/adler32"
 	"testing"
 	"unicode/utf8"
 
@@ -182,6 +183,44 @@ func TestToMetricInvalidTag(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, tags.Next())
 	assert.Error(t, tags.Err())
+}
+
+func TestHash(t *testing.T) {
+	ex := func(s ...string) uint32 {
+		if len(s) == 0 {
+			return 0
+		}
+		digest := adler32.New()
+		for _, ss := range s {
+			_, err := digest.Write([]byte(ss))
+			require.NoError(t, err)
+		}
+		return digest.Sum32()
+	}
+
+	verify := func(it ident.TagIterator, s ...string) {
+		hash, err := it.Hash()
+		assert.NoError(t, err)
+		expected := ex(s...)
+		assert.Equal(t, expected, hash)
+	}
+
+	d := doc.Document{
+		ID: []byte("foo"),
+		Fields: []doc.Field{
+			doc.Field{Name: []byte("foo"), Value: []byte("bar")},
+		},
+	}
+
+	it := convert.ToMetricTags(d, convert.Opts{})
+	verify(it, "foo", "bar")
+
+	duped := it.Duplicate()
+	verify(duped, "foo", "bar")
+
+	it.Close()
+	verify(it)
+	verify(duped, "foo", "bar")
 }
 
 func invalidUTF8Bytes(t *testing.T) []byte {

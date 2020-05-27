@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3
+package consolidators
 
 import (
 	"fmt"
@@ -80,11 +80,11 @@ func generateIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
 }
 
 func TestMultiResult(t *testing.T) {
-	testMultiResult(t, namespaceCoversPartialQueryRange, long)
-	testMultiResult(t, namespaceCoversAllQueryRange, unaggregated)
+	testMultiResult(t, NamespaceCoversPartialQueryRange, long)
+	testMultiResult(t, NamespaceCoversAllQueryRange, unaggregated)
 }
 
-func testMultiResult(t *testing.T, fanoutType queryFanoutType, expected string) {
+func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -119,7 +119,7 @@ func testMultiResult(t *testing.T, fanoutType queryFanoutType, expected string) 
 	}
 
 	pools := generateIteratorPools(ctrl)
-	r := newMultiFetchResult(fanoutType, pools)
+	r := NewMultiFetchResult(fanoutType, pools)
 
 	for _, ns := range namespaces {
 		iters := generateSeriesIterators(ctrl, ns.ns)
@@ -173,7 +173,7 @@ func TestExhaustiveMerge(t *testing.T) {
 	defer ctrl.Finish()
 
 	pools := generateIteratorPools(ctrl)
-	r := newMultiFetchResult(namespaceCoversAllQueryRange, pools)
+	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools)
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for i, ex := range tt.exhaustives {

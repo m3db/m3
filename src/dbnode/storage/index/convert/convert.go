@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"hash/adler32"
 	"unicode/utf8"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -314,7 +315,8 @@ type tagIter struct {
 	currentIdx int
 	currentTag ident.Tag
 
-	opts Opts
+	digest uint32
+	opts   Opts
 }
 
 // NB: force tagIter to implement the ident.TagIterator interface.
@@ -389,6 +391,7 @@ func (t *tagIter) Err() error {
 
 func (t *tagIter) Close() {
 	t.releaseCurrent()
+	t.digest = 0
 	t.done = true
 }
 
@@ -407,4 +410,23 @@ func (t *tagIter) Duplicate() ident.TagIterator {
 		dupe.currentTag = t.opts.IdentPool.CloneTag(t.currentTag)
 	}
 	return &dupe
+}
+
+func (t *tagIter) Hash() (uint32, error) {
+	if t.done || len(t.docFields) == 0 {
+		return 0, nil
+	}
+	if t.digest == 0 {
+		digest := adler32.New()
+		for _, f := range t.docFields {
+			if _, err := digest.Write(f.Name); err != nil {
+				return 0, err
+			}
+			if _, err := digest.Write(f.Value); err != nil {
+				return 0, err
+			}
+		}
+		t.digest = digest.Sum32()
+	}
+	return t.digest, nil
 }

@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"hash/adler32"
 
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/x/ident"
@@ -70,6 +71,7 @@ type rollupIDProvider struct {
 	tagPairs       []id.TagPair
 	nameTagIndex   int
 	rollupTagIndex int
+	digest         uint32
 
 	tagEncoder             serialize.TagEncoder
 	pool                   *rollupIDProviderPool
@@ -127,6 +129,7 @@ func (p *rollupIDProvider) reset(
 	p.tagPairs = tagPairs
 	p.nameTagIndex = -1
 	p.rollupTagIndex = -1
+	p.digest = 0
 	for idx, pair := range tagPairs {
 		if p.nameTagIndex == -1 && bytes.Compare(p.nameTagBytes, pair.Name) < 0 {
 			p.nameTagIndex = idx
@@ -198,7 +201,7 @@ func (p *rollupIDProvider) Err() error {
 }
 
 func (p *rollupIDProvider) Close() {
-	// No-op
+	p.digest = 0
 }
 
 func (p *rollupIDProvider) Len() int {
@@ -213,6 +216,25 @@ func (p *rollupIDProvider) Duplicate() ident.TagIterator {
 	duplicate := p.pool.Get()
 	duplicate.reset(p.newName, p.tagPairs)
 	return duplicate
+}
+
+func (p *rollupIDProvider) Hash() (uint32, error) {
+	if len(p.tagPairs) == 0 {
+		return 0, nil
+	}
+	if p.digest == 0 {
+		digest := adler32.New()
+		for _, t := range p.tagPairs {
+			if _, err := digest.Write(t.Name); err != nil {
+				return 0, err
+			}
+			if _, err := digest.Write(t.Value); err != nil {
+				return 0, err
+			}
+		}
+		p.digest = digest.Sum32()
+	}
+	return p.digest, nil
 }
 
 type rollupIDProviderPool struct {

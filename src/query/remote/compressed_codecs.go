@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
@@ -199,7 +199,7 @@ func compressedSeriesFromSeriesIterator(
 
 // encodeToCompressedSeries encodes SeriesIterators to compressed series.
 func encodeToCompressedSeries(
-	results m3.SeriesFetchResult,
+	results consolidators.SeriesFetchResult,
 	iterPools encoding.IteratorPools,
 ) ([]*rpc.Series, error) {
 	iters := results.SeriesIterators.Iters()
