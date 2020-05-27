@@ -45,7 +45,7 @@ var (
 // the WriteBatch method.
 type DownsampleAndWriteIter interface {
 	Next() bool
-	Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte)
+	Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte)
 	Reset() error
 	Error() error
 }
@@ -336,7 +336,7 @@ func (d *downsamplerAndWriter) WriteBatch(
 		}
 
 		for iter.Next() {
-			tags, datapoints, unit, annotation := iter.Current()
+			tags, datapoints, _, unit, annotation := iter.Current()
 			for _, p := range storagePolicies {
 				p := p // Capture for lambda.
 				wg.Add(1)
@@ -391,7 +391,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 
 	for iter.Next() {
 		appender.Reset()
-		tags, datapoints, _, _ := iter.Current()
+		tags, datapoints, info, _, _ := iter.Current()
 		for _, tag := range tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
 		}
@@ -412,7 +412,14 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		for _, dp := range datapoints {
-			err := samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+			switch info.Type {
+			case ts.MetricTypeGauge:
+				err = samplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
+			case ts.MetricTypeCounter:
+				err = samplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+			case ts.MetricTypeTimer:
+				err = samplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
+			}
 			if err != nil {
 				return err
 			}

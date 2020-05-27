@@ -483,7 +483,11 @@ func (h *PromWriteHandler) write(
 	r *prompb.WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
-	iter := newPromTSIter(r.Timeseries, h.tagOptions)
+	iter, err := newPromTSIter(r.Timeseries, h.tagOptions)
+	if err != nil {
+		var errs xerrors.MultiError
+		return errs.Add(err)
+	}
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
 }
 
@@ -541,27 +545,35 @@ func (h *PromWriteHandler) forward(
 	return nil
 }
 
-func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
+func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) (*promTSIter, error) {
 	// Construct the tags and datapoints upfront so that if the iterator
 	// is reset, we don't have to generate them twice.
 	var (
-		tags       = make([]models.Tags, 0, len(timeseries))
-		datapoints = make([]ts.Datapoints, 0, len(timeseries))
+		tags             = make([]models.Tags, 0, len(timeseries))
+		datapoints       = make([]ts.Datapoints, 0, len(timeseries))
+		seriesAttributes = make([]ts.SeriesAttributes, 0, len(timeseries))
 	)
 	for _, promTS := range timeseries {
+		attributes, err := storage.PromTimeSeriesToSeriesAttributes(promTS)
+		if err != nil {
+			return nil, err
+		}
+		seriesAttributes = append(seriesAttributes, attributes)
 		tags = append(tags, storage.PromLabelsToM3Tags(promTS.Labels, tagOpts))
 		datapoints = append(datapoints, storage.PromSamplesToM3Datapoints(promTS.Samples))
 	}
 
 	return &promTSIter{
+		attributes: seriesAttributes,
 		idx:        -1,
 		tags:       tags,
 		datapoints: datapoints,
-	}
+	}, nil
 }
 
 type promTSIter struct {
 	idx        int
+	attributes []ts.SeriesAttributes
 	tags       []models.Tags
 	datapoints []ts.Datapoints
 }
@@ -571,12 +583,12 @@ func (i *promTSIter) Next() bool {
 	return i.idx < len(i.tags)
 }
 
-func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
+func (i *promTSIter) Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte) {
 	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.EmptyTags(), nil, 0, nil
+		return models.EmptyTags(), nil, ts.DefaultSeriesAttributes(), 0, nil
 	}
 
-	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond, nil
+	return i.tags[i.idx], i.datapoints[i.idx], i.attributes[i.idx], xtime.Millisecond, nil
 }
 
 func (i *promTSIter) Reset() error {
