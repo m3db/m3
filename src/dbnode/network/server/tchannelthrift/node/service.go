@@ -337,7 +337,8 @@ func (s *service) SetMetadata(key, value string) {
 	} else {
 		meta = make(map[string]string, 8)
 	}
-	newHealth.Metadata[key] = value
+	meta[key] = value
+	newHealth.Metadata = meta
 	s.state.health = newHealth
 }
 
