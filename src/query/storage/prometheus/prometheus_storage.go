@@ -130,6 +130,14 @@ func (q *querier) Select(
 	seriesSet := fromQueryResult(result.PromResult)
 	warnings := fromWarningStrings(result.Metadata.WarningStrings())
 
+	if !result.Metadata.Exhaustive {
+		remoteReadFlags, err := RemoteReadFlagsCtx(q.ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		remoteReadFlags.Limited = true
+	}
+
 	return seriesSet, warnings, err
 }
 

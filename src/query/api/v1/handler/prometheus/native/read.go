@@ -145,6 +145,11 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("Exhaustive:", result.Meta.Exhaustive)
+	if !result.Meta.Exhaustive {
+		w.Header().Set(handleroptions.LimitHeader, handleroptions.LimitHeaderSeriesLimitApplied)
+	}
+
 	err = RenderResultsJSON(w, result, RenderResultsOptions{
 		Start:    parsedOptions.Params.Start,
 		End:      parsedOptions.Params.End,

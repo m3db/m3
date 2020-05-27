@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/storage/prometheus"
@@ -86,7 +87,10 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// NB (@shreyas): We put the FetchOptions in context so it can be
 	// retrieved in the queryable object as there is no other way to pass
 	// that through.
+	remoteReadFlags := &prometheus.RemoteReadFlags{}
 	ctx = context.WithValue(ctx, prometheus.FetchOptionsContextKey, fetchOptions)
+	ctx = context.WithValue(ctx, prometheus.RemoteReadFlagsKey, remoteReadFlags)
+		
 	if request.Params.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, request.Params.Timeout)
@@ -111,6 +115,10 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("error executing range query", zap.Error(res.Err), zap.String("query", request.Params.Query))
 		respondError(w, res.Err, http.StatusInternalServerError)
 		return
+	}
+
+	if remoteReadFlags.Limited {
+		w.Header().Set(handleroptions.LimitHeader, handleroptions.LimitHeaderSeriesLimitApplied)
 	}
 
 	respond(w, &queryData{

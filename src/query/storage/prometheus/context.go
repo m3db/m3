@@ -33,7 +33,14 @@ type ContextKey string
 const (
 	// FetchOptionsContextKey is the context key for fetch options.
 	FetchOptionsContextKey ContextKey = "fetch-options"
+
+	// RemoteReadFlagsKey is the context key for remote reader response flags.
+	RemoteReadFlagsKey ContextKey = "RemoteReadFlags"
 )
+
+type RemoteReadFlags struct {
+	Limited bool
+}
 
 func fetchOptions(ctx context.Context) (*storage.FetchOptions, error) {
 	fetchOptions := ctx.Value(FetchOptionsContextKey)
@@ -41,4 +48,12 @@ func fetchOptions(ctx context.Context) (*storage.FetchOptions, error) {
 		return f, nil
 	}
 	return nil, errors.New("fetch options not available")
+}
+
+func RemoteReadFlagsCtx(ctx context.Context) (*RemoteReadFlags, error) {
+	flags := ctx.Value(RemoteReadFlagsKey)
+	if f, ok := flags.(*RemoteReadFlags); ok {
+		return f, nil
+	}
+	return nil, errors.New("remote read flags are not available")
 }
