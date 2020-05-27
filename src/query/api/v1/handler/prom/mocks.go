@@ -29,7 +29,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
-	promlabels "github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"go.uber.org/zap/zapcore"
@@ -48,7 +48,7 @@ func (m mockSeriesSet) Err() error             { return nil }
 func (mockQuerier) Select(
 	sortSeries bool,
 	hints *promstorage.SelectHints,
-	labelMatchers ...*promlabels.Matcher,
+	labelMatchers ...*labels.Matcher,
 ) (promstorage.SeriesSet, promstorage.Warnings, error) {
 	return mockSeriesSet{}, nil, nil
 }

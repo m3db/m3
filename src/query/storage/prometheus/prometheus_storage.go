@@ -34,7 +34,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
-	promlabels "github.com/prometheus/prometheus/pkg/labels"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/uber-go/tally"
@@ -104,7 +103,7 @@ func newQuerier(
 func (q *querier) Select(
 	sortSeries bool,
 	hints *promstorage.SelectHints,
-	labelMatchers ...*promlabels.Matcher,
+	labelMatchers ...*labels.Matcher,
 ) (promstorage.SeriesSet, promstorage.Warnings, error) {
 	matchers, err := promql.LabelMatchersToModelMatcher(labelMatchers, models.NewTagOptions())
 	if err != nil {
@@ -188,12 +187,12 @@ type byLabel []promstorage.Series
 
 func (a byLabel) Len() int           { return len(a) }
 func (a byLabel) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byLabel) Less(i, j int) bool { return promlabels.Compare(a[i].Labels(), a[j].Labels()) < 0 }
+func (a byLabel) Less(i, j int) bool { return labels.Compare(a[i].Labels(), a[j].Labels()) < 0 }
 
-func labelProtosToLabels(labelPairs []prompb.Label) promlabels.Labels {
-	result := make(promlabels.Labels, 0, len(labelPairs))
+func labelProtosToLabels(labelPairs []prompb.Label) labels.Labels {
+	result := make(labels.Labels, 0, len(labelPairs))
 	for _, l := range labelPairs {
-		result = append(result, promlabels.Label{
+		result = append(result, labels.Label{
 			Name:  string(l.Name),
 			Value: string(l.Value),
 		})
