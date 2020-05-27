@@ -22,6 +22,7 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -38,7 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
-	"github.com/m3db/m3/src/query/util/json"
+	jsonutil "github.com/m3db/m3/src/query/util/json"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
@@ -281,7 +282,7 @@ func renderNameOnlyTagCompletionResultsJSON(
 	w io.Writer,
 	results []storage.CompletedTag,
 ) error {
-	jw := json.NewWriter(w)
+	jw := jsonutil.NewWriter(w)
 	jw.BeginArray()
 
 	for _, tag := range results {
@@ -297,7 +298,7 @@ func renderDefaultTagCompletionResultsJSON(
 	w io.Writer,
 	results []storage.CompletedTag,
 ) error {
-	jw := json.NewWriter(w)
+	jw := jsonutil.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("hits")
@@ -337,7 +338,7 @@ func RenderListTagResultsJSON(
 		return errors.ErrWithNames
 	}
 
-	jw := json.NewWriter(w)
+	jw := jsonutil.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -383,7 +384,7 @@ func RenderTagValuesResultsJSON(
 		return errors.ErrMultipleResults
 	}
 
-	jw := json.NewWriter(w)
+	jw := jsonutil.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -419,7 +420,7 @@ func RenderSeriesMatchResultsJSON(
 	results []models.Metrics,
 	dropRole bool,
 ) error {
-	jw := json.NewWriter(w)
+	jw := jsonutil.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -461,56 +462,144 @@ type Response struct {
 }
 
 type data struct {
-	// ResultType is the result type for the response.
 	ResultType string `json:"resultType"`
-	// Result is the list of results for the response.
-	Result results `json:"result"`
+	Result     result
 }
 
-type results []Result
+type result interface {
+	matches(other result) (MatchInformation, error)
+}
+
+type matrixResult struct {
+	// Result is the list of matrixRow for the response.
+	Result []matrixRow `json:"result"`
+}
+
+type vectorResult struct {
+	// Result is the list of vectorItem for the response.
+	Result []vectorItem `json:"result"`
+}
+
+type scalarResult struct {
+	// Result is the scalar Value for the response.
+	Result Value `json:"result"`
+}
+
+type stringResult struct {
+	// Result is the string Value for the response.
+	Result string `json:"result"`
+}
+
+type MetaData struct {
+	ResultType string `json:"resultType"`
+}
+
+func (d *data) UnmarshalJSON(bytes []byte) error {
+	metaData := &MetaData{}
+	if err := json.Unmarshal(bytes, metaData); err != nil {
+		return err
+	}
+	*d = data{ResultType: metaData.ResultType}
+
+	switch metaData.ResultType {
+
+	case "matrix":
+		r := &matrixResult{}
+		(*d).Result = r
+		return json.Unmarshal(bytes, r)
+
+	case "vector":
+		r := &vectorResult{}
+		(*d).Result = r
+		return json.Unmarshal(bytes, r)
+
+	case "scalar":
+		r := &scalarResult{}
+		(*d).Result = r
+		return json.Unmarshal(bytes, r)
+
+	case "string":
+		r := &stringResult{}
+		(*d).Result = r
+		return json.Unmarshal(bytes, r)
+
+	default:
+		return fmt.Errorf("unknown resultType: %s, %s", metaData.ResultType, string(bytes))
+	}
+}
 
 // Len is the number of elements in the collection.
-func (r results) Len() int { return len(r) }
+func (r matrixResult) Len() int { return len(r.Result) }
 
 // Less reports whether the element with
 // index i should sort before the element with index j.
-func (r results) Less(i, j int) bool {
-	return r[i].id < r[j].id
+func (r matrixResult) Less(i, j int) bool {
+	return r.Result[i].id < r.Result[j].id
 }
 
 // Swap swaps the elements with indexes i and j.
-func (r results) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r matrixResult) Swap(i, j int) { r.Result[i], r.Result[j] = r.Result[j], r.Result[i] }
 
-// Sort sorts the results.
-func (r results) Sort() {
-	for i, result := range r {
-		r[i] = result.genID()
+// Sort sorts the matrixResult.
+func (r matrixResult) Sort() {
+	for i, result := range r.Result {
+		r.Result[i].id = result.Metric.genID()
 	}
 
 	sort.Sort(r)
 }
 
-// Result is the result itself.
-type Result struct {
-	// Metric is the tags for the result.
+// Len is the number of elements in the vector.
+func (r vectorResult) Len() int { return len(r.Result) }
+
+// Less reports whether the element with
+// index i should sort before the element with index j.
+func (r vectorResult) Less(i, j int) bool {
+	return r.Result[i].id < r.Result[j].id
+}
+
+// Swap swaps the elements with indexes i and j.
+func (r vectorResult) Swap(i, j int) { r.Result[i], r.Result[j] = r.Result[j], r.Result[i] }
+
+// Sort sorts the vectorResult.
+func (r vectorResult) Sort() {
+	for i, result := range r.Result {
+		r.Result[i].id = result.Metric.genID()
+	}
+
+	sort.Sort(r)
+}
+
+// matrixRow is a single row of "matrix" Result.
+type matrixRow struct {
+	// Metric is the tags for the matrixRow.
 	Metric Tags `json:"metric"`
-	// Values is the set of values for the result.
+	// Values is the set of values for the matrixRow.
 	Values Values `json:"values"`
 	id     string
+}
+
+// vectorItem is a single item of "vector" Result.
+type vectorItem struct {
+	// Metric is the tags for the vectorItem.
+	Metric Tags `json:"metric"`
+	// Value is the value for the vectorItem.
+	Value Value `json:"value"`
+	id    string
 }
 
 // Tags is a simple representation of Prometheus tags.
 type Tags map[string]string
 
-// Values is a list of values for the Prometheus result.
+// Values is a list of values for the Prometheus Result.
 type Values []Value
 
-// Value is a single value for Prometheus result.
+// Value is a single value for Prometheus Result.
 type Value []interface{}
 
-func (r *Result) genID() Result {
-	tags := make(sort.StringSlice, len(r.Metric))
-	for k, v := range r.Metric {
+func (t *Tags) genID() string {
+	tags := make(sort.StringSlice, len(*t))
+	for k, v := range *t {
 		tags = append(tags, fmt.Sprintf("%s:%s,", k, v))
 	}
 
@@ -522,8 +611,7 @@ func (r *Result) genID() Result {
 		sb.WriteString(t)
 	}
 
-	r.id = sb.String()
-	return *r
+	return sb.String()
 }
 
 // MatchInformation describes how well two responses match.
@@ -535,16 +623,16 @@ type MatchInformation struct {
 }
 
 // Matches compares two responses and determines how closely they match.
-func (p Response) Matches(other Response) (MatchInformation, error) {
-	if p.Status != other.Status {
+func (r Response) Matches(other Response) (MatchInformation, error) {
+	if r.Status != other.Status {
 		err := fmt.Errorf("status %s does not match other status %s",
-			p.Status, other.Status)
+			r.Status, other.Status)
 		return MatchInformation{
 			NoMatch: true,
 		}, err
 	}
 
-	return p.Data.matches(other.Data)
+	return r.Data.matches(other.Data)
 }
 
 func (d data) matches(other data) (MatchInformation, error) {
@@ -559,19 +647,27 @@ func (d data) matches(other data) (MatchInformation, error) {
 	return d.Result.matches(other.Result)
 }
 
-func (r results) matches(other results) (MatchInformation, error) {
-	if len(r) != len(other) {
+func (r matrixResult) matches(other result) (MatchInformation, error) {
+	otherMatrix, ok := other.(*matrixResult)
+	if !ok {
+		err := fmt.Errorf("incorrect type for matching, expected matrixResult, %v", other)
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	if len(r.Result) != len(otherMatrix.Result) {
 		err := fmt.Errorf("result length %d does not match other result length %d",
-			len(r), len(other))
+			len(r.Result), len(otherMatrix.Result))
 		return MatchInformation{
 			NoMatch: true,
 		}, err
 	}
 
 	r.Sort()
-	other.Sort()
-	for i, result := range r {
-		if err := result.matches(other[i]); err != nil {
+	otherMatrix.Sort()
+	for i, result := range r.Result {
+		if err := result.matches(otherMatrix.Result[i]); err != nil {
 			return MatchInformation{
 				NoMatch: true,
 			}, err
@@ -581,13 +677,89 @@ func (r results) matches(other results) (MatchInformation, error) {
 	return MatchInformation{FullMatch: true}, nil
 }
 
-func (r Result) matches(other Result) error {
+func (r vectorResult) matches(other result) (MatchInformation, error) {
+	otherVector, ok := other.(*vectorResult)
+	if !ok {
+		err := fmt.Errorf("incorrect type for matching, expected vectorResult")
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	if len(r.Result) != len(otherVector.Result) {
+		err := fmt.Errorf("result length %d does not match other result length %d",
+			len(r.Result), len(otherVector.Result))
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	r.Sort()
+	otherVector.Sort()
+	for i, result := range r.Result {
+		if err := result.matches(otherVector.Result[i]); err != nil {
+			return MatchInformation{
+				NoMatch: true,
+			}, err
+		}
+	}
+
+	return MatchInformation{FullMatch: true}, nil
+}
+
+func (r scalarResult) matches(other result) (MatchInformation, error) {
+	otherScalar, ok := other.(*scalarResult)
+	if !ok {
+		err := fmt.Errorf("incorrect type for matching, expected scalarResult")
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	if err := r.Result.matches(otherScalar.Result); err != nil {
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return MatchInformation{FullMatch: true}, nil
+}
+
+func (r stringResult) matches(other result) (MatchInformation, error) {
+	otherString, ok := other.(*stringResult)
+	if !ok {
+		err := fmt.Errorf("incorrect type for matching, expected stringResult")
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	if r.Result != otherString.Result {
+		err := fmt.Errorf("value %s does not match other value %s", r.Result, otherString.Result)
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return MatchInformation{FullMatch: true}, nil
+}
+
+func (r matrixRow) matches(other matrixRow) error {
 	// NB: tags should match by here so this is more of a sanity check.
 	if err := r.Metric.matches(other.Metric); err != nil {
 		return err
 	}
 
 	return r.Values.matches(other.Values)
+}
+
+func (r vectorItem) matches(other vectorItem) error {
+	// NB: tags should match by here so this is more of a sanity check.
+	if err := r.Metric.matches(other.Metric); err != nil {
+		return err
+	}
+
+	return r.Value.matches(other.Value)
 }
 
 func (t Tags) matches(other Tags) error {
@@ -599,7 +771,7 @@ func (t Tags) matches(other Tags) error {
 	for k, v := range t {
 		if vv, ok := other[k]; ok {
 			if v != vv {
-				return fmt.Errorf("tag %s does not match other tag length %s", v, vv)
+				return fmt.Errorf("tag %s value %s does not match other tag value %s", k, v, vv)
 			}
 		} else {
 			return fmt.Errorf("tag %s not found in other tagset", v)
@@ -660,12 +832,6 @@ func (v Value) matches(other Value) error {
 	}
 
 	return nil
-}
-
-// PromDebug represents the input and output that are used in the debug endpoint.
-type PromDebug struct {
-	Input   Response `json:"input"`
-	Results Response `json:"results"`
 }
 
 // FilterSeriesByOptions removes series tags based on options.
