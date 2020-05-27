@@ -143,7 +143,7 @@ func (c PrometheusConfiguration) NewReporter(
 	}
 
 	if len(c.DefaultHistogramBuckets) > 0 {
-		var values []float64
+		values := make([]float64, 0, len(c.DefaultHistogramBuckets))
 		for _, value := range c.DefaultHistogramBuckets {
 			values = append(values, value.Upper)
 		}
@@ -151,7 +151,7 @@ func (c PrometheusConfiguration) NewReporter(
 	}
 
 	if len(c.DefaultSummaryObjectives) > 0 {
-		values := make(map[float64]float64)
+		values := make(map[float64]float64, len(c.DefaultSummaryObjectives))
 		for _, value := range c.DefaultSummaryObjectives {
 			values[value.Percentile] = value.AllowedError
 		}
