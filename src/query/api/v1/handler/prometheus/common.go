@@ -487,16 +487,14 @@ type scalarResult struct {
 
 type stringResult struct {
 	// Result is the string Value for the response.
-	Result string `json:"result"`
-}
-
-type MetaData struct {
-	ResultType string `json:"resultType"`
+	Result Value `json:"result"`
 }
 
 func (d *data) UnmarshalJSON(bytes []byte) error {
-	metaData := &MetaData{}
-	if err := json.Unmarshal(bytes, metaData); err != nil {
+	var metaData struct {
+		ResultType string `json:"resultType"`
+	}
+	if err := json.Unmarshal(bytes, &metaData); err != nil {
 		return err
 	}
 	*d = data{ResultType: metaData.ResultType}
@@ -734,8 +732,7 @@ func (r stringResult) matches(other result) (MatchInformation, error) {
 		}, err
 	}
 
-	if r.Result != otherString.Result {
-		err := fmt.Errorf("value %s does not match other value %s", r.Result, otherString.Result)
+	if err := r.Result.matches(otherString.Result); err != nil {
 		return MatchInformation{
 			NoMatch: true,
 		}, err
