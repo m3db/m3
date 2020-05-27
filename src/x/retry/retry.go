@@ -50,6 +50,7 @@ type retrier struct {
 }
 
 type retrierMetrics struct {
+	calls              tally.Counter
 	attempts           tally.Counter
 	success            tally.Counter
 	successLatency     tally.Histogram
@@ -86,6 +87,7 @@ func NewRetrier(opts Options) Retrier {
 		rngFn:          opts.RngFn(),
 		sleepFn:        time.Sleep,
 		metrics: retrierMetrics{
+			calls:              scope.Counter("calls"),
 			attempts:           scope.Counter("attempts"),
 			success:            scope.Counter("success"),
 			successLatency:     histogramWithDurationBuckets(scope, "success-latency"),
@@ -111,6 +113,9 @@ func (r *retrier) AttemptWhile(continueFn ContinueFn, fn Fn) error {
 }
 
 func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
+	// Always track a call, useful for counting number of total operations.
+	r.metrics.calls.Inc(1)
+
 	attempt := 0
 
 	if continueFn != nil && !continueFn(attempt) {
