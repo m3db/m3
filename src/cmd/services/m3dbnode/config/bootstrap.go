@@ -99,7 +99,7 @@ func newDefaultBootstrapCommitlogConfiguration() BootstrapCommitlogConfiguration
 	}
 }
 
-// BootstrapPeersConfiguration specifies config for th epeers bootstrapper.
+// BootstrapPeersConfiguration specifies config for the peers bootstrapper.
 type BootstrapPeersConfiguration struct {
 	// StreamShardConcurrency controls how many shards in parallel to stream
 	// for in memory data being streamed between peers (most recent block).
