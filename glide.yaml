@@ -176,7 +176,9 @@ import:
     version: ~2.17.2
 
   # To avoid prometheus/prometheus dependencies from breaking,
-  # pin the transitive dependencies
+  # pin the transitive dependencies. See go.mod in 
+  # github.com/prometheus/prometheus for which versions to set for 
+  # relevant prometheus release pinned to above.
   - package: github.com/prometheus/common
     version: ~0.9.1
 
