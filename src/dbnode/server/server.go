@@ -137,8 +137,8 @@ type RunOptions struct {
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
 
-	// QueryStatsTracker exposes an interface for tracking query stats.
-	QueryStatsTracker stats.QueryStatsTracker
+	// QueryStatsTrackerFn returns a tracker for tracking query stats.
+	QueryStatsTrackerFn func(instrument.Options) stats.QueryStatsTracker
 
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
@@ -409,9 +409,11 @@ func Run(runOpts RunOptions) {
 	defer stopReporting()
 
 	// Setup query stats tracking.
-	tracker := runOpts.QueryStatsTracker
-	if runOpts.QueryStatsTracker == nil {
+	var tracker stats.QueryStatsTracker
+	if runOpts.QueryStatsTrackerFn == nil {
 		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
+	} else {
+		tracker = runOpts.QueryStatsTrackerFn(iopts)
 	}
 	queryStats := stats.NewQueryStats(tracker)
 	queryStats.Start()
