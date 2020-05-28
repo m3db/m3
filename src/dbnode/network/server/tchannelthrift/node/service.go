@@ -246,6 +246,13 @@ type Service interface {
 
 	// Only safe to be called one time once the service has started.
 	SetDatabase(db storage.Database) error
+
+	// SetMetadata sets a metadata key to the given value.
+	SetMetadata(key, value string)
+
+	// GetMetadata returns the metadata for the given key and a bool indicating
+	// if it is present.
+	GetMetadata(key string) (string, bool)
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -312,6 +319,34 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
 		},
 	}
+}
+
+func (s *service) SetMetadata(key, value string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// Copy health state and update single value since in flight
+	// requests might hold ref to current health result.
+	newHealth := &rpc.NodeHealthResult_{}
+	*newHealth = *s.state.health
+	var meta map[string]string
+	if curr := newHealth.Metadata; curr != nil {
+		meta = make(map[string]string, len(curr)+1)
+		for k, v := range curr {
+			meta[k] = v
+		}
+	} else {
+		meta = make(map[string]string, 8)
+	}
+	meta[key] = value
+	newHealth.Metadata = meta
+	s.state.health = newHealth
+}
+
+func (s *service) GetMetadata(key string) (string, bool) {
+	s.state.RLock()
+	md, found := s.state.health.Metadata[key]
+	s.state.RUnlock()
+	return md, found
 }
 
 func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
@@ -1940,6 +1975,39 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 		return nil, tterrors.NewBadRequestError(err)
 	}
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
+}
+
+func (s *service) DebugIndexMemorySegments(
+	ctx thrift.Context,
+	req *rpc.DebugIndexMemorySegmentsRequest,
+) (
+	*rpc.DebugIndexMemorySegmentsResult_,
+	error,
+) {
+	db, err := s.startRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var multiErr xerrors.MultiError
+	for _, ns := range db.Namespaces() {
+		idx, err := ns.Index()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := idx.DebugMemorySegments(storage.DebugMemorySegmentsOptions{
+			OutputDirectory: req.Directory,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := multiErr.FinalError(); err != nil {
+		return nil, err
+	}
+
+	return &rpc.DebugIndexMemorySegmentsResult_{}, nil
 }
 
 func (s *service) SetDatabase(db storage.Database) error {

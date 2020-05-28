@@ -58,6 +58,9 @@ type BootstrapConfiguration struct {
 	// Commitlog bootstrapper configuration.
 	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`
 
+	// Peers bootstrapper configuration.
+	Peers *BootstrapPeersConfiguration `yaml:"peers"`
+
 	// CacheSeriesMetadata determines whether individual bootstrappers cache
 	// series metadata across all calls (namespaces / shards / blocks).
 	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
@@ -93,6 +96,25 @@ type BootstrapCommitlogConfiguration struct {
 func newDefaultBootstrapCommitlogConfiguration() BootstrapCommitlogConfiguration {
 	return BootstrapCommitlogConfiguration{
 		ReturnUnfulfilledForCorruptCommitLogFiles: commitlog.DefaultReturnUnfulfilledForCorruptCommitLogFiles,
+	}
+}
+
+// BootstrapPeersConfiguration specifies config for the peers bootstrapper.
+type BootstrapPeersConfiguration struct {
+	// StreamShardConcurrency controls how many shards in parallel to stream
+	// for in memory data being streamed between peers (most recent block).
+	// Defaults to: numCPU.
+	StreamShardConcurrency int `yaml:"streamShardConcurrency"`
+	// StreamPersistShardConcurrency controls how many shards in parallel to stream
+	// for historical data being streamed between peers (historical blocks).
+	// Defaults to: numCPU / 2.
+	StreamPersistShardConcurrency int `yaml:"streamPersistShardConcurrency"`
+}
+
+func newDefaultBootstrapPeersConfiguration() BootstrapPeersConfiguration {
+	return BootstrapPeersConfiguration{
+		StreamShardConcurrency:        peers.DefaultShardConcurrency,
+		StreamPersistShardConcurrency: peers.DefaultShardPersistenceConcurrency,
 	}
 }
 
@@ -159,7 +181,6 @@ func (bsc BootstrapConfiguration) New(
 				SetPersistManager(opts.PersistManager()).
 				SetCompactor(compactor).
 				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool())
 			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
@@ -188,6 +209,7 @@ func (bsc BootstrapConfiguration) New(
 				return nil, err
 			}
 		case peers.PeersBootstrapperName:
+			pCfg := bsc.peersConfig()
 			pOpts := peers.NewOptions().
 				SetResultOptions(rsOpts).
 				SetFilesystemOptions(fsOpts).
@@ -195,9 +217,10 @@ func (bsc BootstrapConfiguration) New(
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetCompactor(compactor).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
-				SetContextPool(opts.ContextPool())
+				SetContextPool(opts.ContextPool()).
+				SetDefaultShardConcurrency(pCfg.StreamShardConcurrency).
+				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency)
 			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
 				return nil, err
 			}
@@ -239,6 +262,13 @@ func (bsc BootstrapConfiguration) commitlogConfig() BootstrapCommitlogConfigurat
 		return *cfg
 	}
 	return newDefaultBootstrapCommitlogConfiguration()
+}
+
+func (bsc BootstrapConfiguration) peersConfig() BootstrapPeersConfiguration {
+	if cfg := bsc.Peers; cfg != nil {
+		return *cfg
+	}
+	return newDefaultBootstrapPeersConfiguration()
 }
 
 type bootstrapConfigurationValidator struct {

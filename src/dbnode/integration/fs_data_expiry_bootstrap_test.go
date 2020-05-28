@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
@@ -61,24 +60,6 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
-	retrieverOpts := fs.NewBlockRetrieverOptions().
-		SetBlockLeaseManager(&block.NoopLeaseManager{})
-
-	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-		func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-			retriever, err := fs.NewBlockRetriever(retrieverOpts, setup.fsOpts)
-			if err != nil {
-				return nil, err
-			}
-
-			if err := retriever.Open(md); err != nil {
-				return nil, err
-			}
-			return retriever, nil
-		})
-
-	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
-
 	setup, err = newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.close()
@@ -97,7 +78,6 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 		SetResultOptions(bsOpts).
 		SetIndexOptions(storageIdxOpts).
 		SetFilesystemOptions(fsOpts).
-		SetDatabaseBlockRetrieverManager(blockRetrieverMgr).
 		SetPersistManager(persistMgr).
 		SetCompactor(newCompactor(t, storageIdxOpts))
 	bs, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)

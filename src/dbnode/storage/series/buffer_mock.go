@@ -63,12 +63,13 @@ func (m *MockdatabaseBuffer) EXPECT() *MockdatabaseBufferMockRecorder {
 }
 
 // Write mocks base method
-func (m *MockdatabaseBuffer) Write(ctx context.Context, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts WriteOptions) (bool, error) {
+func (m *MockdatabaseBuffer) Write(ctx context.Context, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts WriteOptions) (bool, WriteType, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(WriteType)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // Write indicates an expected call of Write
@@ -122,10 +123,10 @@ func (mr *MockdatabaseBufferMockRecorder) ReadEncoded(ctx, start, end, nsCtx int
 }
 
 // FetchBlocksForColdFlush mocks base method
-func (m *MockdatabaseBuffer) FetchBlocksForColdFlush(ctx context.Context, start time.Time, version int, nsCtx namespace.Context) ([]xio.BlockReader, error) {
+func (m *MockdatabaseBuffer) FetchBlocksForColdFlush(ctx context.Context, start time.Time, version int, nsCtx namespace.Context) (block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksForColdFlush", ctx, start, version, nsCtx)
-	ret0, _ := ret[0].([]xio.BlockReader)
+	ret0, _ := ret[0].(block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

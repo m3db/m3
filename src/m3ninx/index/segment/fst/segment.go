@@ -193,6 +193,13 @@ type fsSegment struct {
 	endExclusive   postings.ID
 }
 
+func (r *fsSegment) SegmentData(ctx context.Context) (SegmentData, error) {
+	// NB(r): Ensure that we do not release, mmaps, etc
+	// until all readers have been closed.
+	r.ctx.DependsOn(ctx)
+	return r.data, nil
+}
+
 func (r *fsSegment) Size() int64 {
 	r.RLock()
 	defer r.RUnlock()

@@ -362,6 +362,21 @@ type Block interface {
 	// data the mutable segments should have held at this time.
 	EvictMutableSegments() error
 
+	// NeedsMutableSegmentsEvicted returns whether this block has any cold mutable segments
+	// that are not-empty and sealed.
+	NeedsColdMutableSegmentsEvicted() bool
+
+	// EvictMutableSegments closes any stale cold mutable segments up to the currently active
+	// cold mutable segment (the one we are actively writing to).
+	EvictColdMutableSegments() error
+
+	// RotateColdMutableSegments rotates the currently active cold mutable segment out for a
+	// new cold mutable segment to write to.
+	RotateColdMutableSegments()
+
+	// MemorySegmentsData returns all in memory segments data.
+	MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error)
+
 	// Close will release any held resources and close the Block.
 	Close() error
 }
@@ -708,11 +723,11 @@ func (b *WriteBatch) Less(i, j int) bool {
 		panic(fmt.Errorf("unexpected sort by: %d", b.sortBy))
 	}
 
-	if b.entries[i].OnIndexSeries != nil && b.entries[j].OnIndexSeries == nil {
-		// This other entry has already been marked and this hasn't
+	if !b.entries[i].result.Done && b.entries[j].result.Done {
+		// This entry has been marked done and the other this hasn't
 		return true
 	}
-	if b.entries[i].OnIndexSeries == nil && b.entries[j].OnIndexSeries != nil {
+	if b.entries[i].result.Done && !b.entries[j].result.Done {
 		// This entry has already been marked and other hasn't
 		return false
 	}

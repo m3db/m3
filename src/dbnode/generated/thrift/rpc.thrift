@@ -78,6 +78,9 @@ service Node {
 	NodeWriteNewSeriesBackoffDurationResult setWriteNewSeriesBackoffDuration(1: NodeSetWriteNewSeriesBackoffDurationRequest req) throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult getWriteNewSeriesLimitPerShardPerSecond() throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult setWriteNewSeriesLimitPerShardPerSecond(1: NodeSetWriteNewSeriesLimitPerShardPerSecondRequest req) throws (1: Error err)
+
+	// Debug endpoints
+	DebugIndexMemorySegmentsResult debugIndexMemorySegments(1: DebugIndexMemorySegmentsRequest req) throws (1: Error err)
 }
 
 struct FetchRequest {
@@ -301,6 +304,7 @@ struct NodeHealthResult {
 	1: required bool ok
 	2: required string status
 	3: required bool bootstrapped
+	4: optional map<string,string> metadata
 }
 
 struct NodeBootstrappedResult {}
@@ -481,4 +485,11 @@ struct Query {
   5: optional DisjunctionQuery disjunction
   6: optional AllQuery         all
   7: optional FieldQuery       field
+}
+
+struct DebugIndexMemorySegmentsRequest {
+	1: required string directory
+}
+
+struct DebugIndexMemorySegmentsResult {
 }

@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 
-	pql "github.com/prometheus/prometheus/promql"
+	pql "github.com/prometheus/prometheus/promql/parser"
 )
 
 type promParser struct {
@@ -200,7 +200,8 @@ func (p *parseState) walk(node pql.Node) error {
 
 	case *pql.MatrixSelector:
 		// Align offset to stepSize.
-		n.Offset = adjustOffset(n.Offset, p.stepSize)
+		vectorSelector := n.VectorSelector.(*pql.VectorSelector)
+		vectorSelector.Offset = adjustOffset(vectorSelector.Offset, p.stepSize)
 		operation, err := NewSelectorFromMatrix(n, p.tagOpts)
 		if err != nil {
 			return err
@@ -210,7 +211,7 @@ func (p *parseState) walk(node pql.Node) error {
 			p.transforms,
 			parser.NewTransformFromOperation(operation, p.transformLen()),
 		)
-		return p.addLazyOffsetTransform(n.Offset)
+		return p.addLazyOffsetTransform(vectorSelector.Offset)
 
 	case *pql.VectorSelector:
 		// Align offset to stepSize.

@@ -23,6 +23,7 @@ package options
 import (
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -39,9 +40,18 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/prometheus/prometheus/promql"
 )
 
-const defaultTimeout = 30 * time.Second
+// QueryEngine is a type of query engine.
+type QueryEngine string
+
+const (
+	// PrometheusEngine is the prometheus query engine type.
+	PrometheusEngine QueryEngine = "prometheus"
+	// M3QueryEngine is M3 query engine type.
+	M3QueryEngine QueryEngine = "m3query"
+)
 
 // OptionTransformFn transforms given handler options.
 type OptionTransformFn func(opts HandlerOptions) HandlerOptions
@@ -85,6 +95,11 @@ type HandlerOptions interface {
 	Engine() executor.Engine
 	// SetEngine sets the engine.
 	SetEngine(e executor.Engine) HandlerOptions
+
+	// PrometheusEngine returns the prometheus engine.
+	PrometheusEngine() *promql.Engine
+	// SetPrometheusEngine sets the prometheus engine.
+	SetPrometheusEngine(e *promql.Engine) HandlerOptions
 
 	// Clusters returns the clusters.
 	Clusters() m3.Clusters
@@ -155,6 +170,11 @@ type HandlerOptions interface {
 	InstrumentOpts() instrument.Options
 	// SetInstrumentOpts sets instrumentation options.
 	SetInstrumentOpts(opts instrument.Options) HandlerOptions
+
+	// DefaultQueryEngine returns the default query engine.
+	DefaultQueryEngine() QueryEngine
+	// SetDefaultQueryEngine returns the default query engine.
+	SetDefaultQueryEngine(value QueryEngine) HandlerOptions
 }
 
 // HandlerOptions represents handler options.
@@ -162,6 +182,8 @@ type handlerOptions struct {
 	storage               storage.Storage
 	downsamplerAndWriter  ingest.DownsamplerAndWriter
 	engine                executor.Engine
+	prometheusEngine      *promql.Engine
+	defaultEngine         QueryEngine
 	clusters              m3.Clusters
 	clusterClient         clusterclient.Client
 	config                config.Configuration
@@ -192,6 +214,7 @@ func NewHandlerOptions(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
 	engine executor.Engine,
+	prometheusEngine *promql.Engine,
 	m3dbClusters m3.Clusters,
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
@@ -215,6 +238,8 @@ func NewHandlerOptions(
 		storage:               downsamplerAndWriter.Storage(),
 		downsamplerAndWriter:  downsamplerAndWriter,
 		engine:                engine,
+		prometheusEngine:      prometheusEngine,
+		defaultEngine:         getDefaultQueryEngine(cfg.Query.DefaultEngine),
 		clusters:              m3dbClusters,
 		clusterClient:         clusterClient,
 		config:                cfg,
@@ -267,6 +292,16 @@ func (o *handlerOptions) Engine() executor.Engine {
 func (o *handlerOptions) SetEngine(e executor.Engine) HandlerOptions {
 	opts := *o
 	opts.engine = e
+	return &opts
+}
+
+func (o *handlerOptions) PrometheusEngine() *promql.Engine {
+	return o.prometheusEngine
+}
+
+func (o *handlerOptions) SetPrometheusEngine(e *promql.Engine) HandlerOptions {
+	opts := *o
+	opts.prometheusEngine = e
 	return &opts
 }
 
@@ -415,4 +450,31 @@ func (o *handlerOptions) SetNowFn(n clock.NowFn) HandlerOptions {
 	options := *o
 	options.nowFn = n
 	return &options
+}
+
+func (o *handlerOptions) DefaultQueryEngine() QueryEngine {
+	return o.defaultEngine
+}
+
+func (o *handlerOptions) SetDefaultQueryEngine(value QueryEngine) HandlerOptions {
+	options := *o
+	options.defaultEngine = value
+	return &options
+}
+
+func getDefaultQueryEngine(cfgEngine string) QueryEngine {
+	engine := PrometheusEngine
+	if strings.ToLower(cfgEngine) == string(M3QueryEngine) {
+		engine = M3QueryEngine
+	}
+	return engine
+}
+
+// IsQueryEngineSet returns true if value contains query engine value. Otherwise returns false.
+func IsQueryEngineSet(v string) bool {
+	if strings.ToLower(v) == string(PrometheusEngine) ||
+		strings.ToLower(v) == string(M3QueryEngine) {
+		return true
+	}
+	return false
 }

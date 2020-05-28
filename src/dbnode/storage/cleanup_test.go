@@ -384,15 +384,11 @@ func TestCleanupManagerNamespaceCleanupNotBootstrapped(t *testing.T) {
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	ns.EXPECT().OwnedShards().Return(nil).AnyTimes()
 
-	idx := NewMockNamespaceIndex(ctrl)
-	ns.EXPECT().Index().Return(idx, nil)
-
 	nses := []databaseNamespace{ns}
 	db := newMockdatabase(ctrl, ns)
 	db.EXPECT().OwnedNamespaces().Return(nses, nil).AnyTimes()
 
 	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
-	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
 	require.NoError(t, mgr.Cleanup(ts, false))
 }
 

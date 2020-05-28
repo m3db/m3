@@ -61,6 +61,7 @@ import (
 	"github.com/m3db/m3/src/x/clock"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xnet "github.com/m3db/m3/src/x/net"
 	xos "github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -68,9 +69,14 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/go-kit/kit/log"
+	kitlogzap "github.com/go-kit/kit/log/zap"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
+	extprom "github.com/prometheus/client_golang/prometheus"
+	prometheuspromql "github.com/prometheus/prometheus/promql"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -93,6 +99,7 @@ var (
 
 	defaultDownsamplerAndWriterWorkerPoolSize = 1024
 	defaultCarbonIngesterWorkerPoolSize       = 1024
+	defaultPerCPUMultiProcess                 = 0.5
 )
 
 type cleanupFn func() error
@@ -142,6 +149,9 @@ type RunOptions struct {
 
 	// ApplyCustomTSDBOptions is a transform that allows for custom tsdb options.
 	ApplyCustomTSDBOptions CustomTSDBOptionsFn
+
+	// BackendStorageTransform is a custom backend storage transform.
+	BackendStorageTransform BackendStorageTransform
 }
 
 // InstrumentOptionsReady is a set of instrument options
@@ -154,11 +164,21 @@ type InstrumentOptionsReady struct {
 // CustomTSDBOptionsFn is a transformation function for TSDB Options.
 type CustomTSDBOptionsFn func(tsdb.Options) tsdb.Options
 
+// BackendStorageTransform is a transformation function for backend storage.
+type BackendStorageTransform func(
+	storage.Storage,
+	tsdb.Options,
+	instrument.Options,
+) storage.Storage
+
 // Run runs the server programmatically given a filename for the configuration file.
 func Run(runOpts RunOptions) {
 	rand.Seed(time.Now().UnixNano())
 
-	cfg := runOpts.Config
+	var (
+		cfg          = runOpts.Config
+		listenerOpts = xnet.NewListenerOptions()
+	)
 
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
@@ -172,9 +192,33 @@ func Run(runOpts RunOptions) {
 
 	xconfig.WarnOnDeprecation(cfg, logger)
 
+	if cfg.MultiProcess.Enabled {
+		runResult, err := multiProcessRun(cfg, logger, listenerOpts)
+		if err != nil {
+			logger = logger.With(zap.String("processID", multiProcessProcessID()))
+			logger.Fatal("failed to run", zap.Error(err))
+		}
+		if runResult.isParentCleanExit {
+			// Parent process clean exit.
+			os.Exit(0)
+			return
+		}
+
+		cfg = runResult.cfg
+		logger = runResult.logger
+		listenerOpts = runResult.listenerOpts
+	}
+
+	prometheusEngineRegistry := extprom.NewRegistry()
 	scope, closer, reporters, err := cfg.Metrics.NewRootScopeAndReporters(
 		instrument.NewRootScopeAndReportersOptions{
-			OnError: func(err error) {
+			PrometheusExternalRegistries: []instrument.PrometheusExternalRegistry{
+				{
+					Registry: prometheusEngineRegistry,
+					SubScope: "coordinator_prometheus_engine",
+				},
+			},
+			PrometheusOnError: func(err error) {
 				// NB(r): Required otherwise collisions when registering metrics will
 				// cause a panic.
 				logger.Error("register metric error", zap.Error(err))
@@ -344,6 +388,9 @@ func Run(runOpts RunOptions) {
 	}
 
 	defer chainedEnforceCloser.Close()
+	if fn := runOpts.BackendStorageTransform; fn != nil {
+		backendStorage = fn(backendStorage, tsdbOpts, instrumentOptions)
+	}
 
 	engineOpts := executor.NewEngineOptions().
 		SetStore(backendStorage).
@@ -377,10 +424,12 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	prometheusEngine := newPromQLEngine(cfg.Query, prometheusEngineRegistry,
+		instrumentOptions)
 	handlerOptions, err := options.NewHandlerOptions(downsamplerAndWriter,
-		tagOptions, engine, m3dbClusters, clusterClient, cfg, runOpts.DBConfig,
-		chainedEnforcer, fetchOptsBuilder, queryCtxOpts, instrumentOptions,
-		cpuProfileDuration, []string{handleroptions.M3DBServiceName},
+		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
+		runOpts.DBConfig, chainedEnforcer, fetchOptsBuilder, queryCtxOpts,
+		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
 		serviceOptionDefaults)
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
@@ -409,7 +458,7 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	listener, err := net.Listen("tcp", listenAddress)
+	listener, err := listenerOpts.Listen("tcp", listenAddress)
 	if err != nil {
 		logger.Fatal("unable to listen on listen address",
 			zap.String("address", listenAddress),
@@ -443,7 +492,7 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("unable to create m3msg server", zap.Error(err))
 		}
 
-		listener, err := net.Listen("tcp", cfg.Ingest.M3Msg.Server.ListenAddress)
+		listener, err := listenerOpts.Listen("tcp", cfg.Ingest.M3Msg.Server.ListenAddress)
 		if err != nil {
 			logger.Fatal("unable to open m3msg server", zap.Error(err))
 		}
@@ -463,8 +512,8 @@ func Run(runOpts RunOptions) {
 	}
 
 	if cfg.Carbon != nil && cfg.Carbon.Ingester != nil {
-		server, ok := startCarbonIngestion(cfg.Carbon, instrumentOptions,
-			logger, m3dbClusters, downsamplerAndWriter)
+		server, ok := startCarbonIngestion(cfg.Carbon, listenerOpts,
+			instrumentOptions, logger, m3dbClusters, downsamplerAndWriter)
 		if ok {
 			defer server.Close()
 		}
@@ -942,6 +991,7 @@ func startGRPCServer(
 
 func startCarbonIngestion(
 	cfg *config.CarbonConfiguration,
+	listenerOpts xnet.ListenerOptions,
 	iOpts instrument.Options,
 	logger *zap.Logger,
 	m3dbClusters m3.Clusters,
@@ -1045,7 +1095,9 @@ func startCarbonIngestion(
 
 	// Start server.
 	var (
-		serverOpts          = xserver.NewOptions().SetInstrumentOptions(carbonIOpts)
+		serverOpts = xserver.NewOptions().
+				SetInstrumentOptions(carbonIOpts).
+				SetListenerOptions(listenerOpts)
 		carbonListenAddress = ingesterCfg.ListenAddressOrDefault()
 		carbonServer        = xserver.NewServer(carbonListenAddress, ingester, serverOpts)
 	)
@@ -1079,4 +1131,21 @@ func newDownsamplerAndWriter(storage storage.Storage, downsampler downsample.Dow
 	downAndWriteWorkerPool.Init()
 
 	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool), nil
+}
+
+func newPromQLEngine(
+	cfg config.QueryConfiguration,
+	registry *extprom.Registry,
+	instrumentOpts instrument.Options,
+) *prometheuspromql.Engine {
+	var (
+		kitLogger = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
+		opts      = prometheuspromql.EngineOpts{
+			Logger:     log.With(kitLogger, "component", "prometheus_engine"),
+			Reg:        registry,
+			MaxSamples: cfg.Prometheus.MaxSamplesPerQueryOrDefault(),
+			Timeout:    cfg.TimeoutOrDefault(),
+		}
+	)
+	return prometheuspromql.NewEngine(opts)
 }

@@ -58,89 +58,52 @@ var (
 	metricNameTag = string(iteratorOpts.tagOptions.MetricName())
 )
 
-func TestFetchCompressed(t *testing.T) {
+const (
+	blockSize         = time.Hour * 12
+	defaultResolution = time.Second * 30
+)
+
+func TestFetchCompressedReturnsPreloadedData(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	const (
 		metricsName           = "preloaded"
 		predefinedSeriesCount = 10
 	)
 
-	tests := []struct {
-		name          string
-		queryTagName  string
-		queryTagValue string
-		expectedCount int
-	}{
-		{
-			name:          "querying by metric name returns preloaded data",
-			queryTagName:  metricNameTag,
-			queryTagValue: metricsName,
-			expectedCount: predefinedSeriesCount,
-		},
-		{
-			name:          "querying without metric name just by other tag returns preloaded data",
-			queryTagName:  "tag1",
-			queryTagValue: "test2",
-			expectedCount: 4,
-		},
+	query := matcherQuery(t, metricNameTag, metricsName)
+
+	metricsTag := ident.NewTags(ident.Tag{
+		Name:  ident.BytesID(tagOptions.MetricName()),
+		Value: ident.BytesID(metricsName),
+	})
+
+	iters := make([]encoding.SeriesIterator, 0, predefinedSeriesCount)
+	for i := 0; i < predefinedSeriesCount; i++ {
+		iters = append(iters, encoding.NewSeriesIterator(
+			encoding.SeriesIteratorOptions{
+				Namespace:      ident.StringID("ns"),
+				Tags:           ident.NewTagsIterator(metricsTag),
+				StartInclusive: xtime.ToUnixNano(query.Start),
+				EndExclusive:   xtime.ToUnixNano(query.End),
+			}, nil))
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrl := xtest.NewController(t)
-			defer ctrl.Finish()
+	seriesIterators := encoding.NewMockSeriesIterators(ctrl)
+	seriesIterators.EXPECT().Len().Return(predefinedSeriesCount).MinTimes(1)
+	seriesIterators.EXPECT().Iters().Return(iters).Times(1)
+	seriesIterators.EXPECT().Close()
 
-			query := matcherQuery(t, tt.queryTagName, tt.queryTagValue)
+	seriesLoader := &testSeriesLoadHandler{seriesIterators}
 
-			metricsTag := ident.NewTags(ident.Tag{
-				Name:  ident.BytesID(tagOptions.MetricName()),
-				Value: ident.BytesID(metricsName),
-			},
-				ident.Tag{
-					Name:  ident.BytesID("tag1"),
-					Value: ident.BytesID("test"),
-				},
-			)
-			metricsTag2 := ident.NewTags(ident.Tag{
-				Name:  ident.BytesID(tagOptions.MetricName()),
-				Value: ident.BytesID(metricsName),
-			},
-				ident.Tag{
-					Name:  ident.BytesID("tag1"),
-					Value: ident.BytesID("test2"),
-				},
-			)
+	querier, _ := newQuerier(iteratorOpts, seriesLoader, blockSize, defaultResolution)
 
-			iters := make([]encoding.SeriesIterator, 0, predefinedSeriesCount)
-			for i := 0; i < predefinedSeriesCount; i++ {
-				m := metricsTag
-				if i > 5 {
-					m = metricsTag2
-				}
-				iters = append(iters, encoding.NewSeriesIterator(
-					encoding.SeriesIteratorOptions{
-						Namespace:      ident.StringID("ns"),
-						Tags:           ident.NewTagsIterator(m),
-						StartInclusive: xtime.ToUnixNano(query.Start),
-						EndExclusive:   xtime.ToUnixNano(query.End),
-					}, nil))
-			}
+	result, cleanup, err := querier.FetchCompressed(nil, query, nil)
+	assert.NoError(t, err)
+	defer cleanup()
 
-			seriesIterators := encoding.NewMockSeriesIterators(ctrl)
-			seriesIterators.EXPECT().Len().Return(predefinedSeriesCount).MinTimes(1)
-			seriesIterators.EXPECT().Iters().Return(iters).Times(1)
-			seriesIterators.EXPECT().Close()
-
-			seriesLoader := &testSeriesLoadHandler{seriesIterators}
-
-			querier := &querier{opts: iteratorOpts, handler: seriesLoader}
-
-			result, cleanup, err := querier.FetchCompressed(nil, query, nil)
-			assert.NoError(t, err)
-			defer cleanup()
-
-			assert.Equal(t, tt.expectedCount, result.SeriesIterators.Len())
-		})
-	}
+	assert.Equal(t, predefinedSeriesCount, result.SeriesIterators.Len())
 }
 
 func TestFetchCompressedGeneratesRandomData(t *testing.T) {
@@ -254,7 +217,7 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
-			querier := &querier{opts: iteratorOpts, handler: emptySeriesLoader(ctrl)}
+			querier, _ := newQuerier(iteratorOpts, emptySeriesLoader(ctrl), blockSize, defaultResolution)
 
 			result, cleanup, err := querier.FetchCompressed(nil, tt.givenQuery, nil)
 			assert.NoError(t, err)
