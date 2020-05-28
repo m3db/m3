@@ -142,6 +142,7 @@ type TestSetup interface {
 	Opts() TestOptions
 	AssertEqual(*testing.T, []generate.TestValue, []generate.TestValue) bool
 	DB() cluster.Database
+	Namespaces() []namespace.Metadata
 	TopologyInitializer() topology.Initializer
 	Fetch(req *rpc.FetchRequest) ([]generate.TestValue, error)
 	StorageOpts() storage.Options
@@ -522,6 +523,10 @@ func (ts *testSetup) AssertEqual(t *testing.T, a, b []generate.TestValue) bool {
 
 func (ts *testSetup) DB() cluster.Database {
 	return ts.db
+}
+
+func (ts *testSetup) Namespaces() []namespace.Metadata {
+	return ts.namespaces
 }
 
 func (ts *testSetup) NowFn() clock.NowFn {
