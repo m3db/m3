@@ -78,7 +78,7 @@ func TestIndexBlockFlush(t *testing.T) {
 					SetBlockSize(indexBlockSize).SetEnabled(true)))
 	require.NoError(t, err)
 
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
 		SetWriteNewSeriesAsync(true)
 	testSetup, err := newTestSetup(t, testOpts, nil)

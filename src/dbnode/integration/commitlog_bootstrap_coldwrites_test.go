@@ -56,7 +56,7 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 		SetRetentionOptions(ropts).
 		SetColdWritesEnabled(true))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 	if setTestOpts != nil {
 		opts = setTestOpts(t, opts)

@@ -75,7 +75,7 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 	return false
 }
 
-func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
+func newMultiAddrTestOptions(opts TestOptions, instance int) TestOptions {
 	bind := "127.0.0.1"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
 	return opts.
@@ -137,7 +137,7 @@ func newDefaulTestResultOptions(
 
 func newDefaultBootstrappableTestSetups(
 	t *testing.T,
-	opts testOptions,
+	opts TestOptions,
 	setupOpts []bootstrappableTestSetupOptions,
 ) (testSetups, closeFn) {
 	var (

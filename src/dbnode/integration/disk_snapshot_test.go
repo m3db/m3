@@ -57,7 +57,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	md2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
 	require.NoError(t, err)
 
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second).
 		SetNamespaces([]namespace.Metadata{md1, md2})
 	testSetup, err := newTestSetup(t, testOpts, nil)

@@ -71,7 +71,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 			SetBlockSize(2 * blockSize))
 	ns, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns}).
 		// Allow for wall clock timing
 		SetNowFn(time.Now)

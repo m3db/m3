@@ -68,7 +68,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 				SetBufferPast(10*time.Minute).
 				SetBufferFuture(2*time.Minute)))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		// Prevent snapshotting from happening too frequently to allow for the
 		// possibility of a snapshot occurring after the shard set is assigned,

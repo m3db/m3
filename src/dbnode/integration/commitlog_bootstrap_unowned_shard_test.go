@@ -86,7 +86,7 @@ func TestCommitLogBootstrapUnownedShard(t *testing.T) {
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1}).
 		SetNumShards(numShards)
 	setupOpts := []bootstrappableTestSetupOptions{

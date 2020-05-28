@@ -44,7 +44,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	}
 
 	// test options
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second)
 	require.True(t, len(testOpts.Namespaces()) >= 2)
 	ns0 := testOpts.Namespaces()[0]

@@ -54,7 +54,7 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 	}
 
 	// Test setup
-	testOpts := newTestOptions(t)
+	testOpts := NewTestOptions(t)
 	if setTestOpts != nil {
 		testOpts = setTestOpts(t, testOpts)
 	}

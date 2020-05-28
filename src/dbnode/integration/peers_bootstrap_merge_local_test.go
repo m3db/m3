@@ -61,7 +61,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	require.NoError(t, err)
 
 	var (
-		opts = newTestOptions(t).
+		opts = NewTestOptions(t).
 			SetNamespaces([]namespace.Metadata{namesp}).
 			// Use TChannel clients for writing / reading because we want to target individual nodes at a time
 			// and not write/read all nodes in the cluster.

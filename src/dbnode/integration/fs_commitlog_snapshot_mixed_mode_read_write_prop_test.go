@@ -125,7 +125,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 				if err != nil {
 					return false, err
 				}
-				opts := newTestOptions(t).
+				opts := NewTestOptions(t).
 					SetNamespaces([]namespace.Metadata{ns1})
 
 				// Test setup

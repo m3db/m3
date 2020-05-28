@@ -106,7 +106,7 @@ func testIndexSingleNodeHighConcurrency(
 			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)))
 	require.NoError(t, err)
 
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
 		SetWriteNewSeriesAsync(true).
 		// Use default time functions (server time not frozen).

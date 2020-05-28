@@ -48,7 +48,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	nsID := ident.StringID("testColdWriteNs1")
 	ns, err := namespace.NewMetadata(nsID, nsOpts)
 	require.NoError(t, err)
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second).
 		SetNamespaces([]namespace.Metadata{ns})
 

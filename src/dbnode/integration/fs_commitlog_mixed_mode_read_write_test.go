@@ -72,7 +72,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 		SetRetentionOptions(ns1ROpts)
 	ns1, err := namespace.NewMetadata(nsID, ns1Opts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	if setTestOpts != nil {
@@ -188,7 +188,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 // inspection and commitlog bootstrapper are generated each time.
 func startServerWithNewInspection(
 	t *testing.T,
-	opts testOptions,
+	opts TestOptions,
 	setup *testSetup,
 ) {
 	setCommitLogAndFilesystemBootstrapper(t, opts, setup)
@@ -219,7 +219,7 @@ func waitUntilFileSetFilesCleanedUp(
 	return waitUntilDataCleanedUpExtended(filesetFiles, commitLogFiles, timeout)
 }
 
-func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions) *testSetup {
+func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions) *testSetup {
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 
@@ -228,7 +228,7 @@ func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testO
 	return setup
 }
 
-func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup *testSetup) *testSetup {
+func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions, setup *testSetup) *testSetup {
 	commitLogOpts := setup.storageOpts.CommitLogOptions()
 	fsOpts := commitLogOpts.FilesystemOptions()
 

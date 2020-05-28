@@ -95,7 +95,7 @@ var _ topology.MapProvider = &testSetup{}
 
 type testSetup struct {
 	t         *testing.T
-	opts      testOptions
+	opts      TestOptions
 	schemaReg namespace.SchemaRegistry
 
 	logger *zap.Logger
@@ -139,7 +139,7 @@ type testSetup struct {
 type TestSetup interface {
 	topology.MapProvider
 
-	Opts() testOptions
+	Opts() TestOptions
 	AssertEqual(*testing.T, []generate.TestValue, []generate.TestValue) bool
 	DB() cluster.Database
 	TopologyInitializer() topology.Initializer
@@ -158,9 +158,26 @@ type TestSetup interface {
 	SleepFor10xTickMinimumInterval()
 }
 
-func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (TestSetup, error) {
+type storageOption func(storage.Options) storage.Options
+
+// NewTestSetup returns a new test setup for
+func NewTestSetup(
+	t *testing.T,
+	opts TestOptions,
+	fsOpts fs.Options,
+	storageOptFns ...storageOption,
+) (TestSetup, error) {
+	return newTestSetup(t, opts, fsOpts, storageOptFns...)
+}
+
+func newTestSetup(
+	t *testing.T,
+	opts TestOptions,
+	fsOpts fs.Options,
+	storageOptFns ...storageOption,
+) (*testSetup, error) {
 	if opts == nil {
-		opts = newTestOptions(t)
+		opts = NewTestOptions(t)
 	}
 
 	nsInit := opts.NamespaceInitializer()
@@ -515,7 +532,7 @@ func (ts *testSetup) SetNowFn(t time.Time) {
 	ts.setNowFn(t)
 }
 
-func (ts *testSetup) Opts() testOptions {
+func (ts *testSetup) Opts() TestOptions {
 	return ts.opts
 }
 
@@ -821,7 +838,7 @@ func newOrigin(id string, tchannelNodeAddr string) topology.Host {
 
 func newClients(
 	topoInit topology.Initializer,
-	opts testOptions,
+	opts TestOptions,
 	schemaReg namespace.SchemaRegistry,
 	id,
 	tchannelNodeAddr string,
@@ -898,7 +915,7 @@ func newNodes(
 ) (testSetups, topology.Initializer, closeFn) {
 	var (
 		log  = zap.L()
-		opts = newTestOptions(t).
+		opts = NewTestOptions(t).
 			SetNamespaces(nspaces).
 			SetTickMinimumInterval(3 * time.Second).
 			SetWriteNewSeriesAsync(asyncInserts).

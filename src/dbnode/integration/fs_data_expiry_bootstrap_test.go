@@ -57,7 +57,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
 	setup, err = newTestSetup(t, opts, nil)

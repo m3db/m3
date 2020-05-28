@@ -61,7 +61,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	ns2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup

@@ -53,7 +53,7 @@ func TestDiskCleanupIndex(t *testing.T) {
 		namespace.NewIndexOptions().SetBlockSize(idxBlockSize).SetEnabled(true)))
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md})
 
 	// Test setup
