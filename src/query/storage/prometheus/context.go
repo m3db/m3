@@ -35,7 +35,7 @@ const (
 	FetchOptionsContextKey ContextKey = "fetch-options"
 
 	// RemoteReadFlagsKey is the context key for remote reader response flags.
-	RemoteReadFlagsKey ContextKey = "RemoteReadFlags"
+	RemoteReadFlagsKey ContextKey = "remote-read-flags"
 )
 
 type RemoteReadFlags struct {
