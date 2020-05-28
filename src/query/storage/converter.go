@@ -29,13 +29,15 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+
+	"github.com/prometheus/common/model"
 )
 
 // The default name for the name and bucket tags in Prometheus metrics.
 // This can be overwritten by setting tagOptions in the config.
 var (
-	promDefaultName       = []byte("__name__")
-	promDefaultBucketName = []byte("le")
+	promDefaultName       = []byte(model.MetricNameLabel) // __name__
+	promDefaultBucketName = []byte(model.BucketLabel)     // le
 )
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags

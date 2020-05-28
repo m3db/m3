@@ -1,5 +1,5 @@
-hash: 1b959bbbc78eda5e994c36e198b7b567b9d2774dfe965bb88db31dbe6563cb1e
-updated: 2020-04-29T00:46:53.610918-04:00
+hash: c40afb15c4a1545819ee8878ca9568412d912b44f996fa71341d489ce91bc2b2
+updated: 2020-05-26T23:54:00.12804-04:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -13,20 +13,17 @@ imports:
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
   subpackages:
   - quantile
-- name: github.com/BurntSushi/toml
-  version: 3012a1dbe2e4bd1391d42b32f0577cb7bbc7f005
 - name: github.com/c2h5oh/datasize
   version: 4eba002a5eaea69cf8d235a388fc6b65ae68d2dd
 - name: github.com/cespare/xxhash
-  version: 48099fad606eafc26e3a569fad19ff510fff4df6
-- name: github.com/cockroachdb/cmux
-  version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
-- name: github.com/coreos/bbolt
-  version: 32c383e75ce054674c53b5a07e55de85332aee14
+  version: 3f2bc324ddd8b6aafc9a91b5aabf22ff172edafb
+  repo: https://github.com/m3dbx/xxhash
+  vcs: git
+  subpackages:
+  - v2
 - name: go.etcd.io/etcd
   version: 3cf2f69b5738fb702ba1a935590f36b52b18979b
   subpackages:
-  - alarm
   - auth
   - auth/authpb
   - client
@@ -34,10 +31,7 @@ imports:
   - clientv3/concurrency
   - clientv3/namespace
   - clientv3/naming
-  - compactor
-  - discovery
   - embed
-  - error
   - etcdserver
   - etcdserver/api
   - etcdserver/api/etcdhttp
@@ -52,11 +46,8 @@ imports:
   - etcdserver/api/v3lock/v3lockpb/gw
   - etcdserver/api/v3rpc
   - etcdserver/api/v3rpc/rpctypes
-  - etcdserver/auth
   - etcdserver/etcdserverpb
   - etcdserver/etcdserverpb/gw
-  - etcdserver/membership
-  - etcdserver/stats
   - integration
   - lease
   - lease/leasehttp
@@ -66,7 +57,6 @@ imports:
   - mvcc/mvccpb
   - pkg/adt
   - pkg/contention
-  - pkg/cors
   - pkg/cpuutil
   - pkg/crc
   - pkg/debugutil
@@ -75,7 +65,6 @@ imports:
   - pkg/idutil
   - pkg/ioutil
   - pkg/logutil
-  - pkg/monotime
   - pkg/netutil
   - pkg/pathutil
   - pkg/pbutil
@@ -92,10 +81,6 @@ imports:
   - proxy/grpcproxy/cache
   - raft
   - raft/raftpb
-  - rafthttp
-  - snap
-  - snap/snappb
-  - store
   - version
   - wal
   - wal/walpb
@@ -106,9 +91,7 @@ imports:
 - name: github.com/coreos/go-systemd
   version: 48702e0da86bd25e76cfef347e2adeb434a0d0a6
   subpackages:
-  - daemon
   - journal
-  - util
 - name: github.com/coreos/pkg
   version: 97fdf19511ea361ae1c100dd393cc47f8dcfa1e1
   subpackages:
@@ -227,6 +210,8 @@ imports:
   - internal
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
+- name: github.com/json-iterator/go
+  version: acfec88f7a0d5140ace3dcdbee10184e3684a9e1
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/leanovate/gopter
@@ -291,6 +276,10 @@ imports:
   version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/mitchellh/mapstructure
   version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
+- name: github.com/modern-go/concurrent
+  version: bacd9c7ef1dd9b15be4a9909b8ac7a4e313eec94
+- name: github.com/modern-go/reflect2
+  version: 94122c33edd36123c84d5368cfb2b69df93a0ec8
 - name: github.com/oklog/ulid
   version: e51a56f2a4c1bf73c967ca6d45d5366bade31943
 - name: github.com/opentracing-contrib/go-stdlib
@@ -323,34 +312,37 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: aa9238db679fc02bf22cf4f2c27a980edcb5ada0
   subpackages:
   - prometheus
+  - prometheus/promhttp
 - name: github.com/prometheus/client_model
-  version: 6f3806018612930941127f2a7c6c453ba2c527d2
+  version: 7bc5445566f0fe75b15de23e6b93886e982d7bf9
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 287d3e634a1e550c9e463dd7e5a75a422c614505
+  version: d978bcb1309602d68bb4ba69cf3f8ed900e07308
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
   - model
 - name: github.com/prometheus/procfs
-  version: a1dba9ce8baed984a2495b658c82687f8157b98f
+  version: 6d489fc7f1d9cd890a250f3ea3431b1744b9623f
   subpackages:
+  - internal/util
+  - nfs
   - xfs
 - name: github.com/prometheus/prometheus
-  version: 43acd0e2e93f9f70c49b2267efa0124f1e759e86
+  version: 18254838fbe25dcc732c950ae05f78ed4db1292c
   subpackages:
-  - pkg/gate
+  - pkg/exemplar
   - pkg/labels
   - pkg/textparse
   - pkg/timestamp
   - pkg/value
   - promql
+  - promql/parser
   - storage
-  - storage/tsdb
   - tsdb
   - tsdb/chunkenc
   - tsdb/chunks
@@ -359,7 +351,8 @@ imports:
   - tsdb/fileutil
   - tsdb/goversion
   - tsdb/index
-  - tsdb/labels
+  - tsdb/record
+  - tsdb/tombstones
   - tsdb/wal
   - util/httputil
   - util/stats
@@ -461,10 +454,6 @@ imports:
   - tos
   - trand
   - typed
-- name: github.com/ugorji/go
-  version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
-  subpackages:
-  - codec
 - name: github.com/valyala/tcplisten
   version: ceec8f93295a060cdb565ec25e4ccf17941dbd55
 - name: github.com/willf/bitset
@@ -480,10 +469,6 @@ imports:
   - internal/unreachable
 - name: go.uber.org/multierr
   version: 824d08f79702fe5f54aca8400aa0d754318786e7
-- name: go.uber.org/tools
-  version: 2cfd321de3ee5d5f8a5fda2521d1703478334d98
-  subpackages:
-  - update-license
 - name: go.uber.org/zap
   version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
@@ -540,22 +525,9 @@ imports:
 - name: golang.org/x/tools
   version: 2aa90c603ae35ab89ce30e45e49d870b7e5e7698
   subpackages:
-  - go/analysis
-  - go/analysis/passes/inspect
   - go/ast/astutil
-  - go/ast/inspector
-  - go/buildutil
   - go/gcexportdata
-  - go/internal/cgo
   - go/internal/gcimporter
-  - go/internal/packagesdriver
-  - go/loader
-  - go/packages
-  - go/types/objectpath
-  - go/types/typeutil
-  - internal/fastwalk
-  - internal/gopathwalk
-  - internal/semver
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
@@ -622,38 +594,6 @@ imports:
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
   repo: https://github.com/go-yaml/yaml.git
   vcs: git
-- name: honnef.co/go/tools
-  version: 717cd7a0595327ea87bc8016753ce6e0ac546200
-  subpackages:
-  - arg
-  - cmd/staticcheck
-  - code
-  - config
-  - deprecated
-  - edit
-  - facts
-  - functions
-  - go/types/typeutil
-  - internal/cache
-  - internal/passes/buildir
-  - internal/renameio
-  - internal/robustio
-  - internal/sharedcheck
-  - ir
-  - ir/irutil
-  - lint
-  - lint/lintdsl
-  - lint/lintutil
-  - lint/lintutil/format
-  - loader
-  - pattern
-  - printf
-  - report
-  - simple
-  - staticcheck
-  - stylecheck
-  - unused
-  - version
 - name: github.com/influxdata/influxdb
   version: 01c8dd416270f424ab0c40f9291e269ac6921964
   subpackages:

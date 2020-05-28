@@ -18,16 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package prom
 
 import (
-	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
-	"github.com/m3db/m3/src/dbnode/storage"
+	"net/http"
+
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/storage/prometheus"
+	"github.com/prometheus/prometheus/promql"
 )
 
-// StorageOptions are options to apply to the database storage options.
-type StorageOptions struct {
-	OnColdFlush            storage.OnColdFlush
-	ForceColdWritesEnabled bool
-	TChanNodeServerFn      node.NewTChanNodeServerFn
+// Options defines options for PromQL handler.
+type Options struct {
+	PromQLEngine *promql.Engine
+}
+
+// NewReadHandler creates a handler to handle PromQL requests.
+func NewReadHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
+	queryable := prometheus.NewPrometheusQueryable(
+		prometheus.PrometheusOptions{
+			Storage:           hOpts.Storage(),
+			InstrumentOptions: hOpts.InstrumentOpts(),
+		})
+	return newReadHandler(opts, hOpts, queryable)
+}
+
+// NewReadInstantHandler creates a handler to handle PromQL requests.
+func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
+	queryable := prometheus.NewPrometheusQueryable(
+		prometheus.PrometheusOptions{
+			Storage:           hOpts.Storage(),
+			InstrumentOptions: hOpts.InstrumentOpts(),
+		})
+	return newReadInstantHandler(opts, hOpts, queryable)
 }

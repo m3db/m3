@@ -18,16 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package prometheus
 
 import (
-	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
-	"github.com/m3db/m3/src/dbnode/storage"
+	"context"
+	"errors"
+
+	"github.com/m3db/m3/src/query/storage"
 )
 
-// StorageOptions are options to apply to the database storage options.
-type StorageOptions struct {
-	OnColdFlush            storage.OnColdFlush
-	ForceColdWritesEnabled bool
-	TChanNodeServerFn      node.NewTChanNodeServerFn
+// ContextKey is the context key type.
+type ContextKey string
+
+const (
+	// FetchOptionsContextKey is the context key for fetch options.
+	FetchOptionsContextKey ContextKey = "fetch-options"
+)
+
+func fetchOptions(ctx context.Context) (*storage.FetchOptions, error) {
+	fetchOptions := ctx.Value(FetchOptionsContextKey)
+	if f, ok := fetchOptions.(*storage.FetchOptions); ok {
+		return f, nil
+	}
+	return nil, errors.New("fetch options not available")
 }

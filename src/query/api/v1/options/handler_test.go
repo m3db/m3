@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,16 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package options
 
 import (
-	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
-	"github.com/m3db/m3/src/dbnode/storage"
+	"testing"
+
+	"github.com/influxdata/influxdb/pkg/testing/assert"
 )
 
-// StorageOptions are options to apply to the database storage options.
-type StorageOptions struct {
-	OnColdFlush            storage.OnColdFlush
-	ForceColdWritesEnabled bool
-	TChanNodeServerFn      node.NewTChanNodeServerFn
+func TestDefaultQueryEngineParse(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected QueryEngine
+	}{
+		{
+			name:     "given empty sets to prometheus",
+			input:    "",
+			expected: PrometheusEngine,
+		},
+		{
+			name:     "given random sets to prometheus",
+			input:    "random",
+			expected: PrometheusEngine,
+		},
+		{
+			name:     "given prometheus sets to prometheus",
+			input:    "prometheus",
+			expected: PrometheusEngine,
+		},
+		{
+			name:     "given m3query sets to m3query",
+			input:    "m3query",
+			expected: M3QueryEngine,
+		},
+		{
+			name:     "given camelcase M3Query sets to m3query",
+			input:    "M3Query",
+			expected: M3QueryEngine,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, getDefaultQueryEngine(tt.input))
+		})
+	}
 }
