@@ -67,23 +67,42 @@ func (m *tagDedupeMap) add(
 	}
 
 	var existsBetter bool
+	var existsEqual bool
 	switch m.fanout {
 	// FIXME: detect if attrs equal; if so, build a meta-encoding.SeriesIterator
 	// that wraps both series iterators.
 	case NamespaceCoversAllQueryRange:
 		// Already exists and resolution of result we are adding is not as precise
-		existsBetter = existing.attrs.Resolution <= attrs.Resolution
+		existsBetter = existing.attrs.Resolution < attrs.Resolution
+		existsEqual = existing.attrs.Resolution == attrs.Resolution
 	case NamespaceCoversPartialQueryRange:
 		// Already exists and either has longer retention, or the same retention
 		// and result we are adding is not as precise
 		existsLongerRetention := existing.attrs.Retention > attrs.Retention
 		existsSameRetentionEqualOrBetterResolution :=
 			existing.attrs.Retention == attrs.Retention &&
-				existing.attrs.Resolution <= attrs.Resolution
+				existing.attrs.Resolution < attrs.Resolution
 		existsBetter = existsLongerRetention || existsSameRetentionEqualOrBetterResolution
+
+		existsEqual = existing.attrs.Retention == attrs.Retention &&
+			existing.attrs.Resolution == attrs.Resolution
 	default:
 		return fmt.Errorf("unknown query fanout type: %d", m.fanout)
 	}
+
+	if existsEqual {
+		multiIter, ok := existing.iter.(*multiIterator)
+		if !ok {
+			multiIter = newMultiReaderIterator(existing.iter)
+		}
+
+		if err := multiIter.addSeriesIterator(iter); err != nil {
+			return err
+		}
+
+		iter = multiIter
+	}
+
 	if existsBetter {
 		// Existing result is already better
 		return nil

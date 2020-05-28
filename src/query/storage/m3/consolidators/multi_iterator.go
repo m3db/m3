@@ -22,6 +22,7 @@ package consolidators
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -32,7 +33,6 @@ import (
 )
 
 type data struct {
-	hasValue   bool
 	dp         ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
@@ -41,7 +41,60 @@ type data struct {
 type idxData struct {
 	data
 	isBase bool
-	idx  int
+	idx    int
+}
+
+func buildBaseIdxData(it encoding.SeriesIterator) idxData {
+	dp, unit, annotation := it.Current()
+	return idxData{
+		isBase: true,
+		data: data{
+			dp:         dp,
+			unit:       unit,
+			annotation: annotation,
+		},
+	}
+}
+
+func buildIndexIdxData(it encoding.SeriesIterator, idx int) idxData {
+	dp, unit, annotation := it.Current()
+	return idxData{
+		idx: idx,
+		data: data{
+			dp:         dp,
+			unit:       unit,
+			annotation: annotation,
+		},
+	}
+}
+
+type idxDatas []idxData
+
+func (d idxDatas) insert(insertData idxData) {
+	addingTime := insertData.data.dp.Timestamp
+	idx := len(d)
+	for i, data := range d {
+		existingTime := data.dp.Timestamp
+		if existingTime.Before(addingTime) {
+			continue
+		}
+
+		if existingTime.Equal(addingTime) {
+			if data.isBase || data.idx < insertData.idx {
+				continue
+			}
+		}
+
+		idx = i
+		break
+	}
+
+	d = append(d, idxData{})
+	copy(d[:idx+1], d[:idx])
+	d[idx] = insertData
+
+	d = append(d[:idx], insertData)
+	d = append(d, d[:idx]...)
 }
 
 // NB: enforce multiIterator implements encoding.SeriesIterator.
@@ -50,39 +103,59 @@ var _ encoding.SeriesIterator = (*multiIterator)(nil)
 type multiIterator struct {
 	err error
 
-	current    data
-	currentIdx int
-	indexData  []idxData
-	iters      []encoding.SeriesIterator
-	base       encoding.SeriesIterator
+	current   data
+	indexData idxDatas
+	iters     []encoding.SeriesIterator
+	base      encoding.SeriesIterator
 }
 
-func (it *multiIterator) moveNext() bool {
+func (it *multiIterator) Next() bool {
 	if len(it.indexData) == 0 {
 		return false
 	}
 
-	// NB: if the next value to read is from base, increment base iterator.
-	next := it.indexData[0]
-	if next.isBase {
-		if it.base.Next() {
-			
-		}
-	}
-}
-
-func (it *multiIterator) Next() bool {
-	if !it.current.hasValue {
-
-	}
-
-	for idx, currVal := range it.allVals {
-		if currVal.hasValue != nil {
+	currTs := it.current.dp.Timestamp
+	for {
+		if len(it.indexData) == 0 {
 			return false
 		}
-	}
 
-	return true
+		// NB: take off value corresponding to next ordered iterator.
+		first := it.indexData[0]
+		copy(it.indexData, it.indexData[1:])
+		it.indexData = it.indexData[:len(it.indexData)-2]
+
+		var currIdxData idxData
+		if first.isBase {
+			// NB: this iterator is exhausted. No need to re-add it.
+			if !it.base.Next() {
+				continue
+			}
+
+			currIdxData = buildBaseIdxData(it.base)
+		} else {
+			iterAtIndex := it.iters[first.idx]
+			// NB: this iterator is exhausted. No need to re-add it.
+			if !iterAtIndex.Next() {
+				continue
+			}
+
+			currIdxData = buildIndexIdxData(iterAtIndex, first.idx)
+		}
+
+		// Add the next point in the read iterator.
+		it.indexData.insert(currIdxData)
+
+		// If the next point's timestamp is after current point, update
+		// internal current and return true. Otherwise, repeat for next points.
+		ts := first.dp.Timestamp
+		if ts.IsZero() || ts.After(currTs) {
+			it.current.dp = first.dp
+			it.current.unit = first.unit
+			it.current.annotation = first.annotation
+			return true
+		}
+	}
 }
 
 func (it *multiIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
@@ -145,6 +218,25 @@ func (it *multiIterator) End() time.Time {
 	return end
 }
 
+func newMultiReaderIterator(base encoding.SeriesIterator) *multiIterator {
+	return &multiIterator{
+		base:      base,
+		indexData: idxDatas{buildBaseIdxData(base)},
+	}
+}
+
+func (it *multiIterator) addSeriesIterator(iter encoding.SeriesIterator) error {
+	if !it.base.Namespace().Equal(iter.Namespace()) {
+		return fmt.Errorf("mismatched namespace: %s base, %s incoming",
+			it.base.Namespace().String(), iter.Namespace().String())
+	}
+
+	it.iters = append(it.iters, iter)
+	idx := len(it.indexData)
+	it.indexData = append(it.indexData, buildIndexIdxData(iter, idx))
+	return nil
+}
+
 func (it *multiIterator) Reset(opts encoding.SeriesIteratorOptions) {
 	// Since this overwrites data, reset only the base and release other iters.
 	for _, iter := range it.iters {
@@ -152,8 +244,13 @@ func (it *multiIterator) Reset(opts encoding.SeriesIteratorOptions) {
 	}
 
 	it.iters = it.iters[:0]
-	it.current.hasValue = false
+	it.indexData = it.indexData[:0]
 	it.base.Reset(opts)
+	// Populate index data list.
+	if it.base.Next() {
+		currIdxData := buildBaseIdxData(it.base)
+		it.indexData = append(it.indexData, currIdxData)
+	}
 }
 
 func (it *multiIterator) SetIterateEqualTimestampStrategy(
