@@ -43,7 +43,7 @@ type verifyQueryMetadataResult struct {
 	matched bool
 }
 
-func verifyQueryMetadataResults(
+func VerifyQueryMetadataResults(
 	t *testing.T,
 	iter client.TaggedIDsIterator,
 	exhaustive bool,

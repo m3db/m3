@@ -267,7 +267,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
+	VerifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
 		exhaustive: true,
 		expected:   []generate.Series{fooSeries, barSeries, quxSeries},
@@ -281,7 +281,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
+	VerifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
 		exhaustive: true,
 		expected:   []generate.Series{barSeries, bazSeries, duxSeries},
