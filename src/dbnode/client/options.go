@@ -32,10 +32,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	nchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -46,6 +49,7 @@ import (
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
@@ -242,6 +246,7 @@ type options struct {
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
+	newConnectionFn                         NewConnectionFn
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                  int
 	writeTaggedOperationPoolSize            int
@@ -299,6 +304,19 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 	return result
 }
 
+func defaultNewConnectionFn(
+	channelName string, address string, opts Options,
+) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	channel, err := tchannel.NewChannel(channelName, opts.ChannelOptions())
+	if err != nil {
+		return nil, nil, err
+	}
+	endpoint := &thrift.ClientOptions{HostPort: address}
+	thriftClient := thrift.NewClient(channel, nchannel.ChannelName, endpoint)
+	client := rpc.NewTChanNodeClient(thriftClient)
+	return channel, client, nil
+}
+
 func newOptions() *options {
 	buckets := defaultIdentifierPoolBytesPoolSizes
 	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
@@ -348,6 +366,7 @@ func newOptions() *options {
 		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
 		tagDecoderOpts:                          serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
+		newConnectionFn:                         defaultNewConnectionFn,
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
 		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
@@ -728,6 +747,16 @@ func (o *options) SetStreamBlocksRetrier(value xretry.Retrier) AdminOptions {
 
 func (o *options) StreamBlocksRetrier() xretry.Retrier {
 	return o.streamBlocksRetrier
+}
+
+func (o *options) SetNewConnectionFn(value NewConnectionFn) AdminOptions {
+	opts := *o
+	opts.newConnectionFn = value
+	return &opts
+}
+
+func (o *options) NewConnectionFn() NewConnectionFn {
+	return o.newConnectionFn
 }
 
 func (o *options) SetWriteOpPoolSize(value int) Options {

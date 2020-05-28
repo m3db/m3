@@ -566,6 +566,12 @@ type Options interface {
 
 	// WriteTimestampOffset returns the write timestamp offset.
 	WriteTimestampOffset() time.Duration
+
+	// SetNewConnectionFn sets a new connection generator function.
+	SetNewConnectionFn(value NewConnectionFn) AdminOptions
+
+	// NewConnectionFn returns the new connection generator function.
+	NewConnectionFn() NewConnectionFn
 }
 
 // AdminOptions is a set of administration client options.

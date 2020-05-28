@@ -21,7 +21,6 @@
 package node
 
 import (
-	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	ns "github.com/m3db/m3/src/dbnode/network/server"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
@@ -34,7 +33,7 @@ type server struct {
 	service     Service
 	address     string
 	contextPool context.Pool
-	opts        *tchannel.ChannelOptions
+	opts        Options
 }
 
 // NewServer creates a new node TChannel Thrift network service
@@ -42,13 +41,8 @@ func NewServer(
 	service Service,
 	address string,
 	contextPool context.Pool,
-	opts *tchannel.ChannelOptions,
+	opts Options,
 ) ns.NetworkService {
-	// Make the opts immutable on the way in
-	if opts != nil {
-		immutableOpts := *opts
-		opts = &immutableOpts
-	}
 	return &server{
 		service:     service,
 		address:     address,
@@ -58,13 +52,15 @@ func NewServer(
 }
 
 func (s *server) ListenAndServe() (ns.Close, error) {
-	channel, err := tchannel.NewChannel(channel.ChannelName, s.opts)
+	chanOpts := s.opts.ChannelOptions()
+	channel, err := tchannel.NewChannel(channel.ChannelName, chanOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	tchannelthrift.RegisterServer(channel, rpc.NewTChanNodeServer(s.service), s.contextPool)
-
+	iOpts := s.opts.InstrumentOptions()
+	server := s.opts.TChanNodeServerFn()(s.service, iOpts)
+	tchannelthrift.RegisterServer(channel, server, s.contextPool)
 	channel.ListenAndServe(s.address)
 
 	return channel.Close, nil
