@@ -27,10 +27,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testSeriesLoadHandler struct {
@@ -64,16 +67,37 @@ func TestFetchCompressedReturnsPreloadedData(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	predefinedSeriesCount := 100
-	iters := encoding.NewMockSeriesIterators(ctrl)
-	iters.EXPECT().Len().Return(predefinedSeriesCount).MinTimes(1)
-	iters.EXPECT().Close()
+	const (
+		metricsName           = "preloaded"
+		predefinedSeriesCount = 10
+	)
 
-	seriesLoader := &testSeriesLoadHandler{iters}
+	query := matcherQuery(t, metricNameTag, metricsName)
+
+	metricsTag := ident.NewTags(ident.Tag{
+		Name:  ident.BytesID(tagOptions.MetricName()),
+		Value: ident.BytesID(metricsName),
+	})
+
+	iters := make([]encoding.SeriesIterator, 0, predefinedSeriesCount)
+	for i := 0; i < predefinedSeriesCount; i++ {
+		iters = append(iters, encoding.NewSeriesIterator(
+			encoding.SeriesIteratorOptions{
+				Namespace:      ident.StringID("ns"),
+				Tags:           ident.NewTagsIterator(metricsTag),
+				StartInclusive: xtime.ToUnixNano(query.Start),
+				EndExclusive:   xtime.ToUnixNano(query.End),
+			}, nil))
+	}
+
+	seriesIterators := encoding.NewMockSeriesIterators(ctrl)
+	seriesIterators.EXPECT().Len().Return(predefinedSeriesCount).MinTimes(1)
+	seriesIterators.EXPECT().Iters().Return(iters).Times(1)
+	seriesIterators.EXPECT().Close()
+
+	seriesLoader := &testSeriesLoadHandler{seriesIterators}
 
 	querier, _ := newQuerier(iteratorOpts, seriesLoader, blockSize, defaultResolution)
-
-	query := matcherQuery(t, metricNameTag, "preloaded")
 
 	result, cleanup, err := querier.FetchCompressed(nil, query, nil)
 	assert.NoError(t, err)
@@ -166,6 +190,26 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "apply tag filter",
+			givenQuery: and(
+				matcherQuery(t, metricNameTag, "multi_5"),
+				matcherQuery(t, "parity", "1")),
+			wantSeries: []tagMap{
+				{
+					metricNameTag: "multi_5",
+					"const":       "x",
+					"id":          "1",
+					"parity":      "1",
+				},
+				{
+					metricNameTag: "multi_5",
+					"const":       "x",
+					"id":          "3",
+					"parity":      "1",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -179,7 +223,7 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 			assert.NoError(t, err)
 			defer cleanup()
 
-			assert.Equal(t, len(tt.wantSeries), result.SeriesIterators.Len())
+			require.Equal(t, len(tt.wantSeries), result.SeriesIterators.Len())
 			for i, expectedTags := range tt.wantSeries {
 				iter := result.SeriesIterators.Iters()[i]
 				assert.Equal(t, expectedTags, extractTags(iter))
@@ -199,6 +243,14 @@ func matcherQuery(t *testing.T, matcherName, matcherValue string) *storage.Fetch
 		TagMatchers: []models.Matcher{matcher},
 		Start:       now.Add(-time.Hour),
 		End:         now,
+	}
+}
+
+func and(query1, query2 *storage.FetchQuery) *storage.FetchQuery {
+	return &storage.FetchQuery{
+		TagMatchers: append(query1.TagMatchers, query2.TagMatchers...),
+		Start:       query1.Start,
+		End:         query1.End,
 	}
 }
 

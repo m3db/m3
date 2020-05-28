@@ -42,7 +42,7 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
-	"github.com/prometheus/prometheus/promql"
+	promql "github.com/prometheus/prometheus/promql/parser"
 )
 
 const (
@@ -599,7 +599,7 @@ func (t Tags) matches(other Tags) error {
 	for k, v := range t {
 		if vv, ok := other[k]; ok {
 			if v != vv {
-				return fmt.Errorf("tag %s does not match other tag length %s", v, vv)
+				return fmt.Errorf("tag %s value %s does not match other tag value %s", k, v, vv)
 			}
 		} else {
 			return fmt.Errorf("tag %s not found in other tagset", v)

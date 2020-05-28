@@ -44,7 +44,7 @@ if ! curl -vvvsSf localhost:7201/api/v1/services/m3coordinator/placement; then
 fi
 
 QUERY_EXP='{"error":"operation not valid for noop client"}'
-RES=$(curl "localhost:7201/api/v1/query_range?start=$(date '+%s')&end=$(date '+%s')&step=10&query=foo")
+RES=$(curl "localhost:7201/m3query/api/v1/query_range?start=$(date '+%s')&end=$(date '+%s')&step=10&query=foo")
 if [[ "$RES" != "$QUERY_EXP" ]]; then
   echo "Expected resp '$QUERY_EXP', GOT '$RES'"
   exit 1

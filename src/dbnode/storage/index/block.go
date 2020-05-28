@@ -304,6 +304,9 @@ func (b *block) writesAcceptedWithRLock() bool {
 
 func (b *block) executorWithRLock() (search.Executor, error) {
 	expectedReaders := b.mutableSegments.Len()
+	for _, coldSeg := range b.coldMutableSegments {
+		expectedReaders += coldSeg.Len()
+	}
 	b.shardRangesSegmentsByVolumeType.forEachSegmentGroup(func(group blockShardRangesSegments) error {
 		expectedReaders += len(group.segments)
 		return nil
@@ -328,6 +331,13 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Add cold mutable segments.
+	for _, coldSeg := range b.coldMutableSegments {
+		readers, err = coldSeg.AddReaders(readers)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// Loop over the segments associated to shard time ranges.
 	if err := b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
@@ -347,6 +357,9 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 
 func (b *block) segmentsWithRLock() []segment.Segment {
 	numSegments := b.mutableSegments.Len()
+	for _, coldSeg := range b.coldMutableSegments {
+		numSegments += coldSeg.Len()
+	}
 	b.shardRangesSegmentsByVolumeType.forEachSegmentGroup(func(group blockShardRangesSegments) error {
 		numSegments += len(group.segments)
 		return nil
@@ -354,6 +367,9 @@ func (b *block) segmentsWithRLock() []segment.Segment {
 
 	segments := make([]segment.Segment, 0, numSegments)
 	segments = b.mutableSegments.AddSegments(segments)
+	for _, coldSeg := range b.coldMutableSegments {
+		segments = coldSeg.AddSegments(segments)
+	}
 
 	// Loop over the segments associated to shard time ranges.
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
@@ -876,6 +892,11 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 
 	// Add foreground/background segments.
 	numSegments, numDocs := b.mutableSegments.NumSegmentsAndDocs()
+	for _, coldSeg := range b.coldMutableSegments {
+		coldNumSegments, coldNumDocs := coldSeg.NumSegmentsAndDocs()
+		numSegments += coldNumSegments
+		numDocs += coldNumDocs
+	}
 	result.NumSegments += numSegments
 	result.NumDocs += numDocs
 
@@ -930,6 +951,11 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 	}
 
 	b.mutableSegments.Stats(reporter)
+	for _, coldSeg := range b.coldMutableSegments {
+		// TODO(bodu): Cold segment stats should prob be of a
+		// diff type or something.
+		coldSeg.Stats(reporter)
+	}
 
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
 		_, mutable := seg.(segment.MutableSegment)
@@ -1048,7 +1074,18 @@ func (b *block) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, erro
 	if b.state == blockStateClosed {
 		return nil, errBlockAlreadyClosed
 	}
-	return b.mutableSegments.MemorySegmentsData(ctx)
+	data, err := b.mutableSegments.MemorySegmentsData(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, coldSeg := range b.coldMutableSegments {
+		coldData, err := coldSeg.MemorySegmentsData(ctx)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, coldData...)
+	}
+	return data, nil
 }
 
 func (b *block) Close() error {
@@ -1060,6 +1097,9 @@ func (b *block) Close() error {
 	b.state = blockStateClosed
 
 	b.mutableSegments.Close()
+	for _, coldSeg := range b.coldMutableSegments {
+		coldSeg.Close()
+	}
 
 	// Close any other added segments too.
 	var multiErr xerrors.MultiError

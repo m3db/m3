@@ -36,8 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 
-	"github.com/prometheus/prometheus/promql"
-	pql "github.com/prometheus/prometheus/promql"
+	pql "github.com/prometheus/prometheus/promql/parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -119,11 +118,11 @@ func TestInvalidUnary(t *testing.T) {
 }
 
 func TestGetUnaryOpType(t *testing.T) {
-	unaryOpType, err := getUnaryOpType(promql.ItemADD)
+	unaryOpType, err := getUnaryOpType(pql.ADD)
 	require.NoError(t, err)
 	assert.Equal(t, binary.PlusType, unaryOpType)
 
-	_, err = getUnaryOpType(promql.ItemEQL)
+	_, err = getUnaryOpType(pql.EQL)
 	require.Error(t, err)
 }
 

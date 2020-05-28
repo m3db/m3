@@ -78,6 +78,9 @@ pages:
       - "Prometheus Remote Write/Read": "coordinator/api/remote.md"
   - "Query Engine":
     - "Introduction": "query_engine/index.md"
+    - "Configuration":
+      - "Query Engine": "query_engine/config/index.md"
+      - "Annotated Config File": "query_engine/config/annotated_config.md"
     - "API":
       - "Query": "query_engine/api/index.md"
     - "Architecture":
@@ -85,8 +88,6 @@ pages:
       - "Blocks": "query_engine/architecture/blocks.md"
       - "Query Fanout": "query_engine/architecture/fanout.md"
       - "Function Processing": "query_engine/architecture/functions.md"
-    - "Configuration":
-      - "Annotated Config File": "query_engine/config/annotated_config.md"
   - "How-To's":
     - "M3DB Single Node Deployment": "how_to/single_node.md"
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"

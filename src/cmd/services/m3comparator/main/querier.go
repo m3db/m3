@@ -39,6 +39,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/prometheus/common/model"
 )
 
 var _ m3.Querier = (*querier)(nil)
@@ -135,8 +137,10 @@ func (q *querier) FetchCompressed(
 	options *storage.FetchOptions,
 ) (m3.SeriesFetchResult, m3.Cleanup, error) {
 	var (
-		iters encoding.SeriesIterators
-		err   error
+		iters        encoding.SeriesIterators
+		randomSeries []series
+		ignoreFilter bool
+		err          error
 	)
 
 	name := q.iteratorOpts.tagOptions.MetricName()
@@ -152,14 +156,29 @@ func (q *querier) FetchCompressed(
 	}
 
 	if iters == nil || iters.Len() == 0 {
-		series, err := q.generateRandomSeries(query)
+		randomSeries, ignoreFilter, err = q.generateRandomSeries(query)
 		if err != nil {
 			return m3.SeriesFetchResult{}, noop, err
 		}
-		iters, err = buildSeriesIterators(series, query.Start, q.blockSize, q.iteratorOpts)
+		iters, err = buildSeriesIterators(randomSeries, query.Start, q.blockSize, q.iteratorOpts)
 		if err != nil {
 			return m3.SeriesFetchResult{}, noop, err
 		}
+	}
+
+	if !ignoreFilter {
+		filteredIters := filter(iters, query.TagMatchers)
+
+		cleanup := func() error {
+			iters.Close()
+			filteredIters.Close()
+			return nil
+		}
+
+		return m3.SeriesFetchResult{
+			SeriesIterators: filteredIters,
+			Metadata:        block.NewResultMetadata(),
+		}, cleanup, nil
 	}
 
 	cleanup := func() error {
@@ -175,7 +194,7 @@ func (q *querier) FetchCompressed(
 
 func (q *querier) generateRandomSeries(
 	query *storage.FetchQuery,
-) ([]series, error) {
+) (series []series, ignoreFilter bool, err error) {
 	var (
 		start = query.Start.Truncate(q.blockSize)
 		end   = query.End.Truncate(q.blockSize).Add(q.blockSize)
@@ -185,12 +204,15 @@ func (q *querier) generateRandomSeries(
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(metricNameTag, matcher.Name) {
 			if matched, _ := regexp.Match(`^multi_\d+$`, matcher.Value); matched {
-				return q.generateMultiSeriesMetrics(string(matcher.Value), start, end)
+				series, err = q.generateMultiSeriesMetrics(string(matcher.Value), start, end)
+				return
 			}
 		}
 	}
 
-	return q.generateSingleSeriesMetrics(query, start, end)
+	ignoreFilter = true
+	series, err = q.generateSingleSeriesMetrics(query, start, end)
+	return
 }
 
 func (q *querier) generateSingleSeriesMetrics(
@@ -251,7 +273,7 @@ func (q *querier) generateSingleSeriesMetrics(
 	seriesList := make([]series, 0, len(actualGens))
 	for _, gen := range actualGens {
 		tags := parser.Tags{
-			parser.NewTag("__name__", gen.name),
+			parser.NewTag(model.MetricNameLabel, gen.name),
 			parser.NewTag("foobar", "qux"),
 			parser.NewTag("name", gen.name),
 		}
@@ -285,7 +307,7 @@ func (q *querier) generateMultiSeriesMetrics(
 	seriesList := make([]series, 0, seriesCount)
 	for i := 0; i < seriesCount; i++ {
 		tags := parser.Tags{
-			parser.NewTag("__name__", metricsName),
+			parser.NewTag(model.MetricNameLabel, metricsName),
 			parser.NewTag("id", strconv.Itoa(i)),
 			parser.NewTag("parity", strconv.Itoa(i%2)),
 			parser.NewTag("const", "x"),
