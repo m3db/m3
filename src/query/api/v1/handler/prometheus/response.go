@@ -1,0 +1,382 @@
+package prometheus
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+// Response represents Prometheus's query response.
+type Response struct {
+	// Status is the response status.
+	Status string `json:"status"`
+	// Data is the response data.
+	Data data `json:"data"`
+}
+
+type data struct {
+	ResultType string
+	Result     result
+}
+
+type result interface {
+	matches(other result) (MatchInformation, error)
+}
+
+type matrixResult struct {
+	// Result is the list of matrixRow for the response.
+	Result []matrixRow `json:"result"`
+}
+
+type vectorResult struct {
+	// Result is the list of vectorItem for the response.
+	Result []vectorItem `json:"result"`
+}
+
+type scalarResult struct {
+	// Result is the scalar Value for the response.
+	Result Value `json:"result"`
+}
+
+type stringResult struct {
+	// Result is the string Value for the response.
+	Result Value `json:"result"`
+}
+
+func (d *data) UnmarshalJSON(bytes []byte) error {
+	var discriminator struct {
+		ResultType string `json:"resultType"`
+	}
+	if err := json.Unmarshal(bytes, &discriminator); err != nil {
+		return err
+	}
+	*d = data{ResultType: discriminator.ResultType}
+
+	switch discriminator.ResultType {
+
+	case "matrix":
+		d.Result = &matrixResult{}
+
+	case "vector":
+		d.Result = &vectorResult{}
+
+	case "scalar":
+		d.Result = &scalarResult{}
+
+	case "string":
+		d.Result = &stringResult{}
+
+	default:
+		return fmt.Errorf("unknown resultType: %s", discriminator.ResultType)
+	}
+
+	return json.Unmarshal(bytes, d.Result)
+}
+
+// Len is the number of elements in the collection.
+func (r matrixResult) Len() int { return len(r.Result) }
+
+// Less reports whether the element with
+// index i should sort before the element with index j.
+func (r matrixResult) Less(i, j int) bool {
+	return r.Result[i].id < r.Result[j].id
+}
+
+// Swap swaps the elements with indexes i and j.
+func (r matrixResult) Swap(i, j int) { r.Result[i], r.Result[j] = r.Result[j], r.Result[i] }
+
+// Sort sorts the matrixResult.
+func (r matrixResult) Sort() {
+	for i, result := range r.Result {
+		r.Result[i].id = result.Metric.genID()
+	}
+
+	sort.Sort(r)
+}
+
+// Len is the number of elements in the vector.
+func (r vectorResult) Len() int { return len(r.Result) }
+
+// Less reports whether the element with
+// index i should sort before the element with index j.
+func (r vectorResult) Less(i, j int) bool {
+	return r.Result[i].id < r.Result[j].id
+}
+
+// Swap swaps the elements with indexes i and j.
+func (r vectorResult) Swap(i, j int) { r.Result[i], r.Result[j] = r.Result[j], r.Result[i] }
+
+// Sort sorts the vectorResult.
+func (r vectorResult) Sort() {
+	for i, result := range r.Result {
+		r.Result[i].id = result.Metric.genID()
+	}
+
+	sort.Sort(r)
+}
+
+// matrixRow is a single row of "matrix" Result.
+type matrixRow struct {
+	// Metric is the tags for the matrixRow.
+	Metric Tags `json:"metric"`
+	// Values is the set of values for the matrixRow.
+	Values Values `json:"values"`
+	id     string
+}
+
+// vectorItem is a single item of "vector" Result.
+type vectorItem struct {
+	// Metric is the tags for the vectorItem.
+	Metric Tags `json:"metric"`
+	// Value is the value for the vectorItem.
+	Value Value `json:"value"`
+	id    string
+}
+
+// Tags is a simple representation of Prometheus tags.
+type Tags map[string]string
+
+// Values is a list of values for the Prometheus Result.
+type Values []Value
+
+// Value is a single value for Prometheus Result.
+type Value []interface{}
+
+func (t *Tags) genID() string {
+	tags := make(sort.StringSlice, len(*t))
+	for k, v := range *t {
+		tags = append(tags, fmt.Sprintf("%s:%s,", k, v))
+	}
+
+	sort.Sort(tags)
+	var sb strings.Builder
+	// NB: this may clash but exact tag values are also checked, and this is a
+	// validation endpoint so there's less concern over correctness.
+	for _, t := range tags {
+		sb.WriteString(t)
+	}
+
+	return sb.String()
+}
+
+// MatchInformation describes how well two responses match.
+type MatchInformation struct {
+	// FullMatch indicates a full match.
+	FullMatch bool
+	// NoMatch indicates that the responses do not match sufficiently.
+	NoMatch bool
+}
+
+// Matches compares two responses and determines how closely they match.
+func (r Response) Matches(other Response) (MatchInformation, error) {
+	if r.Status != other.Status {
+		err := fmt.Errorf("status %s does not match other status %s",
+			r.Status, other.Status)
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return r.Data.matches(other.Data)
+}
+
+func (d data) matches(other data) (MatchInformation, error) {
+	if d.ResultType != other.ResultType {
+		err := fmt.Errorf("result type %s does not match other result type %s",
+			d.ResultType, other.ResultType)
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return d.Result.matches(other.Result)
+}
+
+func (r matrixResult) matches(other result) (MatchInformation, error) {
+	otherMatrix, ok := other.(*matrixResult)
+	if !ok {
+		err := fmt.Errorf("incorrect type for matching, expected matrixResult, %v", other)
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	if len(r.Result) != len(otherMatrix.Result) {
+		err := fmt.Errorf("result length %d does not match other result length %d",
+			len(r.Result), len(otherMatrix.Result))
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	r.Sort()
+	otherMatrix.Sort()
+	for i, result := range r.Result {
+		if err := result.matches(otherMatrix.Result[i]); err != nil {
+			return MatchInformation{
+				NoMatch: true,
+			}, err
+		}
+	}
+
+	return MatchInformation{FullMatch: true}, nil
+}
+
+func (r vectorResult) matches(other result) (MatchInformation, error) {
+	otherVector, ok := other.(*vectorResult)
+	if !ok {
+		err := fmt.Errorf("incorrect type for matching, expected vectorResult")
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	if len(r.Result) != len(otherVector.Result) {
+		err := fmt.Errorf("result length %d does not match other result length %d",
+			len(r.Result), len(otherVector.Result))
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	r.Sort()
+	otherVector.Sort()
+	for i, result := range r.Result {
+		if err := result.matches(otherVector.Result[i]); err != nil {
+			return MatchInformation{
+				NoMatch: true,
+			}, err
+		}
+	}
+
+	return MatchInformation{FullMatch: true}, nil
+}
+
+func (r scalarResult) matches(other result) (MatchInformation, error) {
+	otherScalar, ok := other.(*scalarResult)
+	if !ok {
+		err := fmt.Errorf("incorrect type for matching, expected scalarResult")
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	if err := r.Result.matches(otherScalar.Result); err != nil {
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return MatchInformation{FullMatch: true}, nil
+}
+
+func (r stringResult) matches(other result) (MatchInformation, error) {
+	otherString, ok := other.(*stringResult)
+	if !ok {
+		err := fmt.Errorf("incorrect type for matching, expected stringResult")
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	if err := r.Result.matches(otherString.Result); err != nil {
+		return MatchInformation{
+			NoMatch: true,
+		}, err
+	}
+
+	return MatchInformation{FullMatch: true}, nil
+}
+
+func (r matrixRow) matches(other matrixRow) error {
+	// NB: tags should match by here so this is more of a sanity check.
+	if err := r.Metric.matches(other.Metric); err != nil {
+		return err
+	}
+
+	return r.Values.matches(other.Values)
+}
+
+func (r vectorItem) matches(other vectorItem) error {
+	// NB: tags should match by here so this is more of a sanity check.
+	if err := r.Metric.matches(other.Metric); err != nil {
+		return err
+	}
+
+	return r.Value.matches(other.Value)
+}
+
+func (t Tags) matches(other Tags) error {
+	if len(t) != len(other) {
+		return fmt.Errorf("tag length %d does not match other tag length %d",
+			len(t), len(other))
+	}
+
+	for k, v := range t {
+		if vv, ok := other[k]; ok {
+			if v != vv {
+				return fmt.Errorf("tag %s value %s does not match other tag value %s", k, v, vv)
+			}
+		} else {
+			return fmt.Errorf("tag %s not found in other tagset", v)
+		}
+	}
+
+	return nil
+}
+
+func (v Values) matches(other Values) error {
+	if len(v) != len(other) {
+		return fmt.Errorf("values length %d does not match other values length %d",
+			len(v), len(other))
+	}
+
+	for i, val := range v {
+		if err := val.matches(other[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (v Value) matches(other Value) error {
+	if len(v) != 2 {
+		return fmt.Errorf("value length %d must be 2", len(v))
+	}
+
+	if len(other) != 2 {
+		return fmt.Errorf("other value length %d must be 2", len(other))
+	}
+
+	tsV := fmt.Sprint(v[0])
+	tsOther := fmt.Sprint(v[0])
+	if tsV != tsOther {
+		return fmt.Errorf("ts %s does not match other ts %s", tsV, tsOther)
+	}
+
+	valV, err := strconv.ParseFloat(fmt.Sprint(v[1]), 64)
+	if err != nil {
+		return err
+	}
+
+	valOther, err := strconv.ParseFloat(fmt.Sprint(other[1]), 64)
+	if err != nil {
+		return err
+	}
+
+	if math.Abs(valV-valOther) > tolerance {
+		return fmt.Errorf("point %f does not match other point %f", valV, valOther)
+	}
+
+	for i, val := range v {
+		otherVal := other[i]
+		if val != otherVal {
+		}
+	}
+
+	return nil
+}
