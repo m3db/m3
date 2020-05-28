@@ -34,6 +34,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var defaultTestOpts = MatchOptions{
+	MatchType: defaultMatchType,
+}
+
 const (
 	common       = "common"
 	short        = "short"
@@ -119,7 +123,7 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 	}
 
 	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(fanoutType, pools)
+	r := NewMultiFetchResult(fanoutType, pools, defaultTestOpts)
 
 	for _, ns := range namespaces {
 		iters := generateSeriesIterators(ctrl, ns.ns)
@@ -173,7 +177,7 @@ func TestExhaustiveMerge(t *testing.T) {
 	defer ctrl.Finish()
 
 	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools)
+	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools, defaultTestOpts)
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for i, ex := range tt.exhaustives {

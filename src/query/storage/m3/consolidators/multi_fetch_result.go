@@ -42,8 +42,9 @@ type multiResult struct {
 	seenFirstAttrs  storage.Attributes
 	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
 	mergedIterators encoding.MutableSeriesIterators
-	dedupeMap       fetchDedupeMap //map[string]multiResultSeries
+	dedupeMap       fetchDedupeMap
 	err             xerrors.MultiError
+	matchType       MatchType
 
 	pools encoding.IteratorPools
 }
@@ -52,11 +53,13 @@ type multiResult struct {
 func NewMultiFetchResult(
 	fanout QueryFanoutType,
 	pools encoding.IteratorPools,
+	opts MatchOptions,
 ) MultiFetchResult {
 	return &multiResult{
-		metadata: block.NewResultMetadata(),
-		fanout:   fanout,
-		pools:    pools,
+		metadata:  block.NewResultMetadata(),
+		fanout:    fanout,
+		pools:     pools,
+		matchType: opts.MatchType,
 	}
 }
 
@@ -196,8 +199,12 @@ func (r *multiResult) Add(
 	if len(r.seenIters) == 2 {
 		// need to backfill the dedupe map from the first result first
 		first := r.seenIters[0]
-		// FIXME: split on config whether to use ID map or Tag map.
-		r.dedupeMap = newIDDedupeMap(r.fanout, first.Len())
+		if r.matchType == MatchIDs {
+			r.dedupeMap = newIDDedupeMap(r.fanout, first.Len())
+		} else {
+			r.dedupeMap = newTagDedupeMap(r.fanout, first.Len())
+		}
+
 		r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)
 	}
 

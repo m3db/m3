@@ -54,6 +54,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
+	queryconsolidators "github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdb "github.com/m3db/m3/src/query/ts/m3db"
@@ -265,6 +266,10 @@ func Run(runOpts RunOptions) {
 		queryCtxOpts        = models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOptsBuilderCfg.Limit,
 		}
+
+		matchOptions = queryconsolidators.MatchOptions{
+			MatchType: cfg.Query.ConsolidationConfiguration.MatchType,
+		}
 	)
 
 	tagOptions, err := config.TagOptionsFromConfig(cfg.TagOptions)
@@ -297,7 +302,8 @@ func Run(runOpts RunOptions) {
 		SetLookbackDuration(lookbackDuration).
 		SetConsolidationFunc(consolidators.TakeLast).
 		SetReadWorkerPool(readWorkerPool).
-		SetWriteWorkerPool(writeWorkerPool)
+		SetWriteWorkerPool(writeWorkerPool).
+		SetSeriesConsolidationMatchOptions(matchOptions)
 
 	if runOpts.ApplyCustomTSDBOptions != nil {
 		tsdbOpts = runOpts.ApplyCustomTSDBOptions(tsdbOpts)

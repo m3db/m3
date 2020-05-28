@@ -69,8 +69,6 @@ func (m *tagDedupeMap) add(
 	var existsBetter bool
 	var existsEqual bool
 	switch m.fanout {
-	// FIXME: detect if attrs equal; if so, build a meta-encoding.SeriesIterator
-	// that wraps both series iterators.
 	case NamespaceCoversAllQueryRange:
 		// Already exists and resolution of result we are adding is not as precise
 		existsBetter = existing.attrs.Resolution < attrs.Resolution
@@ -100,7 +98,12 @@ func (m *tagDedupeMap) add(
 			return err
 		}
 
-		iter = multiIter
+		m.series[id] = multiResultSeries{
+			attrs: attrs,
+			iter:  multiIter,
+		}
+
+		return nil
 	}
 
 	if existsBetter {

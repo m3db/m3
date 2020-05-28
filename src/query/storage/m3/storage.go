@@ -287,7 +287,8 @@ func (s *m3storage) fetchCompressed(
 		return nil, fmt.Errorf("unable to retrieve iterator pools: %v", err)
 	}
 
-	result := consolidators.NewMultiFetchResult(fanout, pools)
+	matchOpts := s.opts.SeriesConsolidationMatchOptions()
+	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		wg.Add(1)

@@ -28,6 +28,22 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
+// MatchOptions are multi fetch matching options.
+type MatchOptions struct {
+	// MatchType is the equality matching type by which to compare series.
+	MatchType MatchType
+}
+
+// MatchType is a equality match type.
+type MatchType uint
+
+const (
+	// MatchIDs matches series based on ID only.
+	MatchIDs MatchType = iota
+	// MatchTags matcher series based on tags.
+	MatchTags
+)
+
 // QueryFanoutType is a query fanout type.
 type QueryFanoutType uint
 

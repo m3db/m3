@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/cost"
@@ -205,8 +206,12 @@ type ResultOptions struct {
 
 // QueryConfiguration is the query configuration.
 type QueryConfiguration struct {
+	// Timeout is the query timeout.
 	Timeout *time.Duration `yaml:"timeout"`
+	// DefaultEngine is the default query engine.
 	DefaultEngine string `yaml:"defaultEngine"`
+	// ConsolidationConfiguration are configs for consolidating fetched queries.
+	ConsolidationConfiguration ConsolidationConfiguration `yaml:"consolidation"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
@@ -215,6 +220,12 @@ func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
 		return *v
 	}
 	return defaultQueryTimeout
+}
+
+// ConsolidationConfiguration are configs for consolidating fetched queries.
+type ConsolidationConfiguration struct {
+	// MatchType determines the options by which series should match.
+	MatchType consolidators.MatchType `yaml:"matchType"`
 }
 
 // LimitsConfiguration represents limitations on resource usage in the query
