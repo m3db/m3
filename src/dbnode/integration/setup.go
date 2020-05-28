@@ -142,6 +142,7 @@ type TestSetup interface {
 	Opts() TestOptions
 	AssertEqual(*testing.T, []generate.TestValue, []generate.TestValue) bool
 	DB() cluster.Database
+	M3DBClient() client.Client
 	Namespaces() []namespace.Metadata
 	TopologyInitializer() topology.Initializer
 	Fetch(req *rpc.FetchRequest) ([]generate.TestValue, error)
@@ -523,6 +524,10 @@ func (ts *testSetup) AssertEqual(t *testing.T, a, b []generate.TestValue) bool {
 
 func (ts *testSetup) DB() cluster.Database {
 	return ts.db
+}
+
+func (ts *testSetup) M3DBClient() client.Client {
+	return ts.m3dbClient
 }
 
 func (ts *testSetup) Namespaces() []namespace.Metadata {
