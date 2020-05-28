@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+
+	"github.com/prometheus/common/model"
 )
 
 // ValueMod can be used to modify provided values for testing.
@@ -108,7 +110,10 @@ func newSeriesMeta(tagPrefix string, count int, name bool) []block.SeriesMeta {
 		tags := models.EmptyTags()
 		st := []byte(fmt.Sprintf("%s%d", tagPrefix, i))
 		if name {
-			tags = tags.AddTag(models.Tag{Name: []byte("__name__"), Value: st})
+			tags = tags.AddTag(models.Tag{
+				Name:  []byte(model.MetricNameLabel),
+				Value: st,
+			})
 		}
 
 		tags = tags.AddTag(models.Tag{Name: st, Value: st})
