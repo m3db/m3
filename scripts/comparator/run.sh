@@ -74,4 +74,5 @@ $comparator -input=$QUERY_FILE \
 -comparator=$COMPARATOR_WRITE \
 -regressionDir=$REGRESSION_DIR
 
+# Run PromQL testdata tests
 go test -v -timeout 30s -count=1 github.com/m3db/m3/src/query/test/
