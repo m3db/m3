@@ -18,7 +18,9 @@ type Response struct {
 }
 
 type data struct {
+	// ResultType is the type of Result (matrix, vector, etc.).
 	ResultType string
+	// Result contains the query result (concrete type depends on ResultType).
 	Result     result
 }
 
@@ -46,6 +48,7 @@ type stringResult struct {
 	Result Value `json:"result"`
 }
 
+// UnmarshalJSON unmarshals the data struct of query response.
 func (d *data) UnmarshalJSON(bytes []byte) error {
 	var discriminator struct {
 		ResultType string `json:"resultType"`
@@ -178,6 +181,12 @@ func (r Response) Matches(other Response) (MatchInformation, error) {
 		return MatchInformation{
 			NoMatch: true,
 		}, err
+	}
+
+	if r.Status == "error" {
+		return MatchInformation{
+			FullMatch: true,
+		}, nil
 	}
 
 	return r.Data.matches(other.Data)
@@ -353,7 +362,7 @@ func (v Value) matches(other Value) error {
 	}
 
 	tsV := fmt.Sprint(v[0])
-	tsOther := fmt.Sprint(v[0])
+	tsOther := fmt.Sprint(other[0])
 	if tsV != tsOther {
 		return fmt.Errorf("ts %s does not match other ts %s", tsV, tsOther)
 	}
@@ -370,12 +379,6 @@ func (v Value) matches(other Value) error {
 
 	if math.Abs(valV-valOther) > tolerance {
 		return fmt.Errorf("point %f does not match other point %f", valV, valOther)
-	}
-
-	for i, val := range v {
-		otherVal := other[i]
-		if val != otherVal {
-		}
 	}
 
 	return nil

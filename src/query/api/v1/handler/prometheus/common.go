@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
-	jsonutil "github.com/m3db/m3/src/query/util/json"
+	"github.com/m3db/m3/src/query/util/json"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
@@ -277,7 +277,7 @@ func renderNameOnlyTagCompletionResultsJSON(
 	w io.Writer,
 	results []storage.CompletedTag,
 ) error {
-	jw := jsonutil.NewWriter(w)
+	jw := json.NewWriter(w)
 	jw.BeginArray()
 
 	for _, tag := range results {
@@ -293,7 +293,7 @@ func renderDefaultTagCompletionResultsJSON(
 	w io.Writer,
 	results []storage.CompletedTag,
 ) error {
-	jw := jsonutil.NewWriter(w)
+	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("hits")
@@ -333,7 +333,7 @@ func RenderListTagResultsJSON(
 		return errors.ErrWithNames
 	}
 
-	jw := jsonutil.NewWriter(w)
+	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -379,7 +379,7 @@ func RenderTagValuesResultsJSON(
 		return errors.ErrMultipleResults
 	}
 
-	jw := jsonutil.NewWriter(w)
+	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
@@ -415,7 +415,7 @@ func RenderSeriesMatchResultsJSON(
 	results []models.Metrics,
 	dropRole bool,
 ) error {
-	jw := jsonutil.NewWriter(w)
+	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
