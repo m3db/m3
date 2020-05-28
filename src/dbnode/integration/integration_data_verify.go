@@ -269,7 +269,7 @@ func writeVerifyDebugOutput(
 	return assert.NoError(t, w.Close())
 }
 
-func verifySeriesMaps(
+func VerifySeriesMaps(
 	t *testing.T,
 	ts TestSetup,
 	namespace ident.ID,

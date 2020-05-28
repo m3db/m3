@@ -133,6 +133,6 @@ func TestFilesystemBootstrapTagsWithIndexingDisabled(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect
-	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
-	verifySeriesMaps(t, setup, testNamespaces[1], nil)
+	VerifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
+	VerifySeriesMaps(t, setup, testNamespaces[1], nil)
 }

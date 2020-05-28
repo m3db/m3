@@ -192,8 +192,8 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 					expectedSeriesMap := datapoints[:lastDatapointsIdx].toSeriesMap(ns1BlockSize)
 					log.Info("verifying data in database equals expected data")
-					if !verifySeriesMaps(t, setup, nsID, expectedSeriesMap) {
-						// verifySeriesMaps will make sure the actual failure is included
+					if !VerifySeriesMaps(t, setup, nsID, expectedSeriesMap) {
+						// VerifySeriesMaps will make sure the actual failure is included
 						// in the go test output, but it uses assert() under the hood so
 						// there is not a clean way to return the explicit error to gopter
 						// as well.

@@ -137,7 +137,7 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions,
 	}()
 
 	// Verify in-memory data match what we expect
-	verifySeriesMaps(t, setups[0], namesp.ID(), left)
-	verifySeriesMaps(t, setups[1], namesp.ID(), right)
-	verifySeriesMaps(t, setups[2], namesp.ID(), seriesMaps)
+	VerifySeriesMaps(t, setups[0], namesp.ID(), left)
+	VerifySeriesMaps(t, setups[1], namesp.ID(), right)
+	VerifySeriesMaps(t, setups[2], namesp.ID(), seriesMaps)
 }

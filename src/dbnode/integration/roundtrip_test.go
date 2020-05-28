@@ -134,8 +134,8 @@ func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig g
 	testSetup.SleepFor10xTickMinimumInterval()
 
 	// Verify in-memory data match what we've written
-	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
+	VerifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
 
 	// Verify in-memory data again just to be sure the data can be read multiple times without issues
-	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
+	VerifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
 }

@@ -110,5 +110,5 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect
-	verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
+	VerifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
 }

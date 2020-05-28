@@ -164,5 +164,5 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	}()
 
 	log.Info("validating bootstrapped data")
-	verifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
+	VerifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
 }

@@ -131,7 +131,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	// verify in-memory data matches what we expect
 	expectedSeriesMap := datapoints.toSeriesMap(ns1BlockSize)
 	log.Info("verifying data in database equals expected data")
-	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
+	VerifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Info("verified data in database equals expected data")
 
 	// current time is 18:50, so we expect data for block starts [15, 18) to be written out
@@ -157,7 +157,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	log.Info("re-opening database & bootstrapping")
 	startServerWithNewInspection(t, opts, setup)
 	log.Info("verifying data in database equals expected data")
-	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
+	VerifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Info("verified data in database equals expected data")
 
 	// the time now is 19:15
@@ -180,7 +180,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	// should contain data from 16:00 - 17:59 on disk and 18:00 - 18:50 in mem
 	delete(expectedSeriesMap, xtime.ToUnixNano(blkStart15))
 	log.Info("verifying data in database equals expected data")
-	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
+	VerifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Info("verified data in database equals expected data")
 }
 

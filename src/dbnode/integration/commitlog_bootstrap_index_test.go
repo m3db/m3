@@ -147,8 +147,8 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 
 	// Verify in-memory data match what we expect - all writes from seriesMaps
 	// should be present
-	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
-	verifySeriesMaps(t, setup, testNamespaces[1], seriesMaps)
+	VerifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
+	VerifySeriesMaps(t, setup, testNamespaces[1], seriesMaps)
 
 	// Issue some index queries
 	session, err := setup.m3dbClient.DefaultSession()

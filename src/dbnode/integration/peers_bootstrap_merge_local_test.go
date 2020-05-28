@@ -209,6 +209,6 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	}()
 
 	// Verify in-memory data match what we expect
-	verifySeriesMaps(t, setups[0], namesp.ID(), firstNodeSeriesMaps)
-	verifySeriesMaps(t, setups[1], namesp.ID(), seriesMaps)
+	VerifySeriesMaps(t, setups[0], namesp.ID(), firstNodeSeriesMaps)
+	VerifySeriesMaps(t, setups[1], namesp.ID(), seriesMaps)
 }
