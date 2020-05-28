@@ -224,7 +224,7 @@ func testRepair(
 
 	// Start the servers with filesystem bootstrappers.
 	setups.parallel(func(s *testSetup) {
-		if err := s.startServer(); err != nil {
+		if err := s.StartServer(); err != nil {
 			panic(err)
 		}
 	})
@@ -233,7 +233,7 @@ func testRepair(
 	// Stop the servers.
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

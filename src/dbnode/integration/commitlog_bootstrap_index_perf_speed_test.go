@@ -210,12 +210,12 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	setup.storageOpts = setup.storageOpts.SetClockOptions(clock.NewOptions())
 
 	// Start the server with filesystem bootstrapper
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 }

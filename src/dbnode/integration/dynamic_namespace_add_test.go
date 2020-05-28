@@ -88,13 +88,13 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
 	stopped := false
 	defer func() {
 		stopped = true
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Info("server is now down")
 	}()
 

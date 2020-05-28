@@ -81,16 +81,16 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	// Leave second node down, start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[2].startServer())
+	require.NoError(t, setups[2].StartServer())
 	log.Debug("first and third servers are now up")
 
 	// Stop the servers
 	defer func() {
 		testSetups{setups[0], setups[2]}.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

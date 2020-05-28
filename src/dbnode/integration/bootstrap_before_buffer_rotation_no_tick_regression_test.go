@@ -196,7 +196,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		signalCh <- struct{}{}
 		signalCh <- struct{}{}
 	}()
-	require.NoError(t, setup.startServer()) // Blocks until bootstrap is complete
+	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 
 	// Now that bootstrapping has completed, re-enable ticking so that flushing can take place
 	setup.mustSetTickMinimumInterval(100 * time.Millisecond)
@@ -205,7 +205,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	setup.sleepFor10xTickMinimumInterval()
 
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 	}()
 
 	// Verify in-memory data match what we expect - commitlog write should not be lost

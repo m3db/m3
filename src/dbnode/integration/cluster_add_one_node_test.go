@@ -203,17 +203,17 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	require.Equal(t, 1, len(expectedSeriesIDs[1]))
 
 	// Start the first server with filesystem bootstrapper.
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	// Start the last server with peers and filesystem bootstrappers, no shards
 	// are assigned at first.
-	require.NoError(t, setups[1].startServer())
+	require.NoError(t, setups[1].StartServer())
 	log.Debug("servers are now up")
 
 	// Stop the servers on test completion.
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()
@@ -336,7 +336,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 		// bootstrappable from the commitlog bootstrapper.
 
 		// Reset the topology initializer as the M3DB session will have closed it.
-		require.NoError(t, setups[1].stopServer())
+		require.NoError(t, setups[1].StopServer())
 		topoOpts := topology.NewDynamicOptions().
 			SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 		topoInit := topology.NewDynamicInitializer(topoOpts)

@@ -652,7 +652,7 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 		return err
 	}
 
-	// Check if clients were closed by stopServer and need to be re-created.
+	// Check if clients were closed by StopServer and need to be re-created.
 	ts.maybeResetClients()
 
 	go func() {
@@ -809,7 +809,7 @@ func (ts *testSetup) httpDebugAddr() string {
 
 func (ts *testSetup) maybeResetClients() error {
 	if ts.m3dbClient == nil {
-		// Recreate the clients as their session was destroyed by stopServer()
+		// Recreate the clients as their session was destroyed by StopServer()
 		adminClient, verificationAdminClient, err := newClients(
 			ts.topoInit, ts.opts, ts.schemaReg, ts.hostID, ts.tchannelNodeAddr())
 		if err != nil {
@@ -825,9 +825,9 @@ func (ts *testSetup) maybeResetClients() error {
 
 // Implements topology.MapProvider, and makes sure that the topology
 // map provided always comes from the most recent database in the testSetup
-// since they get\ recreated everytime startServer/stopServer is called and
+// since they get\ recreated everytime StartServer/StopServer is called and
 // are not available (nil value) after creation but before the first call
-// to startServer.
+// to StartServer.
 func (ts *testSetup) TopologyMap() (topology.Map, error) {
 	return ts.db.TopologyMap()
 }

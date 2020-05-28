@@ -69,12 +69,12 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("disk flush test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 

@@ -105,7 +105,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	// Stop the server
 	defer func() {
 		log.Debug("stopping server")
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 
@@ -146,7 +146,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 
 	// stopping db
 	log.Info("stopping database")
-	require.NoError(t, setup.stopServer())
+	require.NoError(t, setup.StopServer())
 	log.Info("database stopped")
 
 	// the time now is 18:55
@@ -169,7 +169,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 
 	// stopping db
 	log.Info("stopping database")
-	require.NoError(t, setup.stopServer())
+	require.NoError(t, setup.StopServer())
 	log.Info("database stopped")
 
 	// recreate the db from the data files and commit log
@@ -192,7 +192,7 @@ func startServerWithNewInspection(
 	setup *testSetup,
 ) {
 	setCommitLogAndFilesystemBootstrapper(t, opts, setup)
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 }
 
 func waitUntilFileSetFilesCleanedUp(
@@ -264,7 +264,7 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions, setup
 	require.NoError(t, err)
 
 	// Need to make sure we have an active m3dbAdminClient because the previous one
-	// may have been shutdown by stopServer().
+	// may have been shutdown by StopServer().
 	setup.maybeResetClients()
 	// bootstrapper storage opts
 	processOpts := bootstrap.NewProcessOptions().

@@ -93,16 +93,16 @@ func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateIn
 	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	// Start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[1].startServer())
+	require.NoError(t, setups[1].StartServer())
 	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

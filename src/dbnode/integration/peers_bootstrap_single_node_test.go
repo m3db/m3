@@ -80,13 +80,13 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 	setups[0].setNowFn(now.Add(blockSize))
 
 	// Start the server with peers and filesystem bootstrappers
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

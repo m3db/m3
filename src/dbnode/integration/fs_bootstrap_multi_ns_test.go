@@ -111,12 +111,12 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 
 	// Start the server with filesystem bootstrapper
 	log.Info("filesystem bootstrap test")
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Info("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Info("server is now down")
 	}()
 

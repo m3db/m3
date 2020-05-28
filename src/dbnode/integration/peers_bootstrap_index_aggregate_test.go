@@ -120,18 +120,18 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	// Start the remaining servers with peers and filesystem bootstrappers
 	setups[1:].parallel(func(s *testSetup) {
-		require.NoError(t, s.startServer())
+		require.NoError(t, s.StartServer())
 	})
 	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

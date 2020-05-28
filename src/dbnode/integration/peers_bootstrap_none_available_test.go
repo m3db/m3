@@ -107,13 +107,13 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 
 	// Start both servers "simultaneously"
 	go func() {
-		if err := setups[0].startServer(); err != nil {
+		if err := setups[0].StartServer(); err != nil {
 			panic(err)
 		}
 		serversAreUp.Done()
 	}()
 	go func() {
-		if err := setups[1].startServer(); err != nil {
+		if err := setups[1].StartServer(); err != nil {
 			panic(err)
 		}
 		serversAreUp.Done()
@@ -125,7 +125,7 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 	// Stop the servers
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

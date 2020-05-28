@@ -106,17 +106,17 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 
 	// Start the first two servers with filesystem bootstrappers
 	setups[:2].parallel(func(s *testSetup) {
-		require.NoError(t, s.startServer())
+		require.NoError(t, s.StartServer())
 	})
 
 	// Start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[2].startServer())
+	require.NoError(t, setups[2].StartServer())
 	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()
