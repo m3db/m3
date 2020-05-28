@@ -430,7 +430,7 @@ func TestResponseMatching(t *testing.T) {
 
 	for i, ti := range tests {
 		for j, tj := range tests {
-			t.Run(fmt.Sprintf("%s VS %s", ti.name, tj.name), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s vs %s", ti.name, tj.name), func(t *testing.T) {
 				matchResult, err := ti.response.Matches(tj.response)
 				if i == j { // should match
 					require.NoError(t, err)
