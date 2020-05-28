@@ -303,10 +303,9 @@ func (w *messageWriterImpl) nextRetryNanos(writeTimes int, nowNanos int64) int64
 }
 
 func (w *messageWriterImpl) Ack(meta metadata) bool {
-	// acked, initNanos := w.acks.ack(meta)
-	acked, _ := w.acks.ack(meta)
+	acked, initNanos := w.acks.ack(meta)
 	if acked {
-		// w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - initNanos))
+		w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - initNanos))
 		w.m.messageAcked.Inc(1)
 		return true
 	}
@@ -366,13 +365,13 @@ func (w *messageWriterImpl) scanMessageQueue() {
 		iterationIndexes = w.iterationIndexes
 		w.Unlock()
 		if !fullScan && len(msgsToWrite) == 0 {
-			// w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+			w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 			// If this is not a full scan, abort after the iteration batch
 			// that no new messages were found.
 			break
 		}
 		if skipWrites {
-			// w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+			w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 			continue
 		}
 		if err := w.writeBatch(iterationIndexes, consumerWriters, msgsToWrite); err != nil {
@@ -380,10 +379,10 @@ func (w *messageWriterImpl) scanMessageQueue() {
 			// to avoid meaningless attempts but continue to clean up the queue.
 			skipWrites = true
 		}
-		// w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+		w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 	}
 	afterScan := w.nowFn()
-	// w.m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
+	w.m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
 	if fullScan {
 		w.nextFullScan = afterScan.Add(w.opts.MessageQueueFullScanInterval())
 	}
@@ -403,7 +402,7 @@ func (w *messageWriterImpl) writeBatch(
 		if err := w.write(iterationIndexes, consumerWriters, m); err != nil {
 			return err
 		}
-		// w.m.messageWriteDelay.Record(time.Duration(w.nowFn().UnixNano() - m.InitNanos()))
+		w.m.messageWriteDelay.Record(time.Duration(w.nowFn().UnixNano() - m.InitNanos()))
 	}
 	return nil
 }
