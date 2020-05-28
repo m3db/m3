@@ -52,7 +52,7 @@ func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTrack
 
 func (t *queryStatsMetricsTracker) TrackStats(values QueryStatsValues) error {
 	t.recentDocs.Update(float64(values.RecentDocs))
-	t.totalDocs.Inc(int64(values.NewDocs))
+	t.totalDocs.Inc(values.NewDocs)
 	return nil
 }
 
