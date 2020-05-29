@@ -155,6 +155,7 @@ func (q *querier) FetchCompressed(
 		}
 	}
 
+	
 	if iters == nil || iters.Len() == 0 {
 		randomSeries, ignoreFilter, err = q.generateRandomSeries(query)
 		if err != nil {
