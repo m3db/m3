@@ -28,41 +28,31 @@ import (
 )
 
 type tagDedupeMap struct {
-	fanout QueryFanoutType
-	series map[uint32]multiResultSeries
+	fanout     QueryFanoutType
+	mapWrapper *fetchResultMapWrapper
 }
 
 func newTagDedupeMap(fanout QueryFanoutType, size int) fetchDedupeMap {
 	return &tagDedupeMap{
-		fanout: fanout,
-		series: make(map[uint32]multiResultSeries, size),
+		fanout:     fanout,
+		mapWrapper: newFetchResultMap(size),
 	}
 }
 
 func (m *tagDedupeMap) list() []multiResultSeries {
-	result := make([]multiResultSeries, 0, len(m.series))
-	for _, s := range m.series {
-		result = append(result, s)
-	}
-	return result
+	return m.mapWrapper.list()
 }
 
 func (m *tagDedupeMap) add(
 	iter encoding.SeriesIterator,
 	attrs storage.Attributes,
 ) error {
-	id, err := iter.Tags().Hash()
-	if err != nil {
-		return err
-	}
-
-	existing, exists := m.series[id]
+	existing, exists := m.mapWrapper.get(iter)
 	if !exists {
-		// Does not exist, new addition
-		m.series[id] = multiResultSeries{
+		m.mapWrapper.set(iter, multiResultSeries{
 			attrs: attrs,
 			iter:  iter,
-		}
+		})
 		return nil
 	}
 
@@ -98,10 +88,10 @@ func (m *tagDedupeMap) add(
 			return err
 		}
 
-		m.series[id] = multiResultSeries{
+		m.mapWrapper.set(iter, multiResultSeries{
 			attrs: attrs,
 			iter:  multiIter,
-		}
+		})
 
 		return nil
 	}
@@ -112,10 +102,10 @@ func (m *tagDedupeMap) add(
 	}
 
 	// Override
-	m.series[id] = multiResultSeries{
+	m.mapWrapper.set(iter, multiResultSeries{
 		attrs: attrs,
 		iter:  iter,
-	}
+	})
 
 	return nil
 }
