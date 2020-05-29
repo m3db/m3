@@ -23,7 +23,9 @@ package pool
 import (
 	"errors"
 	"math"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/uber-go/tally"
 )
@@ -34,12 +36,11 @@ var (
 	errPoolPutBeforeInitialized = errors.New("object pool put before initialized")
 )
 
-const (
-	// TODO(r): Use tally sampling when available
-	sampleObjectPoolLengthEvery = 100
-)
+const _emitMetricsRate = 2 * time.Second
 
 type objectPool struct {
+	wg                  sync.WaitGroup
+	done                chan struct{}
 	opts                ObjectPoolOptions
 	values              chan interface{}
 	alloc               Allocator
@@ -48,7 +49,6 @@ type objectPool struct {
 	refillHighWatermark int
 	filling             int32
 	initialized         int32
-	dice                int32
 	metrics             objectPoolMetrics
 }
 
@@ -69,6 +69,7 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 
 	p := &objectPool{
 		opts:   opts,
+		done:   make(chan struct{}),
 		values: make(chan interface{}, opts.Size()),
 		size:   opts.Size(),
 		refillLowWatermark: int(math.Ceil(
@@ -82,8 +83,6 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 			putOnFull:  m.Counter("put-on-full"),
 		},
 	}
-
-	p.setGauges()
 
 	return p
 }
@@ -101,7 +100,22 @@ func (p *objectPool) Init(alloc Allocator) {
 		p.values <- p.alloc()
 	}
 
-	p.setGauges()
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+
+		ticker := time.NewTicker(_emitMetricsRate)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				p.emitMetrics()
+			case <-p.done:
+				return
+			}
+		}
+	}()
 }
 
 func (p *objectPool) Get() interface{} {
@@ -118,8 +132,6 @@ func (p *objectPool) Get() interface{} {
 		v = p.alloc()
 		p.metrics.getOnEmpty.Inc(1)
 	}
-
-	p.trySetGauges()
 
 	if p.refillLowWatermark > 0 && len(p.values) <= p.refillLowWatermark {
 		p.tryFill()
@@ -140,17 +152,9 @@ func (p *objectPool) Put(obj interface{}) {
 	default:
 		p.metrics.putOnFull.Inc(1)
 	}
-
-	p.trySetGauges()
 }
 
-func (p *objectPool) trySetGauges() {
-	if atomic.AddInt32(&p.dice, 1)%sampleObjectPoolLengthEvery == 0 {
-		p.setGauges()
-	}
-}
-
-func (p *objectPool) setGauges() {
+func (p *objectPool) emitMetrics() {
 	p.metrics.free.Update(float64(len(p.values)))
 	p.metrics.total.Update(float64(p.size))
 }
@@ -171,4 +175,12 @@ func (p *objectPool) tryFill() {
 			}
 		}
 	}()
+}
+
+// Close shuts down background routines
+// TODO: if we ever need to shut down gracefully (or start using goleak in tests),
+// implement this in other pools that are backed by objectPool.
+func (p *objectPool) Close() {
+	close(p.done)
+	p.wg.Wait()
 }

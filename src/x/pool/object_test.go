@@ -35,6 +35,7 @@ func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 		SetRefillHighWatermark(0.75)
 
 	pool := NewObjectPool(opts).(*objectPool)
+	defer pool.Close()
 	pool.Init(func() interface{} {
 		return 1
 	})
@@ -69,6 +70,7 @@ func TestObjectPoolInitTwiceError(t *testing.T) {
 	})
 
 	pool := NewObjectPool(opts)
+	defer pool.Close()
 	pool.Init(func() interface{} {
 		return 1
 	})

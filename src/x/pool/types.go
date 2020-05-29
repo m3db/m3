@@ -39,6 +39,9 @@ type ObjectPool interface {
 
 	// Put returns an object to the pool.
 	Put(obj interface{})
+
+	// Close runs object pool cleanup, shutting down all background tasks.
+	Close()
 }
 
 // OnPoolAccessErrorFn is a function to call when a pool access error occurs,
