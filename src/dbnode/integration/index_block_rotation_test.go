@@ -129,7 +129,7 @@ func TestIndexBlockRotation(t *testing.T) {
 	testSetup.setNowFn(t2)
 
 	// give tick some time to evict the block
-	testSetup.sleepFor10xTickMinimumInterval()
+	testSetup.SleepFor10xTickMinimumInterval()
 
 	// ensure all data is absent
 	log.Info("querying period0 results after expiry")

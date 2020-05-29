@@ -202,7 +202,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	setup.mustSetTickMinimumInterval(100 * time.Millisecond)
 
 	// Wait for a flush to complete
-	setup.sleepFor10xTickMinimumInterval()
+	setup.SleepFor10xTickMinimumInterval()
 
 	defer func() {
 		require.NoError(t, setup.StopServer())

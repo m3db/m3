@@ -175,7 +175,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		// rotation will occur for the previously active block.
 		now = now.Add(ropts.BufferPast()).Add(time.Second)
 		setup.setNowFn(now)
-		setup.sleepFor10xTickMinimumInterval()
+		setup.SleepFor10xTickMinimumInterval()
 
 		// Twice because the test bootstrapper will need to run two times, once to fulfill
 		// all historical blocks and once to fulfill the active block.
