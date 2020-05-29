@@ -35,7 +35,8 @@ var (
 	errNamespaceNil = errors.New("namespace options must be set")
 )
 
-func fromNanos(n int64) time.Duration {
+// FromNanos converts nanoseconds to a namespace-compatible duration.
+func FromNanos(n int64) time.Duration {
 	return xtime.FromNormalizedDuration(n, time.Nanosecond)
 }
 
@@ -48,14 +49,14 @@ func ToRetention(
 	}
 
 	ropts := retention.NewOptions().
-		SetRetentionPeriod(fromNanos(ro.RetentionPeriodNanos)).
-		SetFutureRetentionPeriod(fromNanos(ro.FutureRetentionPeriodNanos)).
-		SetBlockSize(fromNanos(ro.BlockSizeNanos)).
-		SetBufferFuture(fromNanos(ro.BufferFutureNanos)).
-		SetBufferPast(fromNanos(ro.BufferPastNanos)).
+		SetRetentionPeriod(FromNanos(ro.RetentionPeriodNanos)).
+		SetFutureRetentionPeriod(FromNanos(ro.FutureRetentionPeriodNanos)).
+		SetBlockSize(FromNanos(ro.BlockSizeNanos)).
+		SetBufferFuture(FromNanos(ro.BufferFutureNanos)).
+		SetBufferPast(FromNanos(ro.BufferPastNanos)).
 		SetBlockDataExpiry(ro.BlockDataExpiry).
 		SetBlockDataExpiryAfterNotAccessedPeriod(
-			fromNanos(ro.BlockDataExpiryAfterNotAccessPeriodNanos))
+			FromNanos(ro.BlockDataExpiryAfterNotAccessPeriodNanos))
 
 	if err := ropts.Validate(); err != nil {
 		return nil, err
@@ -74,7 +75,7 @@ func ToIndexOptions(
 	}
 
 	iopts = iopts.SetEnabled(io.Enabled).
-		SetBlockSize(fromNanos(io.BlockSizeNanos))
+		SetBlockSize(FromNanos(io.BlockSizeNanos))
 
 	return iopts, nil
 }
