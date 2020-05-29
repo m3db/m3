@@ -53,7 +53,7 @@ func TestDiskCleanupIndex(t *testing.T) {
 		namespace.NewIndexOptions().SetBlockSize(idxBlockSize).SetEnabled(true)))
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md})
 
 	// Test setup
@@ -67,12 +67,12 @@ func TestDiskCleanupIndex(t *testing.T) {
 	// Start the server
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("disk index cleanup test")
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 

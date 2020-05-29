@@ -70,7 +70,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	// Test setup
@@ -154,12 +154,12 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	log.Info("moving time forward and starting server")
 	setup.setNowFn(t3)
 	// Start the server
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 

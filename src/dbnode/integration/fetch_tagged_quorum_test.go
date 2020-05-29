@@ -60,7 +60,7 @@ func TestFetchTaggedQuorumNormalOnlyOneUp(t *testing.T) {
 	defer closeFn()
 
 	// fetch succeeds from one node
-	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[0].StartServer())
 	writeTagged(t, nodes[0])
 
 	testFetch.assertContainsTaggedResult(t,
@@ -86,8 +86,8 @@ func TestFetchTaggedQuorumNormalOnlyTwoUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
+	require.NoError(t, nodes[0].StartServer())
+	require.NoError(t, nodes[1].StartServer())
 	writeTagged(t, nodes[0], nodes[1])
 
 	// succeed to two nodes
@@ -113,9 +113,9 @@ func TestFetchTaggedQuorumNormalAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
-	require.NoError(t, nodes[2].startServer())
+	require.NoError(t, nodes[0].StartServer())
+	require.NoError(t, nodes[1].StartServer())
+	require.NoError(t, nodes[2].StartServer())
 	writeTagged(t, nodes...)
 
 	// succeed to all nodes
@@ -142,7 +142,7 @@ func TestFetchTaggedQuorumAddNodeOnlyLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[0].StartServer())
 	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 	writeTagged(t, nodes[0], nodes[3])
 
@@ -170,8 +170,8 @@ func TestFetchTaggedQuorumAddNodeOnlyOneNormalAndLeavingInitializingUp(t *testin
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
+	require.NoError(t, nodes[0].StartServer())
+	require.NoError(t, nodes[1].StartServer())
 	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 	writeTagged(t, nodes[0], nodes[1], nodes[3])
 
@@ -202,9 +202,9 @@ func TestFetchTaggedQuorumAddNodeAllUp(t *testing.T) {
 	defer closeFn()
 
 	// fetches succeed to one available node
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
-	require.NoError(t, nodes[2].startServer())
+	require.NoError(t, nodes[0].StartServer())
+	require.NoError(t, nodes[1].StartServer())
+	require.NoError(t, nodes[2].StartServer())
 	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
 	writeTagged(t, nodes...)
 

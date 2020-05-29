@@ -95,7 +95,7 @@ var _ topology.MapProvider = &testSetup{}
 
 type testSetup struct {
 	t         *testing.T
-	opts      testOptions
+	opts      TestOptions
 	schemaReg namespace.SchemaRegistry
 
 	logger *zap.Logger
@@ -139,9 +139,11 @@ type testSetup struct {
 type TestSetup interface {
 	topology.MapProvider
 
-	Opts() testOptions
+	Opts() TestOptions
 	AssertEqual(*testing.T, []generate.TestValue, []generate.TestValue) bool
 	DB() cluster.Database
+	M3DBClient() client.Client
+	Namespaces() []namespace.Metadata
 	TopologyInitializer() topology.Initializer
 	Fetch(req *rpc.FetchRequest) ([]generate.TestValue, error)
 	StorageOpts() storage.Options
@@ -160,14 +162,24 @@ type TestSetup interface {
 
 type storageOption func(storage.Options) storage.Options
 
+// NewTestSetup returns a new test setup for non-dockerized integration tests.
+func NewTestSetup(
+	t *testing.T,
+	opts TestOptions,
+	fsOpts fs.Options,
+	storageOptFns ...storageOption,
+) (TestSetup, error) {
+	return newTestSetup(t, opts, fsOpts, storageOptFns...)
+}
+
 func newTestSetup(
 	t *testing.T,
-	opts testOptions,
+	opts TestOptions,
 	fsOpts fs.Options,
 	storageOptFns ...storageOption,
 ) (*testSetup, error) {
 	if opts == nil {
-		opts = newTestOptions(t)
+		opts = NewTestOptions(t)
 	}
 
 	nsInit := opts.NamespaceInitializer()
@@ -514,6 +526,14 @@ func (ts *testSetup) DB() cluster.Database {
 	return ts.db
 }
 
+func (ts *testSetup) M3DBClient() client.Client {
+	return ts.m3dbClient
+}
+
+func (ts *testSetup) Namespaces() []namespace.Metadata {
+	return ts.namespaces
+}
+
 func (ts *testSetup) NowFn() clock.NowFn {
 	return ts.getNowFn
 }
@@ -522,7 +542,7 @@ func (ts *testSetup) SetNowFn(t time.Time) {
 	ts.setNowFn(t)
 }
 
-func (ts *testSetup) Opts() testOptions {
+func (ts *testSetup) Opts() TestOptions {
 	return ts.opts
 }
 
@@ -642,7 +662,7 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 		return err
 	}
 
-	// Check if clients were closed by stopServer and need to be re-created.
+	// Check if clients were closed by StopServer and need to be re-created.
 	ts.maybeResetClients()
 
 	go func() {
@@ -799,7 +819,7 @@ func (ts *testSetup) httpDebugAddr() string {
 
 func (ts *testSetup) maybeResetClients() error {
 	if ts.m3dbClient == nil {
-		// Recreate the clients as their session was destroyed by stopServer()
+		// Recreate the clients as their session was destroyed by StopServer()
 		adminClient, verificationAdminClient, err := newClients(
 			ts.topoInit, ts.opts, ts.schemaReg, ts.hostID, ts.tchannelNodeAddr())
 		if err != nil {
@@ -815,9 +835,9 @@ func (ts *testSetup) maybeResetClients() error {
 
 // Implements topology.MapProvider, and makes sure that the topology
 // map provided always comes from the most recent database in the testSetup
-// since they get\ recreated everytime startServer/stopServer is called and
+// since they get\ recreated everytime StartServer/StopServer is called and
 // are not available (nil value) after creation but before the first call
-// to startServer.
+// to StartServer.
 func (ts *testSetup) TopologyMap() (topology.Map, error) {
 	return ts.db.TopologyMap()
 }
@@ -828,7 +848,7 @@ func newOrigin(id string, tchannelNodeAddr string) topology.Host {
 
 func newClients(
 	topoInit topology.Initializer,
-	opts testOptions,
+	opts TestOptions,
 	schemaReg namespace.SchemaRegistry,
 	id,
 	tchannelNodeAddr string,
@@ -905,7 +925,7 @@ func newNodes(
 ) (testSetups, topology.Initializer, closeFn) {
 	var (
 		log  = zap.L()
-		opts = newTestOptions(t).
+		opts = NewTestOptions(t).
 			SetNamespaces(nspaces).
 			SetTickMinimumInterval(3 * time.Second).
 			SetWriteNewSeriesAsync(asyncInserts).

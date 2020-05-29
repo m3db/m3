@@ -86,7 +86,7 @@ func TestCommitLogBootstrapUnownedShard(t *testing.T) {
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1}).
 		SetNumShards(numShards)
 	setupOpts := []bootstrappableTestSetupOptions{
@@ -120,13 +120,13 @@ func TestCommitLogBootstrapUnownedShard(t *testing.T) {
 
 	// Start the servers.
 	for _, setup := range setups {
-		require.NoError(t, setup.startServer())
+		require.NoError(t, setup.StartServer())
 	}
 
 	// Defer stop the servers.
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

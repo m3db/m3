@@ -61,7 +61,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	ns2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
@@ -238,12 +238,12 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	// Start the server with filesystem bootstrapper
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("filesystem bootstrap multiple index volume types test")
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 

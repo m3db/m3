@@ -76,11 +76,11 @@ func TestWriteReadTimezone(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup / start server
-	opts := newTestOptions(t)
+	opts := NewTestOptions(t)
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.close()
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	require.NoError(t, setup.waitUntilServerIsBootstrapped())
 
 	// Make sure that the server's internal clock function returns pacific timezone

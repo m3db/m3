@@ -54,7 +54,7 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 	}
 
 	// Test setup
-	testOpts := newTestOptions(t)
+	testOpts := NewTestOptions(t)
 	if setTestOpts != nil {
 		testOpts = setTestOpts(t, testOpts)
 	}
@@ -67,11 +67,11 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 

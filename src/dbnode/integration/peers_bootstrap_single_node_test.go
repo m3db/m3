@@ -50,7 +50,7 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 		SetBufferFuture(2 * time.Minute)
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
 		// and not write/read all nodes in the cluster.
@@ -80,13 +80,13 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 	setups[0].setNowFn(now.Add(blockSize))
 
 	// Start the server with peers and filesystem bootstrappers
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

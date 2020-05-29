@@ -67,7 +67,7 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 	defer closeFn()
 	log := nodes[0].storageOpts.InstrumentOptions().Logger()
 	for _, n := range nodes {
-		require.NoError(t, n.startServer())
+		require.NoError(t, n.StartServer())
 	}
 
 	c, err := client.NewClient(clientopts)

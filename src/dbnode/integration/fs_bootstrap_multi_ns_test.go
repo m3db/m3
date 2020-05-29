@@ -56,7 +56,7 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	setup, err := newTestSetup(t, opts, nil)
@@ -111,12 +111,12 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 
 	// Start the server with filesystem bootstrapper
 	log.Info("filesystem bootstrap test")
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Info("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Info("server is now down")
 	}()
 

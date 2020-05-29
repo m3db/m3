@@ -59,7 +59,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		SetIndexOptions(idxOpts)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1}).
 		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
 		// and not write/read all nodes in the cluster.
@@ -121,16 +121,16 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	// Start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[1].startServer())
+	require.NoError(t, setups[1].StartServer())
 	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
 		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

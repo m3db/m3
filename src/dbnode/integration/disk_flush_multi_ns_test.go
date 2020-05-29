@@ -53,7 +53,7 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
@@ -70,12 +70,12 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
 	log.Info("disk flush multiple namespaces test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 	log.Info("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Info("server is now down")
 	}()
 

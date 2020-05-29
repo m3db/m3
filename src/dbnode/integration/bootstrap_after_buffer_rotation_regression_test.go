@@ -69,7 +69,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	setup, err := newTestSetup(t, opts, nil)
@@ -182,10 +182,10 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		signalCh <- struct{}{}
 		signalCh <- struct{}{}
 	}()
-	require.NoError(t, setup.startServer()) // Blocks until bootstrap is complete
+	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 	}()
 
 	// Verify in-memory data match what we expect - both commitlog and memory write

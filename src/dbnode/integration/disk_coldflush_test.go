@@ -48,7 +48,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	nsID := ident.StringID("testColdWriteNs1")
 	ns, err := namespace.NewMetadata(nsID, nsOpts)
 	require.NoError(t, err)
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second).
 		SetNamespaces([]namespace.Metadata{ns})
 
@@ -65,12 +65,12 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	// Start the server.
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("disk coldflush test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server.
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 

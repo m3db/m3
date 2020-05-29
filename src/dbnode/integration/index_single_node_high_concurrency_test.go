@@ -106,7 +106,7 @@ func testIndexSingleNodeHighConcurrency(
 			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)))
 	require.NoError(t, err)
 
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
 		SetWriteNewSeriesAsync(true).
 		// Use default time functions (server time not frozen).
@@ -123,11 +123,11 @@ func testIndexSingleNodeHighConcurrency(
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 

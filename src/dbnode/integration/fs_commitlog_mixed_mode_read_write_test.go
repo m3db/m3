@@ -72,7 +72,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 		SetRetentionOptions(ns1ROpts)
 	ns1, err := namespace.NewMetadata(nsID, ns1Opts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	if setTestOpts != nil {
@@ -105,7 +105,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	// Stop the server
 	defer func() {
 		log.Debug("stopping server")
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 
@@ -146,7 +146,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 
 	// stopping db
 	log.Info("stopping database")
-	require.NoError(t, setup.stopServer())
+	require.NoError(t, setup.StopServer())
 	log.Info("database stopped")
 
 	// the time now is 18:55
@@ -169,7 +169,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 
 	// stopping db
 	log.Info("stopping database")
-	require.NoError(t, setup.stopServer())
+	require.NoError(t, setup.StopServer())
 	log.Info("database stopped")
 
 	// recreate the db from the data files and commit log
@@ -188,11 +188,11 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 // inspection and commitlog bootstrapper are generated each time.
 func startServerWithNewInspection(
 	t *testing.T,
-	opts testOptions,
+	opts TestOptions,
 	setup *testSetup,
 ) {
 	setCommitLogAndFilesystemBootstrapper(t, opts, setup)
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 }
 
 func waitUntilFileSetFilesCleanedUp(
@@ -219,7 +219,7 @@ func waitUntilFileSetFilesCleanedUp(
 	return waitUntilDataCleanedUpExtended(filesetFiles, commitLogFiles, timeout)
 }
 
-func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions) *testSetup {
+func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions) *testSetup {
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 
@@ -228,7 +228,7 @@ func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testO
 	return setup
 }
 
-func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup *testSetup) *testSetup {
+func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions, setup *testSetup) *testSetup {
 	commitLogOpts := setup.storageOpts.CommitLogOptions()
 	fsOpts := commitLogOpts.FilesystemOptions()
 
@@ -264,7 +264,7 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 	require.NoError(t, err)
 
 	// Need to make sure we have an active m3dbAdminClient because the previous one
-	// may have been shutdown by stopServer().
+	// may have been shutdown by StopServer().
 	setup.maybeResetClients()
 	// bootstrapper storage opts
 	processOpts := bootstrap.NewProcessOptions().

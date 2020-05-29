@@ -60,7 +60,7 @@ func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInp
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(rOpts))
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 	if setTestOpts != nil {
 		opts = setTestOpts(t, opts)
@@ -115,12 +115,12 @@ func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInp
 	// Start the server with filesystem bootstrapper
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("filesystem bootstrap test")
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 

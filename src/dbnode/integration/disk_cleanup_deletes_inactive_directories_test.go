@@ -38,7 +38,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testOpts := newTestOptions(t)
+	testOpts := NewTestOptions(t)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 
@@ -47,7 +47,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	// Start tte server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
 	log.Info("disk cleanup directories test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server at the end of the test
 
@@ -86,7 +86,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 		nsResetErr <- resetErr
 	}()
 	defer func() {
-		require.NoError(t, resetSetup.stopServer())
+		require.NoError(t, resetSetup.StopServer())
 	}()
 	nsToDelete := testNamespaces[1]
 	log.Info("blocking until namespaces have reset and deleted")

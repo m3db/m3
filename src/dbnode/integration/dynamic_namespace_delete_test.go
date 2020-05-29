@@ -44,7 +44,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	}
 
 	// test options
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second)
 	require.True(t, len(testOpts.Namespaces()) >= 2)
 	ns0 := testOpts.Namespaces()[0]
@@ -92,11 +92,11 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Info("server is now down")
 	}()
 

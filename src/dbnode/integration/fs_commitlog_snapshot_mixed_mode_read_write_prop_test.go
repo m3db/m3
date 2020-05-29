@@ -125,7 +125,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 				if err != nil {
 					return false, err
 				}
-				opts := newTestOptions(t).
+				opts := NewTestOptions(t).
 					SetNamespaces([]namespace.Metadata{ns1})
 
 				// Test setup
@@ -240,7 +240,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						}
 					}
 
-					require.NoError(t, setup.stopServer())
+					require.NoError(t, setup.StopServer())
 					// Create a new test setup because databases do not have a completely
 					// clean shutdown, so they can end up in a bad state where the persist
 					// manager is not idle and thus no more flushes can be done, even if

@@ -40,7 +40,7 @@ func TestTruncateNamespace(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testOpts := newTestOptions(t)
+	testOpts := NewTestOptions(t)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
@@ -50,12 +50,12 @@ func TestTruncateNamespace(t *testing.T) {
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
 	log.Debug("truncate namespace test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 
