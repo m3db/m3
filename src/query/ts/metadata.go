@@ -18,44 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package stats
+package ts
 
-import (
-	"time"
+// MetricType is the enum for metric types.
+type MetricType int
 
-	"github.com/m3db/m3/src/x/instrument"
+const (
+	// MetricTypeGauge is the gauge metric type.
+	MetricTypeGauge MetricType = iota
 
-	"github.com/uber-go/tally"
+	// MetricTypeCounter is the counter metric type.
+	MetricTypeCounter
+
+	// MetricTypeTimer is the timer metric type.
+	MetricTypeTimer
 )
 
-const defaultLookback = time.Second * 5
+// SourceType is the enum for metric source types.
+type SourceType int
 
-// Tracker implementation that emits query stats as metrics.
-type queryStatsMetricsTracker struct {
-	recentDocs tally.Gauge
-	totalDocs  tally.Counter
+const (
+	// SourceTypePrometheus is the prometheus source type.
+	SourceTypePrometheus SourceType = iota
+
+	// SourceTypeGraphite is the graphite source type.
+	SourceTypeGraphite
+)
+
+// SeriesAttributes has attributes about the time series.
+type SeriesAttributes struct {
+	Type   MetricType
+	Source SourceType
 }
 
-var _ QueryStatsTracker = (*queryStatsMetricsTracker)(nil)
-
-// DefaultQueryStatsTrackerForMetrics provides a tracker
-// implementation that emits query stats as metrics.
-func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTracker {
-	scope := opts.
-		MetricsScope().
-		SubScope("query-stats")
-	return &queryStatsMetricsTracker{
-		recentDocs: scope.Gauge("recent-docs-per-block"),
-		totalDocs:  scope.Counter("total-docs-per-block"),
+// DefaultSeriesAttributes returns a default series attributes.
+func DefaultSeriesAttributes() SeriesAttributes {
+	return SeriesAttributes{
+		Type:   MetricTypeGauge,
+		Source: SourceTypePrometheus,
 	}
-}
-
-func (t *queryStatsMetricsTracker) TrackStats(values QueryStatsValues) error {
-	t.recentDocs.Update(float64(values.RecentDocs))
-	t.totalDocs.Inc(values.NewDocs)
-	return nil
-}
-
-func (t *queryStatsMetricsTracker) Lookback() time.Duration {
-	return defaultLookback
 }

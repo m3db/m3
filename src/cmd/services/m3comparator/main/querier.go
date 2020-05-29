@@ -40,6 +40,8 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/prometheus/common/model"
 )
 
 var _ m3.Querier = (*querier)(nil)
@@ -140,11 +142,13 @@ func (q *querier) FetchCompressed(
 		randomSeries []series
 		ignoreFilter bool
 		err          error
+		nameTagFound bool
 	)
 
 	name := q.iteratorOpts.tagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(name, matcher.Name) {
+			nameTagFound = true
 			iters, err = q.handler.getSeriesIterators(string(matcher.Value))
 			if err != nil {
 				return consolidators.SeriesFetchResult{}, noop, err
@@ -154,6 +158,13 @@ func (q *querier) FetchCompressed(
 		}
 	}
 
+	if iters == nil && !nameTagFound && len(query.TagMatchers) > 0 {
+		iters, err = q.handler.getSeriesIterators("")
+		if err != nil {
+			return m3.SeriesFetchResult{}, noop, err
+		}
+	}
+	
 	if iters == nil || iters.Len() == 0 {
 		randomSeries, ignoreFilter, err = q.generateRandomSeries(query)
 		if err != nil {
@@ -272,7 +283,7 @@ func (q *querier) generateSingleSeriesMetrics(
 	seriesList := make([]series, 0, len(actualGens))
 	for _, gen := range actualGens {
 		tags := parser.Tags{
-			parser.NewTag("__name__", gen.name),
+			parser.NewTag(model.MetricNameLabel, gen.name),
 			parser.NewTag("foobar", "qux"),
 			parser.NewTag("name", gen.name),
 		}
@@ -306,7 +317,7 @@ func (q *querier) generateMultiSeriesMetrics(
 	seriesList := make([]series, 0, seriesCount)
 	for i := 0; i < seriesCount; i++ {
 		tags := parser.Tags{
-			parser.NewTag("__name__", metricsName),
+			parser.NewTag(model.MetricNameLabel, metricsName),
 			parser.NewTag("id", strconv.Itoa(i)),
 			parser.NewTag("parity", strconv.Itoa(i%2)),
 			parser.NewTag("const", "x"),

@@ -45,25 +45,20 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/logging"
 	xdebug "github.com/m3db/m3/src/x/debug"
-	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/net/http/cors"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/zap"
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/util/httputil"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
 	healthURL        = "/health"
 	routesURL        = "/routes"
 	engineHeaderName = "M3-Engine"
-	engineUrlParam   = "engine"
+	engineURLParam   = "engine"
 )
 
 var (
@@ -177,7 +172,7 @@ func (h *Handler) RegisterRoutes() error {
 	}
 
 	opts := prom.Options{
-		PromQLEngine: newPromQLEngine(instrumentOpts),
+		PromQLEngine: h.options.PrometheusEngine(),
 	}
 	promqlQueryHandler := wrapped(prom.NewReadHandler(opts, nativeSourceOpts))
 	promqlInstantQueryHandler := wrapped(prom.NewReadInstantHandler(opts, nativeSourceOpts))
@@ -186,25 +181,27 @@ func (h *Handler) RegisterRoutes() error {
 
 	promqlMatcher := func(r *http.Request, rm *mux.RouteMatch) bool {
 		header := strings.ToLower(r.Header.Get(engineHeaderName))
-		urlParam := strings.ToLower(r.URL.Query().Get(engineUrlParam))
+		urlParam := strings.ToLower(r.URL.Query().Get(engineURLParam))
 		if !options.IsQueryEngineSet(header) &&
 			!options.IsQueryEngineSet(urlParam) &&
-			h.options.DefaultQueryEngine() == options.PromQL {
+			h.options.DefaultQueryEngine() == options.PrometheusEngine {
 			return true
 		}
 
-		return header == string(options.PromQL) || urlParam == string(options.PromQL)
+		return header == string(options.PrometheusEngine) ||
+			urlParam == string(options.PrometheusEngine)
 	}
 	m3queryMatcher := func(r *http.Request, rm *mux.RouteMatch) bool {
 		header := strings.ToLower(r.Header.Get(engineHeaderName))
-		urlParam := strings.ToLower(r.URL.Query().Get(engineUrlParam))
+		urlParam := strings.ToLower(r.URL.Query().Get(engineURLParam))
 		if !options.IsQueryEngineSet(header) &&
 			!options.IsQueryEngineSet(urlParam) &&
-			h.options.DefaultQueryEngine() == options.M3Query {
+			h.options.DefaultQueryEngine() == options.M3QueryEngine {
 			return true
 		}
 
-		return header == string(options.M3Query) || urlParam == string(options.M3Query)
+		return header == string(options.M3QueryEngine) ||
+			urlParam == string(options.M3QueryEngine)
 	}
 
 	h.router.
@@ -425,17 +422,4 @@ func (h *Handler) registerRoutesEndpoint() {
 			Routes: routes,
 		})
 	}).Methods(http.MethodGet)
-}
-
-func newPromQLEngine(instrumentOpts instrument.Options) *promql.Engine {
-	var (
-		kitLogger = zap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
-		opts      = promql.EngineOpts{
-			Logger:        log.With(kitLogger, "component", "query engine"),
-			MaxConcurrent: 20,
-			MaxSamples:    50000000,
-			Timeout:       2 * time.Minute,
-		}
-	)
-	return promql.NewEngine(opts)
 }

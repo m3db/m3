@@ -1,5 +1,5 @@
-hash: 1b959bbbc78eda5e994c36e198b7b567b9d2774dfe965bb88db31dbe6563cb1e
-updated: 2020-04-29T00:46:53.610918-04:00
+hash: c40afb15c4a1545819ee8878ca9568412d912b44f996fa71341d489ce91bc2b2
+updated: 2020-05-26T23:54:00.12804-04:00
 imports:
 - name: github.com/alecthomas/units
   version: f65c72e2690dc4b403c8bd637baf4611cd4c069b
@@ -16,7 +16,11 @@ imports:
 - name: github.com/c2h5oh/datasize
   version: 4eba002a5eaea69cf8d235a388fc6b65ae68d2dd
 - name: github.com/cespare/xxhash
-  version: 48099fad606eafc26e3a569fad19ff510fff4df6
+  version: 3f2bc324ddd8b6aafc9a91b5aabf22ff172edafb
+  repo: https://github.com/m3dbx/xxhash
+  vcs: git
+  subpackages:
+  - v2
 - name: go.etcd.io/etcd
   version: 3cf2f69b5738fb702ba1a935590f36b52b18979b
   subpackages:
@@ -308,34 +312,37 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: aa9238db679fc02bf22cf4f2c27a980edcb5ada0
   subpackages:
   - prometheus
+  - prometheus/promhttp
 - name: github.com/prometheus/client_model
-  version: 6f3806018612930941127f2a7c6c453ba2c527d2
+  version: 7bc5445566f0fe75b15de23e6b93886e982d7bf9
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 287d3e634a1e550c9e463dd7e5a75a422c614505
+  version: d978bcb1309602d68bb4ba69cf3f8ed900e07308
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
   - model
 - name: github.com/prometheus/procfs
-  version: a1dba9ce8baed984a2495b658c82687f8157b98f
+  version: 6d489fc7f1d9cd890a250f3ea3431b1744b9623f
   subpackages:
+  - internal/util
+  - nfs
   - xfs
 - name: github.com/prometheus/prometheus
-  version: 43acd0e2e93f9f70c49b2267efa0124f1e759e86
+  version: 18254838fbe25dcc732c950ae05f78ed4db1292c
   subpackages:
-  - pkg/gate
+  - pkg/exemplar
   - pkg/labels
   - pkg/textparse
   - pkg/timestamp
   - pkg/value
   - promql
+  - promql/parser
   - storage
-  - storage/tsdb
   - tsdb
   - tsdb/chunkenc
   - tsdb/chunks
@@ -344,7 +351,8 @@ imports:
   - tsdb/fileutil
   - tsdb/goversion
   - tsdb/index
-  - tsdb/labels
+  - tsdb/record
+  - tsdb/tombstones
   - tsdb/wal
   - util/httputil
   - util/stats

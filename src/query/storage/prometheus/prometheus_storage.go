@@ -32,9 +32,10 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pkg/errors"
-	prommodel "github.com/prometheus/common/model"
-	promlabels "github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/pkg/labels"
 	promstorage "github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -100,8 +101,9 @@ func newQuerier(
 }
 
 func (q *querier) Select(
-	params *promstorage.SelectParams,
-	labelMatchers ...*promlabels.Matcher,
+	sortSeries bool,
+	hints *promstorage.SelectHints,
+	labelMatchers ...*labels.Matcher,
 ) (promstorage.SeriesSet, promstorage.Warnings, error) {
 	matchers, err := promql.LabelMatchersToModelMatcher(labelMatchers, models.NewTagOptions())
 	if err != nil {
@@ -110,9 +112,9 @@ func (q *querier) Select(
 
 	query := &storage.FetchQuery{
 		TagMatchers: matchers,
-		Start:       time.Unix(0, params.Start*int64(time.Millisecond)),
-		End:         time.Unix(0, params.End*int64(time.Millisecond)),
-		Interval:    time.Duration(params.Step) * time.Millisecond,
+		Start:       time.Unix(0, hints.Start*int64(time.Millisecond)),
+		End:         time.Unix(0, hints.End*int64(time.Millisecond)),
+		Interval:    time.Duration(hints.Step) * time.Millisecond,
 	}
 
 	// NB (@shreyas): The fetch options builder sets it up from the request
@@ -127,7 +129,7 @@ func (q *querier) Select(
 	if err != nil {
 		return nil, nil, err
 	}
-	seriesSet := fromQueryResult(result.PromResult)
+	seriesSet := fromQueryResult(sortSeries, result.PromResult)
 	warnings := fromWarningStrings(result.Metadata.WarningStrings())
 
 	return seriesSet, warnings, err
@@ -159,7 +161,7 @@ func fromWarningStrings(warnings []string) []error {
 
 // This is a copy of the prometheus remote.FromQueryResult method. Need to
 // copy so that this can understand m3 prompb struct.
-func fromQueryResult(res *prompb.QueryResult) promstorage.SeriesSet {
+func fromQueryResult(sortSeries bool, res *prompb.QueryResult) promstorage.SeriesSet {
 	series := make([]promstorage.Series, 0, len(res.Timeseries))
 	for _, ts := range res.Timeseries {
 		labels := labelProtosToLabels(ts.Labels)
@@ -172,7 +174,10 @@ func fromQueryResult(res *prompb.QueryResult) promstorage.SeriesSet {
 			samples: ts.Samples,
 		})
 	}
-	sort.Sort(byLabel(series))
+
+	if sortSeries {
+		sort.Sort(byLabel(series))
+	}
 	return &concreteSeriesSet{
 		series: series,
 	}
@@ -182,38 +187,18 @@ type byLabel []promstorage.Series
 
 func (a byLabel) Len() int           { return len(a) }
 func (a byLabel) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byLabel) Less(i, j int) bool { return promlabels.Compare(a[i].Labels(), a[j].Labels()) < 0 }
+func (a byLabel) Less(i, j int) bool { return labels.Compare(a[i].Labels(), a[j].Labels()) < 0 }
 
-func labelProtosToLabels(labelPairs []prompb.Label) promlabels.Labels {
-	result := make(promlabels.Labels, 0, len(labelPairs))
+func labelProtosToLabels(labelPairs []prompb.Label) labels.Labels {
+	result := make(labels.Labels, 0, len(labelPairs))
 	for _, l := range labelPairs {
-		result = append(result, promlabels.Label{
+		result = append(result, labels.Label{
 			Name:  string(l.Name),
 			Value: string(l.Value),
 		})
 	}
 	sort.Sort(result)
 	return result
-}
-
-// validateLabelsAndMetricName validates the label names/values and metric names returned from remote read,
-// also making sure that there are no labels with duplicate names
-func validateLabelsAndMetricName(ls promlabels.Labels) error {
-	for i, l := range ls {
-		if l.Name == promlabels.MetricName && !prommodel.IsValidMetricName(prommodel.LabelValue(l.Value)) {
-			return errors.Errorf("invalid metric name: %v", l.Value)
-		}
-		if !prommodel.LabelName(l.Name).IsValid() {
-			return errors.Errorf("invalid label name: %v", l.Name)
-		}
-		if !prommodel.LabelValue(l.Value).IsValid() {
-			return errors.Errorf("invalid label value: %v", l.Value)
-		}
-		if i > 0 && l.Name == ls[i-1].Name {
-			return errors.Errorf("duplicate label with name: %v", l.Name)
-		}
-	}
-	return nil
 }
 
 // errSeriesSet implements storage.SeriesSet, just returning an error.
@@ -254,15 +239,15 @@ func (c *concreteSeriesSet) Err() error {
 
 // concreteSeries implements storage.Series.
 type concreteSeries struct {
-	labels  promlabels.Labels
+	labels  labels.Labels
 	samples []prompb.Sample
 }
 
-func (c *concreteSeries) Labels() promlabels.Labels {
-	return promlabels.New(c.labels...)
+func (c *concreteSeries) Labels() labels.Labels {
+	return labels.New(c.labels...)
 }
 
-func (c *concreteSeries) Iterator() promstorage.SeriesIterator {
+func (c *concreteSeries) Iterator() chunkenc.Iterator {
 	return newConcreteSeriersIterator(c)
 }
 
@@ -272,7 +257,7 @@ type concreteSeriesIterator struct {
 	series *concreteSeries
 }
 
-func newConcreteSeriersIterator(series *concreteSeries) promstorage.SeriesIterator {
+func newConcreteSeriersIterator(series *concreteSeries) chunkenc.Iterator {
 	return &concreteSeriesIterator{
 		cur:    -1,
 		series: series,
@@ -301,5 +286,25 @@ func (c *concreteSeriesIterator) Next() bool {
 
 // Err implements storage.SeriesIterator.
 func (c *concreteSeriesIterator) Err() error {
+	return nil
+}
+
+// validateLabelsAndMetricName validates the label names/values and metric names returned from remote read,
+// also making sure that there are no labels with duplicate names
+func validateLabelsAndMetricName(ls labels.Labels) error {
+	for i, l := range ls {
+		if l.Name == labels.MetricName && !model.IsValidMetricName(model.LabelValue(l.Value)) {
+			return errors.Errorf("invalid metric name: %v", l.Value)
+		}
+		if !model.LabelName(l.Name).IsValid() {
+			return errors.Errorf("invalid label name: %v", l.Name)
+		}
+		if !model.LabelValue(l.Value).IsValid() {
+			return errors.Errorf("invalid label value: %v", l.Value)
+		}
+		if i > 0 && l.Name == ls[i-1].Name {
+			return errors.Errorf("duplicate label with name: %v", l.Name)
+		}
+	}
 	return nil
 }

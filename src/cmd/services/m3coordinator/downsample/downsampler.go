@@ -62,6 +62,7 @@ type SamplesAppender interface {
 	AppendGaugeSample(value float64) error
 	AppendCounterTimedSample(t time.Time, value int64) error
 	AppendGaugeTimedSample(t time.Time, value float64) error
+	AppendTimerTimedSample(t time.Time, value float64) error
 }
 
 type downsampler struct {

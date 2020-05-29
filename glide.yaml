@@ -23,8 +23,14 @@ import:
   - package: github.com/willf/bitset
     version: e553b05586428962bf7058d1044519d87ca72d74
 
+  # NB(r): This is bad.. when we upgrade to go.mod no longer needed,
+  # but since glide does not support "/v2" syntax and some of our deps
+  # depend on it we forked xxhash and explicitly copied code into "/v2"
+  # submodule to make this package work with glide.
   - package: github.com/cespare/xxhash
-    version: 48099fad606eafc26e3a569fad19ff510fff4df6
+    version: 3f2bc324ddd8b6aafc9a91b5aabf22ff172edafb
+    repo: https://github.com/m3dbx/xxhash
+    vcs: git
 
   - package: go.etcd.io/etcd
     version: 3.4.3
@@ -167,12 +173,23 @@ import:
 
   # START_PROMETHEUS_DEPS
   - package: github.com/prometheus/prometheus
-    version: ~2.12.0
+    version: ~2.17.2
 
   # To avoid prometheus/prometheus dependencies from breaking,
-  # pin the transitive dependencies
+  # pin the transitive dependencies. See go.mod in 
+  # github.com/prometheus/prometheus for which versions to set for 
+  # relevant prometheus release pinned to above.
   - package: github.com/prometheus/common
-    version: ~0.7.0
+    version: ~0.9.1
+
+  - package: github.com/prometheus/client_golang
+    version: ~1.5.1
+
+  - package: github.com/prometheus/client_model
+    version: ~0.2.0
+
+  - package: github.com/prometheus/procfs
+    version: ~0.0.8
   # END_PROMETHEUS_DEPS
 
   # START_TALLY_PROMETHEUS_DEPS

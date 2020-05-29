@@ -23,10 +23,12 @@ package models
 import (
 	"bytes"
 	"errors"
+
+	"github.com/prometheus/common/model"
 )
 
 var (
-	defaultMetricName = []byte("__name__")
+	defaultMetricName = []byte(model.MetricNameLabel)
 	defaultBucketName = []byte("le")
 
 	errNoName   = errors.New("metric name is missing or empty")

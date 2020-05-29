@@ -65,6 +65,8 @@ const (
 		"More information is available here: %s"
 
 	defaultQueryTimeout = 30 * time.Second
+
+	defaultPrometheusMaxSamplesPerQuery = 100000000
 )
 
 var (
@@ -212,6 +214,8 @@ type QueryConfiguration struct {
 	DefaultEngine string `yaml:"defaultEngine"`
 	// ConsolidationConfiguration are configs for consolidating fetched queries.
 	ConsolidationConfiguration ConsolidationConfiguration `yaml:"consolidation"`
+	// Prometheus is prometheus client configuration.
+	Prometheus PrometheusQueryConfiguration `yaml:"prometheus"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
@@ -226,6 +230,21 @@ func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
 type ConsolidationConfiguration struct {
 	// MatchType determines the options by which series should match.
 	MatchType consolidators.MatchType `yaml:"matchType"`
+}
+
+// PrometheusQueryConfiguration is the prometheus query engine configuration.
+type PrometheusQueryConfiguration struct {
+	// MaxSamplesPerQuery is the limit on fetched samples per query.
+	MaxSamplesPerQuery *int `yaml:"maxSamplesPerQuery"`
+}
+
+// MaxSamplesPerQueryOrDefault returns the max samples per query or default.
+func (c PrometheusQueryConfiguration) MaxSamplesPerQueryOrDefault() int {
+	if v := c.MaxSamplesPerQuery; v != nil {
+		return *v
+	}
+
+	return defaultPrometheusMaxSamplesPerQuery
 }
 
 // LimitsConfiguration represents limitations on resource usage in the query

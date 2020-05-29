@@ -272,13 +272,13 @@ func runComparison(
 	queryURL string,
 	log *zap.Logger,
 ) error {
-	promResult, err := parseResult(promURL, log)
+	promResult, err := parseResult(promURL)
 	if err != nil {
 		log.Error("failed to parse Prometheus result", zap.Error(err))
 		return err
 	}
 
-	queryResult, err := parseResult(queryURL, log)
+	queryResult, err := parseResult(queryURL)
 	if err != nil {
 		log.Error("failed to parse M3Query result", zap.Error(err))
 		return err
@@ -286,17 +286,14 @@ func runComparison(
 
 	_, err = promResult.Matches(queryResult)
 	if err != nil {
-		log.Error("mismatch", zap.Error((err)))
+		log.Error("mismatch", zap.Error(err))
 		return err
 	}
 
 	return nil
 }
 
-func parseResult(
-	endpoint string,
-	log *zap.Logger,
-) (prometheus.Response, error) {
+func parseResult(endpoint string) (prometheus.Response, error) {
 	var result prometheus.Response
 	response, err := http.Get(endpoint)
 	if err != nil {
