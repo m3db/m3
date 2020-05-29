@@ -24,7 +24,7 @@ import (
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/m3db/m3/src/query/test/parser"
+	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
 )
 

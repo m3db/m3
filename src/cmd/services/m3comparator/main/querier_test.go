@@ -65,6 +65,42 @@ const (
 	predefinedSeriesCount = 10
 )
 
+func TestFetchCompressed(t *testing.T) {
+	tests := []struct {
+		name          string
+		queryTagName  string
+		queryTagValue string
+		expectedCount int
+	}{
+		{
+			name:          "querying by metric name returns preloaded data",
+			queryTagName:  metricNameTag,
+			queryTagValue: metricsName,
+			expectedCount: predefinedSeriesCount,
+		},
+		{
+			name:          "querying without metric name just by other tag returns preloaded data",
+			queryTagName:  "tag1",
+			queryTagValue: "test2",
+			expectedCount: 4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := xtest.NewController(t)
+			defer ctrl.Finish()
+
+			query := matcherQuery(t, tt.queryTagName, tt.queryTagValue)
+			querier := setupQuerier(ctrl, query)
+
+			result, cleanup, err := querier.FetchCompressed(nil, query, nil)
+			assert.NoError(t, err)
+			defer cleanup()
+
+			assert.Equal(t, tt.expectedCount, result.SeriesIterators.Len())
+		})
+	}
 }
 
 func TestFetchCompressedGeneratesRandomData(t *testing.T) {
