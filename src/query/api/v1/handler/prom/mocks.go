@@ -29,7 +29,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	kitlogzap "github.com/go-kit/kit/log/zap"
-	promlabels "github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
 	"go.uber.org/zap/zapcore"
@@ -45,7 +45,11 @@ func (m mockSeriesSet) Next() bool             { return false }
 func (m mockSeriesSet) At() promstorage.Series { return nil }
 func (m mockSeriesSet) Err() error             { return nil }
 
-func (mockQuerier) Select(*promstorage.SelectParams, ...*promlabels.Matcher) (promstorage.SeriesSet, promstorage.Warnings, error) {
+func (mockQuerier) Select(
+	sortSeries bool,
+	hints *promstorage.SelectHints,
+	labelMatchers ...*labels.Matcher,
+) (promstorage.SeriesSet, promstorage.Warnings, error) {
 	return mockSeriesSet{}, nil, nil
 }
 
@@ -72,10 +76,9 @@ func newMockPromQLEngine() *promql.Engine {
 		instrumentOpts = instrument.NewOptions()
 		kitLogger      = kitlogzap.NewZapSugarLogger(instrumentOpts.Logger(), zapcore.InfoLevel)
 		opts           = promql.EngineOpts{
-			Logger:        log.With(kitLogger, "component", "query engine"),
-			MaxConcurrent: 10,
-			MaxSamples:    100,
-			Timeout:       1 * time.Minute,
+			Logger:     log.With(kitLogger, "component", "query engine"),
+			MaxSamples: 100,
+			Timeout:    1 * time.Minute,
 		}
 	)
 	return promql.NewEngine(opts)

@@ -80,12 +80,12 @@ func (i *iter) Next() bool {
 	return i.idx < len(i.tags)
 }
 
-func (i *iter) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
+func (i *iter) Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte) {
 	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.EmptyTags(), nil, 0, nil
+		return models.EmptyTags(), nil, ts.DefaultSeriesAttributes(), 0, nil
 	}
 	curr := i.datapoints[i.idx]
-	return i.tags[i.idx], ts.Datapoints{curr.Datapoint}, xtime.Millisecond, curr.annotation
+	return i.tags[i.idx], ts.Datapoints{curr.Datapoint}, ts.DefaultSeriesAttributes(), xtime.Millisecond, curr.annotation
 }
 
 func (i *iter) Reset() error {

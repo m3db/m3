@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	xtime "github.com/m3db/m3/src/x/time"
 	imodels "github.com/influxdata/influxdb/models"
+	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +35,7 @@ import (
 // they are easiest for human to handle
 func (self *ingestIterator) pop(t *testing.T) string {
 	if self.Next() {
-		tags, dp, _, _ := self.Current()
+		tags, dp, _, _, _ := self.Current()
 		assert.Equal(t, 1, len(dp))
 
 		return fmt.Sprintf("%s %v %s", tags.String(), dp[0].Value, dp[0].Timestamp)
@@ -108,10 +108,10 @@ func TestIngestIteratorIssue2125(t *testing.T) {
 	require.NoError(t, iter.Error())
 
 	assert.True(t, iter.Next())
-	t1, _, _, _ := iter.Current()
+	t1, _, _, _, _ := iter.Current()
 
 	assert.True(t, iter.Next())
-	t2, _, _, _ := iter.Current()
+	t2, _, _, _, _ := iter.Current()
 	require.NoError(t, iter.Error())
 
 	assert.Equal(t, t1.String(), "__name__: measure_k1, lab: foo")

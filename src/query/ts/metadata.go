@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,50 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package options
+package ts
 
-import (
-	"testing"
+// MetricType is the enum for metric types.
+type MetricType int
 
-	"github.com/influxdata/influxdb/pkg/testing/assert"
+const (
+	// MetricTypeGauge is the gauge metric type.
+	MetricTypeGauge MetricType = iota
+
+	// MetricTypeCounter is the counter metric type.
+	MetricTypeCounter
+
+	// MetricTypeTimer is the timer metric type.
+	MetricTypeTimer
 )
 
-func TestDefaultQueryEngineParse(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected QueryEngine
-	}{
-		{
-			name:     "given empty sets to prometheus",
-			input:    "",
-			expected: PrometheusEngine,
-		},
-		{
-			name:     "given random sets to prometheus",
-			input:    "random",
-			expected: PrometheusEngine,
-		},
-		{
-			name:     "given prometheus sets to prometheus",
-			input:    "prometheus",
-			expected: PrometheusEngine,
-		},
-		{
-			name:     "given m3query sets to m3query",
-			input:    "m3query",
-			expected: M3QueryEngine,
-		},
-		{
-			name:     "given camelcase M3Query sets to m3query",
-			input:    "M3Query",
-			expected: M3QueryEngine,
-		},
-	}
+// SourceType is the enum for metric source types.
+type SourceType int
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, getDefaultQueryEngine(tt.input))
-		})
+const (
+	// SourceTypePrometheus is the prometheus source type.
+	SourceTypePrometheus SourceType = iota
+
+	// SourceTypeGraphite is the graphite source type.
+	SourceTypeGraphite
+)
+
+// SeriesAttributes has attributes about the time series.
+type SeriesAttributes struct {
+	Type   MetricType
+	Source SourceType
+}
+
+// DefaultSeriesAttributes returns a default series attributes.
+func DefaultSeriesAttributes() SeriesAttributes {
+	return SeriesAttributes{
+		Type:   MetricTypeGauge,
+		Source: SourceTypePrometheus,
 	}
 }

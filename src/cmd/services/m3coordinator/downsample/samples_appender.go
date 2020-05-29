@@ -95,6 +95,15 @@ func (a *samplesAppender) AppendGaugeTimedSample(t time.Time, value float64) err
 	})
 }
 
+func (a *samplesAppender) AppendTimerTimedSample(t time.Time, value float64) error {
+	return a.appendTimedSample(aggregated.Metric{
+		Type:      metric.TimerType,
+		ID:        a.unownedID,
+		TimeNanos: t.UnixNano(),
+		Value:     value,
+	})
+}
+
 func (a *samplesAppender) appendTimedSample(sample aggregated.Metric) error {
 	if a.clientRemote != nil {
 		return a.clientRemote.WriteTimedWithStagedMetadatas(sample, a.stagedMetadatas)
@@ -153,6 +162,14 @@ func (a *multiSamplesAppender) AppendGaugeTimedSample(t time.Time, value float64
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {
 		multiErr = multiErr.Add(appender.AppendGaugeTimedSample(t, value))
+	}
+	return multiErr.LastError()
+}
+
+func (a *multiSamplesAppender) AppendTimerTimedSample(t time.Time, value float64) error {
+	var multiErr xerrors.MultiError
+	for _, appender := range a.appenders {
+		multiErr = multiErr.Add(appender.AppendTimerTimedSample(t, value))
 	}
 	return multiErr.LastError()
 }
