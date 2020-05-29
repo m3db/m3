@@ -23,7 +23,7 @@ func newM3QueryClient(host string, port int) *m3queryClient {
 }
 
 func (c *m3queryClient) query(expr string, t time.Time) ([]byte, error) {
-	url := fmt.Sprintf("http://%s:%d/api/v1/query", c.host, c.port)
+	url := fmt.Sprintf("http://%s:%d/m3query/api/v1/query", c.host, c.port)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
