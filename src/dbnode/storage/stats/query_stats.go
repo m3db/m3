@@ -52,7 +52,7 @@ type QueryStats interface {
 // QueryStatsValues stores values of query stats.
 type QueryStatsValues struct {
 	RecentDocs int64
-	NewDocs    int
+	NewDocs    int64
 }
 
 var zeros = QueryStatsValues{
@@ -89,12 +89,14 @@ func (q *queryStats) Update(newDocs int) error {
 		return nil
 	}
 
+	newDocsI64 := int64(newDocs)
+
 	// Add the new stats to the global state.
-	recentDocs := q.recentDocs.Add(int64(newDocs))
+	recentDocs := q.recentDocs.Add(newDocsI64)
 
 	values := QueryStatsValues{
 		RecentDocs: recentDocs,
-		NewDocs:    newDocs,
+		NewDocs:    newDocsI64,
 	}
 
 	// Invoke the custom tracker based on the new stats values.
@@ -131,7 +133,7 @@ func (q *queryStats) Stop() {
 	close(q.stopCh)
 }
 
-func (q *noOpQueryStats) Update(newDocs int) error {
+func (q *noOpQueryStats) Update(int) error {
 	return nil
 }
 
