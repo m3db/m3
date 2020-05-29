@@ -35,27 +35,27 @@ func TestDefaultQueryEngineParse(t *testing.T) {
 		{
 			name:     "given empty sets to prometheus",
 			input:    "",
-			expected: PromQL,
+			expected: PrometheusEngine,
 		},
 		{
 			name:     "given random sets to prometheus",
 			input:    "random",
-			expected: PromQL,
+			expected: PrometheusEngine,
 		},
 		{
 			name:     "given prometheus sets to prometheus",
 			input:    "prometheus",
-			expected: PromQL,
+			expected: PrometheusEngine,
 		},
 		{
 			name:     "given m3query sets to m3query",
 			input:    "m3query",
-			expected: M3Query,
+			expected: M3QueryEngine,
 		},
 		{
 			name:     "given camelcase M3Query sets to m3query",
 			input:    "M3Query",
-			expected: M3Query,
+			expected: M3QueryEngine,
 		},
 	}
 
