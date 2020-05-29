@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 
@@ -84,7 +84,7 @@ func TestIndexBlockRotation(t *testing.T) {
 	t2 := t1.Add(3 * time.Hour)
 	testSetup.setNowFn(t0)
 
-	writesPeriod0 := generateTestIndexWrite(0, numWrites, numTags, t0, t1)
+	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -102,12 +102,12 @@ func TestIndexBlockRotation(t *testing.T) {
 
 	log.Info("starting data write")
 	start := time.Now()
-	writesPeriod0.write(t, md.ID(), session)
+	writesPeriod0.Write(t, md.ID(), session)
 	log.Info("test data written", zap.Duration("took", time.Since(start)))
 
 	log.Info("waiting till data is indexed")
 	indexed := xclock.WaitUntil(func() bool {
-		indexPeriod0 := writesPeriod0.numIndexed(t, md.ID(), session)
+		indexPeriod0 := writesPeriod0.NumIndexed(t, md.ID(), session)
 		return indexPeriod0 == len(writesPeriod0)
 	}, 5*time.Second)
 	require.True(t, indexed)
@@ -122,7 +122,7 @@ func TestIndexBlockRotation(t *testing.T) {
 	period0Results, _, err := session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
-	writesPeriod0.matchesSeriesIters(t, period0Results)
+	writesPeriod0.MatchesSeriesIters(t, period0Results)
 	log.Info("found period0 results")
 
 	// move time to 4p

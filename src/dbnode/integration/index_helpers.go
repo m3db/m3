@@ -126,7 +126,7 @@ type testIndexWrite struct {
 	value float64
 }
 
-func generateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime time.Time) testIndexWrites {
+func GenerateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime time.Time) testIndexWrites {
 	writes := make([]testIndexWrite, 0, numWrites)
 	step := endTime.Sub(startTime) / time.Duration(numWrites+1)
 	for i := 0; i < numWrites; i++ {
