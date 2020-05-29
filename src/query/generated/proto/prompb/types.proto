@@ -43,8 +43,8 @@ message LabelMatcher {
 }
 
 enum Type {
-  COUNTER = 0;
-  GAUGE = 1;
+  GAUGE = 0;
+  COUNTER = 1;
   TIMER = 2;
 }
 

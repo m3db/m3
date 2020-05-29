@@ -36,10 +36,10 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 
+	imodels "github.com/influxdata/influxdb/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
-	imodels "github.com/influxdata/influxdb/models"
 	"go.uber.org/zap"
 )
 
@@ -218,7 +218,7 @@ func determineTimeUnit(t time.Time) xtime.Unit {
 	return xtime.Nanosecond
 }
 
-func (ii *ingestIterator) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
+func (ii *ingestIterator) Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte) {
 	if ii.pointIndex < len(ii.points) && ii.nextFieldIndex > 0 && len(ii.fields) > (ii.nextFieldIndex-1) {
 		point := ii.points[ii.pointIndex]
 		field := ii.fields[ii.nextFieldIndex-1]
@@ -227,9 +227,9 @@ func (ii *ingestIterator) Current() (models.Tags, ts.Datapoints, xtime.Unit, []b
 		t := point.Time()
 
 		return tags, []ts.Datapoint{ts.Datapoint{Timestamp: t,
-			Value: field.value}}, determineTimeUnit(t), nil
+			Value: field.value}}, ts.DefaultSeriesAttributes(), determineTimeUnit(t), nil
 	}
-	return models.EmptyTags(), nil, 0, nil
+	return models.EmptyTags(), nil, ts.DefaultSeriesAttributes(), 0, nil
 }
 
 func (ii *ingestIterator) Reset() error {
