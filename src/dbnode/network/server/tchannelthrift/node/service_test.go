@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -346,6 +347,43 @@ func TestServiceQuery(t *testing.T) {
 			assert.Equal(t, series[id][i].v, dp.Value)
 		}
 	}
+}
+
+func TestServiceSetMetadata(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	size := 100
+	mockDB := storage.NewMockDatabase(ctrl)
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+	metas := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+		metas = append(metas, fmt.Sprint(i))
+	}
+
+	var wg sync.WaitGroup
+	for _, md := range metas {
+		wg.Add(1)
+		md := md
+		go func() {
+			service.SetMetadata(md, md)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+	for _, md := range metas {
+		wg.Add(1)
+		md := md
+		go func() {
+			meta, ok := service.GetMetadata(md)
+			assert.True(t, ok)
+			assert.Equal(t, meta, md)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestServiceQueryOverloaded(t *testing.T) {

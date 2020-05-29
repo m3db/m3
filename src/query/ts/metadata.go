@@ -18,16 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package ts
 
-import (
-	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
-	"github.com/m3db/m3/src/dbnode/storage"
+// MetricType is the enum for metric types.
+type MetricType int
+
+const (
+	// MetricTypeGauge is the gauge metric type.
+	MetricTypeGauge MetricType = iota
+
+	// MetricTypeCounter is the counter metric type.
+	MetricTypeCounter
+
+	// MetricTypeTimer is the timer metric type.
+	MetricTypeTimer
 )
 
-// StorageOptions are options to apply to the database storage options.
-type StorageOptions struct {
-	OnColdFlush            storage.OnColdFlush
-	ForceColdWritesEnabled bool
-	TChanNodeServerFn      node.NewTChanNodeServerFn
+// SourceType is the enum for metric source types.
+type SourceType int
+
+const (
+	// SourceTypePrometheus is the prometheus source type.
+	SourceTypePrometheus SourceType = iota
+
+	// SourceTypeGraphite is the graphite source type.
+	SourceTypeGraphite
+)
+
+// SeriesAttributes has attributes about the time series.
+type SeriesAttributes struct {
+	Type   MetricType
+	Source SourceType
+}
+
+// DefaultSeriesAttributes returns a default series attributes.
+func DefaultSeriesAttributes() SeriesAttributes {
+	return SeriesAttributes{
+		Type:   MetricTypeGauge,
+		Source: SourceTypePrometheus,
+	}
 }

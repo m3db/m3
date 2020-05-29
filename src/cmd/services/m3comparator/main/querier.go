@@ -39,6 +39,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/prometheus/common/model"
 )
 
 var _ m3.Querier = (*querier)(nil)
@@ -280,7 +282,7 @@ func (q *querier) generateSingleSeriesMetrics(
 	seriesList := make([]series, 0, len(actualGens))
 	for _, gen := range actualGens {
 		tags := parser.Tags{
-			parser.NewTag("__name__", gen.name),
+			parser.NewTag(model.MetricNameLabel, gen.name),
 			parser.NewTag("foobar", "qux"),
 			parser.NewTag("name", gen.name),
 		}
@@ -314,7 +316,7 @@ func (q *querier) generateMultiSeriesMetrics(
 	seriesList := make([]series, 0, seriesCount)
 	for i := 0; i < seriesCount; i++ {
 		tags := parser.Tags{
-			parser.NewTag("__name__", metricsName),
+			parser.NewTag(model.MetricNameLabel, metricsName),
 			parser.NewTag("id", strconv.Itoa(i)),
 			parser.NewTag("parity", strconv.Itoa(i%2)),
 			parser.NewTag("const", "x"),
