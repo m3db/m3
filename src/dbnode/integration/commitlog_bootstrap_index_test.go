@@ -166,7 +166,7 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	VerifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
 		exhaustive: true,
 		expected:   []generate.Series{fooSeries, barSeries},
@@ -180,7 +180,7 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	VerifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
 		namespace:  ns1.ID(),
 		exhaustive: true,
 		expected:   []generate.Series{barSeries, bazSeries},
