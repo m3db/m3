@@ -141,11 +141,13 @@ func (q *querier) FetchCompressed(
 		randomSeries []series
 		ignoreFilter bool
 		err          error
+		nameTagFound bool
 	)
 
 	name := q.iteratorOpts.tagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(name, matcher.Name) {
+			nameTagFound = true
 			iters, err = q.handler.getSeriesIterators(string(matcher.Value))
 			if err != nil {
 				return m3.SeriesFetchResult{}, noop, err
@@ -155,6 +157,13 @@ func (q *querier) FetchCompressed(
 		}
 	}
 
+	if iters == nil && !nameTagFound && len(query.TagMatchers) > 0 {
+		iters, err = q.handler.getSeriesIterators("")
+		if err != nil {
+			return m3.SeriesFetchResult{}, noop, err
+		}
+	}
+	
 	if iters == nil || iters.Len() == 0 {
 		randomSeries, ignoreFilter, err = q.generateRandomSeries(query)
 		if err != nil {
