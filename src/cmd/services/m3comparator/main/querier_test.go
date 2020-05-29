@@ -59,8 +59,9 @@ var (
 )
 
 const (
-	blockSize         = time.Hour * 12
-	defaultResolution = time.Second * 30
+	blockSize            = time.Hour * 12
+	defaultResolution    = time.Second * 30
+	histogramBucketCount = 4
 )
 
 func TestFetchCompressedReturnsPreloadedData(t *testing.T) {
@@ -97,7 +98,7 @@ func TestFetchCompressedReturnsPreloadedData(t *testing.T) {
 
 	seriesLoader := &testSeriesLoadHandler{seriesIterators}
 
-	querier, _ := newQuerier(iteratorOpts, seriesLoader, blockSize, defaultResolution)
+	querier, _ := newQuerier(iteratorOpts, seriesLoader, blockSize, defaultResolution, histogramBucketCount)
 
 	result, cleanup, err := querier.FetchCompressed(nil, query, nil)
 	assert.NoError(t, err)
@@ -106,7 +107,7 @@ func TestFetchCompressedReturnsPreloadedData(t *testing.T) {
 	assert.Equal(t, predefinedSeriesCount, result.SeriesIterators.Len())
 }
 
-func TestFetchCompressedGeneratesRandomData(t *testing.T) {
+func TestGenerateRandomSeries(t *testing.T) {
 	tests := []struct {
 		name       string
 		givenQuery *storage.FetchQuery
@@ -191,6 +192,69 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 			},
 		},
 		{
+			name:       "histogram metrics",
+			givenQuery: matcherQuery(t, metricNameTag, "histogram_2_bucket"),
+			wantSeries: []tagMap{
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "0",
+					"parity":      "0",
+					"le":          "1",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "0",
+					"parity":      "0",
+					"le":          "10",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "0",
+					"parity":      "0",
+					"le":          "100",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "0",
+					"parity":      "0",
+					"le":          "+Inf",
+				},
+
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "1",
+					"parity":      "1",
+					"le":          "1",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "1",
+					"parity":      "1",
+					"le":          "10",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "1",
+					"parity":      "1",
+					"le":          "100",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "1",
+					"parity":      "1",
+					"le":          "+Inf",
+				},
+			},
+		},
+		{
 			name: "apply tag filter",
 			givenQuery: and(
 				matcherQuery(t, metricNameTag, "multi_5"),
@@ -217,7 +281,7 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
-			querier, _ := newQuerier(iteratorOpts, emptySeriesLoader(ctrl), blockSize, defaultResolution)
+			querier, _ := newQuerier(iteratorOpts, emptySeriesLoader(ctrl), blockSize, defaultResolution, histogramBucketCount)
 
 			result, cleanup, err := querier.FetchCompressed(nil, tt.givenQuery, nil)
 			assert.NoError(t, err)
@@ -230,6 +294,38 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 				assert.True(t, iter.Next(), "Must have some datapoints generated.")
 			}
 		})
+	}
+}
+
+func TestHistogramBucketsAddUp(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	querier, _ := newQuerier(iteratorOpts, emptySeriesLoader(ctrl), blockSize, defaultResolution, histogramBucketCount)
+
+	histogramQuery := matcherQuery(t, metricNameTag, "histogram_1_bucket")
+	result, cleanup, err := querier.FetchCompressed(nil, histogramQuery, nil)
+	assert.NoError(t, err)
+	defer cleanup()
+
+	require.Equal(t, histogramBucketCount, result.SeriesIterators.Len(), "number of histogram buckets")
+
+	iters := result.SeriesIterators.Iters()
+	iter0 := iters[0]
+	for iter0.Next() {
+		v0, t1, _ := iter0.Current()
+		for i := 1; i < histogramBucketCount; i++ {
+			iter := iters[i]
+			require.True(t, iter.Next(), "all buckets must have the same length")
+			vi, ti, _ := iter.Current()
+			assert.True(t, vi.Value >= v0.Value, "bucket values must be non decreasing")
+			assert.Equal(t, v0.Timestamp, vi.Timestamp, "bucket values timestamps must match")
+			assert.Equal(t, t1, ti)
+		}
+	}
+
+	for _, iter := range iters {
+		require.False(t, iter.Next(), "all buckets must have the same length")
 	}
 }
 
