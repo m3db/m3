@@ -21,12 +21,15 @@
 package pool
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var neverGonnaOptimizeYouAway interface{}
 
 func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 	opts := NewObjectPoolOptions().
@@ -121,11 +124,111 @@ func BenchmarkObjectPoolGetPut(b *testing.B) {
 	opts := NewObjectPoolOptions().SetSize(1)
 	pool := NewObjectPool(opts)
 	pool.Init(func() interface{} {
-		return 1
+		return make([]byte, 0, 16)
 	})
 
+	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		o := pool.Get()
+		neverGonnaOptimizeYouAway = o
 		pool.Put(o)
 	}
+}
+
+func BenchmarkObjectPoolGetMultiPutContended(b *testing.B) {
+	opts := NewObjectPoolOptions().
+		SetSize(256)
+	p := NewObjectPool(opts)
+	p.Init(func() interface{} {
+		return make([]byte, 0, 32)
+	})
+	objs := make([]interface{}, 16)
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := 0; i < len(objs); i++ {
+				o := p.Get()
+				objs[i] = o
+			}
+
+			for _, obj := range objs {
+				o, ok := obj.([]byte)
+				if !ok {
+					b.Fail()
+				}
+				o = strconv.AppendInt(o[:0], 12344321, 10)
+				p.Put(o)
+			}
+		}
+	})
+}
+
+func BenchmarkObjectPoolGetMultiPutContendedWithRefill(b *testing.B) {
+	opts := NewObjectPoolOptions().
+		SetSize(32).
+		SetRefillLowWatermark(0.05).
+		SetRefillHighWatermark(0.25)
+
+	p := NewObjectPool(opts)
+	p.Init(func() interface{} {
+		return make([]byte, 0, 32)
+	})
+	objs := make([]interface{}, 16)
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := 0; i < len(objs); i++ {
+				o := p.Get()
+				objs[i] = o
+			}
+
+			for _, obj := range objs {
+				o, ok := obj.([]byte)
+				if !ok {
+					b.Fail()
+				}
+				o = strconv.AppendInt(o[:0], 12344321, 10)
+				neverGonnaOptimizeYouAway = o
+				p.Put(o)
+			}
+		}
+	})
+}
+
+// go test -benchmem -run=^$ github.com/m3db/m3/src/x/pool -bench '^(BenchmarkObjectPoolParallel)$' -cpu 1,2,4,6,8,12
+func BenchmarkObjectPoolParallel(b *testing.B) {
+	type poolObj struct {
+		arr  []byte
+		a, b int
+		c    *bool
+		ts   int64
+	}
+
+	p := NewObjectPool(NewObjectPoolOptions().SetSize(1024))
+	p.Init(func() interface{} {
+		return &poolObj{
+			arr: make([]byte, 0, 16),
+		}
+	})
+
+	now := time.Now()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			op := p.Get()
+			obj, ok := op.(*poolObj)
+			if !ok {
+				b.Fail()
+			}
+			// do something with object:
+			obj.a = b.N
+			obj.b = len(obj.arr)
+			obj.ts = now.Unix() + int64(b.N)
+			neverGonnaOptimizeYouAway = obj
+			p.Put(op)
+		}
+	})
 }
