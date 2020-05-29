@@ -44,7 +44,7 @@ var (
 
 // QueryStats provides an interface for updating query stats.
 type QueryStats interface {
-	Update(newDocs int64) error
+	Update(newDocs int) error
 	Start()
 	Stop()
 }
@@ -52,7 +52,7 @@ type QueryStats interface {
 // QueryStatsValues stores values of query stats.
 type QueryStatsValues struct {
 	RecentDocs int64
-	NewDocs    int64
+	NewDocs    int
 }
 
 var zeros = QueryStatsValues{
@@ -81,7 +81,7 @@ func NoOpQueryStats() QueryStats {
 }
 
 // UpdateQueryStats adds new query stats which are being tracked.
-func (q *queryStats) Update(newDocs int64) error {
+func (q *queryStats) Update(newDocs int) error {
 	if q == nil {
 		return nil
 	}
@@ -90,7 +90,7 @@ func (q *queryStats) Update(newDocs int64) error {
 	}
 
 	// Add the new stats to the global state.
-	recentDocs := q.recentDocs.Add(newDocs)
+	recentDocs := q.recentDocs.Add(int64(newDocs))
 
 	values := QueryStatsValues{
 		RecentDocs: recentDocs,
@@ -131,7 +131,7 @@ func (q *queryStats) Stop() {
 	close(q.stopCh)
 }
 
-func (q *noOpQueryStats) Update(int64) error {
+func (q *noOpQueryStats) Update(newDocs int) error {
 	return nil
 }
 

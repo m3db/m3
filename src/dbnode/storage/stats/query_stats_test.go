@@ -85,7 +85,7 @@ func TestPeriodicallyResetRecentDocs(t *testing.T) {
 	verifyStats(t, tracker,  0, 0)
 }
 
-func verifyStats(t *testing.T, tracker *testQueryStatsTracker, expectedNew int64, expectedRecent int64) {
+func verifyStats(t *testing.T, tracker *testQueryStatsTracker, expectedNew int, expectedRecent int64) {
 	values := tracker.StatsValues()
 	assert.Equal(t, expectedNew, values.NewDocs)
 	assert.Equal(t, expectedRecent, values.RecentDocs)
