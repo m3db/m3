@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/util/testutil"
 )
@@ -244,7 +245,7 @@ func (*evalCmd) testCmd()  {}
 type loadCmd struct {
 	gap          time.Duration
 	metrics      map[uint64]labels.Labels
-	defs         map[uint64][]Point
+	defs         map[uint64][]promql.Point
 	m3compClient *m3comparatorClient
 }
 
@@ -252,7 +253,7 @@ func newLoadCmd(m3compClient *m3comparatorClient, gap time.Duration) *loadCmd {
 	return &loadCmd{
 		gap:          gap,
 		metrics:      map[uint64]labels.Labels{},
-		defs:         map[uint64][]Point{},
+		defs:         map[uint64][]promql.Point{},
 		m3compClient: m3compClient,
 	}
 }
@@ -265,11 +266,11 @@ func (cmd loadCmd) String() string {
 func (cmd *loadCmd) set(m labels.Labels, vals ...parser.SequenceValue) {
 	h := m.Hash()
 
-	samples := make([]Point, 0, len(vals))
+	samples := make([]promql.Point, 0, len(vals))
 	ts := testStartTime
 	for _, v := range vals {
 		if !v.Omitted {
-			samples = append(samples, Point{
+			samples = append(samples, promql.Point{
 				T: ts.UnixNano() / int64(time.Millisecond/time.Nanosecond),
 				V: v.Value,
 			})
