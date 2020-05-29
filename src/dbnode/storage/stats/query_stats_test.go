@@ -40,6 +40,7 @@ var _ QueryStatsTracker = (*testQueryStatsTracker)(nil)
 func (t *testQueryStatsTracker) TrackStats(values QueryStatsValues) error {
 	t.Lock()
 	defer t.Unlock()
+
 	t.QueryStatsValues = values
 	return nil
 }
@@ -47,6 +48,7 @@ func (t *testQueryStatsTracker) TrackStats(values QueryStatsValues) error {
 func (t *testQueryStatsTracker) StatsValues() QueryStatsValues {
 	t.RLock()
 	defer t.RUnlock()
+
 	return t.QueryStatsValues
 }
 
