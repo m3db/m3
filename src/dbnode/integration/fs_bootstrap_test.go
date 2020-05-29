@@ -125,6 +125,6 @@ func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInp
 	}()
 
 	// Verify in-memory data match what we expect
-	VerifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
-	VerifySeriesMaps(t, setup, testNamespaces[1], nil)
+	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
+	verifySeriesMaps(t, setup, testNamespaces[1], nil)
 }

@@ -109,6 +109,6 @@ func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateIn
 
 	// Verify in-memory data match what we expect
 	for _, setup := range setups {
-		VerifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
+		verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
 	}
 }

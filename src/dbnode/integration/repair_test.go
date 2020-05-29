@@ -252,9 +252,9 @@ func testRepair(
 	}, 60*time.Second))
 
 	// Verify in-memory data matches what we expect.
-	VerifySeriesMaps(t, setups[0], namesp.ID(), allData)
-	VerifySeriesMaps(t, setups[1], namesp.ID(), allData)
-	VerifySeriesMaps(t, setups[2], namesp.ID(), allData)
+	verifySeriesMaps(t, setups[0], namesp.ID(), allData)
+	verifySeriesMaps(t, setups[1], namesp.ID(), allData)
+	verifySeriesMaps(t, setups[2], namesp.ID(), allData)
 
 	for _, seriesID := range testRepairOpts.node0ShouldNotContainSeries {
 		contains, err := containsSeries(setups[0], namesp.ID(), seriesID, now.Add(-retentionOpts.RetentionPeriod()), now)

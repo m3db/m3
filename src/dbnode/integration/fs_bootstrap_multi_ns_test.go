@@ -121,6 +121,6 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect
-	VerifySeriesMaps(t, setup, testNamespaces[0], ns1SeriesMaps)
-	VerifySeriesMaps(t, setup, testNamespaces[1], ns2SeriesMaps)
+	verifySeriesMaps(t, setup, testNamespaces[0], ns1SeriesMaps)
+	verifySeriesMaps(t, setup, testNamespaces[1], ns2SeriesMaps)
 }

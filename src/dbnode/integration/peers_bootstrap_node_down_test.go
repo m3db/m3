@@ -98,6 +98,6 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 	// Verify in-memory data match what we expect
 	expect := testSetups{setups[0], setups[2]}
 	for _, setup := range expect {
-		VerifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
+		verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
 	}
 }

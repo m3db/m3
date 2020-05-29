@@ -168,8 +168,8 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	}()
 
 	// Verify data matches what we expect
-	VerifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
-	VerifySeriesMaps(t, setup, testNamespaces[1], nil)
+	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
+	verifySeriesMaps(t, setup, testNamespaces[1], nil)
 
 	// Issue some index queries
 	session, err := setup.m3dbClient.DefaultSession()

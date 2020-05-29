@@ -322,7 +322,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 
 	// Verify in-memory data match what we expect
 	for i := range setups {
-		VerifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
+		verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
 	}
 
 	if verifyCommitlogCanBootstrapAfterNodeJoin {
@@ -345,6 +345,6 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 		// Start the server that performed peer streaming with only the filesystem and
 		// commitlog bootstrapper and make sure it has all the expected data.
 		startServerWithNewInspection(t, opts, setups[1])
-		VerifySeriesMaps(t, setups[1], namesp.ID(), expectedSeriesMaps[1])
+		verifySeriesMaps(t, setups[1], namesp.ID(), expectedSeriesMaps[1])
 	}
 }

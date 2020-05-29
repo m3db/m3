@@ -138,7 +138,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 
 	// Verify in-memory data match what we expect
 	for _, setup := range setups {
-		VerifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
+		verifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
 	}
 
 	// Issue aggregate index queries to the second node which bootstrapped the metadata
