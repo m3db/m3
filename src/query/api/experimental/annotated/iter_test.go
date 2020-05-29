@@ -155,7 +155,7 @@ func TestIter(t *testing.T) {
 func testOutput(t *testing.T, iter *iter, want iterOutput) {
 	require.True(t, iter.Next())
 
-	tags, datapoints, unit, annotation := iter.Current()
+	tags, datapoints, _, unit, annotation := iter.Current()
 	assert.Equal(t, want.tags, tags)
 	assert.Equal(t, want.datapoints, datapoints)
 	assert.Equal(t, want.unit, unit)
