@@ -41,7 +41,7 @@ func TestTruncateNamespace(t *testing.T) {
 	}
 	// Test setup
 	testOpts := NewTestOptions(t)
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 
@@ -108,7 +108,7 @@ func TestTruncateNamespace(t *testing.T) {
 	log.Sugar().Debugf("truncate namespace %s", testNamespaces[0])
 	truncateReq := rpc.NewTruncateRequest()
 	truncateReq.NameSpace = testNamespaces[0].Bytes()
-	truncated, err := testSetup.truncate(truncateReq)
+	truncated, err := testSetup.Truncate(truncateReq)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), truncated)
 

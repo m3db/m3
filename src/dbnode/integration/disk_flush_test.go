@@ -39,11 +39,11 @@ func TestDiskFlushSimple(t *testing.T) {
 	// Test setup
 	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second)
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 
-	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
+	md := testSetup.NamespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 

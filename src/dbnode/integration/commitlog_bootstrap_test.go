@@ -63,7 +63,7 @@ func testCommitLogBootstrap(t *testing.T, setTestOpts setTestOptions, updateInpu
 		ns2 = opts.Namespaces()[1]
 	}
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 

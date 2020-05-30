@@ -111,7 +111,7 @@ func testIndexSingleNodeHighConcurrency(
 		SetWriteNewSeriesAsync(true).
 		// Use default time functions (server time not frozen).
 		SetNowFn(time.Now)
-	testSetup, err := newTestSetup(t, testOpts, nil,
+	testSetup, err := NewTestSetup(t, testOpts, nil,
 		func(s storage.Options) storage.Options {
 			if opts.skipWrites {
 				return s.SetDoNotIndexWithFieldsMap(map[string]string{"skip": "true"})
@@ -140,7 +140,7 @@ func testIndexSingleNodeHighConcurrency(
 		numTotalErrors  = atomic.NewUint32(0)
 		numTotalSuccess = atomic.NewUint32(0)
 	)
-	nowFn := testSetup.db.Options().ClockOptions().NowFn()
+	nowFn := testSetup.DB().Options().ClockOptions().NowFn()
 	start := time.Now()
 	log.Info("starting data write",
 		zap.Time("serverTime", nowFn()))
@@ -206,7 +206,7 @@ func testIndexSingleNodeHighConcurrency(
 	multiplyByConcurrency := multiplyBy(opts.concurrencyEnqueueWorker)
 	expectNumIndex := multiplyByConcurrency(numIndexTotal)
 	indexProcess := xclock.WaitUntil(func() bool {
-		counters := testSetup.scope.Snapshot().Counters()
+		counters := testSetup.Scope().Snapshot().Counters()
 		counter, ok := counters[expectStatProcess]
 		if !ok {
 			return false
@@ -214,7 +214,7 @@ func testIndexSingleNodeHighConcurrency(
 		return int(counter.Value()) == expectNumIndex
 	}, time.Minute)
 
-	counters := testSetup.scope.Snapshot().Counters()
+	counters := testSetup.Scope().Snapshot().Counters()
 	counter, ok := counters[expectStatProcess]
 
 	var value int
@@ -269,7 +269,7 @@ func testIndexSingleNodeHighConcurrency(
 		fmt.Sprintf("not indexed errors: %v", notIndexedErrs[:min(5, len(notIndexedErrs))]))
 
 	// Make sure attempted total indexing = skipped + written.
-	counters = testSetup.scope.Snapshot().Counters()
+	counters = testSetup.Scope().Snapshot().Counters()
 	totalSkippedWritten := 0
 	for _, expectID := range []string{
 		expectStatPrefix + "stage=skip",

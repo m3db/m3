@@ -51,7 +51,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 			SetBufferFuture(2 * time.Minute).
 			SetBlockDataExpiry(true)
 		blockSize = ropts.BlockSize()
-		setup     *testSetup
+		setup     TestSetup
 		err       error
 	)
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
@@ -60,11 +60,11 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
-	setup, err = newTestSetup(t, opts, nil)
+	setup, err = NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 
-	log := setup.logger
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 
 	persistMgr, err := fs.NewPersistManager(fsOpts)
@@ -84,7 +84,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 

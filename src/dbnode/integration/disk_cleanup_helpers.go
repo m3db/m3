@@ -169,7 +169,7 @@ func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ident.ID, wai
 }
 
 // nolint: unused
-func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (TestSetup, error) {
+func waitUntilNamespacesHaveReset(testSetup TestSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (TestSetup, error) {
 	err := testSetup.StopServer()
 	if err != nil {
 		return nil, err
@@ -177,9 +177,9 @@ func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespac
 	// Reset to the desired shard set and namespaces
 	// Because restarting the server would bootstrap
 	// To old data we wanted to delete
-	testSetup.opts = testSetup.opts.SetNamespaces(newNamespaces)
+	testSetup.SetOpts(testSetup.Opts().SetNamespaces(newNamespaces))
 
-	resetSetup, err := newTestSetup(nil, testSetup.opts, testSetup.fsOpts)
+	resetSetup, err := NewTestSetup(nil, testSetup.Opts(), testSetup.FilesystemOpts())
 	if err != nil {
 		return nil, err
 	}

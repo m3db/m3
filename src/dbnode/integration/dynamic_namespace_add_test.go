@@ -82,7 +82,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test setup
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 
@@ -113,13 +113,13 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 		go func() {
 			wg.Done()
 			for !stopped {
-				testSetup.blockLeaseManager.OpenLease(leaser, leaseDescriptor, leaseState)
+				testSetup.BlockLeaseManager().OpenLease(leaser, leaseDescriptor, leaseState)
 			}
 		}()
 		go func() {
 			wg.Done()
 			for !stopped {
-				testSetup.blockLeaseManager.OpenLatestLease(leaser, leaseDescriptor)
+				testSetup.BlockLeaseManager().OpenLatestLease(leaser, leaseDescriptor)
 			}
 		}()
 	}
@@ -152,7 +152,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// wait until the new namespace is registered
 	nsExists := func() bool {
-		_, ok := testSetup.db.Namespace(ns0.ID())
+		_, ok := testSetup.DB().Namespace(ns0.ID())
 		return ok
 	}
 	require.True(t, waitUntil(nsExists, 5*time.Second))

@@ -52,12 +52,12 @@ func TestDiskColdFlushSimple(t *testing.T) {
 		SetTickMinimumInterval(time.Second).
 		SetNamespaces([]namespace.Metadata{ns})
 
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 
 	require.NoError(t, err)
 	defer testSetup.Close()
 
-	md := testSetup.namespaceMetadataOrFail(nsID)
+	md := testSetup.NamespaceMetadataOrFail(nsID)
 	ropts := md.Options().RetentionOptions()
 	blockSize := ropts.BlockSize()
 	filePathPrefix := testSetup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()

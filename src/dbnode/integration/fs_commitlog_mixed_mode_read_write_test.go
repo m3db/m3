@@ -115,7 +115,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	var (
 		total = 200
 		ids   = &idGen{longTestID}
-		db    = setup.db
+		db    = setup.DB()
 		ctx   = context.NewContext()
 	)
 	defer ctx.Close()
@@ -196,7 +196,7 @@ func startServerWithNewInspection(
 }
 
 func waitUntilFileSetFilesCleanedUp(
-	setup *testSetup,
+	setup TestSetup,
 	namespace ident.ID,
 	toDelete time.Time,
 	timeout time.Duration,
@@ -210,7 +210,7 @@ func waitUntilFileSetFilesCleanedUp(
 	)
 	for _, id := range shardSet.AllIDs() {
 		filesetFiles = append(filesetFiles, cleanupTimesFileSet{
-			filePathPrefix: setup.filePathPrefix,
+			filePathPrefix: setup.FilePathPrefix(),
 			namespace:      namespace,
 			shard:          id,
 			times:          []time.Time{toDelete},
@@ -219,8 +219,8 @@ func waitUntilFileSetFilesCleanedUp(
 	return waitUntilDataCleanedUpExtended(filesetFiles, commitLogFiles, timeout)
 }
 
-func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions) *testSetup {
-	setup, err := newTestSetup(t, opts, nil)
+func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions) TestSetup {
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 
 	setCommitLogAndFilesystemBootstrapper(t, opts, setup)

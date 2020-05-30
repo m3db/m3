@@ -72,11 +72,11 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 
-	setup.mustSetTickMinimumInterval(100 * time.Millisecond)
+	setup.MustSetTickMinimumInterval(100 * time.Millisecond)
 
 	// Setup the commitlog and write a single datapoint into it one second into the
 	// active block.
@@ -139,7 +139,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 
 	processProvider, err := bootstrap.NewProcessProvider(
 		test, processOpts, bootstrapOpts)
@@ -153,7 +153,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	var memoryWrite ts.Datapoint
 	go func() {
 		// Wait for server to start
-		setup.waitUntilServerIsUp()
+		setup.WaitUntilServerIsUp()
 		now = now.Add(blockSize)
 		setup.SetNowFn(now)
 		memoryWrite = ts.Datapoint{

@@ -206,7 +206,7 @@ func newDefaultBootstrappableTestSetups(
 			SetClusterDatabaseTopologyInitializer(topologyInitializer).
 			SetUseTChannelClientForWriting(useTChannelClientForWriting)
 
-		setup, err := newTestSetup(t, instanceOpts, nil)
+		setup, err := NewTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
 		topologyInitializer = setup.TopologyInitializer()
 

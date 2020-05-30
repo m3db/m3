@@ -69,7 +69,7 @@ func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInp
 	}
 
 	// Test setup
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 
@@ -92,7 +92,7 @@ func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInp
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 

@@ -56,7 +56,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 
@@ -75,7 +75,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		{IDs: []string{"and", "one"}, NumPoints: 40, Start: now.Add(3 * ns1BlockSize)},
 	})
 
-	setup.namespaceMetadataOrFail(testNamespaces[0])
+	setup.NamespaceMetadataOrFail(testNamespaces[0])
 	log.Info("writing data - ns1")
 	writeCommitLogData(t, setup, commitLogOpts, ns1SeriesMap, ns1, false)
 	log.Info("written data - ns1")
@@ -88,7 +88,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		{IDs: []string{"cat", "hax"}, NumPoints: 80, Start: now.Add(3 * ns2BlockSize)},
 		{IDs: []string{"why", "this"}, NumPoints: 40, Start: now.Add(4 * ns2BlockSize)},
 	})
-	setup.namespaceMetadataOrFail(testNamespaces[1])
+	setup.NamespaceMetadataOrFail(testNamespaces[1])
 	log.Info("writing data - ns2")
 	writeCommitLogData(t, setup, commitLogOpts, ns2SeriesMap, ns2, false)
 	log.Info("written data - ns2")
@@ -109,7 +109,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	}()
 
 	log.Info("waiting until data is bootstrapped")
-	bootstrapped := waitUntil(func() bool { return setup.db.IsBootstrapped() }, 20*time.Second)
+	bootstrapped := waitUntil(func() bool { return setup.DB().IsBootstrapped() }, 20*time.Second)
 	require.True(t, bootstrapped)
 	log.Info("data bootstrapped")
 

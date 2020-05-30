@@ -86,11 +86,11 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 
-	setup.mustSetTickMinimumInterval(100 * time.Millisecond)
+	setup.MustSetTickMinimumInterval(100 * time.Millisecond)
 
 	// Setup the commitlog and write a single datapoint into it one second into the
 	// active block.
@@ -153,7 +153,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	process, err := bootstrap.NewProcessProvider(test, processOpts, bootstrapOpts)
 	require.NoError(t, err)
 	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(process))
@@ -164,7 +164,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	// can be rotated, and then signals the test bootstrapper that it can proceed.
 	go func() {
 		// Wait for server to start
-		setup.waitUntilServerIsUp()
+		setup.WaitUntilServerIsUp()
 
 		// Set the time such that the (previously) active block is ready to be flushed.
 		now = now.Add(blockSize).Add(ropts.BufferPast()).Add(time.Second)
@@ -199,7 +199,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 
 	// Now that bootstrapping has completed, re-enable ticking so that flushing can take place
-	setup.mustSetTickMinimumInterval(100 * time.Millisecond)
+	setup.MustSetTickMinimumInterval(100 * time.Millisecond)
 
 	// Wait for a flush to complete
 	setup.SleepFor10xTickMinimumInterval()

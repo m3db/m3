@@ -60,7 +60,7 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 

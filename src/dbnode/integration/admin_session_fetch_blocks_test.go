@@ -58,11 +58,11 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 	if setTestOpts != nil {
 		testOpts = setTestOpts(t, testOpts)
 	}
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 
-	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
+	md := testSetup.NamespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
 
 	// Start the server

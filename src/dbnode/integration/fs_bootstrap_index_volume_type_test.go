@@ -65,7 +65,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 
@@ -102,7 +102,7 @@ func TestFilesystemBootstrapIndexVolumeTypes(t *testing.T) {
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 

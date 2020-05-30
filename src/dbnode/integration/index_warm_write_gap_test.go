@@ -76,7 +76,7 @@ func TestWarmIndexWriteGap(t *testing.T) {
 	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
 		SetWriteNewSeriesAsync(true)
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 

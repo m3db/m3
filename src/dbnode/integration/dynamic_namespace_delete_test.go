@@ -86,7 +86,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test setup
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 
@@ -137,7 +137,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 
 	// wait until the new namespace is registered
 	nsExists := func() bool {
-		_, ok := testSetup.db.Namespace(ns0.ID())
+		_, ok := testSetup.DB().Namespace(ns0.ID())
 		return ok
 	}
 	require.True(t, waitUntil(nsExists, 5*time.Second))

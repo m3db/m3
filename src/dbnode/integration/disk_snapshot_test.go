@@ -60,7 +60,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second).
 		SetNamespaces([]namespace.Metadata{md1, md2})
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 
@@ -107,7 +107,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	for _, input := range inputData {
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start.Truncate(blockSize))] = testData
-		for _, ns := range testSetup.namespaces {
+		for _, ns := range testSetup.Namespaces() {
 			require.NoError(t, testSetup.WriteBatch(ns.ID(), testData))
 		}
 	}
@@ -119,13 +119,13 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	// minimum time between snapshots), and then waiting for the snapshot files with
 	// the measured volume index + 1.
 	var (
-		snapshotsToWaitForByNS = make([][]snapshotID, 0, len(testSetup.namespaces))
+		snapshotsToWaitForByNS = make([][]snapshotID, 0, len(testSetup.Namespaces()))
 		filePathPrefix         = testSetup.StorageOpts().
 					CommitLogOptions().
 					FilesystemOptions().
 					FilePathPrefix()
 	)
-	for _, ns := range testSetup.namespaces {
+	for _, ns := range testSetup.Namespaces() {
 		snapshotsToWaitForByNS = append(snapshotsToWaitForByNS, []snapshotID{
 			{
 				blockStart: currBlock.Add(-blockSize),
@@ -150,7 +150,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	testSetup.SetNowFn(now)
 
 	maxWaitTime := time.Minute
-	for i, ns := range testSetup.namespaces {
+	for i, ns := range testSetup.Namespaces() {
 		log.Info("waiting for snapshot files to flush")
 		require.NoError(t, waitUntilSnapshotFilesFlushed(
 			filePathPrefix, shardSet, ns.ID(), snapshotsToWaitForByNS[i], maxWaitTime))
@@ -164,7 +164,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	)
 	testSetup.SetNowFn(newTime)
 
-	for _, ns := range testSetup.namespaces {
+	for _, ns := range testSetup.Namespaces() {
 		log.Info("waiting for new snapshot files to be written out")
 		snapshotsToWaitFor := []snapshotID{{blockStart: newTime.Truncate(blockSize)}}
 		require.NoError(t, waitUntilSnapshotFilesFlushed(

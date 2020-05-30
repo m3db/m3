@@ -81,7 +81,7 @@ func TestIndexBlockFlush(t *testing.T) {
 	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
 		SetWriteNewSeriesAsync(true)
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 
@@ -145,7 +145,7 @@ func TestIndexBlockFlush(t *testing.T) {
 	// waiting till filesets found on disk
 	log.Info("waiting till filesets found on disk")
 	found := xclock.WaitUntil(func() bool {
-		filesets, err := fs.IndexFileSetsAt(testSetup.filePathPrefix, md.ID(), t0)
+		filesets, err := fs.IndexFileSetsAt(testSetup.FilePathPrefix(), md.ID(), t0)
 		require.NoError(t, err)
 		return len(filesets) == 1
 	}, verifyTimeout)

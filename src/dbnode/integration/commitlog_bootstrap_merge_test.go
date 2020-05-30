@@ -74,7 +74,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	// Test setup
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.Close()
 
@@ -145,7 +145,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	// bootstrapper storage opts
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	process, err := bootstrap.NewProcessProvider(
 		fsBootstrapper, processOpts, bsOpts)
 	require.NoError(t, err)

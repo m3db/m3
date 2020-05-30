@@ -92,7 +92,7 @@ func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig g
 	if setTestOpts != nil {
 		testOpts = setTestOpts(t, testOpts)
 	}
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 

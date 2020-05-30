@@ -39,10 +39,10 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	}
 	// Test setup
 	testOpts := NewTestOptions(t)
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 
-	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
+	md := testSetup.NamespaceMetadataOrFail(testNamespaces[0])
 
 	// Start tte server
 	log := testSetup.StorageOpts().InstrumentOptions().Logger()
@@ -60,7 +60,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 		nsWaitTimeout = 10 * time.Second
 
 		namespaces = []namespace.Metadata{md}
-		shardSet   = testSetup.db.ShardSet()
+		shardSet   = testSetup.DB().ShardSet()
 		shards     = shardSet.All()
 		extraShard = shards[0]
 	)
@@ -68,13 +68,13 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	// Now create some fileset files and commit logs
 	shardSet, err = sharding.NewShardSet(shards[1:], shardSet.HashFn())
 	require.NoError(t, err)
-	testSetup.db.AssignShardSet(shardSet)
+	testSetup.DB().AssignShardSet(shardSet)
 
 	clOpts := testSetup.StorageOpts().CommitLogOptions()
 	// Check filesets are good to go
 	go func() {
 		fsCleanupErr <- waitUntilDataFileSetsCleanedUp(clOpts,
-			testSetup.db.Namespaces(), extraShard.ID(), fsWaitTimeout)
+			testSetup.DB().Namespaces(), extraShard.ID(), fsWaitTimeout)
 	}()
 	log.Info("blocking until file cleanup is received")
 	require.NoError(t, <-fsCleanupErr)
