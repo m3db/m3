@@ -95,7 +95,7 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 
 	for _, ns1Input := range ns1InputData {
 		// write the data for ns1, always
-		testSetup.setNowFn(ns1Input.Start)
+		testSetup.SetNowFn(ns1Input.Start)
 		testData := generate.Block(ns1Input)
 		ns1SeriesMaps[xtime.ToUnixNano(ns1Input.Start)] = testData
 		require.NoError(t, testSetup.WriteBatch(testNamespaces[0], testData))
@@ -119,14 +119,14 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	// when data are written.
 	maxWaitTime := time.Minute
 	log.Info("waiting until data is flushed")
-	testSetup.setNowFn(testSetup.NowFn()().Add(3 * ns1BlockSize))
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], ns1SeriesMaps, maxWaitTime))
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[1], ns2SeriesMaps, maxWaitTime))
+	testSetup.SetNowFn(testSetup.NowFn()().Add(3 * ns1BlockSize))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.ShardSet(), testNamespaces[0], ns1SeriesMaps, maxWaitTime))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.ShardSet(), testNamespaces[1], ns2SeriesMaps, maxWaitTime))
 	log.Info("data has been flushed")
 
 	// Verify on-disk data match what we expect
 	log.Info("verifying flushed data")
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.StorageOpts(), testNamespaces[0], ns1SeriesMaps)
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.StorageOpts(), testNamespaces[1], ns2SeriesMaps)
+	verifyFlushedDataFiles(t, testSetup.ShardSet(), testSetup.StorageOpts(), testNamespaces[0], ns1SeriesMaps)
+	verifyFlushedDataFiles(t, testSetup.ShardSet(), testSetup.StorageOpts(), testNamespaces[1], ns2SeriesMaps)
 	log.Info("flushed data verified")
 }

@@ -64,7 +64,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.Close()
 
-	shardSet := testSetup.shardSet
+	shardSet := testSetup.ShardSet()
 
 	// Start the server
 	log := testSetup.StorageOpts().InstrumentOptions().Logger()
@@ -91,7 +91,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	)
 
 	assertTimeAllowsWritesToAllBlocks(now)
-	testSetup.setNowFn(now)
+	testSetup.SetNowFn(now)
 
 	var (
 		seriesMaps = make(map[xtime.UnixNano]generate.SeriesBlock)
@@ -147,7 +147,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 
 	now = testSetup.NowFn()().Add(2 * time.Minute)
 	assertTimeAllowsWritesToAllBlocks(now)
-	testSetup.setNowFn(now)
+	testSetup.SetNowFn(now)
 
 	maxWaitTime := time.Minute
 	for i, ns := range testSetup.namespaces {
@@ -162,7 +162,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 		oldTime = testSetup.NowFn()()
 		newTime = oldTime.Add(blockSize * 2)
 	)
-	testSetup.setNowFn(newTime)
+	testSetup.SetNowFn(newTime)
 
 	for _, ns := range testSetup.namespaces {
 		log.Info("waiting for new snapshot files to be written out")
@@ -174,7 +174,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 			waitUntil(func() bool {
 				// Increase the time each check to ensure that the filesystem processes are able to progress (some
 				// of them throttle themselves based on time elapsed since the previous time.)
-				testSetup.setNowFn(testSetup.NowFn()().Add(10 * time.Second))
+				testSetup.SetNowFn(testSetup.NowFn()().Add(10 * time.Second))
 				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime.Truncate(blockSize))
 				require.NoError(t, err)
 				return !exists

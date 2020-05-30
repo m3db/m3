@@ -82,11 +82,11 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	// active block.
 	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	testID := ident.StringID("foo")
 	now := setup.NowFn()().Truncate(blockSize)
-	setup.setNowFn(now)
+	setup.SetNowFn(now)
 	startTime := now
 	commitlogWrite := ts.Datapoint{
 		Timestamp: startTime.Add(time.Second),
@@ -144,7 +144,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	processProvider, err := bootstrap.NewProcessProvider(
 		test, processOpts, bootstrapOpts)
 	require.NoError(t, err)
-	setup.SetStorageOpts(setup.storageOpts.SetBootstrapProcessProvider(processProvider))
+	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(processProvider))
 
 	// Start a background goroutine which will wait until the server is started,
 	// issue a single write into the active block, change the time to be far enough
@@ -155,7 +155,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		// Wait for server to start
 		setup.waitUntilServerIsUp()
 		now = now.Add(blockSize)
-		setup.setNowFn(now)
+		setup.SetNowFn(now)
 		memoryWrite = ts.Datapoint{
 			Timestamp: now.Add(-10 * time.Second),
 			Value:     2,
@@ -174,7 +174,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		// Change the time far enough into the next block that a series buffer
 		// rotation will occur for the previously active block.
 		now = now.Add(ropts.BufferPast()).Add(time.Second)
-		setup.setNowFn(now)
+		setup.SetNowFn(now)
 		setup.SleepFor10xTickMinimumInterval()
 
 		// Twice because the test bootstrapper will need to run two times, once to fulfill

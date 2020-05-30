@@ -62,7 +62,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 
 	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	log := setup.StorageOpts().InstrumentOptions().Logger()
 
@@ -97,7 +97,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
 	later := now.Add(4 * ns1BlockSize)
-	setup.setNowFn(later)
+	setup.SetNowFn(later)
 	// Start the server with filesystem bootstrapper
 	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")

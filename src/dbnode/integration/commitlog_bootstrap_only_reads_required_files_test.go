@@ -91,7 +91,7 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
-	setup.setNowFn(now)
+	setup.SetNowFn(now)
 	// Start the server with filesystem bootstrapper
 	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")

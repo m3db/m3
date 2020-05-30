@@ -126,7 +126,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 		},
 	}
 	for _, input := range warmData {
-		testSetup.setNowFn(input.Start)
+		testSetup.SetNowFn(input.Start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
 		require.NoError(t, testSetup.WriteBatch(nsID, testData))
@@ -140,12 +140,12 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
-	testSetup.setNowFn(testSetup.NowFn()().Add(blockSize * 2))
+	testSetup.SetNowFn(testSetup.NowFn()().Add(blockSize * 2))
 	maxWaitTime := time.Minute
 	require.NoError(t, waitUntilFileSetFilesExist(filePathPrefix, expectedDataFiles, maxWaitTime))
 
 	// Verify on-disk data match what we expect.
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.StorageOpts(), nsID, seriesMaps)
+	verifyFlushedDataFiles(t, testSetup.ShardSet(), testSetup.StorageOpts(), nsID, seriesMaps)
 
 	coldData := []generate.BlockConfig{
 		{IDs: []string{"cold0"}, NumPoints: 80, Start: start.Add(-blockSize)},
@@ -153,7 +153,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 		{IDs: []string{"cold1", "cold3", "coldOverwrite"}, NumPoints: 100, Start: start.Add(blockSize)},
 	}
 	// Set "now" to start + 3 * blockSize so that the above are cold writes.
-	testSetup.setNowFn(start.Add(blockSize * 3))
+	testSetup.SetNowFn(start.Add(blockSize * 3))
 	for _, input := range coldData {
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = append(seriesMaps[xtime.ToUnixNano(input.Start)], testData...)
@@ -238,5 +238,5 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	require.NoError(t, waitUntilFileSetFilesExist(filePathPrefix, expectedDataFiles, maxWaitTime))
 
 	// Verify on-disk data match what we expect
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.StorageOpts(), nsID, seriesMaps)
+	verifyFlushedDataFiles(t, testSetup.ShardSet(), testSetup.StorageOpts(), nsID, seriesMaps)
 }

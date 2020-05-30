@@ -208,7 +208,7 @@ func testRepair(
 	blockSize := retentionOpts.BlockSize()
 	now := setups[0].NowFn()().Truncate(blockSize).Add(retentionOpts.BufferPast()).Add(time.Second)
 	for _, setup := range setups {
-		setup.setNowFn(now)
+		setup.SetNowFn(now)
 	}
 
 	node0Data, node1Data, node2Data, allData := genRepairData(now, blockSize)
@@ -240,10 +240,10 @@ func testRepair(
 
 	require.True(t, waitUntil(func() bool {
 		for _, setup := range setups {
-			if err := checkFlushedDataFiles(setup.shardSet, setup.StorageOpts(), namesp.ID(), allData); err != nil {
+			if err := checkFlushedDataFiles(setup.ShardSet(), setup.StorageOpts(), namesp.ID(), allData); err != nil {
 				// Increment the time each time it fails to make sure background processes are able to proceed.
 				for _, s := range setups {
-					s.setNowFn(s.NowFn()().Add(time.Millisecond))
+					s.SetNowFn(s.NowFn()().Add(time.Millisecond))
 				}
 				return false
 			}

@@ -160,13 +160,13 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// write to new namespace
 	for start, testData := range seriesMaps {
-		testSetup.setNowFn(start.ToTime())
+		testSetup.SetNowFn(start.ToTime())
 		require.NoError(t, testSetup.WriteBatch(ns0.ID(), testData))
 	}
 	log.Info("test data is now written")
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
-	testSetup.setNowFn(testSetup.NowFn()().Add(2 * blockSize))
+	testSetup.SetNowFn(testSetup.NowFn()().Add(2 * blockSize))
 	later := testSetup.NowFn()()
 	testSetup.SleepFor10xTickMinimumInterval()
 

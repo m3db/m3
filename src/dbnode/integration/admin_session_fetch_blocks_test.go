@@ -87,7 +87,7 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 	}
 	for _, input := range inputData {
 		start := input.Start
-		testSetup.setNowFn(start)
+		testSetup.SetNowFn(start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(start)] = testData
 		require.NoError(t, testSetup.WriteBatch(testNamespaces[0], testData))
@@ -95,7 +95,7 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 	log.Debug("test data is now written")
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
-	testSetup.setNowFn(testSetup.NowFn()().Add(blockSize * 2))
+	testSetup.SetNowFn(testSetup.NowFn()().Add(blockSize * 2))
 	later := testSetup.NowFn()()
 	testSetup.SleepFor10xTickMinimumInterval()
 

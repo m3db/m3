@@ -83,7 +83,7 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 	t0 := time.Date(2018, time.May, 6, 12, 50, 0, 0, time.UTC)
 	t1 := t0.Add(10 * time.Minute)
 	t2 := t1.Add(5 * time.Minute)
-	testSetup.setNowFn(t1)
+	testSetup.SetNowFn(t1)
 
 	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
 	writesPeriod1 := GenerateTestIndexWrite(1, numWrites, numTags, t1, t2)
@@ -98,7 +98,7 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	client := testSetup.m3dbClient
+	client := testSetup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 
@@ -141,6 +141,6 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t2})
 	require.NoError(t, err)
 	writes := append(writesPeriod0, writesPeriod1...)
-	writes.matchesSeriesIters(t, period01Results)
+	writes.MatchesSeriesIters(t, period01Results)
 	log.Info("found period 0+1 results")
 }

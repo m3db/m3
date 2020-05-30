@@ -69,7 +69,7 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 
 	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
@@ -113,7 +113,7 @@ func testCommitLogBootstrapColdWrites(t *testing.T, setTestOpts setTestOptions, 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
-	setup.setNowFn(start)
+	setup.SetNowFn(start)
 	// Start the server with filesystem bootstrapper
 	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")

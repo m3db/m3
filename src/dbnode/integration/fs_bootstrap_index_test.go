@@ -104,8 +104,8 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 
-	setup.StorageOpts() = setup.storageOpts.
-		SetBootstrapProcessProvider(processProvider)
+	setup.SetStorageOpts(setup.StorageOpts().
+		SetBootstrapProcessProvider(processProvider))
 
 	// Write test data
 	now := setup.NowFn()()
@@ -172,7 +172,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	verifySeriesMaps(t, setup, testNamespaces[1], nil)
 
 	// Issue some index queries
-	session, err := setup.m3dbClient.DefaultSession()
+	session, err := setup.M3DBClient().DefaultSession()
 	require.NoError(t, err)
 
 	start := now.Add(-rOpts.RetentionPeriod())

@@ -89,7 +89,7 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 
 	// Stop the servers
 	defer func() {
-		testSetups{setups[0], setups[2]}.parallel(func(s *testSetup) {
+		testSetups{setups[0], setups[2]}.parallel(func(s TestSetup) {
 			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")

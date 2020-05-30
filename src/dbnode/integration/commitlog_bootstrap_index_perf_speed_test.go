@@ -82,7 +82,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 
 	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
@@ -149,7 +149,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	// generation so that the memory usage is constant during the write phase
 	ctx := context.NewContext()
 	defer ctx.Close()
-	shardSet := setup.shardSet
+	shardSet := setup.ShardSet()
 	idPrefix := "test.id.test.id.test.id.test.id.test.id.test.id.test.id.test.id"
 	idPrefixBytes := []byte(idPrefix)
 	checkedBytes := checked.NewBytes(nil, nil)
@@ -207,7 +207,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
 	// restore now time so measurements take effect
-	setup.SetStorageOpts(setup.storageOpts.SetClockOptions(clock.NewOptions()))
+	setup.SetStorageOpts(setup.StorageOpts().SetClockOptions(clock.NewOptions()))
 
 	// Start the server with filesystem bootstrapper
 	require.NoError(t, setup.StartServer())

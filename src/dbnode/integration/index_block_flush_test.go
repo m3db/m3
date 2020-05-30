@@ -89,14 +89,14 @@ func TestIndexBlockFlush(t *testing.T) {
 	scope, closer := tally.NewRootScope(
 		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
-	testSetup.StorageOpts() = testSetup.storageOpts.SetInstrumentOptions(
-		instrument.NewOptions().SetMetricsScope(scope))
+	testSetup.SetStorageOpts(testSetup.StorageOpts().SetInstrumentOptions(
+		instrument.NewOptions().SetMetricsScope(scope)))
 
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
 	assert.True(t, t0.Equal(t0.Truncate(indexBlockSize)))
 	t1 := t0.Add(20 * time.Minute)
 	t2 := t0.Add(2 * time.Hour)
-	testSetup.setNowFn(t0)
+	testSetup.SetNowFn(t0)
 
 	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
 
@@ -110,7 +110,7 @@ func TestIndexBlockFlush(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	client := testSetup.m3dbClient
+	client := testSetup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 
@@ -140,7 +140,7 @@ func TestIndexBlockFlush(t *testing.T) {
 	log.Info("found period0 results")
 
 	// move time to 3p
-	testSetup.setNowFn(t2)
+	testSetup.SetNowFn(t2)
 
 	// waiting till filesets found on disk
 	log.Info("waiting till filesets found on disk")

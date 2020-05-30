@@ -169,7 +169,7 @@ func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ident.ID, wai
 }
 
 // nolint: unused
-func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (*testSetup, error) {
+func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (TestSetup, error) {
 	err := testSetup.StopServer()
 	if err != nil {
 		return nil, err
@@ -183,7 +183,7 @@ func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespac
 	if err != nil {
 		return nil, err
 	}
-	resetSetup.shardSet = newShardSet
+	resetSetup.SetShardSet(newShardSet)
 	err = resetSetup.StartServer()
 	if err != nil {
 		return nil, err

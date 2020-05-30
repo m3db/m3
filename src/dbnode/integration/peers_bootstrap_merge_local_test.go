@@ -181,10 +181,10 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 		<-secondNodeIsUp
 
 		// Progress time before writing data directly to second node
-		setups[1].setNowFn(completeAt)
+		setups[1].SetNowFn(completeAt)
 
 		// Write data that "arrives" at the second node directly
-		err := setups[1].writeBatch(namesp.ID(),
+		err := setups[1].WriteBatch(namesp.ID(),
 			directWritesSeriesMaps[xtime.ToUnixNano(now)])
 		if err != nil {
 			panic(err)

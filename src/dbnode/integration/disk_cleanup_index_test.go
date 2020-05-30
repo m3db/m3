@@ -92,7 +92,7 @@ func TestDiskCleanupIndex(t *testing.T) {
 
 	// Move now forward by retentionPeriod + blockSize so fileset files at now will be deleted
 	newNow := now.Add(retentionPeriod).Add(idxBlockSize)
-	setup.setNowFn(newNow)
+	setup.SetNowFn(newNow)
 
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second

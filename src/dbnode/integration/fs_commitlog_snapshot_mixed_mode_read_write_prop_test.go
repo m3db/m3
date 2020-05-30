@@ -137,7 +137,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 				log.Sugar().Info("bufferPast: %s\n", ns1ROpts.BufferPast().String())
 				log.Sugar().Info("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
 
-				setup.setNowFn(fakeStart)
+				setup.SetNowFn(fakeStart)
 
 				var (
 					ids        = &idGen{longTestID}
@@ -179,7 +179,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 							break
 						}
 
-						setup.setNowFn(ts)
+						setup.SetNowFn(ts)
 
 						err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, dp.ann)
 						if err != nil {
@@ -212,7 +212,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 								// be available on disk.
 							expectedFlushedData = datapoints.before(endOfLatestFlushableBlock).toSeriesMap(ns1BlockSize)
 							err                 = waitUntilDataFilesFlushed(
-								filePathPrefix, setup.shardSet, nsID, expectedFlushedData, maxFlushWaitTime)
+								filePathPrefix, setup.ShardSet(), nsID, expectedFlushedData, maxFlushWaitTime)
 						)
 						if err != nil {
 							return false, fmt.Errorf("error waiting for data files to flush: %s", err)
@@ -230,7 +230,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						}
 						err := waitUntilSnapshotFilesFlushed(
 							filePathPrefix,
-							setup.shardSet,
+							setup.ShardSet(),
 							nsID,
 							[]snapshotID{{blockStart: snapshotBlock}},
 							maxFlushWaitTime,
@@ -252,7 +252,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						// they can find each others files.
 						t, opts.SetFilePathPrefix(filePathPrefix))
 					// Make sure the new setup has the same system time as the previous one.
-					setup.setNowFn(oldNow)
+					setup.SetNowFn(oldNow)
 				}
 
 				if lastDatapointsIdx != len(datapoints) {

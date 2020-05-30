@@ -140,6 +140,7 @@ type TestSetup interface {
 	topology.MapProvider
 
 	Opts() TestOptions
+	SetOpts(TestOptions)
 	AssertEqual(*testing.T, []generate.TestValue, []generate.TestValue) bool
 	DB() cluster.Database
 	M3DBClient() client.Client
@@ -162,7 +163,10 @@ type TestSetup interface {
 	ShouldBeEqual() bool
 	SleepFor10xTickMinimumInterval()
 	ShardSet() sharding.ShardSet
+	SetShardSet(sharding.ShardSet)
 	GeneratorOptions(retention.Options) generate.Options
+	MaybeResetClients() error
+	SchemaRegistry() namespace.SchemaRegistry
 }
 
 type storageOption func(storage.Options) storage.Options
@@ -555,6 +559,10 @@ func (ts *testSetup) Opts() TestOptions {
 	return ts.opts
 }
 
+func (ts *testSetup) SetOpts(opts TestOptions) {
+	ts.opts = opts
+}
+
 func (ts *testSetup) Origin() topology.Host {
 	return ts.origin
 }
@@ -577,6 +585,10 @@ func (ts *testSetup) SetTopologyInitializer(init topology.Initializer) {
 
 func (ts *testSetup) ShardSet() sharding.ShardSet {
 	return ts.shardSet
+}
+
+func (ts *testSetup) SetShardSet(shardSet sharding.ShardSet) {
+	ts.shardSet = shardSet
 }
 
 func (ts *testSetup) namespaceMetadataOrFail(id ident.ID) namespace.Metadata {
@@ -848,6 +860,10 @@ func (ts *testSetup) MaybeResetClients() error {
 	}
 
 	return nil
+}
+
+func (ts *testSetup) SchemaRegistry() namespace.SchemaRegistry {
+	return ts.schemaReg
 }
 
 // Implements topology.MapProvider, and makes sure that the topology

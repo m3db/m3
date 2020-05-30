@@ -215,7 +215,7 @@ func verifySeriesMapForRange(
 	return true
 }
 
-func containsSeries(ts *testSetup, namespace, seriesID ident.ID, start, end time.Time) (bool, error) {
+func containsSeries(ts TestSetup, namespace, seriesID ident.ID, start, end time.Time) (bool, error) {
 	req := rpc.NewFetchRequest()
 	req.NameSpace = namespace.String()
 	req.ID = seriesID.String()

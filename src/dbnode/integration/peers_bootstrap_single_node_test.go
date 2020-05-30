@@ -77,7 +77,7 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 
 	// Set the time to one blockSize in the future (for which we do not have
 	// a fileset file) to ensure we try and use the peer bootstrapper.
-	setups[0].setNowFn(now.Add(blockSize))
+	setups[0].SetNowFn(now.Add(blockSize))
 
 	// Start the server with peers and filesystem bootstrappers
 	require.NoError(t, setups[0].StartServer())

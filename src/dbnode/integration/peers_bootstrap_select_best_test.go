@@ -105,7 +105,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(namesp, setups[1], right, 0))
 
 	// Start the first two servers with filesystem bootstrappers
-	setups[:2].parallel(func(s *testSetup) {
+	setups[:2].parallel(func(s TestSetup) {
 		require.NoError(t, s.StartServer())
 	})
 

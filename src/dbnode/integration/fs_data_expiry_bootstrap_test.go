@@ -88,8 +88,8 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 
-	setup.StorageOpts() = setup.storageOpts.
-		SetBootstrapProcessProvider(processProvider)
+	setup.SetStorageOpts(setup.StorageOpts().
+		SetBootstrapProcessProvider(processProvider))
 
 	// Write test data
 	now := setup.NowFn()()

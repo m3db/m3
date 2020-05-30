@@ -123,7 +123,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	require.NoError(t, setups[0].StartServer())
 
 	// Start the remaining servers with peers and filesystem bootstrappers
-	setups[1:].parallel(func(s *testSetup) {
+	setups[1:].parallel(func(s TestSetup) {
 		require.NoError(t, s.StartServer())
 	})
 	log.Debug("servers are now up")
@@ -142,7 +142,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	}
 
 	// Issue aggregate index queries to the second node which bootstrapped the metadata
-	session, err := setups[1].m3dbClient.DefaultSession()
+	session, err := setups[1].M3DBClient().DefaultSession()
 	require.NoError(t, err)
 
 	start := now.Add(-rOpts.RetentionPeriod())

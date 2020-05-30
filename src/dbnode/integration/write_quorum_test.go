@@ -143,7 +143,7 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	require.NoError(t, nodes[0].StartServer())
 	defer func() { require.NoError(t, nodes[0].StopServer()) }()
 
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// No writes succeed to available nodes
@@ -174,7 +174,7 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	defer func() { require.NoError(t, nodes[0].StopServer()) }()
 	require.NoError(t, nodes[1].StartServer())
 	defer func() { require.NoError(t, nodes[1].StopServer()) }()
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// Writes succeed to one available node
@@ -207,7 +207,7 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	defer func() { require.NoError(t, nodes[1].StopServer()) }()
 	require.NoError(t, nodes[2].StartServer())
 	defer func() { require.NoError(t, nodes[2].StopServer()) }()
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// Writes succeed to two available nodes
@@ -234,7 +234,7 @@ func makeTestWrite(
 	now := nodes[0].NowFn()()
 
 	for _, node := range nodes {
-		node.opts = node.opts.SetNumShards(numShards)
+		node.SetOpts(node.Opts().SetNumShards(numShards))
 	}
 
 	clientopts := client.NewOptions().

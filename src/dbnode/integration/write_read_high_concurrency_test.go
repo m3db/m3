@@ -65,7 +65,7 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 		SetReadConsistencyLevel(topology.ReadConsistencyLevelAll)
 
 	defer closeFn()
-	log := nodes[0].storageOpts.InstrumentOptions().Logger()
+	log := nodes[0].StorageOpts().InstrumentOptions().Logger()
 	for _, n := range nodes {
 		require.NoError(t, n.StartServer())
 	}
@@ -79,7 +79,7 @@ func TestWriteReadHighConcurrencyTestMultiNS(t *testing.T) {
 	var (
 		insertWg sync.WaitGroup
 	)
-	now := nodes[0].db.Options().ClockOptions().NowFn()()
+	now := nodes[0].DB().Options().ClockOptions().NowFn()()
 	start := time.Now()
 	log.Info("starting data write")
 

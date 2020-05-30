@@ -74,7 +74,7 @@ func TestTruncateNamespace(t *testing.T) {
 		},
 	}
 	for _, input := range inputData {
-		testSetup.setNowFn(input.conf.Start)
+		testSetup.SetNowFn(input.conf.Start)
 		testData := generate.Block(input.conf)
 		seriesMaps[xtime.ToUnixNano(input.conf.Start)] = testData
 		require.NoError(t, testSetup.WriteBatch(input.namespace, testData))
@@ -90,18 +90,18 @@ func TestTruncateNamespace(t *testing.T) {
 
 	log.Debug("fetching data from nonexistent namespace")
 	fetchReq.NameSpace = "nonexistent"
-	_, err = testSetup.fetch(fetchReq)
+	_, err = testSetup.Fetch(fetchReq)
 	require.Error(t, err)
 
 	log.Debug("fetching data from wrong namespace")
 	fetchReq.NameSpace = testNamespaces[1].String()
-	res, err := testSetup.fetch(fetchReq)
+	res, err := testSetup.Fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(res))
 
 	log.Sugar().Debugf("fetching data from namespace %s", testNamespaces[0])
 	fetchReq.NameSpace = testNamespaces[0].String()
-	res, err = testSetup.fetch(fetchReq)
+	res, err = testSetup.Fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 100, len(res))
 
@@ -113,7 +113,7 @@ func TestTruncateNamespace(t *testing.T) {
 	require.Equal(t, int64(1), truncated)
 
 	log.Sugar().Debugf("fetching data from namespace %s again", testNamespaces[0])
-	res, err = testSetup.fetch(fetchReq)
+	res, err = testSetup.Fetch(fetchReq)
 	require.Error(t, err)
 
 	log.Sugar().Debugf("fetching data from a different namespace %s", testNamespaces[1])
@@ -121,7 +121,7 @@ func TestTruncateNamespace(t *testing.T) {
 	fetchReq.NameSpace = testNamespaces[1].String()
 	fetchReq.RangeStart = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
 	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize*2), time.Second)
-	res, err = testSetup.fetch(fetchReq)
+	res, err = testSetup.Fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 50, len(res))
 }

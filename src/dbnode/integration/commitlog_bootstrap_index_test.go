@@ -66,7 +66,7 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 
 	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
@@ -134,7 +134,7 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
-	setup.setNowFn(now)
+	setup.SetNowFn(now)
 	// Start the server with filesystem bootstrapper
 	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
@@ -151,7 +151,7 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	verifySeriesMaps(t, setup, testNamespaces[1], seriesMaps)
 
 	// Issue some index queries
-	session, err := setup.m3dbClient.DefaultSession()
+	session, err := setup.M3DBClient().DefaultSession()
 	require.NoError(t, err)
 
 	start := now.Add(-rOpts.RetentionPeriod())

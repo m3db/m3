@@ -74,7 +74,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 				clientopts = clientopts.SetReadConsistencyLevel(lvl)
 
 				defer closeFn()
-				log := nodes[0].storageOpts.InstrumentOptions().Logger()
+				log := nodes[0].StorageOpts().InstrumentOptions().Logger()
 				// Start the nodes
 				for _, n := range nodes {
 					require.NoError(t, n.StartServer())

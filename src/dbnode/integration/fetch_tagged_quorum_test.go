@@ -260,7 +260,7 @@ func makeMultiNodeSetup(
 	nspaces := []namespace.Metadata{md1, md2}
 	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, asyncInserts)
 	for _, node := range nodes {
-		node.opts = node.opts.SetNumShards(numShards)
+		node.SetOpts(node.Opts().SetNumShards(numShards))
 	}
 
 	clientopts := client.NewOptions().

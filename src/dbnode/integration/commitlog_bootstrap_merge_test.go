@@ -80,7 +80,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 
 	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log + fs merge bootstrap test")
@@ -149,10 +149,10 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	process, err := bootstrap.NewProcessProvider(
 		fsBootstrapper, processOpts, bsOpts)
 	require.NoError(t, err)
-	setup.SetStorageOpts(setup.storageOpts.SetBootstrapProcessProvider(process))
+	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(process))
 
 	log.Info("moving time forward and starting server")
-	setup.setNowFn(t3)
+	setup.SetNowFn(t3)
 	// Start the server
 	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")

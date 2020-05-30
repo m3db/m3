@@ -85,7 +85,7 @@ func TestDiskCleanup(t *testing.T) {
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
 	// and commit logs at now will be deleted
 	newNow := testSetup.NowFn()().Add(retentionPeriod).Add(2 * blockSize)
-	testSetup.setNowFn(newNow)
+	testSetup.SetNowFn(newNow)
 
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second

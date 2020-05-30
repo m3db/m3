@@ -82,7 +82,7 @@ func TestIndexBlockRotation(t *testing.T) {
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
 	t1 := t0.Add(20 * time.Minute)
 	t2 := t1.Add(3 * time.Hour)
-	testSetup.setNowFn(t0)
+	testSetup.SetNowFn(t0)
 
 	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
 
@@ -96,7 +96,7 @@ func TestIndexBlockRotation(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	client := testSetup.m3dbClient
+	client := testSetup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 
@@ -126,7 +126,7 @@ func TestIndexBlockRotation(t *testing.T) {
 	log.Info("found period0 results")
 
 	// move time to 4p
-	testSetup.setNowFn(t2)
+	testSetup.SetNowFn(t2)
 
 	// give tick some time to evict the block
 	testSetup.SleepFor10xTickMinimumInterval()

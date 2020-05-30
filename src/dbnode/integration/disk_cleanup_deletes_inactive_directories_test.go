@@ -26,14 +26,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestDiskCleansupInactiveDirectories(t *testing.T) {
-	var resetSetup *testSetup
+	var resetSetup TestSetup
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}

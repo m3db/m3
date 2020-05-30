@@ -154,20 +154,20 @@ func TestWriteTaggedAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 
 	require.NoError(t, nodes[0].StartServer())
 	defer func() { require.NoError(t, nodes[0].StopServer()) }()
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// No writes succeed to available nodes
 	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
-	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	numWrites := numNodesWithTaggedWrite(t, []TestSetup{nodes[1], nodes[2]})
 	assert.True(t, numWrites == 0)
 
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
-	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	numWrites = numNodesWithTaggedWrite(t, []TestSetup{nodes[1], nodes[2]})
 	assert.True(t, numWrites == 0)
 
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
-	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	numWrites = numNodesWithTaggedWrite(t, []TestSetup{nodes[1], nodes[2]})
 	assert.True(t, numWrites == 0)
 }
 
@@ -193,20 +193,20 @@ func TestWriteTaggedAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testin
 	defer func() { require.NoError(t, nodes[0].StopServer()) }()
 	require.NoError(t, nodes[1].StartServer())
 	defer func() { require.NoError(t, nodes[1].StopServer()) }()
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// Writes succeed to one available node
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
-	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	numWrites := numNodesWithTaggedWrite(t, []TestSetup{nodes[1], nodes[2]})
 	assert.True(t, numWrites == 1)
 
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
-	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	numWrites = numNodesWithTaggedWrite(t, []TestSetup{nodes[1], nodes[2]})
 	assert.True(t, numWrites == 1)
 
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
-	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	numWrites = numNodesWithTaggedWrite(t, []TestSetup{nodes[1], nodes[2]})
 	assert.True(t, numWrites == 1)
 }
 
@@ -234,16 +234,16 @@ func TestWriteTaggedAddNodeQuorumAllUp(t *testing.T) {
 	defer func() { require.NoError(t, nodes[1].StopServer()) }()
 	require.NoError(t, nodes[2].StartServer())
 	defer func() { require.NoError(t, nodes[2].StopServer()) }()
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// Writes succeed to two available nodes
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
-	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	numWrites := numNodesWithTaggedWrite(t, []TestSetup{nodes[1], nodes[2]})
 	assert.True(t, numWrites >= 1, numWrites)
 
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
-	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	numWrites = numNodesWithTaggedWrite(t, []TestSetup{nodes[1], nodes[2]})
 	assert.Equal(t, 2, numWrites)
 
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -283,20 +283,20 @@ func numNodesWithTaggedWrite(t *testing.T, setups testSetups) int {
 	return n
 }
 
-func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
-	if s.db == nil {
+func nodeHasTaggedWrite(t *testing.T, s TestSetup) bool {
+	if s.DB() == nil {
 		return false
 	}
 
 	ctx := context.NewContext()
 	defer ctx.BlockingClose()
-	nsCtx := namespace.NewContextFor(testNamespaces[0], s.schemaReg)
+	nsCtx := namespace.NewContextFor(testNamespaces[0], s.SchemaRegistry())
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
 
 	now := s.NowFn()()
-	res, err := s.db.QueryIDs(ctx, nsCtx.ID, index.Query{Query: reQuery}, index.QueryOptions{
+	res, err := s.DB().QueryIDs(ctx, nsCtx.ID, index.Query{Query: reQuery}, index.QueryOptions{
 		StartInclusive: now.Add(-2 * time.Minute),
 		EndExclusive:   now.Add(2 * time.Minute),
 	})
@@ -317,10 +317,10 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	id := ident.StringID("quorumTest")
 	start := s.NowFn()()
 	end := s.NowFn()().Add(5 * time.Minute)
-	readers, err := s.db.ReadEncoded(ctx, nsCtx.ID, id, start, end)
+	readers, err := s.DB().ReadEncoded(ctx, nsCtx.ID, id, start, end)
 	require.NoError(t, err)
 
-	mIter := s.db.Options().MultiReaderIteratorPool().Get()
+	mIter := s.DB().Options().MultiReaderIteratorPool().Get()
 	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers), nsCtx.Schema)
 	defer mIter.Close()
 	for mIter.Next() {

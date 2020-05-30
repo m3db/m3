@@ -85,10 +85,10 @@ func TestWriteReadTimezone(t *testing.T) {
 
 	// Make sure that the server's internal clock function returns pacific timezone
 	start := setup.NowFn()()
-	setup.setNowFn(start.In(pacificLocation))
+	setup.SetNowFn(start.In(pacificLocation))
 
 	// Instantiate a client
-	client := setup.m3dbClient
+	client := setup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 	defer session.Close()

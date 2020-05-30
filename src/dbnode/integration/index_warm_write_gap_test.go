@@ -84,7 +84,7 @@ func TestWarmIndexWriteGap(t *testing.T) {
 	// Issue writes in the gap between warm index start and start of buffer past.
 	t1 := t0.Truncate(indexBlockSize)
 	t2 := t0.Truncate(dataBlockSize).Add(-bufferPast)
-	testSetup.setNowFn(t0)
+	testSetup.SetNowFn(t0)
 
 	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t1, t2)
 
@@ -98,7 +98,7 @@ func TestWarmIndexWriteGap(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	client := testSetup.m3dbClient
+	client := testSetup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 

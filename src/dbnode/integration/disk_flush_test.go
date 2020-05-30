@@ -67,7 +67,7 @@ func TestDiskFlushSimple(t *testing.T) {
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
 	}
 	for _, input := range inputData {
-		testSetup.setNowFn(input.Start)
+		testSetup.SetNowFn(input.Start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
 		require.NoError(t, testSetup.WriteBatch(testNamespaces[0], testData))
@@ -77,10 +77,10 @@ func TestDiskFlushSimple(t *testing.T) {
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
-	testSetup.setNowFn(testSetup.NowFn()().Add(blockSize * 2))
+	testSetup.SetNowFn(testSetup.NowFn()().Add(blockSize * 2))
 	maxWaitTime := time.Minute
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, maxWaitTime))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.ShardSet(), testNamespaces[0], seriesMaps, maxWaitTime))
 
 	// Verify on-disk data match what we expect
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.StorageOpts(), testNamespaces[0], seriesMaps)
+	verifyFlushedDataFiles(t, testSetup.ShardSet(), testSetup.StorageOpts(), testNamespaces[0], seriesMaps)
 }

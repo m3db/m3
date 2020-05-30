@@ -95,7 +95,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	blkStart16 := blkStart15.Add(ns1BlockSize)
 	blkStart17 := blkStart16.Add(ns1BlockSize)
 	blkStart18 := blkStart17.Add(ns1BlockSize)
-	setup.setNowFn(fakeStart)
+	setup.SetNowFn(fakeStart)
 
 	// startup server
 	log.Debug("starting server")
@@ -123,7 +123,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	datapoints := generateDatapoints(fakeStart, total, ids, annGen)
 	for _, dp := range datapoints {
 		ts := dp.time
-		setup.setNowFn(ts)
+		setup.SetNowFn(ts)
 		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, dp.ann))
 	}
 	log.Info("wrote datapoints")
@@ -141,7 +141,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	waitTimeout := 5 * time.Minute
 
 	log.Info("waiting till expected fileset files have been written")
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, setup.shardSet, nsID, expectedFlushedData, waitTimeout))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, setup.ShardSet(), nsID, expectedFlushedData, waitTimeout))
 	log.Info("expected fileset files have been written")
 
 	// stopping db
@@ -150,7 +150,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	log.Info("database stopped")
 
 	// the time now is 18:55
-	setup.setNowFn(setup.NowFn()().Add(5 * time.Minute))
+	setup.SetNowFn(setup.NowFn()().Add(5 * time.Minute))
 
 	// recreate the db from the data files and commit log
 	// should contain data from 15:30 - 17:59 on disk and 18:00 - 18:50 in mem
@@ -161,7 +161,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	log.Info("verified data in database equals expected data")
 
 	// the time now is 19:15
-	setup.setNowFn(setup.NowFn()().Add(20 * time.Minute))
+	setup.SetNowFn(setup.NowFn()().Add(20 * time.Minute))
 	// data from hour 15 is now outdated, ensure the file has been cleaned up
 	log.Info("waiting till expired fileset files have been cleanedup")
 	require.NoError(t, waitUntilFileSetFilesCleanedUp(setup, nsID, blkStart15, waitTimeout))
@@ -202,7 +202,7 @@ func waitUntilFileSetFilesCleanedUp(
 	timeout time.Duration,
 ) error {
 	var (
-		shardSet       = setup.shardSet
+		shardSet       = setup.ShardSet()
 		filesetFiles   = []cleanupTimesFileSet{}
 		commitLogFiles = cleanupTimesCommitLog{
 			clOpts: setup.StorageOpts().CommitLogOptions(),

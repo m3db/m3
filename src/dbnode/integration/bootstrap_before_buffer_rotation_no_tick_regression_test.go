@@ -96,11 +96,11 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	// active block.
 	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	testID := ident.StringID("foo")
 	now := setup.NowFn()().Truncate(blockSize)
-	setup.setNowFn(now)
+	setup.SetNowFn(now)
 	startTime := now
 	commitlogWrite := ts.Datapoint{
 		Timestamp: startTime.Add(time.Second),
@@ -156,7 +156,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		SetOrigin(setup.origin)
 	process, err := bootstrap.NewProcessProvider(test, processOpts, bootstrapOpts)
 	require.NoError(t, err)
-	setup.SetStorageOpts(setup.storageOpts.SetBootstrapProcessProvider(process))
+	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(process))
 
 	// Start a background goroutine which will wait until the server is started,
 	// issue a single write into the active block, change the time to be far enough
@@ -168,7 +168,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 
 		// Set the time such that the (previously) active block is ready to be flushed.
 		now = now.Add(blockSize).Add(ropts.BufferPast()).Add(time.Second)
-		setup.setNowFn(now)
+		setup.SetNowFn(now)
 
 		// Set the tick interval to be so large we can "hang" a tick at the end, preventing
 		// it from completing until we're ready to "resume" it later.
