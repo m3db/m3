@@ -78,7 +78,7 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions,
 	defer closeFn()
 
 	// Write test data alternating missing data for left/right nodes
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 	blockSize := retentionOpts.BlockSize()
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process
@@ -130,7 +130,7 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, setTestOpts setTestOptions,
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
+		setups.parallel(func(s TestSetup) {
 			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")

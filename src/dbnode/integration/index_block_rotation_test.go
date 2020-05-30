@@ -77,7 +77,7 @@ func TestIndexBlockRotation(t *testing.T) {
 		SetWriteNewSeriesAsync(true)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
 	t1 := t0.Add(20 * time.Minute)
@@ -87,7 +87,7 @@ func TestIndexBlockRotation(t *testing.T) {
 	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server

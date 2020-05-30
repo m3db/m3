@@ -62,18 +62,18 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 
 	setup, err = newTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
 	log := setup.logger
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 
 	persistMgr, err := fs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
-		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
-	storageIdxOpts := setup.storageOpts.IndexOptions()
+		SetSeriesCachePolicy(setup.StorageOpts().SeriesCachePolicy())
+	storageIdxOpts := setup.StorageOpts().IndexOptions()
 	bfsOpts := bfs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetIndexOptions(storageIdxOpts).
@@ -88,11 +88,11 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 
-	setup.storageOpts = setup.storageOpts.
+	setup.StorageOpts() = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)
 
 	// Write test data
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
 	})

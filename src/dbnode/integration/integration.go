@@ -334,27 +334,27 @@ func newDefaultBootstrappableTestSetups(
 
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
-	setup *testSetup,
+	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume)
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
+	return writer.WriteData(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume)
 }
 
 func writeTestSnapshotsToDiskWithPredicate(
 	metadata namespace.Metadata,
-	setup *testSetup,
+	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
 	pred generate.WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume, pred, snapshotInterval)
+		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

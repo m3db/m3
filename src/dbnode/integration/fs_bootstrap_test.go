@@ -71,17 +71,17 @@ func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInp
 	// Test setup
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
-		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
-	storageIdxOpts := setup.storageOpts.IndexOptions()
+		SetSeriesCachePolicy(setup.StorageOpts().SeriesCachePolicy())
+	storageIdxOpts := setup.StorageOpts().IndexOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
@@ -96,11 +96,11 @@ func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInp
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 
-	setup.storageOpts = setup.storageOpts.
+	setup.StorageOpts() = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)
 
 	// Write test data
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
@@ -113,7 +113,7 @@ func testFilesystemBootstrap(t *testing.T, setTestOpts setTestOptions, updateInp
 	require.NoError(t, writeTestDataToDisk(ns2, setup, nil, 0))
 
 	// Start the server with filesystem bootstrapper
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("filesystem bootstrap test")
 	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")

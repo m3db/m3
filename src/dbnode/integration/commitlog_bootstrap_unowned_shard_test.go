@@ -100,12 +100,12 @@ func TestCommitLogBootstrapUnownedShard(t *testing.T) {
 	// Only set this up for the first setup because we're only writing commit
 	// logs for the first server.
 	setup := setups[0]
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	log.Info("generating data")
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	seriesMaps := generateSeriesMaps(30, nil, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data")
 	// Write commit log with generated data that spreads across all shards
@@ -125,7 +125,7 @@ func TestCommitLogBootstrapUnownedShard(t *testing.T) {
 
 	// Defer stop the servers.
 	defer func() {
-		setups.parallel(func(s *testSetup) {
+		setups.parallel(func(s TestSetup) {
 			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
@@ -133,7 +133,7 @@ func TestCommitLogBootstrapUnownedShard(t *testing.T) {
 
 	// Only fetch blocks for shards owned by node 0.
 	metadatasByShard, err := m3dbClientFetchBlocksMetadata(
-		setup.m3dbVerificationAdminClient, testNamespaces[0], node0OwnedShards,
+		setup.M3DBVerificationAdminClient(), testNamespaces[0], node0OwnedShards,
 		now.Add(-2*blockSize), now, topology.ReadConsistencyLevelMajority)
 	require.NoError(t, err)
 

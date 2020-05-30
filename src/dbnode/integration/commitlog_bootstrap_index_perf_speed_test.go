@@ -78,13 +78,13 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
 
 	// Write test data
@@ -137,7 +137,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 
 	log.Info("writing data")
 
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	blockStart := now.Add(-3 * blockSize)
 
 	// create new commit log
@@ -207,7 +207,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
 	// restore now time so measurements take effect
-	setup.storageOpts = setup.storageOpts.SetClockOptions(clock.NewOptions())
+	setup.SetStorageOpts(setup.storageOpts.SetClockOptions(clock.NewOptions()))
 
 	// Start the server with filesystem bootstrapper
 	require.NoError(t, setup.StartServer())

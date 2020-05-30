@@ -78,7 +78,7 @@ func TestWarmIndexWriteGap(t *testing.T) {
 		SetWriteNewSeriesAsync(true)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
 	// Issue writes in the gap between warm index start and start of buffer past.
@@ -89,7 +89,7 @@ func TestWarmIndexWriteGap(t *testing.T) {
 	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t1, t2)
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server

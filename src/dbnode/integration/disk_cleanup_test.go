@@ -41,7 +41,7 @@ func TestDiskCleanup(t *testing.T) {
 	testOpts := NewTestOptions(t)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
@@ -52,8 +52,8 @@ func TestDiskCleanup(t *testing.T) {
 		shard         = uint32(0)
 		numTimes      = 10
 		fileTimes     = make([]time.Time, numTimes)
-		now           = testSetup.getNowFn()
-		commitLogOpts = testSetup.storageOpts.CommitLogOptions().
+		now           = testSetup.NowFn()()
+		commitLogOpts = testSetup.StorageOpts().CommitLogOptions().
 				SetFlushInterval(defaultIntegrationTestFlushInterval)
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
@@ -61,7 +61,7 @@ func TestDiskCleanup(t *testing.T) {
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
-	writeDataFileSetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
+	writeDataFileSetFiles(t, testSetup.StorageOpts(), md, shard, fileTimes)
 	for _, clTime := range fileTimes {
 		data := map[xtime.UnixNano]generate.SeriesBlock{
 			xtime.ToUnixNano(clTime): nil,
@@ -72,7 +72,7 @@ func TestDiskCleanup(t *testing.T) {
 	}
 
 	// Now start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("disk cleanup test")
 	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
@@ -84,7 +84,7 @@ func TestDiskCleanup(t *testing.T) {
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
 	// and commit logs at now will be deleted
-	newNow := testSetup.getNowFn().Add(retentionPeriod).Add(2 * blockSize)
+	newNow := testSetup.NowFn()().Add(retentionPeriod).Add(2 * blockSize)
 	testSetup.setNowFn(newNow)
 
 	// Check if files have been deleted

@@ -143,7 +143,7 @@ func TestFetchTaggedQuorumAddNodeOnlyLeavingInitializingUp(t *testing.T) {
 	defer closeFn()
 
 	require.NoError(t, nodes[0].StartServer())
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	writeTagged(t, nodes[0], nodes[3])
 
 	// No fetches succeed to available nodes
@@ -172,7 +172,7 @@ func TestFetchTaggedQuorumAddNodeOnlyOneNormalAndLeavingInitializingUp(t *testin
 
 	require.NoError(t, nodes[0].StartServer())
 	require.NoError(t, nodes[1].StartServer())
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	writeTagged(t, nodes[0], nodes[1], nodes[3])
 
 	// fetches succeed to one available node
@@ -205,7 +205,7 @@ func TestFetchTaggedQuorumAddNodeAllUp(t *testing.T) {
 	require.NoError(t, nodes[0].StartServer())
 	require.NoError(t, nodes[1].StartServer())
 	require.NoError(t, nodes[2].StartServer())
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	writeTagged(t, nodes...)
 
 	testFetch.assertContainsTaggedResult(t, topology.ReadConsistencyLevelOne,
@@ -291,7 +291,7 @@ func makeTestFetchTagged(
 		q, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 		require.NoError(t, err)
 
-		startTime := nodes[0].getNowFn()
+		startTime := nodes[0].NowFn()()
 		series, metadata, err := s.FetchTagged(testNamespaces[0],
 			index.Query{Query: q},
 			index.QueryOptions{
@@ -307,13 +307,13 @@ func makeTestFetchTagged(
 
 func writeTagged(
 	t *testing.T,
-	nodes ...*testSetup,
+	nodes ...TestSetup,
 ) {
 	ctx := context.NewContext()
 	defer ctx.BlockingClose()
 	for _, n := range nodes {
-		require.NoError(t, n.db.WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),
+		require.NoError(t, n.DB().WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),
 			ident.NewTagsIterator(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
-			n.getNowFn(), 42, xtime.Second, nil))
+			n.NowFn()(), 42, xtime.Second, nil))
 	}
 }

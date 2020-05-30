@@ -64,7 +64,7 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 	defer closeFn()
 
 	// Write test data
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 	blockSize := retentionOpts.BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
@@ -85,7 +85,7 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
+		setups.parallel(func(s TestSetup) {
 			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")

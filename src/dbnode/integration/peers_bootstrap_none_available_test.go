@@ -124,7 +124,7 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
+		setups.parallel(func(s TestSetup) {
 			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")

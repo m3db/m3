@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 
 	"github.com/stretchr/testify/require"
 )
@@ -66,19 +66,19 @@ func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOption
 
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
 
 	// Write test data
 	log.Info("generating data")
 	var (
-		now        = setup.getNowFn().Truncate(blockSize)
+		now        = setup.NowFn()().Truncate(blockSize)
 		seriesMaps = generateSeriesMaps(30, updateInputConfig, now.Add(-2*blockSize), now.Add(-blockSize))
 	)
 	log.Info("writing data")
@@ -98,7 +98,7 @@ func testCommitLogBootstrapWithSnapshots(t *testing.T, setTestOpts setTestOption
 	)
 
 	writeSnapshotsWithPredicate(
-		t, setup, commitLogOpts, seriesMaps, 0,ns1, nil, pred, snapshotInterval)
+		t, setup, commitLogOpts, seriesMaps, 0, ns1, nil, pred, snapshotInterval)
 
 	numDatapointsNotInCommitLogs := 0
 	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp generate.TestValue) bool {

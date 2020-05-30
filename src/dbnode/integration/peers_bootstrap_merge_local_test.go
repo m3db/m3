@@ -95,7 +95,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	defer closeFn()
 
 	// Write test data for first node, ensure to overflow past
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 	cutoverAt := now.Add(retentionOpts.BufferFuture())
 	completeAt := now.Add(180 * time.Second)
 	blockSize := retentionOpts.BlockSize()
@@ -202,7 +202,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
+		setups.parallel(func(s TestSetup) {
 			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")

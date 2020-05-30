@@ -206,7 +206,7 @@ func testRepair(
 
 	// Ensure that the current time is set such that the previous block is flushable.
 	blockSize := retentionOpts.BlockSize()
-	now := setups[0].getNowFn().Truncate(blockSize).Add(retentionOpts.BufferPast()).Add(time.Second)
+	now := setups[0].NowFn()().Truncate(blockSize).Add(retentionOpts.BufferPast()).Add(time.Second)
 	for _, setup := range setups {
 		setup.setNowFn(now)
 	}
@@ -223,7 +223,7 @@ func testRepair(
 	}
 
 	// Start the servers with filesystem bootstrappers.
-	setups.parallel(func(s *testSetup) {
+	setups.parallel(func(s TestSetup) {
 		if err := s.StartServer(); err != nil {
 			panic(err)
 		}
@@ -232,7 +232,7 @@ func testRepair(
 
 	// Stop the servers.
 	defer func() {
-		setups.parallel(func(s *testSetup) {
+		setups.parallel(func(s TestSetup) {
 			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
@@ -240,10 +240,10 @@ func testRepair(
 
 	require.True(t, waitUntil(func() bool {
 		for _, setup := range setups {
-			if err := checkFlushedDataFiles(setup.shardSet, setup.storageOpts, namesp.ID(), allData); err != nil {
+			if err := checkFlushedDataFiles(setup.shardSet, setup.StorageOpts(), namesp.ID(), allData); err != nil {
 				// Increment the time each time it fails to make sure background processes are able to proceed.
 				for _, s := range setups {
-					s.setNowFn(s.getNowFn().Add(time.Millisecond))
+					s.setNowFn(s.NowFn()().Add(time.Millisecond))
 				}
 				return false
 			}

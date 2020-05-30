@@ -143,8 +143,10 @@ type TestSetup interface {
 	AssertEqual(*testing.T, []generate.TestValue, []generate.TestValue) bool
 	DB() cluster.Database
 	M3DBClient() client.Client
+	M3DBVerificationAdminClient() client.AdminClient
 	Namespaces() []namespace.Metadata
 	TopologyInitializer() topology.Initializer
+	SetTopologyInitializer(topology.Initializer)
 	Fetch(req *rpc.FetchRequest) ([]generate.TestValue, error)
 	StorageOpts() storage.Options
 	SetStorageOpts(storage.Options)
@@ -152,12 +154,15 @@ type TestSetup interface {
 	ServerIsBootstrapped() bool
 	StopServer() error
 	StartServer() error
+	StartServerDontWaitBootstrap() error
 	NowFn() clock.NowFn
 	SetNowFn(time.Time)
 	Close()
 	WriteBatch(ident.ID, generate.SeriesBlock) error
 	ShouldBeEqual() bool
 	SleepFor10xTickMinimumInterval()
+	ShardSet() sharding.ShardSet
+	GeneratorOptions(retention.Options) generate.Options
 }
 
 type storageOption func(storage.Options) storage.Options
@@ -530,6 +535,10 @@ func (ts *testSetup) M3DBClient() client.Client {
 	return ts.m3dbClient
 }
 
+func (ts *testSetup) M3DBVerificationAdminClient() client.AdminClient {
+	return ts.m3dbVerificationAdminClient
+}
+
 func (ts *testSetup) Namespaces() []namespace.Metadata {
 	return ts.namespaces
 }
@@ -562,6 +571,14 @@ func (ts *testSetup) TopologyInitializer() topology.Initializer {
 	return ts.topoInit
 }
 
+func (ts *testSetup) SetTopologyInitializer(init topology.Initializer) {
+	ts.topoInit = init
+}
+
+func (ts *testSetup) ShardSet() sharding.ShardSet {
+	return ts.shardSet
+}
+
 func (ts *testSetup) namespaceMetadataOrFail(id ident.ID) namespace.Metadata {
 	for _, md := range ts.namespaces {
 		if md.ID().Equal(id) {
@@ -572,7 +589,7 @@ func (ts *testSetup) namespaceMetadataOrFail(id ident.ID) namespace.Metadata {
 	return nil
 }
 
-func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options {
+func (ts *testSetup) GeneratorOptions(ropts retention.Options) generate.Options {
 	var (
 		storageOpts = ts.storageOpts
 		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
@@ -626,7 +643,7 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 	return errServerStopTimedOut
 }
 
-func (ts *testSetup) startServerDontWaitBootstrap() error {
+func (ts *testSetup) StartServerDontWaitBootstrap() error {
 	return ts.startServerBase(false)
 }
 
@@ -663,7 +680,7 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 	}
 
 	// Check if clients were closed by StopServer and need to be re-created.
-	ts.maybeResetClients()
+	ts.MaybeResetClients()
 
 	go func() {
 		if err := openAndServe(
@@ -817,7 +834,7 @@ func (ts *testSetup) httpDebugAddr() string {
 	return *httpDebugAddr
 }
 
-func (ts *testSetup) maybeResetClients() error {
+func (ts *testSetup) MaybeResetClients() error {
 	if ts.m3dbClient == nil {
 		// Recreate the clients as their session was destroyed by StopServer()
 		adminClient, verificationAdminClient, err := newClients(

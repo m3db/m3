@@ -83,13 +83,13 @@ func TestIndexBlockFlush(t *testing.T) {
 		SetWriteNewSeriesAsync(true)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(
 		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
-	testSetup.storageOpts = testSetup.storageOpts.SetInstrumentOptions(
+	testSetup.StorageOpts() = testSetup.storageOpts.SetInstrumentOptions(
 		instrument.NewOptions().SetMetricsScope(scope))
 
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
@@ -101,7 +101,7 @@ func TestIndexBlockFlush(t *testing.T) {
 	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server

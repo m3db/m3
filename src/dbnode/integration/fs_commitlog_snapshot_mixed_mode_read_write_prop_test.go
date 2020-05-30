@@ -130,9 +130,9 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 				// Test setup
 				setup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, opts)
-				defer setup.close()
+				defer setup.Close()
 
-				log := setup.storageOpts.InstrumentOptions().Logger()
+				log := setup.StorageOpts().InstrumentOptions().Logger()
 				log.Sugar().Info("blockSize: %s\n", ns1ROpts.BlockSize().String())
 				log.Sugar().Info("bufferPast: %s\n", ns1ROpts.BufferPast().String())
 				log.Sugar().Info("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
@@ -148,7 +148,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					latestToCheck     = datapoints[len(datapoints)-1].time.Add(ns1BlockSize)
 					timesToRestart    = []time.Time{}
 					start             = earliestToCheck
-					filePathPrefix    = setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+					filePathPrefix    = setup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 				)
 
 				// Generate randomly selected times during which the node will restart
@@ -203,7 +203,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					if input.waitForFlushFiles {
 						log.Info("waiting for data files to be flushed")
 						var (
-							now                       = setup.getNowFn()
+							now                       = setup.NowFn()()
 							endOfLatestFlushableBlock = retention.FlushTimeEnd(ns1ROpts, now).
 								// Add block size because FlushTimeEnd will return the beginning of the
 								// latest flushable block.
@@ -221,7 +221,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 					if input.waitForSnapshotFiles {
 						log.Info("waiting for snapshot files to be written")
-						now := setup.getNowFn()
+						now := setup.NowFn()()
 						var snapshotBlock time.Time
 						if now.Add(-bufferPast).Truncate(ns1BlockSize).Equal(now.Truncate(ns1BlockSize)) {
 							snapshotBlock = now.Truncate(ns1BlockSize)
@@ -245,7 +245,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					// clean shutdown, so they can end up in a bad state where the persist
 					// manager is not idle and thus no more flushes can be done, even if
 					// there are no other in-progress flushes.
-					oldNow := setup.getNowFn()
+					oldNow := setup.NowFn()()
 					setup = newTestSetupWithCommitLogAndFilesystemBootstrapper(
 						// FilePathPrefix is randomly generated if not provided, so we need
 						// to make sure all our test setups have the same prefix so that

@@ -82,12 +82,12 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 
 	// Test setup
 	setup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, opts)
-	defer setup.close()
+	defer setup.Close()
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log & fileset files, write, read, and merge bootstrap test")
 
-	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	filePathPrefix := setup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// setting time to 2017/02/13 15:30:10
 	fakeStart := time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
@@ -150,7 +150,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	log.Info("database stopped")
 
 	// the time now is 18:55
-	setup.setNowFn(setup.getNowFn().Add(5 * time.Minute))
+	setup.setNowFn(setup.NowFn()().Add(5 * time.Minute))
 
 	// recreate the db from the data files and commit log
 	// should contain data from 15:30 - 17:59 on disk and 18:00 - 18:50 in mem
@@ -161,7 +161,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 	log.Info("verified data in database equals expected data")
 
 	// the time now is 19:15
-	setup.setNowFn(setup.getNowFn().Add(20 * time.Minute))
+	setup.setNowFn(setup.NowFn()().Add(20 * time.Minute))
 	// data from hour 15 is now outdated, ensure the file has been cleaned up
 	log.Info("waiting till expired fileset files have been cleanedup")
 	require.NoError(t, waitUntilFileSetFilesCleanedUp(setup, nsID, blkStart15, waitTimeout))
@@ -189,7 +189,7 @@ func testFsCommitLogMixedModeReadWrite(t *testing.T, setTestOpts setTestOptions,
 func startServerWithNewInspection(
 	t *testing.T,
 	opts TestOptions,
-	setup *testSetup,
+	setup TestSetup,
 ) {
 	setCommitLogAndFilesystemBootstrapper(t, opts, setup)
 	require.NoError(t, setup.StartServer())
@@ -205,7 +205,7 @@ func waitUntilFileSetFilesCleanedUp(
 		shardSet       = setup.shardSet
 		filesetFiles   = []cleanupTimesFileSet{}
 		commitLogFiles = cleanupTimesCommitLog{
-			clOpts: setup.storageOpts.CommitLogOptions(),
+			clOpts: setup.StorageOpts().CommitLogOptions(),
 		}
 	)
 	for _, id := range shardSet.AllIDs() {
@@ -228,17 +228,17 @@ func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestO
 	return setup
 }
 
-func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions, setup *testSetup) *testSetup {
-	commitLogOpts := setup.storageOpts.CommitLogOptions()
+func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions, setup TestSetup) TestSetup {
+	commitLogOpts := setup.StorageOpts().CommitLogOptions()
 	fsOpts := commitLogOpts.FilesystemOptions()
 
 	commitLogOpts = commitLogOpts.
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	// commit log bootstrapper
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bsOpts := newDefaulTestResultOptions(setup.StorageOpts())
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts).
@@ -252,7 +252,7 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions, setup
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
 
-	storageIdxOpts := setup.storageOpts.IndexOptions()
+	storageIdxOpts := setup.StorageOpts().IndexOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
@@ -265,14 +265,14 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts TestOptions, setup
 
 	// Need to make sure we have an active m3dbAdminClient because the previous one
 	// may have been shutdown by StopServer().
-	setup.maybeResetClients()
+	setup.MaybeResetClients()
 	// bootstrapper storage opts
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	processProvider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 	require.NoError(t, err)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
+	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(processProvider))
 
 	return setup
 }

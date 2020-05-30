@@ -119,10 +119,10 @@ func testIndexSingleNodeHighConcurrency(
 			return s
 		})
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server

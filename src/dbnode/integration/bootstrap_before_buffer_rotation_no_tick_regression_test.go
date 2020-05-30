@@ -88,18 +88,18 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
 	setup.mustSetTickMinimumInterval(100 * time.Millisecond)
 
 	// Setup the commitlog and write a single datapoint into it one second into the
 	// active block.
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
 
 	testID := ident.StringID("foo")
-	now := setup.getNowFn().Truncate(blockSize)
+	now := setup.NowFn()().Truncate(blockSize)
 	setup.setNowFn(now)
 	startTime := now
 	commitlogWrite := ts.Datapoint{
@@ -120,12 +120,12 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	// which does not bootstrap any data, but simply waits until it is signaled, allowing us
 	// to delay bootstrap completion until we've forced a tick to "hang". After the custom
 	// test bootstrapper completes, the commitlog bootstrapper will run.
-	bootstrapOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bootstrapOpts := newDefaulTestResultOptions(setup.StorageOpts())
 	bootstrapCommitlogOpts := bcl.NewOptions().
 		SetResultOptions(bootstrapOpts).
 		SetCommitLogOptions(commitLogOpts).
 		SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 	commitlogBootstrapperProvider, err := bcl.NewCommitLogBootstrapperProvider(
 		bootstrapCommitlogOpts, mustInspectFilesystem(fsOpts), nil)
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		SetOrigin(setup.origin)
 	process, err := bootstrap.NewProcessProvider(test, processOpts, bootstrapOpts)
 	require.NoError(t, err)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
+	setup.SetStorageOpts(setup.storageOpts.SetBootstrapProcessProvider(process))
 
 	// Start a background goroutine which will wait until the server is started,
 	// issue a single write into the active block, change the time to be far enough
@@ -172,7 +172,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 
 		// Set the tick interval to be so large we can "hang" a tick at the end, preventing
 		// it from completing until we're ready to "resume" it later.
-		runtimeMgr := setup.storageOpts.RuntimeOptionsManager()
+		runtimeMgr := setup.StorageOpts().RuntimeOptionsManager()
 		existingOptions := runtimeMgr.Get()
 		newOptions := existingOptions.SetTickMinimumInterval(2 * time.Hour)
 

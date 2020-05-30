@@ -76,18 +76,18 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	// Test setup
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.storageOpts.SetCommitLogOptions(commitLogOpts))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log + fs merge bootstrap test")
 
 	// generate and write test data
 	var (
-		t0 = setup.getNowFn()
+		t0 = setup.NowFn()()
 		t1 = t0.Add(ns1BlockSize)
 		t2 = t1.Add(ns1BlockSize)
 		t3 = t2.Add(ns1BlockSize)
@@ -120,12 +120,12 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 
 	// commit log bootstrapper (must be after writing out commitlog files so inspection finds files)
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bsOpts := newDefaulTestResultOptions(setup.StorageOpts())
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts).
 		SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 
 	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
@@ -133,7 +133,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	// fs bootstrapper
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
-	storageIdxOpts := setup.storageOpts.IndexOptions()
+	storageIdxOpts := setup.StorageOpts().IndexOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
@@ -149,7 +149,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	process, err := bootstrap.NewProcessProvider(
 		fsBootstrapper, processOpts, bsOpts)
 	require.NoError(t, err)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
+	setup.SetStorageOpts(setup.storageOpts.SetBootstrapProcessProvider(process))
 
 	log.Info("moving time forward and starting server")
 	setup.setNowFn(t3)

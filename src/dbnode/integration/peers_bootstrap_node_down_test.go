@@ -66,7 +66,7 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 	defer closeFn()
 
 	// Write test data for first node
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 	blockSize := retentionOpts.BlockSize()
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process

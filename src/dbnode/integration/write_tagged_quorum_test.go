@@ -264,7 +264,7 @@ func makeTestWriteTagged(
 		s, err := c.NewSession()
 		require.NoError(t, err)
 
-		now := nodes[0].getNowFn().Add(time.Minute)
+		now := nodes[0].NowFn()().Add(time.Minute)
 		return s.WriteTagged(testNamespaces[0], ident.StringID("quorumTest"),
 			ident.NewTagsIterator(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
 			now, 42, xtime.Second, nil)
@@ -295,7 +295,7 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
 
-	now := s.getNowFn()
+	now := s.NowFn()()
 	res, err := s.db.QueryIDs(ctx, nsCtx.ID, index.Query{Query: reQuery}, index.QueryOptions{
 		StartInclusive: now.Add(-2 * time.Minute),
 		EndExclusive:   now.Add(2 * time.Minute),
@@ -315,8 +315,8 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	dpFound := false
 
 	id := ident.StringID("quorumTest")
-	start := s.getNowFn()
-	end := s.getNowFn().Add(5 * time.Minute)
+	start := s.NowFn()()
+	end := s.NowFn()().Add(5 * time.Minute)
 	readers, err := s.db.ReadEncoded(ctx, nsCtx.ID, id, start, end)
 	require.NoError(t, err)
 

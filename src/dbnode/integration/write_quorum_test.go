@@ -231,7 +231,7 @@ func makeTestWrite(
 
 	nspaces := []namespace.Metadata{md}
 	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, false)
-	now := nodes[0].getNowFn()
+	now := nodes[0].NowFn()()
 
 	for _, node := range nodes {
 		node.opts = node.opts.SetNumShards(numShards)

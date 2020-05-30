@@ -43,12 +43,12 @@ func TestTruncateNamespace(t *testing.T) {
 	testOpts := NewTestOptions(t)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	blockSize := namespace.NewOptions().RetentionOptions().BlockSize()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("truncate namespace test")
 	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
@@ -60,7 +60,7 @@ func TestTruncateNamespace(t *testing.T) {
 	}()
 
 	// Write test data
-	now := testSetup.getNowFn()
+	now := testSetup.NowFn()()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []struct {
 		namespace ident.ID
@@ -77,7 +77,7 @@ func TestTruncateNamespace(t *testing.T) {
 		testSetup.setNowFn(input.conf.Start)
 		testData := generate.Block(input.conf)
 		seriesMaps[xtime.ToUnixNano(input.conf.Start)] = testData
-		require.NoError(t, testSetup.writeBatch(input.namespace, testData))
+		require.NoError(t, testSetup.WriteBatch(input.namespace, testData))
 	}
 	log.Debug("test data is now written")
 

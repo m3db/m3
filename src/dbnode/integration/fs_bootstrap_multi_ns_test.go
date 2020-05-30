@@ -61,17 +61,17 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
-		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
-	storageIdxOpts := setup.storageOpts.IndexOptions()
+		SetSeriesCachePolicy(setup.StorageOpts().SeriesCachePolicy())
+	storageIdxOpts := setup.StorageOpts().IndexOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
@@ -88,14 +88,14 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 
-	setup.storageOpts = setup.storageOpts.
+	setup.StorageOpts() = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 
 	log.Info("generating data")
 	// Write test data
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	ns1SeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-ns1BlockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},

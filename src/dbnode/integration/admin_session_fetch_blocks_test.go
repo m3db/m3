@@ -60,13 +60,13 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 	}
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
@@ -76,7 +76,7 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 	}()
 
 	// Write test data
-	now := testSetup.getNowFn()
+	now := testSetup.NowFn()()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
@@ -90,13 +90,13 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 		testSetup.setNowFn(start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(start)] = testData
-		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
+		require.NoError(t, testSetup.WriteBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
-	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	later := testSetup.getNowFn()
+	testSetup.setNowFn(testSetup.NowFn()().Add(blockSize * 2))
+	later := testSetup.NowFn()()
 	testSetup.SleepFor10xTickMinimumInterval()
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, testNamespaces[0], now, later)
@@ -108,23 +108,23 @@ func testAdminSessionFetchBlocksFromPeers(t *testing.T, setTestOpts setTestOptio
 
 func testSetupMetadatas(
 	t *testing.T,
-	testSetup *testSetup,
+	testSetup TestSetup,
 	namespace ident.ID,
 	start time.Time,
 	end time.Time,
 ) map[uint32][]block.ReplicaMetadata {
 	// Retrieve written data using the AdminSession APIs
 	// FetchMetadataBlocksFromPeers/FetchBlocksFromPeers
-	adminClient := testSetup.m3dbVerificationAdminClient
+	adminClient := testSetup.M3DBVerificationAdminClient()
 	level := topology.ReadConsistencyLevelMajority
 	metadatasByShard, err := m3dbClientFetchBlocksMetadata(adminClient,
-		namespace, testSetup.shardSet.AllIDs(), start, end, level)
+		namespace, testSetup.ShardSet().AllIDs(), start, end, level)
 	require.NoError(t, err)
 	return metadatasByShard
 }
 
 func filterSeriesByShard(
-	testSetup *testSetup,
+	testSetup TestSetup,
 	seriesMap map[xtime.UnixNano]generate.SeriesBlock,
 	desiredShards []uint32,
 ) map[xtime.UnixNano]generate.SeriesBlock {
@@ -132,7 +132,7 @@ func filterSeriesByShard(
 	for blockStart, series := range seriesMap {
 		filteredSeries := make([]generate.Series, 0, len(series))
 		for _, serie := range series {
-			shard := testSetup.shardSet.Lookup(serie.ID)
+			shard := testSetup.ShardSet().Lookup(serie.ID)
 			for _, ss := range desiredShards {
 				if ss == shard {
 					filteredSeries = append(filteredSeries, serie)
@@ -200,16 +200,16 @@ func verifySeriesMapsEqual(
 
 func testSetupToSeriesMaps(
 	t *testing.T,
-	testSetup *testSetup,
+	testSetup TestSetup,
 	nsMetadata namespace.Metadata,
 	metadatasByShard map[uint32][]block.ReplicaMetadata,
 ) map[xtime.UnixNano]generate.SeriesBlock {
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
 	seriesMap := make(map[xtime.UnixNano]generate.SeriesBlock)
-	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts)
-	consistencyLevel := testSetup.storageOpts.RepairOptions().RepairConsistencyLevel()
-	iterPool := testSetup.storageOpts.ReaderIteratorPool()
-	session, err := testSetup.m3dbVerificationAdminClient.DefaultAdminSession()
+	resultOpts := newDefaulTestResultOptions(testSetup.StorageOpts())
+	consistencyLevel := testSetup.StorageOpts().RepairOptions().RepairConsistencyLevel()
+	iterPool := testSetup.StorageOpts().ReaderIteratorPool()
+	session, err := testSetup.M3DBVerificationAdminClient().DefaultAdminSession()
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	nsCtx := namespace.NewContextFrom(nsMetadata)

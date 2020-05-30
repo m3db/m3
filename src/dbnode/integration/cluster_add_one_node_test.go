@@ -159,7 +159,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	}
 
 	var (
-		now        = setups[0].getNowFn()
+		now        = setups[0].NowFn()()
 		blockStart = now
 		blockSize  = namesp.Options().RetentionOptions().BlockSize()
 		seriesMaps = generate.BlocksByStart([]generate.BlockConfig{
@@ -212,7 +212,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 
 	// Stop the servers on test completion.
 	defer func() {
-		setups.parallel(func(s *testSetup) {
+		setups.parallel(func(s TestSetup) {
 			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
@@ -227,7 +227,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 			time.Sleep(time.Second)
 			for _, setup := range setups {
 				now = now.Add(time.Second)
-				setup.setNowFn(now)
+				setup.SetNowFn(now)
 			}
 		}
 	}()
@@ -261,7 +261,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	doneWritingWhilePeerStreaming := make(chan struct{})
 	go func() {
 		for _, testData := range seriesReceivedDuringPeerStreaming {
-			err := setups[1].writeBatch(namesp.ID(), testData)
+			err := setups[1].WriteBatch(namesp.ID(), testData)
 			// We expect consistency errors because we're only running with
 			// R.F = 2 and one node is leaving and one node is joining for
 			// each of the shards that is changing hands.
@@ -273,7 +273,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	}()
 
 	log.Debug("waiting for shards to be bootstrapped")
-	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
+	waitUntilHasBootstrappedShardsExactly(setups[1].DB(), testutil.Uint32Range(midShard+1, maxShard))
 
 	log.Debug("waiting for background writes to complete")
 	<-doneWritingWhilePeerStreaming
@@ -315,8 +315,8 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	log.Debug("resharding to shed shards from first node")
 	svc.SetInstances(instances.added)
 	svcs.NotifyServiceUpdate("m3db")
-	waitUntilHasBootstrappedShardsExactly(setups[0].db, testutil.Uint32Range(minShard, midShard))
-	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
+	waitUntilHasBootstrappedShardsExactly(setups[0].DB(), testutil.Uint32Range(minShard, midShard))
+	waitUntilHasBootstrappedShardsExactly(setups[1].DB(), testutil.Uint32Range(midShard+1, maxShard))
 
 	log.Debug("verifying data in servers matches expected data set")
 
@@ -340,7 +340,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 		topoOpts := topology.NewDynamicOptions().
 			SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 		topoInit := topology.NewDynamicInitializer(topoOpts)
-		setups[1].topoInit = topoInit
+		setups[1].SetTopologyInitializer(topoInit)
 
 		// Start the server that performed peer streaming with only the filesystem and
 		// commitlog bootstrapper and make sure it has all the expected data.

@@ -59,13 +59,13 @@ func TestDiskCleanupIndex(t *testing.T) {
 	// Test setup
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
 	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
-	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	filePathPrefix := setup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("disk index cleanup test")
 	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
@@ -79,11 +79,11 @@ func TestDiskCleanupIndex(t *testing.T) {
 	// Now create some fileset files
 	numTimes := 10
 	fileTimes := make([]time.Time, numTimes)
-	now := setup.getNowFn().Truncate(idxBlockSize)
+	now := setup.NowFn()().Truncate(idxBlockSize)
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * idxBlockSize)
 	}
-	writeIndexFileSetFiles(t, setup.storageOpts, md, fileTimes)
+	writeIndexFileSetFiles(t, setup.StorageOpts(), md, fileTimes)
 
 	deltaNow := now.Add(time.Minute)
 	filesets, err := fs.IndexFileSetsBefore(filePathPrefix, md.ID(), deltaNow)

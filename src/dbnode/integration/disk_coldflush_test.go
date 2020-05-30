@@ -55,15 +55,15 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	testSetup, err := newTestSetup(t, testOpts, nil)
 
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	md := testSetup.namespaceMetadataOrFail(nsID)
 	ropts := md.Options().RetentionOptions()
 	blockSize := ropts.BlockSize()
-	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	filePathPrefix := testSetup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server.
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("disk coldflush test")
 	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
@@ -75,7 +75,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	}()
 
 	// Write warm data first so that cold data will flush.
-	start := testSetup.getNowFn()
+	start := testSetup.NowFn()()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	warmData := []generate.BlockConfig{
 		{IDs: []string{"warm1", "warm2"}, NumPoints: 100, Start: start},
@@ -129,7 +129,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 		testSetup.setNowFn(input.Start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
-		require.NoError(t, testSetup.writeBatch(nsID, testData))
+		require.NoError(t, testSetup.WriteBatch(nsID, testData))
 	}
 	startPlusOneBlockNano := xtime.ToUnixNano(start.Add(blockSize))
 	// Remove warm data for `coldOverwrite`. See earlier comment for context.
@@ -140,12 +140,12 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
-	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
+	testSetup.setNowFn(testSetup.NowFn()().Add(blockSize * 2))
 	maxWaitTime := time.Minute
 	require.NoError(t, waitUntilFileSetFilesExist(filePathPrefix, expectedDataFiles, maxWaitTime))
 
 	// Verify on-disk data match what we expect.
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, nsID, seriesMaps)
+	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.StorageOpts(), nsID, seriesMaps)
 
 	coldData := []generate.BlockConfig{
 		{IDs: []string{"cold0"}, NumPoints: 80, Start: start.Add(-blockSize)},
@@ -157,7 +157,7 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	for _, input := range coldData {
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = append(seriesMaps[xtime.ToUnixNano(input.Start)], testData...)
-		require.NoError(t, testSetup.writeBatch(nsID, testData))
+		require.NoError(t, testSetup.WriteBatch(nsID, testData))
 	}
 	log.Debug("cold data is now written")
 
@@ -238,5 +238,5 @@ func TestDiskColdFlushSimple(t *testing.T) {
 	require.NoError(t, waitUntilFileSetFilesExist(filePathPrefix, expectedDataFiles, maxWaitTime))
 
 	// Verify on-disk data match what we expect
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, nsID, seriesMaps)
+	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.StorageOpts(), nsID, seriesMaps)
 }

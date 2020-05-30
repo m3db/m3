@@ -75,7 +75,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	// Write test data for first node
 	// Write test data
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 
 	fooSeries := generate.Series{
 		ID:   ident.StringID("foo"),
@@ -129,7 +129,7 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
+		setups.parallel(func(s TestSetup) {
 			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")

@@ -65,14 +65,14 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	// Test setup
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
 
-	storageIdxOpts := setup.storageOpts.IndexOptions()
+	storageIdxOpts := setup.StorageOpts().IndexOptions()
 	compactor, err := compaction.NewCompactor(storageIdxOpts.DocumentArrayPool(),
 		index.DocumentArrayPoolCapacity,
 		storageIdxOpts.SegmentBuilderOptions(),
@@ -89,7 +89,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
-		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
+		SetSeriesCachePolicy(setup.StorageOpts().SeriesCachePolicy())
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
@@ -104,11 +104,11 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 
-	setup.storageOpts = setup.storageOpts.
+	setup.StorageOpts() = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)
 
 	// Write test data
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 
 	fooSeries := generate.Series{
 		ID:   ident.StringID("foo"),
@@ -156,7 +156,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(ns2, setup, nil, 0))
 
 	// Start the server with filesystem bootstrapper
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("filesystem bootstrap test")
 	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")

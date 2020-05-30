@@ -41,14 +41,14 @@ func TestDiskFlushSimple(t *testing.T) {
 		SetTickMinimumInterval(time.Second)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	filePathPrefix := testSetup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("disk flush test")
 	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
@@ -60,7 +60,7 @@ func TestDiskFlushSimple(t *testing.T) {
 	}()
 
 	// Write test data
-	now := testSetup.getNowFn()
+	now := testSetup.NowFn()()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
@@ -70,17 +70,17 @@ func TestDiskFlushSimple(t *testing.T) {
 		testSetup.setNowFn(input.Start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
-		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
+		require.NoError(t, testSetup.WriteBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
 
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
-	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
+	testSetup.setNowFn(testSetup.NowFn()().Add(blockSize * 2))
 	maxWaitTime := time.Minute
 	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, maxWaitTime))
 
 	// Verify on-disk data match what we expect
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], seriesMaps)
+	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.StorageOpts(), testNamespaces[0], seriesMaps)
 }
