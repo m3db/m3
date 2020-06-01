@@ -1004,7 +1004,7 @@ func (b *block) EvictMutableSegments() error {
 		return fmt.Errorf("unable to evict mutable segments, block must be sealed, found: %v", b.state)
 	}
 
-	b.mutableSegments.Evict()
+	b.mutableSegments.Close()
 
 	// Close any other mutable segments that was added.
 	multiErr := xerrors.NewMultiError()
@@ -1046,7 +1046,7 @@ func (b *block) EvictColdMutableSegments() error {
 	// Evict/remove all but the most recent cold mutable segment (That is the one we are actively writing to).
 	for i, coldSeg := range b.coldMutableSegments {
 		if i < len(b.coldMutableSegments)-1 {
-			coldSeg.Evict()
+			coldSeg.Close()
 			b.coldMutableSegments[i] = nil
 		}
 	}
