@@ -1895,7 +1895,7 @@ func newNamespaceIndexMetrics(
 		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
-			tally.MustMakeExponentialValueBuckets(10, 10, 7),
+			tally.MustMakeExponentialValueBuckets(10, 2, 16),
 		),
 	}
 }
