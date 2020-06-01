@@ -30,6 +30,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,7 +44,7 @@ func GeneratePromReadRequest() *prompb.ReadRequest {
 				EndTimestampMs:   time.Now().UnixNano() / int64(time.Millisecond),
 				Matchers: []*prompb.LabelMatcher{
 					&prompb.LabelMatcher{
-						Name:  []byte("__name__"),
+						Name:  []byte(model.MetricNameLabel),
 						Value: []byte("first"),
 						Type:  prompb.LabelMatcher_EQ,
 					},

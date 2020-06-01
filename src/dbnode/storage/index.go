@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -586,7 +587,6 @@ func (i *nsIndex) writeBatches(
 		blockSize                  = i.blockSize
 		futureLimit                = now.Add(1 * i.bufferFuture)
 		pastLimit                  = now.Add(-1 * i.bufferPast)
-		warmBlockStart             = now.Truncate(i.blockSize)
 		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
 		batchOptions               = batch.Options()
 		forwardIndexDice           = i.forwardIndexDice
@@ -651,23 +651,11 @@ func (i *nsIndex) writeBatches(
 				return
 			}
 
-			if ts.Before(pastLimit) {
+			if ts.Before(pastLimit) && !i.coldWritesEnabled {
 				// NB(bodu): We only mark entries as too far in the past if
 				// cold writes are not enabled.
-				if !i.coldWritesEnabled {
-					batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
-					return
-				}
-				// We allow index writes that are between mutable block start and
-				// start of buffer past to go through.
-				if ts.Before(warmBlockStart) {
-					// NB(bodu): When we mark a index cold write with a <nil> error
-					// we are recording an indexing attempt for this series and will not
-					// attempt to index the series again. This is correct for cold index writes
-					// because they are not handled in warm index writes path.
-					batch.MarkUnmarkedEntryError(nil, idx)
-					return
-				}
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+				return
 			}
 
 			if forwardIndexEnabled {
@@ -817,7 +805,6 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 	var (
 		result                     = namespaceIndexTickResult{}
 		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, startTime)
-		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, startTime.Add(-i.bufferPast))
 	)
 
 	i.state.Lock()
@@ -851,7 +838,7 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 		result.NumTotalDocs += blockTickResult.NumDocs
 
 		// seal any blocks that are sealable
-		if !blockStart.ToTime().After(lastSealableBlockStart) && !block.IsSealed() {
+		if !blockStart.ToTime().After(i.lastSealableBlockStart(startTime)) && !block.IsSealed() {
 			multiErr = multiErr.Add(block.Seal())
 			result.NumBlocksSealed++
 		}
@@ -860,11 +847,11 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 	return result, multiErr.FinalError()
 }
 
-func (i *nsIndex) Flush(
+func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
 ) error {
-	flushable, err := i.flushableBlocks(shards)
+	flushable, err := i.flushableBlocks(shards, series.WarmWrite)
 	if err != nil {
 		return err
 	}
@@ -910,8 +897,29 @@ func (i *nsIndex) Flush(
 	return nil
 }
 
+func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
+	flushable, err := i.flushableBlocks(shards, series.ColdWrite)
+	if err != nil {
+		return nil, err
+	}
+	// We only rotate cold mutable segments in phase I of cold flushing.
+	for _, block := range flushable {
+		block.RotateColdMutableSegments()
+	}
+	// We can't immediately evict cold mutable segments so we return a callback to do so
+	// when cold flush finishes.
+	return func() error {
+		multiErr := xerrors.NewMultiError()
+		for _, block := range flushable {
+			multiErr = multiErr.Add(block.EvictColdMutableSegments())
+		}
+		return multiErr.FinalError()
+	}, nil
+}
+
 func (i *nsIndex) flushableBlocks(
 	shards []databaseShard,
+	flushType series.WriteType,
 ) ([]index.Block, error) {
 	i.state.RLock()
 	defer i.state.RUnlock()
@@ -920,7 +928,7 @@ func (i *nsIndex) flushableBlocks(
 	}
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 	for _, block := range i.state.blocksByTime {
-		canFlush, err := i.canFlushBlock(block, shards)
+		canFlush, err := i.canFlushBlock(block, shards, flushType)
 		if err != nil {
 			return nil, err
 		}
@@ -935,11 +943,19 @@ func (i *nsIndex) flushableBlocks(
 func (i *nsIndex) canFlushBlock(
 	block index.Block,
 	shards []databaseShard,
+	flushType series.WriteType,
 ) (bool, error) {
 	// Check the block needs flushing because it is sealed and has
-	// any mutable segments that need to be evicted from memory
-	if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
-		return false, nil
+	// any mutable/cold mutable segments that need to be evicted from memory.
+	switch flushType {
+	case series.WarmWrite:
+		if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
+			return false, nil
+		}
+	case series.ColdWrite:
+		if !block.NeedsColdMutableSegmentsEvicted() {
+			return false, nil
+		}
 	}
 
 	// Check all data files exist for the shards we own
@@ -1548,12 +1564,24 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 		return nil, i.unableToAllocBlockInvariantError(err)
 	}
 
+	// NB(bodu): Use same time barrier as `Tick` to make sealing of cold index blocks consistent.
+	// We need to seal cold blocks write away for cold writes.
+	if !blockStart.After(i.lastSealableBlockStart(i.nowFn())) {
+		if err := block.Seal(); err != nil {
+			return nil, err
+		}
+	}
+
 	// add to tracked blocks map
 	i.state.blocksByTime[blockStartNanos] = block
 
 	// update ordered blockStarts slice, and latestBlock
 	i.updateBlockStartsWithLock()
 	return block, nil
+}
+
+func (i *nsIndex) lastSealableBlockStart(t time.Time) time.Time {
+	return retention.FlushTimeEndForBlockSize(i.blockSize, t.Add(-i.bufferPast))
 }
 
 func (i *nsIndex) updateBlockStartsWithLock() {

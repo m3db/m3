@@ -50,7 +50,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/promql"
+	promql "github.com/prometheus/prometheus/promql/parser"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -174,6 +174,8 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		handleroptions.AddWarningHeaders(w, readResult.Meta)
+
 		err = json.NewEncoder(w).Encode(result)
 	default:
 		err = WriteSnappyCompressed(w, readResult, logger)
@@ -287,6 +289,7 @@ func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
+	var vectorsInspected []*promql.VectorSelector
 	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
 		var (
 			start         = queryStart
@@ -300,9 +303,31 @@ func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
 				start = start.Add(-1 * n.Range)
 			}
 
-			offset = n.Offset
-			labelMatchers = n.LabelMatchers
+			vectorSelector := n.VectorSelector.(*promql.VectorSelector)
+
+			// Check already inspected (matrix can be walked further into
+			// child vector selector).
+			for _, existing := range vectorsInspected {
+				if existing == vectorSelector {
+					return nil // Already inspected.
+				}
+			}
+
+			vectorsInspected = append(vectorsInspected, vectorSelector)
+
+			offset = vectorSelector.Offset
+			labelMatchers = vectorSelector.LabelMatchers
 		} else if n, ok := node.(*promql.VectorSelector); ok {
+			// Check already inspected (matrix can be walked further into
+			// child vector selector).
+			for _, existing := range vectorsInspected {
+				if existing == n {
+					return nil // Already inspected.
+				}
+			}
+
+			vectorsInspected = append(vectorsInspected, n)
+
 			offset = n.Offset
 			labelMatchers = n.LabelMatchers
 		} else {
