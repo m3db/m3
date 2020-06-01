@@ -388,8 +388,8 @@ asset-gen-$(SUBDIR): install-tools
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
-	@PATH=$(combined_bin_paths):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
+		PATH=$(combined_bin_paths):$(PATH) GO111MODULE=on make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
+	@PATH=$(combined_bin_paths):$(PATH) GO111MODULE=on bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
 license-gen-$(SUBDIR): install-tools
