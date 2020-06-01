@@ -221,3 +221,17 @@ func (mr *MockSamplesAppenderMockRecorder) AppendGaugeTimedSample(arg0, arg1 int
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendGaugeTimedSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendGaugeTimedSample), arg0, arg1)
 }
+
+// AppendTimerTimedSample mocks base method
+func (m *MockSamplesAppender) AppendTimerTimedSample(arg0 time.Time, arg1 float64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppendTimerTimedSample", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AppendTimerTimedSample indicates an expected call of AppendTimerTimedSample
+func (mr *MockSamplesAppenderMockRecorder) AppendTimerTimedSample(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendTimerTimedSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendTimerTimedSample), arg0, arg1)
+}
