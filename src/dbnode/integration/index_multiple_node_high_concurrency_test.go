@@ -90,7 +90,7 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 					insertWg       sync.WaitGroup
 					numTotalErrors uint32
 				)
-				now := nodes[0].db.Options().ClockOptions().NowFn()()
+				now := nodes[0].DB().Options().ClockOptions().NowFn()()
 				start := time.Now()
 				log.Info("starting data write")
 
