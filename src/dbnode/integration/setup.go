@@ -95,7 +95,7 @@ var _ topology.MapProvider = &testSetup{}
 
 type testSetup struct {
 	t         *testing.T
-	opts      testOptions
+	opts      TestOptions
 	schemaReg namespace.SchemaRegistry
 
 	logger *zap.Logger
@@ -139,35 +139,57 @@ type testSetup struct {
 type TestSetup interface {
 	topology.MapProvider
 
-	Opts() testOptions
+	Opts() TestOptions
+	SetOpts(TestOptions)
+	FilesystemOpts() fs.Options
 	AssertEqual(*testing.T, []generate.TestValue, []generate.TestValue) bool
 	DB() cluster.Database
+	Scope() tally.TestScope
+	M3DBClient() client.Client
+	M3DBVerificationAdminClient() client.AdminClient
+	Namespaces() []namespace.Metadata
 	TopologyInitializer() topology.Initializer
+	SetTopologyInitializer(topology.Initializer)
 	Fetch(req *rpc.FetchRequest) ([]generate.TestValue, error)
+	FilePathPrefix() string
 	StorageOpts() storage.Options
 	SetStorageOpts(storage.Options)
 	Origin() topology.Host
 	ServerIsBootstrapped() bool
 	StopServer() error
 	StartServer() error
+	StartServerDontWaitBootstrap() error
 	NowFn() clock.NowFn
 	SetNowFn(time.Time)
 	Close()
 	WriteBatch(ident.ID, generate.SeriesBlock) error
 	ShouldBeEqual() bool
 	SleepFor10xTickMinimumInterval()
+	BlockLeaseManager() block.LeaseManager
+	ShardSet() sharding.ShardSet
+	SetShardSet(sharding.ShardSet)
+	GeneratorOptions(retention.Options) generate.Options
+	MaybeResetClients() error
+	SchemaRegistry() namespace.SchemaRegistry
+	NamespaceMetadataOrFail(ident.ID) namespace.Metadata
+	MustSetTickMinimumInterval(time.Duration)
+	WaitUntilServerIsBootstrapped() error
+	WaitUntilServerIsUp() error
+	WaitUntilServerIsDown() error
+	Truncate(*rpc.TruncateRequest) (int64, error)
 }
 
 type storageOption func(storage.Options) storage.Options
 
-func newTestSetup(
+// NewTestSetup returns a new test setup for non-dockerized integration tests.
+func NewTestSetup(
 	t *testing.T,
-	opts testOptions,
+	opts TestOptions,
 	fsOpts fs.Options,
 	storageOptFns ...storageOption,
-) (*testSetup, error) {
+) (TestSetup, error) {
 	if opts == nil {
-		opts = newTestOptions(t)
+		opts = NewTestOptions(t)
 	}
 
 	nsInit := opts.NamespaceInitializer()
@@ -514,6 +536,22 @@ func (ts *testSetup) DB() cluster.Database {
 	return ts.db
 }
 
+func (ts *testSetup) Scope() tally.TestScope {
+	return ts.scope
+}
+
+func (ts *testSetup) M3DBClient() client.Client {
+	return ts.m3dbClient
+}
+
+func (ts *testSetup) M3DBVerificationAdminClient() client.AdminClient {
+	return ts.m3dbVerificationAdminClient
+}
+
+func (ts *testSetup) Namespaces() []namespace.Metadata {
+	return ts.namespaces
+}
+
 func (ts *testSetup) NowFn() clock.NowFn {
 	return ts.getNowFn
 }
@@ -522,12 +560,24 @@ func (ts *testSetup) SetNowFn(t time.Time) {
 	ts.setNowFn(t)
 }
 
-func (ts *testSetup) Opts() testOptions {
+func (ts *testSetup) FilesystemOpts() fs.Options {
+	return ts.fsOpts
+}
+
+func (ts *testSetup) Opts() TestOptions {
 	return ts.opts
+}
+
+func (ts *testSetup) SetOpts(opts TestOptions) {
+	ts.opts = opts
 }
 
 func (ts *testSetup) Origin() topology.Host {
 	return ts.origin
+}
+
+func (ts *testSetup) FilePathPrefix() string {
+	return ts.filePathPrefix
 }
 
 func (ts *testSetup) StorageOpts() storage.Options {
@@ -542,7 +592,23 @@ func (ts *testSetup) TopologyInitializer() topology.Initializer {
 	return ts.topoInit
 }
 
-func (ts *testSetup) namespaceMetadataOrFail(id ident.ID) namespace.Metadata {
+func (ts *testSetup) SetTopologyInitializer(init topology.Initializer) {
+	ts.topoInit = init
+}
+
+func (ts *testSetup) BlockLeaseManager() block.LeaseManager {
+	return ts.blockLeaseManager
+}
+
+func (ts *testSetup) ShardSet() sharding.ShardSet {
+	return ts.shardSet
+}
+
+func (ts *testSetup) SetShardSet(shardSet sharding.ShardSet) {
+	ts.shardSet = shardSet
+}
+
+func (ts *testSetup) NamespaceMetadataOrFail(id ident.ID) namespace.Metadata {
 	for _, md := range ts.namespaces {
 		if md.ID().Equal(id) {
 			return md
@@ -552,7 +618,7 @@ func (ts *testSetup) namespaceMetadataOrFail(id ident.ID) namespace.Metadata {
 	return nil
 }
 
-func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options {
+func (ts *testSetup) GeneratorOptions(ropts retention.Options) generate.Options {
 	var (
 		storageOpts = ts.storageOpts
 		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
@@ -585,28 +651,28 @@ func (ts *testSetup) ServerIsDown() bool {
 	return !ts.ServerIsUp()
 }
 
-func (ts *testSetup) waitUntilServerIsBootstrapped() error {
+func (ts *testSetup) WaitUntilServerIsBootstrapped() error {
 	if waitUntil(ts.ServerIsBootstrapped, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStartTimedOut
 }
 
-func (ts *testSetup) waitUntilServerIsUp() error {
+func (ts *testSetup) WaitUntilServerIsUp() error {
 	if waitUntil(ts.ServerIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStopTimedOut
 }
 
-func (ts *testSetup) waitUntilServerIsDown() error {
+func (ts *testSetup) WaitUntilServerIsDown() error {
 	if waitUntil(ts.ServerIsDown, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
 	return errServerStopTimedOut
 }
 
-func (ts *testSetup) startServerDontWaitBootstrap() error {
+func (ts *testSetup) StartServerDontWaitBootstrap() error {
 	return ts.startServerBase(false)
 }
 
@@ -642,8 +708,8 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 		return err
 	}
 
-	// Check if clients were closed by stopServer and need to be re-created.
-	ts.maybeResetClients()
+	// Check if clients were closed by StopServer and need to be re-created.
+	ts.MaybeResetClients()
 
 	go func() {
 		if err := openAndServe(
@@ -660,9 +726,9 @@ func (ts *testSetup) startServerBase(waitForBootstrap bool) error {
 		ts.closedCh <- struct{}{}
 	}()
 
-	waitFn := ts.waitUntilServerIsUp
+	waitFn := ts.WaitUntilServerIsUp
 	if waitForBootstrap {
-		waitFn = ts.waitUntilServerIsBootstrapped
+		waitFn = ts.WaitUntilServerIsBootstrapped
 	}
 	go func() {
 		select {
@@ -694,7 +760,7 @@ func (ts *testSetup) StopServer() error {
 		defer session.Close()
 	}
 
-	if err := ts.waitUntilServerIsDown(); err != nil {
+	if err := ts.WaitUntilServerIsDown(); err != nil {
 		return err
 	}
 
@@ -723,7 +789,7 @@ func (ts *testSetup) Fetch(req *rpc.FetchRequest) ([]generate.TestValue, error) 
 	return m3dbClientFetch(ts.m3dbClient, req)
 }
 
-func (ts *testSetup) truncate(req *rpc.TruncateRequest) (int64, error) {
+func (ts *testSetup) Truncate(req *rpc.TruncateRequest) (int64, error) {
 	if ts.opts.UseTChannelClientForTruncation() {
 		return ts.tchannelClient.TChannelClientTruncate(ts.opts.TruncateRequestTimeout(), req)
 	}
@@ -743,7 +809,7 @@ func (ts *testSetup) Close() {
 	}
 }
 
-func (ts *testSetup) mustSetTickMinimumInterval(tickMinInterval time.Duration) {
+func (ts *testSetup) MustSetTickMinimumInterval(tickMinInterval time.Duration) {
 	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
 	existingOptions := runtimeMgr.Get()
 	newOptions := existingOptions.SetTickMinimumInterval(tickMinInterval)
@@ -797,9 +863,9 @@ func (ts *testSetup) httpDebugAddr() string {
 	return *httpDebugAddr
 }
 
-func (ts *testSetup) maybeResetClients() error {
+func (ts *testSetup) MaybeResetClients() error {
 	if ts.m3dbClient == nil {
-		// Recreate the clients as their session was destroyed by stopServer()
+		// Recreate the clients as their session was destroyed by StopServer()
 		adminClient, verificationAdminClient, err := newClients(
 			ts.topoInit, ts.opts, ts.schemaReg, ts.hostID, ts.tchannelNodeAddr())
 		if err != nil {
@@ -813,11 +879,15 @@ func (ts *testSetup) maybeResetClients() error {
 	return nil
 }
 
+func (ts *testSetup) SchemaRegistry() namespace.SchemaRegistry {
+	return ts.schemaReg
+}
+
 // Implements topology.MapProvider, and makes sure that the topology
 // map provided always comes from the most recent database in the testSetup
-// since they get\ recreated everytime startServer/stopServer is called and
+// since they get\ recreated everytime StartServer/StopServer is called and
 // are not available (nil value) after creation but before the first call
-// to startServer.
+// to StartServer.
 func (ts *testSetup) TopologyMap() (topology.Map, error) {
 	return ts.db.TopologyMap()
 }
@@ -828,7 +898,7 @@ func newOrigin(id string, tchannelNodeAddr string) topology.Host {
 
 func newClients(
 	topoInit topology.Initializer,
-	opts testOptions,
+	opts TestOptions,
 	schemaReg namespace.SchemaRegistry,
 	id,
 	tchannelNodeAddr string,
@@ -905,7 +975,7 @@ func newNodes(
 ) (testSetups, topology.Initializer, closeFn) {
 	var (
 		log  = zap.L()
-		opts = newTestOptions(t).
+		opts = NewTestOptions(t).
 			SetNamespaces(nspaces).
 			SetTickMinimumInterval(3 * time.Second).
 			SetWriteNewSeriesAsync(asyncInserts).

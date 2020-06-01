@@ -55,7 +55,7 @@ func testCommitLogBootstrap(t *testing.T, setTestOpts setTestOptions, updateInpu
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 	if setTestOpts != nil {
 		opts = setTestOpts(t, opts)
@@ -63,20 +63,20 @@ func testCommitLogBootstrap(t *testing.T, setTestOpts setTestOptions, updateInpu
 		ns2 = opts.Namespaces()[1]
 	}
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
 
 	// Write test data
 	log.Info("generating data")
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	seriesMaps := generateSeriesMaps(30, updateInputConfig, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data")
 	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1, false)
@@ -85,14 +85,14 @@ func testCommitLogBootstrap(t *testing.T, setTestOpts setTestOptions, updateInpu
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
-	setup.setNowFn(now)
+	setup.SetNowFn(now)
 	// Start the server with filesystem bootstrapper
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 

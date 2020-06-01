@@ -57,30 +57,30 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	md2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
 	require.NoError(t, err)
 
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second).
 		SetNamespaces([]namespace.Metadata{md1, md2})
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
-	shardSet := testSetup.shardSet
+	shardSet := testSetup.ShardSet()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("disk flush test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 
 	// Write test data
 	var (
-		currBlock                         = testSetup.getNowFn().Truncate(blockSize)
+		currBlock                         = testSetup.NowFn()().Truncate(blockSize)
 		now                               = currBlock.Add(11 * time.Minute)
 		assertTimeAllowsWritesToAllBlocks = func(ti time.Time) {
 			// Make sure now is within bufferPast of the previous block
@@ -91,7 +91,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	)
 
 	assertTimeAllowsWritesToAllBlocks(now)
-	testSetup.setNowFn(now)
+	testSetup.SetNowFn(now)
 
 	var (
 		seriesMaps = make(map[xtime.UnixNano]generate.SeriesBlock)
@@ -107,8 +107,8 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	for _, input := range inputData {
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start.Truncate(blockSize))] = testData
-		for _, ns := range testSetup.namespaces {
-			require.NoError(t, testSetup.writeBatch(ns.ID(), testData))
+		for _, ns := range testSetup.Namespaces() {
+			require.NoError(t, testSetup.WriteBatch(ns.ID(), testData))
 		}
 	}
 
@@ -119,13 +119,13 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	// minimum time between snapshots), and then waiting for the snapshot files with
 	// the measured volume index + 1.
 	var (
-		snapshotsToWaitForByNS = make([][]snapshotID, 0, len(testSetup.namespaces))
-		filePathPrefix         = testSetup.storageOpts.
+		snapshotsToWaitForByNS = make([][]snapshotID, 0, len(testSetup.Namespaces()))
+		filePathPrefix         = testSetup.StorageOpts().
 					CommitLogOptions().
 					FilesystemOptions().
 					FilePathPrefix()
 	)
-	for _, ns := range testSetup.namespaces {
+	for _, ns := range testSetup.Namespaces() {
 		snapshotsToWaitForByNS = append(snapshotsToWaitForByNS, []snapshotID{
 			{
 				blockStart: currBlock.Add(-blockSize),
@@ -145,26 +145,26 @@ func TestDiskSnapshotSimple(t *testing.T) {
 		})
 	}
 
-	now = testSetup.getNowFn().Add(2 * time.Minute)
+	now = testSetup.NowFn()().Add(2 * time.Minute)
 	assertTimeAllowsWritesToAllBlocks(now)
-	testSetup.setNowFn(now)
+	testSetup.SetNowFn(now)
 
 	maxWaitTime := time.Minute
-	for i, ns := range testSetup.namespaces {
+	for i, ns := range testSetup.Namespaces() {
 		log.Info("waiting for snapshot files to flush")
 		require.NoError(t, waitUntilSnapshotFilesFlushed(
 			filePathPrefix, shardSet, ns.ID(), snapshotsToWaitForByNS[i], maxWaitTime))
 		log.Info("verifying snapshot files")
-		verifySnapshottedDataFiles(t, shardSet, testSetup.storageOpts, ns.ID(), seriesMaps)
+		verifySnapshottedDataFiles(t, shardSet, testSetup.StorageOpts(), ns.ID(), seriesMaps)
 	}
 
 	var (
-		oldTime = testSetup.getNowFn()
+		oldTime = testSetup.NowFn()()
 		newTime = oldTime.Add(blockSize * 2)
 	)
-	testSetup.setNowFn(newTime)
+	testSetup.SetNowFn(newTime)
 
-	for _, ns := range testSetup.namespaces {
+	for _, ns := range testSetup.Namespaces() {
 		log.Info("waiting for new snapshot files to be written out")
 		snapshotsToWaitFor := []snapshotID{{blockStart: newTime.Truncate(blockSize)}}
 		require.NoError(t, waitUntilSnapshotFilesFlushed(
@@ -174,7 +174,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 			waitUntil(func() bool {
 				// Increase the time each check to ensure that the filesystem processes are able to progress (some
 				// of them throttle themselves based on time elapsed since the previous time.)
-				testSetup.setNowFn(testSetup.getNowFn().Add(10 * time.Second))
+				testSetup.SetNowFn(testSetup.NowFn()().Add(10 * time.Second))
 				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime.Truncate(blockSize))
 				require.NoError(t, err)
 				return !exists

@@ -33,7 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type setTestOptions func(t *testing.T, testOpts testOptions) testOptions
+type setTestOptions func(t *testing.T, testOpts TestOptions) TestOptions
 
 func TestRoundtrip(t *testing.T) {
 	testRoundtrip(t, nil, nil)
@@ -49,7 +49,7 @@ func setProtoTestInputConfig(inputData []generate.BlockConfig) {
 	}
 }
 
-func setProtoTestOptions(t *testing.T, testOpts testOptions) testOptions {
+func setProtoTestOptions(t *testing.T, testOpts TestOptions) TestOptions {
 	var namespaces []namespace.Metadata
 	for _, nsMeta := range testOpts.Namespaces() {
 		nsOpts := nsMeta.Options().SetSchemaHistory(testSchemaHistory)
@@ -85,14 +85,14 @@ func testRoundtrip(t *testing.T, setTestOpts setTestOptions, updateInputConfig g
 	// 	t.SkipNow() // Just skip if we're doing a short run
 	// }
 	// Test setup
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second).
 		SetUseTChannelClientForReading(false).
 		SetUseTChannelClientForWriting(false)
 	if setTestOpts != nil {
 		testOpts = setTestOpts(t, testOpts)
 	}
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.Close()
 

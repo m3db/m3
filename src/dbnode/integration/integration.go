@@ -75,7 +75,7 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 	return false
 }
 
-func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
+func newMultiAddrTestOptions(opts TestOptions, instance int) TestOptions {
 	bind := "127.0.0.1"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
 	return opts.
@@ -137,7 +137,7 @@ func newDefaulTestResultOptions(
 
 func newDefaultBootstrappableTestSetups(
 	t *testing.T,
-	opts testOptions,
+	opts TestOptions,
 	setupOpts []bootstrappableTestSetupOptions,
 ) (testSetups, closeFn) {
 	var (
@@ -206,7 +206,7 @@ func newDefaultBootstrappableTestSetups(
 			SetClusterDatabaseTopologyInitializer(topologyInitializer).
 			SetUseTChannelClientForWriting(useTChannelClientForWriting)
 
-		setup, err := newTestSetup(t, instanceOpts, nil)
+		setup, err := NewTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
 		topologyInitializer = setup.TopologyInitializer()
 
@@ -274,7 +274,7 @@ func newDefaultBootstrappableTestSetups(
 				SetFilesystemOptions(fsOpts).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
-				SetPersistManager(setup.storageOpts.PersistManager()).
+				SetPersistManager(setup.StorageOpts().PersistManager()).
 				SetCompactor(newCompactor(t, storageIdxOpts)).
 				SetRuntimeOptionsManager(runtimeOptsMgr).
 				SetContextPool(setup.StorageOpts().ContextPool())
@@ -334,27 +334,27 @@ func newDefaultBootstrappableTestSetups(
 
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
-	setup *testSetup,
+	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume)
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
+	return writer.WriteData(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume)
 }
 
 func writeTestSnapshotsToDiskWithPredicate(
 	metadata namespace.Metadata,
-	setup *testSetup,
+	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
 	pred generate.WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume, pred, snapshotInterval)
+		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

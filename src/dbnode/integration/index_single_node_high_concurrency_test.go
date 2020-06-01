@@ -106,12 +106,12 @@ func testIndexSingleNodeHighConcurrency(
 			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)))
 	require.NoError(t, err)
 
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
 		SetWriteNewSeriesAsync(true).
 		// Use default time functions (server time not frozen).
 		SetNowFn(time.Now)
-	testSetup, err := newTestSetup(t, testOpts, nil,
+	testSetup, err := NewTestSetup(t, testOpts, nil,
 		func(s storage.Options) storage.Options {
 			if opts.skipWrites {
 				return s.SetDoNotIndexWithFieldsMap(map[string]string{"skip": "true"})
@@ -119,19 +119,19 @@ func testIndexSingleNodeHighConcurrency(
 			return s
 		})
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 
-	client := testSetup.m3dbClient
+	client := testSetup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 
@@ -140,7 +140,7 @@ func testIndexSingleNodeHighConcurrency(
 		numTotalErrors  = atomic.NewUint32(0)
 		numTotalSuccess = atomic.NewUint32(0)
 	)
-	nowFn := testSetup.db.Options().ClockOptions().NowFn()
+	nowFn := testSetup.DB().Options().ClockOptions().NowFn()
 	start := time.Now()
 	log.Info("starting data write",
 		zap.Time("serverTime", nowFn()))
@@ -206,7 +206,7 @@ func testIndexSingleNodeHighConcurrency(
 	multiplyByConcurrency := multiplyBy(opts.concurrencyEnqueueWorker)
 	expectNumIndex := multiplyByConcurrency(numIndexTotal)
 	indexProcess := xclock.WaitUntil(func() bool {
-		counters := testSetup.scope.Snapshot().Counters()
+		counters := testSetup.Scope().Snapshot().Counters()
 		counter, ok := counters[expectStatProcess]
 		if !ok {
 			return false
@@ -214,7 +214,7 @@ func testIndexSingleNodeHighConcurrency(
 		return int(counter.Value()) == expectNumIndex
 	}, time.Minute)
 
-	counters := testSetup.scope.Snapshot().Counters()
+	counters := testSetup.Scope().Snapshot().Counters()
 	counter, ok := counters[expectStatProcess]
 
 	var value int
@@ -269,7 +269,7 @@ func testIndexSingleNodeHighConcurrency(
 		fmt.Sprintf("not indexed errors: %v", notIndexedErrs[:min(5, len(notIndexedErrs))]))
 
 	// Make sure attempted total indexing = skipped + written.
-	counters = testSetup.scope.Snapshot().Counters()
+	counters = testSetup.Scope().Snapshot().Counters()
 	totalSkippedWritten := 0
 	for _, expectID := range []string{
 		expectStatPrefix + "stage=skip",
