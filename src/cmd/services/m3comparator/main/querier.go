@@ -46,10 +46,11 @@ import (
 var _ m3.Querier = (*querier)(nil)
 
 type querier struct {
-	iteratorOpts      iteratorOptions
-	handler           seriesLoadHandler
-	blockSize         time.Duration
-	defaultResolution time.Duration
+	iteratorOpts         iteratorOptions
+	handler              seriesLoadHandler
+	blockSize            time.Duration
+	defaultResolution    time.Duration
+	histogramBucketCount uint
 	sync.Mutex
 }
 
@@ -58,6 +59,7 @@ func newQuerier(
 	handler seriesLoadHandler,
 	blockSize time.Duration,
 	defaultResolution time.Duration,
+	histogramBucketCount uint,
 ) (*querier, error) {
 	if blockSize <= 0 {
 		return nil, fmt.Errorf("blockSize must be positive, got %d", blockSize)
@@ -66,10 +68,11 @@ func newQuerier(
 		return nil, fmt.Errorf("defaultResolution must be positive, got %d", defaultResolution)
 	}
 	return &querier{
-		iteratorOpts:      iteratorOpts,
-		handler:           handler,
-		blockSize:         blockSize,
-		defaultResolution: defaultResolution,
+		iteratorOpts:         iteratorOpts,
+		handler:              handler,
+		blockSize:            blockSize,
+		defaultResolution:    defaultResolution,
+		histogramBucketCount: histogramBucketCount,
 	}, nil
 }
 
@@ -85,15 +88,22 @@ type series struct {
 func (q *querier) generateSeriesBlock(
 	start time.Time,
 	resolution time.Duration,
+	integerValues bool,
 ) seriesBlock {
 	numPoints := int(q.blockSize / resolution)
 	dps := make(seriesBlock, 0, numPoints)
 	for i := 0; i < numPoints; i++ {
 		stamp := start.Add(resolution * time.Duration(i))
+		var value float64
+		if integerValues {
+			value = float64(rand.Intn(1000))
+		} else {
+			value = rand.Float64()
+		}
 		dp := ts.Datapoint{
 			Timestamp:      stamp,
 			TimestampNanos: xtime.ToUnixNano(stamp),
-			Value:          rand.Float64(),
+			Value:          value,
 		}
 
 		dps = append(dps, dp)
@@ -107,6 +117,7 @@ func (q *querier) generateSeries(
 	end time.Time,
 	resolution time.Duration,
 	tags parser.Tags,
+	integerValues bool,
 ) (series, error) {
 	numBlocks := int(math.Ceil(float64(end.Sub(start)) / float64(q.blockSize)))
 	if numBlocks == 0 {
@@ -115,7 +126,7 @@ func (q *querier) generateSeries(
 
 	blocks := make([]seriesBlock, 0, numBlocks)
 	for i := 0; i < numBlocks; i++ {
-		blocks = append(blocks, q.generateSeriesBlock(start, resolution))
+		blocks = append(blocks, q.generateSeriesBlock(start, resolution, integerValues))
 		start = start.Add(q.blockSize)
 	}
 
@@ -216,6 +227,10 @@ func (q *querier) generateRandomSeries(
 				series, err = q.generateMultiSeriesMetrics(string(matcher.Value), start, end)
 				return
 			}
+			if matched, _ := regexp.Match(`^histogram_\d+_bucket$`, matcher.Value); matched {
+				series, err = q.generateHistogramMetrics(string(matcher.Value), start, end)
+				return
+			}
 		}
 	}
 
@@ -239,9 +254,8 @@ func (q *querier) generateSingleSeriesMetrics(
 		actualGens []seriesGen
 	)
 
-	q.Lock()
-	defer q.Unlock()
-	rand.Seed(start.Unix())
+	unlock := q.lockAndSeed(start)
+	defer unlock()
 
 	metricNameTag := q.iteratorOpts.tagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
@@ -287,7 +301,7 @@ func (q *querier) generateSingleSeriesMetrics(
 			parser.NewTag("name", gen.name),
 		}
 
-		series, err := q.generateSeries(start, end, gen.res, tags)
+		series, err := q.generateSeries(start, end, gen.res, tags, false)
 		if err != nil {
 			return nil, err
 		}
@@ -309,20 +323,14 @@ func (q *querier) generateMultiSeriesMetrics(
 		return nil, err
 	}
 
-	q.Lock()
-	defer q.Unlock()
-	rand.Seed(start.Unix())
+	unlock := q.lockAndSeed(start)
+	defer unlock()
 
 	seriesList := make([]series, 0, seriesCount)
-	for i := 0; i < seriesCount; i++ {
-		tags := parser.Tags{
-			parser.NewTag(model.MetricNameLabel, metricsName),
-			parser.NewTag("id", strconv.Itoa(i)),
-			parser.NewTag("parity", strconv.Itoa(i%2)),
-			parser.NewTag("const", "x"),
-		}
+	for id := 0; id < seriesCount; id++ {
+		tags := multiSeriesTags(metricsName, id)
 
-		series, err := q.generateSeries(start, end, q.defaultResolution, tags)
+		series, err := q.generateSeries(start, end, q.defaultResolution, tags, false)
 		if err != nil {
 			return nil, err
 		}
@@ -331,6 +339,71 @@ func (q *querier) generateMultiSeriesMetrics(
 	}
 
 	return seriesList, nil
+}
+
+func (q *querier) generateHistogramMetrics(
+	metricsName string,
+	start time.Time,
+	end time.Time,
+) ([]series, error) {
+	suffix := strings.TrimPrefix(metricsName, "histogram_")
+	countStr := strings.TrimSuffix(suffix, "_bucket")
+	seriesCount, err := strconv.Atoi(countStr)
+	if err != nil {
+		return nil, err
+	}
+
+	unlock := q.lockAndSeed(start)
+	defer unlock()
+
+	seriesList := make([]series, 0, seriesCount)
+	for id := 0; id < seriesCount; id++ {
+		le := 1.0
+		var previousSeriesBlocks []seriesBlock
+		for bucket := uint(0); bucket < q.histogramBucketCount; bucket++ {
+			tags := multiSeriesTags(metricsName, id)
+			leStr := "+Inf"
+			if bucket < q.histogramBucketCount - 1 {
+				leStr = strconv.FormatFloat(le, 'f', -1, 64)
+			}
+			leTag := parser.NewTag("le", leStr)
+			tags = append(tags, leTag)
+			le *= 10
+
+			series, err := q.generateSeries(start, end, q.defaultResolution, tags, true)
+			if err != nil {
+				return nil, err
+			}
+
+			for i, prevBlock := range previousSeriesBlocks {
+				for j, prevValue := range prevBlock {
+					series.blocks[i][j].Value += prevValue.Value
+				}
+			}
+
+			seriesList = append(seriesList, series)
+
+			previousSeriesBlocks = series.blocks
+		}
+	}
+
+	return seriesList, nil
+}
+
+func multiSeriesTags(metricsName string, id int) parser.Tags {
+	return parser.Tags{
+		parser.NewTag(model.MetricNameLabel, metricsName),
+		parser.NewTag("id", strconv.Itoa(id)),
+		parser.NewTag("parity", strconv.Itoa(id%2)),
+		parser.NewTag("const", "x"),
+	}
+}
+
+func (q *querier) lockAndSeed(start time.Time) func() {
+	q.Lock()
+	rand.Seed(start.Unix())
+
+	return q.Unlock
 }
 
 // SearchCompressed fetches matching tags based on a query.
