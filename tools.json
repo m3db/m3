@@ -22,7 +22,7 @@
     },
     {
       "Repository": "github.com/fossas/fossa-cli/cmd/fossa",
-      "Commit": "638f9f79fac6fd4b4fa2eb575d1faea4c5d04807"
+      "Commit": "09c02d600ff887c45e98ddee975a857b6e0fae6c"
     },
     {
       "Repository": "github.com/pointlander/peg",
