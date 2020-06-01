@@ -1359,6 +1359,8 @@ func (i *nsIndex) queryWithSpan(
 		}
 	}
 
+	i.metrics.loadedDocsPerQuery.RecordValue(float64(results.Size()))
+
 	state.Lock()
 	// Take reference to vars to return while locked.
 	exhaustive := state.exhaustive
@@ -1844,6 +1846,8 @@ type nsIndexMetrics struct {
 	insertEndToEndLatency        tally.Timer
 	blocksEvictedMutableSegments tally.Counter
 	blockMetrics                 nsIndexBlocksMetrics
+
+	loadedDocsPerQuery tally.Histogram
 }
 
 func newNamespaceIndexMetrics(
@@ -1889,6 +1893,10 @@ func newNamespaceIndexMetrics(
 			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
 		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
+		loadedDocsPerQuery: scope.Histogram(
+			"loaded-docs-per-query",
+			tally.MustMakeExponentialValueBuckets(10, 10, 7),
+		),
 	}
 }
 
