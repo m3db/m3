@@ -122,7 +122,7 @@ imports:
   subpackages:
   - spew
 - name: github.com/dgrijalva/jwt-go
-  version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
+  version: 06ea1031745cb8b3dab3f6a236daf2b0aa468b7e
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - name: github.com/fortytw2/leaktest
@@ -656,6 +656,72 @@ imports:
   version: 01c8dd416270f424ab0c40f9291e269ac6921964
   subpackages:
   - models
+- name: github.com/ory/dockertest
+  version: 2b0896a948c60f3207381d9fc259d0fc13227c30
+  subpackages:
+  - docker
+  - docker/opts
+  - docker/pkg/archive
+  - docker/pkg/fileutils
+  - docker/pkg/homedir
+  - docker/pkg/idtools
+  - docker/pkg/ioutils
+  - docker/pkg/jsonmessage
+  - docker/pkg/longpath
+  - docker/pkg/mount
+  - docker/pkg/pools
+  - docker/pkg/stdcopy
+  - docker/pkg/system
+  - docker/pkg/term
+  - docker/pkg/term/windows
+  - docker/types
+  - docker/types/blkiodev
+  - docker/types/container
+  - docker/types/filters
+  - docker/types/mount
+  - docker/types/network
+  - docker/types/registry
+  - docker/types/strslice
+  - docker/types/versions
+- name: github.com/Nvveen/Gotty
+  version: cd527374f1e5bff4938207604a14f2e38a9cf512
+- name: github.com/cenkalti/backoff
+  version: 4b4cebaf850ec58f1bb1fec5bdebdf8501c2bc3f
+- name: github.com/containerd/continuity
+  version: d3ef23f19fbb106bb73ffde425d07a9187e30745
+  subpackages:
+  - pathdriver
+- name: github.com/docker/go-connections
+  version: 7dc0a2d6ddce55257ea8851e23b4fb9ef44fd4a0
+  subpackages:
+  - nat
+- name: github.com/docker/go-units
+  version: 519db1ee28dcc9fd2474ae59fca29a810482bfb1
+- name: github.com/dustin/go-humanize
+  version: 9f541cc9db5d55bce703bd99987c9d5cb8eea45e
+- name: github.com/go-errors/errors
+  version: f104a1a5b4a1de5bfaa5e014832524601ef20dce
+- name: github.com/oleiade/reflections
+  version: 2b6ec3da648e3e834dc41bad8d9ed7f2dc6a9496
+- name: github.com/opencontainers/go-digest
+  version: 4b560741809dd10de7b455081e356258c70270d0
+- name: github.com/opencontainers/image-spec
+  version: 79b036d80240ae530a8de15e1d21c7ab9292c693
+  subpackages:
+  - specs-go
+  - specs-go/v1
+- name: github.com/opencontainers/runc
+  version: a57358e016658164c1b8669ec278f9d3eafb9147
+  subpackages:
+  - libcontainer/user
+- name: github.com/sirupsen/logrus
+  version: ba1b36c82c5e05c4f912a88eab0dcd91a171688f
+- name: github.com/soheilhy/cmux
+  version: 8a8ea3c53959009183d7914522833c1ed8835020
+- name: github.com/tmc/grpc-websocket-proxy
+  version: 3419fae592fc8d7d2dab776d0e88d6f624ccd4d8
+  subpackages:
+  - wsproxy
 testImports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 98d31706395aaac22e29676617f2ee37bee55b5a
