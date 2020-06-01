@@ -137,8 +137,8 @@ type RunOptions struct {
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
 
-	// QueryStatsTracker exposes an interface for tracking query stats.
-	QueryStatsTracker stats.QueryStatsTracker
+	// QueryStatsTrackerFn returns a tracker for tracking query stats.
+	QueryStatsTrackerFn func(instrument.Options) stats.QueryStatsTracker
 
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
@@ -409,9 +409,11 @@ func Run(runOpts RunOptions) {
 	defer stopReporting()
 
 	// Setup query stats tracking.
-	tracker := runOpts.QueryStatsTracker
-	if runOpts.QueryStatsTracker == nil {
+	var tracker stats.QueryStatsTracker
+	if runOpts.QueryStatsTrackerFn == nil {
 		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
+	} else {
+		tracker = runOpts.QueryStatsTrackerFn(iopts)
 	}
 	queryStats := stats.NewQueryStats(tracker)
 	queryStats.Start()
@@ -633,8 +635,13 @@ func Run(runOpts RunOptions) {
 		tchannelOpts.MaxIdleTime = cfg.TChannel.MaxIdleTime
 		tchannelOpts.IdleCheckInterval = cfg.TChannel.IdleCheckInterval
 	}
+	tchanOpts := ttnode.NewOptions(tchannelOpts).
+		SetInstrumentOptions(opts.InstrumentOptions())
+	if fn := runOpts.StorageOptions.TChanNodeServerFn; fn != nil {
+		tchanOpts = tchanOpts.SetTChanNodeServerFn(fn)
+	}
 	tchannelthriftNodeClose, err := ttnode.NewServer(service,
-		cfg.ListenAddress, contextPool, tchannelOpts).ListenAndServe()
+		cfg.ListenAddress, contextPool, tchanOpts).ListenAndServe()
 	if err != nil {
 		logger.Fatal("could not open tchannelthrift interface",
 			zap.String("address", cfg.ListenAddress), zap.Error(err))

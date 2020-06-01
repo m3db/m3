@@ -59,8 +59,7 @@ const (
 type mutableSegments struct {
 	sync.RWMutex
 
-	state              mutableSegmentsState
-	hasEvictedAnyTimes bool
+	state mutableSegmentsState
 
 	foregroundSegments []*readableSeg
 	backgroundSegments []*readableSeg
@@ -243,13 +242,6 @@ func (m *mutableSegments) NeedsEviction() bool {
 	return needsEviction
 }
 
-func (m *mutableSegments) Evict() {
-	m.Lock()
-	defer m.Unlock()
-	m.hasEvictedAnyTimes = true
-	m.cleanupCompactWithLock()
-}
-
 func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 	var (
 		numSegments, numDocs int64
@@ -334,12 +326,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 }
 
 func (m *mutableSegments) shouldEvictCompactedSegmentsWithLock() bool {
-	// NB(r): The frozen/compacted segments are derived segments of the
-	// active mutable segment, if we ever evict that segment then
-	// we don't need the frozen/compacted segments either and should
-	// shed them from memory.
-	return m.state == mutableSegmentsStateClosed ||
-		m.hasEvictedAnyTimes
+	return m.state == mutableSegmentsStateClosed
 }
 
 func (m *mutableSegments) cleanupBackgroundCompactWithLock() {
@@ -350,12 +337,12 @@ func (m *mutableSegments) cleanupBackgroundCompactWithLock() {
 	}
 
 	// Check if need to close all the compacted segments due to
-	// having evicted mutable segments or the block being closed.
+	// mutableSegments being closed.
 	if !m.shouldEvictCompactedSegmentsWithLock() {
 		return
 	}
 
-	// Evict compacted segments.
+	// Close compacted segments.
 	m.closeCompactedSegments(m.backgroundSegments)
 	m.backgroundSegments = nil
 
@@ -685,13 +672,13 @@ func (m *mutableSegments) foregroundCompactWithTask(
 }
 
 func (m *mutableSegments) cleanupForegroundCompactWithLock() {
-	// Check if we need to close all the compacted segments due to
-	// having evicted mutable segments or the block being closed.
+	// Check if need to close all the compacted segments due to
+	// mutableSegments being closed.
 	if !m.shouldEvictCompactedSegmentsWithLock() {
 		return
 	}
 
-	// Evict compacted segments.
+	// Close compacted segments.
 	m.closeCompactedSegments(m.foregroundSegments)
 	m.foregroundSegments = nil
 

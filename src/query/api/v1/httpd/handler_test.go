@@ -97,6 +97,7 @@ func setupHandler(
 		engine,
 		nil,
 		nil,
+		nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration},
 		nil,
 		nil,
@@ -128,6 +129,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		downsamplerAndWriter,
 		makeTagOptions(),
 		engine,
+		nil,
 		nil,
 		nil,
 		cfg,
@@ -175,29 +177,55 @@ func TestPromRemoteReadPost(t *testing.T) {
 }
 
 func TestPromNativeReadGet(t *testing.T) {
-	req := httptest.NewRequest("GET", native.PromReadURL, nil)
-	res := httptest.NewRecorder()
-	ctrl := gomock.NewController(t)
-	storage, _ := m3.NewStorageAndSession(t, ctrl)
+	tests := []struct {
+		routePrefix string
+	}{
+		{""},
+		{"/prometheus"},
+		{"/m3query"},
+	}
 
-	h, err := setupHandler(storage)
-	require.NoError(t, err, "unable to setup handler")
-	h.RegisterRoutes()
-	h.Router().ServeHTTP(res, req)
-	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
+	for _, tt := range tests {
+		url := tt.routePrefix + native.PromReadURL
+		t.Run("Testing endpoint GET "+url, func(t *testing.T) {
+			req := httptest.NewRequest("GET", url, nil)
+			res := httptest.NewRecorder()
+			ctrl := gomock.NewController(t)
+			storage, _ := m3.NewStorageAndSession(t, ctrl)
+
+			h, err := setupHandler(storage)
+			require.NoError(t, err, "unable to setup handler")
+			h.RegisterRoutes()
+			h.Router().ServeHTTP(res, req)
+			require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
+		})
+	}
 }
 
 func TestPromNativeReadPost(t *testing.T) {
-	req := httptest.NewRequest("POST", native.PromReadURL, nil)
-	res := httptest.NewRecorder()
-	ctrl := gomock.NewController(t)
-	storage, _ := m3.NewStorageAndSession(t, ctrl)
+	tests := []struct {
+		routePrefix string
+	}{
+		{""},
+		{"/prometheus"},
+		{"/m3query"},
+	}
 
-	h, err := setupHandler(storage)
-	require.NoError(t, err, "unable to setup handler")
-	h.RegisterRoutes()
-	h.Router().ServeHTTP(res, req)
-	require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
+	for _, tt := range tests {
+		url := tt.routePrefix + native.PromReadURL
+		t.Run("Testing endpoint GET "+url, func(t *testing.T) {
+			req := httptest.NewRequest("POST", url, nil)
+			res := httptest.NewRecorder()
+			ctrl := gomock.NewController(t)
+			storage, _ := m3.NewStorageAndSession(t, ctrl)
+
+			h, err := setupHandler(storage)
+			require.NoError(t, err, "unable to setup handler")
+			h.RegisterRoutes()
+			h.Router().ServeHTTP(res, req)
+			require.Equal(t, http.StatusBadRequest, res.Code, "Empty request")
+		})
+	}
 }
 
 func TestJSONWritePost(t *testing.T) {
@@ -368,7 +396,7 @@ func TestCustomRoutes(t *testing.T) {
 	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
 	engine := newEngine(store, time.Minute, nil, instrumentOpts)
 	opts, err := options.NewHandlerOptions(
-		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil,
+		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, nil,
 		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,

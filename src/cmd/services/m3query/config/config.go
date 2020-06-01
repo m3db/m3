@@ -64,6 +64,8 @@ const (
 		"More information is available here: %s"
 
 	defaultQueryTimeout = 30 * time.Second
+
+	defaultPrometheusMaxSamplesPerQuery = 100000000
 )
 
 var (
@@ -154,6 +156,9 @@ type Configuration struct {
 	// stanza not able to startup the binary since we parse YAML in strict mode
 	// by default).
 	DeprecatedCache CacheConfiguration `yaml:"cache"`
+
+	// MultiProcess is the multi-process configuration.
+	MultiProcess MultiProcessConfiguration `yaml:"multiProcess"`
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
@@ -202,7 +207,9 @@ type ResultOptions struct {
 
 // QueryConfiguration is the query configuration.
 type QueryConfiguration struct {
-	Timeout *time.Duration `yaml:"timeout"`
+	Timeout       *time.Duration               `yaml:"timeout"`
+	DefaultEngine string                       `yaml:"defaultEngine"`
+	Prometheus    PrometheusQueryConfiguration `yaml:"prometheus"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
@@ -211,6 +218,20 @@ func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
 		return *v
 	}
 	return defaultQueryTimeout
+}
+
+// PrometheusQueryConfiguration is the prometheus query engine configuration.
+type PrometheusQueryConfiguration struct {
+	// MaxSamplesPerQuery is the limit on fetched samples per query.
+	MaxSamplesPerQuery *int `yaml:"maxSamplesPerQuery"`
+}
+
+// MaxSamplesPerQueryOrDefault returns the max samples per query or default.
+func (c PrometheusQueryConfiguration) MaxSamplesPerQueryOrDefault() int {
+	if v := c.MaxSamplesPerQuery; v != nil {
+		return *v
+	}
+	return defaultPrometheusMaxSamplesPerQuery
 }
 
 // LimitsConfiguration represents limitations on resource usage in the query
@@ -542,4 +563,21 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 // ExperimentalAPIConfiguration is the configuration for the experimental API group.
 type ExperimentalAPIConfiguration struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+// MultiProcessConfiguration is the multi-process configuration which
+// allows running multiple sub-processes of an instance reusing the
+// same listen ports.
+type MultiProcessConfiguration struct {
+	// Enabled is whether to enable multi-process execution.
+	Enabled bool `yaml:"enabled"`
+	// Count is the number of sub-processes to run, leave zero
+	// to auto-detect based on number of CPUs.
+	Count int `yaml:"count" validate:"min=0"`
+	// PerCPU is the factor of processes to run per CPU, leave
+	// zero to use the default of 0.5 per CPU (i.e. one process for
+	// every two CPUs).
+	PerCPU float64 `yaml:"perCPU" validate:"min=0.0, max=0.0"`
+	// GoMaxProcs if set will explicitly set the child GOMAXPROCs env var.
+	GoMaxProcs int `yaml:"goMaxProcs"`
 }

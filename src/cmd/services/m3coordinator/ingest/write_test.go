@@ -112,9 +112,24 @@ var (
 	testAnnotation1 = []byte("first")
 	testAnnotation2 = []byte("second")
 
+	testAttributesGauge = ts.SeriesAttributes{
+		Type: ts.MetricTypeGauge,
+	}
+	testAttributesCounter = ts.SeriesAttributes{
+		Type: ts.MetricTypeCounter,
+	}
+	testAttributesTimer = ts.SeriesAttributes{
+		Type: ts.MetricTypeTimer,
+	}
+
 	testEntries = []testIterEntry{
-		{tags: testTags1, datapoints: testDatapoints1, annotation: testAnnotation1},
-		{tags: testTags2, datapoints: testDatapoints2, annotation: testAnnotation2},
+		{tags: testTags1, datapoints: testDatapoints1, attributes: testAttributesGauge, annotation: testAnnotation1},
+		{tags: testTags2, datapoints: testDatapoints2, attributes: testAttributesGauge, annotation: testAnnotation2},
+	}
+
+	testEntries2 = []testIterEntry{
+		{tags: testTags1, datapoints: testDatapoints1, attributes: testAttributesCounter, annotation: testAnnotation1},
+		{tags: testTags2, datapoints: testDatapoints2, attributes: testAttributesTimer, annotation: testAnnotation2},
 	}
 
 	defaultOverride = WriteOptions{}
@@ -131,6 +146,7 @@ type testIterEntry struct {
 	tags       models.Tags
 	datapoints []ts.Datapoint
 	annotation []byte
+	attributes ts.SeriesAttributes
 }
 
 func newTestIter(entries []testIterEntry) *testIter {
@@ -145,13 +161,13 @@ func (i *testIter) Next() bool {
 	return i.idx < len(i.entries)
 }
 
-func (i *testIter) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
+func (i *testIter) Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte) {
 	if len(i.entries) == 0 || i.idx < 0 || i.idx >= len(i.entries) {
-		return models.EmptyTags(), nil, 0, nil
+		return models.EmptyTags(), nil, ts.DefaultSeriesAttributes(), 0, nil
 	}
 
 	curr := i.entries[i.idx]
-	return curr.tags, curr.datapoints, xtime.Second, curr.annotation
+	return curr.tags, curr.datapoints, curr.attributes, xtime.Second, curr.annotation
 }
 
 func (i *testIter) Reset() error {
@@ -362,6 +378,52 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	}
 
 	iter := newTestIter(testEntries)
+	err := downAndWrite.WriteBatch(context.Background(), iter, WriteOptions{})
+	require.NoError(t, err)
+}
+
+func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	downAndWrite, downsampler, session := newTestDownsamplerAndWriter(t, ctrl,
+		testDownsamplerAndWriterOptions{})
+
+	var (
+		mockSamplesAppender = downsample.NewMockSamplesAppender(ctrl)
+		mockMetricsAppender = downsample.NewMockMetricsAppender(ctrl)
+	)
+
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(zeroDownsamplerAppenderOpts).
+		Return(mockSamplesAppender, nil).Times(2)
+	for _, tag := range testTags1.Tags {
+		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+	}
+	for _, dp := range testDatapoints1 {
+		mockSamplesAppender.EXPECT().AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
+	}
+	for _, tag := range testTags2.Tags {
+		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
+	}
+	for _, dp := range testDatapoints2 {
+		mockSamplesAppender.EXPECT().AppendTimerTimedSample(dp.Timestamp, dp.Value)
+	}
+	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
+
+	mockMetricsAppender.EXPECT().Reset().Times(2)
+	mockMetricsAppender.EXPECT().Finalize()
+
+	for _, entry := range testEntries2 {
+		for _, dp := range entry.datapoints {
+			session.EXPECT().WriteTagged(
+				gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), dp.Value, gomock.Any(), entry.annotation,
+			)
+		}
+	}
+
+	iter := newTestIter(testEntries2)
 	err := downAndWrite.WriteBatch(context.Background(), iter, WriteOptions{})
 	require.NoError(t, err)
 }

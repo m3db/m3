@@ -2476,6 +2476,34 @@ func (mr *MockOptionsMockRecorder) WriteTimestampOffset() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTimestampOffset", reflect.TypeOf((*MockOptions)(nil).WriteTimestampOffset))
 }
 
+// SetNewConnectionFn mocks base method
+func (m *MockOptions) SetNewConnectionFn(value NewConnectionFn) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNewConnectionFn", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetNewConnectionFn indicates an expected call of SetNewConnectionFn
+func (mr *MockOptionsMockRecorder) SetNewConnectionFn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNewConnectionFn", reflect.TypeOf((*MockOptions)(nil).SetNewConnectionFn), value)
+}
+
+// NewConnectionFn mocks base method
+func (m *MockOptions) NewConnectionFn() NewConnectionFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewConnectionFn")
+	ret0, _ := ret[0].(NewConnectionFn)
+	return ret0
+}
+
+// NewConnectionFn indicates an expected call of NewConnectionFn
+func (mr *MockOptionsMockRecorder) NewConnectionFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConnectionFn", reflect.TypeOf((*MockOptions)(nil).NewConnectionFn))
+}
+
 // MockAdminOptions is a mock of AdminOptions interface
 type MockAdminOptions struct {
 	ctrl     *gomock.Controller
@@ -3925,6 +3953,34 @@ func (m *MockAdminOptions) WriteTimestampOffset() time.Duration {
 func (mr *MockAdminOptionsMockRecorder) WriteTimestampOffset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTimestampOffset", reflect.TypeOf((*MockAdminOptions)(nil).WriteTimestampOffset))
+}
+
+// SetNewConnectionFn mocks base method
+func (m *MockAdminOptions) SetNewConnectionFn(value NewConnectionFn) AdminOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNewConnectionFn", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetNewConnectionFn indicates an expected call of SetNewConnectionFn
+func (mr *MockAdminOptionsMockRecorder) SetNewConnectionFn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNewConnectionFn", reflect.TypeOf((*MockAdminOptions)(nil).SetNewConnectionFn), value)
+}
+
+// NewConnectionFn mocks base method
+func (m *MockAdminOptions) NewConnectionFn() NewConnectionFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewConnectionFn")
+	ret0, _ := ret[0].(NewConnectionFn)
+	return ret0
+}
+
+// NewConnectionFn indicates an expected call of NewConnectionFn
+func (mr *MockAdminOptionsMockRecorder) NewConnectionFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConnectionFn", reflect.TypeOf((*MockAdminOptions)(nil).NewConnectionFn))
 }
 
 // SetOrigin mocks base method

@@ -13,6 +13,7 @@ The environment variables that let's you configure this setup are:
 - `USE_PROMETHEUS_HA=true`: send data to M3 from two HA Prometheus instances to replicate deployments of HA Prometheus sending data to M3.
 - `USE_AGGREGATOR=true`: use dedicate aggregator to aggregate metrics.
 - `USE_AGGREGATOR_HA=true`: use two dedicated aggregators for HA aggregated metrics.
+- `USE_MULTIPROCESS_COORDINATOR=true`: use multi-process coordinator, with default number of processes configured.
 
 ## Usage
 

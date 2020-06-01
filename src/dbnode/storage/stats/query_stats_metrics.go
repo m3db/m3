@@ -36,6 +36,8 @@ type queryStatsMetricsTracker struct {
 	totalDocs  tally.Counter
 }
 
+var _ QueryStatsTracker = (*queryStatsMetricsTracker)(nil)
+
 // DefaultQueryStatsTrackerForMetrics provides a tracker
 // implementation that emits query stats as metrics.
 func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTracker {
@@ -48,9 +50,9 @@ func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTrack
 	}
 }
 
-func (t *queryStatsMetricsTracker) TrackDocs(recentDocs int) error {
-	t.recentDocs.Update(float64(recentDocs))
-	t.totalDocs.Inc(int64(recentDocs))
+func (t *queryStatsMetricsTracker) TrackStats(values QueryStatsValues) error {
+	t.recentDocs.Update(float64(values.RecentDocs))
+	t.totalDocs.Inc(values.NewDocs)
 	return nil
 }
 

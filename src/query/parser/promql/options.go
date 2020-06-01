@@ -23,7 +23,7 @@ package promql
 import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	pql "github.com/prometheus/prometheus/promql"
+	pql "github.com/prometheus/prometheus/promql/parser"
 )
 
 // ParseFunctionExpr parses arguments to a function expression, returning

@@ -29,13 +29,15 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+
+	"github.com/prometheus/common/model"
 )
 
 // The default name for the name and bucket tags in Prometheus metrics.
 // This can be overwritten by setting tagOptions in the config.
 var (
-	promDefaultName       = []byte("__name__")
-	promDefaultBucketName = []byte("le")
+	promDefaultName       = []byte(model.MetricNameLabel) // __name__
+	promDefaultBucketName = []byte(model.BucketLabel)     // le
 )
 
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
@@ -62,6 +64,37 @@ func PromLabelsToM3Tags(
 	}
 
 	return tags.AddTags(tagList)
+}
+
+// PromTimeSeriesToSeriesAttributes extracts the series info from a prometheus
+// timeseries.
+func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
+	var (
+		sourceType ts.SourceType
+		metricType ts.MetricType
+	)
+	switch series.Source {
+	case prompb.Source_PROMETHEUS:
+		sourceType = ts.SourceTypePrometheus
+	case prompb.Source_GRAPHITE:
+		sourceType = ts.SourceTypeGraphite
+	default:
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid source type %v", series.Source)
+	}
+	switch series.Type {
+	case prompb.Type_COUNTER:
+		metricType = ts.MetricTypeCounter
+	case prompb.Type_GAUGE:
+		metricType = ts.MetricTypeGauge
+	case prompb.Type_TIMER:
+		metricType = ts.MetricTypeTimer
+	default:
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type %v", series.Type)
+	}
+	return ts.SeriesAttributes{
+		Type:   metricType,
+		Source: sourceType,
+	}, nil
 }
 
 // PromSamplesToM3Datapoints converts Prometheus samples to M3 datapoints

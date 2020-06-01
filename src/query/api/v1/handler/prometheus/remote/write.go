@@ -173,15 +173,17 @@ func NewPromWriteHandler(options options.HandlerOptions) (http.Handler, error) {
 }
 
 type promWriteMetrics struct {
-	writeSuccess         tally.Counter
-	writeErrorsServer    tally.Counter
-	writeErrorsClient    tally.Counter
-	ingestLatency        tally.Histogram
-	ingestLatencyBuckets tally.DurationBuckets
-	forwardSuccess       tally.Counter
-	forwardErrors        tally.Counter
-	forwardDropped       tally.Counter
-	forwardLatency       tally.Histogram
+	writeSuccess             tally.Counter
+	writeErrorsServer        tally.Counter
+	writeErrorsClient        tally.Counter
+	writeBatchLatency        tally.Histogram
+	writeBatchLatencyBuckets tally.DurationBuckets
+	ingestLatency            tally.Histogram
+	ingestLatencyBuckets     tally.DurationBuckets
+	forwardSuccess           tally.Counter
+	forwardErrors            tally.Counter
+	forwardDropped           tally.Counter
+	forwardLatency           tally.Histogram
 }
 
 func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
@@ -217,6 +219,12 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	}
 	upTo24hBuckets = upTo24hBuckets[1:] // Remove the first 6h to get 1 hour aligned buckets
 
+	var writeLatencyBuckets tally.DurationBuckets
+	writeLatencyBuckets = append(writeLatencyBuckets, upTo1sBuckets...)
+	writeLatencyBuckets = append(writeLatencyBuckets, upTo10sBuckets...)
+	writeLatencyBuckets = append(writeLatencyBuckets, upTo60sBuckets...)
+	writeLatencyBuckets = append(writeLatencyBuckets, upTo60mBuckets...)
+
 	var ingestLatencyBuckets tally.DurationBuckets
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo1sBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo10sBuckets...)
@@ -224,26 +232,25 @@ func newPromWriteMetrics(scope tally.Scope) (promWriteMetrics, error) {
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo60mBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo6hBuckets...)
 	ingestLatencyBuckets = append(ingestLatencyBuckets, upTo24hBuckets...)
-
-	var forwardLatencyBuckets tally.DurationBuckets
-	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo1sBuckets...)
-	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo10sBuckets...)
-	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo60sBuckets...)
-	forwardLatencyBuckets = append(forwardLatencyBuckets, upTo60mBuckets...)
 	return promWriteMetrics{
-		writeSuccess:         scope.SubScope("write").Counter("success"),
-		writeErrorsServer:    scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
-		writeErrorsClient:    scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
-		ingestLatency:        scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
-		ingestLatencyBuckets: ingestLatencyBuckets,
-		forwardSuccess:       scope.SubScope("forward").Counter("success"),
-		forwardErrors:        scope.SubScope("forward").Counter("errors"),
-		forwardDropped:       scope.SubScope("forward").Counter("dropped"),
-		forwardLatency:       scope.SubScope("forward").Histogram("latency", forwardLatencyBuckets),
+		writeSuccess:             scope.SubScope("write").Counter("success"),
+		writeErrorsServer:        scope.SubScope("write").Tagged(map[string]string{"code": "5XX"}).Counter("errors"),
+		writeErrorsClient:        scope.SubScope("write").Tagged(map[string]string{"code": "4XX"}).Counter("errors"),
+		writeBatchLatency:        scope.SubScope("write").Histogram("batch-latency", writeLatencyBuckets),
+		writeBatchLatencyBuckets: writeLatencyBuckets,
+		ingestLatency:            scope.SubScope("ingest").Histogram("latency", ingestLatencyBuckets),
+		ingestLatencyBuckets:     ingestLatencyBuckets,
+		forwardSuccess:           scope.SubScope("forward").Counter("success"),
+		forwardErrors:            scope.SubScope("forward").Counter("errors"),
+		forwardDropped:           scope.SubScope("forward").Counter("dropped"),
+		forwardLatency:           scope.SubScope("forward").Histogram("latency", writeLatencyBuckets),
 	}, nil
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	batchRequestStopwatch := h.metrics.writeBatchLatency.Start()
+	defer batchRequestStopwatch.Stop()
+
 	req, opts, result, rErr := h.parseRequest(r)
 	if rErr != nil {
 		h.metrics.writeErrorsClient.Inc(1)
@@ -476,7 +483,11 @@ func (h *PromWriteHandler) write(
 	r *prompb.WriteRequest,
 	opts ingest.WriteOptions,
 ) ingest.BatchError {
-	iter := newPromTSIter(r.Timeseries, h.tagOptions)
+	iter, err := newPromTSIter(r.Timeseries, h.tagOptions)
+	if err != nil {
+		var errs xerrors.MultiError
+		return errs.Add(err)
+	}
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
 }
 
@@ -534,27 +545,35 @@ func (h *PromWriteHandler) forward(
 	return nil
 }
 
-func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) *promTSIter {
+func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) (*promTSIter, error) {
 	// Construct the tags and datapoints upfront so that if the iterator
 	// is reset, we don't have to generate them twice.
 	var (
-		tags       = make([]models.Tags, 0, len(timeseries))
-		datapoints = make([]ts.Datapoints, 0, len(timeseries))
+		tags             = make([]models.Tags, 0, len(timeseries))
+		datapoints       = make([]ts.Datapoints, 0, len(timeseries))
+		seriesAttributes = make([]ts.SeriesAttributes, 0, len(timeseries))
 	)
 	for _, promTS := range timeseries {
+		attributes, err := storage.PromTimeSeriesToSeriesAttributes(promTS)
+		if err != nil {
+			return nil, err
+		}
+		seriesAttributes = append(seriesAttributes, attributes)
 		tags = append(tags, storage.PromLabelsToM3Tags(promTS.Labels, tagOpts))
 		datapoints = append(datapoints, storage.PromSamplesToM3Datapoints(promTS.Samples))
 	}
 
 	return &promTSIter{
+		attributes: seriesAttributes,
 		idx:        -1,
 		tags:       tags,
 		datapoints: datapoints,
-	}
+	}, nil
 }
 
 type promTSIter struct {
 	idx        int
+	attributes []ts.SeriesAttributes
 	tags       []models.Tags
 	datapoints []ts.Datapoints
 }
@@ -564,12 +583,12 @@ func (i *promTSIter) Next() bool {
 	return i.idx < len(i.tags)
 }
 
-func (i *promTSIter) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
+func (i *promTSIter) Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte) {
 	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.EmptyTags(), nil, 0, nil
+		return models.EmptyTags(), nil, ts.DefaultSeriesAttributes(), 0, nil
 	}
 
-	return i.tags[i.idx], i.datapoints[i.idx], xtime.Millisecond, nil
+	return i.tags[i.idx], i.datapoints[i.idx], i.attributes[i.idx], xtime.Millisecond, nil
 }
 
 func (i *promTSIter) Reset() error {
