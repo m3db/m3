@@ -357,7 +357,6 @@ func TestConfiguration(t *testing.T) {
     m3: null
     prometheus:
       handlerPath: /metrics
-      listenNetwork: ""
       listenAddress: ""
       timerType: ""
       defaultHistogramBuckets: []
