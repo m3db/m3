@@ -1,13 +1,9 @@
-# stage 1: build. We have to use an older version of alpine, as git 2.22 removes
-# the '-x' flag to a submodule command which in turn breaks glide, the old AF
-# dependency tool we have. Until we migrate to a new version of glide or go
-# modules, we need to use this older base image.
-# https://github.com/m3db/m3/issues/628
+# stage 1: build
 FROM golang:1.13-alpine3.11 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
-# Install Glide
-RUN apk add --update glide git make bash
+# Install deps
+RUN apk add --update git make bash
 
 # Add source code
 RUN mkdir -p /go/src/github.com/m3db/m3
