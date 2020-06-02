@@ -56,7 +56,10 @@ for test in "${TESTS[@]}"; do
 		docker rm -f $(docker ps -aq) 2>/dev/null || true
 		echo "----------------------------------------------"
 		echo "running $test"
-		"$test"
+		if ! $test; then
+			echo "--- :bk-status-failed: $test FAILED"
+			exit 1
+		fi
 	fi
 	ITER="$((ITER+1))"
 done
