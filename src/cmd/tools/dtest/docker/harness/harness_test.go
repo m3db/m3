@@ -31,6 +31,9 @@ import (
 var singleDBNodeDockerResources resources.DockerResources
 
 func TestMain(m *testing.M) {
+	// TODO(bodu): Add a BK step/tag for dtests.
+	t.SkipNow()
+
 	var err error
 	singleDBNodeDockerResources, err = resources.SetupSingleM3DBNode()
 
