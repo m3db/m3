@@ -11,5 +11,6 @@ import (
 	_ "github.com/mauricelam/genny"
 	_ "github.com/mjibson/esc"
 	_ "github.com/pointlander/peg"
+	_ "github.com/prateek/gorename"
 	_ "github.com/rakyll/statik"
 )
