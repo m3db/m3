@@ -219,7 +219,6 @@ install-tools:
 	GOBIN=$(retool_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
 	GOBIN=$(retool_bin_path) go install github.com/m3db/build-tools/utilities/genclean
 	GOBIN=$(retool_bin_path) go install github.com/m3db/tools/update-license
-	GOBIN=$(retool_bin_path) go install github.com/Masterminds/glide
 	GOBIN=$(retool_bin_path) go install github.com/mauricelam/genny
 	GOBIN=$(retool_bin_path) go install github.com/mjibson/esc
 	GOBIN=$(retool_bin_path) go install github.com/pointlander/peg
