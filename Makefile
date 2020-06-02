@@ -16,9 +16,8 @@ gopath_bin_path      := $(GOPATH)/bin
 m3_package           := github.com/m3db/m3
 m3_package_path      := $(gopath_prefix)/$(m3_package)
 mockgen_package      := github.com/golang/mock/mockgen
-retool_path          := $(m3_package_path)/_tools
-retool_bin_path      := $(retool_path)/bin
-combined_bin_paths   := $(retool_bin_path):$(gopath_bin_path)
+tools_bin_path       := $(abspath ./_tools/bin)
+combined_bin_paths   := $(tools_bin_path):$(gopath_bin_path)
 retool_src_prefix    := $(m3_package_path)/_tools/src
 retool_package       := github.com/twitchtv/retool
 metalint_check       := .ci/metalint.sh
@@ -106,7 +105,7 @@ setup:
 
 .PHONY: install-vendor-m3
 install-vendor-m3:
-	[ -d $(VENDOR) ] || go mod vendor
+	[ -d $(VENDOR) ] || GOSUMDB=off go mod vendor
 	# See comment for "install-vendor-m3-remove-bad-dep" why required and the TODO.
 	make install-vendor-m3-remove-bad-dep
 	# See comment for "install-vendor-m3-remove-prometheus-vendor-dir" why required.
@@ -213,21 +212,21 @@ all: metalint test-ci-unit test-ci-integration services tools
 
 .PHONY: install-tools
 install-tools:
-	@echo "Installing retool dependencies"
-	GOBIN=$(retool_bin_path) go install github.com/fossas/fossa-cli/cmd/fossa
-	GOBIN=$(retool_bin_path) go install github.com/golang/mock/mockgen
-	GOBIN=$(retool_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
-	GOBIN=$(retool_bin_path) go install github.com/m3db/build-tools/utilities/genclean
-	GOBIN=$(retool_bin_path) go install github.com/m3db/tools/update-license
-	GOBIN=$(retool_bin_path) go install github.com/mauricelam/genny
-	GOBIN=$(retool_bin_path) go install github.com/mjibson/esc
-	GOBIN=$(retool_bin_path) go install github.com/pointlander/peg
-	GOBIN=$(retool_bin_path) go install github.com/rakyll/statik
+	@echo "Installing build tools"
+	GOBIN=$(tools_bin_path) go install github.com/fossas/fossa-cli/cmd/fossa
+	GOBIN=$(tools_bin_path) go install github.com/golang/mock/mockgen
+	GOBIN=$(tools_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
+	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/utilities/genclean
+	GOBIN=$(tools_bin_path) go install github.com/m3db/tools/update-license
+	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
+	GOBIN=$(tools_bin_path) go install github.com/mjibson/esc
+	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
+	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
 
 .PHONY: install-gometalinter
 install-gometalinter:
-	@mkdir -p $(retool_bin_path)
-	./scripts/install-gometalinter.sh -b $(retool_bin_path) -d $(GOMETALINT_VERSION)
+	@mkdir -p $(tools_bin_path)
+	./scripts/install-gometalinter.sh -b $(tools_bin_path) -d $(GOMETALINT_VERSION)
 
 .PHONY: check-for-goreleaser-github-token
 check-for-goreleaser-github-token:
@@ -299,8 +298,8 @@ site-build:
 .PHONY: config-gen
 config-gen: install-tools
 	@echo "--- Generating configs"
-	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/local-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/local-etcd/generated.yaml
-	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/clustered-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/clustered-etcd/generated.yaml
+	$(tools_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/local-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/local-etcd/generated.yaml
+	$(tools_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/clustered-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/clustered-etcd/generated.yaml
 
 SUBDIR_TARGETS := \
 	mock-gen        \
@@ -483,7 +482,7 @@ build-ui-ctl-statik-gen: build-ui-ctl-statik license-gen-ctl
 .PHONY: build-ui-ctl-statik
 build-ui-ctl-statik: build-ui-ctl install-tools
 	mkdir -p ./src/ctl/generated/ui
-	$(retool_bin_path)/statik -m -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
+	$(tools_bin_path)/statik -m -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
 
 .PHONY: node-yarn-run
 node-yarn-run:
@@ -507,7 +506,7 @@ endif
 .PHONY: metalint
 metalint: install-gometalinter install-linter-badtime install-linter-importorder
 	@echo "--- metalinting src/"
-	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
+	@(PATH=$(tools_bin_path):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) $(m3_package_path)/src/)
 
 # Tests that all currently generated types match their contents if they were regenerated
