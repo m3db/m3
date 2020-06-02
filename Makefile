@@ -106,7 +106,7 @@ setup:
 
 .PHONY: install-vendor-m3
 install-vendor-m3:
-	[ -d $(VENDOR) ] || make install-vendor
+	[ -d $(VENDOR) ] || go mod vendor
 	# See comment for "install-vendor-m3-remove-bad-dep" why required and the TODO.
 	make install-vendor-m3-remove-bad-dep
 	# See comment for "install-vendor-m3-remove-prometheus-vendor-dir" why required.

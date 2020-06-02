@@ -93,7 +93,7 @@ require (
 	github.com/uber/tchannel-go v1.12.0
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
+	go.etcd.io/etcd v3.4.9+incompatible
 	go.uber.org/atomic v1.5.1
 	go.uber.org/config v1.4.0
 	go.uber.org/zap v1.13.0
@@ -111,3 +111,6 @@ require (
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
 	gopkg.in/yaml.v2 v2.2.8
 )
+
+// branch 0.9.3-pool-read-binary-3
+replace github.com/apache/thrift => github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4
