@@ -211,35 +211,19 @@ tools-linux-amd64:
 all: metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
-.PHONY: install-retool
-install-retool:
-	@which retool >/dev/null || go get $(retool_package)
-
 .PHONY: install-tools
-install-tools: install-retool
+install-tools:
 	@echo "Installing retool dependencies"
-	GOPATH=$(retool_path) go get golang.org/x/crypto/openpgp/armor
-	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) sync
-	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) build
-	chmod -R +w $(retool_path)
-
-	@# NB(r): to ensure correct version of mock-gen is present we match the version
-	@# of the retool installed mockgen, and if not a match in binary contents, then
-	@# we explicitly install at the version we desire.
-	@# We cannot solely use the retool binary as mock-gen requires its full source
-	@# code to be present in the GOPATH at runtime.
-	@echo "Installing mockgen"
-	$(eval curr_mockgen_md5=`cat $(gopath_bin_path)/mockgen | go run $(m3_package_path)/scripts/md5/md5.go`)
-	$(eval retool_mockgen_md5=`cat $(retool_bin_path)/mockgen | go run $(m3_package_path)/scripts/md5/md5.go`)
-	@test "$(curr_mockgen_md5)" = "$(retool_mockgen_md5)" && echo "Mockgen already up to date" || ( \
-		echo "Installing mockgen from Retool directory"                                            && \
-		rm -rf $(gopath_prefix)/$(mockgen_package)                                                 && \
-		mkdir -p $(shell dirname $(gopath_prefix)/$(mockgen_package))                              && \
- 		cp -r $(retool_src_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package)          && \
-		(rm $(gopath_bin_path)/mockgen || echo "No installed mockgen" > /dev/null)                 && \
-		cp $(retool_bin_path)/mockgen $(gopath_bin_path)/mockgen                                   && \
-		echo "Installed mockgen from Retool directory"                                                \
-	)
+	GOBIN=$(retool_bin_path) go install github.com/fossas/fossa-cli/cmd/fossa
+	GOBIN=$(retool_bin_path) go install github.com/golang/mock/mockgen
+	GOBIN=$(retool_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
+	GOBIN=$(retool_bin_path) go install github.com/m3db/build-tools/utilities/genclean
+	GOBIN=$(retool_bin_path) go install github.com/m3db/tools/update-license
+	GOBIN=$(retool_bin_path) go install github.com/Masterminds/glide
+	GOBIN=$(retool_bin_path) go install github.com/mauricelam/genny
+	GOBIN=$(retool_bin_path) go install github.com/mjibson/esc
+	GOBIN=$(retool_bin_path) go install github.com/pointlander/peg
+	GOBIN=$(retool_bin_path) go install github.com/rakyll/statik
 
 .PHONY: install-gometalinter
 install-gometalinter:
