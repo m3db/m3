@@ -12,7 +12,7 @@ require (
 	github.com/bmizerany/perks v0.0.0-20141205001514-d9a9656a3a4b // indirect
 	github.com/briandowns/spinner v1.11.1 // indirect
 	github.com/c2h5oh/datasize v0.0.0-20171227191756-4eba002a5eae
-	github.com/cespare/xxhash v1.1.0
+	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/couchbase/vellum v0.0.0-20190626091642-41f2deade2cf // indirect
