@@ -94,7 +94,7 @@ require (
 	github.com/uber/tchannel-go v1.12.0
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
-	go.etcd.io/etcd v3.4.9+incompatible
+	go.etcd.io/etcd v3.4.3+incompatible
 	go.uber.org/atomic v1.5.1
 	go.uber.org/config v1.4.0
 	go.uber.org/zap v1.13.0
