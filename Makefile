@@ -216,6 +216,8 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/fossas/fossa-cli/cmd/fossa
 	GOBIN=$(tools_bin_path) go install github.com/golang/mock/mockgen
 	GOBIN=$(tools_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
+	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/badtime
+	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/importorder
 	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/utilities/genclean
 	GOBIN=$(tools_bin_path) go install github.com/m3db/tools/update-license
 	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
@@ -518,7 +520,7 @@ else
 endif
 
 .PHONY: metalint
-metalint: install-gometalinter install-linter-badtime install-linter-importorder
+metalint: install-gometalinter install-tools
 	@echo "--- metalinting src/"
 	@(PATH=$(tools_bin_path):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) $(m3_package_path)/src/)
