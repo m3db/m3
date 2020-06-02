@@ -25,7 +25,7 @@
 package consolidators
 
 import (
-	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -53,16 +53,16 @@ import (
 type fetchResultMapHash uint64
 
 // fetchResultMapHashFn is the hash function to execute when hashing a key.
-type fetchResultMapHashFn func(encoding.SeriesIterator) fetchResultMapHash
+type fetchResultMapHashFn func(models.Tags) fetchResultMapHash
 
 // fetchResultMapEqualsFn is the equals key function to execute when detecting equality of a key.
-type fetchResultMapEqualsFn func(encoding.SeriesIterator, encoding.SeriesIterator) bool
+type fetchResultMapEqualsFn func(models.Tags, models.Tags) bool
 
 // fetchResultMapCopyFn is the copy key function to execute when copying the key.
-type fetchResultMapCopyFn func(encoding.SeriesIterator) encoding.SeriesIterator
+type fetchResultMapCopyFn func(models.Tags) models.Tags
 
 // fetchResultMapFinalizeFn is the finalize key function to execute when finished with a key.
-type fetchResultMapFinalizeFn func(encoding.SeriesIterator)
+type fetchResultMapFinalizeFn func(models.Tags)
 
 // fetchResultMap uses the genny package to provide a generic hash map that can be specialized
 // by running the following command from this root of the repository:
@@ -119,12 +119,12 @@ type fetchResultMapEntry struct {
 }
 
 type _fetchResultMapKey struct {
-	key      encoding.SeriesIterator
+	key      models.Tags
 	finalize bool
 }
 
 // Key returns the map entry key.
-func (e fetchResultMapEntry) Key() encoding.SeriesIterator {
+func (e fetchResultMapEntry) Key() models.Tags {
 	return e.key.key
 }
 
@@ -143,7 +143,7 @@ func _fetchResultMapAlloc(opts _fetchResultMapOptions) *fetchResultMap {
 	return m
 }
 
-func (m *fetchResultMap) newMapKey(k encoding.SeriesIterator, opts _fetchResultMapKeyOptions) _fetchResultMapKey {
+func (m *fetchResultMap) newMapKey(k models.Tags, opts _fetchResultMapKeyOptions) _fetchResultMapKey {
 	key := _fetchResultMapKey{key: k, finalize: opts.finalizeKey}
 	if !opts.copyKey {
 		return key
@@ -161,7 +161,7 @@ func (m *fetchResultMap) removeMapKey(hash fetchResultMapHash, key _fetchResultM
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *fetchResultMap) Get(k encoding.SeriesIterator) (multiResultSeries, bool) {
+func (m *fetchResultMap) Get(k models.Tags) (multiResultSeries, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -175,7 +175,7 @@ func (m *fetchResultMap) Get(k encoding.SeriesIterator) (multiResultSeries, bool
 }
 
 // Set will set the value for an identifier.
-func (m *fetchResultMap) Set(k encoding.SeriesIterator, v multiResultSeries) {
+func (m *fetchResultMap) Set(k models.Tags, v multiResultSeries) {
 	m.set(k, v, _fetchResultMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
@@ -191,7 +191,7 @@ type fetchResultMapSetUnsafeOptions struct {
 
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
-func (m *fetchResultMap) SetUnsafe(k encoding.SeriesIterator, v multiResultSeries, opts fetchResultMapSetUnsafeOptions) {
+func (m *fetchResultMap) SetUnsafe(k models.Tags, v multiResultSeries, opts fetchResultMapSetUnsafeOptions) {
 	m.set(k, v, _fetchResultMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
@@ -203,7 +203,7 @@ type _fetchResultMapKeyOptions struct {
 	finalizeKey bool
 }
 
-func (m *fetchResultMap) set(k encoding.SeriesIterator, v multiResultSeries, opts _fetchResultMapKeyOptions) {
+func (m *fetchResultMap) set(k models.Tags, v multiResultSeries, opts _fetchResultMapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -237,13 +237,13 @@ func (m *fetchResultMap) Len() int {
 
 // Contains returns true if value exists for key, false otherwise, it is
 // shorthand for a call to Get that doesn't return the value.
-func (m *fetchResultMap) Contains(k encoding.SeriesIterator) bool {
+func (m *fetchResultMap) Contains(k models.Tags) bool {
 	_, ok := m.Get(k)
 	return ok
 }
 
 // Delete will remove a value set in the map for the specified key.
-func (m *fetchResultMap) Delete(k encoding.SeriesIterator) {
+func (m *fetchResultMap) Delete(k models.Tags) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {

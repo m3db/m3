@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/ident"
 )
@@ -96,8 +97,16 @@ type MultiFetchResult interface {
 type SeriesFetchResult struct {
 	// Metadata is the set of metadata associated with the fetch result.
 	Metadata block.ResultMetadata
-	// SeriesIterators is the list of series iterators for the result.
+	// SeriesData is the list of series data for the result.
+	SeriesData SeriesData
+}
+
+// SeriesData is fetched series data.
+type SeriesData struct {
+	// SeriesIterators are the series iterators for the series.
 	SeriesIterators encoding.SeriesIterators
+	// Tags are the decoded tags for the series.
+	Tags models.Tags
 }
 
 // TagResult is a fetch tag result with associated metadata.

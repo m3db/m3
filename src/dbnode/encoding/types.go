@@ -220,6 +220,15 @@ type MultiReaderIterator interface {
 	Schema() namespace.SchemaDescr
 }
 
+// SeriesIteratorAccumulator is an accumulator for SeriesIterator iterators,
+// that gathers incoming SeriesIterators and builds a unified SeriesIterator.
+type SeriesIteratorAccumulator interface {
+	SeriesIterator
+
+	// Add adds a series iterator.
+	Add(it SeriesIterator) error
+}
+
 // SeriesIterator is an iterator that iterates over a set of iterators from
 // different replicas and de-dupes & merges results from the replicas for a
 // given series while also applying a time filter on top of the values in

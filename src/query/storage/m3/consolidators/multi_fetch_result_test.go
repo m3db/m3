@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -123,13 +124,16 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 	}
 
 	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(fanoutType, pools, defaultTestOpts)
+	r := NewMultiFetchResult(fanoutType, pools,
+		defaultTestOpts, models.NewTagOptions())
 
 	for _, ns := range namespaces {
 		iters := generateSeriesIterators(ctrl, ns.ns)
 		seriesFetchResult := SeriesFetchResult{
-			Metadata:        block.NewResultMetadata(),
-			SeriesIterators: iters,
+			Metadata: block.NewResultMetadata(),
+			SeriesData: SeriesData{
+				SeriesIterators: iters,
+			},
 		}
 
 		r.Add(seriesFetchResult, ns.attrs, nil)
@@ -142,7 +146,7 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 	assert.True(t, result.Metadata.LocalOnly)
 	assert.Equal(t, 0, len(result.Metadata.Warnings))
 
-	iters := result.SeriesIterators
+	iters := result.SeriesData.SeriesIterators
 	assert.Equal(t, 4, iters.Len())
 	assert.Equal(t, 4, len(iters.Iters()))
 
@@ -177,7 +181,8 @@ func TestExhaustiveMerge(t *testing.T) {
 	defer ctrl.Finish()
 
 	pools := generateIteratorPools(ctrl)
-	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools, defaultTestOpts)
+	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
+		defaultTestOpts, models.NewTagOptions())
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for i, ex := range tt.exhaustives {
@@ -190,8 +195,10 @@ func TestExhaustiveMerge(t *testing.T) {
 				meta := block.NewResultMetadata()
 				meta.Exhaustive = ex
 				seriesFetchResult := SeriesFetchResult{
-					Metadata:        meta,
-					SeriesIterators: iters,
+					Metadata: meta,
+					SeriesData: SeriesData{
+						SeriesIterators: iters,
+					},
 				}
 
 				r.Add(seriesFetchResult, storage.Attributes{}, nil)

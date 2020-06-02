@@ -21,20 +21,13 @@
 package consolidators
 
 import (
-	"fmt"
+	"bytes"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/query/models"
 )
 
 type fetchResultMapWrapper struct {
 	resultMap *fetchResultMap
-
-	multiErr xerrors.MultiError
-}
-
-func (w *fetchResultMapWrapper) err() error {
-	return w.multiErr.FinalError()
 }
 
 func (w *fetchResultMapWrapper) len() int {
@@ -50,17 +43,15 @@ func (w *fetchResultMapWrapper) list() []multiResultSeries {
 	return result
 }
 
-func (w *fetchResultMapWrapper) get(
-	it encoding.SeriesIterator,
-) (multiResultSeries, bool) {
-	return w.resultMap.Get(it)
+func (w *fetchResultMapWrapper) get(tags models.Tags) (multiResultSeries, bool) {
+	return w.resultMap.Get(tags)
 }
 
 func (w *fetchResultMapWrapper) set(
-	it encoding.SeriesIterator, series multiResultSeries,
+	tags models.Tags, series multiResultSeries,
 ) {
-	// NB: no need to copy key; the
-	w.resultMap.SetUnsafe(it, series, fetchResultMapSetUnsafeOptions{
+	series.tags = tags
+	w.resultMap.SetUnsafe(tags, series, fetchResultMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
@@ -69,94 +60,17 @@ func (w *fetchResultMapWrapper) set(
 // newFetchResultMap builds a MultiFetchResultMap, which is primarily used
 // for checking for existence of particular ident.IDs.
 func newFetchResultMap(size int) *fetchResultMapWrapper {
-	wrapper := &fetchResultMapWrapper{}
-
-	addErr := func(msg string, err error) {
-		err = fmt.Errorf("err, msg: %s, inner: %v", msg, err)
-		wrapper.multiErr = wrapper.multiErr.Add(err)
+	return &fetchResultMapWrapper{
+		resultMap: _fetchResultMapAlloc(_fetchResultMapOptions{
+			hash: func(t models.Tags) fetchResultMapHash {
+				return fetchResultMapHash(t.HashedID())
+			},
+			equals: func(x, y models.Tags) bool {
+				// NB: IDs are calculated once, so any further calls to these
+				// equals is a simple lookup.
+				return bytes.Equal(x.ID(), y.ID())
+			},
+			initialSize: size,
+		}),
 	}
-
-	resultMap := _fetchResultMapAlloc(_fetchResultMapOptions{
-		hash: func(it encoding.SeriesIterator) fetchResultMapHash {
-			hash, err := it.Tags().Hash()
-			if err != nil {
-				addErr("hashing iterator failed", err)
-				return 0
-			}
-
-			return fetchResultMapHash(hash)
-		},
-		equals: func(x, y encoding.SeriesIterator) bool {
-			// NB: fail fast on errors.
-			err := wrapper.multiErr.FinalError()
-			if err != nil {
-				return false
-			}
-
-			// NB: succeed fast if possible with matching IDs.
-			if x.ID() == y.ID() {
-				return true
-			}
-
-			xTags, yTags := x.Tags(), y.Tags()
-			// NB: fail fast when possible, as reading tags for equality is expensive.
-			if xTags.Remaining() != yTags.Remaining() {
-				return false
-			}
-
-			// NB: fail fast if hashes don't match; otherwise read all tags
-			// sequentially to ensure they match.
-			xHash, err := xTags.Hash()
-			if err != nil {
-				addErr("hashing x iterator failed", err)
-				return false
-			}
-
-			yHash, err := yTags.Hash()
-			if err != nil {
-				addErr("hashing y iterator failed", err)
-				return false
-			}
-
-			if xHash != yHash {
-				return false
-			}
-
-			xTags, yTags = xTags.Duplicate(), yTags.Duplicate()
-			defer func() {
-				if err := xTags.Err(); err != nil {
-					addErr("closing x iterator failed", err)
-				}
-
-				if err := yTags.Err(); err != nil {
-					addErr("closing y iterator failed", err)
-				}
-
-				xTags.Close()
-				yTags.Close()
-			}()
-
-			for xTags.Next() {
-				// NB: still tags on xIterator; not equal.
-				if !yTags.Next() {
-					return false
-				}
-
-				if !xTags.Current().Equal(yTags.Current()) {
-					return false
-				}
-			}
-
-			// NB: still tags on yIterator; not equal.
-			if yTags.Next() {
-				return false
-			}
-
-			return true
-		},
-		initialSize: size,
-	})
-
-	wrapper.resultMap = resultMap
-	return wrapper
 }

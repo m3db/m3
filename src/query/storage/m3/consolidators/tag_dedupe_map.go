@@ -24,18 +24,27 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 )
 
 type tagDedupeMap struct {
 	fanout     QueryFanoutType
 	mapWrapper *fetchResultMapWrapper
+	tagOpts    models.TagOptions
 }
 
-func newTagDedupeMap(fanout QueryFanoutType, size int) fetchDedupeMap {
+type tagMapOpts struct {
+	size    int
+	fanout  QueryFanoutType
+	tagOpts models.TagOptions
+}
+
+func newTagDedupeMap(opts tagMapOpts) fetchDedupeMap {
 	return &tagDedupeMap{
-		fanout:     fanout,
-		mapWrapper: newFetchResultMap(size),
+		fanout:     opts.fanout,
+		mapWrapper: newFetchResultMap(opts.size),
+		tagOpts:    opts.tagOpts,
 	}
 }
 
@@ -47,12 +56,20 @@ func (m *tagDedupeMap) add(
 	iter encoding.SeriesIterator,
 	attrs storage.Attributes,
 ) error {
-	existing, exists := m.mapWrapper.get(iter)
+	tags, err := storage.FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
+	if err != nil {
+		return err
+	}
+
+	series := multiResultSeries{
+		iter:  iter,
+		attrs: attrs,
+		tags:  tags,
+	}
+
+	existing, exists := m.mapWrapper.get(tags)
 	if !exists {
-		m.mapWrapper.set(iter, multiResultSeries{
-			attrs: attrs,
-			iter:  iter,
-		})
+		m.mapWrapper.set(tags, series)
 		return nil
 	}
 
@@ -79,20 +96,21 @@ func (m *tagDedupeMap) add(
 	}
 
 	if existsEqual {
-		multiIter, ok := existing.iter.(*multiIterator)
+		acc, ok := existing.iter.(encoding.SeriesIteratorAccumulator)
 		if !ok {
-			multiIter = newMultiReaderIterator(existing.iter)
+			acc, err = encoding.NewSeriesIteratorAccumulator(existing.iter)
+			if err != nil {
+				return err
+			}
+		} else {
+			if err := acc.Add(iter); err != nil {
+				return err
+			}
 		}
 
-		if err := multiIter.addSeriesIterator(iter); err != nil {
-			return err
-		}
-
-		m.mapWrapper.set(iter, multiResultSeries{
-			attrs: attrs,
-			iter:  multiIter,
-		})
-
+		// Update accumulated result series.
+		series.iter = acc
+		m.mapWrapper.set(tags, series)
 		return nil
 	}
 
@@ -102,10 +120,8 @@ func (m *tagDedupeMap) add(
 	}
 
 	// Override
-	m.mapWrapper.set(iter, multiResultSeries{
-		attrs: attrs,
-		iter:  iter,
-	})
+	m.mapWrapper.set(tags, series)
 
 	return nil
+	// return m.mapWrapper.err()
 }

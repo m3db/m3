@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
@@ -44,7 +45,8 @@ type multiResult struct {
 	mergedIterators encoding.MutableSeriesIterators
 	dedupeMap       fetchDedupeMap
 	err             xerrors.MultiError
-	matchType       MatchType
+	matchOpts       MatchOptions
+	tagOpts         models.TagOptions
 
 	pools encoding.IteratorPools
 }
@@ -54,18 +56,21 @@ func NewMultiFetchResult(
 	fanout QueryFanoutType,
 	pools encoding.IteratorPools,
 	opts MatchOptions,
+	tagOpts models.TagOptions,
 ) MultiFetchResult {
 	return &multiResult{
 		metadata:  block.NewResultMetadata(),
 		fanout:    fanout,
 		pools:     pools,
-		matchType: opts.MatchType,
+		matchOpts: opts,
+		tagOpts:   tagOpts,
 	}
 }
 
 type multiResultSeries struct {
 	attrs storage.Attributes
 	iter  encoding.SeriesIterator
+	tags  models.Tags
 }
 
 func (r *multiResult) Close() error {
@@ -94,14 +99,16 @@ func (r *multiResult) Close() error {
 	return nil
 }
 
-func (r *multiResult) FinalResultWithAttrs() (SeriesFetchResult,
-	[]storage.Attributes, error) {
+func (r *multiResult) FinalResultWithAttrs() (
+	SeriesFetchResult, []storage.Attributes, error,
+) {
 	result, err := r.FinalResult()
 	if err != nil {
 		return result, nil, err
 	}
 
-	attrs := make([]storage.Attributes, result.SeriesIterators.Len())
+	seriesData := result.SeriesData
+	attrs := make([]storage.Attributes, seriesData.SeriesIterators.Len())
 	// TODO: add testing around here.
 	if r.dedupeMap == nil {
 		for i := range attrs {
@@ -129,18 +136,18 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	}
 
 	if r.mergedIterators != nil {
-		result.SeriesIterators = r.mergedIterators
+		result.SeriesData.SeriesIterators = r.mergedIterators
 		return result, nil
 	}
 
 	if len(r.seenIters) == 0 {
-		result.SeriesIterators = encoding.EmptySeriesIterators
+		result.SeriesData.SeriesIterators = encoding.EmptySeriesIterators
 		return result, nil
 	}
 
 	// can short-cicuit in this case
 	if len(r.seenIters) == 1 {
-		result.SeriesIterators = r.seenIters[0]
+		result.SeriesData.SeriesIterators = r.seenIters[0]
 		return result, nil
 	}
 
@@ -154,7 +161,7 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 		r.mergedIterators.SetAt(i, res.iter)
 	}
 
-	result.SeriesIterators = r.mergedIterators
+	result.SeriesData.SeriesIterators = r.mergedIterators
 	return result, nil
 }
 
@@ -181,7 +188,7 @@ func (r *multiResult) Add(
 		r.metadata = r.metadata.CombineMetadata(fetchResult.Metadata)
 	}
 
-	newIterators := fetchResult.SeriesIterators
+	newIterators := fetchResult.SeriesData.SeriesIterators
 	r.seenIters = append(r.seenIters, newIterators)
 	// Need to check the error to bail early after accumulating the iterators
 	// otherwise when we close the the multi fetch result
@@ -199,10 +206,16 @@ func (r *multiResult) Add(
 	if len(r.seenIters) == 2 {
 		// need to backfill the dedupe map from the first result first
 		first := r.seenIters[0]
-		if r.matchType == MatchIDs {
+		if r.matchOpts.MatchType == MatchIDs {
 			r.dedupeMap = newIDDedupeMap(r.fanout, first.Len())
 		} else {
-			r.dedupeMap = newTagDedupeMap(r.fanout, first.Len())
+			opts := tagMapOpts{
+				fanout:  r.fanout,
+				size:    first.Len(),
+				tagOpts: r.tagOpts,
+			}
+
+			r.dedupeMap = newTagDedupeMap(opts)
 		}
 
 		r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)

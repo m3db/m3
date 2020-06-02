@@ -26,7 +26,7 @@ genny-map-all:                 \
 genny-map-multi-fetch-result:
 	cd $(m3x_package_path) && make hashmap-gen     \
 		pkg=consolidators                            \
-		key_type=encoding.SeriesIterator             \
+		key_type=models.Tags                         \
 		value_type=multiResultSeries                 \
 		rename_nogen_key=true                        \
 		target_package=$(consolidators_package)      \
