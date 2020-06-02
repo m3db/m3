@@ -367,6 +367,8 @@ asset-gen-$(SUBDIR): install-tools
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
 		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
+# NB(schallert): gorename (used by our genny process) doesn't work with go
+# modules https://github.com/golang/go/issues/34222
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
@@ -456,6 +458,17 @@ endef
 # NB: we skip metalint explicity as the default target below requires less invocations
 # of metalint and finishes faster.
 $(foreach SUBDIR_TARGET, $(filter-out metalint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
+
+.PHONY: go-mod-tidy
+go-mod-tidy:
+	@echo "--- :golang: tidying modules"
+	go mod tidy
+
+.PHONY: all-gen
+all-gen: \
+	install-tools \
+	$(foreach SUBDIR_TARGET, $(filter-out metalint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
+	go-mod-tidy
 
 .PHONY: build-ui-ctl
 build-ui-ctl:

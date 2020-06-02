@@ -39,7 +39,7 @@ require (
 	github.com/jhump/protoreflect v1.6.1
 	github.com/json-iterator/go v1.1.9
 	github.com/leanovate/gopter v0.2.3-0.20181005062252-e2604588f4db
-	github.com/lightstep/lightstep-tracer-go v0.20.0
+	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
 	github.com/m3db/bloom v3.0.0+incompatible
 	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
