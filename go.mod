@@ -124,3 +124,5 @@ replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.2016
 replace google.golang.org/grpc => google.golang.org/grpc v1.23.1
 
 replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
+
+replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
