@@ -75,4 +75,4 @@ $comparator -input=$QUERY_FILE \
 -regressionDir=$REGRESSION_DIR
 
 # Run PromQL testdata tests
-go test -v -timeout 30s -count=1 github.com/m3db/m3/src/query/test/
+go test -v -timeout 30s -tags=compatibility -count=1 github.com/m3db/m3/src/query/test/

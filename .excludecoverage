@@ -7,4 +7,3 @@ tools/
 vendor/
 integration/
 testgen/
-query/test/promql_test.go
