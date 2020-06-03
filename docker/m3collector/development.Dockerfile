@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM alpine:3.11
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 EXPOSE 7206/tcp 7207/tcp
