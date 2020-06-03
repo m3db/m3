@@ -393,14 +393,15 @@ func (c Configuration) NewAdminClient(
 		encodingOpts = encoding.NewOptions()
 	}
 
-	v = v.SetReaderIteratorAllocate(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
-		if c.Proto != nil && c.Proto.Enabled {
-			return proto.NewIterator(r, descr, encodingOpts)
-		}
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+	v = v.SetReaderIteratorAllocate(func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
+		intOptimized := m3tsz.DefaultIntOptimizationEnabled
+		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	})
 
 	if c.Proto != nil && c.Proto.Enabled {
+		v = v.SetReaderIteratorAllocate(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+			return proto.NewIterator(r, descr, encodingOpts)
+		})
 		v = v.SetEncodingProto(encodingOpts)
 		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
 		// Load schema registry from file.
