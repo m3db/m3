@@ -41,8 +41,8 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/mmap"
 
-	pilosaroaring "github.com/m3db/pilosa/roaring"
-	"github.com/m3db/vellum"
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
+	"github.com/m3dbx/vellum"
 )
 
 var (
