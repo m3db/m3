@@ -295,7 +295,6 @@ function test_fanout_warning_label_values {
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 1 max_fetch_series_limit_applied
 }
 
-
 function test_fanout_warning_graphite {
   # Update write time as it will otherwise not be written correctly.
   t=$(date +%s)
@@ -305,7 +304,7 @@ function test_fanout_warning_graphite {
   ATTEMPTS=8 TIMEOUT=1 retry_with_backoff render_carbon 6 5
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 6
   # limited query against cluster a has header
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 4 4 max_fetch_series_limit_applied
+  ATTEMPTS=8 TIMEOUT=1 retry_with_backoff render_carbon 4 4 max_fetch_series_limit_applied
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 4 max_fetch_series_limit_applied
 
   # Update write time as it will otherwise not be written correctly.
@@ -316,7 +315,7 @@ function test_fanout_warning_graphite {
   ATTEMPTS=8 TIMEOUT=1 retry_with_backoff render_carbon 16 15
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16
   # remote limited query against cluster a has header
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 9 14 max_fetch_series_limit_applied
+  ATTEMPTS=8 TIMEOUT=1 retry_with_backoff render_carbon 9 14 max_fetch_series_limit_applied
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied
 }
 
