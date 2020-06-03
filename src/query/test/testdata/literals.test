@@ -1,4 +1,4 @@
-# FAILING because we return vector resultType in place of scalar.
+# FAILING issue #46 (we return vector resultType in place of scalar).
 
 # FAILING. eval instant at 50m 12.34e6
 #	12340000
