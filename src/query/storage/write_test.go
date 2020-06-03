@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -49,8 +50,8 @@ func TestNewWriteQueryValidateTags(t *testing.T) {
 			},
 		},
 		Unit: xtime.Second,
-		Attributes: Attributes{
-			MetricsType: UnaggregatedMetricsType,
+		Attributes: consolidators.Attributes{
+			MetricsType: consolidators.UnaggregatedMetricsType,
 		},
 	})
 	require.Error(t, err)
@@ -63,8 +64,8 @@ func TestNewWriteQueryValidateDatapoints(t *testing.T) {
 		Tags:       models.MustMakeTags("foo", "bar"),
 		Datapoints: ts.Datapoints{},
 		Unit:       xtime.Second,
-		Attributes: Attributes{
-			MetricsType: UnaggregatedMetricsType,
+		Attributes: consolidators.Attributes{
+			MetricsType: consolidators.UnaggregatedMetricsType,
 		},
 	})
 	require.Error(t, err)
@@ -82,8 +83,8 @@ func TestNewWriteQueryValidateUnit(t *testing.T) {
 			},
 		},
 		Unit: xtime.Unit(999),
-		Attributes: Attributes{
-			MetricsType: UnaggregatedMetricsType,
+		Attributes: consolidators.Attributes{
+			MetricsType: consolidators.UnaggregatedMetricsType,
 		},
 	})
 	require.Error(t, err)

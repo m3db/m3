@@ -102,7 +102,7 @@ func (s *m3storage) FetchProm(
 	}
 
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
-		result.SeriesIterators,
+		result,
 		s.opts.ReadWorkerPool(),
 		result.Metadata,
 		options.Enforcer,

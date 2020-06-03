@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -94,28 +93,28 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 	defer ctrl.Finish()
 
 	namespaces := []struct {
-		attrs storage.Attributes
+		attrs Attributes
 		ns    string
 	}{
 		{
-			attrs: storage.Attributes{
-				MetricsType: storage.UnaggregatedMetricsType,
+			attrs: Attributes{
+				MetricsType: UnaggregatedMetricsType,
 				Retention:   24 * time.Hour,
 				Resolution:  0 * time.Minute,
 			},
 			ns: unaggregated,
 		},
 		{
-			attrs: storage.Attributes{
-				MetricsType: storage.AggregatedMetricsType,
+			attrs: Attributes{
+				MetricsType: AggregatedMetricsType,
 				Retention:   360 * time.Hour,
 				Resolution:  2 * time.Minute,
 			},
 			ns: short,
 		},
 		{
-			attrs: storage.Attributes{
-				MetricsType: storage.AggregatedMetricsType,
+			attrs: Attributes{
+				MetricsType: AggregatedMetricsType,
 				Retention:   17520 * time.Hour,
 				Resolution:  10 * time.Minute,
 			},
@@ -131,8 +130,8 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 		iters := generateSeriesIterators(ctrl, ns.ns)
 		seriesFetchResult := SeriesFetchResult{
 			Metadata: block.NewResultMetadata(),
-			SeriesData: SeriesData{
-				SeriesIterators: iters,
+			seriesData: seriesData{
+				seriesIterators: iters,
 			},
 		}
 
@@ -146,7 +145,7 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 	assert.True(t, result.Metadata.LocalOnly)
 	assert.Equal(t, 0, len(result.Metadata.Warnings))
 
-	iters := result.SeriesData.SeriesIterators
+	iters := result.seriesData.seriesIterators
 	assert.Equal(t, 4, iters.Len())
 	assert.Equal(t, 4, len(iters.Iters()))
 
@@ -196,12 +195,12 @@ func TestExhaustiveMerge(t *testing.T) {
 				meta.Exhaustive = ex
 				seriesFetchResult := SeriesFetchResult{
 					Metadata: meta,
-					SeriesData: SeriesData{
-						SeriesIterators: iters,
+					seriesData: seriesData{
+						seriesIterators: iters,
 					},
 				}
 
-				r.Add(seriesFetchResult, storage.Attributes{}, nil)
+				r.Add(seriesFetchResult, Attributes{}, nil)
 			}
 
 			result, err := r.FinalResult()

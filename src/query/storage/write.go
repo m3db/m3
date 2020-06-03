@@ -22,6 +22,7 @@ package storage
 
 import (
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -90,7 +91,7 @@ func (q WriteQuery) Annotation() []byte {
 }
 
 // Attributes returns the attributes.
-func (q WriteQuery) Attributes() Attributes {
+func (q WriteQuery) Attributes() consolidators.Attributes {
 	return q.opts.Attributes
 }
 

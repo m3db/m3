@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage"
 )
 
 type tagDedupeMap struct {
@@ -54,9 +53,9 @@ func (m *tagDedupeMap) list() []multiResultSeries {
 
 func (m *tagDedupeMap) add(
 	iter encoding.SeriesIterator,
-	attrs storage.Attributes,
+	attrs Attributes,
 ) error {
-	tags, err := storage.FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
+	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
 	if err != nil {
 		return err
 	}

@@ -21,11 +21,12 @@
 package consolidators
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -76,7 +77,7 @@ type MultiFetchResult interface {
 	// Add appends series fetch results to the accumulator.
 	Add(
 		fetchResult SeriesFetchResult,
-		attrs genericstorage.Attributes,
+		attrs Attributes,
 		err error,
 	)
 
@@ -87,7 +88,7 @@ type MultiFetchResult interface {
 	// FinalResult returns a series fetch result containing deduplicated series
 	// iterators and their metadata, as well as any attributes corresponding to
 	// these results, and any errors encountered.
-	FinalResultWithAttrs() (SeriesFetchResult, []genericstorage.Attributes, error)
+	FinalResultWithAttrs() (SeriesFetchResult, []Attributes, error)
 
 	// Close releases all resources held by this accumulator.
 	Close() error
@@ -97,16 +98,16 @@ type MultiFetchResult interface {
 type SeriesFetchResult struct {
 	// Metadata is the set of metadata associated with the fetch result.
 	Metadata block.ResultMetadata
-	// SeriesData is the list of series data for the result.
-	SeriesData SeriesData
+	// seriesData is the list of series data for the result.
+	seriesData seriesData
 }
 
 // SeriesData is fetched series data.
-type SeriesData struct {
-	// SeriesIterators are the series iterators for the series.
-	SeriesIterators encoding.SeriesIterators
-	// Tags are the decoded tags for the series.
-	Tags models.Tags
+type seriesData struct {
+	// seriesIterators are the series iterators for the series.
+	seriesIterators encoding.SeriesIterators
+	// tags are the decoded tags for the series.
+	tags []*models.Tags
 }
 
 // TagResult is a fetch tag result with associated metadata.
@@ -138,4 +139,36 @@ type MultiTagResult struct {
 	ID ident.ID
 	// Iter is the tag iterator for the series.
 	Iter ident.TagIterator
+}
+
+// MetricsType is a type of stored metrics.
+type MetricsType uint
+
+const (
+	// UnknownMetricsType is the unknown metrics type and is invalid.
+	UnknownMetricsType MetricsType = iota
+	// UnaggregatedMetricsType is an unaggregated metrics type.
+	UnaggregatedMetricsType
+	// AggregatedMetricsType is an aggregated metrics type.
+	AggregatedMetricsType
+
+	// DefaultMetricsType is the default metrics type value.
+	DefaultMetricsType = UnaggregatedMetricsType
+)
+
+// Attributes is a set of stored metrics attributes.
+type Attributes struct {
+	// MetricsType indicates the type of namespace this metric originated from.
+	MetricsType MetricsType
+	// Retention indicates the retention of the namespace this metric originated
+	// from.
+	Retention time.Duration
+	// Resolution indicates the retention of the namespace this metric originated
+	// from.
+	Resolution time.Duration
+}
+
+// Validate validates a storage attributes.
+func (a Attributes) Validate() error {
+	return ValidateMetricsType(a.MetricsType)
 }
