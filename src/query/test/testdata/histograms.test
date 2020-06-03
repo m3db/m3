@@ -164,7 +164,7 @@ load 5m
     nonmonotonic_bucket{le="+Inf"}  0+9x10
 
 # Nonmonotonic buckets
-# FAILING. eval instant at 50m histogram_quantile(0.99, nonmonotonic_bucket)
+# FAILING issue #48. eval instant at 50m histogram_quantile(0.99, nonmonotonic_bucket)
 #    {} 0.989875
 
 # FAILING. Buckets with different representations of the same upper bound.
