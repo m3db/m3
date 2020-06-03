@@ -23,14 +23,16 @@ package prom
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"time"
 	"math"
+	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage/prometheus"
-	
+
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/promql"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -86,7 +88,10 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// NB (@shreyas): We put the FetchOptions in context so it can be
 	// retrieved in the queryable object as there is no other way to pass
 	// that through.
+	var resultMetadata block.ResultMetadata
 	ctx = context.WithValue(ctx, prometheus.FetchOptionsContextKey, fetchOptions)
+	ctx = context.WithValue(ctx, prometheus.BlockResultMetadataKey, &resultMetadata)
+
 	if t := r.FormValue("timeout"); t != "" {
 		timeout, err := parseDuration(t)
 		if err != nil {
@@ -117,6 +122,8 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respondError(w, res.Err, http.StatusInternalServerError)
 		return
 	}
+
+	handleroptions.AddWarningHeaders(w, resultMetadata)
 
 	respond(w, &queryData{
 		Result:     res.Value,
