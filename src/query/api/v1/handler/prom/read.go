@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage/prometheus"
 
 	"github.com/prometheus/prometheus/promql"
@@ -87,10 +88,10 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// NB (@shreyas): We put the FetchOptions in context so it can be
 	// retrieved in the queryable object as there is no other way to pass
 	// that through.
-	remoteReadFlags := &prometheus.RemoteReadFlags{}
+	var resultMetadata block.ResultMetadata
 	ctx = context.WithValue(ctx, prometheus.FetchOptionsContextKey, fetchOptions)
-	ctx = context.WithValue(ctx, prometheus.RemoteReadFlagsKey, remoteReadFlags)
-		
+	ctx = context.WithValue(ctx, prometheus.BlockResultMetadataKey, &resultMetadata)
+
 	if request.Params.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, request.Params.Timeout)
@@ -117,9 +118,7 @@ func (h *readHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if remoteReadFlags.Limited {
-		w.Header().Set(handleroptions.LimitHeader, handleroptions.LimitHeaderSeriesLimitApplied)
-	}
+	handleroptions.AddWarningHeaders(w, resultMetadata)
 
 	respond(w, &queryData{
 		Result:     res.Value,
