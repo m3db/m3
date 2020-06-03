@@ -3,5 +3,4 @@
 set -eo pipefail
 
 echo "--- :git: cleaning checkout"
-chmod -R +w ./_tools || true
-git clean -dffx
+chmod -R +w ./_tools

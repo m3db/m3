@@ -16,8 +16,8 @@ gopath_bin_path      := $(GOPATH)/bin
 m3_package           := github.com/m3db/m3
 m3_package_path      := $(gopath_prefix)/$(m3_package)
 mockgen_package      := github.com/golang/mock/mockgen
-retool_bin_path      := $(m3_package_path)/_tools/bin
-combined_bin_paths   := $(retool_bin_path):$(gopath_bin_path)
+tools_bin_path       := $(abspath ./_tools/bin)
+combined_bin_paths   := $(tools_bin_path):$(gopath_bin_path)
 retool_src_prefix    := $(m3_package_path)/_tools/src
 retool_package       := github.com/twitchtv/retool
 metalint_check       := .ci/metalint.sh
@@ -32,8 +32,6 @@ assets_rules_dir     := generated/assets
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
-bad_trace_dep        := go.etcd.io/etcd/vendor/golang.org/x/net/trace
-bad_prom_vendor_dir  := github.com/prometheus/prometheus/vendor
 cache_policy         ?= recently_read
 genny_target         ?= genny-all
 
@@ -105,41 +103,7 @@ setup:
 
 .PHONY: install-vendor-m3
 install-vendor-m3:
-	[ -d $(VENDOR) ] || make install-vendor
-	# See comment for "install-vendor-m3-remove-bad-dep" why required and the TODO.
-	make install-vendor-m3-remove-bad-dep
-	# See comment for "install-vendor-m3-remove-prometheus-vendor-dir" why required.
-	make install-vendor-m3-remove-prometheus-vendor-dir
-
-# Some deps were causing panics when using GRPC and etcd libraries were used.
-# See issue: https://github.com/etcd-io/etcd/issues/9357
-# TODO: Move M3 to go mod to avoid the issue entirely instead of this hack
-# (which is bad and we should feel bad).
-# $ go test -v
-# panic: /debug/requests is already registered. You may have two independent
-# copies of golang.org/x/net/trace in your binary, trying to maintain separate
-# state. This may involve a vendored copy of golang.org/x/net/trace.
-#
-# goroutine 1 [running]:
-# github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace.init.0()
-#         /Users/r/go/src/github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace/trace.go:123 +0x1cd
-# exit status 2
-# FAIL    github.com/m3db/m3/src/query/remote     0.024s
-.PHONY: install-vendor-m3-remove-bad-dep
-install-vendor-m3-remove-bad-dep:
-	([ -d $(VENDOR)/$(bad_trace_dep) ] && rm -rf $(VENDOR)/$(bad_trace_dep)) || (echo "No bad trace dep" > /dev/null)
-
-# Note: Prometheus has an entire copy of all vendored code which makes
-# it impossible to pass sub-dependencies on it since you'll get errors like:
-#   have MustRegister(... vendor/github.com/prometheus/client_golang/prometheus.Collector)
-#   want MustRegister(... vendor/github.com/prometheus/prometheus/vendor/github.com/prometheus/client_golang/prometheus
-# Even if you have the same deps as prometheus you can't pass the dep types to
-# it since it depends on the concrete subdirectory vendored code import path.
-# Therefore we delete the vendored code and make it rely on our own dependencies
-# we install.
-.PHONY: install-vendor-m3-remove-prometheus-vendor-dir
-install-vendor-m3-remove-prometheus-vendor-dir:
-	([ -d $(VENDOR)/$(bad_prom_vendor_dir) ] && rm -rf $(VENDOR)/$(bad_prom_vendor_dir)) || (echo "No bad prom vendor dir" > /dev/null)
+	[ -d $(VENDOR) ] || GOSUMDB=off go mod vendor
 
 .PHONY: docker-dev-prep
 docker-dev-prep:
@@ -210,38 +174,26 @@ tools-linux-amd64:
 all: metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
-.PHONY: install-retool
-install-retool:
-	@which retool >/dev/null || go get $(retool_package)
-
 .PHONY: install-tools
-install-tools: install-retool
-	@echo "Installing retool dependencies"
-	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) sync
-	PATH=$(PATH):$(gopath_bin_path) retool $(retool_base_args) build
-
-	@# NB(r): to ensure correct version of mock-gen is present we match the version
-	@# of the retool installed mockgen, and if not a match in binary contents, then
-	@# we explicitly install at the version we desire.
-	@# We cannot solely use the retool binary as mock-gen requires its full source
-	@# code to be present in the GOPATH at runtime.
-	@echo "Installing mockgen"
-	$(eval curr_mockgen_md5=`cat $(gopath_bin_path)/mockgen | go run $(m3_package_path)/scripts/md5/md5.go`)
-	$(eval retool_mockgen_md5=`cat $(retool_bin_path)/mockgen | go run $(m3_package_path)/scripts/md5/md5.go`)
-	@test "$(curr_mockgen_md5)" = "$(retool_mockgen_md5)" && echo "Mockgen already up to date" || ( \
-		echo "Installing mockgen from Retool directory"                                            && \
-		rm -rf $(gopath_prefix)/$(mockgen_package)                                                 && \
-		mkdir -p $(shell dirname $(gopath_prefix)/$(mockgen_package))                              && \
- 		cp -r $(retool_src_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package)          && \
-		(rm $(gopath_bin_path)/mockgen || echo "No installed mockgen" > /dev/null)                 && \
-		cp $(retool_bin_path)/mockgen $(gopath_bin_path)/mockgen                                   && \
-		echo "Installed mockgen from Retool directory"                                                \
-	)
+install-tools:
+	@echo "Installing build tools"
+	GOBIN=$(tools_bin_path) go install github.com/fossas/fossa-cli/cmd/fossa
+	GOBIN=$(tools_bin_path) go install github.com/golang/mock/mockgen
+	GOBIN=$(tools_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
+	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/badtime
+	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/importorder
+	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/utilities/genclean
+	GOBIN=$(tools_bin_path) go install github.com/m3db/tools/update-license
+	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
+	GOBIN=$(tools_bin_path) go install github.com/mjibson/esc
+	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
+	GOBIN=$(tools_bin_path) go install github.com/prateek/gorename
+	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
 
 .PHONY: install-gometalinter
 install-gometalinter:
-	@mkdir -p $(retool_bin_path)
-	./scripts/install-gometalinter.sh -b $(retool_bin_path) -d $(GOMETALINT_VERSION)
+	@mkdir -p $(tools_bin_path)
+	./scripts/install-gometalinter.sh -b $(tools_bin_path) -d $(GOMETALINT_VERSION)
 
 .PHONY: check-for-goreleaser-github-token
 check-for-goreleaser-github-token:
@@ -313,8 +265,8 @@ site-build:
 .PHONY: config-gen
 config-gen: install-tools
 	@echo "--- Generating configs"
-	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/local-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/local-etcd/generated.yaml
-	$(retool_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/clustered-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/clustered-etcd/generated.yaml
+	$(tools_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/local-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/local-etcd/generated.yaml
+	$(tools_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/clustered-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/clustered-etcd/generated.yaml
 
 SUBDIR_TARGETS := \
 	mock-gen        \
@@ -336,7 +288,7 @@ test-ci-big-unit: test-big-base
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	$(process_coverfile) $(coverfile)
 
 define SUBDIR_RULES
@@ -349,11 +301,11 @@ define SUBDIR_RULES
 # bundle.
 # ifeq ($(SUBDIR), kube)
 
-# Builds the single kube bundle from individual manifest files. 
+# Builds the single kube bundle from individual manifest files.
 # all-gen-kube: install-tools
 # 	@echo "--- Generating kube bundle"
 # 	@./kube/scripts/build_bundle.sh
-# 	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0 
+# 	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
 
 # else
 
@@ -381,12 +333,14 @@ asset-gen-$(SUBDIR): install-tools
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
 		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
+# NB(schallert): gorename (used by our genny process) doesn't work with go
+# modules https://github.com/golang/go/issues/34222
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
-	@PATH=$(combined_bin_paths):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
+		PATH=$(combined_bin_paths):$(PATH) GO111MODULE=off make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
+	@PATH=$(combined_bin_paths):$(PATH) GO111MODULE=off bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
 license-gen-$(SUBDIR): install-tools
@@ -442,7 +396,7 @@ test-ci-big-unit-$(SUBDIR):
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
-	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
@@ -471,6 +425,17 @@ endef
 # of metalint and finishes faster.
 $(foreach SUBDIR_TARGET, $(filter-out metalint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
 
+.PHONY: go-mod-tidy
+go-mod-tidy:
+	@echo "--- :golang: tidying modules"
+	go mod tidy
+
+.PHONY: all-gen
+all-gen: \
+	install-tools \
+	$(foreach SUBDIR_TARGET, $(filter-out metalint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
+	go-mod-tidy
+
 .PHONY: build-ui-ctl
 build-ui-ctl:
 ifeq ($(shell ls ./src/ctl/ui/build 2>/dev/null),)
@@ -497,7 +462,7 @@ build-ui-ctl-statik-gen: build-ui-ctl-statik license-gen-ctl
 .PHONY: build-ui-ctl-statik
 build-ui-ctl-statik: build-ui-ctl install-tools
 	mkdir -p ./src/ctl/generated/ui
-	$(retool_bin_path)/statik -m -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
+	$(tools_bin_path)/statik -m -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
 
 .PHONY: node-yarn-run
 node-yarn-run:
@@ -519,9 +484,9 @@ else
 endif
 
 .PHONY: metalint
-metalint: install-gometalinter install-linter-badtime install-linter-importorder
+metalint: install-gometalinter install-tools
 	@echo "--- metalinting src/"
-	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
+	@(PATH=$(tools_bin_path):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) $(m3_package_path)/src/)
 
 # Tests that all currently generated types match their contents if they were regenerated

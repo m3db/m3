@@ -23,7 +23,7 @@ package mem
 import (
 	"bytes"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 )
 
 // newIDsMap returns a new set of IDs.
