@@ -39,7 +39,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const initMetricMapSize = 10
+const (
+	initMetricMapSize     = 10
+	fetchDataWarningError = "fetch_data_error"
+)
 
 type fanoutStorage struct {
 	stores             []storage.Storage
@@ -97,7 +100,7 @@ func (s *fanoutStorage) FetchProm(
 
 			if err != nil {
 				if warning, err := storage.IsWarning(store, err); warning {
-					resultMeta.AddWarning(store.Name(), "fetch_prom_warning")
+					resultMeta.AddWarning(store.Name(), fetchDataWarningError)
 					numWarning++
 					s.instrumentOpts.Logger().Warn(
 						"partial results: fanout to store returned warning",
@@ -178,7 +181,7 @@ func (s *fanoutStorage) FetchBlocks(
 
 			if err != nil {
 				if warning, err := storage.IsWarning(store, err); warning {
-					resultMeta.AddWarning(store.Name(), "fetch_blocks_warning")
+					resultMeta.AddWarning(store.Name(), fetchDataWarningError)
 					numWarning++
 					s.instrumentOpts.Logger().Warn(
 						"partial results: fanout to store returned warning",
@@ -283,7 +286,7 @@ func (s *fanoutStorage) SearchSeries(
 		results, err := store.SearchSeries(ctx, query, options)
 		if err != nil {
 			if warning, err := storage.IsWarning(store, err); warning {
-				metadata.AddWarning(store.Name(), "search_series_warning")
+				metadata.AddWarning(store.Name(), fetchDataWarningError)
 				s.instrumentOpts.Logger().Warn(
 					"partial results: fanout to store returned warning",
 					zap.Error(err),
@@ -342,7 +345,7 @@ func (s *fanoutStorage) CompleteTags(
 		result, err := store.CompleteTags(ctx, query, options)
 		if err != nil {
 			if warning, err := storage.IsWarning(store, err); warning {
-				metadata.AddWarning(store.Name(), "complete_tags_warning")
+				metadata.AddWarning(store.Name(), fetchDataWarningError)
 				s.instrumentOpts.Logger().Warn(
 					"partial results: fanout to store returned warning",
 					zap.Error(err),
