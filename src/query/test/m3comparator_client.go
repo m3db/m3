@@ -59,6 +59,7 @@ func (c *m3comparatorClient) load(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("got error loading data to comparator %v", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode/200 != 1 {
 		var bodyString string
