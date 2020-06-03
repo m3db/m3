@@ -32,8 +32,6 @@ assets_rules_dir     := generated/assets
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
-bad_trace_dep        := go.etcd.io/etcd/vendor/golang.org/x/net/trace
-bad_prom_vendor_dir  := github.com/prometheus/prometheus/vendor
 cache_policy         ?= recently_read
 genny_target         ?= genny-all
 
@@ -106,40 +104,6 @@ setup:
 .PHONY: install-vendor-m3
 install-vendor-m3:
 	[ -d $(VENDOR) ] || GOSUMDB=off go mod vendor
-	# See comment for "install-vendor-m3-remove-bad-dep" why required and the TODO.
-	make install-vendor-m3-remove-bad-dep
-	# See comment for "install-vendor-m3-remove-prometheus-vendor-dir" why required.
-	make install-vendor-m3-remove-prometheus-vendor-dir
-
-# Some deps were causing panics when using GRPC and etcd libraries were used.
-# See issue: https://github.com/etcd-io/etcd/issues/9357
-# TODO: Move M3 to go mod to avoid the issue entirely instead of this hack
-# (which is bad and we should feel bad).
-# $ go test -v
-# panic: /debug/requests is already registered. You may have two independent
-# copies of golang.org/x/net/trace in your binary, trying to maintain separate
-# state. This may involve a vendored copy of golang.org/x/net/trace.
-#
-# goroutine 1 [running]:
-# github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace.init.0()
-#         /Users/r/go/src/github.com/m3db/m3/vendor/go.etcd.io/etcd/vendor/golang.org/x/net/trace/trace.go:123 +0x1cd
-# exit status 2
-# FAIL    github.com/m3db/m3/src/query/remote     0.024s
-.PHONY: install-vendor-m3-remove-bad-dep
-install-vendor-m3-remove-bad-dep:
-	([ -d $(VENDOR)/$(bad_trace_dep) ] && rm -rf $(VENDOR)/$(bad_trace_dep)) || (echo "No bad trace dep" > /dev/null)
-
-# Note: Prometheus has an entire copy of all vendored code which makes
-# it impossible to pass sub-dependencies on it since you'll get errors like:
-#   have MustRegister(... vendor/github.com/prometheus/client_golang/prometheus.Collector)
-#   want MustRegister(... vendor/github.com/prometheus/prometheus/vendor/github.com/prometheus/client_golang/prometheus
-# Even if you have the same deps as prometheus you can't pass the dep types to
-# it since it depends on the concrete subdirectory vendored code import path.
-# Therefore we delete the vendored code and make it rely on our own dependencies
-# we install.
-.PHONY: install-vendor-m3-remove-prometheus-vendor-dir
-install-vendor-m3-remove-prometheus-vendor-dir:
-	([ -d $(VENDOR)/$(bad_prom_vendor_dir) ] && rm -rf $(VENDOR)/$(bad_prom_vendor_dir)) || (echo "No bad prom vendor dir" > /dev/null)
 
 .PHONY: docker-dev-prep
 docker-dev-prep:
