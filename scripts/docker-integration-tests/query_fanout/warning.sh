@@ -323,32 +323,32 @@ function test_fanout_warning_missing_zone {
   docker-compose -f ${COMPOSE_FILE} stop coordinator-cluster-c
 
   METRIC_NAME=$INSTANT_NAME
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 15 remote_store_cluster-c_fetch_blocks_warning
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_blocks_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 15 remote_store_cluster-c_fetch_data_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_warning
 
   METRIC_NAME=$RANGE_NAME
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 100 15 remote_store_cluster-c_fetch_blocks_warning
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_blocks_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 100 15 remote_store_cluster-c_fetch_data_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_warning
 
   METRIC_NAME=$SEARCH_NAME
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 16 remote_store_cluster-c_complete_tags_warning
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 16 remote_store_cluster-c_fetch_data_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_warning
 
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 100 remote_store_cluster-c_complete_tags_warning
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 1 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 100 remote_store_cluster-c_fetch_data_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 1 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_warning
 
   METRIC_NAME=$MATCH_NAME
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 11 10 remote_store_cluster-c_search_series_warning
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 9 9 max_fetch_series_limit_applied,remote_store_cluster-c_search_series_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 11 10 remote_store_cluster-c_fetch_data_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_match 9 9 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_warning
 
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 100 remote_store_cluster-c_complete_tags_warning
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 1 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 100 remote_store_cluster-c_fetch_data_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 1 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_warning
 
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 16 15 remote_store_cluster-c_fetch_blocks_warning
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_blocks_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 16 15 remote_store_cluster-c_fetch_data_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff render_carbon 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_warning
  
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16 remote_store_cluster-c_complete_tags_warning
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied,remote_store_cluster-c_complete_tags_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 16 remote_store_cluster-c_fetch_data_warning
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_warning
 
   docker-compose -f ${COMPOSE_FILE} start coordinator-cluster-c
 }
