@@ -65,7 +65,8 @@ function test_instant_query {
     "http://0.0.0.0:7201${ENDPOINT}/api/v1/query?query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].value[1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
-  test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
+  test $ACTUAL = $EXPECTED
+  test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
 t=$(date +%s)
@@ -83,7 +84,8 @@ function test_range_query {
     "http://0.0.0.0:7201/api/v1/query_range?start=$start&end=$end&step=10&query=count($METRIC_NAME)")
   ACTUAL=$(echo $RESPONSE | jq .data.result[0].values[0][1] | tr -d \" | tr -d \')
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
-  test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
+  test $ACTUAL = $EXPECTED 
+  test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
 function test_search {
@@ -137,7 +139,8 @@ function test_match {
   # NB: since it's not necessarily deterministic which series we get back from
   # remote sources, check that we cot at least EXPECTED values, which will be
   # the bottom bound.
-  test $ACTUAL -ge $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
+  test $ACTUAL -ge $EXPECTED
+  test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
 function test_label_values {
@@ -187,7 +190,8 @@ function render_carbon {
     "http://localhost:7201/api/v1/graphite/render?target=countSeries($GRAPHITE.*.*)&from=$start&until=$end")
   ACTUAL=$(echo $RESPONSE | jq .[0].datapoints[0][0])
   ACTUAL_HEADER=$(cat $HEADER_FILE | grep M3-Results-Limited | cut -d' ' -f2 | tr -d "\r\n")
-  test $ACTUAL = $EXPECTED && test $ACTUAL_HEADER = $EXPECTED_HEADER
+  test $ACTUAL = $EXPECTED
+  test $ACTUAL_HEADER = $EXPECTED_HEADER
 }
 
 function find_carbon {
