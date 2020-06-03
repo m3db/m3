@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -48,21 +49,21 @@ type encodedBlockBuilder struct {
 }
 
 func newEncodedBlockBuilder(
-	resultMeta block.ResultMetadata,
+	result consolidators.SeriesFetchResult,
 	options Options,
 ) *encodedBlockBuilder {
 	return &encodedBlockBuilder{
-		resultMeta:   resultMeta,
+		resultMeta:   result.Metadata,
 		blocksAtTime: make(blocksAtTime, 0, initBlockLength),
 		options:      options,
 	}
 }
 
 func (b *encodedBlockBuilder) add(
+	result consolidators.SeriesFetchResult,
 	bounds models.Bounds,
-	iter encoding.SeriesIterator,
 	lastBlock bool,
-) {
+) error {
 	start := bounds.Start
 	consolidation := consolidationSettings{
 		consolidationFn: b.options.ConsolidationFunc(),
@@ -75,23 +76,28 @@ func (b *encodedBlockBuilder) add(
 			block := bl.block
 			block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
 			b.blocksAtTime[idx].block = block
-			return
+			return nil
 		}
 	}
 
-	block := newEncodedBlock(
-		[]encoding.SeriesIterator{},
+	block, err := newEncodedBlock(
+		result,
 		consolidation,
 		lastBlock,
-		b.resultMeta,
 		b.options,
 	)
+
+	if err != nil {
+		return err
+	}
 
 	block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
 	b.blocksAtTime = append(b.blocksAtTime, blockAtTime{
 		time:  start,
 		block: block,
 	})
+
+	return nil
 }
 
 func (b *encodedBlockBuilder) build() ([]block.Block, error) {

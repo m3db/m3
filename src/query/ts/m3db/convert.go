@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -72,12 +73,11 @@ func (b seriesBlocks) Less(i, j int) bool {
 }
 
 func seriesIteratorsToEncodedBlockIterators(
-	iterators encoding.SeriesIterators,
+	result consolidators.SeriesFetchResult,
 	bounds models.Bounds,
-	resultMeta block.ResultMetadata,
 	opts Options,
 ) ([]block.Block, error) {
-	bl, err := NewEncodedBlock(iterators.Iters(), bounds, true, resultMeta, opts)
+	bl, err := NewEncodedBlock(result, bounds, true, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -89,9 +89,8 @@ func seriesIteratorsToEncodedBlockIterators(
 // lookback is greater than 0, converts the entire series into a single block,
 // otherwise, splits the series into blocks.
 func ConvertM3DBSeriesIterators(
-	iterators encoding.SeriesIterators,
+	result consolidators.SeriesFetchResult,
 	bounds models.Bounds,
-	resultMeta block.ResultMetadata,
 	opts Options,
 ) ([]block.Block, error) {
 	if err := opts.Validate(); err != nil {
@@ -99,32 +98,35 @@ func ConvertM3DBSeriesIterators(
 	}
 
 	if opts.SplittingSeriesByBlock() {
-		return convertM3DBSegmentedBlockIterators(iterators, bounds,
-			resultMeta, opts)
+		return convertM3DBSegmentedBlockIterators(result, bounds, opts)
 	}
 
-	return seriesIteratorsToEncodedBlockIterators(iterators, bounds,
-		resultMeta, opts)
+	return seriesIteratorsToEncodedBlockIterators(result, bounds, opts)
 }
 
 // convertM3DBSegmentedBlockIterators converts series iterators to a list of blocks
 func convertM3DBSegmentedBlockIterators(
-	iterators encoding.SeriesIterators,
+	result consolidators.SeriesFetchResult,
 	bounds models.Bounds,
-	resultMeta block.ResultMetadata,
 	opts Options,
 ) ([]block.Block, error) {
-	defer iterators.Close()
-	blockBuilder := newEncodedBlockBuilder(resultMeta, opts)
+	defer result.Close()
+	blockBuilder := newEncodedBlockBuilder(result, opts)
 	var (
 		iterAlloc    = opts.IterAlloc()
 		pools        = opts.IteratorPools()
 		checkedPools = opts.CheckedBytesPool()
 	)
 
-	for _, seriesIterator := range iterators.Iters() {
+	count := result.Count()
+	for i := 0; i < count; i++ {
+		iter, tags, err := result.IterTagsAtIndex(i, opts.TagOptions())
+		if err != nil {
+			return nil, err
+		}
+
 		blockReplicas, err := blockReplicasFromSeriesIterator(
-			seriesIterator,
+			iter,
 			iterAlloc,
 			bounds,
 			pools,
@@ -138,14 +140,16 @@ func convertM3DBSegmentedBlockIterators(
 		blockReplicas = updateSeriesBlockStarts(
 			blockReplicas,
 			bounds.StepSize,
-			seriesIterator.Start(),
+			iter.Start(),
 		)
 
 		err = seriesBlocksFromBlockReplicas(
 			blockBuilder,
+			tags,
+			result.Metadata,
 			blockReplicas,
 			bounds.StepSize,
-			seriesIterator,
+			iter,
 			pools,
 		)
 		if err != nil {
@@ -257,6 +261,8 @@ func updateSeriesBlockStarts(
 
 func seriesBlocksFromBlockReplicas(
 	blockBuilder *encodedBlockBuilder,
+	tags models.Tags,
+	resultMetadata block.ResultMetadata,
 	blockReplicas seriesBlocks,
 	stepSize time.Duration,
 	seriesIterator encoding.SeriesIterator,
@@ -268,11 +274,6 @@ func seriesBlocksFromBlockReplicas(
 		clonedID        = ident.StringID(seriesIterator.ID().String())
 		clonedNamespace = ident.StringID(seriesIterator.Namespace().String())
 	)
-
-	clonedTags, err := cloneTagIterator(seriesIterator.Tags())
-	if err != nil {
-		return err
-	}
 
 	replicaLength := len(blockReplicas) - 1
 	// TODO: use pooling
@@ -291,7 +292,6 @@ func seriesBlocksFromBlockReplicas(
 		iter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 			ID:             clonedID,
 			Namespace:      clonedNamespace,
-			Tags:           clonedTags.Duplicate(),
 			StartInclusive: xtime.ToUnixNano(filterValuesStart),
 			EndExclusive:   xtime.ToUnixNano(filterValuesEnd),
 			Replicas:       block.replicas,
@@ -308,12 +308,15 @@ func seriesBlocksFromBlockReplicas(
 		// Instead, we should access them through the SeriesBlock.
 		isLastBlock := i == replicaLength
 		blockBuilder.add(
+			consolidators.SeriesFetchResult{
+				Metadata: resultMetadata,
+			},
 			models.Bounds{
 				Start:    block.readStart,
 				Duration: duration,
 				StepSize: stepSize,
 			},
-			iter,
+			// iter,
 			isLastBlock,
 		)
 	}

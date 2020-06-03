@@ -86,3 +86,8 @@ func (r SeriesFetchResult) IterTagsAtIndex(
 	return r.seriesData.seriesIterators.Iters()[idx],
 		*r.seriesData.tags[idx], nil
 }
+
+// SeriesIterators returns the series iterators.
+func (r SeriesFetchResult) SeriesIterators() encoding.SeriesIterators {
+	return r.seriesData.seriesIterators
+}

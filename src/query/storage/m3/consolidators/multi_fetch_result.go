@@ -34,7 +34,6 @@ type fetchDedupeMap interface {
 	list() []multiResultSeries
 }
 
-// TODO: use a better seriesIterators merge here
 type multiResult struct {
 	sync.Mutex
 	metadata        block.ResultMetadata

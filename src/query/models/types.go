@@ -103,8 +103,9 @@ type TagOptions interface {
 
 // Tags represents a set of tags with options.
 type Tags struct {
-	Opts TagOptions
-	Tags []Tag
+	Opts     TagOptions
+	Tags     []Tag
+	hashedID uint64
 }
 
 // Tag is a key/value metric tag pair.

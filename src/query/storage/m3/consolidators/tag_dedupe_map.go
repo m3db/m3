@@ -42,7 +42,7 @@ type tagMapOpts struct {
 func newTagDedupeMap(opts tagMapOpts) fetchDedupeMap {
 	return &tagDedupeMap{
 		fanout:     opts.fanout,
-		mapWrapper: newFetchResultMap(opts.size),
+		mapWrapper: newFetchResultMapWrapper(opts.size),
 		tagOpts:    opts.tagOpts,
 	}
 }

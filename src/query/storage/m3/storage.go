@@ -143,9 +143,8 @@ func FetchResultToBlockResult(
 	}
 
 	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		result.SeriesIterators,
+		result,
 		bounds,
-		result.Metadata,
 		opts,
 	)
 

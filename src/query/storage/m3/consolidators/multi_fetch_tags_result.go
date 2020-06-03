@@ -39,7 +39,7 @@ type multiSearchResult struct {
 	dedupeMap map[string]MultiTagResult
 }
 
-// NewMultiFetchTagsResult builds a new multi fetch tags result
+// NewMultiFetchTagsResult builds a new multi fetch tags result.
 func NewMultiFetchTagsResult() MultiFetchTagsResult {
 	return &multiSearchResult{
 		dedupeMap: make(map[string]MultiTagResult, initSize),

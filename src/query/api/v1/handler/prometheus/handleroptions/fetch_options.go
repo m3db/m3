@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
@@ -107,7 +108,7 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 
 	fetchOpts.Limit = limit
 	if str := req.Header.Get(MetricsTypeHeader); str != "" {
-		mt, err := storage.ParseMetricsType(str)
+		mt, err := consolidators.ParseMetricsType(str)
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse metrics type: input=%s, err=%v", str, err)

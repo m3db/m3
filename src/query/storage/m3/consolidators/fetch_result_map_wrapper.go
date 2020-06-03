@@ -57,16 +57,15 @@ func (w *fetchResultMapWrapper) set(
 	})
 }
 
-// newFetchResultMap builds a MultiFetchResultMap, which is primarily used
-// for checking for existence of particular ident.IDs.
-func newFetchResultMap(size int) *fetchResultMapWrapper {
+// newFetchResultMapWrapper builds a wrapper on fetchResultMap functions.
+func newFetchResultMapWrapper(size int) *fetchResultMapWrapper {
 	return &fetchResultMapWrapper{
 		resultMap: _fetchResultMapAlloc(_fetchResultMapOptions{
 			hash: func(t models.Tags) fetchResultMapHash {
-				return fetchResultMapHash(t.HashedID())
+				return fetchResultMapHash(t.LastComputedHashedID())
 			},
 			equals: func(x, y models.Tags) bool {
-				// NB: IDs are calculated once, so any further calls to these
+				// NB: IDs are calculated once for tags, so any further calls to these
 				// equals is a simple lookup.
 				return bytes.Equal(x.ID(), y.ID())
 			},
