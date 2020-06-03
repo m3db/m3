@@ -92,13 +92,7 @@ func (h *UpdateHandler) ServeHTTP(
 	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
 	nsRegistry, err := h.Update(md, opts)
 	if err != nil {
-		if err == errNamespaceExists {
-			logger.Error("namespace already exists", zap.Error(err))
-			xhttp.Error(w, err, http.StatusConflict)
-			return
-		}
-
-		logger.Error("unable to get namespace", zap.Error(err))
+		logger.Error("unable to update namespace", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
@@ -220,7 +214,7 @@ func (h *UpdateHandler) Update(
 	protoRegistry := namespace.ToProto(nsMap)
 	_, err = store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
 	if err != nil {
-		return emptyReg, fmt.Errorf("failed to update namespace: %v", err)
+		return emptyReg, fmt.Errorf("failed to update namespace: %w", err)
 	}
 
 	return *protoRegistry, nil
