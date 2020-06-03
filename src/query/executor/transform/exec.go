@@ -61,7 +61,7 @@ func ProcessSimpleBlock(
 	// be closed, as they would free underlying data. The general story in block
 	// lifecycle should be revisited to remove quirks arising from these edge
 	// cases (something where blocks are responsible for calling their own
-	// downstreams would seem more intuative and allow finer grained lifecycle
+	// downstreams would seem more intuitive and allow finer grained lifecycle
 	// control).
 	err = controller.Process(queryCtx, nextBlock)
 	if nextBlock.Info().Type() != block.BlockLazy {
