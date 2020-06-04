@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/models/strconv"
 	"github.com/m3db/m3/src/query/util/writer"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 )
 
 var (

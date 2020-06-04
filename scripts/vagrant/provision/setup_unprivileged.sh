@@ -23,4 +23,4 @@ mv ${HOME}/go/bin/kind ${HOME}/bin
 
 # Setup kubectl to use the kind config
 echo '' >> ${HOME}/.bashrc
-echo 'export KUBECONFIG=${HOME}/.kube/kind-config-kind' >> ${HOME}/.bashrc
+echo 'export KUBECONFIG=${HOME}/.kube/config' >> ${HOME}/.bashrc

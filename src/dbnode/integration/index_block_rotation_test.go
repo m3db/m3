@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 
@@ -72,42 +72,42 @@ func TestIndexBlockRotation(t *testing.T) {
 					SetBlockSize(indexBlockSize).SetEnabled(true)))
 	require.NoError(t, err)
 
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
 		SetWriteNewSeriesAsync(true)
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
 	t1 := t0.Add(20 * time.Minute)
 	t2 := t1.Add(3 * time.Hour)
-	testSetup.setNowFn(t0)
+	testSetup.SetNowFn(t0)
 
-	writesPeriod0 := generateTestIndexWrite(0, numWrites, numTags, t0, t1)
+	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 
-	client := testSetup.m3dbClient
+	client := testSetup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 
 	log.Info("starting data write")
 	start := time.Now()
-	writesPeriod0.write(t, md.ID(), session)
+	writesPeriod0.Write(t, md.ID(), session)
 	log.Info("test data written", zap.Duration("took", time.Since(start)))
 
 	log.Info("waiting till data is indexed")
 	indexed := xclock.WaitUntil(func() bool {
-		indexPeriod0 := writesPeriod0.numIndexed(t, md.ID(), session)
+		indexPeriod0 := writesPeriod0.NumIndexed(t, md.ID(), session)
 		return indexPeriod0 == len(writesPeriod0)
 	}, 5*time.Second)
 	require.True(t, indexed)
@@ -122,14 +122,14 @@ func TestIndexBlockRotation(t *testing.T) {
 	period0Results, _, err := session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
-	writesPeriod0.matchesSeriesIters(t, period0Results)
+	writesPeriod0.MatchesSeriesIters(t, period0Results)
 	log.Info("found period0 results")
 
 	// move time to 4p
-	testSetup.setNowFn(t2)
+	testSetup.SetNowFn(t2)
 
 	// give tick some time to evict the block
-	testSetup.sleepFor10xTickMinimumInterval()
+	testSetup.SleepFor10xTickMinimumInterval()
 
 	// ensure all data is absent
 	log.Info("querying period0 results after expiry")

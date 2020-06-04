@@ -37,7 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/uber-go/atomic"
+	"go.uber.org/atomic"
 )
 
 var (
