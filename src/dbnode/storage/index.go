@@ -1359,7 +1359,7 @@ func (i *nsIndex) queryWithSpan(
 		}
 	}
 
-	i.metrics.loadedDocsPerQuery.RecordValue(float64(results.Size()))
+	i.metrics.loadedDocsPerQuery.RecordValue(float64(results.TotalDocsCount()))
 
 	state.Lock()
 	// Take reference to vars to return while locked.
