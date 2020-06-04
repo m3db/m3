@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" // needed for pprof handler registration
-	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/experimental/annotated"
@@ -55,10 +54,12 @@ import (
 )
 
 const (
-	healthURL        = "/health"
-	routesURL        = "/routes"
-	engineHeaderName = "M3-Engine"
-	engineURLParam   = "engine"
+	healthURL = "/health"
+	routesURL = "/routes"
+	// EngineHeaderName defines header name which is used to switch between prometheus and m3query engines.
+	EngineHeaderName = "M3-Engine"
+	// EngineURLParam defines query url parameter which is used to switch between prometheus and m3query engines.
+	EngineURLParam = "engine"
 )
 
 var (
@@ -71,10 +72,12 @@ var (
 
 // Handler represents the top-level HTTP handler.
 type Handler struct {
-	router         *mux.Router
-	handler        http.Handler
-	options        options.HandlerOptions
-	customHandlers []options.CustomHandler
+	router             *mux.Router
+	handler            http.Handler
+	options            options.HandlerOptions
+	queryRouter        QueryRouter
+	instantQueryRouter QueryRouter
+	customHandlers     []options.CustomHandler
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -85,16 +88,20 @@ func (h *Handler) Router() http.Handler {
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(
 	handlerOptions options.HandlerOptions,
+	queryRouter QueryRouter,
+	instantQueryRouter QueryRouter,
 	customHandlers ...options.CustomHandler,
 ) *Handler {
 	r := mux.NewRouter()
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
 
 	return &Handler{
-		router:         r,
-		handler:        handlerWithMiddleware,
-		options:        handlerOptions,
-		customHandlers: customHandlers,
+		router:             r,
+		handler:            handlerWithMiddleware,
+		options:            handlerOptions,
+		queryRouter:        queryRouter,
+		instantQueryRouter: instantQueryRouter,
+		customHandlers:     customHandlers,
 	}
 }
 
@@ -179,48 +186,24 @@ func (h *Handler) RegisterRoutes() error {
 	nativePromReadHandler := wrapped(native.NewPromReadHandler(nativeSourceOpts))
 	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(h.options))
 
-	promqlMatcher := func(r *http.Request, rm *mux.RouteMatch) bool {
-		header := strings.ToLower(r.Header.Get(engineHeaderName))
-		urlParam := strings.ToLower(r.URL.Query().Get(engineURLParam))
-		if !options.IsQueryEngineSet(header) &&
-			!options.IsQueryEngineSet(urlParam) &&
-			h.options.DefaultQueryEngine() == options.PrometheusEngine {
-			return true
-		}
+	h.queryRouter.Setup(QueryRouterOptions{
+		DefaultQueryEngine: h.options.DefaultQueryEngine(),
+		PromqlHandler:      promqlQueryHandler.ServeHTTP,
+		M3QueryHandler:     nativePromReadHandler.ServeHTTP,
+	})
 
-		return header == string(options.PrometheusEngine) ||
-			urlParam == string(options.PrometheusEngine)
-	}
-	m3queryMatcher := func(r *http.Request, rm *mux.RouteMatch) bool {
-		header := strings.ToLower(r.Header.Get(engineHeaderName))
-		urlParam := strings.ToLower(r.URL.Query().Get(engineURLParam))
-		if !options.IsQueryEngineSet(header) &&
-			!options.IsQueryEngineSet(urlParam) &&
-			h.options.DefaultQueryEngine() == options.M3QueryEngine {
-			return true
-		}
-
-		return header == string(options.M3QueryEngine) ||
-			urlParam == string(options.M3QueryEngine)
-	}
+	h.instantQueryRouter.Setup(QueryRouterOptions{
+		DefaultQueryEngine: h.options.DefaultQueryEngine(),
+		PromqlHandler:      promqlInstantQueryHandler.ServeHTTP,
+		M3QueryHandler:     nativePromReadInstantHandler.ServeHTTP,
+	})
 
 	h.router.
-		HandleFunc(native.PromReadURL, promqlQueryHandler.ServeHTTP).
-		Methods(native.PromReadHTTPMethods...).
-		MatcherFunc(promqlMatcher)
+		HandleFunc(native.PromReadURL, h.queryRouter.ServeHTTP).
+		Methods(native.PromReadHTTPMethods...)
 	h.router.
-		HandleFunc(native.PromReadInstantURL, promqlInstantQueryHandler.ServeHTTP).
-		Methods(native.PromReadInstantHTTPMethods...).
-		MatcherFunc(promqlMatcher)
-
-	h.router.
-		HandleFunc(native.PromReadURL, nativePromReadHandler.ServeHTTP).
-		Methods(native.PromReadHTTPMethods...).
-		MatcherFunc(m3queryMatcher)
-	h.router.
-		HandleFunc(native.PromReadInstantURL, nativePromReadInstantHandler.ServeHTTP).
-		Methods(native.PromReadInstantHTTPMethods...).
-		MatcherFunc(m3queryMatcher)
+		HandleFunc(native.PromReadInstantURL, h.instantQueryRouter.ServeHTTP).
+		Methods(native.PromReadInstantHTTPMethods...)
 
 	h.router.HandleFunc("/prometheus"+native.PromReadURL, promqlQueryHandler.ServeHTTP).Methods(native.PromReadHTTPMethods...)
 	h.router.HandleFunc("/prometheus"+native.PromReadInstantURL, promqlInstantQueryHandler.ServeHTTP).Methods(native.PromReadInstantHTTPMethods...)
