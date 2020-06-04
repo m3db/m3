@@ -53,7 +53,7 @@ func main() {
 
 		pQueryFile    = flag.String("input", "", "the query file")
 		pPromAddress  = flag.String("promAdress", "0.0.0.0:9090", "prom address")
-		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201", "query address")
+		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201/m3query", "M3 query address")
 
 		pComparatorAddress = flag.String("comparator", "", "comparator address")
 		pRegressionDir     = flag.String("regressionDir", "", "optional directory for regression tests")

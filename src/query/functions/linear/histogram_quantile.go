@@ -168,23 +168,23 @@ func gatherSeriesToBuckets(metas []block.SeriesMeta) validSeriesBuckets {
 
 		excludeTags := [][]byte{tags.Opts.MetricName(), tags.Opts.BucketName()}
 		tagsWithoutKeys := tags.TagsWithoutKeys(excludeTags)
-		id := tagsWithoutKeys.ID()
+		id := string(tagsWithoutKeys.ID())
 		newBucket := indexedBucket{
 			upperBound: bound,
 			idx:        i,
 		}
 
-		if buckets, found := bucketsForID[string(id)]; !found {
+		if buckets, found := bucketsForID[id]; !found {
 			// add a single indexed bucket for this ID with the current index only.
 			newBuckets := make([]indexedBucket, 0, initIndexBucketLength)
 			newBuckets = append(newBuckets, newBucket)
-			bucketsForID[string(id)] = indexedBuckets{
+			bucketsForID[id] = indexedBuckets{
 				buckets: newBuckets,
 				tags:    tagsWithoutKeys,
 			}
 		} else {
 			buckets.buckets = append(buckets.buckets, newBucket)
-			bucketsForID[string(id)] = buckets
+			bucketsForID[id] = buckets
 		}
 	}
 
@@ -339,14 +339,20 @@ func processValidQuantile(
 			buckets := b.buckets
 			// clear previous bucket values.
 			bucketValues = bucketValues[:0]
+			max := math.Inf(-1)
 			for _, bucket := range buckets {
 				// Only add non-NaN values to contention for the calculation.
 				val := values[bucket.idx]
 				if !math.IsNaN(val) {
+					if val >= max {
+						// Enforce monotonicity for binary search to work.
+						// See https://github.com/prometheus/prometheus/commit/896f951e6846ce252d9d19fd4707a4110ceda5ee
+						max = val
+					}
 					bucketValues = append(
 						bucketValues, bucketValue{
 							upperBound: bucket.upperBound,
-							value:      val,
+							value:      max,
 						},
 					)
 				}
