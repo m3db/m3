@@ -132,6 +132,19 @@ func (q *querier) Select(
 	seriesSet := fromQueryResult(sortSeries, result.PromResult)
 	warnings := fromWarningStrings(result.Metadata.WarningStrings())
 
+	resultMetadataPtr, err := resultMetadata(q.ctx)
+	if err != nil {
+		q.logger.Error("result metadata not set in context")
+		return nil, nil, err
+	}
+	if resultMetadataPtr == nil {
+		err := errors.New("result metadata nil for context")
+		q.logger.Error(err.Error())
+		return nil, nil, err
+	}
+
+	*resultMetadataPtr = result.Metadata
+
 	return seriesSet, warnings, err
 }
 

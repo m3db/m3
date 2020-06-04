@@ -23,7 +23,7 @@ package mem
 import (
 	"bytes"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 )
 
 // newPostingsMap returns a new []bytes->postings.MutableList map.

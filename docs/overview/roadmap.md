@@ -10,5 +10,4 @@ Short:
 - Add design documentation of aggregator
 
 Medium:
-- Upgrade from glide to go modules
 - Plan what a v1.0 release looks like
