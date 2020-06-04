@@ -1,5 +1,7 @@
-FROM alpine:latest
+FROM alpine:3.11
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
+
+ENV GODEBUG madvdontneed=1
 
 RUN apk add --no-cache curl jq
 
