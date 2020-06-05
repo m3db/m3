@@ -1,5 +1,14 @@
 [
   {
+    "queryGroup":"constant",
+    "queries":[
+      "42"
+    ],
+    "steps" : [
+      "1m"
+    ]
+  },
+  {
     "queryGroup":"fetch",
     "queries":[
       "quail",
@@ -7,7 +16,7 @@
     ],
     "steps" : [
       "15s",
-      "30s", 
+      "30s",
       "1m"
     ]
   },

@@ -69,8 +69,9 @@ type ReadResponse struct {
 
 // ReadResult is a result from a remote read.
 type ReadResult struct {
-	Series []*ts.Series
-	Meta   block.ResultMetadata
+	Series    []*ts.Series
+	Meta      block.ResultMetadata
+	BlockType block.BlockType
 }
 
 // ParseRequest parses the given request.
@@ -175,7 +176,10 @@ func read(
 		xopentracing.Duration("params.step", params.Step),
 	)
 
-	emptyResult := ReadResult{Meta: block.NewResultMetadata()}
+	emptyResult := ReadResult{
+		Meta:      block.NewResultMetadata(),
+		BlockType: block.BlockEmpty,
+	}
 
 	// TODO: Capture timing
 	parseOpts := engine.Options().ParseOptions()
@@ -245,5 +249,12 @@ func read(
 	}
 
 	seriesList = prometheus.FilterSeriesByOptions(seriesList, fetchOpts)
-	return ReadResult{Series: seriesList, Meta: resultMeta}, nil
+
+	blockType := bl.Info().Type()
+
+	return ReadResult{
+		Series:    seriesList,
+		Meta:      resultMeta,
+		BlockType: blockType,
+	}, nil
 }

@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/functions/utils"
@@ -395,7 +396,13 @@ func renderResultsInstantaneousJSON(
 	var (
 		series   = result.Series
 		warnings = result.Meta.WarningStrings()
+		isScalar = result.BlockType == block.BlockScalar
 	)
+
+	resultType := "vector"
+	if isScalar {
+		resultType = "scalar"
+	}
 
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -417,11 +424,21 @@ func renderResultsInstantaneousJSON(
 	jw.BeginObject()
 
 	jw.BeginObjectField("resultType")
-	jw.WriteString("vector")
+	jw.WriteString(resultType)
 
 	jw.BeginObjectField("result")
 	jw.BeginArray()
 	for _, s := range series {
+		vals := s.Values()
+		length := s.Len()
+		dp := vals.DatapointAt(length - 1)
+
+		if isScalar {
+			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.WriteString(utils.FormatFloat(dp.Value))
+			continue
+		}
+
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
@@ -432,9 +449,6 @@ func renderResultsInstantaneousJSON(
 		jw.EndObject()
 
 		jw.BeginObjectField("value")
-		vals := s.Values()
-		length := s.Len()
-		dp := vals.DatapointAt(length - 1)
 		jw.BeginArray()
 		jw.WriteInt(int(dp.Timestamp.Unix()))
 		jw.WriteString(utils.FormatFloat(dp.Value))
