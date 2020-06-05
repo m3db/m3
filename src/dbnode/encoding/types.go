@@ -220,7 +220,20 @@ type MultiReaderIterator interface {
 	Schema() namespace.SchemaDescr
 }
 
-type seriesIteratorCommon interface {
+// SeriesIteratorAccumulator is an accumulator for SeriesIterator iterators,
+// that gathers incoming SeriesIterators and builds a unified SeriesIterator.
+type SeriesIteratorAccumulator interface {
+	SeriesIterator
+
+	// Add adds a series iterator.
+	Add(it SeriesIterator) error
+}
+
+// SeriesIterator is an iterator that iterates over a set of iterators from
+// different replicas and de-dupes & merges results from the replicas for a
+// given series while also applying a time filter on top of the values in
+// case replicas returned values out of range on either end.
+type SeriesIterator interface {
 	Iterator
 
 	// ID gets the ID of the series.
@@ -251,30 +264,13 @@ type seriesIteratorCommon interface {
 
 	// Stats provides information for this SeriesIterator.
 	Stats() (SeriesIteratorStats, error)
-}
-
-// SeriesIteratorAccumulator is an accumulator for SeriesIterator iterators,
-// that gathers incoming SeriesIterators and builds a unified SeriesIterator.
-type SeriesIteratorAccumulator interface {
-	seriesIteratorCommon
-
-	// Add adds a series iterator.
-	Add(it SeriesIterator) error
-}
-
-// SeriesIterator is an iterator that iterates over a set of iterators from
-// different replicas and de-dupes & merges results from the replicas for a
-// given series while also applying a time filter on top of the values in
-// case replicas returned values out of range on either end.
-type SeriesIterator interface {
-	seriesIteratorCommon
-
-	// Tags returns an iterator over the tags associated with the ID.
-	Tags() ident.TagIterator
 
 	// Replicas exposes the underlying MultiReaderIterator slice
 	// for this SeriesIterator.
-	Replicas() []MultiReaderIterator
+	Replicas() ([]MultiReaderIterator, error)
+
+	// Tags returns an iterator over the tags associated with the ID.
+	Tags() ident.TagIterator
 }
 
 // SeriesIteratorStats contains information about a SeriesIterator.

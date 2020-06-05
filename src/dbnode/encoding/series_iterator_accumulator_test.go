@@ -32,6 +32,14 @@ import (
 )
 
 func TestSeriesIteratorAccumulatorReplicas(t *testing.T) {
+	testSeriesIteratorAccumulatorReplicas(t, false)
+}
+
+func TestSeriesIteratorAccumulatorReplicasRetainTag(t *testing.T) {
+	testSeriesIteratorAccumulatorReplicas(t, true)
+}
+
+func testSeriesIteratorAccumulatorReplicas(t *testing.T, retain bool) {
 	start := time.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
@@ -69,12 +77,13 @@ func TestSeriesIteratorAccumulatorReplicas(t *testing.T) {
 	}
 
 	test := testSeries{
-		id:       "foo",
-		nsID:     "bar",
-		start:    start,
-		end:      end,
-		input:    values,
-		expected: ex,
+		id:        "foo",
+		nsID:      "bar",
+		start:     start,
+		end:       end,
+		retainTag: retain,
+		input:     values,
+		expected:  ex,
 	}
 
 	assertTestSeriesAccumulatorIterator(t, test)
@@ -98,9 +107,11 @@ func newTestSeriesAccumulatorIterator(
 		)
 
 		iter := NewSeriesIterator(SeriesIteratorOptions{
-			ID:             ident.StringID(series.id),
-			Namespace:      ident.StringID(series.nsID),
-			Tags:           ident.EmptyTagIterator,
+			ID:        ident.StringID(series.id),
+			Namespace: ident.StringID(series.nsID),
+			Tags: ident.NewTagsIterator(ident.NewTags(
+				ident.StringTag("foo", "bar"), ident.StringTag("qux", "quz"),
+			)),
 			StartInclusive: xtime.ToUnixNano(series.start),
 			EndExclusive:   xtime.ToUnixNano(series.end),
 			Replicas:       []MultiReaderIterator{multiIter},
@@ -108,7 +119,9 @@ func newTestSeriesAccumulatorIterator(
 
 		iters = append(iters, iter)
 		if acc == nil {
-			a, err := NewSeriesIteratorAccumulator(iter)
+			a, err := NewSeriesIteratorAccumulator(iter, SeriesAccumulatorOptions{
+				RetainTags: series.retainTag,
+			})
 			require.NoError(t, err)
 			acc = a
 		} else {
@@ -132,6 +145,21 @@ func assertTestSeriesAccumulatorIterator(
 	newSeriesIter := newTestSeriesAccumulatorIterator(t, series)
 	iter := newSeriesIter.iter
 
+	checkTags := func() {
+		tags := iter.Tags()
+		if tags == nil {
+			return
+		}
+		require.True(t, tags.Next())
+		assert.True(t, tags.Current().Equal(ident.StringTag("foo", "bar")))
+		require.True(t, tags.Next())
+		assert.True(t, tags.Current().Equal(ident.StringTag("qux", "quz")))
+		assert.False(t, tags.Next())
+		assert.NoError(t, tags.Err())
+		tags.Rewind()
+	}
+
+	checkTags()
 	assert.Equal(t, series.id, iter.ID().String())
 	assert.Equal(t, series.nsID, iter.Namespace().String())
 	assert.Equal(t, series.start, iter.Start())
@@ -149,6 +177,7 @@ func assertTestSeriesAccumulatorIterator(
 		assert.Equal(t, expected.t, dp.Timestamp)
 		assert.Equal(t, expected.unit, unit)
 		assert.Equal(t, expected.annotation, []byte(annotation))
+		checkTags()
 	}
 	// Ensure further calls to next false
 	for i := 0; i < 2; i++ {
@@ -160,5 +189,17 @@ func assertTestSeriesAccumulatorIterator(
 		assert.Equal(t, series.expectedErr.err, iter.Err())
 	}
 
+	var tagIter ident.TagIterator
+	if series.retainTag {
+		checkTags()
+		tagIter = iter.Tags()
+	} else {
+		assert.Nil(t, iter.Tags())
+	}
+
 	iter.Close()
+	if series.retainTag {
+		// Check that the tag iterator was closed.
+		assert.False(t, tagIter.Next())
+	}
 }

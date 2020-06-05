@@ -155,7 +155,11 @@ func compressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
 	iterPools encoding.IteratorPools,
 ) (*rpc.Series, error) {
-	replicas := it.Replicas()
+	replicas, err := it.Replicas()
+	if err != nil {
+		return nil, err
+	}
+
 	compressedReplicas := make([]*rpc.M3CompressedValuesReplica, 0, len(replicas))
 	for _, replica := range replicas {
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))

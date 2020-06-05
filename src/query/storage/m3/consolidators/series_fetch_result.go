@@ -24,20 +24,23 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 )
 
 // NewSeriesFetchResult creates a new series fetch result using the given
 // iterators.
 func NewSeriesFetchResult(
-	iters encoding.SeriesIterators,
+	meta block.ResultMetadata,
 	tags []*models.Tags,
+	iters encoding.SeriesIterators,
 ) SeriesFetchResult {
 	if tags == nil {
 		tags = make([]*models.Tags, iters.Len())
 	}
 
 	return SeriesFetchResult{
+		Metadata: meta,
 		seriesData: seriesData{
 			seriesIterators: iters,
 			tags:            tags,
@@ -45,10 +48,26 @@ func NewSeriesFetchResult(
 	}
 }
 
+// NewEmptyFetchResult creates a new empty series fetch result.
+func NewEmptyFetchResult(
+	meta block.ResultMetadata,
+) SeriesFetchResult {
+	return SeriesFetchResult{
+		Metadata: meta,
+		seriesData: seriesData{
+			seriesIterators: nil,
+			tags:            []*models.Tags{},
+		},
+	}
+}
+
 // Verify verifies the fetch result is valid.
 func (r SeriesFetchResult) Verify() error {
-	if t, it := len(r.seriesData.tags), r.seriesData.seriesIterators.Len(); t != it {
-		return fmt.Errorf("tag length %d does not match iterator length %d", t, it)
+	tagLen := len(r.seriesData.tags)
+	iterLen := r.seriesData.seriesIterators.Len()
+	if tagLen != iterLen {
+		return fmt.Errorf("tag length %d does not match iterator length %d",
+			tagLen, iterLen)
 	}
 
 	return nil
@@ -61,7 +80,9 @@ func (r SeriesFetchResult) Count() int {
 
 // Close closes the contained series iterators.
 func (r SeriesFetchResult) Close() {
-	r.seriesData.seriesIterators.Close()
+	for _, it := range r.seriesData.seriesIterators.Iters() {
+		it.Close()
+	}
 }
 
 // IterTagsAtIndex returns the tag iterator and tags at the given index.
@@ -73,21 +94,24 @@ func (r SeriesFetchResult) IterTagsAtIndex(
 			"bounds %d ", idx, len(r.seriesData.tags))
 	}
 
+	iters := r.seriesData.seriesIterators.Iters()
 	if r.seriesData.tags[idx] == nil {
-		iter := r.seriesData.seriesIterators.Iters()[idx].Tags()
+		iter := iters[idx].Tags()
 		tags, err := FromIdentTagIteratorToTags(iter, tagOpts)
 		if err != nil {
 			return nil, models.EmptyTags(), err
 		}
 
+		// TODO:
+		iter.Rewind()
 		r.seriesData.tags[idx] = &tags
 	}
 
-	return r.seriesData.seriesIterators.Iters()[idx],
+	return iters[idx],
 		*r.seriesData.tags[idx], nil
 }
 
 // SeriesIterators returns the series iterators.
-func (r SeriesFetchResult) SeriesIterators() encoding.SeriesIterators {
-	return r.seriesData.seriesIterators
+func (r SeriesFetchResult) SeriesIterators() []encoding.SeriesIterator {
+	return r.seriesData.seriesIterators.Iters()
 }

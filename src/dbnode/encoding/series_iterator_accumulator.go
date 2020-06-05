@@ -38,20 +38,33 @@ type seriesIteratorAccumulator struct {
 	start           time.Time
 	end             time.Time
 	iters           iterators
+	tagIterator     ident.TagIterator
 	seriesIterators []SeriesIterator
 	err             error
 	firstNext       bool
 	closed          bool
 }
 
+// SeriesAccumulatorOptions are options for a SeriesIteratorAccumulator.
+type SeriesAccumulatorOptions struct {
+	// RetainTags determines if tags should be preserved after the accumulator is
+	// exhausted. If set to true, the accumulator retains a copy of the tags.
+	RetainTags bool
+}
+
 // NewSeriesIteratorAccumulator creates a new series iterator.
 func NewSeriesIteratorAccumulator(
 	iter SeriesIterator,
+	opts SeriesAccumulatorOptions,
 ) (SeriesIteratorAccumulator, error) {
 	it := &seriesIteratorAccumulator{
 		id:              iter.ID(),
 		nsID:            iter.Namespace(),
 		seriesIterators: make([]SeriesIterator, 0, 2),
+	}
+
+	if opts.RetainTags {
+		it.tagIterator = iter.Tags().Duplicate()
 	}
 
 	err := it.Add(iter)
@@ -97,7 +110,15 @@ func (it *seriesIteratorAccumulator) Namespace() ident.ID {
 }
 
 func (it *seriesIteratorAccumulator) Tags() ident.TagIterator {
-	return ident.EmptyTagIterator
+	if iter := it.tagIterator; iter != nil {
+		return iter
+	}
+	if len(it.seriesIterators) == 0 {
+		return ident.EmptyTagIterator
+	}
+	// NB: the tags for each iterator must be the same, so it's valid to return
+	// from whichever iterator is available.
+	return it.seriesIterators[0].Tags()
 }
 
 func (it *seriesIteratorAccumulator) Start() time.Time {
@@ -138,6 +159,39 @@ func (it *seriesIteratorAccumulator) Err() error {
 	}
 
 	return nil
+}
+
+func (it *seriesIteratorAccumulator) Close() {
+	if it.isClosed() {
+		return
+	}
+	it.closed = true
+	if it.id != nil {
+		it.id.Finalize()
+		it.id = nil
+	}
+	if it.nsID != nil {
+		it.nsID.Finalize()
+		it.nsID = nil
+	}
+	for idx, iter := range it.seriesIterators {
+		iter.Close()
+		it.seriesIterators[idx] = nil
+	}
+	if it.tagIterator != nil {
+		it.tagIterator.Close()
+		it.tagIterator = nil
+	}
+	it.iters.reset()
+}
+
+func (it *seriesIteratorAccumulator) Replicas() ([]MultiReaderIterator, error) {
+	if l := len(it.seriesIterators); l != 1 {
+		return nil, fmt.Errorf("cannot get replicas for accumulated series "+
+			"iterators: need 1 iterator, have %d", l)
+	}
+
+	return it.seriesIterators[0].Replicas()
 }
 
 func (it *seriesIteratorAccumulator) Reset(opts SeriesIteratorOptions) {
