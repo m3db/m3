@@ -356,7 +356,7 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
-func TestRenderInstantaneousResultsJSON(t *testing.T) {
+func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	start := time.Unix(1535948880, 0)
 	buffer := bytes.NewBuffer(nil)
 	series := []*ts.Series{
@@ -408,6 +408,39 @@ func TestRenderInstantaneousResultsJSON(t *testing.T) {
 			},
 		},
 	})
+	actual := xtest.MustPrettyJSONString(t, buffer.String())
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+}
+
+func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+
+	series := []*ts.Series{
+		ts.NewSeries(
+			[]byte("foo"),
+			ts.NewFixedStepValues(10*time.Second, 1, 5, start),
+			test.TagSliceToTags([]models.Tag{})),
+	}
+
+	readResult := ReadResult{
+		Series:    series,
+		Meta:      block.NewResultMetadata(),
+		BlockType: block.BlockScalar,
+	}
+
+	buffer := bytes.NewBuffer(nil)
+	renderResultsInstantaneousJSON(buffer, readResult)
+	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
+		"status": "success",
+		"data": xjson.Map{
+			"resultType": "scalar",
+			"result": xjson.Array{
+				1535948880,
+				"5",
+			},
+		},
+	})
+
 	actual := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
