@@ -55,23 +55,23 @@ func TestFilesystemBootstrapTagsWithIndexingDisabled(t *testing.T) {
 	ns2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
-		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
-	storageIdxOpts := setup.storageOpts.IndexOptions()
+		SetSeriesCachePolicy(setup.StorageOpts().SeriesCachePolicy())
+	storageIdxOpts := setup.StorageOpts().IndexOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
@@ -82,15 +82,15 @@ func TestFilesystemBootstrapTagsWithIndexingDisabled(t *testing.T) {
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 
-	setup.storageOpts = setup.storageOpts.
-		SetBootstrapProcessProvider(processProvider)
+	setup.SetStorageOpts(setup.StorageOpts().
+		SetBootstrapProcessProvider(processProvider))
 
 	// Write test data
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{
 			IDs:       []string{"foo"},
@@ -121,14 +121,14 @@ func TestFilesystemBootstrapTagsWithIndexingDisabled(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(ns2, setup, nil, 0))
 
 	// Start the server with filesystem bootstrapper
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("filesystem bootstrap test")
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 
