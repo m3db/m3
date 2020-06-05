@@ -25,9 +25,11 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -123,6 +125,39 @@ func TestDecodeSimple(t *testing.T) {
 
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
+
+	d.Close()
+}
+
+func TestDecodeAfterRewind(t *testing.T) {
+	b := testTagDecoderBytes()
+	d := newTestTagDecoder()
+	d.Reset(b)
+	require.NoError(t, d.Err())
+
+	count := 10
+	printedTags := []byte("abcdefgxbar")
+	acBytes := make([]byte, 0, count*len(printedTags))
+	exBytes := make([]byte, count*len(printedTags))
+	readIter := func(it ident.TagIterator) {
+		tag := d.Current()
+		acBytes = append(acBytes, tag.Name.Bytes()...)
+		acBytes = append(acBytes, tag.Value.Bytes()...)
+	}
+
+	for i := 0; i < count; i++ {
+		require.True(t, d.Next())
+		readIter(d)
+		require.True(t, d.Next())
+		readIter(d)
+		require.False(t, d.Next())
+		require.NoError(t, d.Err())
+		copy(exBytes[i*len(printedTags):], printedTags)
+		d.Rewind()
+	}
+
+	assert.Equal(t, exBytes, acBytes)
+	assert.Equal(t, string(exBytes), string(acBytes))
 
 	d.Close()
 }

@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -424,6 +425,16 @@ func newTestOptions() Options {
 	return newOptions(bytesPool, iteratorPools)
 }
 
+func iterToFetchResult(
+	iters []encoding.SeriesIterator) consolidators.SeriesFetchResult {
+	iterators := encoding.NewSeriesIterators(iters, nil)
+	return consolidators.NewSeriesFetchResult(
+		iterators,
+		nil,
+		block.NewResultMetadata(),
+	)
+}
+
 func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, stop) {
 	var (
 		seriesCount   = 1000
@@ -488,7 +499,6 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 			encoding.SeriesIteratorOptions{}, nil)
 
 		iters[i] = iter
-
 		itersReset[i] = func() {
 			// Reset the replica iters.
 			for _, replica := range replicas {
@@ -524,11 +534,13 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 		reset()
 	}
 
-	block, err := NewEncodedBlock(iters, models.Bounds{
-		Start:    start,
-		StepSize: stepSize,
-		Duration: window,
-	}, false, block.NewResultMetadata(), opts)
+	block, err := NewEncodedBlock(
+		iterToFetchResult(iters),
+		models.Bounds{
+			Start:    start,
+			StepSize: stepSize,
+			Duration: window,
+		}, false, opts)
 
 	require.NoError(b, err)
 	return block, func() {

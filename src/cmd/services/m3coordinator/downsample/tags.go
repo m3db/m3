@@ -22,8 +22,6 @@ package downsample
 
 import (
 	"bytes"
-	"fmt"
-	"hash/adler32"
 	"sort"
 	"strings"
 
@@ -40,7 +38,6 @@ type tags struct {
 	idx      int
 	nameBuf  []byte
 	valueBuf []byte
-	digest   uint32
 }
 
 // Ensure tags implements TagIterator and sort Interface
@@ -103,9 +100,7 @@ func (t *tags) Err() error {
 	return nil
 }
 
-func (t *tags) Close() {
-	t.digest = 0
-}
+func (t *tags) Close() {}
 
 func (t *tags) Remaining() int {
 	if t.idx < 0 {
@@ -118,27 +113,8 @@ func (t *tags) Duplicate() ident.TagIterator {
 	return &tags{idx: -1, names: t.names, values: t.values}
 }
 
-func (t *tags) Hash() (uint32, error) {
-	if t.digest == 0 {
-		l := len(t.values)
-		if r := len(t.names); r != l {
-			return 0, fmt.Errorf("len values %d does not match len names %d", l, r)
-		}
-		if l == 0 {
-			return 0, nil
-		}
-		digest := adler32.New()
-		for i := 0; i < l; i++ {
-			if _, err := digest.Write(t.names[i]); err != nil {
-				return 0, err
-			}
-			if _, err := digest.Write(t.values[i]); err != nil {
-				return 0, err
-			}
-		}
-		t.digest = digest.Sum32()
-	}
-	return t.digest, nil
+func (t *tags) Reset() {
+	t.idx = -1
 }
 
 func (t *tags) String() string {

@@ -1554,19 +1554,19 @@ func (mr *MockOStreamMockRecorder) Discard() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Discard", reflect.TypeOf((*MockOStream)(nil).Discard))
 }
 
-// Rawbytes mocks base method
-func (m *MockOStream) Rawbytes() ([]byte, int) {
+// RawBytes mocks base method
+func (m *MockOStream) RawBytes() ([]byte, int) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Rawbytes")
+	ret := m.ctrl.Call(m, "RawBytes")
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(int)
 	return ret0, ret1
 }
 
-// Rawbytes indicates an expected call of Rawbytes
-func (mr *MockOStreamMockRecorder) Rawbytes() *gomock.Call {
+// RawBytes indicates an expected call of RawBytes
+func (mr *MockOStreamMockRecorder) RawBytes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rawbytes", reflect.TypeOf((*MockOStream)(nil).Rawbytes))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RawBytes", reflect.TypeOf((*MockOStream)(nil).RawBytes))
 }
 
 // CheckedBytes mocks base method

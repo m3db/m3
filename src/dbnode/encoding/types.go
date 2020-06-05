@@ -220,20 +220,7 @@ type MultiReaderIterator interface {
 	Schema() namespace.SchemaDescr
 }
 
-// SeriesIteratorAccumulator is an accumulator for SeriesIterator iterators,
-// that gathers incoming SeriesIterators and builds a unified SeriesIterator.
-type SeriesIteratorAccumulator interface {
-	SeriesIterator
-
-	// Add adds a series iterator.
-	Add(it SeriesIterator) error
-}
-
-// SeriesIterator is an iterator that iterates over a set of iterators from
-// different replicas and de-dupes & merges results from the replicas for a
-// given series while also applying a time filter on top of the values in
-// case replicas returned values out of range on either end.
-type SeriesIterator interface {
+type seriesIteratorCommon interface {
 	Iterator
 
 	// ID gets the ID of the series.
@@ -241,9 +228,6 @@ type SeriesIterator interface {
 
 	// Namespace gets the namespace of the series.
 	Namespace() ident.ID
-
-	// Tags returns an iterator over the tags associated with the ID.
-	Tags() ident.TagIterator
 
 	// Start returns the start time filter specified for the iterator.
 	Start() time.Time
@@ -265,12 +249,32 @@ type SeriesIterator interface {
 	// from the iterator immediately.
 	SetIterateEqualTimestampStrategy(strategy IterateEqualTimestampStrategy)
 
+	// Stats provides information for this SeriesIterator.
+	Stats() (SeriesIteratorStats, error)
+}
+
+// SeriesIteratorAccumulator is an accumulator for SeriesIterator iterators,
+// that gathers incoming SeriesIterators and builds a unified SeriesIterator.
+type SeriesIteratorAccumulator interface {
+	seriesIteratorCommon
+
+	// Add adds a series iterator.
+	Add(it SeriesIterator) error
+}
+
+// SeriesIterator is an iterator that iterates over a set of iterators from
+// different replicas and de-dupes & merges results from the replicas for a
+// given series while also applying a time filter on top of the values in
+// case replicas returned values out of range on either end.
+type SeriesIterator interface {
+	seriesIteratorCommon
+
+	// Tags returns an iterator over the tags associated with the ID.
+	Tags() ident.TagIterator
+
 	// Replicas exposes the underlying MultiReaderIterator slice
 	// for this SeriesIterator.
 	Replicas() []MultiReaderIterator
-
-	// Stats provides information for this SeriesIterator.
-	Stats() (SeriesIteratorStats, error)
 }
 
 // SeriesIteratorStats contains information about a SeriesIterator.
@@ -343,27 +347,69 @@ type ReaderIteratorAllocate func(reader io.Reader, descr namespace.SchemaDescr) 
 
 // IStream encapsulates a readable stream.
 type IStream interface {
+	// Read reads len(b) bytes.
 	Read([]byte) (int, error)
+
+	// ReadBit reads the next Bit.
 	ReadBit() (Bit, error)
+
+	// ReadByte reads the next Byte.
 	ReadByte() (byte, error)
+
+	// ReadBits reads the next Bits.
 	ReadBits(numBits uint) (uint64, error)
+
+	// PeekBits looks at the next Bits, but doesn't move the pos.
 	PeekBits(numBits uint) (uint64, error)
+
+	// RemainingBitsInCurrentByte returns the number of bits remaining to
+	// be read in the current byte.
 	RemainingBitsInCurrentByte() uint
+
+	// Reset resets the IStream.
 	Reset(r io.Reader)
 }
 
 // OStream encapsulates a writable stream.
 type OStream interface {
+	// Len returns the length of the OStream
 	Len() int
+	// Empty returns whether the OStream is empty
 	Empty() bool
+
+	// WriteBit writes the last bit of v.
 	WriteBit(v Bit)
+
+	// WriteBits writes the lowest numBits of v to the stream, starting
+	// from the most significant bit to the least significant bit.
 	WriteBits(v uint64, numBits int)
+
+	// WriteByte writes the last byte of v.
 	WriteByte(v byte)
+
+	// WriteBytes writes a byte slice.
 	WriteBytes(bytes []byte)
+
+	// Write writes a byte slice. This method exists in addition to WriteBytes()
+	// to satisfy the io.Writer interface.
 	Write(bytes []byte) (int, error)
+
+	// Reset resets the ostream.
 	Reset(buffer checked.Bytes)
+
+	// Discard takes the ref to the checked bytes from the OStream.
 	Discard() checked.Bytes
-	Rawbytes() ([]byte, int) // TODO: rename this RawBytes
+
+	// RawBytes returns the OStream's raw bytes. Note that this does not transfer
+	// ownership of the data and bypasses the checked.Bytes accounting so
+	// callers should:
+	//     1. Only use the returned slice as a "read-only" snapshot of the
+	//        data in a context where the caller has at least a read lock
+	//        on the ostream itself.
+	//     2. Use this function with care.
+	RawBytes() ([]byte, int)
+
+	// CheckedBytes returns the written stream as checked bytes.
 	CheckedBytes() (checked.Bytes, int)
 }
 
@@ -444,18 +490,25 @@ type MultiReaderIteratorArrayPool interface {
 type IteratorPools interface {
 	// MultiReaderIteratorArray exposes the session MultiReaderIteratorArrayPool.
 	MultiReaderIteratorArray() MultiReaderIteratorArrayPool
+
 	// MultiReaderIterator exposes the session MultiReaderIteratorPool.
 	MultiReaderIterator() MultiReaderIteratorPool
+
 	// MutableSeriesIterators exposes the session MutableSeriesIteratorsPool.
 	MutableSeriesIterators() MutableSeriesIteratorsPool
+
 	// SeriesIterator exposes the session SeriesIteratorPool.
 	SeriesIterator() SeriesIteratorPool
+
 	// CheckedBytesWrapper exposes the session CheckedBytesWrapperPool.
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
+
 	// ID exposes the session identity pool.
 	ID() ident.Pool
+
 	// TagEncoder exposes the session tag encoder pool.
 	TagEncoder() serialize.TagEncoderPool
+
 	// TagDecoder exposes the session tag decoder pool.
 	TagDecoder() serialize.TagDecoderPool
 }

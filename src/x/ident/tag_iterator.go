@@ -22,7 +22,6 @@ package ident
 
 import (
 	"errors"
-	"hash/adler32"
 )
 
 var (
@@ -70,8 +69,6 @@ type tagSliceIter struct {
 	currentIdx   int
 	currentTag   Tag
 	pool         Pool
-
-	digest uint32
 }
 
 func (i *tagSliceIter) Next() bool {
@@ -103,7 +100,6 @@ func (i *tagSliceIter) Close() {
 	i.backingSlice = nil
 	i.currentIdx = 0
 	i.currentTag = Tag{}
-	i.digest = 0
 
 	if i.pool == nil {
 		return
@@ -136,38 +132,21 @@ func (i *tagSliceIter) Duplicate() TagIterator {
 		backingSlice: i.backingSlice,
 		currentIdx:   i.currentIdx,
 		currentTag:   i.currentTag,
-		digest:       i.digest,
 	}
+}
+
+func (i *tagSliceIter) rewind() {
+	i.currentIdx = -1
+	i.currentTag = Tag{}
 }
 
 func (i *tagSliceIter) Reset(tags Tags) {
 	i.backingSlice = tags.Values()
-	i.currentIdx = -1
-	i.currentTag = Tag{}
-	i.digest = 0
+	i.rewind()
 }
 
-func (i *tagSliceIter) Hash() (uint32, error) {
-	if i.digest == 0 {
-		digest := adler32.New()
-		for _, t := range i.backingSlice {
-			if t.Name != nil {
-				if _, err := digest.Write(t.Name.Bytes()); err != nil {
-					return 0, err
-				}
-			}
-
-			if t.Value != nil {
-				if _, err := digest.Write(t.Value.Bytes()); err != nil {
-					return 0, err
-				}
-			}
-		}
-
-		i.digest = digest.Sum32()
-	}
-
-	return i.digest, nil
+func (i *tagSliceIter) Rewind() {
+	i.rewind()
 }
 
 // EmptyTagIterator returns an iterator over no tags.
@@ -183,4 +162,4 @@ func (e emptyTagIterator) Close()                 {}
 func (e emptyTagIterator) Len() int               { return 0 }
 func (e emptyTagIterator) Remaining() int         { return 0 }
 func (e emptyTagIterator) Duplicate() TagIterator { return e }
-func (e emptyTagIterator) Hash() (uint32, error)  { return 0, nil }
+func (e emptyTagIterator) Rewind()                {}

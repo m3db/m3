@@ -618,4 +618,4 @@ func (e *erroredTagIter) Close()                       {}
 func (e *erroredTagIter) Len() int                     { return 0 }
 func (e *erroredTagIter) Remaining() int               { return 0 }
 func (e *erroredTagIter) Duplicate() ident.TagIterator { return e }
-func (e *erroredTagIter) Hash() (uint32, error)        { return 0, nil }
+func (e *erroredTagIter) Rewind()                      {}

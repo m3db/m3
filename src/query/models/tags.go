@@ -52,11 +52,6 @@ func EmptyTags() Tags {
 	return NewTags(0, nil)
 }
 
-func (t *Tags) resetIDs() {
-	t.id = nil
-	t.hashedID = 0
-}
-
 // ID returns a byte slice representation of the tags, using the generation
 // strategy from the tag options.
 func (t Tags) ID() []byte {

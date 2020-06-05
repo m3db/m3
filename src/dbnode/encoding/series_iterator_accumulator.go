@@ -97,7 +97,6 @@ func (it *seriesIteratorAccumulator) Namespace() ident.ID {
 }
 
 func (it *seriesIteratorAccumulator) Tags() ident.TagIterator {
-	it.err = errors.New("cannot get tags from series iterator accumulator")
 	return ident.EmptyTagIterator
 }
 
@@ -139,31 +138,6 @@ func (it *seriesIteratorAccumulator) Err() error {
 	}
 
 	return nil
-}
-
-func (it *seriesIteratorAccumulator) Replicas() []MultiReaderIterator {
-	it.err = errors.New("cannot receive replicas on an iterator accumulator")
-	return []MultiReaderIterator{}
-}
-
-func (it *seriesIteratorAccumulator) Close() {
-	if it.isClosed() {
-		return
-	}
-	it.closed = true
-	if it.id != nil {
-		it.id.Finalize()
-		it.id = nil
-	}
-	if it.nsID != nil {
-		it.nsID.Finalize()
-		it.nsID = nil
-	}
-	for idx, iter := range it.seriesIterators {
-		iter.Close()
-		it.seriesIterators[idx] = nil
-	}
-	it.iters.reset()
 }
 
 func (it *seriesIteratorAccumulator) Reset(opts SeriesIteratorOptions) {

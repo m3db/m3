@@ -262,18 +262,14 @@ func (mr *MockTagDecoderMockRecorder) Err() *gomock.Call {
 }
 
 // Hash mocks base method
-func (m *MockTagDecoder) Hash() (uint32, error) {
+func (m *MockTagDecoder) Rewind() {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Hash")
-	ret0, _ := ret[0].(uint32)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
 }
 
-// Hash indicates an expected call of Hash
-func (mr *MockTagDecoderMockRecorder) Hash() *gomock.Call {
+// Rewind indicates an expected call of Rewind
+func (mr *MockTagDecoderMockRecorder) Rewind() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Hash", reflect.TypeOf((*MockTagDecoder)(nil).Hash))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rewind", reflect.TypeOf((*MockTagDecoder)(nil).Rewind))
 }
 
 // Len mocks base method

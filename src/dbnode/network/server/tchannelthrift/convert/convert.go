@@ -23,7 +23,6 @@ package convert
 import (
 	"errors"
 	"fmt"
-	"hash/adler32"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -439,7 +438,6 @@ type writeTaggedIter struct {
 	rawRequest *rpc.WriteTaggedRequest
 	currentIdx int
 	currentTag ident.Tag
-	digest     uint32
 }
 
 func (w *writeTaggedIter) Next() bool {
@@ -481,7 +479,6 @@ func (w *writeTaggedIter) Err() error {
 
 func (w *writeTaggedIter) Close() {
 	w.release()
-	w.digest = 0
 	w.currentIdx = -1
 }
 
@@ -500,24 +497,12 @@ func (w *writeTaggedIter) Duplicate() ident.TagIterator {
 	return &writeTaggedIter{
 		rawRequest: w.rawRequest,
 		currentIdx: -1,
-		digest:     w.digest,
 	}
 }
 
-func (w *writeTaggedIter) Hash() (uint32, error) {
-	if w.digest == 0 {
-		digest := adler32.New()
-		for _, t := range w.rawRequest.Tags {
-			if _, err := digest.Write([]byte(t.GetName())); err != nil {
-				return 0, err
-			}
-			if _, err := digest.Write([]byte(t.GetValue())); err != nil {
-				return 0, err
-			}
-		}
-		w.digest = digest.Sum32()
-	}
-	return w.digest, nil
+func (w *writeTaggedIter) Rewind() {
+	w.release()
+	w.currentIdx = -1
 }
 
 // FromRPCQuery will create a m3ninx index query from an RPC query.

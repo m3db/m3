@@ -60,7 +60,9 @@ func newEncodedBlockBuilder(
 }
 
 func (b *encodedBlockBuilder) add(
-	result consolidators.SeriesFetchResult,
+	iter encoding.SeriesIterator,
+	tags models.Tags,
+	meta block.ResultMetadata,
 	bounds models.Bounds,
 	lastBlock bool,
 ) error {
@@ -80,8 +82,8 @@ func (b *encodedBlockBuilder) add(
 		}
 	}
 
-	block, err := newEncodedBlock(
-		result,
+	bl, err := newEncodedBlock(
+		consolidators.NewEmptyFetchResult(meta),
 		consolidation,
 		lastBlock,
 		b.options,
@@ -91,10 +93,15 @@ func (b *encodedBlockBuilder) add(
 		return err
 	}
 
-	block.seriesBlockIterators = append(block.seriesBlockIterators, iter)
+	bl.seriesBlockIterators = append(bl.seriesBlockIterators, iter)
+	bl.seriesMetas = append(bl.seriesMetas, block.SeriesMeta{
+		Name: iter.ID().Bytes(),
+		Tags: tags,
+	})
+
 	b.blocksAtTime = append(b.blocksAtTime, blockAtTime{
 		time:  start,
-		block: block,
+		block: *bl,
 	})
 
 	return nil
@@ -113,10 +120,6 @@ func (b *encodedBlockBuilder) build() ([]block.Block, error) {
 	blocks := make([]block.Block, 0, len(b.blocksAtTime))
 	for _, bl := range b.blocksAtTime {
 		block := bl.block
-		if err := block.generateMetas(); err != nil {
-			return nil, err
-		}
-
 		blocks = append(blocks, &block)
 	}
 
@@ -140,11 +143,11 @@ func (b *encodedBlockBuilder) backfillMissing() error {
 			id := iter.ID().String()
 			if seen, found := seenMap[id]; !found {
 				seenMap[id] = seriesIteratorDetails{
-					start:   iter.Start(),
-					end:     iter.End(),
-					id:      iter.ID(),
-					ns:      iter.Namespace(),
-					tagIter: iter.Tags(),
+					start: iter.Start(),
+					end:   iter.End(),
+					id:    iter.ID(),
+					ns:    iter.Namespace(),
+					// tagIter: iter.Tags(),
 					present: []int{idx},
 				}
 			} else {
@@ -179,15 +182,14 @@ func (b *encodedBlockBuilder) backfillMissing() error {
 
 			// blockIdx does not contain the present value; need to populate it with
 			// an empty series iterator.
-			tags, err := cloneTagIterator(iterDetails.tagIter)
-			if err != nil {
-				return err
-			}
+			// // tags, err := cloneTagIterator(iterDetails.tagIter)
+			// if err != nil {
+			// 	return err
+			// }
 
 			iter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 				ID:             ident.StringID(iterDetails.id.String()),
 				Namespace:      ident.StringID(iterDetails.ns.String()),
-				Tags:           tags,
 				StartInclusive: xtime.ToUnixNano(iterDetails.start),
 				EndExclusive:   xtime.ToUnixNano(iterDetails.end),
 			}, nil)
@@ -204,7 +206,7 @@ func (b *encodedBlockBuilder) backfillMissing() error {
 type seriesIteratorDetails struct {
 	start, end time.Time
 	id, ns     ident.ID
-	tagIter    ident.TagIterator
+	// tagIter    ident.TagIterator
 	// NB: the indices that this series iterator exists in already.
 	present []int
 }

@@ -44,7 +44,6 @@ func NewIStream(reader io.Reader, bufioSize int) IStream {
 	}
 }
 
-// ReadBit reads the next Bit
 func (is *istream) ReadBit() (Bit, error) {
 	if is.err != nil {
 		return 0, is.err
@@ -57,7 +56,6 @@ func (is *istream) ReadBit() (Bit, error) {
 	return Bit(is.consumeBuffer(1)), nil
 }
 
-// Read reads len(b) bytes.
 func (is *istream) Read(b []byte) (int, error) {
 	if is.remaining == 0 {
 		// Optimized path for when the iterator is already aligned on a byte boundary. Avoids
@@ -80,7 +78,6 @@ func (is *istream) Read(b []byte) (int, error) {
 	return i, nil
 }
 
-// ReadByte reads the next Byte
 func (is *istream) ReadByte() (byte, error) {
 	if is.err != nil {
 		return 0, is.err
@@ -97,7 +94,6 @@ func (is *istream) ReadByte() (byte, error) {
 	return res, nil
 }
 
-// ReadBits reads the next Bits
 func (is *istream) ReadBits(numBits uint) (uint64, error) {
 	if is.err != nil {
 		return 0, is.err
@@ -140,7 +136,6 @@ func (is *istream) ReadBits(numBits uint) (uint64, error) {
 	return res, nil
 }
 
-// PeekBits looks at the next Bits, but doesn't move the pos
 func (is *istream) PeekBits(numBits uint) (uint64, error) {
 	// check the last byte first
 	if numBits <= is.remaining {
@@ -163,8 +158,6 @@ func (is *istream) PeekBits(numBits uint) (uint64, error) {
 	return res, nil
 }
 
-// RemainingBitsInCurrentByte returns the number of bits remaining to be read in
-// the current byte.
 func (is *istream) RemainingBitsInCurrentByte() uint {
 	return is.remaining
 }
@@ -188,7 +181,6 @@ func (is *istream) readByteFromStream() error {
 	return is.err
 }
 
-// Reset resets the Istream
 func (is *istream) Reset(r io.Reader) {
 	is.r.Reset(r)
 	is.err = nil

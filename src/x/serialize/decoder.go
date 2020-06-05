@@ -23,7 +23,6 @@ package serialize
 import (
 	"errors"
 	"fmt"
-	"hash/adler32"
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -42,7 +41,6 @@ type decoder struct {
 	length      int
 	remaining   int
 	err         error
-	digest      uint32
 
 	current         ident.Tag
 	currentTagName  checked.Bytes
@@ -240,16 +238,7 @@ func (d *decoder) Duplicate() ident.TagIterator {
 	return iter
 }
 
-func (d *decoder) Hash() (uint32, error) {
-	if d.checkedData == nil {
-		return 0, nil
-	}
-	if d.digest == 0 {
-		digest := adler32.New()
-		if _, err := digest.Write(d.checkedData.Bytes()); err != nil {
-			return 0, err
-		}
-		d.digest = digest.Sum32()
-	}
-	return d.digest, nil
+func (d *decoder) Rewind() {
+	d.checkedData.IncRef()
+	d.Reset(d.checkedData)
 }
