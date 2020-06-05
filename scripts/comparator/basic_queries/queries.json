@@ -1,8 +1,9 @@
 [
   {
-    "queryGroup":"constant",
+    "queryGroup":"scalar",
     "queries":[
-      "42"
+      "42",
+      "time()"
     ],
     "steps" : [
       "1m"

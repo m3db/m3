@@ -396,7 +396,7 @@ func renderResultsInstantaneousJSON(
 	var (
 		series   = result.Series
 		warnings = result.Meta.WarningStrings()
-		isScalar = result.BlockType == block.BlockScalar
+		isScalar = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
 	)
 
 	resultType := "vector"
