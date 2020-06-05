@@ -101,7 +101,7 @@ func generateSeriesMaps(numBlocks int, updateConfig generate.UpdateBlockConfig, 
 
 func writeCommitLogData(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -112,7 +112,7 @@ func writeCommitLogData(
 
 func writeCommitLogDataSpecifiedTS(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -124,7 +124,7 @@ func writeCommitLogDataSpecifiedTS(
 
 func writeCommitLogDataWithPredicate(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -135,7 +135,7 @@ func writeCommitLogDataWithPredicate(
 
 func writeCommitLogDataBase(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -152,15 +152,15 @@ func writeCommitLogDataBase(
 
 	var (
 		seriesLookup = newCommitLogSeriesStates(data)
-		shardSet     = s.shardSet
+		shardSet     = s.ShardSet()
 	)
 
 	// Write out commit log data.
 	for currTs, blk := range data {
 		if specifiedTS != nil {
-			s.setNowFn(*specifiedTS)
+			s.SetNowFn(*specifiedTS)
 		} else {
-			s.setNowFn(currTs.ToTime())
+			s.SetNowFn(currTs.ToTime())
 		}
 		ctx := context.NewContext()
 		defer ctx.Close()
@@ -201,7 +201,7 @@ func writeCommitLogDataBase(
 
 func writeSnapshotsWithPredicate(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	volume int,
