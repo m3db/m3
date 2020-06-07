@@ -177,8 +177,14 @@ type commitLogMetrics struct {
 	queueCapacity    tally.Gauge
 	success          tally.Counter
 	errors           tally.Counter
+	openSuccess      tally.Counter
 	openErrors       tally.Counter
+	openAsyncErrors  tally.Counter
+	openAsyncSuccess tally.Counter
+	openLatency      tally.Histogram
 	closeErrors      tally.Counter
+	closeLatency     tally.Histogram
+	resetLatency     tally.Histogram
 	flushErrors      tally.Counter
 	flushDone        tally.Counter
 }
@@ -238,6 +244,31 @@ func (r callbackResult) rotateLogsResult() (rotateLogsResult, error) {
 	return r.rotateLogs, nil
 }
 
+func zeroToTenSecondsHighResDurationBuckets() tally.Buckets {
+	var buckets tally.DurationBuckets
+	// From (zero, 1ms).
+	for i := 1; i < 10; i++ {
+		buckets = append(buckets, time.Duration(i)*100*time.Microsecond)
+	}
+	// From [1ms, 10ms).
+	for i := 1; i < 10; i++ {
+		buckets = append(buckets, time.Duration(i)*time.Millisecond)
+	}
+	// From [10ms, 100ms).
+	for i := 1; i < 10; i++ {
+		buckets = append(buckets, time.Duration(i)*10*time.Millisecond)
+	}
+	// From [100ms, 1s).
+	for i := 1; i < 10; i++ {
+		buckets = append(buckets, time.Duration(i)*100*time.Millisecond)
+	}
+	// From [1s, 10s].
+	for i := 1; i <= 10; i++ {
+		buckets = append(buckets, time.Duration(i)*time.Second)
+	}
+	return buckets
+}
+
 type commitLogWrite struct {
 	eventType  eventType
 	write      writeOrWriteBatch
@@ -275,10 +306,19 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 			queueCapacity:    scope.Gauge("writes.queue-capacity"),
 			success:          scope.Counter("writes.success"),
 			errors:           scope.Counter("writes.errors"),
+			openSuccess:      scope.Counter("writes.open-success"),
 			openErrors:       scope.Counter("writes.open-errors"),
+			openLatency: scope.Histogram("writes.open-latency",
+				zeroToTenSecondsHighResDurationBuckets()),
+			openAsyncSuccess: scope.Counter("writes.open-async-success"),
+			openAsyncErrors:  scope.Counter("writes.open-async-errors"),
 			closeErrors:      scope.Counter("writes.close-errors"),
-			flushErrors:      scope.Counter("writes.flush-errors"),
-			flushDone:        scope.Counter("writes.flush-done"),
+			closeLatency: scope.Histogram("writes.close-latency",
+				zeroToTenSecondsHighResDurationBuckets()),
+			resetLatency: scope.Histogram("writes.reset-latency",
+				zeroToTenSecondsHighResDurationBuckets()),
+			flushErrors: scope.Counter("writes.flush-errors"),
+			flushDone:   scope.Counter("writes.flush-done"),
 		},
 	}
 	// Setup backreferences for onFlush().
@@ -486,6 +526,8 @@ func (l *commitLog) write() {
 				if l.commitLogFailFn != nil {
 					l.commitLogFailFn(err)
 				}
+			} else {
+				l.metrics.openSuccess.Inc(1)
 			}
 
 			write.callbackFn(callbackResult{
@@ -541,7 +583,8 @@ func (l *commitLog) write() {
 
 		// Return the write batch to the pool.
 		if write.write.writeBatch != nil {
-			write.write.writeBatch.Finalize()
+			// NB(r): Do not block the write loop finalizing resources.
+			go write.write.writeBatch.Finalize()
 		}
 
 		atomic.AddInt64(&l.numWritesInQueue, int64(-numDequeued))
@@ -689,18 +732,27 @@ func (l *commitLog) startSecondaryWriterAsyncReset() {
 				l.writerState.secondary.writer = nil
 
 				l.metrics.errors.Inc(1)
-				l.metrics.openErrors.Inc(1)
+				l.metrics.openAsyncErrors.Inc(1)
+			} else {
+				l.metrics.openAsyncSuccess.Inc(1)
 			}
 
 			l.writerState.secondary.Done()
 		}()
 
-		if err = l.writerState.secondary.writer.Close(); err != nil {
+		closeStart := l.nowFn()
+		err = l.writerState.secondary.writer.Close()
+		l.metrics.closeLatency.RecordDuration(l.nowFn().Sub(closeStart))
+		if err != nil {
 			l.commitLogFailFn(err)
 			return
 		}
 
+		openStart := l.nowFn()
 		_, err = l.writerState.secondary.writer.Open()
+		openEnd := l.nowFn()
+		l.metrics.openLatency.RecordDuration(openEnd.Sub(openStart))
+		l.metrics.resetLatency.RecordDuration(openEnd.Sub(closeStart))
 		if err != nil {
 			l.commitLogFailFn(err)
 			return

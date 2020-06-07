@@ -886,9 +886,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, int64(1), errors.Value())
 
-	openErrors, ok := snapshotCounterValue(scope, "commitlog.writes.open-errors")
+	openAsyncErrors, ok := snapshotCounterValue(scope, "commitlog.writes.open-async-errors")
 	require.True(t, ok)
-	require.Equal(t, int64(1), openErrors.Value())
+	require.Equal(t, int64(1), openAsyncErrors.Value())
 }
 
 func TestCommitLogFailOnFlushError(t *testing.T) {
