@@ -23,6 +23,7 @@ package commitlog
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -493,6 +494,9 @@ func (l *commitLog) write() {
 	// any allocations.
 	var singleBatch = make([]ts.BatchWrite, 1)
 	var batch []ts.BatchWrite
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 
 	for write := range l.writes {
 		if write.eventType == flushEventType {

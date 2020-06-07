@@ -150,6 +150,11 @@ type RunOptions struct {
 // Run runs the server programmatically given a filename for the
 // configuration file.
 func Run(runOpts RunOptions) {
+	// NB(r): We reserve a single machine thread to pin to the commit log
+	// write goroutine to avoid the goroutine being pre-empted by other
+	// goroutines since write latency is very important.
+	runtime.GOMAXPROCS(runtime.NumCPU() + 1)
+
 	var cfg config.DBConfiguration
 	if runOpts.ConfigFile != "" {
 		var rootCfg config.Configuration
