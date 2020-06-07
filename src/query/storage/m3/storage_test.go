@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
@@ -178,8 +179,8 @@ func newWriteQuery(t *testing.T) *storage.WriteQuery {
 				Value:     2.0,
 			},
 		},
-		Attributes: storage.Attributes{
-			MetricsType: storage.UnaggregatedMetricsType,
+		Attributes: consolidators.Attributes{
+			MetricsType: consolidators.UnaggregatedMetricsType,
 		},
 	})
 	require.NoError(t, err)
@@ -221,8 +222,8 @@ func TestLocalWriteAggregatedNoClusterNamespaceError(t *testing.T) {
 	opts := newWriteQuery(t).Options()
 
 	// Use unsupported retention/resolution
-	opts.Attributes = storage.Attributes{
-		MetricsType: storage.AggregatedMetricsType,
+	opts.Attributes = consolidators.Attributes{
+		MetricsType: consolidators.AggregatedMetricsType,
 		Retention:   1234,
 		Resolution:  5678,
 	}
@@ -244,8 +245,8 @@ func TestLocalWriteAggregatedInvalidMetricsTypeError(t *testing.T) {
 	opts := newWriteQuery(t).Options()
 
 	// Use unsupported retention/resolution
-	opts.Attributes = storage.Attributes{
-		MetricsType: storage.MetricsType(math.MaxUint64),
+	opts.Attributes = consolidators.Attributes{
+		MetricsType: consolidators.MetricsType(math.MaxUint64),
 		Retention:   30 * 24 * time.Hour,
 	}
 
@@ -266,8 +267,8 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 	opts := newWriteQuery(t).Options()
 
 	// Use unsupported retention/resolution
-	opts.Attributes = storage.Attributes{
-		MetricsType: storage.AggregatedMetricsType,
+	opts.Attributes = consolidators.Attributes{
+		MetricsType: consolidators.AggregatedMetricsType,
 		Retention:   30 * 24 * time.Hour,
 		Resolution:  time.Minute,
 	}
@@ -287,6 +288,7 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 func TestLocalRead(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
+
 	store, sessions := setup(t, ctrl)
 	testTags := seriesiter.GenerateTag()
 

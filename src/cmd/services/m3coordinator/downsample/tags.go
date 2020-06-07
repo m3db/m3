@@ -113,7 +113,7 @@ func (t *tags) Duplicate() ident.TagIterator {
 	return &tags{idx: -1, names: t.names, values: t.values}
 }
 
-func (t *tags) Reset() {
+func (t *tags) Rewind() {
 	t.idx = -1
 }
 

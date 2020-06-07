@@ -47,9 +47,14 @@ import (
 )
 
 func fr(
-	its encoding.SeriesIterators, tags ...*models.Tags,
+	t *testing.T,
+	its encoding.SeriesIterators,
+	tags ...*models.Tags,
 ) consolidators.SeriesFetchResult {
-	return consolidators.NewSeriesFetchResult(its, tags)
+	result, err := consolidators.
+		NewSeriesFetchResult(its, tags, block.NewResultMetadata())
+	assert.NoError(t, err)
+	return result
 }
 
 func makeTag(n, v string, count int) []*models.Tags {
@@ -70,15 +75,16 @@ func verifyExpandPromSeries(
 	pools xsync.PooledWorkerPool,
 ) {
 	iters := seriesiter.NewMockSeriesIters(ctrl, ident.Tag{}, num, 2)
-	fetchResult := fr(iters, makeTag("foo", "bar", num)...)
+	fetchResult := fr(t, iters, makeTag("foo", "bar", num)...)
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
-	results, err := SeriesIteratorsToPromResult(fetchResult, pools,
-		block.ResultMetadata{
-			Exhaustive: ex,
-			LocalOnly:  true,
-			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
-		}, enforcer, nil)
+	fetchResult.Metadata = block.ResultMetadata{
+		Exhaustive: ex,
+		LocalOnly:  true,
+		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+	}
+
+	results, err := SeriesIteratorsToPromResult(fetchResult, pools, enforcer, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -230,7 +236,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 
 	name := "name"
 	now := time.Now()
-	buildIter := func(val string, hasVal bool) encoding.SeriesIterator {
+	buildIter := func(val string, hasVal bool) *encoding.MockSeriesIterator {
 		iter := encoding.NewMockSeriesIterator(ctrl)
 
 		if hasVal {
@@ -248,13 +254,21 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 		}
 
 		tags := ident.NewMockTagIterator(ctrl)
-		tags.EXPECT().Remaining().Return(1)
-		tags.EXPECT().Next().Return(true)
-		tags.EXPECT().Current().Return(tag)
-		tags.EXPECT().Next().Return(false)
-		tags.EXPECT().Err().Return(nil)
+		populateIter := func() {
+			gomock.InOrder(
+				tags.EXPECT().Remaining().Return(1),
+				tags.EXPECT().Next().Return(true),
+				tags.EXPECT().Current().Return(tag),
+				tags.EXPECT().Next().Return(false),
+				tags.EXPECT().Err().Return(nil),
+			)
+		}
 
+		populateIter()
+		tags.EXPECT().Rewind()
 		iter.EXPECT().Tags().Return(tags)
+		iter.EXPECT().Close().MaxTimes(1)
+
 		return iter
 	}
 
@@ -289,13 +303,11 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 		it.EXPECT().Iters().Return(iters).AnyTimes()
 		it.EXPECT().Len().Return(len(iters)).AnyTimes()
 		it.EXPECT().Close()
-		return fr(it)
+		return fr(t, it)
 	}
 
-	md := block.NewResultMetadata()
 	opts := models.NewTagOptions()
-
-	res, err := SeriesIteratorsToPromResult(buildIters(), nil, md, nil, opts)
+	res, err := SeriesIteratorsToPromResult(buildIters(), nil, nil, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 
@@ -303,7 +315,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 	pool.Init()
 
-	res, err = SeriesIteratorsToPromResult(buildIters(), pool, md, nil, opts)
+	res, err = SeriesIteratorsToPromResult(buildIters(), pool, nil, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 }

@@ -104,7 +104,6 @@ func (s *m3storage) FetchProm(
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
 		result,
 		s.opts.ReadWorkerPool(),
-		result.Metadata,
 		options.Enforcer,
 		s.opts.TagOptions(),
 	)
@@ -287,7 +286,8 @@ func (s *m3storage) fetchCompressed(
 	}
 
 	matchOpts := s.opts.SeriesConsolidationMatchOptions()
-	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts)
+	tagOpts := s.opts.TagOptions()
+	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		wg.Add(1)
@@ -309,12 +309,17 @@ func (s *m3storage) fetchCompressed(
 				)
 			}
 
+			if err != nil {
+				result.ReportError(err)
+			}
+
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
-			fetchResult := consolidators.SeriesFetchResult{
-				SeriesIterators: iters,
-				Metadata:        blockMeta,
-			}
+			fetchResult, err := consolidators.NewSeriesFetchResult(
+				iters,
+				nil,
+				blockMeta,
+			)
 
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
@@ -672,9 +677,9 @@ func (s *m3storage) writeSingle(
 
 	attributes := query.Attributes()
 	switch attributes.MetricsType {
-	case storage.UnaggregatedMetricsType:
+	case consolidators.UnaggregatedMetricsType:
 		namespace = s.clusters.UnaggregatedClusterNamespace()
-	case storage.AggregatedMetricsType:
+	case consolidators.AggregatedMetricsType:
 		attrs := RetentionResolution{
 			Retention:  attributes.Retention,
 			Resolution: attributes.Resolution,

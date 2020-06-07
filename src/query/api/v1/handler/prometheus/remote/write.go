@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
@@ -397,7 +398,7 @@ func (h *PromWriteHandler) parseRequest(
 	if v := strings.TrimSpace(r.Header.Get(handleroptions.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
 		// the default rules and policies if specified.
-		metricsType, err := storage.ParseMetricsType(v)
+		metricsType, err := consolidators.ParseMetricsType(v)
 		if err != nil {
 			return nil, ingest.WriteOptions{},
 				prometheus.ParsePromCompressedRequestResult{},
@@ -412,7 +413,7 @@ func (h *PromWriteHandler) parseRequest(
 
 		strPolicy := strings.TrimSpace(r.Header.Get(handleroptions.MetricsStoragePolicyHeader))
 		switch metricsType {
-		case storage.UnaggregatedMetricsType:
+		case consolidators.UnaggregatedMetricsType:
 			if strPolicy != emptyStoragePolicyVar {
 				err := errUnaggregatedStoragePolicySet
 				return nil, ingest.WriteOptions{},

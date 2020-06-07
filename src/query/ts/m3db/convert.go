@@ -152,6 +152,7 @@ func convertM3DBSegmentedBlockIterators(
 			iter,
 			pools,
 		)
+
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +174,12 @@ func blockReplicasFromSeriesIterator(
 		pool = pools.MultiReaderIterator()
 	}
 
-	for _, replica := range seriesIterator.Replicas() {
+	replicas, err := seriesIterator.Replicas()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, replica := range replicas {
 		perBlockSliceReaders := replica.Readers()
 		for next := true; next; next = perBlockSliceReaders.Next() {
 			l, start, bs := perBlockSliceReaders.CurrentReaders()
@@ -268,7 +274,7 @@ func seriesBlocksFromBlockReplicas(
 	seriesIterator encoding.SeriesIterator,
 	pools encoding.IteratorPools,
 ) error {
-	// NB(braskin): we need to clone the ID, namespace, and tags since we close the series iterator
+	// NB: clone ID and Namespace since they must be owned by the series blocks.
 	var (
 		// todo(braskin): use ident pool
 		clonedID        = ident.StringID(seriesIterator.ID().String())
@@ -308,37 +314,17 @@ func seriesBlocksFromBlockReplicas(
 		// Instead, we should access them through the SeriesBlock.
 		isLastBlock := i == replicaLength
 		blockBuilder.add(
-			consolidators.SeriesFetchResult{
-				Metadata: resultMetadata,
-			},
+			iter,
+			tags,
+			resultMetadata,
 			models.Bounds{
 				Start:    block.readStart,
 				Duration: duration,
 				StepSize: stepSize,
 			},
-			// iter,
 			isLastBlock,
 		)
 	}
 
 	return nil
-}
-
-func cloneTagIterator(tagIter ident.TagIterator) (ident.TagIterator, error) {
-	tags := ident.NewTags()
-	dupeIter := tagIter.Duplicate()
-	for dupeIter.Next() {
-		tag := dupeIter.Current()
-		tags.Append(ident.Tag{
-			Name:  ident.BytesID(tag.Name.Bytes()),
-			Value: ident.BytesID(tag.Value.Bytes()),
-		})
-	}
-
-	err := dupeIter.Err()
-	if err != nil {
-		return nil, err
-	}
-
-	return ident.NewTagsIterator(tags), nil
 }

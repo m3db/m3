@@ -310,7 +310,7 @@ func testConsolidatedStepIteratorSplitByBlock(t *testing.T, withPools bool) {
 
 			j := 0
 			idx := verifyBoundsAndGetBlockIndex(t, bounds, block.Meta().Bounds)
-			verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
+			verifyMetas(t, i, block.Meta(), iters.SeriesMeta()) // <-
 			for iters.Next() {
 				step := iters.Current()
 				vals := step.Values()
@@ -426,7 +426,8 @@ func newTestOptions() Options {
 }
 
 func iterToFetchResult(
-	iters []encoding.SeriesIterator) consolidators.SeriesFetchResult {
+	iters []encoding.SeriesIterator,
+) (consolidators.SeriesFetchResult, error) {
 	iterators := encoding.NewSeriesIterators(iters, nil)
 	return consolidators.NewSeriesFetchResult(
 		iterators,
@@ -491,7 +492,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 			replicasIters[j] = iter
 		}
 
-		seriesID := ident.StringID(fmt.Sprintf("foo.%d", i))
+		seriesID := ident.StringID(fmt.Sprintf("foo.%d", i+1))
 		tags, err := ident.NewTagStringsIterator("foo", "bar", "baz", "qux")
 		require.NoError(b, err)
 
@@ -534,8 +535,11 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 		reset()
 	}
 
+	res, err := iterToFetchResult(iters)
+	require.NoError(b, err)
+
 	block, err := NewEncodedBlock(
-		iterToFetchResult(iters),
+		res,
 		models.Bounds{
 			Start:    start,
 			StepSize: stepSize,

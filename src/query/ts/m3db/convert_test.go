@@ -21,8 +21,10 @@
 package m3db
 
 import (
+	"bytes"
 	"fmt"
 	"math"
+	"sort"
 	"testing"
 	"time"
 
@@ -144,24 +146,31 @@ func verifyBoundsAndGetBlockIndex(t *testing.T, bounds, sub models.Bounds) int {
 	return int(diff / blockSize)
 }
 
+type ascByName []block.SeriesMeta
+
+func (m ascByName) Len() int           { return len(m) }
+func (m ascByName) Less(i, j int) bool { return bytes.Compare(m[i].Name, m[j].Name) == -1 }
+func (m ascByName) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
+
 func verifyMetas(
 	t *testing.T,
-	i int,
+	_ int,
 	meta block.Metadata,
 	metas []block.SeriesMeta,
 ) {
 	require.Equal(t, 0, meta.Tags.Len())
+	sort.Sort(ascByName(metas))
 	for i, m := range metas {
-		assert.Equal(t, []byte(fmt.Sprintf("abc%d", i)), m.Name)
+		assert.Equal(t, fmt.Sprintf("abc%d", i), string(m.Name))
 		require.Equal(t, 2, m.Tags.Len())
 
 		val, found := m.Tags.Get([]byte("a"))
 		assert.True(t, found)
-		assert.Equal(t, []byte("b"), val)
+		assert.Equal(t, "b", string(val))
 
 		val, found = m.Tags.Get([]byte("c"))
 		assert.True(t, found)
-		assert.Equal(t, []byte(fmt.Sprint(i)), val)
+		require.Equal(t, fmt.Sprint(i), string(val))
 	}
 }
 
@@ -175,10 +184,11 @@ func generateBlocks(
 	opts Options,
 ) ([]block.Block, models.Bounds) {
 	iterators, bounds := generateIterators(t, stepSize)
+	res, err := iterToFetchResult(iterators)
+	require.NoError(t, err)
 	blocks, err := ConvertM3DBSeriesIterators(
-		encoding.NewSeriesIterators(iterators, nil),
+		res,
 		bounds,
-		block.NewResultMetadata(),
 		opts,
 	)
 	require.NoError(t, err)

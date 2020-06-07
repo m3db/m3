@@ -314,7 +314,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: storage.UnaggregatedMetricsType,
+				MetricsType: consolidators.UnaggregatedMetricsType,
 			},
 		},
 		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
@@ -325,7 +325,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: storage.AggregatedMetricsType,
+				MetricsType: consolidators.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy(
 					genResolution.String() + ":" + genRetentionFiltered.String()),
 			},
@@ -338,7 +338,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: storage.AggregatedMetricsType,
+				MetricsType: consolidators.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy(
 					genResolution.String() + ":" + genRetentionUnfiltered.String()),
 			},
@@ -351,7 +351,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: storage.UnknownMetricsType,
+				MetricsType: consolidators.UnknownMetricsType,
 			},
 		},
 		expectedErrContains: "unrecognized metrics type:",
@@ -361,7 +361,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType:   storage.AggregatedMetricsType,
+				MetricsType:   consolidators.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy("1s:100d"),
 			},
 		},

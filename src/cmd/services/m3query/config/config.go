@@ -397,7 +397,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
 	policies := []CarbonIngesterStoragePolicyConfiguration{}
 	for _, ns := range namespaces {
-		if ns.Options().Attributes().MetricsType == storage.AggregatedMetricsType {
+		if ns.Options().Attributes().MetricsType == consolidators.AggregatedMetricsType {
 			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{
 				Resolution: ns.Options().Attributes().Resolution,
 				Retention:  ns.Options().Attributes().Retention,

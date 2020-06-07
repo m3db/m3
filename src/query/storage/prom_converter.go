@@ -24,7 +24,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
@@ -159,7 +158,6 @@ func seriesIteratorsToPromResult(
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
-	defer fetchResult.Close()
 	if readWorkerPool == nil {
 		return toPromSequentially(fetchResult, enforcer, tagOptions)
 	}
@@ -172,10 +170,10 @@ func seriesIteratorsToPromResult(
 func SeriesIteratorsToPromResult(
 	fetchResult consolidators.SeriesFetchResult,
 	readWorkerPool xsync.PooledWorkerPool,
-	metadata block.ResultMetadata,
 	enforcer cost.ChainedEnforcer,
 	tagOptions models.TagOptions,
 ) (PromResult, error) {
+	defer fetchResult.Close()
 	if err := fetchResult.Verify(); err != nil {
 		return PromResult{}, err
 	}
@@ -186,6 +184,6 @@ func SeriesIteratorsToPromResult(
 
 	promResult, err := seriesIteratorsToPromResult(fetchResult,
 		readWorkerPool, enforcer, tagOptions)
-	promResult.Metadata = metadata
+	promResult.Metadata = fetchResult.Metadata
 	return promResult, err
 }

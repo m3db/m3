@@ -60,6 +60,7 @@ func (m *tagDedupeMap) add(
 		return err
 	}
 
+	iter.Tags().Rewind()
 	series := multiResultSeries{
 		iter:  iter,
 		attrs: attrs,
@@ -97,7 +98,8 @@ func (m *tagDedupeMap) add(
 	if existsEqual {
 		acc, ok := existing.iter.(encoding.SeriesIteratorAccumulator)
 		if !ok {
-			acc, err = encoding.NewSeriesIteratorAccumulator(existing.iter)
+			acc, err = encoding.NewSeriesIteratorAccumulator(existing.iter,
+				encoding.SeriesAccumulatorOptions{})
 			if err != nil {
 				return err
 			}
@@ -122,5 +124,4 @@ func (m *tagDedupeMap) add(
 	m.mapWrapper.set(tags, series)
 
 	return nil
-	// return m.mapWrapper.err()
 }

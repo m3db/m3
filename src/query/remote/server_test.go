@@ -102,10 +102,13 @@ func newMockStorage(
 				)
 			}
 
-			return consolidators.SeriesFetchResult{
-				SeriesIterators: iters,
-				Metadata:        block.NewResultMetadata(),
-			}, cleanup, nil
+			res, err := consolidators.NewSeriesFetchResult(
+				iters,
+				nil,
+				block.NewResultMetadata(),
+			)
+
+			return res, cleanup, err
 		}).
 		AnyTimes()
 	return store

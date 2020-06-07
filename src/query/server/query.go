@@ -92,7 +92,7 @@ var (
 		Namespaces: []m3.ClusterStaticNamespaceConfiguration{
 			{
 				Namespace: "default",
-				Type:      storage.UnaggregatedMetricsType,
+				Type:      queryconsolidators.UnaggregatedMetricsType,
 				Retention: 2 * 24 * time.Hour,
 			},
 		},
@@ -713,7 +713,7 @@ func newDownsamplerAutoMappingRules(
 	for _, namespace := range namespaces {
 		opts := namespace.Options()
 		attrs := opts.Attributes()
-		if attrs.MetricsType == storage.AggregatedMetricsType {
+		if attrs.MetricsType == queryconsolidators.AggregatedMetricsType {
 			downsampleOpts, err := opts.DownsampleOptions()
 			if err != nil {
 				errFmt := "unable to resolve downsample options for namespace: %v"

@@ -40,6 +40,7 @@ func GenerateSingleSampleTagIterator(ctrl *gomock.Controller, tag ident.Tag) ide
 	mockTagIterator.EXPECT().Current().Return(tag).MaxTimes(1)
 	mockTagIterator.EXPECT().Next().Return(false).MaxTimes(1)
 	mockTagIterator.EXPECT().Err().Return(nil).MaxTimes(1)
+	mockTagIterator.EXPECT().Rewind().Return().MaxTimes(1)
 	mockTagIterator.EXPECT().Close().AnyTimes()
 
 	return mockTagIterator

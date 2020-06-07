@@ -77,10 +77,12 @@ func (r *multiResult) Close() error {
 	defer r.Unlock()
 
 	for _, iters := range r.seenIters {
-		iters.Close()
+		if iters != nil {
+			iters.Close()
+		}
 	}
-	r.seenIters = nil
 
+	r.seenIters = nil
 	if r.mergedIterators != nil {
 		// NB(r): Since all the series iterators in the final result are held onto
 		// by the original iters in the seenIters slice we allow those iterators
@@ -128,26 +130,23 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
-	result := SeriesFetchResult{Metadata: r.metadata}
+	// result := SeriesFetchResult{Metadata: r.metadata}
 	err := r.err.LastError()
 	if err != nil {
-		return result, err
+		return NewEmptyFetchResult(r.metadata), err
 	}
 
 	if r.mergedIterators != nil {
-		result.seriesData.seriesIterators = r.mergedIterators
-		return result, nil
+		return NewSeriesFetchResult(r.mergedIterators, nil, r.metadata)
 	}
 
 	if len(r.seenIters) == 0 {
-		result.seriesData.seriesIterators = encoding.EmptySeriesIterators
-		return result, nil
+		return NewSeriesFetchResult(encoding.EmptySeriesIterators, nil, r.metadata)
 	}
 
 	// can short-cicuit in this case
 	if len(r.seenIters) == 1 {
-		result.seriesData.seriesIterators = r.seenIters[0]
-		return result, nil
+		return NewSeriesFetchResult(r.seenIters[0], nil, r.metadata)
 	}
 
 	// otherwise have to create a new seriesiters
@@ -173,8 +172,16 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 		r.mergedTags[i] = res.tags
 	}
 
-	result.seriesData.seriesIterators = r.mergedIterators
-	return result, nil
+	return NewSeriesFetchResult(r.mergedIterators, nil, r.metadata)
+}
+
+func (r *multiResult) ReportError(err error) {
+	if err != nil {
+		r.Lock()
+		r.err = r.err.Add(err)
+		r.Unlock()
+	}
+
 }
 
 func (r *multiResult) Add(
@@ -182,6 +189,11 @@ func (r *multiResult) Add(
 	attrs Attributes,
 	err error,
 ) {
+	newIterators := fetchResult.seriesData.seriesIterators
+	if newIterators == nil {
+		return
+	}
+
 	r.Lock()
 	defer r.Unlock()
 
@@ -200,7 +212,6 @@ func (r *multiResult) Add(
 		r.metadata = r.metadata.CombineMetadata(fetchResult.Metadata)
 	}
 
-	newIterators := fetchResult.seriesData.seriesIterators
 	r.seenIters = append(r.seenIters, newIterators)
 	// Need to check the error to bail early after accumulating the iterators
 	// otherwise when we close the the multi fetch result

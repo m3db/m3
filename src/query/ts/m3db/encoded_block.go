@@ -99,7 +99,7 @@ func newEncodedBlock(
 	}
 
 	return &encodedBlock{
-		seriesBlockIterators: result.SeriesIterators().Iters(),
+		seriesBlockIterators: result.SeriesIterators(),
 		consolidation:        consolidation,
 		lastBlock:            lastBlock,
 		resultMeta:           result.Metadata,

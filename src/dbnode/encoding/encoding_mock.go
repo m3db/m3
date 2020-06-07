@@ -1023,11 +1023,12 @@ func (mr *MockSeriesIteratorMockRecorder) SetIterateEqualTimestampStrategy(strat
 }
 
 // Replicas mocks base method
-func (m *MockSeriesIterator) Replicas() []MultiReaderIterator {
+func (m *MockSeriesIterator) Replicas() ([]MultiReaderIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Replicas")
 	ret0, _ := ret[0].([]MultiReaderIterator)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Replicas indicates an expected call of Replicas

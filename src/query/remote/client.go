@@ -110,7 +110,7 @@ func (c *grpcClient) FetchProm(
 	}
 
 	return storage.SeriesIteratorsToPromResult(
-		result.SeriesIterators, c.opts.ReadWorkerPool(), result.Metadata,
+		result, c.opts.ReadWorkerPool(),
 		options.Enforcer, c.opts.TagOptions())
 }
 
@@ -178,13 +178,14 @@ func (c *grpcClient) fetchRaw(
 		seriesIterators = append(seriesIterators, iters.Iters()...)
 	}
 
-	fetchResult.Metadata = meta
-	fetchResult.SeriesIterators = encoding.NewSeriesIterators(
-		seriesIterators,
-		pools.MutableSeriesIterators(),
+	return consolidators.NewSeriesFetchResult(
+		encoding.NewSeriesIterators(
+			seriesIterators,
+			pools.MutableSeriesIterators(),
+		),
+		nil,
+		meta,
 	)
-
-	return fetchResult, nil
 }
 
 func (c *grpcClient) FetchBlocks(

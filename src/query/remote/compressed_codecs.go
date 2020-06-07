@@ -206,7 +206,7 @@ func encodeToCompressedSeries(
 	results consolidators.SeriesFetchResult,
 	iterPools encoding.IteratorPools,
 ) ([]*rpc.Series, error) {
-	iters := results.SeriesIterators.Iters()
+	iters := results.SeriesIterators()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
 		series, err := compressedSeriesFromSeriesIterator(iter, iterPools)

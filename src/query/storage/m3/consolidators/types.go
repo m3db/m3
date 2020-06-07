@@ -81,6 +81,9 @@ type MultiFetchResult interface {
 		err error,
 	)
 
+	// ReportError adds an error to the result.
+	ReportError(err error)
+
 	// FinalResult returns a series fetch result containing deduplicated series
 	// iterators and their metadata, and any errors encountered.
 	FinalResult() (SeriesFetchResult, error)
@@ -124,7 +127,6 @@ type MultiFetchTagsResult interface {
 	Add(
 		newIterator client.TaggedIDsIterator,
 		meta block.ResultMetadata,
-		err error,
 	)
 	// FinalResult returns a deduped list of tag iterators with
 	// corresponding series IDs.

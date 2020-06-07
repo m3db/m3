@@ -31,10 +31,20 @@ import (
 // NewSeriesFetchResult creates a new series fetch result using the given
 // iterators.
 func NewSeriesFetchResult(
-	meta block.ResultMetadata,
-	tags []*models.Tags,
 	iters encoding.SeriesIterators,
-) SeriesFetchResult {
+	tags []*models.Tags,
+	meta block.ResultMetadata,
+) (SeriesFetchResult, error) {
+	if iters == nil || iters.Len() == 0 {
+		return SeriesFetchResult{
+			Metadata: meta,
+			seriesData: seriesData{
+				seriesIterators: nil,
+				tags:            []*models.Tags{},
+			},
+		}, nil
+	}
+
 	if tags == nil {
 		tags = make([]*models.Tags, iters.Len())
 	}
@@ -45,7 +55,7 @@ func NewSeriesFetchResult(
 			seriesIterators: iters,
 			tags:            tags,
 		},
-	}
+	}, nil
 }
 
 // NewEmptyFetchResult creates a new empty series fetch result.
@@ -62,7 +72,11 @@ func NewEmptyFetchResult(
 }
 
 // Verify verifies the fetch result is valid.
-func (r SeriesFetchResult) Verify() error {
+func (r *SeriesFetchResult) Verify() error {
+	if r.seriesData.tags == nil || r.seriesData.seriesIterators == nil {
+		return nil
+	}
+
 	tagLen := len(r.seriesData.tags)
 	iterLen := r.seriesData.seriesIterators.Len()
 	if tagLen != iterLen {
@@ -74,44 +88,56 @@ func (r SeriesFetchResult) Verify() error {
 }
 
 // Count returns the total number of contained series iterators.
-func (r SeriesFetchResult) Count() int {
+func (r *SeriesFetchResult) Count() int {
+	if r.seriesData.seriesIterators == nil {
+		return 0
+	}
+
 	return r.seriesData.seriesIterators.Len()
 }
 
 // Close closes the contained series iterators.
-func (r SeriesFetchResult) Close() {
-	for _, it := range r.seriesData.seriesIterators.Iters() {
-		it.Close()
+func (r *SeriesFetchResult) Close() {
+	if r.seriesData.seriesIterators != nil {
+		r.seriesData.seriesIterators.Close()
 	}
 }
 
 // IterTagsAtIndex returns the tag iterator and tags at the given index.
-func (r SeriesFetchResult) IterTagsAtIndex(
+func (r *SeriesFetchResult) IterTagsAtIndex(
 	idx int, tagOpts models.TagOptions,
 ) (encoding.SeriesIterator, models.Tags, error) {
+	tags := models.EmptyTags()
 	if idx < 0 || idx > len(r.seriesData.tags) {
-		return nil, models.EmptyTags(), fmt.Errorf("series idx(%d) out of "+
+		return nil, tags, fmt.Errorf("series idx(%d) out of "+
 			"bounds %d ", idx, len(r.seriesData.tags))
 	}
 
 	iters := r.seriesData.seriesIterators.Iters()
-	if r.seriesData.tags[idx] == nil {
-		iter := iters[idx].Tags()
-		tags, err := FromIdentTagIteratorToTags(iter, tagOpts)
-		if err != nil {
-			return nil, models.EmptyTags(), err
-		}
+	if idx < len(r.seriesData.tags) {
+		if r.seriesData.tags[idx] == nil {
+			var err error
+			iter := iters[idx].Tags()
+			tags, err = FromIdentTagIteratorToTags(iter, tagOpts)
+			if err != nil {
+				return nil, models.EmptyTags(), err
+			}
 
-		// TODO:
-		iter.Rewind()
-		r.seriesData.tags[idx] = &tags
+			iter.Rewind()
+			r.seriesData.tags[idx] = &tags
+		} else {
+			tags = *r.seriesData.tags[idx]
+		}
 	}
 
-	return iters[idx],
-		*r.seriesData.tags[idx], nil
+	return iters[idx], tags, nil
 }
 
 // SeriesIterators returns the series iterators.
-func (r SeriesFetchResult) SeriesIterators() []encoding.SeriesIterator {
+func (r *SeriesFetchResult) SeriesIterators() []encoding.SeriesIterator {
+	if r.seriesData.seriesIterators == nil {
+		return []encoding.SeriesIterator{}
+	}
+
 	return r.seriesData.seriesIterators.Iters()
 }

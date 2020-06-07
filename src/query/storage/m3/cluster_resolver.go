@@ -256,7 +256,7 @@ func aggregatedNamespaces(
 	// have all the data).
 	for _, namespace := range all {
 		nsOpts := namespace.Options()
-		if nsOpts.Attributes().MetricsType != storage.AggregatedMetricsType {
+		if nsOpts.Attributes().MetricsType != consolidators.AggregatedMetricsType {
 			// Not an aggregated cluster.
 			continue
 		}
@@ -327,9 +327,9 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 	}
 
 	switch restrict.MetricsType {
-	case storage.UnaggregatedMetricsType:
+	case consolidators.UnaggregatedMetricsType:
 		return result(clusters.UnaggregatedClusterNamespace(), nil)
-	case storage.AggregatedMetricsType:
+	case consolidators.AggregatedMetricsType:
 		ns, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
 			Retention:  restrict.StoragePolicy.Retention().Duration(),
 			Resolution: restrict.StoragePolicy.Resolution().Window,

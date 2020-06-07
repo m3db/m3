@@ -438,7 +438,7 @@ func storageAttributesFromPolicy(
 	p policy.StoragePolicy,
 ) consolidators.Attributes {
 	attributes := consolidators.Attributes{
-		MetricsType: storage.UnaggregatedMetricsType,
+		MetricsType: consolidators.UnaggregatedMetricsType,
 	}
 	if p != unaggregatedStoragePolicy {
 		attributes = consolidators.Attributes{
