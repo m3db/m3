@@ -187,6 +187,7 @@ type commitLogMetrics struct {
 	resetLatency     tally.Histogram
 	flushErrors      tally.Counter
 	flushDone        tally.Counter
+	flushTimerTask   tally.Counter
 }
 
 type eventType int
@@ -317,8 +318,9 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 				zeroToTenSecondsHighResDurationBuckets()),
 			resetLatency: scope.Histogram("writes.reset-latency",
 				zeroToTenSecondsHighResDurationBuckets()),
-			flushErrors: scope.Counter("writes.flush-errors"),
-			flushDone:   scope.Counter("writes.flush-done"),
+			flushErrors:    scope.Counter("writes.flush-errors"),
+			flushDone:      scope.Counter("writes.flush-done"),
+			flushTimerTask: scope.Counter("writes.flush-timer-task"),
 		},
 	}
 	// Setup backreferences for onFlush().
@@ -494,7 +496,14 @@ func (l *commitLog) write() {
 
 	for write := range l.writes {
 		if write.eventType == flushEventType {
-			l.writerState.primary.writer.Flush(false)
+			l.metrics.flushTimerTask.Inc(1)
+
+			if err := l.writerState.primary.writer.Flush(false); err != nil {
+				l.log.Error("failed to flush commit log", zap.Error(err))
+				if l.commitLogFailFn != nil {
+					l.commitLogFailFn(err)
+				}
+			}
 			continue
 		}
 
