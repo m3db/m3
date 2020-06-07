@@ -18,47 +18,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package consolidators
+package storagemetadata
 
 import (
-	"math"
-
-	"github.com/m3db/m3/src/dbnode/ts"
+	"time"
 )
+
+// MetricsType is a type of stored metrics.
+type MetricsType uint
 
 const (
-	// BufferSteps is the default number of steps to buffer.
-	BufferSteps = 32
+	// UnknownMetricsType is the unknown metrics type and is invalid.
+	UnknownMetricsType MetricsType = iota
+	// UnaggregatedMetricsType is an unaggregated metrics type.
+	UnaggregatedMetricsType
+	// AggregatedMetricsType is an aggregated metrics type.
+	AggregatedMetricsType
+
+	// DefaultMetricsType is the default metrics type value.
+	DefaultMetricsType = UnaggregatedMetricsType
 )
 
-// StepCollector is implemented by any accumulators or consolidators working on
-// stepwise iteration.
-type StepCollector interface {
-	// AddPoint adds a datapoint to the current step it's within the valid time
-	// period; otherwise drops it silently, which is fine for consolidation.
-	AddPoint(ts.Datapoint)
-	// BufferStep computes the currently collected step values.
-	BufferStep()
-	// BufferStepCount gives the number of remaining buffer steps.
-	BufferStepCount() int
+// Attributes is a set of stored metrics attributes.
+type Attributes struct {
+	// MetricsType indicates the type of namespace this metric originated from.
+	MetricsType MetricsType
+	// Retention indicates the retention of the namespace this metric originated
+	// from.
+	Retention time.Duration
+	// Resolution indicates the retention of the namespace this metric originated
+	// from.
+	Resolution time.Duration
 }
 
-// ConsolidationFunc consolidates a bunch of datapoints into a single float value.
-type ConsolidationFunc func(datapoints []ts.Datapoint) float64
-
-// TakeLast is a consolidation function which takes the last datapoint.
-func TakeLast(values []ts.Datapoint) float64 {
-	for i := len(values) - 1; i >= 0; i-- {
-		value := values[i].Value
-		if !math.IsNaN(value) {
-			return value
-		}
-	}
-
-	return math.NaN()
+// Validate validates a storage attributes.
+func (a Attributes) Validate() error {
+	return ValidateMetricsType(a.MetricsType)
 }
-
-const initLength = BufferSteps
-
-// Set NaN to a variable makes tests easier.
-var nan = math.NaN()

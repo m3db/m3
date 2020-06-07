@@ -26,11 +26,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 type fetchDedupeMap interface {
-	add(iter encoding.SeriesIterator, attrs Attributes) error
+	add(iter encoding.SeriesIterator, attrs storagemetadata.Attributes) error
 	list() []multiResultSeries
 }
 
@@ -38,7 +39,7 @@ type multiResult struct {
 	sync.Mutex
 	metadata        block.ResultMetadata
 	fanout          QueryFanoutType
-	seenFirstAttrs  Attributes
+	seenFirstAttrs  storagemetadata.Attributes
 	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
 	mergedIterators encoding.MutableSeriesIterators
 	mergedTags      []models.Tags
@@ -67,7 +68,7 @@ func NewMultiFetchResult(
 }
 
 type multiResultSeries struct {
-	attrs Attributes
+	attrs storagemetadata.Attributes
 	iter  encoding.SeriesIterator
 	tags  models.Tags
 }
@@ -101,7 +102,7 @@ func (r *multiResult) Close() error {
 }
 
 func (r *multiResult) FinalResultWithAttrs() (
-	SeriesFetchResult, []Attributes, error,
+	SeriesFetchResult, []storagemetadata.Attributes, error,
 ) {
 	result, err := r.FinalResult()
 	if err != nil {
@@ -109,7 +110,7 @@ func (r *multiResult) FinalResultWithAttrs() (
 	}
 
 	seriesData := result.seriesData
-	attrs := make([]Attributes, seriesData.seriesIterators.Len())
+	attrs := make([]storagemetadata.Attributes, seriesData.seriesIterators.Len())
 	// TODO: add testing around here.
 	if r.dedupeMap == nil {
 		for i := range attrs {
@@ -186,7 +187,7 @@ func (r *multiResult) ReportError(err error) {
 
 func (r *multiResult) Add(
 	fetchResult SeriesFetchResult,
-	attrs Attributes,
+	attrs storagemetadata.Attributes,
 	err error,
 ) {
 	newIterators := fetchResult.seriesData.seriesIterators
@@ -249,7 +250,7 @@ func (r *multiResult) Add(
 }
 
 func (r *multiResult) addOrUpdateDedupeMap(
-	attrs Attributes,
+	attrs storagemetadata.Attributes,
 	newIterators encoding.SeriesIterators,
 ) {
 	for _, iter := range newIterators.Iters() {

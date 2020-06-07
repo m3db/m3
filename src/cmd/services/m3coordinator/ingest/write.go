@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -436,14 +436,14 @@ func (d *downsamplerAndWriter) Storage() storage.Storage {
 
 func storageAttributesFromPolicy(
 	p policy.StoragePolicy,
-) consolidators.Attributes {
-	attributes := consolidators.Attributes{
-		MetricsType: consolidators.UnaggregatedMetricsType,
+) storagemetadata.Attributes {
+	attributes := storagemetadata.Attributes{
+		MetricsType: storagemetadata.UnaggregatedMetricsType,
 	}
 	if p != unaggregatedStoragePolicy {
-		attributes = consolidators.Attributes{
+		attributes = storagemetadata.Attributes{
 			// Assume all overridden storage policies are for aggregated namespaces.
-			MetricsType: consolidators.AggregatedMetricsType,
+			MetricsType: storagemetadata.AggregatedMetricsType,
 			Resolution:  p.Resolution().Window,
 			Retention:   p.Retention().Duration(),
 		}

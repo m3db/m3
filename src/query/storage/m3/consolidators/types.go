@@ -21,12 +21,11 @@
 package consolidators
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -77,7 +76,7 @@ type MultiFetchResult interface {
 	// Add appends series fetch results to the accumulator.
 	Add(
 		fetchResult SeriesFetchResult,
-		attrs Attributes,
+		attrs storagemetadata.Attributes,
 		err error,
 	)
 
@@ -91,7 +90,7 @@ type MultiFetchResult interface {
 	// FinalResult returns a series fetch result containing deduplicated series
 	// iterators and their metadata, as well as any attributes corresponding to
 	// these results, and any errors encountered.
-	FinalResultWithAttrs() (SeriesFetchResult, []Attributes, error)
+	FinalResultWithAttrs() (SeriesFetchResult, []storagemetadata.Attributes, error)
 
 	// Close releases all resources held by this accumulator.
 	Close() error
@@ -127,6 +126,7 @@ type MultiFetchTagsResult interface {
 	Add(
 		newIterator client.TaggedIDsIterator,
 		meta block.ResultMetadata,
+		err error,
 	)
 	// FinalResult returns a deduped list of tag iterators with
 	// corresponding series IDs.
@@ -141,36 +141,4 @@ type MultiTagResult struct {
 	ID ident.ID
 	// Iter is the tag iterator for the series.
 	Iter ident.TagIterator
-}
-
-// MetricsType is a type of stored metrics.
-type MetricsType uint
-
-const (
-	// UnknownMetricsType is the unknown metrics type and is invalid.
-	UnknownMetricsType MetricsType = iota
-	// UnaggregatedMetricsType is an unaggregated metrics type.
-	UnaggregatedMetricsType
-	// AggregatedMetricsType is an aggregated metrics type.
-	AggregatedMetricsType
-
-	// DefaultMetricsType is the default metrics type value.
-	DefaultMetricsType = UnaggregatedMetricsType
-)
-
-// Attributes is a set of stored metrics attributes.
-type Attributes struct {
-	// MetricsType indicates the type of namespace this metric originated from.
-	MetricsType MetricsType
-	// Retention indicates the retention of the namespace this metric originated
-	// from.
-	Retention time.Duration
-	// Resolution indicates the retention of the namespace this metric originated
-	// from.
-	Resolution time.Duration
-}
-
-// Validate validates a storage attributes.
-func (a Attributes) Validate() error {
-	return ValidateMetricsType(a.MetricsType)
 }

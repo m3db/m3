@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -77,8 +77,8 @@ func TestIngest(t *testing.T) {
 
 	expected, err := storage.NewWriteQuery(storage.WriteQueryOptions{
 		Annotation: nil,
-		Attributes: consolidators.Attributes{
-			MetricsType: consolidators.AggregatedMetricsType,
+		Attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
 			Resolution:  time.Minute,
 			Retention:   40 * 24 * time.Hour,
 		},

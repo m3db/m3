@@ -265,7 +265,6 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 		}
 
 		populateIter()
-		tags.EXPECT().Rewind()
 		iter.EXPECT().Tags().Return(tags)
 		iter.EXPECT().Close().MaxTimes(1)
 

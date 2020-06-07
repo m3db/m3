@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
@@ -212,8 +212,8 @@ func TestFanoutWriteSuccess(t *testing.T) {
 		Datapoints: datapoints,
 		Tags:       models.MustMakeTags("foo", "bar"),
 		Unit:       xtime.Second,
-		Attributes: consolidators.Attributes{
-			MetricsType: consolidators.UnaggregatedMetricsType,
+		Attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
 		},
 	})
 	require.NoError(t, err)

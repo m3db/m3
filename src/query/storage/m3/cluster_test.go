@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -74,7 +74,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 			Namespaces: []ClusterStaticNamespaceConfiguration{
 				ClusterStaticNamespaceConfiguration{
 					Namespace: "unaggregated",
-					Type:      consolidators.UnaggregatedMetricsType,
+					Type:      storagemetadata.UnaggregatedMetricsType,
 					Retention: 7 * 24 * time.Hour,
 				},
 			},
@@ -84,13 +84,13 @@ func TestNewClustersFromConfig(t *testing.T) {
 			Namespaces: []ClusterStaticNamespaceConfiguration{
 				ClusterStaticNamespaceConfiguration{
 					Namespace:  "aggregated0",
-					Type:       consolidators.AggregatedMetricsType,
+					Type:       storagemetadata.AggregatedMetricsType,
 					Retention:  30 * 24 * time.Hour,
 					Resolution: time.Minute,
 				},
 				ClusterStaticNamespaceConfiguration{
 					Namespace:  "aggregated1",
-					Type:       consolidators.AggregatedMetricsType,
+					Type:       storagemetadata.AggregatedMetricsType,
 					Retention:  365 * 24 * time.Hour,
 					Resolution: 10 * time.Minute,
 				},
@@ -105,8 +105,8 @@ func TestNewClustersFromConfig(t *testing.T) {
 	// Resolve expected clusters and check attributes
 	unaggregatedNs := clusters.UnaggregatedClusterNamespace()
 	assert.Equal(t, "unaggregated", unaggregatedNs.NamespaceID().String())
-	assert.Equal(t, consolidators.Attributes{
-		MetricsType: consolidators.UnaggregatedMetricsType,
+	assert.Equal(t, storagemetadata.Attributes{
+		MetricsType: storagemetadata.UnaggregatedMetricsType,
 		Retention:   7 * 24 * time.Hour,
 	}, unaggregatedNs.Options().Attributes())
 	assert.True(t, mockSession1 == unaggregatedNs.Session())
@@ -117,8 +117,8 @@ func TestNewClustersFromConfig(t *testing.T) {
 	})
 	require.True(t, ok)
 	assert.Equal(t, "aggregated0", aggregated1Month1Minute.NamespaceID().String())
-	assert.Equal(t, consolidators.Attributes{
-		MetricsType: consolidators.AggregatedMetricsType,
+	assert.Equal(t, storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
 		Retention:   30 * 24 * time.Hour,
 		Resolution:  time.Minute,
 	}, aggregated1Month1Minute.Options().Attributes())
@@ -130,8 +130,8 @@ func TestNewClustersFromConfig(t *testing.T) {
 	})
 	require.True(t, ok)
 	assert.Equal(t, "aggregated1", aggregated1Year10Minute.NamespaceID().String())
-	assert.Equal(t, consolidators.Attributes{
-		MetricsType: consolidators.AggregatedMetricsType,
+	assert.Equal(t, storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
 		Retention:   365 * 24 * time.Hour,
 		Resolution:  10 * time.Minute,
 	}, aggregated1Year10Minute.Options().Attributes())

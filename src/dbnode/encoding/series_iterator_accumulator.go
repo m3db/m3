@@ -203,7 +203,9 @@ func (it *seriesIteratorAccumulator) Reset(opts SeriesIteratorOptions) {
 	it.id = opts.ID
 	it.nsID = opts.Namespace
 	for _, it := range it.seriesIterators[1:] {
-		it.Close()
+		if it != nil {
+			it.Close()
+		}
 	}
 
 	it.iters.reset()
@@ -214,7 +216,7 @@ func (it *seriesIteratorAccumulator) Reset(opts SeriesIteratorOptions) {
 		return
 	}
 
-	it.seriesIterators = it.seriesIterators[:0]
+	it.seriesIterators = it.seriesIterators[:1]
 	it.err = nil
 	it.firstNext = true
 	it.closed = false

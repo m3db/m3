@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -166,7 +166,7 @@ const (
 // RestrictByType are specific restrictions to stick to a single data type.
 type RestrictByType struct {
 	// MetricsType restricts the type of metrics being returned.
-	MetricsType consolidators.MetricsType
+	MetricsType storagemetadata.MetricsType
 	// StoragePolicy is required if metrics type is not unaggregated
 	// to specify which storage policy metrics should be returned from.
 	StoragePolicy policy.StoragePolicy
@@ -245,7 +245,7 @@ type WriteQueryOptions struct {
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
 	Annotation []byte
-	Attributes consolidators.Attributes
+	Attributes storagemetadata.Attributes
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted

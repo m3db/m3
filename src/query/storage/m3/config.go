@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -74,7 +74,7 @@ type ClusterStaticNamespaceConfiguration struct {
 
 	// Type is the type of values stored by the namespace, current
 	// supported values are "unaggregated" or "aggregated".
-	Type consolidators.MetricsType `yaml:"type"`
+	Type storagemetadata.MetricsType `yaml:"type"`
 
 	// Retention is the length of which values are stored by the namespace.
 	Retention time.Duration `yaml:"retention" validate:"nonzero"`
@@ -90,11 +90,11 @@ type ClusterStaticNamespaceConfiguration struct {
 	//
 	// Deprecated: Use "Type" field when specifying config instead, it is
 	// invalid to use both.
-	StorageMetricsType consolidators.MetricsType `yaml:"storageMetricsType"`
+	StorageMetricsType storagemetadata.MetricsType `yaml:"storageMetricsType"`
 }
 
-func (c ClusterStaticNamespaceConfiguration) metricsType() (consolidators.MetricsType, error) {
-	unset := consolidators.MetricsType(0)
+func (c ClusterStaticNamespaceConfiguration) metricsType() (storagemetadata.MetricsType, error) {
+	unset := storagemetadata.MetricsType(0)
 	if c.Type != unset && c.StorageMetricsType != unset {
 		// Don't allow both to not be default
 		return unset, errBothNamespaceTypeNewAndDeprecatedFieldsSet
@@ -111,7 +111,7 @@ func (c ClusterStaticNamespaceConfiguration) metricsType() (consolidators.Metric
 	}
 
 	// Both are unset
-	return consolidators.DefaultMetricsType, nil
+	return storagemetadata.DefaultMetricsType, nil
 }
 
 func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
@@ -122,7 +122,7 @@ func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
 	if err != nil {
 		return ClusterNamespaceDownsampleOptions{}, err
 	}
-	if nsType != consolidators.AggregatedMetricsType {
+	if nsType != storagemetadata.AggregatedMetricsType {
 		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
 	}
 	if c.Downsample == nil {
@@ -207,7 +207,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 			}
 
 			switch nsType {
-			case consolidators.UnaggregatedMetricsType:
+			case storagemetadata.UnaggregatedMetricsType:
 				numUnaggregatedClusterNamespaces++
 				if numUnaggregatedClusterNamespaces > 1 {
 					return nil, fmt.Errorf("only one unaggregated cluster namespace  "+
@@ -217,7 +217,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 				unaggregatedClusterNamespaceCfg.client = result
 				unaggregatedClusterNamespaceCfg.namespace = n
 
-			case consolidators.AggregatedMetricsType:
+			case storagemetadata.AggregatedMetricsType:
 				numAggregatedClusterNamespaces++
 
 				aggregatedClusterNamespacesCfg.namespaces =

@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -93,28 +94,28 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 	defer ctrl.Finish()
 
 	namespaces := []struct {
-		attrs Attributes
+		attrs storagemetadata.Attributes
 		ns    string
 	}{
 		{
-			attrs: Attributes{
-				MetricsType: UnaggregatedMetricsType,
+			attrs: storagemetadata.Attributes{
+				MetricsType: storagemetadata.UnaggregatedMetricsType,
 				Retention:   24 * time.Hour,
 				Resolution:  0 * time.Minute,
 			},
 			ns: unaggregated,
 		},
 		{
-			attrs: Attributes{
-				MetricsType: AggregatedMetricsType,
+			attrs: storagemetadata.Attributes{
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				Retention:   360 * time.Hour,
 				Resolution:  2 * time.Minute,
 			},
 			ns: short,
 		},
 		{
-			attrs: Attributes{
-				MetricsType: AggregatedMetricsType,
+			attrs: storagemetadata.Attributes{
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				Retention:   17520 * time.Hour,
 				Resolution:  10 * time.Minute,
 			},
@@ -200,7 +201,7 @@ func TestExhaustiveMerge(t *testing.T) {
 					},
 				}
 
-				r.Add(seriesFetchResult, Attributes{}, nil)
+				r.Add(seriesFetchResult, storagemetadata.Attributes{}, nil)
 			}
 
 			result, err := r.FinalResult()

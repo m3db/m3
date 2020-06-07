@@ -55,6 +55,7 @@ import (
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
 	queryconsolidators "github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdb "github.com/m3db/m3/src/query/ts/m3db"
@@ -92,7 +93,7 @@ var (
 		Namespaces: []m3.ClusterStaticNamespaceConfiguration{
 			{
 				Namespace: "default",
-				Type:      queryconsolidators.UnaggregatedMetricsType,
+				Type:      storagemetadata.UnaggregatedMetricsType,
 				Retention: 2 * 24 * time.Hour,
 			},
 		},
@@ -713,7 +714,7 @@ func newDownsamplerAutoMappingRules(
 	for _, namespace := range namespaces {
 		opts := namespace.Options()
 		attrs := opts.Attributes()
-		if attrs.MetricsType == queryconsolidators.AggregatedMetricsType {
+		if attrs.MetricsType == storagemetadata.AggregatedMetricsType {
 			downsampleOpts, err := opts.DownsampleOptions()
 			if err != nil {
 				errFmt := "unable to resolve downsample options for namespace: %v"

@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/convert"
 	"github.com/m3db/m3/src/x/instrument"
@@ -179,8 +179,8 @@ func (w *downsamplerFlushHandlerWriter) Write(
 				Value:     mp.Value,
 			}},
 			Unit: convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
-			Attributes: consolidators.Attributes{
-				MetricsType: consolidators.AggregatedMetricsType,
+			Attributes: storagemetadata.Attributes{
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				Retention:   mp.StoragePolicy.Retention().Duration(),
 				Resolution:  mp.StoragePolicy.Resolution().Window,
 			},

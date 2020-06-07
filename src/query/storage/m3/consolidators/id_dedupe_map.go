@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 type idDedupeMap struct {
@@ -48,7 +49,7 @@ func (m *idDedupeMap) list() []multiResultSeries {
 
 func (m *idDedupeMap) add(
 	iter encoding.SeriesIterator,
-	attrs Attributes,
+	attrs storagemetadata.Attributes,
 ) error {
 	id := iter.ID().String()
 

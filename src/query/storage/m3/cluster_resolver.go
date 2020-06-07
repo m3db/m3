@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 type unaggregatedNamespaceType uint8
@@ -256,7 +257,7 @@ func aggregatedNamespaces(
 	// have all the data).
 	for _, namespace := range all {
 		nsOpts := namespace.Options()
-		if nsOpts.Attributes().MetricsType != consolidators.AggregatedMetricsType {
+		if nsOpts.Attributes().MetricsType != storagemetadata.AggregatedMetricsType {
 			// Not an aggregated cluster.
 			continue
 		}
@@ -327,9 +328,9 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 	}
 
 	switch restrict.MetricsType {
-	case consolidators.UnaggregatedMetricsType:
+	case storagemetadata.UnaggregatedMetricsType:
 		return result(clusters.UnaggregatedClusterNamespace(), nil)
-	case consolidators.AggregatedMetricsType:
+	case storagemetadata.AggregatedMetricsType:
 		ns, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
 			Retention:  restrict.StoragePolicy.Retention().Duration(),
 			Resolution: restrict.StoragePolicy.Resolution().Window,

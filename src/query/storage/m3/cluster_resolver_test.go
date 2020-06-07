@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -314,7 +315,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: consolidators.UnaggregatedMetricsType,
+				MetricsType: storagemetadata.UnaggregatedMetricsType,
 			},
 		},
 		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
@@ -325,7 +326,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: consolidators.AggregatedMetricsType,
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy(
 					genResolution.String() + ":" + genRetentionFiltered.String()),
 			},
@@ -338,7 +339,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: consolidators.AggregatedMetricsType,
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy(
 					genResolution.String() + ":" + genRetentionUnfiltered.String()),
 			},
@@ -351,7 +352,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: consolidators.UnknownMetricsType,
+				MetricsType: storagemetadata.UnknownMetricsType,
 			},
 		},
 		expectedErrContains: "unrecognized metrics type:",
@@ -361,7 +362,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType:   consolidators.AggregatedMetricsType,
+				MetricsType:   storagemetadata.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy("1s:100d"),
 			},
 		},

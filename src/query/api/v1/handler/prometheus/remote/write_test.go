@@ -38,7 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -239,7 +239,7 @@ func TestPromWriteUnaggregatedMetricsWithHeader(t *testing.T) {
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
 	req.Header.Add(handleroptions.MetricsTypeHeader,
-		consolidators.UnaggregatedMetricsType.String())
+		storagemetadata.UnaggregatedMetricsType.String())
 
 	writer := httptest.NewRecorder()
 	handler.ServeHTTP(writer, req)
@@ -273,7 +273,7 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
 	req.Header.Add(handleroptions.MetricsTypeHeader,
-		consolidators.AggregatedMetricsType.String())
+		storagemetadata.AggregatedMetricsType.String())
 	req.Header.Add(handleroptions.MetricsStoragePolicyHeader,
 		"1m:21d")
 

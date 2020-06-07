@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 // Validate will validate the restrict fetch options.
@@ -69,13 +69,13 @@ func (o *RestrictByTag) GetMatchers() models.Matchers {
 // Validate will validate the restrict type restrictions.
 func (o *RestrictByType) Validate() error {
 	switch o.MetricsType {
-	case consolidators.UnaggregatedMetricsType:
+	case storagemetadata.UnaggregatedMetricsType:
 		if o.StoragePolicy != policy.EmptyStoragePolicy {
 			return fmt.Errorf(
 				"expected no storage policy for unaggregated metrics type, "+
 					"instead got: %v", o.StoragePolicy.String())
 		}
-	case consolidators.AggregatedMetricsType:
+	case storagemetadata.AggregatedMetricsType:
 		if v := o.StoragePolicy.Resolution().Window; v <= 0 {
 			return fmt.Errorf(
 				"expected positive resolution window, instead got: %v", v)

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/tracepoint"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
@@ -677,9 +678,9 @@ func (s *m3storage) writeSingle(
 
 	attributes := query.Attributes()
 	switch attributes.MetricsType {
-	case consolidators.UnaggregatedMetricsType:
+	case storagemetadata.UnaggregatedMetricsType:
 		namespace = s.clusters.UnaggregatedClusterNamespace()
-	case consolidators.AggregatedMetricsType:
+	case storagemetadata.AggregatedMetricsType:
 		attrs := RetentionResolution{
 			Retention:  attributes.Retention,
 			Resolution: attributes.Resolution,

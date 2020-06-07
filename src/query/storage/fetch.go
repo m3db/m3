@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 
 	"github.com/uber-go/tally"
 )
@@ -71,7 +71,7 @@ func (o *FetchOptions) QueryFetchOptions(
 		queryCtx.Options.RestrictFetchType != nil {
 		v := queryCtx.Options.RestrictFetchType
 		restrict := &RestrictByType{
-			MetricsType:   consolidators.MetricsType(v.MetricsType),
+			MetricsType:   storagemetadata.MetricsType(v.MetricsType),
 			StoragePolicy: v.StoragePolicy,
 		}
 
