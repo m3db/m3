@@ -123,6 +123,10 @@ func newCommitLogWriter(
 	flushSize := opts.FlushSize()
 	flushBufferSize := opts.FlushBufferSize()
 
+	// Use 10mb flush size, and 200mb flush buffer for testing.
+	flushSize = 10 * 1024 * 1024
+	flushBufferSize = 200 * 1024 * 1024
+
 	// Allow for at least 2 total buffers.
 	if 2*flushSize > flushBufferSize {
 		flushBufferSize = 2 * flushSize
