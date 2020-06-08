@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -53,7 +53,6 @@ func (c *m3queryClient) query(expr string, t time.Time) ([]byte, error) {
 	q.Add("query", expr)
 	q.Add("time", strconv.FormatInt(t.Unix(), 10))
 	req.URL.RawQuery = q.Encode()
-	fmt.Printf("Requesting m3query URL: %+v\n", req.URL)
 	resp, err := http.DefaultClient.Do(req)
 
 	if err != nil {
@@ -61,7 +60,7 @@ func (c *m3queryClient) query(expr string, t time.Time) ([]byte, error) {
 	}
 
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode/200 != 1 {
 		return nil, fmt.Errorf("invalid status %+v received sending query: %+v", resp.StatusCode, req)
 	}
 

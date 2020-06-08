@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -48,7 +48,7 @@ func (c *m3comparatorClient) clear() error {
 
 	_, err = http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("could not clear data on m3comparator: %+v", err)
+		return err
 	}
 	return nil
 }
@@ -61,14 +61,14 @@ func (c *m3comparatorClient) load(data []byte) error {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode/200 != 1 {
-		var bodyString string
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err == nil {
-			bodyString = string(bodyBytes)
-		}
-		return fmt.Errorf("load status code %d. Response: %s", resp.StatusCode, bodyString)
+	if resp.StatusCode/200 == 1 {
+		return nil
 	}
 
-	return nil
+	var bodyString string
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err == nil {
+		bodyString = string(bodyBytes)
+	}
+	return fmt.Errorf("load status code %d. Response: %s, Error: %v", resp.StatusCode, bodyString, err)
 }
