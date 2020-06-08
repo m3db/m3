@@ -150,17 +150,6 @@ type asyncResettableWriter struct {
 	// begin a new hot-swap.
 	*sync.WaitGroup
 	writer commitLogWriter
-	// Each writer maintains its own slice of pending flushFns because each writer will get
-	// flushed independently. This is important for maintaining correctness in code paths
-	// that care about durability, particularly during commitlog rotations.
-	//
-	// For example, imagine a call to WriteWait() occurs and the pending write is buffered
-	// in commitlog 1, but not yet flushed. Subsequently, a call to RotateLogs() occurs causing
-	// commitlog 1 to be (asynchronously) reset and commitlog 2 to become the new primary. Once
-	// the asynchronous Close and flush of commitlog 1 completes, only pending flushFns associated
-	// with commitlog 1 should be called as the writer associated with commitlog 2 may not have been
-	// flushed at all yet.
-	pendingFlushFns []callbackFn
 }
 
 func (w *asyncResettableWriter) onFlush(err error) {
@@ -494,7 +483,18 @@ func (l *commitLog) write() {
 	// any allocations.
 	var singleBatch = make([]ts.BatchWrite, 1)
 	var batch []ts.BatchWrite
+	finalizeCh := make(chan ts.WriteBatch, 1024)
+	defer close(finalizeCh)
 
+	go func() {
+		// Finalize batch writes without allocating.
+		for batch := range finalizeCh {
+			batch.Finalize()
+		}
+	}()
+
+	// Lock this current goroutine to the OS thread so it isn't pre-empted
+	// and interrupted during the critical write/encode loop.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -520,12 +520,6 @@ func (l *commitLog) write() {
 				},
 			})
 			continue
-		}
-
-		// For writes requiring acks add to pending acks
-		if write.eventType == writeEventType && write.callbackFn != nil {
-			l.writerState.primary.pendingFlushFns = append(
-				l.writerState.primary.pendingFlushFns, write.callbackFn)
 		}
 
 		isRotateLogsEvent := write.eventType == rotateLogsEventType
@@ -567,7 +561,13 @@ func (l *commitLog) write() {
 		}
 		numDequeued = len(batch)
 
-		for _, writeBatch := range batch {
+		lastWritableElem := -1
+		for i := numDequeued - 1; i >= 0 && lastWritableElem == -1; i-- {
+			if batch[i].Err == nil && !batch[i].SkipWrite {
+				lastWritableElem = i
+			}
+		}
+		for i, writeBatch := range batch {
 			if writeBatch.Err != nil {
 				// This entry was not written successfully to the in-memory datastructures so
 				// we should not persist it to the commitlog. This is important to maintain
@@ -584,20 +584,33 @@ func (l *commitLog) write() {
 				continue
 			}
 
+			// Only call the callback if last in the batch to avoid
+			// double calling callback.
+			var callback callbackFn
+			if i == lastWritableElem {
+				callback = write.callbackFn
+			}
+
 			write := writeBatch.Write
 			err := l.writerState.primary.writer.Write(write.Series,
-				write.Datapoint, write.Unit, write.Annotation)
+				write.Datapoint, write.Unit, write.Annotation, callback)
 			if err != nil {
 				l.handleWriteErr(err)
 				continue
 			}
 			numWritesSuccess++
 		}
+		if lastWritableElem == -1 && write.callbackFn != nil {
+			// Call callback successfully if no elements actually needed to write.
+			write.callbackFn(callbackResult{
+				eventType: flushEventType,
+			})
+		}
 
 		// Return the write batch to the pool.
 		if write.write.writeBatch != nil {
 			// NB(r): Do not block the write loop finalizing resources.
-			go write.write.writeBatch.Finalize()
+			finalizeCh <- write.write.writeBatch
 		}
 
 		atomic.AddInt64(&l.numWritesInQueue, int64(-numDequeued))
@@ -638,29 +651,6 @@ func (l *commitLog) onFlush(writer *asyncResettableWriter, err error) {
 		}
 	}
 
-	// onFlush will never be called concurrently. The flushFn for the primaryWriter
-	// will only ever be called synchronously by the single-threaded writer goroutine
-	// and the flushFn for the secondaryWriter will only be called by the asynchronous
-	// goroutine (created by the single-threaded writer) when it calls Close() on the
-	// secondary (previously primary due to a hot-swap) writer during the reset.
-	//
-	// Note that both the primary and secondar's flushFn may be called during calls to
-	// Open() on the commitlog, but this takes place before the single-threaded writer
-	// is spawned which precludes it from occurring concurrently with either of the
-	// scenarios described above.
-	if len(writer.pendingFlushFns) == 0 {
-		l.metrics.flushDone.Inc(1)
-		return
-	}
-
-	for i := range writer.pendingFlushFns {
-		writer.pendingFlushFns[i](callbackResult{
-			eventType: flushEventType,
-			err:       err,
-		})
-		writer.pendingFlushFns[i] = nil
-	}
-	writer.pendingFlushFns = writer.pendingFlushFns[:0]
 	l.metrics.flushDone.Inc(1)
 }
 

@@ -21,11 +21,11 @@
 package commitlog
 
 import (
-	"bufio"
 	"encoding/binary"
 	"errors"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -75,6 +75,7 @@ type commitLogWriter interface {
 		datapoint ts.Datapoint,
 		unit xtime.Unit,
 		annotation ts.Annotation,
+		callbackFn callbackFn,
 	) error
 
 	// Flush will flush any data in the writers buffer to the chunkWriter, essentially forcing
@@ -91,7 +92,6 @@ type chunkWriter interface {
 	reset(f xos.File)
 	close() error
 	isOpen() bool
-	sync() error
 }
 
 type flushFn func(err error)
@@ -103,7 +103,7 @@ type writer struct {
 	nowFn               clock.NowFn
 	chunkWriter         chunkWriter
 	chunkReserveHeader  []byte
-	buffer              *bufio.Writer
+	buffer              *asyncFlushBuffer
 	sizeBuffer          []byte
 	seen                *bitset.BitSet
 	logEncoder          *msgpack.Encoder
@@ -120,14 +120,27 @@ func newCommitLogWriter(
 ) commitLogWriter {
 	shouldFsync := opts.Strategy() == StrategyWriteWait
 
+	flushSize := opts.FlushSize()
+	flushBufferSize := opts.FlushBufferSize()
+
+	// Allow for at least 2 total buffers.
+	if 2*flushSize > flushBufferSize {
+		flushBufferSize = 2 * flushSize
+	}
+
+	chunkWriter := newChunkWriter(flushFn, shouldFsync)
+	buffer := newAsyncFlushBuffer(chunkWriter, asyncFlushBufferOptions{
+		totalBufferLength:  flushBufferSize,
+		singleBufferLength: flushSize,
+	})
 	return &writer{
 		filePathPrefix:      opts.FilesystemOptions().FilePathPrefix(),
 		newFileMode:         opts.FilesystemOptions().NewFileMode(),
 		newDirectoryMode:    opts.FilesystemOptions().NewDirectoryMode(),
 		nowFn:               opts.ClockOptions().NowFn(),
-		chunkWriter:         newChunkWriter(flushFn, shouldFsync),
+		chunkWriter:         chunkWriter,
 		chunkReserveHeader:  make([]byte, chunkHeaderLen),
-		buffer:              bufio.NewWriterSize(nil, opts.FlushSize()),
+		buffer:              buffer,
 		sizeBuffer:          make([]byte, binary.MaxVarintLen64),
 		seen:                bitset.NewBitSet(defaultBitSetLength),
 		logEncoder:          msgpack.NewEncoder(),
@@ -175,8 +188,8 @@ func (w *writer) Open() (persist.CommitLogFile, error) {
 	}
 
 	w.chunkWriter.reset(fd)
-	w.buffer.Reset(w.chunkWriter)
-	if err := w.write(w.logEncoder.Bytes()); err != nil {
+	w.buffer.open()
+	if err := w.write(w.logEncoder.Bytes(), nil); err != nil {
 		w.Close()
 		return persist.CommitLogFile{}, err
 	}
@@ -196,6 +209,7 @@ func (w *writer) Write(
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
+	callbackFn callbackFn,
 ) error {
 	var logEntry schema.LogEntry
 	logEntry.Create = w.nowFn().UnixNano()
@@ -251,7 +265,7 @@ func (w *writer) Write(
 		return err
 	}
 
-	if err := w.write(w.logEncoderBuff); err != nil {
+	if err := w.write(w.logEncoderBuff, callbackFn); err != nil {
 		return err
 	}
 
@@ -263,20 +277,15 @@ func (w *writer) Write(
 }
 
 func (w *writer) Flush(sync bool) error {
-	err := w.buffer.Flush()
-	if err != nil {
+	// Do not need to sync() if using WriteWait, since chunk writer
+	// calls sync() then onFlush.
+	if err := w.buffer.flush(); err != nil {
 		return err
 	}
-
 	if !sync {
 		return nil
 	}
-
-	return w.sync()
-}
-
-func (w *writer) sync() error {
-	return w.chunkWriter.sync()
+	return w.buffer.sync()
 }
 
 func (w *writer) Close() error {
@@ -284,7 +293,7 @@ func (w *writer) Close() error {
 		return nil
 	}
 
-	if err := w.Flush(true); err != nil {
+	if err := w.buffer.close(); err != nil {
 		return err
 	}
 	if err := w.chunkWriter.close(); err != nil {
@@ -295,25 +304,203 @@ func (w *writer) Close() error {
 	return nil
 }
 
-func (w *writer) write(data []byte) error {
+func (w *writer) write(data []byte, callbackFn callbackFn) error {
 	dataLen := len(data)
 	sizeLen := binary.PutUvarint(w.sizeBuffer, uint64(dataLen))
-	totalLen := sizeLen + dataLen
-
-	// Avoid writing across the checksum boundary if we can avoid it
-	if w.buffer.Buffered() > 0 && totalLen > w.buffer.Available() {
-		if err := w.buffer.Flush(); err != nil {
-			return err
-		}
-		return w.write(data)
-	}
 
 	// Write size and then data
-	if _, err := w.buffer.Write(w.sizeBuffer[:sizeLen]); err != nil {
+	if err := w.buffer.write(w.sizeBuffer[:sizeLen], nil); err != nil {
 		return err
 	}
-	_, err := w.buffer.Write(data)
+	return w.buffer.write(data, callbackFn)
+}
+
+type asyncFlushBuffer struct {
+	writers            []asyncFlushBufferWriter
+	singleBufferLength int
+	idx                int
+	flushCalls         chan asyncFlushBufferCall
+	chunkWriter        chunkWriter
+}
+
+type asyncFlushBufferWriter struct {
+	buffer    []byte
+	callbacks []callbackFn
+	result    *asyncFlushBufferCallResult
+}
+
+type asyncFlushBufferCallType uint
+
+const (
+	asyncFlushBufferFlushCall asyncFlushBufferCallType = iota
+	asyncFlushBufferSyncCall
+)
+
+type asyncFlushBufferCall struct {
+	bytes     []byte
+	callbacks []callbackFn
+	syncWg    *sync.WaitGroup
+	callType  asyncFlushBufferCallType
+	result    *asyncFlushBufferCallResult
+}
+
+type asyncFlushBufferCallResult struct {
+	wg  *sync.WaitGroup
+	n   int
+	err error
+}
+
+func (r *asyncFlushBufferCallResult) reset() {
+	r.n = 0
+	r.err = nil
+}
+
+type asyncFlushBufferOptions struct {
+	totalBufferLength  int
+	singleBufferLength int
+}
+
+func newAsyncFlushBuffer(
+	chunkWriter chunkWriter,
+	opts asyncFlushBufferOptions,
+) *asyncFlushBuffer {
+	var (
+		writers []asyncFlushBufferWriter
+		total   int
+	)
+	for total+opts.singleBufferLength <= opts.totalBufferLength {
+		writers = append(writers, asyncFlushBufferWriter{
+			buffer: make([]byte, 0, opts.singleBufferLength),
+			result: &asyncFlushBufferCallResult{
+				wg: &sync.WaitGroup{},
+			},
+		})
+		total += opts.singleBufferLength
+	}
+
+	return &asyncFlushBuffer{
+		writers:            writers,
+		singleBufferLength: opts.singleBufferLength,
+		chunkWriter:        chunkWriter,
+	}
+}
+
+func (b *asyncFlushBuffer) open() {
+	b.flushCalls = make(chan asyncFlushBufferCall, len(b.writers))
+	go b.flushLoop()
+}
+
+func (b *asyncFlushBuffer) flushLoop() {
+	for flush := range b.flushCalls {
+		switch flush.callType {
+		case asyncFlushBufferFlushCall:
+			flush.result.n, flush.result.err = b.chunkWriter.Write(flush.bytes)
+			for _, fn := range flush.callbacks {
+				fn(callbackResult{
+					eventType: flushEventType,
+					err:       flush.result.err,
+				})
+			}
+			flush.result.wg.Done()
+		case asyncFlushBufferSyncCall:
+			flush.syncWg.Done()
+		}
+	}
+}
+
+func (b *asyncFlushBuffer) close() error {
+	if err := b.flush(); err != nil {
+		return err
+	}
+	err := b.sync()
+	close(b.flushCalls)
 	return err
+}
+
+func (b *asyncFlushBuffer) sync() error {
+	var syncWg sync.WaitGroup
+	syncWg.Add(1)
+
+	// Enqueue sync.
+	call := asyncFlushBufferCall{
+		syncWg:   &syncWg,
+		callType: asyncFlushBufferSyncCall,
+	}
+	b.flushCalls <- call
+
+	// Wait for sync.
+	syncWg.Wait()
+
+	// Return any errors encountered.
+	for _, elem := range b.writers {
+		elem.result.wg.Wait()
+		if err := elem.result.err; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *asyncFlushBuffer) flush() error {
+	if len(b.writers[b.idx].buffer) == 0 {
+		return nil
+	}
+	return b.writeBuffer()
+}
+
+func (b *asyncFlushBuffer) write(p []byte, callbackFn callbackFn) error {
+	pLen := len(p)
+	currLen := len(b.writers[b.idx].buffer)
+	newLen := currLen + pLen
+	if currLen > 0 && newLen > b.singleBufferLength {
+		// Flush current buffer.
+		if err := b.writeBuffer(); err != nil {
+			return err
+		}
+	}
+
+	b.writers[b.idx].buffer = append(b.writers[b.idx].buffer, p...)
+	if callbackFn != nil {
+		b.writers[b.idx].callbacks = append(b.writers[b.idx].callbacks, callbackFn)
+	}
+	return nil
+}
+
+func (b *asyncFlushBuffer) writeBuffer() error {
+	// First enqueue this buffer to be written.
+	b.writers[b.idx].result.wg.Add(1)
+	call := asyncFlushBufferCall{
+		bytes:     b.writers[b.idx].buffer,
+		callbacks: b.writers[b.idx].callbacks,
+		callType:  asyncFlushBufferFlushCall,
+		result:    b.writers[b.idx].result,
+	}
+	b.flushCalls <- call
+
+	next := b.idx + 1
+	if next >= len(b.writers) {
+		next = 0 // Wrap around.
+	}
+
+	b.idx = next
+
+	// Wait for next buffer to be ready.
+	b.writers[b.idx].result.wg.Wait()
+
+	// Save previous error.
+	prevErr := b.writers[b.idx].result.err
+
+	// Reset the buffer for reuse.
+	b.writers[b.idx].buffer = b.writers[b.idx].buffer[:0]
+	for i := range b.writers[b.idx].callbacks {
+		b.writers[b.idx].callbacks[i] = nil
+	}
+	b.writers[b.idx].callbacks = b.writers[b.idx].callbacks[:0]
+	b.writers[b.idx].result.reset()
+
+	// Return the previous error, ensure we eventually propagate errors.
+	return prevErr
 }
 
 type fsChunkWriter struct {
@@ -343,10 +530,6 @@ func (w *fsChunkWriter) close() error {
 
 func (w *fsChunkWriter) isOpen() bool {
 	return w.fd != nil
-}
-
-func (w *fsChunkWriter) sync() error {
-	return w.fd.Sync()
 }
 
 // Writes a custom header in front of p to a file and returns number of bytes of p successfully written to the file.
@@ -395,7 +578,7 @@ func (w *fsChunkWriter) Write(p []byte) (int, error) {
 
 	// Fsync if required to
 	if w.fsync {
-		err = w.sync()
+		err = w.fd.Sync()
 	}
 
 	// Fire flush callback

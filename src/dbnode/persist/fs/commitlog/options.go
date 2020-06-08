@@ -43,6 +43,9 @@ const (
 	// defaultFlushSize is the default commit log flush size
 	defaultFlushSize = 65536
 
+	// defaultFlushBufferSize is the total flush buffer size
+	defaultFlushBufferSize = 8 * defaultFlushSize
+
 	// defaultBlockSize is the default commit log block size
 	defaultBlockSize = 15 * time.Minute
 
@@ -75,6 +78,7 @@ type options struct {
 	fsOpts                  fs.Options
 	strategy                Strategy
 	flushSize               int
+	flushBufferSize         int
 	flushInterval           time.Duration
 	backlogQueueSize        int
 	backlogQueueChannelSize int
@@ -92,6 +96,7 @@ func NewOptions() Options {
 		fsOpts:                  fs.NewOptions(),
 		strategy:                defaultStrategy,
 		flushSize:               defaultFlushSize,
+		flushBufferSize:         defaultFlushBufferSize,
 		flushInterval:           defaultFlushInterval,
 		backlogQueueSize:        defaultBacklogQueueSize,
 		backlogQueueChannelSize: defaultBacklogQueueChannelSize,
@@ -185,6 +190,16 @@ func (o *options) SetFlushSize(value int) Options {
 
 func (o *options) FlushSize() int {
 	return o.flushSize
+}
+
+func (o *options) SetFlushBufferSize(value int) Options {
+	opts := *o
+	opts.flushBufferSize = value
+	return &opts
+}
+
+func (o *options) FlushBufferSize() int {
+	return o.flushBufferSize
 }
 
 func (o *options) SetFlushInterval(value time.Duration) Options {

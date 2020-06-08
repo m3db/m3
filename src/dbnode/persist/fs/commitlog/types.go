@@ -171,6 +171,12 @@ type Options interface {
 	// FlushSize returns the flush size.
 	FlushSize() int
 
+	// SetFlushBufferSize sets the flush buffer size.
+	SetFlushBufferSize(value int) Options
+
+	// FlushBufferSize returns the flush buffer size.
+	FlushBufferSize() int
+
 	// SetStrategy sets the strategy.
 	SetStrategy(value Strategy) Options
 

@@ -179,7 +179,7 @@ func snapshotCounterValue(
 
 type mockCommitLogWriter struct {
 	openFn  func() (persist.CommitLogFile, error)
-	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
+	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, callbackFn) error
 	flushFn func(sync bool) error
 	closeFn func() error
 }
@@ -189,7 +189,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 		openFn: func() (persist.CommitLogFile, error) {
 			return persist.CommitLogFile{}, nil
 		},
-		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, callbackFn) error {
 			return nil
 		},
 		flushFn: func(sync bool) error {
@@ -210,8 +210,9 @@ func (w *mockCommitLogWriter) Write(
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
+	callback callbackFn,
 ) error {
-	return w.writeFn(series, datapoint, unit, annotation)
+	return w.writeFn(series, datapoint, unit, annotation, callback)
 }
 
 func (w *mockCommitLogWriter) Flush(sync bool) error {
@@ -794,7 +795,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
-	writer.writeFn = func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+	writer.writeFn = func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, callbackFn) error {
 		return fmt.Errorf("an error")
 	}
 

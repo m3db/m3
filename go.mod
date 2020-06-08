@@ -109,6 +109,7 @@ require (
 	github.com/uber/jaeger-lib v2.2.0+incompatible
 	github.com/uber/tchannel-go v1.12.0
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
+	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/willf/bitset v1.1.10
 	go.etcd.io/etcd v3.4.3+incompatible
 	go.uber.org/atomic v1.5.1
