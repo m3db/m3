@@ -1040,9 +1040,9 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 
 	defer cleanup(t, opts)
 	commitLog := newTestCommitLog(t, opts)
-	finalized := 0
+	finalized := uint64(0)
 	finalizeFn := func(_ ts.WriteBatch) {
-		finalized++
+		atomic.AddUint64(&finalized, 1)
 	}
 
 	writes := ts.NewWriteBatch(4, ident.StringID("ns"), finalizeFn)
@@ -1101,5 +1101,5 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 	}
 
 	assertCommitLogWritesByIterating(t, commitLog, expected)
-	require.Equal(t, 1, finalized)
+	require.Equal(t, 1, int(atomic.LoadUint64(&finalized)))
 }
