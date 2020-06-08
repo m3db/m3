@@ -48,6 +48,10 @@ func newTagDedupeMap(opts tagMapOpts) fetchDedupeMap {
 	}
 }
 
+func (m *tagDedupeMap) close() {
+	m.mapWrapper.close()
+}
+
 func (m *tagDedupeMap) list() []multiResultSeries {
 	return m.mapWrapper.list()
 }
@@ -104,10 +108,10 @@ func (m *tagDedupeMap) add(
 			if err != nil {
 				return err
 			}
-		} else {
-			if err := acc.Add(iter); err != nil {
-				return err
-			}
+		}
+
+		if err := acc.Add(iter); err != nil {
+			return err
 		}
 
 		// Update accumulated result series.
@@ -122,6 +126,7 @@ func (m *tagDedupeMap) add(
 	}
 
 	// Override
+	existing.iter.Close()
 	m.mapWrapper.set(tags, series)
 
 	return nil

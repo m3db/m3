@@ -33,6 +33,7 @@ import (
 type fetchDedupeMap interface {
 	add(iter encoding.SeriesIterator, attrs storagemetadata.Attributes) error
 	list() []multiResultSeries
+	close()
 }
 
 type multiResult struct {

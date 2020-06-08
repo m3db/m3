@@ -22,9 +22,19 @@ package consolidators
 
 import (
 	"bytes"
+	"sort"
 
 	"github.com/m3db/m3/src/query/models"
 )
+
+type ascByID []multiResultSeries
+
+func (m ascByID) Len() int { return len(m) }
+func (m ascByID) Less(i, j int) bool {
+	return bytes.Compare(m[i].tags.LastComputedID(),
+		m[j].tags.LastComputedID()) == -1
+}
+func (m ascByID) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
 
 type fetchResultMapWrapper struct {
 	resultMap *fetchResultMap
@@ -40,11 +50,16 @@ func (w *fetchResultMapWrapper) list() []multiResultSeries {
 		result = append(result, results.value)
 	}
 
+	sort.Sort(ascByID(result))
 	return result
 }
 
 func (w *fetchResultMapWrapper) get(tags models.Tags) (multiResultSeries, bool) {
 	return w.resultMap.Get(tags)
+}
+
+func (w *fetchResultMapWrapper) close() {
+	w.resultMap.Reset()
 }
 
 func (w *fetchResultMapWrapper) set(
@@ -67,7 +82,7 @@ func newFetchResultMapWrapper(size int) *fetchResultMapWrapper {
 			equals: func(x, y models.Tags) bool {
 				// NB: IDs are calculated once for tags, so any further calls to these
 				// equals is a simple lookup.
-				return bytes.Equal(x.ID(), y.ID())
+				return bytes.Equal(x.LastComputedID(), y.LastComputedID())
 			},
 			initialSize: size,
 		}),

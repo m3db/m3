@@ -148,9 +148,11 @@ func verifyBoundsAndGetBlockIndex(t *testing.T, bounds, sub models.Bounds) int {
 
 type ascByName []block.SeriesMeta
 
-func (m ascByName) Len() int           { return len(m) }
-func (m ascByName) Less(i, j int) bool { return bytes.Compare(m[i].Name, m[j].Name) == -1 }
-func (m ascByName) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
+func (m ascByName) Len() int { return len(m) }
+func (m ascByName) Less(i, j int) bool {
+	return bytes.Compare(m[i].Name, m[j].Name) == -1
+}
+func (m ascByName) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
 
 func verifyMetas(
 	t *testing.T,

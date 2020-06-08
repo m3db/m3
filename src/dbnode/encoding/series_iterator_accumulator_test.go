@@ -24,22 +24,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestSeriesIteratorAccumulatorReplicas(t *testing.T) {
-	testSeriesIteratorAccumulatorReplicas(t, false)
+func TestSeriesIteratorAccumulator(t *testing.T) {
+	testSeriesIteratorAccumulator(t, false)
 }
 
-func TestSeriesIteratorAccumulatorReplicasRetainTag(t *testing.T) {
-	testSeriesIteratorAccumulatorReplicas(t, true)
+func TestSeriesIteratorAccumulatorRetainTag(t *testing.T) {
+	testSeriesIteratorAccumulator(t, true)
 }
 
-func testSeriesIteratorAccumulatorReplicas(t *testing.T, retain bool) {
+func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 	start := time.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
@@ -48,7 +50,7 @@ func testSeriesIteratorAccumulatorReplicas(t *testing.T, retain bool) {
 			values: []testValue{
 				{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 				{2.0, start.Add(2 * time.Second), xtime.Second, nil},
-				{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+				{3.0, start.Add(6 * time.Second), xtime.Second, nil},
 			},
 		},
 		{
@@ -60,7 +62,7 @@ func testSeriesIteratorAccumulatorReplicas(t *testing.T, retain bool) {
 		},
 		{
 			values: []testValue{
-				{3.0, start.Add(0 * time.Second), xtime.Second, nil},
+				{3.0, start.Add(1 * time.Millisecond), xtime.Second, nil},
 				{4.0, start.Add(4 * time.Second), xtime.Second, nil},
 				{5.0, start.Add(5 * time.Second), xtime.Second, nil},
 			},
@@ -68,12 +70,13 @@ func testSeriesIteratorAccumulatorReplicas(t *testing.T, retain bool) {
 	}
 
 	ex := []testValue{
-		{3.0, start.Add(0 * time.Second), xtime.Second, nil},
+		{3.0, start.Add(1 * time.Millisecond), xtime.Second, nil},
 		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 		{4.0, start.Add(4 * time.Second), xtime.Second, nil},
 		{5.0, start.Add(5 * time.Second), xtime.Second, nil},
+		{3.0, start.Add(6 * time.Second), xtime.Second, nil},
 	}
 
 	test := testSeries{
@@ -202,4 +205,35 @@ func assertTestSeriesAccumulatorIterator(
 		// Check that the tag iterator was closed.
 		assert.False(t, tagIter.Next())
 	}
+}
+
+func TestAccumulatorMocked(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	start := time.Now()
+	base := NewMockSeriesIterator(ctrl)
+	base.EXPECT().ID().Return(ident.StringID("base")).AnyTimes()
+	base.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
+	base.EXPECT().Next().Return(true)
+	dp := ts.Datapoint{TimestampNanos: xtime.ToUnixNano(start), Value: 88}
+	base.EXPECT().Current().Return(dp, xtime.Second, nil).AnyTimes()
+	base.EXPECT().Next().Return(false)
+	base.EXPECT().Start().Return(start)
+	base.EXPECT().End().Return(start.Add(time.Hour))
+	base.EXPECT().Err().Return(nil).AnyTimes()
+	base.EXPECT().Close()
+
+	it, err := NewSeriesIteratorAccumulator(base, SeriesAccumulatorOptions{})
+	require.NoError(t, err)
+
+	i := 0
+	for it.Next() {
+		ac, _, _ := it.Current()
+		assert.Equal(t, dp, ac)
+		i++
+	}
+
+	assert.Equal(t, 1, i)
+	it.Close()
 }

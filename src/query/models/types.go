@@ -106,6 +106,7 @@ type Tags struct {
 	Opts     TagOptions
 	Tags     []Tag
 	hashedID uint64
+	id       []byte
 }
 
 // Tag is a key/value metric tag pair.

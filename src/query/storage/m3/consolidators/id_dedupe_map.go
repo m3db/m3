@@ -39,6 +39,8 @@ func newIDDedupeMap(fanout QueryFanoutType, size int) fetchDedupeMap {
 	}
 }
 
+func (m *idDedupeMap) close() {}
+
 func (m *idDedupeMap) list() []multiResultSeries {
 	result := make([]multiResultSeries, 0, len(m.series))
 	for _, s := range m.series {

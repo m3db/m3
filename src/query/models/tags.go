@@ -52,6 +52,16 @@ func EmptyTags() Tags {
 	return NewTags(0, nil)
 }
 
+// LastComputedID returns the last computed ID; this should only be
+// used when it is guaranteed that no tag transforms take place between calls.
+func (t *Tags) LastComputedID() []byte {
+	if t.id == nil {
+		t.id = t.ID()
+	}
+
+	return t.id
+}
+
 // ID returns a byte slice representation of the tags, using the generation
 // strategy from the tag options.
 func (t Tags) ID() []byte {
@@ -319,7 +329,7 @@ func (t Tags) HashedID() uint64 {
 // used when it is guaranteed that no tag transforms take place between calls.
 func (t *Tags) LastComputedHashedID() uint64 {
 	if t.hashedID == 0 {
-		t.hashedID = xxhash.Sum64(t.ID())
+		t.hashedID = xxhash.Sum64(t.LastComputedID())
 	}
 
 	return t.hashedID

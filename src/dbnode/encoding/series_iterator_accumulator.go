@@ -98,7 +98,6 @@ func (it *seriesIteratorAccumulator) Add(iter SeriesIterator) error {
 
 	it.seriesIterators = append(it.seriesIterators, iter)
 	return nil
-
 }
 
 func (it *seriesIteratorAccumulator) ID() ident.ID {
@@ -173,10 +172,6 @@ func (it *seriesIteratorAccumulator) Close() {
 	if it.nsID != nil {
 		it.nsID.Finalize()
 		it.nsID = nil
-	}
-	for idx, iter := range it.seriesIterators {
-		iter.Close()
-		it.seriesIterators[idx] = nil
 	}
 	if it.tagIterator != nil {
 		it.tagIterator.Close()
