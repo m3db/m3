@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
 	"github.com/m3db/m3/src/metrics/rules/view"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -573,7 +574,7 @@ type testExpectedWrite struct {
 	tags              map[string]string
 	values            []expectedValue // use values for multi expected values
 	valueAllowedError float64         // use for allowing for slightly inexact values due to timing, etc
-	attributes        *storage.Attributes
+	attributes        *storagemetadata.Attributes
 }
 
 type expectedValue struct {

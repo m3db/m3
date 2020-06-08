@@ -40,7 +40,8 @@ type testSeriesLoadHandler struct {
 	iters encoding.SeriesIterators
 }
 
-func (h *testSeriesLoadHandler) getSeriesIterators(name string) (encoding.SeriesIterators, error) {
+func (h *testSeriesLoadHandler) getSeriesIterators(
+	name string) (encoding.SeriesIterators, error) {
 	return h.iters, nil
 }
 
@@ -63,7 +64,7 @@ const (
 	defaultResolution     = time.Second * 30
 	metricsName           = "preloaded"
 	predefinedSeriesCount = 10
-	histogramBucketCount = 4
+	histogramBucketCount  = 4
 )
 
 func TestFetchCompressed(t *testing.T) {
@@ -99,7 +100,7 @@ func TestFetchCompressed(t *testing.T) {
 			assert.NoError(t, err)
 			defer cleanup()
 
-			assert.Equal(t, tt.expectedCount, result.SeriesIterators.Len())
+			assert.Equal(t, tt.expectedCount, len(result.SeriesIterators()))
 		})
 	}
 }
@@ -285,9 +286,10 @@ func TestGenerateRandomSeries(t *testing.T) {
 			assert.NoError(t, err)
 			defer cleanup()
 
-			require.Equal(t, len(tt.wantSeries), result.SeriesIterators.Len())
+			iters := result.SeriesIterators()
+			require.Equal(t, len(tt.wantSeries), len(iters))
 			for i, expectedTags := range tt.wantSeries {
-				iter := result.SeriesIterators.Iters()[i]
+				iter := iters[i]
 				assert.Equal(t, expectedTags, extractTags(iter))
 				assert.True(t, iter.Next(), "Must have some datapoints generated.")
 			}
@@ -307,9 +309,10 @@ func TestHistogramBucketsAddUp(t *testing.T) {
 	assert.NoError(t, err)
 	defer cleanup()
 
-	require.Equal(t, histogramBucketCount, result.SeriesIterators.Len(), "number of histogram buckets")
+	iters := result.SeriesIterators()
+	require.Equal(t, histogramBucketCount,
+		len(iters), "number of histogram buckets")
 
-	iters := result.SeriesIterators.Iters()
 	iter0 := iters[0]
 	for iter0.Next() {
 		v0, t1, _ := iter0.Current()

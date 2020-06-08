@@ -172,10 +172,10 @@ func (q *querier) FetchCompressed(
 	if iters == nil && !nameTagFound && len(query.TagMatchers) > 0 {
 		iters, err = q.handler.getSeriesIterators("")
 		if err != nil {
-			return m3.SeriesFetchResult{}, noop, err
+			return consolidators.SeriesFetchResult{}, noop, err
 		}
 	}
-	
+
 	if iters == nil || iters.Len() == 0 {
 		randomSeries, ignoreFilter, err = q.generateRandomSeries(query)
 		if err != nil {
@@ -196,10 +196,9 @@ func (q *querier) FetchCompressed(
 			return nil
 		}
 
-		return consolidators.SeriesFetchResult{
-			SeriesIterators: filteredIters,
-			Metadata:        block.NewResultMetadata(),
-		}, cleanup, nil
+		result, err := consolidators.NewSeriesFetchResult(
+			filteredIters, nil, block.NewResultMetadata())
+		return result, cleanup, err
 	}
 
 	cleanup := func() error {
@@ -207,10 +206,9 @@ func (q *querier) FetchCompressed(
 		return nil
 	}
 
-	return consolidators.SeriesFetchResult{
-		SeriesIterators: iters,
-		Metadata:        block.NewResultMetadata(),
-	}, cleanup, nil
+	result, err := consolidators.NewSeriesFetchResult(
+		iters, nil, block.NewResultMetadata())
+	return result, cleanup, err
 }
 
 func (q *querier) generateRandomSeries(
@@ -364,7 +362,7 @@ func (q *querier) generateHistogramMetrics(
 		for bucket := uint(0); bucket < q.histogramBucketCount; bucket++ {
 			tags := multiSeriesTags(metricsName, id)
 			leStr := "+Inf"
-			if bucket < q.histogramBucketCount - 1 {
+			if bucket < q.histogramBucketCount-1 {
 				leStr = strconv.FormatFloat(le, 'f', -1, 64)
 			}
 			leTag := parser.NewTag("le", leStr)

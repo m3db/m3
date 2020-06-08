@@ -211,3 +211,7 @@ func TestExhaustiveMerge(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkTagMap(b *testing.B) {
+
+}
