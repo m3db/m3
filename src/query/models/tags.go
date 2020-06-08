@@ -27,7 +27,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 )
 
 var (

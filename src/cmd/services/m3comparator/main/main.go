@@ -83,6 +83,7 @@ func main() {
 		seriesLoader,
 		time.Hour*12,
 		time.Second*15,
+		5,
 	)
 	if err != nil {
 		logger.Error("could not create querier", zap.Error(err))
