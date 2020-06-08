@@ -41,10 +41,10 @@ import (
 	"github.com/m3db/m3/src/metrics/rules"
 	ruleskv "github.com/m3db/m3/src/metrics/rules/store/kv"
 	"github.com/m3db/m3/src/metrics/rules/view"
-	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
@@ -164,8 +164,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRules(t *testing.T) {
 				{
 					tags:   gaugeMetric.tags,
 					values: []expectedValue{{value: 30}},
-					attributes: &storage.Attributes{
-						MetricsType: storage.AggregatedMetricsType,
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  5 * time.Second,
 						Retention:   30 * 24 * time.Hour,
 					},
@@ -222,8 +222,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 				{
 					tags:   gaugeMetric.tags,
 					values: []expectedValue{{value: 30}},
-					attributes: &storage.Attributes{
-						MetricsType: storage.AggregatedMetricsType,
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  2 * time.Second,
 						Retention:   24 * time.Hour,
 					},
@@ -233,8 +233,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMapp
 				{
 					tags:   gaugeMetric.tags,
 					values: []expectedValue{{value: 60}},
-					attributes: &storage.Attributes{
-						MetricsType: storage.AggregatedMetricsType,
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  4 * time.Second,
 						Retention:   48 * time.Hour,
 					},
@@ -290,8 +290,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRule
 				{
 					tags:   gaugeMetric.tags,
 					values: []expectedValue{{value: 30}},
-					attributes: &storage.Attributes{
-						MetricsType: storage.AggregatedMetricsType,
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  2 * time.Second,
 						Retention:   24 * time.Hour,
 					},
@@ -365,8 +365,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesPerSecondSum(t *testing
 						"endpoint":            "/foo/bar",
 					},
 					values: []expectedValue{{value: 4.4}},
-					attributes: &storage.Attributes{
-						MetricsType: storage.AggregatedMetricsType,
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  res,
 						Retention:   ret,
 					},
@@ -467,8 +467,8 @@ func TestDownsamplerAggregationWithRulesConfigRollupRulesIncreaseAdd(t *testing.
 						{value: 14},
 						{value: 50, offset: 10 * time.Second},
 					},
-					attributes: &storage.Attributes{
-						MetricsType: storage.AggregatedMetricsType,
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  res,
 						Retention:   ret,
 					},
@@ -1111,7 +1111,7 @@ func findWrites(
 	t *testing.T,
 	writes []*storage.WriteQuery,
 	name string,
-	optionalMatchAttrs *storage.Attributes,
+	optionalMatchAttrs *storagemetadata.Attributes,
 ) ([]*storage.WriteQuery, bool) {
 	var results []*storage.WriteQuery
 	for _, w := range writes {
