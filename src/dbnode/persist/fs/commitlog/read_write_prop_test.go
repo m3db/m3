@@ -33,13 +33,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/x/serialize"
-
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xos "github.com/m3db/m3/src/x/os"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
