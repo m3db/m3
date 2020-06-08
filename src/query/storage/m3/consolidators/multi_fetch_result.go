@@ -110,19 +110,23 @@ func (r *multiResult) FinalResultWithAttrs() (
 		return result, nil, err
 	}
 
+	var attrs []storagemetadata.Attributes
 	seriesData := result.seriesData
-	attrs := make([]storagemetadata.Attributes, seriesData.seriesIterators.Len())
-	// TODO: add testing around here.
-	if r.dedupeMap == nil {
-		for i := range attrs {
-			attrs[i] = r.seenFirstAttrs
+	if iters := seriesData.seriesIterators; iters != nil {
+		attrs := make([]storagemetadata.Attributes, iters.Len())
+		if r.dedupeMap == nil {
+			for i := range attrs {
+				attrs[i] = r.seenFirstAttrs
+			}
+		} else {
+			i := 0
+			for _, res := range r.dedupeMap.list() {
+				attrs[i] = res.attrs
+				i++
+			}
 		}
 	} else {
-		i := 0
-		for _, res := range r.dedupeMap.list() {
-			attrs[i] = res.attrs
-			i++
-		}
+		attrs = []storagemetadata.Attributes{}
 	}
 
 	return result, attrs, nil

@@ -224,17 +224,6 @@ func (mr *MockTagIteratorMockRecorder) Err() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockTagIterator)(nil).Err))
 }
 
-// Rewind mocks base method
-func (m *MockTagIterator) Rewind() {
-	m.ctrl.T.Helper()
-}
-
-// Rewind indicates an expected call of Rewind
-func (mr *MockTagIteratorMockRecorder) Rewind() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rewind", reflect.TypeOf((*MockTagIterator)(nil).Rewind))
-}
-
 // Len mocks base method
 func (m *MockTagIterator) Len() int {
 	m.ctrl.T.Helper()
@@ -275,4 +264,16 @@ func (m *MockTagIterator) Remaining() int {
 func (mr *MockTagIteratorMockRecorder) Remaining() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remaining", reflect.TypeOf((*MockTagIterator)(nil).Remaining))
+}
+
+// Rewind mocks base method
+func (m *MockTagIterator) Rewind() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Rewind")
+}
+
+// Rewind indicates an expected call of Rewind
+func (mr *MockTagIteratorMockRecorder) Rewind() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rewind", reflect.TypeOf((*MockTagIterator)(nil).Rewind))
 }

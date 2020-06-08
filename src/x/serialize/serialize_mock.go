@@ -261,17 +261,6 @@ func (mr *MockTagDecoderMockRecorder) Err() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockTagDecoder)(nil).Err))
 }
 
-// Hash mocks base method
-func (m *MockTagDecoder) Rewind() {
-	m.ctrl.T.Helper()
-}
-
-// Rewind indicates an expected call of Rewind
-func (mr *MockTagDecoderMockRecorder) Rewind() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rewind", reflect.TypeOf((*MockTagDecoder)(nil).Rewind))
-}
-
 // Len mocks base method
 func (m *MockTagDecoder) Len() int {
 	m.ctrl.T.Helper()
@@ -324,6 +313,18 @@ func (m *MockTagDecoder) Reset(arg0 checked.Bytes) {
 func (mr *MockTagDecoderMockRecorder) Reset(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockTagDecoder)(nil).Reset), arg0)
+}
+
+// Rewind mocks base method
+func (m *MockTagDecoder) Rewind() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Rewind")
+}
+
+// Rewind indicates an expected call of Rewind
+func (mr *MockTagDecoderMockRecorder) Rewind() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rewind", reflect.TypeOf((*MockTagDecoder)(nil).Rewind))
 }
 
 // MockTagDecoderPool is a mock of TagDecoderPool interface
