@@ -82,7 +82,6 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
-	kube        \
 
 TOOLS :=               \
 	read_ids             \
@@ -295,19 +294,6 @@ test-ci-integration:
 
 define SUBDIR_RULES
 
-# We override the rules for `*-gen-kube` to just generate the kube manifest
-# bundle.
-# if kubeval
-ifeq ($(SUBDIR), kube)
-
-# Builds the single kube bundle from individual manifest files.
-all-gen-kube: install-tools
-	@echo "--- Generating kube bundle"
-	@./kube/scripts/build_bundle.sh
-	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
-
-else
-
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
 	@echo "--- Generating mocks $(SUBDIR)"
@@ -405,9 +391,6 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 	@(PATH=$(combined_bin_paths):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
-# endif kubeval
-endif
-
 endef
 
 # generate targets for each SUBDIR in SUBDIRS based on the rules specified above.
@@ -424,6 +407,13 @@ endef
 # of metalint and finishes faster.
 $(foreach SUBDIR_TARGET, $(filter-out metalint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
 
+# Builds the single kube bundle from individual manifest files.
+.PHONY: kube-gen-all
+kube-gen-all: install-tools
+	@echo "--- Generating kube bundle"
+	@./kube/scripts/build_bundle.sh
+	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
+
 .PHONY: go-mod-tidy
 go-mod-tidy:
 	@echo "--- :golang: tidying modules"
@@ -433,6 +423,7 @@ go-mod-tidy:
 all-gen: \
 	install-tools \
 	$(foreach SUBDIR_TARGET, $(filter-out metalint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
+	kube-gen-all \
 	go-mod-tidy
 
 .PHONY: build-ui-ctl
