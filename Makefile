@@ -41,7 +41,8 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.117.2
+# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.13
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.127.0 
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
 
@@ -293,21 +294,17 @@ test-ci-integration:
 
 define SUBDIR_RULES
 
-# Temporarily remove kube validation until we fix a dependency issue with
-# kubeval (one of its depenencies depends on go1.13).
-# https://github.com/m3db/m3/issues/2220
-#
 # We override the rules for `*-gen-kube` to just generate the kube manifest
 # bundle.
-# ifeq ($(SUBDIR), kube)
+ifeq ($(SUBDIR), kube)
 
 # Builds the single kube bundle from individual manifest files.
-# all-gen-kube: install-tools
-# 	@echo "--- Generating kube bundle"
-# 	@./kube/scripts/build_bundle.sh
-# 	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
+all-gen-kube: install-tools
+	@echo "--- Generating kube bundle"
+	@./kube/scripts/build_bundle.sh
+	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
 
-# else
+else
 
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
@@ -407,7 +404,7 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
 # endif kubeval
-# endif
+endif
 
 endef
 
