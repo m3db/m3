@@ -1880,11 +1880,12 @@ func (mr *MockdatabaseShardMockRecorder) WarmFlush(blockStart, flush, nsCtx inte
 }
 
 // ColdFlush mocks base method
-func (m *MockdatabaseShard) ColdFlush(flush persist.FlushPreparer, resources coldFlushReuseableResources, nsCtx namespace.Context, onFlush persist.OnFlushSeries) error {
+func (m *MockdatabaseShard) ColdFlush(flush persist.FlushPreparer, resources coldFlushReuseableResources, nsCtx namespace.Context, onFlush persist.OnFlushSeries) (ShardColdFlush, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ColdFlush", flush, resources, nsCtx, onFlush)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(ShardColdFlush)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ColdFlush indicates an expected call of ColdFlush

@@ -635,8 +635,9 @@ func TestShardColdFlush(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, coldVersion)
 	}
-	err = shard.ColdFlush(preparer, resources, nsCtx, &persist.NoOpColdFlushNamespace{})
+	shardColdFlush, err := shard.ColdFlush(preparer, resources, nsCtx, &persist.NoOpColdFlushNamespace{})
 	require.NoError(t, err)
+	require.NoError(t, shardColdFlush.Done())
 	// After a cold flush, t0-t6 previously dirty block starts should be updated
 	// to version 1.
 	for i := t0; i.Before(t6.Add(blockSize)); i = i.Add(blockSize) {
@@ -701,7 +702,9 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	}
 	nsCtx := namespace.Context{}
 
-	shard.ColdFlush(preparer, resources, nsCtx, &persist.NoOpColdFlushNamespace{})
+	shardColdFlush, err := shard.ColdFlush(preparer, resources, nsCtx, &persist.NoOpColdFlushNamespace{})
+	require.NoError(t, err)
+	require.NoError(t, shardColdFlush.Done())
 	// After a cold flush, t0-t3 should remain version 0, since nothing should
 	// actually be merged.
 	for i := t0; i.Before(t3.Add(blockSize)); i = i.Add(blockSize) {
@@ -733,8 +736,12 @@ func (m *noopMerger) Merge(
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
-) error {
-	return nil
+) (persist.PreparedDataPersist, error) {
+	prepared := persist.PreparedDataPersist{
+		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
+		Close:   func() error { return nil },
+	}
+	return prepared, nil
 }
 
 func newFSMergeWithMemTestFn(
