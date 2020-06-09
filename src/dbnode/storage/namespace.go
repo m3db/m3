@@ -1196,13 +1196,17 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		return err
 	}
 
+	// NB(bodu): Deferred shard cold flushes so that we can ensure that cold flush index data is
+	// persisted before persisting TSDB data to ensure crash consistency.
+	shardColdFlushes := make([]ShardColdFlush, 0, len(shards))
 	for _, shard := range shards {
-		err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
+		shardColdFlush, err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
-			// Continue with remaining shards.
+			continue
 		}
+		shardColdFlushes = append(shardColdFlushes, shardColdFlush)
 	}
 
 	if err := onColdFlushNs.Done(); err != nil {
@@ -1210,6 +1214,9 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	}
 	if onColdFlushDone != nil {
 		multiErr = multiErr.Add(onColdFlushDone())
+	}
+	for _, shardColdFlush := range shardColdFlushes {
+		multiErr = multiErr.Add(shardColdFlush.Done())
 	}
 
 	// TODO: Don't write checkpoints for shards until this time,

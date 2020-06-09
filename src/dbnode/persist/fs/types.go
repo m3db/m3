@@ -557,7 +557,7 @@ type Merger interface {
 		flushPreparer persist.FlushPreparer,
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
-	) error
+	) (persist.PreparedDataPersist, error)
 }
 
 // NewMergerFn is the function to call to get a new Merger.
