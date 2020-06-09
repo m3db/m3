@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 
 	"github.com/stretchr/testify/require"
 )
@@ -52,30 +52,30 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 
 	// Write test data for ns1
 	log.Info("generating data - ns1")
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	ns1SeriesMap := generate.BlocksByStart([]generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 20, Start: now.Add(ns1BlockSize)},
 		{IDs: []string{"bar", "baz"}, NumPoints: 50, Start: now.Add(2 * ns1BlockSize)},
 		{IDs: []string{"and", "one"}, NumPoints: 40, Start: now.Add(3 * ns1BlockSize)},
 	})
 
-	setup.namespaceMetadataOrFail(testNamespaces[0])
+	setup.NamespaceMetadataOrFail(testNamespaces[0])
 	log.Info("writing data - ns1")
 	writeCommitLogData(t, setup, commitLogOpts, ns1SeriesMap, ns1, false)
 	log.Info("written data - ns1")
@@ -88,7 +88,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		{IDs: []string{"cat", "hax"}, NumPoints: 80, Start: now.Add(3 * ns2BlockSize)},
 		{IDs: []string{"why", "this"}, NumPoints: 40, Start: now.Add(4 * ns2BlockSize)},
 	})
-	setup.namespaceMetadataOrFail(testNamespaces[1])
+	setup.NamespaceMetadataOrFail(testNamespaces[1])
 	log.Info("writing data - ns2")
 	writeCommitLogData(t, setup, commitLogOpts, ns2SeriesMap, ns2, false)
 	log.Info("written data - ns2")
@@ -97,19 +97,19 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
 	later := now.Add(4 * ns1BlockSize)
-	setup.setNowFn(later)
+	setup.SetNowFn(later)
 	// Start the server with filesystem bootstrapper
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 
 	log.Info("waiting until data is bootstrapped")
-	bootstrapped := waitUntil(func() bool { return setup.db.IsBootstrapped() }, 20*time.Second)
+	bootstrapped := waitUntil(func() bool { return setup.DB().IsBootstrapped() }, 20*time.Second)
 	require.True(t, bootstrapped)
 	log.Info("data bootstrapped")
 

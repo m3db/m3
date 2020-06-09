@@ -142,22 +142,22 @@ func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
 	require.NoError(t, err)
 	sink := processAggregationOp(t, op)
 	expected := [][]float64{
-		// 0.6 quantile of first two series
-		{0, 6, 5, 6, 7},
 		// 0.6 quantile of third, fourth, and fifth series
 		{60, 88, 116, 144, 172},
 		// stddev of sixth series
 		{600, 700, 800, 900, 1000},
+		// 0.6 quantile of first two series
+		{0, 6, 5, 6, 7},
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: typeBytesQuantile, Tags: models.EmptyTags()},
 		{Name: typeBytesQuantile, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
 		{Name: typeBytesQuantile, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
+		{Name: typeBytesQuantile, Tags: models.EmptyTags()},
 	}
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
 
-	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
+	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
