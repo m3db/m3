@@ -56,9 +56,11 @@ import (
 const (
 	healthURL = "/health"
 	routesURL = "/routes"
-	// EngineHeaderName defines header name which is used to switch between prometheus and m3query engines.
+	// EngineHeaderName defines header name which is used to switch between
+	// prometheus and m3query engines.
 	EngineHeaderName = "M3-Engine"
-	// EngineURLParam defines query url parameter which is used to switch between prometheus and m3query engines.
+	// EngineURLParam defines query url parameter which is used to switch between
+	// prometheus and m3query engines.
 	EngineURLParam = "engine"
 )
 
@@ -94,6 +96,13 @@ func NewHandler(
 ) *Handler {
 	r := mux.NewRouter()
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
+
+	if queryRouter == nil {
+		queryRouter = NewQueryRouter()
+	}
+	if instantQueryRouter == nil {
+		instantQueryRouter = NewQueryRouter()
+	}
 
 	return &Handler{
 		router:             r,

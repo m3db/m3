@@ -42,7 +42,6 @@ import (
 	m3msgproto "github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
-	"github.com/m3db/m3/src/query/api/v1/httpd"
 	"github.com/m3db/m3/src/query/cost"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -195,7 +194,6 @@ func TestWrite(t *testing.T) {
 	clusterClientCh <- clusterClient
 
 	downsamplerReadyCh := make(chan struct{}, 1)
-	router := httpd.NewQueryRouter()
 
 	go func() {
 		Run(RunOptions{
@@ -204,8 +202,6 @@ func TestWrite(t *testing.T) {
 			ListenerCh:         listenerCh,
 			ClusterClient:      clusterClientCh,
 			DownsamplerReadyCh: downsamplerReadyCh,
-			QueryRouter:        router,
-			InstantQueryRouter: router,
 		})
 		doneCh <- struct{}{}
 	}()
@@ -305,7 +301,6 @@ func TestIngest(t *testing.T) {
 	clusterClientCh <- clusterClient
 
 	downsamplerReadyCh := make(chan struct{}, 1)
-	router := httpd.NewQueryRouter()
 
 	go func() {
 		Run(RunOptions{
@@ -315,8 +310,6 @@ func TestIngest(t *testing.T) {
 			M3MsgListenerCh:    m3msgListenerCh,
 			ClusterClient:      clusterClientCh,
 			DownsamplerReadyCh: downsamplerReadyCh,
-			QueryRouter:        router,
-			InstantQueryRouter: router,
 		})
 		doneCh <- struct{}{}
 	}()
@@ -482,14 +475,11 @@ writeWorkerPoolPolicy:
 	interruptCh := make(chan error)
 	doneCh := make(chan struct{})
 	listenerCh := make(chan net.Listener, 1)
-	router := httpd.NewQueryRouter()
 	go func() {
 		Run(RunOptions{
-			Config:             cfg,
-			InterruptCh:        interruptCh,
-			ListenerCh:         listenerCh,
-			QueryRouter:        router,
-			InstantQueryRouter: router,
+			Config:      cfg,
+			InterruptCh: interruptCh,
+			ListenerCh:  listenerCh,
 		})
 		doneCh <- struct{}{}
 	}()

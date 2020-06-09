@@ -113,10 +113,7 @@ func setupHandler(
 		return nil, err
 	}
 
-	queryRouter := NewQueryRouter()
-	instantQueryRouter := NewQueryRouter()
-
-	return NewHandler(opts, queryRouter, instantQueryRouter, customHandlers...), nil
+	return NewHandler(opts, nil, nil, customHandlers...), nil
 }
 
 func TestHandlerFetchTimeout(t *testing.T) {
@@ -146,10 +143,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		svcDefaultOptions)
 	require.NoError(t, err)
 
-	queryRouter := NewQueryRouter()
-	instantQueryRouter := NewQueryRouter()
-
-	h := NewHandler(opts, queryRouter, instantQueryRouter)
+	h := NewHandler(opts, nil, nil)
 	assert.Equal(t, 4*time.Minute, h.options.TimeoutOpts().FetchTimeout)
 }
 
@@ -411,9 +405,7 @@ func TestCustomRoutes(t *testing.T) {
 
 	require.NoError(t, err)
 	custom := &customHandler{t: t}
-	queryRouter := NewQueryRouter()
-	instantQueryRouter := NewQueryRouter()
-	handler := NewHandler(opts, queryRouter, instantQueryRouter, custom)
+	handler := NewHandler(opts, nil, nil, custom)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")

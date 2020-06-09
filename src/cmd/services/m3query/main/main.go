@@ -27,7 +27,6 @@ import (
 	"os"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/httpd"
 	"github.com/m3db/m3/src/query/server"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/configflag"
@@ -52,8 +51,6 @@ func main() {
 	}
 
 	server.Run(server.RunOptions{
-		Config:             cfg,
-		QueryRouter:        httpd.NewQueryRouter(),
-		InstantQueryRouter: httpd.NewQueryRouter(),
+		Config: cfg,
 	})
 }
