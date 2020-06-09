@@ -316,6 +316,20 @@ func setupBuilder(
 	return builder, nil
 }
 
+// Enforce monotonicity for binary search to work.
+// See https://github.com/prometheus/prometheus/commit/896f951e6846ce252d9d19fd4707a4110ceda5ee
+func ensureMonotonic(bucketValues []bucketValue) {
+	max := math.Inf(-1)
+	for i := range bucketValues {
+		switch {
+		case bucketValues[i].value >= max:
+			max = bucketValues[i].value
+		case bucketValues[i].value < max:
+			bucketValues[i].value = max
+		}
+	}
+}
+
 func processValidQuantile(
 	queryCtx *models.QueryContext,
 	q float64,
@@ -339,24 +353,20 @@ func processValidQuantile(
 			buckets := b.buckets
 			// clear previous bucket values.
 			bucketValues = bucketValues[:0]
-			max := math.Inf(-1)
 			for _, bucket := range buckets {
 				// Only add non-NaN values to contention for the calculation.
 				val := values[bucket.idx]
 				if !math.IsNaN(val) {
-					if val >= max {
-						// Enforce monotonicity for binary search to work.
-						// See https://github.com/prometheus/prometheus/commit/896f951e6846ce252d9d19fd4707a4110ceda5ee
-						max = val
-					}
 					bucketValues = append(
 						bucketValues, bucketValue{
 							upperBound: bucket.upperBound,
-							value:      max,
+							value:      val,
 						},
 					)
 				}
 			}
+
+			ensureMonotonic(bucketValues)
 
 			aggregatedValues = append(aggregatedValues, bucketQuantile(q, bucketValues))
 		}
