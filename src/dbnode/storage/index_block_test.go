@@ -631,9 +631,19 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 
+	// errors if RequireExhaustive is specified
+	qOpts = index.QueryOptions{
+		StartInclusive:    t0,
+		EndExclusive:      t0.Add(time.Minute),
+		RequireExhaustive: true,
+	}
+	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+	_, err = idx.Query(ctx, q, qOpts)
+	require.Error(t, fmt.Errorf("index query exceeded limit"))
+
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 11)
+	require.Len(t, spans, 14)
 }
 
 func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
@@ -847,9 +857,20 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
 	require.NoError(t, err)
 
+	// errors if RequireExhaustive is specified
+	qOpts = index.QueryOptions{
+		StartInclusive:    t0,
+		EndExclusive:      t0.Add(time.Minute),
+		RequireExhaustive: true,
+	}
+	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+	_, err = idx.AggregateQuery(ctx, q, aggOpts)
+	require.Error(t, fmt.Errorf("index query exceeded limit"))
+
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 11)
+	require.Len(t, spans, 14)
 }
 
 func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
@@ -1064,5 +1085,16 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 		aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 		_, err = idx.AggregateQuery(ctx, q, aggOpts)
 		require.NoError(t, err)
+
+		// errors if RequireExhaustive is specified
+		qOpts = index.QueryOptions{
+			StartInclusive:    t0,
+			EndExclusive:      t0.Add(time.Minute),
+			RequireExhaustive: true,
+		}
+		b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+		aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+		_, err = idx.AggregateQuery(ctx, q, aggOpts)
+		require.Error(t, fmt.Errorf("index query exceeded limit"))
 	}
 }
