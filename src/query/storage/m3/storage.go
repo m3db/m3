@@ -293,6 +293,7 @@ func (s *m3storage) fetchCompressed(
 		namespace := namespace // Capture var
 		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
 				tracepoint.FetchCompressedFetchTagged)
 			defer span.Finish()
@@ -312,6 +313,7 @@ func (s *m3storage) fetchCompressed(
 
 			if err != nil {
 				result.ReportError(err)
+				return
 			}
 
 			blockMeta := block.NewResultMetadata()
@@ -325,7 +327,6 @@ func (s *m3storage) fetchCompressed(
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
 			result.Add(fetchResult, namespace.Options().Attributes(), err)
-			wg.Done()
 		}()
 	}
 

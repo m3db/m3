@@ -35,7 +35,6 @@ type multiSearchResult struct {
 	meta      block.ResultMetadata
 	err       xerrors.MultiError
 	seenIters []client.TaggedIDsIterator // track known iterators to avoid leaking
-	// FIXME: take a series iter version instead.
 	dedupeMap map[string]MultiTagResult
 }
 

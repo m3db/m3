@@ -76,6 +76,10 @@ func NewSeriesIteratorAccumulator(
 }
 
 func (it *seriesIteratorAccumulator) Add(iter SeriesIterator) error {
+	if it.err != nil {
+		return it.err
+	}
+
 	if newNs := iter.Namespace(); !newNs.Equal(it.nsID) {
 		return fmt.Errorf("cannot add iterator with namespace %s to accumulator %s",
 			newNs.String(), it.nsID.String())
@@ -185,41 +189,14 @@ func (it *seriesIteratorAccumulator) Replicas() ([]MultiReaderIterator, error) {
 		return nil, fmt.Errorf("cannot get replicas for accumulated series "+
 			"iterators: need 1 iterator, have %d", l)
 	}
-
 	return it.seriesIterators[0].Replicas()
 }
 
-func (it *seriesIteratorAccumulator) Reset(opts SeriesIteratorOptions) {
-	if len(it.seriesIterators) < 1 {
-		it.err = errors.New("cannot reset on empty series accumulator")
-		return
+func (it *seriesIteratorAccumulator) Reset(SeriesIteratorOptions) {
+	if it.err == nil {
+		it.err = errors.New("cannot reset a series accumulator")
 	}
-
-	it.id = opts.ID
-	it.nsID = opts.Namespace
-	for _, it := range it.seriesIterators[1:] {
-		if it != nil {
-			it.Close()
-		}
-	}
-
-	it.iters.reset()
-	first := it.seriesIterators[0]
-	first.Reset(opts)
-	if err := first.Err(); err != nil {
-		it.err = err
-		return
-	}
-
-	it.seriesIterators = it.seriesIterators[:1]
-	it.err = nil
-	it.firstNext = true
-	it.closed = false
-	it.start = first.Start()
-	it.end = first.End()
-	if err := it.Add(first); err != nil {
-		it.err = err
-	}
+	return
 }
 
 func (it *seriesIteratorAccumulator) SetIterateEqualTimestampStrategy(

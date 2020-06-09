@@ -113,16 +113,15 @@ func (r *multiResult) FinalResultWithAttrs() (
 	var attrs []storagemetadata.Attributes
 	seriesData := result.seriesData
 	if iters := seriesData.seriesIterators; iters != nil {
-		attrs := make([]storagemetadata.Attributes, iters.Len())
+		l := iters.Len()
+		attrs = make([]storagemetadata.Attributes, 0, l)
 		if r.dedupeMap == nil {
-			for i := range attrs {
-				attrs[i] = r.seenFirstAttrs
+			for i := 0; i < l; i++ {
+				attrs = append(attrs, r.seenFirstAttrs)
 			}
 		} else {
-			i := 0
 			for _, res := range r.dedupeMap.list() {
-				attrs[i] = res.attrs
-				i++
+				attrs = append(attrs, res.attrs)
 			}
 		}
 	} else {
@@ -136,7 +135,6 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
-	// result := SeriesFetchResult{Metadata: r.metadata}
 	err := r.err.LastError()
 	if err != nil {
 		return NewEmptyFetchResult(r.metadata), err
@@ -178,7 +176,12 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 		r.mergedTags[i] = res.tags
 	}
 
-	return NewSeriesFetchResult(r.mergedIterators, nil, r.metadata)
+	pTags := make([]*models.Tags, 0, len(r.mergedTags))
+	for _, t := range r.mergedTags {
+		pTags = append(pTags, &t)
+	}
+
+	return NewSeriesFetchResult(r.mergedIterators, pTags, r.metadata)
 }
 
 func (r *multiResult) ReportError(err error) {
