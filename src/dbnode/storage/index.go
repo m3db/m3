@@ -1369,6 +1369,10 @@ func (i *nsIndex) queryWithSpan(
 		return false, err
 	}
 
+	if !exhaustive && opts.RequireExhaustive {
+		return false, fmt.Errorf("index query exceeded limit")
+	}
+
 	return exhaustive, nil
 }
 
