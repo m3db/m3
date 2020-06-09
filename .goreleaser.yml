@@ -76,14 +76,16 @@ builds:
       # - windows
     goarch:
       - amd64
-archive:
-  wrap_in_directory: true
-  format_overrides:
-    - goos: windows
-      format: zip
-  files:
-    - LICENSE
-    - README.md
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    format: tar.gz
+    wrap_in_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
 release:
   github:
     owner: m3db
