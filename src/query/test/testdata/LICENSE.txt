@@ -1,5 +1,3 @@
-// +build compatibility
-
 // Modifications Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -33,27 +31,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This code was taken from prometheus repo: https://github.com/prometheus/prometheus/blob/master/promql/promql_test.go
-
-package test
-
-import (
-	"path/filepath"
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-
-func TestEvaluations(t *testing.T) {
-	files, err := filepath.Glob("testdata/*.test")
-	require.NoError(t, err)
-
-	for _, fn := range files {
-		test, err := newTestFromFile(t, fn)
-		require.NoError(t, err)
-
-		require.NoError(t, test.Run())
-
-		test.Close()
-	}
-}
+// This code was taken from prometheus repo: https://github.com/prometheus/prometheus/tree/master/promql/testdata
