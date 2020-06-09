@@ -82,8 +82,7 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
-	# Disabled during kubeval dependency issue https://github.com/m3db/m3/issues/2220
-	# kube        \
+	kube        \
 
 TOOLS :=               \
 	read_ids             \
@@ -191,6 +190,7 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
 	GOBIN=$(tools_bin_path) go install github.com/prateek/gorename
 	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
+	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
 
 .PHONY: install-gometalinter
 install-gometalinter:
@@ -297,6 +297,7 @@ define SUBDIR_RULES
 
 # We override the rules for `*-gen-kube` to just generate the kube manifest
 # bundle.
+# if kubeval
 ifeq ($(SUBDIR), kube)
 
 # Builds the single kube bundle from individual manifest files.
