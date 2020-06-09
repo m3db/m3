@@ -639,7 +639,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	}
 	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
 	_, err = idx.Query(ctx, q, qOpts)
-	require.Error(t, fmt.Errorf("index query exceeded limit"))
+	require.Error(t, err)
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
@@ -866,7 +866,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
 	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.Error(t, fmt.Errorf("index query exceeded limit"))
+	require.Error(t, err)
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
@@ -1095,6 +1095,6 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 		b0.EXPECT().Aggregate(ctx, gomock.Any(), qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
 		aggOpts = index.AggregationOptions{QueryOptions: qOpts}
 		_, err = idx.AggregateQuery(ctx, q, aggOpts)
-		require.Error(t, fmt.Errorf("index query exceeded limit"))
+		require.Error(t, err)
 	}
 }

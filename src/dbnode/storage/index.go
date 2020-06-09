@@ -1370,7 +1370,7 @@ func (i *nsIndex) queryWithSpan(
 	}
 
 	if !exhaustive && opts.RequireExhaustive {
-		return false, fmt.Errorf("index query exceeded limit")
+		return false, fmt.Errorf("index query requires exhaustive results")
 	}
 
 	return exhaustive, nil
