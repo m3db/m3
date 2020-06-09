@@ -140,23 +140,23 @@ func (t testBootstrapperSource) String() string {
 }
 
 func setupCommitLogBootstrapperWithFSInspection(
-	t *testing.T, setup *testSetup, commitLogOpts commitlog.Options) {
+	t *testing.T, setup TestSetup, commitLogOpts commitlog.Options) {
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bsOpts := newDefaulTestResultOptions(setup.StorageOpts())
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts).
 		SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 	bs, err := bcl.NewCommitLogBootstrapperProvider(
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
+	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(process))
 }
 
 func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {

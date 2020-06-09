@@ -53,37 +53,37 @@ func TestDiskCleanupIndex(t *testing.T) {
 		namespace.NewIndexOptions().SetBlockSize(idxBlockSize).SetEnabled(true)))
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md})
 
 	// Test setup
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
 	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
-	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	filePathPrefix := setup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("disk index cleanup test")
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 
 	// Now create some fileset files
 	numTimes := 10
 	fileTimes := make([]time.Time, numTimes)
-	now := setup.getNowFn().Truncate(idxBlockSize)
+	now := setup.NowFn()().Truncate(idxBlockSize)
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * idxBlockSize)
 	}
-	writeIndexFileSetFiles(t, setup.storageOpts, md, fileTimes)
+	writeIndexFileSetFiles(t, setup.StorageOpts(), md, fileTimes)
 
 	deltaNow := now.Add(time.Minute)
 	filesets, err := fs.IndexFileSetsBefore(filePathPrefix, md.ID(), deltaNow)
@@ -92,7 +92,7 @@ func TestDiskCleanupIndex(t *testing.T) {
 
 	// Move now forward by retentionPeriod + blockSize so fileset files at now will be deleted
 	newNow := now.Add(retentionPeriod).Add(idxBlockSize)
-	setup.setNowFn(newNow)
+	setup.SetNowFn(newNow)
 
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second

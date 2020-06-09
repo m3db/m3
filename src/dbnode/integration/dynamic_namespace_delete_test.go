@@ -44,7 +44,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	}
 
 	// test options
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second)
 	require.True(t, len(testOpts.Namespaces()) >= 2)
 	ns0 := testOpts.Namespaces()[0]
@@ -86,23 +86,23 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test setup
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Info("server is now down")
 	}()
 
 	// Write test data
 	blockSize := ns0.Options().RetentionOptions().BlockSize()
-	now := testSetup.getNowFn()
+	now := testSetup.NowFn()()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
@@ -117,7 +117,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 
 	// fail to write to non-existent namespaces
 	for _, testData := range seriesMaps {
-		require.Error(t, testSetup.writeBatch(ns0.ID(), testData))
+		require.Error(t, testSetup.WriteBatch(ns0.ID(), testData))
 	}
 
 	// delete namespace key, ensure update propagates
@@ -137,7 +137,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 
 	// wait until the new namespace is registered
 	nsExists := func() bool {
-		_, ok := testSetup.db.Namespace(ns0.ID())
+		_, ok := testSetup.DB().Namespace(ns0.ID())
 		return ok
 	}
 	require.True(t, waitUntil(nsExists, 5*time.Second))
@@ -145,15 +145,15 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 
 	// write to new namespace
 	for start, testData := range seriesMaps {
-		testSetup.setNowFn(start.ToTime())
-		require.NoError(t, testSetup.writeBatch(ns0.ID(), testData))
+		testSetup.SetNowFn(start.ToTime())
+		require.NoError(t, testSetup.WriteBatch(ns0.ID(), testData))
 	}
 	log.Info("test data is now written")
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
-	testSetup.setNowFn(testSetup.getNowFn().Add(2 * blockSize))
-	later := testSetup.getNowFn()
-	testSetup.sleepFor10xTickMinimumInterval()
+	testSetup.SetNowFn(testSetup.NowFn()().Add(2 * blockSize))
+	later := testSetup.NowFn()()
+	testSetup.SleepFor10xTickMinimumInterval()
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, ns0.ID(), now, later)
 	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, ns0, metadatasByShard)
