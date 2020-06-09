@@ -77,8 +77,7 @@ builds:
     goarch:
       - amd64
 archives:
-  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
-    format: tar.gz
+  - format: tar.gz
     wrap_in_directory: true
     format_overrides:
       - goos: windows
