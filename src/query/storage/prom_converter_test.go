@@ -261,6 +261,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 				tags.EXPECT().Current().Return(tag),
 				tags.EXPECT().Next().Return(false),
 				tags.EXPECT().Err().Return(nil),
+				tags.EXPECT().Rewind(),
 			)
 		}
 
