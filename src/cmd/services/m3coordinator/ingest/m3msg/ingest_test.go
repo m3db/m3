@@ -22,6 +22,7 @@ package ingestm3msg
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
@@ -42,6 +44,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestIngest(t *testing.T) {
@@ -111,11 +114,56 @@ func TestIngest(t *testing.T) {
 	require.Equal(t, id, op.id)
 }
 
+func TestIngestNonRetryableError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfg := Configuration{
+		WorkerPoolSize: 2,
+		OpPool: pool.ObjectPoolConfiguration{
+			Size: 1,
+		},
+	}
+
+	scope := tally.NewTestScope("", nil)
+	instrumentOpts := instrument.NewOptions().SetMetricsScope(scope)
+
+	nonRetryableError := xerrors.NewNonRetryableError(errors.New("bad request error"))
+	appender := &mockAppender{expectErr: nonRetryableError}
+	ingester, err := cfg.NewIngester(appender, models.NewTagOptions(),
+		instrumentOpts)
+	require.NoError(t, err)
+
+	id := newTestID(t, "__name__", "foo", "app", "bar")
+	metricNanos := int64(1234)
+	val := float64(1)
+	sp := policy.MustParseStoragePolicy("1m:40d")
+	m := consumer.NewMockMessage(ctrl)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	callback := m3msg.NewProtobufCallback(m, protobuf.NewAggregatedDecoder(nil), &wg)
+
+	m.EXPECT().Ack()
+	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, sp, callback)
+
+	for appender.cntErr() != 1 {
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Make non-retryable error marked.
+	counters := scope.Snapshot().Counters()
+
+	counter, ok := counters["errors+component=ingester,type=not-retryable"]
+	require.True(t, ok)
+	require.Equal(t, int64(1), counter.Value())
+}
+
 type mockAppender struct {
 	sync.RWMutex
 
-	expectErr error
-	received  []*storage.WriteQuery
+	expectErr   error
+	receivedErr []*storage.WriteQuery
+	received    []*storage.WriteQuery
 }
 
 func (m *mockAppender) Write(ctx context.Context, query *storage.WriteQuery) error {
@@ -123,6 +171,7 @@ func (m *mockAppender) Write(ctx context.Context, query *storage.WriteQuery) err
 	defer m.Unlock()
 
 	if m.expectErr != nil {
+		m.receivedErr = append(m.receivedErr, query)
 		return m.expectErr
 	}
 	m.received = append(m.received, query)
@@ -134,6 +183,13 @@ func (m *mockAppender) cnt() int {
 	defer m.Unlock()
 
 	return len(m.received)
+}
+
+func (m *mockAppender) cntErr() int {
+	m.Lock()
+	defer m.Unlock()
+
+	return len(m.receivedErr)
 }
 
 func newTestID(t *testing.T, tags ...string) []byte {
