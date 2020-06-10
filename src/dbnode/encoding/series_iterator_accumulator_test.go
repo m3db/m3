@@ -253,6 +253,8 @@ func assertTestSeriesAccumulatorIterator(
 		assert.Nil(t, iter.Tags())
 	}
 
+	assert.Equal(t, series.id, iter.id.String())
+	assert.Equal(t, series.nsID, iter.nsID.String())
 	iter.Close()
 	if series.retainTag {
 		// Check that the tag iterator was closed.

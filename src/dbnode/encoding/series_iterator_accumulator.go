@@ -58,8 +58,10 @@ func NewSeriesIteratorAccumulator(
 	opts SeriesAccumulatorOptions,
 ) (SeriesIteratorAccumulator, error) {
 	it := &seriesIteratorAccumulator{
-		id:              iter.ID(),
-		nsID:            iter.Namespace(),
+		// NB: clone id and nsID so that they will be accessbile after underlying
+		// iterators are closed.
+		id:              ident.StringID(iter.ID().String()),
+		nsID:            ident.StringID(iter.Namespace().String()),
 		seriesIterators: make([]SeriesIterator, 0, 2),
 	}
 
