@@ -3,10 +3,13 @@ module github.com/m3db/m3
 go 1.13
 
 require (
+	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/CAFxX/gcnotifier v0.0.0-20190112062741-224a280d589d // indirect
 	github.com/DataDog/datadog-go v3.7.1+incompatible // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/MichaelTJones/pcg v0.0.0-20180122055547-df440c6ed7ed
+	github.com/Microsoft/go-winio v0.4.14 // indirect
+	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/RoaringBitmap/roaring v0.4.21
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/apache/thrift v0.13.0
@@ -18,11 +21,14 @@ require (
 	github.com/c2h5oh/datasize v0.0.0-20171227191756-4eba002a5eae
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/cheekybits/genny v1.0.0 // indirect
+	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/davecgh/go-spew v1.1.1
+	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
 	github.com/fossas/fossa-cli v1.0.30
 	github.com/fsnotify/fsnotify v1.4.8-0.20190312181446-1485a34d5d57 // indirect
+	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
 	github.com/ghodss/yaml v1.0.0
 	github.com/gnewton/jargo v0.0.0-20150417131352-41f5f186a805 // indirect
 	github.com/go-kit/kit v0.10.0
@@ -38,12 +44,14 @@ require (
 	github.com/google/uuid v1.1.2-0.20190416172445-c2e93f3ae59f // indirect
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.7.3
+	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/hashicorp/hcl v1.0.1-0.20190611123218-cf7d376da96d // indirect
 	github.com/hydrogen18/stalecucumber v0.0.0-20151102144322-9b38526d4bdf
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
 	github.com/json-iterator/go v1.1.9
 	github.com/leanovate/gopter v0.2.3-0.20181005062252-e2604588f4db
+	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
 	github.com/m3db/bloom v3.0.0+incompatible
@@ -60,8 +68,11 @@ require (
 	github.com/m3dbx/vellum v0.0.0-20200602203954-e10aaedbd934
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
+	github.com/opencontainers/image-spec v1.0.1 // indirect
+	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.1.0
+	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
 	github.com/pelletier/go-toml v1.5.0 // indirect
@@ -100,6 +111,7 @@ require (
 	github.com/uber/tchannel-go v1.12.0
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
+	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	go.etcd.io/etcd v3.4.3+incompatible
 	go.uber.org/atomic v1.5.1
 	go.uber.org/config v1.4.0
@@ -118,6 +130,7 @@ require (
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
 	gopkg.in/yaml.v2 v2.2.8
+	gotest.tools v2.2.0+incompatible // indirect
 )
 
 // branch 0.9.3-pool-read-binary-3

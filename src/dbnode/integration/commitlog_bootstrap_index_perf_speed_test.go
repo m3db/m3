@@ -71,20 +71,20 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 			SetBlockSize(2 * blockSize))
 	ns, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns}).
 		// Allow for wall clock timing
 		SetNowFn(time.Now)
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
 
 	// Write test data
@@ -137,7 +137,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 
 	log.Info("writing data")
 
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	blockStart := now.Add(-3 * blockSize)
 
 	// create new commit log
@@ -149,7 +149,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	// generation so that the memory usage is constant during the write phase
 	ctx := context.NewContext()
 	defer ctx.Close()
-	shardSet := setup.shardSet
+	shardSet := setup.ShardSet()
 	idPrefix := "test.id.test.id.test.id.test.id.test.id.test.id.test.id.test.id"
 	idPrefixBytes := []byte(idPrefix)
 	checkedBytes := checked.NewBytes(nil, nil)
@@ -207,15 +207,15 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
 	// restore now time so measurements take effect
-	setup.storageOpts = setup.storageOpts.SetClockOptions(clock.NewOptions())
+	setup.SetStorageOpts(setup.StorageOpts().SetClockOptions(clock.NewOptions()))
 
 	// Start the server with filesystem bootstrapper
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 }
