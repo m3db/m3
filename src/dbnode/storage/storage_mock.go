@@ -1997,6 +1997,43 @@ func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags, opts inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesReadWriteRef), id, tags, opts)
 }
 
+// MockShardColdFlush is a mock of ShardColdFlush interface
+type MockShardColdFlush struct {
+	ctrl     *gomock.Controller
+	recorder *MockShardColdFlushMockRecorder
+}
+
+// MockShardColdFlushMockRecorder is the mock recorder for MockShardColdFlush
+type MockShardColdFlushMockRecorder struct {
+	mock *MockShardColdFlush
+}
+
+// NewMockShardColdFlush creates a new mock instance
+func NewMockShardColdFlush(ctrl *gomock.Controller) *MockShardColdFlush {
+	mock := &MockShardColdFlush{ctrl: ctrl}
+	mock.recorder = &MockShardColdFlushMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockShardColdFlush) EXPECT() *MockShardColdFlushMockRecorder {
+	return m.recorder
+}
+
+// Done mocks base method
+func (m *MockShardColdFlush) Done() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Done")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Done indicates an expected call of Done
+func (mr *MockShardColdFlushMockRecorder) Done() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockShardColdFlush)(nil).Done))
+}
+
 // MockNamespaceIndex is a mock of NamespaceIndex interface
 type MockNamespaceIndex struct {
 	ctrl     *gomock.Controller
