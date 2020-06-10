@@ -28,19 +28,9 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-type withKeysID func(tags models.Tags, matchingTags [][]byte) uint64
-
 type group struct {
 	buckets []int
 	tags    models.Tags
-}
-
-func includeKeysID(tags models.Tags, matchingTags [][]byte) uint64 {
-	return tags.TagsWithKeys(matchingTags).HashedID()
-}
-
-func excludeKeysID(tags models.Tags, matchingTags [][]byte) uint64 {
-	return tags.TagsWithoutKeys(matchingTags).HashedID()
 }
 
 type withKeysTags func(tags models.Tags, matchingTags [][]byte) models.Tags
@@ -50,7 +40,7 @@ func includeKeysTags(tags models.Tags, matchingTags [][]byte) models.Tags {
 }
 
 func excludeKeysTags(tags models.Tags, matchingTags [][]byte) models.Tags {
-	return tags.TagsWithoutKeys(matchingTags)
+	return tags.TagsWithoutKeys(matchingTags).WithoutName()
 }
 
 // GroupSeries groups series by tags.
@@ -63,20 +53,18 @@ func GroupSeries(
 	opName []byte,
 	metas []block.SeriesMeta,
 ) ([][]int, []block.SeriesMeta) {
-	var idFunc withKeysID
 	var tagsFunc withKeysTags
 	if without {
-		idFunc = excludeKeysID
 		tagsFunc = excludeKeysTags
 	} else {
-		idFunc = includeKeysID
 		tagsFunc = includeKeysTags
 	}
 
 	groups := make(map[uint64]*group)
 	for i, meta := range metas {
+		tags := tagsFunc(meta.Tags, matchingTags)
 		// NB(arnikola): Get the ID of the series with relevant tags
-		id := idFunc(meta.Tags, matchingTags)
+		id := tags.HashedID()
 		if val, ok := groups[id]; ok {
 			// If ID has been seen, the corresponding grouped
 			// series for this index already exists; add the
@@ -89,7 +77,7 @@ func GroupSeries(
 			// to the bucket for that grouped series
 			groups[id] = &group{
 				buckets: []int{i},
-				tags:    tagsFunc(meta.Tags, matchingTags),
+				tags:    tags,
 			}
 		}
 	}
