@@ -392,6 +392,7 @@ func RenderResultsJSON(
 func renderResultsInstantaneousJSON(
 	w io.Writer,
 	result ReadResult,
+	keepNaNs bool,
 ) {
 	var (
 		series   = result.Series
@@ -436,6 +437,11 @@ func renderResultsInstantaneousJSON(
 		if isScalar {
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.WriteString(utils.FormatFloat(dp.Value))
+			continue
+		}
+
+		// If keepNaNs is set to false and the value is NaN, drop it from the response.
+		if !keepNaNs && math.IsNaN(dp.Value) {
 			continue
 		}
 
