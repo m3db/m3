@@ -815,62 +815,71 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
-	// only queries as much as is needed (wrt to time)
-	ctx := context.NewContext()
+	for _, test := range []struct {
+		name              string
+		requireExhaustive bool
+	}{
+		{"allow non-exhaustive", false},
+		{"require exhaustive", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// only queries as much as is needed (wrt to time)
+			ctx := context.NewContext()
 
-	// create initial span from a mock tracer and get ctx
-	mtr := mocktracer.New()
-	sp := mtr.StartSpan("root")
-	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+			// create initial span from a mock tracer and get ctx
+			mtr := mocktracer.New()
+			sp := mtr.StartSpan("root")
+			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	q := index.Query{
-		Query: query,
+			q := index.Query{
+				Query: query,
+			}
+			qOpts := index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      now.Add(time.Minute),
+				RequireExhaustive: test.requireExhaustive,
+			}
+			aggOpts := index.AggregationOptions{QueryOptions: qOpts}
+
+			b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			result, err := idx.AggregateQuery(ctx, q, aggOpts)
+			require.NoError(t, err)
+			require.True(t, result.Exhaustive)
+
+			// queries multiple blocks if needed
+			qOpts = index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      t2.Add(time.Minute),
+				RequireExhaustive: test.requireExhaustive,
+			}
+			aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+			b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			b1.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+			result, err = idx.AggregateQuery(ctx, q, aggOpts)
+			require.NoError(t, err)
+			require.True(t, result.Exhaustive)
+
+			// stops querying once a block returns non-exhaustive
+			qOpts = index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      t0.Add(time.Minute),
+				RequireExhaustive: test.requireExhaustive,
+			}
+			b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
+			aggOpts = index.AggregationOptions{QueryOptions: qOpts}
+			result, err = idx.AggregateQuery(ctx, q, aggOpts)
+			if test.requireExhaustive {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.False(t, result.Exhaustive)
+			}
+
+			sp.Finish()
+			spans := mtr.FinishedSpans()
+			require.Len(t, spans, 11)
+		})
 	}
-	qOpts := index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   now.Add(time.Minute),
-	}
-	aggOpts := index.AggregationOptions{QueryOptions: qOpts}
-
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.NoError(t, err)
-
-	// queries multiple blocks if needed
-	qOpts = index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   t2.Add(time.Minute),
-	}
-	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-	b1.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.NoError(t, err)
-
-	// stops querying once a block returns non-exhaustive
-	qOpts = index.QueryOptions{
-		StartInclusive: t0,
-		EndExclusive:   t0.Add(time.Minute),
-	}
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
-	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.NoError(t, err)
-
-	// errors if RequireExhaustive is specified
-	qOpts = index.QueryOptions{
-		StartInclusive:    t0,
-		EndExclusive:      t0.Add(time.Minute),
-		RequireExhaustive: true,
-	}
-	b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(false, nil)
-	aggOpts = index.AggregationOptions{QueryOptions: qOpts}
-	_, err = idx.AggregateQuery(ctx, q, aggOpts)
-	require.Error(t, err)
-
-	sp.Finish()
-	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 14)
 }
 
 func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
