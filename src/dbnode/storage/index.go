@@ -1369,7 +1369,6 @@ func (i *nsIndex) queryWithSpan(
 		return false, err
 	}
 
-	fmt.Println("AA", exhaustive, opts.RequireExhaustive)
 	if !exhaustive && opts.RequireExhaustive {
 		return false, fmt.Errorf("index query requires exhaustive results")
 	}
