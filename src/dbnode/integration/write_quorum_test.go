@@ -55,8 +55,8 @@ func TestNormalQuorumOnlyOneUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
+	require.NoError(t, nodes[0].StartServer())
+	defer func() { require.NoError(t, nodes[0].StopServer()) }()
 
 	// Writes succeed to one node
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
@@ -81,10 +81,10 @@ func TestNormalQuorumOnlyTwoUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServer())
-	defer func() { require.NoError(t, nodes[1].stopServer()) }()
+	require.NoError(t, nodes[0].StartServer())
+	defer func() { require.NoError(t, nodes[0].StopServer()) }()
+	require.NoError(t, nodes[1].StartServer())
+	defer func() { require.NoError(t, nodes[1].StopServer()) }()
 
 	// Writes succeed to two nodes
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
@@ -109,12 +109,12 @@ func TestNormalQuorumAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServer())
-	defer func() { require.NoError(t, nodes[1].stopServer()) }()
-	require.NoError(t, nodes[2].startServer())
-	defer func() { require.NoError(t, nodes[2].stopServer()) }()
+	require.NoError(t, nodes[0].StartServer())
+	defer func() { require.NoError(t, nodes[0].StopServer()) }()
+	require.NoError(t, nodes[1].StartServer())
+	defer func() { require.NoError(t, nodes[1].StopServer()) }()
+	require.NoError(t, nodes[2].StartServer())
+	defer func() { require.NoError(t, nodes[2].StopServer()) }()
 
 	// Writes succeed to all nodes
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
@@ -140,11 +140,11 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
+	require.NoError(t, nodes[0].StartServer())
+	defer func() { require.NoError(t, nodes[0].StopServer()) }()
 
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
-	defer func() { require.NoError(t, nodes[3].stopServer()) }()
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
+	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// No writes succeed to available nodes
 	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
@@ -170,12 +170,12 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServer())
-	defer func() { require.NoError(t, nodes[1].stopServer()) }()
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
-	defer func() { require.NoError(t, nodes[3].stopServer()) }()
+	require.NoError(t, nodes[0].StartServer())
+	defer func() { require.NoError(t, nodes[0].StopServer()) }()
+	require.NoError(t, nodes[1].StartServer())
+	defer func() { require.NoError(t, nodes[1].StopServer()) }()
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
+	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// Writes succeed to one available node
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
@@ -201,14 +201,14 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServer())
-	defer func() { require.NoError(t, nodes[1].stopServer()) }()
-	require.NoError(t, nodes[2].startServer())
-	defer func() { require.NoError(t, nodes[2].stopServer()) }()
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
-	defer func() { require.NoError(t, nodes[3].stopServer()) }()
+	require.NoError(t, nodes[0].StartServer())
+	defer func() { require.NoError(t, nodes[0].StopServer()) }()
+	require.NoError(t, nodes[1].StartServer())
+	defer func() { require.NoError(t, nodes[1].StopServer()) }()
+	require.NoError(t, nodes[2].StartServer())
+	defer func() { require.NoError(t, nodes[2].StopServer()) }()
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
+	defer func() { require.NoError(t, nodes[3].StopServer()) }()
 
 	// Writes succeed to two available nodes
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
@@ -231,10 +231,10 @@ func makeTestWrite(
 
 	nspaces := []namespace.Metadata{md}
 	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, false)
-	now := nodes[0].getNowFn()
+	now := nodes[0].NowFn()()
 
 	for _, node := range nodes {
-		node.opts = node.opts.SetNumShards(numShards)
+		node.SetOpts(node.Opts().SetNumShards(numShards))
 	}
 
 	clientopts := client.NewOptions().

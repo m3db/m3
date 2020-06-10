@@ -41,7 +41,9 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.117.2
+# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.13
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.127.0 
+GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
 
@@ -80,8 +82,6 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
-	# Disabled during kubeval dependency issue https://github.com/m3db/m3/issues/2220
-	# kube        \
 
 TOOLS :=               \
 	read_ids             \
@@ -189,6 +189,7 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
 	GOBIN=$(tools_bin_path) go install github.com/prateek/gorename
 	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
+	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
 
 .PHONY: install-gometalinter
 install-gometalinter:
@@ -206,12 +207,12 @@ check-for-goreleaser-github-token:
 release: check-for-goreleaser-github-token
 	@echo Releasing new version
 	$(GO_BUILD_LDFLAGS_CMD) ECHO > $(BUILD)/release-vars.env
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" --env-file $(BUILD)/release-vars.env -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" --env-file $(BUILD)/release-vars.env -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release $(GO_RELEASER_RELEASE_ARGS)
 
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) --snapshot --rm-dist
+	make release GO_RELEASER_RELEASE_ARGS="--snapshot --rm-dist"
 
 .PHONY: docs-container
 docs-container:
@@ -292,22 +293,6 @@ test-ci-integration:
 	$(process_coverfile) $(coverfile)
 
 define SUBDIR_RULES
-
-# Temporarily remove kube validation until we fix a dependency issue with
-# kubeval (one of its depenencies depends on go1.13).
-# https://github.com/m3db/m3/issues/2220
-#
-# We override the rules for `*-gen-kube` to just generate the kube manifest
-# bundle.
-# ifeq ($(SUBDIR), kube)
-
-# Builds the single kube bundle from individual manifest files.
-# all-gen-kube: install-tools
-# 	@echo "--- Generating kube bundle"
-# 	@./kube/scripts/build_bundle.sh
-# 	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
-
-# else
 
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
@@ -406,9 +391,6 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 	@(PATH=$(combined_bin_paths):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
-# endif kubeval
-# endif
-
 endef
 
 # generate targets for each SUBDIR in SUBDIRS based on the rules specified above.
@@ -425,6 +407,13 @@ endef
 # of metalint and finishes faster.
 $(foreach SUBDIR_TARGET, $(filter-out metalint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
 
+# Builds the single kube bundle from individual manifest files.
+.PHONY: kube-gen-all
+kube-gen-all: install-tools
+	@echo "--- Generating kube bundle"
+	@./kube/scripts/build_bundle.sh
+	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
+
 .PHONY: go-mod-tidy
 go-mod-tidy:
 	@echo "--- :golang: tidying modules"
@@ -434,6 +423,7 @@ go-mod-tidy:
 all-gen: \
 	install-tools \
 	$(foreach SUBDIR_TARGET, $(filter-out metalint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
+	kube-gen-all \
 	go-mod-tidy
 
 .PHONY: build-ui-ctl
