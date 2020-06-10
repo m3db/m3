@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testUpdateJSON = `
+const (
+	testUpdateJSON = `
 {
 		"name": "testNamespace",
 		"options": {
@@ -50,13 +51,23 @@ const testUpdateJSON = `
 }
 `
 
+	testUpdateJSONNop = `
+{
+		"name": "testNamespace",
+		"options": {
+			"retentionOptions": {}
+		}
+}
+`
+)
+
 func TestNamespaceUpdateHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
 	updateHandler := NewUpdateHandler(mockClient, instrument.NewOptions())
-	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).Times(2)
 
 	// Error case where required fields are not set
 	w := httptest.NewRecorder()
@@ -118,6 +129,24 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"345600000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"3600000000000\",\"futureRetentionPeriodNanos\":\"0\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"},\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
+
+	// Ensure an empty request respects existing namespaces.
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("PUT", "/namespace", strings.NewReader(testUpdateJSONNop))
+	require.NotNil(t, req)
+
+	mockValue = kv.NewMockValue(ctrl)
+	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
+	mockValue.EXPECT().Version().Return(0)
+	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
+
+	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
+	updateHandler.ServeHTTP(svcDefaults, w, req)
+
+	resp = w.Result()
+	body, _ = ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"3600000000000\",\"futureRetentionPeriodNanos\":\"0\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"},\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
 }
 
 func TestValidateUpdateRequest(t *testing.T) {

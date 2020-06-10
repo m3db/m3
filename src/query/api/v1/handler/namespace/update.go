@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,6 @@ import (
 	"reflect"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -93,7 +92,7 @@ func (h *UpdateHandler) ServeHTTP(
 	nsRegistry, err := h.Update(md, opts)
 	if err != nil {
 		logger.Error("unable to update namespace", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -169,11 +168,7 @@ func (h *UpdateHandler) Update(
 ) (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
 
-	kvOpts := kv.NewOverrideOptions().
-		SetEnvironment(opts.ServiceEnvironment).
-		SetZone(opts.ServiceZone)
-
-	store, err := h.client.Store(kvOpts)
+	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
 		return emptyReg, err
 	}
@@ -203,6 +198,9 @@ func (h *UpdateHandler) Update(
 				return emptyReg, fmt.Errorf("error constructing new metadata: %w", err)
 			}
 			newMDs = append(newMDs, newMD)
+		} else {
+			// If not modifying, keep the original NS.
+			newMDs = append(newMDs, ns)
 		}
 	}
 
