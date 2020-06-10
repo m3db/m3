@@ -136,7 +136,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.promReadMetrics.fetchSuccess.Inc(1)
 
 	if h.instant {
-		renderResultsInstantaneousJSON(w, result)
+		renderResultsInstantaneousJSON(w, result, h.opts.Config().ResultOptions.KeepNans)
 		return
 	}
 
