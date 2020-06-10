@@ -311,22 +311,11 @@ func (s *m3storage) fetchCompressed(
 				)
 			}
 
-			if err != nil {
-				result.ReportError(err)
-				return
-			}
-
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
-			fetchResult, err := consolidators.NewSeriesFetchResult(
-				iters,
-				nil,
-				blockMeta,
-			)
-
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
-			result.Add(fetchResult, namespace.Options().Attributes(), err)
+			result.Add(iters, blockMeta, namespace.Options().Attributes(), err)
 		}()
 	}
 

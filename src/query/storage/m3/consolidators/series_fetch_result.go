@@ -96,11 +96,9 @@ func (r *SeriesFetchResult) Count() int {
 	return r.seriesData.seriesIterators.Len()
 }
 
-// Close closes the contained series iterators.
+// Close no-ops; these should be closed by the enclosing iterator.
 func (r *SeriesFetchResult) Close() {
-	if r.seriesData.seriesIterators != nil {
-		r.seriesData.seriesIterators.Close()
-	}
+
 }
 
 // IterTagsAtIndex returns the tag iterator and tags at the given index.

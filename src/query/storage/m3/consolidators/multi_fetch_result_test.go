@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -54,14 +55,16 @@ func generateSeriesIterators(
 	iter := encoding.NewMockSeriesIterator(ctrl)
 	iter.EXPECT().ID().Return(ident.StringID(common)).MinTimes(1)
 	iter.EXPECT().Namespace().Return(ident.StringID(ns)).MaxTimes(1)
+	iter.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
 
 	unique := encoding.NewMockSeriesIterator(ctrl)
 	unique.EXPECT().ID().Return(ident.StringID(ns)).MinTimes(1)
 	unique.EXPECT().Namespace().Return(ident.StringID(ns)).MaxTimes(1)
+	unique.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
 
 	iters := encoding.NewMockSeriesIterators(ctrl)
 	iters.EXPECT().Close().Return().Times(1)
-	iters.EXPECT().Len().Return(1).MaxTimes(1)
+	iters.EXPECT().Len().Return(1).AnyTimes()
 	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique})
 
 	return iters
@@ -90,7 +93,7 @@ func TestMultiResult(t *testing.T) {
 }
 
 func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	namespaces := []struct {
@@ -127,16 +130,10 @@ func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) 
 	r := NewMultiFetchResult(fanoutType, pools,
 		defaultTestOpts, models.NewTagOptions())
 
+	meta := block.NewResultMetadata()
 	for _, ns := range namespaces {
 		iters := generateSeriesIterators(ctrl, ns.ns)
-		seriesFetchResult := SeriesFetchResult{
-			Metadata: block.NewResultMetadata(),
-			seriesData: seriesData{
-				seriesIterators: iters,
-			},
-		}
-
-		r.Add(seriesFetchResult, ns.attrs, nil)
+		r.Add(iters, meta, ns.attrs, nil)
 	}
 
 	result, err := r.FinalResult()
@@ -177,7 +174,7 @@ var exhaustTests = []struct {
 }
 
 func TestExhaustiveMerge(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	pools := generateIteratorPools(ctrl)
@@ -194,14 +191,7 @@ func TestExhaustiveMerge(t *testing.T) {
 
 				meta := block.NewResultMetadata()
 				meta.Exhaustive = ex
-				seriesFetchResult := SeriesFetchResult{
-					Metadata: meta,
-					seriesData: seriesData{
-						seriesIterators: iters,
-					},
-				}
-
-				r.Add(seriesFetchResult, storagemetadata.Attributes{}, nil)
+				r.Add(iters, meta, storagemetadata.Attributes{}, nil)
 			}
 
 			result, err := r.FinalResult()
@@ -210,8 +200,4 @@ func TestExhaustiveMerge(t *testing.T) {
 			assert.NoError(t, r.Close())
 		})
 	}
-}
-
-func BenchmarkTagMap(b *testing.B) {
-
 }

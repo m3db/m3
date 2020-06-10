@@ -63,10 +63,14 @@ func varifyDedupeMap(
 	assert.Equal(t, len(expected), i)
 }
 
+type dp struct {
+	t   time.Time
+	val float64
+}
+
 func it(
 	ctrl *gomock.Controller,
-	t time.Time,
-	val float64,
+	dp dp,
 	id string,
 	tags ...string,
 ) encoding.SeriesIterator {
@@ -74,8 +78,8 @@ func it(
 	it.EXPECT().ID().Return(ident.StringID(id)).AnyTimes()
 
 	it.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
-	it.EXPECT().Start().Return(t).AnyTimes()
-	it.EXPECT().End().Return(t.Add(time.Hour)).AnyTimes()
+	it.EXPECT().Start().Return(dp.t).AnyTimes()
+	it.EXPECT().End().Return(dp.t.Add(time.Hour)).AnyTimes()
 
 	tagIter := ident.MustNewTagStringsIterator(tags...)
 	it.EXPECT().Tags().Return(tagIter).AnyTimes()
@@ -83,13 +87,13 @@ func it(
 	it.EXPECT().Next().Return(true)
 	it.EXPECT().Current().
 		Return(ts.Datapoint{
-			TimestampNanos: xtime.ToUnixNano(t),
-			Timestamp:      t,
-			Value:          val,
+			TimestampNanos: xtime.ToUnixNano(dp.t),
+			Timestamp:      dp.t,
+			Value:          dp.val,
 		}, xtime.Second, nil).AnyTimes()
 	it.EXPECT().Next().Return(false)
 	it.EXPECT().Err().Return(nil).AnyTimes()
-	it.EXPECT().Close()
+	it.EXPECT().Close().MinTimes(1)
 
 	return it
 }
@@ -110,15 +114,15 @@ func TestTagDedupeMap(t *testing.T) {
 		Resolution:  time.Hour,
 	}
 
-	dedupeMap.add(it(ctrl, start, 14,
+	dedupeMap.add(it(ctrl, dp{t: start, val: 14},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
 	varifyDedupeMap(t, dedupeMap, ts.Datapoint{Timestamp: start, Value: 14})
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Minute
-	dedupeMap.add(it(ctrl, start.Add(time.Minute), 10,
+	dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute), val: 10},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	dedupeMap.add(it(ctrl, start.Add(time.Minute*2), 12,
+	dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
 		"id2", "foo", "bar", "qux", "quail"), attrs)
 
 	varifyDedupeMap(t, dedupeMap,
@@ -127,7 +131,7 @@ func TestTagDedupeMap(t *testing.T) {
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Second
-	dedupeMap.add(it(ctrl, start, 100,
+	dedupeMap.add(it(ctrl, dp{t: start, val: 100},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
 	varifyDedupeMap(t, dedupeMap, ts.Datapoint{Timestamp: start, Value: 100})
 

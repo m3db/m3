@@ -43,7 +43,7 @@ type multiResult struct {
 	seenFirstAttrs  storagemetadata.Attributes
 	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
 	mergedIterators encoding.MutableSeriesIterators
-	mergedTags      []models.Tags
+	mergedTags      []*models.Tags
 	dedupeMap       fetchDedupeMap
 	err             xerrors.MultiError
 	matchOpts       MatchOptions
@@ -124,8 +124,6 @@ func (r *multiResult) FinalResultWithAttrs() (
 				attrs = append(attrs, res.attrs)
 			}
 		}
-	} else {
-		attrs = []storagemetadata.Attributes{}
 	}
 
 	return result, attrs, nil
@@ -148,24 +146,19 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 		return NewSeriesFetchResult(encoding.EmptySeriesIterators, nil, r.metadata)
 	}
 
-	// can short-cicuit in this case
-	if len(r.seenIters) == 1 {
-		return NewSeriesFetchResult(r.seenIters[0], nil, r.metadata)
-	}
-
 	// otherwise have to create a new seriesiters
 	dedupedList := r.dedupeMap.list()
 	numSeries := len(dedupedList)
 	r.mergedIterators = r.pools.MutableSeriesIterators().Get(numSeries)
 	r.mergedIterators.Reset(numSeries)
 	if r.mergedTags == nil {
-		r.mergedTags = make([]models.Tags, numSeries)
+		r.mergedTags = make([]*models.Tags, numSeries)
 	}
 
 	lenCurr, lenNext := len(r.mergedTags), len(dedupedList)
 	if lenCurr < lenNext {
 		// If incoming list is longer, expand the stored list.
-		r.mergedTags = append(r.mergedTags, make([]models.Tags, lenNext-lenCurr)...)
+		r.mergedTags = append(r.mergedTags, make([]*models.Tags, lenNext-lenCurr)...)
 	} else if lenCurr > lenNext {
 		// If incoming list somehow shorter, shrink stored list.
 		r.mergedTags = r.mergedTags[:lenNext]
@@ -173,36 +166,18 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 
 	for i, res := range dedupedList {
 		r.mergedIterators.SetAt(i, res.iter)
-		r.mergedTags[i] = res.tags
+		r.mergedTags[i] = &dedupedList[i].tags
 	}
 
-	pTags := make([]*models.Tags, 0, len(r.mergedTags))
-	for _, t := range r.mergedTags {
-		pTags = append(pTags, &t)
-	}
-
-	return NewSeriesFetchResult(r.mergedIterators, pTags, r.metadata)
-}
-
-func (r *multiResult) ReportError(err error) {
-	if err != nil {
-		r.Lock()
-		r.err = r.err.Add(err)
-		r.Unlock()
-	}
-
+	return NewSeriesFetchResult(r.mergedIterators, r.mergedTags, r.metadata)
 }
 
 func (r *multiResult) Add(
-	fetchResult SeriesFetchResult,
+	newIterators encoding.SeriesIterators,
+	metadata block.ResultMetadata,
 	attrs storagemetadata.Attributes,
 	err error,
 ) {
-	newIterators := fetchResult.seriesData.seriesIterators
-	if newIterators == nil {
-		return
-	}
-
 	r.Lock()
 	defer r.Unlock()
 
@@ -211,14 +186,18 @@ func (r *multiResult) Add(
 		return
 	}
 
+	if newIterators == nil || newIterators.Len() == 0 {
+		return
+	}
+
 	if len(r.seenIters) == 0 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
-		r.metadata = fetchResult.Metadata
+		r.metadata = metadata
 	} else {
 		// NB: any non-exhaustive result set added makes the entire
 		// result non-exhaustive
-		r.metadata = r.metadata.CombineMetadata(fetchResult.Metadata)
+		r.metadata = r.metadata.CombineMetadata(metadata)
 	}
 
 	r.seenIters = append(r.seenIters, newIterators)
@@ -229,28 +208,23 @@ func (r *multiResult) Add(
 		return
 	}
 
-	if len(r.seenIters) < 2 {
-		// don't need to create the de-dupe map until we need to actually need to
-		// dedupe between two results
-		return
-	}
-
-	if len(r.seenIters) == 2 {
+	if len(r.seenIters) == 1 {
 		// need to backfill the dedupe map from the first result first
 		first := r.seenIters[0]
-		if r.matchOpts.MatchType == MatchIDs {
-			r.dedupeMap = newIDDedupeMap(r.fanout, first.Len())
-		} else {
-			opts := tagMapOpts{
-				fanout:  r.fanout,
-				size:    first.Len(),
-				tagOpts: r.tagOpts,
-			}
+		opts := tagMapOpts{
+			fanout:  r.fanout,
+			size:    first.Len(),
+			tagOpts: r.tagOpts,
+		}
 
+		if r.matchOpts.MatchType == MatchIDs {
+			r.dedupeMap = newIDDedupeMap(opts)
+		} else {
 			r.dedupeMap = newTagDedupeMap(opts)
 		}
 
 		r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)
+		return
 	}
 
 	// Now de-duplicate

@@ -315,7 +315,8 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().Return(nil, nil).AnyTimes()
+	session.EXPECT().IteratorPools().
+		Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * testLongestRetention)

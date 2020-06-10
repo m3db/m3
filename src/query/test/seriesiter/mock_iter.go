@@ -88,7 +88,7 @@ func NewMockSeriesIteratorFromBase(mockIter *encoding.MockSeriesIterator, tagGen
 	tags := tagGenerator()
 	mockIter.EXPECT().Namespace().Return(ident.StringID("foo")).AnyTimes()
 	mockIter.EXPECT().ID().Return(ident.StringID("bar")).AnyTimes()
-	mockIter.EXPECT().Tags().Return(tags).MaxTimes(1)
+	mockIter.EXPECT().Tags().Return(tags).AnyTimes()
 	mockIter.EXPECT().Close().Do(func() {
 		// Make sure to close the tags generated when closing the iter
 		tags.Close()

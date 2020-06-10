@@ -79,6 +79,23 @@ type fetchResponse struct {
 	err    error
 }
 
+func newTestIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
+	pools := encoding.NewMockIteratorPools(ctrl)
+
+	mutablePool := encoding.NewMockMutableSeriesIteratorsPool(ctrl)
+	mutablePool.EXPECT().
+		Get(gomock.Any()).
+		DoAndReturn(func(size int) encoding.MutableSeriesIterators {
+			return encoding.NewSeriesIterators(make([]encoding.SeriesIterator, 0, size), mutablePool)
+		}).
+		AnyTimes()
+	mutablePool.EXPECT().Put(gomock.Any()).AnyTimes()
+
+	pools.EXPECT().MutableSeriesIterators().Return(mutablePool).AnyTimes()
+
+	return pools
+}
+
 func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) storage.Storage {
 	if len(response) == 0 {
 		response = []*fetchResponse{{err: fmt.Errorf("unable to get response")}}
@@ -87,7 +104,7 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	ctrl := xtest.NewController(t)
 	store1, session1 := m3.NewStorageAndSession(t, ctrl)
 	store2, session2 := m3.NewStorageAndSession(t, ctrl)
-
+	pools := newTestIteratorPools(ctrl)
 	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(response[0].result, client.FetchResponseMetadata{Exhaustive: true}, response[0].err)
 	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -97,9 +114,9 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, errs.ErrNotImplemented)
 	session1.EXPECT().IteratorPools().
-		Return(nil, nil).AnyTimes()
+		Return(pools, nil).AnyTimes()
 	session2.EXPECT().IteratorPools().
-		Return(nil, nil).AnyTimes()
+		Return(pools, nil).AnyTimes()
 
 	stores := []storage.Storage{
 		store1, store2,

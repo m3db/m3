@@ -24,18 +24,21 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 type idDedupeMap struct {
-	fanout QueryFanoutType
-	series map[string]multiResultSeries
+	fanout  QueryFanoutType
+	series  map[string]multiResultSeries
+	tagOpts models.TagOptions
 }
 
-func newIDDedupeMap(fanout QueryFanoutType, size int) fetchDedupeMap {
+func newIDDedupeMap(opts tagMapOpts) fetchDedupeMap {
 	return &idDedupeMap{
-		fanout: fanout,
-		series: make(map[string]multiResultSeries, size),
+		fanout:  opts.fanout,
+		series:  make(map[string]multiResultSeries, opts.size),
+		tagOpts: opts.tagOpts,
 	}
 }
 
@@ -55,12 +58,19 @@ func (m *idDedupeMap) add(
 ) error {
 	id := iter.ID().String()
 
+	tags, err := FromIdentTagIteratorToTags(iter.Tags(), m.tagOpts)
+	if err != nil {
+		return err
+	}
+
+	iter.Tags().Rewind()
 	existing, exists := m.series[id]
 	if !exists {
 		// Does not exist, new addition
 		m.series[id] = multiResultSeries{
 			attrs: attrs,
 			iter:  iter,
+			tags:  tags,
 		}
 		return nil
 	}
@@ -90,6 +100,7 @@ func (m *idDedupeMap) add(
 	m.series[id] = multiResultSeries{
 		attrs: attrs,
 		iter:  iter,
+		tags:  tags,
 	}
 
 	return nil

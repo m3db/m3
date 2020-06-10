@@ -75,13 +75,11 @@ func (t QueryFanoutType) String() string {
 type MultiFetchResult interface {
 	// Add appends series fetch results to the accumulator.
 	Add(
-		fetchResult SeriesFetchResult,
+		seriesIterators encoding.SeriesIterators,
+		metadata block.ResultMetadata,
 		attrs storagemetadata.Attributes,
 		err error,
 	)
-
-	// ReportError adds an error to the result.
-	ReportError(err error)
 
 	// FinalResult returns a series fetch result containing deduplicated series
 	// iterators and their metadata, and any errors encountered.

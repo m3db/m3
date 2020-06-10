@@ -59,6 +59,7 @@ carbon:
 tagOptions:
   idScheme: quoted
 
+# Use tag consolidation here; other integration tests handle id consolidations.
 query:
   consolidation:
     matchType: tags

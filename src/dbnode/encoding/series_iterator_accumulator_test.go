@@ -33,6 +33,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testAccumulatorSeries struct {
+	id          string
+	nsID        string
+	retainTag   bool
+	start       time.Time
+	end         time.Time
+	input       []accumulatorInput
+	expected    []testValue
+	expectedErr *testSeriesErr
+}
+
+type accumulatorInput struct {
+	values []testValue
+	id     string
+	err    error
+}
+
 func TestSeriesIteratorAccumulator(t *testing.T) {
 	testSeriesIteratorAccumulator(t, false)
 }
@@ -45,13 +62,14 @@ func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 	start := time.Now().Truncate(time.Minute)
 	end := start.Add(time.Minute)
 
-	values := []inputReplica{
+	values := []accumulatorInput{
 		{
 			values: []testValue{
 				{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
 				{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 				{3.0, start.Add(6 * time.Second), xtime.Second, nil},
 			},
+			id: "foo1",
 		},
 		{
 			values: []testValue{
@@ -59,6 +77,7 @@ func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 				{2.0, start.Add(2 * time.Second), xtime.Second, nil},
 				{3.0, start.Add(3 * time.Second), xtime.Second, nil},
 			},
+			id: "foo2",
 		},
 		{
 			values: []testValue{
@@ -66,6 +85,7 @@ func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 				{4.0, start.Add(4 * time.Second), xtime.Second, nil},
 				{5.0, start.Add(5 * time.Second), xtime.Second, nil},
 			},
+			id: "foo3",
 		},
 	}
 
@@ -79,14 +99,47 @@ func testSeriesIteratorAccumulator(t *testing.T, retain bool) {
 		{3.0, start.Add(6 * time.Second), xtime.Second, nil},
 	}
 
-	test := testSeries{
-		id:        "foo",
+	test := testAccumulatorSeries{
+		id:        "foo1",
 		nsID:      "bar",
 		start:     start,
 		end:       end,
 		retainTag: retain,
 		input:     values,
 		expected:  ex,
+	}
+
+	assertTestSeriesAccumulatorIterator(t, test)
+}
+
+func TestSingleSeriesIteratorAccumulator(t *testing.T) {
+	start := time.Now().Truncate(time.Minute)
+	end := start.Add(time.Minute)
+
+	values := []accumulatorInput{
+		{
+			values: []testValue{
+				{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+				{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+				{3.0, start.Add(6 * time.Second), xtime.Second, nil},
+			},
+			id: "foobar",
+		},
+	}
+
+	ex := []testValue{
+		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+		{3.0, start.Add(6 * time.Second), xtime.Second, nil},
+	}
+
+	test := testAccumulatorSeries{
+		id:       "foobar",
+		nsID:     "bar",
+		start:    start,
+		end:      end,
+		input:    values,
+		expected: ex,
 	}
 
 	assertTestSeriesAccumulatorIterator(t, test)
@@ -99,18 +152,18 @@ type newTestSeriesAccumulatorIteratorResult struct {
 
 func newTestSeriesAccumulatorIterator(
 	t *testing.T,
-	series testSeries,
+	series testAccumulatorSeries,
 ) newTestSeriesAccumulatorIteratorResult {
 	iters := make([]SeriesIterator, 0, len(series.input))
 	var acc SeriesIteratorAccumulator
-	for i := range series.input {
+	for _, r := range series.input {
 		multiIter := newTestMultiIterator(
-			series.input[i].values,
-			series.input[i].err,
+			r.values,
+			r.err,
 		)
 
 		iter := NewSeriesIterator(SeriesIteratorOptions{
-			ID:        ident.StringID(series.id),
+			ID:        ident.StringID(r.id),
 			Namespace: ident.StringID(series.nsID),
 			Tags: ident.NewTagsIterator(ident.NewTags(
 				ident.StringTag("foo", "bar"), ident.StringTag("qux", "quz"),
@@ -143,7 +196,7 @@ func newTestSeriesAccumulatorIterator(
 
 func assertTestSeriesAccumulatorIterator(
 	t *testing.T,
-	series testSeries,
+	series testAccumulatorSeries,
 ) {
 	newSeriesIter := newTestSeriesAccumulatorIterator(t, series)
 	iter := newSeriesIter.iter

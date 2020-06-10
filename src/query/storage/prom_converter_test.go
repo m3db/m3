@@ -302,7 +302,6 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 		it := encoding.NewMockSeriesIterators(ctrl)
 		it.EXPECT().Iters().Return(iters).AnyTimes()
 		it.EXPECT().Len().Return(len(iters)).AnyTimes()
-		it.EXPECT().Close()
 		return fr(t, it)
 	}
 
