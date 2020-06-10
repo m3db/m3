@@ -230,6 +230,32 @@ var collectTest = []struct {
 			{"c": "3", "d": "6"},
 		}),
 	},
+	{
+		"metrics name",
+		[]string{"a"},
+		multiTagsFromMaps([]map[string]string{
+			{"__name__": "foo", "a": "1"},
+			{"__name__": "foo", "a": "1", "b": "2", "c": "4"},
+			{"__name__": "foo", "b": "2"},
+			{"__name__": "foo", "a": "1", "b": "2", "c": "3"},
+			{"__name__": "foo", "a": "1", "b": "2", "d": "3"},
+			{"__name__": "foo", "c": "d"},
+		}),
+		[][]int{{2, 5}, {0, 1, 3, 4}},
+		multiTagsFromMaps([]map[string]string{
+			{},
+			{"a": "1"},
+		}),
+		[][]int{{0}, {2}, {3}, {1}, {4}, {5}},
+		multiTagsFromMaps([]map[string]string{
+			{},
+			{"b": "2"},
+			{"b": "2", "c": "3"},
+			{"b": "2", "c": "4"},
+			{"b": "2", "d": "3"},
+			{"c": "d"},
+		}),
+	},
 }
 
 func testCollect(t *testing.T, without bool) {

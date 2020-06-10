@@ -28,7 +28,6 @@ import (
 	"path"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
-	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -133,11 +132,7 @@ func (h *AddHandler) Add(
 		return emptyReg, fmt.Errorf("unable to get metadata: %v", err)
 	}
 
-	kvOpts := kv.NewOverrideOptions().
-		SetEnvironment(opts.ServiceEnvironment).
-		SetZone(opts.ServiceZone)
-
-	store, err := h.client.Store(kvOpts)
+	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
 		return emptyReg, err
 	}

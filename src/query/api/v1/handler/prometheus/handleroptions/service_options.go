@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
 )
 
@@ -167,6 +168,13 @@ func (opts *ServiceOptions) Validate() error {
 func (opts *ServiceOptions) ServiceID() services.ServiceID {
 	return services.NewServiceID().
 		SetName(opts.ServiceName).
+		SetEnvironment(opts.ServiceEnvironment).
+		SetZone(opts.ServiceZone)
+}
+
+// KVOverrideOptions constructs KV overrides from the current service options.
+func (opts *ServiceOptions) KVOverrideOptions() kv.OverrideOptions {
+	return kv.NewOverrideOptions().
 		SetEnvironment(opts.ServiceEnvironment).
 		SetZone(opts.ServiceZone)
 }
