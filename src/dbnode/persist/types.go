@@ -40,10 +40,19 @@ type DataFn func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint
 // blocks for a (shard, blockStart) combination.
 type DataCloser func() error
 
+// DeferCloser returns a DeferredCloser that persists the data checkpoint file when called.
+type DeferCloser func() (DeferredCloser, error)
+
+// DeferredCloser defers persisting of the data checkpoint file until later.
+type DeferredCloser struct {
+	Close DataCloser
+}
+
 // PreparedDataPersist is an object that wraps holds a persist function and a closer.
 type PreparedDataPersist struct {
-	Persist DataFn
-	Close   DataCloser
+	Persist    DataFn
+	Close      DataCloser
+	DeferClose DeferCloser
 }
 
 // CommitLogFiles represents a slice of commitlog files.

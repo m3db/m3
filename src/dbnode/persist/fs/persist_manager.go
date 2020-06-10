@@ -200,7 +200,7 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 
 func (pm *persistManager) reset() {
 	pm.status = persistManagerIdle
-	pm.start = timeZero 
+	pm.start = timeZero
 	pm.count = 0
 	pm.bytesWritten = 0
 	pm.worked = 0
@@ -490,6 +490,7 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 
 	prepared.Persist = pm.persist
 	prepared.Close = pm.closeData
+	prepared.DeferClose = pm.deferCloseData
 
 	return prepared, nil
 }
@@ -542,6 +543,10 @@ func (pm *persistManager) persist(
 
 func (pm *persistManager) closeData() error {
 	return pm.dataPM.writer.Close()
+}
+
+func (pm *persistManager) deferCloseData() (persist.DeferredCloser, error) {
+	return pm.dataPM.writer.DeferClose()
 }
 
 // DoneFlush is called by the databaseFlushManager to finish the data persist process.

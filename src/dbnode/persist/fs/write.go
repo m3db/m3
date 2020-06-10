@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -327,11 +328,41 @@ func (w *writer) Close() error {
 	}
 	// NB(xichen): only write out the checkpoint file if there are no errors
 	// encountered between calling writer.Open() and writer.Close().
-	if err := w.writeCheckpointFile(); err != nil {
+	if err := w.writeCheckpointFile(
+		w.checkpointFilePath,
+		w.digestFdWithDigestContents,
+		w.digestBuf,
+	); err != nil {
 		w.err = err
 		return err
 	}
 	return nil
+}
+
+func (w *writer) DeferClose() (persist.DeferredCloser, error) {
+	var closer persist.DeferredCloser
+	err := w.close()
+	if w.err != nil {
+		return closer, w.err
+	}
+	if err != nil {
+		w.err = err
+		return closer, err
+	}
+	checkpointFilePath := w.checkpointFilePath
+	digestFdWithDigestContents := w.digestFdWithDigestContents
+	digestBuf := w.digestBuf
+	closer.Close = func() error {
+		multiErr := xerrors.NewMultiError()
+		multiErr = multiErr.Add(w.writeCheckpointFile(
+			checkpointFilePath,
+			digestFdWithDigestContents,
+			digestBuf,
+		))
+		multiErr = multiErr.Add(digestFdWithDigestContents.Close())
+		return multiErr.FinalError()
+	}
+	return closer, nil
 }
 
 func (w *writer) close() error {
@@ -359,13 +390,17 @@ func (w *writer) close() error {
 	)
 }
 
-func (w *writer) writeCheckpointFile() error {
-	fd, err := w.openWritable(w.checkpointFilePath)
+func (w *writer) writeCheckpointFile(
+	checkpointFilePath string,
+	digestFdWithDigestContents digest.FdWithDigestContentsWriter,
+	digestBuf digest.Buffer,
+) error {
+	fd, err := w.openWritable(checkpointFilePath)
 	if err != nil {
 		return err
 	}
-	digestChecksum := w.digestFdWithDigestContents.Digest().Sum32()
-	if err := w.digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
+	digestChecksum := digestFdWithDigestContents.Digest().Sum32()
+	if err := digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
 		// NB(prateek): intentionally skipping fd.Close() error, as failure
 		// to write takes precedence over failure to close the file
 		fd.Close()
