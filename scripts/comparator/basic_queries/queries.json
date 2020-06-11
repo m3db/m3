@@ -1,5 +1,15 @@
 [
   {
+    "queryGroup":"scalar",
+    "queries":[
+      "42",
+      "time()"
+    ],
+    "steps" : [
+      "1m"
+    ]
+  },
+  {
     "queryGroup":"fetch",
     "queries":[
       "quail",
@@ -7,7 +17,7 @@
     ],
     "steps" : [
       "15s",
-      "30s", 
+      "30s",
       "1m"
     ]
   },

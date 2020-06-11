@@ -131,7 +131,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	handleroptions.AddWarningHeaders(w, result.Meta)
 	h.promReadMetrics.fetchSuccess.Inc(1)
 

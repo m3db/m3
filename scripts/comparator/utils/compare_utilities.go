@@ -71,14 +71,19 @@ func (q InputQuery) constructPromQL(start int64, end int64) PromQLQueryGroup {
 	queries := make([]string, 0, len(q.Queries)*len(q.Steps))
 	for _, inQuery := range q.Queries {
 		for _, inStep := range q.Steps {
-			values := make(url.Values)
-			values.Add("query", inQuery)
-			values.Add("step", inStep)
-			values.Add("start", strconv.Itoa(int(start)))
-			values.Add("end", strconv.Itoa(int(end)))
-			query := "/api/v1/query_range?" + values.Encode()
+			queryRangeValues := make(url.Values)
+			queryRangeValues.Add("query", inQuery)
+			queryRangeValues.Add("step", inStep)
+			queryRangeValues.Add("start", strconv.Itoa(int(start)))
+			queryRangeValues.Add("end", strconv.Itoa(int(end)))
+			queryRangePath := "/api/v1/query_range?" + queryRangeValues.Encode()
 
-			queries = append(queries, query)
+			queryValues := make(url.Values)
+			queryValues.Add("query", inQuery)
+			queryValues.Add("time", strconv.Itoa(int(start)))
+			queryPath := "/api/v1/query?" + queryValues.Encode()
+
+			queries = append(queries, queryRangePath, queryPath)
 		}
 	}
 
