@@ -145,10 +145,5 @@ func ParseRegressionFilesToPromQLQueryGroup(
 		groups = append(groups, group)
 	}
 
-	if err != nil {
-		log.Info("directory parsing failed")
-		return nil, err
-	}
-
 	return groups, nil
 }

@@ -92,7 +92,7 @@ func TestParamParsing(t *testing.T) {
 func TestParamParsing_POST(t *testing.T) {
 	params := defaultParams().Encode()
 	req := httptest.NewRequest("POST", PromReadURL, strings.NewReader(params))
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeFormURLEncoded)
 
 	r, err := testParseParams(req)
 	require.NoError(t, err, "unable to parse request")
@@ -356,7 +356,7 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
-func TestRenderInstantaneousResultsJSON(t *testing.T) {
+func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	start := time.Unix(1535948880, 0)
 
 	series := []*ts.Series{
@@ -505,6 +505,39 @@ func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
 	})
 	actualWithoutNaN := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expectedWithoutNaN, actualWithoutNaN, xtest.Diff(expectedWithoutNaN, actualWithoutNaN))
+}
+
+func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+
+	series := []*ts.Series{
+		ts.NewSeries(
+			[]byte("foo"),
+			ts.NewFixedStepValues(10*time.Second, 1, 5, start),
+			test.TagSliceToTags([]models.Tag{})),
+	}
+
+	readResult := ReadResult{
+		Series:    series,
+		Meta:      block.NewResultMetadata(),
+		BlockType: block.BlockScalar,
+	}
+
+	buffer := bytes.NewBuffer(nil)
+	renderResultsInstantaneousJSON(buffer, readResult, false)
+	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
+		"status": "success",
+		"data": xjson.Map{
+			"resultType": "scalar",
+			"result": xjson.Array{
+				1535948880,
+				"5",
+			},
+		},
+	})
+
+	actual := xtest.MustPrettyJSONString(t, buffer.String())
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
 func TestSanitizeSeries(t *testing.T) {
