@@ -179,9 +179,10 @@ function test_prometheus_remote_write_map_tags {
 function test_query_limits_applied {
   # Test the default series limit applied when directly querying
   # coordinator (limit set to 100 in m3coordinator.yml)
+  # NB: ensure that the limit is not exceeded (it may be below limit).
   echo "Test query limit with coordinator defaults"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 100 ]]'
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -lt 101 ]]'
 
   # Test the default series limit applied when directly querying
   # coordinator (limit set by header)
