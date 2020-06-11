@@ -48,6 +48,7 @@ import (
 	time0 "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	tchannel_go "github.com/uber/tchannel-go"
 )
 
 // MockClient is a mock of Client interface
