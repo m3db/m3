@@ -60,8 +60,6 @@ var (
 )
 
 var (
-	errNamespaceNotFound = errors.New("unable to find a namespace with specified name")
-
 	errEmptyID = errors.New("must specify namespace ID to delete")
 )
 

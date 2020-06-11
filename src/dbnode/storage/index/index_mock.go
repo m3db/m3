@@ -100,6 +100,20 @@ func (mr *MockBaseResultsMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockBaseResults)(nil).Size))
 }
 
+// TotalDocsCount mocks base method
+func (m *MockBaseResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockBaseResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockBaseResults)(nil).TotalDocsCount))
+}
+
 // AddDocuments mocks base method
 func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, error) {
 	m.ctrl.T.Helper()
@@ -176,6 +190,20 @@ func (m *MockQueryResults) Size() int {
 func (mr *MockQueryResultsMockRecorder) Size() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockQueryResults)(nil).Size))
+}
+
+// TotalDocsCount mocks base method
+func (m *MockQueryResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockQueryResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockQueryResults)(nil).TotalDocsCount))
 }
 
 // AddDocuments mocks base method
@@ -341,6 +369,20 @@ func (m *MockAggregateResults) Size() int {
 func (mr *MockAggregateResultsMockRecorder) Size() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockAggregateResults)(nil).Size))
+}
+
+// TotalDocsCount mocks base method
+func (m *MockAggregateResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockAggregateResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockAggregateResults)(nil).TotalDocsCount))
 }
 
 // AddDocuments mocks base method

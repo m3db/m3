@@ -59,6 +59,9 @@ func TestResultsInsertInvalid(t *testing.T) {
 	size, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
+
+	require.Equal(t, 0, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
 }
 
 func TestResultsInsertIdempotency(t *testing.T) {
@@ -68,9 +71,27 @@ func TestResultsInsertIdempotency(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
+
 	size, err = res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
+}
+
+func TestResultsInsertBatchOfTwo(t *testing.T) {
+	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+	d1 := doc.Document{ID: []byte("d1")}
+	d2 := doc.Document{ID: []byte("d2")}
+	size, err := res.AddDocuments([]doc.Document{d1, d2})
+	require.NoError(t, err)
+	require.Equal(t, 2, size)
+
+	require.Equal(t, 2, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
 }
 
 func TestResultsFirstInsertWins(t *testing.T) {
@@ -79,6 +100,9 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	size, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
 
 	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
@@ -91,6 +115,9 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	size, err = res.AddDocuments([]doc.Document{d2})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
 
 	tags, ok = res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
@@ -171,6 +198,7 @@ func TestResultsReset(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, 0, tags.Remaining())
 	require.Equal(t, 0, res.Size())
+	require.Equal(t, 0, res.TotalDocsCount())
 }
 
 func TestResultsResetNamespaceClones(t *testing.T) {
@@ -206,6 +234,7 @@ func TestFinalize(t *testing.T) {
 	tags, ok = res.Map().Get(ident.StringID("abc"))
 	require.False(t, ok)
 	require.Equal(t, 0, res.Size())
+	require.Equal(t, 0, res.TotalDocsCount())
 
 	for _, entry := range res.Map().Iter() {
 		id, _ := entry.Key(), entry.Value()
