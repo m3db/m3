@@ -67,7 +67,8 @@ var (
 )
 
 const (
-	epsilon = 0.000001 // Relative error allowed for sample values.
+	epsilon      = 0.000001            // Relative error allowed for sample values.
+	startingTime = 1587393285000000000 // 2020-04-20 17:34:45
 )
 
 var testStartTime = time.Unix(0, 0).UTC()
@@ -308,7 +309,7 @@ func (cmd *loadCmd) append() error {
 
 	for h, smpls := range cmd.defs {
 		m := cmd.metrics[h]
-		start := time.Unix(0, 0)
+		start := time.Unix(0, startingTime)
 
 		ser := cparser.Series{
 			Tags:       make(cparser.Tags, 0, len(m)),
@@ -509,7 +510,7 @@ func (t *Test) exec(tc testCommand) error {
 			return err
 		}
 
-		t := time.Unix(0, cmd.start.Unix()*1000000000)
+		t := time.Unix(0, startingTime+(cmd.start.Unix()*1000000000))
 		bodyBytes, err := cmd.m3query.query(expr.String(), t)
 		if err != nil {
 			if cmd.fail {
