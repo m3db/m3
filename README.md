@@ -17,6 +17,10 @@ More information:
 M3 contributors and maintainers have monthly (every four weeks) meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
 [https://www.meetup.com/M3-Community/](https://www.meetup.com/M3-Community/).
 
+## Office Hours
+
+Members of the M3 team will hold office hours on the third Thursday of every month from 11-1pm EST. In order to join, make sure to sign up for a slot here: https://calendly.com/chronosphere-intro/m3-community-office-hours.
+
 ## Test it out
 
 The easiest way to testing out M3 is to follow one of the guides from the documentation. For a fully comprehensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/).
