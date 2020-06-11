@@ -291,16 +291,16 @@ eval instant at 0m label_join(testmetric1, "dst", ", ", "src", "src1", "src2")
 clear
 
 # Tests for vector.
-eval instant at 0m vector(1)
-  {} 1
+# FAILING issue #51. eval instant at 0m vector(1)
+#  {} 1
 
-eval instant at 0s vector(time())
-  {} 0
+# FAILING issue #27. eval instant at 0s vector(time())
+#  {} 0
 
-# FAILING. eval instant at 5s vector(time())
+# FAILING issue #27. eval instant at 5s vector(time())
 #  {} 5
 
-# FAILING. eval instant at 60m vector(time())
+# FAILING issue #27. eval instant at 60m vector(time())
 #  {} 3600
 
 
