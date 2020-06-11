@@ -25,6 +25,8 @@ import (
 	"net/http"
 	"time"
 
+	xhttp "github.com/m3db/m3/src/x/net/http"
+
 	jsoniter "github.com/json-iterator/go"
 	promql "github.com/prometheus/prometheus/promql/parser"
 	promstorage "github.com/prometheus/prometheus/storage"
@@ -100,7 +102,7 @@ func respond(w http.ResponseWriter, data interface{}, warnings promstorage.Warni
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	w.Write(b)
 }
@@ -117,7 +119,7 @@ func respondError(w http.ResponseWriter, err error, code int) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	w.WriteHeader(code)
 	w.Write(b)
 }
