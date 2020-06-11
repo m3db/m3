@@ -68,9 +68,6 @@ func TestValidateTrackerInputs(t *testing.T) {
 }
 
 func TestEmitQueryStatsBasedMetrics(t *testing.T) {
-	scope := tally.NewTestScope("", nil)
-	opts := instrument.NewOptions().SetMetricsScope(scope)
-
 	for _, test := range []struct {
 		name   string
 		config QueryStatsConfig
@@ -79,6 +76,9 @@ func TestEmitQueryStatsBasedMetrics(t *testing.T) {
 		{"metrics and limits", DefaultQueryStatsConfigForMetricsAndLimits(1000, time.Second)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			scope := tally.NewTestScope("", nil)
+			opts := instrument.NewOptions().SetMetricsScope(scope)
+
 			tracker, err := DefaultQueryStatsTracker(opts, test.config)
 			require.NoError(t, err)
 
@@ -97,15 +97,46 @@ func TestLimitMaxDocs(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	opts := instrument.NewOptions().SetMetricsScope(scope)
 
+	maxDocs := int64(100)
+
 	for _, test := range []struct {
-		name   string
-		config QueryStatsConfig
+		name             string
+		config           QueryStatsConfig
+		expectLimitError bool
 	}{
-		{"metrics only", DefaultQueryStatsConfigForMetrics()},
-		{"metrics and limits", DefaultQueryStatsConfigForMetricsAndLimits(1000, time.Second)},
+		{"metrics only", DefaultQueryStatsConfigForMetrics(), false},
+		{"metrics and limits", DefaultQueryStatsConfigForMetricsAndLimits(maxDocs, time.Second), true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := DefaultQueryStatsTracker(opts, test.config)
+			tracker, err := DefaultQueryStatsTracker(opts, test.config)
+			require.NoError(t, err)
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1})
+			if test.expectLimitError {
+				require.Error(t, err)
+				require.Equal(t, "query was aborted due to too many recent docs queried (101)", err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs - 1})
+			require.NoError(t, err)
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: 0})
+			require.NoError(t, err)
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1})
+			if test.expectLimitError {
+				require.Error(t, err)
+				require.Equal(t, "query was aborted due to too many recent docs queried (101)", err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs - 1})
+			require.NoError(t, err)
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: 0})
 			require.NoError(t, err)
 		})
 	}
