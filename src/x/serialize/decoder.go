@@ -241,4 +241,5 @@ func (d *decoder) Duplicate() ident.TagIterator {
 func (d *decoder) Rewind() {
 	d.checkedData.IncRef()
 	d.Reset(d.checkedData)
+	d.checkedData.DecRef()
 }

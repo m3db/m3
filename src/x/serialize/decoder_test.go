@@ -159,7 +159,9 @@ func TestDecodeAfterRewind(t *testing.T) {
 	assert.Equal(t, exBytes, acBytes)
 	assert.Equal(t, string(exBytes), string(acBytes))
 
+	assert.Equal(t, 1, b.NumRef())
 	d.Close()
+	assert.Equal(t, 0, b.NumRef())
 }
 
 func TestDecodeTooManyTags(t *testing.T) {

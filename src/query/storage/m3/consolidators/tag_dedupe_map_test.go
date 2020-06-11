@@ -36,7 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func varifyDedupeMap(
+func verifyDedupeMap(
 	t *testing.T,
 	dedupeMap fetchDedupeMap,
 	expected ...ts.Datapoint,
@@ -116,7 +116,7 @@ func TestTagDedupeMap(t *testing.T) {
 
 	dedupeMap.add(it(ctrl, dp{t: start, val: 14},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	varifyDedupeMap(t, dedupeMap, ts.Datapoint{Timestamp: start, Value: 14})
+	verifyDedupeMap(t, dedupeMap, ts.Datapoint{Timestamp: start, Value: 14})
 
 	// Lower resolution must override.
 	attrs.Resolution = time.Minute
@@ -125,7 +125,7 @@ func TestTagDedupeMap(t *testing.T) {
 	dedupeMap.add(it(ctrl, dp{t: start.Add(time.Minute * 2), val: 12},
 		"id2", "foo", "bar", "qux", "quail"), attrs)
 
-	varifyDedupeMap(t, dedupeMap,
+	verifyDedupeMap(t, dedupeMap,
 		ts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10},
 		ts.Datapoint{Timestamp: start.Add(time.Minute * 2), Value: 12})
 
@@ -133,7 +133,7 @@ func TestTagDedupeMap(t *testing.T) {
 	attrs.Resolution = time.Second
 	dedupeMap.add(it(ctrl, dp{t: start, val: 100},
 		"id1", "foo", "bar", "qux", "quail"), attrs)
-	varifyDedupeMap(t, dedupeMap, ts.Datapoint{Timestamp: start, Value: 100})
+	verifyDedupeMap(t, dedupeMap, ts.Datapoint{Timestamp: start, Value: 100})
 
 	for _, it := range dedupeMap.list() {
 		iter := it.iter
