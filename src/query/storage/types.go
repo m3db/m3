@@ -114,6 +114,8 @@ type FetchOptions struct {
 	Remote bool
 	// Limit is the maximum number of series to return.
 	Limit int
+	// RequireExhaustive results in an error if the query exceeds the series limit.
+	RequireExhaustive bool
 	// BlockType is the block type that the fetch function returns.
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.

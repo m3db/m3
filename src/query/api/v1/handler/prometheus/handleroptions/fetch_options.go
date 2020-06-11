@@ -55,7 +55,8 @@ type FetchOptionsBuilder interface {
 // FetchOptionsBuilderOptions provides options to use when creating a
 // fetch options builder.
 type FetchOptionsBuilderOptions struct {
-	Limit int
+	Limit             int
+	RequireExhaustive bool
 }
 
 type fetchOptionsBuilder struct {

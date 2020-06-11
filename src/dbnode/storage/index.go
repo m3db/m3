@@ -1210,9 +1210,32 @@ func (i *nsIndex) query(
 	exhaustive, err := i.queryWithSpan(ctx, query, results, opts, execBlockFn, sp, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
+
+		if exhaustive {
+			i.metrics.queryExhaustiveInternalError.Inc(1)
+		} else {
+			i.metrics.queryNonExhaustiveInternalError.Inc(1)
+		}
+		return exhaustive, err
 	}
 
-	return exhaustive, err
+	if exhaustive {
+		i.metrics.queryExhaustiveSuccess.Inc(1)
+		return exhaustive, nil
+	}
+
+	// If require exhaustive but not, return error.
+	if opts.RequireExhaustive {
+		i.metrics.queryNonExhaustiveLimitError.Inc(1)
+		return exhaustive, fmt.Errorf("query matched too many time series: require_exhaustive=%v, limit=%d, matched=%d",
+			opts.RequireExhaustive,
+			opts.Limit,
+			results.Size())
+	}
+
+	// Otherwise non-exhaustive but not required to be.
+	i.metrics.queryNonExhaustiveSuccess.Inc(1)
+	return exhaustive, nil
 }
 
 func (i *nsIndex) queryWithSpan(
@@ -1370,7 +1393,6 @@ func (i *nsIndex) queryWithSpan(
 	if err != nil {
 		return false, err
 	}
-
 	return exhaustive, nil
 }
 
@@ -1847,7 +1869,12 @@ type nsIndexMetrics struct {
 	blocksEvictedMutableSegments tally.Counter
 	blockMetrics                 nsIndexBlocksMetrics
 
-	loadedDocsPerQuery tally.Histogram
+	loadedDocsPerQuery              tally.Histogram
+	queryExhaustiveSuccess          tally.Counter
+	queryExhaustiveInternalError    tally.Counter
+	queryNonExhaustiveSuccess       tally.Counter
+	queryNonExhaustiveInternalError tally.Counter
+	queryNonExhaustiveLimitError    tally.Counter
 }
 
 func newNamespaceIndexMetrics(
@@ -1897,6 +1924,26 @@ func newNamespaceIndexMetrics(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),
 		),
+		queryExhaustiveSuccess: scope.Tagged(map[string]string{
+			"exhaustive": "true",
+			"result":     "success",
+		}).Counter("query"),
+		queryExhaustiveInternalError: scope.Tagged(map[string]string{
+			"exhaustive": "true",
+			"result":     "error_internal",
+		}).Counter("query"),
+		queryNonExhaustiveSuccess: scope.Tagged(map[string]string{
+			"exhaustive": "false",
+			"result":     "success",
+		}).Counter("query"),
+		queryNonExhaustiveInternalError: scope.Tagged(map[string]string{
+			"exhaustive": "false",
+			"result":     "error_internal",
+		}).Counter("query"),
+		queryNonExhaustiveLimitError: scope.Tagged(map[string]string{
+			"exhaustive": "false",
+			"result":     "error_require_exhaustive",
+		}).Counter("query"),
 	}
 }
 

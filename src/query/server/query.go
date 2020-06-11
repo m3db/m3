@@ -278,6 +278,7 @@ func Run(runOpts RunOptions) {
 		fetchOptsBuilder    = handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
 		queryCtxOpts        = models.QueryContextOptions{
 			LimitMaxTimeseries: fetchOptsBuilderCfg.Limit,
+			RequireExhaustive:  fetchOptsBuilderCfg.RequireExhaustive,
 		}
 
 		matchOptions = queryconsolidators.MatchOptions{

@@ -307,6 +307,9 @@ type PerQueryLimitsConfiguration struct {
 
 	// MaxFetchedSeries limits the number of time series returned by a storage node.
 	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
+
+	// RequireExhaustive results in an error if the query exceeds the series limit.
+	RequireExhaustive bool `yaml:"requireExhaustive"`
 }
 
 // AsLimitManagerOptions converts this configuration to
@@ -320,12 +323,14 @@ func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerO
 func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleroptions.FetchOptionsBuilderOptions {
 	if l.MaxFetchedSeries <= 0 {
 		return handleroptions.FetchOptionsBuilderOptions{
-			Limit: defaultStorageQueryLimit,
+			Limit:             defaultStorageQueryLimit,
+			RequireExhaustive: l.RequireExhaustive,
 		}
 	}
 
 	return handleroptions.FetchOptionsBuilderOptions{
-		Limit: int(l.MaxFetchedSeries),
+		Limit:             int(l.MaxFetchedSeries),
+		RequireExhaustive: l.RequireExhaustive,
 	}
 }
 

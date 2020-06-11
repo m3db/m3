@@ -44,7 +44,9 @@ type QueryContextOptions struct {
 	// LimitMaxTimeseries limits the number of time series returned by each
 	// storage node.
 	LimitMaxTimeseries int
-	RestrictFetchType  *RestrictFetchTypeQueryContextOptions
+	// RequireExhaustive results in an error if the query exceeds the series limit.
+	RequireExhaustive bool
+	RestrictFetchType *RestrictFetchTypeQueryContextOptions
 }
 
 // RestrictFetchTypeQueryContextOptions allows for specifying the
