@@ -409,12 +409,24 @@ func Run(runOpts RunOptions) {
 	defer stopReporting()
 
 	// Setup query stats tracking.
-	var tracker stats.QueryStatsTracker
-	runOpts.Config.Limits.MaxRecentlyQueriedBlocks
-	if runOpts.QueryStatsTrackerFn == nil {
-		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
+	var statsConfig stats.QueryStatsConfig
+	if runOpts.Config.Limits.MaxRecentlyQueriedBlocks == nil {
+		statsConfig = stats.DefaultQueryStatsConfigForMetrics()
 	} else {
-		tracker = runOpts.QueryStatsTrackerFn(iopts)
+		maxQueriedBlocks := runOpts.Config.Limits.MaxRecentlyQueriedBlocks
+		statsConfig = stats.DefaultQueryStatsConfigForMetricsAndLimits(
+			maxQueriedBlocks.Max,
+			maxQueriedBlocks.Lookback,
+		)
+	}
+	var tracker stats.QueryStatsTracker
+	if runOpts.QueryStatsTrackerFn == nil {
+		tracker, err = stats.DefaultQueryStatsTracker(iopts, statsConfig)
+		if err != nil {
+			logger.Fatal("could not construct query stats tracker from config", zap.Error(err))
+		}
+	} else {
+		tracker = runOpts.QueryStatsTrackerFn(iopts, statsConfig)
 	}
 	queryStats := stats.NewQueryStats(tracker)
 	queryStats.Start()

@@ -50,6 +50,6 @@ type Limits struct {
 // MaxRecentlyQueriedBlocks controls the max blocks being queried within a given
 // lookback period. Queries which are issued while this max is surpassed are abandonded.
 type MaxRecentlyQueriedBlocks struct {
-	Max      int           `yaml:"max" validate:"min=0"`
+	Max      int64         `yaml:"max" validate:"min=0"`
 	Lookback time.Duration `yaml:"lookback"`
 }
