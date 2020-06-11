@@ -305,16 +305,16 @@ func (cmd *loadCmd) set(m labels.Labels, vals ...parser.SequenceValue) {
 
 // append the defined time series to the storage.
 func (cmd *loadCmd) append() error {
-	series := make([]cparser.Series, 0, 10)
+	series := make([]cparser.Series, 0, len(cmd.defs))
 
 	for h, smpls := range cmd.defs {
 		m := cmd.metrics[h]
 		start := time.Unix(0, startingTime)
 
 		ser := cparser.Series{
-			Tags:       make(cparser.Tags, 0, 1),
+			Tags:       make(cparser.Tags, 0, len(m)),
 			Start:      start,
-			Datapoints: cparser.Datapoints{},
+			Datapoints: make(cparser.Datapoints, 0, len(smpls)),
 		}
 		for _, l := range m {
 			ser.Tags = append(ser.Tags, cparser.NewTag(l.Name, l.Value))
@@ -410,6 +410,7 @@ func hash(ls model.Metric) uint64 {
 	return lbs.Hash()
 }
 
+// QueryResponse defines a structure for expected response.
 type QueryResponse struct {
 	Status string
 	Data   struct {
@@ -501,9 +502,7 @@ func (t *Test) exec(tc testCommand) error {
 		return t.clear()
 
 	case *loadCmd:
-		if err := cmd.append(); err != nil {
-			return err
-		}
+		return cmd.append()
 
 	case *evalCmd:
 		expr, err := parser.ParseExpr(cmd.expr)

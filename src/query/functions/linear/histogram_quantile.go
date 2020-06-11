@@ -168,23 +168,23 @@ func gatherSeriesToBuckets(metas []block.SeriesMeta) validSeriesBuckets {
 
 		excludeTags := [][]byte{tags.Opts.MetricName(), tags.Opts.BucketName()}
 		tagsWithoutKeys := tags.TagsWithoutKeys(excludeTags)
-		id := tagsWithoutKeys.ID()
+		id := string(tagsWithoutKeys.ID())
 		newBucket := indexedBucket{
 			upperBound: bound,
 			idx:        i,
 		}
 
-		if buckets, found := bucketsForID[string(id)]; !found {
+		if buckets, found := bucketsForID[id]; !found {
 			// add a single indexed bucket for this ID with the current index only.
 			newBuckets := make([]indexedBucket, 0, initIndexBucketLength)
 			newBuckets = append(newBuckets, newBucket)
-			bucketsForID[string(id)] = indexedBuckets{
+			bucketsForID[id] = indexedBuckets{
 				buckets: newBuckets,
 				tags:    tagsWithoutKeys,
 			}
 		} else {
 			buckets.buckets = append(buckets.buckets, newBucket)
-			bucketsForID[string(id)] = buckets
+			bucketsForID[id] = buckets
 		}
 	}
 
@@ -316,6 +316,20 @@ func setupBuilder(
 	return builder, nil
 }
 
+// Enforce monotonicity for binary search to work.
+// See https://github.com/prometheus/prometheus/commit/896f951e6846ce252d9d19fd4707a4110ceda5ee
+func ensureMonotonic(bucketValues []bucketValue) {
+	max := math.Inf(-1)
+	for i := range bucketValues {
+		switch {
+		case bucketValues[i].value >= max:
+			max = bucketValues[i].value
+		case bucketValues[i].value < max:
+			bucketValues[i].value = max
+		}
+	}
+}
+
 func processValidQuantile(
 	queryCtx *models.QueryContext,
 	q float64,
@@ -351,6 +365,8 @@ func processValidQuantile(
 					)
 				}
 			}
+
+			ensureMonotonic(bucketValues)
 
 			aggregatedValues = append(aggregatedValues, bucketQuantile(q, bucketValues))
 		}

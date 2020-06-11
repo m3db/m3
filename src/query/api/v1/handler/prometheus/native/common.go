@@ -391,6 +391,7 @@ func RenderResultsJSON(
 func renderResultsInstantaneousJSON(
 	w io.Writer,
 	result ReadResult,
+	keepNaNs bool,
 ) {
 	var (
 		series   = result.Series
@@ -422,6 +423,15 @@ func renderResultsInstantaneousJSON(
 	jw.BeginObjectField("result")
 	jw.BeginArray()
 	for _, s := range series {
+		vals := s.Values()
+		length := s.Len()
+		dp := vals.DatapointAt(length - 1)
+
+		// If keepNaNs is set to false and the value is NaN, drop it from the response.
+		if !keepNaNs && math.IsNaN(dp.Value) {
+			continue
+		}
+
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
@@ -432,9 +442,6 @@ func renderResultsInstantaneousJSON(
 		jw.EndObject()
 
 		jw.BeginObjectField("value")
-		vals := s.Values()
-		length := s.Len()
-		dp := vals.DatapointAt(length - 1)
 
 		onlynans := true
 		for a := 0; a < length; a++ {

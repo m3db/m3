@@ -65,10 +65,10 @@ func (c *m3comparatorClient) load(data []byte) error {
 		return nil
 	}
 
-	var bodyString string
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err == nil {
-		bodyString = string(bodyBytes)
+	if err != nil {
+		return fmt.Errorf("load status code %d. Error: %v", resp.StatusCode, err)
 	}
-	return fmt.Errorf("load status code %d. Response: %s, Error: %v", resp.StatusCode, bodyString, err)
+
+	return fmt.Errorf("load status code %d. Response: %s", resp.StatusCode, string(bodyBytes))
 }

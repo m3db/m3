@@ -126,6 +126,9 @@ type BaseResults interface {
 	// Size returns the number of IDs tracked.
 	Size() int
 
+	// TotalDocsCount returns the total number of documents observed.
+	TotalDocsCount() int
+
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.
