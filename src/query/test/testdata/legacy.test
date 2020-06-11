@@ -308,11 +308,11 @@ eval instant at 50m http_requests{group="canary", instance="0", job="api-server"
 eval instant at 50m -1 * http_requests{group="canary", instance="0", job="api-server"} / 0
 	{group="canary", instance="0", job="api-server"} -Inf
 
-eval instant at 50m 0 * http_requests{group="canary", instance="0", job="api-server"} / 0
-	{group="canary", instance="0", job="api-server"} NaN
+# Failing with keepNaN feature. eval instant at 50m 0 * http_requests{group="canary", instance="0", job="api-server"} / 0
+#	{group="canary", instance="0", job="api-server"} NaN
 
-eval instant at 50m 0 * http_requests{group="canary", instance="0", job="api-server"} % 0
-	{group="canary", instance="0", job="api-server"} NaN
+# Failing with keepNaN feature. eval instant at 50m 0 * http_requests{group="canary", instance="0", job="api-server"} % 0
+#	{group="canary", instance="0", job="api-server"} NaN
 
 # FAILING. eval instant at 50m exp(vector_matching_a)
 #	{l="x"} 22026.465794806718

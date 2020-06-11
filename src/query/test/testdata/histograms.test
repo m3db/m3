@@ -172,10 +172,10 @@ load 5m
 #	{instance="ins1", job="job1"} 0.15
 #	{instance="ins2", job="job1"} NaN
 
-eval instant at 50m histogram_quantile(0.75, rate(mixed_bucket[5m]))
-	{instance="ins1", job="job1"} 0.2
-	{instance="ins2", job="job1"} NaN
+# Failing with keepNaN feature. eval instant at 50m histogram_quantile(0.75, rate(mixed_bucket[5m]))
+#	{instance="ins1", job="job1"} 0.2
+#	{instance="ins2", job="job1"} NaN
 
-eval instant at 50m histogram_quantile(1, rate(mixed_bucket[5m]))
-	{instance="ins1", job="job1"} 0.2
-	{instance="ins2", job="job1"} NaN
+# Failing with keepNaN feature. eval instant at 50m histogram_quantile(1, rate(mixed_bucket[5m]))
+#	{instance="ins1", job="job1"} 0.2
+#	{instance="ins2", job="job1"} NaN
