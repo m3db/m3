@@ -59,7 +59,7 @@ func WriteJSONResponse(w http.ResponseWriter, data interface{}, logger *zap.Logg
 		return
 	}
 
-	w.Header().Set(HeaderContentType, "application/json")
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
 	w.Write(jsonData)
 }
 
@@ -68,7 +68,7 @@ func WriteJSONResponse(w http.ResponseWriter, data interface{}, logger *zap.Logg
 func WriteProtoMsgJSONResponse(w http.ResponseWriter, data proto.Message, logger *zap.Logger) {
 	marshaler := jsonpb.Marshaler{EmitDefaults: true}
 
-	w.Header().Set(HeaderContentType, "application/json")
+	w.Header().Set(HeaderContentType, ContentTypeJSON)
 	err := marshaler.Marshal(w, data)
 	if err != nil {
 		logger.Error("unable to marshal json", zap.Error(err))
