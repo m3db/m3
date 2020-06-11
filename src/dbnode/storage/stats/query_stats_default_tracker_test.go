@@ -35,25 +35,20 @@ func TestValidateTrackerInputs(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	opts := instrument.NewOptions().SetMetricsScope(scope)
 
-	validMax := int64(1)
-	negativeMax := int64(-1)
-	zeroMax := int64(0)
-
 	for _, test := range []struct {
 		name          string
-		maxDocs       *int64
+		maxDocs       int64
 		lookback      time.Duration
 		expectedError string
 	}{
-		{"valid lookback without limit", nil, time.Millisecond, ""},
-		{"valid lookback with valid limit", &validMax, time.Millisecond, ""},
-		{"negative lookback", nil, -time.Millisecond, "query stats tracker requires lookback > 0 (-1000000)"},
-		{"zero lookback", nil, time.Duration(0), "query stats tracker requires lookback > 0 (0)"},
-		{"negative max", &negativeMax, time.Millisecond, "query stats tracker requires max docs > 0 if not nil (-1)"},
-		{"zero max", &zeroMax, time.Millisecond, "query stats tracker requires max docs > 0 if not nil (0)"},
+		{"valid lookback without limit", 0, time.Millisecond, ""},
+		{"valid lookback with valid limit", 1, time.Millisecond, ""},
+		{"negative lookback", 0, -time.Millisecond, "query stats tracker requires lookback > 0 (-1000000)"},
+		{"zero lookback", 0, time.Duration(0), "query stats tracker requires lookback > 0 (0)"},
+		{"negative max", -1, time.Millisecond, "query stats tracker requires max docs >= 0 (-1)"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := DefaultQueryStatsTracker(opts, QueryStatsConfig{
+			_, err := DefaultQueryStatsTracker(opts, QueryStatsOptions{
 				MaxDocs:  test.maxDocs,
 				Lookback: test.lookback,
 			})
@@ -69,17 +64,22 @@ func TestValidateTrackerInputs(t *testing.T) {
 
 func TestEmitQueryStatsBasedMetrics(t *testing.T) {
 	for _, test := range []struct {
-		name   string
-		config QueryStatsConfig
+		name string
+		opts QueryStatsOptions
 	}{
-		{"metrics only", DefaultQueryStatsConfigForMetrics()},
-		{"metrics and limits", DefaultQueryStatsConfigForMetricsAndLimits(1000, time.Second)},
+		{"metrics only", QueryStatsOptions{
+			Lookback: time.Second,
+		}},
+		{"metrics and limits", QueryStatsOptions{
+			MaxDocs:  1000,
+			Lookback: time.Second,
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			scope := tally.NewTestScope("", nil)
 			opts := instrument.NewOptions().SetMetricsScope(scope)
 
-			tracker, err := DefaultQueryStatsTracker(opts, test.config)
+			tracker, err := DefaultQueryStatsTracker(opts, test.opts)
 			require.NoError(t, err)
 
 			err = tracker.TrackStats(QueryStatsValues{RecentDocs: 100, NewDocs: 5})
@@ -101,14 +101,19 @@ func TestLimitMaxDocs(t *testing.T) {
 
 	for _, test := range []struct {
 		name             string
-		config           QueryStatsConfig
+		opts             QueryStatsOptions
 		expectLimitError bool
 	}{
-		{"metrics only", DefaultQueryStatsConfigForMetrics(), false},
-		{"metrics and limits", DefaultQueryStatsConfigForMetricsAndLimits(maxDocs, time.Second), true},
+		{"metrics only", QueryStatsOptions{
+			Lookback: time.Second,
+		}, false},
+		{"metrics and limits", QueryStatsOptions{
+			MaxDocs:  100,
+			Lookback: time.Second,
+		}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			tracker, err := DefaultQueryStatsTracker(opts, test.config)
+			tracker, err := DefaultQueryStatsTracker(opts, test.opts)
 			require.NoError(t, err)
 
 			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1})
