@@ -89,9 +89,10 @@ func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 // FetchOptionsToM3Options converts a set of coordinator options to M3 options.
 func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery) index.QueryOptions {
 	return index.QueryOptions{
-		Limit:          fetchOptions.Limit,
-		StartInclusive: fetchQuery.Start,
-		EndExclusive:   fetchQuery.End,
+		Limit:             fetchOptions.Limit,
+		RequireExhaustive: fetchOptions.RequireExhaustive,
+		StartInclusive:    fetchQuery.Start,
+		EndExclusive:      fetchQuery.End,
 	}
 }
 
