@@ -232,7 +232,7 @@ func (p *parseState) walk(node pql.Node) error {
 		if n.Func.Name == scalar.VectorType {
 			if len(n.Args) != 1 {
 				return fmt.Errorf(
-					"scalar() operation must be called with 1 argument, got %d",
+					"vector() operation must be called with 1 argument, got %d",
 					len(n.Args),
 				)
 			}
