@@ -21,6 +21,7 @@
 package stats
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -31,31 +32,71 @@ import (
 const defaultLookback = time.Second * 5
 
 // Tracker implementation that emits query stats as metrics.
-type queryStatsMetricsTracker struct {
+type queryStatsTracker struct {
 	recentDocs tally.Gauge
 	totalDocs  tally.Counter
+
+	config QueryStatsConfig
 }
 
-var _ QueryStatsTracker = (*queryStatsMetricsTracker)(nil)
+var _ QueryStatsTracker = (*queryStatsTracker)(nil)
 
-// DefaultQueryStatsTrackerForMetrics provides a tracker
-// implementation that emits query stats as metrics.
-func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTracker {
-	scope := opts.
-		MetricsScope().
-		SubScope("query-stats")
-	return &queryStatsMetricsTracker{
-		recentDocs: scope.Gauge("recent-docs-per-block"),
-		totalDocs:  scope.Counter("total-docs-per-block"),
+// DefaultQueryStatsConfigForMetrics returns a default
+// config for tracking query stats as metrics.
+func DefaultQueryStatsConfigForMetrics() QueryStatsConfig {
+	return QueryStatsConfig{
+		MaxDocs:  nil,
+		Lookback: defaultLookback,
 	}
 }
 
-func (t *queryStatsMetricsTracker) TrackStats(values QueryStatsValues) error {
+// DefaultQueryStatsConfigForMetricsAndLimits returns a
+// default config for tracking query stats as metrics.
+func DefaultQueryStatsConfigForMetricsAndLimits(
+	maxDocs int64,
+	lookback time.Duration,
+) QueryStatsConfig {
+	return QueryStatsConfig{
+		MaxDocs:  &maxDocs,
+		Lookback: lookback,
+	}
+}
+
+// DefaultQueryStatsTracker provides a tracker
+// implementation that emits query stats as metrics
+// and enforces limits.
+func DefaultQueryStatsTracker(
+	opts instrument.Options,
+	config QueryStatsConfig,
+) (QueryStatsTracker, error) {
+	if config.MaxDocs != nil && *config.MaxDocs <= 0 {
+		return nil, fmt.Errorf("query stats tracker requires max docs > 0 if not nil (%d)", *config.MaxDocs)
+	}
+	if config.Lookback <= 0 {
+		return nil, fmt.Errorf("query stats tracker requires lookback > 0 (%d)", config.Lookback)
+	}
+	scope := opts.
+		MetricsScope().
+		SubScope("query-stats")
+	return &queryStatsTracker{
+		config:     config,
+		recentDocs: scope.Gauge("recent-docs-per-block"),
+		totalDocs:  scope.Counter("total-docs-per-block"),
+	}, nil
+}
+
+func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
+	// Track stats as metrics.
 	t.recentDocs.Update(float64(values.RecentDocs))
 	t.totalDocs.Inc(values.NewDocs)
+
+	// Enforce max queried docs (if specified).
+	if t.config.MaxDocs != nil && values.RecentDocs > *t.config.MaxDocs {
+		return fmt.Errorf("query was aborted due to too many recent docs queried (%d)", values.RecentDocs)
+	}
 	return nil
 }
 
-func (t *queryStatsMetricsTracker) Lookback() time.Duration {
-	return defaultLookback
+func (t *queryStatsTracker) Lookback() time.Duration {
+	return t.config.Lookback
 }

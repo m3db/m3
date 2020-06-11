@@ -20,6 +20,8 @@
 
 package config
 
+import "time"
+
 // Limits contains configuration for configurable limits that can be applied to M3DB.
 type Limits struct {
 	// MaxOutstandingWriteRequests controls the maximum number of outstanding write requests
@@ -39,4 +41,15 @@ type Limits struct {
 	// process would pause until some of the repaired bytes had been persisted to disk (and subsequently
 	// evicted from memory) at which point it would resume.
 	MaxOutstandingRepairedBytes int64 `yaml:"maxOutstandingRepairedBytes" validate:"min=0"`
+
+	// MaxRecentlyQueriedBlocks controls the max blocks being queried within a given
+	// lookback period. Queries which are issued while this max is surpassed are abandonded.
+	MaxRecentlyQueriedBlocks *MaxRecentlyQueriedBlocks `yaml:"maxRecentlyQueriedBlocks"`
+}
+
+// MaxRecentlyQueriedBlocks controls the max blocks being queried within a given
+// lookback period. Queries which are issued while this max is surpassed are abandonded.
+type MaxRecentlyQueriedBlocks struct {
+	Max      int           `yaml:"max" validate:"min=0"`
+	Lookback time.Duration `yaml:"lookback"`
 }

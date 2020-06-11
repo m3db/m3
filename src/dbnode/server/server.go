@@ -138,7 +138,7 @@ type RunOptions struct {
 	InterruptCh <-chan error
 
 	// QueryStatsTrackerFn returns a tracker for tracking query stats.
-	QueryStatsTrackerFn func(instrument.Options) stats.QueryStatsTracker
+	QueryStatsTrackerFn func(opts instrument.Options, config stats.QueryStatsConfig) stats.QueryStatsTracker
 
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
@@ -410,6 +410,7 @@ func Run(runOpts RunOptions) {
 
 	// Setup query stats tracking.
 	var tracker stats.QueryStatsTracker
+	runOpts.Config.Limits.MaxRecentlyQueriedBlocks
 	if runOpts.QueryStatsTrackerFn == nil {
 		tracker = stats.DefaultQueryStatsTrackerForMetrics(iopts)
 	} else {
