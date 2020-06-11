@@ -49,11 +49,11 @@ type QueryStats interface {
 	Stop()
 }
 
-// QueryStatsConfig holds configuration for how a tracker should handle query stats.
-type QueryStatsConfig struct {
+// QueryStatsOptions holds options for how a tracker should handle query stats.
+type QueryStatsOptions struct {
 	// MaxDocs limits how many recently queried max
 	// documents are allowed before queries are abandoned.
-	MaxDocs *int64
+	MaxDocs int64
 	// Lookback specifies the lookback period over which stats are aggregated.
 	Lookback time.Duration
 }

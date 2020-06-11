@@ -29,57 +29,36 @@ import (
 	"github.com/uber-go/tally"
 )
 
-const defaultLookback = time.Second * 5
+const DefaultLookback = time.Second * 5
 
 // Tracker implementation that emits query stats as metrics.
 type queryStatsTracker struct {
 	recentDocs tally.Gauge
 	totalDocs  tally.Counter
 
-	config QueryStatsConfig
+	options QueryStatsOptions
 }
 
 var _ QueryStatsTracker = (*queryStatsTracker)(nil)
-
-// DefaultQueryStatsConfigForMetrics returns a default
-// config for tracking query stats as metrics.
-func DefaultQueryStatsConfigForMetrics() QueryStatsConfig {
-	return QueryStatsConfig{
-		MaxDocs:  nil,
-		Lookback: defaultLookback,
-	}
-}
-
-// DefaultQueryStatsConfigForMetricsAndLimits returns a
-// default config for tracking query stats as metrics.
-func DefaultQueryStatsConfigForMetricsAndLimits(
-	maxDocs int64,
-	lookback time.Duration,
-) QueryStatsConfig {
-	return QueryStatsConfig{
-		MaxDocs:  &maxDocs,
-		Lookback: lookback,
-	}
-}
 
 // DefaultQueryStatsTracker provides a tracker
 // implementation that emits query stats as metrics
 // and enforces limits.
 func DefaultQueryStatsTracker(
-	opts instrument.Options,
-	config QueryStatsConfig,
+	instrumentOpts instrument.Options,
+	queryStatsOpts QueryStatsOptions,
 ) (QueryStatsTracker, error) {
-	if config.MaxDocs != nil && *config.MaxDocs <= 0 {
-		return nil, fmt.Errorf("query stats tracker requires max docs > 0 if not nil (%d)", *config.MaxDocs)
+	if queryStatsOpts.MaxDocs < 0 {
+		return nil, fmt.Errorf("query stats tracker requires max docs >= 0 (%d)", queryStatsOpts.MaxDocs)
 	}
-	if config.Lookback <= 0 {
-		return nil, fmt.Errorf("query stats tracker requires lookback > 0 (%d)", config.Lookback)
+	if queryStatsOpts.Lookback <= 0 {
+		return nil, fmt.Errorf("query stats tracker requires lookback > 0 (%d)", queryStatsOpts.Lookback)
 	}
-	scope := opts.
+	scope := instrumentOpts.
 		MetricsScope().
 		SubScope("query-stats")
 	return &queryStatsTracker{
-		config:     config,
+		options:    queryStatsOpts,
 		recentDocs: scope.Gauge("recent-docs-per-block"),
 		totalDocs:  scope.Counter("total-docs-per-block"),
 	}, nil
@@ -91,12 +70,12 @@ func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
 	t.totalDocs.Inc(values.NewDocs)
 
 	// Enforce max queried docs (if specified).
-	if t.config.MaxDocs != nil && values.RecentDocs > *t.config.MaxDocs {
+	if t.options.MaxDocs != 0 && values.RecentDocs > t.options.MaxDocs {
 		return fmt.Errorf("query was aborted due to too many recent docs queried (%d)", values.RecentDocs)
 	}
 	return nil
 }
 
 func (t *queryStatsTracker) Lookback() time.Duration {
-	return t.config.Lookback
+	return t.options.Lookback
 }

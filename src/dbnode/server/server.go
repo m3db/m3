@@ -138,7 +138,7 @@ type RunOptions struct {
 	InterruptCh <-chan error
 
 	// QueryStatsTrackerFn returns a tracker for tracking query stats.
-	QueryStatsTrackerFn func(opts instrument.Options, config stats.QueryStatsConfig) stats.QueryStatsTracker
+	QueryStatsTrackerFn func(instrument.Options, stats.QueryStatsOptions) stats.QueryStatsTracker
 
 	// CustomOptions are custom options to apply to the session.
 	CustomOptions []client.CustomAdminOption
@@ -409,24 +409,26 @@ func Run(runOpts RunOptions) {
 	defer stopReporting()
 
 	// Setup query stats tracking.
-	var statsConfig stats.QueryStatsConfig
+	var statsOpts stats.QueryStatsOptions
 	if runOpts.Config.Limits.MaxRecentlyQueriedBlocks == nil {
-		statsConfig = stats.DefaultQueryStatsConfigForMetrics()
+		statsOpts = stats.QueryStatsOptions{
+			Lookback: stats.DefaultLookback,
+		}
 	} else {
 		maxQueriedBlocks := runOpts.Config.Limits.MaxRecentlyQueriedBlocks
-		statsConfig = stats.DefaultQueryStatsConfigForMetricsAndLimits(
-			maxQueriedBlocks.Max,
-			maxQueriedBlocks.Lookback,
-		)
+		statsOpts = stats.QueryStatsOptions{
+			MaxDocs:  maxQueriedBlocks.Value,
+			Lookback: maxQueriedBlocks.Lookback,
+		}
 	}
 	var tracker stats.QueryStatsTracker
 	if runOpts.QueryStatsTrackerFn == nil {
-		tracker, err = stats.DefaultQueryStatsTracker(iopts, statsConfig)
+		tracker, err = stats.DefaultQueryStatsTracker(iopts, statsOpts)
 		if err != nil {
 			logger.Fatal("could not construct query stats tracker from config", zap.Error(err))
 		}
 	} else {
-		tracker = runOpts.QueryStatsTrackerFn(iopts, statsConfig)
+		tracker = runOpts.QueryStatsTrackerFn(iopts, statsOpts)
 	}
 	queryStats := stats.NewQueryStats(tracker)
 	queryStats.Start()
