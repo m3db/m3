@@ -1371,8 +1371,18 @@ func (i *nsIndex) queryWithSpan(
 		return false, err
 	}
 
-	if !exhaustive && opts.RequireExhaustive {
-		return false, fmt.Errorf("index query requires exhaustive results")
+	if exhaustive {
+		i.metrics.queryExhaustive.Inc(1)
+	} else {
+		i.metrics.queryNonExhaustive.Inc(1)
+
+		if opts.RequireExhaustive {
+			return false, fmt.Errorf("query matched too many time series: require_exhaustive=%v, limit=%d, matched=%d",
+				opts.RequireExhaustive,
+				opts.Limit,
+				results.Size(),
+			)
+		}
 	}
 
 	return exhaustive, nil
@@ -1852,6 +1862,8 @@ type nsIndexMetrics struct {
 	blockMetrics                 nsIndexBlocksMetrics
 
 	loadedDocsPerQuery tally.Histogram
+	queryExhaustive    tally.Counter
+	queryNonExhaustive tally.Counter
 }
 
 func newNamespaceIndexMetrics(
@@ -1901,6 +1913,12 @@ func newNamespaceIndexMetrics(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),
 		),
+		queryExhaustive: scope.Tagged(map[string]string{
+			"exhaustive": "true",
+		}).Counter("query"),
+		queryNonExhaustive: scope.Tagged(map[string]string{
+			"exhaustive": "false",
+		}).Counter("query"),
 	}
 }
 
