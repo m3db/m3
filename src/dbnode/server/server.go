@@ -421,12 +421,12 @@ func Run(runOpts RunOptions) {
 			Lookback: maxQueriedBlocks.Lookback,
 		}
 	}
+	if err := statsOpts.Validate(); err != nil {
+		logger.Fatal("could not construct query stats options from config", zap.Error(err))
+	}
 	var tracker stats.QueryStatsTracker
 	if runOpts.QueryStatsTrackerFn == nil {
-		tracker, err = stats.DefaultQueryStatsTracker(iopts, statsOpts)
-		if err != nil {
-			logger.Fatal("could not construct query stats tracker from config", zap.Error(err))
-		}
+		tracker = stats.DefaultQueryStatsTracker(iopts, statsOpts)
 	} else {
 		tracker = runOpts.QueryStatsTrackerFn(iopts, statsOpts)
 	}

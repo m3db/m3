@@ -32,9 +32,6 @@ import (
 )
 
 func TestValidateTrackerInputs(t *testing.T) {
-	scope := tally.NewTestScope("", nil)
-	opts := instrument.NewOptions().SetMetricsScope(scope)
-
 	for _, test := range []struct {
 		name          string
 		maxDocs       int64
@@ -48,10 +45,10 @@ func TestValidateTrackerInputs(t *testing.T) {
 		{"negative max", -1, time.Millisecond, "query stats tracker requires max docs >= 0 (-1)"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := DefaultQueryStatsTracker(opts, QueryStatsOptions{
+			err := QueryStatsOptions{
 				MaxDocs:  test.maxDocs,
 				Lookback: test.lookback,
-			})
+			}.Validate()
 			if test.expectedError != "" {
 				require.Error(t, err)
 				require.Equal(t, test.expectedError, err.Error())
@@ -79,10 +76,9 @@ func TestEmitQueryStatsBasedMetrics(t *testing.T) {
 			scope := tally.NewTestScope("", nil)
 			opts := instrument.NewOptions().SetMetricsScope(scope)
 
-			tracker, err := DefaultQueryStatsTracker(opts, test.opts)
-			require.NoError(t, err)
+			tracker := DefaultQueryStatsTracker(opts, test.opts)
 
-			err = tracker.TrackStats(QueryStatsValues{RecentDocs: 100, NewDocs: 5})
+			err := tracker.TrackStats(QueryStatsValues{RecentDocs: 100, NewDocs: 5})
 			require.NoError(t, err)
 			verifyMetrics(t, scope, 100, 5)
 
@@ -113,10 +109,9 @@ func TestLimitMaxDocs(t *testing.T) {
 		}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			tracker, err := DefaultQueryStatsTracker(opts, test.opts)
-			require.NoError(t, err)
+			tracker := DefaultQueryStatsTracker(opts, test.opts)
 
-			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1})
+			err := tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1})
 			if test.expectLimitError {
 				require.Error(t, err)
 				require.Equal(t, "query was aborted due to too many recent docs queried (101)", err.Error())

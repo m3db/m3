@@ -29,6 +29,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
+// DefaultLookback is the default lookback used for query stats tracking.
 const DefaultLookback = time.Second * 5
 
 // Tracker implementation that emits query stats as metrics.
@@ -47,13 +48,7 @@ var _ QueryStatsTracker = (*queryStatsTracker)(nil)
 func DefaultQueryStatsTracker(
 	instrumentOpts instrument.Options,
 	queryStatsOpts QueryStatsOptions,
-) (QueryStatsTracker, error) {
-	if queryStatsOpts.MaxDocs < 0 {
-		return nil, fmt.Errorf("query stats tracker requires max docs >= 0 (%d)", queryStatsOpts.MaxDocs)
-	}
-	if queryStatsOpts.Lookback <= 0 {
-		return nil, fmt.Errorf("query stats tracker requires lookback > 0 (%d)", queryStatsOpts.Lookback)
-	}
+) QueryStatsTracker {
 	scope := instrumentOpts.
 		MetricsScope().
 		SubScope("query-stats")
@@ -61,7 +56,7 @@ func DefaultQueryStatsTracker(
 		options:    queryStatsOpts,
 		recentDocs: scope.Gauge("recent-docs-per-block"),
 		totalDocs:  scope.Counter("total-docs-per-block"),
-	}, nil
+	}
 }
 
 func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {

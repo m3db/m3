@@ -21,6 +21,7 @@
 package stats
 
 import (
+	"fmt"
 	"time"
 
 	"go.uber.org/atomic"
@@ -150,4 +151,15 @@ func (q *noOpQueryStats) Stop() {
 }
 
 func (q *noOpQueryStats) Start() {
+}
+
+// Validate returns an error if the query stats options are invalid.
+func (opts QueryStatsOptions) Validate() error {
+	if opts.MaxDocs < 0 {
+		return fmt.Errorf("query stats tracker requires max docs >= 0 (%d)", opts.MaxDocs)
+	}
+	if opts.Lookback <= 0 {
+		return fmt.Errorf("query stats tracker requires lookback > 0 (%d)", opts.Lookback)
+	}
+	return nil
 }
