@@ -55,10 +55,16 @@ func TestAggResultsInsertInvalid(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 
+	require.Equal(t, 0, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
+
 	dInvalid = genDoc("", "foo")
 	size, err = res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
+
+	require.Equal(t, 0, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
 }
 
 func TestAggResultsInsertEmptyTermValue(t *testing.T) {
@@ -67,6 +73,21 @@ func TestAggResultsInsertEmptyTermValue(t *testing.T) {
 	size, err := res.AddDocuments([]doc.Document{dValidEmptyTerm})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
+}
+
+func TestAggResultsInsertBatchOfTwo(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
+	d1 := genDoc("d1", "")
+	d2 := genDoc("d2", "")
+	size, err := res.AddDocuments([]doc.Document{d1, d2})
+	require.NoError(t, err)
+	require.Equal(t, 2, size)
+
+	require.Equal(t, 2, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
 }
 
 func TestAggResultsTermOnlyInsert(t *testing.T) {
@@ -78,15 +99,24 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 
+	require.Equal(t, 0, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
+
 	dInvalid = genDoc("", "foo")
 	size, err = res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
 
+	require.Equal(t, 0, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
+
 	valid := genDoc("foo", "")
 	size, err = res.AddDocuments([]doc.Document{valid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 3, res.TotalDocsCount())
 }
 
 func testAggResultsInsertIdempotency(t *testing.T, res AggregateResults) {
@@ -95,9 +125,15 @@ func testAggResultsInsertIdempotency(t *testing.T, res AggregateResults) {
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
 
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
+
 	size, err = res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
 }
 
 func TestAggResultsInsertIdempotency(t *testing.T) {

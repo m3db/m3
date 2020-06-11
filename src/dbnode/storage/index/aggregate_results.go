@@ -41,7 +41,8 @@ type aggregatedResults struct {
 	nsID          ident.ID
 	aggregateOpts AggregateResultsOptions
 
-	resultsMap *AggregateResultsMap
+	resultsMap     *AggregateResultsMap
+	totalDocsCount int
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
@@ -94,6 +95,7 @@ func (r *aggregatedResults) Reset(
 
 	// reset all keys in the map next
 	r.resultsMap.Reset()
+	r.totalDocsCount = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
@@ -104,6 +106,7 @@ func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
+	r.totalDocsCount += len(batch)
 	r.Unlock()
 	return size, err
 }
@@ -296,6 +299,13 @@ func (r *aggregatedResults) Size() int {
 	l := r.resultsMap.Len()
 	r.RUnlock()
 	return l
+}
+
+func (r *aggregatedResults) TotalDocsCount() int {
+	r.RLock()
+	count := r.totalDocsCount
+	r.RUnlock()
+	return count
 }
 
 func (r *aggregatedResults) Finalize() {

@@ -40,7 +40,8 @@ type results struct {
 	nsID ident.ID
 	opts QueryResultsOptions
 
-	resultsMap *ResultsMap
+	resultsMap     *ResultsMap
+	totalDocsCount int
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
@@ -88,6 +89,7 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 
 	// Reset all keys in the map next, this will finalize the keys.
 	r.resultsMap.Reset()
+	r.totalDocsCount = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
@@ -101,6 +103,7 @@ func (r *results) AddDocuments(batch []doc.Document) (int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
+	r.totalDocsCount += len(batch)
 	r.Unlock()
 	return size, err
 }
@@ -171,6 +174,13 @@ func (r *results) Size() int {
 	v := r.resultsMap.Len()
 	r.RUnlock()
 	return v
+}
+
+func (r *results) TotalDocsCount() int {
+	r.RLock()
+	count := r.totalDocsCount
+	r.RUnlock()
+	return count
 }
 
 func (r *results) Finalize() {

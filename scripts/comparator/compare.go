@@ -53,7 +53,7 @@ func main() {
 
 		pQueryFile    = flag.String("input", "", "the query file")
 		pPromAddress  = flag.String("promAdress", "0.0.0.0:9090", "prom address")
-		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201", "query address")
+		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201/m3query", "M3 query address")
 
 		pComparatorAddress = flag.String("comparator", "", "comparator address")
 		pRegressionDir     = flag.String("regressionDir", "", "optional directory for regression tests")
@@ -125,22 +125,16 @@ func main() {
 		}
 	}
 
-	if multiErr.LastError() != nil {
-		log.Error("mismatched queries detected in base queries")
-		if len(regressionDir) == 0 {
-			log.Info("no regression directory supplied.")
-			os.Exit(1)
-		}
+	if !multiErr.Empty() {
+		log.Fatal("mismatched queries detected in base queries")
 	}
+	log.Info("base queries success")
 
 	if err := runRegressionSuite(regressionDir, comparatorAddress,
 		promAddress, queryAddress, log); err != nil {
-		log.Error("failure or mismatched queries detected in regression suite",
-			zap.Error(err))
-		os.Exit(1)
-	} else {
-		log.Info("regression success")
+		log.Fatal("failure or mismatched queries detected in regression suite", zap.Error(err))
 	}
+	log.Info("regression success")
 }
 
 func runRegressionSuite(

@@ -146,6 +146,72 @@ func TestSanitizeBuckets(t *testing.T) {
 	assert.Equal(t, expected, sanitizeBuckets(bucketed))
 }
 
+func TestEnsureMonotonic(t *testing.T) {
+	tests := []struct {
+		name string
+		data []bucketValue
+		want []bucketValue
+	}{
+		{
+			"empty",
+			[]bucketValue{},
+			[]bucketValue{},
+		},
+		{
+			"one",
+			[]bucketValue{{upperBound: 1, value: 5}},
+			[]bucketValue{{upperBound: 1, value: 5}},
+		},
+		{
+			"two monotonic",
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 6}},
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 6}},
+		},
+		{
+			"two nonmonotonic",
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 4}},
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 5}},
+		},
+		{
+			"three monotonic",
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 6}, {upperBound: 3, value: 7}},
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 6}, {upperBound: 3, value: 7}},
+		},
+		{
+			"three nonmonotonic",
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 3}, {upperBound: 3, value: 4}},
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 5}, {upperBound: 3, value: 5}},
+		},
+		{
+			"four nonmonotonic",
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 3}, {upperBound: 3, value: 6}, {upperBound: 4, value: 3}},
+			[]bucketValue{{upperBound: 1, value: 5}, {upperBound: 2, value: 5}, {upperBound: 3, value: 6}, {upperBound: 4, value: 6}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ensureMonotonic(tt.data)
+			assert.Equal(t, tt.want, tt.data)
+		})
+	}
+}
+
+func TestEnsureMonotonicPreserveNaN(t *testing.T) {
+	data := []bucketValue{
+		{upperBound: 1, value: 5},
+		{upperBound: 2, value: 3},
+		{upperBound: 3, value: math.NaN()},
+		{upperBound: 4, value: 0},
+	}
+	ensureMonotonic(data)
+	assert.Equal(t, data[0], bucketValue{upperBound: 1, value: 5})
+	assert.Equal(t, data[1], bucketValue{upperBound: 2, value: 5})
+	assert.Equal(t, data[2].upperBound, float64(3))
+	assert.True(t, math.IsNaN(data[2].value))
+	assert.Equal(t, data[3], bucketValue{upperBound: 4, value: 5})
+}
+
 func TestBucketQuantile(t *testing.T) {
 	// single bucket returns nan
 	actual := bucketQuantile(0.5, []bucketValue{{upperBound: 1, value: 1}})

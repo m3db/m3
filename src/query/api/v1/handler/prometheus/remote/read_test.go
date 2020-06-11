@@ -50,6 +50,7 @@ import (
 	"github.com/m3db/m3/src/query/test/m3"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -89,7 +90,7 @@ func TestParseExpr(t *testing.T) {
 
 	start := time.Now().Truncate(time.Hour)
 	req := httptest.NewRequest(http.MethodPost, "/", buildBody(query, start))
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeFormURLEncoded)
 	readReq, err := ParseExpr(req)
 	require.NoError(t, err)
 
@@ -250,7 +251,7 @@ func TestQueryKillOnClientDisconnect(t *testing.T) {
 		Timeout: 1 * time.Millisecond,
 	}
 
-	_, err := c.Post(server.URL, "application/x-protobuf", test.GeneratePromReadBody(t))
+	_, err := c.Post(server.URL, xhttp.ContentTypeProtobuf, test.GeneratePromReadBody(t))
 	assert.Error(t, err)
 }
 
@@ -259,7 +260,7 @@ func TestQueryKillOnTimeout(t *testing.T) {
 	defer server.Close()
 
 	req, _ := http.NewRequest("POST", server.URL, test.GeneratePromReadBody(t))
-	req.Header.Add("Content-Type", "application/x-protobuf")
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 	req.Header.Add("timeout", "1ms")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)

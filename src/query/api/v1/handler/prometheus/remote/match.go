@@ -70,7 +70,7 @@ func NewPromSeriesMatchHandler(opts options.HandlerOptions) http.Handler {
 func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	queries, err := prometheus.ParseSeriesMatchQuery(r, h.tagOptions)
