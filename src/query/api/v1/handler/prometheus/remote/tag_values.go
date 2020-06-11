@@ -79,7 +79,7 @@ func NewTagValuesHandler(options options.HandlerOptions) http.Handler {
 func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	query, err := h.parseTagValuesToQuery(r)
 	if err != nil {

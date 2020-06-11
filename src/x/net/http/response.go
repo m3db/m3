@@ -30,6 +30,26 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// HeaderContentType is the HTTP Content Type header.
+	HeaderContentType = "Content-Type"
+
+	// ContentTypeJSON is the Content-Type value for a JSON response.
+	ContentTypeJSON = "application/json"
+
+	// ContentTypeFormURLEncoded is the Content-Type value for a URL-encoded form.
+	ContentTypeFormURLEncoded = "application/x-www-form-urlencoded"
+
+	// ContentTypeHTMLUTF8 is the Content-Type value for UTF8-encoded HTML.
+	ContentTypeHTMLUTF8 = "text/html; charset=utf-8"
+
+	// ContentTypeProtobuf is the Content-Type value for a Protobuf message.
+	ContentTypeProtobuf = "application/x-protobuf"
+
+	// ContentTypeOctetStream is the Content-Type value for binary data.
+	ContentTypeOctetStream = "application/octet-stream"
+)
+
 // WriteJSONResponse writes generic data to the ResponseWriter
 func WriteJSONResponse(w http.ResponseWriter, data interface{}, logger *zap.Logger) {
 	jsonData, err := json.Marshal(data)
@@ -39,7 +59,7 @@ func WriteJSONResponse(w http.ResponseWriter, data interface{}, logger *zap.Logg
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(HeaderContentType, "application/json")
 	w.Write(jsonData)
 }
 
@@ -48,7 +68,7 @@ func WriteJSONResponse(w http.ResponseWriter, data interface{}, logger *zap.Logg
 func WriteProtoMsgJSONResponse(w http.ResponseWriter, data proto.Message, logger *zap.Logger) {
 	marshaler := jsonpb.Marshaler{EmitDefaults: true}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(HeaderContentType, "application/json")
 	err := marshaler.Marshal(w, data)
 	if err != nil {
 		logger.Error("unable to marshal json", zap.Error(err))
