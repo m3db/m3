@@ -174,7 +174,7 @@ func (q *querier) FetchCompressed(
 			return m3.SeriesFetchResult{}, noop, err
 		}
 	}
-	
+
 	if iters == nil || iters.Len() == 0 {
 		randomSeries, ignoreFilter, err = q.generateRandomSeries(query)
 		if err != nil {
