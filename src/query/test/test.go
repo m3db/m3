@@ -67,8 +67,7 @@ var (
 )
 
 const (
-	epsilon      = 0.000001            // Relative error allowed for sample values.
-	startingTime = 1587393285000000000 // 2020-04-20 17:34:45
+	epsilon = 0.000001 // Relative error allowed for sample values.
 )
 
 var testStartTime = time.Unix(0, 0).UTC()
@@ -305,16 +304,16 @@ func (cmd *loadCmd) set(m labels.Labels, vals ...parser.SequenceValue) {
 
 // append the defined time series to the storage.
 func (cmd *loadCmd) append() error {
-	series := make([]cparser.Series, 0, 10)
+	series := make([]cparser.Series, 0, len(cmd.defs))
 
 	for h, smpls := range cmd.defs {
 		m := cmd.metrics[h]
-		start := time.Unix(0, startingTime)
+		start := time.Unix(0, 0)
 
 		ser := cparser.Series{
-			Tags:       make(cparser.Tags, 0, 1),
+			Tags:       make(cparser.Tags, 0, len(m)),
 			Start:      start,
-			Datapoints: cparser.Datapoints{},
+			Datapoints: make(cparser.Datapoints, 0, len(smpls)),
 		}
 		for _, l := range m {
 			ser.Tags = append(ser.Tags, cparser.NewTag(l.Name, l.Value))
@@ -410,6 +409,7 @@ func hash(ls model.Metric) uint64 {
 	return lbs.Hash()
 }
 
+// QueryResponse defines a structure for expected response.
 type QueryResponse struct {
 	Status string
 	Data   struct {
@@ -501,9 +501,7 @@ func (t *Test) exec(tc testCommand) error {
 		return t.clear()
 
 	case *loadCmd:
-		if err := cmd.append(); err != nil {
-			return err
-		}
+		return cmd.append()
 
 	case *evalCmd:
 		expr, err := parser.ParseExpr(cmd.expr)
@@ -511,7 +509,7 @@ func (t *Test) exec(tc testCommand) error {
 			return err
 		}
 
-		t := time.Unix(0, startingTime+(cmd.start.Unix()*1000000000))
+		t := time.Unix(0, cmd.start.Unix()*1000000000)
 		bodyBytes, err := cmd.m3query.query(expr.String(), t)
 		if err != nil {
 			if cmd.fail {

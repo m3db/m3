@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -51,7 +50,7 @@ func (c *m3queryClient) query(expr string, t time.Time) ([]byte, error) {
 
 	q := req.URL.Query()
 	q.Add("query", expr)
-	q.Add("time", strconv.FormatInt(t.Unix(), 10))
+	q.Add("time", fmt.Sprint(t.Unix()))
 	req.URL.RawQuery = q.Encode()
 	resp, err := http.DefaultClient.Do(req)
 
