@@ -1,0 +1,93 @@
+{
+    "name": "Prometheus compatible workaround for nonmonotonic histogram buckets",
+    "query": "histogram_quantile(0.99, nonmonotonic_bucket)",
+    "startMillis": 1584825526,
+    "endMillis": 1584828792,
+    "step": 2,
+    "data": [
+        {
+            "start": "2020-03-21T21:23:32Z",
+            "end": "2020-03-21T22:08:20Z",
+            "tags": [
+                ["__name__", "nonmonotonic_bucket"],
+                ["le", "0.1"]
+            ],
+            "datapoints": [
+                {
+                    "val": "1",
+                    "ts": "2020-03-21T21:23:34.269Z"
+                }
+            ]
+        },
+        {
+            "start": "2020-03-21T21:23:32Z",
+            "end": "2020-03-21T22:08:20Z",
+            "tags": [
+                ["__name__", "nonmonotonic_bucket"],
+                ["le", "1"]
+            ],
+            "datapoints": [
+                {
+                    "val": "9",
+                    "ts": "2020-03-21T21:23:34.269Z"
+                }
+            ]
+        },
+        {
+            "start": "2020-03-21T21:23:32Z",
+            "end": "2020-03-21T22:08:20Z",
+            "tags": [
+                ["__name__", "nonmonotonic_bucket"],
+                ["le", "10"]
+            ],
+            "datapoints": [
+                {
+                    "val": "8",
+                    "ts": "2020-03-21T21:23:34.269Z"
+                }
+            ]
+        },
+        {
+            "start": "2020-03-21T21:23:32Z",
+            "end": "2020-03-21T22:08:20Z",
+            "tags": [
+                ["__name__", "nonmonotonic_bucket"],
+                ["le", "100"]
+            ],
+            "datapoints": [
+                {
+                    "val": "8",
+                    "ts": "2020-03-21T21:23:34.269Z"
+                }
+            ]
+        },
+        {
+            "start": "2020-03-21T21:23:32Z",
+            "end": "2020-03-21T22:08:20Z",
+            "tags": [
+                ["__name__", "nonmonotonic_bucket"],
+                ["le", "1000"]
+            ],
+            "datapoints": [
+                {
+                    "val": "9",
+                    "ts": "2020-03-21T21:23:34.269Z"
+                }
+            ]
+        },
+        {
+            "start": "2020-03-21T21:23:32Z",
+            "end": "2020-03-21T22:08:20Z",
+            "tags": [
+                ["__name__", "nonmonotonic_bucket"],
+                ["le", "+Inf"]
+            ],
+            "datapoints": [
+                {
+                    "val": "9",
+                    "ts": "2020-03-21T21:23:34.269Z"
+                }
+            ]
+        }
+    ]
+    }
