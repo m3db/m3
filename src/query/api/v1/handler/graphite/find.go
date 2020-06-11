@@ -110,7 +110,7 @@ func (h *grahiteFindHandler) ServeHTTP(
 ) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	// NB: need to run two separate queries, one of which will match only the
 	// provided matchers, and one which will match the provided matchers with at
