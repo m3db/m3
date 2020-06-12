@@ -191,14 +191,12 @@ type HandlerOptions interface {
 
 	// QueryRouter is a reference to the router which is responsible for routing
 	// queries between PromQL and M3Query.
-	// Optional. If not set it will default to default query router.
 	QueryRouter() QueryRouter
 	// SetQueryRouter sets query router.
 	SetQueryRouter(value QueryRouter) HandlerOptions
 
 	// InstantQueryRouter is a reference to the router which is responsible for
 	// routing instant queries between PromQL and M3Query.
-	// Optional. If not set it will default to default query router.
 	InstantQueryRouter() QueryRouter
 	// SetInstantQueryRouter sets query router for instant queries.
 	SetInstantQueryRouter(value QueryRouter) HandlerOptions
@@ -286,6 +284,8 @@ func NewHandlerOptions(
 		timeoutOpts: &prometheus.TimeoutOpts{
 			FetchTimeout: timeout,
 		},
+		queryRouter:        NewQueryRouter(),
+		instantQueryRouter: NewQueryRouter(),
 	}, nil
 }
 
@@ -513,8 +513,9 @@ func (o *handlerOptions) QueryRouter() QueryRouter {
 }
 
 func (o *handlerOptions) SetQueryRouter(value QueryRouter) HandlerOptions {
-	o.queryRouter = value
-	return o
+	opts := *o
+	opts.queryRouter = value
+	return &opts
 }
 
 func (o *handlerOptions) InstantQueryRouter() QueryRouter {
@@ -522,6 +523,7 @@ func (o *handlerOptions) InstantQueryRouter() QueryRouter {
 }
 
 func (o *handlerOptions) SetInstantQueryRouter(value QueryRouter) HandlerOptions {
-	o.instantQueryRouter = value
-	return o
+	opts := *o
+	opts.instantQueryRouter = value
+	return &opts
 }

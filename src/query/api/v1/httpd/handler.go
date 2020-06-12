@@ -93,13 +93,6 @@ func NewHandler(
 	r := mux.NewRouter()
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
 
-	if handlerOptions.QueryRouter() == nil {
-		handlerOptions.SetQueryRouter(NewQueryRouter())
-	}
-	if handlerOptions.InstantQueryRouter() == nil {
-		handlerOptions.SetInstantQueryRouter(NewQueryRouter())
-	}
-
 	return &Handler{
 		router:         r,
 		handler:        handlerWithMiddleware,
