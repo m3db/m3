@@ -450,7 +450,11 @@ func testMergeWith(
 				})
 				return nil
 			},
-			Close: func() error { return nil },
+			DeferClose: func(cleanup func()) (persist.DeferredCloser, error) {
+				return persist.DeferredCloser{
+					Close: func() error { return nil },
+				}, nil
+			},
 		}, nil)
 	nsCtx := namespace.Context{}
 
