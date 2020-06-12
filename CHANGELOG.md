@@ -5,7 +5,7 @@
 ## Features
 
 - **M3DB**: Add ability to return an error when max time series limit is hit instead of partial result and warning ([#2400](https://github.com/m3db/m3/pull/2400))
-- **M3Coordinator**: Add Support namespace retention updates by API ([#2383](https://github.com/m3db/m3/pull/2383))
+- **M3Coordinator**: Add support for namespace retention updates by API ([#2383](https://github.com/m3db/m3/pull/2383))
 
 ## Bug Fixes
 
