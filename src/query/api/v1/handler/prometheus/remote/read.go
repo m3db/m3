@@ -173,7 +173,7 @@ func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 		handleroptions.AddWarningHeaders(w, readResult.Meta)
 
 		err = json.NewEncoder(w).Encode(result)
@@ -226,7 +226,7 @@ func WriteSnappyCompressed(
 		return err
 	}
 
-	w.Header().Set("Content-Type", "application/x-protobuf")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 	w.Header().Set("Content-Encoding", "snappy")
 	handleroptions.AddWarningHeaders(w, readResult.Meta)
 

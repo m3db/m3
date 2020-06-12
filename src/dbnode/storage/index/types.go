@@ -80,10 +80,11 @@ type Query struct {
 // QueryOptions enables users to specify constraints and
 // preferences on query execution.
 type QueryOptions struct {
-	StartInclusive   time.Time
-	EndExclusive     time.Time
-	Limit            int
-	IterationOptions IterationOptions
+	StartInclusive    time.Time
+	EndExclusive      time.Time
+	Limit             int
+	RequireExhaustive bool
+	IterationOptions  IterationOptions
 }
 
 // IterationOptions enables users to specify iteration preferences.
@@ -125,6 +126,9 @@ type BaseResults interface {
 
 	// Size returns the number of IDs tracked.
 	Size() int
+
+	// TotalDocsCount returns the total number of documents observed.
+	TotalDocsCount() int
 
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be

@@ -3049,14 +3049,16 @@ func (p *Segment) String() string {
 //  - FetchData
 //  - Limit
 //  - RangeTimeType
+//  - RequireExhaustive
 type FetchTaggedRequest struct {
-	NameSpace     []byte   `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
-	Query         []byte   `thrift:"query,2,required" db:"query" json:"query"`
-	RangeStart    int64    `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
-	RangeEnd      int64    `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
-	FetchData     bool     `thrift:"fetchData,5,required" db:"fetchData" json:"fetchData"`
-	Limit         *int64   `thrift:"limit,6" db:"limit" json:"limit,omitempty"`
-	RangeTimeType TimeType `thrift:"rangeTimeType,7" db:"rangeTimeType" json:"rangeTimeType,omitempty"`
+	NameSpace         []byte   `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
+	Query             []byte   `thrift:"query,2,required" db:"query" json:"query"`
+	RangeStart        int64    `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
+	RangeEnd          int64    `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
+	FetchData         bool     `thrift:"fetchData,5,required" db:"fetchData" json:"fetchData"`
+	Limit             *int64   `thrift:"limit,6" db:"limit" json:"limit,omitempty"`
+	RangeTimeType     TimeType `thrift:"rangeTimeType,7" db:"rangeTimeType" json:"rangeTimeType,omitempty"`
+	RequireExhaustive bool     `thrift:"requireExhaustive,8" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
 }
 
 func NewFetchTaggedRequest() *FetchTaggedRequest {
@@ -3099,12 +3101,22 @@ var FetchTaggedRequest_RangeTimeType_DEFAULT TimeType = 0
 func (p *FetchTaggedRequest) GetRangeTimeType() TimeType {
 	return p.RangeTimeType
 }
+
+var FetchTaggedRequest_RequireExhaustive_DEFAULT bool = false
+
+func (p *FetchTaggedRequest) GetRequireExhaustive() bool {
+	return p.RequireExhaustive
+}
 func (p *FetchTaggedRequest) IsSetLimit() bool {
 	return p.Limit != nil
 }
 
 func (p *FetchTaggedRequest) IsSetRangeTimeType() bool {
 	return p.RangeTimeType != FetchTaggedRequest_RangeTimeType_DEFAULT
+}
+
+func (p *FetchTaggedRequest) IsSetRequireExhaustive() bool {
+	return p.RequireExhaustive != FetchTaggedRequest_RequireExhaustive_DEFAULT
 }
 
 func (p *FetchTaggedRequest) Read(iprot thrift.TProtocol) error {
@@ -3158,6 +3170,10 @@ func (p *FetchTaggedRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 7:
 			if err := p.ReadField7(iprot); err != nil {
+				return err
+			}
+		case 8:
+			if err := p.ReadField8(iprot); err != nil {
 				return err
 			}
 		default:
@@ -3254,6 +3270,15 @@ func (p *FetchTaggedRequest) ReadField7(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *FetchTaggedRequest) ReadField8(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 8: ", err)
+	} else {
+		p.RequireExhaustive = v
+	}
+	return nil
+}
+
 func (p *FetchTaggedRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchTaggedRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -3278,6 +3303,9 @@ func (p *FetchTaggedRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField7(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField8(oprot); err != nil {
 			return err
 		}
 	}
@@ -3380,6 +3408,21 @@ func (p *FetchTaggedRequest) writeField7(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 7:rangeTimeType: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *FetchTaggedRequest) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequireExhaustive() {
+		if err := oprot.WriteFieldBegin("requireExhaustive", thrift.BOOL, 8); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 8:requireExhaustive: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(p.RequireExhaustive)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.requireExhaustive (8) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 8:requireExhaustive: ", p), err)
 		}
 	}
 	return err

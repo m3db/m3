@@ -28,6 +28,7 @@ require (
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
 	github.com/fossas/fossa-cli v1.0.30
 	github.com/fsnotify/fsnotify v1.4.8-0.20190312181446-1485a34d5d57 // indirect
+	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
 	github.com/ghodss/yaml v1.0.0
 	github.com/gnewton/jargo v0.0.0-20150417131352-41f5f186a805 // indirect
 	github.com/go-kit/kit v0.10.0
@@ -110,6 +111,7 @@ require (
 	github.com/uber/tchannel-go v1.12.0
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
+	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	go.etcd.io/etcd v3.4.3+incompatible
 	go.uber.org/atomic v1.5.1
 	go.uber.org/config v1.4.0

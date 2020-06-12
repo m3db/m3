@@ -37,6 +37,7 @@
 		DatabaseCreateResponse
 		NamespaceGetResponse
 		NamespaceAddRequest
+		NamespaceUpdateRequest
 		NamespaceSchemaAddRequest
 		NamespaceSchemaAddResponse
 		NamespaceSchemaResetRequest
