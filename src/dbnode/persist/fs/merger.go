@@ -89,7 +89,7 @@ func (m *merger) Merge(
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
-) (prepared persist.PreparedDataPersist, err error) {
+) (closer persist.DeferredCloser, err error) {
 	var (
 		reader         = m.reader
 		blockAllocSize = m.blockAllocSize
@@ -117,7 +117,7 @@ func (m *merger) Merge(
 	)
 
 	if err := reader.Open(openOpts); err != nil {
-		return prepared, err
+		return closer, err
 	}
 	defer func() {
 		// Only set the error here if not set by the end of the function, since
@@ -129,7 +129,7 @@ func (m *merger) Merge(
 
 	nsMd, err := namespace.NewMetadata(nsID, nsOpts)
 	if err != nil {
-		return prepared, err
+		return closer, err
 	}
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: nsMd,
@@ -139,9 +139,9 @@ func (m *merger) Merge(
 		FileSetType:       persist.FileSetFlushType,
 		DeleteIfExists:    false,
 	}
-	prepared, err = flushPreparer.PrepareData(prepareOpts)
+	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return prepared, err
+		return closer, err
 	}
 
 	var (
@@ -178,7 +178,8 @@ func (m *merger) Merge(
 			nsCtx.Schema,
 			encoderPool)
 	)
-	defer func() {
+	// This gets called later when we finish persist work.
+	cleanupFn := func() {
 		segReader.Finalize()
 		multiIter.Close()
 		for _, res := range idsToFinalize {
@@ -187,7 +188,7 @@ func (m *merger) Merge(
 		for _, res := range tagsToFinalize {
 			res.Finalize()
 		}
-	}()
+	}
 
 	// The merge is performed in two stages. The first stage is to loop through
 	// series on disk and merge it with what's in the merge target. Looping
@@ -199,7 +200,7 @@ func (m *merger) Merge(
 	// First stage: loop through series on disk.
 	for id, tagsIter, data, checksum, err := reader.Read(); err != io.EOF; id, tagsIter, data, checksum, err = reader.Read() {
 		if err != nil {
-			return prepared, err
+			return closer, err
 		}
 		idsToFinalize = append(idsToFinalize, id)
 
@@ -211,7 +212,7 @@ func (m *merger) Merge(
 		ctx.Reset()
 		mergeWithData, hasInMemoryData, err := mergeWith.Read(ctx, id, blockStart, nsCtx)
 		if err != nil {
-			return prepared, err
+			return closer, err
 		}
 		if hasInMemoryData {
 			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData)
@@ -222,7 +223,7 @@ func (m *merger) Merge(
 		tags, err := convert.TagsFromTagsIter(id, tagsIter, identPool)
 		tagsIter.Close()
 		if err != nil {
-			return prepared, err
+			return closer, err
 		}
 		tagsToFinalize = append(tagsToFinalize, tags)
 
@@ -232,15 +233,15 @@ func (m *merger) Merge(
 		if len(segmentReaders) == 1 && hasInMemoryData == false {
 			segment, err := segmentReaders[0].Segment()
 			if err != nil {
-				return prepared, err
+				return closer, err
 			}
 
 			if err := persistSegmentWithChecksum(id, tags, segment, checksum, prepared.Persist); err != nil {
-				return prepared, err
+				return closer, err
 			}
 		} else {
 			if err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist); err != nil {
-				return prepared, err
+				return closer, err
 			}
 		}
 		// Closing the context will finalize the data returned from
@@ -278,12 +279,12 @@ func (m *merger) Merge(
 			return err
 		}, nsCtx)
 	if err != nil {
-		return prepared, err
+		return closer, err
 	}
 
-	// NB(bodu): Return the flush preparer instead of closing it (which writes the rest
-	// of the files in the fileset) so that we can guarantee that cold index writes are persisted first.
-	return prepared, nil
+	// NB(bodu): Return a deferred closer (which writes the checkpoint file and performs resource clenanup)
+	// so that we can guarantee that cold index writes are persisted first.
+	return prepared.DeferClose(cleanupFn)
 }
 
 func appendBlockReadersToSegmentReaders(segReaders []xio.SegmentReader, brs []xio.BlockReader) []xio.SegmentReader {

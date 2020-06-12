@@ -94,7 +94,7 @@ type DataFileSetWriter interface {
 	WriteAll(id ident.ID, tags ident.Tags, data []checked.Bytes, checksum uint32) error
 
 	// DeferClose returns a DeferredCloser that defers writing of a checkpoint file.
-	DeferClose() (persist.DeferredCloser, error)
+	DeferClose(cleanup func()) (persist.DeferredCloser, error)
 }
 
 // SnapshotMetadataFileWriter writes out snapshot metadata files.
@@ -560,7 +560,7 @@ type Merger interface {
 		flushPreparer persist.FlushPreparer,
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
-	) (persist.PreparedDataPersist, error)
+	) (persist.DeferredCloser, error)
 }
 
 // NewMergerFn is the function to call to get a new Merger.

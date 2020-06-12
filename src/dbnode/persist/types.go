@@ -41,7 +41,7 @@ type DataFn func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint
 type DataCloser func() error
 
 // DeferCloser returns a DeferredCloser that persists the data checkpoint file when called.
-type DeferCloser func() (DeferredCloser, error)
+type DeferCloser func(cleanup func()) (DeferredCloser, error)
 
 // DeferredCloser defers persisting of the data checkpoint file until later.
 type DeferredCloser struct {

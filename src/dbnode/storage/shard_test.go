@@ -736,12 +736,11 @@ func (m *noopMerger) Merge(
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
-) (persist.PreparedDataPersist, error) {
-	prepared := persist.PreparedDataPersist{
-		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
-		Close:   func() error { return nil },
+) (persist.DeferredCloser, error) {
+	closer := persist.DeferredCloser{
+		Close: func() error { return nil },
 	}
-	return prepared, nil
+	return closer, nil
 }
 
 func newFSMergeWithMemTestFn(

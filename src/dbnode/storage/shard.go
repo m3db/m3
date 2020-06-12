@@ -2312,12 +2312,7 @@ func (s *dbShard) ColdFlush(
 		}
 
 		nextVersion := coldVersion + 1
-		prepared, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx, onFlush)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-			continue
-		}
-		closer, err := prepared.DeferClose()
+		closer, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx, onFlush)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
