@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	queryconsolidator "github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -75,6 +76,10 @@ type Options interface {
 	SetWriteWorkerPool(xsync.PooledWorkerPool) Options
 	// ReadWorkerPool returns the write worker pool for the converter.
 	WriteWorkerPool() xsync.PooledWorkerPool
+	// SetSeriesConsolidationMatchOptions sets series consolidation options.
+	SetSeriesConsolidationMatchOptions(value queryconsolidator.MatchOptions) Options
+	// SetSeriesConsolidationMatchOptions sets series consolidation options.
+	SeriesConsolidationMatchOptions() queryconsolidator.MatchOptions
 	// SetIteratorBatchingFn sets the batching function for the converter.
 	SetIteratorBatchingFn(IteratorBatchingFn) Options
 	// IteratorBatchingFn returns the batching function for the converter.

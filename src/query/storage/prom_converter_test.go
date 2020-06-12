@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/checked"
@@ -45,6 +46,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func fr(
+	t *testing.T,
+	its encoding.SeriesIterators,
+	tags ...*models.Tags,
+) consolidators.SeriesFetchResult {
+	result, err := consolidators.
+		NewSeriesFetchResult(its, tags, block.NewResultMetadata())
+	assert.NoError(t, err)
+	return result
+}
+
+func makeTag(n, v string, count int) []*models.Tags {
+	tags := make([]*models.Tags, 0, count)
+	for i := 0; i < count; i++ {
+		t := models.EmptyTags().AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
+		tags = append(tags, &t)
+	}
+
+	return tags
+}
+
 func verifyExpandPromSeries(
 	t *testing.T,
 	ctrl *gomock.Controller,
@@ -52,17 +74,17 @@ func verifyExpandPromSeries(
 	ex bool,
 	pools xsync.PooledWorkerPool,
 ) {
-	testTags := seriesiter.GenerateTag()
-	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
-
+	iters := seriesiter.NewMockSeriesIters(ctrl, ident.Tag{}, num, 2)
+	fetchResult := fr(t, iters, makeTag("foo", "bar", num)...)
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
-	results, err := SeriesIteratorsToPromResult(iters, pools,
-		block.ResultMetadata{
-			Exhaustive: ex,
-			LocalOnly:  true,
-			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
-		}, enforcer, nil)
+	fetchResult.Metadata = block.ResultMetadata{
+		Exhaustive: ex,
+		LocalOnly:  true,
+		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+	}
+
+	results, err := SeriesIteratorsToPromResult(fetchResult, pools, enforcer, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -74,8 +96,8 @@ func verifyExpandPromSeries(
 	require.Equal(t, len(ts), num)
 	expectedTags := []prompb.Label{
 		prompb.Label{
-			Name:  testTags.Name.Bytes(),
-			Value: testTags.Value.Bytes(),
+			Name:  []byte("foo"),
+			Value: []byte("bar"),
 		},
 	}
 
@@ -208,36 +230,13 @@ func setupTags(name, value string) (ident.Tags, overwrite) {
 	return tags, overwrite
 }
 
-func TestTagIteratorToLabels(t *testing.T) {
-	name := "foo"
-	value := "bar"
-	tags, overwrite := setupTags(name, value)
-	tagIter := ident.NewTagsIterator(tags)
-	labels, err := tagIteratorToLabels(tagIter)
-	require.NoError(t, err)
-
-	verifyTags := func() {
-		require.Equal(t, 3, len(labels))
-		assert.Equal(t, name, string(labels[0].GetName()))
-		assert.Equal(t, value, string(labels[0].GetValue()))
-		assert.Equal(t, name, string(labels[1].GetName()))
-		assert.Equal(t, "", string(labels[1].GetValue()))
-		assert.Equal(t, "", string(labels[2].GetName()))
-		assert.Equal(t, value, string(labels[2].GetValue()))
-	}
-
-	verifyTags()
-	overwrite()
-	verifyTags()
-}
-
 func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	name := "name"
 	now := time.Now()
-	buildIter := func(val string, hasVal bool) encoding.SeriesIterator {
+	buildIter := func(val string, hasVal bool) *encoding.MockSeriesIterator {
 		iter := encoding.NewMockSeriesIterator(ctrl)
 
 		if hasVal {
@@ -255,13 +254,21 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 		}
 
 		tags := ident.NewMockTagIterator(ctrl)
-		tags.EXPECT().Remaining().Return(1)
-		tags.EXPECT().Next().Return(true)
-		tags.EXPECT().Current().Return(tag)
-		tags.EXPECT().Next().Return(false)
-		tags.EXPECT().Err().Return(nil)
+		populateIter := func() {
+			gomock.InOrder(
+				tags.EXPECT().Remaining().Return(1),
+				tags.EXPECT().Next().Return(true),
+				tags.EXPECT().Current().Return(tag),
+				tags.EXPECT().Next().Return(false),
+				tags.EXPECT().Err().Return(nil),
+				tags.EXPECT().Rewind(),
+			)
+		}
 
+		populateIter()
 		iter.EXPECT().Tags().Return(tags)
+		iter.EXPECT().Close().MaxTimes(1)
+
 		return iter
 	}
 
@@ -283,7 +290,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 		}
 	}
 
-	buildIters := func() encoding.SeriesIterators {
+	buildIters := func() consolidators.SeriesFetchResult {
 		iters := []encoding.SeriesIterator{
 			buildIter("foo", false),
 			buildIter("bar", true),
@@ -293,15 +300,13 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 		}
 
 		it := encoding.NewMockSeriesIterators(ctrl)
-		it.EXPECT().Iters().Return(iters)
-		it.EXPECT().Close()
-		return it
+		it.EXPECT().Iters().Return(iters).AnyTimes()
+		it.EXPECT().Len().Return(len(iters)).AnyTimes()
+		return fr(t, it)
 	}
 
-	md := block.NewResultMetadata()
 	opts := models.NewTagOptions()
-
-	res, err := SeriesIteratorsToPromResult(buildIters(), nil, md, nil, opts)
+	res, err := SeriesIteratorsToPromResult(buildIters(), nil, nil, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 
@@ -309,7 +314,7 @@ func TestDecodeIteratorsWithEmptySeries(t *testing.T) {
 	require.NoError(t, err)
 	pool.Init()
 
-	res, err = SeriesIteratorsToPromResult(buildIters(), pool, md, nil, opts)
+	res, err = SeriesIteratorsToPromResult(buildIters(), pool, nil, opts)
 	require.NoError(t, err)
 	verifyResult(t, res)
 }
