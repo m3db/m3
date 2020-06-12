@@ -113,7 +113,7 @@ func setupHandler(
 		return nil, err
 	}
 
-	return NewHandler(opts, nil, nil, customHandlers...), nil
+	return NewHandler(opts, customHandlers...), nil
 }
 
 func TestHandlerFetchTimeout(t *testing.T) {
@@ -143,7 +143,7 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		svcDefaultOptions)
 	require.NoError(t, err)
 
-	h := NewHandler(opts, nil, nil)
+	h := NewHandler(opts)
 	assert.Equal(t, 4*time.Minute, h.options.TimeoutOpts().FetchTimeout)
 }
 
@@ -405,7 +405,7 @@ func TestCustomRoutes(t *testing.T) {
 
 	require.NoError(t, err)
 	custom := &customHandler{t: t}
-	handler := NewHandler(opts, nil, nil, custom)
+	handler := NewHandler(opts, custom)
 	require.NoError(t, err, "unable to setup handler")
 	err = handler.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")

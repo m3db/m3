@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,7 @@ func TestHanlersSwitch(t *testing.T) {
 	}
 
 	router := NewQueryRouter()
-	router.Setup(QueryRouterOptions{
+	router.Setup(options.QueryRouterOptions{
 		DefaultQueryEngine: "prometheus",
 		PromqlHandler:      promqlHandler,
 		M3QueryHandler:     m3qHandler,
