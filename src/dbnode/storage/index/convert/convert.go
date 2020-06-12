@@ -408,3 +408,9 @@ func (t *tagIter) Duplicate() ident.TagIterator {
 	}
 	return &dupe
 }
+
+func (t *tagIter) Rewind() {
+	t.releaseCurrent()
+	t.currentIdx = -1
+	t.done = false
+}

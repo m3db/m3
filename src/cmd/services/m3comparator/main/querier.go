@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/prometheus/common/model"
@@ -146,7 +147,7 @@ func (q *querier) FetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (m3.SeriesFetchResult, m3.Cleanup, error) {
+) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
 	var (
 		iters        encoding.SeriesIterators
 		randomSeries []series
@@ -161,7 +162,7 @@ func (q *querier) FetchCompressed(
 			nameTagFound = true
 			iters, err = q.handler.getSeriesIterators(string(matcher.Value))
 			if err != nil {
-				return m3.SeriesFetchResult{}, noop, err
+				return consolidators.SeriesFetchResult{}, noop, err
 			}
 
 			break
@@ -171,18 +172,18 @@ func (q *querier) FetchCompressed(
 	if iters == nil && !nameTagFound && len(query.TagMatchers) > 0 {
 		iters, err = q.handler.getSeriesIterators("")
 		if err != nil {
-			return m3.SeriesFetchResult{}, noop, err
+			return consolidators.SeriesFetchResult{}, noop, err
 		}
 	}
 
 	if iters == nil || iters.Len() == 0 {
 		randomSeries, ignoreFilter, err = q.generateRandomSeries(query)
 		if err != nil {
-			return m3.SeriesFetchResult{}, noop, err
+			return consolidators.SeriesFetchResult{}, noop, err
 		}
 		iters, err = buildSeriesIterators(randomSeries, query.Start, q.blockSize, q.iteratorOpts)
 		if err != nil {
-			return m3.SeriesFetchResult{}, noop, err
+			return consolidators.SeriesFetchResult{}, noop, err
 		}
 	}
 
@@ -195,10 +196,9 @@ func (q *querier) FetchCompressed(
 			return nil
 		}
 
-		return m3.SeriesFetchResult{
-			SeriesIterators: filteredIters,
-			Metadata:        block.NewResultMetadata(),
-		}, cleanup, nil
+		result, err := consolidators.NewSeriesFetchResult(
+			filteredIters, nil, block.NewResultMetadata())
+		return result, cleanup, err
 	}
 
 	cleanup := func() error {
@@ -206,10 +206,9 @@ func (q *querier) FetchCompressed(
 		return nil
 	}
 
-	return m3.SeriesFetchResult{
-		SeriesIterators: iters,
-		Metadata:        block.NewResultMetadata(),
-	}, cleanup, nil
+	result, err := consolidators.NewSeriesFetchResult(
+		iters, nil, block.NewResultMetadata())
+	return result, cleanup, err
 }
 
 func (q *querier) generateRandomSeries(
@@ -363,7 +362,7 @@ func (q *querier) generateHistogramMetrics(
 		for bucket := uint(0); bucket < q.histogramBucketCount; bucket++ {
 			tags := multiSeriesTags(metricsName, id)
 			leStr := "+Inf"
-			if bucket < q.histogramBucketCount - 1 {
+			if bucket < q.histogramBucketCount-1 {
 				leStr = strconv.FormatFloat(le, 'f', -1, 64)
 			}
 			leTag := parser.NewTag("le", leStr)
@@ -411,8 +410,8 @@ func (q *querier) SearchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (m3.TagResult, m3.Cleanup, error) {
-	return m3.TagResult{}, noop, fmt.Errorf("not impl")
+) (consolidators.TagResult, m3.Cleanup, error) {
+	return consolidators.TagResult{}, noop, fmt.Errorf("not impl")
 }
 
 // CompleteTagsCompressed returns autocompleted tag results.

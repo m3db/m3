@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3
+package consolidators
 
 import (
 	"sync"
@@ -38,7 +38,7 @@ type multiSearchResult struct {
 	dedupeMap map[string]MultiTagResult
 }
 
-// NewMultiFetchTagsResult builds a new multi fetch tags result
+// NewMultiFetchTagsResult builds a new multi fetch tags result.
 func NewMultiFetchTagsResult() MultiFetchTagsResult {
 	return &multiSearchResult{
 		dedupeMap: make(map[string]MultiTagResult, initSize),

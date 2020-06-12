@@ -96,8 +96,10 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 		ID: orig.ID(),
 	}
 
+	replicas, err := orig.Replicas()
+	require.NoError(t, err)
 	// Collect all the replica per-block readers
-	for _, replica := range orig.Replicas() {
+	for _, replica := range replicas {
 		perBlockSliceReaders := replica.Readers()
 		next := true
 		for next {

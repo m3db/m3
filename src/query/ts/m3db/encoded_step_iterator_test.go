@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -309,7 +310,7 @@ func testConsolidatedStepIteratorSplitByBlock(t *testing.T, withPools bool) {
 
 			j := 0
 			idx := verifyBoundsAndGetBlockIndex(t, bounds, block.Meta().Bounds)
-			verifyMetas(t, i, block.Meta(), iters.SeriesMeta())
+			verifyMetas(t, i, block.Meta(), iters.SeriesMeta()) // <-
 			for iters.Next() {
 				step := iters.Current()
 				vals := step.Values()
@@ -424,6 +425,17 @@ func newTestOptions() Options {
 	return newOptions(bytesPool, iteratorPools)
 }
 
+func iterToFetchResult(
+	iters []encoding.SeriesIterator,
+) (consolidators.SeriesFetchResult, error) {
+	iterators := encoding.NewSeriesIterators(iters, nil)
+	return consolidators.NewSeriesFetchResult(
+		iterators,
+		nil,
+		block.NewResultMetadata(),
+	)
+}
+
 func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, stop) {
 	var (
 		seriesCount   = 1000
@@ -480,7 +492,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 			replicasIters[j] = iter
 		}
 
-		seriesID := ident.StringID(fmt.Sprintf("foo.%d", i))
+		seriesID := ident.StringID(fmt.Sprintf("foo.%d", i+1))
 		tags, err := ident.NewTagStringsIterator("foo", "bar", "baz", "qux")
 		require.NoError(b, err)
 
@@ -488,7 +500,6 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 			encoding.SeriesIteratorOptions{}, nil)
 
 		iters[i] = iter
-
 		itersReset[i] = func() {
 			// Reset the replica iters.
 			for _, replica := range replicas {
@@ -524,11 +535,16 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 		reset()
 	}
 
-	block, err := NewEncodedBlock(iters, models.Bounds{
-		Start:    start,
-		StepSize: stepSize,
-		Duration: window,
-	}, false, block.NewResultMetadata(), opts)
+	res, err := iterToFetchResult(iters)
+	require.NoError(b, err)
+
+	block, err := NewEncodedBlock(
+		res,
+		models.Bounds{
+			Start:    start,
+			StepSize: stepSize,
+			Duration: window,
+		}, false, opts)
 
 	require.NoError(b, err)
 	return block, func() {

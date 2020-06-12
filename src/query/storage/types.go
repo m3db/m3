@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -167,7 +168,7 @@ const (
 // RestrictByType are specific restrictions to stick to a single data type.
 type RestrictByType struct {
 	// MetricsType restricts the type of metrics being returned.
-	MetricsType MetricsType
+	MetricsType storagemetadata.MetricsType
 	// StoragePolicy is required if metrics type is not unaggregated
 	// to specify which storage policy metrics should be returned from.
 	StoragePolicy policy.StoragePolicy
@@ -246,7 +247,7 @@ type WriteQueryOptions struct {
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
 	Annotation []byte
-	Attributes Attributes
+	Attributes storagemetadata.Attributes
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
@@ -345,36 +346,4 @@ type PromResult struct {
 	PromResult *prompb.QueryResult
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
-}
-
-// MetricsType is a type of stored metrics.
-type MetricsType uint
-
-const (
-	// UnknownMetricsType is the unknown metrics type and is invalid.
-	UnknownMetricsType MetricsType = iota
-	// UnaggregatedMetricsType is an unaggregated metrics type.
-	UnaggregatedMetricsType
-	// AggregatedMetricsType is an aggregated metrics type.
-	AggregatedMetricsType
-
-	// DefaultMetricsType is the default metrics type value.
-	DefaultMetricsType = UnaggregatedMetricsType
-)
-
-// Attributes is a set of stored metrics attributes.
-type Attributes struct {
-	// MetricsType indicates the type of namespace this metric originated from.
-	MetricsType MetricsType
-	// Retention indicates the retention of the namespace this metric originated
-	// from.
-	Retention time.Duration
-	// Resolution indicates the retention of the namespace this metric originated
-	// from.
-	Resolution time.Duration
-}
-
-// Validate validates a storage attributes.
-func (a Attributes) Validate() error {
-	return ValidateMetricsType(a.MetricsType)
 }

@@ -43,7 +43,7 @@ function test_instantaneous {
   EXPECTED=$3
   RESPONSE=$(curl -sSL "http://localhost:7201/api/v1/query?query=$QUERY")
   ACTUAL_COUNT=$(echo $RESPONSE | jq '.data.result | length')
-  ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.foo | tr -d "\n")
+  ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.foo | sort | tr -d "\n")
   CONCAT=$(echo $EXPECTED | tr -d " ")
   test $ACTUAL_COUNT = $EXPECTED_COUNT && test $ACTUAL = $CONCAT
 }

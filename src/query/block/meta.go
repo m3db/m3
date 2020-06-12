@@ -112,6 +112,35 @@ func combineWarnings(a, b Warnings) Warnings {
 	return nil
 }
 
+// Equals determines if two result metadatas are equal.
+func (m ResultMetadata) Equals(n ResultMetadata) bool {
+	if m.Exhaustive && !n.Exhaustive || !m.Exhaustive && n.Exhaustive {
+		return false
+	}
+
+	if m.LocalOnly && !n.LocalOnly || !m.LocalOnly && n.LocalOnly {
+		return false
+	}
+
+	if len(m.Resolutions) != len(n.Resolutions) {
+		return false
+	}
+
+	for i, mRes := range m.Resolutions {
+		if n.Resolutions[i] != mRes {
+			return false
+		}
+	}
+
+	for i, mWarn := range m.Warnings {
+		if !n.Warnings[i].equals(mWarn) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // CombineMetadata combines two result metadatas.
 func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 	meta := ResultMetadata{

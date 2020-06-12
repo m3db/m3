@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3
+package consolidators
 
 import (
 	"fmt"
@@ -27,12 +27,18 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
+
+var defaultTestOpts = MatchOptions{
+	MatchType: defaultMatchType,
+}
 
 const (
 	common       = "common"
@@ -49,14 +55,16 @@ func generateSeriesIterators(
 	iter := encoding.NewMockSeriesIterator(ctrl)
 	iter.EXPECT().ID().Return(ident.StringID(common)).MinTimes(1)
 	iter.EXPECT().Namespace().Return(ident.StringID(ns)).MaxTimes(1)
+	iter.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
 
 	unique := encoding.NewMockSeriesIterator(ctrl)
 	unique.EXPECT().ID().Return(ident.StringID(ns)).MinTimes(1)
 	unique.EXPECT().Namespace().Return(ident.StringID(ns)).MaxTimes(1)
+	unique.EXPECT().Tags().Return(ident.EmptyTagIterator).AnyTimes()
 
 	iters := encoding.NewMockSeriesIterators(ctrl)
 	iters.EXPECT().Close().Return().Times(1)
-	iters.EXPECT().Len().Return(1).MaxTimes(1)
+	iters.EXPECT().Len().Return(1).AnyTimes()
 	iters.EXPECT().Iters().Return([]encoding.SeriesIterator{iter, unique})
 
 	return iters
@@ -80,37 +88,37 @@ func generateIteratorPools(ctrl *gomock.Controller) encoding.IteratorPools {
 }
 
 func TestMultiResult(t *testing.T) {
-	testMultiResult(t, namespaceCoversPartialQueryRange, long)
-	testMultiResult(t, namespaceCoversAllQueryRange, unaggregated)
+	testMultiResult(t, NamespaceCoversPartialQueryRange, long)
+	testMultiResult(t, NamespaceCoversAllQueryRange, unaggregated)
 }
 
-func testMultiResult(t *testing.T, fanoutType queryFanoutType, expected string) {
-	ctrl := gomock.NewController(t)
+func testMultiResult(t *testing.T, fanoutType QueryFanoutType, expected string) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	namespaces := []struct {
-		attrs storage.Attributes
+		attrs storagemetadata.Attributes
 		ns    string
 	}{
 		{
-			attrs: storage.Attributes{
-				MetricsType: storage.UnaggregatedMetricsType,
+			attrs: storagemetadata.Attributes{
+				MetricsType: storagemetadata.UnaggregatedMetricsType,
 				Retention:   24 * time.Hour,
 				Resolution:  0 * time.Minute,
 			},
 			ns: unaggregated,
 		},
 		{
-			attrs: storage.Attributes{
-				MetricsType: storage.AggregatedMetricsType,
+			attrs: storagemetadata.Attributes{
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				Retention:   360 * time.Hour,
 				Resolution:  2 * time.Minute,
 			},
 			ns: short,
 		},
 		{
-			attrs: storage.Attributes{
-				MetricsType: storage.AggregatedMetricsType,
+			attrs: storagemetadata.Attributes{
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				Retention:   17520 * time.Hour,
 				Resolution:  10 * time.Minute,
 			},
@@ -119,16 +127,13 @@ func testMultiResult(t *testing.T, fanoutType queryFanoutType, expected string) 
 	}
 
 	pools := generateIteratorPools(ctrl)
-	r := newMultiFetchResult(fanoutType, pools)
+	r := NewMultiFetchResult(fanoutType, pools,
+		defaultTestOpts, models.NewTagOptions())
 
+	meta := block.NewResultMetadata()
 	for _, ns := range namespaces {
 		iters := generateSeriesIterators(ctrl, ns.ns)
-		seriesFetchResult := SeriesFetchResult{
-			Metadata:        block.NewResultMetadata(),
-			SeriesIterators: iters,
-		}
-
-		r.Add(seriesFetchResult, ns.attrs, nil)
+		r.Add(iters, meta, ns.attrs, nil)
 	}
 
 	result, err := r.FinalResult()
@@ -138,7 +143,7 @@ func testMultiResult(t *testing.T, fanoutType queryFanoutType, expected string) 
 	assert.True(t, result.Metadata.LocalOnly)
 	assert.Equal(t, 0, len(result.Metadata.Warnings))
 
-	iters := result.SeriesIterators
+	iters := result.seriesData.seriesIterators
 	assert.Equal(t, 4, iters.Len())
 	assert.Equal(t, 4, len(iters.Iters()))
 
@@ -169,11 +174,12 @@ var exhaustTests = []struct {
 }
 
 func TestExhaustiveMerge(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	pools := generateIteratorPools(ctrl)
-	r := newMultiFetchResult(namespaceCoversAllQueryRange, pools)
+	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
+		defaultTestOpts, models.NewTagOptions())
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for i, ex := range tt.exhaustives {
@@ -185,12 +191,7 @@ func TestExhaustiveMerge(t *testing.T) {
 
 				meta := block.NewResultMetadata()
 				meta.Exhaustive = ex
-				seriesFetchResult := SeriesFetchResult{
-					Metadata:        meta,
-					SeriesIterators: iters,
-				}
-
-				r.Add(seriesFetchResult, storage.Attributes{}, nil)
+				r.Add(iters, meta, storagemetadata.Attributes{}, nil)
 			}
 
 			result, err := r.FinalResult()

@@ -49,7 +49,7 @@ function write_metrics {
     }'
   done
   set -x
-}
+} 
 
 function clean_headers {
   rm $HEADER_FILE
@@ -295,6 +295,32 @@ function test_fanout_warning_label_values {
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_label_values 1 max_fetch_series_limit_applied
 }
 
+function test_fanout_warning_fetch_id_mismatch {
+  METRIC_NAME="foo_$t"
+  export INSTANT_NAME=$METRIC_NAME
+  # # write 5 metrics to cluster a
+  write_metrics coordinator-cluster-a 5
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 5 "/m3query"
+  # limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 4 4 "/m3query" max_fetch_series_limit_applied
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 5 "/prometheus"
+  # limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 4 4 "/prometheus" max_fetch_series_limit_applied
+
+  # write 10 metrics to cluster b
+  write_metrics coordinator-cluster-b 10
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 15 "/m3query"
+  # remote limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 9 14 "/m3query" max_fetch_series_limit_applied
+  # unlimited query against cluster a has no header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 100 15 "/prometheus"
+  # remote limited query against cluster a has header
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_instant_query 9 14 "/prometheus" max_fetch_series_limit_applied
+}
+
 function test_fanout_warning_graphite {
   # Update write time as it will otherwise not be written correctly.
   t=$(date +%s)
@@ -360,6 +386,7 @@ function test_fanout_warnings {
   test_fanout_warning_match
   test_fanout_warning_labels
   test_fanout_warning_label_values
+  test_fanout_warning_fetch_id_mismatch
   export GRAPHITE="foo.bar.$t"
   test_fanout_warning_graphite
   test_fanout_warning_missing_zone

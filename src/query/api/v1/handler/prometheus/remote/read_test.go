@@ -145,11 +145,13 @@ func newEngine(
 
 func setupServer(t *testing.T) *httptest.Server {
 	ctrl := xtest.NewController(t)
-	// No calls expected on session object
+	defer ctrl.Finish()
+
 	lstore, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
 		FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, fmt.Errorf("not initialized"))
+		Return(nil, client.FetchResponseMetadata{Exhaustive: false},
+			fmt.Errorf("not initialized")).MaxTimes(1)
 	storage := test.NewSlowStorage(lstore, 10*time.Millisecond)
 	promRead := readHandler(storage, timeoutOpts)
 	server := httptest.NewServer(test.NewSlowHandler(promRead, 10*time.Millisecond))
@@ -269,6 +271,8 @@ func TestQueryKillOnTimeout(t *testing.T) {
 
 func TestReadErrorMetricsCount(t *testing.T) {
 	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, fmt.Errorf("unable to get data"))
