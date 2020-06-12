@@ -177,7 +177,7 @@ func (h *Handler) RegisterRoutes() error {
 	promqlQueryHandler := wrapped(prom.NewReadHandler(opts, nativeSourceOpts))
 	promqlInstantQueryHandler := wrapped(prom.NewReadInstantHandler(opts, nativeSourceOpts))
 	nativePromReadHandler := wrapped(native.NewPromReadHandler(nativeSourceOpts))
-	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(h.options))
+	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(nativeSourceOpts))
 
 	promqlMatcher := func(r *http.Request, rm *mux.RouteMatch) bool {
 		header := strings.ToLower(r.Header.Get(engineHeaderName))
