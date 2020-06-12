@@ -72,6 +72,19 @@ type CustomHandler interface {
 	Handler(handlerOptions HandlerOptions) (http.Handler, error)
 }
 
+// QueryRouter is responsible for routing queries between promql and m3query.
+type QueryRouter interface {
+	Setup(opts QueryRouterOptions)
+	ServeHTTP(w http.ResponseWriter, req *http.Request)
+}
+
+// QueryRouterOptions defines options for QueryRouter
+type QueryRouterOptions struct {
+	DefaultQueryEngine QueryEngine
+	PromqlHandler      func(http.ResponseWriter, *http.Request)
+	M3QueryHandler     func(http.ResponseWriter, *http.Request)
+}
+
 // RemoteReadRenderer renders remote read output.
 type RemoteReadRenderer func(io.Writer, []*ts.Series,
 	models.RequestParams, bool)
@@ -175,6 +188,20 @@ type HandlerOptions interface {
 	DefaultQueryEngine() QueryEngine
 	// SetDefaultQueryEngine returns the default query engine.
 	SetDefaultQueryEngine(value QueryEngine) HandlerOptions
+
+	// QueryRouter is a reference to the router which is responsible for routing
+	// queries between PromQL and M3Query.
+	// Optional. If not set it will default to default query router.
+	QueryRouter() QueryRouter
+	// SetQueryRouter sets query router.
+	SetQueryRouter(value QueryRouter) HandlerOptions
+
+	// InstantQueryRouter is a reference to the router which is responsible for
+	// routing instant queries between PromQL and M3Query.
+	// Optional. If not set it will default to default query router.
+	InstantQueryRouter() QueryRouter
+	// SetInstantQueryRouter sets query router for instant queries.
+	SetInstantQueryRouter(value QueryRouter) HandlerOptions
 }
 
 // HandlerOptions represents handler options.
@@ -199,6 +226,8 @@ type handlerOptions struct {
 	placementServiceNames []string
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault
 	nowFn                 clock.NowFn
+	queryRouter           QueryRouter
+	instantQueryRouter    QueryRouter
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -477,4 +506,22 @@ func IsQueryEngineSet(v string) bool {
 		return true
 	}
 	return false
+}
+
+func (o *handlerOptions) QueryRouter() QueryRouter {
+	return o.queryRouter
+}
+
+func (o *handlerOptions) SetQueryRouter(value QueryRouter) HandlerOptions {
+	o.queryRouter = value
+	return o
+}
+
+func (o *handlerOptions) InstantQueryRouter() QueryRouter {
+	return o.instantQueryRouter
+}
+
+func (o *handlerOptions) SetInstantQueryRouter(value QueryRouter) HandlerOptions {
+	o.instantQueryRouter = value
+	return o
 }

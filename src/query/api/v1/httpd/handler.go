@@ -74,12 +74,10 @@ var (
 
 // Handler represents the top-level HTTP handler.
 type Handler struct {
-	router             *mux.Router
-	handler            http.Handler
-	options            options.HandlerOptions
-	queryRouter        QueryRouter
-	instantQueryRouter QueryRouter
-	customHandlers     []options.CustomHandler
+	router         *mux.Router
+	handler        http.Handler
+	options        options.HandlerOptions
+	customHandlers []options.CustomHandler
 }
 
 // Router returns the http handler registered with all relevant routes for query.
@@ -90,27 +88,23 @@ func (h *Handler) Router() http.Handler {
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(
 	handlerOptions options.HandlerOptions,
-	queryRouter QueryRouter,
-	instantQueryRouter QueryRouter,
 	customHandlers ...options.CustomHandler,
 ) *Handler {
 	r := mux.NewRouter()
 	handlerWithMiddleware := applyMiddleware(r, opentracing.GlobalTracer())
 
-	if queryRouter == nil {
-		queryRouter = NewQueryRouter()
+	if handlerOptions.QueryRouter() == nil {
+		handlerOptions.SetQueryRouter(NewQueryRouter())
 	}
-	if instantQueryRouter == nil {
-		instantQueryRouter = NewQueryRouter()
+	if handlerOptions.InstantQueryRouter() == nil {
+		handlerOptions.SetInstantQueryRouter(NewQueryRouter())
 	}
 
 	return &Handler{
-		router:             r,
-		handler:            handlerWithMiddleware,
-		options:            handlerOptions,
-		queryRouter:        queryRouter,
-		instantQueryRouter: instantQueryRouter,
-		customHandlers:     customHandlers,
+		router:         r,
+		handler:        handlerWithMiddleware,
+		options:        handlerOptions,
+		customHandlers: customHandlers,
 	}
 }
 
@@ -195,23 +189,23 @@ func (h *Handler) RegisterRoutes() error {
 	nativePromReadHandler := wrapped(native.NewPromReadHandler(nativeSourceOpts))
 	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(h.options))
 
-	h.queryRouter.Setup(QueryRouterOptions{
+	h.options.QueryRouter().Setup(options.QueryRouterOptions{
 		DefaultQueryEngine: h.options.DefaultQueryEngine(),
 		PromqlHandler:      promqlQueryHandler.ServeHTTP,
 		M3QueryHandler:     nativePromReadHandler.ServeHTTP,
 	})
 
-	h.instantQueryRouter.Setup(QueryRouterOptions{
+	h.options.InstantQueryRouter().Setup(options.QueryRouterOptions{
 		DefaultQueryEngine: h.options.DefaultQueryEngine(),
 		PromqlHandler:      promqlInstantQueryHandler.ServeHTTP,
 		M3QueryHandler:     nativePromReadInstantHandler.ServeHTTP,
 	})
 
 	h.router.
-		HandleFunc(native.PromReadURL, h.queryRouter.ServeHTTP).
+		HandleFunc(native.PromReadURL, h.options.QueryRouter().ServeHTTP).
 		Methods(native.PromReadHTTPMethods...)
 	h.router.
-		HandleFunc(native.PromReadInstantURL, h.instantQueryRouter.ServeHTTP).
+		HandleFunc(native.PromReadInstantURL, h.options.InstantQueryRouter().ServeHTTP).
 		Methods(native.PromReadInstantHTTPMethods...)
 
 	h.router.HandleFunc("/prometheus"+native.PromReadURL, promqlQueryHandler.ServeHTTP).Methods(native.PromReadHTTPMethods...)

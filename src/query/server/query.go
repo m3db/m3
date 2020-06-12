@@ -152,16 +152,6 @@ type RunOptions struct {
 
 	// BackendStorageTransform is a custom backend storage transform.
 	BackendStorageTransform BackendStorageTransform
-
-	// QueryRouter is a reference to the router which is responsible for routing
-	// queries between PromQL and M3Query.
-	// Optional. If not set will default to default query router.
-	QueryRouter httpd.QueryRouter
-
-	// InstantQueryRouter is a reference to the router which is responsible for
-	// routing instant queries between PromQL and M3Query.
-	// Optional. If not set will default to default query router.
-	InstantQueryRouter httpd.QueryRouter
 }
 
 // InstrumentOptionsReady is a set of instrument options
@@ -451,7 +441,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	customHandlers := runOpts.CustomHandlerOptions.CustomHandlers
-	handler := httpd.NewHandler(handlerOptions, runOpts.QueryRouter, runOpts.InstantQueryRouter, customHandlers...)
+	handler := httpd.NewHandler(handlerOptions, customHandlers...)
 	if err := handler.RegisterRoutes(); err != nil {
 		logger.Fatal("unable to register routes", zap.Error(err))
 	}

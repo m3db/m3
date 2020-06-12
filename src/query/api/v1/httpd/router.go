@@ -27,28 +27,17 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 )
 
-type QueryRouter interface {
-	Setup(opts QueryRouterOptions)
-	ServeHTTP(w http.ResponseWriter, req *http.Request)
-}
-
-type QueryRouterOptions struct {
-	DefaultQueryEngine options.QueryEngine
-	PromqlHandler      func(http.ResponseWriter, *http.Request)
-	M3QueryHandler     func(http.ResponseWriter, *http.Request)
-}
-
 type router struct {
 	promqlHandler      func(http.ResponseWriter, *http.Request)
 	m3QueryHandler     func(http.ResponseWriter, *http.Request)
 	defaultQueryEngine options.QueryEngine
 }
 
-func NewQueryRouter() QueryRouter {
+func NewQueryRouter() options.QueryRouter {
 	return &router{}
 }
 
-func (r *router) Setup(opts QueryRouterOptions) {
+func (r *router) Setup(opts options.QueryRouterOptions) {
 	defaultEngine := opts.DefaultQueryEngine
 	if defaultEngine != options.PrometheusEngine && defaultEngine != options.M3QueryEngine {
 		defaultEngine = options.PrometheusEngine
