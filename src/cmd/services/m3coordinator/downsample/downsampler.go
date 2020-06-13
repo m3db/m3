@@ -36,9 +36,15 @@ type Downsampler interface {
 // appender, only valid to use with a single caller at a time.
 type MetricsAppender interface {
 	AddTag(name, value []byte)
-	SamplesAppender(opts SampleAppenderOptions) (SamplesAppender, error)
+	SamplesAppender(opts SampleAppenderOptions) (SamplesAppenderResult, error)
 	Reset()
 	Finalize()
+}
+
+// SamplesAppenderResult is the result from a SamplesAppender call.
+type SamplesAppenderResult struct {
+	SamplesAppender     SamplesAppender
+	IsDropPolicyApplied bool
 }
 
 // SampleAppenderOptions defines the options being used when constructing

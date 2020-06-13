@@ -577,6 +577,7 @@ type promTSIter struct {
 	attributes []ts.SeriesAttributes
 	tags       []models.Tags
 	datapoints []ts.Datapoints
+	metadatas  []ts.Metadata
 }
 
 func (i *promTSIter) Next() bool {
@@ -599,4 +600,18 @@ func (i *promTSIter) Reset() error {
 
 func (i *promTSIter) Error() error {
 	return nil
+}
+
+func (i *promTSIter) SetCurrentMetadata(metadata ts.Metadata) {
+	if len(i.metadatas) == 0 {
+		i.metadatas = make([]ts.Metadata, len(i.tags))
+	}
+	i.metadatas[i.idx] = metadata
+}
+
+func (i *promTSIter) CurrentMetadata() ts.Metadata {
+	if len(i.metadatas) == 0 {
+		return ts.Metadata{}
+	}
+	return i.metadatas[i.idx]
 }
