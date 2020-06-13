@@ -23,6 +23,7 @@ package view
 import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // MappingRule is a mapping rule model at a given point in time.
@@ -35,6 +36,7 @@ type MappingRule struct {
 	AggregationID       aggregation.ID         `json:"aggregation"`
 	StoragePolicies     policy.StoragePolicies `json:"storagePolicies"`
 	DropPolicy          policy.DropPolicy      `json:"dropPolicy"`
+	Tags                []models.Tag           `json:"tags"`
 	LastUpdatedBy       string                 `json:"lastUpdatedBy"`
 	LastUpdatedAtMillis int64                  `json:"lastUpdatedAtMillis"`
 }
