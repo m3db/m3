@@ -46,7 +46,7 @@ type metricsAppender struct {
 
 	tags                         *tags
 	multiSamplesAppender         *multiSamplesAppender
-	currStagedMetadata           metadata.StagedMetadata
+	curr                         metadata.StagedMetadata
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
 }
@@ -81,18 +81,18 @@ func (a *metricsAppender) AddTag(name, value []byte) {
 	a.tags.append(name, value)
 }
 
-func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppender, error) {
+func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppenderResult, error) {
 	// Sort tags
 	sort.Sort(a.tags)
 
 	// Encode tags and compute a temporary (unowned) ID
 	a.tagEncoder.Reset()
 	if err := a.tagEncoder.Encode(a.tags); err != nil {
-		return nil, err
+		return SamplesAppenderResult{}, err
 	}
 	data, ok := a.tagEncoder.Data()
 	if !ok {
-		return nil, fmt.Errorf("unable to encode tags: names=%v, values=%v",
+		return SamplesAppenderResult{}, fmt.Errorf("unable to encode tags: names=%v, values=%v",
 			a.tags.names, a.tags.values)
 	}
 
@@ -109,33 +109,34 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
+	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
 	if opts.Override {
 		// Reuse a slice to keep the current staged metadatas we will apply.
-		a.currStagedMetadata.Pipelines = a.currStagedMetadata.Pipelines[:0]
+		a.curr.Pipelines = a.curr.Pipelines[:0]
 
 		for _, rule := range opts.OverrideRules.MappingRules {
 			stagedMetadatas, err := rule.StagedMetadatas()
 			if err != nil {
-				return nil, err
+				return SamplesAppenderResult{}, err
 			}
 
 			a.debugLogMatch("downsampler applying override mapping rule",
 				debugLogMatchOptions{Meta: stagedMetadatas})
 
 			pipelines := stagedMetadatas[len(stagedMetadatas)-1]
-			a.currStagedMetadata.Pipelines =
-				append(a.currStagedMetadata.Pipelines, pipelines.Pipelines...)
+			a.curr.Pipelines =
+				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
 		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 			agg:             a.agg,
 			clientRemote:    a.clientRemote,
 			unownedID:       unownedID,
-			stagedMetadatas: []metadata.StagedMetadata{a.currStagedMetadata},
+			stagedMetadatas: []metadata.StagedMetadata{a.curr},
 		})
 	} else {
 		// Reuse a slice to keep the current staged metadatas we will apply.
-		a.currStagedMetadata.Pipelines = a.currStagedMetadata.Pipelines[:0]
+		a.curr.Pipelines = a.curr.Pipelines[:0]
 
 		// NB(r): First apply mapping rules to see which storage policies
 		// have been applied, any that have been applied as part of
@@ -162,8 +163,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 			// Only sample if going to actually aggregate
 			pipelines := mappingRuleStagedMetadatas[len(mappingRuleStagedMetadatas)-1]
-			a.currStagedMetadata.Pipelines =
-				append(a.currStagedMetadata.Pipelines, pipelines.Pipelines...)
+			a.curr.Pipelines =
+				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
 		// Always aggregate any default staged metadatas (unless
@@ -175,7 +176,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			stagedMetadatas := a.defaultStagedMetadatasCopies[idx]
 			err := stagedMetadatas.FromProto(stagedMetadatasProto)
 			if err != nil {
-				return nil,
+				return SamplesAppenderResult{},
 					fmt.Errorf("unable to copy default staged metadatas: %v", err)
 			}
 
@@ -247,13 +248,16 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				debugLogMatchOptions{Meta: stagedMetadatas})
 
 			pipelines := stagedMetadatas[len(stagedMetadatas)-1]
-			a.currStagedMetadata.Pipelines =
-				append(a.currStagedMetadata.Pipelines, pipelines.Pipelines...)
+			a.curr.Pipelines =
+				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
-		if len(a.currStagedMetadata.Pipelines) > 0 {
+		// Apply drop policies results
+		a.curr.Pipelines, dropApplyResult = a.curr.Pipelines.ApplyOrRemoveDropPolicies()
+
+		if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() {
 			// Send to downsampler if we have something in the pipeline.
-			mappingStagedMetadatas := []metadata.StagedMetadata{a.currStagedMetadata}
+			mappingStagedMetadatas := []metadata.StagedMetadata{a.curr}
 			a.debugLogMatch("downsampler using built mapping staged metadatas",
 				debugLogMatchOptions{Meta: mappingStagedMetadatas})
 
@@ -281,7 +285,11 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		}
 	}
 
-	return a.multiSamplesAppender, nil
+	dropPolicyApplied := dropApplyResult != metadata.NoDropPolicyPresentResult
+	return SamplesAppenderResult{
+		SamplesAppender:     a.multiSamplesAppender,
+		IsDropPolicyApplied: dropPolicyApplied,
+	}, nil
 }
 
 type debugLogMatchOptions struct {

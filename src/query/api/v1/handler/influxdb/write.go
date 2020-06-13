@@ -71,6 +71,7 @@ type ingestIterator struct {
 	// internal
 	pointIndex int
 	err        xerrors.MultiError
+	metadatas  []ts.Metadata
 
 	// following entries are within current point, and initialized
 	// when we go to the first entry in the current point
@@ -243,6 +244,23 @@ func (ii *ingestIterator) Error() error {
 	return ii.err.FinalError()
 }
 
+func (ii *ingestIterator) SetCurrentMetadata(metadata ts.Metadata) {
+	if len(ii.metadatas) == 0 {
+		ii.metadatas = make([]ts.Metadata, len(ii.points))
+	}
+	if ii.pointIndex < len(ii.points) {
+		ii.metadatas[ii.pointIndex] = metadata
+	}
+}
+
+func (ii *ingestIterator) CurrentMetadata() ts.Metadata {
+	if len(ii.metadatas) == 0 || ii.pointIndex >= len(ii.metadatas) {
+		return ts.Metadata{}
+	}
+	return ii.metadatas[ii.pointIndex]
+}
+
+// NewInfluxWriterHandler returns a new influx write handler.
 func NewInfluxWriterHandler(options options.HandlerOptions) http.Handler {
 	return &ingestWriteHandler{handlerOpts: options,
 		tagOpts:      options.TagOptions(),

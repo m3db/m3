@@ -129,10 +129,10 @@ func (mr *MockMetricsAppenderMockRecorder) Reset() *gomock.Call {
 }
 
 // SamplesAppender mocks base method
-func (m *MockMetricsAppender) SamplesAppender(arg0 SampleAppenderOptions) (SamplesAppender, error) {
+func (m *MockMetricsAppender) SamplesAppender(arg0 SampleAppenderOptions) (SamplesAppenderResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SamplesAppender", arg0)
-	ret0, _ := ret[0].(SamplesAppender)
+	ret0, _ := ret[0].(SamplesAppenderResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
