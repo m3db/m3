@@ -219,8 +219,9 @@ func FromRPCFetchTaggedRequest(
 	}
 
 	opts := index.QueryOptions{
-		StartInclusive: start,
-		EndExclusive:   end,
+		StartInclusive:    start,
+		EndExclusive:      end,
+		RequireExhaustive: req.RequireExhaustive,
 	}
 	if l := req.Limit; l != nil {
 		opts.Limit = int(*l)
@@ -264,11 +265,12 @@ func ToRPCFetchTaggedRequest(
 	}
 
 	request := rpc.FetchTaggedRequest{
-		NameSpace:  ns.Bytes(),
-		RangeStart: rangeStart,
-		RangeEnd:   rangeEnd,
-		FetchData:  fetchData,
-		Query:      query,
+		NameSpace:         ns.Bytes(),
+		RangeStart:        rangeStart,
+		RangeEnd:          rangeEnd,
+		FetchData:         fetchData,
+		Query:             query,
+		RequireExhaustive: opts.RequireExhaustive,
 	}
 
 	if opts.Limit > 0 {

@@ -82,6 +82,10 @@ const (
 	// the number of time series returned by each storage node.
 	LimitMaxSeriesHeader = M3HeaderPrefix + "Limit-Max-Series"
 
+	// LimitRequireExhaustiveHeader is the M3 limit exhaustive header that will
+	// ensure M3 returns an error if the results set is not exhaustive.
+	LimitRequireExhaustiveHeader = M3HeaderPrefix + "Limit-Require-Exhaustive"
+
 	// UnaggregatedStoragePolicy specifies the unaggregated storage policy.
 	UnaggregatedStoragePolicy = "unaggregated"
 
