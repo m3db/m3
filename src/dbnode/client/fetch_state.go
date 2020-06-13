@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 )
@@ -136,6 +137,13 @@ func (f *fetchState) completionFn(
 	result interface{},
 	resultErr error,
 ) {
+	if IsBadRequestError(resultErr) {
+		// Wrap with invalid params and non-retryable so it is
+		// not retried.
+		resultErr = xerrors.NewInvalidParamsError(resultErr)
+		resultErr = xerrors.NewNonRetryableError(resultErr)
+	}
+
 	f.Lock()
 	defer func() {
 		f.Unlock()
