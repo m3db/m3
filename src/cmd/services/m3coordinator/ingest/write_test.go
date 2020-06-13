@@ -424,12 +424,14 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
+	mockMetricsAppender.EXPECT().AddTag(m3TypeTag, m3GaugeValue)
 	for _, dp := range testDatapoints1 {
 		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
 	for _, tag := range testTags2.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
+	mockMetricsAppender.EXPECT().AddTag(m3TypeTag, m3GaugeValue)
 	for _, dp := range testDatapoints2 {
 		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
@@ -465,17 +467,23 @@ func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
 
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(zeroDownsamplerAppenderOpts).
-		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(2)
+		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.MetricTypeCounter}).
+		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.MetricTypeTimer}).
+		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
+	mockMetricsAppender.EXPECT().AddTag(m3TypeTag, m3CounterValue)
 	for _, dp := range testDatapoints1 {
 		mockSamplesAppender.EXPECT().AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
 	}
 	for _, tag := range testTags2.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
+	mockMetricsAppender.EXPECT().AddTag(m3TypeTag, m3TimerValue)
 	for _, dp := range testDatapoints2 {
 		mockSamplesAppender.EXPECT().AppendTimerTimedSample(dp.Timestamp, dp.Value)
 	}
@@ -520,12 +528,14 @@ func TestDownsampleAndWriteBatchSingleDrop(t *testing.T) {
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
+	mockMetricsAppender.EXPECT().AddTag(m3TypeTag, m3GaugeValue)
 	for _, dp := range testDatapoints1 {
 		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
 	for _, tag := range testTags2.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
+	mockMetricsAppender.EXPECT().AddTag(m3TypeTag, m3GaugeValue)
 	for _, dp := range testDatapoints2 {
 		mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 	}
@@ -603,6 +613,8 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 		for _, tag := range entry.tags.Tags {
 			mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 		}
+		// We will also get the common gauge tag.
+		mockMetricsAppender.EXPECT().AddTag(m3TypeTag, m3GaugeValue)
 		for _, dp := range entry.datapoints {
 			mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 		}

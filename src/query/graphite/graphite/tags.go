@@ -43,6 +43,9 @@ const (
 var (
 	// Should never be modified after init().
 	preFormattedTagNames [][]byte
+
+	// Prefix is the prefix for graphite metrics
+	Prefix = []byte("__g")
 )
 
 func init() {

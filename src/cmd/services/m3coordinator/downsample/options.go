@@ -281,18 +281,36 @@ type MappingRuleConfiguration struct {
 	// keeping them with a storage policy.
 	Drop bool `yaml:"drop"`
 
+	// Tags are the tags to be added to the metric while applying the mapping
+	// rule. Users are free to add name/value combinations to the metric. The
+	// coordinator also supports certain first class tags which will augment
+	// the metric with coordinator generated tag values.
+	// __m3_graphite_aggregation__ as a tag will augment the metric with an
+	// aggregation tag which is required for graphite. If a metric is of the
+	// form {__g0__:stats __g1__:metric __g2__:timer} and we have configured
+	// a P95 aggregation, this option will add __g3__:P95 to the metric.
+	Tags []Tag `yaml:"tags"`
+
 	// Optional fields follow.
 
 	// Name is optional.
 	Name string `yaml:"name"`
 }
 
+// Tag is structure describing tags as used by mapping rule configuration.
+type Tag struct {
+	// Name is the tag name.
+	Name string `yaml:"name"`
+	// Value is the tag value.
+	Value string `yaml:"value"`
+}
+
 // Rule returns the mapping rule for the mapping rule configuration.
 func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
-	id := uuid.New()
+	ruleID := uuid.New()
 	name := r.Name
 	if name == "" {
-		name = id
+		name = ruleID
 	}
 	filter := r.Filter
 
@@ -311,13 +329,22 @@ func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
 		drop = policy.DropIfOnlyMatch
 	}
 
+	tags := make([]models.Tag, 0, len(r.Tags))
+	for _, tag := range r.Tags {
+		tags = append(tags, models.Tag{
+			Name:  []byte(tag.Name),
+			Value: []byte(tag.Value),
+		})
+	}
+
 	return view.MappingRule{
-		ID:              id,
+		ID:              ruleID,
 		Name:            name,
 		Filter:          filter,
 		AggregationID:   aggID,
 		StoragePolicies: storagePolicies,
 		DropPolicy:      drop,
+		Tags:            tags,
 	}, nil
 }
 
@@ -913,7 +940,7 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
 			name, err := resolveEncodedTagsNameTag(id, pools.metricTagsIteratorPool,
 				nameTag)
-			if err != nil {
+			if err != nil && err != errNoMetricNameTag {
 				return nil, nil, err
 			}
 			// ID is always the encoded tags for IDs in the downsampler
