@@ -59,6 +59,43 @@ func (t *tags) append(name, value []byte) {
 	t.values = append(t.values, value)
 }
 
+func (t *tags) filterPrefix(prefix []byte) bool {
+	var (
+		modified bool
+		i        = 0
+	)
+	for i < len(t.names) {
+		name := t.names[i]
+		// If the tag name has the prefix swap with last element and continue
+		// looping over all the tags.
+		if bytes.HasPrefix(name, prefix) {
+			t.Swap(i, len(t.names)-1)
+			t.names = t.names[:len(t.names)-1]
+			t.values = t.values[:len(t.values)-1]
+			modified = true
+		} else {
+			i++
+		}
+	}
+	// Reset the iterator index.
+	t.reset()
+	return modified
+}
+
+func (t *tags) countPrefix(prefix []byte) int {
+	count := 0
+	for _, name := range t.names {
+		if bytes.HasPrefix(name, prefix) {
+			count++
+		}
+	}
+	return count
+}
+
+func (t *tags) reset() {
+	t.idx = -1
+}
+
 func (t *tags) Len() int {
 	return len(t.names)
 }

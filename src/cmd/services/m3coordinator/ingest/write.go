@@ -43,6 +43,11 @@ var (
 	unaggregatedStoragePolicies = []policy.StoragePolicy{
 		unaggregatedStoragePolicy,
 	}
+
+	m3TypeTag      = []byte("__m3_type__")
+	m3CounterValue = []byte("counter")
+	m3GaugeValue   = []byte("gauge")
+	m3TimerValue   = []byte("timer")
 )
 
 // IterValue is the value returned by the iterator.
@@ -438,6 +443,33 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			appender.AddTag(tag.Name, tag.Value)
 		}
 
+		// NB (@shreyas): Add the metric type tag. The tag has the prefix
+		// __m3_. All tags with that prefix are only used by the downsampler
+		// and then stripped off before we actually send to the aggregator.
+		switch info.Type {
+		case ts.MetricTypeCounter:
+			appender.AddTag(m3TypeTag, m3CounterValue)
+		case ts.MetricTypeGauge:
+			appender.AddTag(m3TypeTag, m3GaugeValue)
+		case ts.MetricTypeTimer:
+			appender.AddTag(m3TypeTag, m3TimerValue)
+		}
+
+		if tags.Opts.IDSchemeType() == models.TypeGraphite {
+			// NB(r): This is gross, but if this is a graphite metric then
+			// we are going to set a special tag that means the downsampler
+			// will write a graphite ID. This should really be plumbed
+			// through the downsampler in general, but right now the aggregator
+			// does not allow context to be attached to a metric so when it calls
+			// back the context is lost currently.
+			// TODO_FIX_GRAPHITE_TAGGING: Using this string constant to track
+			// all places worth fixing this hack. There is at least one
+			// other path where flows back to the coordinator from the aggregator
+			// and this tag is interpreted, eventually need to handle more cleanly.
+			appender.AddTag(downsample.MetricsOptionIDSchemeTagName,
+				downsample.GraphiteIDSchemeTagValue)
+		}
+
 		var opts downsample.SampleAppenderOptions
 		if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
 			opts = downsample.SampleAppenderOptions{
@@ -447,6 +479,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 				},
 			}
 		}
+		opts.MetricType = info.Type
 
 		result, err := appender.SamplesAppender(opts)
 		if err != nil {

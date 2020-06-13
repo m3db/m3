@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+
 	"github.com/m3db/m3/src/metrics/aggregation"
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
@@ -215,6 +217,7 @@ func TestNewRuleSetFromProtoToProtoRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	res, err := rs.Proto()
 	require.NoError(t, err)
+	require.Equal(t, proto.MappingRules[0].Snapshots[0], res.MappingRules[0].Snapshots[0])
 	require.Equal(t, proto, res)
 }
 
@@ -448,7 +451,7 @@ func TestRuleSetClone(t *testing.T) {
 	rs := res.(*ruleSet)
 
 	rsClone := rs.Clone().(*ruleSet)
-	require.True(t, cmp.Equal(rs, rsClone, testRuleSetCmpOpts...))
+	require.True(t, cmp.Equal(rs, rsClone, testRuleSetCmpOpts...), cmp.Diff(rs, rsClone, testRuleSetCmpOpts...))
 	for i, m := range rs.mappingRules {
 		require.False(t, m == rsClone.mappingRules[i])
 	}
@@ -1433,6 +1436,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule1.snapshot2",
@@ -1468,6 +1472,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule1.snapshot3",
@@ -1485,6 +1490,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -1507,6 +1513,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule2.snapshot2",
@@ -1536,6 +1543,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule2.snapshot3",
@@ -1565,6 +1573,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -1599,6 +1608,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule3.snapshot2",
@@ -1625,6 +1635,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -1650,6 +1661,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},
@@ -1674,6 +1686,7 @@ func testMappingRulesConfig() []*rulepb.MappingRule {
 							},
 						},
 					},
+					Tags: []*metricpb.Tag{},
 				},
 			},
 		},

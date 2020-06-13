@@ -235,6 +235,7 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 			AggregationID:   snapshot.aggregationID,
 			StoragePolicies: snapshot.storagePolicies.Clone(),
 			DropPolicy:      snapshot.dropPolicy,
+			Tags:            snapshot.tags,
 		}
 		pipelines = append(pipelines, pipeline)
 	}
