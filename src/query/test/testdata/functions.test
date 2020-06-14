@@ -5,11 +5,10 @@ load 5m
 	http_requests{path="/biz"}	0 0 0 0 0 1 1 1 1 1
 
 # Tests for resets().
-# FAILING issue #16
-#eval instant at 50m resets(http_requests[5m])
-#	{path="/foo"} 0
-#	{path="/bar"} 0
-#	{path="/biz"} 0
+eval instant at 50m resets(http_requests[5m])
+	{path="/foo"} 0
+	{path="/bar"} 0
+	{path="/biz"} 0
 
 eval instant at 50m resets(http_requests[20m])
 	{path="/foo"} 1
@@ -29,11 +28,10 @@ eval instant at 50m resets(http_requests[50m])
 # FAILING. eval instant at 50m resets(nonexistent_metric[50m])
 
 # Tests for changes().
-# FAILING issue #17
-#eval instant at 50m changes(http_requests[5m])
-#	{path="/foo"} 0
-#	{path="/bar"} 0
-#	{path="/biz"} 0
+eval instant at 50m changes(http_requests[5m])
+	{path="/foo"} 0
+	{path="/bar"} 0
+	{path="/biz"} 0
 
 eval instant at 50m changes(http_requests[20m])
 	{path="/foo"} 3
@@ -45,10 +43,10 @@ eval instant at 50m changes(http_requests[30m])
 	{path="/bar"} 5
 	{path="/biz"} 1
 
-#eval instant at 50m changes(http_requests[50m])
-#	{path="/foo"} 8
-#	{path="/bar"} 9
-#	{path="/biz"} 1
+eval instant at 50m changes(http_requests[50m])
+	{path="/foo"} 8
+	{path="/bar"} 9
+	{path="/biz"} 1
 
 #eval instant at 50m changes((http_requests[50m]))
 #	{path="/foo"} 8

@@ -455,9 +455,22 @@ func renderResultsInstantaneousJSON(
 		jw.EndObject()
 
 		jw.BeginObjectField("value")
+
+		onlynans := true
+		for a := 0; a < length; a++ {
+			if !math.IsNaN(vals.ValueAt(a)) {
+				onlynans = false
+				break
+			}
+		}
+
 		jw.BeginArray()
 		jw.WriteInt(int(dp.Timestamp.Unix()))
-		jw.WriteString(utils.FormatFloat(dp.Value))
+		if math.IsNaN(dp.Value) && !onlynans {
+			jw.WriteString("0")
+		} else {
+			jw.WriteString(utils.FormatFloat(dp.Value))
+		}
 		jw.EndArray()
 		jw.EndObject()
 	}
