@@ -431,7 +431,7 @@ func Run(runOpts RunOptions) {
 		tagOptions, engine, prometheusEngine, m3dbClusters, clusterClient, cfg,
 		runOpts.DBConfig, chainedEnforcer, fetchOptsBuilder, queryCtxOpts,
 		instrumentOptions, cpuProfileDuration, []string{handleroptions.M3DBServiceName},
-		serviceOptionDefaults)
+		serviceOptionDefaults, httpd.NewQueryRouter(), httpd.NewQueryRouter())
 	if err != nil {
 		logger.Fatal("unable to set up handler options", zap.Error(err))
 	}

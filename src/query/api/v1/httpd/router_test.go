@@ -26,11 +26,12 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestHanlersSwitch(t *testing.T) {
+func TestHanlerSwitch(t *testing.T) {
 	promqlCalled := 0
 	promqlHandler := func(w http.ResponseWriter, req *http.Request) {
 		promqlCalled++

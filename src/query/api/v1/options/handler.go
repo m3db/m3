@@ -253,6 +253,8 @@ func NewHandlerOptions(
 	cpuProfileDuration time.Duration,
 	placementServiceNames []string,
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
+	queryRouter QueryRouter,
+	instantQueryRouter QueryRouter,
 ) (HandlerOptions, error) {
 	timeout := cfg.Query.TimeoutOrDefault()
 	if embeddedDbCfg != nil &&
@@ -284,8 +286,8 @@ func NewHandlerOptions(
 		timeoutOpts: &prometheus.TimeoutOpts{
 			FetchTimeout: timeout,
 		},
-		queryRouter:        NewQueryRouter(),
-		instantQueryRouter: NewQueryRouter(),
+		queryRouter:        queryRouter,
+		instantQueryRouter: instantQueryRouter,
 	}, nil
 }
 

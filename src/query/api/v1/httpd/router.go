@@ -50,10 +50,10 @@ func (r *router) Setup(opts options.QueryRouterOptions) {
 
 func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	engine := strings.ToLower(req.Header.Get(EngineHeaderName))
-	urlParam := strings.ToLower(req.URL.Query().Get(EngineURLParam))
+	urlParam := req.URL.Query().Get(EngineURLParam)
 
 	if len(urlParam) > 0 {
-		engine = urlParam
+		engine = strings.ToLower(urlParam)
 	}
 
 	if !options.IsQueryEngineSet(engine) {

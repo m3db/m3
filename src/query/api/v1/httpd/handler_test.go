@@ -107,6 +107,8 @@ func setupHandler(
 		defaultCPUProfileduration,
 		defaultPlacementServices,
 		svcDefaultOptions,
+		NewQueryRouter(),
+		NewQueryRouter(),
 	)
 
 	if err != nil {
@@ -140,7 +142,10 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		instrument.NewOptions(),
 		defaultCPUProfileduration,
 		defaultPlacementServices,
-		svcDefaultOptions)
+		svcDefaultOptions,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	h := NewHandler(opts)
@@ -400,7 +405,7 @@ func TestCustomRoutes(t *testing.T) {
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, nil,
 		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
-		defaultPlacementServices, svcDefaultOptions,
+		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
 	)
 
 	require.NoError(t, err)
