@@ -19,7 +19,7 @@ M3 contributors and maintainers have monthly (every four weeks) meetings. Join o
 
 ## Office Hours
 
-Members of the M3 team will hold office hours on the third Thursday of every month from 11-1pm EST. In order to join, make sure to sign up for a slot here: https://calendly.com/chronosphere-intro/m3-community-office-hours.
+Members of the M3 team will hold office hours on the third Thursday of every month from 11-1pm EST. In order to join, make sure to sign up for a slot here: [https://calendly.com/chronosphere-intro/m3-community-office-hours](https://calendly.com/chronosphere-intro/m3-community-office-hours).
 
 ## Test it out
 
