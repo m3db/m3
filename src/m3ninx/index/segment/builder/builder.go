@@ -138,11 +138,19 @@ func (b *builder) Reset(offset postings.ID) {
 }
 
 func (b *builder) Insert(d doc.Document) ([]byte, error) {
+	b.status.RLock()
+	defer b.status.RUnlock()
+
 	// Use a preallocated slice to make insert able to avoid alloc
 	// a slice to call insert batch with.
 	b.batchSizeOne.Docs[0] = d
-	err := b.InsertBatch(b.batchSizeOne)
+	err := b.insertBatchWithRLock(b.batchSizeOne)
 	if err != nil {
+		if errs := err.Errs(); len(errs) == 1 {
+			// Return concrete error instead of the batch partial error.
+			return nil, errs[0].Err
+		}
+		// Fallback to returning batch partial error if not what we expect.
 		return nil, err
 	}
 	last := b.docs[len(b.docs)-1]
@@ -157,6 +165,16 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 		return errClosed
 	}
 
+	// NB(r): This switch is required or else *index.BatchPartialError
+	// is returned as a non-nil wrapped "error" even though it is not
+	// an error and underlying error is nil.
+	if err := b.insertBatchWithRLock(batch); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *builder) insertBatchWithRLock(batch index.Batch) *index.BatchPartialError {
 	// NB(r): This is all kept in a single method to make the
 	// insertion path fast.
 	var wg sync.WaitGroup
