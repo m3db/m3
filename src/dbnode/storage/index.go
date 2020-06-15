@@ -1227,10 +1227,13 @@ func (i *nsIndex) query(
 	// If require exhaustive but not, return error.
 	if opts.RequireExhaustive {
 		i.metrics.queryNonExhaustiveLimitError.Inc(1)
-		return exhaustive, fmt.Errorf("query matched too many time series: require_exhaustive=%v, limit=%d, matched=%d",
+		err := fmt.Errorf(
+			"query matched too many time series: require_exhaustive=%v, limit=%d, matched=%d",
 			opts.RequireExhaustive,
 			opts.Limit,
 			results.Size())
+		// NB(r): Make sure error is not retried and returns as bad request.
+		return exhaustive, xerrors.NewInvalidParamsError(err)
 	}
 
 	// Otherwise non-exhaustive but not required to be.

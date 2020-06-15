@@ -72,6 +72,19 @@ type CustomHandler interface {
 	Handler(handlerOptions HandlerOptions) (http.Handler, error)
 }
 
+// QueryRouter is responsible for routing queries between promql and m3query.
+type QueryRouter interface {
+	Setup(opts QueryRouterOptions)
+	ServeHTTP(w http.ResponseWriter, req *http.Request)
+}
+
+// QueryRouterOptions defines options for QueryRouter
+type QueryRouterOptions struct {
+	DefaultQueryEngine QueryEngine
+	PromqlHandler      func(http.ResponseWriter, *http.Request)
+	M3QueryHandler     func(http.ResponseWriter, *http.Request)
+}
+
 // RemoteReadRenderer renders remote read output.
 type RemoteReadRenderer func(io.Writer, []*ts.Series,
 	models.RequestParams, bool)
@@ -175,6 +188,18 @@ type HandlerOptions interface {
 	DefaultQueryEngine() QueryEngine
 	// SetDefaultQueryEngine returns the default query engine.
 	SetDefaultQueryEngine(value QueryEngine) HandlerOptions
+
+	// QueryRouter is a reference to the router which is responsible for routing
+	// queries between PromQL and M3Query.
+	QueryRouter() QueryRouter
+	// SetQueryRouter sets query router.
+	SetQueryRouter(value QueryRouter) HandlerOptions
+
+	// InstantQueryRouter is a reference to the router which is responsible for
+	// routing instant queries between PromQL and M3Query.
+	InstantQueryRouter() QueryRouter
+	// SetInstantQueryRouter sets query router for instant queries.
+	SetInstantQueryRouter(value QueryRouter) HandlerOptions
 }
 
 // HandlerOptions represents handler options.
@@ -199,6 +224,8 @@ type handlerOptions struct {
 	placementServiceNames []string
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault
 	nowFn                 clock.NowFn
+	queryRouter           QueryRouter
+	instantQueryRouter    QueryRouter
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -226,6 +253,8 @@ func NewHandlerOptions(
 	cpuProfileDuration time.Duration,
 	placementServiceNames []string,
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
+	queryRouter QueryRouter,
+	instantQueryRouter QueryRouter,
 ) (HandlerOptions, error) {
 	timeout := cfg.Query.TimeoutOrDefault()
 	if embeddedDbCfg != nil &&
@@ -257,6 +286,8 @@ func NewHandlerOptions(
 		timeoutOpts: &prometheus.TimeoutOpts{
 			FetchTimeout: timeout,
 		},
+		queryRouter:        queryRouter,
+		instantQueryRouter: instantQueryRouter,
 	}, nil
 }
 
@@ -477,4 +508,24 @@ func IsQueryEngineSet(v string) bool {
 		return true
 	}
 	return false
+}
+
+func (o *handlerOptions) QueryRouter() QueryRouter {
+	return o.queryRouter
+}
+
+func (o *handlerOptions) SetQueryRouter(value QueryRouter) HandlerOptions {
+	opts := *o
+	opts.queryRouter = value
+	return &opts
+}
+
+func (o *handlerOptions) InstantQueryRouter() QueryRouter {
+	return o.instantQueryRouter
+}
+
+func (o *handlerOptions) SetInstantQueryRouter(value QueryRouter) HandlerOptions {
+	opts := *o
+	opts.instantQueryRouter = value
+	return &opts
 }

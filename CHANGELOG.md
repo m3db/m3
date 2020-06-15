@@ -1,5 +1,11 @@
 # Changelog
 
+# 0.15.2
+
+## Bug Fixes
+
+- **M3DB**: Fix require exhaustive propagation of require exhaustive option through RPC ([#2409](https://github.com/m3db/m3/pull/2409))
+
 # 0.15.1
  
 ## Features
