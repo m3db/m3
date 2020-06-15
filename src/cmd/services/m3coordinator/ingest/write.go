@@ -471,7 +471,6 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 				// If we see an error break out so we can try processing the
 				// next datapoint.
 				multiErr = multiErr.Add(err)
-				continue
 			}
 		}
 	}
