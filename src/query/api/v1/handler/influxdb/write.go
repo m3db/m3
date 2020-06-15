@@ -51,6 +51,12 @@ const (
 	InfluxWriteHTTPMethod = http.MethodPost
 )
 
+var defaultValue = ingest.IterValue{
+	Tags:       models.EmptyTags(),
+	Attributes: ts.DefaultSeriesAttributes(),
+	Metadata:   ts.Metadata{},
+}
+
 type ingestWriteHandler struct {
 	handlerOpts  options.HandlerOptions
 	tagOpts      models.TagOptions
@@ -219,7 +225,7 @@ func determineTimeUnit(t time.Time) xtime.Unit {
 	return xtime.Nanosecond
 }
 
-func (ii *ingestIterator) Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte) {
+func (ii *ingestIterator) Current() ingest.IterValue {
 	if ii.pointIndex < len(ii.points) && ii.nextFieldIndex > 0 && len(ii.fields) > (ii.nextFieldIndex-1) {
 		point := ii.points[ii.pointIndex]
 		field := ii.fields[ii.nextFieldIndex-1]
@@ -227,10 +233,18 @@ func (ii *ingestIterator) Current() (models.Tags, ts.Datapoints, ts.SeriesAttrib
 
 		t := point.Time()
 
-		return tags, []ts.Datapoint{ts.Datapoint{Timestamp: t,
-			Value: field.value}}, ts.DefaultSeriesAttributes(), determineTimeUnit(t), nil
+		value := ingest.IterValue{
+			Tags:       tags,
+			Datapoints: []ts.Datapoint{ts.Datapoint{Timestamp: t, Value: field.value}},
+			Attributes: ts.DefaultSeriesAttributes(),
+			Unit:       determineTimeUnit(t),
+		}
+		if ii.pointIndex < len(ii.metadatas) {
+			value.Metadata = ii.metadatas[ii.pointIndex]
+		}
+		return value
 	}
-	return models.EmptyTags(), nil, ts.DefaultSeriesAttributes(), 0, nil
+	return defaultValue
 }
 
 func (ii *ingestIterator) Reset() error {

@@ -164,13 +164,26 @@ func (i *testIter) Next() bool {
 	return i.idx < len(i.entries)
 }
 
-func (i *testIter) Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte) {
+func (i *testIter) Current() IterValue {
 	if len(i.entries) == 0 || i.idx < 0 || i.idx >= len(i.entries) {
-		return models.EmptyTags(), nil, ts.DefaultSeriesAttributes(), 0, nil
+		return IterValue{
+			Tags:       models.EmptyTags(),
+			Attributes: ts.DefaultSeriesAttributes(),
+		}
 	}
 
 	curr := i.entries[i.idx]
-	return curr.tags, curr.datapoints, curr.attributes, xtime.Second, curr.annotation
+	value := IterValue{
+		Tags:       curr.tags,
+		Datapoints: curr.datapoints,
+		Attributes: curr.attributes,
+		Unit:       xtime.Second,
+		Annotation: curr.annotation,
+	}
+	if i.idx < len(i.metadatas) {
+		value.Metadata = i.metadatas[i.idx]
+	}
+	return value
 }
 
 func (i *testIter) Reset() error {
@@ -184,13 +197,6 @@ func (i *testIter) Error() error {
 
 func (i *testIter) SetCurrentMetadata(metadata ts.Metadata) {
 	i.metadatas[i.idx] = metadata
-}
-
-func (i *testIter) CurrentMetadata() ts.Metadata {
-	if len(i.metadatas) == 0 {
-		return ts.Metadata{}
-	}
-	return i.metadatas[i.idx]
 }
 
 func TestDownsampleAndWrite(t *testing.T) {

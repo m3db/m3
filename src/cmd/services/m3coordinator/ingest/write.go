@@ -45,15 +45,24 @@ var (
 	}
 )
 
+// IterValue is the value returned by the iterator.
+type IterValue struct {
+	Tags       models.Tags
+	Datapoints ts.Datapoints
+	Attributes ts.SeriesAttributes
+	Unit       xtime.Unit
+	Metadata   ts.Metadata
+	Annotation []byte
+}
+
 // DownsampleAndWriteIter is an interface that can be implemented to use
 // the WriteBatch method.
 type DownsampleAndWriteIter interface {
 	Next() bool
-	Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte)
+	Current() IterValue
 	Reset() error
 	Error() error
 	SetCurrentMetadata(ts.Metadata)
-	CurrentMetadata() ts.Metadata
 }
 
 // DownsamplerAndWriter is the interface for the downsamplerAndWriter which
@@ -377,8 +386,8 @@ func (d *downsamplerAndWriter) WriteBatch(
 		}
 
 		for iter.Next() {
-			tags, datapoints, _, unit, annotation := iter.Current()
-			if metadata := iter.CurrentMetadata(); metadata.DropUnaggregated {
+			value := iter.Current()
+			if value.Metadata.DropUnaggregated {
 				d.metrics.dropped.Inc(1)
 				continue
 			}
@@ -387,10 +396,10 @@ func (d *downsamplerAndWriter) WriteBatch(
 				wg.Add(1)
 				d.workerPool.Go(func() {
 					err := d.writeWithOptions(ctx, storage.WriteQueryOptions{
-						Tags:       tags,
-						Datapoints: datapoints,
-						Unit:       unit,
-						Annotation: annotation,
+						Tags:       value.Tags,
+						Datapoints: value.Datapoints,
+						Unit:       value.Unit,
+						Annotation: value.Annotation,
 						Attributes: storageAttributesFromPolicy(p),
 					})
 					if err != nil {
@@ -424,8 +433,8 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 
 	for iter.Next() {
 		appender.Reset()
-		tags, datapoints, info, _, _ := iter.Current()
-		for _, tag := range tags.Tags {
+		value := iter.Current()
+		for _, tag := range value.Tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
 		}
 
@@ -449,8 +458,8 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			iter.SetCurrentMetadata(ts.Metadata{DropUnaggregated: true})
 		}
 
-		for _, dp := range datapoints {
-			switch info.Type {
+		for _, dp := range value.Datapoints {
+			switch value.Attributes.Type {
 			case ts.MetricTypeGauge:
 				err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 			case ts.MetricTypeCounter:

@@ -29,6 +29,12 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+var defaultValue = ingest.IterValue{
+	Tags:       models.EmptyTags(),
+	Attributes: ts.DefaultSeriesAttributes(),
+	Metadata:   ts.Metadata{},
+}
+
 type datapoint struct {
 	ts.Datapoint
 
@@ -81,12 +87,22 @@ func (i *iter) Next() bool {
 	return i.idx < len(i.tags)
 }
 
-func (i *iter) Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte) {
+func (i *iter) Current() ingest.IterValue {
 	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.EmptyTags(), nil, ts.DefaultSeriesAttributes(), 0, nil
+		return defaultValue
 	}
 	curr := i.datapoints[i.idx]
-	return i.tags[i.idx], ts.Datapoints{curr.Datapoint}, ts.DefaultSeriesAttributes(), xtime.Millisecond, curr.annotation
+	value := ingest.IterValue{
+		Tags:       i.tags[i.idx],
+		Datapoints: ts.Datapoints{curr.Datapoint},
+		Attributes: ts.DefaultSeriesAttributes(),
+		Unit:       xtime.Millisecond,
+		Annotation: curr.annotation,
+	}
+	if i.idx < len(i.metadatas) {
+		value.Metadata = i.metadatas[i.idx]
+	}
+	return value
 }
 
 func (i *iter) Reset() error {
@@ -102,12 +118,8 @@ func (i *iter) SetCurrentMetadata(metadata ts.Metadata) {
 	if len(i.metadatas) == 0 {
 		i.metadatas = make([]ts.Metadata, len(i.tags))
 	}
-	i.metadatas[i.idx] = metadata
-}
-
-func (i *iter) CurrentMetadata() ts.Metadata {
-	if len(i.metadatas) == 0 {
-		return ts.Metadata{}
+	if i.idx < 0 || i.idx >= len(i.metadatas) {
+		return
 	}
-	return i.metadatas[i.idx]
+	i.metadatas[i.idx] = metadata
 }
