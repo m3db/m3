@@ -190,17 +190,18 @@ function test_query_limits_applied {
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
     '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
   
-  echo "Test query limit with require-exhaustive headers false (above)"
+  echo "Test query limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 2 ]]'
 
   echo "Test query limit with require-exhaustive headers true (below limit therefore no error)"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 102" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 101 ]]'  
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'  
   
   echo "Test query limit with require-exhaustive headers true (above limit therefore error)"
-  expected_status=$(curl -s -H "M3-Limit-Max-Series: 10" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".status")
-  test "$expected_status" = "error"
+  failedOverLimit=$(curl -s -H "M3-Limit-Max-Series: 3" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq)
+  test "$(echo $failedOverLimit | jq -r ".status")" = "error"
+  test "$(echo $failedOverLimit | jq -r ".error")" = "unable to satisfy consistency requirements: shards=4, err=[error fetching tagged from host m3db_local: Error({Type:BAD_REQUEST Message:query matched too many time series: require_exhaustive=true, limit=3, matched=3})]"
 }
 
 function prometheus_query_native {
