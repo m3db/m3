@@ -165,7 +165,13 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 		return errClosed
 	}
 
-	return b.insertBatchWithRLock(batch)
+	// NB(r): This switch is required or else *index.BatchPartialError
+	// is returned as a non-nil wrapped "error" even though it is not
+	// an error and underlying error is nil.
+	if err := b.insertBatchWithRLock(batch); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (b *builder) insertBatchWithRLock(batch index.Batch) *index.BatchPartialError {
