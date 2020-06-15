@@ -72,15 +72,6 @@ func TestFromM3IdentToMetric(t *testing.T) {
 	assert.Equal(t, name, metric.Tags.Opts.MetricName())
 }
 
-func TestFromIdentTagIteratorToTags(t *testing.T) {
-	tagIters := makeTagIter()
-	tags, err := FromIdentTagIteratorToTags(tagIters, nil)
-	require.NoError(t, err)
-	require.Equal(t, len(testTags), tags.Len())
-	assert.Equal(t, testTags, tags.Tags)
-	assert.Equal(t, []byte("__name__"), tags.Opts.MetricName())
-}
-
 func TestFetchQueryToM3Query(t *testing.T) {
 	tests := []struct {
 		name     string

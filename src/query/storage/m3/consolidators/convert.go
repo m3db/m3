@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package consolidators
 
 import (
-	"fmt"
-	"math"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/x/ident"
 )
 
-func TestValidateMetricsType(t *testing.T) {
-	assert.NoError(t, ValidateMetricsType(UnaggregatedMetricsType))
-	assert.Error(t, ValidateMetricsType(MetricsType(math.MaxUint64)))
-}
-
-func TestMetricsTypeUnmarshalYAML(t *testing.T) {
-	type config struct {
-		Type MetricsType `yaml:"type"`
+// FromIdentTagIteratorToTags converts ident tags to coordinator tags.
+func FromIdentTagIteratorToTags(
+	identTags ident.TagIterator,
+	tagOptions models.TagOptions,
+) (models.Tags, error) {
+	tags := models.NewTags(identTags.Remaining(), tagOptions)
+	for identTags.Next() {
+		identTag := identTags.Current()
+		tags = tags.AddTag(models.Tag{
+			Name:  identTag.Name.Bytes(),
+			Value: identTag.Value.Bytes(),
+		})
 	}
 
-	for _, value := range validMetricsTypes {
-		str := fmt.Sprintf("type: %s\n", value.String())
-		var cfg config
-		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
-		assert.Equal(t, value, cfg.Type)
+	if err := identTags.Err(); err != nil {
+		return models.EmptyTags(), err
 	}
 
-	var cfg config
-	require.Error(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
+	return tags, nil
 }

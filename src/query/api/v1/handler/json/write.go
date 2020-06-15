@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -120,8 +121,8 @@ func (h *WriteJSONHandler) newWriteQuery(req *WriteQuery) (*storage.WriteQuery, 
 		},
 		Unit:       xtime.Millisecond,
 		Annotation: nil,
-		Attributes: storage.Attributes{
-			MetricsType: storage.UnaggregatedMetricsType,
+		Attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
 		},
 	})
 }

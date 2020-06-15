@@ -238,7 +238,7 @@ func (enc *Encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 
 	// We need a tail to capture an immutable snapshot of the encoder data
 	// as the last byte can change after this method returns.
-	rawBuffer, _ := enc.stream.Rawbytes()
+	rawBuffer, _ := enc.stream.RawBytes()
 	lastByte := rawBuffer[length-1]
 
 	// Take ref up to last byte.
@@ -575,7 +575,7 @@ func (enc *Encoder) Bytes() ([]byte, error) {
 		return nil, unusableErr
 	}
 
-	bytes, _ := enc.stream.Rawbytes()
+	bytes, _ := enc.stream.RawBytes()
 	return bytes, nil
 }
 
@@ -604,7 +604,7 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	}
 
 	if numPreviousBytes > 0 && hash == lastState.hash {
-		streamBytes, _ := enc.stream.Rawbytes()
+		streamBytes, _ := enc.stream.RawBytes()
 		match, err := enc.bytesMatchEncodedDictionaryValue(
 			streamBytes, lastState, val)
 		if err != nil {
@@ -622,7 +622,7 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	// Bytes changed control bit.
 	enc.stream.WriteBit(opCodeChange)
 
-	streamBytes, _ := enc.stream.Rawbytes()
+	streamBytes, _ := enc.stream.RawBytes()
 	for j, state := range customField.bytesFieldDict {
 		if hash != state.hash {
 			continue
@@ -675,7 +675,7 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	enc.padToNextByte()
 
 	// Track the byte position we're going to start at so we can store it in the LRU after.
-	streamBytes, _ = enc.stream.Rawbytes()
+	streamBytes, _ = enc.stream.RawBytes()
 	bytePos := len(streamBytes)
 
 	// Write the actual bytes.
@@ -813,7 +813,7 @@ func (enc *Encoder) bytesMatchEncodedDictionaryValue(
 // reaches the beginning of the next byte. This allows us begin encoding data
 // with the guarantee that we're aligned at a physical byte boundary.
 func (enc *Encoder) padToNextByte() {
-	_, bitPos := enc.stream.Rawbytes()
+	_, bitPos := enc.stream.RawBytes()
 	for bitPos%8 != 0 {
 		enc.stream.WriteBit(0)
 		bitPos++

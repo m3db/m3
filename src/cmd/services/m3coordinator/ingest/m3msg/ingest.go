@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/convert"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -217,8 +218,8 @@ func (op *ingestOp) resetWriteQuery() error {
 		Tags:       op.tags,
 		Datapoints: op.datapoints,
 		Unit:       convert.UnitForM3DB(op.sp.Resolution().Precision),
-		Attributes: storage.Attributes{
-			MetricsType: storage.AggregatedMetricsType,
+		Attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
 			Resolution:  op.sp.Resolution().Window,
 			Retention:   op.sp.Retention().Duration(),
 		},

@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 
 	"github.com/golang/mock/gomock"
 )
@@ -131,10 +132,10 @@ func (mr *MockStorageMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *go
 }
 
 // FetchCompressed mocks base method
-func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (SeriesFetchResult, Cleanup, error) {
+func (m *MockStorage) FetchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.SeriesFetchResult, Cleanup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchCompressed", arg0, arg1, arg2)
-	ret0, _ := ret[0].(SeriesFetchResult)
+	ret0, _ := ret[0].(consolidators.SeriesFetchResult)
 	ret1, _ := ret[1].(Cleanup)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -176,10 +177,10 @@ func (mr *MockStorageMockRecorder) Name() *gomock.Call {
 }
 
 // SearchCompressed mocks base method
-func (m *MockStorage) SearchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (TagResult, Cleanup, error) {
+func (m *MockStorage) SearchCompressed(arg0 context.Context, arg1 *storage.FetchQuery, arg2 *storage.FetchOptions) (consolidators.TagResult, Cleanup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SearchCompressed", arg0, arg1, arg2)
-	ret0, _ := ret[0].(TagResult)
+	ret0, _ := ret[0].(consolidators.TagResult)
 	ret1, _ := ret[1].(Cleanup)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2

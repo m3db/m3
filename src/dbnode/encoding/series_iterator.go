@@ -120,8 +120,8 @@ func (it *seriesIterator) Close() {
 	}
 }
 
-func (it *seriesIterator) Replicas() []MultiReaderIterator {
-	return it.multiReaderIters
+func (it *seriesIterator) Replicas() ([]MultiReaderIterator, error) {
+	return it.multiReaderIters, nil
 }
 
 func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {

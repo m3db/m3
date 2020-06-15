@@ -216,8 +216,11 @@ type TagIterator interface {
 	// Remaining returns the number of elements remaining to be iterated over.
 	Remaining() int
 
-	// Dupe returns an independent duplicate of the iterator.
+	// Duplicate returns an independent duplicate of the iterator.
 	Duplicate() TagIterator
+
+	// Rewind resets the tag iterator to the initial position.
+	Rewind()
 }
 
 // TagsIterator represents a TagIterator that can be reset with a Tags

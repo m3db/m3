@@ -1658,6 +1658,12 @@ func (s *session) fetchIDsAttempt(
 		completionFn := func(result interface{}, err error) {
 			var snapshotSuccess int32
 			if err != nil {
+				if IsBadRequestError(err) {
+					// Wrap with invalid params and non-retryable so it is
+					// not retried.
+					err = xerrors.NewInvalidParamsError(err)
+					err = xerrors.NewNonRetryableError(err)
+				}
 				atomic.AddInt32(&errs, 1)
 				// NB(r): reuse the error lock here as we do not want to create
 				// a whole lot of locks for every single ID fetched due to size

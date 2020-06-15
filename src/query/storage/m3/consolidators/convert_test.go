@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,39 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3
+package consolidators
 
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestExhaustiveTagMerge(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestFromIdentTagIteratorToTags(t *testing.T) {
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	r := NewMultiFetchTagsResult()
-	for _, tt := range exhaustTests {
-		t.Run(tt.name, func(t *testing.T) {
-			for _, ex := range tt.exhaustives {
-				it := client.NewMockTaggedIDsIterator(ctrl)
-				it.EXPECT().Next().Return(false)
-				it.EXPECT().Err().Return(nil)
-				it.EXPECT().Finalize().Return()
-				meta := block.NewResultMetadata()
-				meta.Exhaustive = ex
-				r.Add(it, meta, nil)
-			}
-
-			tagResult, err := r.FinalResult()
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, tagResult.Metadata.Exhaustive)
-			assert.NoError(t, r.Close())
-		})
+	tagFn := func(n, v string) ident.Tag {
+		return ident.Tag{
+			Name:  ident.StringID(n),
+			Value: ident.StringID(v),
+		}
 	}
+
+	it := ident.NewMockTagIterator(ctrl)
+	it.EXPECT().Remaining().Return(2)
+	it.EXPECT().Next().Return(true)
+	it.EXPECT().Current().Return(tagFn("foo", "bar"))
+	it.EXPECT().Next().Return(true)
+	it.EXPECT().Current().Return(tagFn("baz", "qux"))
+	it.EXPECT().Next().Return(false)
+	it.EXPECT().Err().Return(nil)
+
+	opts := models.NewTagOptions().SetIDSchemeType(models.TypeQuoted)
+	tags, err := FromIdentTagIteratorToTags(it, opts)
+	require.NoError(t, err)
+	require.Equal(t, 2, tags.Len())
+	assert.Equal(t, `{baz="qux",foo="bar"}`, string(tags.ID()))
+	assert.Equal(t, []byte("__name__"), tags.Opts.MetricName())
 }

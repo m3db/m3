@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -135,7 +136,7 @@ func TestFetchWithRestrictFetch(t *testing.T) {
 		tally.NoopScope, cost.NoopChainedEnforcer(),
 		models.QueryContextOptions{
 			RestrictFetchType: &models.RestrictFetchTypeQueryContextOptions{
-				MetricsType:   uint(storage.AggregatedMetricsType),
+				MetricsType:   uint(storagemetadata.AggregatedMetricsType),
 				StoragePolicy: policy.MustParseStoragePolicy("10s:42d"),
 			},
 		})
@@ -148,6 +149,7 @@ func TestFetchWithRestrictFetch(t *testing.T) {
 	fetchOpts := mockStorage.LastFetchOptions()
 	restrictByType := fetchOpts.RestrictQueryOptions.GetRestrictByType()
 	require.NotNil(t, restrictByType)
-	assert.Equal(t, storage.AggregatedMetricsType, storage.MetricsType(restrictByType.MetricsType))
+	assert.Equal(t, storagemetadata.AggregatedMetricsType,
+		storagemetadata.MetricsType(restrictByType.MetricsType))
 	assert.Equal(t, "10s:42d", restrictByType.StoragePolicy.String())
 }

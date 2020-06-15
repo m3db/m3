@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -40,7 +41,7 @@ func FromM3IdentToMetric(
 	iterTags ident.TagIterator,
 	tagOptions models.TagOptions,
 ) (models.Metric, error) {
-	tags, err := FromIdentTagIteratorToTags(iterTags, tagOptions)
+	tags, err := consolidators.FromIdentTagIteratorToTags(iterTags, tagOptions)
 	if err != nil {
 		return models.Metric{}, err
 	}
@@ -49,27 +50,6 @@ func FromM3IdentToMetric(
 		ID:   identID.Bytes(),
 		Tags: tags,
 	}, nil
-}
-
-// FromIdentTagIteratorToTags converts ident tags to coordinator tags.
-func FromIdentTagIteratorToTags(
-	identTags ident.TagIterator,
-	tagOptions models.TagOptions,
-) (models.Tags, error) {
-	tags := models.NewTags(identTags.Remaining(), tagOptions)
-	for identTags.Next() {
-		identTag := identTags.Current()
-		tags = tags.AddTag(models.Tag{
-			Name:  identTag.Name.Bytes(),
-			Value: identTag.Value.Bytes(),
-		})
-	}
-
-	if err := identTags.Err(); err != nil {
-		return models.EmptyTags(), err
-	}
-
-	return tags, nil
 }
 
 // TagsToIdentTagIterator converts coordinator tags to ident tags.

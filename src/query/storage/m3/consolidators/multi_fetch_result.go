@@ -18,46 +18,60 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3
+package consolidators
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
-// TODO: use a better seriesIterators merge here
+type fetchDedupeMap interface {
+	add(iter encoding.SeriesIterator, attrs storagemetadata.Attributes) error
+	list() []multiResultSeries
+	close()
+}
+
 type multiResult struct {
 	sync.Mutex
 	metadata        block.ResultMetadata
-	fanout          queryFanoutType
-	seenFirstAttrs  storage.Attributes
+	fanout          QueryFanoutType
+	seenFirstAttrs  storagemetadata.Attributes
 	seenIters       []encoding.SeriesIterators // track known iterators to avoid leaking
 	mergedIterators encoding.MutableSeriesIterators
-	dedupeMap       map[string]multiResultSeries
+	mergedTags      []*models.Tags
+	dedupeMap       fetchDedupeMap
 	err             xerrors.MultiError
+	matchOpts       MatchOptions
+	tagOpts         models.TagOptions
 
 	pools encoding.IteratorPools
 }
 
-func newMultiFetchResult(
-	fanout queryFanoutType,
+// NewMultiFetchResult builds a new multi fetch result.
+func NewMultiFetchResult(
+	fanout QueryFanoutType,
 	pools encoding.IteratorPools,
+	opts MatchOptions,
+	tagOpts models.TagOptions,
 ) MultiFetchResult {
 	return &multiResult{
-		metadata: block.NewResultMetadata(),
-		fanout:   fanout,
-		pools:    pools,
+		metadata:  block.NewResultMetadata(),
+		fanout:    fanout,
+		pools:     pools,
+		matchOpts: opts,
+		tagOpts:   tagOpts,
 	}
 }
 
 type multiResultSeries struct {
-	attrs storage.Attributes
+	attrs storagemetadata.Attributes
 	iter  encoding.SeriesIterator
+	tags  models.Tags
 }
 
 func (r *multiResult) Close() error {
@@ -65,10 +79,12 @@ func (r *multiResult) Close() error {
 	defer r.Unlock()
 
 	for _, iters := range r.seenIters {
-		iters.Close()
+		if iters != nil {
+			iters.Close()
+		}
 	}
-	r.seenIters = nil
 
+	r.seenIters = nil
 	if r.mergedIterators != nil {
 		// NB(r): Since all the series iterators in the final result are held onto
 		// by the original iters in the seenIters slice we allow those iterators
@@ -86,24 +102,27 @@ func (r *multiResult) Close() error {
 	return nil
 }
 
-func (r *multiResult) FinalResultWithAttrs() (SeriesFetchResult,
-	[]storage.Attributes, error) {
+func (r *multiResult) FinalResultWithAttrs() (
+	SeriesFetchResult, []storagemetadata.Attributes, error,
+) {
 	result, err := r.FinalResult()
 	if err != nil {
 		return result, nil, err
 	}
 
-	attrs := make([]storage.Attributes, result.SeriesIterators.Len())
-	// TODO: add testing around here.
-	if r.dedupeMap == nil {
-		for i := range attrs {
-			attrs[i] = r.seenFirstAttrs
-		}
-	} else {
-		i := 0
-		for _, res := range r.dedupeMap {
-			attrs[i] = res.attrs
-			i++
+	var attrs []storagemetadata.Attributes
+	seriesData := result.seriesData
+	if iters := seriesData.seriesIterators; iters != nil {
+		l := iters.Len()
+		attrs = make([]storagemetadata.Attributes, 0, l)
+		if r.dedupeMap == nil {
+			for i := 0; i < l; i++ {
+				attrs = append(attrs, r.seenFirstAttrs)
+			}
+		} else {
+			for _, res := range r.dedupeMap.list() {
+				attrs = append(attrs, res.attrs)
+			}
 		}
 	}
 
@@ -114,46 +133,49 @@ func (r *multiResult) FinalResult() (SeriesFetchResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
-	result := SeriesFetchResult{Metadata: r.metadata}
 	err := r.err.LastError()
 	if err != nil {
-		return result, err
+		return NewEmptyFetchResult(r.metadata), err
 	}
 
 	if r.mergedIterators != nil {
-		result.SeriesIterators = r.mergedIterators
-		return result, nil
+		return NewSeriesFetchResult(r.mergedIterators, nil, r.metadata)
 	}
 
 	if len(r.seenIters) == 0 {
-		result.SeriesIterators = encoding.EmptySeriesIterators
-		return result, nil
-	}
-
-	// can short-cicuit in this case
-	if len(r.seenIters) == 1 {
-		result.SeriesIterators = r.seenIters[0]
-		return result, nil
+		return NewSeriesFetchResult(encoding.EmptySeriesIterators, nil, r.metadata)
 	}
 
 	// otherwise have to create a new seriesiters
-	numSeries := len(r.dedupeMap)
+	dedupedList := r.dedupeMap.list()
+	numSeries := len(dedupedList)
 	r.mergedIterators = r.pools.MutableSeriesIterators().Get(numSeries)
 	r.mergedIterators.Reset(numSeries)
-
-	i := 0
-	for _, res := range r.dedupeMap {
-		r.mergedIterators.SetAt(i, res.iter)
-		i++
+	if r.mergedTags == nil {
+		r.mergedTags = make([]*models.Tags, numSeries)
 	}
 
-	result.SeriesIterators = r.mergedIterators
-	return result, nil
+	lenCurr, lenNext := len(r.mergedTags), len(dedupedList)
+	if lenCurr < lenNext {
+		// If incoming list is longer, expand the stored list.
+		r.mergedTags = append(r.mergedTags, make([]*models.Tags, lenNext-lenCurr)...)
+	} else if lenCurr > lenNext {
+		// If incoming list somehow shorter, shrink stored list.
+		r.mergedTags = r.mergedTags[:lenNext]
+	}
+
+	for i, res := range dedupedList {
+		r.mergedIterators.SetAt(i, res.iter)
+		r.mergedTags[i] = &dedupedList[i].tags
+	}
+
+	return NewSeriesFetchResult(r.mergedIterators, r.mergedTags, r.metadata)
 }
 
 func (r *multiResult) Add(
-	fetchResult SeriesFetchResult,
-	attrs storage.Attributes,
+	newIterators encoding.SeriesIterators,
+	metadata block.ResultMetadata,
+	attrs storagemetadata.Attributes,
 	err error,
 ) {
 	r.Lock()
@@ -164,17 +186,20 @@ func (r *multiResult) Add(
 		return
 	}
 
+	if newIterators == nil || newIterators.Len() == 0 {
+		return
+	}
+
 	if len(r.seenIters) == 0 {
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
-		r.metadata = fetchResult.Metadata
+		r.metadata = metadata
 	} else {
 		// NB: any non-exhaustive result set added makes the entire
 		// result non-exhaustive
-		r.metadata = r.metadata.CombineMetadata(fetchResult.Metadata)
+		r.metadata = r.metadata.CombineMetadata(metadata)
 	}
 
-	newIterators := fetchResult.SeriesIterators
 	r.seenIters = append(r.seenIters, newIterators)
 	// Need to check the error to bail early after accumulating the iterators
 	// otherwise when we close the the multi fetch result
@@ -183,17 +208,23 @@ func (r *multiResult) Add(
 		return
 	}
 
-	if len(r.seenIters) < 2 {
-		// don't need to create the de-dupe map until we need to actually need to
-		// dedupe between two results
-		return
-	}
-
-	if len(r.seenIters) == 2 {
+	if len(r.seenIters) == 1 {
 		// need to backfill the dedupe map from the first result first
 		first := r.seenIters[0]
-		r.dedupeMap = make(map[string]multiResultSeries, first.Len())
+		opts := tagMapOpts{
+			fanout:  r.fanout,
+			size:    first.Len(),
+			tagOpts: r.tagOpts,
+		}
+
+		if r.matchOpts.MatchType == MatchIDs {
+			r.dedupeMap = newIDDedupeMap(opts)
+		} else {
+			r.dedupeMap = newTagDedupeMap(opts)
+		}
+
 		r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)
+		return
 	}
 
 	// Now de-duplicate
@@ -201,48 +232,12 @@ func (r *multiResult) Add(
 }
 
 func (r *multiResult) addOrUpdateDedupeMap(
-	attrs storage.Attributes,
+	attrs storagemetadata.Attributes,
 	newIterators encoding.SeriesIterators,
 ) {
 	for _, iter := range newIterators.Iters() {
-		id := iter.ID().String()
-
-		existing, exists := r.dedupeMap[id]
-		if !exists {
-			// Does not exist, new addition
-			r.dedupeMap[id] = multiResultSeries{
-				attrs: attrs,
-				iter:  iter,
-			}
-			continue
-		}
-
-		var existsBetter bool
-		switch r.fanout {
-		case namespaceCoversAllQueryRange:
-			// Already exists and resolution of result we are adding is not as precise
-			existsBetter = existing.attrs.Resolution <= attrs.Resolution
-		case namespaceCoversPartialQueryRange:
-			// Already exists and either has longer retention, or the same retention
-			// and result we are adding is not as precise
-			existsLongerRetention := existing.attrs.Retention > attrs.Retention
-			existsSameRetentionEqualOrBetterResolution :=
-				existing.attrs.Retention == attrs.Retention &&
-					existing.attrs.Resolution <= attrs.Resolution
-			existsBetter = existsLongerRetention || existsSameRetentionEqualOrBetterResolution
-		default:
-			r.err = r.err.Add(fmt.Errorf("unknown query fanout type: %d", r.fanout))
-			return
-		}
-		if existsBetter {
-			// Existing result is already better
-			continue
-		}
-
-		// Override
-		r.dedupeMap[id] = multiResultSeries{
-			attrs: attrs,
-			iter:  iter,
+		if err := r.dedupeMap.add(iter, attrs); err != nil {
+			r.err = r.err.Add(err)
 		}
 	}
 }

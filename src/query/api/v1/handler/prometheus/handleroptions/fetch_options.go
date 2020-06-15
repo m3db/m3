@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
@@ -78,7 +79,6 @@ func ParseLimit(req *http.Request, defaultLimit int) (int, error) {
 				"could not parse limit: input=%s, err=%v", str, err)
 			return 0, err
 		}
-
 		return n, nil
 	}
 
@@ -89,11 +89,36 @@ func ParseLimit(req *http.Request, defaultLimit int) (int, error) {
 				"could not parse limit: input=%s, err=%v", str, err)
 			return 0, err
 		}
-
 		return n, nil
 	}
 
 	return defaultLimit, nil
+}
+
+// ParseRequireExhaustive parses request limit require exhaustive from header or
+// query string.
+func ParseRequireExhaustive(req *http.Request, defaultValue bool) (bool, error) {
+	if str := req.Header.Get(LimitRequireExhaustiveHeader); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse limit: input=%s, err=%v", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	if str := req.FormValue("requireExhaustive"); str != "" {
+		v, err := strconv.ParseBool(str)
+		if err != nil {
+			err = fmt.Errorf(
+				"could not parse limit: input=%s, err=%v", str, err)
+			return false, err
+		}
+		return v, nil
+	}
+
+	return defaultValue, nil
 }
 
 // NewFetchOptions parses an http request into fetch options.
@@ -101,14 +126,23 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 	req *http.Request,
 ) (*storage.FetchOptions, *xhttp.ParseError) {
 	fetchOpts := storage.NewFetchOptions()
+
 	limit, err := ParseLimit(req, b.opts.Limit)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	fetchOpts.Limit = limit
+
+	requireExhaustive, err := ParseRequireExhaustive(req, b.opts.RequireExhaustive)
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	fetchOpts.RequireExhaustive = requireExhaustive
+
 	if str := req.Header.Get(MetricsTypeHeader); str != "" {
-		mt, err := storage.ParseMetricsType(str)
+		mt, err := storagemetadata.ParseMetricsType(str)
 		if err != nil {
 			err = fmt.Errorf(
 				"could not parse metrics type: input=%s, err=%v", str, err)

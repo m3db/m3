@@ -39,6 +39,7 @@ import (
 type testSeries struct {
 	id          string
 	nsID        string
+	retainTag   bool
 	start       time.Time
 	end         time.Time
 	input       []inputReplica
@@ -84,13 +85,21 @@ func TestMultiReaderMergesReplicas(t *testing.T) {
 		},
 	}
 
+	expected := []testValue{
+		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+		{4.0, start.Add(4 * time.Second), xtime.Second, nil},
+		{5.0, start.Add(5 * time.Second), xtime.Second, nil},
+	}
+
 	test := testSeries{
 		id:       "foo",
 		nsID:     "bar",
 		start:    start,
 		end:      end,
 		input:    values,
-		expected: append(values[0].values, values[2].values[1:]...),
+		expected: expected,
 	}
 
 	assertTestSeriesIterator(t, test)

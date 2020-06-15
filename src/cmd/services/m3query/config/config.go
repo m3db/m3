@@ -35,6 +35,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/cost"
@@ -207,9 +209,14 @@ type ResultOptions struct {
 
 // QueryConfiguration is the query configuration.
 type QueryConfiguration struct {
-	Timeout       *time.Duration               `yaml:"timeout"`
-	DefaultEngine string                       `yaml:"defaultEngine"`
-	Prometheus    PrometheusQueryConfiguration `yaml:"prometheus"`
+	// Timeout is the query timeout.
+	Timeout *time.Duration `yaml:"timeout"`
+	// DefaultEngine is the default query engine.
+	DefaultEngine string `yaml:"defaultEngine"`
+	// ConsolidationConfiguration are configs for consolidating fetched queries.
+	ConsolidationConfiguration ConsolidationConfiguration `yaml:"consolidation"`
+	// Prometheus is prometheus client configuration.
+	Prometheus PrometheusQueryConfiguration `yaml:"prometheus"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
@@ -218,6 +225,12 @@ func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
 		return *v
 	}
 	return defaultQueryTimeout
+}
+
+// ConsolidationConfiguration are configs for consolidating fetched queries.
+type ConsolidationConfiguration struct {
+	// MatchType determines the options by which series should match.
+	MatchType consolidators.MatchType `yaml:"matchType"`
 }
 
 // PrometheusQueryConfiguration is the prometheus query engine configuration.
@@ -231,6 +244,7 @@ func (c PrometheusQueryConfiguration) MaxSamplesPerQueryOrDefault() int {
 	if v := c.MaxSamplesPerQuery; v != nil {
 		return *v
 	}
+
 	return defaultPrometheusMaxSamplesPerQuery
 }
 
@@ -389,7 +403,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
 	policies := []CarbonIngesterStoragePolicyConfiguration{}
 	for _, ns := range namespaces {
-		if ns.Options().Attributes().MetricsType == storage.AggregatedMetricsType {
+		if ns.Options().Attributes().MetricsType == storagemetadata.AggregatedMetricsType {
 			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{
 				Resolution: ns.Options().Attributes().Resolution,
 				Retention:  ns.Options().Attributes().Retention,

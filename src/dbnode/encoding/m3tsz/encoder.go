@@ -326,7 +326,7 @@ func (enc *encoder) LastAnnotation() (ts.Annotation, error) {
 // Len returns the length of the final data stream that would be generated
 // by a call to Stream().
 func (enc *encoder) Len() int {
-	raw, pos := enc.os.Rawbytes()
+	raw, pos := enc.os.RawBytes()
 	if len(raw) == 0 {
 		return 0
 	}
@@ -388,7 +388,7 @@ func (enc *encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 
 	// We need a multibyte tail to capture an immutable snapshot
 	// of the encoder data.
-	rawBuffer, pos := enc.os.Rawbytes()
+	rawBuffer, pos := enc.os.RawBytes()
 	lastByte := rawBuffer[length-1]
 
 	// Take ref up to last byte.
@@ -424,7 +424,7 @@ func (enc *encoder) segmentTakeOwnership() ts.Segment {
 	}
 
 	// We need a multibyte tail since the tail isn't set correctly midstream.
-	rawBuffer, pos := enc.os.Rawbytes()
+	rawBuffer, pos := enc.os.RawBytes()
 	lastByte := rawBuffer[length-1]
 
 	// Take ref from the ostream.

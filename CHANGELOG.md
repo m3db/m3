@@ -1,5 +1,27 @@
 # Changelog
 
+# 0.15.2
+
+## Bug Fixes
+
+- **M3DB**: Fix require exhaustive propagation of require exhaustive option through RPC ([#2409](https://github.com/m3db/m3/pull/2409))
+
+# 0.15.1
+ 
+## Features
+
+- **M3DB**: Add ability to return an error when max time series limit is hit instead of partial result and warning ([#2400](https://github.com/m3db/m3/pull/2400))
+- **M3Coordinator**: Add support for namespace retention updates by API ([#2383](https://github.com/m3db/m3/pull/2383))
+
+## Bug Fixes
+
+- **M3Coordinator**: Fix Content-Type for OpenAPI handler ([#2403](https://github.com/m3db/m3/pull/2403))
+- **Build**: Build release binaries with goreleaser using Go 1.13 to match Go 1.13 docker images ([#2397](https://github.com/m3db/m3/pull/2397))
+
+## Misc
+
+- **M3DB**: Report a histogram of series blocks fetched per query ([#2381](https://github.com/m3db/m3/pull/2381))
+
 # 0.15.0
  
 ## Features

@@ -27,9 +27,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/m3db/m3/src/query/models/strconv"
-	"github.com/m3db/m3/src/query/util/writer"
-
 	"github.com/cespare/xxhash/v2"
 )
 
@@ -55,229 +52,20 @@ func EmptyTags() Tags {
 	return NewTags(0, nil)
 }
 
+// LastComputedID returns the last computed ID; this should only be
+// used when it is guaranteed that no tag transforms take place between calls.
+func (t *Tags) LastComputedID() []byte {
+	if t.id == nil {
+		t.id = t.ID()
+	}
+
+	return t.id
+}
+
 // ID returns a byte slice representation of the tags, using the generation
 // strategy from the tag options.
 func (t Tags) ID() []byte {
-	schemeType := t.Opts.IDSchemeType()
-	if len(t.Tags) == 0 {
-		if schemeType == TypeQuoted {
-			return []byte("{}")
-		}
-
-		return []byte("")
-	}
-
-	switch schemeType {
-	case TypeLegacy:
-		return t.legacyID()
-	case TypeQuoted:
-		return t.quotedID()
-	case TypePrependMeta:
-		return t.prependMetaID()
-	case TypeGraphite:
-		return t.graphiteID()
-	default:
-		// Default to prepending meta
-		return t.prependMetaID()
-	}
-}
-
-func (t Tags) legacyID() []byte {
-	// TODO: pool these bytes.
-	id := make([]byte, t.idLen())
-	idx := -1
-	for _, tag := range t.Tags {
-		idx += copy(id[idx+1:], tag.Name) + 1
-		id[idx] = eq
-		idx += copy(id[idx+1:], tag.Value) + 1
-		id[idx] = sep
-	}
-
-	return id
-}
-
-func (t Tags) idLen() int {
-	idLen := 2 * t.Len() // account for separators
-	for _, tag := range t.Tags {
-		idLen += len(tag.Name)
-		idLen += len(tag.Value)
-	}
-
-	return idLen
-}
-
-type tagEscaping struct {
-	escapeName  bool
-	escapeValue bool
-}
-
-func (t Tags) quotedID() []byte {
-	var (
-		idLen        int
-		needEscaping []tagEscaping
-		l            int
-		escape       tagEscaping
-	)
-
-	for i, tt := range t.Tags {
-		l, escape = tt.serializedLength()
-		idLen += l
-		if escape.escapeName || escape.escapeValue {
-			if needEscaping == nil {
-				needEscaping = make([]tagEscaping, len(t.Tags))
-			}
-
-			needEscaping[i] = escape
-		}
-	}
-
-	tagLength := 2 * len(t.Tags)
-	idLen += tagLength + 1 // account for separators and brackets
-	if needEscaping == nil {
-		return t.quoteIDSimple(idLen)
-	}
-
-	// TODO: pool these bytes
-	lastIndex := len(t.Tags) - 1
-	id := make([]byte, idLen)
-	id[0] = leftBracket
-	idx := 1
-	for i, tt := range t.Tags[:lastIndex] {
-		idx = tt.writeAtIndex(id, needEscaping[i], idx)
-		id[idx] = sep
-		idx++
-	}
-
-	idx = t.Tags[lastIndex].writeAtIndex(id, needEscaping[lastIndex], idx)
-	id[idx] = rightBracket
-	return id
-}
-
-// adds quotes to tag values when no characters need escaping.
-func (t Tags) quoteIDSimple(length int) []byte {
-	// TODO: pool these bytes.
-	id := make([]byte, length)
-	id[0] = leftBracket
-	idx := 1
-	lastIndex := len(t.Tags) - 1
-	for _, tag := range t.Tags[:lastIndex] {
-		idx += copy(id[idx:], tag.Name)
-		id[idx] = eq
-		idx++
-		idx = strconv.QuoteSimple(id, tag.Value, idx)
-		id[idx] = sep
-		idx++
-	}
-
-	tag := t.Tags[lastIndex]
-	idx += copy(id[idx:], tag.Name)
-	id[idx] = eq
-	idx++
-	idx = strconv.QuoteSimple(id, tag.Value, idx)
-	id[idx] = rightBracket
-
-	return id
-}
-
-func (t Tag) writeAtIndex(id []byte, escape tagEscaping, idx int) int {
-	if escape.escapeName {
-		idx = strconv.Escape(id, t.Name, idx)
-	} else {
-		idx += copy(id[idx:], t.Name)
-	}
-
-	// add = character
-	id[idx] = eq
-	idx++
-
-	if escape.escapeValue {
-		idx = strconv.Quote(id, t.Value, idx)
-	} else {
-		idx = strconv.QuoteSimple(id, t.Value, idx)
-	}
-
-	return idx
-}
-
-func (t Tag) serializedLength() (int, tagEscaping) {
-	var (
-		idLen    int
-		escaping tagEscaping
-	)
-	if strconv.NeedToEscape(t.Name) {
-		idLen += strconv.EscapedLength(t.Name)
-		escaping.escapeName = true
-	} else {
-		idLen += len(t.Name)
-	}
-
-	if strconv.NeedToEscape(t.Value) {
-		idLen += strconv.QuotedLength(t.Value)
-		escaping.escapeValue = true
-	} else {
-		idLen += len(t.Value) + 2
-	}
-
-	return idLen, escaping
-}
-
-func (t Tags) prependMetaID() []byte {
-	l, metaLengths := t.prependMetaLen()
-	// TODO: pool these bytes.
-	id := make([]byte, l)
-	idx := writeTagLengthMeta(id, metaLengths)
-	for _, tag := range t.Tags {
-		idx += copy(id[idx:], tag.Name)
-		idx += copy(id[idx:], tag.Value)
-	}
-
-	return id
-}
-
-func writeTagLengthMeta(dst []byte, lengths []int) int {
-	idx := writer.WriteIntegers(dst, lengths, sep, 0)
-	dst[idx] = finish
-	return idx + 1
-}
-
-func (t Tags) prependMetaLen() (int, []int) {
-	idLen := 1 // account for separator
-	tagLengths := make([]int, len(t.Tags)*2)
-	for i, tag := range t.Tags {
-		tagLen := len(tag.Name)
-		tagLengths[2*i] = tagLen
-		idLen += tagLen
-		tagLen = len(tag.Value)
-		tagLengths[2*i+1] = tagLen
-		idLen += tagLen
-	}
-
-	prefixLen := writer.IntsLength(tagLengths)
-	return idLen + prefixLen, tagLengths
-}
-
-func (t Tags) graphiteID() []byte {
-	// TODO: pool these bytes.
-	id := make([]byte, t.idLenGraphite())
-	idx := 0
-	lastIndex := len(t.Tags) - 1
-	for _, tag := range t.Tags[:lastIndex] {
-		idx += copy(id[idx:], tag.Value)
-		id[idx] = graphiteSep
-		idx++
-	}
-
-	copy(id[idx:], t.Tags[lastIndex].Value)
-	return id
-}
-
-func (t Tags) idLenGraphite() int {
-	idLen := t.Len() - 1 // account for separators
-	for _, tag := range t.Tags {
-		idLen += len(tag.Value)
-	}
-
-	return idLen
+	return id(t)
 }
 
 func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
@@ -522,6 +310,7 @@ func (t Tags) Validate() error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -534,6 +323,16 @@ func (t Tags) Reset() Tags {
 // HashedID returns the hashed ID for the tags.
 func (t Tags) HashedID() uint64 {
 	return xxhash.Sum64(t.ID())
+}
+
+// LastComputedHashedID returns the last computed hashed ID; this should only be
+// used when it is guaranteed that no tag transforms take place between calls.
+func (t *Tags) LastComputedHashedID() uint64 {
+	if t.hashedID == 0 {
+		t.hashedID = xxhash.Sum64(t.LastComputedID())
+	}
+
+	return t.hashedID
 }
 
 // Equals returns a boolean reporting whether the compared tags have the same

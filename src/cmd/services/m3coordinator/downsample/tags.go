@@ -100,9 +100,7 @@ func (t *tags) Err() error {
 	return nil
 }
 
-func (t *tags) Close() {
-	// No-op
-}
+func (t *tags) Close() {}
 
 func (t *tags) Remaining() int {
 	if t.idx < 0 {
@@ -113,6 +111,10 @@ func (t *tags) Remaining() int {
 
 func (t *tags) Duplicate() ident.TagIterator {
 	return &tags{idx: -1, names: t.names, values: t.values}
+}
+
+func (t *tags) Rewind() {
+	t.idx = -1
 }
 
 func (t *tags) String() string {

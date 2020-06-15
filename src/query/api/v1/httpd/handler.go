@@ -180,7 +180,7 @@ func (h *Handler) RegisterRoutes() error {
 	promqlQueryHandler := wrapped(prom.NewReadHandler(opts, nativeSourceOpts))
 	promqlInstantQueryHandler := wrapped(prom.NewReadInstantHandler(opts, nativeSourceOpts))
 	nativePromReadHandler := wrapped(native.NewPromReadHandler(nativeSourceOpts))
-	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(h.options))
+	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(nativeSourceOpts))
 
 	h.options.QueryRouter().Setup(options.QueryRouterOptions{
 		DefaultQueryEngine: h.options.DefaultQueryEngine(),
