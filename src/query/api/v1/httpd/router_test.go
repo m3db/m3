@@ -80,6 +80,7 @@ func TestHanlerSwitch(t *testing.T) {
 	req.Header.Add(EngineHeaderName, "prometheus")
 	require.NoError(t, err)
 	router.ServeHTTP(rr, req)
+
 	assert.Equal(t, 2, promqlCalled)
 	assert.Equal(t, 3, m3qCalled)
 }
