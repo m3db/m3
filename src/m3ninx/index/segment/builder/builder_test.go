@@ -152,10 +152,10 @@ func TestBuilderInsertDuplicateReturnsErrDuplicateID(t *testing.T) {
 		require.NoError(t, builder.Close())
 	}()
 
-	_, err = builder.Insert(testDocuments[0])
+	_, err = builder.Insert(testDocuments[2])
 	require.NoError(t, err)
 
-	_, err = builder.Insert(testDocuments[0])
+	_, err = builder.Insert(testDocuments[2])
 	require.Error(t, err)
 	require.Equal(t, index.ErrDuplicateID, err)
 }
