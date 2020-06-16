@@ -97,8 +97,8 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 		}
 
 		spec := boundOp.Bounds()
-		if p.LookbackDuration > maxOffset {
-			maxOffset = p.LookbackDuration
+		if spec.Offset > maxOffset {
+			maxOffset = spec.Offset
 		}
 
 		if spec.Range > maxRange {
@@ -107,15 +107,18 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 	}
 
 	startShift := maxOffset + maxRange
-	shift := startShift % p.TimeSpec.Step
-	extraStep := p.TimeSpec.Step
-	if shift == 0 {
-		// NB: if the start is divisible by offset, no need to take an extra step.
-		extraStep = 0
+
+	remainder := startShift % p.TimeSpec.Step
+	var extraShift time.Duration
+	if remainder != 0 {
+		// Align the shift to be divisible by step.
+		extraShift = p.TimeSpec.Step - remainder
 	}
 
-	alignedShift := startShift - extraStep - shift
+	alignedShift := startShift + extraShift
+
 	p.TimeSpec.Start = p.TimeSpec.Start.Add(-1 * alignedShift)
+
 	return p
 }
 
