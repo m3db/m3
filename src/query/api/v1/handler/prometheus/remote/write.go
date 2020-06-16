@@ -86,6 +86,12 @@ var (
 		Forever:        &defaultForwardingRetryForever,
 		Jitter:         &defaultForwardingRetryJitter,
 	}
+
+	defaultValue = ingest.IterValue{
+		Tags:       models.EmptyTags(),
+		Attributes: ts.DefaultSeriesAttributes(),
+		Metadata:   ts.Metadata{},
+	}
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
@@ -577,6 +583,7 @@ type promTSIter struct {
 	attributes []ts.SeriesAttributes
 	tags       []models.Tags
 	datapoints []ts.Datapoints
+	metadatas  []ts.Metadata
 }
 
 func (i *promTSIter) Next() bool {
@@ -584,12 +591,21 @@ func (i *promTSIter) Next() bool {
 	return i.idx < len(i.tags)
 }
 
-func (i *promTSIter) Current() (models.Tags, ts.Datapoints, ts.SeriesAttributes, xtime.Unit, []byte) {
+func (i *promTSIter) Current() ingest.IterValue {
 	if len(i.tags) == 0 || i.idx < 0 || i.idx >= len(i.tags) {
-		return models.EmptyTags(), nil, ts.DefaultSeriesAttributes(), 0, nil
+		return defaultValue
 	}
 
-	return i.tags[i.idx], i.datapoints[i.idx], i.attributes[i.idx], xtime.Millisecond, nil
+	value := ingest.IterValue{
+		Tags:       i.tags[i.idx],
+		Datapoints: i.datapoints[i.idx],
+		Attributes: ts.DefaultSeriesAttributes(),
+		Unit:       xtime.Millisecond,
+	}
+	if i.idx < len(i.metadatas) {
+		value.Metadata = i.metadatas[i.idx]
+	}
+	return value
 }
 
 func (i *promTSIter) Reset() error {
@@ -599,4 +615,14 @@ func (i *promTSIter) Reset() error {
 
 func (i *promTSIter) Error() error {
 	return nil
+}
+
+func (i *promTSIter) SetCurrentMetadata(metadata ts.Metadata) {
+	if len(i.metadatas) == 0 {
+		i.metadatas = make([]ts.Metadata, len(i.tags))
+	}
+	if i.idx < 0 || i.idx >= len(i.metadatas) {
+		return
+	}
+	i.metadatas[i.idx] = metadata
 }

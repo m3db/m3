@@ -412,7 +412,11 @@ func Run(runOpts RunOptions) {
 	}
 
 	engine := executor.NewEngine(engineOpts)
-	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
+	downsamplerAndWriter, err := newDownsamplerAndWriter(
+		backendStorage,
+		downsampler,
+		instrumentOptions,
+	)
 	if err != nil {
 		logger.Fatal("unable to create new downsampler and writer", zap.Error(err))
 	}
@@ -1125,7 +1129,11 @@ func startCarbonIngestion(
 	return carbonServer, true
 }
 
-func newDownsamplerAndWriter(storage storage.Storage, downsampler downsample.Downsampler) (ingest.DownsamplerAndWriter, error) {
+func newDownsamplerAndWriter(
+	storage storage.Storage,
+	downsampler downsample.Downsampler,
+	iOpts instrument.Options,
+) (ingest.DownsamplerAndWriter, error) {
 	// Make sure the downsampler and writer gets its own PooledWorkerPool and that its not shared with any other
 	// codepaths because PooledWorkerPools can deadlock if used recursively.
 	downAndWriterWorkerPoolOpts := xsync.NewPooledWorkerPoolOptions().
@@ -1138,7 +1146,7 @@ func newDownsamplerAndWriter(storage storage.Storage, downsampler downsample.Dow
 	}
 	downAndWriteWorkerPool.Init()
 
-	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool), nil
+	return ingest.NewDownsamplerAndWriter(storage, downsampler, downAndWriteWorkerPool, iOpts), nil
 }
 
 func newPromQLEngine(
