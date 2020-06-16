@@ -55,7 +55,8 @@ type FetchOptionsBuilder interface {
 // FetchOptionsBuilderOptions provides options to use when creating a
 // fetch options builder.
 type FetchOptionsBuilderOptions struct {
-	Limit             int
+	SeriesLimit       int
+	DocsLimit         int
 	RequireExhaustive bool
 }
 
@@ -71,8 +72,8 @@ func NewFetchOptionsBuilder(
 }
 
 // ParseLimit parses request limit from either header or query string.
-func ParseLimit(req *http.Request, defaultLimit int) (int, error) {
-	if str := req.Header.Get(LimitMaxSeriesHeader); str != "" {
+func ParseLimit(req *http.Request, header string, formValue string, defaultLimit int) (int, error) {
+	if str := req.Header.Get(header); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
@@ -82,7 +83,7 @@ func ParseLimit(req *http.Request, defaultLimit int) (int, error) {
 		return n, nil
 	}
 
-	if str := req.FormValue("limit"); str != "" {
+	if str := req.FormValue(formValue); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
 			err = fmt.Errorf(
@@ -127,12 +128,19 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 ) (*storage.FetchOptions, *xhttp.ParseError) {
 	fetchOpts := storage.NewFetchOptions()
 
-	limit, err := ParseLimit(req, b.opts.Limit)
+	seriesLimit, err := ParseLimit(req, LimitMaxSeriesHeader, "limit", b.opts.SeriesLimit)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	fetchOpts.Limit = limit
+	fetchOpts.SeriesLimit = seriesLimit
+
+	docsLimit, err := ParseLimit(req, LimitMaxDocsHeader, "docsLimit", b.opts.DocsLimit)
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	fetchOpts.DocsLimit = docsLimit
 
 	requireExhaustive, err := ParseRequireExhaustive(req, b.opts.RequireExhaustive)
 	if err != nil {

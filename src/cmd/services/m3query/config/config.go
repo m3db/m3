@@ -76,7 +76,8 @@ var (
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
-	defaultStorageQueryLimit = 10000
+	defaultStorageQuerySeriesLimit = 10000
+	defaultStorageQueryDocsLimit   = 0 // Default OFF.
 )
 
 // Configuration is the configuration for the query service.
@@ -308,6 +309,9 @@ type PerQueryLimitsConfiguration struct {
 	// MaxFetchedSeries limits the number of time series returned by a storage node.
 	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
 
+	// MaxFetchedDocs limits the number of index documents matched by a query.
+	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
+
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool `yaml:"requireExhaustive"`
 }
@@ -323,13 +327,15 @@ func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerO
 func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleroptions.FetchOptionsBuilderOptions {
 	if l.MaxFetchedSeries <= 0 {
 		return handleroptions.FetchOptionsBuilderOptions{
-			Limit:             defaultStorageQueryLimit,
+			SeriesLimit:       defaultStorageQuerySeriesLimit,
+			DocsLimit:         defaultStorageQueryDocsLimit,
 			RequireExhaustive: l.RequireExhaustive,
 		}
 	}
 
 	return handleroptions.FetchOptionsBuilderOptions{
-		Limit:             int(l.MaxFetchedSeries),
+		SeriesLimit:       int(l.MaxFetchedSeries),
+		DocsLimit:         int(l.MaxFetchedDocs),
 		RequireExhaustive: l.RequireExhaustive,
 	}
 }
