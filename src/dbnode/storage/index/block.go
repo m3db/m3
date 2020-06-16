@@ -477,7 +477,7 @@ func (b *block) queryWithSpan(
 	}()
 
 	for iter.Next() {
-		if opts.LimitExceeded(size) {
+		if opts.SeriesLimitExceeded(size) {
 			break
 		}
 
@@ -507,7 +507,7 @@ func (b *block) queryWithSpan(
 		return false, err
 	}
 
-	exhaustive := !opts.LimitExceeded(size)
+	exhaustive := !opts.SeriesLimitExceeded(size)
 	return exhaustive, nil
 }
 
@@ -644,7 +644,7 @@ func (b *block) aggregateWithSpan(
 
 	segs := b.segmentsWithRLock()
 	for _, s := range segs {
-		if opts.LimitExceeded(size) {
+		if opts.SeriesLimitExceeded(size) {
 			break
 		}
 
@@ -655,7 +655,7 @@ func (b *block) aggregateWithSpan(
 		iterClosed = false // only once the iterator has been successfully Reset().
 
 		for iter.Next() {
-			if opts.LimitExceeded(size) {
+			if opts.SeriesLimitExceeded(size) {
 				break
 			}
 
@@ -689,7 +689,7 @@ func (b *block) aggregateWithSpan(
 		}
 	}
 
-	exhaustive := !opts.LimitExceeded(size)
+	exhaustive := !opts.SeriesLimitExceeded(size)
 	return exhaustive, nil
 }
 

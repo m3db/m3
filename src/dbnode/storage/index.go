@@ -1308,8 +1308,9 @@ func (i *nsIndex) queryWithSpan(
 		// number of results that we're allowed to return. If thats the case, there
 		// is no value in kicking off more parallel queries, so we break out of
 		// the loop.
-		size := results.Size()
-		alreadyExceededLimit := opts.LimitExceeded(size)
+		seriesCount := results.Size()
+		docsCount := results.TotalDocsCount()
+		alreadyExceededLimit := opts.SeriesLimitExceeded(seriesCount) || opts.DocsLimitExceeded(docsCount)
 		if alreadyExceededLimit {
 			state.Lock()
 			state.exhaustive = false
