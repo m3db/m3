@@ -50,6 +50,14 @@ var (
 	// DropPipelineMetadatas is the drop policy list of pipeline metadatas.
 	DropPipelineMetadatas = []PipelineMetadata{DropPipelineMetadata}
 
+	// DropIfOnlyMatchPipelineMetadata is the drop if only match policy
+	// pipeline metadata.
+	DropIfOnlyMatchPipelineMetadata = PipelineMetadata{DropPolicy: policy.DropIfOnlyMatch}
+
+	// DropIfOnlyMatchPipelineMetadatas is the drop if only match policy list
+	// of pipeline metadatas.
+	DropIfOnlyMatchPipelineMetadatas = []PipelineMetadata{DropIfOnlyMatchPipelineMetadata}
+
 	// DropMetadata is the drop policy metadata.
 	DropMetadata = Metadata{Pipelines: DropPipelineMetadatas}
 
@@ -185,9 +193,11 @@ func (metadatas PipelineMetadatas) Clone() PipelineMetadatas {
 type ApplyOrRemoveDropPoliciesResult uint
 
 const (
+	// NoDropPolicyPresentResult is the result of no drop policies being present.
+	NoDropPolicyPresentResult ApplyOrRemoveDropPoliciesResult = iota
 	// AppliedEffectiveDropPolicyResult is the result of applying the drop
 	// policy and returning just the single drop policy pipeline.
-	AppliedEffectiveDropPolicyResult ApplyOrRemoveDropPoliciesResult = iota
+	AppliedEffectiveDropPolicyResult
 	// RemovedIneffectiveDropPoliciesResult is the result of no drop policies
 	// being effective and returning the pipelines without any drop policies.
 	RemovedIneffectiveDropPoliciesResult
@@ -217,7 +227,7 @@ func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
 
 	if dropIfOnlyMatchPipelines == 0 {
 		// No drop if only match pipelines, no need to remove anything
-		return metadatas, RemovedIneffectiveDropPoliciesResult
+		return metadatas, NoDropPolicyPresentResult
 	}
 
 	if nonDropPipelines == 0 {
@@ -419,62 +429,6 @@ func (sms StagedMetadatas) IsDefault() bool {
 // default list but with the drop policy applied.
 func (sms StagedMetadatas) IsDropPolicyApplied() bool {
 	return len(sms) == 1 && sms[0].IsDropPolicyApplied()
-}
-
-// ApplyOrRemoveDropPolicies applies or removes any drop policies staged
-// metadatas, if effective then just a single drop pipeline staged metadata
-// is returned otherwise if not effective it removes in each staged metadata
-// the drop policy from all pipelines and retains only non-drop policy
-// effective staged metadatas.
-func (sms StagedMetadatas) ApplyOrRemoveDropPolicies() (
-	StagedMetadatas,
-	ApplyOrRemoveDropPoliciesResult,
-) {
-	if len(sms) == 0 {
-		return sms, RemovedIneffectiveDropPoliciesResult
-	}
-
-	var (
-		dropStagedMetadatas        = 0
-		nonDropStagedMetadatas     = 0
-		result                     = sms
-		earliestDropStagedMetadata StagedMetadata
-	)
-
-	for i := len(result) - 1; i >= 0; i-- {
-		var applyOrRemoveResult ApplyOrRemoveDropPoliciesResult
-		sms[i].Pipelines, applyOrRemoveResult = sms[i].Pipelines.ApplyOrRemoveDropPolicies()
-
-		switch applyOrRemoveResult {
-		case AppliedEffectiveDropPolicyResult:
-			dropStagedMetadatas++
-
-			// Track the drop staged metadata so we can return it if we need to
-			if dropStagedMetadatas == 1 ||
-				sms[i].CutoverNanos < earliestDropStagedMetadata.CutoverNanos {
-				earliestDropStagedMetadata = sms[i]
-			}
-
-			// Remove by moving to tail and decrementing length so we can do in
-			// place to avoid allocations of a new slice
-			if lastElem := i == len(result)-1; lastElem {
-				result = result[0:i]
-			} else {
-				result = append(result[0:i], result[i+1:]...)
-			}
-		default:
-			// Not an effective drop staged metadata
-			nonDropStagedMetadatas++
-		}
-	}
-
-	if nonDropStagedMetadatas == 0 {
-		// If there were no non-drop staged metadatas, then just return the
-		// canonical drop staged metadatas
-		return StagedMetadatas{earliestDropStagedMetadata}, AppliedEffectiveDropPolicyResult
-	}
-
-	return result, RemovedIneffectiveDropPoliciesResult
 }
 
 // ToProto converts the staged metadatas to a protobuf message in place.
