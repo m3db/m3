@@ -224,7 +224,10 @@ func FromRPCFetchTaggedRequest(
 		RequireExhaustive: req.RequireExhaustive,
 	}
 	if l := req.Limit; l != nil {
-		opts.Limit = int(*l)
+		opts.SeriesLimit = int(*l)
+	}
+	if l := req.DocsLimit; l != nil {
+		opts.DocsLimit = int(*l)
 	}
 
 	q, err := idx.Unmarshal(req.Query)
