@@ -273,9 +273,14 @@ func ToRPCFetchTaggedRequest(
 		RequireExhaustive: opts.RequireExhaustive,
 	}
 
-	if opts.Limit > 0 {
-		l := int64(opts.Limit)
+	if opts.SeriesLimit > 0 {
+		l := int64(opts.SeriesLimit)
 		request.Limit = &l
+	}
+
+	if opts.DocsLimit > 0 {
+		l := int64(opts.DocsLimit)
+		request.DocsLimit = &l
 	}
 
 	return request, nil
