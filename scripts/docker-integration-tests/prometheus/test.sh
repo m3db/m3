@@ -201,7 +201,7 @@ function test_query_limits_applied {
   echo "Test query limit with require-exhaustive headers true (above limit therefore error)"
   failedOverLimit=$(curl -s -H "M3-Limit-Max-Series: 3" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq)
   test "$(echo $failedOverLimit | jq -r ".status")" = "error"
-  test "$(echo $failedOverLimit | jq -r ".error")" = "unable to satisfy consistency requirements: shards=4, err=[error fetching tagged from host m3db_local: Error({Type:BAD_REQUEST Message:query matched too many time series: require_exhaustive=true, limit=3, matched=3})]"
+  test $(grep "query matched too many time series" <<< $failedOverLimit)
 }
 
 function prometheus_query_native {
