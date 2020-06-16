@@ -1228,10 +1228,13 @@ func (i *nsIndex) query(
 	if opts.RequireExhaustive {
 		i.metrics.queryNonExhaustiveLimitError.Inc(1)
 		err := fmt.Errorf(
-			"query matched too many time series: require_exhaustive=%v, limit=%d, matched=%d",
+			"query exceeded limit: require_exhaustive=%v, series_limit=%d, series_matched=%d, docs_limit=%d, docs_matched=%d",
 			opts.RequireExhaustive,
-			opts.Limit,
-			results.Size())
+			opts.SeriesLimit,
+			results.Size(),
+			opts.DocsLimit,
+			results.TotalDocsCount(),
+		)
 		// NB(r): Make sure error is not retried and returns as bad request.
 		return exhaustive, xerrors.NewInvalidParamsError(err)
 	}
@@ -1873,12 +1876,13 @@ type nsIndexMetrics struct {
 	blocksEvictedMutableSegments tally.Counter
 	blockMetrics                 nsIndexBlocksMetrics
 
-	loadedDocsPerQuery              tally.Histogram
-	queryExhaustiveSuccess          tally.Counter
-	queryExhaustiveInternalError    tally.Counter
-	queryNonExhaustiveSuccess       tally.Counter
-	queryNonExhaustiveInternalError tally.Counter
-	queryNonExhaustiveLimitError    tally.Counter
+	loadedDocsPerQuery                 tally.Histogram
+	queryExhaustiveSuccess             tally.Counter
+	queryExhaustiveInternalError       tally.Counter
+	queryNonExhaustiveSuccess          tally.Counter
+	queryNonExhaustiveInternalError    tally.Counter
+	queryNonExhaustiveSeriesLimitError tally.Counter
+	queryNonExhaustiveDocsLimitError   tally.Counter
 }
 
 func newNamespaceIndexMetrics(
@@ -1944,9 +1948,13 @@ func newNamespaceIndexMetrics(
 			"exhaustive": "false",
 			"result":     "error_internal",
 		}).Counter("query"),
-		queryNonExhaustiveLimitError: scope.Tagged(map[string]string{
+		queryNonExhaustiveSeriesLimitError: scope.Tagged(map[string]string{
 			"exhaustive": "false",
-			"result":     "error_require_exhaustive",
+			"result":     "error_series_require_exhaustive",
+		}).Counter("query"),
+		queryNonExhaustiveDocsLimitError: scope.Tagged(map[string]string{
+			"exhaustive": "false",
+			"result":     "error_docs_require_exhaustive",
 		}).Counter("query"),
 	}
 }
