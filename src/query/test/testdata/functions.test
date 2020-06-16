@@ -26,7 +26,7 @@ eval instant at 50m resets(http_requests[50m])
 	{path="/bar"} 1
 	{path="/biz"} 0
 
-# FAILING. eval instant at 50m resets(nonexistent_metric[50m])
+eval instant at 50m resets(nonexistent_metric[50m])
 
 # Tests for changes().
 # FAILING issue #17
@@ -55,7 +55,7 @@ eval instant at 50m changes(http_requests[30m])
 #	{path="/bar"} 9
 #	{path="/biz"} 1
 
-# FAILING. eval instant at 50m changes(nonexistent_metric[50m])
+eval instant at 50m changes(nonexistent_metric[50m])
 
 clear
 
@@ -141,12 +141,10 @@ load 5m
 	testcounter_reset_middle	0+10x4 0+10x5
 	http_requests{job="app-server", instance="1", group="canary"}		0+80x10
 
-# FAILING TODO: should not fail, need to check
 # deriv should return the same as rate in simple cases.
 eval instant at 50m rate(http_requests{group="canary", instance="1", job="app-server"}[50m])
 	{group="canary", instance="1", job="app-server"} 0.26666666666666666
 
-# FAILING TODO: should not fail, need to check
 eval instant at 50m deriv(http_requests{group="canary", instance="1", job="app-server"}[50m])
 	{group="canary", instance="1", job="app-server"} 0.26666666666666666
 
@@ -241,16 +239,16 @@ clear
 load 10s
   metric 1 1
 
-# FAILING. eval instant at 0s timestamp(metric)
+# FAILING issue #23. eval instant at 0s timestamp(metric)
 #  {} 0
 
-# FAILING. eval instant at 5s timestamp(metric)
+# FAILING issue #23. eval instant at 5s timestamp(metric)
 #  {} 0
 
-# FAILING. eval instant at 10s timestamp(metric)
+# FAILING issue #23. eval instant at 10s timestamp(metric)
 #  {} 10
 
-# FAILING. eval instant at 10s timestamp(((metric)))
+# FAILING issue #23. eval instant at 10s timestamp(((metric)))
 #  {} 10
 
 # Tests for label_join.
@@ -344,7 +342,8 @@ load 5m
 	http_requests{job="app-server", instance="0", group="canary"}		0+70x10
 	http_requests{job="app-server", instance="1", group="canary"}		0+80x10
 
-# FAILING. eval_ordered instant at 50m sort(http_requests)
+# FAILING issue #28:
+#eval_ordered instant at 50m sort(http_requests)
 #	http_requests{group="production", instance="0", job="api-server"} 100
 #	http_requests{group="production", instance="1", job="api-server"} 200
 #	http_requests{group="canary", instance="0", job="api-server"} 300
@@ -415,7 +414,7 @@ eval instant at 1m stdvar_over_time(metric[1m])
 eval instant at 1m stddev_over_time(metric[1m])
   {} 3.249615
 
-# FAILING. eval instant at 1m stddev_over_time((metric[1m]))
+# FAILING issue #19. eval instant at 1m stddev_over_time((metric[1m]))
 #  {} 3.249615
 
 # Tests for stddev_over_time and stdvar_over_time #4927.
@@ -472,14 +471,14 @@ eval instant at 1m quantile_over_time(2, data[1m])
 	{test="three samples"} +Inf
 	{test="uneven samples"} +Inf
 
-# FAILING. eval instant at 1m (quantile_over_time(2, (data[1m])))
+# FAILING issue #19. eval instant at 1m (quantile_over_time(2, (data[1m])))
 #	{test="two samples"} +Inf
 #	{test="three samples"} +Inf
 #	{test="uneven samples"} +Inf
 
 clear
 
-# FAILING. Test time-related functions.
+# FAILING issue #30. Test time-related functions.
 #eval instant at 0m year()
 #  {} 1970
 
@@ -579,23 +578,23 @@ load 10s
 
 clear
 
-# FAILING. Testdata for absent_over_time()
+# FAILING issue #6. Testdata for absent_over_time()
 #eval instant at 1m absent_over_time(http_requests[5m])
 #    {} 1
 
-# FAILING. eval instant at 1m absent_over_time(http_requests{handler="/foo"}[5m])
+# FAILING issue #6. eval instant at 1m absent_over_time(http_requests{handler="/foo"}[5m])
 #    {handler="/foo"} 1
 
-# FAILING. eval instant at 1m absent_over_time(http_requests{handler!="/foo"}[5m])
+# FAILING issue #6. eval instant at 1m absent_over_time(http_requests{handler!="/foo"}[5m])
 #    {} 1
 
-# FAILING. eval instant at 1m absent_over_time(http_requests{handler="/foo", handler="/bar", handler="/foobar"}[5m])
+# FAILING issue #6. eval instant at 1m absent_over_time(http_requests{handler="/foo", handler="/bar", handler="/foobar"}[5m])
 #    {} 1
 
-# FAILING. eval instant at 1m absent_over_time(rate(nonexistant[5m])[5m:])
+# FAILING issue #6. eval instant at 1m absent_over_time(rate(nonexistant[5m])[5m:])
 #    {} 1
 
-# FAILING. eval instant at 1m absent_over_time(http_requests{handler="/foo", handler="/bar", instance="127.0.0.1"}[5m])
+# FAILING issue #6. eval instant at 1m absent_over_time(http_requests{handler="/foo", handler="/bar", instance="127.0.0.1"}[5m])
 #    {instance="127.0.0.1"} 1
 
 load 1m
@@ -605,40 +604,40 @@ load 1m
 	httpd_log_lines_total{instance="127.0.0.1",job="node"}	1
 	ssl_certificate_expiry_seconds{job="ingress"} NaN NaN NaN NaN NaN
 
-# FAILING. eval instant at 5m absent_over_time(http_requests[5m])
+# FAILING issue #6. eval instant at 5m absent_over_time(http_requests[5m])
 
-# FAILING. eval instant at 5m absent_over_time(rate(http_requests[5m])[5m:1m])
+# FAILING issue #6. eval instant at 5m absent_over_time(rate(http_requests[5m])[5m:1m])
 
-# FAILING. eval instant at 0m absent_over_time(httpd_log_lines_total[30s])
+# FAILING issue #6. eval instant at 0m absent_over_time(httpd_log_lines_total[30s])
 
-# FAILING. eval instant at 1m absent_over_time(httpd_log_lines_total[30s])
+# FAILING issue #6. eval instant at 1m absent_over_time(httpd_log_lines_total[30s])
 #    {} 1
 
-# FAILING. eval instant at 15m absent_over_time(http_requests[5m])
+# FAILING issue #6. eval instant at 15m absent_over_time(http_requests[5m])
 
-# FAILING. eval instant at 16m absent_over_time(http_requests[5m])
+# FAILING issue #6. eval instant at 16m absent_over_time(http_requests[5m])
 #    {} 1
 
-# FAILING. eval instant at 16m absent_over_time(http_requests[6m])
+# FAILING issue #6. eval instant at 16m absent_over_time(http_requests[6m])
 
-# FAILING. eval instant at 16m absent_over_time(httpd_handshake_failures_total[1m])
+# FAILING issue #6. eval instant at 16m absent_over_time(httpd_handshake_failures_total[1m])
 
-# FAILING. eval instant at 16m absent_over_time({instance="127.0.0.1"}[5m])
+# FAILING issue #6. eval instant at 16m absent_over_time({instance="127.0.0.1"}[5m])
 
-# FAILING. eval instant at 16m absent_over_time({instance="127.0.0.1"}[5m])
+# FAILING issue #6. eval instant at 16m absent_over_time({instance="127.0.0.1"}[5m])
 
-# FAILING. eval instant at 21m absent_over_time({instance="127.0.0.1"}[5m])
-# FAILING.     {instance="127.0.0.1"} 1
+# FAILING issue #6. eval instant at 21m absent_over_time({instance="127.0.0.1"}[5m])
+# FAILING issue #6.     {instance="127.0.0.1"} 1
 
-# FAILING. eval instant at 21m absent_over_time({instance="127.0.0.1"}[20m])
+# FAILING issue #6. eval instant at 21m absent_over_time({instance="127.0.0.1"}[20m])
 
-# FAILING. eval instant at 21m absent_over_time({job="grok"}[20m])
-# FAILING.     {job="grok"} 1
+# FAILING issue #6. eval instant at 21m absent_over_time({job="grok"}[20m])
+# FAILING issue #6.     {job="grok"} 1
 
-# FAILING. eval instant at 30m absent_over_time({instance="127.0.0.1"}[5m:5s])
-# FAILING.     {} 1
+# FAILING issue #6. eval instant at 30m absent_over_time({instance="127.0.0.1"}[5m:5s])
+# FAILING issue #6.     {} 1
 
-# FAILING. eval instant at 5m absent_over_time({job="ingress"}[4m])
+# FAILING issue #6. eval instant at 5m absent_over_time({job="ingress"}[4m])
 
-# FAILING. eval instant at 10m absent_over_time({job="ingress"}[4m])
-# FAILING. 	{job="ingress"} 1
+# FAILING issue #6. eval instant at 10m absent_over_time({job="ingress"}[4m])
+# FAILING issue #6. 	{job="ingress"} 1

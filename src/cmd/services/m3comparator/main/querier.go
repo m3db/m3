@@ -160,7 +160,11 @@ func (q *querier) FetchCompressed(
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(name, matcher.Name) {
 			nameTagFound = true
-			iters, err = q.handler.getSeriesIterators(string(matcher.Value))
+			metricsName := string(matcher.Value)
+			if metricsName == "nonexistent_metric" {
+				return consolidators.SeriesFetchResult{}, noop, nil
+			}
+			iters, err = q.handler.getSeriesIterators(metricsName)
 			if err != nil {
 				return consolidators.SeriesFetchResult{}, noop, err
 			}

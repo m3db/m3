@@ -112,6 +112,11 @@ func TestGenerateRandomSeries(t *testing.T) {
 		wantSeries []tagMap
 	}{
 		{
+			name:       "querying nonexistent_metric returns empty",
+			givenQuery: matcherQuery(t, metricNameTag, "nonexistent_metric"),
+			wantSeries: []tagMap{},
+		},
+		{
 			name:       "random data for known metrics",
 			givenQuery: matcherQuery(t, metricNameTag, "quail"),
 			wantSeries: []tagMap{
