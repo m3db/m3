@@ -608,7 +608,7 @@ func (i *promTSIter) Current() ingest.IterValue {
 	value := ingest.IterValue{
 		Tags:       i.tags[i.idx],
 		Datapoints: i.datapoints[i.idx],
-		Attributes: ts.DefaultSeriesAttributes(),
+		Attributes: i.attributes[i.idx],
 		Unit:       xtime.Millisecond,
 	}
 	if i.idx < len(i.metadatas) {
