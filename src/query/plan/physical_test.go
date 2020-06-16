@@ -80,18 +80,11 @@ func TestShiftTime(t *testing.T) {
 			wantShiftBy:      15 * time.Minute,
 		},
 		{
-			name:             "shift by range + lookbackDuration",
-			fetchOp:          functions.FetchOp{Offset: time.Minute, Range: time.Hour},
-			lookbackDuration: 5 * time.Minute,
-			step:             time.Second,
-			wantShiftBy:      time.Hour + 5*time.Minute, // range + max(offset, lookbackDuration)
-		},
-		{
-			name:             "shift by range + offset",
+			name:             "shift by lookbackDuration + offset + range",
 			fetchOp:          functions.FetchOp{Offset: 8 * time.Minute, Range: time.Hour},
 			lookbackDuration: 5 * time.Minute,
 			step:             time.Second,
-			wantShiftBy:      time.Hour + 8*time.Minute, // range + max(offset, lookbackDuration)
+			wantShiftBy:      time.Hour + 13*time.Minute,
 		},
 		{
 			name:             "align the shift by step",

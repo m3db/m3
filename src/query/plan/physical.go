@@ -86,9 +86,8 @@ func NewPhysicalPlan(
 }
 
 func (p PhysicalPlan) shiftTime() PhysicalPlan {
-	var maxRange time.Duration
-	// Start offset with lookback
-	maxOffset := p.LookbackDuration
+	var maxOffset, maxRange time.Duration
+
 	for _, transformID := range p.pipeline {
 		node := p.steps[transformID]
 		boundOp, ok := node.Transform.Op.(transform.BoundOp)
@@ -106,7 +105,7 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 		}
 	}
 
-	startShift := maxOffset + maxRange
+	startShift := p.LookbackDuration + maxOffset + maxRange
 
 	remainder := startShift % p.TimeSpec.Step
 	var extraShift time.Duration
