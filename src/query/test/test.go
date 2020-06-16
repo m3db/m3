@@ -559,7 +559,7 @@ func almostEqual(a, b float64) bool {
 	diff := math.Abs(a - b)
 
 	if a == 0 || b == 0 || diff < minNormal {
-		return diff < epsilon*minNormal
+		return diff < epsilon
 	}
 	return diff/(math.Abs(a)+math.Abs(b)) < epsilon
 }
