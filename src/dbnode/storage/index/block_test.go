@@ -619,7 +619,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 	ctx.BlockingClose()
 }
 
-func TestBlockMockQueryLimit(t *testing.T) {
+func TestBlockMockQuerySeriesLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -668,7 +668,7 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	ctx.BlockingClose()
 }
 
-func TestBlockMockQueryLimitExhaustive(t *testing.T) {
+func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -703,6 +703,106 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 
 	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
 		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
+	require.NoError(t, err)
+	require.True(t, exhaustive)
+
+	rMap := results.Map()
+	require.Equal(t, 1, rMap.Len())
+	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
+	require.True(t, ok)
+	require.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
+}
+
+func TestBlockMockQueryDocsLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	exec := search.NewMockExecutor(ctrl)
+	b.newExecutorFn = func() (search.Executor, error) {
+		return exec, nil
+	}
+
+	dIter := doc.NewMockIterator(ctrl)
+	gomock.InOrder(
+		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Current().Return(testDoc1()),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Err().Return(nil),
+		dIter.EXPECT().Close().Return(nil),
+		exec.EXPECT().Close().Return(nil),
+	)
+	docsLimit := 1
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
+	require.NoError(t, err)
+	require.False(t, exhaustive)
+
+	require.Equal(t, 1, results.Map().Len())
+	t1, ok := results.Map().Get(ident.StringID(string(testDoc1().ID)))
+	require.True(t, ok)
+	require.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
+}
+
+func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	exec := search.NewMockExecutor(ctrl)
+	b.newExecutorFn = func() (search.Executor, error) {
+		return exec, nil
+	}
+
+	dIter := doc.NewMockIterator(ctrl)
+	gomock.InOrder(
+		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Current().Return(testDoc1()),
+		dIter.EXPECT().Next().Return(false),
+		dIter.EXPECT().Err().Return(nil),
+		dIter.EXPECT().Close().Return(nil),
+		exec.EXPECT().Close().Return(nil),
+	)
+	docsLimit := 2
+	results := NewQueryResults(nil,
+		QueryResultsOptions{}, testOpts)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
