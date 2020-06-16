@@ -1892,6 +1892,7 @@ type nsIndexMetrics struct {
 	queryExhaustiveInternalError       tally.Counter
 	queryNonExhaustiveSuccess          tally.Counter
 	queryNonExhaustiveInternalError    tally.Counter
+	queryNonExhaustiveLimitError       tally.Counter
 	queryNonExhaustiveSeriesLimitError tally.Counter
 	queryNonExhaustiveDocsLimitError   tally.Counter
 }

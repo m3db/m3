@@ -767,7 +767,8 @@ func (d *db) QueryIDs(
 		sp.LogFields(
 			opentracinglog.String("query", query.String()),
 			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Int("limit", opts.Limit),
+			opentracinglog.Int("seriesLimit", opts.SeriesLimit),
+			opentracinglog.Int("docsLimit", opts.DocsLimit),
 			xopentracing.Time("start", opts.StartInclusive),
 			xopentracing.Time("end", opts.EndExclusive),
 		)
