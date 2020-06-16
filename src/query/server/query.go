@@ -610,7 +610,7 @@ func newM3DBStorage(
 			zap.Int("numAggregatedClusterNamespaces", n))
 		newDownsamplerFn := func() (downsample.Downsampler, error) {
 			downsampler, err := newDownsampler(cfg.Downsample, clusterClient,
-				fanoutStorage, nil, tsdbOpts.TagOptions(), instrumentOptions)
+				fanoutStorage, tsdbOpts.TagOptions(), instrumentOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -664,7 +664,6 @@ func newDownsampler(
 	cfg downsample.Configuration,
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
-	autoMappingRules []downsample.AutoMappingRule,
 	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) (downsample.Downsampler, error) {
@@ -698,7 +697,6 @@ func newDownsampler(
 		Storage:               storage,
 		ClusterClient:         clusterManagementClient,
 		RulesKVStore:          kvStore,
-		AutoMappingRules:      autoMappingRules,
 		ClockOptions:          clock.NewOptions(),
 		InstrumentOptions:     instrumentOpts,
 		TagEncoderOptions:     tagEncoderOptions,
