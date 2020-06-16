@@ -462,6 +462,7 @@ func (b *block) queryWithSpan(
 	var (
 		iterCloser = safeCloser{closable: iter}
 		size       = results.Size()
+		docsCount  = results.TotalDocsCount()
 		docsPool   = b.opts.DocumentArrayPool()
 		batch      = docsPool.Get()
 		batchSize  = cap(batch)
@@ -477,7 +478,7 @@ func (b *block) queryWithSpan(
 	}()
 
 	for iter.Next() {
-		if opts.SeriesLimitExceeded(size) {
+		if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
 			break
 		}
 
@@ -486,6 +487,7 @@ func (b *block) queryWithSpan(
 			continue
 		}
 
+		docsCount += len(batch)
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
@@ -494,6 +496,7 @@ func (b *block) queryWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
+		docsCount += len(batch)
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
@@ -507,7 +510,7 @@ func (b *block) queryWithSpan(
 		return false, err
 	}
 
-	exhaustive := !opts.SeriesLimitExceeded(size)
+	exhaustive := !opts.SeriesLimitExceeded(size) && !opts.DocsLimitExceeded(docsCount)
 	return exhaustive, nil
 }
 

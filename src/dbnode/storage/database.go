@@ -796,7 +796,8 @@ func (d *db) AggregateQuery(
 		sp.LogFields(
 			opentracinglog.String("query", query.String()),
 			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Int("limit", aggResultOpts.QueryOptions.Limit),
+			opentracinglog.Int("seriesLimit", aggResultOpts.QueryOptions.SeriesLimit),
+			opentracinglog.Int("docsLimit", aggResultOpts.QueryOptions.DocsLimit),
 			xopentracing.Time("start", aggResultOpts.QueryOptions.StartInclusive),
 			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive),
 		)
