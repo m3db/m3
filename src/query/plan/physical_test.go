@@ -87,7 +87,14 @@ func TestShiftTime(t *testing.T) {
 			wantShiftBy:      time.Hour,
 		},
 		{
-			name:             "align the shift by step",
+			name:             "align the lookback based shift by step",
+			fetchOp:          functions.FetchOp{},
+			lookbackDuration: 5 * time.Second,
+			step:             15 * time.Second,
+			wantShiftBy:      15 * time.Second, // lookback = 5, aligned to 1x step (15)
+		},
+		{
+			name:             "align the range based shift by step",
 			fetchOp:          functions.FetchOp{Range: 16 * time.Second},
 			lookbackDuration: 5 * time.Second,
 			step:             15 * time.Second,
@@ -128,7 +135,7 @@ func TestShiftTime(t *testing.T) {
 
 			p, err := NewPhysicalPlan(lp, params)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantShiftBy, params.Start.Sub(p.TimeSpec.Start), "start time shifted by")
+			assert.Equal(t, tt.wantShiftBy.String(), params.Start.Sub(p.TimeSpec.Start).String(), "start time shifted by")
 		})
 	}
 }
