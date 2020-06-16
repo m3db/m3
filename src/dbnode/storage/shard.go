@@ -2312,7 +2312,7 @@ func (s *dbShard) ColdFlush(
 		}
 
 		nextVersion := coldVersion + 1
-		closer, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx, onFlush)
+		close, err := merger.Merge(fsID, mergeWithMem, nextVersion, flushPreparer, nsCtx, onFlush)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
@@ -2320,7 +2320,7 @@ func (s *dbShard) ColdFlush(
 		flush.doneFns = append(flush.doneFns, shardColdFlushDone{
 			startTime:   startTime,
 			nextVersion: nextVersion,
-			closer:      closer,
+			close:       close,
 		})
 	}
 	return flush, multiErr.FinalError()
@@ -2558,7 +2558,7 @@ func (s *dbShard) logFlushResult(r dbShardFlushResult) {
 type shardColdFlushDone struct {
 	startTime   time.Time
 	nextVersion int
-	closer      persist.DeferredCloser
+	close       persist.DataCloser
 }
 
 type shardColdFlush struct {
@@ -2569,11 +2569,10 @@ type shardColdFlush struct {
 func (s shardColdFlush) Done() error {
 	multiErr := xerrors.NewMultiError()
 	for _, done := range s.doneFns {
-		closer := done.closer
 		startTime := done.startTime
 		nextVersion := done.nextVersion
 
-		if err := closer.Close(); err != nil {
+		if err := done.close(); err != nil {
 			multiErr = multiErr.Add(err)
 			continue
 		}

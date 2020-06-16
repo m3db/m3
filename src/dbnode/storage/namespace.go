@@ -1173,6 +1173,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 
 	resources, err := newColdFlushReuseableResources(n.opts)
 	if err != nil {
+		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
 
@@ -1187,12 +1188,14 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	if n.reverseIndex != nil {
 		onColdFlushDone, err = n.reverseIndex.ColdFlush(shards)
 		if err != nil {
+			n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 			return err
 		}
 	}
 
 	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
 	if err != nil {
+		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
 
@@ -1209,13 +1212,18 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		shardColdFlushes = append(shardColdFlushes, shardColdFlush)
 	}
 
-	if err := onColdFlushNs.Done(); err != nil {
-		multiErr = multiErr.Add(err)
+	if multiErr.NumErrors() == 0 {
+		if err := onColdFlushNs.Done(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
-	if onColdFlushDone != nil {
+	if multiErr.NumErrors() == 0 && onColdFlushDone != nil {
 		multiErr = multiErr.Add(onColdFlushDone())
 	}
 	for _, shardColdFlush := range shardColdFlushes {
+		if multiErr.NumErrors() != 0 {
+			continue
+		}
 		multiErr = multiErr.Add(shardColdFlush.Done())
 	}
 

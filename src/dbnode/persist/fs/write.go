@@ -329,10 +329,11 @@ func (w *writer) Close() error {
 	}
 	// NB(xichen): only write out the checkpoint file if there are no errors
 	// encountered between calling writer.Open() and writer.Close().
-	if err := w.writeCheckpointFile(
+	if err := writeCheckpointFile(
 		w.checkpointFilePath,
 		w.digestFdWithDigestContents.Digest().Sum32(),
 		w.digestBuf,
+		w.newFileMode,
 	); err != nil {
 		w.err = err
 		return err
@@ -340,28 +341,25 @@ func (w *writer) Close() error {
 	return nil
 }
 
-func (w *writer) DeferClose(cleanup func()) (persist.DeferredCloser, error) {
-	var closer persist.DeferredCloser
+func (w *writer) DeferClose() (persist.DataCloser, error) {
 	err := w.close()
 	if w.err != nil {
-		return closer, w.err
+		return nil, w.err
 	}
 	if err != nil {
 		w.err = err
-		return closer, err
+		return nil, err
 	}
 	checkpointFilePath := w.checkpointFilePath
-	digestBuf := w.digestBuf
 	digestChecksum := w.digestFdWithDigestContents.Digest().Sum32()
-	closer.Close = func() error {
-		defer cleanup()
-		return w.writeCheckpointFile(
+	return func() error {
+		return writeCheckpointFile(
 			checkpointFilePath,
 			digestChecksum,
-			digestBuf,
+			digest.NewBuffer(),
+			w.newFileMode,
 		)
-	}
-	return closer, nil
+	}, nil
 }
 
 func (w *writer) close() error {
@@ -387,24 +385,6 @@ func (w *writer) close() error {
 		w.dataFdWithDigest,
 		w.digestFdWithDigestContents,
 	)
-}
-
-func (w *writer) writeCheckpointFile(
-	checkpointFilePath string,
-	digestChecksum uint32,
-	digestBuf digest.Buffer,
-) error {
-	fd, err := w.openWritable(checkpointFilePath)
-	if err != nil {
-		return err
-	}
-	if err := digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
-		// NB(prateek): intentionally skipping fd.Close() error, as failure
-		// to write takes precedence over failure to close the file
-		fd.Close()
-		return err
-	}
-	return fd.Close()
 }
 
 func (w *writer) openWritable(filePath string) (*os.File, error) {
@@ -598,4 +578,23 @@ func (w *writer) writeInfoFileContents(
 
 	_, err = w.infoFdWithDigest.Write(w.encoder.Bytes())
 	return err
+}
+
+func writeCheckpointFile(
+	checkpointFilePath string,
+	digestChecksum uint32,
+	digestBuf digest.Buffer,
+	newFileMode os.FileMode,
+) error {
+	fd, err := OpenWritable(checkpointFilePath, newFileMode)
+	if err != nil {
+		return err
+	}
+	if err := digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
+		// NB(prateek): intentionally skipping fd.Close() error, as failure
+		// to write takes precedence over failure to close the file
+		fd.Close()
+		return err
+	}
+	return fd.Close()
 }

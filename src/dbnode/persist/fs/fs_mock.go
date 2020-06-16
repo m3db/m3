@@ -80,18 +80,18 @@ func (mr *MockDataFileSetWriterMockRecorder) Close() *gomock.Call {
 }
 
 // DeferClose mocks base method
-func (m *MockDataFileSetWriter) DeferClose(arg0 func()) (persist.DeferredCloser, error) {
+func (m *MockDataFileSetWriter) DeferClose() (persist.DataCloser, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeferClose", arg0)
-	ret0, _ := ret[0].(persist.DeferredCloser)
+	ret := m.ctrl.Call(m, "DeferClose")
+	ret0, _ := ret[0].(persist.DataCloser)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeferClose indicates an expected call of DeferClose
-func (mr *MockDataFileSetWriterMockRecorder) DeferClose(arg0 interface{}) *gomock.Call {
+func (mr *MockDataFileSetWriterMockRecorder) DeferClose() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeferClose", reflect.TypeOf((*MockDataFileSetWriter)(nil).DeferClose), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeferClose", reflect.TypeOf((*MockDataFileSetWriter)(nil).DeferClose))
 }
 
 // Open mocks base method

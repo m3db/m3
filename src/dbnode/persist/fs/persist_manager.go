@@ -545,8 +545,8 @@ func (pm *persistManager) closeData() error {
 	return pm.dataPM.writer.Close()
 }
 
-func (pm *persistManager) deferCloseData(cleanup func()) (persist.DeferredCloser, error) {
-	return pm.dataPM.writer.DeferClose(cleanup)
+func (pm *persistManager) deferCloseData() (persist.DataCloser, error) {
+	return pm.dataPM.writer.DeferClose()
 }
 
 // DoneFlush is called by the databaseFlushManager to finish the data persist process.

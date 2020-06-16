@@ -736,10 +736,8 @@ func (m *noopMerger) Merge(
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
-) (persist.DeferredCloser, error) {
-	closer := persist.DeferredCloser{
-		Close: func() error { return nil },
-	}
+) (persist.DataCloser, error) {
+	closer := func() error { return nil }
 	return closer, nil
 }
 

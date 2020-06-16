@@ -89,7 +89,7 @@ func (m *merger) Merge(
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
-) (closer persist.DeferredCloser, err error) {
+) (persist.DataCloser, error) {
 	var (
 		reader         = m.reader
 		blockAllocSize = m.blockAllocSize
@@ -114,6 +114,8 @@ func (m *merger) Merge(
 			},
 			FileSetType: persist.FileSetFlushType,
 		}
+		closer persist.DataCloser
+		err    error
 	)
 
 	if err := reader.Open(openOpts); err != nil {
@@ -178,8 +180,7 @@ func (m *merger) Merge(
 			nsCtx.Schema,
 			encoderPool)
 	)
-	// This gets called later when we finish persist work.
-	cleanupFn := func() {
+	defer func() {
 		segReader.Finalize()
 		multiIter.Close()
 		for _, res := range idsToFinalize {
@@ -188,7 +189,7 @@ func (m *merger) Merge(
 		for _, res := range tagsToFinalize {
 			res.Finalize()
 		}
-	}
+	}()
 
 	// The merge is performed in two stages. The first stage is to loop through
 	// series on disk and merge it with what's in the merge target. Looping
@@ -282,9 +283,8 @@ func (m *merger) Merge(
 		return closer, err
 	}
 
-	// NB(bodu): Return a deferred closer (which writes the checkpoint file and performs resource clenanup)
-	// so that we can guarantee that cold index writes are persisted first.
-	return prepared.DeferClose(cleanupFn)
+	// NB(bodu): Return a deferred closer so that we can guarantee that cold index writes are persisted first.
+	return prepared.DeferClose()
 }
 
 func appendBlockReadersToSegmentReaders(segReaders []xio.SegmentReader, brs []xio.BlockReader) []xio.SegmentReader {

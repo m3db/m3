@@ -437,6 +437,7 @@ func testMergeWith(
 	reader := mockReaderFromData(ctrl, diskData)
 
 	var persisted []persistedData
+	var deferClosed bool
 	preparer := persist.NewMockFlushPreparer(ctrl)
 	preparer.EXPECT().PrepareData(gomock.Any()).Return(
 		persist.PreparedDataPersist{
@@ -450,9 +451,11 @@ func testMergeWith(
 				})
 				return nil
 			},
-			DeferClose: func(cleanup func()) (persist.DeferredCloser, error) {
-				return persist.DeferredCloser{
-					Close: func() error { return nil },
+			DeferClose: func() (persist.DataCloser, error) {
+				return func() error {
+					require.False(t, deferClosed)
+					deferClosed = true
+					return nil
 				}, nil
 			},
 		}, nil)
@@ -467,9 +470,11 @@ func testMergeWith(
 		BlockStart: startTime,
 	}
 	mergeWith := mockMergeWithFromData(t, ctrl, diskData, mergeTargetData)
-	prepared, err := merger.Merge(fsID, mergeWith, 1, preparer, nsCtx, &persist.NoOpColdFlushNamespace{})
+	close, err := merger.Merge(fsID, mergeWith, 1, preparer, nsCtx, &persist.NoOpColdFlushNamespace{})
 	require.NoError(t, err)
-	require.NoError(t, prepared.Close())
+	require.False(t, deferClosed)
+	require.NoError(t, close())
+	require.True(t, deferClosed)
 
 	assertPersistedAsExpected(t, persisted, expectedData)
 }
