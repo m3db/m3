@@ -201,7 +201,7 @@ function test_query_limits_applied {
   echo "Test query limit with require-exhaustive headers true (above limit therefore error)"
   failedOverLimit=$(curl -s -H "M3-Limit-Max-Series: 3" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq)
   test "$(echo $failedOverLimit | jq -r ".status")" = "error"
-  test $(grep "query matched too many time series" <<< $failedOverLimit)
+  test "$(grep "query matched too many time series" <<< $failedOverLimit)"
 }
 
 function prometheus_query_native {
