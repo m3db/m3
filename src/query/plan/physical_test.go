@@ -73,32 +73,32 @@ func TestShiftTime(t *testing.T) {
 		wantShiftBy      time.Duration
 	}{
 		{
-			name:             "by lookbackDuration",
+			name:             "shift by lookbackDuration",
 			fetchOp:          functions.FetchOp{},
 			lookbackDuration: 15 * time.Minute,
 			step:             time.Second,
 			wantShiftBy:      15 * time.Minute,
 		},
 		{
-			name:             "shift by lookbackDuration + range",
+			name:             "shift by range",
 			fetchOp:          functions.FetchOp{Range: time.Hour},
 			lookbackDuration: 5 * time.Minute,
 			step:             time.Second,
-			wantShiftBy:      time.Hour + 5*time.Minute,
+			wantShiftBy:      time.Hour,
 		},
 		{
 			name:             "align the shift by step",
-			fetchOp:          functions.FetchOp{Range: 15 * time.Second},
-			lookbackDuration: 10 * time.Second,
+			fetchOp:          functions.FetchOp{Range: 16 * time.Second},
+			lookbackDuration: 5 * time.Second,
 			step:             15 * time.Second,
-			wantShiftBy:      30 * time.Second, // range + lookbackDuration = 25, aligned to 2x step
+			wantShiftBy:      30 * time.Second, // range = 16, aligned to 2x step (2 * 15)
 		},
 		{
 			name:             "keep the same shift if already aligned by step",
-			fetchOp:          functions.FetchOp{Range: 20 * time.Second},
-			lookbackDuration: 10 * time.Second,
+			fetchOp:          functions.FetchOp{Range: 30 * time.Second},
+			lookbackDuration: 5 * time.Second,
 			step:             15 * time.Second,
-			wantShiftBy:      30 * time.Second, // range + lookbackDuration = 30, divisible by step
+			wantShiftBy:      30 * time.Second, // range = 30, divisible by step
 		},
 	}
 

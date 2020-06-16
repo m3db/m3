@@ -102,7 +102,10 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 		}
 	}
 
-	startShift := p.LookbackDuration + maxRange
+	startShift := p.LookbackDuration
+	if maxRange > 0 {
+		startShift = maxRange
+	}
 
 	remainder := startShift % p.TimeSpec.Step
 	var extraShift time.Duration
