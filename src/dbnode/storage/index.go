@@ -1119,7 +1119,8 @@ func (i *nsIndex) Query(
 	logFields := []opentracinglog.Field{
 		opentracinglog.String("query", query.String()),
 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
+		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
+		opentracinglog.Int("docsLimit", opts.DocsLimit),
 		xopentracing.Time("queryStart", opts.StartInclusive),
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
@@ -1131,7 +1132,7 @@ func (i *nsIndex) Query(
 	// Get results and set the namespace ID and size limit.
 	results := i.resultsPool.Get()
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
-		SizeLimit: opts.Limit,
+		SizeLimit: opts.SeriesLimit,
 		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
@@ -1154,7 +1155,8 @@ func (i *nsIndex) AggregateQuery(
 	logFields := []opentracinglog.Field{
 		opentracinglog.String("query", query.String()),
 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
+		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
+		opentracinglog.Int("docsLimit", opts.DocsLimit),
 		xopentracing.Time("queryStart", opts.StartInclusive),
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
@@ -1166,7 +1168,7 @@ func (i *nsIndex) AggregateQuery(
 	// Get results and set the filters, namespace ID and size limit.
 	results := i.aggregateResultsPool.Get()
 	aopts := index.AggregateResultsOptions{
-		SizeLimit:   opts.Limit,
+		SizeLimit:   opts.SeriesLimit,
 		FieldFilter: opts.FieldFilter,
 		Type:        opts.Type,
 	}
@@ -1508,12 +1510,12 @@ func (i *nsIndex) overriddenOptsForQueryWithRLock(
 	opts index.QueryOptions,
 ) index.QueryOptions {
 	// Override query response limit if needed.
-	if i.state.runtimeOpts.maxQueryLimit > 0 && (opts.Limit == 0 ||
-		int64(opts.Limit) > i.state.runtimeOpts.maxQueryLimit) {
+	if i.state.runtimeOpts.maxQueryLimit > 0 && (opts.SeriesLimit == 0 ||
+		int64(opts.SeriesLimit) > i.state.runtimeOpts.maxQueryLimit) {
 		i.logger.Debug("overriding query response limit",
-			zap.Int("requested", opts.Limit),
+			zap.Int("requested", opts.SeriesLimit),
 			zap.Int64("maxAllowed", i.state.runtimeOpts.maxQueryLimit)) // FOLLOWUP(prateek): log query too once it's serializable.
-		opts.Limit = int(i.state.runtimeOpts.maxQueryLimit)
+		opts.SeriesLimit = int(i.state.runtimeOpts.maxQueryLimit)
 	}
 	return opts
 }
