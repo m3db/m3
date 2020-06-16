@@ -463,6 +463,9 @@ func (ev *evalCmd) compareResult(j []byte) error {
 		if err != nil {
 			return err
 		}
+		if len(ev.expected) == 0 || len(ev.expected[0].vals) == 0 {
+			return errors.Errorf("expected no Scalar value but got %v", v)
+		}
 		expected := ev.expected[0].vals[0].Value
 		if !almostEqual(expected, v) {
 			return errors.Errorf("expected Scalar %v but got %v", expected, v)

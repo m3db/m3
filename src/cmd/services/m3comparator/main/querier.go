@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -149,31 +150,38 @@ func (q *querier) FetchCompressed(
 	options *storage.FetchOptions,
 ) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
 	var (
-		iters        encoding.SeriesIterators
-		randomSeries []series
-		ignoreFilter bool
-		err          error
-		nameTagFound bool
+		iters               encoding.SeriesIterators
+		randomSeries        []series
+		ignoreFilter        bool
+		err                 error
+		strictMetricsFilter bool
 	)
 
 	name := q.iteratorOpts.tagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(name, matcher.Name) {
-			nameTagFound = true
+
 			metricsName := string(matcher.Value)
-			if metricsName == "nonexistent_metric" {
+
+			if strings.HasPrefix(metricsName, "nonexistent") ||
+				strings.HasPrefix(metricsName, "nonexistant"){
+
 				return consolidators.SeriesFetchResult{}, noop, nil
 			}
-			iters, err = q.handler.getSeriesIterators(metricsName)
-			if err != nil {
-				return consolidators.SeriesFetchResult{}, noop, err
-			}
 
-			break
+			if matcher.Type == models.MatchEqual {
+				strictMetricsFilter = true
+				iters, err = q.handler.getSeriesIterators(metricsName)
+				if err != nil {
+					return consolidators.SeriesFetchResult{}, noop, err
+				}
+
+				break
+			}
 		}
 	}
 
-	if iters == nil && !nameTagFound && len(query.TagMatchers) > 0 {
+	if iters == nil && !strictMetricsFilter && len(query.TagMatchers) > 0 {
 		iters, err = q.handler.getSeriesIterators("")
 		if err != nil {
 			return consolidators.SeriesFetchResult{}, noop, err

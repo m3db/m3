@@ -88,64 +88,75 @@ func (l *httpSeriesLoadHandler) getSeriesIterators(
 	l.RLock()
 	defer l.RUnlock()
 
+	var seriesMaps []idSeriesMap
 	logger := l.iterOpts.iOpts.Logger()
-	seriesMap, found := l.nameIDSeriesMap[name]
-	if !found || len(seriesMap.series) == 0 {
-		return nil, nil
+	if name == "" {
+		// return all preloaded data
+		for _, series := range l.nameIDSeriesMap {
+			seriesMaps = append(seriesMaps, series)
+		}
+	} else {
+		seriesMap, found := l.nameIDSeriesMap[name]
+		if !found || len(seriesMap.series) == 0 {
+			return nil, nil
+		}
+		seriesMaps = append(seriesMaps, seriesMap)
 	}
 
-	iters := make([]encoding.SeriesIterator, 0, len(seriesMap.series))
-	for _, series := range seriesMap.series {
-		encoder := l.iterOpts.encoderPool.Get()
-		dps := series.Datapoints
-		startTime := time.Time{}
-		if len(dps) > 0 {
-			startTime = dps[0].Timestamp.Truncate(time.Hour)
-		}
-
-		encoder.Reset(startTime, len(dps), nil)
-		for _, dp := range dps {
-			err := encoder.Encode(ts.Datapoint{
-				Timestamp:      dp.Timestamp,
-				Value:          float64(dp.Value),
-				TimestampNanos: xtime.ToUnixNano(dp.Timestamp),
-			}, xtime.Nanosecond, nil)
-
-			if err != nil {
-				encoder.Close()
-				logger.Error("error encoding datapoints", zap.Error(err))
-				return nil, err
+	iters := make([]encoding.SeriesIterator, 0, len(seriesMaps))
+	for _, seriesMap := range seriesMaps {
+		for _, series := range seriesMap.series {
+			encoder := l.iterOpts.encoderPool.Get()
+			dps := series.Datapoints
+			startTime := time.Time{}
+			if len(dps) > 0 {
+				startTime = dps[0].Timestamp.Truncate(time.Hour)
 			}
+
+			encoder.Reset(startTime, len(dps), nil)
+			for _, dp := range dps {
+				err := encoder.Encode(ts.Datapoint{
+					Timestamp:      dp.Timestamp,
+					Value:          float64(dp.Value),
+					TimestampNanos: xtime.ToUnixNano(dp.Timestamp),
+				}, xtime.Nanosecond, nil)
+
+				if err != nil {
+					encoder.Close()
+					logger.Error("error encoding datapoints", zap.Error(err))
+					return nil, err
+				}
+			}
+
+			readers := [][]xio.BlockReader{{{
+				SegmentReader: xio.NewSegmentReader(encoder.Discard()),
+				Start:         series.Start,
+				BlockSize:     series.End.Sub(series.Start),
+			}}}
+
+			multiReader := encoding.NewMultiReaderIterator(
+				iterAlloc,
+				l.iterOpts.iteratorPools.MultiReaderIterator(),
+			)
+
+			sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
+			multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
+
+			tagIter, id := buildTagIteratorAndID(series.Tags, l.iterOpts.tagOptions)
+			iter := encoding.NewSeriesIterator(
+				encoding.SeriesIteratorOptions{
+					ID:             id,
+					Namespace:      ident.StringID("ns"),
+					Tags:           tagIter,
+					StartInclusive: xtime.ToUnixNano(series.Start),
+					EndExclusive:   xtime.ToUnixNano(series.End),
+					Replicas: []encoding.MultiReaderIterator{
+						multiReader,
+					},
+				}, nil)
+
+			iters = append(iters, iter)
 		}
-
-		readers := [][]xio.BlockReader{{{
-			SegmentReader: xio.NewSegmentReader(encoder.Discard()),
-			Start:         series.Start,
-			BlockSize:     series.End.Sub(series.Start),
-		}}}
-
-		multiReader := encoding.NewMultiReaderIterator(
-			iterAlloc,
-			l.iterOpts.iteratorPools.MultiReaderIterator(),
-		)
-
-		sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
-		multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
-
-		tagIter, id := buildTagIteratorAndID(series.Tags, l.iterOpts.tagOptions)
-		iter := encoding.NewSeriesIterator(
-			encoding.SeriesIteratorOptions{
-				ID:             id,
-				Namespace:      ident.StringID("ns"),
-				Tags:           tagIter,
-				StartInclusive: xtime.ToUnixNano(series.Start),
-				EndExclusive:   xtime.ToUnixNano(series.End),
-				Replicas: []encoding.MultiReaderIterator{
-					multiReader,
-				},
-			}, nil)
-
-		iters = append(iters, iter)
 	}
 
 	return encoding.NewSeriesIterators(
