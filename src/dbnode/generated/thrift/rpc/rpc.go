@@ -3050,6 +3050,7 @@ func (p *Segment) String() string {
 //  - Limit
 //  - RangeTimeType
 //  - RequireExhaustive
+//  - DocsLimit
 type FetchTaggedRequest struct {
 	NameSpace         []byte   `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Query             []byte   `thrift:"query,2,required" db:"query" json:"query"`
@@ -3059,6 +3060,7 @@ type FetchTaggedRequest struct {
 	Limit             *int64   `thrift:"limit,6" db:"limit" json:"limit,omitempty"`
 	RangeTimeType     TimeType `thrift:"rangeTimeType,7" db:"rangeTimeType" json:"rangeTimeType,omitempty"`
 	RequireExhaustive bool     `thrift:"requireExhaustive,8" db:"requireExhaustive" json:"requireExhaustive,omitempty"`
+	DocsLimit         *int64   `thrift:"docsLimit,9" db:"docsLimit" json:"docsLimit,omitempty"`
 }
 
 func NewFetchTaggedRequest() *FetchTaggedRequest {
@@ -3107,6 +3109,15 @@ var FetchTaggedRequest_RequireExhaustive_DEFAULT bool = false
 func (p *FetchTaggedRequest) GetRequireExhaustive() bool {
 	return p.RequireExhaustive
 }
+
+var FetchTaggedRequest_DocsLimit_DEFAULT int64
+
+func (p *FetchTaggedRequest) GetDocsLimit() int64 {
+	if !p.IsSetDocsLimit() {
+		return FetchTaggedRequest_DocsLimit_DEFAULT
+	}
+	return *p.DocsLimit
+}
 func (p *FetchTaggedRequest) IsSetLimit() bool {
 	return p.Limit != nil
 }
@@ -3117,6 +3128,10 @@ func (p *FetchTaggedRequest) IsSetRangeTimeType() bool {
 
 func (p *FetchTaggedRequest) IsSetRequireExhaustive() bool {
 	return p.RequireExhaustive != FetchTaggedRequest_RequireExhaustive_DEFAULT
+}
+
+func (p *FetchTaggedRequest) IsSetDocsLimit() bool {
+	return p.DocsLimit != nil
 }
 
 func (p *FetchTaggedRequest) Read(iprot thrift.TProtocol) error {
@@ -3174,6 +3189,10 @@ func (p *FetchTaggedRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 8:
 			if err := p.ReadField8(iprot); err != nil {
+				return err
+			}
+		case 9:
+			if err := p.ReadField9(iprot); err != nil {
 				return err
 			}
 		default:
@@ -3279,6 +3298,15 @@ func (p *FetchTaggedRequest) ReadField8(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *FetchTaggedRequest) ReadField9(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 9: ", err)
+	} else {
+		p.DocsLimit = &v
+	}
+	return nil
+}
+
 func (p *FetchTaggedRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchTaggedRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -3306,6 +3334,9 @@ func (p *FetchTaggedRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField8(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField9(oprot); err != nil {
 			return err
 		}
 	}
@@ -3423,6 +3454,21 @@ func (p *FetchTaggedRequest) writeField8(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 8:requireExhaustive: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *FetchTaggedRequest) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDocsLimit() {
+		if err := oprot.WriteFieldBegin("docsLimit", thrift.I64, 9); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 9:docsLimit: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.DocsLimit)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.docsLimit (9) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 9:docsLimit: ", p), err)
 		}
 	}
 	return err
