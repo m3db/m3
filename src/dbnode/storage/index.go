@@ -1226,14 +1226,23 @@ func (i *nsIndex) query(
 
 	// If require exhaustive but not, return error.
 	if opts.RequireExhaustive {
+		seriesCount := results.Size()
+		if opts.SeriesLimitExceeded(seriesCount) {
+			i.metrics.queryNonExhaustiveSeriesLimitError.Inc(1)
+		}
+		docsCount := results.TotalDocsCount()
+		if opts.DocsLimitExceeded(docsCount) {
+			i.metrics.queryNonExhaustiveDocsLimitError.Inc(1)
+		}
 		i.metrics.queryNonExhaustiveLimitError.Inc(1)
+
 		err := fmt.Errorf(
 			"query exceeded limit: require_exhaustive=%v, series_limit=%d, series_matched=%d, docs_limit=%d, docs_matched=%d",
 			opts.RequireExhaustive,
 			opts.SeriesLimit,
-			results.Size(),
+			seriesCount,
 			opts.DocsLimit,
-			results.TotalDocsCount(),
+			docsCount,
 		)
 		// NB(r): Make sure error is not retried and returns as bad request.
 		return exhaustive, xerrors.NewInvalidParamsError(err)
@@ -1947,6 +1956,10 @@ func newNamespaceIndexMetrics(
 		queryNonExhaustiveInternalError: scope.Tagged(map[string]string{
 			"exhaustive": "false",
 			"result":     "error_internal",
+		}).Counter("query"),
+		queryNonExhaustiveLimitError: scope.Tagged(map[string]string{
+			"exhaustive": "false",
+			"result":     "error_require_exhaustive",
 		}).Counter("query"),
 		queryNonExhaustiveSeriesLimitError: scope.Tagged(map[string]string{
 			"exhaustive": "false",
