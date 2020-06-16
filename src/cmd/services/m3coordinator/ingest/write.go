@@ -446,7 +446,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		// NB (@shreyas): Add the metric type tag. The tag has the prefix
 		// __m3_. All tags with that prefix are only used by the downsampler
 		// and then stripped off before we actually send to the aggregator.
-		switch info.Type {
+		switch value.Attributes.Type {
 		case ts.MetricTypeCounter:
 			appender.AddTag(m3TypeTag, m3CounterValue)
 		case ts.MetricTypeGauge:
@@ -455,7 +455,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 			appender.AddTag(m3TypeTag, m3TimerValue)
 		}
 
-		if tags.Opts.IDSchemeType() == models.TypeGraphite {
+		if value.Tags.Opts.IDSchemeType() == models.TypeGraphite {
 			// NB(r): This is gross, but if this is a graphite metric then
 			// we are going to set a special tag that means the downsampler
 			// will write a graphite ID. This should really be plumbed
@@ -479,7 +479,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 				},
 			}
 		}
-		opts.MetricType = info.Type
+		opts.MetricType = value.Attributes.Type
 
 		result, err := appender.SamplesAppender(opts)
 		if err != nil {
