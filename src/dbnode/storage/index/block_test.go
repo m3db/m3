@@ -619,7 +619,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 	ctx.BlockingClose()
 }
 
-func TestBlockMockQuerySeriesLimit(t *testing.T) {
+func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -719,7 +719,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 	ctx.BlockingClose()
 }
 
-func TestBlockMockQueryDocsLimit(t *testing.T) {
+func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

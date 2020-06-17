@@ -483,11 +483,11 @@ func (b *block) queryWithSpan(
 		}
 
 		batch = append(batch, iter.Current())
+		docsCount++
 		if len(batch) < batchSize {
 			continue
 		}
 
-		docsCount += len(batch)
 		batch, size, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err

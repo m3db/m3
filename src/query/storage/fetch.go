@@ -66,6 +66,9 @@ func (o *FetchOptions) QueryFetchOptions(
 	if r.SeriesLimit <= 0 {
 		r.SeriesLimit = queryCtx.Options.LimitMaxTimeseries
 	}
+	if r.DocsLimit <= 0 {
+		r.DocsLimit = queryCtx.Options.LimitMaxDocs
+	}
 
 	// Use inbuilt options for type restriction if none found.
 	if r.RestrictQueryOptions.GetRestrictByType() == nil &&
