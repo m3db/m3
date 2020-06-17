@@ -87,8 +87,7 @@ func NewPhysicalPlan(
 
 func (p PhysicalPlan) shiftTime() PhysicalPlan {
 	var maxRange time.Duration
-	// Start offset with lookback
-	maxOffset := p.LookbackDuration
+
 	for _, transformID := range p.pipeline {
 		node := p.steps[transformID]
 		boundOp, ok := node.Transform.Op.(transform.BoundOp)
@@ -97,25 +96,28 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 		}
 
 		spec := boundOp.Bounds()
-		if p.LookbackDuration > maxOffset {
-			maxOffset = p.LookbackDuration
-		}
 
 		if spec.Range > maxRange {
 			maxRange = spec.Range
 		}
 	}
 
-	startShift := maxOffset + maxRange
-	shift := startShift % p.TimeSpec.Step
-	extraStep := p.TimeSpec.Step
-	if shift == 0 {
-		// NB: if the start is divisible by offset, no need to take an extra step.
-		extraStep = 0
+	startShift := p.LookbackDuration
+	if maxRange > 0 {
+		startShift = maxRange
 	}
 
-	alignedShift := startShift - extraStep - shift
+	remainder := startShift % p.TimeSpec.Step
+	var extraShift time.Duration
+	if remainder != 0 {
+		// Align the shift to be divisible by step.
+		extraShift = p.TimeSpec.Step - remainder
+	}
+
+	alignedShift := startShift + extraShift
+
 	p.TimeSpec.Start = p.TimeSpec.Start.Add(-1 * alignedShift)
+
 	return p
 }
 
