@@ -42,7 +42,7 @@ type LimitsConfiguration struct {
 	// evicted from memory) at which point it would resume.
 	MaxOutstandingRepairedBytes int64 `yaml:"maxOutstandingRepairedBytes" validate:"min=0"`
 
-	// MaxRecentlyQueriedBlocks controls the max blocks being queried within a given
+	// MaxRecentlyQueriedBlocks sets the upper limit on block count within a given
 	// lookback period. Queries which are issued while this max is surpassed are abandonded.
 	MaxRecentlyQueriedBlocks *MaxRecentlyQueriedBlocksConfiguration `yaml:"maxRecentlyQueriedBlocks"`
 }
@@ -51,5 +51,5 @@ type LimitsConfiguration struct {
 // lookback period. Queries which are issued while this max is surpassed are abandonded.
 type MaxRecentlyQueriedBlocksConfiguration struct {
 	Value    int64         `yaml:"value" validate:"min=0"`
-	Lookback time.Duration `yaml:"lookback"`
+	Lookback time.Duration `yaml:"lookback" validate:"min=0"`
 }
