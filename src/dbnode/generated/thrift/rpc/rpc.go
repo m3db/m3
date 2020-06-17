@@ -12863,21 +12863,21 @@ func (p *Query) String() string {
 // Attributes:
 //  - Name
 //  - FilePathTemplate
-//  - IntervalNanos
-//  - DurationNanos
+//  - Interval
+//  - Duration
 //  - Debug
 //  - ConditionalNumGoroutinesGreaterThan
 //  - ConditionalNumGoroutinesLessThan
 //  - ConditionalIsOverloaded
 type DebugProfileStartRequest struct {
-	Name                                string `thrift:"name,1,required" db:"name" json:"name"`
-	FilePathTemplate                    string `thrift:"filePathTemplate,2,required" db:"filePathTemplate" json:"filePathTemplate"`
-	IntervalNanos                       *int64 `thrift:"intervalNanos,3" db:"intervalNanos" json:"intervalNanos,omitempty"`
-	DurationNanos                       *int64 `thrift:"durationNanos,4" db:"durationNanos" json:"durationNanos,omitempty"`
-	Debug                               *int64 `thrift:"debug,5" db:"debug" json:"debug,omitempty"`
-	ConditionalNumGoroutinesGreaterThan *int64 `thrift:"conditionalNumGoroutinesGreaterThan,6" db:"conditionalNumGoroutinesGreaterThan" json:"conditionalNumGoroutinesGreaterThan,omitempty"`
-	ConditionalNumGoroutinesLessThan    *int64 `thrift:"conditionalNumGoroutinesLessThan,7" db:"conditionalNumGoroutinesLessThan" json:"conditionalNumGoroutinesLessThan,omitempty"`
-	ConditionalIsOverloaded             *bool  `thrift:"conditionalIsOverloaded,8" db:"conditionalIsOverloaded" json:"conditionalIsOverloaded,omitempty"`
+	Name                                string  `thrift:"name,1,required" db:"name" json:"name"`
+	FilePathTemplate                    string  `thrift:"filePathTemplate,2,required" db:"filePathTemplate" json:"filePathTemplate"`
+	Interval                            *string `thrift:"interval,3" db:"interval" json:"interval,omitempty"`
+	Duration                            *string `thrift:"duration,4" db:"duration" json:"duration,omitempty"`
+	Debug                               *int64  `thrift:"debug,5" db:"debug" json:"debug,omitempty"`
+	ConditionalNumGoroutinesGreaterThan *int64  `thrift:"conditionalNumGoroutinesGreaterThan,6" db:"conditionalNumGoroutinesGreaterThan" json:"conditionalNumGoroutinesGreaterThan,omitempty"`
+	ConditionalNumGoroutinesLessThan    *int64  `thrift:"conditionalNumGoroutinesLessThan,7" db:"conditionalNumGoroutinesLessThan" json:"conditionalNumGoroutinesLessThan,omitempty"`
+	ConditionalIsOverloaded             *bool   `thrift:"conditionalIsOverloaded,8" db:"conditionalIsOverloaded" json:"conditionalIsOverloaded,omitempty"`
 }
 
 func NewDebugProfileStartRequest() *DebugProfileStartRequest {
@@ -12892,22 +12892,22 @@ func (p *DebugProfileStartRequest) GetFilePathTemplate() string {
 	return p.FilePathTemplate
 }
 
-var DebugProfileStartRequest_IntervalNanos_DEFAULT int64
+var DebugProfileStartRequest_Interval_DEFAULT string
 
-func (p *DebugProfileStartRequest) GetIntervalNanos() int64 {
-	if !p.IsSetIntervalNanos() {
-		return DebugProfileStartRequest_IntervalNanos_DEFAULT
+func (p *DebugProfileStartRequest) GetInterval() string {
+	if !p.IsSetInterval() {
+		return DebugProfileStartRequest_Interval_DEFAULT
 	}
-	return *p.IntervalNanos
+	return *p.Interval
 }
 
-var DebugProfileStartRequest_DurationNanos_DEFAULT int64
+var DebugProfileStartRequest_Duration_DEFAULT string
 
-func (p *DebugProfileStartRequest) GetDurationNanos() int64 {
-	if !p.IsSetDurationNanos() {
-		return DebugProfileStartRequest_DurationNanos_DEFAULT
+func (p *DebugProfileStartRequest) GetDuration() string {
+	if !p.IsSetDuration() {
+		return DebugProfileStartRequest_Duration_DEFAULT
 	}
-	return *p.DurationNanos
+	return *p.Duration
 }
 
 var DebugProfileStartRequest_Debug_DEFAULT int64
@@ -12945,12 +12945,12 @@ func (p *DebugProfileStartRequest) GetConditionalIsOverloaded() bool {
 	}
 	return *p.ConditionalIsOverloaded
 }
-func (p *DebugProfileStartRequest) IsSetIntervalNanos() bool {
-	return p.IntervalNanos != nil
+func (p *DebugProfileStartRequest) IsSetInterval() bool {
+	return p.Interval != nil
 }
 
-func (p *DebugProfileStartRequest) IsSetDurationNanos() bool {
-	return p.DurationNanos != nil
+func (p *DebugProfileStartRequest) IsSetDuration() bool {
+	return p.Duration != nil
 }
 
 func (p *DebugProfileStartRequest) IsSetDebug() bool {
@@ -13060,19 +13060,19 @@ func (p *DebugProfileStartRequest) ReadField2(iprot thrift.TProtocol) error {
 }
 
 func (p *DebugProfileStartRequest) ReadField3(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
+	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 3: ", err)
 	} else {
-		p.IntervalNanos = &v
+		p.Interval = &v
 	}
 	return nil
 }
 
 func (p *DebugProfileStartRequest) ReadField4(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
+	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 4: ", err)
 	} else {
-		p.DurationNanos = &v
+		p.Duration = &v
 	}
 	return nil
 }
@@ -13179,30 +13179,30 @@ func (p *DebugProfileStartRequest) writeField2(oprot thrift.TProtocol) (err erro
 }
 
 func (p *DebugProfileStartRequest) writeField3(oprot thrift.TProtocol) (err error) {
-	if p.IsSetIntervalNanos() {
-		if err := oprot.WriteFieldBegin("intervalNanos", thrift.I64, 3); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:intervalNanos: ", p), err)
+	if p.IsSetInterval() {
+		if err := oprot.WriteFieldBegin("interval", thrift.STRING, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:interval: ", p), err)
 		}
-		if err := oprot.WriteI64(int64(*p.IntervalNanos)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.intervalNanos (3) field write error: ", p), err)
+		if err := oprot.WriteString(string(*p.Interval)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.interval (3) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:intervalNanos: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:interval: ", p), err)
 		}
 	}
 	return err
 }
 
 func (p *DebugProfileStartRequest) writeField4(oprot thrift.TProtocol) (err error) {
-	if p.IsSetDurationNanos() {
-		if err := oprot.WriteFieldBegin("durationNanos", thrift.I64, 4); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:durationNanos: ", p), err)
+	if p.IsSetDuration() {
+		if err := oprot.WriteFieldBegin("duration", thrift.STRING, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:duration: ", p), err)
 		}
-		if err := oprot.WriteI64(int64(*p.DurationNanos)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.durationNanos (4) field write error: ", p), err)
+		if err := oprot.WriteString(string(*p.Duration)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.duration (4) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:durationNanos: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:duration: ", p), err)
 		}
 	}
 	return err

@@ -493,8 +493,8 @@ struct Query {
 struct DebugProfileStartRequest {
 	1: required string name
 	2: required string filePathTemplate
-	3: optional i64 intervalNanos
-	4: optional i64 durationNanos
+	3: optional string interval
+	4: optional string duration
 	5: optional i64 debug
 	6: optional i64 conditionalNumGoroutinesGreaterThan
 	7: optional i64 conditionalNumGoroutinesLessThan

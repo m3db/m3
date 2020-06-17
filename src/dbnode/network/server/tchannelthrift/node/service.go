@@ -1999,12 +1999,19 @@ func (s *service) DebugProfileStart(
 		interval time.Duration
 		duration time.Duration
 		debug    int
+		err      error
 	)
-	if v := req.IntervalNanos; v != nil {
-		interval = time.Duration(*v)
+	if v := req.Interval; v != nil {
+		interval, err = time.ParseDuration(*v)
+		if err != nil {
+			return nil, tterrors.NewBadRequestError(err)
+		}
 	}
-	if v := req.DurationNanos; v != nil {
-		duration = time.Duration(*v)
+	if v := req.Duration; v != nil {
+		duration, err = time.ParseDuration(*v)
+		if err != nil {
+			return nil, tterrors.NewBadRequestError(err)
+		}
 	}
 	if v := req.Debug; v != nil {
 		debug = int(*v)
