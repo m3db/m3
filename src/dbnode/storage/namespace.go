@@ -1218,20 +1218,17 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		}
 	}
 	if multiErr.NumErrors() == 0 && onColdFlushDone != nil {
-		multiErr = multiErr.Add(onColdFlushDone())
-	}
-	for _, shardColdFlush := range shardColdFlushes {
-		if multiErr.NumErrors() != 0 {
-			continue
+		if err := onColdFlushDone(); err == nil {
+			// NB(bodu): We only want to complete data cold flushes if the index cold flush
+			// is successful. If index cold flush is successful, we want to attempt writing
+			// of checkpoint files to complete the cold data flush lifecycle for successful shards.
+			for _, shardColdFlush := range shardColdFlushes {
+				multiErr = multiErr.Add(shardColdFlush.Done())
+			}
+		} else {
+			multiErr = multiErr.Add(err)
 		}
-		multiErr = multiErr.Add(shardColdFlush.Done())
 	}
-
-	// TODO: Don't write checkpoints for shards until this time,
-	// otherwise it's possible to cold flush data but then not
-	// have the OnColdFlush processor actually successfully finish.
-	// Should only lay down files once onColdFlush.ColdFlushDone()
-	// finishes without an error.
 
 	res := multiErr.FinalError()
 	n.metrics.flushColdData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
