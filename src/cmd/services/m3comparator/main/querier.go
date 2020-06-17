@@ -163,9 +163,7 @@ func (q *querier) FetchCompressed(
 
 			metricsName := string(matcher.Value)
 
-			if strings.HasPrefix(metricsName, "nonexistent") ||
-				strings.HasPrefix(metricsName, "nonexistant"){
-
+			if match, _ := regexp.MatchString("^nonexist[ae]nt", metricsName); match {
 				return consolidators.SeriesFetchResult{}, noop, nil
 			}
 
