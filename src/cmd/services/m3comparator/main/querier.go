@@ -163,6 +163,8 @@ func (q *querier) FetchCompressed(
 
 			metricsName := string(matcher.Value)
 
+			// NB: the default behaviour of this querier is to return predefined metrics with random data if no match by
+			// metrics name is found. To force it return an empty result, query the "nonexistent*" metrics.
 			if match, _ := regexp.MatchString("^nonexist[ae]nt", metricsName); match {
 				return consolidators.SeriesFetchResult{}, noop, nil
 			}
