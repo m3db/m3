@@ -191,6 +191,10 @@ func processBothSeries(
 	lMeta.ResultMetadata = lMeta.ResultMetadata.
 		CombineMetadata(rMeta.ResultMetadata)
 	// Use metas from only taken left series
+
+	if matching.On && matching.Card == CardOneToOne && len(matching.MatchingLabels) > 0 {
+		lMeta.Tags = models.EmptyTags()
+	}
 	builder, err := controller.BlockBuilder(queryCtx, lMeta, lSeriesMeta)
 	if err != nil {
 		return nil, err
