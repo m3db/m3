@@ -1,5 +1,3 @@
-// +build compatibility
-
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,40 +18,57 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Copyright 2015 The Prometheus Authors
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-// This code was taken from prometheus repo: https://github.com/prometheus/prometheus/blob/master/promql/promql_test.go
-
-package test
+package promql
 
 import (
-	"path/filepath"
-	"testing"
-
-	"github.com/stretchr/testify/require"
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 )
 
-func TestEvaluations(t *testing.T) {
-	files, err := filepath.Glob("testdata/*.test")
-	require.NoError(t, err)
+type m3comparatorClient struct {
+	host string
+	port int
+}
 
-	for _, fn := range files {
-		test, err := newTestFromFile(t, fn)
-		require.NoError(t, err)
-
-		require.NoError(t, test.Run())
-
-		test.Close()
+func newM3ComparatorClient(host string, port int) *m3comparatorClient {
+	return &m3comparatorClient{
+		host: host,
+		port: port,
 	}
+}
+
+func (c *m3comparatorClient) clear() error {
+	comparatorURL := fmt.Sprintf("http://%s:%d", c.host, c.port)
+	req, err := http.NewRequest(http.MethodDelete, comparatorURL, nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *m3comparatorClient) load(data []byte) error {
+	comparatorURL := fmt.Sprintf("http://%s:%d", c.host, c.port)
+	resp, err := http.Post(comparatorURL, "application/json", bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("got error loading data to comparator %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/200 == 1 {
+		return nil
+	}
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("load status code %d. Error: %v", resp.StatusCode, err)
+	}
+
+	return fmt.Errorf("load status code %d. Response: %s", resp.StatusCode, string(bodyBytes))
 }

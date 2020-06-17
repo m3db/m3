@@ -18,57 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package test
+package promql
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
+
+	"github.com/pkg/errors"
 )
 
-type m3comparatorClient struct {
+type m3queryClient struct {
 	host string
 	port int
 }
 
-func newM3ComparatorClient(host string, port int) *m3comparatorClient {
-	return &m3comparatorClient{
+func newM3QueryClient(host string, port int) *m3queryClient {
+	return &m3queryClient{
 		host: host,
 		port: port,
 	}
 }
 
-func (c *m3comparatorClient) clear() error {
-	comparatorURL := fmt.Sprintf("http://%s:%d", c.host, c.port)
-	req, err := http.NewRequest(http.MethodDelete, comparatorURL, nil)
+func (c *m3queryClient) query(expr string, t time.Time) ([]byte, error) {
+	url := fmt.Sprintf("http://%s:%d/m3query/api/v1/query", c.host, c.port)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	return nil
-}
+	q := req.URL.Query()
+	q.Add("query", expr)
+	q.Add("time", fmt.Sprint(t.Unix()))
+	req.URL.RawQuery = q.Encode()
+	resp, err := http.DefaultClient.Do(req)
 
-func (c *m3comparatorClient) load(data []byte) error {
-	comparatorURL := fmt.Sprintf("http://%s:%d", c.host, c.port)
-	resp, err := http.Post(comparatorURL, "application/json", bytes.NewReader(data))
 	if err != nil {
-		return fmt.Errorf("got error loading data to comparator %v", err)
+		return nil, errors.Wrapf(err, "error evaluating query %s", expr)
 	}
+
 	defer resp.Body.Close()
-
-	if resp.StatusCode/200 == 1 {
-		return nil
+	if resp.StatusCode/200 != 1 {
+		return nil, fmt.Errorf("invalid status %+v received sending query: %+v", resp.StatusCode, req)
 	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("load status code %d. Error: %v", resp.StatusCode, err)
-	}
-
-	return fmt.Errorf("load status code %d. Response: %s", resp.StatusCode, string(bodyBytes))
+	return ioutil.ReadAll(resp.Body)
 }
