@@ -410,15 +410,15 @@ func Run(runOpts RunOptions) {
 
 	// Setup query stats tracking.
 	var statsOpts stats.QueryStatsOptions
-	if runOpts.Config.Limits.MaxRecentlyQueriedBlocks == nil {
+	if runOpts.Config.Limits.MaxRecentlyQueriedDocs == nil {
 		statsOpts = stats.QueryStatsOptions{
 			Lookback: stats.DefaultLookback,
 		}
 	} else {
-		maxQueriedBlocks := runOpts.Config.Limits.MaxRecentlyQueriedBlocks
+		maxQueriedDocs := runOpts.Config.Limits.MaxRecentlyQueriedDocs
 		statsOpts = stats.QueryStatsOptions{
-			MaxDocs:  maxQueriedBlocks.Value,
-			Lookback: maxQueriedBlocks.Lookback,
+			MaxDocs:  maxQueriedDocs.Value,
+			Lookback: maxQueriedDocs.Lookback,
 		}
 	}
 	if err := statsOpts.Validate(); err != nil {
