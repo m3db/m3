@@ -113,6 +113,7 @@ pages:
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"
     - "Grafana": "integrations/grafana.md"
+    - "InfluxDB": "integrations/influxdb.md"
   - "Performance":
     - "Introduction": "performance/index.md"
     - "M3DB":
