@@ -169,7 +169,8 @@ type nsIndexState struct {
 // under the same nsIndex mutex.
 type nsIndexRuntimeOptions struct {
 	insertMode          index.InsertMode
-	maxQueryLimit       int64
+	maxQuerySeriesLimit int64
+	maxQueryDocsLimit   int64
 	defaultQueryTimeout time.Duration
 }
 
@@ -1509,13 +1510,20 @@ func (i *nsIndex) timeoutForQueryWithRLock(
 func (i *nsIndex) overriddenOptsForQueryWithRLock(
 	opts index.QueryOptions,
 ) index.QueryOptions {
-	// Override query response limit if needed.
-	if i.state.runtimeOpts.maxQueryLimit > 0 && (opts.SeriesLimit == 0 ||
-		int64(opts.SeriesLimit) > i.state.runtimeOpts.maxQueryLimit) {
-		i.logger.Debug("overriding query response limit",
+	// Override query response limits if needed.
+	if i.state.runtimeOpts.maxQuerySeriesLimit > 0 && (opts.SeriesLimit == 0 ||
+		int64(opts.SeriesLimit) > i.state.runtimeOpts.maxQuerySeriesLimit) {
+		i.logger.Debug("overriding query response series limit",
 			zap.Int("requested", opts.SeriesLimit),
-			zap.Int64("maxAllowed", i.state.runtimeOpts.maxQueryLimit)) // FOLLOWUP(prateek): log query too once it's serializable.
-		opts.SeriesLimit = int(i.state.runtimeOpts.maxQueryLimit)
+			zap.Int64("maxAllowed", i.state.runtimeOpts.maxQuerySeriesLimit)) // FOLLOWUP(prateek): log query too once it's serializable.
+		opts.SeriesLimit = int(i.state.runtimeOpts.maxQuerySeriesLimit)
+	}
+	if i.state.runtimeOpts.maxQueryDocsLimit > 0 && (opts.DocsLimit == 0 ||
+		int64(opts.DocsLimit) > i.state.runtimeOpts.maxQueryDocsLimit) {
+		i.logger.Debug("overriding query response docs limit",
+			zap.Int("requested", opts.DocsLimit),
+			zap.Int64("maxAllowed", i.state.runtimeOpts.maxQueryDocsLimit)) // FOLLOWUP(prateek): log query too once it's serializable.
+		opts.DocsLimit = int(i.state.runtimeOpts.maxQueryDocsLimit)
 	}
 	return opts
 }
