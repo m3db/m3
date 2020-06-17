@@ -21,7 +21,6 @@
 package plan
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -34,14 +33,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	defaultLookbackDuration = time.Minute
-)
-
 func testRequestParams() models.RequestParams {
 	return models.RequestParams{
 		Now:              time.Now(),
-		LookbackDuration: defaultLookbackDuration,
+		LookbackDuration: 5 * time.Minute,
 		Step:             time.Second,
 	}
 }
@@ -70,34 +65,77 @@ func TestResultNode(t *testing.T) {
 }
 
 func TestShiftTime(t *testing.T) {
-	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
-	require.NoError(t, err)
-	countTransform := parser.NewTransformFromOperation(agg, 2)
-	transforms := parser.Nodes{fetchTransform, countTransform}
-	edges := parser.Edges{
-		parser.Edge{
-			ParentID: fetchTransform.ID,
-			ChildID:  countTransform.ID,
+	tests := []struct {
+		name             string
+		fetchOp          functions.FetchOp
+		lookbackDuration time.Duration
+		step             time.Duration
+		wantShiftBy      time.Duration
+	}{
+		{
+			name:             "shift by lookbackDuration",
+			fetchOp:          functions.FetchOp{},
+			lookbackDuration: 15 * time.Minute,
+			step:             time.Second,
+			wantShiftBy:      15 * time.Minute,
+		},
+		{
+			name:             "shift by range",
+			fetchOp:          functions.FetchOp{Range: time.Hour},
+			lookbackDuration: 5 * time.Minute,
+			step:             time.Second,
+			wantShiftBy:      time.Hour,
+		},
+		{
+			name:             "align the lookback based shift by step",
+			fetchOp:          functions.FetchOp{},
+			lookbackDuration: 5 * time.Second,
+			step:             15 * time.Second,
+			wantShiftBy:      15 * time.Second, // lookback = 5, aligned to 1x step (15)
+		},
+		{
+			name:             "align the range based shift by step",
+			fetchOp:          functions.FetchOp{Range: 16 * time.Second},
+			lookbackDuration: 5 * time.Second,
+			step:             15 * time.Second,
+			wantShiftBy:      30 * time.Second, // range = 16, aligned to 2x step (2 * 15)
+		},
+		{
+			name:             "keep the same shift if already aligned by step",
+			fetchOp:          functions.FetchOp{Range: 30 * time.Second},
+			lookbackDuration: 5 * time.Second,
+			step:             15 * time.Second,
+			wantShiftBy:      30 * time.Second, // range = 30, divisible by step
 		},
 	}
 
-	lp, _ := NewLogicalPlan(transforms, edges)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 
-	params := testRequestParams()
-	params.Start = params.Now.Add(-1 * time.Hour)
+			fetchTransform := parser.NewTransformFromOperation(tt.fetchOp, 1)
+			agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
+			require.NoError(t, err)
 
-	p, err := NewPhysicalPlan(lp, params)
-	require.NoError(t, err)
-	assert.Equal(t, params.Start.Add(-1*params.LookbackDuration),
-		p.TimeSpec.Start, fmt.Sprintf("start is not now - lookback"))
-	fetchTransform = parser.NewTransformFromOperation(
-		functions.FetchOp{Offset: time.Minute, Range: time.Hour}, 1)
-	transforms = parser.Nodes{fetchTransform, countTransform}
-	lp, _ = NewLogicalPlan(transforms, edges)
-	p, err = NewPhysicalPlan(lp, params)
-	require.NoError(t, err)
-	assert.Equal(t, params.Start.
-		Add(-1*(time.Hour+defaultLookbackDuration)), p.TimeSpec.Start,
-		"start time offset by fetch")
+			countTransform := parser.NewTransformFromOperation(agg, 2)
+			transforms := parser.Nodes{fetchTransform, countTransform}
+			edges := parser.Edges{
+				parser.Edge{
+					ParentID: fetchTransform.ID,
+					ChildID:  countTransform.ID,
+				},
+			}
+
+			lp, _ := NewLogicalPlan(transforms, edges)
+
+			params := models.RequestParams{
+				Now:              time.Now(),
+				LookbackDuration: tt.lookbackDuration,
+				Step:             tt.step,
+			}
+
+			p, err := NewPhysicalPlan(lp, params)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantShiftBy.String(), params.Start.Sub(p.TimeSpec.Start).String(), "start time shifted by")
+		})
+	}
 }
