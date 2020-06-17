@@ -43,7 +43,7 @@ var (
 	defaultConditional     = func() bool { return true }
 	defaultInterval        = time.Second
 	errNoFilePathTemplate  = errors.New("no file path template")
-	errProfileName         = errors.New("no profile name")
+	errNoProfileName       = errors.New("no profile name")
 	errNoInstrumentOptions = errors.New("no instrument options")
 	errAlreadyOpen         = errors.New("already open")
 	errNotOpen             = errors.New("not open")
@@ -90,7 +90,7 @@ func NewContinuousFileProfile(
 		return nil, errNoFilePathTemplate
 	}
 	if opts.ProfileName == "" {
-		return nil, errProfileName
+		return nil, errNoProfileName
 	}
 	if opts.Conditional == nil {
 		opts.Conditional = defaultConditional
