@@ -80,6 +80,8 @@ service Node {
 	NodeWriteNewSeriesLimitPerShardPerSecondResult setWriteNewSeriesLimitPerShardPerSecond(1: NodeSetWriteNewSeriesLimitPerShardPerSecondRequest req) throws (1: Error err)
 
 	// Debug endpoints
+	DebugProfileStartResult debugProfileStart(1: DebugProfileStartRequest req) throws (1: Error err)
+	DebugProfileStopResult debugProfileStop(1: DebugProfileStopRequest req) throws (1: Error err)
 	DebugIndexMemorySegmentsResult debugIndexMemorySegments(1: DebugIndexMemorySegmentsRequest req) throws (1: Error err)
 }
 
@@ -486,6 +488,27 @@ struct Query {
   5: optional DisjunctionQuery disjunction
   6: optional AllQuery         all
   7: optional FieldQuery       field
+}
+
+struct DebugProfileStartRequest {
+	1: required string name
+	2: required string filePathTemplate
+	3: optional i64 intervalNanos
+	4: optional i64 durationNanos
+	5: optional i64 debug
+	6: optional i64 conditionalNumGoroutinesGreaterThan
+	7: optional i64 conditionalNumGoroutinesLessThan
+	8: optional bool conditionalIsOverloaded
+}
+
+struct DebugProfileStartResult {
+}
+
+struct DebugProfileStopRequest {
+	1: required string name
+}
+
+struct DebugProfileStopResult {
 }
 
 struct DebugIndexMemorySegmentsRequest {
