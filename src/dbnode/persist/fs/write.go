@@ -352,12 +352,13 @@ func (w *writer) DeferClose() (persist.DataCloser, error) {
 	}
 	checkpointFilePath := w.checkpointFilePath
 	digestChecksum := w.digestFdWithDigestContents.Digest().Sum32()
+	newFileMode := w.newFileMode
 	return func() error {
 		return writeCheckpointFile(
 			checkpointFilePath,
 			digestChecksum,
 			digest.NewBuffer(),
-			w.newFileMode,
+			newFileMode,
 		)
 	}, nil
 }
