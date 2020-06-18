@@ -1746,6 +1746,26 @@
             "title": "Pre-configured Prometheus Dashboards"
         },
         {
+            "location": "/integrations/influxdb/",
+            "text": "InfluxDB\n\n\nThis document is a getting started guide to integrating InfluxDB data pipelines \nwith M3.\n\n\nWriting metrics using InfluxDB line protocol\n\n\nTo write metrics to M3 using the InfluxDB line protocol, simply form the request \nas you typically would line separated and POST the body to \n/api/v1/influxdb/write\n \non the coordinator. Note that timestamp is in nanoseconds from Unix epoch.\n\n\nThis example writes two metrics \nweather_temperature\n and \nweather_wind\n using \nthe current time in nanoseconds as the timestamp:\n\ncurl -i -X POST \n\"http://localhost:7201/api/v1/influxdb/write\"\n --data-binary \n\"weather,location=us-midwest temperature=82,wind=42 \n$(\nexpr \n$(\ndate +%s\n)\n \n\\*\n \n1000000000\n)\n\"\n\n\n\n\nQuerying for metrics\n\n\nAfter successfully written you can query for these metrics using PromQL. All \nmeasurements are translated into metric names by concatenating the name with\nthe measurement name.\n\n\nThe previous example forms the two following Prometheus time series:\n\nweather_temperature{location=\"us-midwest\"} 82\nweather_wind{location=\"us-midwest\"} 42\n\n\n\nAll metric names and labels are rewritten to contain only alphanumeric \ncharacters. Any non-alphanumeric characters are rewritten with an underscore.",
+            "title": "InfluxDB"
+        },
+        {
+            "location": "/integrations/influxdb/#influxdb",
+            "text": "This document is a getting started guide to integrating InfluxDB data pipelines \nwith M3.",
+            "title": "InfluxDB"
+        },
+        {
+            "location": "/integrations/influxdb/#writing-metrics-using-influxdb-line-protocol",
+            "text": "To write metrics to M3 using the InfluxDB line protocol, simply form the request \nas you typically would line separated and POST the body to  /api/v1/influxdb/write  \non the coordinator. Note that timestamp is in nanoseconds from Unix epoch.  This example writes two metrics  weather_temperature  and  weather_wind  using \nthe current time in nanoseconds as the timestamp: curl -i -X POST  \"http://localhost:7201/api/v1/influxdb/write\"  --data-binary  \"weather,location=us-midwest temperature=82,wind=42  $( expr  $( date +%s )   \\*   1000000000 ) \"",
+            "title": "Writing metrics using InfluxDB line protocol"
+        },
+        {
+            "location": "/integrations/influxdb/#querying-for-metrics",
+            "text": "After successfully written you can query for these metrics using PromQL. All \nmeasurements are translated into metric names by concatenating the name with\nthe measurement name.  The previous example forms the two following Prometheus time series: weather_temperature{location=\"us-midwest\"} 82\nweather_wind{location=\"us-midwest\"} 42  All metric names and labels are rewritten to contain only alphanumeric \ncharacters. Any non-alphanumeric characters are rewritten with an underscore.",
+            "title": "Querying for metrics"
+        },
+        {
             "location": "/performance/",
             "text": "Performance configurations and settings for M3DB and m3query\n\n\nPlease note:\n This documentation is a work in progress and more detail is required.",
             "title": "Introduction"
