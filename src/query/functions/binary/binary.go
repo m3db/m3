@@ -248,15 +248,15 @@ func intersect(
 	for lIdx, ls := range lhs {
 		// If there's a matching entry in the left-hand side Vector, add the sample.
 		id := idFunction(ls.Tags)
-			if rIdx, ok := rightSigs[id]; ok {
-				takeLeft = append(takeLeft, lIdx)
-				correspondingRight = append(correspondingRight, rIdx)
-				if matching.On && matching.Card == CardOneToOne && len(matching.MatchingLabels) > 0 {
-					ls.Tags = ls.Tags.TagsWithKeys(matching.MatchingLabels)
-				}
-				leftMetas = append(leftMetas, ls)
+		if rIdx, ok := rightSigs[id]; ok {
+			takeLeft = append(takeLeft, lIdx)
+			correspondingRight = append(correspondingRight, rIdx)
+			if matching.On && matching.Card == CardOneToOne && len(matching.MatchingLabels) > 0 {
+				ls.Tags = ls.Tags.TagsWithKeys(matching.MatchingLabels)
 			}
+			leftMetas = append(leftMetas, ls)
 		}
+	}
 
 	return takeLeft, correspondingRight, leftMetas
 }
