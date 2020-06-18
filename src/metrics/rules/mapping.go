@@ -21,6 +21,7 @@
 package rules
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"time"
@@ -49,6 +50,9 @@ var (
 	errMappingRuleSnapshotIndexOutOfRange                  = errors.New("mapping rule snapshot index out of range")
 	errNilMappingRuleSnapshotProto                         = errors.New("nil mapping rule snapshot proto")
 	errNilMappingRuleProto                                 = errors.New("nil mapping rule proto")
+
+	m3MetricsGraphitePrefix = []byte("__m3_graphite_prefix__")
+	pathSeparator           = []byte(".")
 )
 
 // mappingRuleSnapshot defines a rule snapshot such that if a metric matches the
@@ -63,6 +67,7 @@ type mappingRuleSnapshot struct {
 	storagePolicies    policy.StoragePolicies
 	dropPolicy         policy.DropPolicy
 	tags               []models.Tag
+	graphitePrefix     [][]byte
 	lastUpdatedAtNanos int64
 	lastUpdatedBy      string
 }
@@ -182,6 +187,15 @@ func newMappingRuleSnapshotFromFieldsInternal(
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
 ) *mappingRuleSnapshot {
+	// If we have a graphite prefix tag, then parse that out here so that it
+	// can be used later.
+	var graphitePrefix [][]byte
+	for _, tag := range tags {
+		if bytes.Equal(tag.Name, m3MetricsGraphitePrefix) {
+			graphitePrefix = bytes.Split(tag.Value, pathSeparator)
+		}
+	}
+
 	return &mappingRuleSnapshot{
 		name:               name,
 		tombstoned:         tombstoned,
@@ -192,6 +206,7 @@ func newMappingRuleSnapshotFromFieldsInternal(
 		storagePolicies:    storagePolicies,
 		dropPolicy:         dropPolicy,
 		tags:               tags,
+		graphitePrefix:     graphitePrefix,
 		lastUpdatedAtNanos: lastUpdatedAtNanos,
 		lastUpdatedBy:      lastUpdatedBy,
 	}
