@@ -85,6 +85,9 @@ type PipelineMetadata struct {
 
 	// Tags.
 	Tags []models.Tag `json:"tags"`
+
+	// GraphitePrefix is the list of graphite prefixes to apply.
+	GraphitePrefix [][]byte `json:"graphitePrefix"`
 }
 
 // Equal returns true if two pipeline metadata are considered equal.

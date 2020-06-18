@@ -47,6 +47,7 @@ import (
 var (
 	m3MetricsPrefix              = []byte("__m3")
 	m3MetricsGraphiteAggregation = []byte("__m3_graphite_aggregation__")
+	m3MetricsGraphitePrefix      = []byte("__m3_graphite_prefix__")
 )
 
 type metricsAppender struct {
@@ -263,16 +264,12 @@ func (a *metricsAppender) newSamplesAppenders(
 		// For pipeline which have tags to augment we generate and send
 		// separate IDs. Other pipelines return the same.
 		pipeline := pipeline
-		if len(pipeline.Tags) == 0 {
+		if len(pipeline.Tags) == 0 && len(pipeline.GraphitePrefix) == 0 {
 			pipelines = append(pipelines, pipeline)
 			continue
 		}
 
-		tags := newTags()
-		for i := range a.tags.names {
-			tags.append(a.tags.names[i], a.tags.values[i])
-		}
-		augmentTags(tags, pipeline.Tags, pipeline.AggregationID)
+		tags := augmentTags(a.tags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
 
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
@@ -319,13 +316,41 @@ func (a *metricsAppender) newSamplesAppender(
 	}, nil
 }
 
-func augmentTags(tags *tags, t []models.Tag, id aggregation.ID) bool {
-	updated := false
+func augmentTags(
+	originalTags *tags,
+	graphitePrefix [][]byte,
+	t []models.Tag,
+	id aggregation.ID,
+) *tags {
+	// Create the prefix tags.
+	tags := newTags()
+	for i, path := range graphitePrefix {
+		tags.append(graphite.TagName(i), path)
+	}
+
+	// Make a copy of the tags to augment.
+	prefixes := len(graphitePrefix)
+	for i := range originalTags.names {
+		// If we applied prefixes then we need to parse and modify the original
+		// tags. Check if the original tag was graphite type, if so add the
+		// number of prefixes to the tag index and update.
+		var (
+			name  = originalTags.names[i]
+			value = originalTags.values[i]
+		)
+		if prefixes > 0 {
+			if index, ok := graphite.TagIndex(name); ok {
+				name = graphite.TagName(index + prefixes)
+			}
+		}
+		tags.append(name, value)
+	}
+
+	// Add any additional tags we need to.
 	for _, tag := range t {
 		if !bytes.HasPrefix(tag.Name, m3MetricsPrefix) {
 			if len(tag.Name) > 0 && len(tag.Value) > 0 {
 				tags.append(tag.Name, tag.Value)
-				updated = true
 			}
 			continue
 		}
@@ -342,10 +367,9 @@ func augmentTags(tags *tags, t []models.Tag, id aggregation.ID) bool {
 				value = types[0].Bytes()
 			)
 			tags.append(name, value)
-			updated = true
 		}
 	}
-	return updated
+	return tags
 }
 
 func stagedMetadatasLogField(sm metadata.StagedMetadatas) zapcore.Field {

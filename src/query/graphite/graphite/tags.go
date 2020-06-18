@@ -20,7 +20,13 @@
 
 package graphite
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+	"strconv"
+
+	"github.com/m3db/m3/src/x/unsafe"
+)
 
 const (
 	// graphiteFormat is the format for graphite metric tag names, which will be
@@ -46,6 +52,9 @@ var (
 
 	// Prefix is the prefix for graphite metrics
 	Prefix = []byte("__g")
+
+	// Suffix is the suffix for graphite metrics
+	suffix = []byte("__")
 )
 
 func init() {
@@ -67,4 +76,20 @@ func TagName(idx int) []byte {
 
 func generateTagName(idx int) []byte {
 	return []byte(fmt.Sprintf(graphiteFormat, idx))
+}
+
+// TagIndex returns the index given the tag.
+func TagIndex(tag []byte) (int, bool) {
+	if !bytes.HasPrefix(tag, Prefix) ||
+		!bytes.HasSuffix(tag, suffix) {
+		return 0, false
+	}
+	start := len(Prefix)
+	end := len(tag) - len(suffix)
+	indexStr := unsafe.String(tag[start:end])
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return 0, false
+	}
+	return index, true
 }

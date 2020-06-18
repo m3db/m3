@@ -399,6 +399,124 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesMultipleAggregationTyp
 	testDownsamplerAggregation(t, testDownsampler)
 }
 
+func TestDownsamplerAggregationWithRulesConfigMappingRulesGraphitePrefixAndAggregationTags(t *testing.T) {
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			"__g0__":      "nginx_edge",
+			"__g1__":      "health",
+			"__m3_type__": "gauge",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	tags := []Tag{
+		{Name: "__m3_graphite_aggregation__"},
+		{Name: "__m3_graphite_prefix__", Value: "stats.counter"},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		identTag: "__g4__",
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "__m3_type__:gauge",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 5 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+					Tags: tags,
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						"__g0__": "stats",
+						"__g1__": "counter",
+						"__g2__": "nginx_edge",
+						"__g3__": "health",
+						"__g4__": "Max",
+					},
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  5 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigMappingRulesGraphitePrefixTag(t *testing.T) {
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			"__g0__":      "nginx_edge",
+			"__g1__":      "health",
+			"__m3_type__": "gauge",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	tags := []Tag{
+		{Name: "__m3_graphite_prefix__", Value: "stats.counter"},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		identTag: "__g3__",
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "__m3_type__:gauge",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 5 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+					Tags: tags,
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				{
+					tags: map[string]string{
+						"__g0__": "stats",
+						"__g1__": "counter",
+						"__g2__": "nginx_edge",
+						"__g3__": "health",
+					},
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  5 * time.Second,
+						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRulesConfigRollupRulesNoNameTag(t *testing.T) {
 	gaugeMetric := testGaugeMetric{
 		tags: map[string]string{
