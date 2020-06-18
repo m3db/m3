@@ -1,3 +1,5 @@
+// +build compatibility
+
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,50 +20,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package promql
+// Copyright 2015 The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// This code was taken from prometheus repo: https://github.com/prometheus/prometheus/blob/master/promql/promql_test.go
+
+package compatibility
 
 import (
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"time"
+	"path/filepath"
+	"testing"
 
-	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 )
 
-type m3queryClient struct {
-	host string
-	port int
-}
+func TestEvaluations(t *testing.T) {
+	files, err := filepath.Glob("testdata/*.test")
+	require.NoError(t, err)
 
-func newM3QueryClient(host string, port int) *m3queryClient {
-	return &m3queryClient{
-		host: host,
-		port: port,
+	for _, fn := range files {
+		test, err := newTestFromFile(t, fn)
+		require.NoError(t, err)
+
+		require.NoError(t, test.Run())
+
+		test.Close()
 	}
-}
-
-func (c *m3queryClient) query(expr string, t time.Time) ([]byte, error) {
-	url := fmt.Sprintf("http://%s:%d/m3query/api/v1/query", c.host, c.port)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	q := req.URL.Query()
-	q.Add("query", expr)
-	q.Add("time", fmt.Sprint(t.Unix()))
-	req.URL.RawQuery = q.Encode()
-	resp, err := http.DefaultClient.Do(req)
-
-	if err != nil {
-		return nil, errors.Wrapf(err, "error evaluating query %s", expr)
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode/200 != 1 {
-		return nil, fmt.Errorf("invalid status %+v received sending query: %+v", resp.StatusCode, req)
-	}
-
-	return ioutil.ReadAll(resp.Body)
 }

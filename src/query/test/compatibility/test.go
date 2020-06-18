@@ -33,7 +33,7 @@
 
 // Parts of code were taken from prometheus repo: https://github.com/prometheus/prometheus/blob/master/promql/test.go
 
-package promql
+package compatibility
 
 import (
 	"context"
