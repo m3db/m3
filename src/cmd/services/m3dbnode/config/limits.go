@@ -42,14 +42,20 @@ type LimitsConfiguration struct {
 	// evicted from memory) at which point it would resume.
 	MaxOutstandingRepairedBytes int64 `yaml:"maxOutstandingRepairedBytes" validate:"min=0"`
 
-	// MaxRecentlyQueriedDocs sets the upper limit on doc count within a given
-	// lookback period. Queries which are issued while this max is surpassed are abandonded.
-	MaxRecentlyQueriedDocs *MaxRecentlyQueriedDocsConfiguration `yaml:"maxRecentlyQueriedDocs"`
+	// MaxRecentlyQueriedSeriesBlocks sets the upper limit on time series blocks
+	// count within a given lookback period. Queries which are issued while this
+	// max is surpassed encounter an error.
+	MaxRecentlyQueriedSeriesBlocks *MaxRecentlyQueriedSeriesBlocksConfiguration `yaml:"maxRecentlyQueriedSeriesBlocks"`
 }
 
-// MaxRecentlyQueriedDocsConfiguration sets the upper limit on doc count within a given
-// lookback period. Queries which are issued while this max is surpassed are abandonded.
-type MaxRecentlyQueriedDocsConfiguration struct {
-	Value    int64         `yaml:"value" validate:"min=0"`
+// MaxRecentlyQueriedSeriesBlocksConfiguration sets the upper limit on time
+// series blocks count within a given lookback period. Queries which are issued
+// while this max is surpassed encounter an error.
+type MaxRecentlyQueriedSeriesBlocksConfiguration struct {
+	// Value sets the max recently queried time series blocks for the given
+	// time window.
+	Value int64 `yaml:"value" validate:"min=0"`
+	// Lookback is the period to time window the max value of time series
+	// blocks allowed to be queried.
 	Lookback time.Duration `yaml:"lookback" validate:"min=0"`
 }

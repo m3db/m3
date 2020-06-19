@@ -38,11 +38,34 @@ func TestValidateTrackerInputs(t *testing.T) {
 		lookback      time.Duration
 		expectedError string
 	}{
-		{"valid lookback without limit", 0, time.Millisecond, ""},
-		{"valid lookback with valid limit", 1, time.Millisecond, ""},
-		{"negative lookback", 0, -time.Millisecond, "query stats tracker requires lookback > 0 (-1000000)"},
-		{"zero lookback", 0, time.Duration(0), "query stats tracker requires lookback > 0 (0)"},
-		{"negative max", -1, time.Millisecond, "query stats tracker requires max docs >= 0 (-1)"},
+		{
+			name:     "valid lookback without limit",
+			maxDocs:  0,
+			lookback: time.Millisecond,
+		},
+		{
+			name:     "valid lookback with valid limit",
+			maxDocs:  1,
+			lookback: time.Millisecond,
+		},
+		{
+			name:          "negative lookback",
+			maxDocs:       0,
+			lookback:      -time.Millisecond,
+			expectedError: "query stats tracker requires lookback > 0 (-1000000)",
+		},
+		{
+			name:          "zero lookback",
+			maxDocs:       0,
+			lookback:      time.Duration(0),
+			expectedError: "query stats tracker requires lookback > 0 (0)",
+		},
+		{
+			name:          "negative max",
+			maxDocs:       -1,
+			lookback:      time.Millisecond,
+			expectedError: "query stats tracker requires max docs >= 0 (-1)",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			err := QueryStatsOptions{
@@ -64,13 +87,19 @@ func TestEmitQueryStatsBasedMetrics(t *testing.T) {
 		name string
 		opts QueryStatsOptions
 	}{
-		{"metrics only", QueryStatsOptions{
-			Lookback: time.Second,
-		}},
-		{"metrics and limits", QueryStatsOptions{
-			MaxDocs:  1000,
-			Lookback: time.Second,
-		}},
+		{
+			name: "metrics only",
+			opts: QueryStatsOptions{
+				Lookback: time.Second,
+			},
+		},
+		{
+			name: "metrics and limits",
+			opts: QueryStatsOptions{
+				MaxDocs:  1000,
+				Lookback: time.Second,
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			scope := tally.NewTestScope("", nil)
@@ -98,23 +127,30 @@ func TestLimitMaxDocs(t *testing.T) {
 	for _, test := range []struct {
 		name             string
 		opts             QueryStatsOptions
-		expectLimitError bool
+		expectLimitError string
 	}{
-		{"metrics only", QueryStatsOptions{
-			Lookback: time.Second,
-		}, false},
-		{"metrics and limits", QueryStatsOptions{
-			MaxDocs:  100,
-			Lookback: time.Second,
-		}, true},
+		{
+			name: "metrics only",
+			opts: QueryStatsOptions{
+				Lookback: time.Second,
+			},
+		},
+		{
+			name: "metrics and limits",
+			opts: QueryStatsOptions{
+				MaxDocs:  100,
+				Lookback: time.Second,
+			},
+			expectLimitError: "query aborted, global recent time series blocks over limit: limit=100, current=101, within=1s",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			tracker := DefaultQueryStatsTracker(opts, test.opts)
 
 			err := tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1})
-			if test.expectLimitError {
+			if test.expectLimitError != "" {
 				require.Error(t, err)
-				require.Equal(t, "query was aborted due to too many recent docs queried (101)", err.Error())
+				require.Equal(t, test.expectLimitError, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
@@ -126,9 +162,9 @@ func TestLimitMaxDocs(t *testing.T) {
 			require.NoError(t, err)
 
 			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1})
-			if test.expectLimitError {
+			if test.expectLimitError != "" {
 				require.Error(t, err)
-				require.Equal(t, "query was aborted due to too many recent docs queried (101)", err.Error())
+				require.Equal(t, test.expectLimitError, err.Error())
 			} else {
 				require.NoError(t, err)
 			}

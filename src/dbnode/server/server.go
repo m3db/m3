@@ -409,27 +409,24 @@ func Run(runOpts RunOptions) {
 	defer stopReporting()
 
 	// Setup query stats tracking.
-	var statsOpts stats.QueryStatsOptions
-	if runOpts.Config.Limits.MaxRecentlyQueriedDocs == nil {
+	statsOpts := stats.QueryStatsOptions{
+		Lookback: stats.DefaultLookback,
+	}
+	if max := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; max != nil {
 		statsOpts = stats.QueryStatsOptions{
-			Lookback: stats.DefaultLookback,
-		}
-	} else {
-		maxQueriedDocs := runOpts.Config.Limits.MaxRecentlyQueriedDocs
-		statsOpts = stats.QueryStatsOptions{
-			MaxDocs:  maxQueriedDocs.Value,
-			Lookback: maxQueriedDocs.Lookback,
+			MaxDocs:  max.Value,
+			Lookback: max.Lookback,
 		}
 	}
 	if err := statsOpts.Validate(); err != nil {
 		logger.Fatal("could not construct query stats options from config", zap.Error(err))
 	}
-	var tracker stats.QueryStatsTracker
-	if runOpts.QueryStatsTrackerFn == nil {
-		tracker = stats.DefaultQueryStatsTracker(iopts, statsOpts)
-	} else {
+
+	tracker := stats.DefaultQueryStatsTracker(iopts, statsOpts)
+	if runOpts.QueryStatsTrackerFn != nil {
 		tracker = runOpts.QueryStatsTrackerFn(iopts, statsOpts)
 	}
+
 	queryStats := stats.NewQueryStats(tracker)
 	queryStats.Start()
 	defer queryStats.Stop()

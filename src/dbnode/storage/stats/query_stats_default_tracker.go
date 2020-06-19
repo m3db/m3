@@ -65,8 +65,11 @@ func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
 	t.totalDocs.Inc(values.NewDocs)
 
 	// Enforce max queried docs (if specified).
-	if t.options.MaxDocs != 0 && values.RecentDocs > t.options.MaxDocs {
-		return fmt.Errorf("query was aborted due to too many recent docs queried (%d)", values.RecentDocs)
+	if t.options.MaxDocs > 0 && values.RecentDocs > t.options.MaxDocs {
+		return fmt.Errorf(
+			"query aborted, global recent time series blocks over limit: "+
+				"limit=%d, current=%d, within=%s",
+			t.options.MaxDocs, values.RecentDocs, t.options.Lookback)
 	}
 	return nil
 }
