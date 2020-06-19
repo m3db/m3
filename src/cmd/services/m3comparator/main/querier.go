@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/m3/consolidators"
@@ -142,27 +143,38 @@ func (q *querier) FetchCompressed(
 	options *storage.FetchOptions,
 ) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
 	var (
-		iters        encoding.SeriesIterators
-		randomSeries []parser.IngestSeries
-		ignoreFilter bool
-		err          error
-		nameTagFound bool
+		iters               encoding.SeriesIterators
+		randomSeries        []parser.IngestSeries
+		ignoreFilter        bool
+		err                 error
+		strictMetricsFilter bool
 	)
 
 	name := q.iteratorOpts.TagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(name, matcher.Name) {
-			nameTagFound = true
-			iters, err = q.handler.getSeriesIterators(string(matcher.Value))
-			if err != nil {
-				return consolidators.SeriesFetchResult{}, noop, err
+
+			metricsName := string(matcher.Value)
+
+			// NB: the default behaviour of this querier is to return predefined metrics with random data if no match by
+			// metrics name is found. To force it return an empty result, query the "nonexistent*" metrics.
+			if match, _ := regexp.MatchString("^nonexist[ae]nt", metricsName); match {
+				return consolidators.SeriesFetchResult{}, noop, nil
 			}
 
-			break
+			if matcher.Type == models.MatchEqual {
+				strictMetricsFilter = true
+				iters, err = q.handler.getSeriesIterators(metricsName)
+				if err != nil {
+					return consolidators.SeriesFetchResult{}, noop, err
+				}
+
+				break
+			}
 		}
 	}
 
-	if iters == nil && !nameTagFound && len(query.TagMatchers) > 0 {
+	if iters == nil && !strictMetricsFilter && len(query.TagMatchers) > 0 {
 		iters, err = q.handler.getSeriesIterators("")
 		if err != nil {
 			return consolidators.SeriesFetchResult{}, noop, err
