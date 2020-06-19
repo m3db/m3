@@ -527,7 +527,7 @@ type databaseShard interface {
 		resources coldFlushReuseableResources,
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
-	) error
+	) (ShardColdFlush, error)
 
 	// Snapshot snapshot's the unflushed WarmWrites in this shard.
 	Snapshot(
@@ -570,6 +570,12 @@ type databaseShard interface {
 		tags ident.TagIterator,
 		opts ShardSeriesReadWriteRefOptions,
 	) (SeriesReadWriteRef, error)
+}
+
+// ShardColdFlush exposes a done method to finalize shard cold flush
+// by persisting data and updating shard state/block leases.
+type ShardColdFlush interface {
+	Done() error
 }
 
 // ShardSeriesReadWriteRefOptions are options for SeriesReadWriteRef
