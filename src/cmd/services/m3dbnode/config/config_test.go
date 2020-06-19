@@ -714,10 +714,10 @@ func TestConfiguration(t *testing.T) {
       reconnect_period: 0s
       meta_event_reporting_enabled: false
   limits:
+    maxRecentlyQueriedSeriesBlocks: null
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
-    maxRecentlyQueriedDocs: null
   tchannel: null
 coordinator: null
 `
