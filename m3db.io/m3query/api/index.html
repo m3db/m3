@@ -36,7 +36,7 @@
     
     
       
-        <title>Roadmap - M3 Documentation</title>
+        <title>Query - M3 Documentation</title>
       
     
     
@@ -89,7 +89,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
     
-      <a href="#roadmap" tabindex="1" class="md-skip">
+      <a href="#api" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -115,7 +115,7 @@
                 M3 Documentation
               </span>
               <span class="md-header-nav__topic">
-                Roadmap
+                Query
               </span>
             
           
@@ -242,12 +242,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
     
     <label class="md-nav__link" for="nav-2">
       Overview
@@ -265,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../components/" title="Components" class="md-nav__link">
+    <a href="../../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -277,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../motivation/" title="Motivation" class="md-nav__link">
+    <a href="../../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -289,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../media/" title="Media" class="md-nav__link">
+    <a href="../../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -299,20 +297,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-    <a href="./" title="Roadmap" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../../overview/roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
     </a>
-    
   </li>
 
         
@@ -553,10 +542,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
     
     <label class="md-nav__link" for="nav-5">
       M3 Query
@@ -574,7 +565,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../m3query/" title="Introduction" class="md-nav__link">
+    <a href="../" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -605,7 +596,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../m3query/config/" title="Query Engine" class="md-nav__link">
+    <a href="../config/" title="Query Engine" class="md-nav__link">
       Query Engine
     </a>
   </li>
@@ -617,7 +608,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../m3query/config/annotated_config/" title="Annotated Config File" class="md-nav__link">
+    <a href="../config/annotated_config/" title="Annotated Config File" class="md-nav__link">
       Annotated Config File
     </a>
   </li>
@@ -632,10 +623,12 @@
           
           
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5-3" type="checkbox" id="nav-5-3">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5-3" type="checkbox" id="nav-5-3" checked>
     
     <label class="md-nav__link" for="nav-5-3">
       API
@@ -651,11 +644,130 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../../m3query/api/" title="Query" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Query
+      </label>
+    
+    <a href="./" title="Query" class="md-nav__link md-nav__link--active">
       Query
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#query-using-promql" title="Query using PromQL" class="md-nav__link">
+    Query using PromQL
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#url" title="URL" class="md-nav__link">
+    URL
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method" title="Method" class="md-nav__link">
+    Method
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#url-params" title="URL Params" class="md-nav__link">
+    URL Params
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#required" title="Required" class="md-nav__link">
+    Required
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional" title="Optional" class="md-nav__link">
+    Optional
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#header-params" title="Header Params" class="md-nav__link">
+    Header Params
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#optional_1" title="Optional" class="md-nav__link">
+    Optional
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-params" title="Data Params" class="md-nav__link">
+    Data Params
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-call" title="Sample Call" class="md-nav__link">
+    Sample Call
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -689,7 +801,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../m3query/architecture/" title="Overview" class="md-nav__link">
+    <a href="../architecture/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -701,7 +813,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../m3query/architecture/blocks/" title="Blocks" class="md-nav__link">
+    <a href="../architecture/blocks/" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -713,7 +825,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../m3query/architecture/fanout/" title="Query Fanout" class="md-nav__link">
+    <a href="../architecture/fanout/" title="Query Fanout" class="md-nav__link">
       Query Fanout
     </a>
   </li>
@@ -725,7 +837,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../m3query/architecture/functions/" title="Function Processing" class="md-nav__link">
+    <a href="../architecture/functions/" title="Function Processing" class="md-nav__link">
       Function Processing
     </a>
   </li>
@@ -1286,6 +1398,103 @@
     
   
   
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#query-using-promql" title="Query using PromQL" class="md-nav__link">
+    Query using PromQL
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#url" title="URL" class="md-nav__link">
+    URL
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method" title="Method" class="md-nav__link">
+    Method
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#url-params" title="URL Params" class="md-nav__link">
+    URL Params
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#required" title="Required" class="md-nav__link">
+    Required
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional" title="Optional" class="md-nav__link">
+    Optional
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#header-params" title="Header Params" class="md-nav__link">
+    Header Params
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#optional_1" title="Optional" class="md-nav__link">
+    Optional
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-params" title="Data Params" class="md-nav__link">
+    Data Params
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sample-call" title="Sample Call" class="md-nav__link">
+    Sample Call
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1296,19 +1505,104 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3/edit/master/docs/overview/roadmap.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/m3query/api/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="roadmap">Roadmap</h1>
-<p>This roadmap is open for suggestions and currently just a small snapshot of what is coming up.</p>
-<p>Short:
-- Add diagrams of what using M3 looks like (broken down by use case)
-- Improve operational guides for the aggregator
-- Add tutorials for a variety of use cases
-- Add design documentation of reverse index
-- Add design documentation of aggregator</p>
-<p>Medium:
-- Plan what a v1.0 release looks like</p>
+                <h1 id="api">API</h1>
+<p><strong>Please note:</strong> This documentation is a work in progress and more detail is required.</p>
+<h2 id="query-using-promql">Query using PromQL</h2>
+<p>Query using PromQL and returns JSON datapoints compatible with the Prometheus Grafana plugin.</p>
+<h3 id="url">URL</h3>
+<p><code>/api/v1/query_range</code></p>
+<h3 id="method">Method</h3>
+<p><code>GET</code></p>
+<h3 id="url-params">URL Params</h3>
+<h4 id="required">Required</h4>
+<ul>
+<li><code>start=[time in RFC3339Nano]</code></li>
+<li><code>end=[time in RFC3339Nano]</code></li>
+<li><code>step=[time duration]</code></li>
+<li><code>target=[string]</code></li>
+</ul>
+<h4 id="optional">Optional</h4>
+<ul>
+<li><code>debug=[bool]</code></li>
+<li><code>lookback=[string|time duration]</code>: This sets the per request lookback duration to something other than the default set in config, can either be a time duration or the string "step" which sets the lookback to the same as the <code>step</code> request parameter.</li>
+</ul>
+<h3 id="header-params">Header Params</h3>
+<h4 id="optional_1">Optional</h4>
+<ul>
+<li><code>M3-Metrics-Type</code>:<br />
+ If this header is set, it determines what type of metric to store this metric value as. Otherwise by default, metrics will be stored in all namespaces that are configured. You can also disable this default behavior by setting <code>downsample</code> options to <code>all: false</code> for a namespace in the coordinator config, for more see <a href="../../how_to/query/#disabling-automatic-aggregation">disabling automatic aggregation</a>.<br /><br />
+ Must be one of:<br />
+<code>unaggregated</code>: Write metrics directly to configured unaggregated namespace.<br />
+<code>aggregated</code>: Write metrics directly to a configured aggregated namespace (bypassing any aggregation), this requires the <code>M3-Storage-Policy</code> header to be set to resolve which namespace to write metrics to.<br />
+<br /></li>
+<li><code>M3-Storage-Policy</code>:<br />
+ If this header is set, it determines which aggregated namespace to read/write metrics directly to/from (bypassing any aggregation).<br />
+ The value of the header must be in the format of <code>resolution:retention</code> in duration shorthand. e.g. <code>1m:48h</code> specifices 1 minute resolution and 48 hour retention. Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".<br /><br />
+Here is <a href="https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/test.sh#L126-L146">an example</a> of querying metrics from a specific namespace.<br /><br /></li>
+</ul>
+<h3 id="data-params">Data Params</h3>
+<p>None.</p>
+<h3 id="sample-call">Sample Call</h3>
+<!--
+Note: keep this example similar to the one found in coordinator API
+documentation for consistency/ease of readers.
+-->
+
+<div class="highlight"><pre><span></span>curl <span class="s1">&#39;http://localhost:7201/api/v1/query_range?query=abs(http_requests_total)&amp;start=1530220860&amp;end=1530220900&amp;step=15s&#39;</span>
+<span class="o">{</span>
+  <span class="s2">&quot;status&quot;</span>: <span class="s2">&quot;success&quot;</span>,
+  <span class="s2">&quot;data&quot;</span>: <span class="o">{</span>
+    <span class="s2">&quot;resultType&quot;</span>: <span class="s2">&quot;matrix&quot;</span>,
+    <span class="s2">&quot;result&quot;</span>: <span class="o">[</span>
+      <span class="o">{</span>
+        <span class="s2">&quot;metric&quot;</span>: <span class="o">{</span>
+          <span class="s2">&quot;code&quot;</span>: <span class="s2">&quot;200&quot;</span>,
+          <span class="s2">&quot;handler&quot;</span>: <span class="s2">&quot;graph&quot;</span>,
+          <span class="s2">&quot;method&quot;</span>: <span class="s2">&quot;get&quot;</span>
+        <span class="o">}</span>,
+        <span class="s2">&quot;values&quot;</span>: <span class="o">[</span>
+          <span class="o">[</span>
+            <span class="m">1530220860</span>,
+            <span class="s2">&quot;6&quot;</span>
+          <span class="o">]</span>,
+          <span class="o">[</span>
+            <span class="m">1530220875</span>,
+            <span class="s2">&quot;6&quot;</span>
+          <span class="o">]</span>,
+          <span class="o">[</span>
+            <span class="m">1530220890</span>,
+            <span class="s2">&quot;6&quot;</span>
+          <span class="o">]</span>
+        <span class="o">]</span>
+      <span class="o">}</span>,
+      <span class="o">{</span>
+        <span class="s2">&quot;metric&quot;</span>: <span class="o">{</span>
+          <span class="s2">&quot;code&quot;</span>: <span class="s2">&quot;200&quot;</span>,
+          <span class="s2">&quot;handler&quot;</span>: <span class="s2">&quot;label_values&quot;</span>,
+          <span class="s2">&quot;method&quot;</span>: <span class="s2">&quot;get&quot;</span>
+        <span class="o">}</span>,
+        <span class="s2">&quot;values&quot;</span>: <span class="o">[</span>
+          <span class="o">[</span>
+            <span class="m">1530220860</span>,
+            <span class="s2">&quot;6&quot;</span>
+          <span class="o">]</span>,
+          <span class="o">[</span>
+            <span class="m">1530220875</span>,
+            <span class="s2">&quot;6&quot;</span>
+          <span class="o">]</span>,
+          <span class="o">[</span>
+            <span class="m">1530220890</span>,
+            <span class="s2">&quot;6&quot;</span>
+          <span class="o">]</span>
+        <span class="o">]</span>
+      <span class="o">}</span>
+    <span class="o">]</span>
+  <span class="o">}</span>
+<span class="o">}</span>
+</pre></div>
                 
                   
                 
@@ -1329,7 +1623,7 @@
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../media/" title="Media" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../config/annotated_config/" title="Annotated Config File" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1338,19 +1632,19 @@
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Media
+                Annotated Config File
               </span>
             </div>
           </a>
         
         
-          <a href="../../m3db/" title="Introduction" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../architecture/" title="Overview" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Introduction
+                Overview
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">

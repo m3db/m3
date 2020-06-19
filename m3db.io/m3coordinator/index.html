@@ -31,20 +31,20 @@
       
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
-      <link rel="shortcut icon" href="../../../assets/images/favicon.png">
+      <link rel="shortcut icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
     
     
       
-        <title>Query Fanout - M3 Documentation</title>
+        <title>Introduction - M3 Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/application.8d40d89b.css">
+      <link rel="stylesheet" href="../assets/stylesheets/application.8d40d89b.css">
       
     
     
-      <script src="../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../assets/javascripts/modernizr.1aa3b519.js"></script>
     
     
       <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
@@ -89,7 +89,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
     
-      <a href="#fetching-and-querying" tabindex="1" class="md-skip">
+      <a href="#m3-coordinator-stateless-api-server-for-readingwriting-metrics-and-m3-management" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -98,7 +98,7 @@
   <nav class="md-header-nav md-grid">
     <div class="md-flex">
       <div class="md-flex__cell md-flex__cell--shrink">
-        <a href="../../.." title="M3 Documentation" class="md-header-nav__button md-logo">
+        <a href=".." title="M3 Documentation" class="md-header-nav__button md-logo">
           
             <i class="md-icon"></i>
           
@@ -115,7 +115,7 @@
                 M3 Documentation
               </span>
               <span class="md-header-nav__topic">
-                Query Fanout
+                Introduction
               </span>
             
           
@@ -232,7 +232,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../.." title="Introduction" class="md-nav__link">
+    <a href=".." title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -263,7 +263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../overview/components/" title="Components" class="md-nav__link">
+    <a href="../overview/components/" title="Components" class="md-nav__link">
       Components
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../overview/motivation/" title="Motivation" class="md-nav__link">
+    <a href="../overview/motivation/" title="Motivation" class="md-nav__link">
       Motivation
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../overview/media/" title="Media" class="md-nav__link">
+    <a href="../overview/media/" title="Media" class="md-nav__link">
       Media
     </a>
   </li>
@@ -299,7 +299,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../overview/roadmap/" title="Roadmap" class="md-nav__link">
+    <a href="../overview/roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
     </a>
   </li>
@@ -335,7 +335,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../m3db/" title="Introduction" class="md-nav__link">
+    <a href="../m3db/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -366,7 +366,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../m3db/architecture/" title="Overview" class="md-nav__link">
+    <a href="../m3db/architecture/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -378,7 +378,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../m3db/architecture/engine/" title="Storage Engine" class="md-nav__link">
+    <a href="../m3db/architecture/engine/" title="Storage Engine" class="md-nav__link">
       Storage Engine
     </a>
   </li>
@@ -390,7 +390,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../m3db/architecture/sharding/" title="Sharding and Replication" class="md-nav__link">
+    <a href="../m3db/architecture/sharding/" title="Sharding and Replication" class="md-nav__link">
       Sharding and Replication
     </a>
   </li>
@@ -402,7 +402,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../m3db/architecture/consistencylevels/" title="Consistency Levels" class="md-nav__link">
+    <a href="../m3db/architecture/consistencylevels/" title="Consistency Levels" class="md-nav__link">
       Consistency Levels
     </a>
   </li>
@@ -414,7 +414,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../m3db/architecture/storage/" title="Storage" class="md-nav__link">
+    <a href="../m3db/architecture/storage/" title="Storage" class="md-nav__link">
       Storage
     </a>
   </li>
@@ -426,7 +426,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../m3db/architecture/commitlogs/" title="Commit Logs" class="md-nav__link">
+    <a href="../m3db/architecture/commitlogs/" title="Commit Logs" class="md-nav__link">
       Commit Logs
     </a>
   </li>
@@ -438,7 +438,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../m3db/architecture/peer_streaming/" title="Peer Streaming" class="md-nav__link">
+    <a href="../m3db/architecture/peer_streaming/" title="Peer Streaming" class="md-nav__link">
       Peer Streaming
     </a>
   </li>
@@ -450,7 +450,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../m3db/architecture/caching/" title="Caching" class="md-nav__link">
+    <a href="../m3db/architecture/caching/" title="Caching" class="md-nav__link">
       Caching
     </a>
   </li>
@@ -470,17 +470,19 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4" checked>
     
     <label class="md-nav__link" for="nav-4">
-      Coordinator
+      M3 Coordinator
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-4">
-        Coordinator
+        M3 Coordinator
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -489,11 +491,20 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../../../coordinator/" title="Introduction" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+    <a href="./" title="Introduction" class="md-nav__link md-nav__link--active">
       Introduction
     </a>
+    
   </li>
 
         
@@ -522,7 +533,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../coordinator/api/remote/" title="Prometheus Remote Write/Read" class="md-nav__link">
+    <a href="api/remote/" title="Prometheus Remote Write/Read" class="md-nav__link">
       Prometheus Remote Write/Read
     </a>
   </li>
@@ -542,19 +553,17 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
     
     <label class="md-nav__link" for="nav-5">
-      Query Engine
+      M3 Query
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-5">
-        Query Engine
+        M3 Query
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -565,7 +574,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../" title="Introduction" class="md-nav__link">
+    <a href="../m3query/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -596,7 +605,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../config/" title="Query Engine" class="md-nav__link">
+    <a href="../m3query/config/" title="Query Engine" class="md-nav__link">
       Query Engine
     </a>
   </li>
@@ -608,7 +617,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../config/annotated_config/" title="Annotated Config File" class="md-nav__link">
+    <a href="../m3query/config/annotated_config/" title="Annotated Config File" class="md-nav__link">
       Annotated Config File
     </a>
   </li>
@@ -644,7 +653,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../api/" title="Query" class="md-nav__link">
+    <a href="../m3query/api/" title="Query" class="md-nav__link">
       Query
     </a>
   </li>
@@ -659,12 +668,10 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5-4" type="checkbox" id="nav-5-4" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5-4" type="checkbox" id="nav-5-4">
     
     <label class="md-nav__link" for="nav-5-4">
       Architecture
@@ -682,7 +689,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../" title="Overview" class="md-nav__link">
+    <a href="../m3query/architecture/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -694,7 +701,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../blocks/" title="Blocks" class="md-nav__link">
+    <a href="../m3query/architecture/blocks/" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -704,49 +711,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="toc">
-        Query Fanout
-      </label>
-    
-    <a href="./" title="Query Fanout" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../m3query/architecture/fanout/" title="Query Fanout" class="md-nav__link">
       Query Fanout
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#fetch-fanout" title="Fetch fanout" class="md-nav__link">
-    Fetch fanout
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -756,7 +725,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../functions/" title="Function Processing" class="md-nav__link">
+    <a href="../m3query/architecture/functions/" title="Function Processing" class="md-nav__link">
       Function Processing
     </a>
   </li>
@@ -797,7 +766,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../how_to/single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
+    <a href="../how_to/single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
       M3DB Single Node Deployment
     </a>
   </li>
@@ -809,7 +778,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../how_to/cluster_hard_way/" title="M3DB Cluster Deployment, Manually" class="md-nav__link">
+    <a href="../how_to/cluster_hard_way/" title="M3DB Cluster Deployment, Manually" class="md-nav__link">
       M3DB Cluster Deployment, Manually
     </a>
   </li>
@@ -821,7 +790,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
+    <a href="../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
       M3DB on Kubernetes
     </a>
   </li>
@@ -833,7 +802,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../how_to/query/" title="M3Query" class="md-nav__link">
+    <a href="../how_to/query/" title="M3Query" class="md-nav__link">
       M3Query
     </a>
   </li>
@@ -845,7 +814,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../how_to/use_as_tsdb/" title="Use M3DB as a general purpose time series database" class="md-nav__link">
+    <a href="../how_to/use_as_tsdb/" title="Use M3DB as a general purpose time series database" class="md-nav__link">
       Use M3DB as a general purpose time series database
     </a>
   </li>
@@ -881,7 +850,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/" title="Overview" class="md-nav__link">
+    <a href="../operational_guide/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -893,7 +862,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/replication_and_deployment_in_zones/" title="Replication and Deployment in Zones" class="md-nav__link">
+    <a href="../operational_guide/replication_and_deployment_in_zones/" title="Replication and Deployment in Zones" class="md-nav__link">
       Replication and Deployment in Zones
     </a>
   </li>
@@ -905,115 +874,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/replication_between_clusters/" title="Replication Between Clusters" class="md-nav__link">
-      Replication Between Clusters
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/repairs/" title="Repairs" class="md-nav__link">
-      Repairs
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/availability_consistency_durability/" title="Tuning Availability, Consistency, and Durability" class="md-nav__link">
-      Tuning Availability, Consistency, and Durability
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/placement/" title="Placement/Topology" class="md-nav__link">
-      Placement/Topology
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/placement_configuration/" title="Placement/Topology Configuration" class="md-nav__link">
-      Placement/Topology Configuration
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
-      Namespace Configuration
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/bootstrapping_crash_recovery/" title="Bootstrapping & Crash Recovery" class="md-nav__link">
-      Bootstrapping & Crash Recovery
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/kernel_configuration/" title="Docker & Kernel Configuration" class="md-nav__link">
-      Docker & Kernel Configuration
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/etcd/" title="etcd" class="md-nav__link">
-      etcd
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../operational_guide/monitoring/" title="Monitoring" class="md-nav__link">
+    <a href="../operational_guide/monitoring/" title="Monitoring" class="md-nav__link">
       Monitoring
     </a>
   </li>
@@ -1025,7 +886,115 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/mapping_rollup/" title="Configuring Mapping & Rollup Rules" class="md-nav__link">
+    <a href="../operational_guide/upgrading_m3/" title="Upgrading M3" class="md-nav__link">
+      Upgrading M3
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/resource_limits/" title="Resource Limits and Preventing Abusive Reads/Writes" class="md-nav__link">
+      Resource Limits and Preventing Abusive Reads/Writes
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/availability_consistency_durability/" title="Tuning Availability, Consistency, and Durability" class="md-nav__link">
+      Tuning Availability, Consistency, and Durability
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/placement/" title="Placement/Topology" class="md-nav__link">
+      Placement/Topology
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/placement_configuration/" title="Placement/Topology Configuration" class="md-nav__link">
+      Placement/Topology Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
+      Namespace Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/bootstrapping_crash_recovery/" title="Bootstrapping & Crash Recovery" class="md-nav__link">
+      Bootstrapping & Crash Recovery
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/kernel_configuration/" title="Docker & Kernel Configuration" class="md-nav__link">
+      Docker & Kernel Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/etcd/" title="etcd" class="md-nav__link">
+      etcd
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/mapping_rollup/" title="Configuring Mapping & Rollup Rules" class="md-nav__link">
       Configuring Mapping & Rollup Rules
     </a>
   </li>
@@ -1037,8 +1006,32 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/upgrading_m3/" title="Upgrading M3" class="md-nav__link">
+    <a href="../operational_guide/upgrading_m3/" title="Upgrading M3" class="md-nav__link">
       Upgrading M3
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/repairs/" title="Repairs" class="md-nav__link">
+      Repairs
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/replication_between_clusters/" title="Replication Between Clusters" class="md-nav__link">
+      Replication Between Clusters
     </a>
   </li>
 
@@ -1073,7 +1066,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
+    <a href="../integrations/prometheus/" title="Prometheus" class="md-nav__link">
       Prometheus
     </a>
   </li>
@@ -1085,7 +1078,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../integrations/graphite/" title="Graphite" class="md-nav__link">
+    <a href="../integrations/graphite/" title="Graphite" class="md-nav__link">
       Graphite
     </a>
   </li>
@@ -1097,7 +1090,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../integrations/grafana/" title="Grafana" class="md-nav__link">
+    <a href="../integrations/grafana/" title="Grafana" class="md-nav__link">
       Grafana
     </a>
   </li>
@@ -1109,7 +1102,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../integrations/influxdb/" title="InfluxDB" class="md-nav__link">
+    <a href="../integrations/influxdb/" title="InfluxDB" class="md-nav__link">
       InfluxDB
     </a>
   </li>
@@ -1145,7 +1138,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../performance/" title="Introduction" class="md-nav__link">
+    <a href="../performance/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -1176,7 +1169,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../performance/m3db/" title="M3DB Performance" class="md-nav__link">
+    <a href="../performance/m3db/" title="M3DB Performance" class="md-nav__link">
       M3DB Performance
     </a>
   </li>
@@ -1212,7 +1205,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../performance/m3query/" title="m3query Performance" class="md-nav__link">
+    <a href="../performance/m3query/" title="m3query Performance" class="md-nav__link">
       m3query Performance
     </a>
   </li>
@@ -1234,7 +1227,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
+    <a href="../troubleshooting/" title="Troubleshooting" class="md-nav__link">
       Troubleshooting
     </a>
   </li>
@@ -1246,7 +1239,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../faqs/" title="FAQs" class="md-nav__link">
+    <a href="../faqs/" title="FAQs" class="md-nav__link">
       FAQs
     </a>
   </li>
@@ -1258,7 +1251,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../glossary/" title="Glossary" class="md-nav__link">
+    <a href="../glossary/" title="Glossary" class="md-nav__link">
       Glossary
     </a>
   </li>
@@ -1270,7 +1263,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
+    <a href="../misc/writing_docs/" title="Tips For Writing Documentation" class="md-nav__link">
       Tips For Writing Documentation
     </a>
   </li>
@@ -1293,22 +1286,6 @@
     
   
   
-    <label class="md-nav__title" for="toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#fetch-fanout" title="Fetch fanout" class="md-nav__link">
-    Fetch fanout
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -1319,14 +1296,18 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3/edit/master/docs/query_engine/architecture/fanout.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/m3coordinator/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="fetching-and-querying">Fetching and querying</h1>
-<h2 id="fetch-fanout">Fetch fanout</h2>
-<p>Since m3query does not currently have a view into the M3DB index, fanout to multiple clusters is rather complicated. Since not every metric is necessarily in every cluster (as an example, carbon metrics routed to a certain resolution), it is not trivial to determine which namespaces should be queried to return a fully correct set of recorded metrics.</p>
-<p>The general approach is therefore to attempt to fanout to any namespace which has a complete view of all metrics, for example, <code>Unaggregated</code>, and take that if it fulfills the query range; if not, m3query will attempt to stitch together namespaces with longer retentions to try and build the most complete possible view of stored metrics.</p>
-<p>For further details, please ask questions on <a href="http://bit.ly/m3slack">Slack</a>, and we'll be happy to help!</p>
+                <h1 id="m3-coordinator-stateless-api-server-for-readingwriting-metrics-and-m3-management">M3 Coordinator, stateless API server for reading/writing metrics and M3 management</h1>
+<p>M3 Coordinator is a service that coordinates reads and writes between upstream systems, such as Prometheus, and downstream systems, such as M3DB. </p>
+<p>It also provides management APIs to setup and configure different parts of M3.</p>
+<p>The coordinator is generally a bridge for read and writing different types of metrics formats and a management layer for M3.</p>
+<p><strong>Note</strong>: M3DB by default includes the M3 Coordinator accessible on port 7201. 
+For production deployments it is recommended to deploy it as a 
+dedicated service to ensure you can scale the write coordination role separately 
+and independently to database nodes as an isolated application separate from 
+the M3DB database role.</p>
                 
                   
                 
@@ -1347,7 +1328,7 @@
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../blocks/" title="Blocks" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../m3db/architecture/caching/" title="Caching" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1356,19 +1337,19 @@
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Blocks
+                Caching
               </span>
             </div>
           </a>
         
         
-          <a href="../functions/" title="Function Processing" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="api/remote/" title="Prometheus Remote Write/Read" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Function Processing
+                Prometheus Remote Write/Read
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
@@ -1398,9 +1379,9 @@
       
     </div>
     
-      <script src="../../../assets/javascripts/application.b438e6c5.js"></script>
+      <script src="../assets/javascripts/application.b438e6c5.js"></script>
       
-      <script>app.initialize({version:"0.17.3",url:{base:"../../.."}})</script>
+      <script>app.initialize({version:"0.17.3",url:{base:".."}})</script>
       
     
     

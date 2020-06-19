@@ -476,11 +476,11 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
     
     <label class="md-nav__link" for="nav-4">
-      Coordinator
+      M3 Coordinator
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-4">
-        Coordinator
+        M3 Coordinator
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -491,7 +491,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../coordinator/" title="Introduction" class="md-nav__link">
+    <a href="../../m3coordinator/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -522,7 +522,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../coordinator/api/remote/" title="Prometheus Remote Write/Read" class="md-nav__link">
+    <a href="../../m3coordinator/api/remote/" title="Prometheus Remote Write/Read" class="md-nav__link">
       Prometheus Remote Write/Read
     </a>
   </li>
@@ -548,11 +548,11 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
     
     <label class="md-nav__link" for="nav-5">
-      Query Engine
+      M3 Query
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-5">
-        Query Engine
+        M3 Query
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -563,7 +563,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../query_engine/" title="Introduction" class="md-nav__link">
+    <a href="../../m3query/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -594,7 +594,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../query_engine/config/" title="Query Engine" class="md-nav__link">
+    <a href="../../m3query/config/" title="Query Engine" class="md-nav__link">
       Query Engine
     </a>
   </li>
@@ -606,7 +606,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../query_engine/config/annotated_config/" title="Annotated Config File" class="md-nav__link">
+    <a href="../../m3query/config/annotated_config/" title="Annotated Config File" class="md-nav__link">
       Annotated Config File
     </a>
   </li>
@@ -642,7 +642,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../query_engine/api/" title="Query" class="md-nav__link">
+    <a href="../../m3query/api/" title="Query" class="md-nav__link">
       Query
     </a>
   </li>
@@ -678,7 +678,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../query_engine/architecture/" title="Overview" class="md-nav__link">
+    <a href="../../m3query/architecture/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -690,7 +690,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
+    <a href="../../m3query/architecture/blocks/" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -702,7 +702,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../query_engine/architecture/fanout/" title="Query Fanout" class="md-nav__link">
+    <a href="../../m3query/architecture/fanout/" title="Query Fanout" class="md-nav__link">
       Query Fanout
     </a>
   </li>
@@ -714,7 +714,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
+    <a href="../../m3query/architecture/functions/" title="Function Processing" class="md-nav__link">
       Function Processing
     </a>
   </li>
@@ -865,8 +865,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../replication_between_clusters/" title="Replication Between Clusters" class="md-nav__link">
-      Replication Between Clusters
+    <a href="../monitoring/" title="Monitoring" class="md-nav__link">
+      Monitoring
     </a>
   </li>
 
@@ -877,8 +877,124 @@
 
 
   <li class="md-nav__item">
-    <a href="../repairs/" title="Repairs" class="md-nav__link">
-      Repairs
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Upgrading M3
+      </label>
+    
+    <a href="./" title="Upgrading M3" class="md-nav__link md-nav__link--active">
+      Upgrading M3
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3dbnode" title="m3dbnode" class="md-nav__link">
+    m3dbnode
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#graphs-to-monitor" title="Graphs to monitor" class="md-nav__link">
+    Graphs to monitor
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetes" title="Kubernetes" class="md-nav__link">
+    Kubernetes
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#downgrading" title="Downgrading" class="md-nav__link">
+    Downgrading
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3coordinator" title="m3coordinator" class="md-nav__link">
+    m3coordinator
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3query" title="m3query" class="md-nav__link">
+    m3query
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3aggregator" title="m3aggregator" class="md-nav__link">
+    m3aggregator
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#non-kubernetes" title="Non-Kubernetes" class="md-nav__link">
+    Non-Kubernetes
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../resource_limits/" title="Resource Limits and Preventing Abusive Reads/Writes" class="md-nav__link">
+      Resource Limits and Preventing Abusive Reads/Writes
     </a>
   </li>
 
@@ -973,18 +1089,6 @@
 
 
   <li class="md-nav__item">
-    <a href="../monitoring/" title="Monitoring" class="md-nav__link">
-      Monitoring
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
     <a href="../mapping_rollup/" title="Configuring Mapping & Rollup Rules" class="md-nav__link">
       Configuring Mapping & Rollup Rules
     </a>
@@ -1046,13 +1150,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#non-kubernetes" title="Non-Kubernetes" class="md-nav__link">
-    Non-Kubernetes
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#kubernetes" title="Kubernetes" class="md-nav__link">
     Kubernetes
   </a>
@@ -1090,6 +1187,19 @@
     m3aggregator
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#non-kubernetes" title="Non-Kubernetes" class="md-nav__link">
+    Non-Kubernetes
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
       
@@ -1100,6 +1210,30 @@
   
 </nav>
     
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../repairs/" title="Repairs" class="md-nav__link">
+      Repairs
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../replication_between_clusters/" title="Replication Between Clusters" class="md-nav__link">
+      Replication Between Clusters
+    </a>
   </li>
 
         
@@ -1379,13 +1513,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#non-kubernetes" title="Non-Kubernetes" class="md-nav__link">
-    Non-Kubernetes
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#kubernetes" title="Kubernetes" class="md-nav__link">
     Kubernetes
   </a>
@@ -1423,6 +1550,19 @@
     m3aggregator
   </a>
   
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#non-kubernetes" title="Non-Kubernetes" class="md-nav__link">
+    Non-Kubernetes
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
       
@@ -1456,8 +1596,37 @@ This includes upgrading:</p>
 </ul>
 <h2 id="m3dbnode">m3dbnode</h2>
 <h3 id="graphs-to-monitor">Graphs to monitor</h3>
-<p>While upgrading M3DB nodes, it's important to monitor the status of bootstrapping the individual nodes. This can be monitored using the <a href="https://grafana.com/grafana/dashboards/8126">M3DB Node Details</a> graph.
+<p>While upgrading M3DB nodes, it's important to monitor the status of bootstrapping the individual nodes. This can be monitored using the <a href="https://github.com/m3db/m3/blob/master/integrations/grafana/m3db_dashboard.json">M3DB Node Details</a> dashboard.
 Typically, the <code>Bootstrapped</code> graph under <code>Background Tasks</code> and the graphs within the <code>CPU and Memory Utilization</code> give a good understanding of how well bootstrapping is going.</p>
+<h3 id="kubernetes">Kubernetes</h3>
+<p>If running <code>M3DB</code> on Kubernetes, upgrade by completing the following steps. </p>
+<ol>
+<li>
+<p>Identify the version of m3dbnode to upgrade to <a href="https://quay.io/repository/m3db/m3dbnode?tab=tags">on Quay</a>.</p>
+</li>
+<li>
+<p>Replace the Docker image in the <code>StatefulSet</code> manifest (or <code>m3db-operator</code> manifest) to be the new version of m3dbnode.</p>
+</li>
+</ol>
+<div class="highlight"><pre><span></span><span class="nt">spec</span><span class="p">:</span>
+  <span class="nt">image</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">quay.io/m3db/m3dbnode:$VERSION</span>
+</pre></div>
+
+<ol>
+<li>Once updated, apply the updated manifest and a rolling restart will be performed. You must wait until the <code>StatefulSet</code> is entirely upgraded and bootstrapped (as per the M3DB Node Details dashboard) before proceeding to the next <code>StatefulSet</code> otherwise multiple replicas will be unavailable at once.</li>
+</ol>
+<div class="highlight"><pre><span></span>kubectl apply -f &lt;m3dbnode_manifest&gt;
+</pre></div>
+
+<h3 id="downgrading">Downgrading</h3>
+<p>The <code>upgrading</code> steps above can also be used to downgrade M3DB. However, it is important to refer to the release notes to make sure that versions are
+backwards compatible.</p>
+<h2 id="m3coordinator">m3coordinator</h2>
+<p><code>m3coordinator</code> can be upgraded using similar steps as <code>m3dbnode</code>, however, the images can be <a href="https://quay.io/repository/m3db/m3coordinator">found here</a> instead.</p>
+<h2 id="m3query">m3query</h2>
+<p><code>m3query</code> can be upgraded using similar steps as <code>m3dbnode</code>, however, the images can be <a href="https://quay.io/repository/m3db/m3query">found here</a> instead.</p>
+<h2 id="m3aggregator">m3aggregator</h2>
+<p><code>m3aggregator</code> can be upgraded using similar steps as <code>m3dbnode</code>, however, the images can be <a href="https://quay.io/repository/m3db/m3aggregator">found here</a> instead.</p>
 <h3 id="non-kubernetes">Non-Kubernetes</h3>
 <p>It is very important that for each replica set, only one node gets upgraded at a time. However, multiple nodes can be upgraded across replica sets. </p>
 <p>1) Download new binary (linux example below).</p>
@@ -1494,35 +1663,6 @@ pkill m3dbnode
 </pre></div>
 
 <p>4) Repeat steps 2 and 3 until all nodes have been upgraded.</p>
-<h3 id="kubernetes">Kubernetes</h3>
-<p>If running <code>M3DB</code> on Kubernetes, upgrade by completing the following steps. </p>
-<ol>
-<li>
-<p>Identify the version of m3dbnode to upgrade to <a href="https://quay.io/repository/m3db/m3dbnode?tab=tags">on Quay</a>.</p>
-</li>
-<li>
-<p>Replace the Docker image in the <code>StatefulSet</code> manifest (or <code>m3db-operator</code> manifest) to be the new version of m3dbnode.</p>
-</li>
-</ol>
-<div class="highlight"><pre><span></span><span class="nt">spec</span><span class="p">:</span>
-  <span class="nt">image</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">quay.io/m3db/m3dbnode:$VERSION</span>
-</pre></div>
-
-<ol>
-<li>Once updated, apply the updated manifest and a rolling restart will be performed.</li>
-</ol>
-<div class="highlight"><pre><span></span>kubectl apply -f &lt;m3dbnode_manifest&gt;
-</pre></div>
-
-<h3 id="downgrading">Downgrading</h3>
-<p>The <code>upgrading</code> steps above can also be used to downgrade M3DB. However, it is important to refer to the release notes to make sure that versions are
-backwards compatible.</p>
-<h2 id="m3coordinator">m3coordinator</h2>
-<p><code>m3coordinator</code> can be upgraded using similar steps as <code>m3dbnode</code>, however, the images can be <a href="https://quay.io/repository/m3db/m3coordinator">found here</a> instead.</p>
-<h2 id="m3query">m3query</h2>
-<p><code>m3query</code> can be upgraded using similar steps as <code>m3dbnode</code>, however, the images can be <a href="https://quay.io/repository/m3db/m3query">found here</a> instead.</p>
-<h2 id="m3aggregator">m3aggregator</h2>
-<p><code>m3aggregator</code> can be upgraded using similar steps as <code>m3dbnode</code>, however, the images can be <a href="https://quay.io/repository/m3db/m3aggregator">found here</a> instead.</p>
                 
                   
                 
@@ -1558,13 +1698,13 @@ backwards compatible.</p>
           </a>
         
         
-          <a href="../../integrations/prometheus/" title="Prometheus" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../repairs/" title="Repairs" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Prometheus
+                Repairs
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
