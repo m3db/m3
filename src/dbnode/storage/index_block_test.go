@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
-	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -644,7 +643,6 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 			result, err = idx.Query(ctx, q, qOpts)
 			if test.requireExhaustive {
 				require.Error(t, err)
-				require.False(t, xerrors.IsRetryableError(err))
 			} else {
 				require.NoError(t, err)
 				require.False(t, result.Exhaustive)
@@ -881,7 +879,6 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 			result, err = idx.AggregateQuery(ctx, q, aggOpts)
 			if test.requireExhaustive {
 				require.Error(t, err)
-				require.False(t, xerrors.IsRetryableError(err))
 			} else {
 				require.NoError(t, err)
 				require.False(t, result.Exhaustive)
@@ -1119,7 +1116,6 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 				result, err = idx.AggregateQuery(ctx, q, aggOpts)
 				if test.requireExhaustive {
 					require.Error(t, err)
-					require.False(t, xerrors.IsRetryableError(err))
 				} else {
 					require.NoError(t, err)
 					require.False(t, result.Exhaustive)
