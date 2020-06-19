@@ -44,10 +44,7 @@ func makeUnlessBlock(
 	}
 
 	lSeriesMetas := lIter.SeriesMeta()
-	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
-
 	rSeriesMetas := rIter.SeriesMeta()
-	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
 
 	// NB: need to flatten metadata for cases where
 	// e.g. lhs: common tags {a:b}, series tags: {c:d}, {e:f}
