@@ -65,7 +65,7 @@ writeWorkerPoolPolicy:
   size: <int>
 
 tagOptions:
-  # See here for more information: http://m3db.github.io/m3/how_to/query/#id-generation
+  # See here for more information: https://docs.m3db.io/how_to/query/#id-generation
   idScheme: <id_scheme>
 
 # lookbackDuration defines, at each step, how long we lookback until we see a non-NaN value.
