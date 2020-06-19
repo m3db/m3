@@ -7,4 +7,4 @@
 - `M3-Storage-Policy`:  
  If this header is set, it determines which aggregated namespace to read/write metrics directly to/from (bypassing any aggregation).  
  The value of the header must be in the format of `resolution:retention` in duration shorthand. e.g. `1m:48h` specifices 1 minute resolution and 48 hour retention. Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".<br /><br />
-Here is [an example](https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/test.sh#L126-L146) of querying metrics from a specific namespace. 
+Here is [an example](https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/test.sh#L126-L146) of querying metrics from a specific namespace.<br /><br />

@@ -25,6 +25,9 @@ None.
 --8<--
 docs/common/headers_optional_read_write.md
 --8<--
+--8<--
+docs/common/headers_optional_write.md
+--8<--
 
 ### Data Params
 

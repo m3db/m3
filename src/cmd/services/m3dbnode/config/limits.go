@@ -24,12 +24,18 @@ import "time"
 
 // LimitsConfiguration contains configuration for configurable limits that can be applied to M3DB.
 type LimitsConfiguration struct {
+	// MaxRecentlyQueriedSeriesBlocks sets the upper limit on time series blocks
+	// count within a given lookback period. Queries which are issued while this
+	// max is surpassed encounter an error.
+	MaxRecentlyQueriedSeriesBlocks *MaxRecentlyQueriedSeriesBlocksConfiguration `yaml:"maxRecentlyQueriedSeriesBlocks"`
+
 	// MaxOutstandingWriteRequests controls the maximum number of outstanding write requests
 	// that the server will allow before it begins rejecting requests. Note that this value
 	// is independent of the number of values that are being written (due to variable batch
 	// size from the client) but is still very useful for enforcing backpressure due to the fact
 	// that all writes within a single RPC are single-threaded.
 	MaxOutstandingWriteRequests int `yaml:"maxOutstandingWriteRequests" validate:"min=0"`
+
 	// MaxOutstandingReadRequests controls the maximum number of outstanding read requests that
 	// the server will allow before it begins rejecting requests. Just like MaxOutstandingWriteRequests
 	// this value is independent of the number of time series being read.
@@ -41,11 +47,6 @@ type LimitsConfiguration struct {
 	// process would pause until some of the repaired bytes had been persisted to disk (and subsequently
 	// evicted from memory) at which point it would resume.
 	MaxOutstandingRepairedBytes int64 `yaml:"maxOutstandingRepairedBytes" validate:"min=0"`
-
-	// MaxRecentlyQueriedSeriesBlocks sets the upper limit on time series blocks
-	// count within a given lookback period. Queries which are issued while this
-	// max is surpassed encounter an error.
-	MaxRecentlyQueriedSeriesBlocks *MaxRecentlyQueriedSeriesBlocksConfiguration `yaml:"maxRecentlyQueriedSeriesBlocks"`
 }
 
 // MaxRecentlyQueriedSeriesBlocksConfiguration sets the upper limit on time
