@@ -1,7 +1,7 @@
 # FAQs
 
 - **Is there a way to disable M3DB embedded `etcd` and just use an external `etcd` cluster?**
-Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. See [these docs](../operational_guide/etcd/#configuring-an-external-etcd-cluster) for more information.
+Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. See [these docs](../operational_guide/etcd/index. md#configuring-an-external-etcd-cluster) for more information.
 
 - **Is there a client that lets me send metrics to m3coordinator without going through Prometheus?**
 Yes, you can use the [Prometheus remote write client](https://github.com/m3db/prometheus_remote_client_golang/).
