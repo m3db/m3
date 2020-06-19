@@ -164,7 +164,8 @@ load 5m
     nonmonotonic_bucket{le="+Inf"}  0+9x10
 
 # Nonmonotonic buckets
-# FAILING issue #48. eval instant at 50m histogram_quantile(0.99, nonmonotonic_bucket)
+# TODO - enable after https://github.com/prometheus/prometheus/commit/7eaffa71802821087c8ee42dbda652453ec1f867 is released:
+# eval instant at 50m histogram_quantile(0.99, nonmonotonic_bucket)
 #    {} 0.989875
 
 # FAILING issue #48. Buckets with different representations of the same upper bound.
