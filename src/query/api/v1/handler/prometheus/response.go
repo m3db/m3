@@ -48,23 +48,23 @@ type result interface {
 	matches(other result) (MatchInformation, error)
 }
 
-type matrixResult struct {
-	// Result is the list of matrixRow for the response.
+// MatrixResult contains a list matrixRow.
+type MatrixResult struct {
 	Result []matrixRow `json:"result"`
 }
 
-type vectorResult struct {
-	// Result is the list of vectorItem for the response.
+// VectorResult contains a list of vectorItem.
+type VectorResult struct {
 	Result []vectorItem `json:"result"`
 }
 
-type scalarResult struct {
-	// Result is the scalar Value for the response.
+// ScalarResult is the scalar Value for the response.
+type ScalarResult struct {
 	Result Value `json:"result"`
 }
 
-type stringResult struct {
-	// Result is the string Value for the response.
+// StringResult is the string Value for the response.
+type StringResult struct {
 	Result Value `json:"result"`
 }
 
@@ -81,16 +81,16 @@ func (d *data) UnmarshalJSON(bytes []byte) error {
 	switch discriminator.ResultType {
 
 	case "matrix":
-		d.Result = &matrixResult{}
+		d.Result = &MatrixResult{}
 
 	case "vector":
-		d.Result = &vectorResult{}
+		d.Result = &VectorResult{}
 
 	case "scalar":
-		d.Result = &scalarResult{}
+		d.Result = &ScalarResult{}
 
 	case "string":
-		d.Result = &stringResult{}
+		d.Result = &StringResult{}
 
 	default:
 		return fmt.Errorf("unknown resultType: %s", discriminator.ResultType)
@@ -100,19 +100,19 @@ func (d *data) UnmarshalJSON(bytes []byte) error {
 }
 
 // Len is the number of elements in the collection.
-func (r matrixResult) Len() int { return len(r.Result) }
+func (r MatrixResult) Len() int { return len(r.Result) }
 
 // Less reports whether the element with
 // index i should sort before the element with index j.
-func (r matrixResult) Less(i, j int) bool {
+func (r MatrixResult) Less(i, j int) bool {
 	return r.Result[i].id < r.Result[j].id
 }
 
 // Swap swaps the elements with indexes i and j.
-func (r matrixResult) Swap(i, j int) { r.Result[i], r.Result[j] = r.Result[j], r.Result[i] }
+func (r MatrixResult) Swap(i, j int) { r.Result[i], r.Result[j] = r.Result[j], r.Result[i] }
 
-// Sort sorts the matrixResult.
-func (r matrixResult) Sort() {
+// Sort sorts the MatrixResult.
+func (r MatrixResult) Sort() {
 	for i, result := range r.Result {
 		r.Result[i].id = result.Metric.genID()
 	}
@@ -121,19 +121,19 @@ func (r matrixResult) Sort() {
 }
 
 // Len is the number of elements in the vector.
-func (r vectorResult) Len() int { return len(r.Result) }
+func (r VectorResult) Len() int { return len(r.Result) }
 
 // Less reports whether the element with
 // index i should sort before the element with index j.
-func (r vectorResult) Less(i, j int) bool {
+func (r VectorResult) Less(i, j int) bool {
 	return r.Result[i].id < r.Result[j].id
 }
 
 // Swap swaps the elements with indexes i and j.
-func (r vectorResult) Swap(i, j int) { r.Result[i], r.Result[j] = r.Result[j], r.Result[i] }
+func (r VectorResult) Swap(i, j int) { r.Result[i], r.Result[j] = r.Result[j], r.Result[i] }
 
-// Sort sorts the vectorResult.
-func (r vectorResult) Sort() {
+// Sort sorts the VectorResult.
+func (r VectorResult) Sort() {
 	for i, result := range r.Result {
 		r.Result[i].id = result.Metric.genID()
 	}
@@ -224,10 +224,10 @@ func (d data) matches(other data) (MatchInformation, error) {
 	return d.Result.matches(other.Result)
 }
 
-func (r matrixResult) matches(other result) (MatchInformation, error) {
-	otherMatrix, ok := other.(*matrixResult)
+func (r MatrixResult) matches(other result) (MatchInformation, error) {
+	otherMatrix, ok := other.(*MatrixResult)
 	if !ok {
-		err := fmt.Errorf("incorrect type for matching, expected matrixResult, %v", other)
+		err := fmt.Errorf("incorrect type for matching, expected MatrixResult, %v", other)
 		return MatchInformation{
 			NoMatch: true,
 		}, err
@@ -254,10 +254,10 @@ func (r matrixResult) matches(other result) (MatchInformation, error) {
 	return MatchInformation{FullMatch: true}, nil
 }
 
-func (r vectorResult) matches(other result) (MatchInformation, error) {
-	otherVector, ok := other.(*vectorResult)
+func (r VectorResult) matches(other result) (MatchInformation, error) {
+	otherVector, ok := other.(*VectorResult)
 	if !ok {
-		err := fmt.Errorf("incorrect type for matching, expected vectorResult")
+		err := fmt.Errorf("incorrect type for matching, expected VectorResult")
 		return MatchInformation{
 			NoMatch: true,
 		}, err
@@ -284,10 +284,10 @@ func (r vectorResult) matches(other result) (MatchInformation, error) {
 	return MatchInformation{FullMatch: true}, nil
 }
 
-func (r scalarResult) matches(other result) (MatchInformation, error) {
-	otherScalar, ok := other.(*scalarResult)
+func (r ScalarResult) matches(other result) (MatchInformation, error) {
+	otherScalar, ok := other.(*ScalarResult)
 	if !ok {
-		err := fmt.Errorf("incorrect type for matching, expected scalarResult")
+		err := fmt.Errorf("incorrect type for matching, expected ScalarResult")
 		return MatchInformation{
 			NoMatch: true,
 		}, err
@@ -302,10 +302,10 @@ func (r scalarResult) matches(other result) (MatchInformation, error) {
 	return MatchInformation{FullMatch: true}, nil
 }
 
-func (r stringResult) matches(other result) (MatchInformation, error) {
-	otherString, ok := other.(*stringResult)
+func (r StringResult) matches(other result) (MatchInformation, error) {
+	otherString, ok := other.(*StringResult)
 	if !ok {
-		err := fmt.Errorf("incorrect type for matching, expected stringResult")
+		err := fmt.Errorf("incorrect type for matching, expected StringResult")
 		return MatchInformation{
 			NoMatch: true,
 		}, err

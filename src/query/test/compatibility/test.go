@@ -33,7 +33,7 @@
 
 // Parts of code were taken from prometheus repo: https://github.com/prometheus/prometheus/blob/master/promql/test.go
 
-package test
+package compatibility
 
 import (
 	"context"
@@ -48,10 +48,10 @@ import (
 	"time"
 
 	cparser "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
-
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
@@ -391,15 +391,13 @@ func (ev *evalCmd) expect(pos int, m labels.Labels, vals ...parser.SequenceValue
 	ev.expected[h] = entry{pos: pos, vals: vals}
 }
 
-const sep = '\xff'
-
 // Hash returns a hash value for the label set.
-func hash(ls model.Metric) uint64 {
+func hash(ls prometheus.Tags) uint64 {
 	lbs := make(labels.Labels, 0, len(ls))
 	for k, v := range ls {
 		lbs = append(lbs, labels.Label{
-			Name:  string(k),
-			Value: string(v),
+			Name:  k,
+			Value: v,
 		})
 	}
 
@@ -410,34 +408,27 @@ func hash(ls model.Metric) uint64 {
 	return lbs.Hash()
 }
 
-// QueryResponse defines a structure for expected response.
-type QueryResponse struct {
-	Status string
-	Data   struct {
-		ResultType string
-		Result     model.Samples
-	}
-}
-
 // compareResult compares the result value with the defined expectation.
 func (ev *evalCmd) compareResult(j []byte) error {
-	var result QueryResponse
-	err := json.Unmarshal(j, &result)
+	var response prometheus.Response
+	err := json.Unmarshal(j, &response)
 	if err != nil {
 		return err
 	}
 
-	if result.Status != "success" {
-		return fmt.Errorf("unsuccess status received: %s", result.Status)
+	if response.Status != "success" {
+		return fmt.Errorf("unsuccess status received: %s", response.Status)
 	}
 
-	switch result.Data.ResultType {
-	case "matrix":
+	result := response.Data.Result
+
+	switch result := result.(type) {
+	case *prometheus.MatrixResult:
 		return errors.New("received range result on instant evaluation")
 
-	case "vector":
+	case *prometheus.VectorResult:
 		seen := map[uint64]bool{}
-		for pos, v := range result.Data.Result {
+		for pos, v := range result.Result {
 			fp := hash(v.Metric)
 			if _, ok := ev.metrics[fp]; !ok {
 				return errors.Errorf("unexpected metric %s in result", v.Metric)
@@ -447,31 +438,43 @@ func (ev *evalCmd) compareResult(j []byte) error {
 			if ev.ordered && exp.pos != pos+1 {
 				return errors.Errorf("expected metric %s with %v at position %d but was at %d", v.Metric, exp.vals, exp.pos, pos+1)
 			}
-			if !almostEqual(exp.vals[0].Value, float64(v.Value)) {
-				return errors.Errorf("expected %v for %s but got %v", exp.vals[0].Value, v.Metric, v.Value)
+			val, err := parseNumber(fmt.Sprint(v.Value[1]))
+			if err != nil {
+				return err
+			}
+			if !almostEqual(exp.vals[0].Value, val) {
+				return errors.Errorf("expected %v for %s but got %v", exp.vals[0].Value, v.Metric, val)
 			}
 			seen[fp] = true
 		}
 
 		for fp, expVals := range ev.expected {
 			if !seen[fp] {
-				fmt.Println("vector result", len(result.Data.Result), ev.expr)
-				for _, ss := range result.Data.Result {
+				fmt.Println("vector result", len(result.Result), ev.expr)
+				for _, ss := range result.Result {
 					fmt.Println("    ", ss.Metric, ss.Value)
 				}
 				return errors.Errorf("expected metric %s with %v not found", ev.metrics[fp], expVals)
 			}
 		}
 
-	// TODO: Untested code. Uncomment when m3query will support scalars and fix it if needed.
-	//case "scalar":
-	// if !almostEqual(ev.expected[0].vals[0].Value, val.V) {
-	// 	return errors.Errorf("expected Scalar %v but got %v", val.V, ev.expected[0].vals[0].Value)
-	// }
+	case *prometheus.ScalarResult:
+		v, err := parseNumber(fmt.Sprint(result.Result[1]))
+		if err != nil {
+			return err
+		}
+		if len(ev.expected) == 0 || len(ev.expected[0].vals) == 0 {
+			return errors.Errorf("expected no Scalar value but got %v", v)
+		}
+		expected := ev.expected[0].vals[0].Value
+		if !almostEqual(expected, v) {
+			return errors.Errorf("expected Scalar %v but got %v", expected, v)
+		}
 
 	default:
 		panic(errors.Errorf("promql.Test.compareResult: unexpected result type %T", result))
 	}
+
 	return nil
 }
 
@@ -535,8 +538,7 @@ func (t *Test) exec(tc testCommand) error {
 
 // clear the current test storage of all inserted samples.
 func (t *Test) clear() error {
-	t.m3comparator.clear()
-	return nil
+	return t.m3comparator.clear()
 }
 
 // Close closes resources associated with the Test.
@@ -560,7 +562,7 @@ func almostEqual(a, b float64) bool {
 	diff := math.Abs(a - b)
 
 	if a == 0 || b == 0 || diff < minNormal {
-		return diff < epsilon*minNormal
+		return diff < epsilon
 	}
 	return diff/(math.Abs(a)+math.Abs(b)) < epsilon
 }
