@@ -466,14 +466,19 @@ func (w *writer) writeIndexFileContents(
 			return err
 		}
 
-		tagsEncoder.Reset()
-		if err := tagsEncoder.Encode(tagsIter); err != nil {
-			return err
-		}
+		var encodedTags []byte
+		if numTags := tagsIter.Remaining(); numTags > 0 {
+			tagsEncoder.Reset()
+			if err := tagsEncoder.Encode(tagsIter); err != nil {
+				return err
+			}
 
-		encodedTags, ok := tagsEncoder.Data()
-		if !ok {
-			return errWriterEncodeTagsDataNotAccessible
+			encodedTagsData, ok := tagsEncoder.Data()
+			if !ok {
+				return errWriterEncodeTagsDataNotAccessible
+			}
+
+			encodedTags = encodedTagsData.Bytes()
 		}
 
 		entry := schema.IndexEntry{
@@ -482,7 +487,7 @@ func (w *writer) writeIndexFileContents(
 			Size:        int64(w.indexEntries[i].size),
 			Offset:      w.indexEntries[i].dataFileOffset,
 			Checksum:    int64(w.indexEntries[i].checksum),
-			EncodedTags: encodedTags.Bytes(),
+			EncodedTags: encodedTags,
 		}
 
 		w.encoder.Reset()
