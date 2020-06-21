@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/query/models"
@@ -69,11 +70,11 @@ func init() {
 }
 
 func main() {
-	opts := iteratorOptions{
-		encoderPool:   encoderPool,
-		iteratorPools: iterPools,
-		tagOptions:    tagOptions,
-		iOpts:         iOpts,
+	opts := parser.Options{
+		EncoderPool:       encoderPool,
+		IteratorPools:     iterPools,
+		TagOptions:        tagOptions,
+		InstrumentOptions: iOpts,
 	}
 
 	seriesLoader := newHTTPSeriesLoadHandler(opts)

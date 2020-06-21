@@ -146,36 +146,27 @@ const seriesStr = `
     }
 ]`
 
-const otherSeriesStr = `
-[
-    {
-        "start": "2020-03-30T12:00:00Z",
-        "end": "2020-03-30T12:01:00Z",
-        "tags": [
-            ["__name__", "foo"],
-            ["bar", "baz"]
-        ],
-        "datapoints": [
-            { "val": "555", "ts": "2020-03-30T12:00:00Z" }
-		]
-	}
-]`
-
-var opts = iteratorOptions{
-	encoderPool:   encoderPool,
-	iteratorPools: iterPools,
-	tagOptions:    tagOptions,
-	iOpts:         iOpts,
-}
-
 func TestIngestSeries(t *testing.T) {
-	handler := newHTTPSeriesLoadHandler(opts)
+	opts := parser.Options{
+		EncoderPool:       encoderPool,
+		IteratorPools:     iterPools,
+		TagOptions:        tagOptions,
+		InstrumentOptions: iOpts,
+	}
 
-	loadSeries(t, handler, seriesStr)
-	loadSeries(t, handler, otherSeriesStr)
+	req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(seriesStr))
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+
+	handler := newHTTPSeriesLoadHandler(opts)
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
 
 	iters, err := handler.getSeriesIterators("series_name")
 	require.NoError(t, err)
+	require.NotNil(t, iters)
 
 	expectedList := make([]parser.Series, 0, 10)
 	err = json.Unmarshal([]byte(seriesStr), &expectedList)
@@ -183,7 +174,7 @@ func TestIngestSeries(t *testing.T) {
 	require.Equal(t, 1, len(expectedList))
 	expected := expectedList[0]
 
-	require.Equal(t, 1, iters.Len())
+	require.Equal(t, 1, len(iters.Iters()))
 	it := iters.Iters()[0]
 	j := 0
 	for it.Next() {
@@ -200,38 +191,38 @@ func TestIngestSeries(t *testing.T) {
 	assert.Equal(t, j, len(expected.Datapoints))
 }
 
-func TestGetAllSeries(t *testing.T) {
-	handler := newHTTPSeriesLoadHandler(opts)
-
-	loadSeries(t, handler, seriesStr)
-	loadSeries(t, handler, otherSeriesStr)
-
-	iters, err := handler.getSeriesIterators("")
-	require.NoError(t, err)
-	require.Equal(t, 2, iters.Len())
-}
-
 func TestClearData(t *testing.T) {
-	handler := newHTTPSeriesLoadHandler(opts)
+	opts := parser.Options{
+		EncoderPool:       encoderPool,
+		IteratorPools:     iterPools,
+		TagOptions:        tagOptions,
+		InstrumentOptions: iOpts,
+	}
 
-	loadSeries(t, handler, seriesStr)
-	loadSeries(t, handler, otherSeriesStr)
-
-	iters, err := handler.getSeriesIterators("")
-	require.NoError(t, err)
-	require.Equal(t, 2, iters.Len())
-
-	// Call clear data
-	req, err := http.NewRequest(http.MethodDelete, "", nil)
+	req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(seriesStr))
 	require.NoError(t, err)
 
 	recorder := httptest.NewRecorder()
+
+	handler := newHTTPSeriesLoadHandler(opts)
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+
+	iters, err := handler.getSeriesIterators("series_name")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(iters.Iters()))
+
+	// Call clear data
+	req, err = http.NewRequest(http.MethodDelete, "", nil)
+	require.NoError(t, err)
+
 	handler.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusOK, recorder.Code)
 
-	iters, err = handler.getSeriesIterators("")
+	iters, err = handler.getSeriesIterators("series_name")
 	require.NoError(t, err)
-	require.Equal(t, 0, iters.Len())
+	require.Nil(t, iters)
 }
 
 func readTags(it encoding.SeriesIterator) parser.Tags {
@@ -244,15 +235,4 @@ func readTags(it encoding.SeriesIterator) parser.Tags {
 	}
 
 	return tags
-}
-
-func loadSeries(t *testing.T, handler *httpSeriesLoadHandler, data string) {
-	req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(data))
-	require.NoError(t, err)
-
-	recorder := httptest.NewRecorder()
-
-	handler.ServeHTTP(recorder, req)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
 }
