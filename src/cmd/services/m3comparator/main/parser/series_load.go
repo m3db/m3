@@ -87,65 +87,78 @@ func (l *seriesReader) SeriesIterators(name string) (encoding.SeriesIterators, e
 	l.RLock()
 	defer l.RUnlock()
 
+	var seriesMaps []idSeriesMap
 	logger := l.iterOpts.InstrumentOptions.Logger()
-	seriesMap, found := l.nameIDSeriesMap[name]
-	if !found || len(seriesMap.series) == 0 {
-		return nil, nil
+	if name == "" {
+		// return all preloaded data
+		seriesMaps = make([]idSeriesMap, 0, len(l.nameIDSeriesMap))
+		for _, series := range l.nameIDSeriesMap {
+			seriesMaps = append(seriesMaps, series)
+		}
+	} else {
+		seriesMap, found := l.nameIDSeriesMap[name]
+		if !found || len(seriesMap.series) == 0 {
+			return nil, nil
+		}
+
+		seriesMaps = append(seriesMaps, seriesMap)
 	}
 
-	iters := make([]encoding.SeriesIterator, 0, len(seriesMap.series))
-	for _, seriesPerID := range seriesMap.series {
-		for _, series := range seriesPerID {
-			encoder := l.iterOpts.EncoderPool.Get()
-			dps := series.Datapoints
-			startTime := time.Time{}
-			if len(dps) > 0 {
-				startTime = dps[0].Timestamp.Truncate(time.Hour)
-			}
-
-			encoder.Reset(startTime, len(dps), nil)
-			for _, dp := range dps {
-				err := encoder.Encode(ts.Datapoint{
-					Timestamp:      dp.Timestamp,
-					Value:          float64(dp.Value),
-					TimestampNanos: xtime.ToUnixNano(dp.Timestamp),
-				}, xtime.Nanosecond, nil)
-
-				if err != nil {
-					encoder.Close()
-					logger.Error("error encoding datapoints", zap.Error(err))
-					return nil, err
+	iters := make([]encoding.SeriesIterator, 0, len(seriesMaps))
+	for _, seriesMap := range seriesMaps {
+		for _, seriesPerID := range seriesMap.series {
+			for _, series := range seriesPerID {
+				encoder := l.iterOpts.EncoderPool.Get()
+				dps := series.Datapoints
+				startTime := time.Time{}
+				if len(dps) > 0 {
+					startTime = dps[0].Timestamp.Truncate(time.Hour)
 				}
+
+				encoder.Reset(startTime, len(dps), nil)
+				for _, dp := range dps {
+					err := encoder.Encode(ts.Datapoint{
+						Timestamp:      dp.Timestamp,
+						Value:          float64(dp.Value),
+						TimestampNanos: xtime.ToUnixNano(dp.Timestamp),
+					}, xtime.Nanosecond, nil)
+
+					if err != nil {
+						encoder.Close()
+						logger.Error("error encoding datapoints", zap.Error(err))
+						return nil, err
+					}
+				}
+
+				readers := [][]xio.BlockReader{{{
+					SegmentReader: xio.NewSegmentReader(encoder.Discard()),
+					Start:         series.Start,
+					BlockSize:     series.End.Sub(series.Start),
+				}}}
+
+				multiReader := encoding.NewMultiReaderIterator(
+					iterAlloc,
+					l.iterOpts.IteratorPools.MultiReaderIterator(),
+				)
+
+				sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
+				multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
+
+				tagIter, id := buildTagIteratorAndID(series.Tags, l.iterOpts.TagOptions)
+				iter := encoding.NewSeriesIterator(
+					encoding.SeriesIteratorOptions{
+						ID:             id,
+						Namespace:      ident.StringID("ns"),
+						Tags:           tagIter,
+						StartInclusive: xtime.ToUnixNano(series.Start),
+						EndExclusive:   xtime.ToUnixNano(series.End),
+						Replicas: []encoding.MultiReaderIterator{
+							multiReader,
+						},
+					}, nil)
+
+				iters = append(iters, iter)
 			}
-
-			readers := [][]xio.BlockReader{{{
-				SegmentReader: xio.NewSegmentReader(encoder.Discard()),
-				Start:         series.Start,
-				BlockSize:     series.End.Sub(series.Start),
-			}}}
-
-			multiReader := encoding.NewMultiReaderIterator(
-				iterAlloc,
-				l.iterOpts.IteratorPools.MultiReaderIterator(),
-			)
-
-			sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
-			multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
-
-			tagIter, id := buildTagIteratorAndID(series.Tags, l.iterOpts.TagOptions)
-			iter := encoding.NewSeriesIterator(
-				encoding.SeriesIteratorOptions{
-					ID:             id,
-					Namespace:      ident.StringID("ns"),
-					Tags:           tagIter,
-					StartInclusive: xtime.ToUnixNano(series.Start),
-					EndExclusive:   xtime.ToUnixNano(series.End),
-					Replicas: []encoding.MultiReaderIterator{
-						multiReader,
-					},
-				}, nil)
-
-			iters = append(iters, iter)
 		}
 	}
 
@@ -194,6 +207,9 @@ func calculateSeriesRange(seriesList []Series) (time.Time, time.Time) {
 }
 
 func (l *seriesReader) Load(reader io.Reader) error {
+	l.Lock()
+	defer l.Unlock()
+
 	buf, err := ioutil.ReadAll(reader)
 	logger := l.iterOpts.InstrumentOptions.Logger()
 	if err != nil {
@@ -234,7 +250,7 @@ func (l *seriesReader) Load(reader io.Reader) error {
 		id := series.IDOrGenID()
 		seriesList, found := seriesMap.series[id]
 		if !found {
-			seriesList = []Series{}
+			seriesList = make([]Series, 0, 1)
 		} else {
 			logger.Info("duplicate tag set in loaded series",
 				zap.Int("count", len(seriesList)),
@@ -244,7 +260,7 @@ func (l *seriesReader) Load(reader io.Reader) error {
 		seriesList = append(seriesList, series)
 		seriesMap.series[id] = seriesList
 		logger.Info("setting series",
-			zap.String("name", name), zap.String("id", id), zap.Int("length before", len(series.Datapoints)))
+			zap.String("name", name), zap.String("id", id))
 
 		series.Start = start
 		series.End = end
