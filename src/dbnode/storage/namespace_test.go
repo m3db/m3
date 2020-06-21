@@ -192,11 +192,11 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 		ns.shards[i] = nil
 	}
 	now := time.Now()
-	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil)
+	seriesWrite, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
-	require.False(t, wasWritten)
+	require.False(t, seriesWrite.WasWritten)
 }
 
 func TestNamespaceWriteShardOwned(t *testing.T) {
@@ -227,13 +227,13 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
-		_, wasWritten, err := ns.Write(ctx, id, now, val, unit, ant)
+		seriesWrite, err := ns.Write(ctx, id, now, val, unit, ant)
 		require.NoError(t, err)
-		require.True(t, wasWritten)
+		require.True(t, seriesWrite.WasWritten)
 
-		_, wasWritten, err = ns.Write(ctx, id, now, val, unit, ant)
+		seriesWrite, err = ns.Write(ctx, id, now, val, unit, ant)
 		require.NoError(t, err)
-		require.False(t, wasWritten)
+		require.False(t, seriesWrite.WasWritten)
 	}
 }
 
@@ -1116,15 +1116,15 @@ func TestNamespaceIndexInsert(t *testing.T) {
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
-		_, wasWritten, err := ns.WriteTagged(ctx, ident.StringID("a"),
+		seriesWrite, err := ns.WriteTagged(ctx, ident.StringID("a"),
 			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
-		require.True(t, wasWritten)
+		require.True(t, seriesWrite.WasWritten)
 
-		_, wasWritten, err = ns.WriteTagged(ctx, ident.StringID("a"),
+		seriesWrite, err = ns.WriteTagged(ctx, ident.StringID("a"),
 			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
-		require.False(t, wasWritten)
+		require.False(t, seriesWrite.WasWritten)
 
 		shard.EXPECT().Close()
 		idx.EXPECT().Close().Return(nil)

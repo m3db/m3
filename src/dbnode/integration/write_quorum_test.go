@@ -214,6 +214,9 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+
+	// debug
+	time.Sleep(10 * time.Minute)
 }
 
 type testWriteFn func(topology.ConsistencyLevel) error

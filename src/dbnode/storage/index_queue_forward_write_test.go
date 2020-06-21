@@ -404,7 +404,7 @@ func writeToShard(
 	tag := ident.Tag{Name: ident.StringID(id), Value: ident.StringID("")}
 	idTags := ident.NewTags(tag)
 	iter := ident.NewTagsIterator(idTags)
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID(id), iter, now,
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID(id), iter, now,
 		1.0, xtime.Second, nil, series.WriteOptions{
 			TruncateType: series.TypeBlock,
 			TransformOptions: series.WriteTransformOptions{
@@ -413,7 +413,7 @@ func writeToShard(
 			},
 		})
 	require.NoError(t, err)
-	require.Equal(t, shouldWrite, wasWritten)
+	require.Equal(t, shouldWrite, seriesWrite.WasWritten)
 }
 
 func verifyShard(

@@ -146,9 +146,6 @@ func (q *nsIndexInsertQueue) insertLoop() {
 			backoff = q.indexBatchBackoff - elapsedSinceLastInsert
 		}
 		q.Unlock()
-		if state != nsIndexInsertQueueStateOpen {
-			return // Break if the queue closed
-		}
 
 		if backoff > 0 {
 			q.sleepFn(backoff)
@@ -165,6 +162,10 @@ func (q *nsIndexInsertQueue) insertLoop() {
 		batchWg.Done()
 
 		lastInsert = q.nowFn()
+
+		if state != nsIndexInsertQueueStateOpen {
+			return // Break if the queue closed
+		}
 	}
 }
 
@@ -344,56 +345,67 @@ func (b *nsIndexInsertBatch) Rotate(target *nsIndexInsertBatch) *sync.WaitGroup 
 	b.wg.Add(1)
 
 	// Rotate to target if we need to.
-	if target != nil {
-		for idx, inserts := range b.insertsByCPUCore {
-			// First prepare the target to take the current batch's inserts.
-			targetInserts := target.insertsByCPUCore[idx]
-			targetInserts.Lock()
 
-			// Reset the target inserts since we'll take ref to them in a second.
-			for i := range targetInserts.shardInserts {
-				// TODO(prateek): if we start pooling `[]index.WriteBatchEntry`, then we could return to the pool here.
-				targetInserts.shardInserts[i] = nil
-			}
-			prevTargetInserts := targetInserts.shardInserts[:0]
-
-			// memset optimization
-			var zero writes.PendingIndexInsert
-			for i := range targetInserts.batchInserts {
-				targetInserts.batchInserts[i] = zero
-			}
-			prevTargetBatchInserts := targetInserts.batchInserts[:0]
-
-			// Lock the current batch inserts now ready to rotate to the target.
+	for idx, inserts := range b.insertsByCPUCore {
+		if target == nil {
+			// No target to rotate with.
 			inserts.Lock()
-
-			// Update current slice refs to take target's inserts.
-			targetInserts.shardInserts = inserts.shardInserts
-			targetInserts.batchInserts = inserts.batchInserts
-			targetInserts.wg = inserts.wg
-
-			// Reuse the target's old slices.
-			inserts.shardInserts = prevTargetInserts
-			inserts.batchInserts = prevTargetBatchInserts
-
+			// Reset
+			inserts.shardInserts = inserts.shardInserts[:0]
+			inserts.batchInserts = inserts.batchInserts[:0]
 			// Use new wait group.
 			inserts.wg = b.wg
-
-			// Unlock as early as possible for writes to keep enqueuing.
 			inserts.Unlock()
+			continue
+		}
 
-			numTargetInsertsShard := len(targetInserts.shardInserts)
-			numTargetInsertsPending := len(targetInserts.batchInserts)
+		// First prepare the target to take the current batch's inserts.
+		targetInserts := target.insertsByCPUCore[idx]
+		targetInserts.Lock()
 
-			// Now can unlock target inserts too.
-			targetInserts.Unlock()
+		// Reset the target inserts since we'll take ref to them in a second.
+		for i := range targetInserts.shardInserts {
+			// TODO(prateek): if we start pooling `[]index.WriteBatchEntry`, then we could return to the pool here.
+			targetInserts.shardInserts[i] = nil
+		}
+		prevTargetShardInserts := targetInserts.shardInserts[:0]
 
-			if n := numTargetInsertsShard; n > 0 {
-				inserts.metrics.rotateInsertsShard.Inc(int64(n))
-			}
-			if n := numTargetInsertsPending; n > 0 {
-				inserts.metrics.rotateInsertsPending.Inc(int64(n))
-			}
+		// memset optimization
+		var zero writes.PendingIndexInsert
+		for i := range targetInserts.batchInserts {
+			targetInserts.batchInserts[i] = zero
+		}
+		prevTargetBatchInserts := targetInserts.batchInserts[:0]
+
+		// Lock the current batch inserts now ready to rotate to the target.
+		inserts.Lock()
+
+		// Update current slice refs to take target's inserts.
+		targetInserts.shardInserts = inserts.shardInserts
+		targetInserts.batchInserts = inserts.batchInserts
+		targetInserts.wg = inserts.wg
+
+		// Reuse the target's old slices.
+		inserts.shardInserts = prevTargetShardInserts
+		inserts.batchInserts = prevTargetBatchInserts
+
+		// Use new wait group.
+		inserts.wg = b.wg
+
+		// Unlock as early as possible for writes to keep enqueuing.
+		inserts.Unlock()
+
+		numTargetInsertsShard := len(targetInserts.shardInserts)
+		numTargetInsertsPending := len(targetInserts.batchInserts)
+
+		// Now can unlock target inserts too.
+		targetInserts.Unlock()
+
+		if n := numTargetInsertsShard; n > 0 {
+			inserts.metrics.rotateInsertsShard.Inc(int64(n))
+		}
+		if n := numTargetInsertsPending; n > 0 {
+			inserts.metrics.rotateInsertsPending.Inc(int64(n))
 		}
 	}
 

@@ -79,22 +79,22 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
-	require.True(t, wasWritten)
+	require.True(t, seriesWrite.WasWritten)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
-	require.True(t, wasWritten)
+	require.True(t, seriesWrite.WasWritten)
 
-	_, wasWritten, err = shard.Write(
+	seriesWrite, err = shard.Write(
 		ctx, ident.StringID("baz"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
-	require.True(t, wasWritten)
+	require.True(t, seriesWrite.WasWritten)
 
 	lock.Lock()
 	defer lock.Unlock()
@@ -129,25 +129,25 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	now := time.Now()
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
+	assert.True(t, seriesWrite.WasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), now,
+	seriesWrite, err = shard.Write(ctx, ident.StringID("bar"), now,
 		1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
+	assert.True(t, seriesWrite.WasWritten)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"),
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"),
 		ident.NewTagsIterator(ident.NewTags(
 			ident.StringTag("all", "tags"),
 			ident.StringTag("should", "be-present"),
 		)),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
+	assert.True(t, seriesWrite.WasWritten)
 
 	for {
 		lock.RLock()
@@ -216,11 +216,11 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
+	assert.True(t, seriesWrite.WasWritten)
 
 	for {
 		if l := atomic.LoadInt32(&numCalls); l == 1 {
@@ -230,18 +230,18 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	}
 
 	// ensure we don't index once we have already indexed
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now.Add(time.Second), 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
+	assert.True(t, seriesWrite.WasWritten)
 
 	// ensure attempting to write same point yields false and does not write
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now.Add(time.Second), 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.False(t, wasWritten)
+	assert.False(t, seriesWrite.WasWritten)
 
 	l := atomic.LoadInt32(&numCalls)
 	assert.Equal(t, int32(1), l)
@@ -288,11 +288,11 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
+	assert.True(t, seriesWrite.WasWritten)
 
 	// wait till we're done indexing.
 	indexed := xclock.WaitUntil(func() bool {
@@ -302,11 +302,11 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 
 	// ensure we index because it's expired
 	nextWriteTime := now.Add(blockSize)
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		nextWriteTime, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
+	assert.True(t, seriesWrite.WasWritten)
 
 	// wait till we're done indexing.
 	reIndexed := xclock.WaitUntil(func() bool {

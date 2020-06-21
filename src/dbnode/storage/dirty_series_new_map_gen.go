@@ -49,7 +49,7 @@ func newDirtySeriesMap(opts dirtySeriesMapOptions) *dirtySeriesMap {
 		},
 		copy: func(k idAndBlockStart) idAndBlockStart {
 			return idAndBlockStart{
-				id:         k.id,
+				id:         append(make([]byte, 0, len(k.id)), k.id...),
 				blockStart: k.blockStart,
 			}
 		},

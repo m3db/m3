@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -44,7 +45,7 @@ type dirtyData struct {
 }
 
 func TestRead(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	shard := NewMockdatabaseShard(ctrl)
@@ -127,7 +128,7 @@ func TestRead(t *testing.T) {
 }
 
 func TestForEachRemaining(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	shard := NewMockdatabaseShard(ctrl)
@@ -173,10 +174,12 @@ func TestForEachRemaining(t *testing.T) {
 
 	var forEachCalls []doc.Document
 	shard.EXPECT().
-		FetchBlocksForColdFlush(gomock.Any(), id0, xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
+		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id0"),
+			xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
 	shard.EXPECT().
-		FetchBlocksForColdFlush(gomock.Any(), id1, xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
+		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id1"),
+			xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
 	mergeWith.ForEachRemaining(ctx, 0, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
 		forEachCalls = append(forEachCalls, seriesMetadata)
@@ -191,17 +194,20 @@ func TestForEachRemaining(t *testing.T) {
 	// Read id3 at block start 1, so id2 and id4 should be remaining for block
 	// start 1.
 	shard.EXPECT().
-		FetchBlocksForColdFlush(gomock.Any(), id3, xtime.UnixNano(1).ToTime(), version+1, nsCtx).
+		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id3"),
+			xtime.UnixNano(1).ToTime(), version+1, nsCtx).
 		Return(result, nil)
 	res, exists, err := mergeWith.Read(ctx, id3, 1, nsCtx)
 	require.NoError(t, err)
 	assert.True(t, exists)
 	assert.Equal(t, result.Blocks, res)
 	shard.EXPECT().
-		FetchBlocksForColdFlush(gomock.Any(), id2, xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
+		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id2"),
+			xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
 	shard.EXPECT().
-		FetchBlocksForColdFlush(gomock.Any(), id4, xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
+		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id4"),
+			xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
 	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
 		forEachCalls = append(forEachCalls, seriesMetadata)
@@ -209,18 +215,13 @@ func TestForEachRemaining(t *testing.T) {
 	}, nsCtx)
 	require.NoError(t, err)
 	require.Len(t, forEachCalls, 2)
-	assert.Equal(t, id2, forEachCalls[0])
-	assert.Equal(t, id4, forEachCalls[1])
+	assert.Equal(t, id2.Bytes(), forEachCalls[0].ID)
+	assert.Equal(t, id4.Bytes(), forEachCalls[1].ID)
 
-	// Test call with error getting tags.
 	shard.EXPECT().
-		FetchBlocksForColdFlush(gomock.Any(), id8, xtime.UnixNano(4).ToTime(), version+1, gomock.Any()).
+		FetchBlocksForColdFlush(gomock.Any(), ident.NewIDMatcher("id8"),
+			xtime.UnixNano(4).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
-	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
-		// This function won't be called with the above error.
-		return errors.New("unreachable")
-	}, nsCtx)
-	assert.Error(t, err)
 
 	// Test call with bad function execution.
 	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {

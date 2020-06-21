@@ -878,13 +878,13 @@ func writeShardAndVerify(
 	expectedShouldWrite bool,
 	expectedIdx uint64,
 ) {
-	series, wasWritten, err := shard.Write(ctx, ident.StringID(id),
+	seriesWrite, err := shard.Write(ctx, ident.StringID(id),
 		now, value, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.Equal(t, expectedShouldWrite, wasWritten)
-	assert.Equal(t, id, series.ID.String())
-	assert.Equal(t, "testns1", series.Namespace.String())
-	assert.Equal(t, expectedIdx, series.UniqueIndex)
+	assert.Equal(t, expectedShouldWrite, seriesWrite.WasWritten)
+	assert.Equal(t, id, seriesWrite.Series.ID.String())
+	assert.Equal(t, "testns1", seriesWrite.Series.Namespace.String())
+	assert.Equal(t, expectedIdx, seriesWrite.Series.UniqueIndex)
 }
 
 func TestShardTick(t *testing.T) {

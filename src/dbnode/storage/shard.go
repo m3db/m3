@@ -1167,11 +1167,9 @@ func (s *dbShard) newShardEntry(
 	// Hence this stays on the storage/series.DatabaseSeries for when it needs
 	// to be re-indexed.
 	var (
-		seriesID       ident.BytesID
 		seriesMetadata doc.Document
 		err            error
 	)
-
 	switch tagsArgOpts.arg {
 	case tagsIterArg:
 		// NB(r): Rewind so we record the tag iterator from the beginning.
@@ -1181,7 +1179,7 @@ func (s *dbShard) newShardEntry(
 		// Pass nil for the identifier pool because the pool will force us to use an array
 		// with a large capacity to store the tags. Since these tags are long-lived, it's
 		// better to allocate an array of the exact size to save memory.
-		seriesMetadata, err = convert.FromSeriesIDAndTagIter(seriesID, tagsIter)
+		seriesMetadata, err = convert.FromSeriesIDAndTagIter(id, tagsIter)
 		tagsIter.Close()
 		if err != nil {
 			return nil, err
@@ -1198,7 +1196,7 @@ func (s *dbShard) newShardEntry(
 	}
 
 	// Use the same bytes as the series metadata for the ID.
-	seriesID = ident.BytesID(seriesMetadata.ID)
+	seriesID := ident.BytesID(seriesMetadata.ID)
 
 	uniqueIndex := s.increasingIndex.nextIndex()
 	newSeries := s.seriesPool.Get()
