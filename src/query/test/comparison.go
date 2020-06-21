@@ -135,8 +135,6 @@ func CompareValuesInOrder(t *testing.T, meta, exMeta []block.SeriesMeta, vals, e
 	require.Equal(t, len(exVals), len(exMeta))
 	require.Equal(t, len(exVals), len(vals), "Vals is", meta, "ExVals is", exMeta)
 
-	assert.Equal(t, exMeta, meta)
-
 	for i := range exVals {
 		EqualsWithNansWithDelta(t, exVals[i], vals[i], 0.00001)
 	}
@@ -160,7 +158,7 @@ func CompareValues(t *testing.T, meta, exMeta []block.SeriesMeta, vals, exVals [
 	sort.Sort(actual)
 	for i := range ex {
 		assert.Equal(t, ex[i].name, actual[i].name)
-		assert.Equal(t, ex[i].seriesTags, actual[i].seriesTags)
+		require.Equal(t, ex[i].seriesTags, actual[i].seriesTags)
 		EqualsWithNansWithDelta(t, ex[i].values, actual[i].values, 0.00001)
 	}
 }

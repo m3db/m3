@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,68 +51,60 @@ var absentTests = []struct {
 	meta         block.Metadata
 	seriesMetas  []block.SeriesMeta
 	vals         [][]float64
-	expectedMeta block.Metadata
 	expectedVals []float64
 }{
 	{
-		"no series",
-		test.MustMakeMeta(testBound),
-		[]block.SeriesMeta{},
-		[][]float64{},
-		test.MustMakeMeta(testBound),
-		[]float64{1, 1, 1, 1},
+		name:         "no series",
+		meta:         test.MustMakeMeta(testBound),
+		seriesMetas:  []block.SeriesMeta{},
+		vals:         [][]float64{},
+		expectedVals: []float64{1, 1, 1, 1},
 	},
 	{
-		"no series with tags",
-		test.MustMakeMeta(testBound, "A", "B", "C", "D"),
-		[]block.SeriesMeta{},
-		[][]float64{},
-		test.MustMakeMeta(testBound, "A", "B", "C", "D"),
-		[]float64{1, 1, 1, 1},
+		name:         "no series with tags",
+		meta:         test.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		seriesMetas:  []block.SeriesMeta{},
+		vals:         [][]float64{},
+		expectedVals: []float64{1, 1, 1, 1},
 	},
 	{
-		"series with tags and values",
-		test.MustMakeMeta(testBound, "A", "B", "C", "D"),
-		[]block.SeriesMeta{test.MustMakeSeriesMeta("B", "B")},
-		[][]float64{{1, 1, 1, 1}},
-		test.MustMakeMeta(testBound, "A", "B", "B", "B", "C", "D"),
-		nil,
+		name:         "series with tags and values",
+		meta:         test.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		seriesMetas:  []block.SeriesMeta{test.MustMakeSeriesMeta("B", "B")},
+		vals:         [][]float64{{1, 1, 1, 1}},
+		expectedVals: nil,
 	},
 	{
-		"series with tags and some missing",
-		test.MustMakeMeta(testBound, "A", "B", "C", "D"),
-		[]block.SeriesMeta{test.MustMakeSeriesMeta("bar", "baz")},
-		[][]float64{{1, 1, 1, math.NaN()}},
-		test.MustMakeMeta(testBound, "A", "B", "bar", "baz", "C", "D"),
-		[]float64{nan, nan, nan, 1},
+		name:         "series with tags and some missing",
+		meta:         test.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		seriesMetas:  []block.SeriesMeta{test.MustMakeSeriesMeta("bar", "baz")},
+		vals:         [][]float64{{1, 1, 1, math.NaN()}},
+		expectedVals: []float64{nan, nan, nan, 1},
 	},
 	{
-		"series with mismatched tags",
-		test.MustMakeMeta(testBound, "A", "B", "C", "D"),
-		[]block.SeriesMeta{
+		name: "series with mismatched tags",
+		meta: test.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		seriesMetas: []block.SeriesMeta{
 			test.MustMakeSeriesMeta("B", "B"),
 			test.MustMakeSeriesMeta("F", "F"),
 		},
-		[][]float64{
+		vals: [][]float64{
 			{1, 1, 1, math.NaN()},
 			{math.NaN(), 1, 1, math.NaN()},
 		},
-		test.MustMakeMeta(testBound, "A", "B", "C", "D"),
-		[]float64{nan, nan, nan, 1},
+		expectedVals: []float64{nan, nan, nan, 1},
 	},
 	{
-		"series with no missing values",
-		test.MustMakeMeta(testBound, "A", "B", "C", "D"),
-		[]block.SeriesMeta{
+		name: "series with no missing values",
+		meta: test.MustMakeMeta(testBound, "A", "B", "C", "D"),
+		seriesMetas: []block.SeriesMeta{
 			test.MustMakeSeriesMeta("F", "F"),
 			test.MustMakeSeriesMeta("F", "F"),
 		},
-		[][]float64{
+		vals: [][]float64{
 			{1, math.NaN(), math.NaN(), 2},
 			{math.NaN(), 1, 1, math.NaN()},
 		},
-		test.MustMakeMeta(testBound, "A", "B", "C", "D", "F", "F"),
-		nil,
 	},
 }
 
@@ -140,7 +131,6 @@ func TestAbsent(t *testing.T) {
 			} else {
 				require.Equal(t, 1, len(sink.Values))
 				test.EqualsWithNans(t, tt.expectedVals, sink.Values[0])
-				assert.True(t, tt.expectedMeta.Equals(sink.Meta))
 			}
 		})
 	}

@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/util"
@@ -279,8 +278,7 @@ func (n *histogramQuantileNode) ProcessBlock(
 	}
 
 	meta := b.Meta()
-	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
-	seriesBuckets := gatherSeriesToBuckets(seriesMetas)
+	seriesBuckets := gatherSeriesToBuckets(stepIter.SeriesMeta())
 
 	q := n.op.q
 	if q < 0 || q > 1 {

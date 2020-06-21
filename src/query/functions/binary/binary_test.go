@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
@@ -689,200 +688,200 @@ var bothSeriesTests = []struct {
 	{
 		"+, second series matches first",
 		PlusType,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 2, 3}, {4, 5, 6}},
-		test.NewSeriesMeta("a", 3)[1:],
+		test.NewSeriesMetaWithoutName("a", 3)[1:],
 		[][]float64{{10, 20, 30}, {40, 50, 60}},
 		true,
-		test.NewSeriesMeta("a", 2)[1:],
+		test.NewSeriesMetaWithoutName("a", 2)[1:],
 		[][]float64{{14, 25, 36}},
 	},
 	{
 		"-, first two series on lhs match",
 		MinusType,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 2, 3}, {4, 5, 6}},
-		test.NewSeriesMeta("a", 3),
+		test.NewSeriesMetaWithoutName("a", 3),
 		[][]float64{{10, 20, 30}, {40, 50, 60}, {700, 800, 900}},
 		true,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{-9, -18, -27}, {-36, -45, -54}},
 	},
 	{
 		"*, last two series on lhs match",
 		MultiplyType,
-		test.NewSeriesMeta("a", 3),
+		test.NewSeriesMetaWithoutName("a", 3),
 		[][]float64{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}},
-		test.NewSeriesMeta("a", 3)[1:],
+		test.NewSeriesMetaWithoutName("a", 3)[1:],
 		[][]float64{{10, 20, 30}, {40, 50, 60}},
 		true,
-		test.NewSeriesMeta("a", 3)[1:],
+		test.NewSeriesMetaWithoutName("a", 3)[1:],
 		[][]float64{{40, 100, 180}, {280, 400, 540}},
 	},
 	{
 		"/, both series match",
 		DivType,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 2, 3}, {40, 50, 60}},
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{10, 20, 30}, {4, 5, 6}},
 		true,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{0.1, 0.1, 0.1}, {10, 10, 10}},
 	},
 	{
 		"^, single matching series",
 		ExpType,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{10, math.NaN(), -1, 9, 10, 4}},
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{2, 2, 0.5, 0.5, -1, -0.5}},
 		true,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{100, math.NaN(), math.NaN(), 3, 0.1, 0.5}},
 	},
 	{
 		"%, single matching series",
 		ModType,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{10, 11, 12, 13, 14, 15}},
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{2, 3, -5, 1.5, 1.5, -1.5}},
 		true,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{0, 2, 2, 1, 0.5, 0}},
 	},
 	/* Comparison */
 	{
 		"==, second series matches first",
 		EqType,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 2, 3}, {3, 6, 9}},
-		test.NewSeriesMeta("a", 3)[1:],
+		test.NewSeriesMetaWithoutName("a", 3)[1:],
 		[][]float64{{10, 6, 30}, {40, 50, 60}},
 		false,
-		test.NewSeriesMeta("a", 2)[1:],
+		test.NewSeriesMetaWithoutName("a", 2)[1:],
 		[][]float64{{math.NaN(), 6, math.NaN()}},
 	},
 	{
 		"== BOOL, second series matches first",
 		EqType,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 2, 3}, {3, 6, 9}},
-		test.NewSeriesMeta("a", 3)[1:],
+		test.NewSeriesMetaWithoutName("a", 3)[1:],
 		[][]float64{{10, 6, 30}, {40, 50, 60}},
 		true,
-		test.NewSeriesMeta("a", 2)[1:],
+		test.NewSeriesMetaWithoutName("a", 2)[1:],
 		[][]float64{{0, 1, 0}},
 	},
 	{
 		"=! BOOL, both series match",
 		NotEqType,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 2, 3}, {3, 6, 9}},
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 20, 3}, {40, 6, 60}},
 		true,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{0, 1, 0}, {1, 0, 1}},
 	},
 	{
 		"=!, both series match",
 		NotEqType,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 2, 3}, {3, 6, 9}},
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{1, 20, 3}, {40, 6, 60}},
 		false,
-		test.NewSeriesMeta("a", 2),
+		test.NewSeriesMetaWithoutName("a", 2),
 		[][]float64{{math.NaN(), 2, math.NaN()}, {3, math.NaN(), 9}},
 	},
 	{
 		"> BOOL, last two series of rhs match",
 		GreaterType,
-		test.NewSeriesMeta("a", 3)[1:],
+		test.NewSeriesMetaWithoutName("a", 3)[1:],
 		[][]float64{{1, 2, 3}, {3, 6, 9}},
-		test.NewSeriesMeta("a", 3),
+		test.NewSeriesMetaWithoutName("a", 3),
 		[][]float64{{10, 10, 10}, {1, 20, -100}, {2, 4, 10}},
 		true,
-		test.NewSeriesMeta("a", 3)[1:],
+		test.NewSeriesMetaWithoutName("a", 3)[1:],
 		[][]float64{{0, 0, 1}, {1, 1, 0}},
 	},
 	{
 		">, last two series of rhs match",
 		GreaterType,
-		test.NewSeriesMeta("a", 3)[1:],
+		test.NewSeriesMetaWithoutName("a", 3)[1:],
 		[][]float64{{1, 2, 3}, {3, 6, 9}},
-		test.NewSeriesMeta("a", 3),
+		test.NewSeriesMetaWithoutName("a", 3),
 		[][]float64{{10, 10, 10}, {1, 20, -100}, {2, 4, 10}},
 		false,
-		test.NewSeriesMeta("a", 3)[1:],
+		test.NewSeriesMetaWithoutName("a", 3)[1:],
 		[][]float64{{math.NaN(), math.NaN(), 3}, {3, 6, math.NaN()}},
 	},
 	{
 		"< BOOL, single series matches",
 		LesserType,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{1, 2, 3}},
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{-1, 2, 5}},
 		true,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{0, 0, 1}},
 	},
 	{
 		"<, single series matches",
 		LesserType,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{1, 2, 3}},
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{-1, 2, 5}},
 		false,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{math.NaN(), math.NaN(), 3}},
 	},
 	{
 		">= BOOL, single series matches",
 		GreaterEqType,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{1, 2, 3}},
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{-1, 2, 5}},
 		true,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{1, 1, 0}},
 	},
 	{
 		">=, single series matches",
 		GreaterEqType,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{1, 2, 3}},
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{-1, 2, 5}},
 		false,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{1, 2, math.NaN()}},
 	},
 	{
 		"<= BOOL, single series matches",
 		LesserEqType,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{1, 2, 3}},
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{-1, 2, 5}},
 		true,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{0, 1, 1}},
 	},
 	{
 		"<=, single series matches",
 		LesserEqType,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{1, 2, 3}},
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{-1, 2, 5}},
 		false,
-		test.NewSeriesMeta("a", 1),
+		test.NewSeriesMetaWithoutName("a", 1),
 		[][]float64{{math.NaN(), 2, 3}},
 	},
 }
@@ -921,109 +920,14 @@ func TestBothSeries(t *testing.T) {
 
 			test.EqualsWithNans(t, tt.expected, sink.Values)
 
-			// Extract duped expected metas
 			expectedMeta := block.Metadata{
 				Bounds:         bounds,
 				ResultMetadata: block.NewResultMetadata(),
+				Tags:           models.EmptyTags(),
 			}
-			var expectedMetas []block.SeriesMeta
-			expectedMeta.Tags, expectedMetas = utils.DedupeMetadata(
-				tt.expectedMetas, models.NewTagOptions())
-			expectedMeta, expectedMetas = removeNameTags(expectedMeta, expectedMetas)
+
 			assert.Equal(t, expectedMeta, sink.Meta)
-			assert.Equal(t, expectedMetas, sink.Metas)
+			assert.Equal(t, tt.expectedMetas, sink.Metas)
 		})
 	}
-}
-
-func TestBinaryFunctionWithDifferentNames(t *testing.T) {
-	now := time.Now()
-
-	meta := func(bounds models.Bounds, name string, m block.ResultMetadata) block.Metadata {
-		return block.Metadata{
-			Bounds:         bounds,
-			Tags:           models.NewTags(1, models.NewTagOptions()).SetName([]byte(name)),
-			ResultMetadata: m,
-		}
-	}
-
-	var (
-		bounds = models.Bounds{
-			Start:    now,
-			Duration: time.Minute * 3,
-			StepSize: time.Minute,
-		}
-
-		lhsResultMeta = block.ResultMetadata{
-			LocalOnly:  true,
-			Exhaustive: false,
-			Warnings:   []block.Warning{},
-		}
-
-		lhsMeta  = meta(bounds, "left", lhsResultMeta)
-		lhsMetas = test.NewSeriesMeta("a", 2)
-		lhs      = [][]float64{{1, 2, 3}, {4, 5, 6}}
-		left     = test.NewBlockFromValuesWithMetaAndSeriesMeta(
-			lhsMeta, lhsMetas, lhs,
-		)
-
-		rhsResultMeta = block.ResultMetadata{
-			LocalOnly:  false,
-			Exhaustive: true,
-			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
-		}
-
-		rhsMeta  = meta(bounds, "right", rhsResultMeta)
-		rhsMetas = test.NewSeriesMeta("a", 3)[1:]
-		rhs      = [][]float64{{10, 20, 30}, {40, 50, 60}}
-		right    = test.NewBlockFromValuesWithMetaAndSeriesMeta(
-			rhsMeta, rhsMetas, rhs,
-		)
-
-		expected = [][]float64{{14, 25, 36}}
-	)
-
-	op, err := NewOp(
-		PlusType,
-		NodeParams{
-			LNode:                parser.NodeID(0),
-			RNode:                parser.NodeID(1),
-			VectorMatcherBuilder: emptyVectorMatcherBuilder,
-		},
-	)
-	require.NoError(t, err)
-
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(baseOp).Node(c, transform.Options{})
-
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), left)
-	require.NoError(t, err)
-
-	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), right)
-	require.NoError(t, err)
-
-	test.EqualsWithNans(t, expected, sink.Values)
-
-	exResultMeta := block.ResultMetadata{
-		LocalOnly:  false,
-		Exhaustive: false,
-		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
-	}
-
-	// Extract duped expected metas
-	expectedMeta := block.Metadata{
-		Bounds:         bounds,
-		Tags:           models.NewTags(1, models.NewTagOptions()).AddTag(toTag("a1", "a1")),
-		ResultMetadata: exResultMeta,
-	}
-
-	expectedMetas := []block.SeriesMeta{
-		block.SeriesMeta{
-			Name: []byte("a1"),
-			Tags: models.EmptyTags(),
-		},
-	}
-
-	assert.Equal(t, expectedMeta, sink.Meta)
-	assert.Equal(t, expectedMetas, sink.Metas)
 }
