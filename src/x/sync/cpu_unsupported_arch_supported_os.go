@@ -1,3 +1,5 @@
+// +build !amd64,linux
+//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,54 +22,7 @@
 
 package sync
 
-import (
-	"bufio"
-	"os"
-	"strings"
-)
-
-var (
-	numCores = 1
-)
-
-func init() {
-	f, err := os.Open("/proc/cpuinfo")
-	if err != nil {
-		return
-	}
-
-	defer f.Close()
-
-	n := 0
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "processor") {
-			n++
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return
-	}
-
-	numCores = n
-}
-
-// NumCores returns the number of cores returned from
-// /proc/cpuinfo, if not available only returns 1
-func NumCores() int {
-	return numCores
-}
-
-// CPUCore returns the current CPU core.
-func CPUCore() int {
-	if numCores == 1 {
-		// Likely not linux and nothing available in procinfo meaning that
-		// even if RDTSCP is available we won't have setup correct number
-		// of cores, etc for our queues since we probed using NumCores
-		// and got 1 back.
-		return 0
-	}
-	// We know the number of cores, try to call RDTSCP to get the core.
-	return getCore()
+func getCore() int {
+	// Reverts to just single core.
+	return 0
 }

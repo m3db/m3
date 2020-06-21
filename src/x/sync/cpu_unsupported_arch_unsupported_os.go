@@ -1,3 +1,5 @@
+// +build !amd64,!linux
+//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,5 +22,7 @@
 
 package sync
 
-// CPU is the currently running CPU.
-func CPU() uint64
+func getCore() int {
+	// Reverts to just single core.
+	return 0
+}

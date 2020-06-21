@@ -1,5 +1,3 @@
-// +build !amd64
-//
 // Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,10 +20,5 @@
 
 package sync
 
-// CPU returns a unique identifier for the core the current goroutine is
-// executing on. This function is platform dependent, and is implemented in
-// cpu_*.s.
-func CPU() uint64 {
-	// this reverts the behaviour to that of a regular DRWMutex
-	return 0
-}
+// getCore is the currently running CPU core.
+func getCore() int

@@ -22,7 +22,6 @@ package storage
 
 import (
 	"errors"
-	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -175,7 +174,7 @@ func (q *nsIndexInsertQueue) InsertBatch(
 	batchLen := batch.Len()
 
 	// Choose the queue relevant to current CPU index
-	inserts := q.currBatch.insertsByCPU[xsync.IndexCPU()]
+	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
 	inserts.Lock()
 	inserts.shardInserts = append(inserts.shardInserts, batch)
 	wg := inserts.wg
@@ -198,7 +197,7 @@ func (q *nsIndexInsertQueue) InsertPending(
 	batchLen := len(pending)
 
 	// Choose the queue relevant to current CPU index
-	inserts := q.currBatch.insertsByCPU[xsync.IndexCPU()]
+	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
 	inserts.Lock()
 	inserts.batchInserts = append(inserts.batchInserts, pending...)
 	wg := inserts.wg
@@ -258,34 +257,34 @@ type nsIndexInsertBatch struct {
 	namespace           namespace.Metadata
 	nowFn               clock.NowFn
 	wg                  *sync.WaitGroup
-	insertsByCPU        []*nsIndexInsertsByCPU
+	insertsByCPUCore    []*nsIndexInsertsByCPUCore
 	allInserts          *index.WriteBatch
 	allInsertsLastReset time.Time
 }
 
-type nsIndexInsertsByCPU struct {
+type nsIndexInsertsByCPUCore struct {
 	sync.Mutex
 	shardInserts []*index.WriteBatch
 	batchInserts []writes.PendingIndexInsert
 	wg           *sync.WaitGroup
-	metrics      nsIndexInsertsByCPUMetrics
+	metrics      nsIndexInsertsByCPUCoreMetrics
 }
 
-type nsIndexInsertsByCPUMetrics struct {
+type nsIndexInsertsByCPUCoreMetrics struct {
 	rotateInsertsShard   tally.Counter
 	rotateInsertsPending tally.Counter
 }
 
-func newNamespaceIndexInsertsByCPUMetrics(
+func newNamespaceIndexInsertsByCPUCoreMetrics(
 	cpuIndex int,
 	scope tally.Scope,
-) nsIndexInsertsByCPUMetrics {
+) nsIndexInsertsByCPUCoreMetrics {
 	scope = scope.Tagged(map[string]string{
 		"cpu-index": strconv.Itoa(cpuIndex),
 	})
 
 	const rotate = "rotate-inserts"
-	return nsIndexInsertsByCPUMetrics{
+	return nsIndexInsertsByCPUCoreMetrics{
 		rotateInsertsShard: scope.Tagged(map[string]string{
 			"rotate-type": "shard-insert",
 		}).Counter(rotate),
@@ -304,10 +303,10 @@ func newNsIndexInsertBatch(
 		namespace: namespace,
 		nowFn:     nowFn,
 	}
-	numCPU := runtime.NumCPU()
-	for i := 0; i < numCPU; i++ {
-		b.insertsByCPU = append(b.insertsByCPU, &nsIndexInsertsByCPU{
-			metrics: newNamespaceIndexInsertsByCPUMetrics(i, scope),
+	numCores := xsync.NumCores()
+	for i := 0; i < numCores; i++ {
+		b.insertsByCPUCore = append(b.insertsByCPUCore, &nsIndexInsertsByCPUCore{
+			metrics: newNamespaceIndexInsertsByCPUCoreMetrics(i, scope),
 		})
 	}
 	b.allocateAllInserts()
@@ -324,7 +323,7 @@ func (b *nsIndexInsertBatch) allocateAllInserts() {
 
 func (b *nsIndexInsertBatch) AllInserts() *index.WriteBatch {
 	b.allInserts.Reset()
-	for _, inserts := range b.insertsByCPU {
+	for _, inserts := range b.insertsByCPUCore {
 		inserts.Lock()
 		for _, shardInserts := range inserts.shardInserts {
 			b.allInserts.AppendAll(shardInserts)
@@ -346,9 +345,9 @@ func (b *nsIndexInsertBatch) Rotate(target *nsIndexInsertBatch) *sync.WaitGroup 
 
 	// Rotate to target if we need to.
 	if target != nil {
-		for idx, inserts := range b.insertsByCPU {
+		for idx, inserts := range b.insertsByCPUCore {
 			// First prepare the target to take the current batch's inserts.
-			targetInserts := target.insertsByCPU[idx]
+			targetInserts := target.insertsByCPUCore[idx]
 			targetInserts.Lock()
 
 			// Reset the target inserts since we'll take ref to them in a second.
