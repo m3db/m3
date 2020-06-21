@@ -8,6 +8,11 @@ Flush occurs in the following steps:
   - data warm flush
   - rotate commit log
   - data cold flush
+    - rotate cold mutable index segments
+    - flush cold tsdb data and write most files to disk (except checkpoint files)
+    - flush cold index data to disk and reload
+    - evict rotated cold mutable index segments
+    - write tsdb checkpoint files (completes the tsdb cold flush lifecycle)
   - data snapshot
     - drops rotated commit log when we are done
   - index flush

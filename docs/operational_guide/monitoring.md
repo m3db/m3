@@ -1,10 +1,10 @@
 ## Metrics
 
-TODO: document how to retrieve metrics for M3DB components.
+It is best to use Prometheus to monitor M3DB, M3 Coordinator and M3 Query using the [Grafana dashboards](https://github.com/m3db/m3/blob/master/integrations/grafana/).
 
 ## Logs
 
-TODO: document how to retrieve logs for M3DB components.
+Logs are printed to process output in JSON by default for semi-structured log processing.
 
 ## Tracing
 

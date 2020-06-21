@@ -18,44 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package stats
+package compatibility
 
 import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"time"
 
-	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/uber-go/tally"
+	"github.com/pkg/errors"
 )
 
-const defaultLookback = time.Second * 5
-
-// Tracker implementation that emits query stats as metrics.
-type queryStatsMetricsTracker struct {
-	recentDocs tally.Gauge
-	totalDocs  tally.Counter
+type m3queryClient struct {
+	host string
+	port int
 }
 
-var _ QueryStatsTracker = (*queryStatsMetricsTracker)(nil)
-
-// DefaultQueryStatsTrackerForMetrics provides a tracker
-// implementation that emits query stats as metrics.
-func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTracker {
-	scope := opts.
-		MetricsScope().
-		SubScope("query-stats")
-	return &queryStatsMetricsTracker{
-		recentDocs: scope.Gauge("recent-docs-per-block"),
-		totalDocs:  scope.Counter("total-docs-per-block"),
+func newM3QueryClient(host string, port int) *m3queryClient {
+	return &m3queryClient{
+		host: host,
+		port: port,
 	}
 }
 
-func (t *queryStatsMetricsTracker) TrackStats(values QueryStatsValues) error {
-	t.recentDocs.Update(float64(values.RecentDocs))
-	t.totalDocs.Inc(values.NewDocs)
-	return nil
-}
+func (c *m3queryClient) query(expr string, t time.Time) ([]byte, error) {
+	url := fmt.Sprintf("http://%s:%d/m3query/api/v1/query", c.host, c.port)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
 
-func (t *queryStatsMetricsTracker) Lookback() time.Duration {
-	return defaultLookback
+	q := req.URL.Query()
+	q.Add("query", expr)
+	q.Add("time", fmt.Sprint(t.Unix()))
+	req.URL.RawQuery = q.Encode()
+	resp, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		return nil, errors.Wrapf(err, "error evaluating query %s", expr)
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode/200 != 1 {
+		return nil, fmt.Errorf("invalid status %+v received sending query: %+v", resp.StatusCode, req)
+	}
+
+	return ioutil.ReadAll(resp.Body)
 }

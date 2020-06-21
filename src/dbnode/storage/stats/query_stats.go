@@ -21,6 +21,7 @@
 package stats
 
 import (
+	"fmt"
 	"time"
 
 	"go.uber.org/atomic"
@@ -47,6 +48,15 @@ type QueryStats interface {
 	Update(newDocs int) error
 	Start()
 	Stop()
+}
+
+// QueryStatsOptions holds options for how a tracker should handle query stats.
+type QueryStatsOptions struct {
+	// MaxDocs limits how many recently queried max
+	// documents are allowed before queries are abandoned.
+	MaxDocs int64
+	// Lookback specifies the lookback period over which stats are aggregated.
+	Lookback time.Duration
 }
 
 // QueryStatsValues stores values of query stats.
@@ -141,4 +151,15 @@ func (q *noOpQueryStats) Stop() {
 }
 
 func (q *noOpQueryStats) Start() {
+}
+
+// Validate returns an error if the query stats options are invalid.
+func (opts QueryStatsOptions) Validate() error {
+	if opts.MaxDocs < 0 {
+		return fmt.Errorf("query stats tracker requires max docs >= 0 (%d)", opts.MaxDocs)
+	}
+	if opts.Lookback <= 0 {
+		return fmt.Errorf("query stats tracker requires lookback > 0 (%d)", opts.Lookback)
+	}
+	return nil
 }
