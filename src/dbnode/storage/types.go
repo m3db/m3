@@ -557,11 +557,6 @@ type databaseShard interface {
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
 
-	// TagsFromSeriesID returns the series tags from a series ID.
-	// TODO(r): Seems like this is a work around that shouldn't be
-	// necessary given the callsites that current exist?
-	TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error)
-
 	// SeriesReadWriteRef returns a read/write ref to a series, callers
 	// must make sure to call the release callback once finished
 	// with the reference.

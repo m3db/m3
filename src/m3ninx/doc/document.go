@@ -156,10 +156,15 @@ func (d Document) Validate() error {
 		return ErrEmptyDocument
 	}
 
+	if !utf8.Valid(d.ID) {
+		return fmt.Errorf("document has invalid ID: id=%v, id_hex=%x", d.ID, d.ID)
+	}
+
 	for _, f := range d.Fields {
 		// TODO: Should we enforce uniqueness of field names?
 		if !utf8.Valid(f.Name) {
-			return fmt.Errorf("document contains invalid field name: %v", f.Name)
+			return fmt.Errorf("document has invalid field name: name=%v, name_hex=%x",
+				f.Name, f.Name)
 		}
 
 		if bytes.Equal(f.Name, IDReservedFieldName) {
@@ -167,7 +172,8 @@ func (d Document) Validate() error {
 		}
 
 		if !utf8.Valid(f.Value) {
-			return fmt.Errorf("document contains invalid field value: %v", f.Value)
+			return fmt.Errorf("document has invalid field value: value=%v, value_hex=%x",
+				f.Value, f.Value)
 		}
 	}
 

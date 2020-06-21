@@ -795,7 +795,6 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		tagsIter  = ident.EmptyTagIterator
 		s         = ts.Series{
 			ID:        id,
-			Tags:      ident.Tags{},
 			Namespace: namespace,
 		}
 	)
@@ -1060,7 +1059,6 @@ func testDatabaseWriteBatch(t *testing.T,
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
-					Tags:      ident.Tags{},
 				}, wasWritten, write.err)
 		} else {
 			batchWriter.Add(i*2, ident.StringID(write.series),
@@ -1071,7 +1069,6 @@ func testDatabaseWriteBatch(t *testing.T,
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
-					Tags:      ident.Tags{},
 				}, wasWritten, write.err)
 		}
 		i++

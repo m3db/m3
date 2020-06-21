@@ -81,9 +81,6 @@ type Series struct {
 	// ID is the series identifier.
 	ID ident.ID
 
-	// Tags are the series tags.
-	Tags ident.Tags
-
 	// EncodedTags are the series encoded tags, if set then call sites can
 	// avoid needing to encoded the tags from the series tags provided.
 	EncodedTags EncodedTags

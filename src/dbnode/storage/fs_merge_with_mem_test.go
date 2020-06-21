@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -82,7 +83,10 @@ func TestRead(t *testing.T) {
 	mergeWith := newFSMergeWithMem(shard, retriever, dirtySeries, dirtySeriesToWrite)
 
 	for _, d := range data {
-		require.True(t, dirtySeries.Contains(idAndBlockStart{blockStart: d.start, id: d.id}))
+		require.True(t, dirtySeries.Contains(idAndBlockStart{
+			blockStart: d.start,
+			id:         d.id.Bytes(),
+		}))
 		beforeLen := dirtySeriesToWrite[d.start].Len()
 		res, exists, err := mergeWith.Read(ctx, d.id, d.start, nsCtx)
 		require.NoError(t, err)
@@ -167,21 +171,20 @@ func TestForEachRemaining(t *testing.T) {
 
 	mergeWith := newFSMergeWithMem(shard, retriever, dirtySeries, dirtySeriesToWrite)
 
-	var forEachCalls []ident.ID
-	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, true, nil).Times(2)
+	var forEachCalls []doc.Document
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id0, xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id1, xtime.UnixNano(0).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
-	mergeWith.ForEachRemaining(ctx, 0, func(seriesID ident.ID, tags ident.Tags, result block.FetchBlockResult) error {
-		forEachCalls = append(forEachCalls, seriesID)
+	mergeWith.ForEachRemaining(ctx, 0, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
+		forEachCalls = append(forEachCalls, seriesMetadata)
 		return nil
 	}, nsCtx)
 	require.Len(t, forEachCalls, 2)
-	assert.Equal(t, id0, forEachCalls[0])
-	assert.Equal(t, id1, forEachCalls[1])
+	assert.Equal(t, id0.Bytes(), forEachCalls[0].ID)
+	assert.Equal(t, id1.Bytes(), forEachCalls[1].ID)
 
 	// Reset expected calls.
 	forEachCalls = forEachCalls[:0]
@@ -194,15 +197,14 @@ func TestForEachRemaining(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, exists)
 	assert.Equal(t, result.Blocks, res)
-	shard.EXPECT().TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, true, nil).Times(2)
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id2, xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
 	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id4, xtime.UnixNano(1).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
-	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesID ident.ID, tags ident.Tags, result block.FetchBlockResult) error {
-		forEachCalls = append(forEachCalls, seriesID)
+	err = mergeWith.ForEachRemaining(ctx, 1, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
+		forEachCalls = append(forEachCalls, seriesMetadata)
 		return nil
 	}, nsCtx)
 	require.NoError(t, err)
@@ -212,20 +214,16 @@ func TestForEachRemaining(t *testing.T) {
 
 	// Test call with error getting tags.
 	shard.EXPECT().
-		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, false, errors.New("bad-tags"))
-	shard.EXPECT().
 		FetchBlocksForColdFlush(gomock.Any(), id8, xtime.UnixNano(4).ToTime(), version+1, gomock.Any()).
 		Return(result, nil)
-	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, result block.FetchBlockResult) error {
+	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
 		// This function won't be called with the above error.
 		return errors.New("unreachable")
 	}, nsCtx)
 	assert.Error(t, err)
 
 	// Test call with bad function execution.
-	shard.EXPECT().
-		TagsFromSeriesID(gomock.Any()).Return(ident.Tags{}, true, nil)
-	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesID ident.ID, tags ident.Tags, result block.FetchBlockResult) error {
+	err = mergeWith.ForEachRemaining(ctx, 4, func(seriesMetadata doc.Document, result block.FetchBlockResult) error {
 		return errors.New("bad")
 	}, nsCtx)
 	assert.Error(t, err)
@@ -242,7 +240,7 @@ func addDirtySeries(
 		seriesList = newIDList(nil)
 		dirtySeriesToWrite[start] = seriesList
 	}
-	element := seriesList.PushBack(id)
+	element := seriesList.PushBack(doc.Document{ID: id.Bytes()})
 
-	dirtySeries.Set(idAndBlockStart{blockStart: start, id: id}, element)
+	dirtySeries.Set(idAndBlockStart{blockStart: start, id: id.Bytes()}, element)
 }

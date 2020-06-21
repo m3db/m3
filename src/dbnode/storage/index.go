@@ -1062,7 +1062,7 @@ func (i *nsIndex) flushBlockSegment(
 			}
 
 			for _, result := range results.Results() {
-				doc, err := convert.FromMetricIter(result.ID, result.Tags)
+				doc, err := convert.FromSeriesIDAndTagIter(result.ID, result.Tags)
 				if err != nil {
 					return err
 				}

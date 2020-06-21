@@ -46,7 +46,7 @@ var (
 		"corrupt data, unable to extract id")
 )
 
-// ValidateSeries will validate a metric for use with m3ninx.
+// ValidateSeries will validate a series for use with m3ninx.
 func ValidateSeries(id ident.ID, tags ident.Tags) error {
 	if idBytes := id.Bytes(); !utf8.Valid(idBytes) {
 		return fmt.Errorf("series has invalid ID: id=%s, id_hex=%x",
@@ -79,17 +79,11 @@ func ValidateSeriesTag(tag ident.Tag) error {
 	return nil
 }
 
-// FromMetric converts the provided metric id+tags into a document.
-// FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
-// is not common in the codebase)
-func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
+// FromSeriesIDAndTags converts the provided series id+tags into a document.
+func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	clonedID := clone(id)
 	fields := make([]doc.Field, 0, len(tags.Values()))
 	for _, tag := range tags.Values() {
-		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
-			return doc.Document{}, ErrUsingReservedFieldName
-		}
-
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
 		var clonedName, clonedValue []byte
@@ -109,42 +103,23 @@ func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
 			Value: clonedValue,
 		})
 	}
-	return doc.Document{
+
+	d := doc.Document{
 		ID:     clonedID,
 		Fields: fields,
-	}, nil
-}
-
-// FromMetricNoClone converts the provided metric id+tags into a document without cloning.
-func FromMetricNoClone(id ident.ID, tags ident.Tags) (doc.Document, error) {
-	fields := make([]doc.Field, 0, len(tags.Values()))
-	for _, tag := range tags.Values() {
-		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
-			return doc.Document{}, ErrUsingReservedFieldName
-		}
-		fields = append(fields, doc.Field{
-			Name:  tag.Name.Bytes(),
-			Value: tag.Value.Bytes(),
-		})
 	}
-	return doc.Document{
-		ID:     id.Bytes(),
-		Fields: fields,
-	}, nil
+	if err := d.Validate(); err != nil {
+		return doc.Document{}, err
+	}
+	return d, nil
 }
 
-// FromMetricIter converts the provided metric id+tags into a document.
-// FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
-// is not common in the codebase)
-func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
+// FromSeriesIDAndTagIter converts the provided series id+tags into a document.
+func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
 	clonedID := clone(id)
 	fields := make([]doc.Field, 0, tags.Remaining())
 	for tags.Next() {
 		tag := tags.Current()
-		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
-			return doc.Document{}, ErrUsingReservedFieldName
-		}
-
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
 		var clonedName, clonedValue []byte
@@ -167,33 +142,15 @@ func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
 	if err := tags.Err(); err != nil {
 		return doc.Document{}, err
 	}
-	return doc.Document{
+
+	d := doc.Document{
 		ID:     clonedID,
 		Fields: fields,
-	}, nil
-}
-
-// FromMetricIterNoClone converts the provided metric id+tags iterator into a
-// document without cloning.
-func FromMetricIterNoClone(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
-	fields := make([]doc.Field, 0, tags.Remaining())
-	for tags.Next() {
-		tag := tags.Current()
-		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
-			return doc.Document{}, ErrUsingReservedFieldName
-		}
-		fields = append(fields, doc.Field{
-			Name:  tag.Name.Bytes(),
-			Value: tag.Value.Bytes(),
-		})
 	}
-	if err := tags.Err(); err != nil {
+	if err := d.Validate(); err != nil {
 		return doc.Document{}, err
 	}
-	return doc.Document{
-		ID:     id.Bytes(),
-		Fields: fields,
-	}, nil
+	return d, nil
 }
 
 // TagsFromTagsIter returns an ident.Tags from a TagIterator. It also tries

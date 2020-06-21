@@ -25,8 +25,7 @@
 package storage
 
 import (
-	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
+	"bytes"
 
 	"github.com/cespare/xxhash/v2"
 )
@@ -34,51 +33,26 @@ import (
 // dirtySeriesMapOptions provides options used when created the map.
 type dirtySeriesMapOptions struct {
 	InitialSize int
-	KeyCopyPool pool.BytesPool
 }
 
 // newDirtySeriesMap returns a new byte keyed map.
 func newDirtySeriesMap(opts dirtySeriesMapOptions) *dirtySeriesMap {
-	var (
-		copyFn     dirtySeriesMapCopyFn
-		finalizeFn dirtySeriesMapFinalizeFn
-	)
-	if pool := opts.KeyCopyPool; pool == nil {
-		copyFn = func(k idAndBlockStart) idAndBlockStart {
-			return idAndBlockStart{
-				id:         ident.BytesID(append([]byte(nil), k.id.Bytes()...)),
-				blockStart: k.blockStart,
-			}
-		}
-	} else {
-		copyFn = func(k idAndBlockStart) idAndBlockStart {
-			bytes := k.id.Bytes()
-			keyLen := len(bytes)
-			pooled := pool.Get(keyLen)[:keyLen]
-			copy(pooled, bytes)
-			return idAndBlockStart{
-				id:         ident.BytesID(pooled),
-				blockStart: k.blockStart,
-			}
-		}
-		finalizeFn = func(k idAndBlockStart) {
-			if slice, ok := k.id.(ident.BytesID); ok {
-				pool.Put(slice)
-			}
-		}
-	}
 	return _dirtySeriesMapAlloc(_dirtySeriesMapOptions{
 		hash: func(k idAndBlockStart) dirtySeriesMapHash {
 			hash := uint64(7)
-			hash = 31*hash + xxhash.Sum64(k.id.Bytes())
+			hash = 31*hash + xxhash.Sum64(k.id)
 			hash = 31*hash + uint64(k.blockStart)
 			return dirtySeriesMapHash(hash)
 		},
 		equals: func(x, y idAndBlockStart) bool {
-			return x.id.Equal(y.id) && x.blockStart == y.blockStart
+			return bytes.Equal(x.id, y.id) && x.blockStart == y.blockStart
 		},
-		copy:        copyFn,
-		finalize:    finalizeFn,
+		copy: func(k idAndBlockStart) idAndBlockStart {
+			return idAndBlockStart{
+				id:         k.id,
+				blockStart: k.blockStart,
+			}
+		},
 		initialSize: opts.InitialSize,
 	})
 }

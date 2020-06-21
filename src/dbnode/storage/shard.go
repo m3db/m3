@@ -465,11 +465,13 @@ func (s *dbShard) OnRetrieveBlock(
 	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
 	if err != nil {
 		// should never happen
-		s.logger.Error("[invariant violated] unable to create shardEntry from retrieved block data",
-			zap.Stringer("id", id),
-			zap.Time("startTime", startTime),
-			zap.Error(err),
-		)
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+			func(logger *zap.Logger) {
+				logger.Error("unable to create shardEntry from retrieved block data",
+					zap.Stringer("id", id),
+					zap.Time("startTime", startTime),
+					zap.Error(err))
+			})
 		return
 	}
 
@@ -477,7 +479,7 @@ func (s *dbShard) OnRetrieveBlock(
 	// have been already been indexed when it was written
 	copiedID := entry.Series.ID()
 	copiedTagsIter := s.identifierPool.TagsIterator()
-	copiedTagsIter.Reset(entry.Series.Tags())
+	copiedTagsIter.ResetFields(entry.Series.Metadata().Fields)
 	s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
@@ -912,7 +914,6 @@ func (s *dbShard) writeAndIndex(
 
 	var (
 		commitLogSeriesID          ident.ID
-		commitLogSeriesTags        ident.Tags
 		commitLogSeriesUniqueIndex uint64
 		// Err on the side of caution and always write to the commitlog if writing
 		// async, since there is no information about whether the write succeeded
@@ -931,7 +932,6 @@ func (s *dbShard) writeAndIndex(
 		// as the commit log need to use the reference without the
 		// overhead of ownership tracking. This makes taking a ref here safe.
 		commitLogSeriesID = entry.Series.ID()
-		commitLogSeriesTags = entry.Series.Tags()
 		commitLogSeriesUniqueIndex = entry.Index
 		if err == nil && shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
@@ -980,7 +980,6 @@ func (s *dbShard) writeAndIndex(
 		// and adding ownership tracking to use it in the commit log
 		// (i.e. registering a dependency on the context) is too expensive.
 		commitLogSeriesID = result.copiedID
-		commitLogSeriesTags = result.copiedTags
 		commitLogSeriesUniqueIndex = result.entry.Index
 	}
 
@@ -989,7 +988,6 @@ func (s *dbShard) writeAndIndex(
 		UniqueIndex: commitLogSeriesUniqueIndex,
 		Namespace:   s.namespace.ID(),
 		ID:          commitLogSeriesID,
-		Tags:        commitLogSeriesTags,
 		Shard:       s.shard,
 	}
 
@@ -1145,66 +1143,55 @@ func (s *dbShard) newShardEntry(
 	tagsArgOpts tagsArgOptions,
 ) (*lookup.Entry, error) {
 	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
-	// are garbage collected, hence we cast the ID to a BytesID that can't be
-	// finalized.
+	// and metadata are garbage collected, hence we cast the ID to a BytesID
+	// that can't be finalized.
 	// Since series are purged so infrequently the overhead of not releasing
-	// back an ID to a pool is amortized over a long period of time.
+	// back an ID and metadata to a pool is amortized over a long period of
+	// time.
+	// Also of note, when a series is indexed in multiple index segments it is
+	// worth keeping the metadata around so it can be referenced to twice
+	// without creating a new array of []doc.Field for all the tags twice.
+	// Hence this stays on the storage/series.DatabaseSeries for when it needs
+	// to be re-indexed.
 	var (
-		seriesID   ident.BytesID
-		seriesTags ident.Tags
-		err        error
+		seriesID       ident.BytesID
+		seriesMetadata doc.Document
+		err            error
 	)
-	if id.IsNoFinalize() {
-		// If the ID is already marked as NoFinalize, meaning it won't be returned
-		// to any pools, then we can directly take reference to it.
-		// We make sure to use ident.BytesID for this ID to avoid inc/decref when
-		// accessing the ID since it's not pooled and therefore the safety is not
-		// required.
-		seriesID = ident.BytesID(id.Bytes())
-	} else {
-		seriesID = ident.BytesID(append([]byte(nil), id.Bytes()...))
-		seriesID.NoFinalize()
-	}
 
 	switch tagsArgOpts.arg {
 	case tagsIterArg:
-		// NB(r): Take a duplicate so that we don't double close the tag iterator
-		// passed to this method
-		tagsIter := tagsArgOpts.tagsIter.Duplicate()
-
-		// Ensure tag iterator at start
-		if tagsIter.CurrentIndex() != 0 {
-			return nil, errNewShardEntryTagsIterNotAtIndexZero
-		}
+		// NB(r): Rewind so we record the tag iterator from the beginning.
+		tagsIter := tagsArgOpts.tagsIter
+		tagsIter.Rewind()
 
 		// Pass nil for the identifier pool because the pool will force us to use an array
 		// with a large capacity to store the tags. Since these tags are long-lived, it's
 		// better to allocate an array of the exact size to save memory.
-		seriesTags, err = convert.TagsFromTagsIter(seriesID, tagsIter, nil)
+		seriesMetadata, err = convert.FromSeriesIDAndTagIter(seriesID, tagsIter)
 		tagsIter.Close()
 		if err != nil {
 			return nil, err
 		}
 
-		if err := convert.ValidateSeries(seriesID, seriesTags); err != nil {
+	case tagsArg:
+		seriesMetadata, err = convert.FromSeriesIDAndTags(id, tagsArgOpts.tags)
+		if err != nil {
 			return nil, err
 		}
-
-	case tagsArg:
-		seriesTags = tagsArgOpts.tags
 
 	default:
 		return nil, errNewShardEntryTagsTypeInvalid
 	}
-	// Don't put tags back in a pool since the merge logic may still have a
-	// handle on these.
-	seriesTags.NoFinalize()
+
+	// Use the same bytes as the series metadata for the ID.
+	seriesID = ident.BytesID(seriesMetadata.ID)
 
 	uniqueIndex := s.increasingIndex.nextIndex()
 	newSeries := s.seriesPool.Get()
 	newSeries.Reset(series.DatabaseSeriesOptions{
 		ID:                     seriesID,
-		Tags:                   seriesTags,
+		Metadata:               seriesMetadata,
 		UniqueIndex:            uniqueIndex,
 		BlockRetriever:         s.seriesBlockRetriever,
 		OnRetrieveBlock:        s.seriesOnRetrieveBlock,
@@ -1215,9 +1202,8 @@ func (s *dbShard) newShardEntry(
 }
 
 type insertAsyncResult struct {
-	wg         *sync.WaitGroup
-	copiedID   ident.ID
-	copiedTags ident.Tags
+	wg       *sync.WaitGroup
+	copiedID ident.ID
 	// entry is not guaranteed to be the final entry
 	// inserted into the shard map in case there is already
 	// an existing entry waiting in the insert queue
@@ -1284,9 +1270,8 @@ func (s *dbShard) insertSeriesAsyncBatched(
 	return insertAsyncResult{
 		wg: wg,
 		// Make sure to return the copied ID from the new series
-		copiedID:   entry.Series.ID(),
-		copiedTags: entry.Series.Tags(),
-		entry:      entry,
+		copiedID: entry.Series.ID(),
+		entry:    entry,
 	}, err
 }
 
@@ -1506,24 +1491,13 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
 			entry.OnIndexPrepare()
 
-			// Don't insert cold index writes into the index insert queue.
-			id := entry.Series.ID()
-			tags := entry.Series.Tags().Values()
-
-			var d doc.Document
-			d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
-			d.Fields = make(doc.Fields, 0, len(tags))
-			for _, tag := range tags {
-				d.Fields = append(d.Fields, doc.Field{
-					Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
-					Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
-				})
-			}
-			indexBatch.Append(index.WriteBatchEntry{
+			writeBatchEntry := index.WriteBatchEntry{
 				Timestamp:     pendingIndex.timestamp,
 				OnIndexSeries: entry,
 				EnqueuedAt:    pendingIndex.enqueuedAt,
-			}, d)
+			}
+
+			indexBatch.Append(writeBatchEntry, entry.Series.Metadata())
 		}
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
@@ -2244,7 +2218,7 @@ func (s *dbShard) ColdFlush(
 	// series and add them to the resources for further processing.
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
-		seriesID := curr.ID()
+		seriesMetadata := curr.Metadata()
 		blockStarts := curr.ColdFlushBlockStarts(blockStatesSnapshot)
 		blockStarts.ForEach(func(t xtime.UnixNano) {
 			// Cold flushes can only happen on blockStarts that have been
@@ -2266,9 +2240,12 @@ func (s *dbShard) ColdFlush(
 				seriesList = newIDList(idElementPool)
 				dirtySeriesToWrite[t] = seriesList
 			}
-			element := seriesList.PushBack(seriesID)
+			element := seriesList.PushBack(seriesMetadata)
 
-			dirtySeries.Set(idAndBlockStart{blockStart: t, id: seriesID}, element)
+			dirtySeries.Set(idAndBlockStart{
+				blockStart: t,
+				id:         seriesMetadata.ID,
+			}, element)
 		})
 
 		return true
@@ -2528,17 +2505,6 @@ func (s *dbShard) Repair(
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
 	return repairer.Repair(ctx, nsCtx, nsMeta, tr, s)
-}
-
-func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
-	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(seriesID)
-	s.RUnlock()
-	if entry == nil || err != nil {
-		return ident.Tags{}, false, err
-	}
-
-	return entry.Series.Tags(), true, nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {
