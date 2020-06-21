@@ -21,6 +21,7 @@
 package stats
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
@@ -28,34 +29,51 @@ import (
 	"github.com/uber-go/tally"
 )
 
-const defaultLookback = time.Second * 5
+// DefaultLookback is the default lookback used for query stats tracking.
+const DefaultLookback = time.Second * 5
 
 // Tracker implementation that emits query stats as metrics.
-type queryStatsMetricsTracker struct {
+type queryStatsTracker struct {
 	recentDocs tally.Gauge
 	totalDocs  tally.Counter
+
+	options QueryStatsOptions
 }
 
-var _ QueryStatsTracker = (*queryStatsMetricsTracker)(nil)
+var _ QueryStatsTracker = (*queryStatsTracker)(nil)
 
-// DefaultQueryStatsTrackerForMetrics provides a tracker
-// implementation that emits query stats as metrics.
-func DefaultQueryStatsTrackerForMetrics(opts instrument.Options) QueryStatsTracker {
-	scope := opts.
+// DefaultQueryStatsTracker provides a tracker
+// implementation that emits query stats as metrics
+// and enforces limits.
+func DefaultQueryStatsTracker(
+	instrumentOpts instrument.Options,
+	queryStatsOpts QueryStatsOptions,
+) QueryStatsTracker {
+	scope := instrumentOpts.
 		MetricsScope().
 		SubScope("query-stats")
-	return &queryStatsMetricsTracker{
+	return &queryStatsTracker{
+		options:    queryStatsOpts,
 		recentDocs: scope.Gauge("recent-docs-per-block"),
 		totalDocs:  scope.Counter("total-docs-per-block"),
 	}
 }
 
-func (t *queryStatsMetricsTracker) TrackStats(values QueryStatsValues) error {
+func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
+	// Track stats as metrics.
 	t.recentDocs.Update(float64(values.RecentDocs))
 	t.totalDocs.Inc(values.NewDocs)
+
+	// Enforce max queried docs (if specified).
+	if t.options.MaxDocs > 0 && values.RecentDocs > t.options.MaxDocs {
+		return fmt.Errorf(
+			"query aborted, global recent time series blocks over limit: "+
+				"limit=%d, current=%d, within=%s",
+			t.options.MaxDocs, values.RecentDocs, t.options.Lookback)
+	}
 	return nil
 }
 
-func (t *queryStatsMetricsTracker) Lookback() time.Duration {
-	return defaultLookback
+func (t *queryStatsTracker) Lookback() time.Duration {
+	return t.options.Lookback
 }
