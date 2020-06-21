@@ -46,6 +46,31 @@ var (
 		"corrupt data, unable to extract id")
 )
 
+// Validate returns a bool indicating whether the document is valid.
+func Validate(d doc.Document) error {
+	if !utf8.Valid(d.ID) {
+		return fmt.Errorf("document has invalid ID: id=%v, id_hex=%x", d.ID, d.ID)
+	}
+
+	for _, f := range d.Fields {
+		if !utf8.Valid(f.Name) {
+			return fmt.Errorf("document has invalid field name: name=%v, name_hex=%x",
+				f.Name, f.Name)
+		}
+
+		if bytes.Equal(f.Name, ReservedFieldNameID) {
+			return ErrUsingReservedFieldName
+		}
+
+		if !utf8.Valid(f.Value) {
+			return fmt.Errorf("document has invalid field value: value=%v, value_hex=%x",
+				f.Value, f.Value)
+		}
+	}
+
+	return nil
+}
+
 // ValidateSeries will validate a series for use with m3ninx.
 func ValidateSeries(id ident.ID, tags ident.Tags) error {
 	if idBytes := id.Bytes(); !utf8.Valid(idBytes) {
@@ -108,7 +133,7 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
 		ID:     clonedID,
 		Fields: fields,
 	}
-	if err := d.Validate(); err != nil {
+	if err := Validate(d); err != nil {
 		return doc.Document{}, err
 	}
 	return d, nil
@@ -147,7 +172,7 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Document, 
 		ID:     clonedID,
 		Fields: fields,
 	}
-	if err := d.Validate(); err != nil {
+	if err := Validate(d); err != nil {
 		return doc.Document{}, err
 	}
 	return d, nil
@@ -249,16 +274,16 @@ func (o Opts) wrapBytes(b []byte) ident.ID {
 	return id
 }
 
-// ToMetric converts the provided doc to metric id+tags.
-func ToMetric(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
+// ToSeries converts the provided doc to metric id+tags.
+func ToSeries(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
 	if len(d.ID) == 0 {
 		return nil, nil, errInvalidResultMissingID
 	}
-	return opts.wrapBytes(d.ID), ToMetricTags(d, opts), nil
+	return opts.wrapBytes(d.ID), ToSeriesTags(d, opts), nil
 }
 
-// ToMetricTags converts the provided doc to metric tags.
-func ToMetricTags(d doc.Document, opts Opts) ident.TagIterator {
+// ToSeriesTags converts the provided doc to metric tags.
+func ToSeriesTags(d doc.Document, opts Opts) ident.TagIterator {
 	return newTagIter(d, opts)
 }
 
