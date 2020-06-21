@@ -69,6 +69,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -1402,7 +1403,7 @@ func withEncodingAndPoolingOptions(
 				InstrumentOptions().
 				SetMetricsScope(scope.SubScope("write-batch-pool")))
 
-	writeBatchPool := ts.NewWriteBatchPool(
+	writeBatchPool := writes.NewWriteBatchPool(
 		writeBatchPoolOpts,
 		writeBatchPoolInitialBatchSize,
 		writeBatchPoolMaxBatchSize)

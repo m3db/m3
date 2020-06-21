@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
@@ -847,7 +848,7 @@ func (s *dbShard) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts series.WriteOptions,
-) (ts.Series, bool, error) {
+) (SeriesWrite, error) {
 	return s.writeAndIndex(ctx, id, tags, timestamp,
 		value, unit, annotation, wOpts, true)
 }
@@ -860,7 +861,7 @@ func (s *dbShard) Write(
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts series.WriteOptions,
-) (ts.Series, bool, error) {
+) (SeriesWrite, error) {
 	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
 		value, unit, annotation, wOpts, false)
 }
@@ -875,11 +876,11 @@ func (s *dbShard) writeAndIndex(
 	annotation []byte,
 	wOpts series.WriteOptions,
 	shouldReverseIndex bool,
-) (ts.Series, bool, error) {
+) (SeriesWrite, error) {
 	// Prepare write
 	entry, opts, err := s.tryRetrieveWritableSeries(id)
 	if err != nil {
-		return ts.Series{}, false, err
+		return SeriesWrite{}, err
 	}
 
 	writable := entry != nil
@@ -895,7 +896,7 @@ func (s *dbShard) writeAndIndex(
 			},
 		})
 		if err != nil {
-			return ts.Series{}, false, err
+			return SeriesWrite{}, err
 		}
 
 		// Wait for the insert to be batched together and inserted
@@ -904,7 +905,7 @@ func (s *dbShard) writeAndIndex(
 		// Retrieve the inserted entry
 		entry, err = s.writableSeries(id, tags)
 		if err != nil {
-			return ts.Series{}, false, err
+			return SeriesWrite{}, err
 		}
 		writable = true
 
@@ -915,6 +916,8 @@ func (s *dbShard) writeAndIndex(
 	var (
 		commitLogSeriesID          ident.ID
 		commitLogSeriesUniqueIndex uint64
+		needsIndex                 bool
+		pendingIndexInsert         writes.PendingIndexInsert
 		// Err on the side of caution and always write to the commitlog if writing
 		// async, since there is no information about whether the write succeeded
 		// or not.
@@ -935,14 +938,17 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesUniqueIndex = entry.Index
 		if err == nil && shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
-				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
-					opts.writeNewSeriesAsync)
+				if !opts.writeNewSeriesAsync {
+					return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enable")
+				}
+				needsIndex = true
+				pendingIndexInsert = s.pendingIndexInsert(entry, timestamp)
 			}
 		}
 		// release the reference we got on entry from `writableSeries`
 		entry.DecrementReaderWriterCount()
 		if err != nil {
-			return ts.Series{}, false, err
+			return SeriesWrite{}, err
 		}
 	} else {
 		// This is an asynchronous insert and write which means we need to clone the annotation
@@ -965,15 +971,19 @@ func (s *dbShard) writeAndIndex(
 				annotation: annotationClone,
 				opts:       wOpts,
 			},
-			hasPendingIndexing: shouldReverseIndex,
-			pendingIndex: dbShardPendingIndex{
-				timestamp:  timestamp,
-				enqueuedAt: s.nowFn(),
-			},
 		})
 		if err != nil {
-			return ts.Series{}, false, err
+			return SeriesWrite{}, err
 		}
+
+		if shouldReverseIndex {
+			if !opts.writeNewSeriesAsync {
+				return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enable")
+			}
+			needsIndex = true
+			pendingIndexInsert = s.pendingIndexInsert(entry, timestamp)
+		}
+
 		// NB(r): Make sure to use the copied ID which will eventually
 		// be set to the newly series inserted ID.
 		// The `id` var here is volatile after the context is closed
@@ -983,15 +993,18 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesUniqueIndex = result.entry.Index
 	}
 
-	// Write commit log
-	series := ts.Series{
-		UniqueIndex: commitLogSeriesUniqueIndex,
-		Namespace:   s.namespace.ID(),
-		ID:          commitLogSeriesID,
-		Shard:       s.shard,
-	}
-
-	return series, wasWritten, nil
+	// Return metadata useful for writing to commit log and indexing.
+	return SeriesWrite{
+		Series: ts.Series{
+			UniqueIndex: commitLogSeriesUniqueIndex,
+			Namespace:   s.namespace.ID(),
+			ID:          commitLogSeriesID,
+			Shard:       s.shard,
+		},
+		WasWritten:         wasWritten,
+		NeedsIndex:         needsIndex,
+		PendingIndexInsert: pendingIndexInsert,
+	}, nil
 }
 
 func (s *dbShard) SeriesReadWriteRef(
@@ -1208,6 +1221,22 @@ type insertAsyncResult struct {
 	// inserted into the shard map in case there is already
 	// an existing entry waiting in the insert queue
 	entry *lookup.Entry
+}
+
+func (s *dbShard) pendingIndexInsert(
+	entry *lookup.Entry,
+	timestamp time.Time,
+) writes.PendingIndexInsert {
+	// inc a ref on the entry to ensure it's valid until the queue acts upon it.
+	entry.OnIndexPrepare()
+	return writes.PendingIndexInsert{
+		Entry: index.WriteBatchEntry{
+			Timestamp:     timestamp,
+			OnIndexSeries: entry,
+			EnqueuedAt:    s.nowFn(),
+		},
+		Document: entry.Series.Metadata(),
+	}
 }
 
 func (s *dbShard) insertSeriesForIndexingAsyncBatched(

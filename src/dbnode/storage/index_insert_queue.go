@@ -22,12 +22,15 @@ package storage
 
 import (
 	"errors"
+	"runtime"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
+	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/uber-go/tally"
 )
@@ -45,7 +48,7 @@ const (
 	nsIndexInsertQueueStateClosed
 
 	// TODO(prateek): runtime options for this stuff
-	defaultIndexBatchBackoff = time.Millisecond
+	defaultIndexBatchBackoff = 2 * time.Millisecond
 
 	indexResetAllInsertsEvery = 30 * time.Second
 )
@@ -115,7 +118,7 @@ func (q *nsIndexInsertQueue) insertLoop() {
 	}()
 
 	var lastInsert time.Time
-	freeBatch := q.newBatch()
+	batch := q.newBatch()
 	for range q.notifyInsert {
 		// Check if inserting too fast
 		elapsedSinceLastInsert := q.nowFn().Sub(lastInsert)
@@ -124,59 +127,74 @@ func (q *nsIndexInsertQueue) insertLoop() {
 		var (
 			state   nsIndexInsertQueueState
 			backoff time.Duration
-			batch   *nsIndexInsertBatch
 		)
 		q.Lock()
 		state = q.state
 		if elapsedSinceLastInsert < q.indexBatchBackoff {
 			// Need to backoff before rotate and insert
 			backoff = q.indexBatchBackoff - elapsedSinceLastInsert
-		} else {
-			// No backoff required, rotate and go
-			batch = q.currBatch
-			q.currBatch = freeBatch
 		}
 		q.Unlock()
-
-		if backoff > 0 {
-			q.sleepFn(backoff)
-			q.Lock()
-			// Rotate after backoff
-			batch = q.currBatch
-			q.currBatch = freeBatch
-			q.Unlock()
-		}
-
-		if len(batch.shardInserts) > 0 {
-			all := batch.AllInserts()
-			q.indexBatchFn(all)
-		}
-		batch.wg.Done()
-
-		// Set the free batch
-		batch.Reset()
-		freeBatch = batch
-
-		lastInsert = q.nowFn()
-
 		if state != nsIndexInsertQueueStateOpen {
 			return // Break if the queue closed
 		}
+
+		if backoff > 0 {
+			q.sleepFn(backoff)
+		}
+
+		// Rotate after backoff
+		batchWg := q.currBatch.Rotate(batch)
+
+		all := batch.AllInserts()
+		if all.Len() > 0 {
+			q.indexBatchFn(all)
+		}
+
+		batchWg.Done()
+
+		lastInsert = q.nowFn()
 	}
+}
+
+func (q *nsIndexInsertQueue) rotate(target *nsIndexInsertBatch) {
+
 }
 
 func (q *nsIndexInsertQueue) InsertBatch(
 	batch *index.WriteBatch,
 ) (*sync.WaitGroup, error) {
-	q.Lock()
-	if q.state != nsIndexInsertQueueStateOpen {
-		q.Unlock()
-		return nil, errIndexInsertQueueNotOpen
-	}
 	batchLen := batch.Len()
-	q.currBatch.shardInserts = append(q.currBatch.shardInserts, batch)
-	wg := q.currBatch.wg
-	q.Unlock()
+
+	// Choose the queue relevant to current CPU index
+	inserts := q.currBatch.insertsByCPU[xsync.IndexCPU()]
+	inserts.Lock()
+	inserts.shardInserts = append(inserts.shardInserts, batch)
+	wg := inserts.wg
+	inserts.Unlock()
+
+	// Notify insert loop
+	select {
+	case q.notifyInsert <- struct{}{}:
+	default:
+		// Loop busy, already ready to consume notification
+	}
+
+	q.metrics.numPending.Inc(int64(batchLen))
+	return wg, nil
+}
+
+func (q *nsIndexInsertQueue) InsertPending(
+	pending []writes.PendingIndexInsert,
+) (*sync.WaitGroup, error) {
+	batchLen := len(pending)
+
+	// Choose the queue relevant to current CPU index
+	inserts := q.currBatch.insertsByCPU[xsync.IndexCPU()]
+	inserts.Lock()
+	inserts.batchInserts = append(inserts.batchInserts, pending...)
+	wg := inserts.wg
+	inserts.Unlock()
 
 	// Notify insert loop
 	select {
@@ -232,9 +250,16 @@ type nsIndexInsertBatch struct {
 	namespace           namespace.Metadata
 	nowFn               clock.NowFn
 	wg                  *sync.WaitGroup
-	shardInserts        []*index.WriteBatch
+	insertsByCPU        []*insertsByCPU
 	allInserts          *index.WriteBatch
 	allInsertsLastReset time.Time
+}
+
+type insertsByCPU struct {
+	sync.Mutex
+	shardInserts []*index.WriteBatch
+	batchInserts []writes.PendingIndexInsert
+	wg           *sync.WaitGroup
 }
 
 func newNsIndexInsertBatch(
@@ -245,8 +270,12 @@ func newNsIndexInsertBatch(
 		namespace: namespace,
 		nowFn:     nowFn,
 	}
+	numCPU := runtime.NumCPU()
+	for i := 0; i < numCPU; i++ {
+		b.insertsByCPU = append(b.insertsByCPU, &insertsByCPU{})
+	}
 	b.allocateAllInserts()
-	b.Reset()
+	b.Rotate(nil)
 	return b
 }
 
@@ -259,25 +288,72 @@ func (b *nsIndexInsertBatch) allocateAllInserts() {
 
 func (b *nsIndexInsertBatch) AllInserts() *index.WriteBatch {
 	b.allInserts.Reset()
-	for _, shardInserts := range b.shardInserts {
-		b.allInserts.AppendAll(shardInserts)
+	for _, inserts := range b.insertsByCPU {
+		inserts.Lock()
+		for _, shardInserts := range inserts.shardInserts {
+			b.allInserts.AppendAll(shardInserts)
+		}
+		for _, insert := range inserts.batchInserts {
+			b.allInserts.Append(insert.Entry, insert.Document)
+		}
+		inserts.Unlock()
 	}
 	return b.allInserts
 }
 
-func (b *nsIndexInsertBatch) Reset() {
+func (b *nsIndexInsertBatch) Rotate(target *nsIndexInsertBatch) *sync.WaitGroup {
+	prevWg := b.wg
+
+	// We always expect to be waiting for an index.
 	b.wg = &sync.WaitGroup{}
-	// We always expect to be waiting for an index
 	b.wg.Add(1)
-	for i := range b.shardInserts {
-		// TODO(prateek): if we start pooling `[]index.WriteBatchEntry`, then we could return to the pool here.
-		b.shardInserts[i] = nil
+
+	// Rotate to target if we need to.
+	if target != nil {
+		for idx, inserts := range b.insertsByCPU {
+			targetInserts := target.insertsByCPU[idx]
+			targetInserts.Lock()
+
+			// Reset the target inserts since we'll take ref to them in a second.
+			for i := range targetInserts.shardInserts {
+				// TODO(prateek): if we start pooling `[]index.WriteBatchEntry`, then we could return to the pool here.
+				targetInserts.shardInserts[i] = nil
+			}
+			prevTargetInserts := targetInserts.shardInserts[:0]
+
+			// memset optimization
+			var zero writes.PendingIndexInsert
+			for i := range targetInserts.batchInserts {
+				targetInserts.batchInserts[i] = zero
+			}
+			prevTargetBatchInserts := targetInserts.batchInserts[:0]
+
+			inserts.Lock()
+
+			// Copy current slices to target.
+			targetInserts.shardInserts = inserts.shardInserts
+			targetInserts.batchInserts = inserts.batchInserts
+			targetInserts.wg = inserts.wg
+
+			// Reuse the target's old slices.
+			inserts.shardInserts = prevTargetInserts
+			inserts.batchInserts = prevTargetBatchInserts
+
+			// Use new wait group.
+			inserts.wg = b.wg
+
+			inserts.Unlock()
+
+			targetInserts.Unlock()
+		}
 	}
-	b.shardInserts = b.shardInserts[:0]
+
 	if b.nowFn().Sub(b.allInsertsLastReset) > indexResetAllInsertsEvery {
 		// NB(r): Sometimes this can grow very high, so we reset it relatively frequently
 		b.allocateAllInserts()
 	}
+
+	return prevWg
 }
 
 type nsIndexInsertQueueMetrics struct {

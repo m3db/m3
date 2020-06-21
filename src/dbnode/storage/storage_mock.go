@@ -5,6 +5,10 @@
 package storage
 
 import (
+	reflect "reflect"
+	sync0 "sync"
+	time0 "time"
+
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3/src/dbnode/clock"
 	encoding "github.com/m3db/m3/src/dbnode/encoding"
@@ -21,6 +25,7 @@ import (
 	repair "github.com/m3db/m3/src/dbnode/storage/repair"
 	series "github.com/m3db/m3/src/dbnode/storage/series"
 	ts "github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xio "github.com/m3db/m3/src/dbnode/x/xio"
 	xpool "github.com/m3db/m3/src/dbnode/x/xpool"
 	context "github.com/m3db/m3/src/x/context"
@@ -30,9 +35,6 @@ import (
 	pool "github.com/m3db/m3/src/x/pool"
 	sync "github.com/m3db/m3/src/x/sync"
 	time "github.com/m3db/m3/src/x/time"
-	reflect "reflect"
-	sync0 "sync"
-	time0 "time"
 )
 
 // MockIndexedErrorHandler is a mock of IndexedErrorHandler interface
@@ -233,10 +235,10 @@ func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timest
 }
 
 // BatchWriter mocks base method
-func (m *MockDatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+func (m *MockDatabase) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
-	ret0, _ := ret[0].(ts.BatchWriter)
+	ret0, _ := ret[0].(writes.BatchWriter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -248,7 +250,7 @@ func (mr *MockDatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}
 }
 
 // WriteBatch mocks base method
-func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
@@ -262,7 +264,7 @@ func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandle
 }
 
 // WriteTaggedBatch mocks base method
-func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
@@ -628,10 +630,10 @@ func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timest
 }
 
 // BatchWriter mocks base method
-func (m *Mockdatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+func (m *Mockdatabase) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
-	ret0, _ := ret[0].(ts.BatchWriter)
+	ret0, _ := ret[0].(writes.BatchWriter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -643,7 +645,7 @@ func (mr *MockdatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}
 }
 
 // WriteBatch mocks base method
-func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
@@ -657,7 +659,7 @@ func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandle
 }
 
 // WriteTaggedBatch mocks base method
-func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes writes.BatchWriter, errHandler IndexedErrorHandler) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
@@ -3925,7 +3927,7 @@ func (mr *MockOptionsMockRecorder) QueryIDsWorkerPool() *gomock.Call {
 }
 
 // SetWriteBatchPool mocks base method
-func (m *MockOptions) SetWriteBatchPool(value *ts.WriteBatchPool) Options {
+func (m *MockOptions) SetWriteBatchPool(value *writes.WriteBatchPool) Options {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteBatchPool", value)
 	ret0, _ := ret[0].(Options)
@@ -3939,10 +3941,10 @@ func (mr *MockOptionsMockRecorder) SetWriteBatchPool(value interface{}) *gomock.
 }
 
 // WriteBatchPool mocks base method
-func (m *MockOptions) WriteBatchPool() *ts.WriteBatchPool {
+func (m *MockOptions) WriteBatchPool() *writes.WriteBatchPool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatchPool")
-	ret0, _ := ret[0].(*ts.WriteBatchPool)
+	ret0, _ := ret[0].(*writes.WriteBatchPool)
 	return ret0
 }
 
