@@ -177,17 +177,13 @@ func (i *tagSliceIter) Duplicate() TagIterator {
 		} else {
 			iter.ResetFields(i.backingSlice.fields)
 		}
-
 		for j := 0; j <= i.currentIdx; j++ {
 			iter.Next()
 		}
 		return iter
 	}
-	return &tagSliceIter{
-		backingSlice: i.backingSlice,
-		currentIdx:   i.currentIdx,
-		currentTag:   i.currentTag,
-	}
+	return newTagSliceIter(Tags{values: i.backingSlice.tags},
+		i.backingSlice.fields, i.pool)
 }
 
 func (i *tagSliceIter) rewind() {
