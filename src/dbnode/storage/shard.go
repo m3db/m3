@@ -981,7 +981,7 @@ func (s *dbShard) writeAndIndex(
 				return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enable")
 			}
 			needsIndex = true
-			pendingIndexInsert = s.pendingIndexInsert(entry, timestamp)
+			pendingIndexInsert = s.pendingIndexInsert(result.entry, timestamp)
 		}
 
 		// NB(r): Make sure to use the copied ID which will eventually
