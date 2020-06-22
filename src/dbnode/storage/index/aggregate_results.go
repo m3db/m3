@@ -102,13 +102,14 @@ func (r *aggregatedResults) Reset(
 	r.Unlock()
 }
 
-func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, error) {
+func (r *aggregatedResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
-	r.totalDocsCount += len(batch)
+	docsCount := r.totalDocsCount + len(batch)
+	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size, err
+	return size, docsCount, err
 }
 
 func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {

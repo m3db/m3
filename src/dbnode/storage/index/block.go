@@ -483,12 +483,11 @@ func (b *block) queryWithSpan(
 		}
 
 		batch = append(batch, iter.Current())
-		docsCount++
 		if len(batch) < batchSize {
 			continue
 		}
 
-		batch, size, err = b.addQueryResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
@@ -496,8 +495,7 @@ func (b *block) queryWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		docsCount += len(batch)
-		batch, size, err = b.addQueryResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addQueryResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
@@ -525,21 +523,21 @@ func (b *block) addQueryResults(
 	cancellable *resource.CancellableLifetime,
 	results BaseResults,
 	batch []doc.Document,
-) ([]doc.Document, int, error) {
+) ([]doc.Document, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if err := b.queryStats.Update(len(batch)); err != nil {
-		return batch, 0, err
+		return batch, 0, 0, err
 	}
 
 	// checkout the lifetime of the query before adding results.
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {
 		// query not valid any longer, do not add results and return early.
-		return batch, 0, errCancelledQuery
+		return batch, 0, 0, errCancelledQuery
 	}
 
 	// try to add the docs to the resource.
-	size, err := results.AddDocuments(batch)
+	size, docsCount, err := results.AddDocuments(batch)
 
 	// immediately release the checkout on the lifetime of query.
 	cancellable.ReleaseCheckout()
@@ -552,7 +550,7 @@ func (b *block) addQueryResults(
 	batch = batch[:0]
 
 	// return results.
-	return batch, size, err
+	return batch, size, docsCount, err
 }
 
 // Aggregate acquires a read lock on the block so that the segments

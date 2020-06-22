@@ -840,7 +840,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	_, err = results.AddDocuments([]doc.Document{testDoc1()})
+	_, _, err = results.AddDocuments([]doc.Document{testDoc1()})
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)
@@ -890,7 +890,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	}
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = results.AddDocuments([]doc.Document{testDoc1()})
+	_, _, err = results.AddDocuments([]doc.Document{testDoc1()})
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)
