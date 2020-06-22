@@ -325,17 +325,19 @@ func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerO
 // AsFetchOptionsBuilderOptions converts this configuration to
 // handler.FetchOptionsBuilderOptions.
 func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleroptions.FetchOptionsBuilderOptions {
-	if l.MaxFetchedSeries <= 0 {
-		return handleroptions.FetchOptionsBuilderOptions{
-			SeriesLimit:       defaultStorageQuerySeriesLimit,
-			DocsLimit:         defaultStorageQueryDocsLimit,
-			RequireExhaustive: l.RequireExhaustive,
-		}
+	seriesLimit := defaultStorageQuerySeriesLimit
+	if v := l.MaxFetchedSeries; v > 0 {
+		seriesLimit = v
+	}
+
+	docsLimit := defaultStorageQueryDocsLimit
+	if v := l.MaxFetchedDocs; v > 0 {
+		docsLimit = v
 	}
 
 	return handleroptions.FetchOptionsBuilderOptions{
-		SeriesLimit:       int(l.MaxFetchedSeries),
-		DocsLimit:         int(l.MaxFetchedDocs),
+		SeriesLimit:       int(seriesLimit),
+		DocsLimit:         int(docsLimit),
 		RequireExhaustive: l.RequireExhaustive,
 	}
 }

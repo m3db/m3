@@ -716,12 +716,48 @@ func TestLimits(t *testing.T) {
 		requireExhaustive bool
 		expectedErr       string
 	}{
-		{"no limits", 0, 0, false, ""},
-		{"series limit only", 1, 0, false, ""},
-		{"docs limit only", 0, 1, false, ""},
-		{"no limits", 0, 0, true, "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=0, docs_matched=2"},
-		{"series limit only", 1, 0, true, "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=0, docs_matched=2"},
-		{"docs limit only", 0, 1, true, "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=1, docs_matched=2"},
+		{
+			name:              "no limits",
+			seriesLimit:       0,
+			docsLimit:         0,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "series limit only",
+			seriesLimit:       1,
+			docsLimit:         0,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "docs limit only",
+			seriesLimit:       0,
+			docsLimit:         1,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "no limits",
+			seriesLimit:       0,
+			docsLimit:         0,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=0, docs_matched=2",
+		},
+		{
+			name:              "series limit only",
+			seriesLimit:       1,
+			docsLimit:         0,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=0, docs_matched=2",
+		},
+		{
+			name:              "docs limit only",
+			seriesLimit:       0,
+			docsLimit:         1,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// only queries as much as is needed (wrt to time)
