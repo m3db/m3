@@ -1173,8 +1173,7 @@ func (s *dbShard) newShardEntry(
 	switch tagsArgOpts.arg {
 	case tagsIterArg:
 		// NB(r): Rewind so we record the tag iterator from the beginning.
-		tagsIter := tagsArgOpts.tagsIter
-		tagsIter.Rewind()
+		tagsIter := tagsArgOpts.tagsIter.Duplicate()
 
 		// Pass nil for the identifier pool because the pool will force us to use an array
 		// with a large capacity to store the tags. Since these tags are long-lived, it's
