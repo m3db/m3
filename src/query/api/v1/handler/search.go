@@ -110,7 +110,7 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 
 	if str := r.URL.Query().Get("limit"); str != "" {
 		var err error
-		fetchOpts.Limit, err = strconv.Atoi(str)
+		fetchOpts.SeriesLimit, err = strconv.Atoi(str)
 		if err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
