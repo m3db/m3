@@ -156,7 +156,7 @@ type DBConfiguration struct {
 
 	// Limits contains configuration for limits that can be applied to M3DB for the purposes
 	// of applying back-pressure or protecting the db nodes.
-	Limits Limits `yaml:"limits"`
+	Limits LimitsConfiguration `yaml:"limits"`
 
 	// TChannel exposes TChannel config options.
 	TChannel *TChannelConfiguration `yaml:"tchannel"`

@@ -30,9 +30,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	persist "github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3/src/m3ninx/persist"
+	persist0 "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -76,6 +77,21 @@ func (m *MockDataFileSetWriter) Close() error {
 func (mr *MockDataFileSetWriterMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataFileSetWriter)(nil).Close))
+}
+
+// DeferClose mocks base method
+func (m *MockDataFileSetWriter) DeferClose() (persist.DataCloser, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeferClose")
+	ret0, _ := ret[0].(persist.DataCloser)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeferClose indicates an expected call of DeferClose
+func (mr *MockDataFileSetWriterMockRecorder) DeferClose() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeferClose", reflect.TypeOf((*MockDataFileSetWriter)(nil).DeferClose))
 }
 
 // Open mocks base method
@@ -525,7 +541,7 @@ func (mr *MockIndexFileSetWriterMockRecorder) Open(arg0 interface{}) *gomock.Cal
 }
 
 // WriteSegmentFileSet mocks base method
-func (m *MockIndexFileSetWriter) WriteSegmentFileSet(arg0 persist.IndexSegmentFileSetWriter) error {
+func (m *MockIndexFileSetWriter) WriteSegmentFileSet(arg0 persist0.IndexSegmentFileSetWriter) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteSegmentFileSet", arg0)
 	ret0, _ := ret[0].(error)
@@ -576,10 +592,10 @@ func (mr *MockIndexFileSetReaderMockRecorder) Close() *gomock.Call {
 }
 
 // IndexVolumeType mocks base method
-func (m *MockIndexFileSetReader) IndexVolumeType() persist.IndexVolumeType {
+func (m *MockIndexFileSetReader) IndexVolumeType() persist0.IndexVolumeType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexVolumeType")
-	ret0, _ := ret[0].(persist.IndexVolumeType)
+	ret0, _ := ret[0].(persist0.IndexVolumeType)
 	return ret0
 }
 
@@ -605,10 +621,10 @@ func (mr *MockIndexFileSetReaderMockRecorder) Open(arg0 interface{}) *gomock.Cal
 }
 
 // ReadSegmentFileSet mocks base method
-func (m *MockIndexFileSetReader) ReadSegmentFileSet() (persist.IndexSegmentFileSet, error) {
+func (m *MockIndexFileSetReader) ReadSegmentFileSet() (persist0.IndexSegmentFileSet, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadSegmentFileSet")
-	ret0, _ := ret[0].(persist.IndexSegmentFileSet)
+	ret0, _ := ret[0].(persist0.IndexSegmentFileSet)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -671,10 +687,10 @@ func (m *MockIndexSegmentFileSetWriter) EXPECT() *MockIndexSegmentFileSetWriterM
 }
 
 // Files mocks base method
-func (m *MockIndexSegmentFileSetWriter) Files() []persist.IndexSegmentFileType {
+func (m *MockIndexSegmentFileSetWriter) Files() []persist0.IndexSegmentFileType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Files")
-	ret0, _ := ret[0].([]persist.IndexSegmentFileType)
+	ret0, _ := ret[0].([]persist0.IndexSegmentFileType)
 	return ret0
 }
 
@@ -727,10 +743,10 @@ func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentMetadata() *gomock.C
 }
 
 // SegmentType mocks base method
-func (m *MockIndexSegmentFileSetWriter) SegmentType() persist.IndexSegmentType {
+func (m *MockIndexSegmentFileSetWriter) SegmentType() persist0.IndexSegmentType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentType")
-	ret0, _ := ret[0].(persist.IndexSegmentType)
+	ret0, _ := ret[0].(persist0.IndexSegmentType)
 	return ret0
 }
 
@@ -741,7 +757,7 @@ func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentType() *gomock.Call 
 }
 
 // WriteFile mocks base method
-func (m *MockIndexSegmentFileSetWriter) WriteFile(arg0 persist.IndexSegmentFileType, arg1 io.Writer) error {
+func (m *MockIndexSegmentFileSetWriter) WriteFile(arg0 persist0.IndexSegmentFileType, arg1 io.Writer) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteFile", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -778,10 +794,10 @@ func (m *MockIndexSegmentFileSet) EXPECT() *MockIndexSegmentFileSetMockRecorder 
 }
 
 // Files mocks base method
-func (m *MockIndexSegmentFileSet) Files() []persist.IndexSegmentFile {
+func (m *MockIndexSegmentFileSet) Files() []persist0.IndexSegmentFile {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Files")
-	ret0, _ := ret[0].([]persist.IndexSegmentFile)
+	ret0, _ := ret[0].([]persist0.IndexSegmentFile)
 	return ret0
 }
 
@@ -834,10 +850,10 @@ func (mr *MockIndexSegmentFileSetMockRecorder) SegmentMetadata() *gomock.Call {
 }
 
 // SegmentType mocks base method
-func (m *MockIndexSegmentFileSet) SegmentType() persist.IndexSegmentType {
+func (m *MockIndexSegmentFileSet) SegmentType() persist0.IndexSegmentType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentType")
-	ret0, _ := ret[0].(persist.IndexSegmentType)
+	ret0, _ := ret[0].(persist0.IndexSegmentType)
 	return ret0
 }
 
@@ -871,10 +887,10 @@ func (m *MockIndexSegmentFile) EXPECT() *MockIndexSegmentFileMockRecorder {
 }
 
 // Files mocks base method
-func (m *MockIndexSegmentFile) Files() []persist.IndexSegmentFile {
+func (m *MockIndexSegmentFile) Files() []persist0.IndexSegmentFile {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Files")
-	ret0, _ := ret[0].([]persist.IndexSegmentFile)
+	ret0, _ := ret[0].([]persist0.IndexSegmentFile)
 	return ret0
 }
 
@@ -927,10 +943,10 @@ func (mr *MockIndexSegmentFileMockRecorder) SegmentMetadata() *gomock.Call {
 }
 
 // SegmentType mocks base method
-func (m *MockIndexSegmentFile) SegmentType() persist.IndexSegmentType {
+func (m *MockIndexSegmentFile) SegmentType() persist0.IndexSegmentType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentType")
-	ret0, _ := ret[0].(persist.IndexSegmentType)
+	ret0, _ := ret[0].(persist0.IndexSegmentType)
 	return ret0
 }
 

@@ -1,5 +1,7 @@
 # Background Repairs (beta)
 
+**Note:** This feature is in beta and only available for use with M3DB when run with the inverted index off. It can be run with the inverted index on however metrics will not be re-indexed if they are repaired so will be invisible to that node for queries.
+
 ## Overview
 
 Background repairs enable M3DB to eventually reach a consistent state such that all nodes have identical view
