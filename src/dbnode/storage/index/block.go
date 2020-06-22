@@ -657,6 +657,7 @@ func (b *block) aggregateWithSpan(
 		iterClosed = false // only once the iterator has been successfully Reset().
 
 		for iter.Next() {
+			fmt.Println("LIM", opts.SeriesLimitExceeded(size), opts.DocsLimitExceeded(docsCount))
 			if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
 				break
 			}
@@ -691,7 +692,8 @@ func (b *block) aggregateWithSpan(
 		}
 	}
 
-	exhaustive := !opts.SeriesLimitExceeded(size) || !opts.DocsLimitExceeded(docsCount)
+	exhaustive := !opts.SeriesLimitExceeded(size) && !opts.DocsLimitExceeded(docsCount)
+	fmt.Println("exhaustive", exhaustive)
 	return exhaustive, nil
 }
 
