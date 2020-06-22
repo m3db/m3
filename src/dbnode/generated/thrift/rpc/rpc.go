@@ -28,7 +28,6 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-
 	"github.com/apache/thrift/lib/go/thrift"
 )
 
