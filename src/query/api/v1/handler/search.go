@@ -117,9 +117,7 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 		if err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
-	}
-
-	if str := r.URL.Query().Get("seriesLimit"); str != "" {
+	} else if str := r.URL.Query().Get("seriesLimit"); str != "" {
 		var err error
 		fetchOpts.SeriesLimit, err = strconv.Atoi(str)
 		if err != nil {
@@ -130,6 +128,14 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 	if str := r.URL.Query().Get("docsLimit"); str != "" {
 		var err error
 		fetchOpts.DocsLimit, err = strconv.Atoi(str)
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+	}
+
+	if str := r.URL.Query().Get("requireExhaustive"); str != "" {
+		var err error
+		fetchOpts.RequireExhaustive, err = strconv.ParseBool(str)
 		if err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
