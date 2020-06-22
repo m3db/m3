@@ -54,7 +54,7 @@ func TestAggResultsInsertInvalid(t *testing.T) {
 	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
-	require.Equal(t, 0, docsCount)
+	require.Equal(t, 1, docsCount)
 
 	require.Equal(t, 0, res.Size())
 	require.Equal(t, 1, res.TotalDocsCount())
@@ -63,7 +63,7 @@ func TestAggResultsInsertInvalid(t *testing.T) {
 	size, docsCount, err = res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
-	require.Equal(t, 0, docsCount)
+	require.Equal(t, 2, docsCount)
 
 	require.Equal(t, 0, res.Size())
 	require.Equal(t, 2, res.TotalDocsCount())
@@ -88,7 +88,7 @@ func TestAggResultsInsertBatchOfTwo(t *testing.T) {
 	size, docsCount, err := res.AddDocuments([]doc.Document{d1, d2})
 	require.NoError(t, err)
 	require.Equal(t, 2, size)
-	require.Equal(t, 1, docsCount)
+	require.Equal(t, 2, docsCount)
 
 	require.Equal(t, 2, res.Size())
 	require.Equal(t, 2, res.TotalDocsCount())
@@ -102,7 +102,7 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
-	require.Equal(t, 0, docsCount)
+	require.Equal(t, 1, docsCount)
 
 	require.Equal(t, 0, res.Size())
 	require.Equal(t, 1, res.TotalDocsCount())
@@ -111,7 +111,7 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 	size, docsCount, err = res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
-	require.Equal(t, 0, docsCount)
+	require.Equal(t, 2, docsCount)
 
 	require.Equal(t, 0, res.Size())
 	require.Equal(t, 2, res.TotalDocsCount())
@@ -120,7 +120,7 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 	size, docsCount, err = res.AddDocuments([]doc.Document{valid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
+	require.Equal(t, 3, docsCount)
 
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 3, res.TotalDocsCount())
@@ -139,7 +139,7 @@ func testAggResultsInsertIdempotency(t *testing.T, res AggregateResults) {
 	size, docsCount, err = res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
+	require.Equal(t, 2, docsCount)
 
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 2, res.TotalDocsCount())
@@ -165,7 +165,7 @@ func TestInvalidAggregateType(t *testing.T) {
 	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
-	require.Equal(t, 0, docsCount)
+	require.Equal(t, 1, docsCount)
 }
 
 func TestAggResultsSameName(t *testing.T) {
@@ -186,7 +186,7 @@ func TestAggResultsSameName(t *testing.T) {
 	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
+	require.Equal(t, 2, docsCount)
 
 	aggVals, ok = rMap.Get(ident.StringID("foo"))
 	require.True(t, ok)
@@ -224,7 +224,7 @@ func TestAggResultsTermOnlySameName(t *testing.T) {
 	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
-	require.Equal(t, 1, docsCount)
+	require.Equal(t, 2, docsCount)
 
 	aggVals, ok = rMap.Get(ident.StringID("foo"))
 	require.True(t, ok)
@@ -358,6 +358,7 @@ func TestAggResultsMergeNameOnly(t *testing.T) {
 			size, docsCount := addMultipleDocuments(t, res)
 
 			require.Equal(t, len(tt.expected), size)
+			require.Equal(t, 6, docsCount)
 
 			ac := res.Map()
 			require.Equal(t, len(tt.expected), ac.Len())
