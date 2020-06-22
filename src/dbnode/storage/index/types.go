@@ -214,7 +214,7 @@ type AggregateResults interface {
 	// i.e. it is not safe to use/modify the idents once this function returns.
 	AddFields(
 		batch []AggregateResultsEntry,
-	) (size int)
+	) (size, docsCount int)
 
 	// Map returns a map from tag name -> possible tag values,
 	// comprising aggregate results.

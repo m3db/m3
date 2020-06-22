@@ -627,6 +627,7 @@ func (b *block) aggregateWithSpan(
 
 	var (
 		size       = results.Size()
+		docsCount  = results.TotalDocsCount()
 		batch      = b.opts.AggregateResultsEntryArrayPool().Get()
 		batchSize  = cap(batch)
 		iterClosed = false // tracking whether we need to free the iterator at the end.
@@ -645,7 +646,7 @@ func (b *block) aggregateWithSpan(
 
 	segs := b.segmentsWithRLock()
 	for _, s := range segs {
-		if opts.SeriesLimitExceeded(size) {
+		if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
 			break
 		}
 
@@ -656,7 +657,7 @@ func (b *block) aggregateWithSpan(
 		iterClosed = false // only once the iterator has been successfully Reset().
 
 		for iter.Next() {
-			if opts.SeriesLimitExceeded(size) {
+			if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
 				break
 			}
 
@@ -666,7 +667,7 @@ func (b *block) aggregateWithSpan(
 				continue
 			}
 
-			batch, size, err = b.addAggregateResults(cancellable, results, batch)
+			batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch)
 			if err != nil {
 				return false, err
 			}
@@ -684,13 +685,13 @@ func (b *block) aggregateWithSpan(
 
 	// Add last batch to results if remaining.
 	if len(batch) > 0 {
-		batch, size, err = b.addAggregateResults(cancellable, results, batch)
+		batch, size, docsCount, err = b.addAggregateResults(cancellable, results, batch)
 		if err != nil {
 			return false, err
 		}
 	}
 
-	exhaustive := !opts.SeriesLimitExceeded(size)
+	exhaustive := !opts.SeriesLimitExceeded(size) || !opts.DocsLimitExceeded(docsCount)
 	return exhaustive, nil
 }
 
@@ -761,21 +762,21 @@ func (b *block) addAggregateResults(
 	cancellable *resource.CancellableLifetime,
 	results AggregateResults,
 	batch []AggregateResultsEntry,
-) ([]AggregateResultsEntry, int, error) {
+) ([]AggregateResultsEntry, int, int, error) {
 	// update recently queried docs to monitor memory.
 	if err := b.queryStats.Update(len(batch)); err != nil {
-		return batch, 0, err
+		return batch, 0, 0, err
 	}
 
 	// checkout the lifetime of the query before adding results.
 	queryValid := cancellable.TryCheckout()
 	if !queryValid {
 		// query not valid any longer, do not add results and return early.
-		return batch, 0, errCancelledQuery
+		return batch, 0, 0, errCancelledQuery
 	}
 
 	// try to add the docs to the resource.
-	size := results.AddFields(batch)
+	size, docsCount := results.AddFields(batch)
 
 	// immediately release the checkout on the lifetime of query.
 	cancellable.ReleaseCheckout()
@@ -788,7 +789,7 @@ func (b *block) addAggregateResults(
 	batch = batch[:0]
 
 	// return results.
-	return batch, size, nil
+	return batch, size, docsCount, nil
 }
 
 func (b *block) AddResults(

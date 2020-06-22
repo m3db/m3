@@ -116,7 +116,7 @@ func (r *aggregatedResults) AggregateResultsOptions() AggregateResultsOptions {
 	return r.aggregateOpts
 }
 
-func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) int {
+func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	r.Lock()
 	for _, entry := range batch {
 		f := entry.Field
@@ -151,8 +151,10 @@ func (r *aggregatedResults) AddFields(batch []AggregateResultsEntry) int {
 		}
 	}
 	size := r.resultsMap.Len()
+	docsCount := r.totalDocsCount + len(batch)
+	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size
+	return size, docsCount
 }
 
 func (r *aggregatedResults) addDocumentsBatchWithLock(
