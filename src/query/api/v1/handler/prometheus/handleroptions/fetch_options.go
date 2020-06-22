@@ -72,7 +72,7 @@ func NewFetchOptionsBuilder(
 }
 
 // ParseLimit parses request limit from either header or query string.
-func ParseLimit(req *http.Request, header string, formValue string, defaultLimit int) (int, error) {
+func ParseLimit(req *http.Request, header, formValue string, defaultLimit int) (int, error) {
 	if str := req.Header.Get(header); str != "" {
 		n, err := strconv.Atoi(str)
 		if err != nil {
