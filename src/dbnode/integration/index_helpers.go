@@ -101,7 +101,7 @@ func (w TestIndexWrites) NumIndexed(t *testing.T, ns ident.ID, s client.Session)
 		iter, _, err := s.FetchTaggedIDs(ns, index.Query{Query: q}, index.QueryOptions{
 			StartInclusive: wi.ts.Add(-1 * time.Second),
 			EndExclusive:   wi.ts.Add(1 * time.Second),
-			Limit:          10})
+			SeriesLimit:    10})
 		if err != nil {
 			continue
 		}
@@ -175,7 +175,7 @@ func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags id
 	iter, _, err := s.FetchTaggedIDs(ns, index.Query{Query: q}, index.QueryOptions{
 		StartInclusive: time.Now(),
 		EndExclusive:   time.Now(),
-		Limit:          10})
+		SeriesLimit:    10})
 	if err != nil {
 		return false
 	}
