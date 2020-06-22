@@ -442,11 +442,12 @@ func (mr *MockAggregateResultsMockRecorder) AggregateResultsOptions() *gomock.Ca
 }
 
 // AddFields mocks base method
-func (m *MockAggregateResults) AddFields(batch []AggregateResultsEntry) int {
+func (m *MockAggregateResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddFields", batch)
 	ret0, _ := ret[0].(int)
-	return ret0
+	ret1, _ := ret[1].(int)
+	return ret0, ret1
 }
 
 // AddFields indicates an expected call of AddFields
