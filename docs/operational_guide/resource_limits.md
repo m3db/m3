@@ -6,14 +6,17 @@ performance of M3 in a production environment.
 
 ## M3DB
 
+### Configuring limits
+
 The best way to get started protecting M3DB nodes is to set a few limits on the
 top level `limits` config stanza for M3DB.
 
-When using M3DB for metrics workloads queries arrive as a set of matchers 
+When using M3DB for metrics workloads, queries arrive as a set of matchers 
 that select time series based on certain dimensions. The primary mechanism to 
 protect against these matchers matching huge amounts of data in an unbounded 
 way is to set a maximum limit for the amount of time series blocks allowed to
-be matched and consequently read in a given time window. This can be done using `maxRecentlyQueriedSeriesBlocks` to set a maximum value and lookback time window 
+be matched and consequently read in a given time window. This can be done using 
+`maxRecentlyQueriedSeriesBlocks` to set a maximum value and lookback time window 
 to determine the duration over which the max limit is enforced.
 
 You can use the Prometheus query `rate(query_stats_total_docs_per_block[1m])` to 
@@ -54,3 +57,77 @@ limits:
   # exhaustion from reads.
   maxOutstandingReadRequests: 0
 ```
+
+## M3 Query and M3 Coordinator
+
+### Deployment
+
+Protecting queries impacting your ingestion of metrics for metrics workloads 
+can first and foremost be done by deploying M3 Query and M3 Coordinator 
+independently. That is, for writes to M3 use a dedicated deployment of 
+M3 Coordinator instances, and then for queries to M3 use a dedicated deployment 
+of M3 Query instances.
+
+This ensures when M3 Query instances become busy and are starved of resources 
+serving an unexpected query load, they will not interrupt the flow of metrics
+being ingested to M3.
+
+### Configuring limits
+
+To protect against individual queries using too many resources, you can specify some
+sane limits in the M3 Query (and consequently M3 Coordinator) configuration 
+file under the top level `limits` config stanza.
+
+There are two types of limits:
+
+- Per query time series limit
+- Per query time series * blocks limit (docs limit)
+
+When either of these limits are hit, you can define the behavior you would like, 
+either to return an error when this limit is hit, or to return a partial result 
+with the response header `M3-Results-Limited` detailing the limit that was hit 
+and a warning included in the response body.
+
+### Annotated configuration
+
+```
+limits:
+  # If set will override default limits set per query.
+  perQuery:
+    # If set limits the number of time series returned for any given 
+    # individual storage node per query, before returning result to query 
+    # service.
+    maxFetchedSeries: 0
+
+    # If set limits the number of index documents matched for any given 
+    # individual storage node per query, before returning result to query 
+    # service.
+    # This equates to the number of time series * number of blocks, so for 
+    # 100 time series matching 4 hours of data for a namespace using a 2 hour 
+    # block size, that would result in matching 200 index documents.
+    maxFetchedDocs: 0
+
+    # If true this results in causing a query error if the query exceeds 
+    # the series or blocks limit for any given individual storage node per query.
+    requireExhaustive: false
+
+    # If set this limits the max number of datapoints allowed to be used by a
+    # given query. This is applied at the query service after the result has 
+    # been returned by a storage node.
+    maxFetchedDatapoints: 0
+
+  # If set will override default limits set globally.
+  global:
+    # If set this limits the max number of datapoints allowed to be used by all
+    # queries at any point in time, this is applied at the query service after 
+    # the result has been returned by a storage node.
+    maxFetchedDatapoints: 0
+```
+
+### Headers
+
+The following headers can also be used to override configured limits on a per request basis (to allow for different limits dependent on caller):
+
+--8<--
+docs/common/headers_optional_read_limits.md
+--8<--
