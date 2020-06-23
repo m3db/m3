@@ -132,7 +132,7 @@ func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time
 func TestEncodeFetchMessage(t *testing.T) {
 	rQ, start, end := createStorageFetchQuery(t)
 	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = 42
+	fetchOpts.SeriesLimit = 42
 	fetchOpts.RestrictQueryOptions = &storage.RestrictQueryOptions{
 		RestrictByType: &storage.RestrictByType{
 			MetricsType:   storagemetadata.AggregatedMetricsType,
@@ -173,7 +173,7 @@ func TestEncodeFetchMessage(t *testing.T) {
 func TestEncodeDecodeFetchQuery(t *testing.T) {
 	rQ, _, _ := createStorageFetchQuery(t)
 	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = 42
+	fetchOpts.SeriesLimit = 42
 	fetchOpts.RestrictQueryOptions = &storage.RestrictQueryOptions{
 		RestrictByType: &storage.RestrictByType{
 			MetricsType:   storagemetadata.AggregatedMetricsType,
@@ -191,7 +191,7 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 	revertedOpts, err := decodeFetchOptions(gq.GetOptions())
 	require.NoError(t, err)
 	require.NotNil(t, revertedOpts)
-	require.Equal(t, fetchOpts.Limit, revertedOpts.Limit)
+	require.Equal(t, fetchOpts.SeriesLimit, revertedOpts.SeriesLimit)
 	require.Equal(t, fetchOpts.RestrictQueryOptions.
 		RestrictByType.MetricsType,
 		revertedOpts.RestrictQueryOptions.RestrictByType.MetricsType)

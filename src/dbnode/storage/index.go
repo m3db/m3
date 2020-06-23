@@ -169,7 +169,8 @@ type nsIndexState struct {
 // under the same nsIndex mutex.
 type nsIndexRuntimeOptions struct {
 	insertMode          index.InsertMode
-	maxQueryLimit       int64
+	maxQuerySeriesLimit int64
+	maxQueryDocsLimit   int64
 	defaultQueryTimeout time.Duration
 }
 
@@ -1119,7 +1120,8 @@ func (i *nsIndex) Query(
 	logFields := []opentracinglog.Field{
 		opentracinglog.String("query", query.String()),
 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
+		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
+		opentracinglog.Int("docsLimit", opts.DocsLimit),
 		xopentracing.Time("queryStart", opts.StartInclusive),
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
@@ -1131,7 +1133,7 @@ func (i *nsIndex) Query(
 	// Get results and set the namespace ID and size limit.
 	results := i.resultsPool.Get()
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
-		SizeLimit: opts.Limit,
+		SizeLimit: opts.SeriesLimit,
 		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
@@ -1154,7 +1156,8 @@ func (i *nsIndex) AggregateQuery(
 	logFields := []opentracinglog.Field{
 		opentracinglog.String("query", query.String()),
 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-		opentracinglog.Int("limit", opts.Limit),
+		opentracinglog.Int("seriesLimit", opts.SeriesLimit),
+		opentracinglog.Int("docsLimit", opts.DocsLimit),
 		xopentracing.Time("queryStart", opts.StartInclusive),
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
@@ -1166,7 +1169,7 @@ func (i *nsIndex) AggregateQuery(
 	// Get results and set the filters, namespace ID and size limit.
 	results := i.aggregateResultsPool.Get()
 	aopts := index.AggregateResultsOptions{
-		SizeLimit:   opts.Limit,
+		SizeLimit:   opts.SeriesLimit,
 		FieldFilter: opts.FieldFilter,
 		Type:        opts.Type,
 	}
@@ -1226,12 +1229,24 @@ func (i *nsIndex) query(
 
 	// If require exhaustive but not, return error.
 	if opts.RequireExhaustive {
-		i.metrics.queryNonExhaustiveLimitError.Inc(1)
+		seriesCount := results.Size()
+		docsCount := results.TotalDocsCount()
+		if opts.SeriesLimitExceeded(seriesCount) {
+			i.metrics.queryNonExhaustiveSeriesLimitError.Inc(1)
+		} else if opts.DocsLimitExceeded(docsCount) {
+			i.metrics.queryNonExhaustiveDocsLimitError.Inc(1)
+		} else {
+			i.metrics.queryNonExhaustiveLimitError.Inc(1)
+		}
+
 		err := fmt.Errorf(
-			"query matched too many time series: require_exhaustive=%v, limit=%d, matched=%d",
+			"query exceeded limit: require_exhaustive=%v, series_limit=%d, series_matched=%d, docs_limit=%d, docs_matched=%d",
 			opts.RequireExhaustive,
-			opts.Limit,
-			results.Size())
+			opts.SeriesLimit,
+			seriesCount,
+			opts.DocsLimit,
+			docsCount,
+		)
 		// NB(r): Make sure error is not retried and returns as bad request.
 		return exhaustive, xerrors.NewInvalidParamsError(err)
 	}
@@ -1308,8 +1323,9 @@ func (i *nsIndex) queryWithSpan(
 		// number of results that we're allowed to return. If thats the case, there
 		// is no value in kicking off more parallel queries, so we break out of
 		// the loop.
-		size := results.Size()
-		alreadyExceededLimit := opts.LimitExceeded(size)
+		seriesCount := results.Size()
+		docsCount := results.TotalDocsCount()
+		alreadyExceededLimit := opts.SeriesLimitExceeded(seriesCount) || opts.DocsLimitExceeded(docsCount)
 		if alreadyExceededLimit {
 			state.Lock()
 			state.exhaustive = false
@@ -1494,13 +1510,20 @@ func (i *nsIndex) timeoutForQueryWithRLock(
 func (i *nsIndex) overriddenOptsForQueryWithRLock(
 	opts index.QueryOptions,
 ) index.QueryOptions {
-	// Override query response limit if needed.
-	if i.state.runtimeOpts.maxQueryLimit > 0 && (opts.Limit == 0 ||
-		int64(opts.Limit) > i.state.runtimeOpts.maxQueryLimit) {
-		i.logger.Debug("overriding query response limit",
-			zap.Int("requested", opts.Limit),
-			zap.Int64("maxAllowed", i.state.runtimeOpts.maxQueryLimit)) // FOLLOWUP(prateek): log query too once it's serializable.
-		opts.Limit = int(i.state.runtimeOpts.maxQueryLimit)
+	// Override query response limits if needed.
+	if i.state.runtimeOpts.maxQuerySeriesLimit > 0 && (opts.SeriesLimit == 0 ||
+		int64(opts.SeriesLimit) > i.state.runtimeOpts.maxQuerySeriesLimit) {
+		i.logger.Debug("overriding query response series limit",
+			zap.Int("requested", opts.SeriesLimit),
+			zap.Int64("maxAllowed", i.state.runtimeOpts.maxQuerySeriesLimit)) // FOLLOWUP(prateek): log query too once it's serializable.
+		opts.SeriesLimit = int(i.state.runtimeOpts.maxQuerySeriesLimit)
+	}
+	if i.state.runtimeOpts.maxQueryDocsLimit > 0 && (opts.DocsLimit == 0 ||
+		int64(opts.DocsLimit) > i.state.runtimeOpts.maxQueryDocsLimit) {
+		i.logger.Debug("overriding query response docs limit",
+			zap.Int("requested", opts.DocsLimit),
+			zap.Int64("maxAllowed", i.state.runtimeOpts.maxQueryDocsLimit)) // FOLLOWUP(prateek): log query too once it's serializable.
+		opts.DocsLimit = int(i.state.runtimeOpts.maxQueryDocsLimit)
 	}
 	return opts
 }
@@ -1872,12 +1895,14 @@ type nsIndexMetrics struct {
 	blocksEvictedMutableSegments tally.Counter
 	blockMetrics                 nsIndexBlocksMetrics
 
-	loadedDocsPerQuery              tally.Histogram
-	queryExhaustiveSuccess          tally.Counter
-	queryExhaustiveInternalError    tally.Counter
-	queryNonExhaustiveSuccess       tally.Counter
-	queryNonExhaustiveInternalError tally.Counter
-	queryNonExhaustiveLimitError    tally.Counter
+	loadedDocsPerQuery                 tally.Histogram
+	queryExhaustiveSuccess             tally.Counter
+	queryExhaustiveInternalError       tally.Counter
+	queryNonExhaustiveSuccess          tally.Counter
+	queryNonExhaustiveInternalError    tally.Counter
+	queryNonExhaustiveLimitError       tally.Counter
+	queryNonExhaustiveSeriesLimitError tally.Counter
+	queryNonExhaustiveDocsLimitError   tally.Counter
 }
 
 func newNamespaceIndexMetrics(
@@ -1946,6 +1971,14 @@ func newNamespaceIndexMetrics(
 		queryNonExhaustiveLimitError: scope.Tagged(map[string]string{
 			"exhaustive": "false",
 			"result":     "error_require_exhaustive",
+		}).Counter("query"),
+		queryNonExhaustiveSeriesLimitError: scope.Tagged(map[string]string{
+			"exhaustive": "false",
+			"result":     "error_series_require_exhaustive",
+		}).Counter("query"),
+		queryNonExhaustiveDocsLimitError: scope.Tagged(map[string]string{
+			"exhaustive": "false",
+			"result":     "error_docs_require_exhaustive",
 		}).Counter("query"),
 	}
 }

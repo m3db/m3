@@ -565,7 +565,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	ctx := context.NewContext()
 
 	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
+		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -619,7 +619,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 	ctx.BlockingClose()
 }
 
-func TestBlockMockQueryLimit(t *testing.T) {
+func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -652,7 +652,7 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	ctx := context.NewContext()
 
 	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
+		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -668,7 +668,7 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	ctx.BlockingClose()
 }
 
-func TestBlockMockQueryLimitExhaustive(t *testing.T) {
+func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -702,7 +702,107 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 	ctx := context.NewContext()
 
 	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
+		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
+	require.NoError(t, err)
+	require.True(t, exhaustive)
+
+	rMap := results.Map()
+	require.Equal(t, 1, rMap.Len())
+	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
+	require.True(t, ok)
+	require.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
+}
+
+func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	exec := search.NewMockExecutor(ctrl)
+	b.newExecutorFn = func() (search.Executor, error) {
+		return exec, nil
+	}
+
+	dIter := doc.NewMockIterator(ctrl)
+	gomock.InOrder(
+		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Current().Return(testDoc1()),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Err().Return(nil),
+		dIter.EXPECT().Close().Return(nil),
+		exec.EXPECT().Close().Return(nil),
+	)
+	docsLimit := 1
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
+	require.NoError(t, err)
+	require.False(t, exhaustive)
+
+	require.Equal(t, 1, results.Map().Len())
+	t1, ok := results.Map().Get(ident.StringID(string(testDoc1().ID)))
+	require.True(t, ok)
+	require.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
+}
+
+func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	exec := search.NewMockExecutor(ctrl)
+	b.newExecutorFn = func() (search.Executor, error) {
+		return exec, nil
+	}
+
+	dIter := doc.NewMockIterator(ctrl)
+	gomock.InOrder(
+		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Current().Return(testDoc1()),
+		dIter.EXPECT().Next().Return(false),
+		dIter.EXPECT().Err().Return(nil),
+		dIter.EXPECT().Close().Return(nil),
+		exec.EXPECT().Close().Return(nil),
+	)
+	docsLimit := 2
+	results := NewQueryResults(nil,
+		QueryResultsOptions{}, testOpts)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -740,7 +840,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	_, err = results.AddDocuments([]doc.Document{testDoc1()})
+	_, _, err = results.AddDocuments([]doc.Document{testDoc1()})
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)
@@ -755,7 +855,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	ctx := context.NewContext()
 
 	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
-		defaultQuery, QueryOptions{Limit: limit}, results, emptyLogFields)
+		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -790,7 +890,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	}
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = results.AddDocuments([]doc.Document{testDoc1()})
+	_, _, err = results.AddDocuments([]doc.Document{testDoc1()})
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)
@@ -1323,7 +1423,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
 	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{Limit: limit}, results, emptyLogFields)
+		Query{q}, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 	require.Equal(t, 1, results.Size())
@@ -1666,7 +1766,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 		iter.EXPECT().Err().Return(fmt.Errorf("unknown error")),
 		iter.EXPECT().Close().Return(nil),
 	)
-	_, err = b.Aggregate(context.NewContext(), resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results, emptyLogFields)
+	_, err = b.Aggregate(context.NewContext(), resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 3}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1716,7 +1816,7 @@ func TestBlockAggregate(t *testing.T) {
 		iter.EXPECT().Err().Return(nil),
 		iter.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results, emptyLogFields)
+	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 3}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -1781,7 +1881,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 		iter.EXPECT().Err().Return(nil),
 		iter.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 1}, results, emptyLogFields)
+	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 1}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -1866,7 +1966,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results, emptyLogFields)
+	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 10}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{
@@ -1879,7 +1979,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		Type:        AggregateTagNamesAndValues,
 		FieldFilter: AggregateFieldFilter{[]byte("bar")},
 	}, testOpts)
-	exhaustive, err = b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results, emptyLogFields)
+	exhaustive, err = b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 10}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{
@@ -1891,7 +1991,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		Type:        AggregateTagNamesAndValues,
 		FieldFilter: AggregateFieldFilter{[]byte("random")},
 	}, testOpts)
-	exhaustive, err = b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results, emptyLogFields)
+	exhaustive, err = b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 10}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{}, results)

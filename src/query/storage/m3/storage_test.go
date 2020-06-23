@@ -328,7 +328,7 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 
 func buildFetchOpts() *storage.FetchOptions {
 	opts := storage.NewFetchOptions()
-	opts.Limit = 100
+	opts.SeriesLimit = 100
 	return opts
 }
 

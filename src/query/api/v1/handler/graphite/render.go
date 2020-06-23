@@ -98,7 +98,7 @@ func (h *renderHandler) serveHTTP(
 		return respError{err: err, code: http.StatusBadRequest}
 	}
 
-	limit, err := handleroptions.ParseLimit(r, h.queryContextOpts.LimitMaxTimeseries)
+	limit, err := handleroptions.ParseLimit(r, handleroptions.LimitMaxSeriesHeader, "limit", h.queryContextOpts.LimitMaxTimeseries)
 	if err != nil {
 		return respError{err: err, code: http.StatusBadRequest}
 	}

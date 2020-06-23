@@ -155,7 +155,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
-				Limit: test.defaultLimit,
+				SeriesLimit: test.defaultLimit,
 			})
 
 			url := "/foo"
@@ -171,7 +171,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 
 			if !test.expectedErr {
 				require.NoError(t, err)
-				require.Equal(t, test.expectedLimit, opts.Limit)
+				require.Equal(t, test.expectedLimit, opts.SeriesLimit)
 				if test.expectedRestrict == nil {
 					require.Nil(t, opts.RestrictQueryOptions)
 				} else {
@@ -297,7 +297,7 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 		}`,
 	}
 
-	builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{Limit: 5})
+	builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{SeriesLimit: 5})
 	req := httptest.NewRequest("GET", "/", nil)
 	for k, v := range headers {
 		req.Header.Add(k, v)

@@ -39,9 +39,9 @@ import (
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
-	"github.com/m3db/m3/src/x/ident" 
-	xtest "github.com/m3db/m3/src/x/test" 
-	xhttp "github.com/m3db/m3/src/x/net/http" 
+	"github.com/m3db/m3/src/x/ident"
+	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -115,7 +115,7 @@ func TestSearchResponse(t *testing.T) {
 	searchHandler := searchServer(t)
 
 	opts := storage.NewFetchOptions()
-	opts.Limit = 100
+	opts.SeriesLimit = 100
 	results, err := searchHandler.search(context.TODO(), generateSearchReq(), opts)
 	require.NoError(t, err)
 

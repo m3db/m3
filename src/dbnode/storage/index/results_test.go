@@ -56,9 +56,10 @@ func optionsWithDocsArrayPool(opts Options, size, capacity int) Options {
 func TestResultsInsertInvalid(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dInvalid := doc.Document{ID: nil}
-	size, err := res.AddDocuments([]doc.Document{dInvalid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
+	require.Equal(t, 1, docsCount)
 
 	require.Equal(t, 0, res.Size())
 	require.Equal(t, 1, res.TotalDocsCount())
@@ -67,16 +68,18 @@ func TestResultsInsertInvalid(t *testing.T) {
 func TestResultsInsertIdempotency(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc")}
-	size, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 1, res.TotalDocsCount())
 
-	size, err = res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err = res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 2, docsCount)
 
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 2, res.TotalDocsCount())
@@ -86,9 +89,10 @@ func TestResultsInsertBatchOfTwo(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("d1")}
 	d2 := doc.Document{ID: []byte("d2")}
-	size, err := res.AddDocuments([]doc.Document{d1, d2})
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1, d2})
 	require.NoError(t, err)
 	require.Equal(t, 2, size)
+	require.Equal(t, 2, docsCount)
 
 	require.Equal(t, 2, res.Size())
 	require.Equal(t, 2, res.TotalDocsCount())
@@ -97,9 +101,10 @@ func TestResultsInsertBatchOfTwo(t *testing.T) {
 func TestResultsFirstInsertWins(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
-	size, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 1, res.TotalDocsCount())
@@ -112,9 +117,10 @@ func TestResultsFirstInsertWins(t *testing.T) {
 		Fields: doc.Fields{
 			doc.Field{Name: []byte("foo"), Value: []byte("bar")},
 		}}
-	size, err = res.AddDocuments([]doc.Document{d2})
+	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 2, docsCount)
 
 	require.Equal(t, 1, res.Size())
 	require.Equal(t, 2, res.TotalDocsCount())
@@ -127,9 +133,10 @@ func TestResultsFirstInsertWins(t *testing.T) {
 func TestResultsInsertContains(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc")}
-	size, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
@@ -141,9 +148,10 @@ func TestResultsInsertDoesNotCopy(t *testing.T) {
 	dValid := doc.Document{ID: []byte("abc"), Fields: []doc.Field{
 		{Name: []byte("name"), Value: []byte("value")},
 	}}
-	size, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	found := false
 
@@ -185,9 +193,10 @@ func TestResultsInsertDoesNotCopy(t *testing.T) {
 func TestResultsReset(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
-	size, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
@@ -218,9 +227,10 @@ func TestFinalize(t *testing.T) {
 	// Create a Results and insert some data.
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
-	size, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	// Ensure the data is present.
 	tags, ok := res.Map().Get(ident.StringID("abc"))

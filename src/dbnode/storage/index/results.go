@@ -99,13 +99,14 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 
 // NB: If documents with duplicate IDs are added, they are simply ignored and
 // the first document added with an ID is returned.
-func (r *results) AddDocuments(batch []doc.Document) (int, error) {
+func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
-	r.totalDocsCount += len(batch)
+	docsCount := r.totalDocsCount + len(batch)
+	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size, err
+	return size, docsCount, err
 }
 
 func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {

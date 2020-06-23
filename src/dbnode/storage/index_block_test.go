@@ -655,6 +655,168 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	}
 }
 
+func TestLimits(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	retention := 2 * time.Hour
+	blockSize := time.Hour
+	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
+	t0 := now.Truncate(blockSize)
+	t0Nanos := xtime.ToUnixNano(t0)
+	t1 := t0.Add(1 * blockSize)
+	var nowLock sync.Mutex
+	nowFn := func() time.Time {
+		nowLock.Lock()
+		defer nowLock.Unlock()
+		return now
+	}
+	opts := DefaultTestOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+
+	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b0.EXPECT().Close().Return(nil).AnyTimes()
+	b0.EXPECT().StartTime().Return(t0).AnyTimes()
+	b0.EXPECT().EndTime().Return(t0.Add(blockSize)).AnyTimes()
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		io index.Options,
+	) (index.Block, error) {
+		if ts.Equal(t0) {
+			return b0, nil
+		}
+		panic("should never get here")
+	}
+	md := testNamespaceMetadata(blockSize, retention)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
+
+	seg1 := segment.NewMockSegment(ctrl)
+	t0Results := result.NewIndexBlockByVolumeType(t0)
+	t0Results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(t0, t1, 1, 2, 3)))
+	bootstrapResults := result.IndexResults{
+		t0Nanos: t0Results,
+	}
+
+	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
+	require.NoError(t, idx.Bootstrap(bootstrapResults))
+
+	for _, test := range []struct {
+		name              string
+		seriesLimit       int
+		docsLimit         int
+		requireExhaustive bool
+		expectedErr       string
+	}{
+		{
+			name:              "no limits",
+			seriesLimit:       0,
+			docsLimit:         0,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "series limit only",
+			seriesLimit:       1,
+			docsLimit:         0,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "docs limit only",
+			seriesLimit:       0,
+			docsLimit:         1,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "both series and docs limit",
+			seriesLimit:       1,
+			docsLimit:         1,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
+			name:              "no limits",
+			seriesLimit:       0,
+			docsLimit:         0,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=0, docs_matched=2",
+		},
+		{
+			name:              "series limit only",
+			seriesLimit:       1,
+			docsLimit:         0,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=0, docs_matched=2",
+		},
+		{
+			name:              "docs limit only",
+			seriesLimit:       0,
+			docsLimit:         1,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
+		},
+		{
+			name:              "both series and docs limit",
+			seriesLimit:       1,
+			docsLimit:         1,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=1, docs_matched=2",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// only queries as much as is needed (wrt to time)
+			ctx := context.NewContext()
+			q := defaultQuery
+			qOpts := index.QueryOptions{
+				StartInclusive:    t0,
+				EndExclusive:      t1.Add(time.Minute),
+				SeriesLimit:       test.seriesLimit,
+				DocsLimit:         test.docsLimit,
+				RequireExhaustive: test.requireExhaustive,
+			}
+
+			// create initial span from a mock tracer and get ctx
+			mtr := mocktracer.New()
+			sp := mtr.StartSpan("root")
+			ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+			b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context,
+					cancellable interface{},
+					query interface{},
+					opts interface{},
+					results index.BaseResults,
+					logFields interface{}) (bool, error) {
+					results.AddDocuments([]doc.Document{
+						// Results in size=1 and docs=2.
+						doc.Document{ID: []byte("A")},
+						doc.Document{ID: []byte("A")},
+					})
+					return false, nil
+				})
+
+			result, err := idx.Query(ctx, q, qOpts)
+			require.False(t, result.Exhaustive)
+			if test.requireExhaustive {
+				require.Error(t, err)
+				require.Equal(t, test.expectedErr, err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()

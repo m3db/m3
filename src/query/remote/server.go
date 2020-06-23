@@ -124,9 +124,14 @@ func (s *grpcServer) Fetch(
 	}
 
 	fetchOpts.Remote = true
-	if fetchOpts.Limit == 0 {
+	if fetchOpts.SeriesLimit == 0 {
 		// Allow default to be set if not explicitly passed.
-		fetchOpts.Limit = s.queryContextOpts.LimitMaxTimeseries
+		fetchOpts.SeriesLimit = s.queryContextOpts.LimitMaxTimeseries
+	}
+
+	if fetchOpts.DocsLimit == 0 {
+		// Allow default to be set if not explicitly passed.
+		fetchOpts.DocsLimit = s.queryContextOpts.LimitMaxDocs
 	}
 
 	result, cleanup, err := s.querier.FetchCompressed(ctx, storeQuery, fetchOpts)

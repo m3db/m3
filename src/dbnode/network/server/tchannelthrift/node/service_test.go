@@ -303,7 +303,7 @@ func TestServiceQuery(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	limit := int64(10)
@@ -495,7 +495,7 @@ func TestServiceQueryUnknownErr(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{}, unknownErr)
 
 	limit := int64(10)
@@ -1596,7 +1596,7 @@ func TestServiceFetchTagged(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
@@ -1792,7 +1792,7 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
@@ -1865,7 +1865,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{}, fmt.Errorf("random err"))
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
 		NameSpace:  []byte(nsID),
@@ -1915,7 +1915,7 @@ func TestServiceAggregate(t *testing.T) {
 			QueryOptions: index.QueryOptions{
 				StartInclusive: start,
 				EndExclusive:   end,
-				Limit:          10,
+				SeriesLimit:    10,
 			},
 			FieldFilter: index.AggregateFieldFilter{
 				[]byte("foo"), []byte("bar"),
@@ -1998,7 +1998,7 @@ func TestServiceAggregateNameOnly(t *testing.T) {
 			QueryOptions: index.QueryOptions{
 				StartInclusive: start,
 				EndExclusive:   end,
-				Limit:          10,
+				SeriesLimit:    10,
 			},
 			FieldFilter: index.AggregateFieldFilter{
 				[]byte("foo"), []byte("bar"),
