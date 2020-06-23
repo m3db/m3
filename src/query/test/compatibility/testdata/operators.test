@@ -198,11 +198,11 @@ eval instant at 50m (http_requests{group="canary"} + 1) and ignoring(group, job)
 #	http_requests{group="canary", instance="1", job="api-server"} 400
 #	http_requests{group="canary", instance="1", job="app-server"} 800
 
-# FAILING issue #36. eval instant at 50m http_requests{group="canary"} / on(instance,job) http_requests{group="production"}
-#	{instance="0", job="api-server"} 3
-#	{instance="0", job="app-server"} 1.4
-#	{instance="1", job="api-server"} 2
-#	{instance="1", job="app-server"} 1.3333333333333333
+eval instant at 50m http_requests{group="canary"} / on(instance,job) http_requests{group="production"}
+	{instance="0", job="api-server"} 3
+	{instance="0", job="app-server"} 1.4
+	{instance="1", job="api-server"} 2
+	{instance="1", job="app-server"} 1.3333333333333333
 
 # FAILING issue #35. eval instant at 50m http_requests{group="canary"} unless ignoring(group, instance) http_requests{instance="0"}
 
