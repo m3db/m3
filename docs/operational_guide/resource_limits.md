@@ -65,7 +65,7 @@ limits:
 Protecting queries impacting your ingestion of metrics for metrics workloads 
 can first and foremost be done by deploying M3 Query and M3 Coordinator 
 independently. That is, for writes to M3 use a dedicated deployment of 
-M3 Coordinator instances, and then for queries to m3 use a dedicated deployment 
+M3 Coordinator instances, and then for queries to M3 use a dedicated deployment 
 of M3 Query instances.
 
 This ensures when M3 Query instances become busy and are starved of resources 
@@ -74,7 +74,7 @@ being ingested to M3.
 
 ### Configuring limits
 
-To protect individual queries using too many resources, you can specify some
+To protect against individual queries using too many resources, you can specify some
 sane limits in the M3 Query (and consequently M3 Coordinator) configuration 
 file under the top level `limits` config stanza.
 
@@ -104,15 +104,15 @@ limits:
     # service.
     # This equates to the number of time series * number of blocks, so for 
     # 100 time series matching 4 hours of data for a namespace using a 2 hour 
-    # block size, that would result in matching 400 index documents.
+    # block size, that would result in matching 200 index documents.
     maxFetchedDocs: 0
 
     # If true this results in causing a query error if the query exceeds 
-    # the series limit for any given individual storage node per query.
+    # the series or blocks limit for any given individual storage node per query.
     requireExhaustive: false
 
     # If set this limits the max number of datapoints allowed to be used by a
-    # given query, this is applied at the query service after the result has 
+    # given query. This is applied at the query service after the result has 
     # been returned by a storage node.
     maxFetchedDatapoints: 0
 
@@ -126,7 +126,7 @@ limits:
 
 ### Headers
 
-The following headers can also be used to override configured limits on a per request basis (to allow for different limits dependendent on caller):
+The following headers can also be used to override configured limits on a per request basis (to allow for different limits dependent on caller):
 
 --8<--
 docs/common/headers_optional_read_limits.md
