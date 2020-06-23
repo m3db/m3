@@ -65,7 +65,7 @@ limits:
 Protecting queries impacting your ingestion of metrics for metrics workloads 
 can first and foremost be done by deploying M3 Query and M3 Coordinator 
 independently. That is, for writes to M3 use a dedicated deployment of 
-M3 Coordinator instances, and then for queries to m3 use a dedicated deployment 
+M3 Coordinator instances, and then for queries to M3 use a dedicated deployment 
 of M3 Query instances.
 
 This ensures when M3 Query instances become busy and are starved of resources 
@@ -74,7 +74,7 @@ being ingested to M3.
 
 ### Configuring limits
 
-To protect individual queries using too many resources, you can specify some
+To protect against individual queries using too many resources, you can specify some
 sane limits in the M3 Query (and consequently M3 Coordinator) configuration 
 file under the top level `limits` config stanza.
 
