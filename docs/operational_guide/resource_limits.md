@@ -108,7 +108,7 @@ limits:
     maxFetchedDocs: 0
 
     # If true this results in causing a query error if the query exceeds 
-    # the series limit for any given individual storage node per query.
+    # the series or blocks limit for any given individual storage node per query.
     requireExhaustive: false
 
     # If set this limits the max number of datapoints allowed to be used by a
