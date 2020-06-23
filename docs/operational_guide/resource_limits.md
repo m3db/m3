@@ -104,7 +104,7 @@ limits:
     # service.
     # This equates to the number of time series * number of blocks, so for 
     # 100 time series matching 4 hours of data for a namespace using a 2 hour 
-    # block size, that would result in matching 400 index documents.
+    # block size, that would result in matching 200 index documents.
     maxFetchedDocs: 0
 
     # If true this results in causing a query error if the query exceeds 
@@ -112,7 +112,7 @@ limits:
     requireExhaustive: false
 
     # If set this limits the max number of datapoints allowed to be used by a
-    # given query, this is applied at the query service after the result has 
+    # given query. This is applied at the query service after the result has 
     # been returned by a storage node.
     maxFetchedDatapoints: 0
 
@@ -126,7 +126,7 @@ limits:
 
 ### Headers
 
-The following headers can also be used to override configured limits on a per request basis (to allow for different limits dependendent on caller):
+The following headers can also be used to override configured limits on a per request basis (to allow for different limits dependent on caller):
 
 --8<--
 docs/common/headers_optional_read_limits.md
