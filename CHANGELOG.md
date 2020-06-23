@@ -1,5 +1,20 @@
 # Changelog
 
+# 0.15.3
+
+## Features
+
+- **M3DB**: Ability to set per-query block limit ([#2415](https://github.com/m3db/m3/pull/2415)) 
+- **M3DB**: Ability to set global per-second query limit ([#2405](https://github.com/m3db/m3/pull/2405))
+
+## Bug Fixes
+
+- **M3DB**: Fix duplicate ID insertions causing transient error when flushing index block ([#2411](https://github.com/m3db/m3/pull/2411))
+- **M3Coordinator**: Mapping rules with drop policies now correctly apply to unaggregated metrics ([#2262](https://github.com/m3db/m3/pull/2262))
+- **M3Query**: Fix incorrect starting boundaries on some temporal queries ([#2413](https://github.com/m3db/m3/pull/2413))
+- **M3Query**: Fix bug in one to one matching in binary functions ([#2417](https://github.com/m3db/m3/pull/2417))
+- **M3DB**: Fix to edge case index data consistency on flush ([#2399](https://github.com/m3db/m3/pull/2399)) 
+
 # 0.15.2
 
 ## Bug Fixes
