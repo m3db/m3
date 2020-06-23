@@ -4,7 +4,8 @@
 
 ## Features
 
-- **M3DB**: Mechanism for setting document limit [#2415 with relevant metrics ([#2405](https://github.com/m3db/m3/pull/2405))
+- **M3DB**: Ability to set per-query block limit ([#2415](https://github.com/m3db/m3/pull/2415)) 
+- **M3DB**: Ability to set global per-second query limit ([#2405](https://github.com/m3db/m3/pull/2405))
 
 ## Bug Fixes
 
