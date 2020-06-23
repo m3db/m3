@@ -18,31 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package parser
 
 import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const sep rune = '!'
 const tagSep rune = '.'
 
-type iteratorOptions struct {
-	encoderPool   encoding.EncoderPool
-	iteratorPools encoding.IteratorPools
-	tagOptions    models.TagOptions
-	iOpts         instrument.Options
+// Data is a set of datapoints.
+type Data []ts.Datapoint
+
+// IngestSeries is a series that can be ingested by the parser.
+type IngestSeries struct {
+	Datapoints []Data
+	Tags       Tags
 }
 
 var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
@@ -50,12 +51,12 @@ var iterAlloc = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterat
 }
 
 func buildBlockReader(
-	block seriesBlock,
+	block Data,
 	start time.Time,
 	blockSize time.Duration,
-	opts iteratorOptions,
+	opts Options,
 ) ([]xio.BlockReader, error) {
-	encoder := opts.encoderPool.Get()
+	encoder := opts.EncoderPool.Get()
 	encoder.Reset(time.Now(), len(block), nil)
 	for _, dp := range block {
 		err := encoder.Encode(dp, xtime.Second, nil)
@@ -76,7 +77,7 @@ func buildBlockReader(
 }
 
 func buildTagIteratorAndID(
-	parsedTags parser.Tags,
+	parsedTags Tags,
 	opts models.TagOptions,
 ) (ident.TagIterator, ident.ID) {
 	var (
@@ -100,19 +101,19 @@ func buildTagIteratorAndID(
 }
 
 func buildSeriesIterator(
-	series series,
+	series IngestSeries,
 	start time.Time,
 	blockSize time.Duration,
-	opts iteratorOptions,
+	opts Options,
 ) (encoding.SeriesIterator, error) {
 	var (
-		blocks  = series.blocks
-		tags    = series.tags
-		readers = make([][]xio.BlockReader, 0, len(blocks))
+		points  = series.Datapoints
+		tags    = series.Tags
+		readers = make([][]xio.BlockReader, 0, len(points))
 	)
 
 	blockStart := start
-	for _, block := range blocks {
+	for _, block := range points {
 		seriesBlock, err := buildBlockReader(block, blockStart, blockSize, opts)
 		if err != nil {
 			return nil, err
@@ -124,19 +125,19 @@ func buildSeriesIterator(
 
 	multiReader := encoding.NewMultiReaderIterator(
 		iterAlloc,
-		opts.iteratorPools.MultiReaderIterator(),
+		opts.IteratorPools.MultiReaderIterator(),
 	)
 
 	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
 	multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
 
 	end := start.Add(blockSize)
-	if len(blocks) > 0 {
-		lastBlock := blocks[len(blocks)-1]
+	if len(points) > 0 {
+		lastBlock := points[len(points)-1]
 		end = lastBlock[len(lastBlock)-1].Timestamp
 	}
 
-	tagIter, id := buildTagIteratorAndID(tags, opts.tagOptions)
+	tagIter, id := buildTagIteratorAndID(tags, opts.TagOptions)
 	return encoding.NewSeriesIterator(
 		encoding.SeriesIteratorOptions{
 			ID:             id,
@@ -150,11 +151,12 @@ func buildSeriesIterator(
 		}, nil), nil
 }
 
-func buildSeriesIterators(
-	series []series,
+// BuildSeriesIterators builds series iterators from parser data.
+func BuildSeriesIterators(
+	series []IngestSeries,
 	start time.Time,
 	blockSize time.Duration,
-	opts iteratorOptions,
+	opts Options,
 ) (encoding.SeriesIterators, error) {
 	iters := make([]encoding.SeriesIterator, 0, len(series))
 	for _, s := range series {
@@ -168,6 +170,6 @@ func buildSeriesIterators(
 
 	return encoding.NewSeriesIterators(
 		iters,
-		opts.iteratorPools.MutableSeriesIterators(),
+		opts.IteratorPools.MutableSeriesIterators(),
 	), nil
 }

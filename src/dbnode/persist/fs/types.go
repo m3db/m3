@@ -92,6 +92,9 @@ type DataFileSetWriter interface {
 	// WriteAll will write the id and all byte slices and returns an error on a write error.
 	// Callers must not call this method with a given ID more than once.
 	WriteAll(id ident.ID, tags ident.Tags, data []checked.Bytes, checksum uint32) error
+
+	// DeferClose returns a DataCloser that defers writing of a checkpoint file.
+	DeferClose() (persist.DataCloser, error)
 }
 
 // SnapshotMetadataFileWriter writes out snapshot metadata files.
@@ -557,7 +560,7 @@ type Merger interface {
 		flushPreparer persist.FlushPreparer,
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
-	) error
+	) (persist.DataCloser, error)
 }
 
 // NewMergerFn is the function to call to get a new Merger.

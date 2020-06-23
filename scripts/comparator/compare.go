@@ -121,6 +121,10 @@ func main() {
 				log,
 			); err != nil {
 				multiErr = multiErr.Add(err)
+				log.Error("query group encountered failure",
+					zap.String("group", queryGroup.QueryGroup),
+					zap.Int("run", i+1),
+					zap.Error(err))
 			}
 		}
 	}

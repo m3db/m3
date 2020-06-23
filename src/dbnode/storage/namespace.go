@@ -1168,11 +1168,11 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 		return nil
 	}
 
-	multiErr := xerrors.NewMultiError()
 	shards := n.OwnedShards()
 
 	resources, err := newColdFlushReuseableResources(n.opts)
 	if err != nil {
+		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
 
@@ -1187,36 +1187,47 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	if n.reverseIndex != nil {
 		onColdFlushDone, err = n.reverseIndex.ColdFlush(shards)
 		if err != nil {
+			n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 			return err
 		}
 	}
 
 	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
 	if err != nil {
+		n.metrics.flushColdData.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
 
+	// NB(bodu): Deferred shard cold flushes so that we can ensure that cold flush index data is
+	// persisted before persisting TSDB data to ensure crash consistency.
+	multiErr := xerrors.NewMultiError()
+	shardColdFlushes := make([]ShardColdFlush, 0, len(shards))
 	for _, shard := range shards {
-		err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
+		shardColdFlush, err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
-			// Continue with remaining shards.
+			continue
+		}
+		shardColdFlushes = append(shardColdFlushes, shardColdFlush)
+	}
+
+	// We go through this error checking process to allow for partially successful flushes.
+	indexColdFlushError := onColdFlushNs.Done()
+	if indexColdFlushError == nil && onColdFlushDone != nil {
+		// Only evict rotated cold mutable index segments if the index cold flush was sucessful
+		// or we will lose queryability of data that's still in mem.
+		indexColdFlushError = onColdFlushDone()
+	}
+	if indexColdFlushError == nil {
+		// NB(bodu): We only want to complete data cold flushes if the index cold flush
+		// is successful. If index cold flush is successful, we want to attempt writing
+		// of checkpoint files to complete the cold data flush lifecycle for successful shards.
+		for _, shardColdFlush := range shardColdFlushes {
+			multiErr = multiErr.Add(shardColdFlush.Done())
 		}
 	}
-
-	if err := onColdFlushNs.Done(); err != nil {
-		multiErr = multiErr.Add(err)
-	}
-	if onColdFlushDone != nil {
-		multiErr = multiErr.Add(onColdFlushDone())
-	}
-
-	// TODO: Don't write checkpoints for shards until this time,
-	// otherwise it's possible to cold flush data but then not
-	// have the OnColdFlush processor actually successfully finish.
-	// Should only lay down files once onColdFlush.ColdFlushDone()
-	// finishes without an error.
+	multiErr = multiErr.Add(indexColdFlushError)
 
 	res := multiErr.FinalError()
 	n.metrics.flushColdData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))

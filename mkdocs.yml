@@ -72,22 +72,22 @@ pages:
       - "Commit Logs": "m3db/architecture/commitlogs.md"
       - "Peer Streaming": "m3db/architecture/peer_streaming.md"
       - "Caching": "m3db/architecture/caching.md"
-  - "Coordinator":
-    - "Introduction": "coordinator/index.md"
+  - "M3 Coordinator":
+    - "Introduction": "m3coordinator/index.md"
     - "API":
-      - "Prometheus Remote Write/Read": "coordinator/api/remote.md"
-  - "Query Engine":
-    - "Introduction": "query_engine/index.md"
+      - "Prometheus Remote Write/Read": "m3coordinator/api/remote.md"
+  - "M3 Query":
+    - "Introduction": "m3query/index.md"
     - "Configuration":
-      - "Query Engine": "query_engine/config/index.md"
-      - "Annotated Config File": "query_engine/config/annotated_config.md"
+      - "Query Engine": "m3query/config/index.md"
+      - "Annotated Config File": "m3query/config/annotated_config.md"
     - "API":
-      - "Query": "query_engine/api/index.md"
+      - "Query": "m3query/api/index.md"
     - "Architecture":
-      - "Overview": "query_engine/architecture/index.md"
-      - "Blocks": "query_engine/architecture/blocks.md"
-      - "Query Fanout": "query_engine/architecture/fanout.md"
-      - "Function Processing": "query_engine/architecture/functions.md"
+      - "Overview": "m3query/architecture/index.md"
+      - "Blocks": "m3query/architecture/blocks.md"
+      - "Query Fanout": "m3query/architecture/fanout.md"
+      - "Function Processing": "m3query/architecture/functions.md"
   - "How-To's":
     - "M3DB Single Node Deployment": "how_to/single_node.md"
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
@@ -97,8 +97,9 @@ pages:
   - "Operational Guides":
     - "Overview": "operational_guide/index.md"
     - "Replication and Deployment in Zones": "operational_guide/replication_and_deployment_in_zones.md"
-    - "Replication Between Clusters": "operational_guide/replication_between_clusters.md"
-    - "Repairs": "operational_guide/repairs.md"
+    - "Monitoring": "operational_guide/monitoring.md"
+    - "Upgrading M3": "operational_guide/upgrading_m3.md"
+    - "Resource Limits and Preventing Abusive Reads/Writes": "operational_guide/resource_limits.md"
     - "Tuning Availability, Consistency, and Durability": "operational_guide/availability_consistency_durability.md"
     - "Placement/Topology": "operational_guide/placement.md"
     - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"
@@ -106,9 +107,10 @@ pages:
     - "Bootstrapping & Crash Recovery": "operational_guide/bootstrapping_crash_recovery.md"
     - "Docker & Kernel Configuration": "operational_guide/kernel_configuration.md"
     - "etcd": "operational_guide/etcd.md"
-    - "Monitoring": "operational_guide/monitoring.md"
     - "Configuring Mapping & Rollup Rules": "operational_guide/mapping_rollup.md"
     - "Upgrading M3": "operational_guide/upgrading_m3.md"
+    - "Repairs": "operational_guide/repairs.md"
+    - "Replication Between Clusters": "operational_guide/replication_between_clusters.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"

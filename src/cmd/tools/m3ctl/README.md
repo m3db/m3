@@ -78,5 +78,5 @@ See the examples directories below.
 
 # References
 
- * [Operational guide](https://m3db.github.io/m3/operational_guide) 
+ * [Operational guide](https://docs.m3db.io/operational_guide) 
  * [API docs](https://www.m3db.io/openapi/)

@@ -35,7 +35,7 @@
 
 // This code was taken from prometheus repo: https://github.com/prometheus/prometheus/blob/master/promql/promql_test.go
 
-package test
+package compatibility
 
 import (
 	"path/filepath"

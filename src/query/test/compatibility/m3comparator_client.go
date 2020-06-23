@@ -18,41 +18,57 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package stats
+package compatibility
 
 import (
-	"testing"
-
-	"github.com/m3db/m3/src/x/instrument"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 )
 
-func TestEmitQueryStatsBasedMetrics(t *testing.T) {
-	scope := tally.NewTestScope("", nil)
-	opts := instrument.NewOptions().SetMetricsScope(scope)
-
-	tracker := DefaultQueryStatsTrackerForMetrics(opts)
-
-	err := tracker.TrackStats(QueryStatsValues{RecentDocs: 100, NewDocs: 5})
-	require.NoError(t, err)
-	verifyMetrics(t, scope, 100, 5)
-
-	err = tracker.TrackStats(QueryStatsValues{RecentDocs: 140, NewDocs: 10})
-	require.NoError(t, err)
-	verifyMetrics(t, scope, 140, 15)
+type m3comparatorClient struct {
+	host string
+	port int
 }
 
-func verifyMetrics(t *testing.T, scope tally.TestScope, expectedRecent float64, expectedTotal int64) {
-	snapshot := scope.Snapshot()
+func newM3ComparatorClient(host string, port int) *m3comparatorClient {
+	return &m3comparatorClient{
+		host: host,
+		port: port,
+	}
+}
 
-	recent, exists := snapshot.Gauges()["query-stats.recent-docs-per-block+"]
-	assert.True(t, exists)
-	assert.Equal(t, expectedRecent, recent.Value())
+func (c *m3comparatorClient) clear() error {
+	comparatorURL := fmt.Sprintf("http://%s:%d", c.host, c.port)
+	req, err := http.NewRequest(http.MethodDelete, comparatorURL, nil)
+	if err != nil {
+		return err
+	}
 
-	total, exists := snapshot.Counters()["query-stats.total-docs-per-block+"]
-	assert.True(t, exists)
-	assert.Equal(t, expectedTotal, total.Value())
+	_, err = http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *m3comparatorClient) load(data []byte) error {
+	comparatorURL := fmt.Sprintf("http://%s:%d", c.host, c.port)
+	resp, err := http.Post(comparatorURL, "application/json", bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("got error loading data to comparator %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/200 == 1 {
+		return nil
+	}
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("load status code %d. Error: %v", resp.StatusCode, err)
+	}
+
+	return fmt.Errorf("load status code %d. Response: %s", resp.StatusCode, string(bodyBytes))
 }

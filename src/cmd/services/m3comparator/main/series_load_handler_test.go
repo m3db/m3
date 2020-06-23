@@ -147,11 +147,11 @@ const seriesStr = `
 ]`
 
 func TestIngestSeries(t *testing.T) {
-	opts := iteratorOptions{
-		encoderPool:   encoderPool,
-		iteratorPools: iterPools,
-		tagOptions:    tagOptions,
-		iOpts:         iOpts,
+	opts := parser.Options{
+		EncoderPool:       encoderPool,
+		IteratorPools:     iterPools,
+		TagOptions:        tagOptions,
+		InstrumentOptions: iOpts,
 	}
 
 	req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(seriesStr))
@@ -166,6 +166,7 @@ func TestIngestSeries(t *testing.T) {
 
 	iters, err := handler.getSeriesIterators("series_name")
 	require.NoError(t, err)
+	require.NotNil(t, iters)
 
 	expectedList := make([]parser.Series, 0, 10)
 	err = json.Unmarshal([]byte(seriesStr), &expectedList)
@@ -191,11 +192,11 @@ func TestIngestSeries(t *testing.T) {
 }
 
 func TestClearData(t *testing.T) {
-	opts := iteratorOptions{
-		encoderPool:   encoderPool,
-		iteratorPools: iterPools,
-		tagOptions:    tagOptions,
-		iOpts:         iOpts,
+	opts := parser.Options{
+		EncoderPool:       encoderPool,
+		IteratorPools:     iterPools,
+		TagOptions:        tagOptions,
+		InstrumentOptions: iOpts,
 	}
 
 	req, err := http.NewRequest(http.MethodPost, "", strings.NewReader(seriesStr))
