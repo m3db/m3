@@ -304,7 +304,7 @@ type PerQueryLimitsConfiguration struct {
 	// service.
 	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
 
-	// RequireExhaustive results in an error if the query exceeds the series limit.
+	// RequireExhaustive results in an error if the query exceeds any limit.
 	RequireExhaustive bool `yaml:"requireExhaustive"`
 
 	// MaxFetchedDatapoints limits the max number of datapoints allowed to be 
