@@ -738,6 +738,13 @@ func TestLimits(t *testing.T) {
 			expectedErr:       "",
 		},
 		{
+			name:              "both series and docs limit",
+			seriesLimit:       1,
+			docsLimit:         1,
+			requireExhaustive: false,
+			expectedErr:       "",
+		},
+		{
 			name:              "no limits",
 			seriesLimit:       0,
 			docsLimit:         0,
@@ -757,6 +764,13 @@ func TestLimits(t *testing.T) {
 			docsLimit:         1,
 			requireExhaustive: true,
 			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=0, series_matched=1, docs_limit=1, docs_matched=2",
+		},
+		{
+			name:              "both series and docs limit",
+			seriesLimit:       1,
+			docsLimit:         1,
+			requireExhaustive: true,
+			expectedErr:       "query exceeded limit: require_exhaustive=true, series_limit=1, series_matched=1, docs_limit=1, docs_matched=2",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
