@@ -1,0 +1,68 @@
+package arrow
+
+import (
+	"testing"
+	"time"
+
+	"github.com/apache/arrow/go/arrow/math"
+	"github.com/apache/arrow/go/arrow/memory"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestArrowMultiSeriesIterator(t *testing.T) {
+	start := time.Now().Truncate(time.Hour)
+	pool := memory.NewGoAllocator()
+
+	recorder := newDatapointRecorder(pool)
+	bl := newMultiSeriesIterator(8, 3, start.UnixNano(),
+		int(time.Second*10), int(time.Minute*5))
+	multiSeriesIter := newArrowMultiSeriesIterator(start, time.Minute*2, recorder, bl)
+
+	series := 0
+	for multiSeriesIter.next() {
+		series++
+		seriesIter := multiSeriesIter.current()
+		blocks := 0
+		exTime := start.UnixNano()
+		for seriesIter.next() {
+			blocks++
+			it := seriesIter.current()
+			step := 0
+			exSums := []float64{66 /* 0..11 */, 210 /* 12..23 */, 189 /* 24..30 */}
+			counts := []int{12, 12, 7}
+
+			exVal := 0.0
+			for it.next() {
+				require.True(t, step < len(exSums))
+
+				rec := it.current()
+
+				vals := rec.values()
+				require.NotNil(t, vals)
+
+				assert.Equal(t, exSums[step], math.Float64.Sum(vals))
+				require.Equal(t, counts[step], vals.Len())
+				for i := 0; i < counts[step]; i++ {
+					assert.Equal(t, exVal, vals.Value(i))
+					exVal++
+				}
+
+				times := rec.timestamps()
+				require.Equal(t, counts[step], times.Len())
+				for i := 0; i < counts[step]; i++ {
+					assert.Equal(t, exTime, times.Value(i))
+					exTime = exTime + int64(time.Second*10)
+				}
+
+				step++
+			}
+
+			// NB: test construction is a bit messy, so points across
+			// this boundary "overlap" but that doens't affect the behavior under test.
+			exTime = exTime - int64(time.Second*10)
+		}
+	}
+
+	assert.NoError(t, multiSeriesIter.close())
+}
