@@ -40,6 +40,7 @@ type Configuration struct {
 	ListenAddress listenaddress.Configuration     `yaml:"listenAddress" validate:"nonzero"`
 	Etcd          etcdclient.Configuration        `yaml:"etcd"`
 	Reporter      ReporterConfiguration           `yaml:"reporter"`
+	M3Server      *M3ServerConfiguration          `yaml:"m3Server"`
 }
 
 // ReporterConfiguration is the collector
@@ -49,4 +50,10 @@ type ReporterConfiguration struct {
 	Client                client.Configuration         `yaml:"client"`
 	SortedTagIteratorPool pool.ObjectPoolConfiguration `yaml:"sortedTagIteratorPool"`
 	Clock                 clock.Configuration          `yaml:"clock"`
+}
+
+// M3ServerConfiguration is a M3 server configuration, if not
+// set then the server is not run.
+type M3ServerConfiguration struct {
+	ListenAddress listenaddress.Configuration `yaml:"listenAddress" validate:"nonzero"`
 }
