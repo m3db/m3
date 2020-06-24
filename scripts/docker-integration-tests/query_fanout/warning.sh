@@ -386,8 +386,9 @@ function test_fanout_warning_range {
     }
   }'
 
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 1s 7201 temporal_range_greater_than_resolution_range:_1s,_resolutions:_5s
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 1s 17201 temporal_range_greater_than_resolution_range:_1s,_resolutions:_5s
+
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 1s 7201 resolution_larger_than_query_range_range:_1s,_resolutions:_5s
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 1s 17201 resolution_larger_than_query_range_range:_1s,_resolutions:_5s
   
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 10s 7201
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 10s 17201

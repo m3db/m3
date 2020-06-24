@@ -54,7 +54,7 @@ type testCase struct {
 
 type opGenerator func(t *testing.T, tc testCase) transform.Params
 
-const expectedWarning = "temporal range greater than resolution_" +
+const expectedWarning = "resolution larger than query range_" +
 	"range: 1m0s, resolutions: 1h0m0s, 1m1s"
 
 func buildMetadata() block.ResultMetadata {

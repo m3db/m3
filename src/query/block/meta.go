@@ -188,7 +188,7 @@ func (m *ResultMetadata) VerifyTemporalRange(step time.Duration) {
 		sort.Strings(warnings)
 		warning := fmt.Sprintf("range: %v, resolutions: %s",
 			step, strings.Join(warnings, ", "))
-		m.AddWarning("temporal range greater than resolution", warning)
+		m.AddWarning("resolution larger than query range", warning)
 	}
 }
 

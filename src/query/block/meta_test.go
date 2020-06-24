@@ -141,8 +141,8 @@ func TestVerifyTemporalRange(t *testing.T) {
 		Resolutions: []int64{5, 10},
 	}
 
-	ex0 := "temporal range greater than resolution_range: 1ns, resolutions: 10ns, 5ns"
-	ex1 := "temporal range greater than resolution_range: 6ns, resolutions: 10ns"
+	ex0 := "resolution larger than query range_range: 1ns, resolutions: 10ns, 5ns"
+	ex1 := "resolution larger than query range_range: 6ns, resolutions: 10ns"
 
 	r.VerifyTemporalRange(11)
 	assert.Equal(t, 0, len(r.WarningStrings()))
