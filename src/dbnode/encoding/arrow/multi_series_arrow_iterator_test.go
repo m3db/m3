@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
+
 	"github.com/apache/arrow/go/arrow/math"
 	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +17,7 @@ func TestArrowMultiSeriesIterator(t *testing.T) {
 	pool := memory.NewGoAllocator()
 
 	recorder := newDatapointRecorder(pool)
-	bl := newMultiSeriesIterator(8, 3, start.UnixNano(),
+	bl := base.NewMultiSeriesIterator(8, 3, start.UnixNano(),
 		int(time.Second*10), int(time.Minute*5))
 	multiSeriesIter := newArrowMultiSeriesIterator(start, time.Minute*2, recorder, bl)
 

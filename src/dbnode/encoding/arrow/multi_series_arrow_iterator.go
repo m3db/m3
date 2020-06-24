@@ -2,6 +2,8 @@ package arrow
 
 import (
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
 )
 
 type arrowMultiSeriesIterator interface {
@@ -13,7 +15,7 @@ type arrowMultiSeriesIterator interface {
 type arrowMultiSeriesIter struct {
 	step     time.Duration
 	recorder *datapointRecorder
-	iter     multiSeriesIterator
+	iter     base.MultiSeriesIterator
 
 	exhausted bool
 	start     time.Time
@@ -24,7 +26,7 @@ func newArrowMultiSeriesIterator(
 	start time.Time,
 	step time.Duration,
 	recorder *datapointRecorder,
-	iter multiSeriesIterator,
+	iter base.MultiSeriesIterator,
 ) arrowMultiSeriesIterator {
 	return &arrowMultiSeriesIter{
 		curr:     newArrowSeriesIterator(start, step, recorder, nil),
@@ -41,8 +43,8 @@ func (b *arrowMultiSeriesIter) close() error {
 }
 
 func (b *arrowMultiSeriesIter) next() bool {
-	if b.iter.next() {
-		iter := b.iter.current()
+	if b.iter.Next() {
+		iter := b.iter.Current()
 		b.curr.reset(iter)
 		return true
 	}

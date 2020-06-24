@@ -3,6 +3,8 @@ package arrow
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
+
 	"github.com/apache/arrow/go/arrow/math"
 	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/stretchr/testify/assert"
@@ -14,9 +16,9 @@ func TestDatapointRecorder(t *testing.T) {
 
 	addPoints := func(size int) {
 		for i := 0; i < size; i++ {
-			recorder.appendPoints(dp{
-				val: float64(i),
-				ts:  int64(i),
+			recorder.appendPoints(base.Datapoint{
+				Value:     float64(i),
+				Timestamp: int64(i),
 			})
 		}
 	}

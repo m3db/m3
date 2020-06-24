@@ -2,19 +2,21 @@ package arrow
 
 import (
 	"time"
+
+	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
 )
 
 type arrowBlockIterator interface {
 	next() bool
 	close() error
 	current() datapointRecord
-	reset(start time.Time, iter blockIterator)
+	reset(start time.Time, iter base.BlockIterator)
 }
 
 type arrowBlockIter struct {
 	step     time.Duration
 	recorder *datapointRecorder
-	iter     blockIterator
+	iter     base.BlockIterator
 
 	exhausted bool
 	start     time.Time
@@ -25,7 +27,7 @@ func newArrowBlockIterator(
 	start time.Time,
 	step time.Duration,
 	recorder *datapointRecorder,
-	iter blockIterator,
+	iter base.BlockIterator,
 ) arrowBlockIterator {
 	return &arrowBlockIter{
 		start:    start,
@@ -35,9 +37,9 @@ func newArrowBlockIterator(
 	}
 }
 
-func (b *arrowBlockIter) reset(start time.Time, iter blockIterator) {
+func (b *arrowBlockIter) reset(start time.Time, iter base.BlockIterator) {
 	if b.iter != nil {
-		b.iter.close()
+		b.iter.Close()
 	}
 
 	if b.curr.Record != nil {
@@ -52,7 +54,7 @@ func (b *arrowBlockIter) reset(start time.Time, iter blockIterator) {
 
 func (b *arrowBlockIter) close() error {
 	if b.iter != nil {
-		b.iter.close()
+		b.iter.Close()
 	}
 
 	return nil
@@ -67,7 +69,7 @@ func (b *arrowBlockIter) next() bool {
 		b.curr.Release()
 	} else {
 		// NB: initialize iterator to valid value to start.
-		if !b.iter.next() {
+		if !b.iter.Next() {
 			return false
 		}
 	}
@@ -79,17 +81,17 @@ func (b *arrowBlockIter) next() bool {
 	b.start = b.start.Add(b.step)
 	cutover := b.start.UnixNano()
 
-	firstPoint := b.iter.current()
-	if firstPoint.ts > cutover {
+	firstPoint := b.iter.Current()
+	if firstPoint.Timestamp > cutover {
 		// NB: empty block.
 		return true
 	}
 
 	var hasMore bool
 	b.recorder.appendPoints(firstPoint)
-	for b.iter.next() {
-		curr := b.iter.current()
-		if curr.ts >= cutover {
+	for b.iter.Next() {
+		curr := b.iter.Current()
+		if curr.Timestamp >= cutover {
 			hasMore = true
 			break
 		}

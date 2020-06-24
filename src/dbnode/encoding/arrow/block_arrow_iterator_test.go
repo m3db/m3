@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
+
 	"github.com/apache/arrow/go/arrow/math"
 	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +17,7 @@ func TestArrowBlockIterator(t *testing.T) {
 	pool := memory.NewGoAllocator()
 
 	recorder := newDatapointRecorder(pool)
-	bl := newBlockIterator(start.UnixNano(),
+	bl := base.NewBlockIterator(start.UnixNano(),
 		int(time.Second*10), int(time.Minute*5))
 	it := newArrowBlockIterator(start, time.Minute*2, recorder, bl)
 

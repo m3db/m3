@@ -1,6 +1,8 @@
 package arrow
 
 import (
+	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
+
 	"github.com/apache/arrow/go/arrow"
 	"github.com/apache/arrow/go/arrow/array"
 	"github.com/apache/arrow/go/arrow/memory"
@@ -20,13 +22,13 @@ type datapointRecorder struct {
 	builder *array.RecordBuilder
 }
 
-func (r *datapointRecorder) appendPoints(dps ...dp) {
+func (r *datapointRecorder) appendPoints(dps ...base.Datapoint) {
 	valFieldBuilder := r.builder.Field(valIdx).(*array.Float64Builder)
 	timeFieldBuilder := r.builder.Field(timeIdx).(*array.Int64Builder)
 
 	for _, dp := range dps {
-		valFieldBuilder.Append(dp.val)
-		timeFieldBuilder.Append(dp.ts)
+		valFieldBuilder.Append(dp.Value)
+		timeFieldBuilder.Append(dp.Timestamp)
 	}
 }
 
@@ -69,47 +71,3 @@ func (r *datapointRecord) values() *array.Float64 {
 func (r *datapointRecord) timestamps() *array.Int64 {
 	return r.Columns()[timeIdx].(*array.Int64)
 }
-
-// Reference below
-// func convert(iter seriesIterator) {
-// 	pool := memory.NewGoAllocator()
-
-// 	schema := arrow.NewSchema(
-// 		[]arrow.Field{
-// 			arrow.Field{Name: "value", Type: arrow.PrimitiveTypes.Float64},
-// 			arrow.Field{Name: "time", Type: arrow.PrimitiveTypes.Date64},
-// 		},
-// 		nil,
-// 	)
-
-// 	b := array.NewRecordBuilder(pool, schema)
-// 	defer b.Release()
-
-// 	b.Field(valIdx).(*array.Float64Builder).AppendValues([]float64{timeIdx, 2, 3, 4, 5, 6, 7, 8, 9, timeIdxvalIdx}, nil)
-// 	b.Field(timeIdx).(*array.Int64Builder).AppendValues([]arrow.Date64{timeIdx, 2, 3, 4, 5, 6}, nil)
-// 	b.Field(timeIdx).(*array.Int64Builder).AppendValues([]arrow.Date64{7, 8, 9, timeIdxvalIdx}, []bool{true, true, false, true})
-
-// 	rectimeIdx := b.NewRecord()
-// 	defer rectimeIdx.Release()
-
-// 	b.Field(valIdx).(*array.Float64Builder).AppendValues([]float64{timeIdxtimeIdx, timeIdx2, timeIdx3, timeIdx4, timeIdx5, timeIdx6, timeIdx7, timeIdx8, timeIdx9, 2valIdx}, nil)
-// 	b.Field(timeIdx).(*array.Int64Builder).AppendValues([]arrow.Date64{timeIdxtimeIdx, timeIdx2, timeIdx3, timeIdx4, timeIdx5, timeIdx6, timeIdx7, timeIdx8, timeIdx9, 2valIdx}, nil)
-
-// 	rec2 := b.NewRecord()
-// 	defer rec2.Release()
-
-// 	itr, err := array.NewRecordReader(schema, []array.Record{rectimeIdx, rec2})
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	defer itr.Release()
-
-// 	n := valIdx
-// 	for itr.Next() {
-// 		rec := itr.Record()
-// 		for i, col := range rec.Columns() {
-// 			fmt.Printf("rec[%d][%q]: %v\n", n, rec.ColumnName(i), col)
-// 		}
-// 		n++
-// 	}
-// }
