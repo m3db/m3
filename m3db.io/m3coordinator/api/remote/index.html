@@ -1278,114 +1278,6 @@
       
 
 
-  <li class="md-nav__item md-nav__item--nested">
-    
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9" type="checkbox" id="nav-9">
-    
-    <label class="md-nav__link" for="nav-9">
-      Performance
-    </label>
-    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-9">
-        Performance
-      </label>
-      <ul class="md-nav__list" data-md-scrollfix>
-        
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../performance/" title="Introduction" class="md-nav__link">
-      Introduction
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item md-nav__item--nested">
-    
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9-2" type="checkbox" id="nav-9-2">
-    
-    <label class="md-nav__link" for="nav-9-2">
-      M3DB
-    </label>
-    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
-      <label class="md-nav__title" for="nav-9-2">
-        M3DB
-      </label>
-      <ul class="md-nav__list" data-md-scrollfix>
-        
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../performance/m3db/" title="M3DB Performance" class="md-nav__link">
-      M3DB Performance
-    </a>
-  </li>
-
-        
-      </ul>
-    </nav>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item md-nav__item--nested">
-    
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9-3" type="checkbox" id="nav-9-3">
-    
-    <label class="md-nav__link" for="nav-9-3">
-      m3query
-    </label>
-    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
-      <label class="md-nav__title" for="nav-9-3">
-        m3query
-      </label>
-      <ul class="md-nav__list" data-md-scrollfix>
-        
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../performance/m3query/" title="m3query Performance" class="md-nav__link">
-      m3query Performance
-    </a>
-  </li>
-
-        
-      </ul>
-    </nav>
-  </li>
-
-        
-      </ul>
-    </nav>
-  </li>
-
-    
-      
-      
-      
-
-
   <li class="md-nav__item">
     <a href="../../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
       Troubleshooting
@@ -1692,6 +1584,12 @@ promremotecli_log <span class="m">2019</span>/06/25 <span class="m">04</span>:13
  If this header is set, it determines which aggregated namespace to read/write metrics directly to/from (bypassing any aggregation).<br />
  The value of the header must be in the format of <code>resolution:retention</code> in duration shorthand. e.g. <code>1m:48h</code> specifices 1 minute resolution and 48 hour retention. Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".<br /><br />
 Here is <a href="https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/test.sh#L126-L146">an example</a> of querying metrics from a specific namespace.<br /><br /></li>
+<li><code>M3-Limit-Max-Series</code>:<br />
+ If this header is set it will override any configured per query time series limit. If the limit is hit, it will either return a partial result or an error based on the require exhaustive configuration set.<br /></li>
+<li><code>M3-Limit-Max-Docs</code>:<br />
+ If this header is set it will override any configured per query time series * blocks limit (docs limit). If the limit is hit, it will either return a partial result or an error based on the require exhaustive configuration set.<br /></li>
+<li><code>M3-Limit-Require-Exhaustive</code>:<br />
+ If this header is set it will override any configured require exhaustive setting. If "true" it will return an error if query hits a configured limit (such as series or docs limit) instead of a partial result. Otherwise if "false" it will return a partial result of the time series already matched with the response header <code>M3-Results-Limited</code> detailing the limit that was hit and a warning included in the response body.<br /><br /></li>
 </ul>
 <h3 id="data-params_1">Data Params</h3>
 <p>Binary <a href="http://google.github.io/snappy/">snappy compressed</a> Prometheus <a href="https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L26-L28">WriteRequest protobuf message</a>.</p>
