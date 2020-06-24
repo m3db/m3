@@ -117,6 +117,9 @@ func (c *baseNode) Process(
 	sp, ctx := opentracing.StartSpanFromContext(queryCtx.Ctx, c.op.OpType())
 	defer sp.Finish()
 
+	resultMeta := b.Meta().ResultMetadata
+	resultMeta.VerifyTemporalRange(c.op.duration)
+
 	meta := b.Meta()
 	bounds := meta.Bounds
 	if bounds.Duration == 0 {
@@ -129,6 +132,7 @@ func (c *baseNode) Process(
 		aggDuration: xtime.UnixNano(c.op.duration),
 		stepSize:    xtime.UnixNano(bounds.StepSize),
 		steps:       bounds.Steps(),
+		resultMeta:  resultMeta,
 	}
 
 	concurrency := runtime.NumCPU()
@@ -162,6 +166,7 @@ type blockMeta struct {
 	stepSize    xtime.UnixNano
 	queryCtx    *models.QueryContext
 	steps       int
+	resultMeta  block.ResultMetadata
 }
 
 func (c *baseNode) batchProcess(
@@ -178,6 +183,7 @@ func (c *baseNode) batchProcess(
 	)
 
 	meta := b.Meta()
+	meta.ResultMetadata = m.resultMeta
 	builder, err := c.controller.BlockBuilder(m.queryCtx, meta, nil)
 	if err != nil {
 		return nil, err
@@ -347,6 +353,7 @@ func (c *baseNode) singleProcess(
 	}
 
 	meta := b.Meta()
+	meta.ResultMetadata = m.resultMeta
 	builder, err := c.controller.BlockBuilder(m.queryCtx, meta, resultSeriesMeta)
 	if err != nil {
 		return nil, err

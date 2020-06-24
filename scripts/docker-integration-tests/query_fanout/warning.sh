@@ -89,8 +89,9 @@ function test_range_query {
 }
 
 function test_search {
-  start=$(date -d "$(date +%Y-%m-%dT%H:%M:%SZ) -1 minute" +%Y-%m-%dT%H:%M:%SZ)
-  end=$(date -d "$(date +%Y-%m-%dT%H:%M:%SZ) +1 minute" +%Y-%m-%dT%H:%M:%SZ)
+  d=$(date +%s)
+  start=$(( $d - 60 ))
+  end=$(( $d + 60 ))
 
   curl -D headers -X POST 0.0.0.0:7201/search -d '{
     "start": "'$start'",
@@ -345,6 +346,53 @@ function test_fanout_warning_graphite {
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff find_carbon 9 max_fetch_series_limit_applied
 }
 
+function verify_range {
+  RANGE=$1
+  PORT=$2
+  EXPECTED=$3
+  start=$(( $t - 3000 ))
+  end=$(( $t + 3000 ))
+  qs="query=sum_over_time($METRIC_NAME[$RANGE])&start=$start&end=$end&step=1s"
+  query="http://0.0.0.0:$PORT/prometheus/api/v1/query_range?$qs"
+  curl -sSLg -D $HEADER_FILE "$query" > /dev/null
+  warn=$(cat $HEADER_FILE | grep M3-Results-Limited | sed 's/M3-Results-Limited: //g')
+  warn=$(echo $warn | sed 's/ /_/g')
+  test $warn=$EXPECTED
+}
+
+function test_fanout_warning_range {
+  t=$(date +%s)
+  METRIC_NAME="quart_$t"
+  curl -X POST 0.0.0.0:9003/writetagged -d '{
+    "namespace": "agg",
+    "id": "{__name__=\"'$METRIC_NAME'\",cluster=\"coordinator-cluster-a\",val=\"1\"}",
+    "tags": [
+      {
+        "name": "__name__",
+        "value": "'$METRIC_NAME'"
+      },
+      {
+        "name": "cluster",
+        "value": "coordinator-cluster-a"
+      },
+      {
+        "name": "val",
+        "value": "1"
+      }
+    ],
+    "datapoint": {
+      "timestamp":'"$t"',
+      "value": 1
+    }
+  }'
+
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 1s 7201 temporal_range_greater_than_resolution_range:_1s,_resolutions:_5s
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 1s 17201 temporal_range_greater_than_resolution_range:_1s,_resolutions:_5s
+  
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 10s 7201
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff verify_range 10s 17201
+}
+
 function test_fanout_warning_missing_zone {
   docker-compose -f ${COMPOSE_FILE} stop coordinator-cluster-c
 
@@ -389,6 +437,6 @@ function test_fanout_warnings {
   test_fanout_warning_fetch_id_mismatch
   export GRAPHITE="foo.bar.$t"
   test_fanout_warning_graphite
+  test_fanout_warning_range
   test_fanout_warning_missing_zone
 }
- 

@@ -229,7 +229,6 @@ func (s *m3WrappedStore) FetchByQuery(
 
 	// NB: ensure single block return.
 	fetchOptions.BlockType = models.TypeSingleBlock
-	fetchOptions.IncludeResolution = true
 	fetchOptions.Enforcer = perQueryEnforcer
 	fetchOptions.FanoutOptions = &storage.FanoutOptions{
 		FanoutUnaggregated:        storage.FanoutForceDisable,

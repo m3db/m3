@@ -45,13 +45,44 @@ import (
 var nan = math.NaN()
 
 type testCase struct {
-	name     string
-	opType   string
-	vals     [][]float64
-	expected [][]float64
+	name        string
+	opType      string
+	vals        [][]float64
+	expected    [][]float64
+	withWarning bool
 }
 
 type opGenerator func(t *testing.T, tc testCase) transform.Params
+
+const expectedWarning = "temporal range greater than resolution_" +
+	"range: 1m0s, resolutions: 1h0m0s, 1m1s"
+
+func buildMetadata() block.ResultMetadata {
+	resultMeta := block.NewResultMetadata()
+	resultMeta.Resolutions = []int64{
+		int64(time.Second), int64(time.Minute),
+	}
+
+	return resultMeta
+}
+
+func buildWarningMetadata() block.ResultMetadata {
+	resultMeta := buildMetadata()
+	resultMeta.Resolutions = append(resultMeta.Resolutions,
+		int64(time.Second*61), int64(time.Hour))
+	return resultMeta
+}
+
+func verifyResultMetadata(t *testing.T, m block.ResultMetadata, exWarn bool) {
+	warnings := m.WarningStrings()
+	if !exWarn {
+		assert.Equal(t, 0, len(warnings))
+		return
+	}
+
+	require.Equal(t, 1, len(warnings))
+	assert.Equal(t, expectedWarning, warnings[0])
+}
 
 func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 	for _, tt := range tests {
@@ -81,11 +112,16 @@ func testTemporalFunc(t *testing.T, opGen opGenerator, tests []testCase) {
 					},
 				}
 
+				resultMeta := buildMetadata()
+				if tt.withWarning {
+					resultMeta = buildWarningMetadata()
+				}
+
 				bl := test.NewUnconsolidatedBlockFromDatapointsWithMeta(models.Bounds{
 					Start:    bounds.Start.Add(-2 * bounds.Duration),
 					Duration: bounds.Duration * 2,
 					StepSize: bounds.StepSize,
-				}, seriesMetas, values, runBatched)
+				}, seriesMetas, resultMeta, values, runBatched)
 
 				c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 				baseOp := opGen(t, tt)
@@ -196,6 +232,11 @@ func (it *dummySeriesIter) Close() {
 }
 
 func TestParallelProcess(t *testing.T) {
+	t.Run("no expected warning", func(t *testing.T) { testParallelProcess(t, false) })
+	t.Run("expected warning", func(t *testing.T) { testParallelProcess(t, true) })
+}
+
+func testParallelProcess(t *testing.T, warning bool) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -217,7 +258,13 @@ func TestParallelProcess(t *testing.T) {
 
 	stepSize := time.Minute
 	bl := block.NewMockBlock(ctrl)
+	resultMeta := buildMetadata()
+	if warning {
+		resultMeta = buildWarningMetadata()
+	}
+
 	bl.EXPECT().Meta().Return(block.Metadata{
+		ResultMetadata: resultMeta,
 		Bounds: models.Bounds{
 			StepSize: stepSize,
 			Duration: stepSize,
@@ -300,4 +347,6 @@ func TestParallelProcess(t *testing.T) {
 		require.True(t, found)
 		assert.Equal(t, expected, string(tag))
 	}
+
+	verifyResultMetadata(t, sink.Meta.ResultMetadata, warning)
 }

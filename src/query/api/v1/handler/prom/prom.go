@@ -24,8 +24,10 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage/prometheus"
 	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/promql/parser"
 )
 
 // Options defines options for PromQL handler.
@@ -51,4 +53,23 @@ func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Hand
 			InstrumentOptions: hOpts.InstrumentOpts(),
 		})
 	return newReadInstantHandler(opts, hOpts, queryable)
+}
+
+func applyRangeWarnings(
+	query string, meta *block.ResultMetadata,
+) error {
+	expr, err := parser.ParseExpr(query)
+	if err != nil {
+		return err
+	}
+
+	parser.Inspect(expr, func(node parser.Node, path []parser.Node) error {
+		if n, ok := node.(*parser.MatrixSelector); ok {
+			meta.VerifyTemporalRange(n.Range)
+		}
+
+		return nil
+	})
+
+	return nil
 }

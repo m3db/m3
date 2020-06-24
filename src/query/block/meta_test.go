@@ -134,3 +134,30 @@ func TestMergeResolutions(t *testing.T) {
 	require.Equal(t, 6, len(merge.Resolutions))
 	assert.Equal(t, []int64{1, 2, 3, 4, 5, 6}, merge.Resolutions)
 }
+
+func TestVerifyTemporalRange(t *testing.T) {
+	r := ResultMetadata{
+		Exhaustive:  true,
+		Resolutions: []int64{5, 10},
+	}
+
+	ex0 := "temporal range greater than resolution_range: 1ns, resolutions: 10ns, 5ns"
+	ex1 := "temporal range greater than resolution_range: 6ns, resolutions: 10ns"
+
+	r.VerifyTemporalRange(11)
+	assert.Equal(t, 0, len(r.WarningStrings()))
+
+	r.VerifyTemporalRange(1)
+	require.Equal(t, 1, len(r.WarningStrings()))
+	assert.Equal(t, ex0, r.WarningStrings()[0])
+
+	r.VerifyTemporalRange(6)
+	require.Equal(t, 2, len(r.WarningStrings()))
+	assert.Equal(t, ex0, r.WarningStrings()[0])
+	assert.Equal(t, ex1, r.WarningStrings()[1])
+
+	r.VerifyTemporalRange(11)
+	require.Equal(t, 2, len(r.WarningStrings()))
+	assert.Equal(t, ex0, r.WarningStrings()[0])
+	assert.Equal(t, ex1, r.WarningStrings()[1])
+}

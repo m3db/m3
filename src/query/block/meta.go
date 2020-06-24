@@ -22,6 +22,9 @@ package block
 
 import (
 	"fmt"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/m3db/m3/src/query/models"
 )
@@ -156,6 +159,37 @@ func (m ResultMetadata) CombineMetadata(other ResultMetadata) ResultMetadata {
 // IsDefault returns true if this result metadata matches the unchanged default.
 func (m ResultMetadata) IsDefault() bool {
 	return m.Exhaustive && m.LocalOnly && len(m.Warnings) == 0
+}
+
+// VerifyTemporalRange will verify that each resolution seen is below the
+// given step size, adding warning headers if it is not.
+func (m *ResultMetadata) VerifyTemporalRange(step time.Duration) {
+	fmt.Println("Verifying with step size", step, "as int", int64(step), "Resos", m.Resolutions)
+	stepSize := int64(step)
+	// NB: this map is unlikely to have more than 2 elements in real execution,
+	// since these correspond to namespace count.
+	invalidResolutions := make(map[int64]struct{}, 10)
+	for _, res := range m.Resolutions {
+		fmt.Println("here res is", res)
+		fmt.Println("step res is", stepSize)
+		fmt.Println("res > stepSize", res > stepSize)
+		if res > stepSize {
+			invalidResolutions[res] = struct{}{}
+		}
+	}
+
+	fmt.Println("invalid", invalidResolutions)
+	if len(invalidResolutions) > 0 {
+		warnings := make([]string, 0, len(invalidResolutions))
+		for k := range invalidResolutions {
+			warnings = append(warnings, fmt.Sprintf("%v", time.Duration(k)))
+		}
+
+		sort.Strings(warnings)
+		warning := fmt.Sprintf("range: %v, resolutions: %s",
+			step, strings.Join(warnings, ", "))
+		m.AddWarning("temporal range greater than resolution", warning)
+	}
 }
 
 // AddWarning adds a warning to the result metadata.

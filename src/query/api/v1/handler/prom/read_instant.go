@@ -110,7 +110,8 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		query,
 		ts)
 	if err != nil {
-		h.logger.Error("error creating instant query", zap.Error(err), zap.String("query", query))
+		h.logger.Error("error creating instant query",
+			zap.Error(err), zap.String("query", query))
 		respondError(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -118,11 +119,17 @@ func (h *readInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	res := qry.Exec(ctx)
 	if res.Err != nil {
-		h.logger.Error("error executing instant query", zap.Error(res.Err), zap.String("query", query))
+		h.logger.Error("error executing instant query",
+			zap.Error(res.Err), zap.String("query", query))
 		respondError(w, res.Err, http.StatusInternalServerError)
 		return
 	}
 
+	err = applyRangeWarnings(query, &resultMetadata)
+	if err != nil {
+		h.logger.Warn("error applying range warnings",
+			zap.Error(err), zap.String("query", query))
+	}
 	handleroptions.AddWarningHeaders(w, resultMetadata)
 
 	respond(w, &queryData{
