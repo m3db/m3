@@ -61,7 +61,14 @@ func (m StringMatch) toMatcher() (models.Matcher, error) {
 	return models.NewMatcher(t, []byte(m.Name), []byte(m.Value))
 }
 
-func (o *StringTagOptions) toOptions() (*storage.RestrictByTag, error) {
+// Validate validates the string tag options.
+func (o *StringTagOptions) Validate() error {
+	_, err := o.StorageOptions()
+	return err
+}
+
+// StorageOptions returns the corresponding storage.RestrictByTag options.
+func (o *StringTagOptions) StorageOptions() (*storage.RestrictByTag, error) {
 	if len(o.Restrict) == 0 && len(o.Strip) == 0 {
 		return nil, nil
 	}
