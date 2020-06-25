@@ -1,9 +1,11 @@
 package base
 
+import xtime "github.com/m3db/m3/src/x/time"
+
 // Datapoint is a basic datapoint.
 type Datapoint struct {
 	Value     float64
-	Timestamp int64
+	Timestamp xtime.UnixNano
 }
 
 // BlockIterator is a basic iterator across a single series block.
@@ -19,14 +21,18 @@ type BlockIterator interface {
 }
 
 type blockIter struct {
-	initialTime int64
+	initialTime xtime.UnixNano
 	stepSize    int
 	blockSize   int
 	idx         int
 }
 
 // NewBlockIterator creates a test block iterator.
-func NewBlockIterator(initialTime int64, stepSize int, blockSize int) BlockIterator {
+func NewBlockIterator(
+	initialTime xtime.UnixNano,
+	stepSize int,
+	blockSize int,
+) BlockIterator {
 	return &blockIter{
 		idx:         -1,
 		blockSize:   blockSize,
@@ -51,7 +57,7 @@ func (b *blockIter) Remaining() int {
 func (b *blockIter) Current() Datapoint {
 	return Datapoint{
 		Value:     float64(b.idx),
-		Timestamp: int64(b.idx*b.stepSize) + b.initialTime,
+		Timestamp: xtime.UnixNano(b.idx*b.stepSize) + b.initialTime,
 	}
 }
 

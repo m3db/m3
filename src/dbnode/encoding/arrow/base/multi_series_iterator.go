@@ -1,5 +1,7 @@
 package base
 
+import xtime "github.com/m3db/m3/src/x/time"
+
 // MultiSeriesIterator is an iterator across multiple series,
 // each containing multiple blocks.
 type MultiSeriesIterator interface {
@@ -12,7 +14,7 @@ type MultiSeriesIterator interface {
 }
 
 type multiSeriesIter struct {
-	initialTime int64
+	initialTime xtime.UnixNano
 	blockSize   int
 	seriesCount int
 	stepSize    int
@@ -23,7 +25,11 @@ type multiSeriesIter struct {
 // NewMultiSeriesIterator creates a new iterator that spans multiple
 // test series, each containing a number of contiguous blocks.
 func NewMultiSeriesIterator(
-	seriesCount int, count int, initialTime int64, stepSize int, blockSize int,
+	seriesCount int,
+	count int,
+	initialTime xtime.UnixNano,
+	stepSize int,
+	blockSize int,
 ) MultiSeriesIterator {
 	return &multiSeriesIter{
 		idx:         -1,

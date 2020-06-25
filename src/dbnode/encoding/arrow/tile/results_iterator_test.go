@@ -1,10 +1,11 @@
-package arrow
+package tile
 
 import (
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/apache/arrow/go/arrow/math"
 	"github.com/apache/arrow/go/arrow/memory"
@@ -12,35 +13,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestArrowMultiSeriesIterator(t *testing.T) {
+func TestResultsIterator(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
 	pool := memory.NewGoAllocator()
 
 	recorder := newDatapointRecorder(pool)
-	bl := base.NewMultiSeriesIterator(8, 3, start.UnixNano(),
+	bl := base.NewMultiSeriesIterator(8, 3, xtime.ToUnixNano(start),
 		int(time.Second*10), int(time.Minute*5))
-	multiSeriesIter := newArrowMultiSeriesIterator(start, time.Minute*2, recorder, bl)
+	multiSeriesIter := newResultsIterator(xtime.ToUnixNano(start),
+		xtime.UnixNano(time.Minute*2), recorder, bl)
 
 	series := 0
-	for multiSeriesIter.next() {
+	for multiSeriesIter.Next() {
 		series++
-		seriesIter := multiSeriesIter.current()
+		seriesIter := multiSeriesIter.Current()
 		blocks := 0
 		exTime := start.UnixNano()
-		for seriesIter.next() {
+		for seriesIter.Next() {
 			blocks++
-			it := seriesIter.current()
+			it := seriesIter.Current()
 			step := 0
 			exSums := []float64{66 /* 0..11 */, 210 /* 12..23 */, 189 /* 24..30 */}
 			counts := []int{12, 12, 7}
 
 			exVal := 0.0
-			for it.next() {
+			for it.Next() {
 				require.True(t, step < len(exSums))
 
-				rec := it.current()
+				rec := it.Current()
 
-				vals := rec.values()
+				vals := rec.Values()
 				require.NotNil(t, vals)
 
 				assert.Equal(t, exSums[step], math.Float64.Sum(vals))
@@ -50,7 +52,7 @@ func TestArrowMultiSeriesIterator(t *testing.T) {
 					exVal++
 				}
 
-				times := rec.timestamps()
+				times := rec.Timestamps()
 				require.Equal(t, counts[step], times.Len())
 				for i := 0; i < counts[step]; i++ {
 					assert.Equal(t, exTime, times.Value(i))
@@ -66,5 +68,5 @@ func TestArrowMultiSeriesIterator(t *testing.T) {
 		}
 	}
 
-	assert.NoError(t, multiSeriesIter.close())
+	assert.NoError(t, multiSeriesIter.Close())
 }

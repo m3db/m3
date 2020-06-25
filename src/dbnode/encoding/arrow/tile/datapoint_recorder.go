@@ -1,4 +1,4 @@
-package arrow
+package tile
 
 import (
 	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
@@ -13,11 +13,6 @@ const (
 	timeIdx = 1
 )
 
-type dp struct {
-	val float64
-	ts  int64
-}
-
 type datapointRecorder struct {
 	builder *array.RecordBuilder
 }
@@ -28,7 +23,7 @@ func (r *datapointRecorder) appendPoints(dps ...base.Datapoint) {
 
 	for _, dp := range dps {
 		valFieldBuilder.Append(dp.Value)
-		timeFieldBuilder.Append(dp.Timestamp)
+		timeFieldBuilder.Append(int64(dp.Timestamp))
 	}
 }
 
@@ -55,11 +50,6 @@ func (r *datapointRecorder) release() {
 	r.builder.Release()
 }
 
-// NB: caller must release record.
-func (r *datapointRecorder) buildRecord() datapointRecord {
-	return datapointRecord{r.builder.NewRecord()}
-}
-
 type datapointRecord struct {
 	array.Record
 }
@@ -70,4 +60,25 @@ func (r *datapointRecord) values() *array.Float64 {
 
 func (r *datapointRecord) timestamps() *array.Int64 {
 	return r.Columns()[timeIdx].(*array.Int64)
+}
+
+func (r *datapointRecord) release() {
+	if r == nil {
+		return
+	}
+
+	if r.Record != nil {
+		r.Record.Release()
+	}
+
+	r.Record = nil
+}
+
+// NB: caller must release record.
+func (r *datapointRecorder) updateRecord(rec *datapointRecord) {
+	rec.Record = r.builder.NewRecord()
+}
+
+func newDatapointRecord() *datapointRecord {
+	return &datapointRecord{}
 }
