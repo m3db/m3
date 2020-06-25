@@ -23,6 +23,7 @@ package commitlog
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -149,17 +150,6 @@ type asyncResettableWriter struct {
 	// begin a new hot-swap.
 	*sync.WaitGroup
 	writer commitLogWriter
-	// Each writer maintains its own slice of pending flushFns because each writer will get
-	// flushed independently. This is important for maintaining correctness in code paths
-	// that care about durability, particularly during commitlog rotations.
-	//
-	// For example, imagine a call to WriteWait() occurs and the pending write is buffered
-	// in commitlog 1, but not yet flushed. Subsequently, a call to RotateLogs() occurs causing
-	// commitlog 1 to be (asynchronously) reset and commitlog 2 to become the new primary. Once
-	// the asynchronous Close and flush of commitlog 1 completes, only pending flushFns associated
-	// with commitlog 1 should be called as the writer associated with commitlog 2 may not have been
-	// flushed at all yet.
-	pendingFlushFns []callbackFn
 }
 
 func (w *asyncResettableWriter) onFlush(err error) {
@@ -177,10 +167,17 @@ type commitLogMetrics struct {
 	queueCapacity    tally.Gauge
 	success          tally.Counter
 	errors           tally.Counter
+	openSuccess      tally.Counter
 	openErrors       tally.Counter
+	openAsyncErrors  tally.Counter
+	openAsyncSuccess tally.Counter
+	openLatency      tally.Histogram
 	closeErrors      tally.Counter
+	closeLatency     tally.Histogram
+	resetLatency     tally.Histogram
 	flushErrors      tally.Counter
 	flushDone        tally.Counter
+	flushTimerTask   tally.Counter
 }
 
 type eventType int
@@ -238,6 +235,31 @@ func (r callbackResult) rotateLogsResult() (rotateLogsResult, error) {
 	return r.rotateLogs, nil
 }
 
+func zeroToTenSecondsHighResDurationBuckets() tally.Buckets {
+	var buckets tally.DurationBuckets
+	// From (zero, 1ms).
+	for i := 1; i < 10; i++ {
+		buckets = append(buckets, time.Duration(i)*100*time.Microsecond)
+	}
+	// From [1ms, 10ms).
+	for i := 1; i < 10; i++ {
+		buckets = append(buckets, time.Duration(i)*time.Millisecond)
+	}
+	// From [10ms, 100ms).
+	for i := 1; i < 10; i++ {
+		buckets = append(buckets, time.Duration(i)*10*time.Millisecond)
+	}
+	// From [100ms, 1s).
+	for i := 1; i < 10; i++ {
+		buckets = append(buckets, time.Duration(i)*100*time.Millisecond)
+	}
+	// From [1s, 10s].
+	for i := 1; i <= 10; i++ {
+		buckets = append(buckets, time.Duration(i)*time.Second)
+	}
+	return buckets
+}
+
 type commitLogWrite struct {
 	eventType  eventType
 	write      writeOrWriteBatch
@@ -275,10 +297,20 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 			queueCapacity:    scope.Gauge("writes.queue-capacity"),
 			success:          scope.Counter("writes.success"),
 			errors:           scope.Counter("writes.errors"),
+			openSuccess:      scope.Counter("writes.open-success"),
 			openErrors:       scope.Counter("writes.open-errors"),
+			openLatency: scope.Histogram("writes.open-latency",
+				zeroToTenSecondsHighResDurationBuckets()),
+			openAsyncSuccess: scope.Counter("writes.open-async-success"),
+			openAsyncErrors:  scope.Counter("writes.open-async-errors"),
 			closeErrors:      scope.Counter("writes.close-errors"),
-			flushErrors:      scope.Counter("writes.flush-errors"),
-			flushDone:        scope.Counter("writes.flush-done"),
+			closeLatency: scope.Histogram("writes.close-latency",
+				zeroToTenSecondsHighResDurationBuckets()),
+			resetLatency: scope.Histogram("writes.reset-latency",
+				zeroToTenSecondsHighResDurationBuckets()),
+			flushErrors:    scope.Counter("writes.flush-errors"),
+			flushDone:      scope.Counter("writes.flush-done"),
+			flushTimerTask: scope.Counter("writes.flush-timer-task"),
 		},
 	}
 	// Setup backreferences for onFlush().
@@ -451,10 +483,31 @@ func (l *commitLog) write() {
 	// any allocations.
 	var singleBatch = make([]ts.BatchWrite, 1)
 	var batch []ts.BatchWrite
+	finalizeCh := make(chan ts.WriteBatch, 1024)
+	defer close(finalizeCh)
+
+	go func() {
+		// Finalize batch writes without allocating.
+		for batch := range finalizeCh {
+			batch.Finalize()
+		}
+	}()
+
+	// Lock this current goroutine to the OS thread so it isn't pre-empted
+	// and interrupted during the critical write/encode loop.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 
 	for write := range l.writes {
 		if write.eventType == flushEventType {
-			l.writerState.primary.writer.Flush(false)
+			l.metrics.flushTimerTask.Inc(1)
+
+			if err := l.writerState.primary.writer.Flush(false); err != nil {
+				l.log.Error("failed to flush commit log", zap.Error(err))
+				if l.commitLogFailFn != nil {
+					l.commitLogFailFn(err)
+				}
+			}
 			continue
 		}
 
@@ -469,12 +522,6 @@ func (l *commitLog) write() {
 			continue
 		}
 
-		// For writes requiring acks add to pending acks
-		if write.eventType == writeEventType && write.callbackFn != nil {
-			l.writerState.primary.pendingFlushFns = append(
-				l.writerState.primary.pendingFlushFns, write.callbackFn)
-		}
-
 		isRotateLogsEvent := write.eventType == rotateLogsEventType
 		if isRotateLogsEvent {
 			primaryFile, _, err := l.openWriters()
@@ -486,6 +533,8 @@ func (l *commitLog) write() {
 				if l.commitLogFailFn != nil {
 					l.commitLogFailFn(err)
 				}
+			} else {
+				l.metrics.openSuccess.Inc(1)
 			}
 
 			write.callbackFn(callbackResult{
@@ -512,7 +561,13 @@ func (l *commitLog) write() {
 		}
 		numDequeued = len(batch)
 
-		for _, writeBatch := range batch {
+		lastWritableElem := -1
+		for i := numDequeued - 1; i >= 0 && lastWritableElem == -1; i-- {
+			if batch[i].Err == nil && !batch[i].SkipWrite {
+				lastWritableElem = i
+			}
+		}
+		for i, writeBatch := range batch {
 			if writeBatch.Err != nil {
 				// This entry was not written successfully to the in-memory datastructures so
 				// we should not persist it to the commitlog. This is important to maintain
@@ -529,19 +584,33 @@ func (l *commitLog) write() {
 				continue
 			}
 
+			// Only call the callback if last in the batch to avoid
+			// double calling callback.
+			var callback callbackFn
+			if i == lastWritableElem {
+				callback = write.callbackFn
+			}
+
 			write := writeBatch.Write
 			err := l.writerState.primary.writer.Write(write.Series,
-				write.Datapoint, write.Unit, write.Annotation)
+				write.Datapoint, write.Unit, write.Annotation, callback)
 			if err != nil {
 				l.handleWriteErr(err)
 				continue
 			}
 			numWritesSuccess++
 		}
+		if lastWritableElem == -1 && write.callbackFn != nil {
+			// Call callback successfully if no elements actually needed to write.
+			write.callbackFn(callbackResult{
+				eventType: flushEventType,
+			})
+		}
 
 		// Return the write batch to the pool.
 		if write.write.writeBatch != nil {
-			write.write.writeBatch.Finalize()
+			// NB(r): Do not block the write loop finalizing resources.
+			finalizeCh <- write.write.writeBatch
 		}
 
 		atomic.AddInt64(&l.numWritesInQueue, int64(-numDequeued))
@@ -582,29 +651,6 @@ func (l *commitLog) onFlush(writer *asyncResettableWriter, err error) {
 		}
 	}
 
-	// onFlush will never be called concurrently. The flushFn for the primaryWriter
-	// will only ever be called synchronously by the single-threaded writer goroutine
-	// and the flushFn for the secondaryWriter will only be called by the asynchronous
-	// goroutine (created by the single-threaded writer) when it calls Close() on the
-	// secondary (previously primary due to a hot-swap) writer during the reset.
-	//
-	// Note that both the primary and secondar's flushFn may be called during calls to
-	// Open() on the commitlog, but this takes place before the single-threaded writer
-	// is spawned which precludes it from occurring concurrently with either of the
-	// scenarios described above.
-	if len(writer.pendingFlushFns) == 0 {
-		l.metrics.flushDone.Inc(1)
-		return
-	}
-
-	for i := range writer.pendingFlushFns {
-		writer.pendingFlushFns[i](callbackResult{
-			eventType: flushEventType,
-			err:       err,
-		})
-		writer.pendingFlushFns[i] = nil
-	}
-	writer.pendingFlushFns = writer.pendingFlushFns[:0]
 	l.metrics.flushDone.Inc(1)
 }
 
@@ -689,18 +735,27 @@ func (l *commitLog) startSecondaryWriterAsyncReset() {
 				l.writerState.secondary.writer = nil
 
 				l.metrics.errors.Inc(1)
-				l.metrics.openErrors.Inc(1)
+				l.metrics.openAsyncErrors.Inc(1)
+			} else {
+				l.metrics.openAsyncSuccess.Inc(1)
 			}
 
 			l.writerState.secondary.Done()
 		}()
 
-		if err = l.writerState.secondary.writer.Close(); err != nil {
+		closeStart := l.nowFn()
+		err = l.writerState.secondary.writer.Close()
+		l.metrics.closeLatency.RecordDuration(l.nowFn().Sub(closeStart))
+		if err != nil {
 			l.commitLogFailFn(err)
 			return
 		}
 
+		openStart := l.nowFn()
 		_, err = l.writerState.secondary.writer.Open()
+		openEnd := l.nowFn()
+		l.metrics.openLatency.RecordDuration(openEnd.Sub(openStart))
+		l.metrics.resetLatency.RecordDuration(openEnd.Sub(closeStart))
 		if err != nil {
 			l.commitLogFailFn(err)
 			return

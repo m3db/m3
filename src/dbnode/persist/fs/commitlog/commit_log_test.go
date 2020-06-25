@@ -179,7 +179,7 @@ func snapshotCounterValue(
 
 type mockCommitLogWriter struct {
 	openFn  func() (persist.CommitLogFile, error)
-	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
+	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, callbackFn) error
 	flushFn func(sync bool) error
 	closeFn func() error
 }
@@ -189,7 +189,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 		openFn: func() (persist.CommitLogFile, error) {
 			return persist.CommitLogFile{}, nil
 		},
-		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, callbackFn) error {
 			return nil
 		},
 		flushFn: func(sync bool) error {
@@ -210,8 +210,9 @@ func (w *mockCommitLogWriter) Write(
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
+	callback callbackFn,
 ) error {
-	return w.writeFn(series, datapoint, unit, annotation)
+	return w.writeFn(series, datapoint, unit, annotation, callback)
 }
 
 func (w *mockCommitLogWriter) Flush(sync bool) error {
@@ -794,7 +795,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
-	writer.writeFn = func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+	writer.writeFn = func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, callbackFn) error {
 		return fmt.Errorf("an error")
 	}
 
@@ -886,9 +887,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, int64(1), errors.Value())
 
-	openErrors, ok := snapshotCounterValue(scope, "commitlog.writes.open-errors")
+	openAsyncErrors, ok := snapshotCounterValue(scope, "commitlog.writes.open-async-errors")
 	require.True(t, ok)
-	require.Equal(t, int64(1), openErrors.Value())
+	require.Equal(t, int64(1), openAsyncErrors.Value())
 }
 
 func TestCommitLogFailOnFlushError(t *testing.T) {
@@ -1039,9 +1040,9 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 
 	defer cleanup(t, opts)
 	commitLog := newTestCommitLog(t, opts)
-	finalized := 0
+	finalized := uint64(0)
 	finalizeFn := func(_ ts.WriteBatch) {
-		finalized++
+		atomic.AddUint64(&finalized, 1)
 	}
 
 	writes := ts.NewWriteBatch(4, ident.StringID("ns"), finalizeFn)
@@ -1100,5 +1101,5 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 	}
 
 	assertCommitLogWritesByIterating(t, commitLog, expected)
-	require.Equal(t, 1, finalized)
+	require.Equal(t, 1, int(atomic.LoadUint64(&finalized)))
 }
