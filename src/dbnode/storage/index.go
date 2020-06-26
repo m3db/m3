@@ -963,11 +963,18 @@ func (i *nsIndex) canFlushBlock(
 	shards []databaseShard,
 	flushType series.WriteType,
 ) (bool, error) {
-	// Check the block needs flushing because it is sealed and has
-	// any mutable/cold mutable segments that need to be evicted from memory.
 	switch flushType {
 	case series.WarmWrite:
-		if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
+		hasWarmFlushedToDisk, err := i.hasWarmFlushedToDisk(block.StartTime())
+		if err != nil {
+			return false, err
+		}
+		// NB(bodu): We should always attempt to warm flush sealed blocks to disk if
+		// there doesn't already exist data on disk. We're checking this instead of
+		// `block.NeedsMutableSegmentsEvicted()` since bootstrap writes for cold block starts
+		// get marked as warm writes if there doesn't already exist data on disk and need to
+		// properly go through the warm flush lifecycle.
+		if !block.IsSealed() || !hasWarmFlushedToDisk {
 			return false, nil
 		}
 	case series.ColdWrite:
@@ -992,6 +999,22 @@ func (i *nsIndex) canFlushBlock(
 	}
 
 	return true, nil
+}
+
+func (i *nsIndex) hasWarmFlushedToDisk(blockStart time.Time) (bool, error) {
+	// NB(bodu): We consider the block to have been warm flushed if there are any
+	// filesets on disk. This is consistent with the "has warm flushed" check in the db shard.
+	// Shard block starts are marked as having warm flushed if an info file is successfully read
+	// from disk.
+	filesets, err := fs.IndexFileSetsAt(
+		i.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix(),
+		i.nsMetadata.ID(),
+		blockStart,
+	)
+	if err != nil {
+		return false, err
+	}
+	return len(filesets) > 0, nil
 }
 
 func (i *nsIndex) flushBlock(
