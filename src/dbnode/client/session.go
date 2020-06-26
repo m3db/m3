@@ -2209,8 +2209,8 @@ func (s *session) streamBlocksMetadataFromPeers(
 		// If we excluded ourselves from fetching, we basically treat ourselves
 		// as a successful peer response since we can bootstrap from ourselves
 		// just fine
-		enqueued++
-		success++
+		// enqueued++
+		// success++
 	}
 
 	progress.metadataFetches.Update(float64(pending))
