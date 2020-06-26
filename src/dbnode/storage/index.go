@@ -944,9 +944,17 @@ func (i *nsIndex) flushableBlocks(
 	if !i.isOpenWithRLock() {
 		return nil, errDbIndexUnableToFlushClosed
 	}
+	// NB(bodu): We read index info files once here to avoid re-reading all of them
+	// for each block.
+	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
+	infoFiles := i.readIndexInfoFilesFn(
+		fsOpts.FilePathPrefix(),
+		i.nsMetadata.ID(),
+		fsOpts.InfoReaderBufferSize(),
+	)
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 	for _, block := range i.state.blocksByTime {
-		canFlush, err := i.canFlushBlock(block, shards, flushType)
+		canFlush, err := i.canFlushBlock(infoFiles, block, shards, flushType)
 		if err != nil {
 			return nil, err
 		}
@@ -959,22 +967,19 @@ func (i *nsIndex) flushableBlocks(
 }
 
 func (i *nsIndex) canFlushBlock(
+	infoFiles []fs.ReadIndexInfoFileResult,
 	block index.Block,
 	shards []databaseShard,
 	flushType series.WriteType,
 ) (bool, error) {
 	switch flushType {
 	case series.WarmWrite:
-		hasWarmFlushedToDisk, err := i.hasWarmFlushedToDisk(block.StartTime())
-		if err != nil {
-			return false, err
-		}
 		// NB(bodu): We should always attempt to warm flush sealed blocks to disk if
 		// there doesn't already exist data on disk. We're checking this instead of
 		// `block.NeedsMutableSegmentsEvicted()` since bootstrap writes for cold block starts
 		// get marked as warm writes if there doesn't already exist data on disk and need to
 		// properly go through the warm flush lifecycle.
-		if !block.IsSealed() || !hasWarmFlushedToDisk {
+		if !block.IsSealed() || !i.hasWarmFlushedToDisk(infoFiles, block.StartTime()) {
 			return false, nil
 		}
 	case series.ColdWrite:
@@ -1001,20 +1006,24 @@ func (i *nsIndex) canFlushBlock(
 	return true, nil
 }
 
-func (i *nsIndex) hasWarmFlushedToDisk(blockStart time.Time) (bool, error) {
+func (i *nsIndex) hasWarmFlushedToDisk(
+	infoFiles []fs.ReadIndexInfoFileResult,
+	blockStart time.Time,
+) bool {
+	var hasWarmFlushedToDisk bool
 	// NB(bodu): We consider the block to have been warm flushed if there are any
 	// filesets on disk. This is consistent with the "has warm flushed" check in the db shard.
-	// Shard block starts are marked as having warm flushed if an info file is successfully read
-	// from disk.
-	filesets, err := fs.IndexFileSetsAt(
-		i.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix(),
-		i.nsMetadata.ID(),
-		blockStart,
-	)
-	if err != nil {
-		return false, err
+	// Shard block starts are marked as having warm flushed if an info file is successfully read from disk.
+	for _, f := range infoFiles {
+		indexVolumeType := idxpersist.DefaultIndexVolumeType
+		if f.Info.IndexVolumeType != nil {
+			indexVolumeType = idxpersist.IndexVolumeType(f.Info.IndexVolumeType.Value)
+		}
+		if f.ID.BlockStart == blockStart && indexVolumeType == idxpersist.DefaultIndexVolumeType {
+			hasWarmFlushedToDisk = true
+		}
 	}
-	return len(filesets) > 0, nil
+	return hasWarmFlushedToDisk
 }
 
 func (i *nsIndex) flushBlock(
