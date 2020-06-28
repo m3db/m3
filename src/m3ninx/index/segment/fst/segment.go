@@ -637,17 +637,20 @@ func (r *fsSegment) Docs(pl postings.List) (doc.Iterator, error) {
 	if r.closed {
 		return nil, errReaderClosed
 	}
-	return r.docsWithRLockNotClosedMaybeFinalized(pl)
+	return r.docsWithRLockNotClosedMaybeFinalized(r, pl)
 }
 
-func (r *fsSegment) docsWithRLockNotClosedMaybeFinalized(pl postings.List) (doc.Iterator, error) {
+func (r *fsSegment) docsWithRLockNotClosedMaybeFinalized(
+	retriever index.DocRetriever,
+	pl postings.List,
+) (doc.Iterator, error) {
 	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
 	// calling match field after this segment is finalized.
 	if r.finalized {
 		return nil, errReaderFinalized
 	}
 
-	return index.NewIDDocIterator(r, pl.Iterator()), nil
+	return index.NewIDDocIterator(retriever, pl.Iterator()), nil
 }
 
 func (r *fsSegment) AllDocs() (index.IDDocIterator, error) {
@@ -656,10 +659,12 @@ func (r *fsSegment) AllDocs() (index.IDDocIterator, error) {
 	if r.closed {
 		return nil, errReaderClosed
 	}
-	return r.allDocsWithRLockNotClosedMaybeFinalized()
+	return r.allDocsWithRLockNotClosedMaybeFinalized(r)
 }
 
-func (r *fsSegment) allDocsWithRLockNotClosedMaybeFinalized() (index.IDDocIterator, error) {
+func (r *fsSegment) allDocsWithRLockNotClosedMaybeFinalized(
+	retriever index.DocRetriever,
+) (index.IDDocIterator, error) {
 	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
 	// calling match field after this segment is finalized.
 	if r.finalized {
@@ -667,7 +672,7 @@ func (r *fsSegment) allDocsWithRLockNotClosedMaybeFinalized() (index.IDDocIterat
 	}
 
 	pi := postings.NewRangeIterator(r.startInclusive, r.endExclusive)
-	return index.NewIDDocIterator(r, pi), nil
+	return index.NewIDDocIterator(retriever, pi), nil
 }
 
 func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postings.List, error) {
@@ -828,10 +833,11 @@ func (r *fsSegment) retrieveBytesWithRLock(base []byte, offset uint64) ([]byte, 
 	return base[payloadStart:payloadEnd], nil
 }
 
-var _ index.Reader = &fsSegmentReader{}
+var _ index.Reader = (*fsSegmentReader)(nil)
 
+// fsSegmentReader is not thread safe for use and relies on the underlying
+// segment for synchronization.
 type fsSegmentReader struct {
-	sync.RWMutex
 	closed    bool
 	ctx       context.Context
 	fsSegment *fsSegment
@@ -847,32 +853,24 @@ func newReader(
 }
 
 func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
-		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
 	sr.fsSegment.RLock()
 	pl, err := sr.fsSegment.matchFieldWithRLockNotClosedMaybeFinalized(field)
 	sr.fsSegment.RUnlock()
-	sr.RUnlock()
 	return pl, err
 }
 
 func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
-		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
 	sr.fsSegment.RLock()
 	pl, err := sr.fsSegment.matchTermWithRLockNotClosedMaybeFinalized(field, term)
 	sr.fsSegment.RUnlock()
-	sr.RUnlock()
 	return pl, err
 }
 
@@ -880,88 +878,69 @@ func (sr *fsSegmentReader) MatchRegexp(
 	field []byte,
 	compiled index.CompiledRegex,
 ) (postings.List, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
-		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
 	sr.fsSegment.RLock()
 	pl, err := sr.fsSegment.matchRegexpWithRLockNotClosedMaybeFinalized(field, compiled)
 	sr.fsSegment.RUnlock()
-	sr.RUnlock()
 	return pl, err
 }
 
 func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
-		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
 	sr.fsSegment.RLock()
 	pl, err := sr.fsSegment.matchAllWithRLockNotClosedMaybeFinalized()
 	sr.fsSegment.RUnlock()
-	sr.RUnlock()
 	return pl, err
 }
 
 func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
-		return doc.Document{}, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
 	sr.fsSegment.RLock()
 	pl, err := sr.fsSegment.docWithRLockNotClosedMaybeFinalized(id)
 	sr.fsSegment.RUnlock()
-	sr.RUnlock()
 	return pl, err
 }
 
 func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
-		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
+	// Also make sure the doc retriever is the reader not the segment so that
+	// is closed check is not performed and only the is finalized check.
 	sr.fsSegment.RLock()
-	iter, err := sr.fsSegment.docsWithRLockNotClosedMaybeFinalized(pl)
+	iter, err := sr.fsSegment.docsWithRLockNotClosedMaybeFinalized(sr, pl)
 	sr.fsSegment.RUnlock()
-	sr.RUnlock()
 	return iter, err
 }
 
 func (sr *fsSegmentReader) AllDocs() (index.IDDocIterator, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
-		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
 	// the segment but not after it is finalized.
+	// Also make sure the doc retriever is the reader not the segment so that
+	// is closed check is not performed and only the is finalized check.
 	sr.fsSegment.RLock()
-	iter, err := sr.fsSegment.allDocsWithRLockNotClosedMaybeFinalized()
+	iter, err := sr.fsSegment.allDocsWithRLockNotClosedMaybeFinalized(sr)
 	sr.fsSegment.RUnlock()
-	sr.RUnlock()
 	return iter, err
 }
 
 func (sr *fsSegmentReader) Close() error {
-	sr.Lock()
 	if sr.closed {
-		sr.Unlock()
 		return errReaderClosed
 	}
 	sr.closed = true
-	sr.Unlock()
 	// Close the context so that segment doesn't need to track this any longer.
 	sr.ctx.Close()
 	return nil

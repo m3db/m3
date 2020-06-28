@@ -513,8 +513,8 @@ func (b *block) queryWithSpan(
 }
 
 func (b *block) closeExecutorAsync(exec search.Executor) {
-	// Note: This only happens if closing the readers isn't clean.
 	if err := exec.Close(); err != nil {
+		// Note: This only happens if closing the readers isn't clean.
 		b.logger.Error("could not close search exec", zap.Error(err))
 	}
 }
