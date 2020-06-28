@@ -476,7 +476,6 @@ func TestFieldsEqualsParallel(t *testing.T) {
 
 func TestPostingsListLifecycleSimple(t *testing.T) {
 	_, fstSeg := newTestSegments(t, fewTestDocuments)
-
 	require.NoError(t, fstSeg.Close())
 
 	_, err := fstSeg.FieldsIterable().Fields()
@@ -496,6 +495,55 @@ func TestPostingsListReaderLifecycle(t *testing.T) {
 	require.NoError(t, reader.Close())
 	_, err = fstSeg.Reader()
 	require.NoError(t, err)
+}
+
+func TestSegmentReaderValidUntilClose(t *testing.T) {
+	_, fstSeg := newTestSegments(t, fewTestDocuments)
+
+	reader, err := fstSeg.Reader()
+	require.NoError(t, err)
+
+	// Close segment early, expect reader still valid until close.
+	err = fstSeg.Close()
+	require.NoError(t, err)
+
+	// Make sure all methods allow for calls until the reader is closed.
+	var (
+		list postings.List
+	)
+	list, err = reader.MatchField([]byte("fruit"))
+	require.NoError(t, err)
+	assertPostingsList(t, list, []postings.ID{0, 1, 2})
+
+	list, err = reader.MatchTerm([]byte("color"), []byte("yellow"))
+	require.NoError(t, err)
+	assertPostingsList(t, list, []postings.ID{0, 2})
+
+	re, err := index.CompileRegex([]byte("^.*apple$"))
+	require.NoError(t, err)
+	list, err = reader.MatchRegexp([]byte("fruit"), re)
+	require.NoError(t, err)
+	assertPostingsList(t, list, []postings.ID{1, 2})
+
+	list, err = reader.MatchAll()
+	require.NoError(t, err)
+	assertPostingsList(t, list, []postings.ID{0, 1, 2})
+
+	_, err = reader.Doc(0)
+	require.NoError(t, err)
+
+	_, err = reader.Docs(list)
+	require.NoError(t, err)
+
+	_, err = reader.AllDocs()
+	require.NoError(t, err)
+
+	// Now close.
+	require.NoError(t, reader.Close())
+
+	// Make sure reader now starts returning errors.
+	_, err = reader.MatchTerm([]byte("color"), []byte("yellow"))
+	require.Error(t, err)
 }
 
 func newTestSegments(t *testing.T, docs []doc.Document) (memSeg sgmt.MutableSegment, fstSeg sgmt.Segment) {
@@ -533,6 +581,48 @@ func assertDocsEqual(t *testing.T, a, b doc.Iterator) {
 	for i := range aDocs {
 		require.True(t, aDocs[i].Equal(bDocs[i]))
 	}
+}
+
+func assertPostingsList(t *testing.T, l postings.List, exp []postings.ID) {
+	it := l.Iterator()
+
+	defer func() {
+		require.False(t, it.Next(), "should exhaust just once")
+		require.NoError(t, it.Err(), "should not complete with error")
+		require.NoError(t, it.Close(), "should not encounter error on close")
+	}()
+
+	match := make(map[postings.ID]struct{}, len(exp))
+	for _, v := range exp {
+		match[v] = struct{}{}
+	}
+
+	for it.Next() {
+		curr := it.Current()
+
+		_, ok := match[curr]
+		if !ok {
+			require.Fail(t,
+				fmt.Sprintf("expected %d, not found in postings iter", curr))
+			return
+		}
+
+		delete(match, curr)
+	}
+
+	if len(match) == 0 {
+		// Success.
+		return
+	}
+
+	remaining := make([]int, 0, len(match))
+	for id := range match {
+		remaining = append(remaining, int(id))
+	}
+
+	msg := fmt.Sprintf("unmatched expected IDs %v, not found in postings iter",
+		remaining)
+	require.Fail(t, msg)
 }
 
 func collectDocs(iter doc.Iterator) ([]doc.Document, error) {
