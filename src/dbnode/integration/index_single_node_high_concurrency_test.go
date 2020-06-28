@@ -223,7 +223,7 @@ func testIndexSingleNodeHighConcurrency(
 						return
 					default:
 						randI := rng.Intn(opts.concurrencyEnqueueWorker)
-						randJ := opts.enqueuePerWorker
+						randJ := rng.Intn(opts.enqueuePerWorker)
 						id, tags := genIDTags(randI, randJ, opts.numTags)
 						_, err := isIndexedChecked(t, session, md.ID(), id, tags)
 						if err != nil {
