@@ -538,6 +538,28 @@ func TestSegmentReaderValidUntilClose(t *testing.T) {
 	_, err = reader.AllDocs()
 	require.NoError(t, err)
 
+	// Test returned iterators also work
+	re, err = index.CompileRegex([]byte("^.*apple$"))
+	require.NoError(t, err)
+	list, err = reader.MatchRegexp([]byte("fruit"), re)
+	require.NoError(t, err)
+	iter, err := reader.Docs(list)
+	require.NoError(t, err)
+	var docs int
+	for iter.Next() {
+		docs++
+		var fruitField doc.Field
+		for _, field := range iter.Current().Fields {
+			if bytes.Equal(field.Name, []byte("fruit")) {
+				fruitField = field
+				break
+			}
+		}
+		require.True(t, bytes.HasSuffix(fruitField.Value, []byte("apple")))
+	}
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+
 	// Now close.
 	require.NoError(t, reader.Close())
 
