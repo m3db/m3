@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	xclock "github.com/m3db/m3/src/x/clock"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,31 +66,38 @@ func TestUpdateTracker(t *testing.T) {
 
 	err := queryStats.Update(3)
 	require.NoError(t, err)
-	verifyStats(t, tracker,  3, 3)
+	verifyStats(t, tracker, 3, 3)
 
 	err = queryStats.Update(2)
 	require.NoError(t, err)
-	verifyStats(t, tracker,  2, 5)
+	verifyStats(t, tracker, 2, 5)
 }
 
 func TestPeriodicallyResetRecentDocs(t *testing.T) {
 	tracker := &testQueryStatsTracker{lookback: time.Millisecond}
 
 	queryStats := NewQueryStats(tracker)
-	defer queryStats.Stop()
 
 	err := queryStats.Update(1)
 	require.NoError(t, err)
-	verifyStats(t, tracker,  1, 1)
+	verifyStats(t, tracker, 1, 1)
 
 	queryStats.Start()
+	defer queryStats.Stop()
 	time.Sleep(tracker.lookback * 2)
 
-	verifyStats(t, tracker,  0, 0)
+	success := xclock.WaitUntil(func() bool {
+		return statsEqual(tracker.StatsValues(), 0, 0)
+	}, 10*time.Second)
+	require.True(t, success, "did not eventually reset")
 }
 
 func verifyStats(t *testing.T, tracker *testQueryStatsTracker, expectedNew int64, expectedRecent int64) {
 	values := tracker.StatsValues()
-	assert.Equal(t, expectedNew, values.NewDocs)
-	assert.Equal(t, expectedRecent, values.RecentDocs)
+	assert.True(t, statsEqual(values, expectedNew, expectedRecent))
+}
+
+func statsEqual(values QueryStatsValues, expectedNew int64, expectedRecent int64) bool {
+	return expectedNew == values.NewDocs &&
+		expectedRecent == values.RecentDocs
 }

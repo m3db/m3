@@ -24,6 +24,7 @@ package integration
 
 import (
 	"fmt"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -81,6 +82,20 @@ func TestIndexSingleNodeHighConcurrencyFewTagsHighCardinalitySkipWrites(t *testi
 	})
 }
 
+func TestIndexSingleNodeHighConcurrencyFewTagsHighCardinalityQueryDuringWrites(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
+	testIndexSingleNodeHighConcurrency(t, testIndexHighConcurrencyOptions{
+		concurrencyEnqueueWorker:     8,
+		concurrencyWrites:            5000,
+		enqueuePerWorker:             10000,
+		numTags:                      2,
+		concurrencyQueryDuringWrites: 8,
+	})
+}
+
 type testIndexHighConcurrencyOptions struct {
 	concurrencyEnqueueWorker int
 	concurrencyWrites        int
@@ -89,6 +104,9 @@ type testIndexHighConcurrencyOptions struct {
 	// skipWrites will mix in skipped to make sure
 	// it doesn't interrupt the regular real-time ingestion pipeline.
 	skipWrites bool
+	// concurrencyQueryDuringWrites will issue queries while we
+	// are performing writes.
+	concurrencyQueryDuringWrites int
 }
 
 func testIndexSingleNodeHighConcurrency(
@@ -188,7 +206,40 @@ func testIndexSingleNodeHighConcurrency(
 		}()
 	}
 
+	// If concurrent query load enabled while writing also hit with queries.
+	queryConcDuringWritesCloseCh := make(chan struct{}, 1)
+	if opts.concurrencyQueryDuringWrites == 0 {
+		log.Info("no concurrent queries during writes configured")
+	} else {
+		log.Info("starting concurrent queries during writes",
+			zap.Int("concurrency", opts.concurrencyQueryDuringWrites))
+		for i := 0; i < opts.concurrencyQueryDuringWrites; i++ {
+			go func() {
+				src := rand.NewSource(int64(i))
+				rng := rand.New(src)
+				for {
+					select {
+					case <-queryConcDuringWritesCloseCh:
+						return
+					default:
+						randI := rng.Intn(opts.concurrencyEnqueueWorker)
+						randJ := opts.enqueuePerWorker
+						id, tags := genIDTags(randI, randJ, opts.numTags)
+						_, err := isIndexedChecked(t, session, md.ID(), id, tags)
+						if err != nil {
+							if n := numTotalErrors.Inc(); n < 10 {
+								// Log the first 10 errors for visibility but not flood.
+								log.Error("sampled query error", zap.Error(err))
+							}
+						}
+					}
+				}
+			}()
+		}
+	}
+
 	wg.Wait()
+	close(queryConcDuringWritesCloseCh)
 
 	require.Equal(t, int(0), int(numTotalErrors.Load()))
 
