@@ -257,7 +257,6 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
 
 	mockBlock.EXPECT().IsSealed().Return(true)
-	mockBlock.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
 	mockBlock.EXPECT().Close().Return(nil)
 
 	mockShard := NewMockdatabaseShard(ctrl)
@@ -325,7 +324,6 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
 
 	mockBlock.EXPECT().IsSealed().Return(true)
-	mockBlock.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
 	mockBlock.EXPECT().Close().Return(nil)
 
 	mockShard := NewMockdatabaseShard(ctrl)
@@ -360,7 +358,6 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
 
 	mockBlock.EXPECT().IsSealed().Return(true)
-	mockBlock.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
 	mockBlock.EXPECT().Close().Return(nil)
 
 	mockShard1 := NewMockdatabaseShard(ctrl)

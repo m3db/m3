@@ -979,7 +979,7 @@ func (i *nsIndex) canFlushBlock(
 		// `block.NeedsMutableSegmentsEvicted()` since bootstrap writes for cold block starts
 		// get marked as warm writes if there doesn't already exist data on disk and need to
 		// properly go through the warm flush lifecycle.
-		if !block.IsSealed() || !i.hasWarmFlushedToDisk(infoFiles, block.StartTime()) {
+		if !block.IsSealed() || i.hasWarmFlushedToDisk(infoFiles, block.StartTime()) {
 			return false, nil
 		}
 	case series.ColdWrite:
