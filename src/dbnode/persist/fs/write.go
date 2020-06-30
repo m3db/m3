@@ -29,14 +29,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
