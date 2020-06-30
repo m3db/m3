@@ -381,11 +381,9 @@ func fixFileSet(
 	}()
 
 	var (
-		currTags     []ident.Tag
-		currTagsIter = ident.NewTagsIterator(ident.Tags{})
-		removedIDs   int
-		removedTags  int
-		copies       []checked.Bytes
+		removedIDs  int
+		removedTags int
+		copies      []checked.Bytes
 	)
 	for {
 		id, tags, data, checksum, err := reader.Read()
@@ -396,39 +394,9 @@ func fixFileSet(
 			return err
 		}
 
-		// Need to save tags in case we need to write them out again
-		// (iterating them in read entry means we can't reiterate them
-		// without copying/duplicating).
-		currTags = currTags[:0]
-		for tags.Next() {
-			tag := tags.Current()
-			name := tag.Name.Bytes()
-			value := tag.Value.Bytes()
+		tagsCopy := tags.Duplicate()
 
-			// Need to take copy as only valid during iteration.
-			nameCopy := opts.bytesPool.Get(len(name))
-			nameCopy.IncRef()
-			nameCopy.AppendAll(name)
-			valueCopy := opts.bytesPool.Get(len(value))
-			valueCopy.IncRef()
-			valueCopy.AppendAll(value)
-			copies = append(copies, nameCopy)
-			copies = append(copies, valueCopy)
-
-			currTags = append(currTags, ident.Tag{
-				Name:  ident.BytesID(nameCopy.Bytes()),
-				Value: ident.BytesID(valueCopy.Bytes()),
-			})
-		}
-
-		// Choose to write out the current tags if do not need modifying.
-		writeTags := currTags[:]
-
-		var currIdentTags ident.Tags
-		currIdentTags.Reset(currTags)
-		currTagsIter.Reset(currIdentTags)
-
-		check, err := readEntry(id, currTagsIter, data, checksum)
+		check, err := readEntry(id, tags, data, checksum)
 		if err != nil {
 			shouldFixInvalidID := check.invalidID && opts.fixInvalidIDs
 			shouldFixInvalidTags := check.invalidTags && opts.fixInvalidTags
@@ -447,11 +415,14 @@ func fixFileSet(
 			return fmt.Errorf("encountered an error not enabled to fix: %v", err)
 		}
 
-		var writeIdentTags ident.Tags
-		writeIdentTags.Reset(writeTags)
+		metadata := persist.NewMetadataFromIDAndTagIterator(id, tagsCopy,
+			persist.MetadataOptions{
+				FinalizeID:          true,
+				FinalizeTagIterator: true,
+			})
 
 		data.IncRef()
-		err = writer.Write(id, writeIdentTags, data, checksum)
+		err = writer.Write(metadata, data, checksum)
 		data.DecRef()
 		if err != nil {
 			return fmt.Errorf("could not write fixed file set entry: %v", err)
