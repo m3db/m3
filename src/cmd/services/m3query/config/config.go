@@ -76,7 +76,8 @@ var (
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
-	defaultStorageQueryLimit = 10000
+	defaultStorageQuerySeriesLimit = 10000
+	defaultStorageQueryDocsLimit   = 0 // Default OFF.
 )
 
 // Configuration is the configuration for the query service.
@@ -251,15 +252,15 @@ func (c PrometheusQueryConfiguration) MaxSamplesPerQueryOrDefault() int {
 // LimitsConfiguration represents limitations on resource usage in the query
 // instance. Limits are split between per-query and global limits.
 type LimitsConfiguration struct {
-	// deprecated: use PerQuery.MaxComputedDatapoints instead.
-	DeprecatedMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
+	// PerQuery configures limits which apply to each query individually.
+	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
 
 	// Global configures limits which apply across all queries running on this
 	// instance.
 	Global GlobalLimitsConfiguration `yaml:"global"`
 
-	// PerQuery configures limits which apply to each query individually.
-	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
+	// deprecated: use PerQuery.MaxComputedDatapoints instead.
+	DeprecatedMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
 }
 
 // MaxComputedDatapoints is a getter providing backwards compatibility between
@@ -278,8 +279,9 @@ func (lc LimitsConfiguration) MaxComputedDatapoints() int {
 // GlobalLimitsConfiguration represents limits on resource usage across a query
 // instance. Zero or negative values imply no limit.
 type GlobalLimitsConfiguration struct {
-	// MaxFetchedDatapoints limits the total number of datapoints actually
-	// fetched by all queries at any given time.
+	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
+	// used by all queries at any point in time, this is applied at the query
+	// service after the result has been returned by a storage node.
 	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
 }
 
@@ -292,6 +294,24 @@ func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOpt
 // PerQueryLimitsConfiguration represents limits on resource usage within a
 // single query. Zero or negative values imply no limit.
 type PerQueryLimitsConfiguration struct {
+	// MaxFetchedSeries limits the number of time series returned for any given
+	// individual storage node per query, before returning result to query
+	// service.
+	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
+
+	// MaxFetchedDocs limits the number of index documents matched for any given
+	// individual storage node per query, before returning result to query
+	// service.
+	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
+
+	// RequireExhaustive results in an error if the query exceeds any limit.
+	RequireExhaustive bool `yaml:"requireExhaustive"`
+
+	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
+	// used by a given query, this is applied at the query service after the
+	// result has been returned by a storage node.
+	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
+
 	// PrivateMaxComputedDatapoints limits the number of datapoints that can be
 	// returned by a query. It's determined purely
 	// from the size of the time range and the step size (end - start / step).
@@ -300,16 +320,6 @@ type PerQueryLimitsConfiguration struct {
 	// LimitsConfiguration.MaxComputedDatapoints() instead of accessing
 	// this field directly.
 	PrivateMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
-
-	// MaxFetchedDatapoints limits the number of datapoints actually used by a
-	// given query.
-	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
-
-	// MaxFetchedSeries limits the number of time series returned by a storage node.
-	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
-
-	// RequireExhaustive results in an error if the query exceeds the series limit.
-	RequireExhaustive bool `yaml:"requireExhaustive"`
 }
 
 // AsLimitManagerOptions converts this configuration to
@@ -321,15 +331,19 @@ func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerO
 // AsFetchOptionsBuilderOptions converts this configuration to
 // handler.FetchOptionsBuilderOptions.
 func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleroptions.FetchOptionsBuilderOptions {
-	if l.MaxFetchedSeries <= 0 {
-		return handleroptions.FetchOptionsBuilderOptions{
-			Limit:             defaultStorageQueryLimit,
-			RequireExhaustive: l.RequireExhaustive,
-		}
+	seriesLimit := defaultStorageQuerySeriesLimit
+	if v := l.MaxFetchedSeries; v > 0 {
+		seriesLimit = v
+	}
+
+	docsLimit := defaultStorageQueryDocsLimit
+	if v := l.MaxFetchedDocs; v > 0 {
+		docsLimit = v
 	}
 
 	return handleroptions.FetchOptionsBuilderOptions{
-		Limit:             int(l.MaxFetchedSeries),
+		SeriesLimit:       int(seriesLimit),
+		DocsLimit:         int(docsLimit),
 		RequireExhaustive: l.RequireExhaustive,
 	}
 }

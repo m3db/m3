@@ -112,8 +112,10 @@ type FetchQuery struct {
 type FetchOptions struct {
 	// Remote is set when this fetch is originated by a remote grpc call.
 	Remote bool
-	// Limit is the maximum number of series to return.
-	Limit int
+	// SeriesLimit is the maximum number of series to return.
+	SeriesLimit int
+	// DocsLimit is the maximum number of docs to return.
+	DocsLimit int
 	// RequireExhaustive results in an error if the query exceeds the series limit.
 	RequireExhaustive bool
 	// BlockType is the block type that the fetch function returns.

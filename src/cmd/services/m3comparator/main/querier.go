@@ -48,7 +48,7 @@ import (
 var _ m3.Querier = (*querier)(nil)
 
 type querier struct {
-	iteratorOpts         iteratorOptions
+	iteratorOpts         parser.Options
 	handler              seriesLoadHandler
 	blockSize            time.Duration
 	defaultResolution    time.Duration
@@ -57,7 +57,7 @@ type querier struct {
 }
 
 func newQuerier(
-	iteratorOpts iteratorOptions,
+	iteratorOpts parser.Options,
 	handler seriesLoadHandler,
 	blockSize time.Duration,
 	defaultResolution time.Duration,
@@ -80,20 +80,13 @@ func newQuerier(
 
 func noop() error { return nil }
 
-type seriesBlock []ts.Datapoint
-
-type series struct {
-	blocks []seriesBlock
-	tags   parser.Tags
-}
-
 func (q *querier) generateSeriesBlock(
 	start time.Time,
 	resolution time.Duration,
 	integerValues bool,
-) seriesBlock {
+) parser.Data {
 	numPoints := int(q.blockSize / resolution)
-	dps := make(seriesBlock, 0, numPoints)
+	dps := make(parser.Data, 0, numPoints)
 	for i := 0; i < numPoints; i++ {
 		stamp := start.Add(resolution * time.Duration(i))
 		var value float64
@@ -120,21 +113,21 @@ func (q *querier) generateSeries(
 	resolution time.Duration,
 	tags parser.Tags,
 	integerValues bool,
-) (series, error) {
+) (parser.IngestSeries, error) {
 	numBlocks := int(math.Ceil(float64(end.Sub(start)) / float64(q.blockSize)))
 	if numBlocks == 0 {
-		return series{}, fmt.Errorf("comparator querier: no blocks generated")
+		return parser.IngestSeries{}, fmt.Errorf("comparator querier: no blocks generated")
 	}
 
-	blocks := make([]seriesBlock, 0, numBlocks)
+	blocks := make([]parser.Data, 0, numBlocks)
 	for i := 0; i < numBlocks; i++ {
 		blocks = append(blocks, q.generateSeriesBlock(start, resolution, integerValues))
 		start = start.Add(q.blockSize)
 	}
 
-	return series{
-		blocks: blocks,
-		tags:   tags,
+	return parser.IngestSeries{
+		Datapoints: blocks,
+		Tags:       tags,
 	}, nil
 }
 
@@ -151,13 +144,13 @@ func (q *querier) FetchCompressed(
 ) (consolidators.SeriesFetchResult, m3.Cleanup, error) {
 	var (
 		iters               encoding.SeriesIterators
-		randomSeries        []series
+		randomSeries        []parser.IngestSeries
 		ignoreFilter        bool
 		err                 error
 		strictMetricsFilter bool
 	)
 
-	name := q.iteratorOpts.tagOptions.MetricName()
+	name := q.iteratorOpts.TagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(name, matcher.Name) {
 
@@ -193,7 +186,8 @@ func (q *querier) FetchCompressed(
 		if err != nil {
 			return consolidators.SeriesFetchResult{}, noop, err
 		}
-		iters, err = buildSeriesIterators(randomSeries, query.Start, q.blockSize, q.iteratorOpts)
+		iters, err = parser.BuildSeriesIterators(
+			randomSeries, query.Start, q.blockSize, q.iteratorOpts)
 		if err != nil {
 			return consolidators.SeriesFetchResult{}, noop, err
 		}
@@ -225,13 +219,13 @@ func (q *querier) FetchCompressed(
 
 func (q *querier) generateRandomSeries(
 	query *storage.FetchQuery,
-) (series []series, ignoreFilter bool, err error) {
+) (series []parser.IngestSeries, ignoreFilter bool, err error) {
 	var (
 		start = query.Start.Truncate(q.blockSize)
 		end   = query.End.Truncate(q.blockSize).Add(q.blockSize)
 	)
 
-	metricNameTag := q.iteratorOpts.tagOptions.MetricName()
+	metricNameTag := q.iteratorOpts.TagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		if bytes.Equal(metricNameTag, matcher.Name) {
 			if matched, _ := regexp.Match(`^multi_\d+$`, matcher.Value); matched {
@@ -254,7 +248,7 @@ func (q *querier) generateSingleSeriesMetrics(
 	query *storage.FetchQuery,
 	start time.Time,
 	end time.Time,
-) ([]series, error) {
+) ([]parser.IngestSeries, error) {
 	var (
 		gens = []seriesGen{
 			{"foo", time.Second},
@@ -268,7 +262,7 @@ func (q *querier) generateSingleSeriesMetrics(
 	unlock := q.lockAndSeed(start)
 	defer unlock()
 
-	metricNameTag := q.iteratorOpts.tagOptions.MetricName()
+	metricNameTag := q.iteratorOpts.TagOptions.MetricName()
 	for _, matcher := range query.TagMatchers {
 		// filter if name, otherwise return all.
 		if bytes.Equal(metricNameTag, matcher.Name) {
@@ -304,7 +298,7 @@ func (q *querier) generateSingleSeriesMetrics(
 		actualGens = gens
 	}
 
-	seriesList := make([]series, 0, len(actualGens))
+	seriesList := make([]parser.IngestSeries, 0, len(actualGens))
 	for _, gen := range actualGens {
 		tags := parser.Tags{
 			parser.NewTag(model.MetricNameLabel, gen.name),
@@ -327,7 +321,7 @@ func (q *querier) generateMultiSeriesMetrics(
 	metricsName string,
 	start time.Time,
 	end time.Time,
-) ([]series, error) {
+) ([]parser.IngestSeries, error) {
 	suffix := strings.TrimPrefix(metricsName, "multi_")
 	seriesCount, err := strconv.Atoi(suffix)
 	if err != nil {
@@ -337,7 +331,7 @@ func (q *querier) generateMultiSeriesMetrics(
 	unlock := q.lockAndSeed(start)
 	defer unlock()
 
-	seriesList := make([]series, 0, seriesCount)
+	seriesList := make([]parser.IngestSeries, 0, seriesCount)
 	for id := 0; id < seriesCount; id++ {
 		tags := multiSeriesTags(metricsName, id)
 
@@ -356,7 +350,7 @@ func (q *querier) generateHistogramMetrics(
 	metricsName string,
 	start time.Time,
 	end time.Time,
-) ([]series, error) {
+) ([]parser.IngestSeries, error) {
 	suffix := strings.TrimPrefix(metricsName, "histogram_")
 	countStr := strings.TrimSuffix(suffix, "_bucket")
 	seriesCount, err := strconv.Atoi(countStr)
@@ -367,10 +361,10 @@ func (q *querier) generateHistogramMetrics(
 	unlock := q.lockAndSeed(start)
 	defer unlock()
 
-	seriesList := make([]series, 0, seriesCount)
+	seriesList := make([]parser.IngestSeries, 0, seriesCount)
 	for id := 0; id < seriesCount; id++ {
 		le := 1.0
-		var previousSeriesBlocks []seriesBlock
+		var previousSeriesBlocks []parser.Data
 		for bucket := uint(0); bucket < q.histogramBucketCount; bucket++ {
 			tags := multiSeriesTags(metricsName, id)
 			leStr := "+Inf"
@@ -388,13 +382,13 @@ func (q *querier) generateHistogramMetrics(
 
 			for i, prevBlock := range previousSeriesBlocks {
 				for j, prevValue := range prevBlock {
-					series.blocks[i][j].Value += prevValue.Value
+					series.Datapoints[i][j].Value += prevValue.Value
 				}
 			}
 
 			seriesList = append(seriesList, series)
 
-			previousSeriesBlocks = series.blocks
+			previousSeriesBlocks = series.Datapoints
 		}
 	}
 

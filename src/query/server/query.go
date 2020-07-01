@@ -277,7 +277,8 @@ func Run(runOpts RunOptions) {
 		fetchOptsBuilderCfg = cfg.Limits.PerQuery.AsFetchOptionsBuilderOptions()
 		fetchOptsBuilder    = handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
 		queryCtxOpts        = models.QueryContextOptions{
-			LimitMaxTimeseries: fetchOptsBuilderCfg.Limit,
+			LimitMaxTimeseries: fetchOptsBuilderCfg.SeriesLimit,
+			LimitMaxDocs:       fetchOptsBuilderCfg.DocsLimit,
 			RequireExhaustive:  fetchOptsBuilderCfg.RequireExhaustive,
 		}
 

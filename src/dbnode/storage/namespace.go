@@ -749,7 +749,8 @@ func (n *dbNamespace) QueryIDs(
 		sp.LogFields(
 			opentracinglog.String("query", query.String()),
 			opentracinglog.String("namespace", n.ID().String()),
-			opentracinglog.Int("limit", opts.Limit),
+			opentracinglog.Int("seriesLimit", opts.SeriesLimit),
+			opentracinglog.Int("docsLimit", opts.DocsLimit),
 			xopentracing.Time("start", opts.StartInclusive),
 			xopentracing.Time("end", opts.EndExclusive),
 		)

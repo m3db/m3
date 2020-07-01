@@ -33,7 +33,10 @@ Query using PromQL and returns JSON datapoints compatible with the Prometheus Gr
 #### Optional
 
 --8<--
-docs/common/headers_optional_read_write.md
+docs/common/headers_optional_read_write_all.md
+--8<--
+--8<--
+docs/common/headers_optional_read_limits.md
 --8<--
 
 ### Data Params

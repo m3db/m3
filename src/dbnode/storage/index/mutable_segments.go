@@ -439,6 +439,17 @@ func (m *mutableSegments) backgroundCompactWithTask(
 		return err
 	}
 
+	// Add a read through cache for repeated expensive queries against
+	// background compacted segments since they can live for quite some
+	// time and accrue a large set of documents.
+	if immSeg, ok := compacted.(segment.ImmutableSegment); ok {
+		var (
+			plCache         = m.opts.PostingsListCache()
+			readThroughOpts = m.opts.ReadThroughSegmentOptions()
+		)
+		compacted = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+	}
+
 	// Rotate out the replaced frozen segments and add the compacted one.
 	m.Lock()
 	defer m.Unlock()

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -50,13 +51,13 @@ var _ seriesLoadHandler = (*testSeriesLoadHandler)(nil)
 type tagMap map[string]string
 
 var (
-	iteratorOpts = iteratorOptions{
-		encoderPool:   encoderPool,
-		iteratorPools: iterPools,
-		tagOptions:    tagOptions,
-		iOpts:         iOpts,
+	iteratorOpts = parser.Options{
+		EncoderPool:       encoderPool,
+		IteratorPools:     iterPools,
+		TagOptions:        tagOptions,
+		InstrumentOptions: iOpts,
 	}
-	metricNameTag = string(iteratorOpts.tagOptions.MetricName())
+	metricNameTag = string(iteratorOpts.TagOptions.MetricName())
 )
 
 const (

@@ -485,7 +485,7 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 		EndExclusive:   end,
 	}
 	if l := req.Limit; l != nil {
-		opts.Limit = int(*l)
+		opts.SeriesLimit = int(*l)
 	}
 	queryResult, err := db.QueryIDs(ctx, nsID, index.Query{Query: q}, opts)
 	if err != nil {

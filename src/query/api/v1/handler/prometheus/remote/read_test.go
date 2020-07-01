@@ -160,7 +160,7 @@ func setupServer(t *testing.T) *httptest.Server {
 
 func readHandler(store storage.Storage,
 	timeoutOpts *prometheus.TimeoutOpts) http.Handler {
-	fetchOpts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
+	fetchOpts := handleroptions.FetchOptionsBuilderOptions{SeriesLimit: 100}
 	iOpts := instrument.NewOptions()
 	engine := newEngine(store, defaultLookbackDuration, nil, iOpts)
 	opts := options.EmptyHandlerOptions().
@@ -175,7 +175,7 @@ func readHandler(store storage.Storage,
 func TestPromReadParsing(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	builderOpts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
+	builderOpts := handleroptions.FetchOptionsBuilderOptions{SeriesLimit: 100}
 	engine := newEngine(storage, defaultLookbackDuration, nil,
 		instrument.NewOptions())
 
@@ -283,7 +283,7 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
-	buildOpts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
+	buildOpts := handleroptions.FetchOptionsBuilderOptions{SeriesLimit: 100}
 	engine := newEngine(storage, defaultLookbackDuration, nil,
 		instrument.NewOptions())
 	opts := options.EmptyHandlerOptions().
