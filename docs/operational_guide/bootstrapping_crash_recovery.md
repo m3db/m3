@@ -97,7 +97,7 @@ In the general case, the node will use only the `filesystem` and `commitlog` boo
 
 Additionally, if it is a brand new placement where even the `peers` bootstrapper cannot fulfill the bootstrap, this will be detected by the `uninitialized_topology` bootstrapper which will succeed the bootstrap.
 
-### filesystem,peers,uninitialized_topology (default)
+### filesystem,peers,uninitialized_topology
 
 Everytime a node is restarted it will attempt to stream in all of the the data for any blocks that it has never flushed, which is generally the currently active block and possibly the previous block as well. This mode can be useful if you want to improve performance or save disk space by operating nodes without a commitlog, or want to force a repair of any unflushed blocks. This mode can lead to violations of M3DB's consistency guarantees due to the fact that commit logs are being ignored. In addition, if you lose a replication factors worth or more of hosts at the same time, the node will not be able to bootstrap unless an operator modifies the bootstrap consistency level configuration in etcd (see `peers` bootstrap section above). Finally, this mode adds additional network and resource pressure on other nodes in the cluster while one node is peer bootstrapping from them which can be problematic in catastrophic scenarios where all the nodes are trying to stream data from each other.
 
