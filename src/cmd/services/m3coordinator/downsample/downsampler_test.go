@@ -68,6 +68,20 @@ const (
 	nameTag = "__name__"
 )
 
+func TestDownsamplerAggregationWithAutoMappingRules(t *testing.T) {
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []AutoMappingRule{
+			{
+				Aggregations: []aggregation.Type{testAggregationType},
+				Policies:     testAggregationStoragePolicies,
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
 func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{})
 	rulesStore := testDownsampler.rulesStore
@@ -154,6 +168,132 @@ func TestDownsamplerAggregationWithRulesConfigMappingRules(t *testing.T) {
 						MetricsType: storagemetadata.AggregatedMetricsType,
 						Resolution:  5 * time.Second,
 						Retention:   30 * 24 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigMappingRulesPartialReplaceAutoMappingRule(t *testing.T) {
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag: "foo_metric",
+			"app":   "nginx_edge",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []AutoMappingRule{
+			{
+				Aggregations: []aggregation.Type{aggregation.Sum},
+				Policies: policy.StoragePolicies{
+					policy.MustParseStoragePolicy("2s:24h"),
+					policy.MustParseStoragePolicy("4s:48h"),
+				},
+			},
+		},
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 2 * time.Second,
+							Retention:  24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				// Expect the max to be used and override the default auto
+				// mapping rule for the storage policy 2s:24h.
+				{
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  2 * time.Second,
+						Retention:   24 * time.Hour,
+					},
+				},
+				// Expect the sum to still be used for the storage
+				// policy 4s:48h.
+				{
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 60}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  4 * time.Second,
+						Retention:   48 * time.Hour,
+					},
+				},
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigMappingRulesReplaceAutoMappingRule(t *testing.T) {
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			nameTag: "foo_metric",
+			"app":   "nginx_edge",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []AutoMappingRule{
+			{
+				Aggregations: []aggregation.Type{aggregation.Sum},
+				Policies: policy.StoragePolicies{
+					policy.MustParseStoragePolicy("2s:24h"),
+				},
+			},
+		},
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "app:nginx*",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 2 * time.Second,
+							Retention:  24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{
+				// Expect the max to be used and override the default auto
+				// mapping rule for the storage policy 2s:24h.
+				{
+					tags:   gaugeMetric.tags,
+					values: []expectedValue{{value: 30}},
+					attributes: &storagemetadata.Attributes{
+						MetricsType: storagemetadata.AggregatedMetricsType,
+						Resolution:  2 * time.Second,
+						Retention:   24 * time.Hour,
 					},
 				},
 			},
@@ -1367,6 +1507,7 @@ type testDownsamplerOptions struct {
 	identTag       string
 
 	// Options for the test
+	autoMappingRules   []AutoMappingRule
 	sampleAppenderOpts *SampleAppenderOptions
 	remoteClientMock   *client.MockClient
 	rulesConfig        *RulesConfiguration
@@ -1438,6 +1579,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 		Storage:               storage,
 		ClusterClient:         clusterclient.NewMockClient(gomock.NewController(t)),
 		RulesKVStore:          rulesKVStore,
+		AutoMappingRules:      opts.autoMappingRules,
 		ClockOptions:          clockOpts,
 		InstrumentOptions:     instrumentOpts,
 		TagEncoderOptions:     tagEncoderOptions,

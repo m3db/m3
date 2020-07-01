@@ -215,6 +215,9 @@ type Configuration struct {
 
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
+
+	// DisableAutoMappingRules disables auto mapping rules.
+	DisableAutoMappingRules bool `yaml:"disableAutoMappingRules"`
 }
 
 // MatcherConfiguration is the configuration for the rule matcher.
