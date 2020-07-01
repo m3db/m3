@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -1040,10 +1041,12 @@ func TestCommitLogRotateLogs(t *testing.T) {
 }
 
 var (
+	testTag0 = ident.StringTag("name0", "val0")
 	testTag1 = ident.StringTag("name1", "val1")
 	testTag2 = ident.StringTag("name2", "val2")
 	testTag3 = ident.StringTag("name3", "val3")
 
+	testTags0 = ident.NewTags(testTag0)
 	testTags1 = ident.NewTags(testTag1)
 	testTags2 = ident.NewTags(testTag2)
 	testTags3 = ident.NewTags(testTag3)
@@ -1063,14 +1066,24 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 
 	writes := writes.NewWriteBatch(4, ident.StringID("ns"), finalizeFn)
 
+	testSeriesWrites := []ts.Series{
+		testSeries(t, opts, 0, "foo.bar", testTags0, 42),
+		testSeries(t, opts, 1, "foo.baz", testTags1, 127),
+		testSeries(t, opts, 2, "biz.qaz", testTags2, 321),
+		testSeries(t, opts, 3, "biz.qux", testTags3, 511),
+	}
 	alignedStart := time.Now().Truncate(time.Hour)
 	for i := 0; i < 4; i++ {
 		tt := alignedStart.Add(time.Minute * time.Duration(i))
-		writes.Add(i, ident.StringID(fmt.Sprint(i)), tt, float64(i)*10.5, xtime.Second, nil)
+		tagsIter := opts.FilesystemOptions().TagDecoderPool().Get()
+		tagsIter.Reset(checked.NewBytes(testSeriesWrites[i].EncodedTags, nil))
+		writes.AddTagged(i, testSeriesWrites[i].ID, tagsIter,
+			testSeriesWrites[i].EncodedTags,
+			tt, float64(i)*10.5, xtime.Second, nil)
 	}
 
 	writes.SetSkipWrite(0)
-	writes.SetSeries(1, testSeries(t, opts, 1, "foo.bar", testTags1, 127))
+	writes.SetSeries(1, testSeries(t, opts, 1, "foo.baz", testTags1, 127))
 	writes.SetError(2, errors.New("oops"))
 	writes.SetSeries(3, testSeries(t, opts, 3, "biz.qux", testTags3, 511))
 
@@ -1112,7 +1125,7 @@ func TestCommitLogBatchWriteDoesNotAddErroredOrSkippedSeries(t *testing.T) {
 
 	// Assert writes occurred by reading the commit log
 	expected := []testWrite{
-		{testSeries(t, opts, 1, "foo.bar", testTags1, 127), alignedStart.Add(time.Minute), 10.5, xtime.Second, nil, nil},
+		{testSeries(t, opts, 1, "foo.baz", testTags1, 127), alignedStart.Add(time.Minute), 10.5, xtime.Second, nil, nil},
 		{testSeries(t, opts, 3, "biz.qux", testTags3, 511), alignedStart.Add(time.Minute * 3), 31.5, xtime.Second, nil, nil},
 	}
 
