@@ -196,7 +196,9 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 		segment  = ts.NewSegment(head, tail, 0, ts.FinalizeNone)
 		checksum = segment.CalculateChecksum()
 	)
-	writer.EXPECT().WriteAll(id, tags, gomock.Any(), checksum).Return(nil)
+	metadata := persist.NewMetadataFromIDAndTags(id, tags,
+		persist.MetadataOptions{})
+	writer.EXPECT().WriteAll(metadata, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
 	flush, err := pm.StartFlushPersist()
@@ -221,7 +223,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	require.Nil(t, err)
 
-	require.Nil(t, prepared.Persist(id, tags, segment, checksum))
+	require.Nil(t, prepared.Persist(metadata, segment, checksum))
 
 	require.True(t, pm.start.Equal(now))
 	require.Equal(t, 124, pm.count)
@@ -266,7 +268,9 @@ func TestPersistenceManagerPrepareSnapshotSuccess(t *testing.T) {
 		segment  = ts.NewSegment(head, tail, 0, ts.FinalizeNone)
 		checksum = segment.CalculateChecksum()
 	)
-	writer.EXPECT().WriteAll(id, tags, gomock.Any(), checksum).Return(nil)
+	metadata := persist.NewMetadataFromIDAndTags(id, tags,
+		persist.MetadataOptions{})
+	writer.EXPECT().WriteAll(metadata, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
 	flush, err := pm.StartSnapshotPersist(testSnapshotID)
@@ -291,7 +295,7 @@ func TestPersistenceManagerPrepareSnapshotSuccess(t *testing.T) {
 
 	require.Nil(t, err)
 
-	require.Nil(t, prepared.Persist(id, tags, segment, checksum))
+	require.Nil(t, prepared.Persist(metadata, segment, checksum))
 
 	require.True(t, pm.start.Equal(now))
 	require.Equal(t, 124, pm.count)
@@ -504,7 +508,12 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	writer.EXPECT().WriteAll(id, tags, pm.dataPM.segmentHolder, checksum).Return(nil).Times(2)
+	metadata := persist.NewMetadataFromIDAndTags(id, tags,
+		persist.MetadataOptions{})
+	writer.EXPECT().
+		WriteAll(metadata, pm.dataPM.segmentHolder, checksum).
+		Return(nil).
+		Times(2)
 
 	flush, err := pm.StartFlushPersist()
 	require.NoError(t, err)
@@ -524,11 +533,11 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	// Start persistence
 	now = time.Now()
-	require.NoError(t, prepared.Persist(id, tags, segment, checksum))
+	require.NoError(t, prepared.Persist(metadata, segment, checksum))
 
 	// Advance time and write again
 	now = now.Add(time.Millisecond)
-	require.NoError(t, prepared.Persist(id, tags, segment, checksum))
+	require.NoError(t, prepared.Persist(metadata, segment, checksum))
 
 	// Check there is no rate limiting
 	require.Equal(t, time.Duration(0), slept)
@@ -567,8 +576,13 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		},
 		BlockSize: testBlockSize,
 	}, m3test.IdentTransformer)
+	metadata := persist.NewMetadataFromIDAndTags(id, ident.Tags{},
+		persist.MetadataOptions{})
 	writer.EXPECT().Open(writerOpts).Return(nil).Times(iter)
-	writer.EXPECT().WriteAll(id, ident.Tags{}, pm.dataPM.segmentHolder, checksum).Return(nil).AnyTimes()
+	writer.EXPECT().
+		WriteAll(metadata, pm.dataPM.segmentHolder, checksum).
+		Return(nil).
+		AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
 	// Enable rate limiting
@@ -607,21 +621,21 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 		// Start persistence
 		now = time.Now()
-		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
+		require.NoError(t, prepared.Persist(metadata, segment, checksum))
 
 		// Assert we don't rate limit if the count is not enough yet
-		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
+		require.NoError(t, prepared.Persist(metadata, segment, checksum))
 		require.Equal(t, time.Duration(0), slept)
 
 		// Advance time and check we rate limit if the disk throughput exceeds the limit
 		now = now.Add(time.Microsecond)
-		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
+		require.NoError(t, prepared.Persist(metadata, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		// Advance time and check we don't rate limit if the disk throughput is below the limit
-		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
+		require.NoError(t, prepared.Persist(metadata, segment, checksum))
 		now = now.Add(time.Second - time.Microsecond)
-		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
+		require.NoError(t, prepared.Persist(metadata, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		require.Equal(t, int64(15), pm.bytesWritten)

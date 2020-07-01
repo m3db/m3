@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -164,7 +165,9 @@ func calculateExpectedChecksum(t *testing.T, filePath string) uint32 {
 
 func writeTestSummariesData(w DataFileSetWriter, writes []generatedWrite) error {
 	for _, write := range writes {
-		err := w.Write(write.id, write.tags, write.data, write.checksum)
+		metadata := persist.NewMetadataFromIDAndTags(write.id, write.tags,
+			persist.MetadataOptions{})
+		err := w.Write(metadata, write.data, write.checksum)
 		if err != nil {
 			return err
 		}

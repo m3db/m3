@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -260,8 +261,9 @@ func writeTSDBFiles(
 	for _, v := range series {
 		bytes := checked.NewBytes(v.data, nil)
 		bytes.IncRef()
-		require.NoError(t, w.Write(ident.StringID(v.id),
-			sortedTagsFromTagsMap(v.tags), bytes, digest.Checksum(bytes.Bytes())))
+		metadata := persist.NewMetadataFromIDAndTags(ident.StringID(v.id), sortedTagsFromTagsMap(v.tags),
+			persist.MetadataOptions{})
+		require.NoError(t, w.Write(metadata, bytes, digest.Checksum(bytes.Bytes())))
 		bytes.DecRef()
 	}
 

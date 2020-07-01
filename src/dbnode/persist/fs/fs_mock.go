@@ -109,31 +109,31 @@ func (mr *MockDataFileSetWriterMockRecorder) Open(arg0 interface{}) *gomock.Call
 }
 
 // Write mocks base method
-func (m *MockDataFileSetWriter) Write(arg0 ident.ID, arg1 ident.Tags, arg2 checked.Bytes, arg3 uint32) error {
+func (m *MockDataFileSetWriter) Write(arg0 persist.Metadata, arg1 checked.Bytes, arg2 uint32) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Write indicates an expected call of Write
-func (mr *MockDataFileSetWriterMockRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDataFileSetWriterMockRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDataFileSetWriter)(nil).Write), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDataFileSetWriter)(nil).Write), arg0, arg1, arg2)
 }
 
 // WriteAll mocks base method
-func (m *MockDataFileSetWriter) WriteAll(arg0 ident.ID, arg1 ident.Tags, arg2 []checked.Bytes, arg3 uint32) error {
+func (m *MockDataFileSetWriter) WriteAll(arg0 persist.Metadata, arg1 []checked.Bytes, arg2 uint32) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteAll", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "WriteAll", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteAll indicates an expected call of WriteAll
-func (mr *MockDataFileSetWriterMockRecorder) WriteAll(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDataFileSetWriterMockRecorder) WriteAll(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteAll", reflect.TypeOf((*MockDataFileSetWriter)(nil).WriteAll), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteAll", reflect.TypeOf((*MockDataFileSetWriter)(nil).WriteAll), arg0, arg1, arg2)
 }
 
 // MockDataFileSetReader is a mock of DataFileSetReader interface

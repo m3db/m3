@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
@@ -569,6 +570,22 @@ func (i *nsIndex) WriteBatch(
 	return nil
 }
 
+func (i *nsIndex) WritePending(
+	pending []writes.PendingIndexInsert,
+) error {
+	i.state.RLock()
+	if !i.isOpenWithRLock() {
+		i.state.RUnlock()
+		i.metrics.insertAfterClose.Inc(1)
+		return errDbIndexUnableToWriteClosed
+	}
+	_, err := i.state.insertQueue.InsertPending(pending)
+	// release the lock because we don't need it past this point.
+	i.state.RUnlock()
+
+	return err
+}
+
 // WriteBatches is called by the indexInsertQueue.
 func (i *nsIndex) writeBatches(
 	batch *index.WriteBatch,
@@ -1063,7 +1080,7 @@ func (i *nsIndex) flushBlockSegment(
 			}
 
 			for _, result := range results.Results() {
-				doc, err := convert.FromMetricIter(result.ID, result.Tags)
+				doc, err := convert.FromSeriesIDAndTagIter(result.ID, result.Tags)
 				if err != nil {
 					return err
 				}

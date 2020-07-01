@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -111,7 +112,7 @@ type db struct {
 	metrics databaseMetrics
 	log     *zap.Logger
 
-	writeBatchPool *ts.WriteBatchPool
+	writeBatchPool *writes.WriteBatchPool
 }
 
 type databaseMetrics struct {
@@ -584,12 +585,12 @@ func (d *db) Write(
 		return err
 	}
 
-	series, wasWritten, err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	seriesWrite, err := n.Write(ctx, id, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() || !wasWritten {
+	if !n.Options().WritesToCommitLog() || !seriesWrite.WasWritten {
 		return nil
 	}
 
@@ -599,7 +600,7 @@ func (d *db) Write(
 		Value:          value,
 	}
 
-	return d.commitLog.Write(ctx, series, dp, unit, annotation)
+	return d.commitLog.Write(ctx, seriesWrite.Series, dp, unit, annotation)
 }
 
 func (d *db) WriteTagged(
@@ -618,12 +619,12 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	series, wasWritten, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	seriesWrite, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() || !wasWritten {
+	if !n.Options().WritesToCommitLog() || !seriesWrite.WasWritten {
 		return nil
 	}
 
@@ -633,10 +634,10 @@ func (d *db) WriteTagged(
 		Value:          value,
 	}
 
-	return d.commitLog.Write(ctx, series, dp, unit, annotation)
+	return d.commitLog.Write(ctx, seriesWrite.Series, dp, unit, annotation)
 }
 
-func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+func (d *db) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceBatchWriter.Inc(1)
@@ -654,7 +655,7 @@ func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, err
 func (d *db) WriteBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writer ts.BatchWriter,
+	writer writes.BatchWriter,
 	errHandler IndexedErrorHandler,
 ) error {
 	return d.writeBatch(ctx, namespace, writer, errHandler, false)
@@ -663,7 +664,7 @@ func (d *db) WriteBatch(
 func (d *db) WriteTaggedBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writer ts.BatchWriter,
+	writer writes.BatchWriter,
 	errHandler IndexedErrorHandler,
 ) error {
 	return d.writeBatch(ctx, namespace, writer, errHandler, true)
@@ -672,7 +673,7 @@ func (d *db) WriteTaggedBatch(
 func (d *db) writeBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writer ts.BatchWriter,
+	writer writes.BatchWriter,
 	errHandler IndexedErrorHandler,
 	tagged bool,
 ) error {
@@ -685,7 +686,7 @@ func (d *db) writeBatch(
 	}
 	defer sp.Finish()
 
-	writes, ok := writer.(ts.WriteBatch)
+	writes, ok := writer.(writes.WriteBatch)
 	if !ok {
 		return errWriterDoesNotImplementWriteBatch
 	}
@@ -703,13 +704,12 @@ func (d *db) writeBatch(
 	iter := writes.Iter()
 	for i, write := range iter {
 		var (
-			series     ts.Series
-			wasWritten bool
-			err        error
+			seriesWrite SeriesWrite
+			err         error
 		)
 
 		if tagged {
-			series, wasWritten, err = n.WriteTagged(
+			seriesWrite, err = n.WriteTagged(
 				ctx,
 				write.Write.Series.ID,
 				write.TagIter,
@@ -719,7 +719,7 @@ func (d *db) writeBatch(
 				write.Write.Annotation,
 			)
 		} else {
-			series, wasWritten, err = n.Write(
+			seriesWrite, err = n.Write(
 				ctx,
 				write.Write.Series.ID,
 				write.Write.Datapoint.Timestamp,
@@ -732,6 +732,8 @@ func (d *db) writeBatch(
 			// Return errors with the original index provided by the caller so they
 			// can associate the error with the write that caused it.
 			errHandler.HandleError(write.OriginalIndex, err)
+			writes.SetError(i, err)
+			continue
 		}
 
 		// Need to set the outcome in the success case so the commitlog gets the
@@ -739,13 +741,37 @@ func (d *db) writeBatch(
 		// whose lifecycle lives longer than the span of this request, making them
 		// safe for use by the async commitlog. Need to set the outcome in the
 		// error case so that the commitlog knows to skip this entry.
-		writes.SetOutcome(i, series, err)
-		if !wasWritten || err != nil {
+		writes.SetSeries(i, seriesWrite.Series)
+
+		if !seriesWrite.WasWritten {
 			// This series has no additional information that needs to be written to
 			// the commit log; set this series to skip writing to the commit log.
 			writes.SetSkipWrite(i)
 		}
+
+		if seriesWrite.NeedsIndex {
+			writes.SetPendingIndex(i, seriesWrite.PendingIndexInsert)
+		}
 	}
+
+	// Now insert all pending index inserts together in one go
+	// to limit lock contention.
+	if pending := writes.PendingIndex(); len(pending) > 0 {
+		err := n.WritePendingIndexInserts(pending)
+		if err != nil {
+			// Mark those as pending index with an error.
+			// Note: this is an invariant error, queueing should never fail
+			// when so it's fine to fail all these entries if we can't
+			// write pending index inserts.
+			for i, write := range iter {
+				if write.PendingIndex {
+					errHandler.HandleError(write.OriginalIndex, err)
+					writes.SetError(i, err)
+				}
+			}
+		}
+	}
+
 	if !n.Options().WritesToCommitLog() {
 		// Finalize here because we can't rely on the commitlog to do it since
 		// we're not using it.

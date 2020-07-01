@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
@@ -87,11 +88,11 @@ type DataFileSetWriter interface {
 
 	// Write will write the id and data pair and returns an error on a write error. Callers
 	// must not call this method with a given ID more than once.
-	Write(id ident.ID, tags ident.Tags, data checked.Bytes, checksum uint32) error
+	Write(metadata persist.Metadata, data checked.Bytes, checksum uint32) error
 
 	// WriteAll will write the id and all byte slices and returns an error on a write error.
 	// Callers must not call this method with a given ID more than once.
-	WriteAll(id ident.ID, tags ident.Tags, data []checked.Bytes, checksum uint32) error
+	WriteAll(metadata persist.Metadata, data []checked.Bytes, checksum uint32) error
 
 	// DeferClose returns a DataCloser that defers writing of a checkpoint file.
 	DeferClose() (persist.DataCloser, error)
@@ -527,7 +528,7 @@ type BlockRetrieverOptions interface {
 
 // ForEachRemainingFn is the function that is run on each of the remaining
 // series of the merge target that did not intersect with the fileset.
-type ForEachRemainingFn func(seriesID ident.ID, tags ident.Tags, data block.FetchBlockResult) error
+type ForEachRemainingFn func(seriesMetadata doc.Document, data block.FetchBlockResult) error
 
 // MergeWith is an interface that the fs merger uses to merge data with.
 type MergeWith interface {

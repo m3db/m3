@@ -36,6 +36,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -299,7 +300,9 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					}
 
 					tags := testTagsFromIDAndVolume(id.String(), volume)
-					err := w.Write(id, tags, data, digest.Checksum(data.Bytes()))
+					metadata := persist.NewMetadataFromIDAndTags(id, tags,
+						persist.MetadataOptions{})
+					err := w.Write(metadata, data, digest.Checksum(data.Bytes()))
 					require.NoError(t, err)
 				}
 				closer()
@@ -558,7 +561,9 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	data := checked.NewBytes([]byte("Hello world!"), nil)
 	data.IncRef()
 	defer data.DecRef()
-	err = w.Write(ident.StringID("exists"), ident.Tags{}, data, digest.Checksum(data.Bytes()))
+	metadata := persist.NewMetadataFromIDAndTags(ident.StringID("exists"), ident.Tags{},
+		persist.MetadataOptions{})
+	err = w.Write(metadata, data, digest.Checksum(data.Bytes()))
 	assert.NoError(t, err)
 	closer()
 
@@ -626,7 +631,9 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 		data.IncRef()
 		defer data.DecRef()
 
-		err = w.Write(ident.StringID(write.id), write.tags, data, digest.Checksum(data.Bytes()))
+		metadata := persist.NewMetadataFromIDAndTags(ident.StringID(write.id), write.tags,
+			persist.MetadataOptions{})
+		err = w.Write(metadata, data, digest.Checksum(data.Bytes()))
 		require.NoError(t, err)
 	}
 	closer()

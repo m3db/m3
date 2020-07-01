@@ -63,9 +63,9 @@ func (m *MockdatabaseBuffer) EXPECT() *MockdatabaseBufferMockRecorder {
 }
 
 // Write mocks base method
-func (m *MockdatabaseBuffer) Write(ctx context.Context, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts WriteOptions) (bool, WriteType, error) {
+func (m *MockdatabaseBuffer) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts WriteOptions) (bool, WriteType, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Write", ctx, timestamp, value, unit, annotation, wOpts)
+	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation, wOpts)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(WriteType)
 	ret2, _ := ret[2].(error)
@@ -73,38 +73,38 @@ func (m *MockdatabaseBuffer) Write(ctx context.Context, timestamp time.Time, val
 }
 
 // Write indicates an expected call of Write
-func (mr *MockdatabaseBufferMockRecorder) Write(ctx, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) Write(ctx, id, timestamp, value, unit, annotation, wOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseBuffer)(nil).Write), ctx, timestamp, value, unit, annotation, wOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseBuffer)(nil).Write), ctx, id, timestamp, value, unit, annotation, wOpts)
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time, id ident.ID, tags ident.Tags, persistFn persist.DataFn, nsCtx namespace.Context) error {
+func (m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time, metadata persist.Metadata, persistFn persist.DataFn, nsCtx namespace.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", ctx, blockStart, id, tags, persistFn, nsCtx)
+	ret := m.ctrl.Call(m, "Snapshot", ctx, blockStart, metadata, persistFn, nsCtx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot
-func (mr *MockdatabaseBufferMockRecorder) Snapshot(ctx, blockStart, id, tags, persistFn, nsCtx interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) Snapshot(ctx, blockStart, metadata, persistFn, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseBuffer)(nil).Snapshot), ctx, blockStart, id, tags, persistFn, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseBuffer)(nil).Snapshot), ctx, blockStart, metadata, persistFn, nsCtx)
 }
 
 // WarmFlush mocks base method
-func (m *MockdatabaseBuffer) WarmFlush(ctx context.Context, blockStart time.Time, id ident.ID, tags ident.Tags, persistFn persist.DataFn, nsCtx namespace.Context) (FlushOutcome, error) {
+func (m *MockdatabaseBuffer) WarmFlush(ctx context.Context, blockStart time.Time, metadata persist.Metadata, persistFn persist.DataFn, nsCtx namespace.Context) (FlushOutcome, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlush", ctx, blockStart, id, tags, persistFn, nsCtx)
+	ret := m.ctrl.Call(m, "WarmFlush", ctx, blockStart, metadata, persistFn, nsCtx)
 	ret0, _ := ret[0].(FlushOutcome)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WarmFlush indicates an expected call of WarmFlush
-func (mr *MockdatabaseBufferMockRecorder) WarmFlush(ctx, blockStart, id, tags, persistFn, nsCtx interface{}) *gomock.Call {
+func (mr *MockdatabaseBufferMockRecorder) WarmFlush(ctx, blockStart, metadata, persistFn, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockdatabaseBuffer)(nil).WarmFlush), ctx, blockStart, id, tags, persistFn, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockdatabaseBuffer)(nil).WarmFlush), ctx, blockStart, metadata, persistFn, nsCtx)
 }
 
 // ReadEncoded mocks base method

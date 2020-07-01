@@ -36,7 +36,6 @@ import (
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	xclose "github.com/m3db/m3/src/x/close"
-	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
@@ -496,8 +495,7 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 }
 
 func (pm *persistManager) persist(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	segment ts.Segment,
 	checksum uint32,
 ) error {
@@ -529,7 +527,7 @@ func (pm *persistManager) persist(
 
 	pm.dataPM.segmentHolder[0] = segment.Head
 	pm.dataPM.segmentHolder[1] = segment.Tail
-	err := pm.dataPM.writer.WriteAll(id, tags, pm.dataPM.segmentHolder, checksum)
+	err := pm.dataPM.writer.WriteAll(metadata, pm.dataPM.segmentHolder, checksum)
 	pm.count++
 	pm.bytesWritten += int64(segment.Len())
 

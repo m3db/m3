@@ -202,6 +202,8 @@ func verifySeriesMapForRange(
 							zap.String("id", id),
 							zap.String("expectedTags", expected),
 							zap.String("actualTags", actual),
+							zap.Any("expectedTagsErr", expectedTagsIter.Err()),
+							zap.Any("actualTagsErrr", actualTagsIter.Err()),
 						)
 				}
 
