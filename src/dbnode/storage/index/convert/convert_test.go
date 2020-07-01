@@ -179,7 +179,7 @@ func TestValidateSeries(t *testing.T) {
 				Value: ident.StringID("baz"),
 			}))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		assert.Contains(t, err.Error(), "invalid non-UTF8 ID")
 	})
 
 	t.Run("tag name reserved", func(t *testing.T) {
@@ -200,7 +200,7 @@ func TestValidateSeries(t *testing.T) {
 				Value: ident.StringID("bar"),
 			}))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid field name")
+		assert.Contains(t, err.Error(), "invalid non-UTF8 field name")
 	})
 
 	t.Run("tag value non-utf8", func(t *testing.T) {
@@ -210,7 +210,7 @@ func TestValidateSeries(t *testing.T) {
 				Value: ident.BinaryID(invalidBytes),
 			}))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid field value")
+		assert.Contains(t, err.Error(), "invalid non-UTF8 field value")
 	})
 }
 
