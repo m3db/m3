@@ -23,6 +23,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -607,6 +608,18 @@ type TagOptionsConfiguration struct {
 
 	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
+
+	// Filters are optional tag filters, removing all series with tags
+	// matching the filter from computations.
+	Filters []TagFilter `yaml:"filters"`
+}
+
+// TagFilter is a tag filter.
+type TagFilter struct {
+	// Name is the tag name.
+	Name string `yaml:"name"`
+	// ValueRegexes are regexes for the filter.
+	Filters []string `yaml:"filters"`
 }
 
 // TagOptionsFromConfig translates tag option configuration into tag options.
@@ -631,6 +644,28 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	opts = opts.SetIDSchemeType(cfg.Scheme)
 	if err := opts.Validate(); err != nil {
 		return nil, err
+	}
+
+	if cfg.Filters != nil {
+		filters := make([]models.Filter, 0, len(cfg.Filters))
+		for _, filter := range cfg.Filters {
+			regexFilters := make([]*regexp.Regexp, 0, len(filter.Filters))
+			for _, str := range filter.Filters {
+				regex, err := regexp.Compile(str)
+				if err != nil {
+					return nil, err
+				}
+
+				regexFilters = append(regexFilters, regex)
+			}
+
+			filters = append(filters, models.Filter{
+				Name:    []byte(filter.Name),
+				Filters: regexFilters,
+			})
+		}
+
+		opts = opts.SetFilters(filters)
 	}
 
 	return opts, nil
