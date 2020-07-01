@@ -184,7 +184,6 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 		// mapping rule has provided an override for a storage policy,
 		// if so then skip aggregating for that storage policy).
 		for idx, stagedMetadatasProto := range a.defaultStagedMetadatasProtos {
-			fmt.Printf("going over staged metadatas %v\n", stagedMetadatasProto)
 			// NB(r): Need to take copy of default staged metadatas as we
 			// sometimes mutate it.
 			stagedMetadatas := a.defaultStagedMetadatasCopies[idx]
