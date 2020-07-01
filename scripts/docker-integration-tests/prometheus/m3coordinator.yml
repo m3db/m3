@@ -41,16 +41,6 @@ clusters:
       writeConsistencyLevel: majority
       readConsistencyLevel: unstrict_majority
 
-downsample:
-  rules:
-    mappingRules:
-    - filter: __m3_type__:gauge
-      name: aggregate gauges
-      aggregations: ["Last"]
-      storagePolicies:
-      - resolution: 15s
-        retention: 10h
-
 tagOptions:
   idScheme: quoted
 
