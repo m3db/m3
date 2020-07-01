@@ -279,12 +279,12 @@ function test_query_restrict_metrics_type {
 
 function test_query_restrict_tags {
   # Test the default restrict tags is applied when directly querying
-  # coordinator (restrict tags set to hide any restrict_metrics_type="hidden"
+  # coordinator (restrict tags set to hide any restricted_metrics_type="hidden"
   # in m3coordinator.yml)
 
   # First write some hidden metrics.
   echo "Test write with unaggregated metrics type works as expected"
-  TAG_NAME_0="restrict_metrics_type" TAG_VALUE_0="hidden" \
+  TAG_NAME_0="restricted_metrics_type" TAG_VALUE_0="hidden" \
     TAG_NAME_1="foo_tag" TAG_VALUE_1="foo_tag_value" \
     prometheus_remote_write \
     some_hidden_metric now 42.42 \
