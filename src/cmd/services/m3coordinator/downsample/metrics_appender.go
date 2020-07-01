@@ -342,9 +342,10 @@ func (a *metricsAppender) Finalize() {
 func (a *metricsAppender) newSamplesAppenders(
 	stagedMetadata metadata.StagedMetadata,
 ) ([]samplesAppender, error) {
-	// Check if any pipelines have tags, if so
-	appenders := make([]samplesAppender, 0, len(stagedMetadata.Pipelines))
-	var pipelines []metadata.PipelineMetadata
+	var (
+		pipelines []metadata.PipelineMetadata
+		appenders []samplesAppender
+	)
 	for _, pipeline := range stagedMetadata.Pipelines {
 		// For pipeline which have tags to augment we generate and send
 		// separate IDs. Other pipelines return the same.
@@ -391,6 +392,8 @@ func (a *metricsAppender) newSamplesAppender(
 	if !ok {
 		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
 	}
+	// NB (@shreyas): if this is the last use of the tagEncoder we do not need
+	// this copy, but its hard to know and enforce that.
 	id := make([]byte, data.Len())
 	copy(id, data.Bytes())
 	return samplesAppender{
@@ -407,9 +410,10 @@ func augmentTags(
 	t []models.Tag,
 	id aggregation.ID,
 ) *tags {
-	// Create the prefix tags.
+	// Create the prefix tags if any.
 	tags := newTags()
 	for i, path := range graphitePrefix {
+		// Add the graphite prefix as the initial graphite tags.
 		tags.append(graphite.TagName(i), path)
 	}
 
@@ -424,6 +428,8 @@ func augmentTags(
 			value = originalTags.values[i]
 		)
 		if prefixes > 0 {
+			// If the tag seen is a graphite tag then offset it based on number
+			// of prefixes we have seen.
 			if index, ok := graphite.TagIndex(name); ok {
 				name = graphite.TagName(index + prefixes)
 			}
@@ -433,6 +439,7 @@ func augmentTags(
 
 	// Add any additional tags we need to.
 	for _, tag := range t {
+		// If these are simply random tags to be added, then just add them.
 		if !bytes.HasPrefix(tag.Name, m3MetricsPrefix) {
 			if len(tag.Name) > 0 && len(tag.Value) > 0 {
 				tags.append(tag.Name, tag.Value)
@@ -442,6 +449,7 @@ func augmentTags(
 
 		// Handle m3 special tags.
 		if bytes.Equal(tag.Name, m3MetricsGraphiteAggregation) {
+			// Add the aggregation tag as the last graphite tag.
 			types, err := id.Types()
 			if err != nil || len(types) == 0 {
 				continue
