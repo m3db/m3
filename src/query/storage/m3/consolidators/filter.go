@@ -73,7 +73,7 @@ func filterNames(tags []CompletedTag, filters models.Filters) []CompletedTag {
 			if len(f.Values) != 0 {
 				// If this has filter values, it is not a name filter, and the result
 				// is valid.
-				break
+				continue
 			}
 
 			if bytes.Equal(tag.Name, f.Name) {
@@ -99,32 +99,41 @@ func filterTags(tags []CompletedTag, filters models.Filters) []CompletedTag {
 	filteredTags := tags[:0]
 	for _, tag := range tags {
 		for _, f := range filters {
-			if bytes.Equal(tag.Name, f.Name) {
-				filteredValues := tag.Values[:0]
-				for _, value := range tag.Values {
-					skip = false
-					for _, filterValue := range f.Values {
-						if bytes.Equal(filterValue, value) {
-							skip = true
-							break
-						}
-					}
-
-					if !skip {
-						filteredValues = append(filteredValues, value)
-					}
-				}
-
-				tag.Values = filteredValues
-			}
-
-			if len(tag.Values) == 0 {
-				// NB: all values for this tag are invalid.
+			if !bytes.Equal(tag.Name, f.Name) {
 				continue
 			}
 
-			filteredTags = append(filteredTags, tag)
+			// NB: Name filter matches.
+			if len(f.Values) == 0 {
+				tag.Values = tag.Values[:0]
+				break
+			}
+
+			filteredValues := tag.Values[:0]
+			for _, value := range tag.Values {
+				skip = false
+				for _, filterValue := range f.Values {
+					if bytes.Equal(filterValue, value) {
+						skip = true
+						break
+					}
+				}
+
+				if !skip {
+					filteredValues = append(filteredValues, value)
+				}
+			}
+
+			tag.Values = filteredValues
+			break
 		}
+
+		if len(tag.Values) == 0 {
+			// NB: all values for this tag are invalid.
+			continue
+		}
+
+		filteredTags = append(filteredTags, tag)
 	}
 
 	return filteredTags

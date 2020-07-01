@@ -82,3 +82,41 @@ func TestFilterTagIterator(t *testing.T) {
 
 	require.NoError(t, it.Err())
 }
+
+func TestFilterTags(t *testing.T) {
+	tags := []CompletedTag{
+		CompletedTag{Name: b("foo"), Values: [][]byte{b("bar"), b("baz")}},
+		CompletedTag{Name: b("qux"), Values: [][]byte{b("quart"), b("quince")}},
+		CompletedTag{Name: b("abc"), Values: [][]byte{b("def")}},
+	}
+
+	filtered := filterTags(tags, models.Filters{
+		{Name: b("foo")},
+		{Name: b("qux"), Values: [][]byte{b("bar"), b("quince")}},
+		{Name: b("abc"), Values: [][]byte{b("def")}},
+	})
+
+	require.Equal(t, 1, len(filtered))
+	assert.Equal(t, b("qux"), filtered[0].Name)
+	require.Equal(t, 1, len(filtered[0].Values))
+	assert.Equal(t, b("quart"), filtered[0].Values[0])
+}
+
+func TestFilterTagNames(t *testing.T) {
+	tags := []CompletedTag{
+		CompletedTag{Name: b("foo")},
+		CompletedTag{Name: b("qux")},
+		CompletedTag{Name: b("quail")},
+	}
+
+	filtered := filterNames(tags, models.Filters{
+		{Name: b("foo"), Values: [][]byte{b("bar")}},
+		{Name: b("qux")},
+	})
+
+	require.Equal(t, 2, len(filtered))
+	assert.Equal(t, b("foo"), filtered[0].Name)
+	require.Equal(t, 0, len(filtered[0].Values))
+	assert.Equal(t, b("quail"), filtered[1].Name)
+	require.Equal(t, 0, len(filtered[1].Values))
+}
