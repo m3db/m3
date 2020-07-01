@@ -953,22 +953,33 @@ func (i *nsIndex) flushableBlocks(
 		fsOpts.InfoReaderBufferSize(),
 	)
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
-	for _, block := range i.state.blocksByTime {
-		canFlush, err := i.canFlushBlock(infoFiles, block, shards, flushType)
+
+	now := i.nowFn()
+	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
+	currentBlockStart := now.Truncate(i.blockSize)
+	// Check for flushable blocks by iterating through all block starts w/in retention.
+	for blockStart := earliestBlockStartToRetain; blockStart.Before(currentBlockStart); blockStart = blockStart.Add(i.blockSize) {
+		canFlush, err := i.canFlushBlockWithRLock(infoFiles, now, blockStart, shards, flushType)
 		if err != nil {
 			return nil, err
 		}
 		if !canFlush {
 			continue
 		}
+		// Ensure all flushable blocks exist.
+		block, err := i.ensureBlockPresent(blockStart)
+		if err != nil {
+			return nil, err
+		}
 		flushable = append(flushable, block)
 	}
 	return flushable, nil
 }
 
-func (i *nsIndex) canFlushBlock(
+func (i *nsIndex) canFlushBlockWithRLock(
 	infoFiles []fs.ReadIndexInfoFileResult,
-	block index.Block,
+	startTime time.Time,
+	blockStart time.Time,
 	shards []databaseShard,
 	flushType series.WriteType,
 ) (bool, error) {
@@ -979,10 +990,16 @@ func (i *nsIndex) canFlushBlock(
 		// `block.NeedsMutableSegmentsEvicted()` since bootstrap writes for cold block starts
 		// get marked as warm writes if there doesn't already exist data on disk and need to
 		// properly go through the warm flush lifecycle.
-		if !block.IsSealed() || i.hasWarmFlushedToDisk(infoFiles, block.StartTime()) {
+		isSealed := !blockStart.After(i.lastSealableBlockStart(startTime))
+		if !isSealed || i.hasWarmFlushedToDisk(infoFiles, blockStart) {
 			return false, nil
 		}
 	case series.ColdWrite:
+		block, ok := i.state.blocksByTime[xtime.ToUnixNano(blockStart)]
+		// If there is no allocated block then there are definitely no pending cold writes to flush.
+		if !ok {
+			return false, nil
+		}
 		if !block.NeedsColdMutableSegmentsEvicted() {
 			return false, nil
 		}
@@ -990,9 +1007,10 @@ func (i *nsIndex) canFlushBlock(
 
 	// Check all data files exist for the shards we own
 	for _, shard := range shards {
-		start := block.StartTime()
+		start := blockStart
+		end := blockStart.Add(i.blockSize)
 		dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
-		for t := start; t.Before(block.EndTime()); t = t.Add(dataBlockSize) {
+		for t := start; t.Before(end); t = t.Add(dataBlockSize) {
 			flushState, err := shard.FlushState(t)
 			if err != nil {
 				return false, err
