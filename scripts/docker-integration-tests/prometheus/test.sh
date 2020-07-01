@@ -182,13 +182,13 @@ function test_query_limits_applied {
   # NB: ensure that the limit is not exceeded (it may be below limit).
   echo "Test query limit with coordinator defaults"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{role=\"remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
 
   # Test the series limit applied when directly querying
   # coordinator (series limit set by header)
   echo "Test query series limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{role=\"remote\"\\} | jq -r ".data.result | length") -eq 10 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -eq 10 ]]'
   
   echo "Test query series limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
@@ -206,7 +206,7 @@ function test_query_limits_applied {
   # coordinator (docs limit set by header)
   echo "Test query docs limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/query?query=\\{role=\"remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
 
   echo "Test query docs limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
