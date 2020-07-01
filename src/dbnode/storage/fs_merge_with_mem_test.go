@@ -58,7 +58,7 @@ func TestRead(t *testing.T) {
 	}
 	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version, nil).AnyTimes()
 
-	dirtySeries := newDirtySeriesMap(dirtySeriesMapOptions{})
+	dirtySeries := newDirtySeriesMap()
 	dirtySeriesToWrite := make(map[xtime.UnixNano]*idList)
 
 	data := []dirtyData{
@@ -141,7 +141,7 @@ func TestForEachRemaining(t *testing.T) {
 	}
 	retriever.EXPECT().RetrievableBlockColdVersion(gomock.Any()).Return(version, nil).AnyTimes()
 
-	dirtySeries := newDirtySeriesMap(dirtySeriesMapOptions{})
+	dirtySeries := newDirtySeriesMap()
 	dirtySeriesToWrite := make(map[xtime.UnixNano]*idList)
 
 	id0 := ident.StringID("id0")

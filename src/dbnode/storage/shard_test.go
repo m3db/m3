@@ -621,7 +621,7 @@ func TestShardColdFlush(t *testing.T) {
 	preparer := persist.NewMockFlushPreparer(ctrl)
 	fsReader := fs.NewMockDataFileSetReader(ctrl)
 	resources := coldFlushReuseableResources{
-		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
 		idElementPool:      newIDElementPool(nil),
 		fsReader:           fsReader,
@@ -694,7 +694,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	dirtySeriesToWrite[xtime.ToUnixNano(t3)] = newIDList(idElementPool)
 
 	resources := coldFlushReuseableResources{
-		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: dirtySeriesToWrite,
 		idElementPool:      idElementPool,
 		fsReader:           fsReader,

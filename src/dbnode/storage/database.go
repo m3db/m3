@@ -760,6 +760,9 @@ func (d *db) writeBatch(
 		err := n.WritePendingIndexInserts(pending)
 		if err != nil {
 			// Mark those as pending index with an error.
+			// Note: this is an invariant error, queueing should never fail
+			// when so it's fine to fail all these entries if we can't
+			// write pending index inserts.
 			for i, write := range iter {
 				if write.PendingIndex {
 					errHandler.HandleError(write.OriginalIndex, err)

@@ -30,13 +30,8 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-// dirtySeriesMapOptions provides options used when created the map.
-type dirtySeriesMapOptions struct {
-	InitialSize int
-}
-
 // newDirtySeriesMap returns a new byte keyed map.
-func newDirtySeriesMap(opts dirtySeriesMapOptions) *dirtySeriesMap {
+func newDirtySeriesMap() *dirtySeriesMap {
 	return _dirtySeriesMapAlloc(_dirtySeriesMapOptions{
 		hash: func(k idAndBlockStart) dirtySeriesMapHash {
 			hash := uint64(7)
@@ -45,7 +40,8 @@ func newDirtySeriesMap(opts dirtySeriesMapOptions) *dirtySeriesMap {
 			return dirtySeriesMapHash(hash)
 		},
 		equals: func(x, y idAndBlockStart) bool {
-			return bytes.Equal(x.id, y.id) && x.blockStart == y.blockStart
+			// Note: Do cheap check (int comparison) first.
+			return x.blockStart == y.blockStart && bytes.Equal(x.id, y.id)
 		},
 		copy: func(k idAndBlockStart) idAndBlockStart {
 			return idAndBlockStart{
@@ -53,6 +49,5 @@ func newDirtySeriesMap(opts dirtySeriesMapOptions) *dirtySeriesMap {
 				blockStart: k.blockStart,
 			}
 		},
-		initialSize: opts.InitialSize,
 	})
 }

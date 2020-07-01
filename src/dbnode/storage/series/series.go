@@ -64,6 +64,10 @@ type dbSeries struct {
 	// series metadata before changing ownership semantics (e.g.
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
+	// Note: The bytes that back "id ident.ID" are the same bytes
+	// that are behind the ID in "metadata doc.Document", the whole
+	// reason we keep an ident.ID on the series is since there's a lot
+	// of existing callsites that require the ID as an ident.ID.
 	id          ident.ID
 	metadata    doc.Document
 	uniqueIndex uint64

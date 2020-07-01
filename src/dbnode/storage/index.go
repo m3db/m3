@@ -576,8 +576,7 @@ func (i *nsIndex) WritePending(
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
 		i.metrics.insertAfterClose.Inc(1)
-		err := errDbIndexUnableToWriteClosed
-		return err
+		return errDbIndexUnableToWriteClosed
 	}
 	_, err := i.state.insertQueue.InsertPending(pending)
 	// release the lock because we don't need it past this point.

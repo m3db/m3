@@ -1028,17 +1028,14 @@ func (s *dbShard) SeriesReadWriteRef(
 		}, nil
 	}
 
-	// BEFORE MERGE: CONSIDER BELOW FOR NOW OR FOLLOWUP
-	// TODO(r): Probably can't insert series sync otherwise we stall a ton
-	// of writes... need a better solution for bootstrapping.
-	// This is what causes writes to degrade during bootstrap.
-	// This is a note to consider before merging this PR.
-
 	// NB(r): Insert synchronously so caller has access to the series
 	// immediately, otherwise calls to LoadBlock(..) etc on the series itself
 	// may have no effect if a collision with the same series
 	// being put in the insert queue may cause a block to be loaded to a
 	// series which gets discarded.
+	// TODO(r): Probably can't insert series sync otherwise we stall a ton
+	// of writes... need a better solution for bootstrapping.
+	// This is what causes writes to degrade during bootstrap.
 	at := s.nowFn()
 	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
 		insertType:      insertSyncIncReaderWriterCount,

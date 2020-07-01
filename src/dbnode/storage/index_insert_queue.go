@@ -174,18 +174,21 @@ func (q *nsIndexInsertQueue) InsertBatch(
 ) (*sync.WaitGroup, error) {
 	batchLen := batch.Len()
 
-	// Choose the queue relevant to current CPU index
+	// Choose the queue relevant to current CPU index.
+	// Note: since inserts by CPU core is allocated when
+	// nsIndexInsertBatch is constructed and then never modified
+	// it is safe to concurently read (but not modify obviously).
 	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
 	inserts.Lock()
 	inserts.shardInserts = append(inserts.shardInserts, batch)
 	wg := inserts.wg
 	inserts.Unlock()
 
-	// Notify insert loop
+	// Notify insert loop.
 	select {
 	case q.notifyInsert <- struct{}{}:
 	default:
-		// Loop busy, already ready to consume notification
+		// Loop busy, already ready to consume notification.
 	}
 
 	q.metrics.numPending.Inc(int64(batchLen))
@@ -197,18 +200,21 @@ func (q *nsIndexInsertQueue) InsertPending(
 ) (*sync.WaitGroup, error) {
 	batchLen := len(pending)
 
-	// Choose the queue relevant to current CPU index
+	// Choose the queue relevant to current CPU index.
+	// Note: since inserts by CPU core is allocated when
+	// nsIndexInsertBatch is constructed and then never modified
+	// it is safe to concurently read (but not modify obviously).
 	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
 	inserts.Lock()
 	inserts.batchInserts = append(inserts.batchInserts, pending...)
 	wg := inserts.wg
 	inserts.Unlock()
 
-	// Notify insert loop
+	// Notify insert loop.
 	select {
 	case q.notifyInsert <- struct{}{}:
 	default:
-		// Loop busy, already ready to consume notification
+		// Loop busy, already ready to consume notification.
 	}
 
 	q.metrics.numPending.Inc(int64(batchLen))
@@ -255,9 +261,12 @@ func (q *nsIndexInsertQueue) Stop() error {
 type nsIndexInsertBatchFn func(inserts *index.WriteBatch)
 
 type nsIndexInsertBatch struct {
-	namespace           namespace.Metadata
-	nowFn               clock.NowFn
-	wg                  *sync.WaitGroup
+	namespace namespace.Metadata
+	nowFn     clock.NowFn
+	wg        *sync.WaitGroup
+	// Note: since inserts by CPU core is allocated when
+	// nsIndexInsertBatch is constructed and then never modified
+	// it is safe to concurently read (but not modify obviously).
 	insertsByCPUCore    []*nsIndexInsertsByCPUCore
 	allInserts          *index.WriteBatch
 	allInsertsLastReset time.Time

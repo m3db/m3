@@ -212,7 +212,6 @@ func TestBatchWriterSetSeries(t *testing.T) {
 		}
 
 		require.Equal(t, fmt.Sprint(i), string(currSeries.ID.String()))
-		require.True(t, ident.StringID(fmt.Sprint(i)).Equal(currSeries.ID))
 		require.False(t, curr.SkipWrite)
 
 		require.NoError(t, curr.Err)

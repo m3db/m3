@@ -444,23 +444,22 @@ func (w *writer) writeIndexFileContents(
 	sort.Sort(w.indexEntries)
 
 	var (
-		offset int64
-		prevID []byte
-		opts   = persist.MetadataTagIteratorOptions{
-			ReuseableTagsIterator: w.tagsIterator,
-		}
-		tagsEncoder = w.tagEncoderPool.Get()
+		offset        int64
+		prevID        []byte
+		tagsReuseable = w.tagsIterator
+		tagsEncoder   = w.tagEncoderPool.Get()
 	)
 	defer tagsEncoder.Finalize()
-	for i := range w.indexEntries {
-		id := w.indexEntries[i].metadata.BytesID()
+	for i, entry := range w.indexEntries {
+		metadata := entry.metadata
+		id := metadata.BytesID()
 		// Need to check if i > 0 or we can never write an empty string ID
 		if i > 0 && bytes.Equal(id, prevID) {
 			// Should never happen, Write() should only be called once per ID
 			return fmt.Errorf("encountered duplicate ID: %s", id)
 		}
 
-		tagsIter, err := w.indexEntries[i].metadata.TagIterator(opts)
+		tagsIter, err := metadata.ResetOrReturnProvidedTagIterator(tagsReuseable)
 		if err != nil {
 			return err
 		}
@@ -481,11 +480,11 @@ func (w *writer) writeIndexFileContents(
 		}
 
 		entry := schema.IndexEntry{
-			Index:       w.indexEntries[i].index,
+			Index:       entry.index,
 			ID:          id,
-			Size:        int64(w.indexEntries[i].size),
-			Offset:      w.indexEntries[i].dataFileOffset,
-			Checksum:    int64(w.indexEntries[i].checksum),
+			Size:        int64(entry.size),
+			Offset:      entry.dataFileOffset,
+			Checksum:    int64(entry.checksum),
 			EncodedTags: encodedTags,
 		}
 

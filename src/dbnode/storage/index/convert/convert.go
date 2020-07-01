@@ -49,12 +49,13 @@ var (
 // Validate returns a bool indicating whether the document is valid.
 func Validate(d doc.Document) error {
 	if !utf8.Valid(d.ID) {
-		return fmt.Errorf("document has invalid ID: id=%v, id_hex=%x", d.ID, d.ID)
+		return fmt.Errorf("document has invalid non-UTF8 ID: id=%v, id_hex=%x",
+			d.ID, d.ID)
 	}
 
 	for _, f := range d.Fields {
 		if !utf8.Valid(f.Name) {
-			return fmt.Errorf("document has invalid field name: name=%v, name_hex=%x",
+			return fmt.Errorf("document has invalid non-UTF8 field name: name=%v, name_hex=%x",
 				f.Name, f.Name)
 		}
 
@@ -63,7 +64,7 @@ func Validate(d doc.Document) error {
 		}
 
 		if !utf8.Valid(f.Value) {
-			return fmt.Errorf("document has invalid field value: value=%v, value_hex=%x",
+			return fmt.Errorf("document has invalid non-UTF8 field value: value=%v, value_hex=%x",
 				f.Value, f.Value)
 		}
 	}
@@ -74,7 +75,7 @@ func Validate(d doc.Document) error {
 // ValidateSeries will validate a series for use with m3ninx.
 func ValidateSeries(id ident.ID, tags ident.Tags) error {
 	if idBytes := id.Bytes(); !utf8.Valid(idBytes) {
-		return fmt.Errorf("series has invalid ID: id=%s, id_hex=%x",
+		return fmt.Errorf("series has invalid non-UTF8 ID: id=%s, id_hex=%x",
 			idBytes, idBytes)
 	}
 	for _, tag := range tags.Values() {
@@ -93,11 +94,11 @@ func ValidateSeriesTag(tag ident.Tag) error {
 		return ErrUsingReservedFieldName
 	}
 	if !utf8.Valid(tagName) {
-		return fmt.Errorf("series contains invalid field name: "+
+		return fmt.Errorf("series contains invalid non-UTF8 field name: "+
 			"field=%s, field_hex=%v", tagName, tagName)
 	}
 	if !utf8.Valid(tagValue) {
-		return fmt.Errorf("series contains invalid field value: "+
+		return fmt.Errorf("series contains invalid non-UTF8 field value: "+
 			"field=%s, field_value=%s, field_value_hex=%x",
 			tagName, tagValue, tagValue)
 	}

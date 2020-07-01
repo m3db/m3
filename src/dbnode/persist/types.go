@@ -57,6 +57,10 @@ type MetadataOptions struct {
 }
 
 // NewMetadata returns a new metadata struct from series metadata.
+// Note: because doc.Document has no pools for finalization we do not
+// take MetadataOptions here, in future if we have pools or
+// some other shared options that Metadata needs we will add it to this
+// constructor as well.
 func NewMetadata(metadata doc.Document) Metadata {
 	return Metadata{metadata: metadata}
 }
@@ -97,21 +101,14 @@ func (m Metadata) BytesID() []byte {
 	return m.metadata.ID
 }
 
-// MetadataTagIteratorOptions are options required to be passed
-// to metadata TagIterator to retrieve a tag iterator.
-type MetadataTagIteratorOptions struct {
-	ReuseableTagsIterator ident.TagsIterator
-}
-
-// TagIterator returns a tag iterator for the series,
-// returning a direct ref to a provided tag iterator
-// or using the reuseable tag iterator provided by the
+// ResetOrReturnProvidedTagIterator returns a tag iterator
+// for the series, returning a direct ref to a provided tag
+// iterator or using the reuseable tag iterator provided by the
 // callsite if it needs to iterate over tags or fields.
-func (m Metadata) TagIterator(
-	opts MetadataTagIteratorOptions,
+func (m Metadata) ResetOrReturnProvidedTagIterator(
+	reuseableTagsIterator ident.TagsIterator,
 ) (ident.TagIterator, error) {
-	reuseable := opts.ReuseableTagsIterator
-	if reuseable == nil {
+	if reuseableTagsIterator == nil {
 		// Always check to make sure callsites won't
 		// get a bad allocation pattern of having
 		// to create one here inline if the metadata
@@ -124,24 +121,24 @@ func (m Metadata) TagIterator(
 	}
 
 	if len(m.tags.Values()) > 0 {
-		reuseable.Reset(m.tags)
-		return reuseable, nil
+		reuseableTagsIterator.Reset(m.tags)
+		return reuseableTagsIterator, reuseableTagsIterator.Err()
 	}
 
-	reuseable.ResetFields(m.metadata.Fields)
-	return reuseable, nil
+	reuseableTagsIterator.ResetFields(m.metadata.Fields)
+	return reuseableTagsIterator, reuseableTagsIterator.Err()
 }
 
 // Finalize will finalize any resources that requested
 // to be finalized.
 func (m Metadata) Finalize() {
-	if m.opts.FinalizeID {
+	if m.opts.FinalizeID && m.id != nil {
 		m.id.Finalize()
 	}
-	if m.opts.FinalizeTags {
+	if m.opts.FinalizeTags && m.tags.Values() != nil {
 		m.tags.Finalize()
 	}
-	if m.opts.FinalizeTagIterator {
+	if m.opts.FinalizeTagIterator && m.tagsIter != nil {
 		m.tagsIter.Close()
 	}
 }

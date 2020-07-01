@@ -704,6 +704,10 @@ type namespaceIndexInsertQueue interface {
 		batch *index.WriteBatch,
 	) (*sync.WaitGroup, error)
 
+	// InsertPending inserts the provided documents to the index queue which processes
+	// inserts to the index asynchronously. It executes the provided callbacks
+	// based on the result of the execution. The returned wait group can be used
+	// if the insert is required to be synchronous.
 	InsertPending(
 		pending []writes.PendingIndexInsert,
 	) (*sync.WaitGroup, error)

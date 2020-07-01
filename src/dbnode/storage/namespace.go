@@ -1136,8 +1136,7 @@ func newColdFlushReuseableResources(opts Options) (coldFlushReuseableResources, 
 	}
 
 	return coldFlushReuseableResources{
-		// TODO(juchan): consider setting these options.
-		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
 		// TODO(juchan): set pool options.
 		idElementPool: newIDElementPool(nil),
