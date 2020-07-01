@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -194,7 +195,9 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 
 			bytes := checked.NewBytes(data, nil)
 			bytes.IncRef()
-			err = writer.Write(id, ident.Tags{}, bytes, checksum)
+			meta := persist.NewMetadataFromIDAndTags(id, ident.Tags{},
+				persist.MetadataOptions{})
+			err = writer.Write(meta, bytes, checksum)
 			require.NoError(t, err)
 
 			blockMetadataResult := block.NewFetchBlockMetadataResult(at,

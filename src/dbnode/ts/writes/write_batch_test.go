@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package writes
 
 import (
 	"bytes"
@@ -184,14 +184,14 @@ func TestBatchWriterSetSeries(t *testing.T) {
 		)
 		newSeries.ID = ident.StringID(fmt.Sprint(i))
 
-		var err error
 		if i == len(iter)-1 {
 			// Set skip for this to true; it should revert to not skipping after
 			// SetOutcome called below.
-			err = errors.New("some-error")
-			writeBatch.SetSkipWrite(i)
+			err := errors.New("some-error")
+			writeBatch.SetError(i, err)
+		} else {
+			writeBatch.SetSeries(i, newSeries)
 		}
-		writeBatch.SetOutcome(i, newSeries, err)
 	}
 
 	iter = writeBatch.Iter()
@@ -205,14 +205,16 @@ func TestBatchWriterSetSeries(t *testing.T) {
 			currSeries = currWrite.Series
 			i          = j + 1
 		)
-		require.Equal(t, fmt.Sprint(i), string(currSeries.ID.String()))
-		require.True(t, ident.StringID(fmt.Sprint(i)).Equal(currSeries.ID))
-		require.False(t, curr.SkipWrite)
 		if i == len(iter)-1 {
 			require.Equal(t, errors.New("some-error"), curr.Err)
-		} else {
-			require.NoError(t, curr.Err)
+			require.True(t, curr.SkipWrite)
+			continue
 		}
+
+		require.Equal(t, fmt.Sprint(i), string(currSeries.ID.String()))
+		require.False(t, curr.SkipWrite)
+
+		require.NoError(t, curr.Err)
 	}
 }
 

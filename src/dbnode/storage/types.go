@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/context"
@@ -122,17 +123,17 @@ type Database interface {
 	// Note that when using the BatchWriter the caller owns the lifecycle of the series
 	// IDs if they're being pooled its the callers responsibility to return them to the
 	// appropriate pool, but the encoded tags and annotations are owned by the
-	// ts.WriteBatch itself and will be finalized when the entire ts.WriteBatch is finalized
+	// writes.WriteBatch itself and will be finalized when the entire writes.WriteBatch is finalized
 	// due to their lifecycle being more complicated.
 	// Callers can still control the pooling of the encoded tags and annotations by using
 	// the SetFinalizeEncodedTagsFn and SetFinalizeAnnotationFn on the WriteBatch itself.
-	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
+	BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error)
 
 	// WriteBatch is the same as Write, but in batch.
 	WriteBatch(
 		ctx context.Context,
 		namespace ident.ID,
-		writes ts.BatchWriter,
+		writes writes.BatchWriter,
 		errHandler IndexedErrorHandler,
 	) error
 
@@ -140,7 +141,7 @@ type Database interface {
 	WriteTaggedBatch(
 		ctx context.Context,
 		namespace ident.ID,
-		writes ts.BatchWriter,
+		writes writes.BatchWriter,
 		errHandler IndexedErrorHandler,
 	) error
 
@@ -266,6 +267,14 @@ func (n NamespacesByID) Less(i, j int) bool {
 	return bytes.Compare(n[i].ID().Bytes(), n[j].ID().Bytes()) < 0
 }
 
+// SeriesWrite is a result of a series write.
+type SeriesWrite struct {
+	Series             ts.Series
+	WasWritten         bool
+	NeedsIndex         bool
+	PendingIndexInsert writes.PendingIndexInsert
+}
+
 type databaseNamespace interface {
 	Namespace
 
@@ -289,7 +298,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) (ts.Series, bool, error)
+	) (SeriesWrite, error)
 
 	// WriteTagged values to the namespace for an ID.
 	WriteTagged(
@@ -300,7 +309,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) (ts.Series, bool, error)
+	) (SeriesWrite, error)
 
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(
@@ -392,6 +401,9 @@ type databaseNamespace interface {
 		id ident.ID,
 		tags ident.TagIterator,
 	) (result SeriesReadWriteRef, owned bool, err error)
+
+	// WritePendingIndexInserts will write any pending index inserts.
+	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -447,7 +459,7 @@ type databaseShard interface {
 		unit xtime.Unit,
 		annotation []byte,
 		wOpts series.WriteOptions,
-	) (ts.Series, bool, error)
+	) (SeriesWrite, error)
 
 	// WriteTagged writes a value to the shard for an ID with tags.
 	WriteTagged(
@@ -459,7 +471,7 @@ type databaseShard interface {
 		unit xtime.Unit,
 		annotation []byte,
 		wOpts series.WriteOptions,
-	) (ts.Series, bool, error)
+	) (SeriesWrite, error)
 
 	ReadEncoded(
 		ctx context.Context,
@@ -557,11 +569,6 @@ type databaseShard interface {
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
 
-	// TagsFromSeriesID returns the series tags from a series ID.
-	// TODO(r): Seems like this is a work around that shouldn't be
-	// necessary given the callsites that current exist?
-	TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error)
-
 	// SeriesReadWriteRef returns a read/write ref to a series, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
@@ -603,6 +610,11 @@ type NamespaceIndex interface {
 	// WriteBatch indexes the provided entries.
 	WriteBatch(
 		batch *index.WriteBatch,
+	) error
+
+	// WritePending indexes the provided pending entries.
+	WritePending(
+		pending []writes.PendingIndexInsert,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -688,7 +700,17 @@ type namespaceIndexInsertQueue interface {
 	// inserts to the index asynchronously. It executes the provided callbacks
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
-	InsertBatch(batch *index.WriteBatch) (*sync.WaitGroup, error)
+	InsertBatch(
+		batch *index.WriteBatch,
+	) (*sync.WaitGroup, error)
+
+	// InsertPending inserts the provided documents to the index queue which processes
+	// inserts to the index asynchronously. It executes the provided callbacks
+	// based on the result of the execution. The returned wait group can be used
+	// if the insert is required to be synchronous.
+	InsertPending(
+		pending []writes.PendingIndexInsert,
+	) (*sync.WaitGroup, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.
@@ -1055,10 +1077,10 @@ type Options interface {
 	QueryIDsWorkerPool() xsync.WorkerPool
 
 	// SetWriteBatchPool sets the WriteBatch pool.
-	SetWriteBatchPool(value *ts.WriteBatchPool) Options
+	SetWriteBatchPool(value *writes.WriteBatchPool) Options
 
 	// WriteBatchPool returns the WriteBatch pool.
-	WriteBatchPool() *ts.WriteBatchPool
+	WriteBatchPool() *writes.WriteBatchPool
 
 	// SetBufferBucketPool sets the BufferBucket pool.
 	SetBufferBucketPool(value *series.BufferBucketPool) Options

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -41,7 +42,7 @@ import (
 // DatabaseSeriesOptions is a set of options for creating a database series.
 type DatabaseSeriesOptions struct {
 	ID                     ident.ID
-	Tags                   ident.Tags
+	Metadata               doc.Document
 	UniqueIndex            uint64
 	BlockRetriever         QueryableBlockRetriever
 	OnRetrieveBlock        block.OnRetrieveBlock
@@ -57,8 +58,8 @@ type DatabaseSeries interface {
 	// ID returns the ID of the series.
 	ID() ident.ID
 
-	// Tags return the tags of the series.
-	Tags() ident.Tags
+	// Metadata returns the metadata of the series.
+	Metadata() doc.Document
 
 	// UniqueIndex is the unique index for the series (for this current
 	// process, unless the time series expires).

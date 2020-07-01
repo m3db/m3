@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
@@ -154,7 +155,9 @@ func writeTestData(t *testing.T, bs time.Duration, src FileSetID, opts Options) 
 				ident.StringTag("qux", "qaz"),
 			)
 		}
-		require.NoError(t, w.Write(id, tags, testBytes, 1234))
+		metadata := persist.NewMetadataFromIDAndTags(id, tags,
+			persist.MetadataOptions{})
+		require.NoError(t, w.Write(metadata, testBytes, 1234))
 	}
 	require.NoError(t, w.Close())
 }

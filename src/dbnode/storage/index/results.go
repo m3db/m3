@@ -144,7 +144,7 @@ func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
 
 	// i.e. it doesn't exist in the map, so we create the tags wrapping
 	// fields provided by the document.
-	tags := convert.ToMetricTags(d, convert.Opts{NoClone: true})
+	tags := convert.ToSeriesTags(d, convert.Opts{NoClone: true})
 
 	// It is assumed that the document is valid for the lifetime of the index
 	// results.

@@ -229,8 +229,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					for seriesID, data := range seriesForShard {
 						checkedBytes := checked.NewBytes(data, nil)
 						checkedBytes.IncRef()
-						tags := orderedWritesBySeries[seriesID][0].series.Tags
-						writer.Write(ident.StringID(seriesID), tags, checkedBytes, digest.Checksum(data))
+						tags := orderedWritesBySeries[seriesID][0].tags
+						metadata := persist.NewMetadataFromIDAndTags(ident.StringID(seriesID), tags,
+							persist.MetadataOptions{})
+						writer.Write(metadata, checkedBytes, digest.Checksum(data))
 					}
 
 					err = writer.Close()
@@ -451,7 +453,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 
 			return true, nil
 		},
-		genPropTestInputs(nsMeta, startTime),
+		genPropTestInputs(t, nsMeta, startTime),
 	))
 
 	if !props.Run(reporter) {
@@ -476,6 +478,7 @@ type generatedWrite struct {
 	// between time.Now().Add(-bufferFuture) and time.Now().Add(bufferPast).
 	arrivedAt  time.Time
 	series     ts.Series
+	tags       ident.Tags
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
@@ -485,7 +488,7 @@ func (w generatedWrite) String() string {
 	return fmt.Sprintf("ID = %v, Datapoint = %+v", w.series.ID.String(), w.datapoint)
 }
 
-func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.Gen {
+func genPropTestInputs(t *testing.T, nsMeta namespace.Metadata, blockStart time.Time) gopter.Gen {
 	curriedGenPropTestInput := func(input interface{}) gopter.Gen {
 		var (
 			inputs                        = input.([]interface{})
@@ -500,6 +503,7 @@ func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.G
 		)
 
 		return genPropTestInput(
+			t,
 			blockStart, bufferPast, bufferFuture,
 			snapshotTime, snapshotExists, commitLogExists,
 			numDatapoints, nsMeta.ID().String(), includeCorruptedCommitlogFile, multiNodeCluster)
@@ -529,6 +533,7 @@ func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.G
 }
 
 func genPropTestInput(
+	t *testing.T,
 	start time.Time,
 	bufferPast,
 	bufferFuture time.Duration,
@@ -540,7 +545,7 @@ func genPropTestInput(
 	includeCorruptedCommitlogFile bool,
 	multiNodeCluster bool,
 ) gopter.Gen {
-	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
+	return gen.SliceOfN(numDatapoints, genWrite(t, start, bufferPast, bufferFuture, ns)).
 		Map(func(val []generatedWrite) propTestInput {
 			return propTestInput{
 				currentTime:                   start,
@@ -556,7 +561,7 @@ func genPropTestInput(
 		})
 }
 
-func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string) gopter.Gen {
+func genWrite(t *testing.T, start time.Time, bufferPast, bufferFuture time.Duration, ns string) gopter.Gen {
 	latestDatapointTime := start.Truncate(blockSize).Add(blockSize).Sub(start)
 
 	return gopter.CombineGens(
@@ -579,13 +584,16 @@ func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string
 	).Map(func(val []interface{}) generatedWrite {
 		var (
 			id                 = val[0].(string)
-			t                  = val[1].(time.Time)
-			a                  = t
+			tm                 = val[1].(time.Time)
+			a                  = tm
 			bufferPastOrFuture = val[2].(bool)
 			tagKey             = val[3].(string)
 			tagVal             = val[4].(string)
 			includeTags        = val[5].(bool)
 			v                  = val[6].(float64)
+
+			tagEncoderPool = testCommitlogOpts.FilesystemOptions().TagEncoderPool()
+			tagSliceIter   = ident.NewTagsIterator(ident.Tags{})
 		)
 
 		if bufferPastOrFuture {
@@ -594,17 +602,28 @@ func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string
 			a = a.Add(bufferPast)
 		}
 
+		tags := seriesUniqueTags(id, tagKey, tagVal, includeTags)
+		tagSliceIter.Reset(tags)
+
+		tagEncoder := tagEncoderPool.Get()
+		err := tagEncoder.Encode(tagSliceIter)
+		require.NoError(t, err)
+
+		encodedTagsChecked, ok := tagEncoder.Data()
+		require.True(t, ok)
+
 		return generatedWrite{
 			arrivedAt: a,
 			series: ts.Series{
 				ID:          ident.StringID(id),
-				Tags:        seriesUniqueTags(id, tagKey, tagVal, includeTags),
 				Namespace:   ident.StringID(ns),
 				Shard:       hashIDToShard(ident.StringID(id)),
 				UniqueIndex: seriesUniqueIndex(id),
+				EncodedTags: ts.EncodedTags(encodedTagsChecked.Bytes()),
 			},
+			tags: tags,
 			datapoint: ts.Datapoint{
-				Timestamp: t,
+				Timestamp: tm,
 				Value:     v,
 			},
 			unit: xtime.Nanosecond,

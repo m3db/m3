@@ -337,9 +337,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		flushPreparer.EXPECT().
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
-				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 					persists["foo"]++
-					assert.Equal(t, "foo", id.String())
+					assert.Equal(t, "foo", string(metadata.BytesID()))
 					assert.Equal(t, []byte{1, 2, 3}, segment.Head.Bytes())
 					assertBlockChecksum(t, checksum, fooBlock)
 					return nil
@@ -358,9 +358,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		flushPreparer.EXPECT().
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
-				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 					persists["bar"]++
-					assert.Equal(t, "bar", id.String())
+					assert.Equal(t, "bar", string(metadata.BytesID()))
 					assert.Equal(t, []byte{4, 5, 6}, segment.Head.Bytes())
 					assertBlockChecksum(t, checksum, barBlock)
 					return nil
@@ -379,9 +379,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		flushPreparer.EXPECT().
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
-				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 					persists["baz"]++
-					assert.Equal(t, "baz", id.String())
+					assert.Equal(t, "baz", string(metadata.BytesID()))
 					assert.Equal(t, []byte{7, 8, 9}, segment.Head.Bytes())
 					assertBlockChecksum(t, checksum, bazBlock)
 					return nil
@@ -400,7 +400,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		flushPreparer.EXPECT().
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
-				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 					assert.Fail(t, "no expected shard 1 second block")
 					return nil
 				},
@@ -578,7 +578,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start")
 				return nil
 			},
@@ -596,7 +596,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["foo"]++
 				return nil
 			},
@@ -616,7 +616,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start + block size")
 				return nil
 			},
@@ -634,7 +634,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["bar"]++
 				return nil
 			},
@@ -654,7 +654,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return fmt.Errorf("a persist error")
 			},
@@ -672,7 +672,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return nil
 			},
@@ -692,7 +692,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
 			},
@@ -710,7 +710,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
 			},

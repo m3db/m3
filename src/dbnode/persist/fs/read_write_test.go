@@ -124,9 +124,10 @@ func writeTestDataWithVolume(
 	assert.NoError(t, err)
 
 	for i := range entries {
-		assert.NoError(t, w.Write(
-			entries[i].ID(),
+		metadata := persist.NewMetadataFromIDAndTags(entries[i].ID(),
 			entries[i].Tags(),
+			persist.MetadataOptions{})
+		assert.NoError(t, w.Write(metadata,
 			bytesRefd(entries[i].data),
 			digest.Checksum(entries[i].data)))
 	}
@@ -141,8 +142,7 @@ func writeTestDataWithVolume(
 
 	// Check every entry has ID and Tags nil
 	for _, elem := range slice {
-		assert.Nil(t, elem.id)
-		assert.Nil(t, elem.tags.Values())
+		assert.Equal(t, persist.Metadata{}, elem.metadata)
 	}
 }
 
@@ -301,9 +301,10 @@ func TestDuplicateWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := range entries {
-		require.NoError(t, w.Write(
-			entries[i].ID(),
+		metadata := persist.NewMetadataFromIDAndTags(entries[i].ID(),
 			entries[i].Tags(),
+			persist.MetadataOptions{})
+		require.NoError(t, w.Write(metadata,
 			bytesRefd(entries[i].data),
 			digest.Checksum(entries[i].data)))
 	}
@@ -457,19 +458,21 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(entries[0].ID(),
+		entries[0].Tags(),
+		persist.MetadataOptions{})
 	require.NoError(t, w.Open(writerOpts))
 
-	require.NoError(t, w.Write(
-		entries[0].ID(),
-		entries[0].Tags(),
+	require.NoError(t, w.Write(metadata,
 		bytesRefd(entries[0].data),
 		digest.Checksum(entries[0].data)))
 
 	// Intentionally force a writer error.
 	w.(*writer).err = errors.New("foo")
-	require.Equal(t, "foo", w.Write(
-		entries[1].ID(),
+	metadata = persist.NewMetadataFromIDAndTags(entries[1].ID(),
 		entries[1].Tags(),
+		persist.MetadataOptions{})
+	require.Equal(t, "foo", w.Write(metadata,
 		bytesRefd(entries[1].data),
 		digest.Checksum(entries[1].data)).Error())
 	w.Close()
@@ -503,15 +506,20 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(
+		ident.StringID("foo"),
+		ident.Tags{},
+		persist.MetadataOptions{})
 	require.NoError(t, w.Open(writerOpts))
 
-	w.WriteAll(ident.StringID("foo"), ident.Tags{},
+	err := w.WriteAll(metadata,
 		[]checked.Bytes{
 			checkedBytes([]byte{1, 2, 3}),
 			nil,
 			checkedBytes([]byte{4, 5, 6}),
 		},
 		digest.Checksum([]byte{1, 2, 3, 4, 5, 6}))
+	require.NoError(t, err)
 
 	assert.NoError(t, w.Close())
 

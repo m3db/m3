@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
-	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xidx "github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
@@ -192,11 +191,11 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 		ns.shards[i] = nil
 	}
 	now := time.Now()
-	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil)
+	seriesWrite, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
-	require.False(t, wasWritten)
+	require.False(t, seriesWrite.WasWritten)
 }
 
 func TestNamespaceWriteShardOwned(t *testing.T) {
@@ -221,19 +220,19 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 			TruncateType: truncateType,
 		}
 		shard.EXPECT().Write(ctx, id, now, val, unit, ant, opts).
-			Return(ts.Series{}, true, nil).Times(1)
+			Return(SeriesWrite{WasWritten: true}, nil).Times(1)
 		shard.EXPECT().Write(ctx, id, now, val, unit, ant, opts).
-			Return(ts.Series{}, false, nil).Times(1)
+			Return(SeriesWrite{WasWritten: false}, nil).Times(1)
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
-		_, wasWritten, err := ns.Write(ctx, id, now, val, unit, ant)
+		seriesWrite, err := ns.Write(ctx, id, now, val, unit, ant)
 		require.NoError(t, err)
-		require.True(t, wasWritten)
+		require.True(t, seriesWrite.WasWritten)
 
-		_, wasWritten, err = ns.Write(ctx, id, now, val, unit, ant)
+		seriesWrite, err = ns.Write(ctx, id, now, val, unit, ant)
 		require.NoError(t, err)
-		require.False(t, wasWritten)
+		require.False(t, seriesWrite.WasWritten)
 	}
 }
 
@@ -1109,22 +1108,26 @@ func TestNamespaceIndexInsert(t *testing.T) {
 		opts := series.WriteOptions{
 			TruncateType: truncateType,
 		}
-		shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-			now, 1.0, xtime.Second, nil, opts).Return(ts.Series{}, true, nil)
-		shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-			now, 1.0, xtime.Second, nil, opts).Return(ts.Series{}, false, nil)
+		shard.EXPECT().
+			WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+				now, 1.0, xtime.Second, nil, opts).
+			Return(SeriesWrite{WasWritten: true}, nil)
+		shard.EXPECT().
+			WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+				now, 1.0, xtime.Second, nil, opts).
+			Return(SeriesWrite{WasWritten: false}, nil)
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
-		_, wasWritten, err := ns.WriteTagged(ctx, ident.StringID("a"),
+		seriesWrite, err := ns.WriteTagged(ctx, ident.StringID("a"),
 			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
-		require.True(t, wasWritten)
+		require.True(t, seriesWrite.WasWritten)
 
-		_, wasWritten, err = ns.WriteTagged(ctx, ident.StringID("a"),
+		seriesWrite, err = ns.WriteTagged(ctx, ident.StringID("a"),
 			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
-		require.False(t, wasWritten)
+		require.False(t, seriesWrite.WasWritten)
 
 		shard.EXPECT().Close()
 		idx.EXPECT().Close().Return(nil)
