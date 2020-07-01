@@ -21,6 +21,8 @@
 package consolidators
 
 import (
+	"regexp"
+
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -139,4 +141,12 @@ type MultiTagResult struct {
 	ID ident.ID
 	// Iter is the tag iterator for the series.
 	Iter ident.TagIterator
+}
+
+// Filter is a set of filters that affect results in query consolidators.
+type Filter struct {
+	// Name is the name of the series.
+	Name []byte
+	// Filters are a set of regex expressions that filter matched tag values.
+	Filters []*regexp.Regexp
 }

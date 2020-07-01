@@ -36,13 +36,15 @@ type multiSearchResult struct {
 	err       xerrors.MultiError
 	seenIters []client.TaggedIDsIterator // track known iterators to avoid leaking
 	dedupeMap map[string]MultiTagResult
+	filters   []Filter
 }
 
 // NewMultiFetchTagsResult builds a new multi fetch tags result.
-func NewMultiFetchTagsResult() MultiFetchTagsResult {
+func NewMultiFetchTagsResult(filters []Filter) MultiFetchTagsResult {
 	return &multiSearchResult{
 		dedupeMap: make(map[string]MultiTagResult, initSize),
 		meta:      block.NewResultMetadata(),
+		filters:   filters,
 	}
 }
 
@@ -110,6 +112,11 @@ func (r *multiSearchResult) Add(
 
 	for newIterator.Next() {
 		_, ident, tagIter := newIterator.Current()
+		if filterTagIterator(tagIter, r.filters) {
+			// NB: skip here, the closer will free the tag iterator regardless.
+			continue
+		}
+
 		id := ident.String()
 		_, exists := r.dedupeMap[id]
 		if !exists {
