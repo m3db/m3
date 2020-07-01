@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/util/execution"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -49,6 +50,7 @@ type fanoutStorage struct {
 	fetchFilter        filter.Storage
 	writeFilter        filter.Storage
 	completeTagsFilter filter.StorageCompleteTags
+	tagOptions         models.TagOptions
 	instrumentOpts     instrument.Options
 }
 
@@ -58,6 +60,7 @@ func NewStorage(
 	fetchFilter filter.Storage,
 	writeFilter filter.Storage,
 	completeTagsFilter filter.StorageCompleteTags,
+	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) storage.Storage {
 	return &fanoutStorage{
@@ -65,6 +68,7 @@ func NewStorage(
 		fetchFilter:        fetchFilter,
 		writeFilter:        writeFilter,
 		completeTagsFilter: completeTagsFilter,
+		tagOptions:         tagOptions,
 		instrumentOpts:     instrumentOpts,
 	}
 }
@@ -332,14 +336,15 @@ func (s *fanoutStorage) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	stores := filterCompleteTagsStores(s.stores, s.completeTagsFilter, *query)
 	// short circuit complete tags
 	if len(stores) == 1 {
 		return stores[0].CompleteTags(ctx, query, options)
 	}
 
-	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
+	accumulatedTags := consolidators.NewCompleteTagsResultBuilder(
+		query.CompleteNameOnly, s.tagOptions)
 	metadata := block.NewResultMetadata()
 	for _, store := range stores {
 		result, err := store.CompleteTags(ctx, query, options)
@@ -374,9 +379,9 @@ func (s *fanoutStorage) CompleteTags(
 }
 
 func applyOptions(
-	result storage.CompleteTagsResult,
+	result consolidators.CompleteTagsResult,
 	opts *storage.FetchOptions,
-) storage.CompleteTagsResult {
+) consolidators.CompleteTagsResult {
 	if opts.RestrictQueryOptions == nil {
 		return result
 	}

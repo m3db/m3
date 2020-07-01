@@ -25,6 +25,7 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 )
 
 var errNoopClient = errors.New("operation not valid for noop client")
@@ -56,7 +57,7 @@ func (noopStorage) SearchSeries(ctx context.Context, query *FetchQuery, options 
 }
 
 // CompleteTags returns autocompleted tag results.
-func (noopStorage) CompleteTags(ctx context.Context, query *CompleteTagsQuery, options *FetchOptions) (*CompleteTagsResult, error) {
+func (noopStorage) CompleteTags(ctx context.Context, query *CompleteTagsQuery, options *FetchOptions) (*consolidators.CompleteTagsResult, error) {
 	return nil, errNoopClient
 }
 

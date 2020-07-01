@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
@@ -123,7 +124,7 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	}
 
 	store := NewStorage(stores, filterFunc(output), filterFunc(output),
-		filterCompleteTagsFunc(output), instrument.NewOptions())
+		filterCompleteTagsFunc(output), models.NewTagOptions(), instrument.NewOptions())
 	return store
 }
 
@@ -151,7 +152,7 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 		store1, store2,
 	}
 	store := NewStorage(stores, filterFunc(output), filterFunc(output),
-		filterCompleteTagsFunc(output), instrument.NewOptions())
+		filterCompleteTagsFunc(output), models.NewTagOptions(), instrument.NewOptions())
 	return store
 }
 
@@ -310,7 +311,8 @@ func TestFanoutSearchErrorContinues(t *testing.T) {
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
 	stores := []storage.Storage{warnStore, okStore, dupeStore}
-	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	store := NewStorage(stores, filter, filter, tFilter,
+		models.NewTagOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.SearchSeries(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
@@ -332,10 +334,10 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 	okStore := storage.NewMockStorage(ctrl)
 	okStore.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			&storage.CompleteTagsResult{
+			&consolidators.CompleteTagsResult{
 				CompleteNameOnly: true,
-				CompletedTags: []storage.CompletedTag{
-					storage.CompletedTag{
+				CompletedTags: []consolidators.CompletedTag{
+					consolidators.CompletedTag{
 						Name: []byte("ok"),
 					},
 				},
@@ -346,10 +348,10 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 	warnStore := storage.NewMockStorage(ctrl)
 	warnStore.EXPECT().CompleteTags(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			&storage.CompleteTagsResult{
+			&consolidators.CompleteTagsResult{
 				CompleteNameOnly: true,
-				CompletedTags: []storage.CompletedTag{
-					storage.CompletedTag{
+				CompletedTags: []consolidators.CompletedTag{
+					consolidators.CompletedTag{
 						Name: []byte("warn"),
 					},
 				},
@@ -360,7 +362,8 @@ func TestFanoutCompleteTagsErrorContinues(t *testing.T) {
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
 	stores := []storage.Storage{warnStore, okStore}
-	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	store := NewStorage(stores, filter, filter, tFilter,
+		models.NewTagOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	q := &storage.CompleteTagsQuery{CompleteNameOnly: true}
 	result, err := store.CompleteTags(context.TODO(), q, opts)
@@ -400,7 +403,8 @@ func TestFanoutFetchBlocksErrorContinues(t *testing.T) {
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
 	stores := []storage.Storage{warnStore, okStore}
-	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	store := NewStorage(stores, filter, filter, tFilter,
+		models.NewTagOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.FetchBlocks(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)
@@ -460,7 +464,8 @@ func TestFanoutFetchErrorContinues(t *testing.T) {
 	warnStore.EXPECT().Name().Return("warn").AnyTimes()
 
 	stores := []storage.Storage{warnStore, okStore}
-	store := NewStorage(stores, filter, filter, tFilter, instrument.NewOptions())
+	store := NewStorage(stores, filter, filter, tFilter,
+		models.NewTagOptions(), instrument.NewOptions())
 	opts := storage.NewFetchOptions()
 	result, err := store.FetchProm(context.TODO(), &storage.FetchQuery{}, opts)
 	assert.NoError(t, err)

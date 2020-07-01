@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -93,9 +94,9 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	storeResult := &storage.CompleteTagsResult{
+	storeResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: true,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("bar")},
 			{Name: b("baz")},
 			{Name: b("foo")},

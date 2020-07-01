@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -230,7 +231,7 @@ type Querier interface {
 		ctx context.Context,
 		query *CompleteTagsQuery,
 		options *FetchOptions,
-	) (*CompleteTagsResult, error)
+	) (*consolidators.CompleteTagsResult, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the database.
