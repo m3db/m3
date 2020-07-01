@@ -37,7 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
-	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
@@ -1414,7 +1414,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		)
 	}
 
-	err = db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch),
+	err = db.WriteBatch(ctx, nsID, batchWriter.(writes.WriteBatch),
 		pooledReq)
 	if err != nil {
 		return convert.ToRPCError(err)
@@ -1474,7 +1474,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 	var (
 		nsID        ident.ID
 		nsIdx       int64
-		batchWriter ts.BatchWriter
+		batchWriter writes.BatchWriter
 
 		retryableErrors    int
 		nonRetryableErrors int
@@ -1482,7 +1482,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 	for i, elem := range req.Elements {
 		if nsID == nil || elem.NameSpace != nsIdx {
 			if batchWriter != nil {
-				err = db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+				err = db.WriteBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
 				if err != nil {
 					return convert.ToRPCError(err)
 				}
@@ -1529,7 +1529,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 
 	if batchWriter != nil {
 		// Write the last batch.
-		err = db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+		err = db.WriteBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
 		if err != nil {
 			return convert.ToRPCError(err)
 		}
@@ -1684,7 +1684,7 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 	var (
 		nsID        ident.ID
 		nsIdx       int64
-		batchWriter ts.BatchWriter
+		batchWriter writes.BatchWriter
 
 		retryableErrors    int
 		nonRetryableErrors int
@@ -1692,7 +1692,7 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 	for i, elem := range req.Elements {
 		if nsID == nil || elem.NameSpace != nsIdx {
 			if batchWriter != nil {
-				err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+				err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
 				if err != nil {
 					return convert.ToRPCError(err)
 				}
@@ -1749,7 +1749,7 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 
 	if batchWriter != nil {
 		// Write the last batch.
-		err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+		err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
 		if err != nil {
 			return convert.ToRPCError(err)
 		}

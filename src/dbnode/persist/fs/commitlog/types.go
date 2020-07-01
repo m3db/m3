@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -66,7 +67,7 @@ type CommitLog interface {
 	// WriteBatch is the same as Write, but in batch.
 	WriteBatch(
 		ctx context.Context,
-		writes ts.WriteBatch,
+		writes writes.WriteBatch,
 	) error
 
 	// Close the commit log

@@ -435,21 +435,6 @@ func (s *commitLogSource) Read(
 				// Resolve the series in the accumulator.
 				accumulator := ns.accumulator
 
-				// NB(r): Make sure that only series.EncodedTags are used and not
-				// series.Tags (we explicitly ask for references to be returned and to
-				// avoid decoding the tags if we don't have to).
-				if decodedTags := len(entry.Series.Tags.Values()); decodedTags > 0 {
-					msg := "commit log reader expects encoded tags"
-					instrumentOpts := s.opts.ResultOptions().InstrumentOptions()
-					instrument.EmitAndLogInvariantViolation(instrumentOpts, func(l *zap.Logger) {
-						l.Error(msg,
-							zap.Int("decodedTags", decodedTags),
-							zap.Int("encodedTags", len(entry.Series.EncodedTags)))
-					})
-					err := instrument.InvariantErrorf(fmt.Sprintf("%s: decoded=%d", msg, decodedTags))
-					return bootstrap.NamespaceResults{}, err
-				}
-
 				var tagIter ident.TagIterator
 				if len(entry.Series.EncodedTags) > 0 {
 					tagDecoderCheckedBytes.Reset(entry.Series.EncodedTags)

@@ -151,8 +151,10 @@ func writeCommitLogDataBase(
 		t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
 
 	var (
-		seriesLookup = newCommitLogSeriesStates(data)
-		shardSet     = s.ShardSet()
+		seriesLookup   = newCommitLogSeriesStates(data)
+		shardSet       = s.ShardSet()
+		tagEncoderPool = opts.FilesystemOptions().TagEncoderPool()
+		tagSliceIter   = ident.NewTagsIterator(ident.Tags{})
 	)
 
 	// Write out commit log data.
@@ -182,11 +184,21 @@ func writeCommitLogDataBase(
 		for _, point := range points {
 			series, ok := seriesLookup[point.ID.String()]
 			require.True(t, ok)
+
+			tagSliceIter.Reset(series.tags)
+
+			tagEncoder := tagEncoderPool.Get()
+			err := tagEncoder.Encode(tagSliceIter)
+			require.NoError(t, err)
+
+			encodedTagsChecked, ok := tagEncoder.Data()
+			require.True(t, ok)
+
 			cID := ts.Series{
 				Namespace:   namespace.ID(),
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,
-				Tags:        series.tags,
+				EncodedTags: ts.EncodedTags(encodedTagsChecked.Bytes()),
 				UniqueIndex: series.uniqueIndex,
 			}
 			if pred(point.Value) {

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -60,11 +61,15 @@ type dbSeries struct {
 	opts Options
 
 	// NB(r): One should audit all places that access the
-	// series ID before changing ownership semantics (e.g.
+	// series metadata before changing ownership semantics (e.g.
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
+	// Note: The bytes that back "id ident.ID" are the same bytes
+	// that are behind the ID in "metadata doc.Document", the whole
+	// reason we keep an ident.ID on the series is since there's a lot
+	// of existing callsites that require the ID as an ident.ID.
 	id          ident.ID
-	tags        ident.Tags
+	metadata    doc.Document
 	uniqueIndex uint64
 
 	buffer                      databaseBuffer
@@ -111,11 +116,11 @@ func (s *dbSeries) ID() ident.ID {
 	return id
 }
 
-func (s *dbSeries) Tags() ident.Tags {
+func (s *dbSeries) Metadata() doc.Document {
 	s.RLock()
-	tags := s.tags
+	metadata := s.metadata
 	s.RUnlock()
-	return tags
+	return metadata
 }
 
 func (s *dbSeries) UniqueIndex() uint64 {
@@ -307,8 +312,8 @@ func (s *dbSeries) Write(
 		}
 	}
 
-	wasWritten, writeType, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
-	return wasWritten, writeType, err
+	return s.buffer.Write(ctx, s.id, timestamp, value,
+		unit, annotation, wOpts)
 }
 
 func (s *dbSeries) ReadEncoded(
@@ -380,7 +385,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 	// NB(r): Since ID and Tags are garbage collected we can safely
 	// return refs.
 	tagsIter := s.opts.IdentifierPool().TagsIterator()
-	tagsIter.Reset(s.tags)
+	tagsIter.ResetFields(s.metadata.Fields)
 	return block.NewFetchBlocksMetadataResult(s.id, tagsIter, res), nil
 }
 
@@ -529,7 +534,8 @@ func (s *dbSeries) WarmFlush(
 	// Need a write lock because the buffer WarmFlush method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
-	outcome, err := s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	outcome, err := s.buffer.WarmFlush(ctx, blockStart,
+		persist.NewMetadata(s.metadata), persistFn, nsCtx)
 	s.Unlock()
 	return outcome, err
 }
@@ -543,9 +549,10 @@ func (s *dbSeries) Snapshot(
 	// Need a write lock because the buffer Snapshot method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
-	defer s.Unlock()
-
-	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	err := s.buffer.Snapshot(ctx, blockStart,
+		persist.NewMetadata(s.metadata), persistFn, nsCtx)
+	s.Unlock()
+	return err
 }
 
 func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes {
@@ -561,7 +568,7 @@ func (s *dbSeries) Close() {
 
 	// See Reset() for why these aren't finalized.
 	s.id = nil
-	s.tags = ident.Tags{}
+	s.metadata = doc.Document{}
 	s.uniqueIndex = 0
 
 	switch s.opts.CachePolicy() {
@@ -605,11 +612,10 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	// The same goes for the series tags.
 	s.Lock()
 	s.id = opts.ID
-	s.tags = opts.Tags
+	s.metadata = opts.Metadata
 	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(databaseBufferResetOptions{
-		ID:             opts.ID,
 		BlockRetriever: opts.BlockRetriever,
 		Options:        opts.Options,
 	})

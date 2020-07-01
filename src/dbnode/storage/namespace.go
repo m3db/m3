@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
@@ -663,21 +664,21 @@ func (n *dbNamespace) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (ts.Series, bool, error) {
+) (SeriesWrite, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
-		return ts.Series{}, false, err
+		return SeriesWrite{}, err
 	}
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
 		SchemaDesc:   nsCtx.Schema,
 	}
-	series, wasWritten, err := shard.Write(ctx, id, timestamp,
+	seriesWrite, err := shard.Write(ctx, id, timestamp,
 		value, unit, annotation, opts)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return series, wasWritten, err
+	return seriesWrite, err
 }
 
 func (n *dbNamespace) WriteTagged(
@@ -688,25 +689,34 @@ func (n *dbNamespace) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (ts.Series, bool, error) {
+) (SeriesWrite, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return ts.Series{}, false, errNamespaceIndexingDisabled
+		return SeriesWrite{}, errNamespaceIndexingDisabled
 	}
 	shard, nsCtx, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return ts.Series{}, false, err
+		return SeriesWrite{}, err
 	}
 	opts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
 		SchemaDesc:   nsCtx.Schema,
 	}
-	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
+	seriesWrite, err := shard.WriteTagged(ctx, id, tags, timestamp,
 		value, unit, annotation, opts)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return series, wasWritten, err
+	return seriesWrite, err
+}
+
+func (n *dbNamespace) WritePendingIndexInserts(
+	pending []writes.PendingIndexInsert,
+) error {
+	if n.reverseIndex == nil { // only happens if indexing is enabled.
+		return errNamespaceIndexingDisabled
+	}
+	return n.reverseIndex.WritePending(pending)
 }
 
 func (n *dbNamespace) SeriesReadWriteRef(
@@ -1094,7 +1104,7 @@ func (n *dbNamespace) WarmFlush(
 // idAndBlockStart is the composite key for the genny map used to keep track of
 // dirty series that need to be ColdFlushed.
 type idAndBlockStart struct {
-	id         ident.ID
+	id         []byte
 	blockStart xtime.UnixNano
 }
 
@@ -1127,8 +1137,7 @@ func newColdFlushReuseableResources(opts Options) (coldFlushReuseableResources, 
 	}
 
 	return coldFlushReuseableResources{
-		// TODO(juchan): consider setting these options.
-		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
 		// TODO(juchan): set pool options.
 		idElementPool: newIDElementPool(nil),

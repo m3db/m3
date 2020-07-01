@@ -24,6 +24,7 @@ package ident
 import (
 	"fmt"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 )
@@ -230,6 +231,9 @@ type TagsIterator interface {
 
 	// Reset allows the tag iterator to be reused with a new set of tags.
 	Reset(tags Tags)
+
+	// ResetFields allows tag iterator to be reused from a set of fields.
+	ResetFields(fields []doc.Field)
 }
 
 // Tags is a collection of Tag instances that can be pooled.
