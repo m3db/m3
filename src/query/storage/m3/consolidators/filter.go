@@ -23,10 +23,11 @@ package consolidators
 import (
 	"bytes"
 
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/ident"
 )
 
-func filterTagIterator(iter ident.TagIterator, filters []Filter) bool {
+func filterTagIterator(iter ident.TagIterator, filters models.Filters) bool {
 	if len(filters) == 0 || iter.Remaining() == 0 {
 		return false
 	}
@@ -48,9 +49,95 @@ func filterTagIterator(iter ident.TagIterator, filters []Filter) bool {
 					return true
 				}
 			}
-		}
+		} 
 	}
 
 	return false
 }
  
+type nameFilter []byte
+
+func buildNameFilters(filters models.Filters) []nameFilter {
+	nameFilters := make([]nameFilter, 0, len(filters))
+	matchAll := false
+	for _, filter := range filters {
+		matchAll = false
+		// Special case on a single wildcard matcher to drop an entire name.
+		for _, filterValue := range filter.Filters {
+			if filterValue.String() == ".*" {
+				matchAll = true
+				break
+			}
+		}
+
+		if matchAll {
+			nameFilters = append(nameFilters, nameFilter(filter.Name))
+		}
+	}
+
+	return nameFilters
+}
+
+func filterNames(tags []CompletedTag, filters []nameFilter) []CompletedTag {
+	if len(filters) == 0 || len(tags) == 0 {
+		return tags
+	}
+
+	filteredTags := tags[:0]
+	skip := false
+	for _, tag := range tags {
+		skip = false
+		for _, f := range filters {
+			if bytes.Equal(tag.Name, f) {
+				skip = true
+				break
+			}
+		}
+
+		if !skip {
+			filteredTags = append(filteredTags, tag)
+		}
+	}
+
+	return filteredTags
+}
+
+func filterTags(tags []CompletedTag, filters models.Filters) []CompletedTag {
+	if len(filters) == 0 || len(tags) == 0 {
+		return tags
+	}
+
+	skip := false
+	filteredTags := tags[:0]
+	for _, tag := range tags {
+		for _, f := range filters {
+			if bytes.Equal(tag.Name, f.Name) {
+				filteredValues := tag.Values[:0]
+				for _, value := range tag.Values {
+					skip = false
+					for _, filter := range f.Filters {
+						if filter.Match(value) {
+							skip = true
+							break
+						}
+					}
+
+					if !skip {
+						filteredValues = append(filteredValues, value)
+					}
+				}
+
+				tag.Values = filteredValues
+			}
+
+			if len(tag.Values) == 0 {
+				// NB: all values for this tag are invalid.
+				continue
+			}
+
+			filteredTags = append(filteredTags, tag)
+		}
+	}
+
+	return filteredTags
+}

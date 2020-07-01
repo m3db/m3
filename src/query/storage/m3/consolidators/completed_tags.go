@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package consolidators
 
 import (
 	"bytes"
@@ -27,7 +27,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/models"
 )
 
 type completeTagsResultBuilder struct {
@@ -36,106 +36,26 @@ type completeTagsResultBuilder struct {
 	metadata    block.ResultMetadata
 	tagBuilders map[string]completedTagBuilder
 
-	filters []consolidators.Filter
+	filters     models.Filters
+	nameFilters []nameFilter
 }
 
 // NewCompleteTagsResultBuilder creates a new complete tags result builder.
 func NewCompleteTagsResultBuilder(
 	nameOnly bool,
-	filters []consolidators.Filter,
+	opts models.TagOptions,
 ) CompleteTagsResultBuilder {
-	return &completeTagsResultBuilder{
+	builder := &completeTagsResultBuilder{
 		nameOnly: nameOnly,
 		metadata: block.NewResultMetadata(),
-		filters:  filters,
-	}
-}
-
-type nameFilter []byte
-
-func buildNameFilters(filters []consolidators.Filter) []nameFilter {
-	nameFilters := make([]nameFilter, 0, len(filters))
-	matchAll := false
-	for _, filter := range filters {
-		matchAll = false
-		// Special case on a single wildcard matcher to drop an entire name.
-		for _, filterValue := range filter.Filters {
-			if filterValue.String() == ".*" {
-				matchAll = true
-				break
-			}
-		}
-
-		if matchAll {
-			nameFilters = append(nameFilters, nameFilter(filter.Name))
-		}
+		filters:  opts.Filters(),
 	}
 
-	return nameFilters
-}
-
-func filterNames(tags []CompletedTag, filters []nameFilter) []CompletedTag {
-	if len(filters) == 0 || len(tags) == 0 {
-		return tags
+	if nameOnly {
+		builder.nameFilters = buildNameFilters(builder.filters)
 	}
 
-	filteredTags := tags[:0]
-	skip := false
-	for _, tag := range tags {
-		skip = false
-		for _, f := range filters {
-			if bytes.Equal(tag.Name, f) {
-				skip = true
-				break
-			}
-		}
-
-		if !skip {
-			filteredTags = append(filteredTags, tag)
-		}
-	}
-
-	return filteredTags
-}
-
-func filterTags(tags []CompletedTag, filters []consolidators.Filter) []CompletedTag {
-	if len(filters) == 0 || len(tags) == 0 {
-		return tags
-	}
-
-	skip := false
-	filteredTags := tags[:0]
-	for _, tag := range tags {
-		for _, f := range filters {
-			if bytes.Equal(tag.Name, f.Name) {
-				filteredValues := tag.Values[:0]
-				for _, value := range tag.Values {
-					skip = false
-					for _, filter := range f.Filters {
-						if filter.Match(value) {
-							skip = true
-							break
-						}
-					}
-
-					if !skip {
-						filteredValues = append(filteredValues, value)
-					}
-				}
-
-				tag.Values = filteredValues
-			}
-
-			if len(tag.Values) == 0 {
-				// NB: all values for this tag are invalid.
-				continue
-			}
-
-			filteredTags = append(filteredTags, tag)
-		}
-	}
-
-	return filteredTags
+	return builder
 }
 
 func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
@@ -154,6 +74,7 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 
 	b.metadata = b.metadata.CombineMetadata(tagResult.Metadata)
 	if nameOnly {
+		completedTags = filterNames(completedTags, b.nameFilters)
 		for _, tag := range completedTags {
 			b.tagBuilders[string(tag.Name)] = completedTagBuilder{}
 		}
@@ -161,7 +82,6 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 		return nil
 	}
 
-	// NB: filter only on name/tag completion pairs.
 	completedTags = filterTags(completedTags, b.filters)
 	for _, tag := range completedTags {
 		if builder, exists := b.tagBuilders[string(tag.Name)]; exists {

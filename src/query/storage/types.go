@@ -288,36 +288,6 @@ func (q *CompleteTagsQuery) String() string {
 	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
 }
 
-// CompletedTag represents a tag retrieved by a complete tags query.
-type CompletedTag struct {
-	// Name the name of the tag.
-	Name []byte
-	// Values is a set of possible values for the tag.
-	// NB: if the parent CompleteTagsResult is set to CompleteNameOnly, this is
-	// expected to be empty.
-	Values [][]byte
-}
-
-// CompleteTagsResult represents a set of autocompleted tag names and values
-type CompleteTagsResult struct {
-	// CompleteNameOnly indicates if the tags in this result are expected to have
-	// both names and values, or only names.
-	CompleteNameOnly bool
-	// CompletedTag is a list of completed tags.
-	CompletedTags []CompletedTag
-	// Metadata describes any metadata for the operation.
-	Metadata block.ResultMetadata
-}
-
-// CompleteTagsResultBuilder is a builder that accumulates and deduplicates
-// incoming CompleteTagsResult values.
-type CompleteTagsResultBuilder interface {
-	// Add appends an incoming CompleteTagsResult.
-	Add(*CompleteTagsResult) error
-	// Build builds a completed tag result.
-	Build() CompleteTagsResult
-}
-
 // Appender provides batched appends against a storage.
 type Appender interface {
 	// Write writes a batched set of datapoints to storage based on the provided

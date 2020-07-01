@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
@@ -36,15 +37,15 @@ type multiSearchResult struct {
 	err       xerrors.MultiError
 	seenIters []client.TaggedIDsIterator // track known iterators to avoid leaking
 	dedupeMap map[string]MultiTagResult
-	filters   []Filter
+	filters   models.Filters
 }
 
 // NewMultiFetchTagsResult builds a new multi fetch tags result.
-func NewMultiFetchTagsResult(filters []Filter) MultiFetchTagsResult {
+func NewMultiFetchTagsResult(opts models.TagOptions) MultiFetchTagsResult {
 	return &multiSearchResult{
 		dedupeMap: make(map[string]MultiTagResult, initSize),
 		meta:      block.NewResultMetadata(),
-		filters:   filters,
+		filters:   opts.Filters(),
 	}
 }
 

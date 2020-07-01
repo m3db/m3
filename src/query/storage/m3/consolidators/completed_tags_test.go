@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package consolidators
 
 import (
 	"fmt"
@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -85,7 +86,7 @@ func TestMergeCompletedTag(t *testing.T) {
 func TestMergeCompletedTagResultDifferentNameTypes(t *testing.T) {
 	nameOnlyVals := []bool{true, false}
 	for _, nameOnly := range nameOnlyVals {
-		builder := NewCompleteTagsResultBuilder(nameOnly)
+		builder := NewCompleteTagsResultBuilder(nameOnly, models.NewTagOptions())
 		err := builder.Add(&CompleteTagsResult{
 			CompleteNameOnly: !nameOnly,
 		})
@@ -97,7 +98,7 @@ func TestMergeCompletedTagResultDifferentNameTypes(t *testing.T) {
 func TestMergeEmptyCompletedTagResult(t *testing.T) {
 	nameOnlyVals := []bool{true, false}
 	for _, nameOnly := range nameOnlyVals {
-		builder := NewCompleteTagsResultBuilder(nameOnly)
+		builder := NewCompleteTagsResultBuilder(nameOnly, models.NewTagOptions())
 		actual := builder.Build()
 		expected := CompleteTagsResult{
 			CompleteNameOnly: nameOnly,
@@ -186,7 +187,7 @@ func TestMergeCompletedTagResult(t *testing.T) {
 	for _, nameOnly := range nameOnlyVals {
 		for _, tt := range testMergeCompletedTags {
 			t.Run(fmt.Sprintf("%s_%t", tt.name, nameOnly), func(t *testing.T) {
-				builder := NewCompleteTagsResultBuilder(nameOnly)
+				builder := NewCompleteTagsResultBuilder(nameOnly, models.NewTagOptions())
 				for _, incoming := range tt.incoming {
 					result := mapToCompletedTag(nameOnly, incoming)
 					err := builder.Add(&result)
@@ -206,23 +207,10 @@ func TestMergeCompletedTagResult(t *testing.T) {
 	}
 }
 
-var exhaustTests = []struct {
-	name        string
-	exhaustives []bool
-	expected    bool
-}{
-	{"single exhaustive", []bool{true}, true},
-	{"single non-exhaustive", []bool{false}, false},
-	{"multiple exhaustive", []bool{true, true}, true},
-	{"multiple non-exhaustive", []bool{false, false}, false},
-	{"some exhaustive", []bool{true, false}, false},
-	{"mixed", []bool{true, false, true}, false},
-}
-
 func TestMetaMerge(t *testing.T) {
 	for _, nameOnly := range []bool{true, false} {
 		for _, tt := range exhaustTests {
-			builder := NewCompleteTagsResultBuilder(nameOnly)
+			builder := NewCompleteTagsResultBuilder(nameOnly, models.NewTagOptions())
 			t.Run(fmt.Sprintf("%s_%v", tt.name, nameOnly), func(t *testing.T) {
 				for _, ex := range tt.exhaustives {
 					meta := block.NewResultMetadata()

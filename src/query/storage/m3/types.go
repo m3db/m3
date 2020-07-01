@@ -61,5 +61,5 @@ type Querier interface {
 		ctx context.Context,
 		query *genericstorage.CompleteTagsQuery,
 		options *genericstorage.FetchOptions,
-	) (*genericstorage.CompleteTagsResult, error)
+	) (*consolidators.CompleteTagsResult, error)
 }

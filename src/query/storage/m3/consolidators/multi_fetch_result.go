@@ -48,7 +48,6 @@ type multiResult struct {
 	err             xerrors.MultiError
 	matchOpts       MatchOptions
 	tagOpts         models.TagOptions
-	filters         []Filter
 
 	pools encoding.IteratorPools
 }
@@ -57,7 +56,6 @@ type multiResult struct {
 func NewMultiFetchResult(
 	fanout QueryFanoutType,
 	pools encoding.IteratorPools,
-	filters []Filter,
 	opts MatchOptions,
 	tagOpts models.TagOptions,
 ) MultiFetchResult {
@@ -67,7 +65,6 @@ func NewMultiFetchResult(
 		pools:     pools,
 		matchOpts: opts,
 		tagOpts:   tagOpts,
-		filters:   filters,
 	}
 }
 
@@ -240,7 +237,7 @@ func (r *multiResult) addOrUpdateDedupeMap(
 ) {
 	for _, iter := range newIterators.Iters() {
 		tagIter := iter.Tags()
-		if filterTagIterator(tagIter, r.filters) {
+		if filterTagIterator(tagIter, r.tagOpts.Filters()) {
 			// NB: skip here, the closer will free the series iterator regardless.
 			continue
 		}

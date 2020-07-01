@@ -21,8 +21,6 @@
 package consolidators
 
 import (
-	"regexp"
-
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -135,18 +133,40 @@ type MultiFetchTagsResult interface {
 	Close() error
 }
 
+// CompletedTag represents a tag retrieved by a complete tags query.
+type CompletedTag struct {
+	// Name the name of the tag.
+	Name []byte
+	// Values is a set of possible values for the tag.
+	// NB: if the parent CompleteTagsResult is set to CompleteNameOnly, this is
+	// expected to be empty.
+	Values [][]byte
+}
+
+// CompleteTagsResult represents a set of autocompleted tag names and values
+type CompleteTagsResult struct {
+	// CompleteNameOnly indicates if the tags in this result are expected to have
+	// both names and values, or only names.
+	CompleteNameOnly bool
+	// CompletedTag is a list of completed tags.
+	CompletedTags []CompletedTag
+	// Metadata describes any metadata for the operation.
+	Metadata block.ResultMetadata
+}
+
+// CompleteTagsResultBuilder is a builder that accumulates and deduplicates
+// incoming CompleteTagsResult values.
+type CompleteTagsResultBuilder interface {
+	// Add appends an incoming CompleteTagsResult.
+	Add(*CompleteTagsResult) error
+	// Build builds a completed tag result.
+	Build() CompleteTagsResult
+}
+
 // MultiTagResult represents a tag iterator with its string ID.
 type MultiTagResult struct {
 	// ID is the series ID.
 	ID ident.ID
 	// Iter is the tag iterator for the series.
 	Iter ident.TagIterator
-}
-
-// Filter is a set of filters that affect results in query consolidators.
-type Filter struct {
-	// Name is the name of the series.
-	Name []byte
-	// Filters are a set of regex expressions that filter matched tag values.
-	Filters []*regexp.Regexp
 }

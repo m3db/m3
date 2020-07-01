@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func TestExhaustiveTagMerge(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	r := NewMultiFetchTagsResult()
+	r := NewMultiFetchTagsResult(models.NewTagOptions())
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, ex := range tt.exhaustives {
