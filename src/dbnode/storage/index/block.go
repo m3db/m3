@@ -131,7 +131,7 @@ type block struct {
 	coldMutableSegments             []*mutableSegments
 	shardRangesSegmentsByVolumeType shardRangesSegmentsByVolumeType
 	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
-	newExecutorFn                   newExecutorFn
+	newExecutorWithRLockFn          newExecutorFn
 	blockStart                      time.Time
 	blockEnd                        time.Time
 	blockSize                       time.Duration
@@ -234,7 +234,7 @@ func NewBlock(
 		queryStats:                      opts.QueryStats(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
-	b.newExecutorFn = b.executorWithRLock
+	b.newExecutorWithRLockFn = b.executorWithRLock
 
 	return b, nil
 }
@@ -423,7 +423,7 @@ func (b *block) queryWithSpan(
 		return false, ErrUnableToQueryBlockClosed
 	}
 
-	exec, err := b.newExecutorFn()
+	exec, err := b.newExecutorWithRLockFn()
 	if err != nil {
 		return false, err
 	}
@@ -513,8 +513,8 @@ func (b *block) queryWithSpan(
 }
 
 func (b *block) closeExecutorAsync(exec search.Executor) {
-	// Note: This only happens if closing the readers isn't clean.
 	if err := exec.Close(); err != nil {
+		// Note: This only happens if closing the readers isn't clean.
 		b.logger.Error("could not close search exec", zap.Error(err))
 	}
 }

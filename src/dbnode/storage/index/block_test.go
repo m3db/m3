@@ -393,9 +393,7 @@ func TestBlockQueryExecutorError(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	b.newExecutorFn = func() (search.Executor, error) {
-		b.RLock() // ensures we call newExecutorFn with RLock, or this would deadlock
-		defer b.RUnlock()
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return nil, fmt.Errorf("random-err")
 	}
 
@@ -479,7 +477,7 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 
 	// dIter:= doc.NewMockIterator(ctrl)
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 	gomock.InOrder(
@@ -504,7 +502,7 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -544,7 +542,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -594,7 +592,7 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -632,7 +630,7 @@ func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -681,7 +679,7 @@ func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -732,7 +730,7 @@ func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -781,7 +779,7 @@ func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -833,7 +831,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	require.NoError(t, b.Seal())
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -885,7 +883,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
