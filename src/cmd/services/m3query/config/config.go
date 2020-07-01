@@ -23,7 +23,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
@@ -616,10 +615,13 @@ type TagOptionsConfiguration struct {
 
 // TagFilter is a tag filter.
 type TagFilter struct {
+	// Values are the values to filter.
+	//
+	// NB:If this is unset, all series containing
+	// a tag with given `Name` are filtered.
+	Values []string `yaml:"values"`
 	// Name is the tag name.
 	Name string `yaml:"name"`
-	// ValueRegexes are regexes for the filter.
-	Filters []string `yaml:"filters"`
 }
 
 // TagOptionsFromConfig translates tag option configuration into tag options.
@@ -649,19 +651,14 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	if cfg.Filters != nil {
 		filters := make([]models.Filter, 0, len(cfg.Filters))
 		for _, filter := range cfg.Filters {
-			regexFilters := make([]*regexp.Regexp, 0, len(filter.Filters))
-			for _, str := range filter.Filters {
-				regex, err := regexp.Compile(str)
-				if err != nil {
-					return nil, err
-				}
-
-				regexFilters = append(regexFilters, regex)
+			values := make([][]byte, 0, len(filter.Values))
+			for _, strVal := range filter.Values {
+				values = append(values, []byte(strVal))
 			}
 
 			filters = append(filters, models.Filter{
-				Name:    []byte(filter.Name),
-				Filters: regexFilters,
+				Name:   []byte(filter.Name),
+				Values: values,
 			})
 		}
 

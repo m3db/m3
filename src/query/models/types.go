@@ -171,6 +171,7 @@ type Filters []Filter
 type Filter struct {
 	// Name is the name of the series.
 	Name []byte
-	// Filters are a set of regex expressions that filter matched tag values.
-	Filters []*regexp.Regexp
+	// Values are a set of filter values. If this is unset, all series containing
+	// the tag name are filtered.
+	Values [][]byte
 }

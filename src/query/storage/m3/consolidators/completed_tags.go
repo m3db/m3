@@ -36,8 +36,7 @@ type completeTagsResultBuilder struct {
 	metadata    block.ResultMetadata
 	tagBuilders map[string]completedTagBuilder
 
-	filters     models.Filters
-	nameFilters []nameFilter
+	filters models.Filters
 }
 
 // NewCompleteTagsResultBuilder creates a new complete tags result builder.
@@ -45,17 +44,11 @@ func NewCompleteTagsResultBuilder(
 	nameOnly bool,
 	opts models.TagOptions,
 ) CompleteTagsResultBuilder {
-	builder := &completeTagsResultBuilder{
+	return &completeTagsResultBuilder{
 		nameOnly: nameOnly,
 		metadata: block.NewResultMetadata(),
 		filters:  opts.Filters(),
 	}
-
-	if nameOnly {
-		builder.nameFilters = buildNameFilters(builder.filters)
-	}
-
-	return builder
 }
 
 func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
@@ -74,7 +67,7 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 
 	b.metadata = b.metadata.CombineMetadata(tagResult.Metadata)
 	if nameOnly {
-		completedTags = filterNames(completedTags, b.nameFilters)
+		completedTags = filterNames(completedTags, b.filters)
 		for _, tag := range completedTags {
 			b.tagBuilders[string(tag.Name)] = completedTagBuilder{}
 		}

@@ -66,8 +66,8 @@ func TestTagOptionsFromConfig(t *testing.T) {
 		MetricName: name,
 		Scheme:     models.TypeLegacy,
 		Filters: []TagFilter{
-			{Name: "foo", Filters: []string{".", "abc"}},
-			{Name: "bar", Filters: []string{".*"}},
+			{Name: "foo", Values: []string{".", "abc"}},
+			{Name: "bar", Values: []string{".*"}},
 		},
 	}
 	opts, err := TagOptionsFromConfig(cfg)
@@ -76,12 +76,12 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	assert.Equal(t, []byte(name), opts.MetricName())
 	filters := opts.Filters()
 	exNames := [][]byte{[]byte("foo"), []byte("bar")}
-	exRegexes := [][]string{{".", "abc"}, {".*"}}
+	exVals := [][]string{{".", "abc"}, {".*"}}
 	require.Equal(t, 2, len(filters))
 	for i, f := range filters {
 		assert.Equal(t, exNames[i], f.Name)
-		for j, regex := range f.Filters {
-			assert.Equal(t, exRegexes[i][j], regex.String())
+		for j, v := range f.Values {
+			assert.Equal(t, []byte(exVals[i][j]), v)
 		}
 	}
 }

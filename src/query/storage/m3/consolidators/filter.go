@@ -44,41 +44,23 @@ func filterTagIterator(iter ident.TagIterator, filters models.Filters) bool {
 				continue
 			}
 
-			for _, filter := range f.Filters {
-				if filter.Match(value) {
+			// 0 length filters implies filtering for entire range.
+			if len(f.Values) == 0 {
+				return true
+			}
+
+			for _, filterValue := range f.Values {
+				if bytes.Equal(filterValue, value) {
 					return true
 				}
 			}
-		} 
+		}
 	}
 
 	return false
 }
- 
-type nameFilter []byte
 
-func buildNameFilters(filters models.Filters) []nameFilter {
-	nameFilters := make([]nameFilter, 0, len(filters))
-	matchAll := false
-	for _, filter := range filters {
-		matchAll = false
-		// Special case on a single wildcard matcher to drop an entire name.
-		for _, filterValue := range filter.Filters {
-			if filterValue.String() == ".*" {
-				matchAll = true
-				break
-			}
-		}
-
-		if matchAll {
-			nameFilters = append(nameFilters, nameFilter(filter.Name))
-		}
-	}
-
-	return nameFilters
-}
-
-func filterNames(tags []CompletedTag, filters []nameFilter) []CompletedTag {
+func filterNames(tags []CompletedTag, filters models.Filters) []CompletedTag {
 	if len(filters) == 0 || len(tags) == 0 {
 		return tags
 	}
@@ -88,7 +70,13 @@ func filterNames(tags []CompletedTag, filters []nameFilter) []CompletedTag {
 	for _, tag := range tags {
 		skip = false
 		for _, f := range filters {
-			if bytes.Equal(tag.Name, f) {
+			if len(f.Values) != 0 {
+				// If this has filter values, it is not a name filter, and the result
+				// is valid.
+				break
+			}
+
+			if bytes.Equal(tag.Name, f.Name) {
 				skip = true
 				break
 			}
@@ -115,8 +103,8 @@ func filterTags(tags []CompletedTag, filters models.Filters) []CompletedTag {
 				filteredValues := tag.Values[:0]
 				for _, value := range tag.Values {
 					skip = false
-					for _, filter := range f.Filters {
-						if filter.Match(value) {
+					for _, filterValue := range f.Values {
+						if bytes.Equal(filterValue, value) {
 							skip = true
 							break
 						}
