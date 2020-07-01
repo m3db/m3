@@ -939,7 +939,7 @@ func (s *dbShard) writeAndIndex(
 		if err == nil && shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
 				if !opts.writeNewSeriesAsync {
-					return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enable")
+					return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enabled")
 				}
 				needsIndex = true
 				pendingIndexInsert = s.pendingIndexInsert(entry, timestamp)
@@ -978,7 +978,7 @@ func (s *dbShard) writeAndIndex(
 
 		if shouldReverseIndex {
 			if !opts.writeNewSeriesAsync {
-				return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enable")
+				return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enabled")
 			}
 			needsIndex = true
 			pendingIndexInsert = s.pendingIndexInsert(result.entry, timestamp)
