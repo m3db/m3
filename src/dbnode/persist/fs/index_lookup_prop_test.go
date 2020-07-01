@@ -165,7 +165,7 @@ func calculateExpectedChecksum(t *testing.T, filePath string) uint32 {
 
 func writeTestSummariesData(w DataFileSetWriter, writes []generatedWrite) error {
 	for _, write := range writes {
-		metadata := persist.NewMetadataSeriesIDAndTags(write.id, write.tags,
+		metadata := persist.NewMetadataFromIDAndTags(write.id, write.tags,
 			persist.MetadataOptions{})
 		err := w.Write(metadata, write.data, write.checksum)
 		if err != nil {
