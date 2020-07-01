@@ -55,6 +55,13 @@ type FetchOptionsBuilder interface {
 // FetchOptionsBuilderOptions provides options to use when creating a
 // fetch options builder.
 type FetchOptionsBuilderOptions struct {
+	Limits        FetchOptionsBuilderLimitsOptions
+	RestrictByTag *storage.RestrictByTag
+}
+
+// FetchOptionsBuilderLimitsOptions provides limits options to use when
+// creating a fetch options builder.
+type FetchOptionsBuilderLimitsOptions struct {
 	SeriesLimit       int
 	DocsLimit         int
 	RequireExhaustive bool
@@ -128,21 +135,21 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 ) (*storage.FetchOptions, *xhttp.ParseError) {
 	fetchOpts := storage.NewFetchOptions()
 
-	seriesLimit, err := ParseLimit(req, LimitMaxSeriesHeader, "limit", b.opts.SeriesLimit)
+	seriesLimit, err := ParseLimit(req, LimitMaxSeriesHeader, "limit", b.opts.Limits.SeriesLimit)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	fetchOpts.SeriesLimit = seriesLimit
 
-	docsLimit, err := ParseLimit(req, LimitMaxDocsHeader, "docsLimit", b.opts.DocsLimit)
+	docsLimit, err := ParseLimit(req, LimitMaxDocsHeader, "docsLimit", b.opts.Limits.DocsLimit)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	fetchOpts.DocsLimit = docsLimit
 
-	requireExhaustive, err := ParseRequireExhaustive(req, b.opts.RequireExhaustive)
+	requireExhaustive, err := ParseRequireExhaustive(req, b.opts.Limits.RequireExhaustive)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -178,18 +185,23 @@ func (b fetchOptionsBuilder) NewFetchOptions(
 	}
 
 	if str := req.Header.Get(RestrictByTagsJSONHeader); str != "" {
+		// Allow header to override any default restrict by tags config.
 		var opts StringTagOptions
 		if err := json.Unmarshal([]byte(str), &opts); err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
-		tagOpts, err := opts.toOptions()
+		tagOpts, err := opts.StorageOptions()
 		if err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
 
 		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
 		fetchOpts.RestrictQueryOptions.RestrictByTag = tagOpts
+	} else if defaultTagOpts := b.opts.RestrictByTag; defaultTagOpts != nil {
+		// Apply defaults if not overridden by header.
+		fetchOpts.RestrictQueryOptions = newOrExistingRestrictQueryOptions(fetchOpts)
+		fetchOpts.RestrictQueryOptions.RestrictByTag = defaultTagOpts
 	}
 
 	if restrict := fetchOpts.RestrictQueryOptions; restrict != nil {

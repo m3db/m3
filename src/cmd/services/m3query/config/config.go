@@ -218,6 +218,9 @@ type QueryConfiguration struct {
 	ConsolidationConfiguration ConsolidationConfiguration `yaml:"consolidation"`
 	// Prometheus is prometheus client configuration.
 	Prometheus PrometheusQueryConfiguration `yaml:"prometheus"`
+	// RestrictTags is an optional configuration that can be set to restrict
+	// all queries with certain tags by.
+	RestrictTags *RestrictTagsConfiguration `yaml:"restrictTags"`
 }
 
 // TimeoutOrDefault returns the configured timeout or default value.
@@ -226,6 +229,46 @@ func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
 		return *v
 	}
 	return defaultQueryTimeout
+}
+
+// RestrictTagsAsStorageRestrictByTag returns restrict tags as
+// storage options to restrict all queries by default.
+func (c QueryConfiguration) RestrictTagsAsStorageRestrictByTag() (*storage.RestrictByTag, bool, error) {
+	if c.RestrictTags == nil {
+		return nil, false, nil
+	}
+
+	var (
+		cfg    = *c.RestrictTags
+		result = handleroptions.StringTagOptions{
+			Restrict: make([]handleroptions.StringMatch, 0, len(cfg.Restrict)),
+			Strip:    cfg.Strip,
+		}
+	)
+	for _, elem := range cfg.Restrict {
+		value := handleroptions.StringMatch(elem)
+		result.Restrict = append(result.Restrict, value)
+	}
+
+	opts, err := result.StorageOptions()
+	if err != nil {
+		return nil, false, err
+	}
+
+	return opts, true, nil
+}
+
+// RestrictTagsConfiguration applies tag restriction to all queries.
+type RestrictTagsConfiguration struct {
+	Restrict []StringMatch `yaml:"match"`
+	Strip    []string      `yaml:"strip"`
+}
+
+// StringMatch is an easy to use representation of models.Matcher.
+type StringMatch struct {
+	Name  string `yaml:"name"`
+	Type  string `yaml:"type"`
+	Value string `yaml:"value"`
 }
 
 // ConsolidationConfiguration are configs for consolidating fetched queries.
@@ -328,9 +371,9 @@ func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerO
 	return toLimitManagerOptions(l.MaxFetchedDatapoints)
 }
 
-// AsFetchOptionsBuilderOptions converts this configuration to
-// handler.FetchOptionsBuilderOptions.
-func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleroptions.FetchOptionsBuilderOptions {
+// AsFetchOptionsBuilderLimitsOptions converts this configuration to
+// handleroptions.FetchOptionsBuilderLimitsOptions.
+func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handleroptions.FetchOptionsBuilderLimitsOptions {
 	seriesLimit := defaultStorageQuerySeriesLimit
 	if v := l.MaxFetchedSeries; v > 0 {
 		seriesLimit = v
@@ -341,7 +384,7 @@ func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleropti
 		docsLimit = v
 	}
 
-	return handleroptions.FetchOptionsBuilderOptions{
+	return handleroptions.FetchOptionsBuilderLimitsOptions{
 		SeriesLimit:       int(seriesLimit),
 		DocsLimit:         int(docsLimit),
 		RequireExhaustive: l.RequireExhaustive,

@@ -182,13 +182,13 @@ function test_query_limits_applied {
   # NB: ensure that the limit is not exceeded (it may be below limit).
   echo "Test query limit with coordinator defaults"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -lt 101 ]]'
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
 
   # Test the series limit applied when directly querying
   # coordinator (series limit set by header)
   echo "Test query series limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -eq 10 ]]'
   
   echo "Test query series limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
@@ -206,7 +206,7 @@ function test_query_limits_applied {
   # coordinator (docs limit set by header)
   echo "Test query docs limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -lt 101 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
 
   echo "Test query docs limit with require-exhaustive headers false"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
@@ -277,6 +277,33 @@ function test_query_restrict_metrics_type {
     retry_with_backoff prometheus_query_native
 }
 
+function test_query_restrict_tags {
+  # Test the default restrict tags is applied when directly querying
+  # coordinator (restrict tags set to hide any restricted_metrics_type="hidden"
+  # in m3coordinator.yml)
+
+  # First write some hidden metrics.
+  echo "Test write with unaggregated metrics type works as expected"
+  TAG_NAME_0="restricted_metrics_type" TAG_VALUE_0="hidden" \
+    TAG_NAME_1="foo_tag" TAG_VALUE_1="foo_tag_value" \
+    prometheus_remote_write \
+    some_hidden_metric now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+
+  # Check that we can see them with zero restrictions applied as an 
+  # override (we do this check first so that when we test that they 
+  # don't appear by default we know that the metrics are already visible).
+  echo "Test restrict by tags with header override to remove restrict works"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Restrict-By-Tags-JSON: {}" 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 1 ]]'
+
+  # Now test that the defaults will hide the metrics altogether.
+  echo "Test restrict by tags with coordinator defaults"
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 0 ]]'
+}
+
 echo "Running prometheus tests"
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
@@ -287,6 +314,7 @@ test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
 test_query_limits_applied
 test_query_restrict_metrics_type
+test_query_restrict_tags
 test_prometheus_remote_write_map_tags
 
 echo "Running function correctness tests"
