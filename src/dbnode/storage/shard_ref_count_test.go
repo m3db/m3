@@ -412,16 +412,25 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx NamespaceIndex, nowFn f
 		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
+	assert.True(t, seriesWrite.NeedsIndex)
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexSuccess(idx.BlockStartForWriteTime(now))
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexFinalize(idx.BlockStartForWriteTime(now))
 
 	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("bar"),
 		ident.EmptyTagIterator, now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
+	assert.True(t, seriesWrite.NeedsIndex)
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexSuccess(idx.BlockStartForWriteTime(now))
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexFinalize(idx.BlockStartForWriteTime(now))
 
 	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("baz"),
 		ident.EmptyTagIterator, now, 3.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
 	assert.True(t, seriesWrite.WasWritten)
+	assert.True(t, seriesWrite.NeedsIndex)
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexSuccess(idx.BlockStartForWriteTime(now))
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexFinalize(idx.BlockStartForWriteTime(now))
 
 	inserted := xclock.WaitUntil(func() bool {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]

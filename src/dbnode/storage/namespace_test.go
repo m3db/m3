@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
-	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xidx "github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
@@ -221,9 +220,9 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 			TruncateType: truncateType,
 		}
 		shard.EXPECT().Write(ctx, id, now, val, unit, ant, opts).
-			Return(ts.Series{}, true, nil).Times(1)
+			Return(SeriesWrite{WasWritten: true}, nil).Times(1)
 		shard.EXPECT().Write(ctx, id, now, val, unit, ant, opts).
-			Return(ts.Series{}, false, nil).Times(1)
+			Return(SeriesWrite{WasWritten: false}, nil).Times(1)
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
@@ -1109,10 +1108,14 @@ func TestNamespaceIndexInsert(t *testing.T) {
 		opts := series.WriteOptions{
 			TruncateType: truncateType,
 		}
-		shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-			now, 1.0, xtime.Second, nil, opts).Return(ts.Series{}, true, nil)
-		shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-			now, 1.0, xtime.Second, nil, opts).Return(ts.Series{}, false, nil)
+		shard.EXPECT().
+			WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+				now, 1.0, xtime.Second, nil, opts).
+			Return(SeriesWrite{WasWritten: true}, nil)
+		shard.EXPECT().
+			WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+				now, 1.0, xtime.Second, nil, opts).
+			Return(SeriesWrite{WasWritten: false}, nil)
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
