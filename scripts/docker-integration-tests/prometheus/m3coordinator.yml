@@ -48,7 +48,7 @@ query:
   restrictTags:
     match:
       - name: restricted_metrics_type
-        type: EQUAL
+        type: NOTEQUAL
         value: hidden
     strip:
     - restricted_metrics_type
