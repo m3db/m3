@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func strsToBytes(str []string) [][]byte {
@@ -226,4 +227,85 @@ func TestMetaMerge(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestCompleteTagNameFilter(t *testing.T) {
+	filters := models.Filters{
+		models.Filter{Name: b("foo")},
+		models.Filter{Name: b("bar"), Values: [][]byte{b("baz"), b("qux")}},
+	}
+
+	opts := models.NewTagOptions().SetFilters(filters)
+	builder := NewCompleteTagsResultBuilder(true, opts)
+	assert.NoError(t, builder.Add(&CompleteTagsResult{
+		CompleteNameOnly: true,
+		Metadata:         block.NewResultMetadata(),
+		CompletedTags: []CompletedTag{
+			{Name: b("foo")}, {Name: b("qux")}, {Name: b("bar")},
+		},
+	}))
+
+	assert.NoError(t, builder.Add(&CompleteTagsResult{
+		CompleteNameOnly: true,
+		Metadata:         block.NewResultMetadata(),
+		CompletedTags: []CompletedTag{
+			{Name: b("foo")},
+		},
+	}))
+
+	res := builder.Build()
+	require.True(t, res.CompleteNameOnly)
+	require.Equal(t, 2, len(res.CompletedTags))
+	sort.Sort(completedTagsByName(res.CompletedTags))
+
+	assert.Equal(t, b("bar"), res.CompletedTags[0].Name)
+	assert.Equal(t, b("qux"), res.CompletedTags[1].Name)
+}
+
+func TestCompleteTagFilter(t *testing.T) {
+	filters := models.Filters{
+		models.Filter{Name: b("foo"), Values: [][]byte{b("bar")}},
+		models.Filter{Name: b("bar"), Values: [][]byte{b("baz"), b("qux")}},
+		models.Filter{Name: b("qux")},
+	}
+
+	opts := models.NewTagOptions().SetFilters(filters)
+	builder := NewCompleteTagsResultBuilder(false, opts)
+	assert.NoError(t, builder.Add(&CompleteTagsResult{
+		CompleteNameOnly: false,
+		Metadata:         block.NewResultMetadata(),
+		CompletedTags: []CompletedTag{
+			{Name: b("foo"), Values: [][]byte{b("bar"), b("foobar")}},
+			{Name: b("bar"), Values: [][]byte{b("qux"), b("baz")}},
+			{Name: b("qux"), Values: [][]byte{b("abc"), b("def")}},
+		},
+	}))
+
+	assert.NoError(t, builder.Add(&CompleteTagsResult{
+		CompleteNameOnly: false,
+		Metadata:         block.NewResultMetadata(),
+		CompletedTags: []CompletedTag{
+			{Name: b("foo"), Values: [][]byte{b("bar"), b("foofoo")}},
+			{Name: b("qux"), Values: [][]byte{b("xyz")}},
+			{Name: b("quince"), Values: [][]byte{b("quail"), b("quart")}},
+		},
+	}))
+
+	res := builder.Build()
+	require.False(t, res.CompleteNameOnly)
+	require.Equal(t, 2, len(res.CompletedTags))
+	sort.Sort(completedTagsByName(res.CompletedTags))
+
+	ex := []CompletedTag{
+		CompletedTag{
+			Name:   b("foo"),
+			Values: [][]byte{b("foobar"), b("foofoo")},
+		},
+		CompletedTag{
+			Name:   b("quince"),
+			Values: [][]byte{b("quail"), b("quart")},
+		},
+	}
+
+	assert.Equal(t, ex, res.CompletedTags)
 }

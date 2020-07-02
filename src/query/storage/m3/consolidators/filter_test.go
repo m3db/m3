@@ -30,6 +30,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type tag struct {
+	name  string
+	value string
+}
+
 func b(s string) []byte { return []byte(s) }
 
 func TestFilterTagIterator(t *testing.T) {
@@ -61,11 +66,6 @@ func TestFilterTagIterator(t *testing.T) {
 
 	for _, tt := range tests {
 		assert.Equal(t, tt.ex, filterTagIterator(it, tt.filters))
-	}
-
-	type tag struct {
-		name  string
-		value string
 	}
 
 	ex := []tag{
