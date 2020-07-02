@@ -356,6 +356,9 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 }
 
 func (b *block) segmentsWithRLock() []segment.Segment {
+	// TODO: Also keep the lifetimes of the segments alive, i.e.
+	// don't let the segments taken ref to here be operated on since
+	// they could be closed by mutable segments container, etc.
 	numSegments := b.mutableSegments.Len()
 	for _, coldSeg := range b.coldMutableSegments {
 		numSegments += coldSeg.Len()
