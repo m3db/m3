@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -131,9 +132,9 @@ func TestTagValues(t *testing.T) {
 			filterTag: tt.name,
 		}
 
-		storeResult := &storage.CompleteTagsResult{
+		storeResult := &consolidators.CompleteTagsResult{
 			CompleteNameOnly: false,
-			CompletedTags: []storage.CompletedTag{
+			CompletedTags: []consolidators.CompletedTag{
 				{
 					Name:   b(tt.name),
 					Values: bs("a", "b", "c", tt.name),

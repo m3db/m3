@@ -356,7 +356,7 @@ func Run(runOpts RunOptions) {
 		)
 
 		backendStorage = fanout.NewStorage(remotes, r, w, c,
-			instrumentOptions)
+			tagOptions, instrumentOptions)
 		logger.Info("setup grpc backend")
 
 	case config.NoopEtcdStorageType:
@@ -918,7 +918,7 @@ func newStorages(
 	}
 
 	fanoutStorage := fanout.NewStorage(stores, readFilter, writeFilter,
-		completeTagsFilter, instrumentOpts)
+		completeTagsFilter, opts.TagOptions(), instrumentOpts)
 	return fanoutStorage, cleanup, nil
 }
 

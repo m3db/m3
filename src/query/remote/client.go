@@ -272,7 +272,7 @@ func (c *grpcClient) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	request, err := encodeCompleteTagsRequest(query, options)
 	if err != nil {
 		return nil, err
@@ -288,7 +288,7 @@ func (c *grpcClient) CompleteTags(
 		return nil, err
 	}
 
-	tags := make([]storage.CompletedTag, 0, initResultSize)
+	tags := make([]consolidators.CompletedTag, 0, initResultSize)
 	meta := block.NewResultMetadata()
 	defer completeTagsClient.CloseSend()
 	for {
@@ -316,7 +316,7 @@ func (c *grpcClient) CompleteTags(
 		tags = append(tags, result...)
 	}
 
-	return &storage.CompleteTagsResult{
+	return &consolidators.CompleteTagsResult{
 		CompleteNameOnly: query.CompleteNameOnly,
 		CompletedTags:    tags,
 		Metadata:         meta,

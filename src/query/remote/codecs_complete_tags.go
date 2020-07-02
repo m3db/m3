@@ -24,15 +24,16 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 )
 
 func decodeTagNamesOnly(
 	response *rpc.TagNames,
-) []storage.CompletedTag {
+) []consolidators.CompletedTag {
 	names := response.GetNames()
-	tags := make([]storage.CompletedTag, len(names))
+	tags := make([]consolidators.CompletedTag, len(names))
 	for i, name := range names {
-		tags[i] = storage.CompletedTag{Name: name}
+		tags[i] = consolidators.CompletedTag{Name: name}
 	}
 
 	return tags
@@ -40,11 +41,11 @@ func decodeTagNamesOnly(
 
 func decodeTagProperties(
 	response *rpc.TagValues,
-) []storage.CompletedTag {
+) []consolidators.CompletedTag {
 	values := response.GetValues()
-	tags := make([]storage.CompletedTag, len(values))
+	tags := make([]consolidators.CompletedTag, len(values))
 	for i, value := range values {
-		tags[i] = storage.CompletedTag{
+		tags[i] = consolidators.CompletedTag{
 			Name:   value.GetKey(),
 			Values: value.GetValues(),
 		}
@@ -56,7 +57,7 @@ func decodeTagProperties(
 func decodeCompleteTagsResponse(
 	response *rpc.CompleteTagsResponse,
 	completeNameOnly bool,
-) ([]storage.CompletedTag, error) {
+) ([]consolidators.CompletedTag, error) {
 	if names := response.GetNamesOnly(); names != nil {
 		if !completeNameOnly {
 			return nil, errors.ErrInconsistentCompleteTagsType
@@ -133,7 +134,7 @@ func decodeCompleteTagsRequest(
 }
 
 func encodeToCompressedCompleteTagsDefaultResult(
-	results *storage.CompleteTagsResult,
+	results *consolidators.CompleteTagsResult,
 ) (*rpc.CompleteTagsResponse, error) {
 	tags := results.CompletedTags
 	values := make([]*rpc.TagValue, 0, len(tags))
@@ -156,7 +157,7 @@ func encodeToCompressedCompleteTagsDefaultResult(
 }
 
 func encodeToCompressedCompleteTagsNameOnlyResult(
-	results *storage.CompleteTagsResult,
+	results *consolidators.CompleteTagsResult,
 ) (*rpc.CompleteTagsResponse, error) {
 	tags := results.CompletedTags
 	names := make([][]byte, 0, len(tags))
@@ -176,7 +177,7 @@ func encodeToCompressedCompleteTagsNameOnlyResult(
 }
 
 func encodeToCompressedCompleteTagsResult(
-	results *storage.CompleteTagsResult,
+	results *consolidators.CompleteTagsResult,
 ) (*rpc.CompleteTagsResponse, error) {
 	if results.CompleteNameOnly {
 		return encodeToCompressedCompleteTagsNameOnlyResult(results)

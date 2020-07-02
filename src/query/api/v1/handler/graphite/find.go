@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -70,8 +71,8 @@ type nodeDescriptor struct {
 }
 
 func mergeTags(
-	terminatedResult *storage.CompleteTagsResult,
-	childResult *storage.CompleteTagsResult,
+	terminatedResult *consolidators.CompleteTagsResult,
+	childResult *consolidators.CompleteTagsResult,
 ) (map[string]nodeDescriptor, error) {
 	// sanity check the case.
 	if terminatedResult.CompleteNameOnly {
@@ -129,9 +130,9 @@ func (h *grahiteFindHandler) ServeHTTP(
 	}
 
 	var (
-		terminatedResult *storage.CompleteTagsResult
+		terminatedResult *consolidators.CompleteTagsResult
 		tErr             error
-		childResult      *storage.CompleteTagsResult
+		childResult      *consolidators.CompleteTagsResult
 		cErr             error
 		wg               sync.WaitGroup
 	)

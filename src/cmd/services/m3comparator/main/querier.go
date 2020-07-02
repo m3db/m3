@@ -425,12 +425,12 @@ func (q *querier) CompleteTagsCompressed(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	nameOnly := query.CompleteNameOnly
 	// TODO: take from config.
-	return &storage.CompleteTagsResult{
+	return &consolidators.CompleteTagsResult{
 		CompleteNameOnly: nameOnly,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{
 				Name:   []byte("__name__"),
 				Values: [][]byte{[]byte("foo"), []byte("foo"), []byte("quail")},
