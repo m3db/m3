@@ -967,7 +967,7 @@ func (i *nsIndex) flushableBlocks(
 			continue
 		}
 		// Ensure all flushable blocks exist.
-		block, err := i.ensureBlockPresent(blockStart)
+		block, err := i.ensureBlockPresentWithRLock(blockStart)
 		if err != nil {
 			return nil, err
 		}
