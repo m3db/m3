@@ -944,33 +944,62 @@ func (i *nsIndex) flushableBlocks(
 	if !i.isOpenWithRLock() {
 		return nil, errDbIndexUnableToFlushClosed
 	}
+	// NB(bodu): We read index info files once here to avoid re-reading all of them
+	// for each block.
+	fsOpts := i.opts.CommitLogOptions().FilesystemOptions()
+	infoFiles := i.readIndexInfoFilesFn(
+		fsOpts.FilePathPrefix(),
+		i.nsMetadata.ID(),
+		fsOpts.InfoReaderBufferSize(),
+	)
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
-	for _, block := range i.state.blocksByTime {
-		canFlush, err := i.canFlushBlock(block, shards, flushType)
+
+	now := i.nowFn()
+	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
+	currentBlockStart := now.Truncate(i.blockSize)
+	// Check for flushable blocks by iterating through all block starts w/in retention.
+	for blockStart := earliestBlockStartToRetain; blockStart.Before(currentBlockStart); blockStart = blockStart.Add(i.blockSize) {
+		canFlush, err := i.canFlushBlockWithRLock(infoFiles, now, blockStart, shards, flushType)
 		if err != nil {
 			return nil, err
 		}
 		if !canFlush {
 			continue
 		}
+		// Ensure all flushable blocks exist.
+		block, err := i.ensureBlockPresentWithRLock(blockStart)
+		if err != nil {
+			return nil, err
+		}
 		flushable = append(flushable, block)
 	}
 	return flushable, nil
 }
 
-func (i *nsIndex) canFlushBlock(
-	block index.Block,
+func (i *nsIndex) canFlushBlockWithRLock(
+	infoFiles []fs.ReadIndexInfoFileResult,
+	startTime time.Time,
+	blockStart time.Time,
 	shards []databaseShard,
 	flushType series.WriteType,
 ) (bool, error) {
-	// Check the block needs flushing because it is sealed and has
-	// any mutable/cold mutable segments that need to be evicted from memory.
 	switch flushType {
 	case series.WarmWrite:
-		if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
+		// NB(bodu): We should always attempt to warm flush sealed blocks to disk if
+		// there doesn't already exist data on disk. We're checking this instead of
+		// `block.NeedsMutableSegmentsEvicted()` since bootstrap writes for cold block starts
+		// get marked as warm writes if there doesn't already exist data on disk and need to
+		// properly go through the warm flush lifecycle.
+		isSealed := !blockStart.After(i.lastSealableBlockStart(startTime))
+		if !isSealed || i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
 			return false, nil
 		}
 	case series.ColdWrite:
+		block, ok := i.state.blocksByTime[xtime.ToUnixNano(blockStart)]
+		// If there is no allocated block then there are definitely no pending cold writes to flush.
+		if !ok {
+			return false, nil
+		}
 		if !block.NeedsColdMutableSegmentsEvicted() {
 			return false, nil
 		}
@@ -978,9 +1007,10 @@ func (i *nsIndex) canFlushBlock(
 
 	// Check all data files exist for the shards we own
 	for _, shard := range shards {
-		start := block.StartTime()
+		start := blockStart
+		end := blockStart.Add(i.blockSize)
 		dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
-		for t := start; t.Before(block.EndTime()); t = t.Add(dataBlockSize) {
+		for t := start; t.Before(end); t = t.Add(dataBlockSize) {
 			flushState, err := shard.FlushState(t)
 			if err != nil {
 				return false, err
@@ -992,6 +1022,26 @@ func (i *nsIndex) canFlushBlock(
 	}
 
 	return true, nil
+}
+
+func (i *nsIndex) hasIndexWarmFlushedToDisk(
+	infoFiles []fs.ReadIndexInfoFileResult,
+	blockStart time.Time,
+) bool {
+	var hasIndexWarmFlushedToDisk bool
+	// NB(bodu): We consider the block to have been warm flushed if there are any
+	// filesets on disk. This is consistent with the "has warm flushed" check in the db shard.
+	// Shard block starts are marked as having warm flushed if an info file is successfully read from disk.
+	for _, f := range infoFiles {
+		indexVolumeType := idxpersist.DefaultIndexVolumeType
+		if f.Info.IndexVolumeType != nil {
+			indexVolumeType = idxpersist.IndexVolumeType(f.Info.IndexVolumeType.Value)
+		}
+		if f.ID.BlockStart == blockStart && indexVolumeType == idxpersist.DefaultIndexVolumeType {
+			hasIndexWarmFlushedToDisk = true
+		}
+	}
+	return hasIndexWarmFlushedToDisk
 }
 
 func (i *nsIndex) flushBlock(
