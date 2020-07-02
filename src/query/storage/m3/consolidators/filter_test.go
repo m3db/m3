@@ -65,7 +65,9 @@ func TestFilterTagIterator(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.ex, filterTagIterator(it, tt.filters))
+		shouldFilter, err := filterTagIterator(it, tt.filters)
+		assert.NoError(t, err)
+		assert.Equal(t, tt.ex, shouldFilter)
 	}
 
 	ex := []tag{

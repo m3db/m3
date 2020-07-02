@@ -113,7 +113,13 @@ func (r *multiSearchResult) Add(
 
 	for newIterator.Next() {
 		_, ident, tagIter := newIterator.Current()
-		if filterTagIterator(tagIter, r.filters) {
+		shouldFilter, err := filterTagIterator(tagIter, r.filters)
+		if err != nil {
+			r.err = r.err.Add(err)
+			return
+		}
+
+		if shouldFilter {
 			// NB: skip here, the closer will free the tag iterator regardless.
 			continue
 		}

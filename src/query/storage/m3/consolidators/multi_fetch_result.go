@@ -237,7 +237,13 @@ func (r *multiResult) addOrUpdateDedupeMap(
 ) {
 	for _, iter := range newIterators.Iters() {
 		tagIter := iter.Tags()
-		if filterTagIterator(tagIter, r.tagOpts.Filters()) {
+		shouldFilter, err := filterTagIterator(tagIter, r.tagOpts.Filters())
+		if err != nil {
+			r.err = r.err.Add(err)
+			return
+		}
+
+		if shouldFilter {
 			// NB: skip here, the closer will free the series iterator regardless.
 			continue
 		}

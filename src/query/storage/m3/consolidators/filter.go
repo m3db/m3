@@ -27,7 +27,18 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
-func filterTagIterator(iter ident.TagIterator, filters models.Filters) bool {
+func filterTagIterator(
+	iter ident.TagIterator,
+	filters models.Filters,
+) (bool, error) {
+	shouldFilter := shouldFilterTagIterator(iter, filters)
+	return shouldFilter, iter.Err()
+}
+
+func shouldFilterTagIterator(
+	iter ident.TagIterator,
+	filters models.Filters,
+) bool {
 	if len(filters) == 0 || iter.Remaining() == 0 {
 		return false
 	}
@@ -66,9 +77,8 @@ func filterNames(tags []CompletedTag, filters models.Filters) []CompletedTag {
 	}
 
 	filteredTags := tags[:0]
-	skip := false
 	for _, tag := range tags {
-		skip = false
+		skip := false
 		for _, f := range filters {
 			if len(f.Values) != 0 {
 				// If this has filter values, it is not a name filter, and the result
@@ -95,7 +105,6 @@ func filterTags(tags []CompletedTag, filters models.Filters) []CompletedTag {
 		return tags
 	}
 
-	skip := false
 	filteredTags := tags[:0]
 	for _, tag := range tags {
 		for _, f := range filters {
@@ -111,7 +120,7 @@ func filterTags(tags []CompletedTag, filters models.Filters) []CompletedTag {
 
 			filteredValues := tag.Values[:0]
 			for _, value := range tag.Values {
-				skip = false
+				skip := false
 				for _, filterValue := range f.Values {
 					if bytes.Equal(filterValue, value) {
 						skip = true
