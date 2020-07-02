@@ -640,3 +640,4 @@ load 1m
 
 # FAILING. eval instant at 10m absent_over_time({job="ingress"}[4m])
 # FAILING. 	{job="ingress"} 1
+
