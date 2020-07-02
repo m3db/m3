@@ -1590,6 +1590,15 @@ Here is <a href="https://github.com/m3db/m3/blob/master/scripts/docker-integrati
  If this header is set it will override any configured per query time series * blocks limit (docs limit). If the limit is hit, it will either return a partial result or an error based on the require exhaustive configuration set.<br /></li>
 <li><code>M3-Limit-Require-Exhaustive</code>:<br />
  If this header is set it will override any configured require exhaustive setting. If "true" it will return an error if query hits a configured limit (such as series or docs limit) instead of a partial result. Otherwise if "false" it will return a partial result of the time series already matched with the response header <code>M3-Results-Limited</code> detailing the limit that was hit and a warning included in the response body.<br /><br /></li>
+<li><code>M3-Restrict-By-Tags-JSON</code>:<br />
+ If this header is set it can ensure specific label matching is performed as part
+of every query including series metadata endpoints. As an example, the following 
+header would unconditionally cause <code>globaltag=somevalue</code> to be a part of all queries
+issued regardless of if they include the label or not in a query and also strip the
+"globaltag" from appearing as a label in any of the resulting timeseries:
+<div class="highlight"><pre><span></span>M3-Restrict-By-Tags-JSON: &#39;{&quot;match&quot;:[{&quot;name&quot;:&quot;globaltag&quot;,&quot;type&quot;:&quot;EQUAL&quot;,&quot;value&quot;:&quot;somevalue&quot;}],&quot;strip&quot;:[&quot;globaltag&quot;]}&#39;
+</pre></div>
+<br /><br /></li>
 </ul>
 <h3 id="data-params_1">Data Params</h3>
 <p>Binary <a href="http://google.github.io/snappy/">snappy compressed</a> Prometheus <a href="https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L26-L28">WriteRequest protobuf message</a>.</p>
