@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -75,9 +76,9 @@ func testCompleteTags(t *testing.T, meta block.ResultMetadata, header string) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	storeResult := &storage.CompleteTagsResult{
+	storeResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("bar"), Values: [][]byte{b("qux")}},
 			{Name: b("baz")},
 			{Name: b("foo")},
@@ -146,9 +147,9 @@ func TestMultiCompleteTags(t *testing.T) {
 	store := storage.NewMockStorage(ctrl)
 	fooMeta := block.NewResultMetadata()
 	fooMeta.Exhaustive = false
-	fooResult := &storage.CompleteTagsResult{
+	fooResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("bar"), Values: [][]byte{b("zulu"), b("quail")}},
 			{Name: b("foo"), Values: [][]byte{b("quail")}},
 		},
@@ -158,9 +159,9 @@ func TestMultiCompleteTags(t *testing.T) {
 
 	barMeta := block.NewResultMetadata()
 	barMeta.AddWarning("abc", "def")
-	barResult := &storage.CompleteTagsResult{
+	barResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("bar"), Values: [][]byte{b("qux")}},
 		},
 

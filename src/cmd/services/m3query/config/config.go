@@ -607,6 +607,21 @@ type TagOptionsConfiguration struct {
 
 	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
+
+	// Filters are optional tag filters, removing all series with tags
+	// matching the filter from computations.
+	Filters []TagFilter `yaml:"filters"`
+}
+
+// TagFilter is a tag filter.
+type TagFilter struct {
+	// Values are the values to filter.
+	//
+	// NB:If this is unset, all series containing
+	// a tag with given `Name` are filtered.
+	Values []string `yaml:"values"`
+	// Name is the tag name.
+	Name string `yaml:"name"`
 }
 
 // TagOptionsFromConfig translates tag option configuration into tag options.
@@ -631,6 +646,23 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 	opts = opts.SetIDSchemeType(cfg.Scheme)
 	if err := opts.Validate(); err != nil {
 		return nil, err
+	}
+
+	if cfg.Filters != nil {
+		filters := make([]models.Filter, 0, len(cfg.Filters))
+		for _, filter := range cfg.Filters {
+			values := make([][]byte, 0, len(filter.Values))
+			for _, strVal := range filter.Values {
+				values = append(values, []byte(strVal))
+			}
+
+			filters = append(filters, models.Filter{
+				Name:   []byte(filter.Name),
+				Values: values,
+			})
+		}
+
+		opts = opts.SetFilters(filters)
 	}
 
 	return opts, nil

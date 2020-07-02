@@ -25,16 +25,20 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExhaustiveTagMerge(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	r := NewMultiFetchTagsResult()
+	r := NewMultiFetchTagsResult(models.NewTagOptions())
 	for _, tt := range exhaustTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, ex := range tt.exhaustives {
@@ -53,4 +57,47 @@ func TestExhaustiveTagMerge(t *testing.T) {
 			assert.NoError(t, r.Close())
 		})
 	}
+}
+
+func TestMultiFetchTagsResult(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	iter := client.NewMockTaggedIDsIterator(ctrl)
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return(
+		ident.StringID("ns"),
+		ident.StringID("id"),
+		ident.MustNewTagStringsIterator("foo", "bar"))
+	iter.EXPECT().Next().Return(true)
+	iter.EXPECT().Current().Return(
+		ident.StringID("ns"),
+		ident.StringID("id"),
+		ident.MustNewTagStringsIterator("foo", "baz"))
+	iter.EXPECT().Next().Return(false)
+	iter.EXPECT().Err()
+
+	opts := models.NewTagOptions().SetFilters(models.Filters{
+		models.Filter{Name: b("foo"), Values: [][]byte{b("baz")}},
+	})
+
+	r := NewMultiFetchTagsResult(opts)
+	r.Add(iter, block.NewResultMetadata(), nil)
+
+	res, err := r.FinalResult()
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(res.Tags))
+	assert.Equal(t, "id", res.Tags[0].ID.String())
+	it := res.Tags[0].Iter
+
+	// NB: assert tags are still iteratable.
+	ex := []tag{tag{name: "foo", value: "bar"}}
+	for i := 0; it.Next(); i++ {
+		tag := it.Current()
+		assert.Equal(t, ex[i].name, tag.Name.String())
+		assert.Equal(t, ex[i].value, tag.Value.String())
+	}
+
+	require.NoError(t, it.Err())
 }

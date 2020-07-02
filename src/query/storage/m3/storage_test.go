@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
@@ -709,7 +710,7 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	require.False(t, result.CompleteNameOnly)
 	require.Equal(t, 3, len(result.CompletedTags))
 	// NB: expected will be sorted alphabetically
-	expected := []storage.CompletedTag{
+	expected := []consolidators.CompletedTag{
 		{
 			Name:   []byte("aba"),
 			Values: [][]byte{[]byte("quz")},
@@ -768,7 +769,7 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 	require.False(t, result.CompleteNameOnly)
 	require.Equal(t, 1, len(result.CompletedTags))
 	// NB: expected will be sorted alphabetically
-	expected := []storage.CompletedTag{
+	expected := []consolidators.CompletedTag{
 		{
 			Name:   []byte("name"),
 			Values: [][]byte{[]byte("value")},

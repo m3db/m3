@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package consolidators
 
 import (
 	"bytes"
@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 )
 
 type completeTagsResultBuilder struct {
@@ -34,15 +35,19 @@ type completeTagsResultBuilder struct {
 	nameOnly    bool
 	metadata    block.ResultMetadata
 	tagBuilders map[string]completedTagBuilder
+
+	filters models.Filters
 }
 
 // NewCompleteTagsResultBuilder creates a new complete tags result builder.
 func NewCompleteTagsResultBuilder(
 	nameOnly bool,
+	opts models.TagOptions,
 ) CompleteTagsResultBuilder {
 	return &completeTagsResultBuilder{
 		nameOnly: nameOnly,
 		metadata: block.NewResultMetadata(),
+		filters:  opts.Filters(),
 	}
 }
 
@@ -62,6 +67,7 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 
 	b.metadata = b.metadata.CombineMetadata(tagResult.Metadata)
 	if nameOnly {
+		completedTags = filterNames(completedTags, b.filters)
 		for _, tag := range completedTags {
 			b.tagBuilders[string(tag.Name)] = completedTagBuilder{}
 		}
@@ -69,6 +75,7 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 		return nil
 	}
 
+	completedTags = filterTags(completedTags, b.filters)
 	for _, tag := range completedTags {
 		if builder, exists := b.tagBuilders[string(tag.Name)]; exists {
 			builder.add(tag.Values)

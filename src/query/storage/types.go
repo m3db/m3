@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -230,7 +231,7 @@ type Querier interface {
 		ctx context.Context,
 		query *CompleteTagsQuery,
 		options *FetchOptions,
-	) (*CompleteTagsResult, error)
+	) (*consolidators.CompleteTagsResult, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the database.
@@ -286,36 +287,6 @@ func (q *CompleteTagsQuery) String() string {
 	}
 
 	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
-}
-
-// CompletedTag represents a tag retrieved by a complete tags query.
-type CompletedTag struct {
-	// Name the name of the tag.
-	Name []byte
-	// Values is a set of possible values for the tag.
-	// NB: if the parent CompleteTagsResult is set to CompleteNameOnly, this is
-	// expected to be empty.
-	Values [][]byte
-}
-
-// CompleteTagsResult represents a set of autocompleted tag names and values
-type CompleteTagsResult struct {
-	// CompleteNameOnly indicates if the tags in this result are expected to have
-	// both names and values, or only names.
-	CompleteNameOnly bool
-	// CompletedTag is a list of completed tags.
-	CompletedTags []CompletedTag
-	// Metadata describes any metadata for the operation.
-	Metadata block.ResultMetadata
-}
-
-// CompleteTagsResultBuilder is a builder that accumulates and deduplicates
-// incoming CompleteTagsResult values.
-type CompleteTagsResultBuilder interface {
-	// Add appends an incoming CompleteTagsResult.
-	Add(*CompleteTagsResult) error
-	// Build builds a completed tag result.
-	Build() CompleteTagsResult
 }
 
 // Appender provides batched appends against a storage.
