@@ -991,7 +991,7 @@ func (i *nsIndex) canFlushBlockWithRLock(
 		// get marked as warm writes if there doesn't already exist data on disk and need to
 		// properly go through the warm flush lifecycle.
 		isSealed := !blockStart.After(i.lastSealableBlockStart(startTime))
-		if !isSealed || i.hasWarmFlushedToDisk(infoFiles, blockStart) {
+		if !isSealed || i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
 			return false, nil
 		}
 	case series.ColdWrite:
@@ -1024,11 +1024,11 @@ func (i *nsIndex) canFlushBlockWithRLock(
 	return true, nil
 }
 
-func (i *nsIndex) hasWarmFlushedToDisk(
+func (i *nsIndex) hasIndexWarmFlushedToDisk(
 	infoFiles []fs.ReadIndexInfoFileResult,
 	blockStart time.Time,
 ) bool {
-	var hasWarmFlushedToDisk bool
+	var hasIndexWarmFlushedToDisk bool
 	// NB(bodu): We consider the block to have been warm flushed if there are any
 	// filesets on disk. This is consistent with the "has warm flushed" check in the db shard.
 	// Shard block starts are marked as having warm flushed if an info file is successfully read from disk.
@@ -1038,10 +1038,10 @@ func (i *nsIndex) hasWarmFlushedToDisk(
 			indexVolumeType = idxpersist.IndexVolumeType(f.Info.IndexVolumeType.Value)
 		}
 		if f.ID.BlockStart == blockStart && indexVolumeType == idxpersist.DefaultIndexVolumeType {
-			hasWarmFlushedToDisk = true
+			hasIndexWarmFlushedToDisk = true
 		}
 	}
-	return hasWarmFlushedToDisk
+	return hasIndexWarmFlushedToDisk
 }
 
 func (i *nsIndex) flushBlock(
