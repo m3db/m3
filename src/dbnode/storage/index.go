@@ -1242,16 +1242,23 @@ func (i *nsIndex) AggregateQuery(
 	}
 	ctx.RegisterFinalizer(results)
 	// use appropriate fn to query underlying blocks.
-	// default to block.Query()
-	fn := i.execBlockQueryFn
-	// use block.Aggregate() when possible
-	if query.Equal(allQuery) {
-		fn = i.execBlockAggregateQueryFn
-	}
-	field, isField := idx.FieldQuery(query.Query)
-	if isField {
+	// use block.Aggregate() for querying and set the query if required.
+	fn := i.execBlockAggregateQueryFn
+	isAllQuery := query.Equal(allQuery)
+	field, isFieldQuery := idx.FieldQuery(query.Query)
+	switch {
+	case isAllQuery:
+		// No-op, should match every term.
+	case isFieldQuery:
+		// Should match every term but filter which fields to return.
 		fn = i.execBlockAggregateQueryFn
 		aopts.FieldFilter = aopts.FieldFilter.AddIfMissing(field)
+	default:
+		// Need to actually restrict whether we should return a term or not
+		// based on running the actual query to resolve a postings list and
+		// then seeing if that intersects the aggregated term postings list
+		// at all.
+		aopts.RestrictByQuery = &query
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(i.nsMetadata.ID(), aopts)

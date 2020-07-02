@@ -21,15 +21,25 @@
 package index
 
 import (
+	"errors"
+
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
+)
+
+var (
+	errUnpackBitmapFromPostingsList = errors.New("unable to unpack bitmap from postings list")
 )
 
 // fieldsAndTermsIteratorOpts configures the fieldsAndTermsIterator.
 type fieldsAndTermsIteratorOpts struct {
-	iterateTerms bool
-	allowFn      allowFn
-	fieldIterFn  newFieldIterFn
+	restrictByQuery *Query
+	iterateTerms    bool
+	allowFn         allowFn
+	fieldIterFn     newFieldIterFn
 }
 
 func (o fieldsAndTermsIteratorOpts) allow(f []byte) bool {
@@ -59,9 +69,12 @@ type fieldsAndTermsIter struct {
 	termIter  segment.TermsIterator
 
 	current struct {
-		field []byte
-		term  []byte
+		field    []byte
+		term     []byte
+		postings postings.List
 	}
+
+	restrictByPostings *pilosaroaring.Bitmap
 }
 
 var (
@@ -96,6 +109,45 @@ func (fti *fieldsAndTermsIter) Reset(s segment.Segment, opts fieldsAndTermsItera
 		return err
 	}
 	fti.fieldIter = fiter
+	// If need to restrict by query, run the query on the segment first.
+	if query := opts.restrictByQuery; query != nil {
+		var (
+			success bool
+		)
+		reader, err := fti.seg.Reader()
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			if !success {
+				reader.Close()
+			}
+		}()
+
+		searcher, err := query.SearchQuery().Searcher()
+		if err != nil {
+			return err
+		}
+
+		pl, err := searcher.Search(reader)
+		if err != nil {
+			return err
+		}
+
+		bitmap, ok := roaring.BitmapFromPostingsList(pl)
+		if !ok {
+			return errUnpackBitmapFromPostingsList
+		}
+
+		if err := reader.Close(); err != nil {
+			return err
+		}
+
+		fti.restrictByPostings = bitmap
+	} else {
+		fti.restrictByPostings = nil
+	}
 	return nil
 }
 
@@ -121,47 +173,86 @@ func (fti *fieldsAndTermsIter) setNextField() bool {
 func (fti *fieldsAndTermsIter) setNext() bool {
 	// check if current field has another term
 	if fti.termIter != nil {
-		if fti.termIter.Next() {
-			fti.current.term, _ = fti.termIter.Current()
+		hasNextTerm, err := fti.nextTermsIterResult()
+		if err != nil {
+			fti.err = err
+			return false
+		}
+		if hasNextTerm {
 			return true
-		}
-		if err := fti.termIter.Err(); err != nil {
-			fti.err = err
-			return false
-		}
-		if err := fti.termIter.Close(); err != nil {
-			fti.err = err
-			return false
 		}
 	}
 
 	// i.e. need to switch to next field
-	hasNext := fti.setNextField()
-	if !hasNext {
-		return false
-	}
-
-	// and get next term for the field
-	termsIter, err := fti.seg.TermsIterable().Terms(fti.current.field)
-	if err != nil {
-		fti.err = err
-		return false
-	}
-	fti.termIter = termsIter
-
-	hasNext = fti.termIter.Next()
-	if !hasNext {
-		if fti.fieldIter.Err(); err != nil {
+	for hasNextField := fti.setNextField(); hasNextField; hasNextField = fti.setNextField() {
+		// and get next term for the field
+		var err error
+		fti.termIter, err = fti.seg.TermsIterable().Terms(fti.current.field)
+		if err != nil {
 			fti.err = err
 			return false
 		}
-		fti.termIter = nil
-		// i.e. no more terms for this field, should try the next one
-		return fti.setNext()
+
+		hasNextTerm, err := fti.nextTermsIterResult()
+		if err != nil {
+			fti.err = err
+			return false
+		}
+		if hasNextTerm {
+			return true
+		}
 	}
 
-	fti.current.term, _ = fti.termIter.Current()
-	return true
+	// Check field iterator did not encounter error.
+	if err := fti.fieldIter.Err(); err != nil {
+		fti.err = err
+		return false
+	}
+
+	// No more fields.
+	return false
+}
+
+func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
+	for fti.termIter.Next() {
+		fti.current.term, fti.current.postings = fti.termIter.Current()
+		matches, err := fti.currMatchesRestrictions()
+		if err != nil {
+			return false, err
+		}
+		if matches {
+			// Matches, this is next result.
+			return true, nil
+		}
+	}
+	if err := fti.termIter.Err(); err != nil {
+		return false, err
+	}
+	if err := fti.termIter.Close(); err != nil {
+		return false, err
+	}
+	// Term iterator no longer relevant, no next.
+	fti.termIter = nil
+	return false, nil
+}
+
+func (fti *fieldsAndTermsIter) currMatchesRestrictions() (bool, error) {
+	if fti.restrictByPostings == nil {
+		// No restrictions.
+		return true, nil
+	}
+
+	bitmap, ok := roaring.BitmapFromPostingsList(fti.current.postings)
+	if !ok {
+		return false, errUnpackBitmapFromPostingsList
+	}
+
+	// This term isn't part of any of the documents
+	// we're restricted to providing results for if intersection
+	// result is zero.
+	// Note: IntersectionCount is significantly faster than intersecting and
+	// counting results and also does not allocate.
+	return fti.restrictByPostings.IntersectionCount(bitmap) > 0, nil
 }
 
 func (fti *fieldsAndTermsIter) Next() bool {

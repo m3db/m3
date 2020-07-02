@@ -594,7 +594,8 @@ func (b *block) aggregateWithSpan(
 	aggOpts := results.AggregateResultsOptions()
 	iterateTerms := aggOpts.Type == AggregateTagNamesAndValues
 	iterateOpts := fieldsAndTermsIteratorOpts{
-		iterateTerms: iterateTerms,
+		restrictByQuery: aggOpts.RestrictByQuery,
+		iterateTerms:    iterateTerms,
 		allowFn: func(field []byte) bool {
 			// skip any field names that we shouldn't allow.
 			if bytes.Equal(field, doc.IDReservedFieldName) {
