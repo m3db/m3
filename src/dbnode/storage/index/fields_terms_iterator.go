@@ -216,11 +216,22 @@ func (fti *fieldsAndTermsIter) setNext() bool {
 func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 	for fti.termIter.Next() {
 		fti.current.term, fti.current.postings = fti.termIter.Current()
-		matches, err := fti.currMatchesRestrictions()
-		if err != nil {
-			return false, err
+		if fti.restrictByPostings == nil {
+			// No restrictions.
+			return true, nil
 		}
-		if matches {
+
+		bitmap, ok := roaring.BitmapFromPostingsList(fti.current.postings)
+		if !ok {
+			return false, errUnpackBitmapFromPostingsList
+		}
+
+		// Check term isn part of at least some of the documents we're
+		// restricted to providing results for based on intersection
+		// count.
+		// Note: IntersectionCount is significantly faster than intersecting and
+		// counting results and also does not allocate.
+		if n := fti.restrictByPostings.IntersectionCount(bitmap); n > 0 {
 			// Matches, this is next result.
 			return true, nil
 		}
@@ -234,25 +245,6 @@ func (fti *fieldsAndTermsIter) nextTermsIterResult() (bool, error) {
 	// Term iterator no longer relevant, no next.
 	fti.termIter = nil
 	return false, nil
-}
-
-func (fti *fieldsAndTermsIter) currMatchesRestrictions() (bool, error) {
-	if fti.restrictByPostings == nil {
-		// No restrictions.
-		return true, nil
-	}
-
-	bitmap, ok := roaring.BitmapFromPostingsList(fti.current.postings)
-	if !ok {
-		return false, errUnpackBitmapFromPostingsList
-	}
-
-	// This term isn't part of any of the documents
-	// we're restricted to providing results for if intersection
-	// result is zero.
-	// Note: IntersectionCount is significantly faster than intersecting and
-	// counting results and also does not allocate.
-	return fti.restrictByPostings.IntersectionCount(bitmap) > 0, nil
 }
 
 func (fti *fieldsAndTermsIter) Next() bool {
