@@ -46,7 +46,7 @@ make m3dbnode
 
 ## Running the M3 stack locally
 
-Follow the instructions in `./scripts/development/m3_stack/README.md`
+Follow the instructions in [this README](./scripts/development/m3_stack/README.md).
 
 ## Testing Changes
 

@@ -116,7 +116,9 @@ func newForwardedWriterMetrics(scope tally.Scope) forwardedWriterMetrics {
 		}).Counter("errors"),
 		prepare:      prepareScope.Counter("prepare"),
 		flushSuccess: flushScope.Counter("success"),
-		flushErrors:  flushScope.Counter("errors"),
+		flushErrors:  flushScope.Tagged(map[string]string{
+			"reason": "n/a",
+		}).Counter("errors"),
 	}
 }
 

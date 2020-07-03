@@ -645,7 +645,7 @@ func (c flushTimesManagerConfiguration) NewFlushTimesManager(
 		return nil, err
 	}
 	scope := instrumentOpts.MetricsScope()
-	retrier := c.FlushTimesPersistRetrier.NewRetrier(scope.SubScope("flush-times-persist"))
+	retrier := c.FlushTimesPersistRetrier.NewRetrier(scope.SubScope("flush-times-persist-retrier"))
 	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetFlushTimesKeyFmt(c.FlushTimesKeyFmt).
@@ -699,9 +699,9 @@ func (c electionManagerConfiguration) NewElectionManager(
 	}
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
 	scope := instrumentOpts.MetricsScope()
-	campaignRetryOpts := c.CampaignRetrier.NewOptions(scope.SubScope("campaign"))
-	changeRetryOpts := c.ChangeRetrier.NewOptions(scope.SubScope("change"))
-	resignRetryOpts := c.ResignRetrier.NewOptions(scope.SubScope("resign"))
+	campaignRetryOpts := c.CampaignRetrier.NewOptions(scope.SubScope("campaign-retrier"))
+	changeRetryOpts := c.ChangeRetrier.NewOptions(scope.SubScope("change-retrier"))
+	resignRetryOpts := c.ResignRetrier.NewOptions(scope.SubScope("resign-retrier"))
 	opts := aggregator.NewElectionManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetElectionOptions(electionOpts).
