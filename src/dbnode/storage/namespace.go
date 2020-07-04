@@ -287,6 +287,7 @@ func newDatabaseNamespaceMetrics(
 
 func newDatabaseNamespace(
 	metadata namespace.Metadata,
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	shardSet sharding.ShardSet,
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
@@ -329,7 +330,8 @@ func newDatabaseNamespace(
 		err   error
 	)
 	if metadata.Options().IndexOptions().Enabled() {
-		index, err = newNamespaceIndex(metadata, shardSet, opts)
+		index, err = newNamespaceIndex(metadata, namespaceRuntimeOptsMgr,
+			shardSet, opts)
 		if err != nil {
 			return nil, err
 		}

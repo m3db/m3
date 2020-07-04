@@ -94,8 +94,9 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
-	nsWatch    namespace.NamespaceWatch
-	namespaces *databaseNamespacesMap
+	nsWatch                namespace.NamespaceWatch
+	namespaces             *databaseNamespacesMap
+	runtimeOptionsRegistry namespace.RuntimeOptionsManagerRegistry
 
 	commitLog commitlog.CommitLog
 
@@ -172,16 +173,17 @@ func NewDatabase(
 	)
 
 	d := &db{
-		opts:                  opts,
-		nowFn:                 nowFn,
-		shardSet:              shardSet,
-		lastReceivedNewShards: nowFn(),
-		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:             commitLog,
-		scope:                 scope,
-		metrics:               newDatabaseMetrics(scope),
-		log:                   logger,
-		writeBatchPool:        opts.WriteBatchPool(),
+		opts:                   opts,
+		nowFn:                  nowFn,
+		shardSet:               shardSet,
+		lastReceivedNewShards:  nowFn(),
+		namespaces:             newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		runtimeOptionsRegistry: namespace.NewRuntimeOptionsManagerRegistry(),
+		commitLog:              commitLog,
+		scope:                  scope,
+		metrics:                newDatabaseMetrics(scope),
+		log:                    logger,
+		writeBatchPool:         opts.WriteBatchPool(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -375,7 +377,10 @@ func (d *db) newDatabaseNamespaceWithLock(
 			return nil, err
 		}
 	}
-	return newDatabaseNamespace(md, d.shardSet, retriever, d, d.commitLog, d.opts)
+	nsID := md.ID().String()
+	runtimeOptsMgr := d.runtimeOptionsRegistry.RuntimeOptionsManager(nsID)
+	return newDatabaseNamespace(md, runtimeOptsMgr,
+		d.shardSet, retriever, d, d.commitLog, d.opts)
 }
 
 func (d *db) Options() Options {

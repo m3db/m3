@@ -102,11 +102,12 @@ type nsIndex struct {
 	bufferFuture          time.Duration
 	coldWritesEnabled     bool
 
-	indexFilesetsBeforeFn indexFilesetsBeforeFn
-	deleteFilesFn         deleteFilesFn
-	readIndexInfoFilesFn  readIndexInfoFilesFn
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager
+	indexFilesetsBeforeFn   indexFilesetsBeforeFn
+	deleteFilesFn           deleteFilesFn
+	readIndexInfoFilesFn    readIndexInfoFilesFn
 
-	newBlockFn          newBlockFn
+	newBlockFn          index.NewBlockFn
 	logger              *zap.Logger
 	opts                Options
 	nsMetadata          namespace.Metadata
@@ -175,13 +176,6 @@ type nsIndexRuntimeOptions struct {
 	defaultQueryTimeout time.Duration
 }
 
-type newBlockFn func(
-	time.Time,
-	namespace.Metadata,
-	index.BlockOptions,
-	index.Options,
-) (index.Block, error)
-
 // NB(prateek): the returned filesets are strictly before the given time, i.e. they
 // live in the period (-infinity, exclusiveTime).
 type indexFilesetsBeforeFn func(dir string,
@@ -195,11 +189,12 @@ type readIndexInfoFilesFn func(filePathPrefix string,
 ) []fs.ReadIndexInfoFileResult
 
 type newNamespaceIndexOpts struct {
-	md              namespace.Metadata
-	shardSet        sharding.ShardSet
-	opts            Options
-	newIndexQueueFn newNamespaceIndexInsertQueueFn
-	newBlockFn      newBlockFn
+	md                      namespace.Metadata
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager
+	shardSet                sharding.ShardSet
+	opts                    Options
+	newIndexQueueFn         newNamespaceIndexInsertQueueFn
+	newBlockFn              index.NewBlockFn
 }
 
 // execBlockQueryFn executes a query against the given block whilst tracking state.
@@ -224,47 +219,53 @@ type asyncQueryExecState struct {
 // newNamespaceIndex returns a new namespaceIndex for the provided namespace.
 func newNamespaceIndex(
 	nsMD namespace.Metadata,
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	shardSet sharding.ShardSet,
 	opts Options,
 ) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
-		md:              nsMD,
-		shardSet:        shardSet,
-		opts:            opts,
-		newIndexQueueFn: newNamespaceIndexInsertQueue,
-		newBlockFn:      index.NewBlock,
+		md:                      nsMD,
+		namespaceRuntimeOptsMgr: namespaceRuntimeOptsMgr,
+		shardSet:                shardSet,
+		opts:                    opts,
+		newIndexQueueFn:         newNamespaceIndexInsertQueue,
+		newBlockFn:              index.NewBlock,
 	})
 }
 
 // newNamespaceIndexWithInsertQueueFn is a ctor used in tests to override the insert queue.
 func newNamespaceIndexWithInsertQueueFn(
 	nsMD namespace.Metadata,
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	shardSet sharding.ShardSet,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
 	opts Options,
 ) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
-		md:              nsMD,
-		shardSet:        shardSet,
-		opts:            opts,
-		newIndexQueueFn: newIndexQueueFn,
-		newBlockFn:      index.NewBlock,
+		md:                      nsMD,
+		namespaceRuntimeOptsMgr: namespaceRuntimeOptsMgr,
+		shardSet:                shardSet,
+		opts:                    opts,
+		newIndexQueueFn:         newIndexQueueFn,
+		newBlockFn:              index.NewBlock,
 	})
 }
 
 // newNamespaceIndexWithNewBlockFn is a ctor used in tests to inject blocks.
 func newNamespaceIndexWithNewBlockFn(
 	nsMD namespace.Metadata,
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	shardSet sharding.ShardSet,
-	newBlockFn newBlockFn,
+	newBlockFn index.NewBlockFn,
 	opts Options,
 ) (NamespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
-		md:              nsMD,
-		shardSet:        shardSet,
-		opts:            opts,
-		newIndexQueueFn: newNamespaceIndexInsertQueue,
-		newBlockFn:      newBlockFn,
+		md:                      nsMD,
+		namespaceRuntimeOptsMgr: namespaceRuntimeOptsMgr,
+		shardSet:                shardSet,
+		opts:                    opts,
+		newIndexQueueFn:         newNamespaceIndexInsertQueue,
+		newBlockFn:              newBlockFn,
 	})
 }
 
@@ -324,9 +325,10 @@ func newNamespaceIndexWithOptions(
 		bufferFuture:          nsMD.Options().RetentionOptions().BufferFuture(),
 		coldWritesEnabled:     nsMD.Options().ColdWritesEnabled(),
 
-		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
-		readIndexInfoFilesFn:  fs.ReadIndexInfoFiles,
-		deleteFilesFn:         fs.DeleteFiles,
+		namespaceRuntimeOptsMgr: newIndexOpts.namespaceRuntimeOptsMgr,
+		indexFilesetsBeforeFn:   fs.IndexFileSetsBefore,
+		readIndexInfoFilesFn:    fs.ReadIndexInfoFiles,
+		deleteFilesFn:           fs.DeleteFiles,
 
 		newBlockFn: newBlockFn,
 		opts:       newIndexOpts.opts,
@@ -435,6 +437,61 @@ func (i *nsIndex) reportStats() error {
 	flushedLevels := i.metrics.blockMetrics.FlushedSegments.Levels
 	flushedLevelStats := make([]nsIndexCompactionLevelStats, len(flushedLevels))
 
+	minIndexConcurrency := 0
+	maxIndexConcurrency := 0
+	sumIndexConcurrency := 0
+	numIndexingStats := 0
+	reporter := index.NewBlockStatsReporter(
+		func(s index.BlockSegmentStats) {
+			var (
+				levels     []nsIndexBlocksSegmentsLevelMetrics
+				levelStats []nsIndexCompactionLevelStats
+			)
+			switch s.Type {
+			case index.ActiveForegroundSegment:
+				levels = foregroundLevels
+				levelStats = foregroundLevelStats
+			case index.ActiveBackgroundSegment:
+				levels = backgroundLevels
+				levelStats = backgroundLevelStats
+			case index.FlushedSegment:
+				levels = flushedLevels
+				levelStats = flushedLevelStats
+			}
+
+			for i, l := range levels {
+				contained := s.Size >= l.MinSizeInclusive && s.Size < l.MaxSizeExclusive
+				if !contained {
+					continue
+				}
+
+				l.SegmentsAge.Record(s.Age)
+				levelStats[i].numSegments++
+				levelStats[i].numTotalDocs += s.Size
+
+				break
+			}
+		},
+		func(s index.BlockIndexingStats) {
+			first := numIndexingStats == 0
+			numIndexingStats++
+
+			if first {
+				minIndexConcurrency = s.IndexConcurrency
+				maxIndexConcurrency = s.IndexConcurrency
+				sumIndexConcurrency = s.IndexConcurrency
+				return
+			}
+
+			if v := s.IndexConcurrency; v < minIndexConcurrency {
+				minIndexConcurrency = v
+			}
+			if v := s.IndexConcurrency; v > maxIndexConcurrency {
+				maxIndexConcurrency = v
+			}
+			sumIndexConcurrency += s.IndexConcurrency
+		})
+
 	// iterate known blocks in a defined order of time (newest first)
 	// for debug log ordering
 	for _, start := range i.state.blockStartsDescOrder {
@@ -443,37 +500,7 @@ func (i *nsIndex) reportStats() error {
 			return i.missingBlockInvariantError(start)
 		}
 
-		err := block.Stats(
-			index.BlockStatsReporterFn(func(s index.BlockSegmentStats) {
-				var (
-					levels     []nsIndexBlocksSegmentsLevelMetrics
-					levelStats []nsIndexCompactionLevelStats
-				)
-				switch s.Type {
-				case index.ActiveForegroundSegment:
-					levels = foregroundLevels
-					levelStats = foregroundLevelStats
-				case index.ActiveBackgroundSegment:
-					levels = backgroundLevels
-					levelStats = backgroundLevelStats
-				case index.FlushedSegment:
-					levels = flushedLevels
-					levelStats = flushedLevelStats
-				}
-
-				for i, l := range levels {
-					contained := s.Size >= l.MinSizeInclusive && s.Size < l.MaxSizeExclusive
-					if !contained {
-						continue
-					}
-
-					l.SegmentsAge.Record(s.Age)
-					levelStats[i].numSegments++
-					levelStats[i].numTotalDocs += s.Size
-
-					break
-				}
-			}))
+		err := block.Stats(reporter)
 		if err == index.ErrUnableReportStatsBlockClosed {
 			// Closed blocks are temporarily in the list still
 			continue
@@ -483,6 +510,7 @@ func (i *nsIndex) reportStats() error {
 		}
 	}
 
+	// Update level stats.
 	for _, elem := range []struct {
 		levels     []nsIndexBlocksSegmentsLevelMetrics
 		levelStats []nsIndexCompactionLevelStats
@@ -495,6 +523,12 @@ func (i *nsIndex) reportStats() error {
 			elem.levels[i].NumTotalDocs.Update(float64(v.numTotalDocs))
 		}
 	}
+
+	// Update the indexing stats.
+	i.metrics.indexingConcurrencyMin.Update(float64(minIndexConcurrency))
+	i.metrics.indexingConcurrencyMax.Update(float64(maxIndexConcurrency))
+	avgIndexConcurrency := float64(sumIndexConcurrency) / float64(numIndexingStats)
+	i.metrics.indexingConcurrencyAvg.Update(avgIndexConcurrency)
 
 	return nil
 }
@@ -1676,7 +1710,7 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 
 	// ok now we know for sure we have to alloc
 	block, err := i.newBlockFn(blockStart, i.nsMetadata,
-		index.BlockOptions{}, i.opts.IndexOptions())
+		index.BlockOptions{}, i.namespaceRuntimeOptsMgr, i.opts.IndexOptions())
 	if err != nil { // unable to allocate the block, should never happen.
 		return nil, i.unableToAllocBlockInvariantError(err)
 	}
@@ -1961,6 +1995,9 @@ type nsIndexMetrics struct {
 	insertEndToEndLatency        tally.Timer
 	blocksEvictedMutableSegments tally.Counter
 	blockMetrics                 nsIndexBlocksMetrics
+	indexingConcurrencyMin       tally.Gauge
+	indexingConcurrencyMax       tally.Gauge
+	indexingConcurrencyAvg       tally.Gauge
 
 	loadedDocsPerQuery                 tally.Histogram
 	queryExhaustiveSuccess             tally.Counter
@@ -1977,8 +2014,9 @@ func newNamespaceIndexMetrics(
 	iopts instrument.Options,
 ) nsIndexMetrics {
 	const (
-		indexAttemptName = "index-attempt"
-		forwardIndexName = "forward-index"
+		indexAttemptName    = "index-attempt"
+		forwardIndexName    = "forward-index"
+		indexingConcurrency = "indexing-concurrency"
 	)
 	scope := iopts.MetricsScope()
 	blocksScope := scope.SubScope("blocks")
@@ -2015,6 +2053,15 @@ func newNamespaceIndexMetrics(
 			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
 		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
+		indexingConcurrencyMin: scope.Tagged(map[string]string{
+			"stat": "min",
+		}).Gauge(indexingConcurrency),
+		indexingConcurrencyMax: scope.Tagged(map[string]string{
+			"stat": "max",
+		}).Gauge(indexingConcurrency),
+		indexingConcurrencyAvg: scope.Tagged(map[string]string{
+			"stat": "avg",
+		}).Gauge(indexingConcurrency),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),

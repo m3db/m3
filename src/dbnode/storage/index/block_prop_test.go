@@ -178,7 +178,8 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 }
 
 func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metadata, opts Options) (Block, error) {
-	blk, err := NewBlock(blockStart, nsMeta, BlockOptions{}, opts)
+	blockOpts := BlockOptions{WriteIndexingPerCPUConurrency: 1}
+	blk, err := NewBlock(blockStart, nsMeta, blockOpts, opts)
 	require.NoError(t, err)
 
 	var (

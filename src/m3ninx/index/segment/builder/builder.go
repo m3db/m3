@@ -66,11 +66,13 @@ type builder struct {
 
 	offset postings.ID
 
-	batchSizeOne index.Batch
-	docs         []doc.Document
-	idSet        *IDsMap
-	fields       *shardedFieldsMap
-	uniqueFields [][]uniqueField
+	batchSizeOne  index.Batch
+	docs          []doc.Document
+	idSet         *IDsMap
+	fields        *shardedFieldsMap
+	uniqueFields  [][]uniqueField
+	concurrency   int
+	fieldsSetOpts fieldsMapSetUnsafeOptions
 
 	indexQueues []chan indexJob
 	status      builderStatus
@@ -80,7 +82,6 @@ type builder struct {
 // not thread safe and is optimized for insertion speed and a
 // final build step when documents are indexed.
 func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, error) {
-	concurrency := opts.Concurrency()
 	b := &builder{
 		opts:      opts,
 		newUUIDFn: opts.NewUUIDFn(),
@@ -90,26 +91,89 @@ func NewBuilderFromDocuments(opts Options) (segment.CloseableDocumentsBuilder, e
 		idSet: NewIDsMap(IDsMapOptions{
 			InitialSize: opts.InitialCapacity(),
 		}),
-		uniqueFields: make([][]uniqueField, 0, concurrency),
-		indexQueues:  make([]chan indexJob, 0, concurrency),
+		fieldsSetOpts: fieldsMapSetUnsafeOptions{
+			// Builder takes ownership of keys and docs so it's ok
+			// to avoid copying and finalizing keys.
+			NoCopyKey:     true,
+			NoFinalizeKey: true,
+		},
+	}
+	b.SetIndexConcurrency(opts.Concurrency())
+	return b, nil
+}
+
+func (b *builder) SetIndexConcurrency(value int) {
+	b.status.Lock()
+	defer b.status.Unlock()
+
+	if b.concurrency == value {
+		return // No-op
 	}
 
-	for i := 0; i < concurrency; i++ {
+	b.concurrency = value
+
+	for _, indexQueue := range b.indexQueues {
+		close(indexQueue)
+	}
+
+	// Take refs to existing fields to migrate.
+	existingUniqueFields := b.uniqueFields
+	existingFields := b.fields
+
+	b.uniqueFields = make([][]uniqueField, 0, b.concurrency)
+	b.fields = newShardedFieldsMap(b.concurrency, b.opts.InitialCapacity())
+	b.indexQueues = make([]chan indexJob, 0, b.concurrency)
+
+	for i := 0; i < b.concurrency; i++ {
 		indexQueue := make(chan indexJob, indexQueueSize)
 		b.indexQueues = append(b.indexQueues, indexQueue)
 		go b.indexWorker(indexQueue)
 
 		// Give each shard a fraction of the configured initial capacity.
-		shardInitialCapacity := opts.InitialCapacity()
+		shardInitialCapacity := b.opts.InitialCapacity()
 		if shardInitialCapacity > 0 {
-			shardInitialCapacity /= concurrency
+			shardInitialCapacity /= b.concurrency
 		}
+
 		shardUniqueFields := make([]uniqueField, 0, shardInitialCapacity)
 		b.uniqueFields = append(b.uniqueFields, shardUniqueFields)
-		b.fields = newShardedFieldsMap(concurrency, shardInitialCapacity)
 	}
 
-	return b, nil
+	// Migrate data from existing unique fields.
+	if existingUniqueFields != nil {
+		for _, fields := range existingUniqueFields {
+			for _, field := range fields {
+				// Calculate the new shard for the field.
+				newShard := b.calculateShard(field.field)
+
+				// Append to the correct shard.
+				b.uniqueFields[newShard] = append(b.uniqueFields[newShard], field)
+			}
+		}
+	}
+
+	// Migrate from fields.
+	if existingFields != nil {
+		for _, fields := range existingFields.data {
+			for _, entry := range fields.Iter() {
+				field := entry.Key()
+				terms := entry.Value()
+
+				// Calculate the new shard for the field.
+				newShard := b.calculateShard(field)
+
+				// Set with new correct shard.
+				b.fields.ShardedSetUnsafe(newShard, field, terms, b.fieldsSetOpts)
+			}
+		}
+	}
+}
+
+func (b *builder) IndexConcurrency() int {
+	b.status.RLock()
+	defer b.status.RUnlock()
+
+	return b.concurrency
 }
 
 func (b *builder) Reset(offset postings.ID) {
@@ -262,10 +326,8 @@ func (b *builder) indexWorker(indexQueue chan indexJob) {
 		if !ok {
 			// NB(bodu): Check again within the lock to make sure we aren't making concurrent map writes.
 			terms = newTerms(b.opts)
-			b.fields.ShardedSetUnsafe(job.shard, job.field.Name, terms, fieldsMapSetUnsafeOptions{
-				NoCopyKey:     true,
-				NoFinalizeKey: true,
-			})
+			b.fields.ShardedSetUnsafe(job.shard, job.field.Name,
+				terms, b.fieldsSetOpts)
 		}
 
 		// If empty field, track insertion of this key into the fields
