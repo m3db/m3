@@ -912,11 +912,17 @@ func (i *nsIndex) WarmFlush(
 
 	builderOpts := i.opts.IndexOptions().SegmentBuilderOptions().
 		SetConcurrency(concurrency)
+
 	builder, err := builder.NewBuilderFromDocuments(builderOpts)
 	if err != nil {
 		return err
 	}
 	defer builder.Close()
+
+	// Emit concurrency, then reset gauge to zero to show time
+	// active during flushing broken down per namespace.
+	i.metrics.flushIndexingConcurrency.Update(float64(concurrency))
+	defer i.metrics.flushIndexingConcurrency.Update(0)
 
 	var evicted int
 	for _, block := range flushable {
@@ -1139,8 +1145,9 @@ func (i *nsIndex) flushBlockSegment(
 	var (
 		ctx       = i.opts.ContextPool().Get()
 		docsPool  = i.opts.IndexOptions().DocumentArrayPool()
-		batch     = m3ninxindex.Batch{Docs: docsPool.Get(), AllowPartialUpdates: true}
-		batchSize = cap(batch.Docs)
+		docs      = docsPool.Get()
+		batchSize = cap(docs)
+		batch     = m3ninxindex.Batch{Docs: docs[:0], AllowPartialUpdates: true}
 	)
 	defer docsPool.Put(batch.Docs)
 
@@ -1173,6 +1180,8 @@ func (i *nsIndex) flushBlockSegment(
 				return err
 			}
 
+			// Reset docs batch before use.
+			batch.Docs = batch.Docs[:0]
 			for _, result := range results.Results() {
 				doc, err := convert.FromSeriesIDAndTagIter(result.ID, result.Tags)
 				if err != nil {
@@ -2036,6 +2045,7 @@ type nsIndexMetrics struct {
 	indexingConcurrencyMin       tally.Gauge
 	indexingConcurrencyMax       tally.Gauge
 	indexingConcurrencyAvg       tally.Gauge
+	flushIndexingConcurrency     tally.Gauge
 
 	loadedDocsPerQuery                 tally.Histogram
 	queryExhaustiveSuccess             tally.Counter
@@ -2052,13 +2062,14 @@ func newNamespaceIndexMetrics(
 	iopts instrument.Options,
 ) nsIndexMetrics {
 	const (
-		indexAttemptName    = "index-attempt"
-		forwardIndexName    = "forward-index"
-		indexingConcurrency = "indexing-concurrency"
+		indexAttemptName         = "index-attempt"
+		forwardIndexName         = "forward-index"
+		indexingConcurrency      = "indexing-concurrency"
+		flushIndexingConcurrency = "flush-indexing-concurrency"
 	)
 	scope := iopts.MetricsScope()
 	blocksScope := scope.SubScope("blocks")
-	return nsIndexMetrics{
+	m := nsIndexMetrics{
 		asyncInsertAttemptTotal: scope.Tagged(map[string]string{
 			"stage": "process",
 		}).Counter(indexAttemptName),
@@ -2100,6 +2111,7 @@ func newNamespaceIndexMetrics(
 		indexingConcurrencyAvg: scope.Tagged(map[string]string{
 			"stat": "avg",
 		}).Gauge(indexingConcurrency),
+		flushIndexingConcurrency: scope.Gauge(flushIndexingConcurrency),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),
@@ -2133,6 +2145,13 @@ func newNamespaceIndexMetrics(
 			"result":     "error_docs_require_exhaustive",
 		}).Counter("query"),
 	}
+
+	// Initialize gauges that should default to zero before
+	// returning results so that they are exported with an
+	// explicit zero value at process startup.
+	m.flushIndexingConcurrency.Update(0)
+
+	return m
 }
 
 type nsIndexBlocksMetrics struct {

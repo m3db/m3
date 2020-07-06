@@ -1143,6 +1143,12 @@ type Options interface {
 	// DoNotIndexWithFieldsMap returns a map which if fields match it
 	// will not index those metrics.
 	DoNotIndexWithFieldsMap() map[string]string
+
+	// SetNamespaceRuntimeOptionsManagerRegistry sets the namespace runtime options manager.
+	SetNamespaceRuntimeOptionsManagerRegistry(value namespace.RuntimeOptionsManagerRegistry) Options
+
+	// NamespaceRuntimeOptionsManagerRegistry returns the namespace runtime options manager.
+	NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry
 }
 
 // MemoryTracker tracks memory.

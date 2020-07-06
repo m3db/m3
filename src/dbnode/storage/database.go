@@ -173,13 +173,12 @@ func NewDatabase(
 	)
 
 	d := &db{
-		opts:                  opts,
-		nowFn:                 nowFn,
-		shardSet:              shardSet,
-		lastReceivedNewShards: nowFn(),
-		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		// TODO: wire to etcd, move this to main.server run
-		runtimeOptionsRegistry: namespace.NewRuntimeOptionsManagerRegistry(),
+		opts:                   opts,
+		nowFn:                  nowFn,
+		shardSet:               shardSet,
+		lastReceivedNewShards:  nowFn(),
+		namespaces:             newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		runtimeOptionsRegistry: opts.NamespaceRuntimeOptionsManagerRegistry(),
 		commitLog:              commitLog,
 		scope:                  scope,
 		metrics:                newDatabaseMetrics(scope),
@@ -246,6 +245,19 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		d.log.Error("failed to update schema registry", zap.Error(err))
 	}
 
+	// Always update the runtime options if they were set so that correct
+	// runtime options are set in the runtime options registry before namespaces
+	// are actually created.
+	for _, namespaceMetadata := range newNamespaces.Metadatas() {
+		id := namespaceMetadata.ID().String()
+		runtimeOptsMgr := d.runtimeOptionsRegistry.RuntimeOptionsManager(id)
+		currRuntimeOpts := runtimeOptsMgr.Get()
+		setRuntimeOpts := namespaceMetadata.Options().RuntimeOptions()
+		if !currRuntimeOpts.Equal(setRuntimeOpts) {
+			runtimeOptsMgr.Update(setRuntimeOpts)
+		}
+	}
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -265,7 +277,9 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
-		d.log.Warn("skipping namespace removals and updates (except schema updates), restart process if you want changes to take effect.")
+		d.log.Warn("skipping namespace removals and updates " +
+			"(except schema updates and runtime options), " +
+			"restart the process if you want changes to take effect")
 	}
 
 	// enqueue bootstraps if new namespaces

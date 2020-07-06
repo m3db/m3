@@ -125,15 +125,20 @@ func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptio
 	perCPUFraction := opts.WriteIndexingPerCPUConcurrencyOrDefault()
 	cpus := math.Ceil(perCPUFraction * float64(runtime.NumCPU()))
 	m.writeIndexingConcurrency = int(math.Max(1, cpus))
-	builder := m.compact.segmentBuilder
+	segmentBuilder := m.compact.segmentBuilder
 	m.Unlock()
 
 	// Reset any existing segment builder to new concurrency, do this
 	// out of the lock since builder can be used for foreground compaction
 	// outside the lock and does it's own locking.
-	if builder != nil {
-		builder.SetIndexConcurrency(m.writeIndexingConcurrency)
+	if segmentBuilder != nil {
+		segmentBuilder.SetIndexConcurrency(m.writeIndexingConcurrency)
 	}
+
+	// Set the global concurrency control we have (we may need to fork
+	// github.com/twotwotwo/sorts to control this on a per segment builder
+	// basis).
+	builder.SetSortConcurrency(m.writeIndexingConcurrency)
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
