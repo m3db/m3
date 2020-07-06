@@ -1303,7 +1303,6 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 
 	blk, err := NewBlock(blockStart, testMD,
 		BlockOptions{
-			WriteIndexingPerCPUConcurrency:  1,
 			ForegroundCompactorMmapDocsData: true,
 			BackgroundCompactorMmapDocsData: true,
 		}, testOpts)
@@ -1915,7 +1914,6 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 
 	blk, err := NewBlock(blockStart, testMD,
 		BlockOptions{
-			WriteIndexingPerCPUConcurrency:  1,
 			ForegroundCompactorMmapDocsData: true,
 			BackgroundCompactorMmapDocsData: true,
 		}, testOpts)
