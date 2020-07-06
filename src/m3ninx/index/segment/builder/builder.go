@@ -451,6 +451,9 @@ func (b *builder) queueIndexJobEntry(
 
 	// Ready to flush this job since all entries are used.
 	b.flushShardedIndexJob(shard, wg, batchErr)
+
+	// Reset for reuse.
+	b.shardedJobs[shard] = indexJob{}
 }
 
 func (b *builder) flushShardedIndexJob(
