@@ -173,11 +173,12 @@ func NewDatabase(
 	)
 
 	d := &db{
-		opts:                   opts,
-		nowFn:                  nowFn,
-		shardSet:               shardSet,
-		lastReceivedNewShards:  nowFn(),
-		namespaces:             newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		opts:                  opts,
+		nowFn:                 nowFn,
+		shardSet:              shardSet,
+		lastReceivedNewShards: nowFn(),
+		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		// TODO: wire to etcd, move this to main.server run
 		runtimeOptionsRegistry: namespace.NewRuntimeOptionsManagerRegistry(),
 		commitLog:              commitLog,
 		scope:                  scope,
