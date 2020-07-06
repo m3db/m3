@@ -422,7 +422,10 @@ func NewBlockStatsReporter(
 	reportSegmentStats func(stats BlockSegmentStats),
 	reportIndexingStats func(stats BlockIndexingStats),
 ) BlockStatsReporter {
-	return blockStatsReporter{}
+	return blockStatsReporter{
+		reportSegmentStats:  reportSegmentStats,
+		reportIndexingStats: reportIndexingStats,
+	}
 }
 
 func (r blockStatsReporter) ReportSegmentStats(stats BlockSegmentStats) {
