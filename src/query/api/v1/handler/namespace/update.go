@@ -52,6 +52,7 @@ var (
 
 	fieldNameRetentionOptions = "RetentionOptions"
 	fieldNameRetetionPeriod   = "RetentionPeriodNanos"
+	fieldNameRuntimeOptions   = "RuntimeOptions"
 
 	errEmptyNamespaceName      = errors.New("must specify namespace name")
 	errEmptyNamespaceOptions   = errors.New("update options cannot be empty")
@@ -144,7 +145,11 @@ func validateUpdateRequest(req *admin.NamespaceUpdateRequest) error {
 	for i := 0; i < optsVal.NumField(); i++ {
 		field := optsVal.Field(i)
 		fieldName := optsVal.Type().Field(i).Name
-		if !field.IsZero() && fieldName != fieldNameRetentionOptions {
+		if field.IsZero() {
+			continue
+		}
+
+		if fieldName != fieldNameRetentionOptions && fieldName != fieldNameRuntimeOptions {
 			return fmt.Errorf("%s: %w", fieldName, errNamespaceFieldImmutable)
 		}
 	}
@@ -190,18 +195,34 @@ func (h *UpdateHandler) Update(
 		// Replace targeted namespace with modified retention.
 		if newNanos := updateReq.Options.RetentionOptions.RetentionPeriodNanos; newNanos != 0 {
 			dur := namespace.FromNanos(newNanos)
-			opts := ns.Options().SetRetentionOptions(
-				ns.Options().RetentionOptions().SetRetentionPeriod(dur),
-			)
-			newMD, err := namespace.NewMetadata(ns.ID(), opts)
+			retentionOpts := ns.Options().RetentionOptions().
+				SetRetentionPeriod(dur)
+			opts := ns.Options().
+				SetRetentionOptions(retentionOpts)
+			ns, err = namespace.NewMetadata(ns.ID(), opts)
 			if err != nil {
 				return emptyReg, fmt.Errorf("error constructing new metadata: %w", err)
 			}
-			newMDs = append(newMDs, newMD)
-		} else {
-			// If not modifying, keep the original NS.
-			newMDs = append(newMDs, ns)
 		}
+
+		// Update runtime options.
+		if newRuntimeOpts := updateReq.Options.RuntimeOptions; newRuntimeOpts != nil {
+			runtimeOpts := ns.Options().RuntimeOptions()
+			if v := newRuntimeOpts.WriteIndexingPerCPUConcurrency; v != nil {
+				runtimeOpts = runtimeOpts.SetWriteIndexingPerCPUConcurrency(&v.Value)
+			}
+			if v := newRuntimeOpts.FlushIndexingPerCPUConcurrency; v != nil {
+				runtimeOpts = runtimeOpts.SetFlushIndexingPerCPUConcurrency(&v.Value)
+			}
+			opts := ns.Options().
+				SetRuntimeOptions(runtimeOpts)
+			ns, err = namespace.NewMetadata(ns.ID(), opts)
+			if err != nil {
+				return emptyReg, fmt.Errorf("error constructing new metadata: %w", err)
+			}
+		}
+
+		newMDs = append(newMDs, ns)
 	}
 
 	nsMap, err := namespace.NewMap(newMDs)
