@@ -84,6 +84,8 @@ var (
 const (
 	defaultFlushReadDataBlocksBatchSize = int64(4096)
 	nsIndexReportStatsInterval          = 10 * time.Second
+
+	defaultFlushDocsBatchSize = 256
 )
 
 var (
@@ -1149,7 +1151,18 @@ func (i *nsIndex) flushBlockSegment(
 		batchSize = cap(docs)
 		batch     = m3ninxindex.Batch{Docs: docs[:0], AllowPartialUpdates: true}
 	)
-	defer docsPool.Put(batch.Docs)
+	if batchSize == 0 {
+		batchSize = defaultFlushDocsBatchSize
+	}
+	defer func() {
+		// Memset optimization to clear refs before returning to pool.
+		var docZeroed doc.Document
+		for i := range batch.Docs {
+			batch.Docs[i] = docZeroed
+		}
+		// Return to pool.
+		docsPool.Put(batch.Docs)
+	}()
 
 	for _, shard := range shards {
 		var (
@@ -1197,6 +1210,9 @@ func (i *nsIndex) flushBlockSegment(
 				if err != nil {
 					return err
 				}
+
+				// Reset docs after insertions.
+				batch.Docs = batch.Docs[:0]
 			}
 
 			// Add last batch if remaining.
