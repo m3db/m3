@@ -24,6 +24,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
+	goruntime "runtime"
 	"sort"
 	"strconv"
 	"sync"
@@ -790,15 +792,9 @@ func (i *nsIndex) writeBatchForBlockStart(
 		i.metrics.asyncInsertSuccess.Inc(n)
 	}
 
-	if err != nil {
-		// NB: dropping duplicate id error messages from logs as they're expected when we see
-		// repeated inserts. as long as a block has an ID, it's not an error so we don't need
-		// to pollute the logs with these messages.
-		if partialError, ok := err.(*m3ninxindex.BatchPartialError); ok {
-			err = partialError.FilterDuplicateIDErrors()
-		}
-	}
-	if err != nil {
+	// Allow for duplicate write errors since due to re-indexing races
+	// we may try to re-index a series more than once.
+	if err := i.allowDuplicatesWriteError(err); err != nil {
 		numErrors := numPending - int(result.NumSuccess)
 		if partialError, ok := err.(*m3ninxindex.BatchPartialError); ok {
 			// If it was a batch partial error we know exactly how many failed
@@ -908,7 +904,14 @@ func (i *nsIndex) WarmFlush(
 		return err
 	}
 
-	builderOpts := i.opts.IndexOptions().SegmentBuilderOptions()
+	// Determine the current flush indexing concurrency.
+	namespaceRuntimeOpts := i.namespaceRuntimeOptsMgr.Get()
+	perCPUFraction := namespaceRuntimeOpts.FlushIndexingPerCPUConcurrencyOrDefault()
+	cpus := math.Ceil(perCPUFraction * float64(goruntime.NumCPU()))
+	concurrency := int(math.Max(1, cpus))
+
+	builderOpts := i.opts.IndexOptions().SegmentBuilderOptions().
+		SetConcurrency(concurrency)
 	builder, err := builder.NewBuilderFromDocuments(builderOpts)
 	if err != nil {
 		return err
@@ -1133,7 +1136,14 @@ func (i *nsIndex) flushBlockSegment(
 	// Reset the builder
 	builder.Reset(0)
 
-	ctx := i.opts.ContextPool().Get()
+	var (
+		ctx       = i.opts.ContextPool().Get()
+		docsPool  = i.opts.IndexOptions().DocumentArrayPool()
+		batch     = m3ninxindex.Batch{Docs: docsPool.Get(), AllowPartialUpdates: true}
+		batchSize = cap(batch.Docs)
+	)
+	defer docsPool.Put(batch.Docs)
+
 	for _, shard := range shards {
 		var (
 			first     = true
@@ -1169,8 +1179,21 @@ func (i *nsIndex) flushBlockSegment(
 					return err
 				}
 
-				_, err = builder.Insert(doc)
-				if err != nil && err != m3ninxindex.ErrDuplicateID {
+				batch.Docs = append(batch.Docs, doc)
+				if len(batch.Docs) < batchSize {
+					continue
+				}
+
+				err = i.allowDuplicatesWriteError(builder.InsertBatch(batch))
+				if err != nil {
+					return err
+				}
+			}
+
+			// Add last batch if remaining.
+			if len(batch.Docs) > 0 {
+				err := i.allowDuplicatesWriteError(builder.InsertBatch(batch))
+				if err != nil {
 					return err
 				}
 			}
@@ -1185,6 +1208,21 @@ func (i *nsIndex) flushBlockSegment(
 
 	// Finally flush this segment
 	return preparedPersist.Persist(builder)
+}
+
+func (i *nsIndex) allowDuplicatesWriteError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// NB: dropping duplicate id error messages from logs as they're expected when we see
+	// repeated inserts. as long as a block has an ID, it's not an error so we don't need
+	// to pollute the logs with these messages.
+	if partialError, ok := err.(*m3ninxindex.BatchPartialError); ok {
+		err = partialError.FilterDuplicateIDErrors()
+	}
+
+	return err
 }
 
 func (i *nsIndex) AssignShardSet(shardSet sharding.ShardSet) {
