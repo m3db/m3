@@ -136,12 +136,7 @@ func validateUpdateRequest(req *admin.NamespaceUpdateRequest) error {
 		return errEmptyNamespaceOptions
 	}
 
-	if req.Options.RetentionOptions == nil {
-		return errEmptyRetentionOptions
-	}
-
 	optsVal := reflect.ValueOf(*req.Options)
-
 	for i := 0; i < optsVal.NumField(); i++ {
 		field := optsVal.Field(i)
 		fieldName := optsVal.Type().Field(i).Name
@@ -154,12 +149,14 @@ func validateUpdateRequest(req *admin.NamespaceUpdateRequest) error {
 		}
 	}
 
-	optsVal = reflect.ValueOf(*req.Options.RetentionOptions)
-	for i := 0; i < optsVal.NumField(); i++ {
-		field := optsVal.Field(i)
-		fieldName := optsVal.Type().Field(i).Name
-		if !field.IsZero() && fieldName != fieldNameRetetionPeriod {
-			return fmt.Errorf("%s.%s: %w", fieldNameRetentionOptions, fieldName, errNamespaceFieldImmutable)
+	if opts := req.Options.RetentionOptions; opts != nil {
+		optsVal := reflect.ValueOf(*opts)
+		for i := 0; i < optsVal.NumField(); i++ {
+			field := optsVal.Field(i)
+			fieldName := optsVal.Type().Field(i).Name
+			if !field.IsZero() && fieldName != fieldNameRetetionPeriod {
+				return fmt.Errorf("%s.%s: %w", fieldNameRetentionOptions, fieldName, errNamespaceFieldImmutable)
+			}
 		}
 	}
 
