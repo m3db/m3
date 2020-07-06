@@ -32,6 +32,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/m3db/m3/src/x/docs"
 
@@ -40,7 +41,8 @@ import (
 
 func main() {
 	var (
-		docsDirArg = flag.String("docsdir", "docs", "The documents directory to test")
+		docsDirArg   = flag.String("docsdir", "docs", "The documents directory to test")
+		linkSleepArg = flag.Duration("linksleep", time.Second, "Amount to sleep between checking links to avoid 429 rate limits from github")
 	)
 	flag.Parse()
 
@@ -50,6 +52,7 @@ func main() {
 	}
 
 	docsDir := *docsDirArg
+	linkSleep := *linkSleepArg
 
 	repoPathsValidated := 0
 	resultErr := filepath.Walk(docsDir, func(filePath string, info os.FileInfo, err error) error {
@@ -126,6 +129,8 @@ func main() {
 					if err != nil {
 						return abort(checkedLinkError(checked, err))
 					}
+					// Sleep to avoid rate limits.
+					time.Sleep(linkSleep)
 				} else {
 					// Check relative path
 					if _, err := os.Stat(resolvedPath); err != nil {

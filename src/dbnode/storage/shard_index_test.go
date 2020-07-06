@@ -21,9 +21,7 @@
 package storage
 
 import (
-	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,9 +29,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -79,22 +77,22 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
-	require.True(t, wasWritten)
+	require.True(t, seriesWrite.WasWritten)
 
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 2.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
-	require.True(t, wasWritten)
+	require.True(t, seriesWrite.WasWritten)
 
-	_, wasWritten, err = shard.Write(
+	seriesWrite, err = shard.Write(
 		ctx, ident.StringID("baz"), now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	require.NoError(t, err)
-	require.True(t, wasWritten)
+	require.True(t, seriesWrite.WasWritten)
 
 	lock.Lock()
 	defer lock.Unlock()
@@ -105,110 +103,16 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	require.Equal(t, []byte("value"), indexWrites[0].Fields[0].Value)
 }
 
-func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
-
-	opts := DefaultTestOptions()
-	lock := sync.RWMutex{}
-	indexWrites := []doc.Document{}
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().WriteBatch(gomock.Any()).Do(
-		func(batch *index.WriteBatch) {
-			lock.Lock()
-			indexWrites = append(indexWrites, batch.PendingDocs()...)
-			lock.Unlock()
-		}).Return(nil).AnyTimes()
-
-	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
-	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
-	defer shard.Close()
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-	now := time.Now()
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 1.0, xtime.Second, nil, series.WriteOptions{})
-	assert.NoError(t, err)
-	assert.True(t, wasWritten)
-
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), now,
-		1.0, xtime.Second, nil, series.WriteOptions{})
-	assert.NoError(t, err)
-	assert.True(t, wasWritten)
-
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("baz"),
-		ident.NewTagsIterator(ident.NewTags(
-			ident.StringTag("all", "tags"),
-			ident.StringTag("should", "be-present"),
-		)),
-		now, 1.0, xtime.Second, nil, series.WriteOptions{})
-	assert.NoError(t, err)
-	assert.True(t, wasWritten)
-
-	for {
-		lock.RLock()
-		l := len(indexWrites)
-		lock.RUnlock()
-		if l == 2 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	lock.Lock()
-	defer lock.Unlock()
-
-	assert.Len(t, indexWrites, 2)
-	for _, w := range indexWrites {
-		if string(w.ID) == "foo" {
-			assert.Equal(t, 1, len(w.Fields))
-			assert.Equal(t, "name", string(w.Fields[0].Name))
-			assert.Equal(t, "value", string(w.Fields[0].Value))
-		} else if string(w.ID) == "baz" {
-			assert.Equal(t, 2, len(w.Fields))
-			assert.Equal(t, "all", string(w.Fields[0].Name))
-			assert.Equal(t, "tags", string(w.Fields[0].Value))
-			assert.Equal(t, "should", string(w.Fields[1].Name))
-			assert.Equal(t, "be-present", string(w.Fields[1].Value))
-		} else {
-			assert.Fail(t, "unexpected write", w)
-		}
-	}
-}
-
-func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
+func TestShardAsyncInsertMarkIndexedForBlockStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	var numCalls int32
 	opts := DefaultTestOptions()
 	blockSize := time.Hour
 	now := time.Now()
 	nextWriteTime := now.Truncate(blockSize)
 	idx := NewMockNamespaceIndex(ctrl)
-	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
-		DoAndReturn(func(t time.Time) xtime.UnixNano {
-			return xtime.ToUnixNano(t.Truncate(blockSize))
-		}).
-		AnyTimes()
-	idx.EXPECT().WriteBatch(gomock.Any()).Do(
-		func(batch *index.WriteBatch) {
-			if batch.Len() == 0 {
-				panic(fmt.Errorf("expected batch of len 1")) // panic to avoid goroutine exit from require
-			}
-			onIdx := batch.PendingEntries()[0].OnIndexSeries
-			onIdx.OnIndexSuccess(xtime.ToUnixNano(nextWriteTime)) // i.e. mark that the entry should not be indexed for an hour at least
-			onIdx.OnIndexFinalize(xtime.ToUnixNano(nextWriteTime))
-			current := atomic.AddInt32(&numCalls, 1)
-			if current > 1 {
-				panic("only need to index when not-indexed")
-			}
-		}).Return(nil)
-
 	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
 	defer shard.Close()
@@ -216,67 +120,44 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
+	// write first time
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
+	assert.True(t, seriesWrite.WasWritten)
+	assert.True(t, seriesWrite.NeedsIndex)
 
-	for {
-		if l := atomic.LoadInt32(&numCalls); l == 1 {
-			break
+	// mark as indexed
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexSuccess(xtime.ToUnixNano(nextWriteTime))
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexFinalize(xtime.ToUnixNano(nextWriteTime))
+
+	start := time.Now()
+	for time.Since(start) < 10*time.Second {
+		entry, _, err := shard.tryRetrieveWritableSeries(ident.StringID("foo"))
+		require.NoError(t, err)
+		if entry == nil {
+			time.Sleep(10 * time.Millisecond)
+			continue
 		}
-		time.Sleep(10 * time.Millisecond)
+		assert.True(t, entry.IndexedForBlockStart(xtime.ToUnixNano(nextWriteTime)))
+		break // done
 	}
-
-	// ensure we don't index once we have already indexed
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now.Add(time.Second), 2.0, xtime.Second, nil, series.WriteOptions{})
-	assert.NoError(t, err)
-	assert.True(t, wasWritten)
-
-	// ensure attempting to write same point yields false and does not write
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
-		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now.Add(time.Second), 2.0, xtime.Second, nil, series.WriteOptions{})
-	assert.NoError(t, err)
-	assert.False(t, wasWritten)
-
-	l := atomic.LoadInt32(&numCalls)
-	assert.Equal(t, int32(1), l)
-
-	entry, _, err := shard.tryRetrieveWritableSeries(ident.StringID("foo"))
-	assert.NoError(t, err)
-	assert.True(t, entry.IndexedForBlockStart(xtime.ToUnixNano(nextWriteTime)))
 }
 
 func TestShardAsyncIndexIfExpired(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	var numCalls int32
-
 	// Make now not rounded exactly to the block size
 	blockSize := time.Minute
 	now := time.Now().Truncate(blockSize).Add(time.Second)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	idx := NewMockNamespaceIndex(ctrl)
 	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
 		DoAndReturn(func(t time.Time) xtime.UnixNano {
 			return xtime.ToUnixNano(t.Truncate(blockSize))
-		}).
-		AnyTimes()
-	idx.EXPECT().WriteBatch(gomock.Any()).
-		Return(nil).
-		Do(func(batch *index.WriteBatch) {
-			for _, b := range batch.PendingEntries() {
-				blockStart := b.Timestamp.Truncate(blockSize)
-				b.OnIndexSeries.OnIndexSuccess(xtime.ToUnixNano(blockStart))
-				b.OnIndexSeries.OnIndexFinalize(xtime.ToUnixNano(blockStart))
-				atomic.AddInt32(&numCalls, 1)
-			}
 		}).
 		AnyTimes()
 
@@ -288,38 +169,39 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		now, 1.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
+	assert.True(t, seriesWrite.WasWritten)
+	assert.True(t, seriesWrite.NeedsIndex)
 
-	// wait till we're done indexing.
-	indexed := xclock.WaitUntil(func() bool {
-		return atomic.LoadInt32(&numCalls) == 1
-	}, 2*time.Second)
-	assert.True(t, indexed)
+	// mark as indexed
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexSuccess(xtime.ToUnixNano(now.Truncate(blockSize)))
+	seriesWrite.PendingIndexInsert.Entry.OnIndexSeries.OnIndexFinalize(xtime.ToUnixNano(now.Truncate(blockSize)))
 
-	// ensure we index because it's expired
+	// make sure next block not marked as indexed
+	start := time.Now()
+	for time.Since(start) < 10*time.Second {
+		entry, _, err := shard.tryRetrieveWritableSeries(ident.StringID("foo"))
+		require.NoError(t, err)
+		if entry == nil {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		assert.True(t, entry.IndexedForBlockStart(
+			xtime.ToUnixNano(now.Truncate(blockSize))))
+		break // done
+	}
+
+	// ensure we would need to index next block because it's expired
 	nextWriteTime := now.Add(blockSize)
-	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
+	seriesWrite, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 		nextWriteTime, 2.0, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.True(t, wasWritten)
-
-	// wait till we're done indexing.
-	reIndexed := xclock.WaitUntil(func() bool {
-		return atomic.LoadInt32(&numCalls) == 2
-	}, 2*time.Second)
-	assert.True(t, reIndexed)
-
-	entry, _, err := shard.tryRetrieveWritableSeries(ident.StringID("foo"))
-	assert.NoError(t, err)
-
-	// make sure we indexed the second write
-	assert.True(t, entry.IndexedForBlockStart(
-		xtime.ToUnixNano(nextWriteTime.Truncate(blockSize))))
+	assert.True(t, seriesWrite.WasWritten)
+	assert.True(t, seriesWrite.NeedsIndex)
 }
 
 // TODO(prateek): wire tests above to use the field `ts`

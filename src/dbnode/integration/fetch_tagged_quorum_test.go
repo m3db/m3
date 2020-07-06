@@ -297,7 +297,7 @@ func makeTestFetchTagged(
 			index.QueryOptions{
 				StartInclusive: startTime.Add(-time.Minute),
 				EndExclusive:   startTime.Add(time.Minute),
-				Limit:          100,
+				SeriesLimit:    100,
 			})
 		return series, metadata.Exhaustive, err
 	}

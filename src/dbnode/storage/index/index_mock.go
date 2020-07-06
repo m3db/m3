@@ -115,12 +115,13 @@ func (mr *MockBaseResultsMockRecorder) TotalDocsCount() *gomock.Call {
 }
 
 // AddDocuments mocks base method
-func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, error) {
+func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // AddDocuments indicates an expected call of AddDocuments
@@ -207,12 +208,13 @@ func (mr *MockQueryResultsMockRecorder) TotalDocsCount() *gomock.Call {
 }
 
 // AddDocuments mocks base method
-func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, error) {
+func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // AddDocuments indicates an expected call of AddDocuments
@@ -386,12 +388,13 @@ func (mr *MockAggregateResultsMockRecorder) TotalDocsCount() *gomock.Call {
 }
 
 // AddDocuments mocks base method
-func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, error) {
+func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // AddDocuments indicates an expected call of AddDocuments
@@ -439,11 +442,12 @@ func (mr *MockAggregateResultsMockRecorder) AggregateResultsOptions() *gomock.Ca
 }
 
 // AddFields mocks base method
-func (m *MockAggregateResults) AddFields(batch []AggregateResultsEntry) int {
+func (m *MockAggregateResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddFields", batch)
 	ret0, _ := ret[0].(int)
-	return ret0
+	ret1, _ := ret[1].(int)
+	return ret0, ret1
 }
 
 // AddFields indicates an expected call of AddFields

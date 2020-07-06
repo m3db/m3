@@ -201,7 +201,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 
 func TestFetchOptionsToAggregateOptions(t *testing.T) {
 	fetchOptions := &FetchOptions{
-		Limit: 7,
+		SeriesLimit: 7,
 	}
 
 	end := time.Now()

@@ -1,5 +1,36 @@
 # Changelog
 
+# 0.15.4
+
+## Features
+
+- **M3DB**: Performance increases for block rotation by streamlining indexing lock contention ([#2423](https://github.com/m3db/m3/pull/2423))
+- **M3DB**: Zero-copy of ID and fields on series index metadata re-indexing ([#2423](https://github.com/m3db/m3/pull/2423))
+- **M3Coordinator**: Add ability to restrict and block incoming series based on tag matchers ([#2430](https://github.com/m3db/m3/pull/2430))
+
+## Bug Fixes
+
+- **M3DB**: Fix an error where background compaction caused transient errors in queries ([#2432](https://github.com/m3db/m3/pull/2432))
+
+## Documentation
+
+- **M3Query**: Update config settings and cleaned up documentation for per query limits ([#2427](https://github.com/m3db/m3/pull/2427))
+
+# 0.15.3
+
+## Features
+
+- **M3DB**: Ability to set per-query block limit ([#2415](https://github.com/m3db/m3/pull/2415)) 
+- **M3DB**: Ability to set global per-second query limit ([#2405](https://github.com/m3db/m3/pull/2405))
+
+## Bug Fixes
+
+- **M3DB**: Fix duplicate ID insertions causing transient error when flushing index block ([#2411](https://github.com/m3db/m3/pull/2411))
+- **M3Coordinator**: Mapping rules with drop policies now correctly apply to unaggregated metrics ([#2262](https://github.com/m3db/m3/pull/2262))
+- **M3Query**: Fix incorrect starting boundaries on some temporal queries ([#2413](https://github.com/m3db/m3/pull/2413))
+- **M3Query**: Fix bug in one to one matching in binary functions ([#2417](https://github.com/m3db/m3/pull/2417))
+- **M3DB**: Fix to edge case index data consistency on flush ([#2399](https://github.com/m3db/m3/pull/2399)) 
+
 # 0.15.2
 
 ## Bug Fixes
@@ -409,7 +440,7 @@ This changes also enables the ability to increase the fetch concurrency past the
 
 As a result of this change, M3DB will allocate significantly less mmaps, but will create a corresponding amount of file descriptors.
 
-Operators may need to tune their kernel configuration to allow a higher number of open file descriptors. Please follow our [Kernel Configuration Guide](http://m3db.github.io/m3/operational_guide/kernel_configuration/) for more details.
+Operators may need to tune their kernel configuration to allow a higher number of open file descriptors. Please follow our [Kernel Configuration Guide](https://docs.m3db.io/operational_guide/kernel_configuration/) for more details.
 
 ## New Features
 
@@ -502,7 +533,7 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 
 ## Breaking changes
 
-- **M3Coordinator**: ID generation scheme must be explicitly defined in configs ([Set "legacy" if unsure, further information on migrating to 0.6.0](http://m3db.github.io/m3/how_to/query/#migration)) ([#1381](https://github.com/m3db/m3/pull/1381))
+- **M3Coordinator**: ID generation scheme must be explicitly defined in configs ([Set "legacy" if unsure, further information on migrating to 0.6.0](https://docs.m3db.io/how_to/query/#migration)) ([#1381](https://github.com/m3db/m3/pull/1381))
 
 ## New Features
 
@@ -525,7 +556,7 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 
 ## New Features
 
-- **M3Coordinator**: Add [Graphite support](http://m3db.github.io/m3/integrations/grafana/) in the form of Carbon ingestion (with configurable aggregation and storage policies), as well as direct and Grafana based Graphite querying support ([#1309](https://github.com/m3db/m3/pull/1309), [#1310](https://github.com/m3db/m3/pull/1310), [#1308](https://github.com/m3db/m3/pull/1308), [#1319](https://github.com/m3db/m3/pull/1319), [#1318](https://github.com/m3db/m3/pull/1318), [#1327](https://github.com/m3db/m3/pull/1327), [#1328](https://github.com/m3db/m3/pull/1328))
+- **M3Coordinator**: Add [Graphite support](https://docs.m3db.io/integrations/grafana/) in the form of Carbon ingestion (with configurable aggregation and storage policies), as well as direct and Grafana based Graphite querying support ([#1309](https://github.com/m3db/m3/pull/1309), [#1310](https://github.com/m3db/m3/pull/1310), [#1308](https://github.com/m3db/m3/pull/1308), [#1319](https://github.com/m3db/m3/pull/1319), [#1318](https://github.com/m3db/m3/pull/1318), [#1327](https://github.com/m3db/m3/pull/1327), [#1328](https://github.com/m3db/m3/pull/1328))
 - **M3Coordinator**: Add tag completion API ([#1175](https://github.com/m3db/m3/pull/1175))
 - **M3Coordinator**: Add new opt-in ID generation function that will never collide ([#1286](https://github.com/m3db/m3/pull/1286))
 - **M3DB**: Add [endpoint](https://m3db.io/openapi/#operation/databaseConfigSetBootstrappers) for setting database bootstrapers dynamically([#1239](https://github.com/m3db/m3/pull/1239))

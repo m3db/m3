@@ -64,7 +64,7 @@ func TestUnmarshalPrometheusResponse(t *testing.T) {
 				"success",
 				data{
 					"scalar",
-					&scalarResult{Value{1590605774.0, "84"}},
+					&ScalarResult{Value{1590605774.0, "84"}},
 				},
 			},
 		},
@@ -81,7 +81,7 @@ func TestUnmarshalPrometheusResponse(t *testing.T) {
 				"success",
 				data{
 					"string",
-					&stringResult{Value{1590605775.0, "FOO"}},
+					&StringResult{Value{1590605775.0, "FOO"}},
 				},
 			},
 		},
@@ -113,7 +113,7 @@ func TestUnmarshalPrometheusResponse(t *testing.T) {
 				"success",
 				data{
 					"vector",
-					&vectorResult{[]vectorItem{
+					&VectorResult{[]vectorItem{
 						{
 							Metric: Tags{"__name__": "foo", "bar": "1"},
 							Value:  Value{1590605775.0, "0.5"},
@@ -154,7 +154,7 @@ func TestUnmarshalPrometheusResponse(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "foo", "bar": "1"},
 							Values: Values{{1590605775.0, "1"}, {1590605785.0, "11"}},
@@ -197,7 +197,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"scalar",
-					&scalarResult{Value{1590605774.0, "1"}},
+					&ScalarResult{Value{1590605774.0, "1"}},
 				},
 			},
 		},
@@ -207,7 +207,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"scalar",
-					&scalarResult{Value{1590605775.0, "1"}},
+					&ScalarResult{Value{1590605775.0, "1"}},
 				},
 			},
 		},
@@ -217,7 +217,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"scalar",
-					&scalarResult{Value{1590605774.0, "2"}},
+					&ScalarResult{Value{1590605774.0, "2"}},
 				},
 			},
 		},
@@ -228,7 +228,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"vector",
-					&vectorResult{[]vectorItem{
+					&VectorResult{[]vectorItem{
 						{
 							Metric: Tags{"__name__": "foo"},
 							Value:  Value{1590605775.0, "0.5"},
@@ -243,7 +243,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"vector",
-					&vectorResult{[]vectorItem{
+					&VectorResult{[]vectorItem{
 						{
 							Metric: Tags{"__name__": "foo", "bar": "1"},
 							Value:  Value{1590605775.0, "0.5"},
@@ -258,7 +258,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"vector",
-					&vectorResult{[]vectorItem{
+					&VectorResult{[]vectorItem{
 						{
 							Metric: Tags{"__name__": "foo", "bar": "1"},
 							Value:  Value{1590605775.0, "0.5"},
@@ -277,7 +277,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"vector",
-					&vectorResult{[]vectorItem{
+					&VectorResult{[]vectorItem{
 						{
 							Metric: Tags{"__name__": "bar"},
 							Value:  Value{1590605775.0, "0.5"},
@@ -292,7 +292,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"vector",
-					&vectorResult{[]vectorItem{
+					&VectorResult{[]vectorItem{
 						{
 							Metric: Tags{"__name__": "foo"},
 							Value:  Value{1590605775.0, "1"},
@@ -307,7 +307,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"vector",
-					&vectorResult{[]vectorItem{
+					&VectorResult{[]vectorItem{
 						{
 							Metric: Tags{"__name__": "foo"},
 							Value:  Value{1590605774.0, "0.5"},
@@ -323,7 +323,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "foo"},
 							Values: Values{{1590605775.0, "1"}},
@@ -338,7 +338,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "bar"},
 							Values: Values{{1590605775.0, "1"}},
@@ -353,7 +353,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "foo"},
 							Values: Values{{1590605775.0, "2"}},
@@ -368,7 +368,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "foo"},
 							Values: Values{{1590605776.0, "1"}},
@@ -383,7 +383,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "foo", "bar": "1"},
 							Values: Values{{1590605775.0, "1"}},
@@ -398,7 +398,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "foo"},
 							Values: Values{{1590605775.0, "1"}, {1590605776.0, "2"}},
@@ -413,7 +413,7 @@ func TestResponseMatching(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "foo"},
 							Values: Values{{1590605775.0, "1"}},
@@ -456,7 +456,7 @@ func TestResponseMatchingOrderInsensitive(t *testing.T) {
 				"success",
 				data{
 					"vector",
-					&vectorResult{[]vectorItem{
+					&VectorResult{[]vectorItem{
 						{
 							Metric: Tags{"__name__": "first"},
 							Value:  Value{1590605775.0, "1"},
@@ -472,7 +472,7 @@ func TestResponseMatchingOrderInsensitive(t *testing.T) {
 				"success",
 				data{
 					"vector",
-					&vectorResult{[]vectorItem{
+					&VectorResult{[]vectorItem{
 						{
 							Metric: Tags{"__name__": "second"},
 							Value:  Value{1590605775.0, "2"},
@@ -491,7 +491,7 @@ func TestResponseMatchingOrderInsensitive(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "first"},
 							Values: Values{{1590605775.0, "1"}},
@@ -507,7 +507,7 @@ func TestResponseMatchingOrderInsensitive(t *testing.T) {
 				"success",
 				data{
 					"matrix",
-					&matrixResult{[]matrixRow{
+					&MatrixResult{[]matrixRow{
 						{
 							Metric: Tags{"__name__": "second"},
 							Values: Values{{1590605775.0, "2"}},

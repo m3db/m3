@@ -42,6 +42,7 @@ type fsMergeWithMem struct {
 	retriever          series.QueryableBlockRetriever
 	dirtySeries        *dirtySeriesMap
 	dirtySeriesToWrite map[xtime.UnixNano]*idList
+	reuseableID        *ident.ReuseableBytesID
 }
 
 func newFSMergeWithMem(
@@ -55,6 +56,7 @@ func newFSMergeWithMem(
 		retriever:          retriever,
 		dirtySeries:        dirtySeries,
 		dirtySeriesToWrite: dirtySeriesToWrite,
+		reuseableID:        ident.NewReuseableBytesID(),
 	}
 }
 
@@ -65,7 +67,10 @@ func (m *fsMergeWithMem) Read(
 	nsCtx namespace.Context,
 ) ([]xio.BlockReader, bool, error) {
 	// Check if this series is in memory (and thus requires merging).
-	element, exists := m.dirtySeries.Get(idAndBlockStart{blockStart: blockStart, id: seriesID})
+	element, exists := m.dirtySeries.Get(idAndBlockStart{
+		blockStart: blockStart,
+		id:         seriesID.Bytes(),
+	})
 	if !exists {
 		return nil, false, nil
 	}
@@ -76,7 +81,7 @@ func (m *fsMergeWithMem) Read(
 	// it.
 	m.dirtySeriesToWrite[blockStart].Remove(element)
 
-	result, ok, err := m.fetchBlocks(ctx, element.Value, blockStart, nsCtx)
+	result, ok, err := m.fetchBlocks(ctx, seriesID, blockStart, nsCtx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -118,33 +123,19 @@ func (m *fsMergeWithMem) ForEachRemaining(
 	fn fs.ForEachRemainingFn,
 	nsCtx namespace.Context,
 ) error {
+	reuseableID := m.reuseableID
 	seriesList := m.dirtySeriesToWrite[blockStart]
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
-		seriesID := seriesElement.Value
-
-		// TODO(r): We should really not be looking this up per series element
-		// and just keep it in the linked list next to the series ID.
-		tags, ok, err := m.shard.TagsFromSeriesID(seriesID)
+		seriesMetadata := seriesElement.Value
+		reuseableID.Reset(seriesMetadata.ID)
+		mergeWithData, hasData, err := m.fetchBlocks(ctx, reuseableID, blockStart, nsCtx)
 		if err != nil {
 			return err
 		}
-		if !ok {
-			// Receiving not ok means that the series was not found, for some
-			// reason like it falling out of retention, therefore we skip this
-			// series and continue.
-			// TODO(r): This should actually be an invariant error - these should not
-			// be evicted until a flush otherwise the durability guarantee was not
-			// upheld.
-			continue
-		}
 
-		mergeWithData, hasData, err := m.fetchBlocks(ctx, seriesID, blockStart, nsCtx)
-		if err != nil {
-			return err
-		}
 		if hasData {
-			err = fn(seriesID, tags, mergeWithData)
+			err = fn(seriesMetadata, mergeWithData)
 			if err != nil {
 				return err
 			}

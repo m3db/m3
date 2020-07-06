@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/assert"
@@ -89,12 +90,15 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(
+		ident.StringID("foo"),
+		ident.Tags{},
+		persist.MetadataOptions{})
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
-	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+	assert.NoError(t, w.Write(metadata,
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -136,7 +140,10 @@ func TestSeekBadChecksum(t *testing.T) {
 
 	// Write data with wrong checksum
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 4})))
 	assert.NoError(t, w.Close())
@@ -175,18 +182,24 @@ func TestSeek(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo1"),
-		ident.NewTags(ident.StringTag("num", "1")),
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo1"),
+			ident.NewTags(ident.StringTag("num", "1")),
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Write(
-		ident.StringID("foo2"),
-		ident.NewTags(ident.StringTag("num", "2")),
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo2"),
+			ident.NewTags(ident.StringTag("num", "2")),
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 2}),
 		digest.Checksum([]byte{1, 2, 2})))
 	assert.NoError(t, w.Write(
-		ident.StringID("foo3"),
-		ident.NewTags(ident.StringTag("num", "3")),
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo3"),
+			ident.NewTags(ident.StringTag("num", "3")),
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -246,15 +259,24 @@ func TestSeekIDNotExists(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo10"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo10"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Write(
-		ident.StringID("foo20"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo20"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 2}),
 		digest.Checksum([]byte{1, 2, 2})))
 	assert.NoError(t, w.Write(
-		ident.StringID("foo30"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo30"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -300,7 +322,10 @@ func TestReuseSeeker(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
@@ -316,7 +341,10 @@ func TestReuseSeeker(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -365,7 +393,10 @@ func TestCloneSeeker(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
@@ -381,7 +412,10 @@ func TestCloneSeeker(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())

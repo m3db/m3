@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 )
 
 // slowStorage slows down a request by delay
@@ -73,7 +74,7 @@ func (s *slowStorage) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	time.Sleep(s.delay)
 	return s.storage.CompleteTags(ctx, query, options)
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	time0 "github.com/m3db/m3/src/x/time"
@@ -176,6 +177,20 @@ func (mr *MockDatabaseSeriesMockRecorder) LoadBlock(arg0, arg1 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).LoadBlock), arg0, arg1)
 }
 
+// Metadata mocks base method
+func (m *MockDatabaseSeries) Metadata() doc.Document {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Metadata")
+	ret0, _ := ret[0].(doc.Document)
+	return ret0
+}
+
+// Metadata indicates an expected call of Metadata
+func (mr *MockDatabaseSeriesMockRecorder) Metadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockDatabaseSeries)(nil).Metadata))
+}
+
 // NumActiveBlocks mocks base method
 func (m *MockDatabaseSeries) NumActiveBlocks() int {
 	m.ctrl.T.Helper()
@@ -253,20 +268,6 @@ func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2
 func (mr *MockDatabaseSeriesMockRecorder) Snapshot(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockDatabaseSeries)(nil).Snapshot), arg0, arg1, arg2, arg3)
-}
-
-// Tags mocks base method
-func (m *MockDatabaseSeries) Tags() ident.Tags {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tags")
-	ret0, _ := ret[0].(ident.Tags)
-	return ret0
-}
-
-// Tags indicates an expected call of Tags
-func (mr *MockDatabaseSeriesMockRecorder) Tags() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tags", reflect.TypeOf((*MockDatabaseSeries)(nil).Tags))
 }
 
 // Tick mocks base method

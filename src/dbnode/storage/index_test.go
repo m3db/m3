@@ -242,66 +242,40 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 
 	test := newTestIndex(t, ctrl)
 
-	now := time.Now().Truncate(test.indexBlockSize)
 	idx := test.index.(*nsIndex)
 
 	defer func() {
 		require.NoError(t, idx.Close())
 	}()
 
-	mockBlock := index.NewMockBlock(ctrl)
-	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
-	blockTime := now.Add(-2 * test.indexBlockSize)
-	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
-	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
-	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	verifyFlushForShards(
+		t,
+		ctrl,
+		idx,
+		test.blockSize,
+		[]uint32{0},
+	)
+}
 
-	mockBlock.EXPECT().IsSealed().Return(true)
-	mockBlock.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
-	mockBlock.EXPECT().Close().Return(nil)
+func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
 
-	mockShard := NewMockdatabaseShard(ctrl)
-	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-	shards := []databaseShard{mockShard}
+	test := newTestIndex(t, ctrl)
 
-	mockFlush := persist.NewMockIndexFlush(ctrl)
+	idx := test.index.(*nsIndex)
 
-	persistClosed := false
-	persistCalled := false
-	closer := func() ([]segment.Segment, error) {
-		persistClosed = true
-		return nil, nil
-	}
-	persistFn := func(segment.Builder) error {
-		persistCalled = true
-		return nil
-	}
-	preparedPersist := persist.PreparedIndexPersist{
-		Close:   closer,
-		Persist: persistFn,
-	}
-	mockFlush.EXPECT().PrepareIndex(xtest.CmpMatcher(persist.IndexPrepareOptions{
-		NamespaceMetadata: test.metadata,
-		BlockStart:        blockTime,
-		FileSetType:       persist.FileSetFlushType,
-		Shards:            map[uint32]struct{}{0: struct{}{}},
-		IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
-	})).Return(preparedPersist, nil)
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
 
-	results := block.NewMockFetchBlocksMetadataResults(ctrl)
-	results.EXPECT().Results().Return(nil)
-	results.EXPECT().Close()
-	mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
-
-	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
-	mockBlock.EXPECT().EvictMutableSegments().Return(nil)
-
-	require.NoError(t, idx.WarmFlush(mockFlush, shards))
-	require.True(t, persistCalled)
-	require.True(t, persistClosed)
+	verifyFlushForShards(
+		t,
+		ctrl,
+		idx,
+		test.blockSize,
+		[]uint32{0, 1, 2},
+	)
 }
 
 func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
@@ -317,6 +291,8 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 		require.NoError(t, idx.Close())
 	}()
 
+	// NB(bodu): We don't need to allocate a mock block for every block start we just need to
+	// ensure that we aren't flushing index data if TSDB is not on disk and a single mock block is sufficient.
 	mockBlock := index.NewMockBlock(ctrl)
 	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	blockTime := now.Add(-2 * test.indexBlockSize)
@@ -324,99 +300,16 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
 
-	mockBlock.EXPECT().IsSealed().Return(true)
-	mockBlock.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
 	mockBlock.EXPECT().Close().Return(nil)
 
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-	mockShard.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpFailed}, nil)
+	mockShard.EXPECT().FlushState(gomock.Any()).Return(fileOpState{WarmStatus: fileOpFailed}, nil).AnyTimes()
 	shards := []databaseShard{mockShard}
 
 	mockFlush := persist.NewMockIndexFlush(ctrl)
 
 	require.NoError(t, idx.WarmFlush(mockFlush, shards))
-}
-
-func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{T: t})
-	defer ctrl.Finish()
-
-	test := newTestIndex(t, ctrl)
-
-	now := time.Now().Truncate(test.indexBlockSize)
-	idx := test.index.(*nsIndex)
-
-	defer func() {
-		require.NoError(t, idx.Close())
-	}()
-
-	mockBlock := index.NewMockBlock(ctrl)
-	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
-	blockTime := now.Add(-2 * test.indexBlockSize)
-	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
-	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
-	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
-
-	mockBlock.EXPECT().IsSealed().Return(true)
-	mockBlock.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
-	mockBlock.EXPECT().Close().Return(nil)
-
-	mockShard1 := NewMockdatabaseShard(ctrl)
-	mockShard1.EXPECT().ID().Return(uint32(0)).AnyTimes()
-	mockShard1.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-	mockShard1.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-
-	mockShard2 := NewMockdatabaseShard(ctrl)
-	mockShard2.EXPECT().ID().Return(uint32(1)).AnyTimes()
-	mockShard2.EXPECT().FlushState(blockTime).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-	mockShard2.EXPECT().FlushState(blockTime.Add(test.blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
-
-	shards := []databaseShard{mockShard1, mockShard2}
-
-	mockFlush := persist.NewMockIndexFlush(ctrl)
-
-	persistClosed := false
-	numPersistCalls := 0
-	closer := func() ([]segment.Segment, error) {
-		persistClosed = true
-		return nil, nil
-	}
-	persistFn := func(segment.Builder) error {
-		numPersistCalls++
-		return nil
-	}
-	preparedPersist := persist.PreparedIndexPersist{
-		Close:   closer,
-		Persist: persistFn,
-	}
-	mockFlush.EXPECT().PrepareIndex(xtest.CmpMatcher(persist.IndexPrepareOptions{
-		NamespaceMetadata: test.metadata,
-		BlockStart:        blockTime,
-		FileSetType:       persist.FileSetFlushType,
-		Shards:            map[uint32]struct{}{0: struct{}{}, 1: struct{}{}},
-		IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
-	})).Return(preparedPersist, nil)
-
-	results1 := block.NewMockFetchBlocksMetadataResults(ctrl)
-	results1.EXPECT().Results().Return(nil)
-	results1.EXPECT().Close()
-	mockShard1.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results1, nil, nil)
-
-	results2 := block.NewMockFetchBlocksMetadataResults(ctrl)
-	results2.EXPECT().Results().Return(nil)
-	results2.EXPECT().Close()
-	mockShard2.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockTime, blockTime.Add(test.indexBlockSize),
-		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results2, nil, nil)
-
-	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
-	mockBlock.EXPECT().EvictMutableSegments().Return(nil)
-
-	require.NoError(t, idx.WarmFlush(mockFlush, shards))
-	require.Equal(t, 1, numPersistCalls)
-	require.True(t, persistClosed)
 }
 
 func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
@@ -463,6 +356,84 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, aggResult.Exhaustive)
 	assert.Equal(t, 0, aggResult.Results.Size())
+}
+
+func verifyFlushForShards(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	idx *nsIndex,
+	blockSize time.Duration,
+	shards []uint32,
+) {
+	var (
+		mockFlush          = persist.NewMockIndexFlush(ctrl)
+		shardMap           = make(map[uint32]struct{})
+		now                = idx.nowFn()
+		warmBlockStart     = now.Truncate(idx.blockSize)
+		mockShards         []*MockdatabaseShard
+		dbShards           []databaseShard
+		numBlocks          int
+		persistClosedTimes int
+		persistCalledTimes int
+	)
+	for _, shard := range shards {
+		mockShard := NewMockdatabaseShard(ctrl)
+		mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+		mockShards = append(mockShards, mockShard)
+		shardMap[shard] = struct{}{}
+		dbShards = append(dbShards, mockShard)
+	}
+	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(idx.retentionPeriod, idx.blockSize, now)
+	for blockStart := earliestBlockStartToRetain; blockStart.Before(warmBlockStart); blockStart = blockStart.Add(idx.blockSize) {
+		numBlocks++
+
+		mockBlock := index.NewMockBlock(ctrl)
+		mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+		mockBlock.EXPECT().StartTime().Return(blockStart).AnyTimes()
+		mockBlock.EXPECT().EndTime().Return(blockStart.Add(idx.blockSize)).AnyTimes()
+		idx.state.blocksByTime[xtime.ToUnixNano(blockStart)] = mockBlock
+
+		mockBlock.EXPECT().Close().Return(nil)
+
+		closer := func() ([]segment.Segment, error) {
+			persistClosedTimes++
+			return nil, nil
+		}
+		persistFn := func(segment.Builder) error {
+			persistCalledTimes++
+			return nil
+		}
+		preparedPersist := persist.PreparedIndexPersist{
+			Close:   closer,
+			Persist: persistFn,
+		}
+		mockFlush.EXPECT().PrepareIndex(xtest.CmpMatcher(persist.IndexPrepareOptions{
+			NamespaceMetadata: idx.nsMetadata,
+			BlockStart:        blockStart,
+			FileSetType:       persist.FileSetFlushType,
+			Shards:            map[uint32]struct{}{0: struct{}{}},
+			IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
+		})).Return(preparedPersist, nil)
+
+		results := block.NewMockFetchBlocksMetadataResults(ctrl)
+
+		for _, mockShard := range mockShards {
+			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
+
+			results.EXPECT().Results().Return(nil)
+			results.EXPECT().Close()
+
+			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
+				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
+		}
+
+		mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
+		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
+	}
+	require.NoError(t, idx.WarmFlush(mockFlush, dbShards))
+	require.Equal(t, persistClosedTimes, numBlocks)
+	require.Equal(t, persistCalledTimes, numBlocks)
 }
 
 type testIndex struct {

@@ -73,10 +73,10 @@ func (mr *MockStorageMockRecorder) Close() *gomock.Call {
 }
 
 // CompleteTags mocks base method
-func (m *MockStorage) CompleteTags(arg0 context.Context, arg1 *storage.CompleteTagsQuery, arg2 *storage.FetchOptions) (*storage.CompleteTagsResult, error) {
+func (m *MockStorage) CompleteTags(arg0 context.Context, arg1 *storage.CompleteTagsQuery, arg2 *storage.FetchOptions) (*consolidators.CompleteTagsResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CompleteTags", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*storage.CompleteTagsResult)
+	ret0, _ := ret[0].(*consolidators.CompleteTagsResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -88,10 +88,10 @@ func (mr *MockStorageMockRecorder) CompleteTags(arg0, arg1, arg2 interface{}) *g
 }
 
 // CompleteTagsCompressed mocks base method
-func (m *MockStorage) CompleteTagsCompressed(arg0 context.Context, arg1 *storage.CompleteTagsQuery, arg2 *storage.FetchOptions) (*storage.CompleteTagsResult, error) {
+func (m *MockStorage) CompleteTagsCompressed(arg0 context.Context, arg1 *storage.CompleteTagsQuery, arg2 *storage.FetchOptions) (*consolidators.CompleteTagsResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CompleteTagsCompressed", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*storage.CompleteTagsResult)
+	ret0, _ := ret[0].(*consolidators.CompleteTagsResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

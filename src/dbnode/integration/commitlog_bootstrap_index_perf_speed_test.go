@@ -156,6 +156,8 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	seriesID := ident.BinaryID(checkedBytes)
 	numBytes := make([]byte, 8)
 	numHexBytes := make([]byte, hex.EncodedLen(len(numBytes)))
+	tagEncoderPool := commitLogOpts.FilesystemOptions().TagEncoderPool()
+	tagSliceIter := ident.NewTagsIterator(ident.Tags{})
 	for i := 0; i < numPoints; i++ {
 		for j := 0; j < numSeries; j++ {
 			// Write the ID prefix
@@ -171,11 +173,19 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 			// Use the tag sets appropriate for this series number
 			seriesTags := tagSets[j%len(tagSets)]
 
+			tagSliceIter.Reset(seriesTags)
+			tagEncoder := tagEncoderPool.Get()
+			err := tagEncoder.Encode(tagSliceIter)
+			require.NoError(t, err)
+
+			encodedTagsChecked, ok := tagEncoder.Data()
+			require.True(t, ok)
+
 			series := ts.Series{
 				Namespace:   ns.ID(),
 				Shard:       shardSet.Lookup(seriesID),
 				ID:          seriesID,
-				Tags:        seriesTags,
+				EncodedTags: ts.EncodedTags(encodedTagsChecked.Bytes()),
 				UniqueIndex: uint64(j),
 			}
 			dp := ts.Datapoint{

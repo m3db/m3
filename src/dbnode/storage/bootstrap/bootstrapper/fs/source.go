@@ -652,7 +652,7 @@ func (s *fileSystemSource) readNextEntryAndMaybeIndex(
 		return batch, err
 	}
 
-	d, err := convert.FromMetricIter(id, tagsIter)
+	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
 	// Finalize the ID and tags.
 	id.Finalize()
 	tagsIter.Close()

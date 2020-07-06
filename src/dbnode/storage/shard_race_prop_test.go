@@ -187,9 +187,9 @@ func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
 			<-barrier
 			ctx := context.NewContext()
 			now := time.Now()
-			_, wasWritten, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
+			seriesWrite, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 			assert.NoError(t, err)
-			assert.True(t, wasWritten)
+			assert.True(t, seriesWrite.WasWritten)
 			ctx.BlockingClose()
 		}()
 	}
@@ -284,9 +284,9 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 			<-barrier
 			ctx := context.NewContext()
 			now := time.Now()
-			_, wasWritten, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
+			seriesWrite, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 			assert.NoError(t, err)
-			assert.True(t, wasWritten)
+			assert.True(t, seriesWrite.WasWritten)
 			ctx.BlockingClose()
 		}()
 	}

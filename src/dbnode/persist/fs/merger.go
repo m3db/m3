@@ -28,9 +28,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -89,13 +89,12 @@ func (m *merger) Merge(
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
-) (err error) {
+) (persist.DataCloser, error) {
 	var (
 		reader         = m.reader
 		blockAllocSize = m.blockAllocSize
 		srPool         = m.srPool
 		multiIterPool  = m.multiIterPool
-		identPool      = m.identPool
 		encoderPool    = m.encoderPool
 		nsOpts         = m.nsOpts
 
@@ -114,10 +113,12 @@ func (m *merger) Merge(
 			},
 			FileSetType: persist.FileSetFlushType,
 		}
+		closer persist.DataCloser
+		err    error
 	)
 
 	if err := reader.Open(openOpts); err != nil {
-		return err
+		return closer, err
 	}
 	defer func() {
 		// Only set the error here if not set by the end of the function, since
@@ -129,7 +130,7 @@ func (m *merger) Merge(
 
 	nsMd, err := namespace.NewMetadata(nsID, nsOpts)
 	if err != nil {
-		return err
+		return closer, err
 	}
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: nsMd,
@@ -141,7 +142,7 @@ func (m *merger) Merge(
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return err
+		return closer, err
 	}
 
 	var (
@@ -156,19 +157,6 @@ func (m *merger) Merge(
 		multiIter = multiIterPool.Get()
 		ctx       = m.contextPool.Get()
 
-		// We keep track of IDs/tags to finalize at the end of merging. This
-		// only applies to those that come from disk Reads, since the whole
-		// lifecycle of those IDs/tags are contained to this function. We don't
-		// want finalize the IDs from memory since other components may have
-		// ownership over it.
-		//
-		// We must only finalize these at the end of this function, since the
-		// flush preparer's underlying writer holds on to those references
-		// until it is closed (closing the PreparedDataPersist at the end of
-		// this merge closes the underlying writer).
-		idsToFinalize  = make([]ident.ID, 0, reader.Entries())
-		tagsToFinalize = make([]ident.Tags, 0, reader.Entries())
-
 		// Shared between iterations.
 		iterResources = newIterResources(
 			multiIter,
@@ -181,17 +169,11 @@ func (m *merger) Merge(
 	defer func() {
 		segReader.Finalize()
 		multiIter.Close()
-		for _, res := range idsToFinalize {
-			res.Finalize()
-		}
-		for _, res := range tagsToFinalize {
-			res.Finalize()
-		}
 	}()
 
 	// The merge is performed in two stages. The first stage is to loop through
 	// series on disk and merge it with what's in the merge target. Looping
-	// through disk in the first stage is done intentionally to read disk
+	// through disk in the first stage is prepared intentionally to read disk
 	// sequentially to optimize for spinning disk access. The second stage is to
 	// persist the rest of the series in the merge target that were not
 	// persisted in the first stage.
@@ -199,9 +181,8 @@ func (m *merger) Merge(
 	// First stage: loop through series on disk.
 	for id, tagsIter, data, checksum, err := reader.Read(); err != io.EOF; id, tagsIter, data, checksum, err = reader.Read() {
 		if err != nil {
-			return err
+			return closer, err
 		}
-		idsToFinalize = append(idsToFinalize, id)
 
 		segmentReaders = segmentReaders[:0]
 		seg := segmentReaderFromData(data, checksum, segReader)
@@ -211,20 +192,19 @@ func (m *merger) Merge(
 		ctx.Reset()
 		mergeWithData, hasInMemoryData, err := mergeWith.Read(ctx, id, blockStart, nsCtx)
 		if err != nil {
-			return err
+			return closer, err
 		}
 		if hasInMemoryData {
 			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData)
 		}
 
-		// tagsIter is never nil. These tags will be valid as long as the IDs
-		// are valid, and the IDs are valid for the duration of the file writing.
-		tags, err := convert.TagsFromTagsIter(id, tagsIter, identPool)
-		tagsIter.Close()
-		if err != nil {
-			return err
-		}
-		tagsToFinalize = append(tagsToFinalize, tags)
+		// Inform the writer to finalize the ID and tag iterator once
+		// the volume is written.
+		metadata := persist.NewMetadataFromIDAndTagIterator(id, tagsIter,
+			persist.MetadataOptions{
+				FinalizeID:          true,
+				FinalizeTagIterator: true,
+			})
 
 		// In the special (but common) case that we're just copying the series data from the old file
 		// into the new one without merging or adding any additional data we can avoid recalculating
@@ -232,15 +212,15 @@ func (m *merger) Merge(
 		if len(segmentReaders) == 1 && hasInMemoryData == false {
 			segment, err := segmentReaders[0].Segment()
 			if err != nil {
-				return err
+				return closer, err
 			}
 
-			if err := persistSegmentWithChecksum(id, tags, segment, checksum, prepared.Persist); err != nil {
-				return err
+			if err := persistSegmentWithChecksum(metadata, segment, checksum, prepared.Persist); err != nil {
+				return closer, err
 			}
 		} else {
-			if err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist); err != nil {
-				return err
+			if err := persistSegmentReaders(metadata, segmentReaders, iterResources, prepared.Persist); err != nil {
+				return closer, err
 			}
 		}
 		// Closing the context will finalize the data returned from
@@ -254,18 +234,19 @@ func (m *merger) Merge(
 	ctx.Reset()
 	err = mergeWith.ForEachRemaining(
 		ctx, blockStart,
-		func(id ident.ID, tags ident.Tags, mergeWithData block.FetchBlockResult) error {
+		func(seriesMetadata doc.Document, mergeWithData block.FetchBlockResult) error {
 			segmentReaders = segmentReaders[:0]
 			segmentReaders = appendBlockReadersToSegmentReaders(segmentReaders, mergeWithData.Blocks)
-			err := persistSegmentReaders(id, tags, segmentReaders, iterResources, prepared.Persist)
+
+			metadata := persist.NewMetadata(seriesMetadata)
+			err := persistSegmentReaders(metadata, segmentReaders, iterResources, prepared.Persist)
 
 			if err == nil {
 				err = onFlush.OnFlushNewSeries(persist.OnFlushNewSeriesEvent{
-					Shard:      shard,
-					BlockStart: startTime,
-					FirstWrite: mergeWithData.FirstWrite,
-					ID:         id,
-					Tags:       tags,
+					Shard:          shard,
+					BlockStart:     startTime,
+					FirstWrite:     mergeWithData.FirstWrite,
+					SeriesMetadata: seriesMetadata,
 				})
 			}
 
@@ -278,12 +259,11 @@ func (m *merger) Merge(
 			return err
 		}, nsCtx)
 	if err != nil {
-		return err
+		return closer, err
 	}
 
-	// Close the flush preparer, which writes the rest of the files in the
-	// fileset.
-	return prepared.Close()
+	// NB(bodu): Return a deferred closer so that we can guarantee that cold index writes are persisted first.
+	return prepared.DeferClose()
 }
 
 func appendBlockReadersToSegmentReaders(segReaders []xio.SegmentReader, brs []xio.BlockReader) []xio.SegmentReader {
@@ -304,8 +284,7 @@ func segmentReaderFromData(
 }
 
 func persistSegmentReaders(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	segReaders []xio.SegmentReader,
 	ir iterResources,
 	persistFn persist.DataFn,
@@ -315,15 +294,14 @@ func persistSegmentReaders(
 	}
 
 	if len(segReaders) == 1 {
-		return persistSegmentReader(id, tags, segReaders[0], persistFn)
+		return persistSegmentReader(metadata, segReaders[0], persistFn)
 	}
 
-	return persistIter(id, tags, segReaders, ir, persistFn)
+	return persistIter(metadata, segReaders, ir, persistFn)
 }
 
 func persistIter(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	segReaders []xio.SegmentReader,
 	ir iterResources,
 	persistFn persist.DataFn,
@@ -344,12 +322,11 @@ func persistIter(
 	}
 
 	segment := encoder.Discard()
-	return persistSegment(id, tags, segment, persistFn)
+	return persistSegment(metadata, segment, persistFn)
 }
 
 func persistSegmentReader(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	segmentReader xio.SegmentReader,
 	persistFn persist.DataFn,
 ) error {
@@ -357,27 +334,25 @@ func persistSegmentReader(
 	if err != nil {
 		return err
 	}
-	return persistSegment(id, tags, segment, persistFn)
+	return persistSegment(metadata, segment, persistFn)
 }
 
 func persistSegment(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	segment ts.Segment,
 	persistFn persist.DataFn,
 ) error {
 	checksum := segment.CalculateChecksum()
-	return persistFn(id, tags, segment, checksum)
+	return persistFn(metadata, segment, checksum)
 }
 
 func persistSegmentWithChecksum(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	segment ts.Segment,
 	checksum uint32,
 	persistFn persist.DataFn,
 ) error {
-	return persistFn(id, tags, segment, checksum)
+	return persistFn(metadata, segment, checksum)
 }
 
 type iterResources struct {

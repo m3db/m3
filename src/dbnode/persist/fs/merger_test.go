@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -437,12 +438,13 @@ func testMergeWith(
 	reader := mockReaderFromData(ctrl, diskData)
 
 	var persisted []persistedData
+	var deferClosed bool
 	preparer := persist.NewMockFlushPreparer(ctrl)
 	preparer.EXPECT().PrepareData(gomock.Any()).Return(
 		persist.PreparedDataPersist{
-			Persist: func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persisted = append(persisted, persistedData{
-					id: id,
+					metadata: metadata,
 					// NB(bodu): Once data is persisted the `ts.Segment` gets finalized
 					// so we can't read from it anymore or that violates the read after
 					// free invariant. So we `Clone` the segment here.
@@ -450,7 +452,13 @@ func testMergeWith(
 				})
 				return nil
 			},
-			Close: func() error { return nil },
+			DeferClose: func() (persist.DataCloser, error) {
+				return func() error {
+					require.False(t, deferClosed)
+					deferClosed = true
+					return nil
+				}, nil
+			},
 		}, nil)
 	nsCtx := namespace.Context{}
 
@@ -463,8 +471,11 @@ func testMergeWith(
 		BlockStart: startTime,
 	}
 	mergeWith := mockMergeWithFromData(t, ctrl, diskData, mergeTargetData)
-	err := merger.Merge(fsID, mergeWith, 1, preparer, nsCtx, &persist.NoOpColdFlushNamespace{})
+	close, err := merger.Merge(fsID, mergeWith, 1, preparer, nsCtx, &persist.NoOpColdFlushNamespace{})
 	require.NoError(t, err)
+	require.False(t, deferClosed)
+	require.NoError(t, close())
+	require.True(t, deferClosed)
 
 	assertPersistedAsExpected(t, persisted, expectedData)
 }
@@ -478,8 +489,8 @@ func assertPersistedAsExpected(
 	require.Equal(t, expectedData.Len(), len(persisted))
 
 	for _, actualData := range persisted {
-		id := actualData.id
-		data, exists := expectedData.Get(id)
+		id := actualData.metadata.BytesID()
+		data, exists := expectedData.Get(ident.StringID(string(id)))
 		require.True(t, exists)
 		seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)
 
@@ -521,7 +532,6 @@ func mockReaderFromData(
 ) *MockDataFileSetReader {
 	reader := NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(gomock.Any()).Return(nil)
-	reader.EXPECT().Entries().Return(diskData.Len()).Times(2)
 	reader.EXPECT().Close().Return(nil)
 	tagIter := ident.NewTagsIterator(ident.NewTags(ident.StringTag("tag-key0", "tag-val0")))
 	fakeChecksum := uint32(42)
@@ -592,7 +602,7 @@ func mockMergeWithFromData(
 						Start:  startTime,
 						Blocks: []xio.BlockReader{blockReaderFromData(data, segReader, startTime, blockSize)},
 					}
-					fn(id, ident.Tags{}, br)
+					fn(doc.Document{ID: id.Bytes()}, br)
 				}
 			}
 		})
@@ -601,8 +611,8 @@ func mockMergeWithFromData(
 }
 
 type persistedData struct {
-	id      ident.ID
-	segment ts.Segment
+	metadata persist.Metadata
+	segment  ts.Segment
 }
 
 func datapointsFromSegment(t *testing.T, seg ts.Segment) []ts.Datapoint {

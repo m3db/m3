@@ -347,7 +347,7 @@ func testNamespaceIndexHighConcurrentQueries(
 				for _, entry := range results.Results.Map().Iter() {
 					id := entry.Key().String()
 
-					doc, err := convert.FromMetricIterNoClone(entry.Key(), entry.Value())
+					doc, err := convert.FromSeriesIDAndTagIter(entry.Key(), entry.Value())
 					require.NoError(t, err)
 					if err != nil {
 						continue // this will fail the test anyway, but don't want to panic

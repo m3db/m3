@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
@@ -303,7 +304,7 @@ func TestServiceQuery(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	limit := int64(10)
@@ -495,7 +496,7 @@ func TestServiceQueryUnknownErr(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{}, unknownErr)
 
 	limit := int64(10)
@@ -1596,7 +1597,7 @@ func TestServiceFetchTagged(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
@@ -1792,7 +1793,7 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
@@ -1865,7 +1866,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 		index.QueryOptions{
 			StartInclusive: start,
 			EndExclusive:   end,
-			Limit:          10,
+			SeriesLimit:    10,
 		}).Return(index.QueryResult{}, fmt.Errorf("random err"))
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
 		NameSpace:  []byte(nsID),
@@ -1915,7 +1916,7 @@ func TestServiceAggregate(t *testing.T) {
 			QueryOptions: index.QueryOptions{
 				StartInclusive: start,
 				EndExclusive:   end,
-				Limit:          10,
+				SeriesLimit:    10,
 			},
 			FieldFilter: index.AggregateFieldFilter{
 				[]byte("foo"), []byte("bar"),
@@ -1998,7 +1999,7 @@ func TestServiceAggregateNameOnly(t *testing.T) {
 			QueryOptions: index.QueryOptions{
 				StartInclusive: start,
 				EndExclusive:   end,
-				Limit:          10,
+				SeriesLimit:    10,
 			},
 			FieldFilter: index.AggregateFieldFilter{
 				[]byte("foo"), []byte("bar"),
@@ -2250,7 +2251,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		{"bar", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(len(values), ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
@@ -2304,7 +2305,7 @@ func TestServiceWriteBatchRawV2SingleNS(t *testing.T) {
 		{"bar", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(len(values), ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
@@ -2361,8 +2362,8 @@ func TestServiceWriteBatchRawV2MultiNS(t *testing.T) {
 			{"bar", time.Now().Truncate(time.Second), 42.42},
 		}
 
-		writeBatch1 = ts.NewWriteBatch(len(values), ident.StringID(nsID1), nil)
-		writeBatch2 = ts.NewWriteBatch(len(values), ident.StringID(nsID2), nil)
+		writeBatch1 = writes.NewWriteBatch(len(values), ident.StringID(nsID1), nil)
+		writeBatch2 = writes.NewWriteBatch(len(values), ident.StringID(nsID2), nil)
 	)
 
 	mockDB.EXPECT().
@@ -2455,7 +2456,7 @@ func TestServiceWriteBatchRawOverMaxOutstandingRequests(t *testing.T) {
 		testIsComplete       = make(chan struct{}, 0)
 		requestIsOutstanding = make(chan struct{}, 0)
 	)
-	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(len(values), ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Do(func(nsID ident.ID, numValues int) {
@@ -2563,7 +2564,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(len(values), ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
@@ -2629,7 +2630,7 @@ func TestServiceWriteTaggedBatchRawV2(t *testing.T) {
 		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
+	writeBatch := writes.NewWriteBatch(len(values), ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
@@ -2696,8 +2697,8 @@ func TestServiceWriteTaggedBatchRawV2MultiNS(t *testing.T) {
 			{"foo", "a|b", time.Now().Truncate(time.Second), 12.34},
 			{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
 		}
-		writeBatch1 = ts.NewWriteBatch(len(values), ident.StringID(nsID1), nil)
-		writeBatch2 = ts.NewWriteBatch(len(values), ident.StringID(nsID2), nil)
+		writeBatch1 = writes.NewWriteBatch(len(values), ident.StringID(nsID1), nil)
+		writeBatch2 = writes.NewWriteBatch(len(values), ident.StringID(nsID2), nil)
 	)
 
 	mockDB.EXPECT().

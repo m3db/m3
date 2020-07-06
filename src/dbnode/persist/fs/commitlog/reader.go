@@ -288,33 +288,19 @@ func (r *reader) seriesMetadataForEntry(
 	// Find or allocate the namespace ID.
 	namespaceID := r.namespaceIDReused(decoded.Namespace)
 
-	var (
-		idPool      = r.opts.commitLogOptions.IdentifierPool()
-		tags        ident.Tags
-		tagBytesLen = len(decoded.EncodedTags)
-	)
-	if tagBytesLen != 0 {
-		r.tagDecoderCheckedBytes.Reset(decoded.EncodedTags)
-		r.tagDecoder.Reset(r.tagDecoderCheckedBytes)
+	// Need to copy encoded tags since will be invalid when
+	// progressing to next record.
+	encodedTags := append(
+		make([]byte, 0, len(decoded.EncodedTags)),
+		decoded.EncodedTags...)
 
-		tags = idPool.Tags()
-		for r.tagDecoder.Next() {
-			curr := r.tagDecoder.Current()
-			tags.Append(idPool.CloneTag(curr))
-		}
-		err = r.tagDecoder.Err()
-		if err != nil {
-			return ts.Series{}, err
-		}
-	}
-
-	seriesID := idPool.BinaryID(id)
+	idPool := r.opts.commitLogOptions.IdentifierPool()
 	metadata = ts.Series{
 		UniqueIndex: entry.Index,
-		ID:          seriesID,
+		ID:          idPool.BinaryID(id),
 		Namespace:   namespaceID,
 		Shard:       decoded.Shard,
-		Tags:        tags,
+		EncodedTags: ts.EncodedTags(encodedTags),
 	}
 
 	r.metadataLookup[entry.Index] = metadata

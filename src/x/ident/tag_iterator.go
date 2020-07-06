@@ -22,6 +22,8 @@ package ident
 
 import (
 	"errors"
+
+	"github.com/m3db/m3/src/m3ninx/doc"
 )
 
 var (
@@ -52,29 +54,69 @@ func NewTagStringsIterator(inputs ...string) (TagIterator, error) {
 
 // NewTagsIterator returns a TagsIterator over a set of tags.
 func NewTagsIterator(tags Tags) TagsIterator {
-	return newTagSliceIter(tags, nil)
+	return newTagSliceIter(tags, nil, nil)
+}
+
+// NewFieldsTagsIterator returns a TagsIterator over a set of fields.
+func NewFieldsTagsIterator(fields []doc.Field) TagsIterator {
+	return newTagSliceIter(Tags{}, fields, nil)
 }
 
 func newTagSliceIter(
 	tags Tags,
+	fields []doc.Field,
 	pool Pool,
 ) *tagSliceIter {
-	iter := &tagSliceIter{pool: pool}
-	iter.Reset(tags)
+	iter := &tagSliceIter{
+		nameBytesID:  NewReuseableBytesID(),
+		valueBytesID: NewReuseableBytesID(),
+		pool:         pool,
+	}
+	iter.currentReuseableTag = Tag{
+		Name:  iter.nameBytesID,
+		Value: iter.valueBytesID,
+	}
+	if len(tags.Values()) > 0 {
+		iter.Reset(tags)
+	} else {
+		iter.ResetFields(fields)
+	}
 	return iter
 }
 
+type tagsSliceType uint
+
+const (
+	tagSliceType tagsSliceType = iota
+	fieldSliceType
+)
+
+type tagsSlice struct {
+	tags   []Tag
+	fields []doc.Field
+}
+
 type tagSliceIter struct {
-	backingSlice []Tag
-	currentIdx   int
-	currentTag   Tag
-	pool         Pool
+	backingSlice        tagsSlice
+	currentIdx          int
+	currentTag          Tag
+	currentReuseableTag Tag
+	nameBytesID         *ReuseableBytesID
+	valueBytesID        *ReuseableBytesID
+	pool                Pool
 }
 
 func (i *tagSliceIter) Next() bool {
 	i.currentIdx++
-	if i.currentIdx < len(i.backingSlice) {
-		i.currentTag = i.backingSlice[i.currentIdx]
+	l, t := i.lengthAndType()
+	if i.currentIdx < l {
+		if t == tagSliceType {
+			i.currentTag = i.backingSlice.tags[i.currentIdx]
+		} else {
+			i.nameBytesID.Reset(i.backingSlice.fields[i.currentIdx].Name)
+			i.valueBytesID.Reset(i.backingSlice.fields[i.currentIdx].Value)
+			i.currentTag = i.currentReuseableTag
+		}
 		return true
 	}
 	i.currentTag = Tag{}
@@ -97,7 +139,7 @@ func (i *tagSliceIter) Err() error {
 }
 
 func (i *tagSliceIter) Close() {
-	i.backingSlice = nil
+	i.backingSlice = tagsSlice{}
 	i.currentIdx = 0
 	i.currentTag = Tag{}
 
@@ -109,11 +151,19 @@ func (i *tagSliceIter) Close() {
 }
 
 func (i *tagSliceIter) Len() int {
-	return len(i.backingSlice)
+	l, _ := i.lengthAndType()
+	return l
+}
+
+func (i *tagSliceIter) lengthAndType() (int, tagsSliceType) {
+	if l := len(i.backingSlice.tags); l > 0 {
+		return l, tagSliceType
+	}
+	return len(i.backingSlice.fields), fieldSliceType
 }
 
 func (i *tagSliceIter) Remaining() int {
-	if r := len(i.backingSlice) - 1 - i.currentIdx; r >= 0 {
+	if r := i.Len() - 1 - i.currentIdx; r >= 0 {
 		return r
 	}
 	return 0
@@ -122,17 +172,18 @@ func (i *tagSliceIter) Remaining() int {
 func (i *tagSliceIter) Duplicate() TagIterator {
 	if i.pool != nil {
 		iter := i.pool.TagsIterator()
-		iter.Reset(Tags{values: i.backingSlice})
+		if len(i.backingSlice.tags) > 0 {
+			iter.Reset(Tags{values: i.backingSlice.tags})
+		} else {
+			iter.ResetFields(i.backingSlice.fields)
+		}
 		for j := 0; j <= i.currentIdx; j++ {
 			iter.Next()
 		}
 		return iter
 	}
-	return &tagSliceIter{
-		backingSlice: i.backingSlice,
-		currentIdx:   i.currentIdx,
-		currentTag:   i.currentTag,
-	}
+	return newTagSliceIter(Tags{values: i.backingSlice.tags},
+		i.backingSlice.fields, i.pool)
 }
 
 func (i *tagSliceIter) rewind() {
@@ -141,7 +192,12 @@ func (i *tagSliceIter) rewind() {
 }
 
 func (i *tagSliceIter) Reset(tags Tags) {
-	i.backingSlice = tags.Values()
+	i.backingSlice = tagsSlice{tags: tags.Values()}
+	i.rewind()
+}
+
+func (i *tagSliceIter) ResetFields(fields []doc.Field) {
+	i.backingSlice = tagsSlice{fields: fields}
 	i.rewind()
 }
 

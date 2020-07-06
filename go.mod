@@ -36,7 +36,7 @@ require (
 	github.com/go-playground/locales v0.12.2-0.20190430153329-630ebbb60284 // indirect
 	github.com/go-playground/universal-translator v0.16.1-0.20170327191703-71201497bace // indirect
 	github.com/gogo/protobuf v1.3.1
-	github.com/golang/mock v1.3.1-0.20190508161146-9fa652df1129
+	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.3.3
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.4.0

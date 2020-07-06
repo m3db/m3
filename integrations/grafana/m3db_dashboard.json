@@ -41,8 +41,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
-  "id": null,
-  "iteration": 1538144350249,
+  "iteration": 1592797277408,
   "links": [],
   "panels": [
     {
@@ -104,6 +103,7 @@
       "maxDataPoints": 100,
       "nullPointMode": "connected",
       "nullText": null,
+      "options": {},
       "postfix": "",
       "postfixFontSize": "50%",
       "prefix": "",
@@ -121,7 +121,7 @@
         "lineColor": "rgb(31, 120, 193)",
         "show": true
       },
-      "tableColumn": "Value",
+      "tableColumn": "",
       "targets": [
         {
           "expr": "sum(database_bootstrapped{instance=~\"$instance\"} == bool 1)",
@@ -146,7 +146,10 @@
         }
       ],
       "valueName": "current",
-      "y_formats": ["short", "short"]
+      "y_formats": [
+        "short",
+        "short"
+      ]
     },
     {
       "cacheTimeout": null,
@@ -193,6 +196,7 @@
       "maxDataPoints": 100,
       "nullPointMode": "connected",
       "nullText": null,
+      "options": {},
       "postfix": "",
       "postfixFontSize": "50%",
       "prefix": "",
@@ -210,7 +214,7 @@
         "lineColor": "rgb(31, 120, 193)",
         "show": true
       },
-      "tableColumn": "Value",
+      "tableColumn": "",
       "targets": [
         {
           "expr": "sum(database_bootstrapped{instance=~\"$instance\"} == bool 0)",
@@ -234,7 +238,10 @@
         }
       ],
       "valueName": "current",
-      "y_formats": ["short", "short"]
+      "y_formats": [
+        "short",
+        "short"
+      ]
     },
     {
       "cacheTimeout": null,
@@ -281,6 +288,7 @@
       "maxDataPoints": 100,
       "nullPointMode": "connected",
       "nullText": null,
+      "options": {},
       "postfix": "",
       "postfixFontSize": "50%",
       "prefix": "",
@@ -298,7 +306,7 @@
         "lineColor": "rgb(31, 120, 193)",
         "show": true
       },
-      "tableColumn": "revision",
+      "tableColumn": "",
       "targets": [
         {
           "expr": "count(build_information{instance=~\"$instance\"}) by (revision)",
@@ -322,7 +330,10 @@
         }
       ],
       "valueName": "current",
-      "y_formats": ["short", "short"]
+      "y_formats": [
+        "short",
+        "short"
+      ]
     },
     {
       "cacheTimeout": null,
@@ -369,6 +380,7 @@
       "maxDataPoints": 100,
       "nullPointMode": "connected",
       "nullText": null,
+      "options": {},
       "postfix": "",
       "postfixFontSize": "50%",
       "prefix": "",
@@ -386,7 +398,7 @@
         "lineColor": "rgb(31, 120, 193)",
         "show": true
       },
-      "tableColumn": "go_version",
+      "tableColumn": "",
       "targets": [
         {
           "expr": "count(build_information{instance=~\"$instance\"}) by (go_version)",
@@ -410,7 +422,10 @@
         }
       ],
       "valueName": "current",
-      "y_formats": ["short", "short"]
+      "y_formats": [
+        "short",
+        "short"
+      ]
     },
     {
       "collapsed": false,
@@ -435,6 +450,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -442,6 +458,7 @@
         "x": 0,
         "y": 5
       },
+      "hiddenSeries": false,
       "id": 1,
       "legend": {
         "avg": false,
@@ -456,6 +473,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -483,6 +503,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Commit Log Queue Length",
       "tooltip": {
@@ -529,6 +550,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -536,6 +558,7 @@
         "x": 8,
         "y": 5
       },
+      "hiddenSeries": false,
       "id": 2,
       "legend": {
         "avg": false,
@@ -550,6 +573,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -578,6 +604,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Commit Log Writes / Second (Includes replication)",
       "tooltip": {
@@ -624,6 +651,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -631,6 +659,7 @@
         "x": 16,
         "y": 5
       },
+      "hiddenSeries": false,
       "id": 45,
       "legend": {
         "avg": false,
@@ -645,6 +674,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -667,6 +699,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "New Series Inserts / Second",
       "tooltip": {
@@ -1034,6 +1067,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -1041,6 +1075,7 @@
         "x": 0,
         "y": 14
       },
+      "hiddenSeries": false,
       "id": 81,
       "legend": {
         "avg": false,
@@ -1055,6 +1090,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -1114,6 +1152,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Service Reads / Writes / Second",
       "tooltip": {
@@ -1160,6 +1199,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -1167,6 +1207,7 @@
         "x": 8,
         "y": 14
       },
+      "hiddenSeries": false,
       "id": 82,
       "legend": {
         "avg": false,
@@ -1181,6 +1222,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -1200,6 +1244,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Server Side Write Latency (p99)",
       "tooltip": {
@@ -1246,6 +1291,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -1253,6 +1299,7 @@
         "x": 16,
         "y": 14
       },
+      "hiddenSeries": false,
       "id": 83,
       "legend": {
         "avg": false,
@@ -1267,6 +1314,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -1287,6 +1337,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Server Side Fetch Latency (p99)",
       "tooltip": {
@@ -1347,6 +1398,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -1354,6 +1406,7 @@
         "x": 0,
         "y": 22
       },
+      "hiddenSeries": false,
       "id": 13,
       "legend": {
         "avg": false,
@@ -1368,6 +1421,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -1389,6 +1445,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Process CPU Seconds",
       "tooltip": {
@@ -1434,6 +1491,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -1441,6 +1499,7 @@
         "x": 8,
         "y": 22
       },
+      "hiddenSeries": false,
       "id": 14,
       "legend": {
         "avg": false,
@@ -1455,6 +1514,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -1487,6 +1549,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Memory Utilization - Resident",
       "tooltip": {
@@ -1532,6 +1595,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -1539,6 +1603,7 @@
         "x": 16,
         "y": 22
       },
+      "hiddenSeries": false,
       "id": 110,
       "legend": {
         "avg": false,
@@ -1553,6 +1618,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -1575,6 +1643,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Memory - Mmaps (Anon and File)",
       "tooltip": {
@@ -1620,6 +1689,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -1627,6 +1697,7 @@
         "x": 0,
         "y": 29
       },
+      "hiddenSeries": false,
       "id": 61,
       "legend": {
         "avg": false,
@@ -1641,6 +1712,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -1661,6 +1735,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Num File Descriptors",
       "tooltip": {
@@ -1706,6 +1781,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -1713,6 +1789,7 @@
         "x": 8,
         "y": 29
       },
+      "hiddenSeries": false,
       "id": 49,
       "legend": {
         "avg": false,
@@ -1727,6 +1804,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -1747,6 +1827,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Num Go Routines",
       "tooltip": {
@@ -1792,6 +1873,7 @@
       "editable": true,
       "error": false,
       "fill": 0,
+      "fillGradient": 0,
       "grid": {},
       "gridPos": {
         "h": 7,
@@ -1799,6 +1881,7 @@
         "x": 16,
         "y": 29
       },
+      "hiddenSeries": false,
       "id": 39,
       "legend": {
         "avg": false,
@@ -1813,6 +1896,9 @@
       "linewidth": 1,
       "links": [],
       "nullPointMode": "connected",
+      "options": {
+        "dataLinks": []
+      },
       "percentage": false,
       "pointradius": 5,
       "points": false,
@@ -1832,6 +1918,7 @@
       ],
       "thresholds": [],
       "timeFrom": null,
+      "timeRegions": [],
       "timeShift": null,
       "title": "Disk Free Space - Not Implemented",
       "tooltip": {
@@ -4384,7 +4471,7 @@
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.2814048282536148,
-              "refId": "B"
+              "refId": "A"
             }
           ],
           "thresholds": [],
@@ -5126,11 +5213,11 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(build_information{}) by (build_version, revision)",
+              "expr": "sum(build_information{}) by (revision)",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.5783520603949805,
-              "legendFormat": "{{build_version}} ({{revision}})",
+              "legendFormat": "{{revision}}",
               "refId": "A"
             }
           ],
@@ -5194,12 +5281,14 @@
           "dashes": false,
           "datasource": "$datasource",
           "fill": 1,
+          "fillGradient": 0,
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 0,
             "y": 46
           },
+          "hiddenSeries": false,
           "id": 69,
           "legend": {
             "avg": false,
@@ -5214,6 +5303,9 @@
           "linewidth": 1,
           "links": [],
           "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
           "percentage": false,
           "pointradius": 5,
           "points": false,
@@ -5234,10 +5326,17 @@
               "hide": false,
               "intervalFactor": 1,
               "refId": "A"
+            },
+            {
+              "expr": "rate(dbindex_index_error{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "B"
             }
           ],
           "thresholds": [],
           "timeFrom": null,
+          "timeRegions": [],
           "timeShift": null,
           "title": "Index Queue",
           "tooltip": {
@@ -5288,30 +5387,36 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 105
+            "y": 46
           },
           "hiddenSeries": false,
-          "id": 116,
+          "id": 111,
           "legend": {
             "avg": false,
             "current": false,
             "max": false,
             "min": false,
-            "show": true,
+            "show": false,
             "total": false,
             "values": false
           },
           "lines": true,
           "linewidth": 1,
+          "links": [],
           "nullPointMode": "null",
           "options": {
             "dataLinks": []
           },
           "percentage": false,
-          "pointradius": 2,
+          "pointradius": 5,
           "points": false,
           "renderer": "flot",
-          "seriesOverrides": [],
+          "seriesOverrides": [
+            {
+              "alias": "name:index-error error_type:async-insert | sum",
+              "yaxis": 2
+            }
+          ],
           "spaceLength": 10,
           "stack": false,
           "steppedLine": false,
@@ -5319,6 +5424,7 @@
             {
               "expr": "rate(dbindex_index_error{instance=~\"$instance\"}[$step])",
               "format": "time_series",
+              "hide": false,
               "intervalFactor": 1,
               "refId": "A"
             }
@@ -5327,7 +5433,108 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Index Errors",
+          "title": "Indexing Errors",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "$datasource",
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 46
+          },
+          "hiddenSeries": false,
+          "id": 112,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": false,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "alias": "name:index-error error_type:async-insert | sum",
+              "yaxis": 2
+            }
+          ],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "rate(dbshard_insert_async_errors{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "hide": false,
+              "intervalFactor": 1,
+              "refId": "A"
+            },
+            {
+              "expr": "rate(dbshard_insert_queue_inserts_batch_errors{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "refId": "B"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Shard Insert Errors",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -5375,8 +5582,8 @@
           "gridPos": {
             "h": 7,
             "w": 8,
-            "x": 16,
-            "y": 105
+            "x": 0,
+            "y": 53
           },
           "hiddenSeries": false,
           "id": 79,
@@ -5463,33 +5670,34 @@
           "dashLength": 10,
           "dashes": false,
           "datasource": "$datasource",
-          "fill": 1,
+          "fill": 0,
           "fillGradient": 0,
           "gridPos": {
             "h": 7,
             "w": 8,
-            "x": 0,
-            "y": 112
+            "x": 8,
+            "y": 53
           },
           "hiddenSeries": false,
-          "id": 114,
+          "id": 113,
           "legend": {
             "avg": false,
             "current": false,
             "max": false,
             "min": false,
-            "show": true,
+            "show": false,
             "total": false,
             "values": false
           },
           "lines": true,
           "linewidth": 1,
+          "links": [],
           "nullPointMode": "null",
           "options": {
             "dataLinks": []
           },
           "percentage": false,
-          "pointradius": 2,
+          "pointradius": 5,
           "points": false,
           "renderer": "flot",
           "seriesOverrides": [],
@@ -5498,14 +5706,196 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(dbshard_insert_async_errors{instance=~\"$instance\"}[$step])",
+              "expr": "index_block_compaction_task_run_latency{instance=~\"$instance\",quantile=\"0.99\",compaction_type=\"foreground\"}",
               "format": "time_series",
               "intervalFactor": 1,
+              "legendFormat": "{{compaction_type}} {{instance}} p{{quantile}}",
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Indexing foreground compactions",
+          "tooltip": {
+            "shared": false,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "s",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "$datasource",
+          "fill": 0,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 53
+          },
+          "hiddenSeries": false,
+          "id": 114,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": false,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "index_block_compaction_task_run_latency{instance=~\"$instance\",quantile=\"0.99\",compaction_type=\"background\"}",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "{{compaction_type}} {{instance}} p{{quantile}}",
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Indexing background compactions",
+          "tooltip": {
+            "shared": false,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "s",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ],
+          "yaxis": {
+            "align": false,
+            "alignLevel": null
+          }
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "$datasource",
+          "fill": 0,
+          "fillGradient": 0,
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 60
+          },
+          "hiddenSeries": false,
+          "id": 87,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": false,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "rate(index_block_compaction_plan_run_latency_count{instance=~\"$instance\"}[$step])",
+              "format": "time_series",
+              "intervalFactor": 1,
+              "legendFormat": "",
               "refId": "A"
             },
             {
-              "expr": "rate(dbshard_insert_queue_inserts_batch_errors{instance=~\"$instance\"}[$step])",
+              "expr": "dbindex_num_segments_compacting{instance=~\"$instance\"}",
               "format": "time_series",
+              "hide": true,
               "intervalFactor": 1,
               "refId": "B"
             }
@@ -5514,9 +5904,9 @@
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Shard Insert Errors",
+          "title": "Num Compactions",
           "tooltip": {
-            "shared": true,
+            "shared": false,
             "sort": 0,
             "value_type": "individual"
           },
@@ -5573,12 +5963,14 @@
           "dashes": false,
           "datasource": "$datasource",
           "fill": 0,
+          "fillGradient": 0,
           "gridPos": {
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 47
+            "y": 68
           },
+          "hiddenSeries": false,
           "id": 85,
           "legend": {
             "avg": false,
@@ -5593,6 +5985,9 @@
           "linewidth": 1,
           "links": [],
           "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
           "percentage": false,
           "pointradius": 5,
           "points": false,
@@ -5611,6 +6006,7 @@
           ],
           "thresholds": [],
           "timeFrom": null,
+          "timeRegions": [],
           "timeShift": null,
           "title": "Num Docs",
           "tooltip": {
@@ -5656,12 +6052,14 @@
           "dashes": false,
           "datasource": "$datasource",
           "fill": 0,
+          "fillGradient": 0,
           "gridPos": {
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 47
+            "y": 68
           },
+          "hiddenSeries": false,
           "id": 86,
           "legend": {
             "avg": false,
@@ -5676,6 +6074,9 @@
           "linewidth": 1,
           "links": [],
           "nullPointMode": "null",
+          "options": {
+            "dataLinks": []
+          },
           "percentage": false,
           "pointradius": 5,
           "points": false,
@@ -5694,6 +6095,7 @@
           ],
           "thresholds": [],
           "timeFrom": null,
+          "timeRegions": [],
           "timeShift": null,
           "title": "Num Segments",
           "tooltip": {
@@ -5739,185 +6141,14 @@
           "dashes": false,
           "datasource": "$datasource",
           "fill": 0,
-          "gridPos": {
-            "h": 7,
-            "w": 8,
-            "x": 0,
-            "y": 54
-          },
-          "id": 87,
-          "legend": {
-            "avg": false,
-            "current": false,
-            "max": false,
-            "min": false,
-            "show": false,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "links": [],
-          "nullPointMode": "null",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "renderer": "flot",
-          "seriesOverrides": [],
-          "spaceLength": 10,
-          "stack": false,
-          "steppedLine": false,
-          "targets": [
-            {
-              "expr": "dbindex_num_active_compactions{instance=~\"$instance\"}",
-              "format": "time_series",
-              "intervalFactor": 1,
-              "refId": "A"
-            },
-            {
-              "expr": "dbindex_num_segments_compacting{instance=~\"$instance\"}",
-              "format": "time_series",
-              "hide": true,
-              "intervalFactor": 1,
-              "refId": "B"
-            }
-          ],
-          "thresholds": [],
-          "timeFrom": null,
-          "timeShift": null,
-          "title": "Num Compactions",
-          "tooltip": {
-            "shared": true,
-            "sort": 0,
-            "value_type": "individual"
-          },
-          "type": "graph",
-          "xaxis": {
-            "buckets": null,
-            "mode": "time",
-            "name": null,
-            "show": true,
-            "values": []
-          },
-          "yaxes": [
-            {
-              "format": "short",
-              "label": null,
-              "logBase": 1,
-              "max": null,
-              "min": null,
-              "show": true
-            },
-            {
-              "format": "short",
-              "label": null,
-              "logBase": 1,
-              "max": null,
-              "min": null,
-              "show": true
-            }
-          ],
-          "yaxis": {
-            "align": false,
-            "alignLevel": null
-          }
-        },
-        {
-          "aliasColors": {},
-          "bars": false,
-          "dashLength": 10,
-          "dashes": false,
-          "datasource": "$datasource",
-          "fill": 0,
-          "gridPos": {
-            "h": 7,
-            "w": 8,
-            "x": 16,
-            "y": 54
-          },
-          "id": 88,
-          "legend": {
-            "avg": false,
-            "current": false,
-            "max": false,
-            "min": false,
-            "show": false,
-            "total": false,
-            "values": false
-          },
-          "lines": true,
-          "linewidth": 1,
-          "links": [],
-          "nullPointMode": "null",
-          "percentage": false,
-          "pointradius": 5,
-          "points": false,
-          "renderer": "flot",
-          "seriesOverrides": [],
-          "spaceLength": 10,
-          "stack": false,
-          "steppedLine": false,
-          "targets": [
-            {
-              "expr": "dbindex_compaction_latency{instance=~\"$instance\"}",
-              "format": "time_series",
-              "intervalFactor": 1,
-              "refId": "A"
-            }
-          ],
-          "thresholds": [],
-          "timeFrom": null,
-          "timeShift": null,
-          "title": "Compaction Latency",
-          "tooltip": {
-            "shared": true,
-            "sort": 0,
-            "value_type": "individual"
-          },
-          "type": "graph",
-          "xaxis": {
-            "buckets": null,
-            "mode": "time",
-            "name": null,
-            "show": true,
-            "values": []
-          },
-          "yaxes": [
-            {
-              "format": "ms",
-              "label": null,
-              "logBase": 1,
-              "max": null,
-              "min": null,
-              "show": true
-            },
-            {
-              "format": "short",
-              "label": null,
-              "logBase": 1,
-              "max": null,
-              "min": null,
-              "show": true
-            }
-          ],
-          "yaxis": {
-            "align": false,
-            "alignLevel": null
-          }
-        },
-        {
-          "aliasColors": {},
-          "bars": false,
-          "dashLength": 10,
-          "dashes": false,
-          "datasource": "$datasource",
-          "fill": 0,
+          "fillGradient": 0,
           "gridPos": {
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 61
+            "y": 75
           },
+          "hiddenSeries": false,
           "id": 74,
           "legend": {
             "avg": false,
@@ -5932,6 +6163,9 @@
           "linewidth": 1,
           "links": [],
           "nullPointMode": "connected",
+          "options": {
+            "dataLinks": []
+          },
           "percentage": false,
           "pointradius": 5,
           "points": true,
@@ -5956,6 +6190,7 @@
           ],
           "thresholds": [],
           "timeFrom": null,
+          "timeRegions": [],
           "timeShift": null,
           "title": "Evicted/Sealed blocks",
           "tooltip": {
@@ -6001,18 +6236,21 @@
     }
   ],
   "refresh": false,
-  "schemaVersion": 16,
+  "schemaVersion": 22,
   "style": "dark",
-  "tags": ["disable-sync"],
+  "tags": [],
   "templating": {
     "list": [
       {
         "current": {
-          "text": "M3Query - Prometheus",
-          "value": "M3Query - Prometheus"
+          "selected": false,
+          "text": "Prometheus",
+          "value": "Prometheus"
         },
         "hide": 0,
+        "includeAll": false,
         "label": null,
+        "multi": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
@@ -6124,6 +6362,7 @@
         ],
         "query": "series_pool,block_pool,encoder_pool,context_pool,iterator_pool,multi_iterator_pool,segment_reader_pool,bytes_pool,fetch_block_metadata_results_pool,fetch_blocks_metadata_results_pool,block_metadata_pool,block_metadata_slice_pool,blocks_metadata_pool,blocks_metadata_slice_pool,host_block_metadata_slice_pool,identifier_pool",
         "refresh": 0,
+        "skipUrlSync": false,
         "type": "custom"
       },
       {
@@ -6161,12 +6400,19 @@
           }
         ],
         "query": "30s,1m,5m,10m",
+        "skipUrlSync": false,
         "type": "custom"
       },
       {
         "allValue": null,
-        "current": {},
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
         "datasource": "$datasource",
+        "definition": "",
         "hide": 0,
         "includeAll": true,
         "label": "instance",
@@ -6176,6 +6422,7 @@
         "query": "label_values(commitlog_writes_queued,instance)",
         "refresh": 2,
         "regex": "",
+        "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
         "tags": [],
@@ -6203,10 +6450,20 @@
       "2h",
       "1d"
     ],
-    "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+    "time_options": [
+      "5m",
+      "15m",
+      "1h",
+      "6h",
+      "12h",
+      "24h",
+      "2d",
+      "7d",
+      "30d"
+    ]
   },
   "timezone": "browser",
   "title": "M3DB Node Details",
   "uid": "99SFck0iza",
-  "version": 4
+  "version": 1
 }

@@ -165,7 +165,7 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 
 	fanoutOpts := options.FanoutOptions
 	result := &rpc.FetchOptions{
-		Limit:             int64(options.Limit),
+		Limit:             int64(options.SeriesLimit),
 		IncludeResolution: options.IncludeResolution,
 	}
 
@@ -463,7 +463,7 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 		return result, nil
 	}
 
-	result.Limit = int(rpcFetchOptions.Limit)
+	result.SeriesLimit = int(rpcFetchOptions.Limit)
 	result.IncludeResolution = rpcFetchOptions.GetIncludeResolution()
 	unagg, err := decodeFanoutOption(rpcFetchOptions.GetUnaggregated())
 	if err != nil {

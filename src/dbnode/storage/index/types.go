@@ -82,7 +82,8 @@ type Query struct {
 type QueryOptions struct {
 	StartInclusive    time.Time
 	EndExclusive      time.Time
-	Limit             int
+	SeriesLimit       int
+	DocsLimit         int
 	RequireExhaustive bool
 	IterationOptions  IterationOptions
 }
@@ -92,10 +93,16 @@ type IterationOptions struct {
 	SeriesIteratorConsolidator encoding.SeriesIteratorConsolidator
 }
 
-// LimitExceeded returns whether a given size exceeds the limit
-// the query options imposes, if it is enabled.
-func (o QueryOptions) LimitExceeded(size int) bool {
-	return o.Limit > 0 && size >= o.Limit
+// SeriesLimitExceeded returns whether a given size exceeds the
+// series limit the query options imposes, if it is enabled.
+func (o QueryOptions) SeriesLimitExceeded(size int) bool {
+	return o.SeriesLimit > 0 && size >= o.SeriesLimit
+}
+
+// DocsLimitExceeded returns whether a given size exceeds the
+// docs limit the query options imposes, if it is enabled.
+func (o QueryOptions) DocsLimitExceeded(size int) bool {
+	return o.DocsLimit > 0 && size >= o.DocsLimit
 }
 
 // AggregationOptions enables users to specify constraints on aggregations.
@@ -135,7 +142,7 @@ type BaseResults interface {
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
-	AddDocuments(batch []doc.Document) (size int, err error)
+	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
 
 	// Finalize releases any resources held by the Results object,
 	// including returning it to a backing pool.
@@ -207,7 +214,7 @@ type AggregateResults interface {
 	// i.e. it is not safe to use/modify the idents once this function returns.
 	AddFields(
 		batch []AggregateResultsEntry,
-	) (size int)
+	) (size, docsCount int)
 
 	// Map returns a map from tag name -> possible tag values,
 	// comprising aggregate results.

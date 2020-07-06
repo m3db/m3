@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -133,9 +134,9 @@ func setupStorage(ctrl *gomock.Controller, ex, ex2 bool) storage.Storage {
 		},
 	}
 
-	noChildrenResult := &storage.CompleteTagsResult{
+	noChildrenResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("__g1__"), Values: bs("bug", "bar", "baz")},
 		},
 		Metadata: block.ResultMetadata{
@@ -156,9 +157,9 @@ func setupStorage(ctrl *gomock.Controller, ex, ex2 bool) storage.Storage {
 		},
 	}
 
-	childrenResult := &storage.CompleteTagsResult{
+	childrenResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("__g1__"), Values: bs("baz", "bix", "bug")},
 		},
 		Metadata: block.ResultMetadata{

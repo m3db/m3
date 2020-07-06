@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
@@ -397,6 +398,7 @@ func writeToShard(
 	ctx context.Context,
 	t *testing.T,
 	shard *dbShard,
+	idx NamespaceIndex,
 	now time.Time,
 	id string,
 	shouldWrite bool,
@@ -404,7 +406,7 @@ func writeToShard(
 	tag := ident.Tag{Name: ident.StringID(id), Value: ident.StringID("")}
 	idTags := ident.NewTags(tag)
 	iter := ident.NewTagsIterator(idTags)
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID(id), iter, now,
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID(id), iter, now,
 		1.0, xtime.Second, nil, series.WriteOptions{
 			TruncateType: series.TypeBlock,
 			TransformOptions: series.WriteTransformOptions{
@@ -413,7 +415,13 @@ func writeToShard(
 			},
 		})
 	require.NoError(t, err)
-	require.Equal(t, shouldWrite, wasWritten)
+	require.Equal(t, shouldWrite, seriesWrite.WasWritten)
+	if seriesWrite.NeedsIndex {
+		err = idx.WritePending([]writes.PendingIndexInsert{
+			seriesWrite.PendingIndexInsert,
+		})
+		require.NoError(t, err)
+	}
 }
 
 func verifyShard(
@@ -471,7 +479,7 @@ func writeToShardAndVerify(
 	id string,
 	shouldWrite bool,
 ) {
-	writeToShard(ctx, t, shard, now, id, shouldWrite)
+	writeToShard(ctx, t, shard, idx, now, id, shouldWrite)
 	verifyShard(ctx, t, idx, now, next, id)
 }
 
@@ -546,9 +554,9 @@ func testShardForwardWriteTaggedAsyncRefCount(
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	writeToShard(ctx, t, shard, now, "foo", true)
-	writeToShard(ctx, t, shard, now, "bar", true)
-	writeToShard(ctx, t, shard, now, "baz", true)
+	writeToShard(ctx, t, shard, idx, now, "foo", true)
+	writeToShard(ctx, t, shard, idx, now, "bar", true)
+	writeToShard(ctx, t, shard, idx, now, "baz", true)
 
 	verifyShard(ctx, t, idx, now, next, "foo")
 	verifyShard(ctx, t, idx, now, next, "bar")
