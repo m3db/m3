@@ -304,13 +304,14 @@ func newDatabaseNamespace(
 
 	iops := opts.InstrumentOptions()
 	logger := iops.Logger().With(zap.String("namespace", id.String()))
-	iops = iops.SetLogger(logger)
+	iops = iops.
+		SetLogger(logger).
+		SetMetricsScope(iops.MetricsScope().Tagged(map[string]string{
+			"namespace": id.String(),
+		}))
 	opts = opts.SetInstrumentOptions(iops)
 
-	scope := iops.MetricsScope().SubScope("database").
-		Tagged(map[string]string{
-			"namespace": id.String(),
-		})
+	scope := iops.MetricsScope().SubScope("database")
 
 	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
