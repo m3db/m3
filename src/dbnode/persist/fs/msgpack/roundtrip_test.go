@@ -52,12 +52,12 @@ var (
 	}
 
 	testIndexEntry = schema.IndexEntry{
-		Index:       234,
-		ID:          []byte("testIndexEntry"),
-		Size:        5456,
-		Offset:      2390423,
-		Checksum:    134245634534,
-		EncodedTags: []byte("testEncodedTags"),
+		Index:        234,
+		ID:           []byte("testIndexEntry"),
+		Size:         5456,
+		Offset:       2390423,
+		DataChecksum: 134245634534,
+		EncodedTags:  []byte("testEncodedTags"),
 	}
 
 	testIndexSummary = schema.IndexSummary{

@@ -62,12 +62,12 @@ type IndexBloomFilterInfo struct {
 
 // IndexEntry stores entry-level data indexing
 type IndexEntry struct {
-	Index       int64
-	ID          []byte
-	Size        int64
-	Offset      int64
-	Checksum    int64
-	EncodedTags []byte
+	Index              int64
+	ID                 []byte
+	Size               int64
+	Offset             int64
+	DataChecksum       int64
+	EncodedTags        []byte
 }
 
 // IndexSummary stores a summary of an index entry to lookup

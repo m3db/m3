@@ -283,7 +283,7 @@ func (enc *Encoder) encodeIndexEntryV1(entry schema.IndexEntry) {
 	enc.encodeBytesFn(entry.ID)
 	enc.encodeVarintFn(entry.Size)
 	enc.encodeVarintFn(entry.Offset)
-	enc.encodeVarintFn(entry.Checksum)
+	enc.encodeVarintFn(entry.DataChecksum)
 }
 
 func (enc *Encoder) encodeIndexEntryV2(entry schema.IndexEntry) {
@@ -292,7 +292,7 @@ func (enc *Encoder) encodeIndexEntryV2(entry schema.IndexEntry) {
 	enc.encodeBytesFn(entry.ID)
 	enc.encodeVarintFn(entry.Size)
 	enc.encodeVarintFn(entry.Offset)
-	enc.encodeVarintFn(entry.Checksum)
+	enc.encodeVarintFn(entry.DataChecksum)
 	enc.encodeBytesFn(entry.EncodedTags)
 }
 

@@ -372,7 +372,7 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
-	indexEntry.Checksum = dec.decodeVarint()
+	indexEntry.DataChecksum = dec.decodeVarint()
 
 	if dec.legacy.decodeLegacyV1IndexEntry || actual < 6 {
 		dec.skip(numFieldsToSkip)
