@@ -41,10 +41,10 @@ Not yet, but that functionality is currently being worked on.
 You can check if your nodes are snapshotting by looking at the `Background tasks` tab in the [M3DB Grafana dashboard](https://grafana.com/dashboards/8126).
 
 - **How do you list all available API endpoints?**
-See [M3DB openhttps://m3db.io/openapi
+See [M3DB OpenAPI](https://m3db.io/openapi).
 
 - **What is the recommended way to upgrade my M3 stack?**
-TBA
+See the [Upgrading M3](../operational_guide/upgrading_m3.md) guide.
 
 - **When graphing my Prometheus data in Grafana, I see gaps. How do I resolve this?**
 This is due to M3 having a concept of `null` datapoints whereas Prometheus does not. To resolve this, change `Stacking & Null value` to `Connected` under the `Visualization` tab of your graph.

@@ -50,6 +50,8 @@ type TChanNode interface {
 	Bootstrapped(ctx thrift.Context) (*NodeBootstrappedResult_, error)
 	BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*NodeBootstrappedInPlacementOrNoPlacementResult_, error)
 	DebugIndexMemorySegments(ctx thrift.Context, req *DebugIndexMemorySegmentsRequest) (*DebugIndexMemorySegmentsResult_, error)
+	DebugProfileStart(ctx thrift.Context, req *DebugProfileStartRequest) (*DebugProfileStartResult_, error)
+	DebugProfileStop(ctx thrift.Context, req *DebugProfileStopRequest) (*DebugProfileStopResult_, error)
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
 	FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error)
 	FetchBatchRawV2(ctx thrift.Context, req *FetchBatchRawV2Request) (*FetchBatchRawResult_, error)
@@ -566,6 +568,42 @@ func (c *tchanNodeClient) DebugIndexMemorySegments(ctx thrift.Context, req *Debu
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) DebugProfileStart(ctx thrift.Context, req *DebugProfileStartRequest) (*DebugProfileStartResult_, error) {
+	var resp NodeDebugProfileStartResult
+	args := NodeDebugProfileStartArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "debugProfileStart", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for debugProfileStart")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) DebugProfileStop(ctx thrift.Context, req *DebugProfileStopRequest) (*DebugProfileStopResult_, error) {
+	var resp NodeDebugProfileStopResult
+	args := NodeDebugProfileStopArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "debugProfileStop", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for debugProfileStop")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error) {
 	var resp NodeFetchResult
 	args := NodeFetchArgs{
@@ -1009,6 +1047,8 @@ func (s *tchanNodeServer) Methods() []string {
 		"bootstrapped",
 		"bootstrappedInPlacementOrNoPlacement",
 		"debugIndexMemorySegments",
+		"debugProfileStart",
+		"debugProfileStop",
 		"fetch",
 		"fetchBatchRaw",
 		"fetchBatchRawV2",
@@ -1048,6 +1088,10 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleBootstrappedInPlacementOrNoPlacement(ctx, protocol)
 	case "debugIndexMemorySegments":
 		return s.handleDebugIndexMemorySegments(ctx, protocol)
+	case "debugProfileStart":
+		return s.handleDebugProfileStart(ctx, protocol)
+	case "debugProfileStop":
+		return s.handleDebugProfileStop(ctx, protocol)
 	case "fetch":
 		return s.handleFetch(ctx, protocol)
 	case "fetchBatchRaw":
@@ -1224,6 +1268,62 @@ func (s *tchanNodeServer) handleDebugIndexMemorySegments(ctx thrift.Context, pro
 
 	r, err :=
 		s.handler.DebugIndexMemorySegments(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleDebugProfileStart(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeDebugProfileStartArgs
+	var res NodeDebugProfileStartResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.DebugProfileStart(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleDebugProfileStop(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeDebugProfileStopArgs
+	var res NodeDebugProfileStopResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.DebugProfileStop(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
