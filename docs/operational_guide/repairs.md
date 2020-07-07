@@ -4,7 +4,7 @@
 
 ## Overview
 
-Background repairs enable M3DB to eventually reach a consistent state such that all nodes have identical view
+Background repairs enable M3DB to eventually reach a consistent state such that all nodes have identical view.
 An M3DB cluster can be configured to repair itself in the background. If background repairs are enabled, M3DB nodes will continuously scan the metadata of other nodes. If a mismatch is detected, affected nodes will perform a repair such that each node in the cluster eventually settles on a consistent view of the data.
 
 A repair is performed individually by each node when it detects a mismatch between its metadata and the metadata of its peers. Each node will stream the data for the relevant series, merge the data from its peers with its own, and then write out the resulting merged dataset to disk to make the repair durable. In other words, there is no coordination between individual nodes during the repair process, each node is detecting mismatches on its own and performing a "best effort" repair by merging all available data from all peers into a new stream.
