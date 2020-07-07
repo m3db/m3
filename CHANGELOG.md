@@ -1,5 +1,16 @@
 # Changelog
 
+# 0.15.5
+
+## Documentation
+
+- **All**: Minor documentation fixes ([#2438](https://github.com/m3db/m3/pull/2438))
+- **M3Query**: Add M3-Restrict-By-Tags-JSON example ([#2437](https://github.com/m3db/m3/pull/2437))
+
+## Misc 
+
+- **M3DB**: Add continuous performance profiler that conditionally triggers with RPC endpoint ([#2416](https://github.com/m3db/m3/pull/2416))
+
 # 0.15.4
 
 ## Features
