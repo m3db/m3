@@ -1245,20 +1245,16 @@ func (i *nsIndex) AggregateQuery(
 	// use block.Aggregate() for querying and set the query if required.
 	fn := i.execBlockAggregateQueryFn
 	isAllQuery := query.Equal(allQuery)
-	field, isFieldQuery := idx.FieldQuery(query.Query)
-	switch {
-	case isAllQuery:
-		// No-op, should match every term.
-	case isFieldQuery:
-		// Should match every term but filter which fields to return.
-		fn = i.execBlockAggregateQueryFn
-		aopts.FieldFilter = aopts.FieldFilter.AddIfMissing(field)
-	default:
-		// Need to actually restrict whether we should return a term or not
-		// based on running the actual query to resolve a postings list and
-		// then seeing if that intersects the aggregated term postings list
-		// at all.
-		aopts.RestrictByQuery = &query
+	if !isAllQuery {
+		if field, isFieldQuery := idx.FieldQuery(query.Query); isFieldQuery {
+			aopts.FieldFilter = aopts.FieldFilter.AddIfMissing(field)
+		} else {
+			// Need to actually restrict whether we should return a term or not
+			// based on running the actual query to resolve a postings list and
+			// then seeing if that intersects the aggregated term postings list
+			// at all.
+			aopts.RestrictByQuery = &query
+		}
 	}
 	aopts.FieldFilter = aopts.FieldFilter.SortAndDedupe()
 	results.Reset(i.nsMetadata.ID(), aopts)
