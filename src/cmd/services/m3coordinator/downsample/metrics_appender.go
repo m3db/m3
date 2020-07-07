@@ -359,7 +359,7 @@ func (a *metricsAppender) newSamplesAppenders(
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(tags, sm)
+		appender, err := a.newSamplesAppender(tags, sm, true)
 		if err != nil {
 			return []samplesAppender{}, err
 		}
@@ -372,7 +372,7 @@ func (a *metricsAppender) newSamplesAppenders(
 
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
-	appender, err := a.newSamplesAppender(a.tags, sm)
+	appender, err := a.newSamplesAppender(a.tags, sm, false)
 	if err != nil {
 		return []samplesAppender{}, err
 	}
@@ -382,6 +382,7 @@ func (a *metricsAppender) newSamplesAppenders(
 func (a *metricsAppender) newSamplesAppender(
 	tags *tags,
 	sm metadata.StagedMetadata,
+	copyID bool,
 ) (samplesAppender, error) {
 	a.tagEncoder.Reset()
 	if err := a.tagEncoder.Encode(tags); err != nil {
@@ -392,9 +393,14 @@ func (a *metricsAppender) newSamplesAppender(
 		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
 	}
 	// NB (@shreyas): if this is the last use of the tagEncoder we do not need
-	// this copy, but its hard to know and enforce that.
-	id := make([]byte, data.Len())
-	copy(id, data.Bytes())
+	// this copy. The caller tells us what to do here.
+	var id []byte
+	if copyID {
+		id = make([]byte, data.Len())
+		copy(id, data.Bytes())
+	} else {
+		id = data.Bytes()
+	}
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
