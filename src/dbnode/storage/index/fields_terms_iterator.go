@@ -104,50 +104,56 @@ func (fti *fieldsAndTermsIter) Reset(s segment.Segment, opts fieldsAndTermsItera
 	if s == nil {
 		return nil
 	}
+
 	fiter, err := fti.opts.newFieldIter(s)
 	if err != nil {
 		return err
 	}
 	fti.fieldIter = fiter
-	// If need to restrict by query, run the query on the segment first.
-	if query := opts.restrictByQuery; query != nil {
-		var (
-			success bool
-		)
-		reader, err := fti.seg.Reader()
-		if err != nil {
-			return err
-		}
 
-		defer func() {
-			if !success {
-				reader.Close()
-			}
-		}()
-
-		searcher, err := query.SearchQuery().Searcher()
-		if err != nil {
-			return err
-		}
-
-		pl, err := searcher.Search(reader)
-		if err != nil {
-			return err
-		}
-
-		bitmap, ok := roaring.BitmapFromPostingsList(pl)
-		if !ok {
-			return errUnpackBitmapFromPostingsList
-		}
-
-		if err := reader.Close(); err != nil {
-			return err
-		}
-
-		fti.restrictByPostings = bitmap
-	} else {
-		fti.restrictByPostings = nil
+	if opts.restrictByQuery == nil {
+		// No need to restrict results by query.
+		return nil
 	}
+
+	// If need to restrict by query, run the query on the segment first.
+	var (
+		readerTryClose bool
+	)
+	reader, err := fti.seg.Reader()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if !readerTryClose {
+			reader.Close()
+		}
+	}()
+
+	searcher, err := opts.restrictByQuery.SearchQuery().Searcher()
+	if err != nil {
+		return err
+	}
+
+	pl, err := searcher.Search(reader)
+	if err != nil {
+		return err
+	}
+
+	// Hold onto the postings bitmap to intersect against on a per term basis.
+	bitmap, ok := roaring.BitmapFromPostingsList(pl)
+	if !ok {
+		return errUnpackBitmapFromPostingsList
+	}
+
+	readerTryClose = true
+	if err := reader.Close(); err != nil {
+		return err
+	}
+
+	fti.restrictByPostings = bitmap
+
 	return nil
 }
 
