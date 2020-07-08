@@ -111,11 +111,12 @@ type nsIndex struct {
 	deleteFilesFn           deleteFilesFn
 	readIndexInfoFilesFn    readIndexInfoFilesFn
 
-	newBlockFn          index.NewBlockFn
-	logger              *zap.Logger
-	opts                Options
-	nsMetadata          namespace.Metadata
-	runtimeOptsListener xclose.SimpleCloser
+	newBlockFn            index.NewBlockFn
+	logger                *zap.Logger
+	opts                  Options
+	nsMetadata            namespace.Metadata
+	runtimeOptsListener   xclose.SimpleCloser
+	runtimeNsOptsListener xclose.SimpleCloser
 
 	resultsPool          index.QueryResultsPool
 	aggregateResultsPool index.AggregateResultsPool
@@ -351,9 +352,8 @@ func newNamespaceIndexWithOptions(
 	// Assign shard set upfront.
 	idx.AssignShardSet(shardSet)
 
-	if runtimeOptsMgr != nil {
-		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
-	}
+	idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
+	idx.runtimeNsOptsListener = idx.namespaceRuntimeOptsMgr.RegisterListener(idx)
 
 	// set up forward index dice.
 	dice, err := newForwardIndexDice(newIndexOpts.opts)
@@ -404,6 +404,15 @@ func (i *nsIndex) SetRuntimeOptions(value runtime.Options) {
 	i.state.Lock()
 	i.state.runtimeOpts.defaultQueryTimeout = value.IndexDefaultQueryTimeout()
 	i.state.Unlock()
+}
+
+func (i *nsIndex) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptions) {
+	// We don't like to log from every single index segment that has
+	// settings updated so we log the changes here.
+	i.logger.Info("set namespace runtime index options",
+		zap.Stringer("namespace", i.nsMetadata.ID()),
+		zap.Any("writeIndexingPerCPUConcurrency", opts.WriteIndexingPerCPUConcurrency()),
+		zap.Any("flushIndexingPerCPUConcurrency", opts.FlushIndexingPerCPUConcurrency()))
 }
 
 func (i *nsIndex) reportStatsUntilClosed() {
