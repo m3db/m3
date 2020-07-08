@@ -1,11 +1,10 @@
 package tile
 
 import (
-	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
-
 	"github.com/apache/arrow/go/arrow"
 	"github.com/apache/arrow/go/arrow/array"
 	"github.com/apache/arrow/go/arrow/memory"
+	"github.com/m3db/m3/src/dbnode/ts"
 )
 
 const (
@@ -17,13 +16,13 @@ type datapointRecorder struct {
 	builder *array.RecordBuilder
 }
 
-func (r *datapointRecorder) appendPoints(dps ...base.Datapoint) {
+func (r *datapointRecorder) appendPoints(dps ...ts.Datapoint) {
 	valFieldBuilder := r.builder.Field(valIdx).(*array.Float64Builder)
 	timeFieldBuilder := r.builder.Field(timeIdx).(*array.Int64Builder)
 
 	for _, dp := range dps {
 		valFieldBuilder.Append(dp.Value)
-		timeFieldBuilder.Append(int64(dp.Timestamp))
+		timeFieldBuilder.Append(int64(dp.TimestampNanos))
 	}
 }
 

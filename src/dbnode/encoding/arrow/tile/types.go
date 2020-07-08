@@ -28,6 +28,12 @@ func (f *SeriesBlockFrame) release() {
 	f.record.release()
 }
 
+func (f *SeriesBlockFrame) reset(start xtime.UnixNano, end xtime.UnixNano) {
+	f.release()
+	f.FrameStart = start
+	f.FrameEnd = end
+}
+
 // Values returns values for the record in a float64 arrow array.
 func (f *SeriesBlockFrame) Values() *array.Float64 {
 	return f.record.values()

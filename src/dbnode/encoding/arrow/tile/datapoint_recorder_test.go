@@ -3,7 +3,7 @@ package tile
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/dbnode/encoding/arrow/base"
+	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/apache/arrow/go/arrow/math"
@@ -12,15 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDatapointRecorder(t *testing.T) {
+func testDatapointRecorder(t *testing.T) {
 	pool := memory.NewGoAllocator()
 	recorder := newDatapointRecorder(pool)
 
 	addPoints := func(size int) {
 		for i := 0; i < size; i++ {
-			recorder.appendPoints(base.Datapoint{
-				Value:     float64(i),
-				Timestamp: xtime.UnixNano(i),
+			recorder.appendPoints(ts.Datapoint{
+				Value:          float64(i),
+				TimestampNanos: xtime.UnixNano(i),
 			})
 		}
 	}
