@@ -89,6 +89,8 @@ func (f Fields) shallowCopy() Fields {
 
 // Document represents a document to be indexed.
 type Document struct {
+	// Pt2 - Figure out what these bytes are referencing.
+	// Remove it and generate ID from Fields (i.e. tags).
 	ID     []byte
 	Fields []Field
 }

@@ -70,12 +70,15 @@ func NewBytes(value []byte, opts BytesOptions) Bytes {
 		opts:  opts,
 		value: value,
 	}
+	if st := opts.StringTable(); st != nil {
+		return st.GetOrSet(value)
+	}
 	b.SetOnFinalize(b)
 	// NB(r): Tracking objects causes interface allocation
 	// so avoid if we are not performing any leak detection.
-	if leakDetectionEnabled() {
-		b.TrackObject(b.value)
-	}
+	// if leakDetectionEnabled() {
+	// 	b.TrackObject(b.value)
+	// }
 	return b
 }
 
@@ -131,7 +134,8 @@ func (b *bytesRef) OnFinalize() {
 }
 
 type bytesOptions struct {
-	finalizer BytesFinalizer
+	finalizer   BytesFinalizer
+	stringTable StringTable
 }
 
 // NewBytesOptions returns a new set of bytes options.
@@ -146,5 +150,15 @@ func (o *bytesOptions) Finalizer() BytesFinalizer {
 func (o *bytesOptions) SetFinalizer(value BytesFinalizer) BytesOptions {
 	opts := *o
 	opts.finalizer = value
+	return &opts
+}
+
+func (o *bytesOptions) StringTable() StringTable {
+	return o.stringTable
+}
+
+func (o *bytesOptions) SetStringTable(value StringTable) BytesOptions {
+	opts := *o
+	opts.stringTable = value
 	return &opts
 }

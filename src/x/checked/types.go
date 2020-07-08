@@ -22,6 +22,9 @@
 package checked
 
 import (
+	"sync"
+
+	"github.com/cespare/xxhash"
 	"github.com/m3db/m3/src/x/resource"
 )
 
@@ -113,4 +116,50 @@ type BytesOptions interface {
 
 	// SetFinalizer sets a bytes finalizer to call when finalized.
 	SetFinalizer(value BytesFinalizer) BytesOptions
+
+	// StringTable is
+	StringTable() StringTable
+
+	// SetStringTable is
+	SetStringTable(value StringTable) BytesOptions
+}
+
+// StringTable is
+type StringTable interface {
+	GetOrSet(b []byte) Bytes
+}
+
+type stringTable struct {
+	vals map[uint64]Bytes
+	lock sync.RWMutex
+}
+
+// NewStringTable returns a new StringTable.
+func NewStringTable() StringTable {
+	return &stringTable{
+		vals: make(map[uint64]Bytes),
+	}
+}
+
+func (t *stringTable) GetOrSet(b []byte) Bytes {
+	// TODO: hash with xxhash.Sum64() instead of string
+	// For collision handling, before we return new bytes, compare the two
+	// checked bytes and then use chaining collision resolution by adding 1
+	// Maybe we can skip this though for proto.
+	key := xxhash.Sum64(b)
+
+	t.lock.RLock()
+	existing, ok := t.vals[key]
+	t.lock.RUnlock()
+	if ok {
+		return existing
+	}
+
+	new := NewBytes(b, nil)
+	new.IncRef()
+	t.lock.Lock()
+	t.vals[key] = new
+	t.lock.Unlock()
+
+	return new
 }

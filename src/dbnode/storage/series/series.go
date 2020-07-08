@@ -63,8 +63,7 @@ type dbSeries struct {
 	// series ID before changing ownership semantics (e.g.
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
-	id          ident.ID
-	tags        ident.Tags
+	tags        *ident.Tags
 	uniqueIndex uint64
 
 	buffer                      databaseBuffer
@@ -106,14 +105,14 @@ func (s *dbSeries) now() time.Time {
 
 func (s *dbSeries) ID() ident.ID {
 	s.RLock()
-	id := s.id
+	id := s.tags.ToID(s.opts.BytesOpts())
 	s.RUnlock()
 	return id
 }
 
 func (s *dbSeries) Tags() ident.Tags {
 	s.RLock()
-	tags := s.tags
+	tags := *s.tags
 	s.RUnlock()
 	return tags
 }
@@ -317,7 +316,7 @@ func (s *dbSeries) ReadEncoded(
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
-	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
+	reader := NewReaderUsingRetriever(s.tags.ToID(s.opts.BytesOpts()), s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return r, err
@@ -346,7 +345,7 @@ func (s *dbSeries) FetchBlocks(
 	s.RLock()
 	r, err := Reader{
 		opts:       s.opts,
-		id:         s.id,
+		id:         s.tags.ToID(s.opts.BytesOpts()),
 		retriever:  s.blockRetriever,
 		onRetrieve: s.onRetrieveBlock,
 	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer, nsCtx)
@@ -380,8 +379,8 @@ func (s *dbSeries) FetchBlocksMetadata(
 	// NB(r): Since ID and Tags are garbage collected we can safely
 	// return refs.
 	tagsIter := s.opts.IdentifierPool().TagsIterator()
-	tagsIter.Reset(s.tags)
-	return block.NewFetchBlocksMetadataResult(s.id, tagsIter, res), nil
+	tagsIter.Reset(*s.tags)
+	return block.NewFetchBlocksMetadataResult(s.tags.ToID(s.opts.BytesOpts()), tagsIter, res), nil
 }
 
 func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
@@ -454,13 +453,13 @@ func (s *dbSeries) OnRetrieveBlock(
 		}
 	}()
 
-	if !id.Equal(s.id) {
+	if !id.Equal(s.tags.ToID(s.opts.BytesOpts())) {
 		return
 	}
 
 	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	b.ResetFromDisk(startTime, blockSize, segment, s.id, nsCtx)
+	b.ResetFromDisk(startTime, blockSize, segment, s.tags.ToID(s.opts.BytesOpts()), nsCtx)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.
@@ -498,7 +497,7 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	defer s.Unlock()
 
 	// Should never happen
-	if !id.Equal(s.id) {
+	if !id.Equal(s.tags.ToID(s.opts.BytesOpts())) {
 		return
 	}
 
@@ -529,7 +528,7 @@ func (s *dbSeries) WarmFlush(
 	// Need a write lock because the buffer WarmFlush method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
-	outcome, err := s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	outcome, err := s.buffer.WarmFlush(ctx, blockStart, s.tags.ToID(s.opts.BytesOpts()), *s.tags, persistFn, nsCtx)
 	s.Unlock()
 	return outcome, err
 }
@@ -545,7 +544,7 @@ func (s *dbSeries) Snapshot(
 	s.Lock()
 	defer s.Unlock()
 
-	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	return s.buffer.Snapshot(ctx, blockStart, s.tags.ToID(s.opts.BytesOpts()), *s.tags, persistFn, nsCtx)
 }
 
 func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes {
@@ -560,8 +559,7 @@ func (s *dbSeries) Close() {
 	defer s.Unlock()
 
 	// See Reset() for why these aren't finalized.
-	s.id = nil
-	s.tags = ident.Tags{}
+	s.tags = &ident.Tags{}
 	s.uniqueIndex = 0
 
 	switch s.opts.CachePolicy() {
@@ -604,12 +602,11 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	//
 	// The same goes for the series tags.
 	s.Lock()
-	s.id = opts.ID
 	s.tags = opts.Tags
 	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(databaseBufferResetOptions{
-		ID:             opts.ID,
+		ID:             s.tags.ToID(opts.Options.BytesOpts()),
 		BlockRetriever: opts.BlockRetriever,
 		Options:        opts.Options,
 	})

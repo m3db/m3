@@ -23,9 +23,20 @@ package ident
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/m3db/m3/src/query/models/strconv"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
+)
+
+const (
+	graphiteSep  = byte('.')
+	sep          = byte(',')
+	finish       = byte('!')
+	eq           = byte('=')
+	leftBracket  = byte('{')
+	rightBracket = byte('}')
 )
 
 // ID represents an immutable identifier to allow use of byte slice pooling
@@ -230,6 +241,179 @@ type TagsIterator interface {
 
 	// Reset allows the tag iterator to be reused with a new set of tags.
 	Reset(tags Tags)
+}
+
+type tagEscaping struct {
+	escapeName  bool
+	escapeValue bool
+}
+
+// ToTags is
+func ToTags(id ID, opts checked.BytesOptions) Tags {
+	idString := id.String()
+	if len(idString) <= 2 {
+		return Tags{}
+	}
+	tagParts := strings.Split(idString[1:len(idString)-1], ",")
+	if len(tagParts) == 0 {
+		return Tags{}
+	}
+
+	tags := make([]Tag, 0, len(tagParts))
+	for _, t := range tagParts {
+		var i int
+		for _, c := range t {
+			if c == '=' {
+				break
+			}
+			i++
+		}
+		name := checked.NewBytes([]byte(t[:i]), opts)
+		value := checked.NewBytes([]byte(t[i+1:]), opts)
+		tags = append(tags, Tag{
+			Name:  BinaryID(name),
+			Value: BinaryID(value),
+		})
+	}
+	return NewTags(tags...)
+}
+
+// ToID is
+func (t Tags) ToID(opts checked.BytesOptions) ID {
+	if len(t.values) == 0 {
+		return BinaryID(checked.NewBytes([]byte("{}"), opts))
+	}
+
+	// NOTE: from tags_id_schemes.go
+	var (
+		idLen        int
+		needEscaping []tagEscaping
+		l            int
+		escape       tagEscaping
+	)
+
+	for i, tt := range t.values {
+		l, escape = serializedLength(&tt)
+		idLen += l
+		if escape.escapeName || escape.escapeValue {
+			if needEscaping == nil {
+				needEscaping = make([]tagEscaping, len(t.values))
+			}
+
+			needEscaping[i] = escape
+		}
+	}
+
+	tagLength := 2 * len(t.values)
+	idLen += tagLength + 1 // account for separators and brackets
+	if needEscaping == nil {
+		bytes := checked.NewBytes(quoteIDSimple(t, idLen), opts)
+		return BinaryID(bytes)
+	}
+
+	// TODO: pool these bytes
+	lastIndex := len(t.values) - 1
+	id := make([]byte, idLen)
+	id[0] = leftBracket
+	idx := 1
+	for i, tt := range t.values[:lastIndex] {
+		idx = writeAtIndex(tt, id, needEscaping[i], idx)
+		id[idx] = sep
+		idx++
+	}
+
+	idx = writeAtIndex(t.values[lastIndex], id, needEscaping[lastIndex], idx)
+	id[idx] = rightBracket
+	bytes := checked.NewBytes(id, opts)
+	return BinaryID(bytes)
+}
+
+func quoteIDSimple(t Tags, length int) []byte {
+	fmt.Println("Q", t)
+	// TODO: pool these bytes.
+	id := make([]byte, length)
+	id[0] = leftBracket
+	idx := 1
+	lastIndex := len(t.values) - 1
+	for _, tag := range t.values[:lastIndex] {
+		idx += copy(id[idx:], tag.Name.Bytes())
+		if idx >= len(id) {
+			fmt.Println("INVALID1", idx, t.values, string(tag.Name.Bytes()), string(tag.Value.Bytes()), length, id[idx:])
+		}
+		id[idx] = eq
+		idx++
+		if idx >= len(id) {
+			fmt.Println("INVALID4", idx, t.values, string(tag.Name.Bytes()), string(tag.Value.Bytes()), length, id[idx:])
+		}
+		fmt.Println("TEST", idx, tag.Name.Bytes(), tag.Value.Bytes())
+		if len(id[idx:]) < len(tag.Value.Bytes())+2 {
+			fmt.Println("INVALID6", idx, t.values, string(tag.Name.Bytes()), string(tag.Value.Bytes()), length, id[idx:])
+		}
+		idx = strconv.QuoteSimple(id, tag.Value.Bytes(), idx)
+		if idx >= len(id) {
+			fmt.Println("INVALID5", idx, t.values, string(tag.Name.Bytes()), string(tag.Value.Bytes()), length, id[idx:])
+		}
+		id[idx] = sep
+		idx++
+	}
+
+	tag := t.values[lastIndex]
+	idx += copy(id[idx:], tag.Name.Bytes())
+	if idx >= len(id) {
+		fmt.Println("INVALID2", t.values, length)
+	}
+	id[idx] = eq
+	idx++
+	idx = strconv.QuoteSimple(id, tag.Value.Bytes(), idx)
+	id[idx] = rightBracket
+	return id
+}
+
+func writeAtIndex(t Tag, id []byte, escape tagEscaping, idx int) int {
+	if escape.escapeName {
+		idx = strconv.Escape(id, t.Name.Bytes(), idx)
+	} else {
+		idx += copy(id[idx:], t.Name.Bytes())
+	}
+
+	if idx >= len(id) {
+		fmt.Println("INVALID3", t, id, escape, idx)
+	}
+	id[idx] = eq
+	idx++
+
+	if escape.escapeValue {
+		idx = strconv.Quote(id, t.Value.Bytes(), idx)
+	} else {
+		idx = strconv.QuoteSimple(id, t.Value.Bytes(), idx)
+	}
+
+	return idx
+}
+
+func serializedLength(t *Tag) (int, tagEscaping) {
+	var (
+		idLen    int
+		escaping tagEscaping
+	)
+	nameBytes := t.Name.Bytes()
+	valueBytes := t.Value.Bytes()
+	if strconv.NeedToEscape(nameBytes) {
+		idLen += strconv.EscapedLength(nameBytes)
+		escaping.escapeName = true
+	} else {
+		idLen += len(nameBytes)
+	}
+
+	if strconv.NeedToEscape(valueBytes) {
+		idLen += strconv.QuotedLength(valueBytes)
+		escaping.escapeValue = true
+	} else {
+		idLen += len(valueBytes) + 2
+	}
+
+	fmt.Println("LEN", string(t.Name.Bytes()), string(t.Value.Bytes()), idLen, escaping)
+	return idLen, escaping
 }
 
 // Tags is a collection of Tag instances that can be pooled.

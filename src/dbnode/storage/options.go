@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -161,6 +162,7 @@ type options struct {
 	memoryTracker                  MemoryTracker
 	mmapReporter                   mmap.Reporter
 	doNotIndexWithFieldsMap        map[string]string
+	stringTable                    checked.StringTable
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -232,6 +234,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
 		onColdFlush:                    &noOpColdFlush{},
 		memoryTracker:                  NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
+		stringTable:                    checked.NewStringTable(),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -782,6 +785,16 @@ func (o *options) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
 
 func (o *options) DoNotIndexWithFieldsMap() map[string]string {
 	return o.doNotIndexWithFieldsMap
+}
+
+func (o *options) SetStringTable(value checked.StringTable) Options {
+	opts := *o
+	opts.stringTable = value
+	return &opts
+}
+
+func (o *options) StringTable() checked.StringTable {
+	return o.stringTable
 }
 
 type noOpColdFlush struct{}

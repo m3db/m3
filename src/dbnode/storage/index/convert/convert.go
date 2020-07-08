@@ -247,6 +247,8 @@ func TagsFromTagsIter(
 		}
 
 		if idRef {
+			// IF we were able to grab an existing tag
+			// bytes then we no-final since we don't own.
 			tag.NoFinalize() // Taken ref, cannot finalize this.
 		}
 

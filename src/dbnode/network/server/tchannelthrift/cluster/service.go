@@ -370,7 +370,9 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 	for _, tag := range req.Tags {
 		tags.Append(s.idPool.GetStringTag(ctx, tag.Name, tag.Value))
 	}
-	err = session.WriteTagged(nsID, tsID, ident.NewTagsIterator(tags),
+	iter := ident.NewTagsIterator(tags)
+	fmt.Println("ITER START", iter.CurrentIndex(), iter.Len(), iter.Current().Name)
+	err = session.WriteTagged(nsID, tsID, iter,
 		ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
 		if client.IsBadRequestError(err) {

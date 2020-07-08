@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -40,8 +41,7 @@ import (
 
 // DatabaseSeriesOptions is a set of options for creating a database series.
 type DatabaseSeriesOptions struct {
-	ID                     ident.ID
-	Tags                   ident.Tags
+	Tags                   *ident.Tags
 	UniqueIndex            uint64
 	BlockRetriever         QueryableBlockRetriever
 	OnRetrieveBlock        block.OnRetrieveBlock
@@ -352,6 +352,12 @@ type Options interface {
 
 	// BufferBucketPool returns the BufferBucketPool.
 	BufferBucketPool() *BufferBucketPool
+
+	// SetBytesOpts is
+	SetBytesOpts(value checked.BytesOptions) Options
+
+	// BytesOpts is
+	BytesOpts() checked.BytesOptions
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.

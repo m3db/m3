@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -1121,6 +1122,12 @@ type Options interface {
 	// DoNotIndexWithFieldsMap returns a map which if fields match it
 	// will not index those metrics.
 	DoNotIndexWithFieldsMap() map[string]string
+
+	// SetStringTable is
+	SetStringTable(value checked.StringTable) Options
+
+	// StringTable is
+	StringTable() checked.StringTable
 }
 
 // MemoryTracker tracks memory.

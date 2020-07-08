@@ -25,6 +25,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -46,6 +47,7 @@ type options struct {
 	coldWritesEnabled             bool
 	bufferBucketPool              *BufferBucketPool
 	bufferBucketVersionsPool      *BufferBucketVersionsPool
+	bytesOpts                     checked.BytesOptions
 }
 
 // NewOptions creates new database series options
@@ -217,4 +219,14 @@ func (o *options) SetBufferBucketPool(value *BufferBucketPool) Options {
 
 func (o *options) BufferBucketPool() *BufferBucketPool {
 	return o.bufferBucketPool
+}
+
+func (o *options) SetBytesOpts(value checked.BytesOptions) Options {
+	opts := *o
+	opts.bytesOpts = value
+	return &opts
+}
+
+func (o *options) BytesOpts() checked.BytesOptions {
+	return o.bytesOpts
 }

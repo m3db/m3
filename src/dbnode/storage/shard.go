@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
@@ -127,7 +126,7 @@ const (
 type tagsArgOptions struct {
 	arg      tagsArgType
 	tagsIter ident.TagIterator
-	tags     ident.Tags
+	tags     *ident.Tags
 }
 
 func newTagsIterArg(
@@ -140,7 +139,7 @@ func newTagsIterArg(
 }
 
 func newTagsArg(
-	tags ident.Tags,
+	tags *ident.Tags,
 ) tagsArgOptions {
 	return tagsArgOptions{
 		arg:  tagsArg,
@@ -269,6 +268,10 @@ func newDatabaseShard(
 ) databaseShard {
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("dbshard")
+
+	seriesOpts = seriesOpts.SetBytesOpts(
+		checked.NewBytesOptions().SetStringTable(opts.StringTable()),
+	)
 
 	s := &dbShard{
 		opts:                 opts,
@@ -445,8 +448,10 @@ func (s *dbShard) OnRetrieveBlock(
 	segment ts.Segment,
 	nsCtx namespace.Context,
 ) {
+	fmt.Println("ON RETRIEVE BLOCK")
+	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, _, err := s.lookupEntryWithLock(&seriesTags)
 	if entry != nil {
 		entry.IncrementReaderWriterCount()
 		defer entry.DecrementReaderWriterCount()
@@ -462,7 +467,7 @@ func (s *dbShard) OnRetrieveBlock(
 		return
 	}
 
-	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
+	entry, err = s.newShardEntry(newTagsIterArg(tags))
 	if err != nil {
 		// should never happen
 		s.logger.Error("[invariant violated] unable to create shardEntry from retrieved block data",
@@ -494,8 +499,9 @@ func (s *dbShard) OnRetrieveBlock(
 }
 
 func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+	tags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, _, err := s.lookupEntryWithLock(&tags)
 	s.RUnlock()
 
 	if err != nil && err != errShardEntryNotFound {
@@ -802,8 +808,8 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 	s.Lock()
 	for _, entry := range expiredEntries {
 		series := entry.Series
-		id := series.ID()
-		elem, exists := s.lookup.Get(id)
+		tags := series.Tags()
+		elem, exists := s.lookup.Get(&tags)
 		if !exists {
 			continue
 		}
@@ -831,7 +837,7 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		// safe to remove it.
 		series.Close()
 		s.list.Remove(elem)
-		s.lookup.Delete(id)
+		s.lookup.Delete(&tags)
 	}
 	s.Unlock()
 }
@@ -846,8 +852,11 @@ func (s *dbShard) WriteTagged(
 	annotation []byte,
 	wOpts series.WriteOptions,
 ) (ts.Series, bool, error) {
-	return s.writeAndIndex(ctx, id, tags, timestamp,
+	//fmt.Println("WRITE START", id, value)
+	series, written, err := s.writeAndIndex(ctx, id, tags, timestamp,
 		value, unit, annotation, wOpts, true)
+	//fmt.Println("WRITE END", id, value)
+	return series, written, err
 }
 
 func (s *dbShard) Write(
@@ -875,7 +884,14 @@ func (s *dbShard) writeAndIndex(
 	shouldReverseIndex bool,
 ) (ts.Series, bool, error) {
 	// Prepare write
-	entry, opts, err := s.tryRetrieveWritableSeries(id)
+	seriesTags, err := tagsIterToTags(tags)
+	fmt.Println("FROM A", tags.CurrentIndex(), tags.Len(), tags.Current().Name)
+	fmt.Println("FROM ID", id.String(), ident.ToTags(id, s.seriesOpts.BytesOpts()).Values()[0])
+	fmt.Println("FROM ITER", tags.Len(), id.String(), seriesTags.Values()[0])
+	if err != nil {
+		return ts.Series{}, false, err
+	}
+	entry, opts, err := s.tryRetrieveWritableSeries(seriesTags)
 	if err != nil {
 		return ts.Series{}, false, err
 	}
@@ -885,7 +901,7 @@ func (s *dbShard) writeAndIndex(
 	// If no entry and we are not writing new series asynchronously.
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately.
-		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
+		result, err := s.insertSeriesAsyncBatched(id, seriesTags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  timestamp,
@@ -900,7 +916,7 @@ func (s *dbShard) writeAndIndex(
 		result.wg.Wait()
 
 		// Retrieve the inserted entry
-		entry, err = s.writableSeries(id, tags)
+		entry, err = s.writableSeries(id, seriesTags)
 		if err != nil {
 			return ts.Series{}, false, err
 		}
@@ -956,7 +972,7 @@ func (s *dbShard) writeAndIndex(
 			annotationClone.AppendAll(annotation)
 		}
 
-		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
+		result, err := s.insertSeriesAsyncBatched(id, seriesTags, dbShardInsertAsyncOptions{
 			hasPendingWrite: true,
 			pendingWrite: dbShardPendingWrite{
 				timestamp:  timestamp,
@@ -1002,7 +1018,9 @@ func (s *dbShard) SeriesReadWriteRef(
 	opts ShardSeriesReadWriteRefOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
-	entry, _, err := s.tryRetrieveWritableSeries(id)
+	fmt.Println("SeriesReadWriteRef", id)
+	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
+	entry, _, err := s.tryRetrieveWritableSeries(&seriesTags)
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
@@ -1023,7 +1041,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	// being put in the insert queue may cause a block to be loaded to a
 	// series which gets discarded.
 	at := s.nowFn()
-	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
+	entry, err = s.insertSeriesSync(newTagsIterArg(tags), insertSyncOptions{
 		insertType:      insertSyncIncReaderWriterCount,
 		hasPendingIndex: opts.ReverseIndex,
 		pendingIndex: dbShardPendingIndex{
@@ -1049,8 +1067,10 @@ func (s *dbShard) ReadEncoded(
 	start, end time.Time,
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
+	fmt.Println("READENCODED", id)
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
+	entry, _, err := s.lookupEntryWithLock(&seriesTags)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
@@ -1081,22 +1101,26 @@ func (s *dbShard) ReadEncoded(
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
-func (s *dbShard) lookupEntryWithLock(id ident.ID) (*lookup.Entry, *list.Element, error) {
+func (s *dbShard) lookupEntryWithLock(tags *ident.Tags) (*lookup.Entry, *list.Element, error) {
 	if s.state != dbShardStateOpen {
 		// NB(r): Return an invalid params error here so any upstream
 		// callers will not retry this operation
 		return nil, nil, xerrors.NewInvalidParamsError(errShardNotOpen)
 	}
-	elem, exists := s.lookup.Get(id)
+	fmt.Println("LOOK", tags)
+	if len(tags.Values()) > 0 && len(tags.Values()[0].Name.Bytes()) == 0 {
+		fmt.Println("BAD LOOK", tags)
+	}
+	elem, exists := s.lookup.Get(tags)
 	if !exists {
 		return nil, nil, errShardEntryNotFound
 	}
 	return elem.Value.(*lookup.Entry), elem, nil
 }
 
-func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*lookup.Entry, error) {
+func (s *dbShard) writableSeries(id ident.ID, tags *ident.Tags) (*lookup.Entry, error) {
 	for {
-		entry, _, err := s.tryRetrieveWritableSeries(id)
+		entry, _, err := s.tryRetrieveWritableSeries(tags)
 		if entry != nil {
 			return entry, nil
 		}
@@ -1119,7 +1143,7 @@ type writableSeriesOptions struct {
 	writeNewSeriesAsync bool
 }
 
-func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
+func (s *dbShard) tryRetrieveWritableSeries(tags *ident.Tags) (
 	*lookup.Entry,
 	writableSeriesOptions,
 	error,
@@ -1128,7 +1152,7 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 	opts := writableSeriesOptions{
 		writeNewSeriesAsync: s.currRuntimeOptions.writeNewSeriesAsync,
 	}
-	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
+	if entry, _, err := s.lookupEntryWithLock(tags); err == nil {
 		entry.IncrementReaderWriterCount()
 		s.RUnlock()
 		return entry, opts, nil
@@ -1141,7 +1165,6 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 }
 
 func (s *dbShard) newShardEntry(
-	id ident.ID,
 	tagsArgOpts tagsArgOptions,
 ) (*lookup.Entry, error) {
 	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
@@ -1150,60 +1173,18 @@ func (s *dbShard) newShardEntry(
 	// Since series are purged so infrequently the overhead of not releasing
 	// back an ID to a pool is amortized over a long period of time.
 	var (
-		seriesID   ident.BytesID
-		seriesTags ident.Tags
+		seriesTags *ident.Tags
 		err        error
 	)
-	if id.IsNoFinalize() {
-		// If the ID is already marked as NoFinalize, meaning it won't be returned
-		// to any pools, then we can directly take reference to it.
-		// We make sure to use ident.BytesID for this ID to avoid inc/decref when
-		// accessing the ID since it's not pooled and therefore the safety is not
-		// required.
-		seriesID = ident.BytesID(id.Bytes())
-	} else {
-		seriesID = ident.BytesID(append([]byte(nil), id.Bytes()...))
-		seriesID.NoFinalize()
+	seriesTags, err = s.toTags(tagsArgOpts)
+	if err != nil {
+		return nil, err
 	}
-
-	switch tagsArgOpts.arg {
-	case tagsIterArg:
-		// NB(r): Take a duplicate so that we don't double close the tag iterator
-		// passed to this method
-		tagsIter := tagsArgOpts.tagsIter.Duplicate()
-
-		// Ensure tag iterator at start
-		if tagsIter.CurrentIndex() != 0 {
-			return nil, errNewShardEntryTagsIterNotAtIndexZero
-		}
-
-		// Pass nil for the identifier pool because the pool will force us to use an array
-		// with a large capacity to store the tags. Since these tags are long-lived, it's
-		// better to allocate an array of the exact size to save memory.
-		seriesTags, err = convert.TagsFromTagsIter(seriesID, tagsIter, nil)
-		tagsIter.Close()
-		if err != nil {
-			return nil, err
-		}
-
-		if err := convert.ValidateSeries(seriesID, seriesTags); err != nil {
-			return nil, err
-		}
-
-	case tagsArg:
-		seriesTags = tagsArgOpts.tags
-
-	default:
-		return nil, errNewShardEntryTagsTypeInvalid
-	}
-	// Don't put tags back in a pool since the merge logic may still have a
-	// handle on these.
 	seriesTags.NoFinalize()
 
 	uniqueIndex := s.increasingIndex.nextIndex()
 	newSeries := s.seriesPool.Get()
 	newSeries.Reset(series.DatabaseSeriesOptions{
-		ID:                     seriesID,
 		Tags:                   seriesTags,
 		UniqueIndex:            uniqueIndex,
 		BlockRetriever:         s.seriesBlockRetriever,
@@ -1211,7 +1192,8 @@ func (s *dbShard) newShardEntry(
 		OnEvictedFromWiredList: s,
 		Options:                s.seriesOpts,
 	})
-	return lookup.NewEntry(newSeries, uniqueIndex), nil
+	entry := lookup.NewEntry(newSeries, uniqueIndex)
+	return entry, nil
 }
 
 type insertAsyncResult struct {
@@ -1222,6 +1204,54 @@ type insertAsyncResult struct {
 	// inserted into the shard map in case there is already
 	// an existing entry waiting in the insert queue
 	entry *lookup.Entry
+}
+
+func tagsIterToTags(tagsIter ident.TagIterator) (*ident.Tags, error) {
+	var seriesTags ident.Tags
+	// NB(r): Take a duplicate so that we don't double close the tag iterator
+	// passed to this method
+	iter := tagsIter.Duplicate()
+
+	// Ensure tag iterator at start
+	if iter.CurrentIndex() != 0 {
+		return nil, errNewShardEntryTagsIterNotAtIndexZero
+	}
+
+	// Pass nil for the identifier pool because the pool will force us to use an array
+	// with a large capacity to store the tags. Since these tags are long-lived, it's
+	// better to allocate an array of the exact size to save memory.
+	for iter.Next() {
+		t := iter.Current()
+
+		// TODO: need this?
+		t.NoFinalize()
+
+		seriesTags.Append(iter.Current())
+	}
+	iter.Close()
+	return &seriesTags, nil
+}
+
+func (s *dbShard) toTags(tagsArgOpts tagsArgOptions) (*ident.Tags, error) {
+	var (
+		seriesTags *ident.Tags
+		err        error
+	)
+	switch tagsArgOpts.arg {
+	case tagsIterArg:
+		seriesTags, err = tagsIterToTags(tagsArgOpts.tagsIter)
+		if err != nil {
+			return nil, err
+		}
+	case tagsArg:
+		seriesTags = tagsArgOpts.tags
+	default:
+		return nil, errNewShardEntryTagsTypeInvalid
+	}
+	// Don't put tags back in a pool since the merge logic may still have a
+	// handle on these.
+	//seriesTags.NoFinalize()
+	return seriesTags, nil
 }
 
 func (s *dbShard) insertSeriesForIndexingAsyncBatched(
@@ -1269,10 +1299,10 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 
 func (s *dbShard) insertSeriesAsyncBatched(
 	id ident.ID,
-	tags ident.TagIterator,
+	tags *ident.Tags,
 	opts dbShardInsertAsyncOptions,
 ) (insertAsyncResult, error) {
-	entry, err := s.newShardEntry(id, newTagsIterArg(tags))
+	entry, err := s.newShardEntry(newTagsArg(tags))
 	if err != nil {
 		return insertAsyncResult{}, err
 	}
@@ -1305,7 +1335,6 @@ type insertSyncOptions struct {
 }
 
 func (s *dbShard) insertSeriesSync(
-	id ident.ID,
 	tagsArgOpts tagsArgOptions,
 	opts insertSyncOptions,
 ) (*lookup.Entry, error) {
@@ -1322,7 +1351,11 @@ func (s *dbShard) insertSeriesSync(
 		}
 	}()
 
-	entry, _, err = s.lookupEntryWithLock(id)
+	tags, err := s.toTags(tagsArgOpts)
+	if err != nil {
+		return nil, err
+	}
+	entry, _, err = s.lookupEntryWithLock(tags)
 	if err != nil && err != errShardEntryNotFound {
 		// Shard not taking inserts likely.
 		return nil, err
@@ -1332,13 +1365,12 @@ func (s *dbShard) insertSeriesSync(
 		return entry, nil
 	}
 
-	entry, err = s.newShardEntry(id, tagsArgOpts)
+	entry, err = s.newShardEntry(tagsArgOpts)
 	if err != nil {
 		// should never happen
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
 			func(logger *zap.Logger) {
 				logger.Error("insertSeriesSync error creating shard entry",
-					zap.String("id", id.String()),
 					zap.Error(err))
 			})
 		return nil, err
@@ -1377,9 +1409,9 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *lookup.Entry) {
 	// Set the lookup value, we use the copied ID and since it is GC'd
 	// we explicitly set it with options to not copy the key and not to
 	// finalize it.
-	copiedID := entry.Series.ID()
+	tags := entry.Series.Tags()
 	listElem := s.list.PushBack(entry)
-	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
+	s.lookup.SetUnsafe(&tags, listElem, shardMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
@@ -1416,7 +1448,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// i.e. we don't have a ref on provided entry, so we check if between the operation being
 		// enqueue in the shard insert queue, and this function executing, an entry was created
 		// for the same ID.
-		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
+		tags := inserts[i].entry.Series.Tags()
+		entry, _, err := s.lookupEntryWithLock(&tags)
 		if entry != nil {
 			// Already exists so update the entry we're pointed at for this insert
 			inserts[i].entry = entry
@@ -1560,8 +1593,10 @@ func (s *dbShard) FetchBlocks(
 	starts []time.Time,
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
+	fmt.Println("FETCHBLOCKS", id)
+	tags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(id)
+	entry, _, err := s.lookupEntryWithLock(&tags)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
@@ -1601,8 +1636,10 @@ func (s *dbShard) FetchBlocksForColdFlush(
 	version int,
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, error) {
+	fmt.Println("FETCHBLOCKS COLD", seriesID)
+	tags := ident.ToTags(seriesID, s.seriesOpts.BytesOpts())
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(seriesID)
+	entry, _, err := s.lookupEntryWithLock(&tags)
 	s.RUnlock()
 	if entry == nil || err != nil {
 		return block.FetchBlockResult{}, err
@@ -1996,6 +2033,7 @@ func (s *dbShard) Bootstrap(ctx context.Context) error {
 func (s *dbShard) LoadBlocks(
 	seriesToLoad *result.Map,
 ) error {
+	fmt.Println("LOADBLOCKS")
 	if seriesToLoad == nil {
 		return errTriedToLoadNilSeries
 	}
@@ -2024,7 +2062,7 @@ func (s *dbShard) LoadBlocks(
 
 		canFinalizeTagsAll := true
 		for _, block := range dbBlocks.Blocks.AllBlocks() {
-			result, err := s.loadBlock(id, tags, block)
+			result, err := s.loadBlock(id, &tags, block)
 			if err != nil {
 				multiErr = multiErr.Add(err)
 			}
@@ -2046,7 +2084,7 @@ type loadBlockResult struct {
 
 func (s *dbShard) loadBlock(
 	id ident.ID,
-	tags ident.Tags,
+	tags *ident.Tags,
 	block block.DatabaseBlock,
 ) (loadBlockResult, error) {
 	var (
@@ -2055,14 +2093,14 @@ func (s *dbShard) loadBlock(
 	)
 
 	// First lookup if series already exists.
-	entry, shardOpts, err := s.tryRetrieveWritableSeries(id)
+	entry, shardOpts, err := s.tryRetrieveWritableSeries(tags)
 	if err != nil && err != errShardEntryNotFound {
 		return result, err
 	}
 	if entry == nil {
 		// Synchronously insert to avoid waiting for the insert queue which could potentially
 		// delay the insert.
-		entry, err = s.insertSeriesSync(id, newTagsArg(tags),
+		entry, err = s.insertSeriesSync(newTagsArg(tags),
 			insertSyncOptions{
 				// NB(r): Because insertSyncIncReaderWriterCount is used here we
 				// don't need to explicitly increment the reader/writer count and it
@@ -2145,6 +2183,7 @@ func (s *dbShard) WarmFlush(
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 ) error {
+	fmt.Println("WARMFLUSH")
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bootstrapState != Bootstrapped {
@@ -2212,6 +2251,7 @@ func (s *dbShard) ColdFlush(
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
 ) (ShardColdFlush, error) {
+	fmt.Println("COLDFLUSH")
 	// We don't flush data when the shard is still bootstrapping.
 	s.RLock()
 	if s.bootstrapState != Bootstrapped {
@@ -2531,14 +2571,8 @@ func (s *dbShard) Repair(
 }
 
 func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
-	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(seriesID)
-	s.RUnlock()
-	if entry == nil || err != nil {
-		return ident.Tags{}, false, err
-	}
-
-	return entry.Series.Tags(), true, nil
+	fmt.Println("TAGSFROMSERIES")
+	return ident.ToTags(seriesID, s.seriesOpts.BytesOpts()), true, nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

@@ -21,6 +21,8 @@
 package models
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/query/models/strconv"
 	"github.com/m3db/m3/src/query/util/writer"
 )
@@ -103,6 +105,7 @@ func quotedID(t Tags) []byte {
 	tagLength := 2 * len(t.Tags)
 	idLen += tagLength + 1 // account for separators and brackets
 	if needEscaping == nil {
+		fmt.Println("QS", t, idLen)
 		return quoteIDSimple(t, idLen)
 	}
 

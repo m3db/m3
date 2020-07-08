@@ -19,6 +19,7 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/briandowns/spinner v1.11.1 // indirect
 	github.com/c2h5oh/datasize v0.0.0-20171227191756-4eba002a5eae
+	github.com/cespare/xxhash v1.1.0
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
@@ -56,7 +57,7 @@ require (
 	github.com/m3db/bitset v2.0.0+incompatible
 	github.com/m3db/bloom v3.0.0+incompatible
 	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
-	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd // indirect
+	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd
 	github.com/m3db/prometheus_client_golang v0.8.1
 	github.com/m3db/prometheus_client_model v0.0.0-20180517145114-8b2299a4bf7d
 	github.com/m3db/prometheus_common v0.0.0-20180517030744-25aaa3dff79b

@@ -21,10 +21,33 @@
 package ident
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestTagsID(t *testing.T) {
+	tagsA := NewTags(
+		StringTag("hello", "there"),
+	)
+	tagsB := NewTags(
+		StringTag("foo", "bar"),
+		StringTag("and", "done"),
+	)
+	// tagsC := NewTags(
+	// 	StringTag("namespace", "metrics_0_30m"),
+	// 	StringTag("namespace", "metrics_0_30m"),
+	// 	StringTag("namespace", "metrics_0_30m"),
+	// 	StringTag("namespace", "metrics_0_30m"),
+	// 	StringTag("namespace", "metrics_0_30m"),
+	// )
+	fmt.Println(tagsA.values)
+	fmt.Println(tagsA.ToID(nil))
+	fmt.Println(tagsB.ToID(nil))
+	fmt.Println(ToTags(tagsA.ToID(nil), nil).Values())
+	fmt.Println(ToTags(tagsB.ToID(nil), nil).Values())
+}
 
 func TestTagsUnequalLength(t *testing.T) {
 	tagsA := NewTags(

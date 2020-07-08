@@ -25,8 +25,8 @@
 package storage
 
 import (
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/cespare/xxhash/v2"
 )
@@ -54,7 +54,7 @@ import (
 // shardMapOptions provides options used when created the map.
 type shardMapOptions struct {
 	InitialSize int
-	KeyCopyPool pool.BytesPool
+	ByteOpts    checked.BytesOptions
 }
 
 // newShardMap returns a new byte keyed map.
@@ -63,30 +63,19 @@ func newShardMap(opts shardMapOptions) *shardMap {
 		copyFn     shardMapCopyFn
 		finalizeFn shardMapFinalizeFn
 	)
-	if pool := opts.KeyCopyPool; pool == nil {
-		copyFn = func(k ident.ID) ident.ID {
-			return ident.BytesID(append([]byte(nil), k.Bytes()...))
-		}
-	} else {
-		copyFn = func(k ident.ID) ident.ID {
-			bytes := k.Bytes()
-			keyLen := len(bytes)
-			pooled := pool.Get(keyLen)[:keyLen]
-			copy(pooled, bytes)
-			return ident.BytesID(pooled)
-		}
-		finalizeFn = func(k ident.ID) {
-			if slice, ok := k.(ident.BytesID); ok {
-				pool.Put(slice)
-			}
-		}
+	copyFn = func(k *ident.Tags) *ident.Tags {
+		// Do not need a key copy pool since we
+		// will be relying on the string table.
+		// TODO: make clone not actually copy.
+		return k
 	}
 	return _shardMapAlloc(_shardMapOptions{
-		hash: func(id ident.ID) shardMapHash {
-			return shardMapHash(xxhash.Sum64(id.Bytes()))
+		hash: func(id *ident.Tags) shardMapHash {
+			b := id.ToID(opts.ByteOpts).Bytes()
+			return shardMapHash(xxhash.Sum64(b))
 		},
-		equals: func(x, y ident.ID) bool {
-			return x.Equal(y)
+		equals: func(x, y *ident.Tags) bool {
+			return x.Equal(*y)
 		},
 		copy:        copyFn,
 		finalize:    finalizeFn,
