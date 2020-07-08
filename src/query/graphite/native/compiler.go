@@ -39,7 +39,8 @@ func compile(input string) (Expression, error) {
 	lex, tokens := lexer.NewLexer(input, booleanLiterals)
 	go lex.Run()
 
-	c := compiler{input: input, tokens: tokens}
+	lookforward := newTokenLookforward(tokens)
+	c := compiler{input: input, tokens: lookforward}
 	expr, err := c.compileExpression()
 
 	// Exhaust all tokens until closed or else lexer won't close
@@ -49,15 +50,54 @@ func compile(input string) (Expression, error) {
 	return expr, err
 }
 
+type tokenLookforward struct {
+	lookforward *lexer.Token
+	tokens      chan *lexer.Token
+}
+
+func newTokenLookforward(tokens chan *lexer.Token) *tokenLookforward {
+	return &tokenLookforward{
+		tokens: tokens,
+	}
+}
+
+// get advances the lexer tokens.
+func (l *tokenLookforward) get() *lexer.Token {
+	if token := l.lookforward; token != nil {
+		l.lookforward = nil
+		return token
+	}
+
+	if token, ok := <-l.tokens; ok {
+		return token
+	}
+
+	return nil
+}
+
+func (l *tokenLookforward) peek() (*lexer.Token, bool) {
+	if l.lookforward != nil {
+		return l.lookforward, true
+	}
+
+	token, ok := <-l.tokens
+	if !ok {
+		return nil, false
+	}
+
+	l.lookforward = token
+	return token, true
+}
+
 // A compiler converts an input string into an executable Expression
 type compiler struct {
 	input  string
-	tokens chan *lexer.Token
+	tokens *tokenLookforward
 }
 
 // compileExpression compiles a top level expression
 func (c *compiler) compileExpression() (Expression, error) {
-	token := <-c.tokens
+	token := c.tokens.get()
 	if token == nil {
 		return noopExpression{}, nil
 	}
@@ -69,31 +109,54 @@ func (c *compiler) compileExpression() (Expression, error) {
 
 	case lexer.Identifier:
 		fc, err := c.compileFunctionCall(token.Value(), nil)
+		fetchCandidate := false
 		if err != nil {
-			return nil, err
+			_, fnNotFound := err.(errFuncNotFound)
+			if fnNotFound && c.canCompileAsFetch(token.Value()) {
+				fetchCandidate = true
+				expr = newFetchExpression(token.Value())
+			} else {
+				return nil, err
+			}
 		}
 
-		expr, err = newFuncExpression(fc)
-		if err != nil {
-			return nil, err
+		if !fetchCandidate {
+			expr, err = newFuncExpression(fc)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 	default:
 		return nil, c.errorf("unexpected value %s", token.Value())
 	}
 
-	if token := <-c.tokens; token != nil {
+	if token := c.tokens.get(); token != nil {
 		return nil, c.errorf("extra data %s", token.Value())
 	}
 
 	return expr, nil
 }
 
+// canCompileAsFetch attempts to see if the given term is a non-delimited
+// carbon metric; no dots, without any trailing parentheses.
+func (c *compiler) canCompileAsFetch(fname string) bool {
+	if nextToken, hasNext := c.tokens.peek(); hasNext {
+		return nextToken.TokenType() != lexer.LParenthesis
+	}
+
+	return true
+}
+
+type errFuncNotFound struct{ err error }
+
+func (e errFuncNotFound) Error() string { return e.err.Error() }
+
 // compileFunctionCall compiles a function call
 func (c *compiler) compileFunctionCall(fname string, nextToken *lexer.Token) (*functionCall, error) {
 	fn := findFunction(fname)
 	if fn == nil {
-		return nil, c.errorf("could not find function named %s", fname)
+		return nil, errFuncNotFound{c.errorf("could not find function named %s", fname)}
 	}
 
 	if nextToken != nil {
@@ -158,7 +221,7 @@ func (c *compiler) compileFunctionCall(fname string, nextToken *lexer.Token) (*f
 // compileArg parses and compiles a single argument
 func (c *compiler) compileArg(fname string, index int,
 	reflectType reflect.Type) (arg funcArg, foundRParen bool, err error) {
-	token := <-c.tokens
+	token := c.tokens.get()
 	if token == nil {
 		return nil, false, c.errorf("unexpected eof while parsing %s", fname)
 	}
@@ -173,7 +236,7 @@ func (c *compiler) compileArg(fname string, index int,
 				fname, token.Value())
 		}
 
-		if token = <-c.tokens; token == nil {
+		if token = c.tokens.get(); token == nil {
 			return nil, false, c.errorf("unexpected eof while parsing %s", fname)
 		}
 	}
@@ -219,13 +282,13 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 		currentToken := token.Value()
 
 		// handle named arguments
-		nextToken := <-c.tokens
+		nextToken := c.tokens.get()
 		if nextToken == nil {
 			return nil, c.errorf("unexpected eof, %s should be followed by = or (", currentToken)
 		}
 		if nextToken.TokenType() == lexer.Equal {
 			// TODO: check if currentToken matches the expected parameter name
-			tokenAfterNext := <-c.tokens
+			tokenAfterNext := c.tokens.get()
 			if tokenAfterNext == nil {
 				return nil, c.errorf("unexpected eof, named argument %s should be followed by its value", currentToken)
 			}
@@ -240,7 +303,7 @@ func (c *compiler) convertTokenToArg(token *lexer.Token, reflectType reflect.Typ
 
 // expectToken reads the next token and confirms it is the expected type before returning it
 func (c *compiler) expectToken(expectedType lexer.TokenType) (*lexer.Token, error) {
-	token := <-c.tokens
+	token := c.tokens.get()
 	if token == nil {
 		return nil, c.errorf("expected %v but encountered eof", expectedType)
 	}

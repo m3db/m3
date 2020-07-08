@@ -79,6 +79,11 @@ t=$(date +%s)
 echo "foo.bar:baz.qux 42 $t" | nc 0.0.0.0 7204
 ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'foo.bar:*.*' 42
 
+# Test writing and reading IDs with a single element.
+t=$(date +%s)
+echo "quail 42 $t" | nc 0.0.0.0 7204
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'quail' 42
+
 t=$(date +%s)
 echo "a 0 $t"             | nc 0.0.0.0 7204
 echo "a.bar 0 $t"         | nc 0.0.0.0 7204
