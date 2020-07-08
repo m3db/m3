@@ -881,7 +881,7 @@ func (s *dbShard) writeAndIndex(
 	shouldReverseIndex bool,
 ) (ts.Series, bool, error) {
 	// Prepare write
-	seriesTags, err := tagsIterToTags(tags)
+	seriesTags, err := s.tagsIterToTags(tags)
 	if err != nil {
 		return ts.Series{}, false, err
 	}
@@ -1194,8 +1194,9 @@ type insertAsyncResult struct {
 	entry *lookup.Entry
 }
 
-func tagsIterToTags(tagsIter ident.TagIterator) (*ident.Tags, error) {
-	var seriesTags ident.Tags
+func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator) (*ident.Tags, error) {
+	tagSlice := make([]ident.Tag, 0, tagsIter.Len())
+	tags := ident.NewTags(tagSlice...)
 	// NB(r): Take a duplicate so that we don't double close the tag iterator
 	// passed to this method
 	iter := tagsIter.Duplicate()
@@ -1209,15 +1210,19 @@ func tagsIterToTags(tagsIter ident.TagIterator) (*ident.Tags, error) {
 	// with a large capacity to store the tags. Since these tags are long-lived, it's
 	// better to allocate an array of the exact size to save memory.
 	for iter.Next() {
+		var tag ident.Tag
 		t := iter.Current()
+
+		tag.Name = ident.BinaryID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()))
+		tag.Value = ident.BinaryID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()))
 
 		// TODO: need this?
 		t.NoFinalize()
 
-		seriesTags.Append(iter.Current())
+		tags.Append(tag)
 	}
 	iter.Close()
-	return &seriesTags, nil
+	return &tags, nil
 }
 
 func (s *dbShard) toTags(tagsArgOpts tagsArgOptions) (*ident.Tags, error) {
@@ -1227,7 +1232,7 @@ func (s *dbShard) toTags(tagsArgOpts tagsArgOptions) (*ident.Tags, error) {
 	)
 	switch tagsArgOpts.arg {
 	case tagsIterArg:
-		seriesTags, err = tagsIterToTags(tagsArgOpts.tagsIter)
+		seriesTags, err = s.tagsIterToTags(tagsArgOpts.tagsIter)
 		if err != nil {
 			return nil, err
 		}
