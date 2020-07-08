@@ -173,7 +173,6 @@ func (m *ResultMetadata) VerifyTemporalRange(step time.Duration) {
 		}
 	}
 
-	fmt.Println("invalid", invalidResolutions)
 	if len(invalidResolutions) > 0 {
 		warnings := make([]string, 0, len(invalidResolutions))
 		for k := range invalidResolutions {
