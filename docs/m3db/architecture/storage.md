@@ -30,7 +30,10 @@ A fileset has the following files:
 │- Summaries (Num)    │  └─────────────────────┘     │- Data Entry Offset  ├──┐
 │- BloomFilter (K/M)  │                              │- Encoded Tags       |  |
 │- Snapshot Time      │                              └─────────────────────┘  │
-│- Type (Flush/Snap)  │                                                       │
+│- Type (Flush/Snap)  |                                                       |
+│- Snapshot ID        |                                                       │
+│- Volume Index       |                                                       │
+│- Minor Version      |                                                       │
 └─────────────────────┘                                                       │
                                                                               │
                          ┌─────────────────────┐  ┌───────────────────────────┘
