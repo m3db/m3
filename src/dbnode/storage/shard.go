@@ -448,7 +448,6 @@ func (s *dbShard) OnRetrieveBlock(
 	segment ts.Segment,
 	nsCtx namespace.Context,
 ) {
-	fmt.Println("ON RETRIEVE BLOCK")
 	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(&seriesTags)
@@ -852,10 +851,8 @@ func (s *dbShard) WriteTagged(
 	annotation []byte,
 	wOpts series.WriteOptions,
 ) (ts.Series, bool, error) {
-	//fmt.Println("WRITE START", id, value)
 	series, written, err := s.writeAndIndex(ctx, id, tags, timestamp,
 		value, unit, annotation, wOpts, true)
-	//fmt.Println("WRITE END", id, value)
 	return series, written, err
 }
 
@@ -885,9 +882,6 @@ func (s *dbShard) writeAndIndex(
 ) (ts.Series, bool, error) {
 	// Prepare write
 	seriesTags, err := tagsIterToTags(tags)
-	fmt.Println("FROM A", tags.CurrentIndex(), tags.Len(), tags.Current().Name)
-	fmt.Println("FROM ID", id.String(), ident.ToTags(id, s.seriesOpts.BytesOpts()).Values()[0])
-	fmt.Println("FROM ITER", tags.Len(), id.String(), seriesTags.Values()[0])
 	if err != nil {
 		return ts.Series{}, false, err
 	}
@@ -1018,7 +1012,6 @@ func (s *dbShard) SeriesReadWriteRef(
 	opts ShardSeriesReadWriteRefOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
-	fmt.Println("SeriesReadWriteRef", id)
 	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	entry, _, err := s.tryRetrieveWritableSeries(&seriesTags)
 	if err != nil {
@@ -1067,7 +1060,6 @@ func (s *dbShard) ReadEncoded(
 	start, end time.Time,
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
-	fmt.Println("READENCODED", id)
 	s.RLock()
 	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	entry, _, err := s.lookupEntryWithLock(&seriesTags)
@@ -1106,10 +1098,6 @@ func (s *dbShard) lookupEntryWithLock(tags *ident.Tags) (*lookup.Entry, *list.El
 		// NB(r): Return an invalid params error here so any upstream
 		// callers will not retry this operation
 		return nil, nil, xerrors.NewInvalidParamsError(errShardNotOpen)
-	}
-	fmt.Println("LOOK", tags)
-	if len(tags.Values()) > 0 && len(tags.Values()[0].Name.Bytes()) == 0 {
-		fmt.Println("BAD LOOK", tags)
 	}
 	elem, exists := s.lookup.Get(tags)
 	if !exists {
@@ -1593,7 +1581,6 @@ func (s *dbShard) FetchBlocks(
 	starts []time.Time,
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
-	fmt.Println("FETCHBLOCKS", id)
 	tags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(&tags)
@@ -1636,7 +1623,6 @@ func (s *dbShard) FetchBlocksForColdFlush(
 	version int,
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, error) {
-	fmt.Println("FETCHBLOCKS COLD", seriesID)
 	tags := ident.ToTags(seriesID, s.seriesOpts.BytesOpts())
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(&tags)
@@ -2033,7 +2019,6 @@ func (s *dbShard) Bootstrap(ctx context.Context) error {
 func (s *dbShard) LoadBlocks(
 	seriesToLoad *result.Map,
 ) error {
-	fmt.Println("LOADBLOCKS")
 	if seriesToLoad == nil {
 		return errTriedToLoadNilSeries
 	}
@@ -2183,7 +2168,6 @@ func (s *dbShard) WarmFlush(
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 ) error {
-	fmt.Println("WARMFLUSH")
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bootstrapState != Bootstrapped {
@@ -2251,7 +2235,6 @@ func (s *dbShard) ColdFlush(
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
 ) (ShardColdFlush, error) {
-	fmt.Println("COLDFLUSH")
 	// We don't flush data when the shard is still bootstrapping.
 	s.RLock()
 	if s.bootstrapState != Bootstrapped {
@@ -2571,7 +2554,6 @@ func (s *dbShard) Repair(
 }
 
 func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
-	fmt.Println("TAGSFROMSERIES")
 	return ident.ToTags(seriesID, s.seriesOpts.BytesOpts()), true, nil
 }
 

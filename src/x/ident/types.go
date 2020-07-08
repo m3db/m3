@@ -329,7 +329,6 @@ func (t Tags) ToID(opts checked.BytesOptions) ID {
 }
 
 func quoteIDSimple(t Tags, length int) []byte {
-	fmt.Println("Q", t)
 	// TODO: pool these bytes.
 	id := make([]byte, length)
 	id[0] = leftBracket
@@ -337,31 +336,15 @@ func quoteIDSimple(t Tags, length int) []byte {
 	lastIndex := len(t.values) - 1
 	for _, tag := range t.values[:lastIndex] {
 		idx += copy(id[idx:], tag.Name.Bytes())
-		if idx >= len(id) {
-			fmt.Println("INVALID1", idx, t.values, string(tag.Name.Bytes()), string(tag.Value.Bytes()), length, id[idx:])
-		}
 		id[idx] = eq
 		idx++
-		if idx >= len(id) {
-			fmt.Println("INVALID4", idx, t.values, string(tag.Name.Bytes()), string(tag.Value.Bytes()), length, id[idx:])
-		}
-		fmt.Println("TEST", idx, tag.Name.Bytes(), tag.Value.Bytes())
-		if len(id[idx:]) < len(tag.Value.Bytes())+2 {
-			fmt.Println("INVALID6", idx, t.values, string(tag.Name.Bytes()), string(tag.Value.Bytes()), length, id[idx:])
-		}
 		idx = strconv.QuoteSimple(id, tag.Value.Bytes(), idx)
-		if idx >= len(id) {
-			fmt.Println("INVALID5", idx, t.values, string(tag.Name.Bytes()), string(tag.Value.Bytes()), length, id[idx:])
-		}
 		id[idx] = sep
 		idx++
 	}
 
 	tag := t.values[lastIndex]
 	idx += copy(id[idx:], tag.Name.Bytes())
-	if idx >= len(id) {
-		fmt.Println("INVALID2", t.values, length)
-	}
 	id[idx] = eq
 	idx++
 	idx = strconv.QuoteSimple(id, tag.Value.Bytes(), idx)
@@ -376,9 +359,6 @@ func writeAtIndex(t Tag, id []byte, escape tagEscaping, idx int) int {
 		idx += copy(id[idx:], t.Name.Bytes())
 	}
 
-	if idx >= len(id) {
-		fmt.Println("INVALID3", t, id, escape, idx)
-	}
 	id[idx] = eq
 	idx++
 
@@ -412,7 +392,6 @@ func serializedLength(t *Tag) (int, tagEscaping) {
 		idLen += len(valueBytes) + 2
 	}
 
-	fmt.Println("LEN", string(t.Name.Bytes()), string(t.Value.Bytes()), idLen, escaping)
 	return idLen, escaping
 }
 
