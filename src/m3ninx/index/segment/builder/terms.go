@@ -22,7 +22,6 @@ package builder
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/twotwotwo/sorts"
@@ -96,9 +95,7 @@ func (t *terms) sortIfRequired() {
 	if t.uniqueTermsIsSorted {
 		return
 	}
-	if len(t.uniqueTerms) > 0 {
-		fmt.Println("SORT", string(t.uniqueTerms[0].term))
-	}
+
 	sorts.ByBytes(t)
 	t.uniqueTermsIsSorted = true
 }
