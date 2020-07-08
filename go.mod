@@ -134,7 +134,7 @@ require (
 )
 
 // branch 0.9.3-pool-read-binary-3
-replace github.com/apache/thrift => github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4
+replace github.com/apache/thrift => github.com/notbdu/thrift v0.0.0-20200708044955-ea6354f9fd11
 
 // NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
 // write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
