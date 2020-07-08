@@ -22,6 +22,7 @@
 package checked
 
 import (
+	"bytes"
 	"sync"
 
 	"github.com/cespare/xxhash"
@@ -149,11 +150,15 @@ func (t *stringTable) GetOrSet(b []byte) Bytes {
 	key := xxhash.Sum64(b)
 
 	t.lock.RLock()
-	existing, ok := t.vals[key]
-	t.lock.RUnlock()
-	if ok {
-		return existing
+	for existing, ok := t.vals[key]; ok; existing, ok = t.vals[key] {
+		if bytes.Compare(b, existing.Bytes()) == 0 {
+			t.lock.RUnlock()
+			return existing
+		}
+		// Linear probing for collisions.
+		key++
 	}
+	t.lock.RUnlock()
 
 	new := NewBytes(b, nil)
 	new.IncRef()
