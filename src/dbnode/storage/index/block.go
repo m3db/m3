@@ -373,6 +373,9 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 }
 
 func (b *block) segmentsWithRLock() []segment.Segment {
+	// TODO: Also keep the lifetimes of the segments alive, i.e.
+	// don't let the segments taken ref to here be operated on since
+	// they could be closed by mutable segments container, etc.
 	numSegments := b.mutableSegments.Len()
 	for _, coldSeg := range b.coldMutableSegments {
 		numSegments += coldSeg.Len()
@@ -611,7 +614,8 @@ func (b *block) aggregateWithSpan(
 	aggOpts := results.AggregateResultsOptions()
 	iterateTerms := aggOpts.Type == AggregateTagNamesAndValues
 	iterateOpts := fieldsAndTermsIteratorOpts{
-		iterateTerms: iterateTerms,
+		restrictByQuery: aggOpts.RestrictByQuery,
+		iterateTerms:    iterateTerms,
 		allowFn: func(field []byte) bool {
 			// skip any field names that we shouldn't allow.
 			if bytes.Equal(field, doc.IDReservedFieldName) {

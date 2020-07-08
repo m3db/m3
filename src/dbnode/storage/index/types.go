@@ -241,6 +241,10 @@ type AggregateResultsOptions struct {
 
 	// FieldFilter is an optional param to filter aggregate values.
 	FieldFilter AggregateFieldFilter
+
+	// RestrictByQuery is a query to restrict the set of documents that must
+	// be present for an aggregated term to be returned.
+	RestrictByQuery *Query
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
