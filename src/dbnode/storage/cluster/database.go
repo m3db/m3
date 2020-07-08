@@ -59,12 +59,14 @@ type databaseMetrics struct {
 }
 
 func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
+	shardsScope := scope.SubScope("shards")
+	shardsClusterScope := scope.SubScope("shards-cluster")
 	return databaseMetrics{
-		initializing:          scope.Gauge("shards.initializing"),
-		leaving:               scope.Gauge("shards.leaving"),
-		available:             scope.Gauge("shards.available"),
-		shardsClusterTotal:    scope.Gauge("shards-cluster.total"),
-		shardsClusterReplicas: scope.Gauge("shards-cluster.replicas"),
+		initializing:          shardsScope.Gauge("initializing"),
+		leaving:               shardsScope.Gauge("leaving"),
+		available:             shardsScope.Gauge("available"),
+		shardsClusterTotal:    shardsClusterScope.Gauge("total"),
+		shardsClusterReplicas: shardsClusterScope.Gauge("replicas"),
 	}
 }
 
