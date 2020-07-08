@@ -501,6 +501,15 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 	return result, nil
 }
 
+func encodeResolutions(res []time.Duration) []int64 {
+	encoded := make([]int64, 0, len(res))
+	for _, r := range res {
+		encoded = append(encoded, int64(r))
+	}
+
+	return encoded
+}
+
 func encodeResultMetadata(meta block.ResultMetadata) *rpc.ResultMetadata {
 	warnings := make([]*rpc.Warning, 0, len(meta.Warnings))
 	for _, warn := range meta.Warnings {
@@ -513,8 +522,17 @@ func encodeResultMetadata(meta block.ResultMetadata) *rpc.ResultMetadata {
 	return &rpc.ResultMetadata{
 		Exhaustive:  meta.Exhaustive,
 		Warnings:    warnings,
-		Resolutions: meta.Resolutions,
+		Resolutions: encodeResolutions(meta.Resolutions),
 	}
+}
+
+func decodeResolutions(res []int64) []time.Duration {
+	decoded := make([]time.Duration, 0, len(res))
+	for _, d := range res {
+		decoded = append(decoded, time.Duration(d))
+	}
+
+	return decoded
 }
 
 func decodeResultMetadata(meta *rpc.ResultMetadata) block.ResultMetadata {
@@ -530,6 +548,6 @@ func decodeResultMetadata(meta *rpc.ResultMetadata) block.ResultMetadata {
 	return block.ResultMetadata{
 		Exhaustive:  meta.Exhaustive,
 		Warnings:    warnings,
-		Resolutions: meta.GetResolutions(),
+		Resolutions: decodeResolutions(meta.GetResolutions()),
 	}
 }

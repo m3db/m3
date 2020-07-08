@@ -22,6 +22,7 @@ package block
 
 import (
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/models"
 
@@ -104,7 +105,7 @@ func TestMergeIntoEmptyWarnings(t *testing.T) {
 }
 
 func TestMergeResolutions(t *testing.T) {
-	expected := []int64{1, 2, 3}
+	expected := []time.Duration{1, 2, 3}
 	r := ResultMetadata{}
 	rTwo := ResultMetadata{}
 	merge := r.CombineMetadata(rTwo)
@@ -127,18 +128,18 @@ func TestMergeResolutions(t *testing.T) {
 	require.Equal(t, 3, len(merge.Resolutions))
 	assert.Equal(t, expected, merge.Resolutions)
 
-	rTwo = ResultMetadata{Resolutions: []int64{4, 5, 6}}
+	rTwo = ResultMetadata{Resolutions: []time.Duration{4, 5, 6}}
 	merge = r.CombineMetadata(rTwo)
 	assert.Equal(t, 3, len(r.Resolutions))
 	assert.Equal(t, 3, len(rTwo.Resolutions))
 	require.Equal(t, 6, len(merge.Resolutions))
-	assert.Equal(t, []int64{1, 2, 3, 4, 5, 6}, merge.Resolutions)
+	assert.Equal(t, []time.Duration{1, 2, 3, 4, 5, 6}, merge.Resolutions)
 }
 
 func TestVerifyTemporalRange(t *testing.T) {
 	r := ResultMetadata{
 		Exhaustive:  true,
-		Resolutions: []int64{5, 10},
+		Resolutions: []time.Duration{5, 10},
 	}
 
 	ex0 := "resolution larger than query range_range: 1ns, resolutions: 10ns, 5ns"

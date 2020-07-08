@@ -59,9 +59,7 @@ const expectedWarning = "resolution larger than query range_" +
 
 func buildMetadata() block.ResultMetadata {
 	resultMeta := block.NewResultMetadata()
-	resultMeta.Resolutions = []int64{
-		int64(time.Second), int64(time.Minute),
-	}
+	resultMeta.Resolutions = []time.Duration{time.Second, time.Minute}
 
 	return resultMeta
 }
@@ -69,7 +67,7 @@ func buildMetadata() block.ResultMetadata {
 func buildWarningMetadata() block.ResultMetadata {
 	resultMeta := buildMetadata()
 	resultMeta.Resolutions = append(resultMeta.Resolutions,
-		int64(time.Second*61), int64(time.Hour))
+		time.Second*61, time.Hour)
 	return resultMeta
 }
 

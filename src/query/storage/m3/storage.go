@@ -102,9 +102,9 @@ func (s *m3storage) FetchProm(
 		return storage.PromResult{}, err
 	}
 
-	resolutions := make([]int64, 0, len(attrs))
+	resolutions := make([]time.Duration, 0, len(attrs))
 	for _, attr := range attrs {
-		resolutions = append(resolutions, int64(attr.Resolution))
+		resolutions = append(resolutions, attr.Resolution)
 	}
 
 	result.Metadata.Resolutions = resolutions
@@ -203,9 +203,9 @@ func (s *m3storage) FetchCompressed(
 		return result, noop, err
 	}
 
-	resolutions := make([]int64, 0, len(attrs))
+	resolutions := make([]time.Duration, 0, len(attrs))
 	for _, attr := range attrs {
-		resolutions = append(resolutions, int64(attr.Resolution))
+		resolutions = append(resolutions, attr.Resolution)
 	}
 
 	result.Metadata.Resolutions = resolutions

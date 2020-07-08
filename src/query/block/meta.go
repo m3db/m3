@@ -67,7 +67,7 @@ type ResultMetadata struct {
 	// incomplete results.
 	Warnings Warnings
 	// Resolutions is a list of resolutions for series obtained by this query.
-	Resolutions []int64
+	Resolutions []time.Duration
 }
 
 // NewResultMetadata creates a new result metadata.
@@ -78,7 +78,7 @@ func NewResultMetadata() ResultMetadata {
 	}
 }
 
-func combineResolutions(a, b []int64) []int64 {
+func combineResolutions(a, b []time.Duration) []time.Duration {
 	if len(a) == 0 {
 		if len(b) != 0 {
 			return b
@@ -88,7 +88,7 @@ func combineResolutions(a, b []int64) []int64 {
 			return a
 		}
 
-		combined := make([]int64, 0, len(a)+len(b))
+		combined := make([]time.Duration, 0, len(a)+len(b))
 		combined = append(combined, a...)
 		combined = append(combined, b...)
 		return combined
@@ -164,16 +164,11 @@ func (m ResultMetadata) IsDefault() bool {
 // VerifyTemporalRange will verify that each resolution seen is below the
 // given step size, adding warning headers if it is not.
 func (m *ResultMetadata) VerifyTemporalRange(step time.Duration) {
-	fmt.Println("Verifying with step size", step, "as int", int64(step), "Resos", m.Resolutions)
-	stepSize := int64(step)
 	// NB: this map is unlikely to have more than 2 elements in real execution,
 	// since these correspond to namespace count.
-	invalidResolutions := make(map[int64]struct{}, 10)
+	invalidResolutions := make(map[time.Duration]struct{}, 10)
 	for _, res := range m.Resolutions {
-		fmt.Println("here res is", res)
-		fmt.Println("step res is", stepSize)
-		fmt.Println("res > stepSize", res > stepSize)
-		if res > stepSize {
+		if res > step {
 			invalidResolutions[res] = struct{}{}
 		}
 	}
