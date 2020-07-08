@@ -18,12 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package writes
 
 import (
 	"errors"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -33,8 +34,9 @@ var (
 )
 
 type writeBatch struct {
-	writes []BatchWrite
-	ns     ident.ID
+	writes       []BatchWrite
+	pendingIndex []PendingIndexInsert
+	ns           ident.ID
 	// Enables callers to pool encoded tags by allowing them to
 	// provide a function to finalize all encoded tags once the
 	// writeBatch itself gets finalized.
@@ -53,9 +55,10 @@ func NewWriteBatch(
 	finalizeFn func(WriteBatch),
 ) WriteBatch {
 	return &writeBatch{
-		writes:     make([]BatchWrite, 0, batchSize),
-		ns:         ns,
-		finalizeFn: finalizeFn,
+		writes:       make([]BatchWrite, 0, batchSize),
+		pendingIndex: make([]PendingIndexInsert, 0, batchSize),
+		ns:           ns,
+		finalizeFn:   finalizeFn,
 	}
 }
 
@@ -80,7 +83,7 @@ func (b *writeBatch) AddTagged(
 	originalIndex int,
 	id ident.ID,
 	tagIter ident.TagIterator,
-	encodedTags EncodedTags,
+	encodedTags ts.EncodedTags,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -116,16 +119,29 @@ func (b *writeBatch) Iter() []BatchWrite {
 	return b.writes
 }
 
-func (b *writeBatch) SetOutcome(idx int, series Series, err error) {
+func (b *writeBatch) SetSeries(idx int, series ts.Series) {
 	b.writes[idx].SkipWrite = false
 	b.writes[idx].Write.Series = series
 	// Make sure that the EncodedTags does not get clobbered
 	b.writes[idx].Write.Series.EncodedTags = b.writes[idx].EncodedTags
+}
+
+func (b *writeBatch) SetError(idx int, err error) {
+	b.writes[idx].SkipWrite = true
 	b.writes[idx].Err = err
 }
 
 func (b *writeBatch) SetSkipWrite(idx int) {
 	b.writes[idx].SkipWrite = true
+}
+
+func (b *writeBatch) SetPendingIndex(idx int, pending PendingIndexInsert) {
+	b.writes[idx].PendingIndex = true
+	b.pendingIndex = append(b.pendingIndex, pending)
+}
+
+func (b *writeBatch) PendingIndex() []PendingIndexInsert {
+	return b.pendingIndex
 }
 
 // Set the function that will be called to finalize annotations when a WriteBatch
@@ -174,6 +190,13 @@ func (b *writeBatch) Finalize() {
 	}
 	b.writes = b.writes[:0]
 
+	var zeroedIndex PendingIndexInsert
+	for i := range b.pendingIndex {
+		// Remove any remaining pointers for G.C reasons.
+		b.pendingIndex[i] = zeroedIndex
+	}
+	b.pendingIndex = b.pendingIndex[:0]
+
 	b.finalizeFn(b)
 }
 
@@ -186,7 +209,7 @@ func newBatchWriterWrite(
 	namespace ident.ID,
 	id ident.ID,
 	tagIter ident.TagIterator,
-	encodedTags EncodedTags,
+	encodedTags ts.EncodedTags,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -199,12 +222,12 @@ func newBatchWriterWrite(
 	}
 	return BatchWrite{
 		Write: Write{
-			Series: Series{
+			Series: ts.Series{
 				ID:          id,
 				EncodedTags: encodedTags,
 				Namespace:   namespace,
 			},
-			Datapoint: Datapoint{
+			Datapoint: ts.Datapoint{
 				Timestamp:      timestamp,
 				TimestampNanos: xtime.ToUnixNano(timestamp),
 				Value:          value,

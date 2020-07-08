@@ -65,11 +65,25 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	cfg := TagOptionsConfiguration{
 		MetricName: name,
 		Scheme:     models.TypeLegacy,
+		Filters: []TagFilter{
+			{Name: "foo", Values: []string{".", "abc"}},
+			{Name: "bar", Values: []string{".*"}},
+		},
 	}
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, opts)
 	assert.Equal(t, []byte(name), opts.MetricName())
+	filters := opts.Filters()
+	exNames := [][]byte{[]byte("foo"), []byte("bar")}
+	exVals := [][]string{{".", "abc"}, {".*"}}
+	require.Equal(t, 2, len(filters))
+	for i, f := range filters {
+		assert.Equal(t, exNames[i], f.Name)
+		for j, v := range f.Values {
+			assert.Equal(t, []byte(exVals[i][j]), v)
+		}
+	}
 }
 
 func TestLimitsConfigurationAsLimitManagerOptions(t *testing.T) {

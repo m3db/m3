@@ -27,11 +27,11 @@
 //go:generate sh -c "mockgen -package=ingest -destination=$GOPATH/src/$PACKAGE/src/cmd/services/m3coordinator/ingest/write_mock.go $PACKAGE/src/cmd/services/m3coordinator/ingest DownsamplerAndWriter"
 //go:generate sh -c "mockgen -package=transform -destination=$GOPATH/src/$PACKAGE/src/query/executor/transform/types_mock.go $PACKAGE/src/query/executor/transform OpNode"
 //go:generate sh -c "mockgen -package=executor -destination=$GOPATH/src/$PACKAGE/src/query/executor/types_mock.go $PACKAGE/src/query/executor Engine"
+//go:generate sh -c "mockgen -package=cost -destination=$GOPATH/src/github.com/m3db/m3/src/query/cost/cost_mock.go $PACKAGE/src/query/cost ChainedEnforcer,ChainedReporter"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
 //go:generate sh -c "mockgen -package=m3ql -destination=$GOPATH/src/github.com/m3db/m3/src/query/parser/m3ql/types_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/query/parser/m3ql/types.go"
 //go:generate sh -c "mockgen -package=transform -destination=$GOPATH/src/github.com/m3db/m3/src/query/executor/transform/exec_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/query/executor/transform/exec.go"
 //go:generate sh -c "mockgen -package=temporal -destination=$GOPATH/src/github.com/m3db/m3/src/query/functions/temporal/dependencies_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/query/functions/temporal/dependencies.go" controller
-//go:generate sh -c "mockgen -package=cost -destination=$GOPATH/src/github.com/m3db/m3/src/query/cost/cost_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/query/cost/cost.go"
 
 package mocks

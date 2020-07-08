@@ -35,9 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/x/ident"
 	xos "github.com/m3db/m3/src/x/os"
-	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -109,8 +107,6 @@ type writer struct {
 	logEncoder          *msgpack.Encoder
 	logEncoderBuff      []byte
 	metadataEncoderBuff []byte
-	tagEncoder          serialize.TagEncoder
-	tagSliceIter        ident.TagsIterator
 	opts                Options
 }
 
@@ -133,8 +129,6 @@ func newCommitLogWriter(
 		logEncoder:          msgpack.NewEncoder(),
 		logEncoderBuff:      make([]byte, 0, defaultEncoderBuffSize),
 		metadataEncoderBuff: make([]byte, 0, defaultEncoderBuffSize),
-		tagEncoder:          opts.FilesystemOptions().TagEncoderPool().Get(),
-		tagSliceIter:        ident.NewTagsIterator(ident.Tags{}),
 		opts:                opts,
 	}
 }
@@ -203,34 +197,13 @@ func (w *writer) Write(
 
 	seen := w.seen.Test(uint(series.UniqueIndex))
 	if !seen {
-		var encodedTags []byte
-		if series.EncodedTags != nil {
-			// If already serialized use the serialized tags.
-			encodedTags = series.EncodedTags
-		} else if series.Tags.Values() != nil {
-			// Otherwise serialize the tags.
-			w.tagSliceIter.Reset(series.Tags)
-			w.tagEncoder.Reset()
-			err := w.tagEncoder.Encode(w.tagSliceIter)
-			if err != nil {
-				return err
-			}
-
-			encodedTagsChecked, ok := w.tagEncoder.Data()
-			if !ok {
-				return errTagEncoderDataNotAvailable
-			}
-
-			encodedTags = encodedTagsChecked.Bytes()
-		}
-
 		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
 		var metadata schema.LogMetadata
 		metadata.ID = series.ID.Bytes()
 		metadata.Namespace = series.Namespace.Bytes()
 		metadata.Shard = series.Shard
-		metadata.EncodedTags = encodedTags
+		metadata.EncodedTags = series.EncodedTags
 
 		var err error
 		w.metadataEncoderBuff, err = msgpack.EncodeLogMetadataFast(w.metadataEncoderBuff[:0], metadata)

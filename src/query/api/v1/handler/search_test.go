@@ -86,7 +86,7 @@ func generateTagIters(ctrl *gomock.Controller) *client.MockTaggedIDsIterator {
 	mockTaggedIDsIter.EXPECT().Next().Return(false)
 	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID("ns"),
 		ident.StringID(testID), seriesiter.GenerateSingleSampleTagIterator(ctrl, seriesiter.GenerateTag()))
-	mockTaggedIDsIter.EXPECT().Err().Return(nil)
+	mockTaggedIDsIter.EXPECT().Err().Return(nil).MinTimes(1)
 	mockTaggedIDsIter.EXPECT().Finalize()
 
 	return mockTaggedIDsIter

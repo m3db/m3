@@ -76,7 +76,6 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 	combinedMeta := warn1Meta.CombineMetadata(warn2Meta)
 
 	tests := []dedupeTest{
-
 		dedupeTest{
 			name: "same tags, same ids",
 			entries: []insertEntry{
@@ -253,7 +252,7 @@ func TestMultiFetchResultTagDedupeMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testMultiFetchResultTagDedupeMap(t, ctrl, tt)
+			testMultiFetchResultTagDedupeMap(t, ctrl, tt, models.NewTagOptions())
 		})
 	}
 }
@@ -262,6 +261,7 @@ func testMultiFetchResultTagDedupeMap(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	test dedupeTest,
+	tagOptions models.TagOptions,
 ) {
 	require.True(t, len(test.entries) > 0,
 		"must have more than 1 iterator in testMultiFetchResultTagDedupeMap")
@@ -272,7 +272,7 @@ func testMultiFetchResultTagDedupeMap(
 	}
 
 	r := NewMultiFetchResult(NamespaceCoversAllQueryRange, pools,
-		opts, models.NewTagOptions())
+		opts, tagOptions)
 
 	for _, entry := range test.entries {
 		r.Add(entry.iter, entry.meta, entry.attr, entry.err)
@@ -289,10 +289,9 @@ func testMultiFetchResultTagDedupeMap(
 
 	c := len(result.SeriesIterators())
 	require.Equal(t, len(test.expected), c)
-	tagOpts := models.NewTagOptions()
 
 	for i, ex := range test.expected {
-		iter, tags, err := result.IterTagsAtIndex(i, tagOpts)
+		iter, tags, err := result.IterTagsAtIndex(i, tagOptions)
 		require.NoError(t, err)
 
 		exTags := models.MustMakeTags(ex.tags...)
@@ -308,4 +307,52 @@ func testMultiFetchResultTagDedupeMap(
 	}
 
 	assert.NoError(t, r.Close())
+}
+
+func TestFilteredInsert(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	start := time.Now().Truncate(time.Hour)
+	step := func(i time.Duration) time.Time { return start.Add(time.Minute * i) }
+	unaggHr := storagemetadata.Attributes{
+		MetricsType: storagemetadata.UnaggregatedMetricsType,
+		Resolution:  time.Hour,
+	}
+
+	warn1Meta := block.NewResultMetadata()
+	warn1Meta.AddWarning("warn", "1")
+
+	warn2Meta := block.NewResultMetadata()
+	warn2Meta.AddWarning("warn", "2")
+
+	dedupe := dedupeTest{
+		name: "same tags, same ids",
+		entries: []insertEntry{
+			{
+				attr: unaggHr,
+				meta: warn1Meta,
+				err:  nil,
+				iter: encoding.NewSeriesIterators([]encoding.SeriesIterator{
+					it(ctrl, dp{t: step(1), val: 1}, "id1", "foo", "bar"),
+					notReadIt(ctrl, dp{t: step(5), val: 6}, "id1", "foo", "baz"),
+				}, nil),
+			},
+		},
+		expected: []expectedSeries{
+			expectedSeries{
+				tags: []string{"foo", "bar"},
+				dps:  []dp{dp{t: step(1), val: 1}, dp{t: step(5), val: 6}},
+			},
+		},
+		exMeta:  warn1Meta,
+		exErr:   nil,
+		exAttrs: []storagemetadata.Attributes{unaggHr},
+	}
+
+	opts := models.NewTagOptions().SetFilters(models.Filters{
+		models.Filter{Name: b("foo"), Values: [][]byte{b("baz")}},
+	})
+
+	testMultiFetchResultTagDedupeMap(t, ctrl, dedupe, opts)
 }

@@ -131,7 +131,7 @@ type block struct {
 	coldMutableSegments             []*mutableSegments
 	shardRangesSegmentsByVolumeType shardRangesSegmentsByVolumeType
 	newFieldsAndTermsIteratorFn     newFieldsAndTermsIteratorFn
-	newExecutorFn                   newExecutorFn
+	newExecutorWithRLockFn          newExecutorFn
 	blockStart                      time.Time
 	blockEnd                        time.Time
 	blockSize                       time.Duration
@@ -234,7 +234,7 @@ func NewBlock(
 		queryStats:                      opts.QueryStats(),
 	}
 	b.newFieldsAndTermsIteratorFn = newFieldsAndTermsIterator
-	b.newExecutorFn = b.executorWithRLock
+	b.newExecutorWithRLockFn = b.executorWithRLock
 
 	return b, nil
 }
@@ -356,6 +356,9 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 }
 
 func (b *block) segmentsWithRLock() []segment.Segment {
+	// TODO: Also keep the lifetimes of the segments alive, i.e.
+	// don't let the segments taken ref to here be operated on since
+	// they could be closed by mutable segments container, etc.
 	numSegments := b.mutableSegments.Len()
 	for _, coldSeg := range b.coldMutableSegments {
 		numSegments += coldSeg.Len()
@@ -423,7 +426,7 @@ func (b *block) queryWithSpan(
 		return false, ErrUnableToQueryBlockClosed
 	}
 
-	exec, err := b.newExecutorFn()
+	exec, err := b.newExecutorWithRLockFn()
 	if err != nil {
 		return false, err
 	}
@@ -513,8 +516,8 @@ func (b *block) queryWithSpan(
 }
 
 func (b *block) closeExecutorAsync(exec search.Executor) {
-	// Note: This only happens if closing the readers isn't clean.
 	if err := exec.Close(); err != nil {
+		// Note: This only happens if closing the readers isn't clean.
 		b.logger.Error("could not close search exec", zap.Error(err))
 	}
 }
@@ -594,7 +597,8 @@ func (b *block) aggregateWithSpan(
 	aggOpts := results.AggregateResultsOptions()
 	iterateTerms := aggOpts.Type == AggregateTagNamesAndValues
 	iterateOpts := fieldsAndTermsIteratorOpts{
-		iterateTerms: iterateTerms,
+		restrictByQuery: aggOpts.RestrictByQuery,
+		iterateTerms:    iterateTerms,
 		allowFn: func(field []byte) bool {
 			// skip any field names that we shouldn't allow.
 			if bytes.Equal(field, doc.IDReservedFieldName) {

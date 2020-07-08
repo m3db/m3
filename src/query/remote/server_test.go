@@ -507,12 +507,12 @@ func TestBatchedCompleteTags(t *testing.T) {
 		for _, size := range sizes {
 			var (
 				msg  = fmt.Sprintf("batch size: %d, name only: %t", size, nameOnly)
-				tags = make([]storage.CompletedTag, 0, size)
+				tags = make([]consolidators.CompletedTag, 0, size)
 			)
 
 			for i := 0; i < size; i++ {
 				name := fmt.Sprintf("%s_%d", seriesID, i)
-				tag := storage.CompletedTag{
+				tag := consolidators.CompletedTag{
 					Name: []byte(name),
 				}
 
@@ -524,7 +524,7 @@ func TestBatchedCompleteTags(t *testing.T) {
 			}
 
 			store := m3.NewMockStorage(ctrl)
-			expected := &storage.CompleteTagsResult{
+			expected := &consolidators.CompleteTagsResult{
 				CompleteNameOnly: nameOnly,
 				CompletedTags:    tags,
 				Metadata: block.ResultMetadata{

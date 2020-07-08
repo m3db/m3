@@ -572,7 +572,9 @@ func (s *peersSource) flush(
 				break
 			}
 
-			err = prepared.Persist(s.ID, s.Tags, segment, checksum)
+			metadata := persist.NewMetadataFromIDAndTags(s.ID, s.Tags,
+				persist.MetadataOptions{})
+			err = prepared.Persist(metadata, segment, checksum)
 			flushCtx.BlockingCloseReset()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return
@@ -707,7 +709,7 @@ func (s *peersSource) readNextEntryAndMaybeIndex(
 		return batch, err
 	}
 
-	d, err := convert.FromMetricIter(id, tagsIter)
+	d, err := convert.FromSeriesIDAndTagIter(id, tagsIter)
 	// Finalize the ID and tags.
 	id.Finalize()
 	tagsIter.Close()
@@ -936,7 +938,7 @@ func (s *peersSource) readBlockMetadataAndIndex(
 	batch []doc.Document,
 	flushBatch func() error,
 ) (bool, error) {
-	d, err := convert.FromMetric(dataBlock.ID, dataBlock.Tags)
+	d, err := convert.FromSeriesIDAndTags(dataBlock.ID, dataBlock.Tags)
 	if err != nil {
 		return false, err
 	}

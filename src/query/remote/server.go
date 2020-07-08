@@ -29,8 +29,8 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
-	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -257,7 +257,7 @@ func (s *grpcServer) CompleteTags(
 	size := min(defaultBatch, len(tags))
 	for ; len(tags) > 0; tags = tags[size:] {
 		size = min(size, len(tags))
-		results := &storage.CompleteTagsResult{
+		results := &consolidators.CompleteTagsResult{
 			CompleteNameOnly: completed.CompleteNameOnly,
 			CompletedTags:    tags[:size],
 			Metadata:         completed.Metadata,

@@ -150,7 +150,7 @@ func writeTSDBPersistedIndexBlock(
 	require.NoError(t, err)
 
 	for _, series := range block {
-		d, err := convert.FromMetric(series.ID(), series.Tags())
+		d, err := convert.FromSeriesIDAndTags(series.ID(), series.Tags())
 		require.NoError(t, err)
 		exists, err := seg.ContainsID(series.ID().Bytes())
 		require.NoError(t, err)

@@ -1,5 +1,32 @@
 # Changelog
 
+# 0.15.5
+
+## Documentation
+
+- **All**: Minor documentation fixes ([#2438](https://github.com/m3db/m3/pull/2438))
+- **M3Query**: Add M3-Restrict-By-Tags-JSON example ([#2437](https://github.com/m3db/m3/pull/2437))
+
+## Misc 
+
+- **M3DB**: Add continuous performance profiler that conditionally triggers with RPC endpoint ([#2416](https://github.com/m3db/m3/pull/2416))
+
+# 0.15.4
+
+## Features
+
+- **M3DB**: Performance increases for block rotation by streamlining indexing lock contention ([#2423](https://github.com/m3db/m3/pull/2423))
+- **M3DB**: Zero-copy of ID and fields on series index metadata re-indexing ([#2423](https://github.com/m3db/m3/pull/2423))
+- **M3Coordinator**: Add ability to restrict and block incoming series based on tag matchers ([#2430](https://github.com/m3db/m3/pull/2430))
+
+## Bug Fixes
+
+- **M3DB**: Fix an error where background compaction caused transient errors in queries ([#2432](https://github.com/m3db/m3/pull/2432))
+
+## Documentation
+
+- **M3Query**: Update config settings and cleaned up documentation for per query limits ([#2427](https://github.com/m3db/m3/pull/2427))
+
 # 0.15.3
 
 ## Features

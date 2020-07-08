@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"testing"
 	"time"
 
@@ -44,14 +45,15 @@ func TestFetchOptionsBuilder(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		defaultLimit     int
-		headers          map[string]string
-		query            string
-		expectedLimit    int
-		expectedRestrict *storage.RestrictQueryOptions
-		expectedLookback *expectedLookback
-		expectedErr      bool
+		name                 string
+		defaultLimit         int
+		defaultRestrictByTag *storage.RestrictByTag
+		headers              map[string]string
+		query                string
+		expectedLimit        int
+		expectedRestrict     *storage.RestrictQueryOptions
+		expectedLookback     *expectedLookback
+		expectedErr          bool
 	}{
 		{
 			name:          "default limit with no headers",
@@ -150,12 +152,72 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			query:       "lookback=step&step=-1",
 			expectedErr: true,
 		},
+		{
+			name: "restrict by tags json header",
+			headers: map[string]string{
+				RestrictByTagsJSONHeader: stripSpace(`{
+					"match":[{"name":"foo", "value":"bar", "type":"EQUAL"}],
+					"strip":["foo"]
+				}`),
+			},
+			expectedRestrict: &storage.RestrictQueryOptions{
+				RestrictByTag: &storage.RestrictByTag{
+					Restrict: models.Matchers{
+						mustMatcher("foo", "bar", models.MatchEqual),
+					},
+					Strip: toStrip("foo"),
+				},
+			},
+		},
+		{
+			name: "restrict by tags json defaults",
+			defaultRestrictByTag: &storage.RestrictByTag{
+				Restrict: models.Matchers{
+					mustMatcher("foo", "bar", models.MatchEqual),
+				},
+				Strip: toStrip("foo"),
+			},
+			expectedRestrict: &storage.RestrictQueryOptions{
+				RestrictByTag: &storage.RestrictByTag{
+					Restrict: models.Matchers{
+						mustMatcher("foo", "bar", models.MatchEqual),
+					},
+					Strip: toStrip("foo"),
+				},
+			},
+		},
+		{
+			name: "restrict by tags json default override by header",
+			defaultRestrictByTag: &storage.RestrictByTag{
+				Restrict: models.Matchers{
+					mustMatcher("foo", "bar", models.MatchEqual),
+				},
+				Strip: toStrip("foo"),
+			},
+			headers: map[string]string{
+				RestrictByTagsJSONHeader: stripSpace(`{
+					"match":[{"name":"qux", "value":"qaz", "type":"EQUAL"}],
+					"strip":["qux"]
+				}`),
+			},
+			expectedRestrict: &storage.RestrictQueryOptions{
+				RestrictByTag: &storage.RestrictByTag{
+					Restrict: models.Matchers{
+						mustMatcher("qux", "qaz", models.MatchEqual),
+					},
+					Strip: toStrip("qux"),
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
-				SeriesLimit: test.defaultLimit,
+				Limits: FetchOptionsBuilderLimitsOptions{
+					SeriesLimit: test.defaultLimit,
+				},
+				RestrictByTag: test.defaultRestrictByTag,
 			})
 
 			url := "/foo"
@@ -297,7 +359,11 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 		}`,
 	}
 
-	builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{SeriesLimit: 5})
+	builder := NewFetchOptionsBuilder(FetchOptionsBuilderOptions{
+		Limits: FetchOptionsBuilderLimitsOptions{
+			SeriesLimit: 5,
+		},
+	})
 	req := httptest.NewRequest("GET", "/", nil)
 	for k, v := range headers {
 		req.Header.Add(k, v)
@@ -325,4 +391,8 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 	}
 
 	require.Equal(t, ex, opts.RestrictQueryOptions)
+}
+
+func stripSpace(str string) string {
+	return regexp.MustCompile(`\s+`).ReplaceAllString(str, "")
 }

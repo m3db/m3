@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
@@ -63,7 +64,7 @@ type TagValuesHandler struct {
 
 // TagValuesResponse is the response that gets returned to the user
 type TagValuesResponse struct {
-	Results storage.CompleteTagsResult `json:"results,omitempty"`
+	Results consolidators.CompleteTagsResult `json:"results,omitempty"`
 }
 
 // NewTagValuesHandler returns a new instance of handler.

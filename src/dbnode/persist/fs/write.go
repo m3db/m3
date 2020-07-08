@@ -81,14 +81,14 @@ type writer struct {
 	encoder            *msgpack.Encoder
 	digestBuf          digest.Buffer
 	singleCheckedBytes []checked.Bytes
+	tagsIterator       ident.TagsIterator
 	tagEncoderPool     serialize.TagEncoderPool
 	err                error
 }
 
 type indexEntry struct {
 	index           int64
-	id              ident.ID
-	tags            ident.Tags
+	metadata        persist.Metadata
 	dataFileOffset  int64
 	indexFileOffset int64
 	size            uint32
@@ -98,7 +98,11 @@ type indexEntry struct {
 type indexEntries []indexEntry
 
 func (e indexEntries) releaseRefs() {
-	// memset zero loop optimization
+	// Close any metadata.
+	for _, elem := range e {
+		elem.metadata.Finalize()
+	}
+	// Apply memset zero loop optimization.
 	var zeroed indexEntry
 	for i := range e {
 		e[i] = zeroed
@@ -110,7 +114,7 @@ func (e indexEntries) Len() int {
 }
 
 func (e indexEntries) Less(i, j int) bool {
-	return bytes.Compare(e[i].id.Bytes(), e[j].id.Bytes()) < 0
+	return bytes.Compare(e[i].metadata.BytesID(), e[j].metadata.BytesID()) < 0
 }
 
 func (e indexEntries) Swap(i, j int) {
@@ -139,6 +143,7 @@ func NewWriter(opts Options) (DataFileSetWriter, error) {
 		encoder:                         msgpack.NewEncoder(),
 		digestBuf:                       digest.NewBuffer(),
 		singleCheckedBytes:              make([]checked.Bytes, 1),
+		tagsIterator:                    ident.NewTagsIterator(ident.Tags{}),
 		tagEncoderPool:                  opts.TagEncoderPool(),
 	}, nil
 }
@@ -252,18 +257,16 @@ func (w *writer) writeData(data []byte) error {
 }
 
 func (w *writer) Write(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	data checked.Bytes,
 	checksum uint32,
 ) error {
 	w.singleCheckedBytes[0] = data
-	return w.WriteAll(id, tags, w.singleCheckedBytes, checksum)
+	return w.WriteAll(metadata, w.singleCheckedBytes, checksum)
 }
 
 func (w *writer) WriteAll(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	data []checked.Bytes,
 	checksum uint32,
 ) error {
@@ -271,7 +274,7 @@ func (w *writer) WriteAll(
 		return w.err
 	}
 
-	if err := w.writeAll(id, tags, data, checksum); err != nil {
+	if err := w.writeAll(metadata, data, checksum); err != nil {
 		w.err = err
 		return err
 	}
@@ -279,8 +282,7 @@ func (w *writer) WriteAll(
 }
 
 func (w *writer) writeAll(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	data []checked.Bytes,
 	checksum uint32,
 ) error {
@@ -297,8 +299,7 @@ func (w *writer) writeAll(
 
 	entry := indexEntry{
 		index:          w.currIdx,
-		id:             id,
-		tags:           tags,
+		metadata:       metadata,
 		dataFileOffset: w.currOffset,
 		size:           uint32(size),
 		checksum:       checksum,
@@ -443,40 +444,47 @@ func (w *writer) writeIndexFileContents(
 	sort.Sort(w.indexEntries)
 
 	var (
-		offset      int64
-		prevID      []byte
-		tagsIter    = ident.NewTagsIterator(ident.Tags{})
-		tagsEncoder = w.tagEncoderPool.Get()
+		offset        int64
+		prevID        []byte
+		tagsReuseable = w.tagsIterator
+		tagsEncoder   = w.tagEncoderPool.Get()
 	)
 	defer tagsEncoder.Finalize()
-	for i := range w.indexEntries {
-		id := w.indexEntries[i].id.Bytes()
+	for i, entry := range w.indexEntries {
+		metadata := entry.metadata
+		id := metadata.BytesID()
 		// Need to check if i > 0 or we can never write an empty string ID
 		if i > 0 && bytes.Equal(id, prevID) {
 			// Should never happen, Write() should only be called once per ID
 			return fmt.Errorf("encountered duplicate ID: %s", id)
 		}
 
+		tagsIter, err := metadata.ResetOrReturnProvidedTagIterator(tagsReuseable)
+		if err != nil {
+			return err
+		}
+
 		var encodedTags []byte
-		if tags := w.indexEntries[i].tags; tags.Values() != nil {
-			tagsIter.Reset(tags)
+		if numTags := tagsIter.Remaining(); numTags > 0 {
 			tagsEncoder.Reset()
 			if err := tagsEncoder.Encode(tagsIter); err != nil {
 				return err
 			}
-			data, ok := tagsEncoder.Data()
+
+			encodedTagsData, ok := tagsEncoder.Data()
 			if !ok {
 				return errWriterEncodeTagsDataNotAccessible
 			}
-			encodedTags = data.Bytes()
+
+			encodedTags = encodedTagsData.Bytes()
 		}
 
 		entry := schema.IndexEntry{
-			Index:       w.indexEntries[i].index,
+			Index:       entry.index,
 			ID:          id,
-			Size:        int64(w.indexEntries[i].size),
-			Offset:      w.indexEntries[i].dataFileOffset,
-			Checksum:    int64(w.indexEntries[i].checksum),
+			Size:        int64(entry.size),
+			Offset:      entry.dataFileOffset,
+			Checksum:    int64(entry.checksum),
 			EncodedTags: encodedTags,
 		}
 
@@ -520,7 +528,7 @@ func (w *writer) writeSummariesFileContents(
 
 		summary := schema.IndexSummary{
 			Index:            w.indexEntries[i].index,
-			ID:               w.indexEntries[i].id.Bytes(),
+			ID:               w.indexEntries[i].metadata.BytesID(),
 			IndexEntryOffset: w.indexEntries[i].indexFileOffset,
 		}
 

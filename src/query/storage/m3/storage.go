@@ -367,7 +367,7 @@ func (s *m3storage) CompleteTagsCompressed(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	return s.CompleteTags(ctx, query, options)
 }
 
@@ -375,7 +375,7 @@ func (s *m3storage) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
@@ -396,7 +396,8 @@ func (s *m3storage) CompleteTags(
 	var (
 		nameOnly        = query.CompleteNameOnly
 		namespaces      = s.clusters.ClusterNamespaces()
-		accumulatedTags = storage.NewCompleteTagsResultBuilder(nameOnly)
+		tagOpts         = s.opts.TagOptions()
+		accumulatedTags = consolidators.NewCompleteTagsResultBuilder(nameOnly, tagOpts)
 		multiErr        syncMultiErrs
 		wg              sync.WaitGroup
 	)
@@ -467,7 +468,7 @@ func (s *m3storage) CompleteTags(
 			aggIterators = append(aggIterators, aggTagIter)
 			mu.Unlock()
 
-			completedTags := make([]storage.CompletedTag, 0, aggTagIter.Remaining())
+			completedTags := make([]consolidators.CompletedTag, 0, aggTagIter.Remaining())
 			for aggTagIter.Next() {
 				name, values := aggTagIter.Current()
 				tagValues := make([][]byte, 0, values.Remaining())
@@ -480,7 +481,7 @@ func (s *m3storage) CompleteTags(
 					return
 				}
 
-				completedTags = append(completedTags, storage.CompletedTag{
+				completedTags = append(completedTags, consolidators.CompletedTag{
 					Name:   name.Bytes(),
 					Values: tagValues,
 				})
@@ -493,7 +494,7 @@ func (s *m3storage) CompleteTags(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
-			result := &storage.CompleteTagsResult{
+			result := &consolidators.CompleteTagsResult{
 				CompleteNameOnly: query.CompleteNameOnly,
 				CompletedTags:    completedTags,
 				Metadata:         blockMeta,
@@ -538,7 +539,7 @@ func (s *m3storage) SearchCompressed(
 	var (
 		namespaces = s.clusters.ClusterNamespaces()
 		m3opts     = storage.FetchOptionsToM3Options(options, query)
-		result     = consolidators.NewMultiFetchTagsResult()
+		result     = consolidators.NewMultiFetchTagsResult(s.opts.TagOptions())
 		wg         sync.WaitGroup
 	)
 

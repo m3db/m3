@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -90,7 +91,6 @@ func testDatabaseShardWithIndexFn(
 func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags ident.Tags, index uint64) *series.MockDatabaseSeries {
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().Return(id).AnyTimes()
-	series.EXPECT().Tags().Return(tags).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	shard.Lock()
 	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, index))
@@ -420,7 +420,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	var closed bool
 	flush := persist.NewMockFlushPreparer(ctrl)
 	prepared := persist.PreparedDataPersist{
-		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
+		Persist: func(persist.Metadata, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
 	prepareOpts := xtest.CmpMatcher(persist.DataPrepareOptions{
@@ -497,7 +497,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	var closed bool
 	flush := persist.NewMockFlushPreparer(ctrl)
 	prepared := persist.PreparedDataPersist{
-		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
+		Persist: func(persist.Metadata, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
 
@@ -561,7 +561,7 @@ func TestShardColdFlush(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	now := time.Now()
 	nowFn := func() time.Time {
@@ -613,7 +613,8 @@ func TestShardColdFlush(t *testing.T) {
 	}
 	for _, ds := range dirtyData {
 		curr := series.NewMockDatabaseSeries(ctrl)
-		curr.EXPECT().ID().Return(ds.id)
+		curr.EXPECT().ID().Return(ds.id).AnyTimes()
+		curr.EXPECT().Metadata().Return(doc.Document{ID: ds.id.Bytes()}).AnyTimes()
 		curr.EXPECT().ColdFlushBlockStarts(gomock.Any()).
 			Return(optimizedTimesFromTimes(ds.dirtyTimes))
 		shard.list.PushBack(lookup.NewEntry(curr, 0))
@@ -622,7 +623,7 @@ func TestShardColdFlush(t *testing.T) {
 	preparer := persist.NewMockFlushPreparer(ctrl)
 	fsReader := fs.NewMockDataFileSetReader(ctrl)
 	resources := coldFlushReuseableResources{
-		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: make(map[xtime.UnixNano]*idList),
 		idElementPool:      newIDElementPool(nil),
 		fsReader:           fsReader,
@@ -695,7 +696,7 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	dirtySeriesToWrite[xtime.ToUnixNano(t3)] = newIDList(idElementPool)
 
 	resources := coldFlushReuseableResources{
-		dirtySeries:        newDirtySeriesMap(dirtySeriesMapOptions{}),
+		dirtySeries:        newDirtySeriesMap(),
 		dirtySeriesToWrite: dirtySeriesToWrite,
 		idElementPool:      idElementPool,
 		fsReader:           fsReader,
@@ -798,7 +799,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 	var closed bool
 	snapshotPreparer := persist.NewMockSnapshotPreparer(ctrl)
 	prepared := persist.PreparedDataPersist{
-		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
+		Persist: func(persist.Metadata, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
 
@@ -879,13 +880,13 @@ func writeShardAndVerify(
 	expectedShouldWrite bool,
 	expectedIdx uint64,
 ) {
-	series, wasWritten, err := shard.Write(ctx, ident.StringID(id),
+	seriesWrite, err := shard.Write(ctx, ident.StringID(id),
 		now, value, xtime.Second, nil, series.WriteOptions{})
 	assert.NoError(t, err)
-	assert.Equal(t, expectedShouldWrite, wasWritten)
-	assert.Equal(t, id, series.ID.String())
-	assert.Equal(t, "testns1", series.Namespace.String())
-	assert.Equal(t, expectedIdx, series.UniqueIndex)
+	assert.Equal(t, expectedShouldWrite, seriesWrite.WasWritten)
+	assert.Equal(t, id, seriesWrite.Series.ID.String())
+	assert.Equal(t, "testns1", seriesWrite.Series.Namespace.String())
+	assert.Equal(t, expectedIdx, seriesWrite.Series.UniqueIndex)
 }
 
 func TestShardTick(t *testing.T) {
@@ -1650,7 +1651,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 }
 
 func TestShardNewInvalidShardEntry(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	shard := testDatabaseShard(t, DefaultTestOptions())
@@ -1659,8 +1660,7 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 	iter := ident.NewMockTagIterator(ctrl)
 	gomock.InOrder(
 		iter.EXPECT().Duplicate().Return(iter),
-		iter.EXPECT().CurrentIndex().Return(0),
-		iter.EXPECT().Len().Return(0),
+		iter.EXPECT().Remaining().Return(8),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("random err")),
 		iter.EXPECT().Close(),
@@ -1687,7 +1687,7 @@ func TestShardNewValidShardEntry(t *testing.T) {
 // either to retry inserting a series or to finalize the tags at the
 // end of a request/response cycle or from a disk retrieve cycle.
 func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	shard := testDatabaseShard(t, DefaultTestOptions())
@@ -1701,7 +1701,6 @@ func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
 
 	// Ensure copied with call to bytes but no close call, etc
 	id := ident.NewMockID(ctrl)
-	id.EXPECT().IsNoFinalize().Times(1).Return(false)
 	id.EXPECT().Bytes().Times(1).Return(seriesID.Bytes())
 
 	iter := ident.NewMockTagIterator(ctrl)
@@ -1729,82 +1728,6 @@ func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
 	assert.True(t, entry.Series.ID().Equal(seriesID))
 	// NB(r): Use &slice[0] to get a pointer to the very first byte, i.e. data section
 	assert.False(t, unsafe.Pointer(&entryIDBytes[0]) == unsafe.Pointer(&seriesIDBytes[0]))
-
-	// Ensure Tags equal and NOT same ref for tags
-	assert.True(t, entry.Series.Tags().Equal(seriesTags))
-	require.Equal(t, 1, len(entry.Series.Tags().Values()))
-
-	entryTagNameBytes := entry.Series.Tags().Values()[0].Name.Bytes()
-	entryTagValueBytes := entry.Series.Tags().Values()[0].Value.Bytes()
-	seriesTagNameBytes := seriesTags.Values()[0].Name.Bytes()
-	seriesTagValueBytes := seriesTags.Values()[0].Value.Bytes()
-
-	// NB(r): Use &slice[0] to get a pointer to the very first byte, i.e. data section
-	assert.False(t, unsafe.Pointer(&entryTagNameBytes[0]) == unsafe.Pointer(&seriesTagNameBytes[0]))
-	assert.False(t, unsafe.Pointer(&entryTagValueBytes[0]) == unsafe.Pointer(&seriesTagValueBytes[0]))
-}
-
-// TestShardNewEntryTakesRefToNoFinalizeID ensures that when an ID is
-// marked as NoFinalize that newShardEntry simply takes a ref as it can
-// safely be assured the ID is not pooled.
-func TestShardNewEntryTakesRefToNoFinalizeID(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	shard := testDatabaseShard(t, DefaultTestOptions())
-	defer shard.Close()
-
-	seriesID := ident.BytesID([]byte("foo+bar=baz"))
-	seriesTags := ident.NewTags(ident.Tag{
-		Name:  ident.StringID("bar"),
-		Value: ident.StringID("baz"),
-	})
-
-	// Ensure copied with call to bytes but no close call, etc
-	id := ident.NewMockID(ctrl)
-	id.EXPECT().IsNoFinalize().Times(1).Return(true)
-	id.EXPECT().Bytes().Times(1).Return(seriesID.Bytes())
-
-	iter := ident.NewMockTagIterator(ctrl)
-
-	// Ensure duplicate called but no close, etc
-	iter.EXPECT().
-		Duplicate().
-		Times(1).
-		Return(ident.NewTagsIterator(seriesTags))
-
-	entry, err := shard.newShardEntry(id, newTagsIterArg(iter))
-	require.NoError(t, err)
-
-	shard.Lock()
-	shard.insertNewShardEntryWithLock(entry)
-	shard.Unlock()
-
-	entry, _, err = shard.tryRetrieveWritableSeries(seriesID)
-	require.NoError(t, err)
-
-	assert.True(t, entry.Series.ID().Equal(seriesID))
-
-	entryIDBytes := entry.Series.ID().Bytes()
-	seriesIDBytes := seriesID.Bytes()
-
-	// Ensure ID equal and same ref
-	assert.True(t, entry.Series.ID().Equal(seriesID))
-	// NB(r): Use &slice[0] to get a pointer to the very first byte, i.e. data section
-	assert.True(t, unsafe.Pointer(&entryIDBytes[0]) == unsafe.Pointer(&seriesIDBytes[0]))
-
-	// Ensure Tags equal and NOT same ref for tags
-	assert.True(t, entry.Series.Tags().Equal(seriesTags))
-	require.Equal(t, 1, len(entry.Series.Tags().Values()))
-
-	entryTagNameBytes := entry.Series.Tags().Values()[0].Name.Bytes()
-	entryTagValueBytes := entry.Series.Tags().Values()[0].Value.Bytes()
-	seriesTagNameBytes := seriesTags.Values()[0].Name.Bytes()
-	seriesTagValueBytes := seriesTags.Values()[0].Value.Bytes()
-
-	// NB(r): Use &slice[0] to get a pointer to the very first byte, i.e. data section
-	assert.False(t, unsafe.Pointer(&entryTagNameBytes[0]) == unsafe.Pointer(&seriesTagNameBytes[0]))
-	assert.False(t, unsafe.Pointer(&entryTagValueBytes[0]) == unsafe.Pointer(&seriesTagValueBytes[0]))
 }
 
 func TestShardIterateBatchSize(t *testing.T) {

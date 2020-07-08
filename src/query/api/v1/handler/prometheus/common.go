@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	xpromql "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
@@ -275,7 +276,7 @@ func ParseSeriesMatchQuery(
 
 func renderNameOnlyTagCompletionResultsJSON(
 	w io.Writer,
-	results []storage.CompletedTag,
+	results []consolidators.CompletedTag,
 ) error {
 	jw := json.NewWriter(w)
 	jw.BeginArray()
@@ -291,7 +292,7 @@ func renderNameOnlyTagCompletionResultsJSON(
 
 func renderDefaultTagCompletionResultsJSON(
 	w io.Writer,
-	results []storage.CompletedTag,
+	results []consolidators.CompletedTag,
 ) error {
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -327,7 +328,7 @@ func renderDefaultTagCompletionResultsJSON(
 // RenderListTagResultsJSON renders list tag results to json format.
 func RenderListTagResultsJSON(
 	w io.Writer,
-	result *storage.CompleteTagsResult,
+	result *consolidators.CompleteTagsResult,
 ) error {
 	if !result.CompleteNameOnly {
 		return errors.ErrWithNames
@@ -355,7 +356,7 @@ func RenderListTagResultsJSON(
 
 // RenderTagCompletionResultsJSON renders tag completion results to json format.
 func RenderTagCompletionResultsJSON(
-	w io.Writer, result storage.CompleteTagsResult) error {
+	w io.Writer, result consolidators.CompleteTagsResult) error {
 	results := result.CompletedTags
 	if result.CompleteNameOnly {
 		return renderNameOnlyTagCompletionResultsJSON(w, results)
@@ -367,7 +368,7 @@ func RenderTagCompletionResultsJSON(
 // RenderTagValuesResultsJSON renders tag values results to json format.
 func RenderTagValuesResultsJSON(
 	w io.Writer,
-	result *storage.CompleteTagsResult,
+	result *consolidators.CompleteTagsResult,
 ) error {
 	if result.CompleteNameOnly {
 		return errors.ErrNamesOnly

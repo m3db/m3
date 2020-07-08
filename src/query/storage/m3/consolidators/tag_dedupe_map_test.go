@@ -99,6 +99,28 @@ func it(
 	return it
 }
 
+func notReadIt(
+	ctrl *gomock.Controller,
+	dp dp,
+	id string,
+	tags ...string,
+) encoding.SeriesIterator {
+	it := encoding.NewMockSeriesIterator(ctrl)
+	it.EXPECT().ID().Return(ident.StringID(id)).AnyTimes()
+
+	it.EXPECT().Namespace().Return(ident.StringID("ns")).AnyTimes()
+	it.EXPECT().Start().Return(dp.t).AnyTimes()
+	it.EXPECT().End().Return(dp.t.Add(time.Hour)).AnyTimes()
+
+	tagIter := ident.MustNewTagStringsIterator(tags...)
+	it.EXPECT().Tags().Return(tagIter).AnyTimes()
+
+	it.EXPECT().Err().Return(nil).AnyTimes()
+	it.EXPECT().Close().MinTimes(1)
+
+	return it
+}
+
 func TestTagDedupeMap(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()

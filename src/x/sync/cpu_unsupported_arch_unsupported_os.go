@@ -1,4 +1,6 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// +build !amd64,!linux
+//
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,39 +20,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package consolidators
+package sync
 
-import (
-	"testing"
-
-	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/block"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-)
-
-func TestExhaustiveTagMerge(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	r := NewMultiFetchTagsResult()
-	for _, tt := range exhaustTests {
-		t.Run(tt.name, func(t *testing.T) {
-			for _, ex := range tt.exhaustives {
-				it := client.NewMockTaggedIDsIterator(ctrl)
-				it.EXPECT().Next().Return(false)
-				it.EXPECT().Err().Return(nil)
-				it.EXPECT().Finalize().Return()
-				meta := block.NewResultMetadata()
-				meta.Exhaustive = ex
-				r.Add(it, meta, nil)
-			}
-
-			tagResult, err := r.FinalResult()
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, tagResult.Metadata.Exhaustive)
-			assert.NoError(t, r.Close())
-		})
-	}
+func getCore() int {
+	// Reverts to just single core.
+	return 0
 }

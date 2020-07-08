@@ -270,16 +270,25 @@ func Run(runOpts RunOptions) {
 
 	defer buildReporter.Stop()
 
+	storageRestrictByTags, _, err := cfg.Query.RestrictTagsAsStorageRestrictByTag()
+	if err != nil {
+		logger.Fatal("could not parse query restrict tags config", zap.Error(err))
+	}
+
 	var (
-		backendStorage      storage.Storage
-		clusterClient       clusterclient.Client
-		downsampler         downsample.Downsampler
-		fetchOptsBuilderCfg = cfg.Limits.PerQuery.AsFetchOptionsBuilderOptions()
-		fetchOptsBuilder    = handleroptions.NewFetchOptionsBuilder(fetchOptsBuilderCfg)
-		queryCtxOpts        = models.QueryContextOptions{
-			LimitMaxTimeseries: fetchOptsBuilderCfg.SeriesLimit,
-			LimitMaxDocs:       fetchOptsBuilderCfg.DocsLimit,
-			RequireExhaustive:  fetchOptsBuilderCfg.RequireExhaustive,
+		backendStorage             storage.Storage
+		clusterClient              clusterclient.Client
+		downsampler                downsample.Downsampler
+		fetchOptsBuilderLimitsOpts = cfg.Limits.PerQuery.AsFetchOptionsBuilderLimitsOptions()
+		fetchOptsBuilder           = handleroptions.NewFetchOptionsBuilder(
+			handleroptions.FetchOptionsBuilderOptions{
+				Limits:        fetchOptsBuilderLimitsOpts,
+				RestrictByTag: storageRestrictByTags,
+			})
+		queryCtxOpts = models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOptsBuilderLimitsOpts.SeriesLimit,
+			LimitMaxDocs:       fetchOptsBuilderLimitsOpts.DocsLimit,
+			RequireExhaustive:  fetchOptsBuilderLimitsOpts.RequireExhaustive,
 		}
 
 		matchOptions = queryconsolidators.MatchOptions{
@@ -347,7 +356,7 @@ func Run(runOpts RunOptions) {
 		)
 
 		backendStorage = fanout.NewStorage(remotes, r, w, c,
-			instrumentOptions)
+			tagOptions, instrumentOptions)
 		logger.Info("setup grpc backend")
 
 	case config.NoopEtcdStorageType:
@@ -909,7 +918,7 @@ func newStorages(
 	}
 
 	fanoutStorage := fanout.NewStorage(stores, readFilter, writeFilter,
-		completeTagsFilter, instrumentOpts)
+		completeTagsFilter, opts.TagOptions(), instrumentOpts)
 	return fanoutStorage, cleanup, nil
 }
 

@@ -171,25 +171,45 @@ func genIDTags(i int, j int, numTags int, opts ...genIDTagsOption) (ident.ID, id
 }
 
 func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) bool {
+	result, err := isIndexedChecked(t, s, ns, id, tags)
+	if err != nil {
+		return false
+	}
+	return result
+}
+
+func isIndexedChecked(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) (bool, error) {
 	q := newQuery(t, tags)
 	iter, _, err := s.FetchTaggedIDs(ns, index.Query{Query: q}, index.QueryOptions{
 		StartInclusive: time.Now(),
 		EndExclusive:   time.Now(),
 		SeriesLimit:    10})
 	if err != nil {
-		return false
+		return false, err
 	}
+
+	defer iter.Finalize()
+
 	if !iter.Next() {
-		return false
+		return false, nil
 	}
+
 	cuNs, cuID, cuTag := iter.Current()
+	if err := iter.Err(); err != nil {
+		return false, fmt.Errorf("iter err: %v", err)
+	}
+
 	if ns.String() != cuNs.String() {
-		return false
+		return false, fmt.Errorf("namespace not matched")
 	}
 	if id.String() != cuID.String() {
-		return false
+		return false, fmt.Errorf("id not matched")
 	}
-	return ident.NewTagIterMatcher(tags).Matches(cuTag)
+	if !ident.NewTagIterMatcher(tags).Matches(cuTag) {
+		return false, fmt.Errorf("tags did not match")
+	}
+
+	return true, nil
 }
 
 func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
