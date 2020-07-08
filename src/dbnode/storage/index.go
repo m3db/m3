@@ -901,6 +901,11 @@ func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
 ) error {
+	if len(shards) == 0 {
+		// No-op if no shards currently owned.
+		return nil
+	}
+
 	flushable, err := i.flushableBlocks(shards, series.WarmWrite)
 	if err != nil {
 		return err
@@ -961,6 +966,11 @@ func (i *nsIndex) WarmFlush(
 }
 
 func (i *nsIndex) ColdFlush(shards []databaseShard) (OnColdFlushDone, error) {
+	if len(shards) == 0 {
+		// No-op if no shards currently owned.
+		return func() error { return nil }, nil
+	}
+
 	flushable, err := i.flushableBlocks(shards, series.ColdWrite)
 	if err != nil {
 		return nil, err
