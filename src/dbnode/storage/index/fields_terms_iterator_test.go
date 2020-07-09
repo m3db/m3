@@ -28,8 +28,11 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/idx"
+	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/util"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -172,6 +175,78 @@ func TestFieldsTermsIteratorEmptyTermInclude(t *testing.T) {
 	require.NoError(t, err)
 	slice := toSlice(t, iter)
 	requireSlicesEqual(t, []pair{}, slice)
+}
+
+func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
+	testDocs := []doc.Document{
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("banana"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("yellow"),
+				},
+			},
+		},
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("apple"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("red"),
+				},
+			},
+		},
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("pineapple"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("yellow"),
+				},
+			},
+		},
+	}
+
+	seg, err := mem.NewSegment(0, mem.NewOptions())
+	require.NoError(t, err)
+
+	require.NoError(t, seg.InsertBatch(m3ninxindex.Batch{
+		Docs:                testDocs,
+		AllowPartialUpdates: true,
+	}))
+
+	require.NoError(t, seg.Seal())
+
+	fruitRegexp, err := idx.NewRegexpQuery([]byte("fruit"), []byte("^.*apple$"))
+	require.NoError(t, err)
+
+	colorRegexp, err := idx.NewRegexpQuery([]byte("color"), []byte("^(red|yellow)$"))
+	require.NoError(t, err)
+
+	iter, err := newFieldsAndTermsIterator(seg, fieldsAndTermsIteratorOpts{
+		iterateTerms: true,
+		restrictByQuery: &Query{
+			Query: idx.NewConjunctionQuery(fruitRegexp, colorRegexp),
+		},
+	})
+	require.NoError(t, err)
+	slice := toSlice(t, iter)
+	requireSlicesEqual(t, []pair{
+		pair{"color", "red"},
+		pair{"color", "yellow"},
+		pair{"fruit", "apple"},
+		pair{"fruit", "pineapple"},
+	}, slice)
 }
 
 func newMockSegment(ctrl *gomock.Controller, tagValues map[string][]string) segment.Segment {

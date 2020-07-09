@@ -23,6 +23,7 @@ package node
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -42,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
+	xdebug "github.com/m3db/m3/src/x/debug"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -161,6 +163,8 @@ type serviceState struct {
 
 	numOutstandingReadRPCs int
 	maxOutstandingReadRPCs int
+
+	profiles map[string]*xdebug.ContinuousFileProfile
 }
 
 func (s *serviceState) DB() (storage.Database, bool) {
@@ -303,6 +307,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			},
 			maxOutstandingWriteRPCs: opts.MaxOutstandingWriteRequests(),
 			maxOutstandingReadRPCs:  opts.MaxOutstandingReadRequests(),
+			profiles:                make(map[string]*xdebug.ContinuousFileProfile),
 		},
 		logger:  iopts.Logger(),
 		opts:    opts,
@@ -1975,6 +1980,106 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 		return nil, tterrors.NewBadRequestError(err)
 	}
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
+}
+
+func (s *service) DebugProfileStart(
+	ctx thrift.Context,
+	req *rpc.DebugProfileStartRequest,
+) (*rpc.DebugProfileStartResult_, error) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, ok := s.state.profiles[req.Name]
+	if ok {
+		err := fmt.Errorf("profile already exists: %s", req.Name)
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	var (
+		interval time.Duration
+		duration time.Duration
+		debug    int
+		err      error
+	)
+	if v := req.Interval; v != nil {
+		interval, err = time.ParseDuration(*v)
+		if err != nil {
+			return nil, tterrors.NewBadRequestError(err)
+		}
+	}
+	if v := req.Duration; v != nil {
+		duration, err = time.ParseDuration(*v)
+		if err != nil {
+			return nil, tterrors.NewBadRequestError(err)
+		}
+	}
+	if v := req.Debug; v != nil {
+		debug = int(*v)
+	}
+
+	conditional := func() bool {
+		if v := req.ConditionalNumGoroutinesGreaterThan; v != nil {
+			if runtime.NumGoroutine() <= int(*v) {
+				return false
+			}
+		}
+		if v := req.ConditionalNumGoroutinesLessThan; v != nil {
+			if runtime.NumGoroutine() >= int(*v) {
+				return false
+			}
+		}
+		if v := req.ConditionalIsOverloaded; v != nil {
+			overloaded := s.state.db != nil && s.state.db.IsOverloaded()
+			if *v != overloaded {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	p, err := xdebug.NewContinuousFileProfile(xdebug.ContinuousFileProfileOptions{
+		FilePathTemplate:  req.FilePathTemplate,
+		ProfileName:       req.Name,
+		ProfileDuration:   duration,
+		ProfileDebug:      debug,
+		Conditional:       conditional,
+		Interval:          interval,
+		InstrumentOptions: s.opts.InstrumentOptions(),
+	})
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	if err := p.Start(); err != nil {
+		return nil, err
+	}
+
+	s.state.profiles[req.Name] = p
+
+	return &rpc.DebugProfileStartResult_{}, nil
+}
+
+func (s *service) DebugProfileStop(
+	ctx thrift.Context,
+	req *rpc.DebugProfileStopRequest,
+) (*rpc.DebugProfileStopResult_, error) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	existing, ok := s.state.profiles[req.Name]
+	if !ok {
+		err := fmt.Errorf("profile does not exist: %s", req.Name)
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	if err := existing.Stop(); err != nil {
+		return nil, err
+	}
+
+	delete(s.state.profiles, req.Name)
+
+	return &rpc.DebugProfileStopResult_{}, nil
 }
 
 func (s *service) DebugIndexMemorySegments(
