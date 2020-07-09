@@ -14,7 +14,7 @@ import (
 
 func testDatapointRecorder(t *testing.T) {
 	pool := memory.NewGoAllocator()
-	recorder := newDatapointRecorder(pool)
+	recorder := NewDatapointRecorder(pool)
 
 	addPoints := func(size int) {
 		for i := 0; i < size; i++ {
