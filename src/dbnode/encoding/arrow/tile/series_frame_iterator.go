@@ -34,14 +34,14 @@ type seriesFrameIter struct {
 	started   bool
 	curr      SeriesBlockFrame
 
-	recorder *datapointRecorder
+	recorder *DatapointRecorder
 	iter     encoding.ReaderIterator
 
 	frameStep  xtime.UnixNano
 	frameStart xtime.UnixNano
 }
 
-func newSeriesFrameIterator(recorder *datapointRecorder) SeriesFrameIterator {
+func newSeriesFrameIterator(recorder *DatapointRecorder) SeriesFrameIterator {
 	return &seriesFrameIter{
 		recorder: recorder,
 		err:      errors.New("unset"),
@@ -56,11 +56,6 @@ func (b *seriesFrameIter) Reset(
 	frameStep xtime.UnixNano,
 	iter encoding.ReaderIterator,
 ) error {
-	if b.iter != nil {
-		b.iter.Close()
-		b.iter = nil
-	}
-
 	if frameStep <= 0 {
 		b.err = fmt.Errorf("frame step must be >= 0, is %d", frameStep)
 		return b.err

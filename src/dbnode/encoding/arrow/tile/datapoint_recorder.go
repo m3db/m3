@@ -12,11 +12,12 @@ const (
 	timeIdx = 1
 )
 
-type datapointRecorder struct {
+// DatapointRecorder records datapoints.
+type DatapointRecorder struct {
 	builder *array.RecordBuilder
 }
 
-func (r *datapointRecorder) appendPoints(dps ...ts.Datapoint) {
+func (r *DatapointRecorder) appendPoints(dps ...ts.Datapoint) {
 	valFieldBuilder := r.builder.Field(valIdx).(*array.Float64Builder)
 	timeFieldBuilder := r.builder.Field(timeIdx).(*array.Int64Builder)
 
@@ -26,7 +27,8 @@ func (r *datapointRecorder) appendPoints(dps ...ts.Datapoint) {
 	}
 }
 
-func newDatapointRecorder(pool memory.Allocator) *datapointRecorder {
+// NewDatapointRecorder creates a new datapoint recorder.
+func NewDatapointRecorder(pool memory.Allocator) *DatapointRecorder {
 	fields := make([]arrow.Field, 2)
 	fields[valIdx] = arrow.Field{Name: "value", Type: arrow.PrimitiveTypes.Float64}
 	fields[timeIdx] = arrow.Field{Name: "time", Type: arrow.PrimitiveTypes.Int64}
@@ -40,12 +42,12 @@ func newDatapointRecorder(pool memory.Allocator) *datapointRecorder {
 	)
 
 	b := array.NewRecordBuilder(pool, schema)
-	return &datapointRecorder{
+	return &DatapointRecorder{
 		builder: b,
 	}
 }
 
-func (r *datapointRecorder) release() {
+func (r *DatapointRecorder) release() {
 	r.builder.Release()
 }
 
@@ -74,7 +76,7 @@ func (r *datapointRecord) release() {
 }
 
 // NB: caller must release record.
-func (r *datapointRecorder) updateRecord(rec *datapointRecord) {
+func (r *DatapointRecorder) updateRecord(rec *datapointRecord) {
 	rec.Record = r.builder.NewRecord()
 }
 

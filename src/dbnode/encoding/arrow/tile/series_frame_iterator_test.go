@@ -47,7 +47,7 @@ func newSequentialIterator(
 
 	bl.EXPECT().Next().Return(false)
 	bl.EXPECT().Err().Return(nil).AnyTimes()
-	bl.EXPECT().Close()
+	bl.EXPECT().Close().AnyTimes()
 
 	return bl
 }
@@ -137,7 +137,7 @@ func TestSeriesFrameIterator(t *testing.T) {
 		},
 	}
 
-	recorder := newDatapointRecorder(pool)
+	recorder := NewDatapointRecorder(pool)
 	it := newSeriesFrameIterator(recorder)
 	require.False(t, it.Next())
 	require.Error(t, it.Err())
