@@ -25,6 +25,8 @@
 package context
 
 import (
+	"sync"
+
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -115,6 +117,11 @@ func (e *finalizeableElement) Prev() *finalizeableElement {
 	return nil
 }
 
+var (
+	defaultFinalizeableElementsPoolLock sync.RWMutex
+	defaultFinalizeableElementsPool     *finalizeableElementPool
+)
+
 // finalizeableList represents a doubly linked list.
 // The zero value for finalizeableList is an empty list ready to use.
 type finalizeableList struct {
@@ -129,7 +136,22 @@ func (l *finalizeableList) Init() *finalizeableList {
 	l.root.prev = &l.root
 	l.len = 0
 	if l.Pool == nil {
-		l.Pool = newFinalizeableElementPool(nil)
+		// Use a static pool at least, otherwise each time
+		// we create a list with no pool we create a wholly
+		// new pool of finalizeables (4096 of them).
+		defaultFinalizeableElementsPoolLock.RLock()
+		l.Pool = defaultFinalizeableElementsPool
+		defaultFinalizeableElementsPoolLock.RUnlock()
+		if l.Pool == nil {
+			defaultFinalizeableElementsPoolLock.Lock()
+			if defaultFinalizeableElementsPool == nil {
+				// Still not set, allocate pool once.
+				defaultFinalizeableElementsPool = newFinalizeableElementPool(nil)
+			}
+			// Take ref to guaranteed allocated pool.
+			l.Pool = defaultFinalizeableElementsPool
+			defaultFinalizeableElementsPoolLock.Unlock()
+		}
 	}
 	return l
 }
