@@ -23,6 +23,7 @@ package m3db
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"runtime"
 	"sync"
@@ -457,8 +458,8 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 
 		timestamp := start
 		for j := 0; j < iterations; j++ {
-			timestamp = timestamp.Add(time.Duration(j) * stepSize)
-			dp := ts.Datapoint{Timestamp: timestamp, Value: float64(j)}
+			timestamp = timestamp.Add(time.Duration(j) * stepSize + time.Duration(rand.Int63n(int64(stepSize)/100)))
+			dp := ts.Datapoint{Timestamp: timestamp, Value: rand.NormFloat64()}
 			err := encoder.Encode(dp, xtime.Second, nil)
 			require.NoError(b, err)
 		}
