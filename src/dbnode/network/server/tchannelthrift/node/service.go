@@ -550,7 +550,6 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 		sp.LogFields(
 			opentracinglog.String("sourceNameSpace", req.SourceNameSpace),
 			opentracinglog.String("targetNameSpace", req.TargetNameSpace),
-			opentracinglog.Int32("shard", req.Shard),
 			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
 			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
 		)
