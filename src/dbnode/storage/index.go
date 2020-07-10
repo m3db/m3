@@ -1130,10 +1130,14 @@ func (i *nsIndex) flushBlockSegment(
 			}
 
 			for _, result := range results.Results() {
-				doc, err := convert.FromSeriesIDAndTagIter(result.ID, result.Tags)
-				if err != nil {
-					return err
+				doc, exists := shard.TryGetDocument(result.ID)
+				if !exists {
+					doc, err = convert.FromSeriesIDAndTagIter(result.ID, result.Tags)
+					if err != nil {
+						return err
+					}
 				}
+				fmt.Println("DOC", exists)
 
 				_, err = builder.Insert(doc)
 				if err != nil && err != m3ninxindex.ErrDuplicateID {
