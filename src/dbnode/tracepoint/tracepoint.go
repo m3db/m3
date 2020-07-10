@@ -46,6 +46,9 @@ const (
 	// FetchReadSegment is the operation name for the tchannelthrift FetchReadSegment path.
 	FetchReadSegment = "tchannelthrift/node.service.FetchReadSegment"
 
+	// AggregateTiles is the operation name for the tchannelthrift AggregateTiles path.
+	AggregateTiles = "tchannelthrift/node.service.AggregateTiles"
+
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
 
