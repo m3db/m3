@@ -127,6 +127,7 @@ type databaseMetrics struct {
 	unknownNamespaceQueryIDs            tally.Counter
 	errQueryIDsIndexDisabled            tally.Counter
 	errWriteTaggedIndexDisabled         tally.Counter
+	databaseRestartRequired             tally.Gauge
 }
 
 func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
@@ -144,6 +145,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		unknownNamespaceQueryIDs:            unknownNamespaceScope.Counter("query-ids"),
 		errQueryIDsIndexDisabled:            indexDisabledScope.Counter("err-query-ids"),
 		errWriteTaggedIndexDisabled:         indexDisabledScope.Counter("err-write-tagged"),
+		databaseRestartRequired:             scope.Gauge("restart-required"),
 	}
 }
 
@@ -262,6 +264,7 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
+		d.metrics.databaseRestartRequired.Update(1)
 		d.log.Warn("skipping namespace removals and updates (except schema updates), restart process if you want changes to take effect.")
 	}
 
