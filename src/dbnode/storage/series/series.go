@@ -539,12 +539,19 @@ func (s *dbSeries) Snapshot(
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
 ) error {
+
 	// Need a write lock because the buffer Snapshot method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
 	defer s.Unlock()
-
-	return s.buffer.Snapshot(ctx, blockStart, s.tags.ToID(s.opts.BytesOpts()), *s.tags, persistFn, nsCtx)
+	if len(s.tags.Values()) > 0 {
+		fmt.Println("SNAP", s.tags.Values()[0].Name.String())
+	} else {
+		fmt.Println("SNAPP", s.tags.Values())
+	}
+	id := s.tags.ToID(s.opts.BytesOpts())
+	tags := s.tags.Copy()
+	return s.buffer.Snapshot(ctx, blockStart, id, tags, persistFn, nsCtx)
 }
 
 func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes {

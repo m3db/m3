@@ -278,6 +278,21 @@ func ToTags(id ID, opts checked.BytesOptions) Tags {
 	return NewTags(tags...)
 }
 
+// Copy clones the tags without the shared underlying bytes and instead new byte slices
+func (t Tags) Copy() Tags {
+	vals := t.Values()
+	tags := make([]Tag, 0, len(vals))
+	for _, t := range vals {
+		copiedName := append([]byte(nil), t.Name.Bytes()...)
+		copiedValue := append([]byte(nil), t.Value.Bytes()...)
+		tags = append(tags, BinaryTag(
+			checked.NewBytes(copiedName, nil),
+			checked.NewBytes(copiedValue, nil),
+		))
+	}
+	return NewTags(tags...)
+}
+
 // ToID is
 func (t Tags) ToID(opts checked.BytesOptions) ID {
 	if len(t.values) == 0 {

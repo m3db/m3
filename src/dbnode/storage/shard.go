@@ -1543,8 +1543,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 				copiedName := append([]byte(nil), tag.Name.Bytes()...)
 				copiedValue := append([]byte(nil), tag.Value.Bytes()...)
 				d.Fields = append(d.Fields, doc.Field{
-					Name:  ident.BytesID(copiedName),
-					Value: ident.BytesID(copiedValue),
+					Name:  copiedName,
+					Value: copiedValue,
 				})
 			}
 			indexBatch.Append(index.WriteBatchEntry{
