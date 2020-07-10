@@ -23,6 +23,7 @@ package msgpack
 import (
 	"bytes"
 
+	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -64,20 +65,29 @@ const (
 	legacyEncodingIndexVersionV5
 )
 
+type legacyEncodingIndexEntryVersion int
+
+const (
+	legacyEncodingIndexEntryVersionCurrent                                 = legacyEncodingIndexEntryVersionV3
+	legacyEncodingIndexEntryVersionV1      legacyEncodingIndexEntryVersion = iota
+	legacyEncodingIndexEntryVersionV2
+	legacyEncodingIndexEntryVersionV3
+)
+
 type legacyEncodingOptions struct {
 	encodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
 	decodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
 
-	encodeLegacyV1IndexEntry bool
-	decodeLegacyV1IndexEntry bool
+	encodeLegacyIndexEntryVersion legacyEncodingIndexEntryVersion
+	decodeLegacyIndexEntryVersion legacyEncodingIndexEntryVersion
 }
 
 var defaultlegacyEncodingOptions = legacyEncodingOptions{
 	encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
 	decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
 
-	encodeLegacyV1IndexEntry: false,
-	decodeLegacyV1IndexEntry: false,
+	encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent,
+	decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent,
 }
 
 // NewEncoder creates a new encoder.
@@ -100,7 +110,8 @@ func newEncoder(legacy legacyEncodingOptions) *Encoder {
 	enc.encodeBytesFn = enc.encodeBytes
 	enc.encodeArrayLenFn = enc.encodeArrayLen
 
-	// Used primarily for testing.
+	// Used primarily for testing however legitimate production uses exist (e.g. addition of IndexEntryChecksum in
+	// IndexEntryV3)
 	enc.legacy = legacy
 
 	return enc
@@ -141,11 +152,19 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	if enc.err != nil {
 		return enc.err
 	}
+
+	// There's no guarantee EncodeIndexEntry is called with an empty buffer so ensure
+	// only checksumming the bits we care about.
+	checksumStart := enc.buf.Len()
+
 	enc.encodeRootObject(indexEntryVersion, indexEntryType)
-	if enc.legacy.encodeLegacyV1IndexEntry {
+	switch enc.legacy.encodeLegacyIndexEntryVersion {
+	case legacyEncodingIndexEntryVersionV1:
 		enc.encodeIndexEntryV1(entry)
-	} else {
+	case legacyEncodingIndexEntryVersionV2:
 		enc.encodeIndexEntryV2(entry)
+	default:
+		enc.encodeIndexEntryV3(entry, checksumStart)
 	}
 	return enc.err
 }
@@ -287,6 +306,16 @@ func (enc *Encoder) encodeIndexEntryV1(entry schema.IndexEntry) {
 }
 
 func (enc *Encoder) encodeIndexEntryV2(entry schema.IndexEntry) {
+	enc.encodeArrayLenFn(6) // V2 had 6 fields.
+	enc.encodeVarintFn(entry.Index)
+	enc.encodeBytesFn(entry.ID)
+	enc.encodeVarintFn(entry.Size)
+	enc.encodeVarintFn(entry.Offset)
+	enc.encodeVarintFn(entry.DataChecksum)
+	enc.encodeBytesFn(entry.EncodedTags)
+}
+
+func (enc *Encoder) encodeIndexEntryV3(entry schema.IndexEntry, checksumStart int) {
 	enc.encodeNumObjectFieldsForFn(indexEntryType)
 	enc.encodeVarintFn(entry.Index)
 	enc.encodeBytesFn(entry.ID)
@@ -294,6 +323,9 @@ func (enc *Encoder) encodeIndexEntryV2(entry schema.IndexEntry) {
 	enc.encodeVarintFn(entry.Offset)
 	enc.encodeVarintFn(entry.DataChecksum)
 	enc.encodeBytesFn(entry.EncodedTags)
+
+	checksum := digest.Checksum(enc.Bytes()[checksumStart:])
+	enc.encodeVarintFn(int64(checksum))
 }
 
 func (enc *Encoder) encodeIndexSummary(summary schema.IndexSummary) {

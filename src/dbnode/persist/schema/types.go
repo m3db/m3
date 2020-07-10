@@ -61,13 +61,17 @@ type IndexBloomFilterInfo struct {
 }
 
 // IndexEntry stores entry-level data indexing
+//
+// When serialized to disk, the encoder will automatically add the IndexEntryChecksum, a checksum to validate
+// the index entry itself, to the end of the entry. That field is not exposed on this struct as this is handled
+// transparently by the encoder and decoder. Appending of checksum starts in V3.
 type IndexEntry struct {
-	Index              int64
-	ID                 []byte
-	Size               int64
-	Offset             int64
-	DataChecksum       int64
-	EncodedTags        []byte
+	Index        int64
+	ID           []byte
+	Size         int64
+	Offset       int64
+	DataChecksum int64
+	EncodedTags  []byte
 }
 
 // IndexSummary stores a summary of an index entry to lookup

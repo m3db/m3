@@ -350,12 +350,19 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 
 func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
 	var opts checkNumFieldsOptions
-	if dec.legacy.decodeLegacyV1IndexEntry {
+	switch dec.legacy.decodeLegacyIndexEntryVersion {
+	case legacyEncodingIndexEntryVersionV1:
 		// V1 had 5 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 5
 		opts.numExpectedCurrFields = 5
+	case legacyEncodingIndexEntryVersionV2:
+		// V2 had 6 fields.
+		opts.override = true
+		opts.numExpectedMinFields = 5
+		opts.numExpectedCurrFields = 6
 	}
+
 	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexEntryType, opts)
 	if !ok {
 		return emptyIndexEntry
@@ -374,18 +381,33 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	indexEntry.Offset = dec.decodeVarint()
 	indexEntry.DataChecksum = dec.decodeVarint()
 
-	if dec.legacy.decodeLegacyV1IndexEntry || actual < 6 {
+	// At this point, if its a V1 file, we've decoded all the available fields.
+	if dec.legacy.decodeLegacyIndexEntryVersion == legacyEncodingIndexEntryVersionV1 || actual < 6 {
 		dec.skip(numFieldsToSkip)
 		return indexEntry
 	}
 
+	// Decode fields added in V2
 	if bytesPool == nil {
 		indexEntry.EncodedTags, _, _ = dec.decodeBytes()
 	} else {
 		indexEntry.EncodedTags = dec.decodeBytesWithPool(bytesPool)
 	}
 
+	// At this point, if its a V2 file, we've decoded all the available fields.
+	if dec.legacy.decodeLegacyIndexEntryVersion == legacyEncodingIndexEntryVersionV2 || actual < 7 {
+		dec.skip(numFieldsToSkip)
+		return indexEntry
+	}
+
+	// Intentionally skip any extra fields here as we've stipulated that from V3 onward, IndexEntryChecksum will be the
+	// final field on index entries
 	dec.skip(numFieldsToSkip)
+
+	// Decode checksum field originally added in V3
+	// TODO(nate): actually use the checksum value for index entry validation - #2629
+	_ = dec.decodeVarint()
+
 	return indexEntry
 }
 
