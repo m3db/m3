@@ -571,6 +571,7 @@ func (w *writer) writeInfoFileContents(
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,
+		MinorVersion: schema.MinorVersion,
 		Summaries: schema.IndexSummariesInfo{
 			Summaries: int64(summaries),
 		},
