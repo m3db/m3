@@ -2,12 +2,15 @@ package tile
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 
+	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/checked"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
@@ -16,55 +19,76 @@ import (
 type SeriesBlockIterator interface {
 	Next() bool
 	Close() error
-	Current() SeriesFrameIterator
-	Reset(
-		start xtime.UnixNano,
-		step xtime.UnixNano,
-		reader fs.DataFileSetReader,
-	) error
+	Current() []SeriesFrameIterator
 	Err() error
 }
 
 type seriesBlockIter struct {
-	recorder *DatapointRecorder
-	reader   fs.DataFileSetReader
+	reader fs.DataFileSetReader
 
-	exhausted bool
-	step      xtime.UnixNano
-	start     xtime.UnixNano
-	iters     []SeriesFrameIterator
-	err       error
-	bytesRef  bool
+	err           error
+	exhausted     bool
+	hasLastValues bool
+	concurrency   int
+	freedAfter    int
 
-	iter         SeriesFrameIterator
-	byteReader   *bytes.Reader
-	baseIter     encoding.ReaderIterator
-	dataBytes    checked.Bytes
+	step  xtime.UnixNano
+	start xtime.UnixNano
+
 	encodingOpts encoding.Options
-	tagIter      ident.TagIterator
+	recorders    []*datapointRecorder
+	iters        []SeriesFrameIterator
+	byteReaders  []*bytes.Reader
+	baseIters    []encoding.ReaderIterator
+	bytesRefHeld []bool
+	dataBytes    []checked.Bytes
+	tagIters     []ident.TagIterator
 }
 
 // NewSeriesBlockIterator creates a new SeriesBlockIterator.
 func NewSeriesBlockIterator(
-	recorder *DatapointRecorder,
 	reader fs.DataFileSetReader,
-	encodingOpts encoding.Options,
 	step xtime.UnixNano,
 	start xtime.UnixNano,
 	concurrency int,
-) SeriesBlockIterator {
-	return &seriesBlockIter{
-		recorder: recorder,
-		reader:   reader,
-
-		start: start,
-		step:  step,
-
-		iter:         newSeriesFrameIterator(recorder),
-		byteReader:   bytes.NewReader(nil),
-		baseIter:     m3tsz.NewReaderIterator(nil, true, encodingOpts),
-		encodingOpts: encodingOpts,
+	encodingOpts encoding.Options,
+) (SeriesBlockIterator, error) {
+	if concurrency < 1 {
+		return nil, fmt.Errorf("concurrency must be greater than 1, is: %d", concurrency)
 	}
+
+	var (
+		recorders   = make([]*datapointRecorder, 0, concurrency)
+		iters       = make([]SeriesFrameIterator, 0, concurrency)
+		byteReaders = make([]*bytes.Reader, 0, concurrency)
+		baseIters   = make([]encoding.ReaderIterator, 0, concurrency)
+	)
+
+	for i := 0; i < concurrency; i++ {
+		recorder := newDatapointRecorder(memory.NewGoAllocator())
+		recorders = append(recorders, recorder)
+		iters = append(iters, newSeriesFrameIterator(recorder))
+		byteReaders = append(byteReaders, bytes.NewReader(nil))
+		baseIters = append(baseIters, m3tsz.NewReaderIterator(nil, true, encodingOpts))
+	}
+
+	return &seriesBlockIter{
+		reader: reader,
+
+		concurrency: concurrency,
+		freedAfter:  concurrency,
+		start:       start,
+		step:        step,
+
+		encodingOpts: encodingOpts,
+		recorders:    recorders,
+		iters:        iters,
+		byteReaders:  byteReaders,
+		baseIters:    baseIters,
+		bytesRefHeld: make([]bool, concurrency),
+		dataBytes:    make([]checked.Bytes, concurrency),
+		tagIters:     make([]ident.TagIterator, concurrency),
+	}, nil
 }
 
 func (b *seriesBlockIter) Next() bool {
@@ -72,74 +96,73 @@ func (b *seriesBlockIter) Next() bool {
 		return false
 	}
 
-	if b.dataBytes != nil && b.bytesRef {
-		b.bytesRef = false
-		b.dataBytes.DecRef()
+	for i, held := range b.bytesRefHeld {
+		if held && b.dataBytes[i] != nil {
+			b.bytesRefHeld[i] = false
+			b.dataBytes[i].DecRef()
+		}
 	}
 
 	var err error
-	_, b.tagIter, b.dataBytes, _, err = b.reader.Read()
+	for i := 0; i < b.concurrency; i++ {
+		_, b.tagIters[i], b.dataBytes[i], _, err = b.reader.Read()
 
-	if err != nil {
-		b.exhausted = true
-		// NB: eof is expected.
-		if err != io.EOF {
-			b.err = err
+		if err != nil {
+			b.exhausted = true
+			// NB: errors other than EOF should halt execution.
+			if err != io.EOF {
+				b.err = err
+				return false
+			}
+
+			// NB: tag iters and data bytes are already released at this index;
+			// explicitly free other resources here.
+			b.recorders[i].release()
+			b.baseIters[i].Close()
+			b.byteReaders[i] = nil
+			b.err = b.freeAfterIndex(i + 1)
+			// NB: if any values remain, provide them to consumer.
+			return i > 0
 		}
 
-		return false
+		b.dataBytes[i].IncRef()
+		b.bytesRefHeld[i] = true
+
+		bs := b.dataBytes[i].Bytes()
+		bbs := append(make([]byte, 0, len(bs)), bs...)
+		b.byteReaders[i].Reset(bbs)
+		b.baseIters[i].Reset(b.byteReaders[i], nil)
+		b.iters[i].Reset(b.start, b.step, b.baseIters[i])
 	}
-
-	b.dataBytes.IncRef()
-	b.byteReader.Reset(b.dataBytes.Bytes())
-	// fmt.Println("       bytes", b.dataBytes.Bytes())
-	b.baseIter.Reset(b.byteReader, nil)
-
-	// for b.baseIter.Next() {
-	// 	a, _, _ := b.baseIter.Current()
-	// 	if a.Value != 0 {
-	// 		fmt.Println(a)
-	// 	}
-	// }
-	b.iter.Reset(b.start, b.step, b.baseIter)
 
 	return true
 }
 
-func (b *seriesBlockIter) Current() SeriesFrameIterator {
-	return b.iter
+func (b *seriesBlockIter) freeAfterIndex(fromIdx int) error {
+	var multiErr xerrors.MultiError
+	for i := fromIdx; i < b.freedAfter; i++ {
+		b.recorders[i].release()
+		b.baseIters[i].Close()
+		b.byteReaders[i] = nil
+		b.tagIters[i].Close()
+		if b.bytesRefHeld[i] {
+			b.dataBytes[i].DecRef()
+			b.bytesRefHeld[i] = false
+		}
+		b.dataBytes[i].Finalize()
+		multiErr = multiErr.Add(b.iters[i].Close())
+	}
+
+	b.freedAfter = fromIdx
+	return multiErr.LastError()
 }
 
-func (b *seriesBlockIter) Reset(
-	start xtime.UnixNano,
-	step xtime.UnixNano,
-	reader fs.DataFileSetReader,
-) error {
-	if err := reader.Validate(); err != nil {
-		return err
-	}
-
-	if err := b.iter.Reset(start, step, nil); err != nil {
-		return err
-	}
-
-	if b.bytesRef {
-		b.dataBytes.DecRef()
-	}
-
-	b.err = nil
-	b.bytesRef = false
-	return nil
+func (b *seriesBlockIter) Current() []SeriesFrameIterator {
+	return b.iters
 }
 
 func (b *seriesBlockIter) Close() error {
-	b.recorder.release()
-
-	b.baseIter.Close()
-	b.byteReader = nil
-	b.dataBytes.Finalize()
-	b.tagIter.Close()
-	return b.iter.Close()
+	return b.freeAfterIndex(0)
 }
 
 func (b *seriesBlockIter) Err() error {

@@ -24,10 +24,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/apache/arrow/go/arrow/math"
-	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
@@ -42,6 +43,7 @@ import (
 
 const snapshotType = "snapshot"
 const flushType = "flush"
+const initValLength = 10
 
 func main() {
 	var (
@@ -51,6 +53,7 @@ func main() {
 		optBlockstart  = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
 		optTilesize    = getopt.Int64Long("tile-size", 't', 5, "Block Start Time [in min]")
 		volume         = getopt.Int64Long("volume", 'v', 0, "Volume number")
+		concurrency    = getopt.Int64Long("concurrency", 'c', int64(runtime.NumCPU()), "Concurrent iteration count")
 		fileSetTypeArg = getopt.StringLong("fileset-type", 'f', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
 	)
 	getopt.Parse()
@@ -67,6 +70,7 @@ func main() {
 		*optBlockstart <= 0 ||
 		*optTilesize <= 0 ||
 		*volume < 0 ||
+		*concurrency < 1 ||
 		(*fileSetTypeArg != snapshotType && *fileSetTypeArg != flushType) {
 		getopt.Usage()
 		os.Exit(1)
@@ -108,40 +112,71 @@ func main() {
 		log.Fatalf("unable to open reader: %v", err)
 	}
 
-	pool := memory.NewGoAllocator()
-	recorder := tile.NewDatapointRecorder(pool)
+	var (
+		step   = xtime.UnixNano(*optTilesize) * xtime.UnixNano(time.Minute)
+		start  = xtime.UnixNano(*optBlockstart)
+		c      = int(*concurrency)
+		prints = make([]bool, c)
+		vals   = make([][]float64, 0, c)
+	)
 
-	vals := make([]float64, 0, 12)
-	print := false
-	it := tile.NewSeriesBlockIterator(
-		recorder,
-		reader,
-		encodingOpts,
-		xtime.UnixNano(*optTilesize)*xtime.UnixNano(time.Minute),
-		xtime.UnixNano(*optBlockstart),
-		1)
+	for i := 0; i < c; i++ {
+		vals = append(vals, make([]float64, 0, initValLength))
+	}
 
-	for i := 0; it.Next(); i++ {
-		frameIter := it.Current()
-		if print {
-			fmt.Println(i-1, ":", vals)
-		}
+	it, err := tile.NewSeriesBlockIterator(reader, step, start, c, encodingOpts)
+	if err != nil {
+		fmt.Println("error creating block iterator", err)
+		return
+	}
 
-		vals = vals[:0]
-		print = false
-		for frameIter.Next() {
-			frame := frameIter.Current()
-			v := math.Float64.Sum(frame.Values())
-			if v != 0 {
-				print = true
+	i := 0
+	printNonZero := func() {
+		for j := range prints {
+			if prints[j] {
+				prints[j] = false
+				idx := (i-1)*c + j
+				fmt.Printf("%d : %v\n", idx, vals[j])
 			}
-
-			vals = append(vals, v)
-		}
-		if err := frameIter.Err(); err != nil {
-			panic(fmt.Sprint("frame error:", err))
 		}
 	}
+
+	var wg sync.WaitGroup
+	for it.Next() {
+		printNonZero()
+		for i := range vals {
+			vals[i] = vals[i][:0]
+		}
+
+		frameIters := it.Current()
+		for j, frameIter := range frameIters {
+			// NB: capture loop variables.
+			j, frameIter := j, frameIter
+			wg.Add(1)
+			go func() {
+				for frameIter.Next() {
+					frame := frameIter.Current()
+					v := math.Float64.Sum(frame.Values())
+					if v != 0 {
+						prints[j] = true
+					}
+
+					vals[j] = append(vals[j], v)
+				}
+
+				if err := frameIter.Err(); err != nil {
+					panic(fmt.Sprint("frame error:", err))
+				}
+
+				wg.Done()
+			}()
+		}
+
+		i++
+		wg.Wait()
+	}
+
+	printNonZero()
 	if err := it.Err(); err != nil {
 		fmt.Println("series error:", err)
 	}

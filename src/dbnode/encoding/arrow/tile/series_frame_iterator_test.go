@@ -137,7 +137,7 @@ func TestSeriesFrameIterator(t *testing.T) {
 		},
 	}
 
-	recorder := NewDatapointRecorder(pool)
+	recorder := newDatapointRecorder(pool)
 	it := newSeriesFrameIterator(recorder)
 	require.False(t, it.Next())
 	require.Error(t, it.Err())
