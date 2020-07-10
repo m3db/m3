@@ -141,6 +141,7 @@ func main() {
 		}
 	}
 
+	readStart := time.Now()
 	var wg sync.WaitGroup
 	for it.Next() {
 		printNonZero()
@@ -180,4 +181,6 @@ func main() {
 	if err := it.Err(); err != nil {
 		fmt.Println("series error:", err)
 	}
+
+	fmt.Println("With concurrency", c, "took", time.Since(readStart))
 }
