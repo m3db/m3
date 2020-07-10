@@ -501,6 +501,7 @@ struct AggregateTilesRequest {
 	5: required string step
 	6: required string formula
 	7: bool removeResets
+	8: optional TimeType rangeType = TimeType.UNIX_SECONDS
 }
 
 struct AggregateTilesResult {

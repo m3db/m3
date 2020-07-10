@@ -12914,18 +12914,22 @@ func (p *Query) String() string {
 //  - Step
 //  - Formula
 //  - RemoveResets
+//  - RangeType
 type AggregateTilesRequest struct {
-	NameSpace    string `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
-	Shard        int32  `thrift:"shard,2,required" db:"shard" json:"shard"`
-	RangeStart   int64  `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
-	RangeEnd     int64  `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
-	Step         string `thrift:"step,5,required" db:"step" json:"step"`
-	Formula      string `thrift:"formula,6,required" db:"formula" json:"formula"`
-	RemoveResets bool   `thrift:"removeResets,7" db:"removeResets" json:"removeResets"`
+	NameSpace    string   `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
+	Shard        int32    `thrift:"shard,2,required" db:"shard" json:"shard"`
+	RangeStart   int64    `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
+	RangeEnd     int64    `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
+	Step         string   `thrift:"step,5,required" db:"step" json:"step"`
+	Formula      string   `thrift:"formula,6,required" db:"formula" json:"formula"`
+	RemoveResets bool     `thrift:"removeResets,7" db:"removeResets" json:"removeResets"`
+	RangeType    TimeType `thrift:"rangeType,8" db:"rangeType" json:"rangeType,omitempty"`
 }
 
 func NewAggregateTilesRequest() *AggregateTilesRequest {
-	return &AggregateTilesRequest{}
+	return &AggregateTilesRequest{
+		RangeType: 0,
+	}
 }
 
 func (p *AggregateTilesRequest) GetNameSpace() string {
@@ -12955,6 +12959,16 @@ func (p *AggregateTilesRequest) GetFormula() string {
 func (p *AggregateTilesRequest) GetRemoveResets() bool {
 	return p.RemoveResets
 }
+
+var AggregateTilesRequest_RangeType_DEFAULT TimeType = 0
+
+func (p *AggregateTilesRequest) GetRangeType() TimeType {
+	return p.RangeType
+}
+func (p *AggregateTilesRequest) IsSetRangeType() bool {
+	return p.RangeType != AggregateTilesRequest_RangeType_DEFAULT
+}
+
 func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -13008,6 +13022,10 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 			issetFormula = true
 		case 7:
 			if err := p.ReadField7(iprot); err != nil {
+				return err
+			}
+		case 8:
+			if err := p.ReadField8(iprot); err != nil {
 				return err
 			}
 		default:
@@ -13106,6 +13124,16 @@ func (p *AggregateTilesRequest) ReadField7(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *AggregateTilesRequest) ReadField8(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 8: ", err)
+	} else {
+		temp := TimeType(v)
+		p.RangeType = temp
+	}
+	return nil
+}
+
 func (p *AggregateTilesRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateTilesRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -13130,6 +13158,9 @@ func (p *AggregateTilesRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField7(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField8(oprot); err != nil {
 			return err
 		}
 	}
@@ -13229,6 +13260,21 @@ func (p *AggregateTilesRequest) writeField7(oprot thrift.TProtocol) (err error) 
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 7:removeResets: ", p), err)
+	}
+	return err
+}
+
+func (p *AggregateTilesRequest) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRangeType() {
+		if err := oprot.WriteFieldBegin("rangeType", thrift.I32, 8); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 8:rangeType: ", p), err)
+		}
+		if err := oprot.WriteI32(int32(p.RangeType)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.rangeType (8) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 8:rangeType: ", p), err)
+		}
 	}
 	return err
 }
@@ -22461,7 +22507,9 @@ func (p *NodeAggregateTilesArgs) Read(iprot thrift.TProtocol) error {
 }
 
 func (p *NodeAggregateTilesArgs) ReadField1(iprot thrift.TProtocol) error {
-	p.Req = &AggregateTilesRequest{}
+	p.Req = &AggregateTilesRequest{
+		RangeType: 0,
+	}
 	if err := p.Req.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
 	}
