@@ -12907,7 +12907,8 @@ func (p *Query) String() string {
 }
 
 // Attributes:
-//  - NameSpace
+//  - SourceNameSpace
+//  - TargetNameSpace
 //  - Shard
 //  - RangeStart
 //  - RangeEnd
@@ -12916,14 +12917,15 @@ func (p *Query) String() string {
 //  - RemoveResets
 //  - RangeType
 type AggregateTilesRequest struct {
-	NameSpace    string   `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
-	Shard        int32    `thrift:"shard,2,required" db:"shard" json:"shard"`
-	RangeStart   int64    `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
-	RangeEnd     int64    `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
-	Step         string   `thrift:"step,5,required" db:"step" json:"step"`
-	Formula      string   `thrift:"formula,6,required" db:"formula" json:"formula"`
-	RemoveResets bool     `thrift:"removeResets,7" db:"removeResets" json:"removeResets"`
-	RangeType    TimeType `thrift:"rangeType,8" db:"rangeType" json:"rangeType,omitempty"`
+	SourceNameSpace string   `thrift:"sourceNameSpace,1,required" db:"sourceNameSpace" json:"sourceNameSpace"`
+	TargetNameSpace string   `thrift:"targetNameSpace,2,required" db:"targetNameSpace" json:"targetNameSpace"`
+	Shard           int32    `thrift:"shard,3,required" db:"shard" json:"shard"`
+	RangeStart      int64    `thrift:"rangeStart,4,required" db:"rangeStart" json:"rangeStart"`
+	RangeEnd        int64    `thrift:"rangeEnd,5,required" db:"rangeEnd" json:"rangeEnd"`
+	Step            string   `thrift:"step,6,required" db:"step" json:"step"`
+	Formula         string   `thrift:"formula,7,required" db:"formula" json:"formula"`
+	RemoveResets    bool     `thrift:"removeResets,8" db:"removeResets" json:"removeResets"`
+	RangeType       TimeType `thrift:"rangeType,9" db:"rangeType" json:"rangeType,omitempty"`
 }
 
 func NewAggregateTilesRequest() *AggregateTilesRequest {
@@ -12932,8 +12934,12 @@ func NewAggregateTilesRequest() *AggregateTilesRequest {
 	}
 }
 
-func (p *AggregateTilesRequest) GetNameSpace() string {
-	return p.NameSpace
+func (p *AggregateTilesRequest) GetSourceNameSpace() string {
+	return p.SourceNameSpace
+}
+
+func (p *AggregateTilesRequest) GetTargetNameSpace() string {
+	return p.TargetNameSpace
 }
 
 func (p *AggregateTilesRequest) GetShard() int32 {
@@ -12974,7 +12980,8 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
-	var issetNameSpace bool = false
+	var issetSourceNameSpace bool = false
+	var issetTargetNameSpace bool = false
 	var issetShard bool = false
 	var issetRangeStart bool = false
 	var issetRangeEnd bool = false
@@ -12994,38 +13001,43 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField1(iprot); err != nil {
 				return err
 			}
-			issetNameSpace = true
+			issetSourceNameSpace = true
 		case 2:
 			if err := p.ReadField2(iprot); err != nil {
 				return err
 			}
-			issetShard = true
+			issetTargetNameSpace = true
 		case 3:
 			if err := p.ReadField3(iprot); err != nil {
 				return err
 			}
-			issetRangeStart = true
+			issetShard = true
 		case 4:
 			if err := p.ReadField4(iprot); err != nil {
 				return err
 			}
-			issetRangeEnd = true
+			issetRangeStart = true
 		case 5:
 			if err := p.ReadField5(iprot); err != nil {
 				return err
 			}
-			issetStep = true
+			issetRangeEnd = true
 		case 6:
 			if err := p.ReadField6(iprot); err != nil {
 				return err
 			}
-			issetFormula = true
+			issetStep = true
 		case 7:
 			if err := p.ReadField7(iprot); err != nil {
 				return err
 			}
+			issetFormula = true
 		case 8:
 			if err := p.ReadField8(iprot); err != nil {
+				return err
+			}
+		case 9:
+			if err := p.ReadField9(iprot); err != nil {
 				return err
 			}
 		default:
@@ -13040,8 +13052,11 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 	}
-	if !issetNameSpace {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field NameSpace is not set"))
+	if !issetSourceNameSpace {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field SourceNameSpace is not set"))
+	}
+	if !issetTargetNameSpace {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field TargetNameSpace is not set"))
 	}
 	if !issetShard {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Shard is not set"))
@@ -13065,25 +13080,25 @@ func (p *AggregateTilesRequest) ReadField1(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
-		p.NameSpace = v
+		p.SourceNameSpace = v
 	}
 	return nil
 }
 
 func (p *AggregateTilesRequest) ReadField2(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI32(); err != nil {
+	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
-		p.Shard = v
+		p.TargetNameSpace = v
 	}
 	return nil
 }
 
 func (p *AggregateTilesRequest) ReadField3(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
+	if v, err := iprot.ReadI32(); err != nil {
 		return thrift.PrependError("error reading field 3: ", err)
 	} else {
-		p.RangeStart = v
+		p.Shard = v
 	}
 	return nil
 }
@@ -13092,16 +13107,16 @@ func (p *AggregateTilesRequest) ReadField4(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 4: ", err)
 	} else {
-		p.RangeEnd = v
+		p.RangeStart = v
 	}
 	return nil
 }
 
 func (p *AggregateTilesRequest) ReadField5(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadString(); err != nil {
+	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 5: ", err)
 	} else {
-		p.Step = v
+		p.RangeEnd = v
 	}
 	return nil
 }
@@ -13110,23 +13125,32 @@ func (p *AggregateTilesRequest) ReadField6(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 6: ", err)
 	} else {
-		p.Formula = v
+		p.Step = v
 	}
 	return nil
 }
 
 func (p *AggregateTilesRequest) ReadField7(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBool(); err != nil {
+	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 7: ", err)
+	} else {
+		p.Formula = v
+	}
+	return nil
+}
+
+func (p *AggregateTilesRequest) ReadField8(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 8: ", err)
 	} else {
 		p.RemoveResets = v
 	}
 	return nil
 }
 
-func (p *AggregateTilesRequest) ReadField8(iprot thrift.TProtocol) error {
+func (p *AggregateTilesRequest) ReadField9(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI32(); err != nil {
-		return thrift.PrependError("error reading field 8: ", err)
+		return thrift.PrependError("error reading field 9: ", err)
 	} else {
 		temp := TimeType(v)
 		p.RangeType = temp
@@ -13163,6 +13187,9 @@ func (p *AggregateTilesRequest) Write(oprot thrift.TProtocol) error {
 		if err := p.writeField8(oprot); err != nil {
 			return err
 		}
+		if err := p.writeField9(oprot); err != nil {
+			return err
+		}
 	}
 	if err := oprot.WriteFieldStop(); err != nil {
 		return thrift.PrependError("write field stop error: ", err)
@@ -13174,106 +13201,119 @@ func (p *AggregateTilesRequest) Write(oprot thrift.TProtocol) error {
 }
 
 func (p *AggregateTilesRequest) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("nameSpace", thrift.STRING, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:nameSpace: ", p), err)
+	if err := oprot.WriteFieldBegin("sourceNameSpace", thrift.STRING, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:sourceNameSpace: ", p), err)
 	}
-	if err := oprot.WriteString(string(p.NameSpace)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.nameSpace (1) field write error: ", p), err)
+	if err := oprot.WriteString(string(p.SourceNameSpace)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.sourceNameSpace (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:nameSpace: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:sourceNameSpace: ", p), err)
 	}
 	return err
 }
 
 func (p *AggregateTilesRequest) writeField2(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("shard", thrift.I32, 2); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:shard: ", p), err)
+	if err := oprot.WriteFieldBegin("targetNameSpace", thrift.STRING, 2); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:targetNameSpace: ", p), err)
 	}
-	if err := oprot.WriteI32(int32(p.Shard)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.shard (2) field write error: ", p), err)
+	if err := oprot.WriteString(string(p.TargetNameSpace)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.targetNameSpace (2) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:shard: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:targetNameSpace: ", p), err)
 	}
 	return err
 }
 
 func (p *AggregateTilesRequest) writeField3(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("rangeStart", thrift.I64, 3); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:rangeStart: ", p), err)
+	if err := oprot.WriteFieldBegin("shard", thrift.I32, 3); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:shard: ", p), err)
 	}
-	if err := oprot.WriteI64(int64(p.RangeStart)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.rangeStart (3) field write error: ", p), err)
+	if err := oprot.WriteI32(int32(p.Shard)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.shard (3) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:rangeStart: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:shard: ", p), err)
 	}
 	return err
 }
 
 func (p *AggregateTilesRequest) writeField4(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("rangeEnd", thrift.I64, 4); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:rangeEnd: ", p), err)
+	if err := oprot.WriteFieldBegin("rangeStart", thrift.I64, 4); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:rangeStart: ", p), err)
 	}
-	if err := oprot.WriteI64(int64(p.RangeEnd)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.rangeEnd (4) field write error: ", p), err)
+	if err := oprot.WriteI64(int64(p.RangeStart)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.rangeStart (4) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 4:rangeEnd: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 4:rangeStart: ", p), err)
 	}
 	return err
 }
 
 func (p *AggregateTilesRequest) writeField5(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("step", thrift.STRING, 5); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:step: ", p), err)
+	if err := oprot.WriteFieldBegin("rangeEnd", thrift.I64, 5); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:rangeEnd: ", p), err)
 	}
-	if err := oprot.WriteString(string(p.Step)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.step (5) field write error: ", p), err)
+	if err := oprot.WriteI64(int64(p.RangeEnd)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.rangeEnd (5) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 5:step: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 5:rangeEnd: ", p), err)
 	}
 	return err
 }
 
 func (p *AggregateTilesRequest) writeField6(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("formula", thrift.STRING, 6); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:formula: ", p), err)
+	if err := oprot.WriteFieldBegin("step", thrift.STRING, 6); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:step: ", p), err)
 	}
-	if err := oprot.WriteString(string(p.Formula)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.formula (6) field write error: ", p), err)
+	if err := oprot.WriteString(string(p.Step)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.step (6) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 6:formula: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 6:step: ", p), err)
 	}
 	return err
 }
 
 func (p *AggregateTilesRequest) writeField7(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("removeResets", thrift.BOOL, 7); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:removeResets: ", p), err)
+	if err := oprot.WriteFieldBegin("formula", thrift.STRING, 7); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:formula: ", p), err)
 	}
-	if err := oprot.WriteBool(bool(p.RemoveResets)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.removeResets (7) field write error: ", p), err)
+	if err := oprot.WriteString(string(p.Formula)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.formula (7) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 7:removeResets: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 7:formula: ", p), err)
 	}
 	return err
 }
 
 func (p *AggregateTilesRequest) writeField8(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("removeResets", thrift.BOOL, 8); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 8:removeResets: ", p), err)
+	}
+	if err := oprot.WriteBool(bool(p.RemoveResets)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.removeResets (8) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 8:removeResets: ", p), err)
+	}
+	return err
+}
+
+func (p *AggregateTilesRequest) writeField9(oprot thrift.TProtocol) (err error) {
 	if p.IsSetRangeType() {
-		if err := oprot.WriteFieldBegin("rangeType", thrift.I32, 8); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 8:rangeType: ", p), err)
+		if err := oprot.WriteFieldBegin("rangeType", thrift.I32, 9); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 9:rangeType: ", p), err)
 		}
 		if err := oprot.WriteI32(int32(p.RangeType)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeType (8) field write error: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T.rangeType (9) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 8:rangeType: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 9:rangeType: ", p), err)
 		}
 	}
 	return err

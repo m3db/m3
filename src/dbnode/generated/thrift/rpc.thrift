@@ -494,14 +494,15 @@ struct Query {
 }
 
 struct AggregateTilesRequest {
-	1: required string nameSpace
-	2: required i32 shard
-	3: required i64 rangeStart
-	4: required i64 rangeEnd
-	5: required string step
-	6: required string formula
-	7: bool removeResets
-	8: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	1: required string sourceNameSpace
+	2: required string targetNameSpace
+	3: required i32 shard
+	4: required i64 rangeStart
+	5: required i64 rangeEnd
+	6: required string step
+	7: required string formula
+	8: bool removeResets
+	9: optional TimeType rangeType = TimeType.UNIX_SECONDS
 }
 
 struct AggregateTilesResult {
