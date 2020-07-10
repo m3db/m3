@@ -538,6 +538,32 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	return result, nil
 }
 
+func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesRequest) (*rpc.AggregateTilesResult_, error) {
+	_, err := s.startReadRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.readRPCCompleted()
+
+	_, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.AggregateTiles)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", req.NameSpace),
+			opentracinglog.Int32("shard", req.Shard),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+		)
+	}
+
+	result, err := &rpc.AggregateTilesResult_{}, nil // TODO
+	if sampled && err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
