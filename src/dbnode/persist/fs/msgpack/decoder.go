@@ -258,6 +258,11 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 9
+	case legacyEncodingIndexVersionV4:
+		// V4 had 10 fields.
+		opts.override = true
+		opts.numExpectedMinFields = 6
+		opts.numExpectedCurrFields = 10
 	}
 
 	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexInfoType, opts)
@@ -300,6 +305,15 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 
 	// Decode fields added in V4.
 	indexInfo.VolumeIndex = int(dec.decodeVarint())
+
+	// At this point if its a V4 file we've decoded all the available fields.
+	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV4 || actual < 11 {
+		dec.skip(numFieldsToSkip)
+		return indexInfo
+	}
+
+	// Decode fields added in V5.
+	indexInfo.MinorVersion = dec.decodeVarint()
 
 	dec.skip(numFieldsToSkip)
 	return indexInfo
