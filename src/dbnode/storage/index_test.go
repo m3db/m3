@@ -389,7 +389,6 @@ func verifyFlushForShards(
 	}
 	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(idx.retentionPeriod, idx.blockSize, now)
 	for blockStart := earliestBlockStartToRetain; blockStart.Before(warmBlockStart); blockStart = blockStart.Add(idx.blockSize) {
-
 		numBlocks++
 
 		mockBlock := index.NewMockBlock(ctrl)
