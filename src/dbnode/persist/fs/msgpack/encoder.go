@@ -56,11 +56,12 @@ type Encoder struct {
 type legacyEncodingIndexInfoVersion int
 
 const (
-	legacyEncodingIndexVersionCurrent                                = legacyEncodingIndexVersionV4
+	legacyEncodingIndexVersionCurrent                                = legacyEncodingIndexVersionV5
 	legacyEncodingIndexVersionV1      legacyEncodingIndexInfoVersion = iota
 	legacyEncodingIndexVersionV2
 	legacyEncodingIndexVersionV3
 	legacyEncodingIndexVersionV4
+	legacyEncodingIndexVersionV5
 )
 
 type legacyEncodingOptions struct {
@@ -127,8 +128,10 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 		enc.encodeIndexInfoV2(info)
 	case legacyEncodingIndexVersionV3:
 		enc.encodeIndexInfoV3(info)
-	default:
+	case legacyEncodingIndexVersionV4:
 		enc.encodeIndexInfoV4(info)
+	default:
+		enc.encodeIndexInfoV5(info)
 	}
 	return enc.err
 }
@@ -232,6 +235,20 @@ func (enc *Encoder) encodeIndexInfoV3(info schema.IndexInfo) {
 }
 
 func (enc *Encoder) encodeIndexInfoV4(info schema.IndexInfo) {
+	enc.encodeArrayLenFn(10) // V4 had 10 fields.
+	enc.encodeVarintFn(info.BlockStart)
+	enc.encodeVarintFn(info.BlockSize)
+	enc.encodeVarintFn(info.Entries)
+	enc.encodeVarintFn(info.MajorVersion)
+	enc.encodeIndexSummariesInfo(info.Summaries)
+	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
+	enc.encodeVarintFn(info.SnapshotTime)
+	enc.encodeVarintFn(int64(info.FileType))
+	enc.encodeBytesFn(info.SnapshotID)
+	enc.encodeVarintFn(int64(info.VolumeIndex))
+}
+
+func (enc *Encoder) encodeIndexInfoV5(info schema.IndexInfo) {
 	enc.encodeNumObjectFieldsForFn(indexInfoType)
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
@@ -243,6 +260,7 @@ func (enc *Encoder) encodeIndexInfoV4(info schema.IndexInfo) {
 	enc.encodeVarintFn(int64(info.FileType))
 	enc.encodeBytesFn(info.SnapshotID)
 	enc.encodeVarintFn(int64(info.VolumeIndex))
+	enc.encodeVarintFn(info.MinorVersion)
 }
 
 func (enc *Encoder) encodeIndexSummariesInfo(info schema.IndexSummariesInfo) {
