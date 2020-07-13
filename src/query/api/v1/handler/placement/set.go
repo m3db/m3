@@ -78,7 +78,8 @@ func (h *SetHandler) ServeHTTP(
 
 	req, pErr := h.parseRequest(r)
 	if pErr != nil {
-		xhttp.Error(w, pErr.Inner(), pErr.Code())
+		logger.Error("unable to parse request", zap.Error(pErr))
+		xhttp.Error(w, pErr, http.StatusBadRequest)
 		return
 	}
 
@@ -143,12 +144,12 @@ func (h *SetHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *SetHandler) parseRequest(r *http.Request) (*admin.PlacementSetRequest, *xhttp.ParseError) {
+func (h *SetHandler) parseRequest(r *http.Request) (*admin.PlacementSetRequest, error) {
 	defer r.Body.Close()
 
 	req := &admin.PlacementSetRequest{}
 	if err := jsonpb.Unmarshal(r.Body, req); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, err
 	}
 
 	return req, nil
