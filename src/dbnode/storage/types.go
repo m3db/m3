@@ -219,6 +219,9 @@ type Database interface {
 
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
+
+	// AggregateTiles does large tile aggregation from source namespace to target namespace.
+	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, start, end time.Time) error
 }
 
 // database is the internal database interface.
@@ -405,6 +408,11 @@ type databaseNamespace interface {
 
 	// WritePendingIndexInserts will write any pending index inserts.
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
+
+	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
+
+	// AggregateTiles does large tile aggregation from source namespace to this namespace.
+	AggregateTiles(sourceNs databaseNamespace, start, end time.Time) error
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,

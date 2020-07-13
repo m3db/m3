@@ -67,6 +67,9 @@ const (
 	// DBWriteBatch is the operation name for the db WriteBatch path.
 	DBWriteBatch = "storage.db.WriteBatch"
 
+	// DBAggregateTiles is the operation name for the db AggregateTiles path.
+	DBAggregateTiles = "storage.db.AggregateTiles"
+
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
 
