@@ -867,7 +867,7 @@ func (n *dbNamespace) FetchBlocks(
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := n.nowFn()
-	shard, nsCtx, err := n.readableShardAt(shardID)
+	shard, nsCtx, err := n.ReadableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocks.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
@@ -887,7 +887,7 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
 	callStart := n.nowFn()
-	shard, _, err := n.readableShardAt(shardID)
+	shard, _, err := n.ReadableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocksMetadata.ReportError(n.nowFn().Sub(callStart))
 		return nil, nil, err
@@ -1226,7 +1226,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	// We go through this error checking process to allow for partially successful flushes.
 	indexColdFlushError := onColdFlushNs.Done()
 	if indexColdFlushError == nil && onColdFlushDone != nil {
-		// Only evict rotated cold mutable index segments if the index cold flush was sucessful
+		// Only evict rotated cold mutable index segments if the index cold flush was successful
 		// or we will lose queryability of data that's still in mem.
 		indexColdFlushError = onColdFlushDone()
 	}
@@ -1502,7 +1502,7 @@ func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, namespace.Co
 	return shard, nsCtx, err
 }
 
-func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
+func (n *dbNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
 	n.RLock()
 	nsCtx := n.nsContextWithRLock()
 	shard, err := n.readableShardAtWithRLock(shardID)
@@ -1588,4 +1588,80 @@ func (n *dbNamespace) FlushState(shardID uint32, blockStart time.Time) (fileOpSt
 
 func (n *dbNamespace) nsContextWithRLock() namespace.Context {
 	return namespace.Context{ID: n.id, Schema: n.schemaDescr}
+}
+
+func (n *dbNamespace) AggregateTiles(sourceNs databaseNamespace, start, end time.Time) error {
+	n.RLock()
+	if n.bootstrapState != Bootstrapped {
+		n.RUnlock()
+		return errNamespaceNotBootstrapped
+	}
+	nsCtx := n.nsContextWithRLock()
+	targetShards := n.OwnedShards()
+	n.RUnlock()
+
+	resources, err := newColdFlushReuseableResources(n.opts)
+	if err != nil {
+		return err
+	}
+
+	// NB(bodu): The in-mem index will lag behind the TSDB in terms of new series writes. For a period of
+	// time between when we rotate out the active cold mutable index segments (happens here) and when
+	// we actually cold flush the data to disk we will be making writes to the newly active mutable seg.
+	// This means that some series can live doubly in-mem and loaded from disk until the next cold flush
+	// where they will be evicted from the in-mem index.
+	var (
+		onColdFlushDone OnColdFlushDone
+	)
+	if n.reverseIndex != nil {
+		onColdFlushDone, err = n.reverseIndex.ColdFlush(targetShards)
+		if err != nil {
+			return err
+		}
+	}
+
+	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
+	if err != nil {
+		return err
+	}
+
+	// NB(bodu): Deferred targetShard cold flushes so that we can ensure that cold flush index data is
+	// persisted before persisting TSDB data to ensure crash consistency.
+	multiErr := xerrors.NewMultiError()
+	shardColdFlushes := make([]ShardColdFlush, 0, len(targetShards))
+	for _, targetShard := range targetShards {
+		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
+		if err != nil {
+			detailedErr := fmt.Errorf("no matching shard in source namespace %s: %v", sourceNs.ID(), err)
+			multiErr = multiErr.Add(detailedErr)
+			continue
+		}
+		_, _, _ = sourceShard, nsCtx, resources
+		//shardColdFlush, err := targetShard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
+		//if err != nil {
+		//	detailedErr := fmt.Errorf("shard %d failed to compact: %v", targetShard.ID(), err)
+		//	multiErr = multiErr.Add(detailedErr)
+		//	continue
+		//}
+		//shardColdFlushes = append(shardColdFlushes, shardColdFlush)
+	}
+
+	// We go through this error checking process to allow for partially successful flushes.
+	indexColdFlushError := onColdFlushNs.Done()
+	if indexColdFlushError == nil && onColdFlushDone != nil {
+		// Only evict rotated cold mutable index segments if the index cold flush was successful
+		// or we will lose queryability of data that's still in mem.
+		indexColdFlushError = onColdFlushDone()
+	}
+	if indexColdFlushError == nil {
+		// NB(bodu): We only want to complete data cold flushes if the index cold flush
+		// is successful. If index cold flush is successful, we want to attempt writing
+		// of checkpoint files to complete the cold data flush lifecycle for successful targetShards.
+		for _, shardColdFlush := range shardColdFlushes {
+			multiErr = multiErr.Add(shardColdFlush.Done())
+		}
+	}
+	multiErr = multiErr.Add(indexColdFlushError)
+
+	return multiErr.FinalError()
 }

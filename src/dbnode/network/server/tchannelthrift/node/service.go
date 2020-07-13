@@ -539,13 +539,13 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 }
 
 func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesRequest) (*rpc.AggregateTilesResult_, error) {
-	_, err := s.startReadRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
-	defer s.readRPCCompleted()
+	defer s.writeRPCCompleted()
 
-	_, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.AggregateTiles)
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.AggregateTiles)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("sourceNameSpace", req.SourceNameSpace),
@@ -555,13 +555,31 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 		)
 	}
 
-	result, err := &rpc.AggregateTilesResult_{}, nil // TODO
+	err = s.aggregateTiles(ctx, db, req)
 	if sampled && err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
 	sp.Finish()
 
-	return result, err
+	return &rpc.AggregateTilesResult_{}, err
+}
+
+func (s *service) aggregateTiles(ctx context.Context, db storage.Database, req *rpc.AggregateTilesRequest) error {
+	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
+	if rangeStartErr != nil || rangeEndErr != nil {
+		return tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+	}
+
+	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
+	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
+
+	err := db.AggregateTiles(ctx, sourceNsID, targetNsID, start, end)
+	if err != nil {
+		return convert.ToRPCError(err)
+	}
+
+	return nil
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {

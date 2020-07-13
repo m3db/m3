@@ -1063,6 +1063,37 @@ func (d *db) OwnedNamespaces() ([]databaseNamespace, error) {
 	return d.ownedNamespacesWithLock(), nil
 }
 
+func (d *db) AggregateTiles(
+	ctx context.Context,
+	sourceNsID, targetNsID ident.ID,
+	start, end time.Time,
+) error {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("sourceNameSpace", sourceNsID.String()),
+			opentracinglog.String("targetNameSpace", targetNsID.String()),
+			xopentracing.Time("start", start),
+			xopentracing.Time("end", end),
+		)
+	}
+	defer sp.Finish()
+
+	sourceNs, err := d.namespaceFor(sourceNsID)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return err
+	}
+
+	targetNs, err := d.namespaceFor(sourceNsID)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return err
+	}
+
+	return targetNs.AggregateTiles(sourceNs, start, end)
+}
+
 func (d *db) nextIndex() uint64 {
 	// Start with index at "1" so that a default "uniqueIndex"
 	// with "0" is invalid (AddUint64 will return the new value).
