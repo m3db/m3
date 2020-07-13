@@ -406,9 +406,7 @@ func verifyFlushForShards(
 		}
 		persistFn := func(b segment.Builder) error {
 			persistCalledTimes++
-			d := b.Docs()
-			fmt.Println("DOCS", d)
-			actualDocs = append(actualDocs, d...)
+			actualDocs = append(actualDocs, b.Docs()...)
 			return nil
 		}
 		preparedPersist := persist.PreparedIndexPersist{
@@ -443,7 +441,6 @@ func verifyFlushForShards(
 			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 
 			resultsTags1 := ident.NewTagsIterator(ident.NewTags())
-
 			resultsTags2 := ident.NewTagsIterator(ident.NewTags())
 			resultsInShard := []block.FetchBlocksMetadataResult{
 				block.FetchBlocksMetadataResult{
@@ -459,7 +456,7 @@ func verifyFlushForShards(
 			results.EXPECT().Close()
 
 			mockShard.EXPECT().DocRef(resultsID1).Return(doc1, true, nil)
-			mockShard.EXPECT().DocRef(resultsID2).Return(doc2, false, nil)
+			mockShard.EXPECT().DocRef(resultsID2).Return(doc.Document{}, false, nil)
 
 			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
