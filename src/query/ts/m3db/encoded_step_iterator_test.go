@@ -443,7 +443,7 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 		replicasCount = 3
 		start         = time.Now()
 		stepSize      = time.Second * 10
-		window        = stepSize * time.Duration(iterations)
+		window        = stepSize * time.Duration(iterations+1)
 		end           = start.Add(window)
 		iters         = make([]encoding.SeriesIterator, seriesCount)
 		itersReset    = make([]func(), seriesCount)
@@ -456,25 +456,19 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 		encoder := m3tsz.NewEncoder(start, checked.NewBytes(nil, nil),
 			m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 
-		timestamp := start
 		for j := 0; j < iterations; j++ {
-			timestamp = timestamp.Add(time.Duration(j) * stepSize + time.Duration(rand.Int63n(int64(stepSize)/100)))
+			timestamp := start.Add(time.Duration(j)*stepSize)// + time.Duration(rand.Int63n(int64(stepSize)/100)))
+			require.False(b, timestamp.Before(start), "timestamp must be greater or equal to start")
+			require.True(b, timestamp.Before(end), "timestamp must be less than end")
 			dp := ts.Datapoint{Timestamp: timestamp, Value: rand.NormFloat64()}
 			err := encoder.Encode(dp, xtime.Second, nil)
 			require.NoError(b, err)
 		}
 
 		data := encoder.Discard()
-		replicas := make([]struct {
-			readers []xio.SegmentReader
-			iter    encoding.MultiReaderIterator
-		}, replicasCount)
-		replicasIters := make([]encoding.MultiReaderIterator, replicasCount)
-		for j := 0; j < replicasCount; j++ {
-			readers := []xio.SegmentReader{xio.NewSegmentReader(data)}
-			replicas[j].readers = readers
 
-			// Use the same decoder over and over to avoid allocations.
+		replicaFn := func() encoding.MultiReaderIterator {
+			readers := []xio.SegmentReader{xio.NewSegmentReader(data)}
 			readerIter := m3tsz.NewReaderIterator(nil,
 				m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 
@@ -488,9 +482,8 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
 			iter.Reset(readers, start, window, nil)
-			replicas[j].iter = iter
 
-			replicasIters[j] = iter
+			return iter
 		}
 
 		seriesID := ident.StringID(fmt.Sprintf("foo.%d", i+1))
@@ -502,12 +495,9 @@ func setupBlock(b *testing.B, iterations int, t iterType) (block.Block, reset, s
 
 		iters[i] = iter
 		itersReset[i] = func() {
-			// Reset the replica iters.
-			for _, replica := range replicas {
-				for _, reader := range replica.readers {
-					reader.Reset(data)
-				}
-				replica.iter.Reset(replica.readers, start, window, nil)
+			replicasIters := make([]encoding.MultiReaderIterator, replicasCount)
+			for i := range replicasIters {
+				replicasIters[i] = replicaFn()
 			}
 			// Reset the series iterator.
 			iter.Reset(encoding.SeriesIteratorOptions{
@@ -605,8 +595,9 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 		for i := 0; i < b.N; i++ {
 			reset()
 			for it.Next() {
+				it2 := it.Current()
+				require.Equal(b, iterations, it2.Len())
 			}
-
 			require.NoError(b, it.Err())
 		}
 
@@ -626,10 +617,11 @@ func benchmarkNextIteration(b *testing.B, iterations int, t iterType) {
 				it := batch.Iter
 				wg.Add(1)
 				go func() {
+					defer wg.Done()
 					for it.Next() {
+						it2 := it.Current()
+						require.Equal(b, iterations, it2.Len())
 					}
-
-					wg.Done()
 				}()
 			}
 
