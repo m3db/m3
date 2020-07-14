@@ -867,7 +867,7 @@ func (n *dbNamespace) FetchBlocks(
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := n.nowFn()
-	shard, nsCtx, err := n.ReadableShardAt(shardID)
+	shard, nsCtx, err := n.readableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocks.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
@@ -887,7 +887,7 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
 	callStart := n.nowFn()
-	shard, _, err := n.ReadableShardAt(shardID)
+	shard, _, err := n.readableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocksMetadata.ReportError(n.nowFn().Sub(callStart))
 		return nil, nil, err
@@ -1502,7 +1502,7 @@ func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, namespace.Co
 	return shard, nsCtx, err
 }
 
-func (n *dbNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
+func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
 	n.RLock()
 	nsCtx := n.nsContextWithRLock()
 	shard, err := n.readableShardAtWithRLock(shardID)
@@ -1600,6 +1600,11 @@ func (n *dbNamespace) AggregateTiles(sourceNs databaseNamespace, start, end time
 	targetShards := n.OwnedShards()
 	n.RUnlock()
 
+	reader, err := fs.NewReader(n.opts.BytesPool(), n.opts.CommitLogOptions().FilesystemOptions())
+	if err != nil {
+		return err
+	}
+
 	resources, err := newColdFlushReuseableResources(n.opts)
 	if err != nil {
 		return err
@@ -1630,20 +1635,19 @@ func (n *dbNamespace) AggregateTiles(sourceNs databaseNamespace, start, end time
 	multiErr := xerrors.NewMultiError()
 	shardColdFlushes := make([]ShardColdFlush, 0, len(targetShards))
 	for _, targetShard := range targetShards {
-		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
+		sourceShard, _, err := sourceNs.readableShardAt(targetShard.ID())
 		if err != nil {
 			detailedErr := fmt.Errorf("no matching shard in source namespace %s: %v", sourceNs.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		_, _, _ = sourceShard, nsCtx, resources
-		//shardColdFlush, err := targetShard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
-		//if err != nil {
-		//	detailedErr := fmt.Errorf("shard %d failed to compact: %v", targetShard.ID(), err)
-		//	multiErr = multiErr.Add(detailedErr)
-		//	continue
-		//}
-		//shardColdFlushes = append(shardColdFlushes, shardColdFlush)
+		shardColdFlush, err := targetShard.AggregateTiles(reader, sourceShard, start, resources, nsCtx, onColdFlushNs)
+		if err != nil {
+			detailedErr := fmt.Errorf("shard %d failed to compact: %v", targetShard.ID(), err)
+			multiErr = multiErr.Add(detailedErr)
+			continue
+		}
+		shardColdFlushes = append(shardColdFlushes, shardColdFlush)
 	}
 
 	// We go through this error checking process to allow for partially successful flushes.

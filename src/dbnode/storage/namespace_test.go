@@ -662,13 +662,13 @@ func TestNamespaceShardAt(t *testing.T) {
 	s1.EXPECT().IsBootstrapped().Return(false)
 	ns.shards[1] = s1
 
-	_, _, err := ns.ReadableShardAt(0)
+	_, _, err := ns.readableShardAt(0)
 	require.NoError(t, err)
-	_, _, err = ns.ReadableShardAt(1)
+	_, _, err = ns.readableShardAt(1)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, errShardNotBootstrappedToRead.Error(), err.Error())
-	_, _, err = ns.ReadableShardAt(2)
+	_, _, err = ns.readableShardAt(2)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 2", err.Error())

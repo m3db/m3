@@ -12912,7 +12912,6 @@ func (p *Query) String() string {
 //  - RangeStart
 //  - RangeEnd
 //  - Step
-//  - Formula
 //  - RemoveResets
 //  - RangeType
 type AggregateTilesRequest struct {
@@ -12921,9 +12920,8 @@ type AggregateTilesRequest struct {
 	RangeStart      int64    `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd        int64    `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
 	Step            string   `thrift:"step,5,required" db:"step" json:"step"`
-	Formula         string   `thrift:"formula,6,required" db:"formula" json:"formula"`
-	RemoveResets    bool     `thrift:"removeResets,7" db:"removeResets" json:"removeResets"`
-	RangeType       TimeType `thrift:"rangeType,8" db:"rangeType" json:"rangeType,omitempty"`
+	RemoveResets    bool     `thrift:"removeResets,6" db:"removeResets" json:"removeResets"`
+	RangeType       TimeType `thrift:"rangeType,7" db:"rangeType" json:"rangeType,omitempty"`
 }
 
 func NewAggregateTilesRequest() *AggregateTilesRequest {
@@ -12952,10 +12950,6 @@ func (p *AggregateTilesRequest) GetStep() string {
 	return p.Step
 }
 
-func (p *AggregateTilesRequest) GetFormula() string {
-	return p.Formula
-}
-
 func (p *AggregateTilesRequest) GetRemoveResets() bool {
 	return p.RemoveResets
 }
@@ -12979,7 +12973,6 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 	var issetRangeStart bool = false
 	var issetRangeEnd bool = false
 	var issetStep bool = false
-	var issetFormula bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -13019,13 +13012,8 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField6(iprot); err != nil {
 				return err
 			}
-			issetFormula = true
 		case 7:
 			if err := p.ReadField7(iprot); err != nil {
-				return err
-			}
-		case 8:
-			if err := p.ReadField8(iprot); err != nil {
 				return err
 			}
 		default:
@@ -13054,9 +13042,6 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 	}
 	if !issetStep {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Step is not set"))
-	}
-	if !issetFormula {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Formula is not set"))
 	}
 	return nil
 }
@@ -13107,26 +13092,17 @@ func (p *AggregateTilesRequest) ReadField5(iprot thrift.TProtocol) error {
 }
 
 func (p *AggregateTilesRequest) ReadField6(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadString(); err != nil {
-		return thrift.PrependError("error reading field 6: ", err)
-	} else {
-		p.Formula = v
-	}
-	return nil
-}
-
-func (p *AggregateTilesRequest) ReadField7(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadBool(); err != nil {
-		return thrift.PrependError("error reading field 7: ", err)
+		return thrift.PrependError("error reading field 6: ", err)
 	} else {
 		p.RemoveResets = v
 	}
 	return nil
 }
 
-func (p *AggregateTilesRequest) ReadField8(iprot thrift.TProtocol) error {
+func (p *AggregateTilesRequest) ReadField7(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI32(); err != nil {
-		return thrift.PrependError("error reading field 8: ", err)
+		return thrift.PrependError("error reading field 7: ", err)
 	} else {
 		temp := TimeType(v)
 		p.RangeType = temp
@@ -13158,9 +13134,6 @@ func (p *AggregateTilesRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField7(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField8(oprot); err != nil {
 			return err
 		}
 	}
@@ -13239,41 +13212,28 @@ func (p *AggregateTilesRequest) writeField5(oprot thrift.TProtocol) (err error) 
 }
 
 func (p *AggregateTilesRequest) writeField6(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("formula", thrift.STRING, 6); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:formula: ", p), err)
+	if err := oprot.WriteFieldBegin("removeResets", thrift.BOOL, 6); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:removeResets: ", p), err)
 	}
-	if err := oprot.WriteString(string(p.Formula)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.formula (6) field write error: ", p), err)
+	if err := oprot.WriteBool(bool(p.RemoveResets)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.removeResets (6) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 6:formula: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 6:removeResets: ", p), err)
 	}
 	return err
 }
 
 func (p *AggregateTilesRequest) writeField7(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("removeResets", thrift.BOOL, 7); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:removeResets: ", p), err)
-	}
-	if err := oprot.WriteBool(bool(p.RemoveResets)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.removeResets (7) field write error: ", p), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 7:removeResets: ", p), err)
-	}
-	return err
-}
-
-func (p *AggregateTilesRequest) writeField8(oprot thrift.TProtocol) (err error) {
 	if p.IsSetRangeType() {
-		if err := oprot.WriteFieldBegin("rangeType", thrift.I32, 8); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 8:rangeType: ", p), err)
+		if err := oprot.WriteFieldBegin("rangeType", thrift.I32, 7); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:rangeType: ", p), err)
 		}
 		if err := oprot.WriteI32(int32(p.RangeType)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeType (8) field write error: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T.rangeType (7) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 8:rangeType: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 7:rangeType: ", p), err)
 		}
 	}
 	return err

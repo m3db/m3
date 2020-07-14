@@ -499,9 +499,8 @@ struct AggregateTilesRequest {
 	3: required i64 rangeStart
 	4: required i64 rangeEnd
 	5: required string step
-	6: required string formula
-	7: bool removeResets
-	8: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	6: bool removeResets
+	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
 }
 
 struct AggregateTilesResult {
