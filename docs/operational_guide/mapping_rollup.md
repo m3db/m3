@@ -98,3 +98,53 @@ downsample:
         - resolution: 30s
           retention: 720h
 ```
+
+While the above example can be used to create a new rolled up metric, 
+often times the goal of rollup rules is to eliminate the underlaying, 
+raw metrics. In order to do this, a `mappingRule` will need to be 
+added like in the following example (using the metric above as an example) 
+with `drop` set to `true`. Additionally, if **all** of the underlaying metrics are
+being dropped, there is no need to change the metric name (e.g. in the 
+`rollupRule`, the `metricName` field can be equal to the existing metric) --
+see below for an example.
+
+```yaml
+mappingRules:
+  - name: "http_request latency by route and git_sha drop raw"
+    filter: "__name__:http_request_bucket k8s_pod:* le:* git_sha:* route:*"
+    drop: true
+```
+
+```yaml
+downsample:
+  rules:
+    rollupRules:
+      - name: "http_request latency by route and git_sha without pod"
+        filter: "__name__:http_request_bucket k8s_pod:* le:* git_sha:* route:*"
+        transforms:
+        - transform:
+            type: "Increase"
+        - rollup:
+            metricName: "ttp_request_bucket" # metric name doesn't change
+            groupBy: ["le", "git_sha", "route", "status_code", "region"]
+            aggregations: ["Sum"]
+        - transform:
+            type: "Add"
+        storagePolicies:
+        - resolution: 30s
+          retention: 720h
+```
+
+**Note:** In order to store rolled up metrics in an `unaggregated` namespace,
+a matching `aggregated` namespace must be added to the coordinator config. For 
+example, if there is an `unaggregated` `2d` namespace, the following will need 
+to be added to the coordinator config.
+
+```yaml
+  - namespace: default
+    resolution: 30s
+    retention: 48h
+    type: aggregated
+    downsample:
+      all: false
+```
