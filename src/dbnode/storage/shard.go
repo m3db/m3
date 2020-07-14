@@ -1062,6 +1062,7 @@ func (s *dbShard) ReadEncoded(
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
 	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
+	fmt.Println("READ", id.String(), seriesTags.Values())
 	entry, _, err := s.lookupEntryWithLock(&seriesTags)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
@@ -1589,6 +1590,7 @@ func (s *dbShard) FetchBlocks(
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	tags := ident.ToTags(id, s.seriesOpts.BytesOpts())
+	fmt.Println("FETCH", id.String(), tags.Values())
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(&tags)
 	if entry != nil {

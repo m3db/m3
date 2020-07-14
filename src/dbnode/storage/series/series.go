@@ -545,14 +545,11 @@ func (s *dbSeries) Snapshot(
 	// state (by performing a pro-active merge).
 	s.Lock()
 	defer s.Unlock()
-	if len(s.tags.Values()) > 0 {
+	if strings.HasPrefix(s.tags.Values()[0].Name.String(), "e__") {
 		fmt.Println("SNAP", s.tags.Values()[0].Name.String())
-	} else {
-		fmt.Println("SNAPP", s.tags.Values())
 	}
 	id := s.tags.ToID()
-	tags := s.tags.Copy()
-	return s.buffer.Snapshot(ctx, blockStart, id, tags, persistFn, nsCtx)
+	return s.buffer.Snapshot(ctx, blockStart, id, *s.tags, persistFn, nsCtx)
 }
 
 func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes {
