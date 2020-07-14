@@ -148,3 +148,11 @@ to be added to the coordinator config.
     downsample:
       all: false
 ```
+
+Then, the following can be added under `storagePolicies`:
+
+```yaml
+storagePolicies:
+- resolution: 30s
+  retention: 48h
+```
