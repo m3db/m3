@@ -409,10 +409,10 @@ type databaseNamespace interface {
 	// WritePendingIndexInserts will write any pending index inserts.
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
 
-	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
-
-	// AggregateTiles does large tile aggregation from source namespace to this namespace.
+	// AggregateTiles does large tile aggregation from source namespace into this namespace.
 	AggregateTiles(sourceNs databaseNamespace, start, end time.Time) error
+
+	readableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -589,6 +589,18 @@ type databaseShard interface {
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Document, bool, error)
+
+	// AggregateTiles does large tile aggregation from source shards into this shard.
+	AggregateTiles(
+		reader fs.DataFileSetReader,
+		sourceShard databaseShard,
+		blockStart time.Time,
+		resources coldFlushReuseableResources,
+		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
+	) (ShardColdFlush, error)
+
+	latestVolume(blockStart time.Time) (int, error)
 }
 
 // ShardColdFlush exposes a done method to finalize shard cold flush

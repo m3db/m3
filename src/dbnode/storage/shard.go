@@ -2538,6 +2538,60 @@ func (s *dbShard) Repair(
 	return repairer.Repair(ctx, nsCtx, nsMeta, tr, s)
 }
 
+func (s *dbShard) AggregateTiles(
+	reader fs.DataFileSetReader,
+	sourceShard databaseShard,
+	blockStart time.Time,
+	resources coldFlushReuseableResources,
+	nsCtx namespace.Context,
+	onFlush persist.OnFlushSeries,
+) (ShardColdFlush, error) {
+	latestSourceVolume, err := sourceShard.latestVolume(blockStart)
+	if err != nil {
+		return nil, err
+	}
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   s.namespace.ID(),
+			Shard:       sourceShard.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestSourceVolume,
+		},
+		//TODO after https://github.com/chronosphereio/m3/pull/10 for proper streaming - OrderByIndex: true
+	}
+	if err := reader.Open(openOpts); err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	for {
+		id, tags, data, checksum, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		//TODO persist this data:
+		_, _, _, _ = id, tags, data, checksum
+	}
+
+	var flush persist.FlushPreparer //FIXME what is this?
+	return s.ColdFlush(flush, resources, nsCtx, onFlush)
+}
+
+func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
+	s.RLock()
+	entry, _, err := s.lookupEntryWithLock(seriesID)
+	s.RUnlock()
+	if entry == nil || err != nil {
+		return ident.Tags{}, false, err
+	}
+
+	return entry.Series.Tags(), true, nil
+}
+
 func (s *dbShard) BootstrapState() BootstrapState {
 	s.RLock()
 	bs := s.bootstrapState
@@ -2557,6 +2611,10 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 		return emptyDoc, false, nil
 	}
 	return emptyDoc, false, err
+}
+
+func (s *dbShard) latestVolume(blockStart time.Time) (int, error) {
+	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {
