@@ -125,7 +125,7 @@ downsample:
         - transform:
             type: "Increase"
         - rollup:
-            metricName: "ttp_request_bucket" # metric name doesn't change
+            metricName: "http_request_bucket" # metric name doesn't change
             groupBy: ["le", "git_sha", "route", "status_code", "region"]
             aggregations: ["Sum"]
         - transform:
