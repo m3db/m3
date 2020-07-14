@@ -268,12 +268,17 @@ func ToTags(id ID, opts checked.BytesOptions) Tags {
 			}
 			i++
 		}
-		name := checked.NewBytes([]byte(t[:i]), opts)
-		value := checked.NewBytes([]byte(t[i+1:]), opts)
+		copiedName := append([]byte(nil), []byte(t[:i])...)
+		copiedValue := append([]byte(nil), []byte(t[i+1:])...)
+		name := checked.NewBytes(copiedName, opts)
+		value := checked.NewBytes(copiedValue, opts)
 		tags = append(tags, Tag{
 			Name:  BinaryID(name),
 			Value: BinaryID(value),
 		})
+	}
+	if strings.HasPrefix(tags[0].Name.String(), "e__") {
+		fmt.Println("BAD", id.String())
 	}
 	return NewTags(tags...)
 }
@@ -295,6 +300,7 @@ func (t Tags) Copy() Tags {
 
 // ToID is
 func (t Tags) ToID(opts checked.BytesOptions) ID {
+	tt := t.values[0].Name.String()
 	if len(t.values) == 0 {
 		return BinaryID(checked.NewBytes([]byte("{}"), opts))
 	}
@@ -340,7 +346,11 @@ func (t Tags) ToID(opts checked.BytesOptions) ID {
 	idx = writeAtIndex(t.values[lastIndex], id, needEscaping[lastIndex], idx)
 	id[idx] = rightBracket
 	bytes := checked.NewBytes(id, opts)
-	return BinaryID(bytes)
+	b := BinaryID(bytes)
+	if strings.HasPrefix(t.values[0].Name.String(), "e__") && tt != t.values[0].Name.String() {
+		fmt.Println("BAD3", tt, t.values[0].Name.String(), string(id))
+	}
+	return b
 }
 
 func quoteIDSimple(t Tags, length int) []byte {

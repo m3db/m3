@@ -23,6 +23,7 @@ package series
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -112,7 +113,7 @@ func (s *dbSeries) ID() ident.ID {
 
 func (s *dbSeries) Tags() ident.Tags {
 	s.RLock()
-	tags := *s.tags
+	tags := s.tags.Copy()
 	s.RUnlock()
 	return tags
 }
@@ -609,7 +610,15 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	//
 	// The same goes for the series tags.
 	s.Lock()
-	s.tags = opts.Tags
+	copy := opts.Tags.Copy()
+	s.tags = &copy
+	//s.tags = opts.Tags
+	if strings.HasPrefix(s.tags.Values()[0].Name.String(), "e__") {
+		fmt.Println("BAD2", s.tags.Values()[0].Name)
+	}
+	// if len(s.tags.Values()) > 0 {
+	// 	fmt.Println("SET TAG", s.tags.Values()[0].Name.String())
+	// }
 	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(databaseBufferResetOptions{
