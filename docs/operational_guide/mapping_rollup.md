@@ -72,4 +72,29 @@ both the `1m:48h` and `30s:24h` namespaces.
 
 ## Rollup Rules
 
-Coming soon!
+Rollup rules are used to rollup metrics and aggregate in different ways by 
+arbitrary dimensions before they are stored. 
+
+Here's an example of creating a new monotonic counter called 
+`http_request_rollup_no_pod_bucket` from a set of histogram metrics originally 
+called `http_request_bucket`:
+
+```yaml
+downsample:
+  rules:
+    rollupRules:
+      - name: "http_request latency by route and git_sha without pod"
+        filter: "__name__:http_request_bucket k8s_pod:* le:* git_sha:* route:*"
+        transforms:
+        - transform:
+            type: "Increase"
+        - rollup:
+            metricName: "http_request_rollup_no_pod_bucket"
+            groupBy: ["le", "git_sha", "route", "status_code", "region"]
+            aggregations: ["Sum"]
+        - transform:
+            type: "Add"
+        storagePolicies:
+        - resolution: 30s
+          retention: 720h
+```
