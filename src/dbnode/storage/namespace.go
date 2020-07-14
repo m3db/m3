@@ -1226,7 +1226,7 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	// We go through this error checking process to allow for partially successful flushes.
 	indexColdFlushError := onColdFlushNs.Done()
 	if indexColdFlushError == nil && onColdFlushDone != nil {
-		// Only evict rotated cold mutable index segments if the index cold flush was sucessful
+		// Only evict rotated cold mutable index segments if the index cold flush was successful
 		// or we will lose queryability of data that's still in mem.
 		indexColdFlushError = onColdFlushDone()
 	}
