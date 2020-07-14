@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
@@ -432,8 +433,10 @@ func verifyFlushForShards(
 		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 	}
 	require.NoError(t, idx.WarmFlush(mockFlush, dbShards))
-	require.Equal(t, persistClosedTimes, numBlocks)
-	require.Equal(t, persistCalledTimes, numBlocks)
+	require.True(t, xclock.WaitUntil(func() bool {
+		return persistClosedTimes == numBlocks &&
+			persistCalledTimes == numBlocks
+	}, 5*time.Second))
 }
 
 type testIndex struct {
