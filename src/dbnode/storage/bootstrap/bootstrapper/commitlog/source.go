@@ -805,6 +805,8 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			return err
 		}
 
+		// TODO(bodu): This needs to check the block start to determine whether this block
+		// should be a warm or cold block.
 		// Load into series.
 		if err := ref.Series.LoadBlock(dbBlock, series.WarmWrite); err != nil {
 			return err
