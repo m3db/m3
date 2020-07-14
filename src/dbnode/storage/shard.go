@@ -2372,6 +2372,8 @@ func (s *dbShard) Snapshot(
 	}
 	s.RUnlock()
 
+	// TODO(bodu): Short circuit here if there is no work to do.
+
 	var multiErr xerrors.MultiError
 
 	prepareOpts := persist.DataPrepareOptions{
