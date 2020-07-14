@@ -21,9 +21,12 @@
 package storage
 
 import (
+	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"io"
 	"math"
 	"sync"
@@ -2565,6 +2568,10 @@ func (s *dbShard) AggregateTiles(
 	}
 	defer reader.Close()
 
+	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
+  	bytesReader := bytes.NewReader(nil)
+	dataPointIter := m3tsz.NewReaderIterator(bytesReader, true, encodingOpts)
+
 	for {
 		id, tags, data, checksum, err := reader.Read()
 		if err == io.EOF {
@@ -2573,8 +2580,18 @@ func (s *dbShard) AggregateTiles(
 		if err != nil {
 			return nil, err
 		}
-		//TODO persist this data:
-		_, _, _, _ = id, tags, data, checksum
+
+		data.IncRef()
+		bytesReader.Reset(data.Bytes())
+		dataPointIter.Reset(bytesReader, nil)
+
+		//TODO persist the data from dataPointIter
+		_, _, _ = id, tags, checksum
+
+		dataPointIter.Close()
+
+		data.DecRef()
+		data.Finalize()
 	}
 
 	var flush persist.FlushPreparer //FIXME what is this?
