@@ -299,7 +299,12 @@ func (t Tags) Copy() Tags {
 }
 
 // ToID is
-func (t Tags) ToID(opts checked.BytesOptions) ID {
+func (t Tags) ToID() ID {
+	return t.ToIDCached(nil)
+}
+
+// ToIDCached is
+func (t Tags) ToIDCached(opts checked.BytesOptions) ID {
 	tt := t.values[0].Name.String()
 	if len(t.values) == 0 {
 		return BinaryID(checked.NewBytes([]byte("{}"), opts))

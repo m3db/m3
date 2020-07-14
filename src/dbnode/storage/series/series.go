@@ -106,7 +106,7 @@ func (s *dbSeries) now() time.Time {
 
 func (s *dbSeries) ID() ident.ID {
 	s.RLock()
-	id := s.tags.ToID(s.opts.BytesOpts())
+	id := s.tags.ToID()
 	s.RUnlock()
 	return id
 }
@@ -317,7 +317,7 @@ func (s *dbSeries) ReadEncoded(
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
-	reader := NewReaderUsingRetriever(s.tags.ToID(s.opts.BytesOpts()), s.blockRetriever, s.onRetrieveBlock, s, s.opts)
+	reader := NewReaderUsingRetriever(s.tags.ToID(), s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return r, err
@@ -346,7 +346,7 @@ func (s *dbSeries) FetchBlocks(
 	s.RLock()
 	r, err := Reader{
 		opts:       s.opts,
-		id:         s.tags.ToID(s.opts.BytesOpts()),
+		id:         s.tags.ToID(),
 		retriever:  s.blockRetriever,
 		onRetrieve: s.onRetrieveBlock,
 	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer, nsCtx)
@@ -381,7 +381,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 	// return refs.
 	tagsIter := s.opts.IdentifierPool().TagsIterator()
 	tagsIter.Reset(*s.tags)
-	return block.NewFetchBlocksMetadataResult(s.tags.ToID(s.opts.BytesOpts()), tagsIter, res), nil
+	return block.NewFetchBlocksMetadataResult(s.tags.ToID(), tagsIter, res), nil
 }
 
 func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
@@ -454,13 +454,13 @@ func (s *dbSeries) OnRetrieveBlock(
 		}
 	}()
 
-	if !id.Equal(s.tags.ToID(s.opts.BytesOpts())) {
+	if !id.Equal(s.tags.ToID()) {
 		return
 	}
 
 	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	b.ResetFromDisk(startTime, blockSize, segment, s.tags.ToID(s.opts.BytesOpts()), nsCtx)
+	b.ResetFromDisk(startTime, blockSize, segment, s.tags.ToID(), nsCtx)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.
@@ -498,7 +498,7 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	defer s.Unlock()
 
 	// Should never happen
-	if !id.Equal(s.tags.ToID(s.opts.BytesOpts())) {
+	if !id.Equal(s.tags.ToID()) {
 		return
 	}
 
@@ -529,7 +529,7 @@ func (s *dbSeries) WarmFlush(
 	// Need a write lock because the buffer WarmFlush method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
-	outcome, err := s.buffer.WarmFlush(ctx, blockStart, s.tags.ToID(s.opts.BytesOpts()), *s.tags, persistFn, nsCtx)
+	outcome, err := s.buffer.WarmFlush(ctx, blockStart, s.tags.ToID(), *s.tags, persistFn, nsCtx)
 	s.Unlock()
 	return outcome, err
 }
@@ -550,7 +550,7 @@ func (s *dbSeries) Snapshot(
 	} else {
 		fmt.Println("SNAPP", s.tags.Values())
 	}
-	id := s.tags.ToID(s.opts.BytesOpts())
+	id := s.tags.ToID()
 	tags := s.tags.Copy()
 	return s.buffer.Snapshot(ctx, blockStart, id, tags, persistFn, nsCtx)
 }
@@ -622,7 +622,7 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(databaseBufferResetOptions{
-		ID:             s.tags.ToID(opts.Options.BytesOpts()),
+		ID:             s.tags.ToID(),
 		BlockRetriever: opts.BlockRetriever,
 		Options:        opts.Options,
 	})

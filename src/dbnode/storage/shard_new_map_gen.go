@@ -71,7 +71,7 @@ func newShardMap(opts shardMapOptions) *shardMap {
 	}
 	return _shardMapAlloc(_shardMapOptions{
 		hash: func(id *ident.Tags) shardMapHash {
-			b := id.ToID(opts.ByteOpts).Bytes()
+			b := id.ToIDCached(opts.ByteOpts).Bytes()
 			return shardMapHash(xxhash.Sum64(b))
 		},
 		equals: func(x, y *ident.Tags) bool {
