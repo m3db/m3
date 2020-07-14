@@ -22,10 +22,8 @@
 package checked
 
 import (
-	"bytes"
 	"sync"
 
-	"github.com/cespare/xxhash"
 	"github.com/m3db/m3/src/x/resource"
 )
 
@@ -147,23 +145,23 @@ func (t *stringTable) GetOrSet(b []byte) Bytes {
 	// For collision handling, before we return new bytes, compare the two
 	// checked bytes and then use chaining collision resolution by adding 1
 	// Maybe we can skip this though for proto.
-	key := xxhash.Sum64(b)
+	//key := xxhash.Sum64(b)
 
-	t.lock.RLock()
-	for existing, ok := t.vals[key]; ok; existing, ok = t.vals[key] {
-		if bytes.Compare(b, existing.Bytes()) == 0 {
-			t.lock.RUnlock()
-			return existing
-		}
-		// Linear probing for collisions.
-		key++
-	}
-	t.lock.RUnlock()
+	// t.lock.RLock()
+	// for existing, ok := t.vals[key]; ok; existing, ok = t.vals[key] {
+	// 	if bytes.Compare(b, existing.Bytes()) == 0 {
+	// 		t.lock.RUnlock()
+	// 		return existing
+	// 	}
+	// 	// Linear probing for collisions.
+	// 	key++
+	// }
+	// t.lock.RUnlock()
 
 	new := NewBytes(b, nil)
 	new.IncRef()
 	t.lock.Lock()
-	t.vals[key] = new
+	//t.vals[key] = new
 	t.lock.Unlock()
 
 	return new
