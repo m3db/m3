@@ -109,15 +109,12 @@ being dropped, there is no need to change the metric name (e.g. in the
 see below for an example.
 
 ```yaml
-mappingRules:
-  - name: "http_request latency by route and git_sha drop raw"
-    filter: "__name__:http_request_bucket k8s_pod:* le:* git_sha:* route:*"
-    drop: true
-```
-
-```yaml
 downsample:
   rules:
+    mappingRules:
+      - name: "http_request latency by route and git_sha drop raw"
+        filter: "__name__:http_request_bucket k8s_pod:* le:* git_sha:* route:*"
+        drop: true
     rollupRules:
       - name: "http_request latency by route and git_sha without pod"
         filter: "__name__:http_request_bucket k8s_pod:* le:* git_sha:* route:*"
