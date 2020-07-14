@@ -2561,6 +2561,7 @@ func (s *dbShard) AggregateTiles(
 			BlockStart:  blockStart,
 			VolumeIndex: latestSourceVolume,
 		},
+		FileSetType: persist.FileSetFlushType,
 		//TODO after https://github.com/chronosphereio/m3/pull/10 for proper streaming - OrderByIndex: true
 	}
 	if err := reader.Open(openOpts); err != nil {
@@ -2569,7 +2570,7 @@ func (s *dbShard) AggregateTiles(
 	defer reader.Close()
 
 	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
-  	bytesReader := bytes.NewReader(nil)
+	bytesReader := bytes.NewReader(nil)
 	dataPointIter := m3tsz.NewReaderIterator(bytesReader, true, encodingOpts)
 
 	for {
