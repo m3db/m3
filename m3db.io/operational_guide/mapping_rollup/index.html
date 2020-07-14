@@ -1311,7 +1311,29 @@ the <code>mysql</code> metrics will be sent to the <code>1m:48h</code> namespace
 both the <code>1m:48h</code> and <code>30s:24h</code> namespaces.</p>
 <p><strong>Note:</strong> the namespaces listed under the <code>storagePolicies</code> stanza must exist in M3DB.</p>
 <h2 id="rollup-rules">Rollup Rules</h2>
-<p>Coming soon!</p>
+<p>Rollup rules are used to rollup metrics and aggregate in different ways by 
+arbitrary dimensions before they are stored. </p>
+<p>Here's an example of creating a new monotonic counter called 
+<code>http_request_rollup_no_pod_bucket</code> from a set of histogram metrics originally 
+called <code>http_request_bucket</code>:</p>
+<div class="highlight"><pre><span></span><span class="nt">downsample</span><span class="p">:</span>
+  <span class="nt">rules</span><span class="p">:</span>
+    <span class="nt">rollupRules</span><span class="p">:</span>
+      <span class="p p-Indicator">-</span> <span class="nt">name</span><span class="p">:</span> <span class="s">&quot;http_request</span><span class="nv"> </span><span class="s">latency</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">route</span><span class="nv"> </span><span class="s">and</span><span class="nv"> </span><span class="s">git_sha</span><span class="nv"> </span><span class="s">without</span><span class="nv"> </span><span class="s">pod&quot;</span>
+        <span class="nt">filter</span><span class="p">:</span> <span class="s">&quot;__name__:http_request_bucket</span><span class="nv"> </span><span class="s">k8s_pod:*</span><span class="nv"> </span><span class="s">le:*</span><span class="nv"> </span><span class="s">git_sha:*</span><span class="nv"> </span><span class="s">route:*&quot;</span>
+        <span class="nt">transforms</span><span class="p">:</span>
+        <span class="p p-Indicator">-</span> <span class="nt">transform</span><span class="p">:</span>
+            <span class="nt">type</span><span class="p">:</span> <span class="s">&quot;Increase&quot;</span>
+        <span class="p p-Indicator">-</span> <span class="nt">rollup</span><span class="p">:</span>
+            <span class="nt">metricName</span><span class="p">:</span> <span class="s">&quot;http_request_rollup_no_pod_bucket&quot;</span>
+            <span class="nt">groupBy</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;le&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;git_sha&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;route&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;status_code&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;region&quot;</span><span class="p p-Indicator">]</span>
+            <span class="nt">aggregations</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;Sum&quot;</span><span class="p p-Indicator">]</span>
+        <span class="p p-Indicator">-</span> <span class="nt">transform</span><span class="p">:</span>
+            <span class="nt">type</span><span class="p">:</span> <span class="s">&quot;Add&quot;</span>
+        <span class="nt">storagePolicies</span><span class="p">:</span>
+        <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">30s</span>
+          <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">720h</span>
+</pre></div>
                 
                   
                 
