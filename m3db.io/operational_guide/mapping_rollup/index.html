@@ -1334,6 +1334,49 @@ called <code>http_request_bucket</code>:</p>
         <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">30s</span>
           <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">720h</span>
 </pre></div>
+
+<p>While the above example can be used to create a new rolled up metric, 
+often times the goal of rollup rules is to eliminate the underlaying, 
+raw metrics. In order to do this, a <code>mappingRule</code> will need to be 
+added like in the following example (using the metric above as an example) 
+with <code>drop</code> set to <code>true</code>. Additionally, if <strong>all</strong> of the underlaying metrics are
+being dropped, there is no need to change the metric name (e.g. in the 
+<code>rollupRule</code>, the <code>metricName</code> field can be equal to the existing metric) --
+see below for an example.</p>
+<div class="highlight"><pre><span></span><span class="nt">downsample</span><span class="p">:</span>
+  <span class="nt">rules</span><span class="p">:</span>
+    <span class="nt">mappingRules</span><span class="p">:</span>
+      <span class="p p-Indicator">-</span> <span class="nt">name</span><span class="p">:</span> <span class="s">&quot;http_request</span><span class="nv"> </span><span class="s">latency</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">route</span><span class="nv"> </span><span class="s">and</span><span class="nv"> </span><span class="s">git_sha</span><span class="nv"> </span><span class="s">drop</span><span class="nv"> </span><span class="s">raw&quot;</span>
+        <span class="nt">filter</span><span class="p">:</span> <span class="s">&quot;__name__:http_request_bucket</span><span class="nv"> </span><span class="s">k8s_pod:*</span><span class="nv"> </span><span class="s">le:*</span><span class="nv"> </span><span class="s">git_sha:*</span><span class="nv"> </span><span class="s">route:*&quot;</span>
+        <span class="nt">drop</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">true</span>
+    <span class="nt">rollupRules</span><span class="p">:</span>
+      <span class="p p-Indicator">-</span> <span class="nt">name</span><span class="p">:</span> <span class="s">&quot;http_request</span><span class="nv"> </span><span class="s">latency</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">route</span><span class="nv"> </span><span class="s">and</span><span class="nv"> </span><span class="s">git_sha</span><span class="nv"> </span><span class="s">without</span><span class="nv"> </span><span class="s">pod&quot;</span>
+        <span class="nt">filter</span><span class="p">:</span> <span class="s">&quot;__name__:http_request_bucket</span><span class="nv"> </span><span class="s">k8s_pod:*</span><span class="nv"> </span><span class="s">le:*</span><span class="nv"> </span><span class="s">git_sha:*</span><span class="nv"> </span><span class="s">route:*&quot;</span>
+        <span class="nt">transforms</span><span class="p">:</span>
+        <span class="p p-Indicator">-</span> <span class="nt">transform</span><span class="p">:</span>
+            <span class="nt">type</span><span class="p">:</span> <span class="s">&quot;Increase&quot;</span>
+        <span class="p p-Indicator">-</span> <span class="nt">rollup</span><span class="p">:</span>
+            <span class="nt">metricName</span><span class="p">:</span> <span class="s">&quot;http_request_bucket&quot;</span> <span class="c1"># metric name doesn&#39;t change</span>
+            <span class="nt">groupBy</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;le&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;git_sha&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;route&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;status_code&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;region&quot;</span><span class="p p-Indicator">]</span>
+            <span class="nt">aggregations</span><span class="p">:</span> <span class="p p-Indicator">[</span><span class="s">&quot;Sum&quot;</span><span class="p p-Indicator">]</span>
+        <span class="p p-Indicator">-</span> <span class="nt">transform</span><span class="p">:</span>
+            <span class="nt">type</span><span class="p">:</span> <span class="s">&quot;Add&quot;</span>
+        <span class="nt">storagePolicies</span><span class="p">:</span>
+        <span class="p p-Indicator">-</span> <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">30s</span>
+          <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">720h</span>
+</pre></div>
+
+<p><strong>Note:</strong> In order to store rolled up metrics in an <code>unaggregated</code> namespace,
+a matching <code>aggregated</code> namespace must be added to the coordinator config. For 
+example, if in the above rule, the <code>720h</code> namespace under <code>storagePolicies</code> 
+is <code>unaggregated</code>, the following will need to be added to the coordinator config.</p>
+<div class="highlight"><pre><span></span><span class="p p-Indicator">-</span> <span class="nt">namespace</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">default</span>
+  <span class="nt">resolution</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">30s</span>
+  <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">720h</span>
+  <span class="nt">type</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">aggregated</span>
+  <span class="nt">downsample</span><span class="p">:</span>
+    <span class="nt">all</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
                 
                   
                 
