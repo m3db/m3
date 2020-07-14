@@ -120,8 +120,10 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
-	Identifier  FileSetFileIdentifier
-	FileSetType persist.FileSetType
+	Identifier     FileSetFileIdentifier
+	FileSetType    persist.FileSetType
+	// OrderedByIndex enforces reading of series in the order of index (which is by series Id).
+	OrderedByIndex bool
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set

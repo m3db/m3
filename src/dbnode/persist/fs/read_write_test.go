@@ -75,6 +75,20 @@ func (e testEntry) Tags() ident.Tags {
 	return tags
 }
 
+type testEntries []testEntry
+
+func (e testEntries) Less(i, j int) bool {
+	return e[i].id < e[j].id
+}
+
+func (e testEntries) Len() int {
+	return len(e)
+}
+
+func (e testEntries) Swap(i, j int) {
+	e[i], e[j] = e[j], e[i]
+}
+
 func newTestWriter(t *testing.T, filePathPrefix string) DataFileSetWriter {
 	writer, err := NewWriter(testDefaultOpts.
 		SetFilePathPrefix(filePathPrefix).
@@ -158,20 +172,37 @@ var readTestTypes = []readTestType{
 	readTestTypeMetadata,
 }
 
+func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+	readTestDataWithOrderOpt(t, r, shard, timestamp, entries, false)
+
+	sortedEntries := append(make(testEntries, 0, len(entries)), entries...)
+	sort.Sort(sortedEntries)
+
+	readTestDataWithOrderOpt(t, r, shard, timestamp, sortedEntries, true)
+}
+
 // readTestData will test reading back the data matches what was written,
 // note that this test also tests reuse of the reader since it first reads
 // all the data then closes it, reopens and reads through again but just
 // reading the metadata the second time.
 // If it starts to fail during the pass that reads just the metadata it could
 // be a newly introduced reader reuse bug.
-func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+func readTestDataWithOrderOpt(
+	t *testing.T,
+	r DataFileSetReader,
+	shard uint32,
+	timestamp time.Time,
+	entries []testEntry,
+	orderByIndex bool,
+) {
 	for _, underTest := range readTestTypes {
 		rOpenOpts := DataReaderOpenOptions{
 			Identifier: FileSetFileIdentifier{
 				Namespace:  testNs1ID,
-				Shard:      0,
+				Shard:      shard,
 				BlockStart: timestamp,
 			},
+			OrderedByIndex: orderByIndex,
 		}
 		err := r.Open(rOpenOpts)
 		require.NoError(t, err)
@@ -220,6 +251,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				tags.Close()
 				data.DecRef()
 				data.Finalize()
+
 			case readTestTypeMetadata:
 				id, tags, length, checksum, err := r.ReadMetadata()
 				require.NoError(t, err)
