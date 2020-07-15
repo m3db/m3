@@ -2543,6 +2543,7 @@ func (s *dbShard) Repair(
 
 func (s *dbShard) AggregateTiles(
 	reader fs.DataFileSetReader,
+	sourceNsID ident.ID,
 	sourceShard databaseShard,
 	blockStart time.Time,
 	resources coldFlushReuseableResources,
@@ -2556,7 +2557,7 @@ func (s *dbShard) AggregateTiles(
 
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   s.namespace.ID(),
+			Namespace:   sourceNsID,
 			Shard:       sourceShard.ID(),
 			BlockStart:  blockStart,
 			VolumeIndex: latestSourceVolume,

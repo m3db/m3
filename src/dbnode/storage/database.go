@@ -1085,7 +1085,7 @@ func (d *db) AggregateTiles(
 		return err
 	}
 
-	targetNs, err := d.namespaceFor(sourceNsID)
+	targetNs, err := d.namespaceFor(targetNsID)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
 		return err
