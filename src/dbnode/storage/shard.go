@@ -2599,17 +2599,6 @@ func (s *dbShard) AggregateTiles(
 	return s.ColdFlush(flush, resources, nsCtx, onFlush)
 }
 
-func (s *dbShard) TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error) {
-	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(seriesID)
-	s.RUnlock()
-	if entry == nil || err != nil {
-		return ident.Tags{}, false, err
-	}
-
-	return entry.Series.Tags(), true, nil
-}
-
 func (s *dbShard) BootstrapState() BootstrapState {
 	s.RLock()
 	bs := s.bootstrapState
