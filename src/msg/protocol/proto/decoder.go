@@ -30,10 +30,12 @@ import (
 
 type decoder struct {
 	r              io.Reader
+	rOpts          xio.ResettableReaderOptions
 	rr             xio.ResettableReader
 	buffer         []byte
 	bytesPool      pool.BytesPool
 	maxMessageSize int
+	opts           Options
 }
 
 // NewDecoder decodes a new decoder, the implementation is not thread safe.
@@ -49,6 +51,8 @@ func NewDecoder(r io.Reader, opts Options, bufferSize int) Decoder {
 		buffer:         getByteSliceWithLength(sizeEncodingLength, pool),
 		bytesPool:      pool,
 		maxMessageSize: opts.MaxMessageSize(),
+		rOpts:          rOpts,
+		opts:           opts,
 	}
 }
 
@@ -84,4 +88,5 @@ func (d *decoder) decodeData(buffer []byte, m Unmarshaler) error {
 
 func (d *decoder) ResetReader(r io.Reader) {
 	d.r = r
+	d.rr = d.opts.RWOptions().ResettableReaderFn()(r, d.rOpts)
 }

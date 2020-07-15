@@ -40,7 +40,7 @@ func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
 
 	r := bytes.NewReader(nil)
 	buf := bufio.NewReader(r)
-	dec := NewDecoder(buf, NewOptions()).(*decoder)
+	dec := NewDecoder(buf, NewOptions(), 10).(*decoder)
 	require.Equal(t, 4, len(dec.buffer))
 	require.Equal(t, 4, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
@@ -73,7 +73,7 @@ func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 
 	r := bytes.NewReader(nil)
 	buf := bufio.NewReader(r)
-	dec := NewDecoder(buf, NewOptions().SetBytesPool(p)).(*decoder)
+	dec := NewDecoder(buf, NewOptions().SetBytesPool(p), 10).(*decoder)
 	require.Equal(t, 8, len(dec.buffer))
 	require.Equal(t, 8, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
@@ -99,8 +99,7 @@ func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 func TestResetReader(t *testing.T) {
 	enc := NewEncoder(nil)
 	r := bytes.NewReader(nil)
-	buf := bufio.NewReader(r)
-	dec := NewDecoder(buf, nil)
+	dec := NewDecoder(r, nil, 10)
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{
 			Shard: 1,
@@ -151,7 +150,7 @@ func TestDecodeMessageLargerThanMaxSize(t *testing.T) {
 	decodeMsg := msgpb.Message{}
 	opts := NewOptions().SetMaxMessageSize(8)
 	buf := bufio.NewReader(bytes.NewReader(enc.Bytes()))
-	dec := NewDecoder(buf, opts)
+	dec := NewDecoder(buf, opts, 10)
 
 	// NB(r): We need to make sure does not grow the buffer
 	// if over max size, so going to take size of buffer, make

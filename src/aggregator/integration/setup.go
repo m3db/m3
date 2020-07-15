@@ -43,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -97,9 +96,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	// Create the server options.
 	rwOpts := xio.NewOptions()
 	rawTCPServerOpts := rawtcpserver.NewOptions().SetRWOptions(rwOpts)
-	m3msgServerOpts := m3msgserver.NewOptions().SetConsumerOptions(
-		consumer.NewOptions().SetRWOptions(rwOpts),
-	)
+	m3msgServerOpts := m3msgserver.NewOptions()
 	httpServerOpts := httpserver.NewOptions()
 
 	// Creating the aggregator options.
