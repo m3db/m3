@@ -268,10 +268,9 @@ func ToTags(id ID, opts checked.BytesOptions) Tags {
 			}
 			i++
 		}
-		copiedName := append([]byte(nil), []byte(t[:i])...)
-		copiedValue := append([]byte(nil), []byte(t[i+1:])...)
-		name := checked.NewBytes(copiedName, opts)
-		value := checked.NewBytes(copiedValue, opts)
+		// TODO: copy bytes if we don't have a stringtable
+		name := checked.NewBytes([]byte(t[:i]), opts)
+		value := checked.NewBytes([]byte(t[i+1:]), opts)
 		tags = append(tags, Tag{
 			Name:  BinaryID(name),
 			Value: BinaryID(value),

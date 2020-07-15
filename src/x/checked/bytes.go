@@ -66,12 +66,12 @@ func NewBytes(value []byte, opts BytesOptions) Bytes {
 	if opts == nil {
 		opts = defaultBytesOptions
 	}
+	if st := opts.StringTable(); st != nil {
+		return st.GetOrSet(value)
+	}
 	b := &bytesRef{
 		opts:  opts,
 		value: value,
-	}
-	if st := opts.StringTable(); st != nil {
-		return st.GetOrSet(value)
 	}
 	b.SetOnFinalize(b)
 	// NB(r): Tracking objects causes interface allocation
