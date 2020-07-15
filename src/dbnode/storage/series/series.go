@@ -113,7 +113,8 @@ func (s *dbSeries) ID() ident.ID {
 
 func (s *dbSeries) Tags() ident.Tags {
 	s.RLock()
-	tags := s.tags.Copy(nil)
+	//tags := s.tags.Copy(nil)
+	tags := *s.tags
 	s.RUnlock()
 	return tags
 }
@@ -607,9 +608,9 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	//
 	// The same goes for the series tags.
 	s.Lock()
-	copy := opts.Tags.Copy(nil)
-	s.tags = &copy
-	//s.tags = opts.Tags
+	//copy := opts.Tags.Copy(nil)
+	//s.tags = &copy
+	s.tags = opts.Tags
 	if strings.HasPrefix(s.tags.Values()[0].Name.String(), "e__") {
 		fmt.Println("BAD2", s.tags.Values()[0].Name)
 	}
