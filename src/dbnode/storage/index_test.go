@@ -368,7 +368,7 @@ func verifyFlushForShards(
 	var (
 		mockFlush          = persist.NewMockIndexFlush(ctrl)
 		shardMap           = make(map[uint32]struct{})
-		now                = idx.nowFn()
+		now                = time.Now()
 		warmBlockStart     = now.Truncate(idx.blockSize)
 		mockShards         []*MockdatabaseShard
 		dbShards           []databaseShard
@@ -376,6 +376,10 @@ func verifyFlushForShards(
 		persistClosedTimes int
 		persistCalledTimes int
 	)
+	// NB(bodu): Always align now w/ the index's view of now.
+	idx.nowFn = func() time.Time {
+		return now
+	}
 	for _, shard := range shards {
 		mockShard := NewMockdatabaseShard(ctrl)
 		mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
