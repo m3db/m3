@@ -1600,7 +1600,8 @@ func (n *dbNamespace) AggregateTiles(sourceNs databaseNamespace, start, end time
 	targetShards := n.OwnedShards()
 	n.RUnlock()
 
-	reader, err := fs.NewReader(n.opts.BytesPool(), n.opts.CommitLogOptions().FilesystemOptions())
+	sourceNsOpts := sourceNs.StorageOptions()
+	reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
 		return err
 	}
@@ -1641,7 +1642,7 @@ func (n *dbNamespace) AggregateTiles(sourceNs databaseNamespace, start, end time
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		shardColdFlush, err := targetShard.AggregateTiles(reader, sourceShard, start, resources, nsCtx, onColdFlushNs)
+		shardColdFlush, err := targetShard.AggregateTiles(reader, sourceNs.ID(), sourceShard, start, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", targetShard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)

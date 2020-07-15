@@ -2045,18 +2045,18 @@ func (mr *MockdatabaseShardMockRecorder) DocRef(id interface{}) *gomock.Call {
 }
 
 // AggregateTiles mocks base method
-func (m *MockdatabaseShard) AggregateTiles(reader fs.DataFileSetReader, sourceShard databaseShard, blockStart time0.Time, resources coldFlushReuseableResources, nsCtx namespace.Context, onFlush persist.OnFlushSeries) (ShardColdFlush, error) {
+func (m *MockdatabaseShard) AggregateTiles(reader fs.DataFileSetReader, sourceNsID ident.ID, sourceShard databaseShard, blockStart time0.Time, resources coldFlushReuseableResources, nsCtx namespace.Context, onFlush persist.OnFlushSeries) (ShardColdFlush, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", reader, sourceShard, blockStart, resources, nsCtx, onFlush)
+	ret := m.ctrl.Call(m, "AggregateTiles", reader, sourceNsID, sourceShard, blockStart, resources, nsCtx, onFlush)
 	ret0, _ := ret[0].(ShardColdFlush)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockdatabaseShardMockRecorder) AggregateTiles(reader, sourceShard, blockStart, resources, nsCtx, onFlush interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) AggregateTiles(reader, sourceNsID, sourceShard, blockStart, resources, nsCtx, onFlush interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), reader, sourceShard, blockStart, resources, nsCtx, onFlush)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), reader, sourceNsID, sourceShard, blockStart, resources, nsCtx, onFlush)
 }
 
 // latestVolume mocks base method

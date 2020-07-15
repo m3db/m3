@@ -3017,3 +3017,47 @@ func TestServiceSetWriteNewSeriesLimitPerShardPerSecond(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(84), setResp.WriteNewSeriesLimitPerShardPerSecond)
 }
+
+func TestServiceAggregateTiles(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	step := "2h"
+
+	sourceNsID := "source"
+	targetNsID := "target"
+
+	mockDB.EXPECT().AggregateTiles(
+		ctx,
+		ident.NewIDMatcher(sourceNsID),
+		ident.NewIDMatcher(targetNsID),
+		start,
+		end,
+	).Return(nil)
+
+	_, err := service.AggregateTiles(tctx, &rpc.AggregateTilesRequest{
+		SourceNameSpace: sourceNsID,
+		TargetNameSpace: targetNsID,
+		RangeStart:      start.Unix(),
+		RangeEnd:        end.Unix(),
+		Step:            step,
+		RemoveResets:    true,
+		RangeType:       rpc.TimeType_UNIX_SECONDS,
+	})
+	require.NoError(t, err)
+}

@@ -1277,6 +1277,75 @@ func TestNamespaceFlushState(t *testing.T) {
 	require.Equal(t, expectedFlushState, flushState)
 }
 
+func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		end        = time.Now().Truncate(time.Hour)
+		start      = end.Add(-time.Hour)
+	)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapping
+
+	require.Equal(t, errNamespaceNotBootstrapped, targetNs.AggregateTiles(sourceNs, start, end))
+}
+
+func TestNamespaceAggregateTiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		end        = time.Now().Truncate(time.Hour)
+		start      = end.Add(-time.Hour)
+	)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapped
+
+	nsCtx := targetNs.nsContextWithRLock()
+
+	onColdFlushNs, err := targetNs.opts.OnColdFlush().ColdFlushNamespace(targetNs)
+	require.NoError(t, err)
+
+	sourceShard0 := NewMockdatabaseShard(ctrl)
+	sourceShard1 := NewMockdatabaseShard(ctrl)
+	sourceNs.shards[0] = sourceShard0
+	sourceNs.shards[1] = sourceShard1
+
+	sourceShard0.EXPECT().IsBootstrapped().Return(true)
+	sourceShard1.EXPECT().IsBootstrapped().Return(true)
+
+	targetShard0 := NewMockdatabaseShard(ctrl)
+	targetShard1 := NewMockdatabaseShard(ctrl)
+	targetNs.shards[0] = targetShard0
+	targetNs.shards[1] = targetShard1
+
+	targetShard0.EXPECT().ID().Return(uint32(0))
+	targetShard1.EXPECT().ID().Return(uint32(1))
+
+	shardColdFlush1 := NewMockShardColdFlush(ctrl)
+	shardColdFlush1.EXPECT().Done().Return(nil)
+	shardColdFlush2 := NewMockShardColdFlush(ctrl)
+	shardColdFlush2.EXPECT().Done().Return(nil)
+
+	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
+	targetShard0.EXPECT().AggregateTiles(gomock.Any(), sourceNsIDMatcher, sourceShard0, start, gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush1, nil)
+	targetShard1.EXPECT().AggregateTiles(gomock.Any(), sourceNsIDMatcher, sourceShard1, start, gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush2, nil)
+
+	require.NoError(t, targetNs.AggregateTiles(sourceNs, start, end))
+}
+
 func waitForStats(
 	reporter xmetrics.TestStatsReporter,
 	check func(xmetrics.TestStatsReporter) bool,

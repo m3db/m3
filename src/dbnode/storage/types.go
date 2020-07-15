@@ -593,6 +593,7 @@ type databaseShard interface {
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
 		reader fs.DataFileSetReader,
+		sourceNsID ident.ID,
 		sourceShard databaseShard,
 		blockStart time.Time,
 		resources coldFlushReuseableResources,
