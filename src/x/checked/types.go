@@ -144,7 +144,6 @@ func NewStringTable() StringTable {
 }
 
 func (t *stringTable) GetOrSet(b []byte) Bytes {
-	// TODO: hash with xxhash.Sum64() instead of string
 	// For collision handling, before we return new bytes, compare the two
 	// checked bytes and then use chaining collision resolution by adding 1
 	// Maybe we can skip this though for proto.

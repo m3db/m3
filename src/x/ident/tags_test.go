@@ -43,10 +43,10 @@ func TestTagsID(t *testing.T) {
 	// 	StringTag("namespace", "metrics_0_30m"),
 	// )
 	fmt.Println(tagsA.values)
-	fmt.Println(tagsA.ToID(nil))
-	fmt.Println(tagsB.ToID(nil))
-	fmt.Println(ToTags(tagsA.ToID(nil), nil).Values())
-	fmt.Println(ToTags(tagsB.ToID(nil), nil).Values())
+	fmt.Println(tagsA.ToID())
+	fmt.Println(tagsB.ToID())
+	fmt.Println(ToTags(tagsA.ToID(), nil).Values())
+	fmt.Println(ToTags(tagsB.ToID(), nil).Values())
 }
 
 func TestTagsUnequalLength(t *testing.T) {
