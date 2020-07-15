@@ -270,14 +270,11 @@ func ToTags(id ID, opts checked.BytesOptions) Tags {
 		}
 		// TODO: copy bytes if we don't have a stringtable
 		name := checked.NewBytes([]byte(t[:i]), opts)
-		value := checked.NewBytes([]byte(t[i+1:]), opts)
+		value := checked.NewBytes([]byte(t[i+2:len(t)-1]), opts)
 		tags = append(tags, Tag{
 			Name:  BinaryID(name),
 			Value: BinaryID(value),
 		})
-	}
-	if strings.HasPrefix(tags[0].Name.String(), "e__") {
-		fmt.Println("BAD", id.String())
 	}
 	return NewTags(tags...)
 }
@@ -351,9 +348,6 @@ func (t Tags) ToIDCached(opts checked.BytesOptions) ID {
 	id[idx] = rightBracket
 	bytes := checked.NewBytes(id, opts)
 	b := BinaryID(bytes)
-	if strings.HasPrefix(t.values[0].Name.String(), "e__") && tt != t.values[0].Name.String() {
-		fmt.Println("BAD3", tt, t.values[0].Name.String(), string(id))
-	}
 	return b
 }
 

@@ -1062,7 +1062,6 @@ func (s *dbShard) ReadEncoded(
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
 	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
-	fmt.Println("READ", id.String(), start, end)
 	entry, _, err := s.lookupEntryWithLock(&seriesTags)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do

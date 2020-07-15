@@ -23,7 +23,6 @@ package series
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -541,16 +540,11 @@ func (s *dbSeries) Snapshot(
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
 ) error {
-
 	// Need a write lock because the buffer Snapshot method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
 	defer s.Unlock()
-	if strings.HasPrefix(s.tags.Values()[0].Name.String(), "e__") {
-		fmt.Println("SNAP", s.tags.Values()[0].Name.String())
-	}
-	id := s.tags.ToID()
-	return s.buffer.Snapshot(ctx, blockStart, id, *s.tags, persistFn, nsCtx)
+	return s.buffer.Snapshot(ctx, blockStart, s.tags.ToID(), *s.tags, persistFn, nsCtx)
 }
 
 func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes {
@@ -611,12 +605,6 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	//copy := opts.Tags.Copy(nil)
 	//s.tags = &copy
 	s.tags = opts.Tags
-	if strings.HasPrefix(s.tags.Values()[0].Name.String(), "e__") {
-		fmt.Println("BAD2", s.tags.Values()[0].Name)
-	}
-	// if len(s.tags.Values()) > 0 {
-	// 	fmt.Println("SET TAG", s.tags.Values()[0].Name.String())
-	// }
 	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(databaseBufferResetOptions{
