@@ -124,7 +124,58 @@ func newCleanupManager(
 	}
 }
 
-func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
+func (m *cleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) error {
+	// Don't perform any cleanup if we are not boostrapped yet.
+	if !isBootstrapped {
+		m.logger.Debug("database is still bootstrapping, terminating cleanup")
+		return nil
+	}
+
+	m.Lock()
+	m.cleanupInProgress = true
+	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.cleanupInProgress = false
+		m.Unlock()
+	}()
+
+	namespaces, err := m.database.OwnedNamespaces()
+	if err != nil {
+		return err
+	}
+
+	multiErr := xerrors.NewMultiError()
+	if err := m.cleanupExpiredIndexFiles(t, namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up index files for %v: %v", t, err))
+	}
+
+	if err := m.cleanupDuplicateIndexFiles(namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up index files for %v: %v", t, err))
+	}
+
+	if err := m.deleteInactiveDataSnapshotFiles(namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when deleting inactive snapshot files for %v: %v", t, err))
+	}
+
+	if err := m.deleteInactiveNamespaceFiles(namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
+	}
+
+	if err := m.cleanupSnapshotsAndCommitlogs(namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up snapshot and commitlog files: %v", err))
+	}
+
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) error {
 	// Don't perform any cleanup if we are not boostrapped yet.
 	if !isBootstrapped {
 		m.logger.Debug("database is still bootstrapping, terminating cleanup")
@@ -152,39 +203,13 @@ func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 			"encountered errors when cleaning up data files for %v: %v", t, err))
 	}
 
-	if err := m.cleanupExpiredIndexFiles(t, namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up index files for %v: %v", t, err))
-	}
-
-	if err := m.cleanupDuplicateIndexFiles(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up index files for %v: %v", t, err))
-	}
-
 	if err := m.deleteInactiveDataFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when deleting inactive data files for %v: %v", t, err))
 	}
 
-	if err := m.deleteInactiveDataSnapshotFiles(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive snapshot files for %v: %v", t, err))
-	}
-
-	if err := m.deleteInactiveNamespaceFiles(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
-	}
-
-	if err := m.cleanupSnapshotsAndCommitlogs(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up snapshot and commitlog files: %v", err))
-	}
-
 	return multiErr.FinalError()
 }
-
 func (m *cleanupManager) Report() {
 	m.RLock()
 	cleanupInProgress := m.cleanupInProgress

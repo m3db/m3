@@ -85,6 +85,7 @@ const (
 
 type fileSystemManager struct {
 	databaseFlushManager
+	databaseCleanupManager
 	sync.RWMutex
 
 	log      *zap.Logger
@@ -102,14 +103,16 @@ func newFileSystemManager(
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("fs")
 	fm := newFlushManager(database, commitLog, scope)
+	cm := newCleanupManager(database, commitLog, scope)
 
 	return &fileSystemManager{
-		databaseFlushManager: fm,
-		log:                  instrumentOpts.Logger(),
-		database:             database,
-		opts:                 opts,
-		status:               fileOpNotStarted,
-		enabled:              true,
+		databaseFlushManager:   fm,
+		databaseCleanupManager: cm,
+		log:                    instrumentOpts.Logger(),
+		database:               database,
+		opts:                   opts,
+		status:                 fileOpNotStarted,
+		enabled:                true,
 	}
 }
 
@@ -149,7 +152,18 @@ func (m *fileSystemManager) Run(
 	m.status = fileOpInProgress
 	m.Unlock()
 
+	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
+		// NB(r): Use invariant here since flush errors were introduced
+		// and not caught in CI or integration tests.
+		// When an invariant occurs in CI tests it panics so as to fail
+		// the build.
+		if err := m.WarmFlushCleanup(t, m.database.IsBootstrapped()); err != nil {
+			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
+				})
+		}
 		if err := m.Flush(t); err != nil {
 			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 				func(l *zap.Logger) {
