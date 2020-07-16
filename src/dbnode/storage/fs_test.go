@@ -81,7 +81,6 @@ func TestFileSystemManagerRun(t *testing.T) {
 	fsm := newFileSystemManager(database, nil, DefaultTestOptions())
 	mgr := fsm.(*fileSystemManager)
 	mgr.databaseFlushManager = fm
-	mgr.databaseCleanupManager = cm
 
 	ts := time.Now()
 	gomock.InOrder(
