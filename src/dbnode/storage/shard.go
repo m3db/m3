@@ -1540,11 +1540,11 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
 			d.Fields = make(doc.Fields, 0, len(tags))
 			for _, tag := range tags {
-				copiedName := append([]byte(nil), tag.Name.Bytes()...)
-				copiedValue := append([]byte(nil), tag.Value.Bytes()...)
+				// copiedName := append([]byte(nil), tag.Name.Bytes()...)
+				// copiedValue := append([]byte(nil), ...)
 				d.Fields = append(d.Fields, doc.Field{
-					Name:  copiedName,
-					Value: copiedValue,
+					Name:  tag.Name.Bytes(),
+					Value: tag.Value.Bytes(),
 				})
 			}
 			indexBatch.Append(index.WriteBatchEntry{
