@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -111,12 +112,18 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 	fsm := newFileSystemManager(database, commitlog, opts)
 	d.databaseFileSystemManager = fsm
 
-	cfm := newColdFlushManager(database, commitlog, opts)
+	// NB(bodu): Cold flush needs its own persist manager now
+	// that its running in its own thread.
+	fsOpts := opts.CommitLogOptions().FilesystemOptions()
+	pm, err := fs.NewPersistManager(fsOpts)
+	if err != nil {
+		return nil, err
+	}
+	cfm := newColdFlushManager(database, pm, commitlog, opts)
 	d.databaseColdFlushManager = cfm
 
 	d.databaseRepairer = newNoopDatabaseRepairer()
 	if opts.RepairEnabled() {
-		var err error
 		d.databaseRepairer, err = newDatabaseRepairer(database, opts)
 		if err != nil {
 			return nil, err

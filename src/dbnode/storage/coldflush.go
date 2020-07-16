@@ -51,6 +51,7 @@ type coldFlushManager struct {
 
 func newColdFlushManager(
 	database database,
+	pm persist.Manager,
 	commitLog commitlog.CommitLog,
 	opts Options,
 ) databaseColdFlushManager {
@@ -64,7 +65,7 @@ func newColdFlushManager(
 		databaseCleanupManager: cm,
 		log:                    instrumentOpts.Logger(),
 		database:               database,
-		pm:                     opts.PersistManager(),
+		pm:                     pm,
 		opts:                   opts,
 		status:                 fileOpNotStarted,
 		isColdFlushing:         scope.Gauge("cold-flush"),
