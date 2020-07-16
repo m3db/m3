@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/uber-go/tally"
 
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 

@@ -163,6 +163,20 @@ func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockDatabaseSeries)(nil).ID))
 }
 
+// IsBufferEmpty mocks base method
+func (m *MockDatabaseSeries) IsBufferEmpty() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBufferEmpty")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBufferEmpty indicates an expected call of IsBufferEmpty
+func (mr *MockDatabaseSeriesMockRecorder) IsBufferEmpty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBufferEmpty", reflect.TypeOf((*MockDatabaseSeries)(nil).IsBufferEmpty))
+}
+
 // IsEmpty mocks base method
 func (m *MockDatabaseSeries) IsEmpty() bool {
 	m.ctrl.T.Helper()
