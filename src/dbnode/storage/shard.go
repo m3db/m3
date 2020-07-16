@@ -2372,7 +2372,21 @@ func (s *dbShard) Snapshot(
 	}
 	s.RUnlock()
 
-	// TODO(bodu): Short circuit here if there is no work to do.
+	// NB(bodu): Short circuit here if there is no work to do.
+	var needsSnapshot bool
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		series := entry.Series
+		// Need to snapshot if there is in-mem buffer data.
+		if !series.IsBufferEmpty() {
+			needsSnapshot = true
+			// Stop early once we determine we need to snapshot.
+			return false
+		}
+		return true
+	})
+	if !needsSnapshot {
+		return nil
+	}
 
 	var multiErr xerrors.MultiError
 

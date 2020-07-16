@@ -109,8 +109,11 @@ type DatabaseSeries interface {
 		opts FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResult, error)
 
-	// IsEmpty returns whether series is empty.
+	// IsEmpty returns whether series is empty (includes both cached blocks and in-mem buffer data).
 	IsEmpty() bool
+
+	// IsBufferEmpty returns whether the series buffer is empty (only checks for in-mem buffer data).
+	IsBufferEmpty() bool
 
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int

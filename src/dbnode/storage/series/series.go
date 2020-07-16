@@ -297,6 +297,16 @@ func (s *dbSeries) IsEmpty() bool {
 	return false
 }
 
+func (s *dbSeries) IsBufferEmpty() bool {
+	s.RLock()
+	bufferEmpty := s.buffer.IsEmpty()
+	s.RUnlock()
+	if bufferEmpty {
+		return true
+	}
+	return false
+}
+
 func (s *dbSeries) NumActiveBlocks() int {
 	s.RLock()
 	value := s.cachedBlocks.Len() + s.buffer.Stats().wiredBlocks
