@@ -25,8 +25,6 @@
 package storage
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/x/ident"
 )
 
@@ -218,7 +216,6 @@ type shardMapSetUnsafeOptions struct {
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
 func (m *shardMap) SetUnsafe(k *ident.Tags, v shardListElement, opts shardMapSetUnsafeOptions) {
-	fmt.Println("SET", k.ToID().String())
 	m.set(k, v, _shardMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
