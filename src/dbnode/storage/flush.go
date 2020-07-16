@@ -42,7 +42,6 @@ var (
 
 type (
 	flushManagerState int
-	coldFlushState    int
 )
 
 const (
@@ -53,11 +52,6 @@ const (
 	flushManagerFlushInProgress
 	flushManagerSnapshotInProgress
 	flushManagerIndexFlushInProgress
-
-	// Separate state for cold flush since this occurs in it's own thread and we can
-	// only have a single cold flush in progress at any time.
-	coldFlushIdle coldFlushState = iota
-	coldFlushInProgress
 )
 
 type flushManager struct {
@@ -70,12 +64,8 @@ type flushManager struct {
 	// state is used to protect the flush manager against concurrent use,
 	// while flushInProgress and snapshotInProgress are more granular and
 	// are used for emitting granular gauges.
-	state flushManagerState
-	// coldFlushState is used to ensure that only a single cold flush is
-	// happening at any point in time.
-	coldFlushState  coldFlushState
+	state           flushManagerState
 	isFlushing      tally.Gauge
-	isColdFlushing  tally.Gauge
 	isSnapshotting  tally.Gauge
 	isIndexFlushing tally.Gauge
 	// This is a "debug" metric for making sure that the snapshotting process
@@ -98,7 +88,6 @@ func newFlushManager(
 		opts:                            opts,
 		pm:                              opts.PersistManager(),
 		isFlushing:                      scope.Gauge("flush"),
-		isColdFlushing:                  scope.Gauge("cold-flush"),
 		isSnapshotting:                  scope.Gauge("snapshot"),
 		isIndexFlushing:                 scope.Gauge("index-flush"),
 		maxBlocksSnapshottedByNamespace: scope.Gauge("max-blocks-snapshotted-by-namespace"),
@@ -123,16 +112,16 @@ func (m *flushManager) Flush(startTime time.Time) error {
 		return err
 	}
 
-	// Perform three separate loops through all the namespaces so that we can
+	// Perform two separate loops through all the namespaces so that we can
 	// emit better gauges, i.e. all the flushing for all the namespaces happens
-	// at once, then all the cold flushes, then all the snapshotting. This is
+	// at once then all the snapshotting. This is
 	// also slightly better semantically because flushing should take priority
-	// over cold flushes and snapshotting.
+	// over snapshotting.
 	//
 	// In addition, we need to make sure that for any given shard/blockStart
-	// combination, we attempt a flush and then a cold flush before a snapshot
-	// as the snapshotting process will attempt to snapshot any unflushed blocks
-	// which would be wasteful if the block is already flushable.
+	// combination, we attempt a flush before a snapshot as the snapshotting process
+	// will attempt to snapshot blocks w/ unflushed data which would be wasteful if
+	// the block is already flushable.
 	multiErr := xerrors.NewMultiError()
 	if err = m.dataWarmFlush(namespaces, startTime); err != nil {
 		multiErr = multiErr.Add(err)
@@ -140,9 +129,6 @@ func (m *flushManager) Flush(startTime time.Time) error {
 
 	rotatedCommitlogID, err := m.commitlog.RotateLogs()
 	if err == nil {
-		// NB(bodu): Perform data cold flush in it's own thread to not block data snapshotting.
-		go m.dataColdFlush(namespaces)
-
 		if err = m.dataSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -187,80 +173,6 @@ func (m *flushManager) dataWarmFlush(
 	}
 
 	return multiErr.FinalError()
-}
-
-func (m *flushManager) dataColdFlush(
-	namespaces []databaseNamespace,
-) {
-	m.RLock()
-	state := m.coldFlushState
-	m.RUnlock()
-	// NB(bodu): Only allow a single cold flush process at once.
-	if state == coldFlushInProgress {
-		return
-	}
-
-	m.setColdFlushState(coldFlushInProgress)
-	// The cold flush process will persist any data that has been "loaded" into memory via
-	// the Load() API but has not yet been persisted durably. As a result, if the cold flush
-	// process completes without error, then we want to "decrement" the number of tracked bytes
-	// by however many were outstanding right before the cold flush began.
-	//
-	// For example:
-	// t0: Load 100 bytes --> (numLoadedBytes == 100, numPendingLoadedBytes == 0)
-	// t1: memTracker.MarkLoadedAsPending() --> (numLoadedBytes == 100, numPendingLoadedBytes == 100)
-	// t2: Load 200 bytes --> (numLoadedBytes == 300, numPendingLoadedBytes == 100)
-	// t3: ColdFlushStart()
-	// t4: Load 300 bytes --> (numLoadedBytes == 600, numPendingLoadedBytes == 100)
-	// t5: ColdFlushEnd()
-	// t6: memTracker.DecPendingLoadedBytes() --> (numLoadedBytes == 500, numPendingLoadedBytes == 0)
-	// t7: memTracker.MarkLoadedAsPending() --> (numLoadedBytes == 500, numPendingLoadedBytes == 500)
-	// t8: ColdFlushStart()
-	// t9: ColdFlushError()
-	// t10: memTracker.MarkLoadedAsPending() --> (numLoadedBytes == 500, numPendingLoadedBytes == 500)
-	// t11: ColdFlushStart()
-	// t12: ColdFlushEnd()
-	// t13: memTracker.DecPendingLoadedBytes() --> (numLoadedBytes == 0, numPendingLoadedBytes == 0)
-	memTracker := m.opts.MemoryTracker()
-	memTracker.MarkLoadedAsPending()
-
-	var err error
-	defer func() {
-		if err == nil {
-			// Only decrement if the cold flush was a success. In this case, the decrement will reduce the
-			// value by however many bytes had been tracked when the cold flush began.
-			memTracker.DecPendingLoadedBytes()
-		} else {
-			m.logger.Error("data cold flush failed",
-				zap.Error(err))
-		}
-		m.setColdFlushState(coldFlushIdle)
-	}()
-	flushPersist, err := m.pm.StartFlushPersist()
-	if err != nil {
-		return
-	}
-
-	multiErr := xerrors.NewMultiError()
-	for _, ns := range namespaces {
-		if err = ns.ColdFlush(flushPersist); err != nil {
-			multiErr = multiErr.Add(err)
-		}
-	}
-
-	multiErr = multiErr.Add(flushPersist.DoneFlush())
-
-	// TODO(bodu): F/u on this comment below:
-	// If cold flush fails, we can't proceed to snapshotting because
-	// commit log cleanup logic uses the presence of a successful
-	// snapshot checkpoint file to determine which commit log files are
-	// safe to delete. Therefore if a cold flush fails and a snapshot
-	// succeeds, the writes from the failed cold flush might be lost
-	// when commit logs get cleaned up, leaving the node in an undurable
-	// state such that if it restarted, it would not be able to recover
-	// the cold writes from its commit log.
-
-	err = multiErr.FinalError()
 }
 
 func (m *flushManager) dataSnapshot(
@@ -346,19 +258,12 @@ func (m *flushManager) indexFlush(
 func (m *flushManager) Report() {
 	m.RLock()
 	state := m.state
-	coldFlushState := m.coldFlushState
 	m.RUnlock()
 
 	if state == flushManagerFlushInProgress {
 		m.isFlushing.Update(1)
 	} else {
 		m.isFlushing.Update(0)
-	}
-
-	if coldFlushState == coldFlushInProgress {
-		m.isColdFlushing.Update(1)
-	} else {
-		m.isColdFlushing.Update(0)
 	}
 
 	if state == flushManagerSnapshotInProgress {
@@ -377,12 +282,6 @@ func (m *flushManager) Report() {
 func (m *flushManager) setState(state flushManagerState) {
 	m.Lock()
 	m.state = state
-	m.Unlock()
-}
-
-func (m *flushManager) setColdFlushState(state coldFlushState) {
-	m.Lock()
-	m.coldFlushState = state
 	m.Unlock()
 }
 
