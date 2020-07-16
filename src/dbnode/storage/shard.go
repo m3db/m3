@@ -1213,8 +1213,8 @@ func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator) (*ident.Tags, error
 		var tag ident.Tag
 		t := iter.Current()
 
-		tag.Name = ident.BinaryID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()))
-		tag.Value = ident.BinaryID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()))
+		tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+		tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
 
 		// TODO: need this?
 		t.NoFinalize()

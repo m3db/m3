@@ -998,20 +998,9 @@ func bgValidateProcessLimits(logger *zap.Logger) {
 			zap.String("url", xdocs.Path("operational_guide/kernel_configuration")),
 			zap.Error(err),
 		)
-		printMemUsage()
 
 		<-t.C
 	}
-}
-
-func printMemUsage() {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
-	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
-	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
-	fmt.Printf("\tNumGC = %v\n", m.NumGC)
 }
 
 func bToMb(b uint64) uint64 {

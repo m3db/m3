@@ -296,13 +296,8 @@ func (t Tags) Copy(opts checked.BytesOptions) Tags {
 
 // ToID is
 func (t Tags) ToID() ID {
-	return t.ToIDCached(nil)
-}
-
-// ToIDCached is
-func (t Tags) ToIDCached(opts checked.BytesOptions) ID {
 	if len(t.values) == 0 {
-		return BinaryID(checked.NewBytes([]byte("{}"), opts))
+		return BytesID([]byte("{}"))
 	}
 
 	// NOTE: from tags_id_schemes.go
@@ -328,8 +323,8 @@ func (t Tags) ToIDCached(opts checked.BytesOptions) ID {
 	tagLength := 2 * len(t.values)
 	idLen += tagLength + 1 // account for separators and brackets
 	if needEscaping == nil {
-		bytes := checked.NewBytes(quoteIDSimple(t, idLen), opts)
-		return BinaryID(bytes)
+		bytes := quoteIDSimple(t, idLen)
+		return BytesID(bytes)
 	}
 
 	// TODO: pool these bytes
@@ -345,9 +340,7 @@ func (t Tags) ToIDCached(opts checked.BytesOptions) ID {
 
 	idx = writeAtIndex(t.values[lastIndex], id, needEscaping[lastIndex], idx)
 	id[idx] = rightBracket
-	bytes := checked.NewBytes(id, opts)
-	b := BinaryID(bytes)
-	return b
+	return BytesID(id)
 }
 
 func quoteIDSimple(t Tags, length int) []byte {
