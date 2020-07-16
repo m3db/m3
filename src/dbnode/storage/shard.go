@@ -84,6 +84,8 @@ var (
 	// ErrDatabaseLoadLimitHit is the error returned when the database load limit
 	// is hit or exceeded.
 	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
+
+	emptyDoc = doc.Document{}
 )
 
 type filesetsFn func(
@@ -2546,6 +2548,20 @@ func (s *dbShard) BootstrapState() BootstrapState {
 	bs := s.bootstrapState
 	s.RUnlock()
 	return bs
+}
+
+func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	entry, _, err := s.lookupEntryWithLock(id)
+	if err == nil {
+		return entry.Series.Metadata(), true, nil
+	}
+	if err == errShardEntryNotFound {
+		return emptyDoc, false, nil
+	}
+	return emptyDoc, false, err
 }
 
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {

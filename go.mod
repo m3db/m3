@@ -136,6 +136,14 @@ require (
 // branch 0.9.3-pool-read-binary-3
 replace github.com/apache/thrift => github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4
 
+// NB(nate): upgrading to the latest msgpack is not backwards compatibile as msgpack will no longer attempt to automatically
+// write an integer into the smallest number of bytes it will fit in. We rely on this behavior by having helper methods
+// in at least two encoders (see below) take int64s and expect that msgpack will size them down accordingly. We'll have
+// to make integer sizing explicit before attempting to upgrade.
+//
+// Encoders:
+// src/metrics/encoding/msgpack/base_encoder.go
+// src/dbnode/persist/fs/msgpack/encoder.go
 replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3+incompatible
 
 replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.20160305165446-6fe211e49392

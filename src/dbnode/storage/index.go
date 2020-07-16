@@ -1215,9 +1215,18 @@ func (i *nsIndex) flushBlockSegment(
 			// Reset docs batch before use.
 			batch.Docs = batch.Docs[:0]
 			for _, result := range results.Results() {
-				doc, err := convert.FromSeriesIDAndTagIter(result.ID, result.Tags)
+				doc, exists, err := shard.DocRef(result.ID)
 				if err != nil {
 					return err
+				}
+				if !exists {
+					doc, err = convert.FromSeriesIDAndTagIter(result.ID, result.Tags)
+					if err != nil {
+						return err
+					}
+					i.metrics.flushDocsNew.Inc(1)
+				} else {
+					i.metrics.flushDocsCached.Inc(1)
 				}
 
 				batch.Docs = append(batch.Docs, doc)
@@ -2084,6 +2093,8 @@ type nsIndexMetrics struct {
 	indexingConcurrencyMax       tally.Gauge
 	indexingConcurrencyAvg       tally.Gauge
 	flushIndexingConcurrency     tally.Gauge
+	flushDocsNew                 tally.Counter
+	flushDocsCached              tally.Counter
 
 	loadedDocsPerQuery                 tally.Histogram
 	queryExhaustiveSuccess             tally.Counter
@@ -2150,6 +2161,12 @@ func newNamespaceIndexMetrics(
 			"stat": "avg",
 		}).Gauge(indexingConcurrency),
 		flushIndexingConcurrency: scope.Gauge(flushIndexingConcurrency),
+		flushDocsNew: scope.Tagged(map[string]string{
+			"status": "new",
+		}).Counter("flush-docs"),
+		flushDocsCached: scope.Tagged(map[string]string{
+			"status": "cached",
+		}).Counter("flush-docs"),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),

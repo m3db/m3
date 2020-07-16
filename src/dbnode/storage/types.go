@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -577,6 +578,9 @@ type databaseShard interface {
 		tags ident.TagIterator,
 		opts ShardSeriesReadWriteRefOptions,
 	) (SeriesReadWriteRef, error)
+
+	// DocRef returns the doc if already present in a shard series.
+	DocRef(id ident.ID) (doc.Document, bool, error)
 }
 
 // ShardColdFlush exposes a done method to finalize shard cold flush

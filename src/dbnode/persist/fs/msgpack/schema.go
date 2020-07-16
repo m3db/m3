@@ -97,9 +97,9 @@ const (
 	// curr number of fields specifies the number of fields that the current
 	// version of the M3DB will encode. This is used to ensure that the
 	// correct number of fields is encoded into the files. These values need
-	// to be incremened whenever we add new fields to an object.
+	// to be incremented whenever we add new fields to an object.
 	currNumRootObjectFields           = 2
-	currNumIndexInfoFields            = 10
+	currNumIndexInfoFields            = 11
 	currNumIndexSummariesInfoFields   = 1
 	currNumIndexBloomFilterInfoFields = 2
 	currNumIndexEntryFields           = 6
