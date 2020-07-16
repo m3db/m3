@@ -46,6 +46,7 @@ var (
 
 	errorUnableToDetermineNumFieldsToSkip          = errors.New("unable to determine num fields to skip")
 	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes with out byte stream decoder")
+	errorIndexEntryChecksumMismatch                = errors.New("decode index entry encountered checksum mismatch")
 )
 
 // Decoder decodes persisted msgpack-encoded data
@@ -53,7 +54,10 @@ type Decoder struct {
 	reader DecoderStream
 	// Will only be set if the Decoder is Reset() with a DecoderStream
 	// that also implements ByteStream.
-	byteReader        ByteStream
+	byteReader ByteStream
+	// Created in constructor but only set with a reader when
+	// wrapWithStreamWithDigest() is invoked
+	streamWithDigest  DecoderStreamWithDigest
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
@@ -76,6 +80,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
 		legacy:            legacy,
+		streamWithDigest:  newDecoderStreamWithDigest(nil),
 	}
 }
 
@@ -83,9 +88,14 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 func (dec *Decoder) Reset(stream DecoderStream) {
 	dec.reader = stream
 
+	unwrappedStream := stream
+	if streamWithDigest, ok := stream.(DecoderStreamWithDigest); ok {
+		unwrappedStream = streamWithDigest.wrappedStream()
+	}
+
 	// Do the type assertion upfront so that we don't have to do it
 	// repeatedly later.
-	if byteStream, ok := stream.(ByteStream); ok {
+	if byteStream, ok := unwrappedStream.(ByteStream); ok {
 		dec.byteReader = byteStream
 	} else {
 		dec.byteReader = nil
@@ -111,12 +121,13 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 }
 
 // DecodeIndexEntry decodes index entry
-func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntry, error) {
+func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool, validate bool) (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
 	}
+	dec.wrapWithStreamWithDigest()
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
-	indexEntry := dec.decodeIndexEntry(bytesPool)
+	indexEntry := dec.decodeIndexEntry(bytesPool, validate)
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
@@ -348,7 +359,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	return indexBloomFilterInfo
 }
 
-func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
+func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool, validate bool) schema.IndexEntry {
 	var opts checkNumFieldsOptions
 	switch dec.legacy.decodeLegacyIndexEntryVersion {
 	case legacyEncodingIndexEntryVersionV1:
@@ -389,6 +400,7 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 
 	// At this point, if its a V1 file, we've decoded all the available fields.
 	if dec.legacy.decodeLegacyIndexEntryVersion == legacyEncodingIndexEntryVersionV1 || actual < 6 {
+		_ = dec.checksumAndUnwrapStreamWithDigest()
 		dec.skip(numFieldsToSkip)
 		return indexEntry
 	}
@@ -402,6 +414,7 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 
 	// At this point, if its a V2 file, we've decoded all the available fields.
 	if dec.legacy.decodeLegacyIndexEntryVersion == legacyEncodingIndexEntryVersionV2 || actual < 7 {
+		_ = dec.checksumAndUnwrapStreamWithDigest()
 		dec.skip(numFieldsToSkip)
 		return indexEntry
 	}
@@ -410,9 +423,14 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	// final field on index entries
 	dec.skip(numFieldsToSkip)
 
+	actualChecksum := dec.checksumAndUnwrapStreamWithDigest()
+
 	// Decode checksum field originally added in V3
-	// TODO(nate): actually use the checksum value for index entry validation - #2629
-	_ = dec.decodeVarint()
+	expectedChecksum := uint32(dec.decodeVarint())
+
+	if validate && expectedChecksum != actualChecksum {
+		dec.err = errorIndexEntryChecksumMismatch
+	}
 
 	return indexEntry
 }
@@ -663,6 +681,8 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		return nil, -1, -1
 	}
 	value = backingBytes[currPos:targetPos]
+	dec.streamWithDigest.Capture(value)
+
 	return value, currPos, bytesLen
 }
 
@@ -716,4 +736,18 @@ func (dec *Decoder) decodeBytesLen() int {
 	value, err := dec.dec.DecodeBytesLen()
 	dec.err = err
 	return value
+}
+
+func (dec *Decoder) wrapWithStreamWithDigest() {
+	dec.streamWithDigest.Reset(dec.reader)
+	dec.Reset(dec.streamWithDigest)
+}
+
+func (dec *Decoder) checksumAndUnwrapStreamWithDigest() uint32 {
+	checksum := dec.streamWithDigest.Digest().Sum32()
+
+	dec.Reset(dec.streamWithDigest.wrappedStream())
+	dec.streamWithDigest.Reset(nil)
+
+	return checksum
 }

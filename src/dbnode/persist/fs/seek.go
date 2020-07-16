@@ -227,14 +227,16 @@ func (s *seeker) Open(
 	s.blockSize = time.Duration(info.BlockSize)
 	s.versionChecker = schema.NewVersionChecker(int(info.MajorVersion), int(info.MinorVersion))
 
-	err = s.validateIndexFileDigest(
-		indexFdWithDigest, expectedDigests.indexDigest)
-	if err != nil {
-		s.Close()
-		return fmt.Errorf(
-			"index file digest for file: %s does not match the expected digest: %c",
-			filesetPathFromTimeLegacy(shardDir, blockStart, indexFileSuffix), err,
-		)
+	if !s.versionChecker.IndexEntryValidationEnabled() {
+		err = s.validateIndexFileDigest(
+			indexFdWithDigest, expectedDigests.indexDigest)
+		if err != nil {
+			s.Close()
+			return fmt.Errorf(
+				"index file digest for file: %s does not match the expected digest: %c",
+				filesetPathFromTimeLegacy(shardDir, blockStart, indexFileSuffix), err,
+			)
+		}
 	}
 
 	indexFdStat, err := s.indexFd.Stat()
@@ -406,7 +408,7 @@ func (s *seeker) SeekIndexEntry(
 		// very cheap pool until we find what we're looking for, and then we can perform a single
 		// copy into checked.Bytes from the more expensive pool.
 		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(
-			resources.decodeIndexEntryBytesPool)
+			resources.decodeIndexEntryBytesPool, s.versionChecker.IndexEntryValidationEnabled())
 		if err == io.EOF {
 			// We reached the end of the file without finding it.
 			return IndexEntry{}, errSeekIDNotFound
