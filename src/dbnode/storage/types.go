@@ -763,9 +763,6 @@ type databaseCleanupManager interface {
 
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
-	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time, isBootstrapped bool) error
-
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
 
@@ -793,6 +790,25 @@ type databaseFileSystemManager interface {
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
+}
+
+// databaseColdFlushManager manages the database related cold flush activities.
+type databaseColdFlushManager interface {
+	databaseCleanupManager
+
+	// Disable disables the cold flush manager and prevents it from
+	// performing file operations, returns the current file operation status.
+	Disable() fileOpStatus
+
+	// Enable enables the cold flush manager to perform file operations.
+	Enable() fileOpStatus
+
+	// Status returns the file operation status.
+	Status() fileOpStatus
+
+	// Run attempts to perform all cold flush related operations,
+	// returning true if those operations are performed, and false otherwise.
+	Run(t time.Time) bool
 }
 
 // databaseShardRepairer repairs in-memory data for a shard.
@@ -856,9 +872,6 @@ type databaseMediator interface {
 
 	// Tick performs a tick.
 	Tick(forceType forceType, startTime time.Time) error
-
-	// WaitForFileSystemProcesses waits for any ongoing fs processes to finish.
-	WaitForFileSystemProcesses()
 
 	// Repair repairs the database.
 	Repair() error
