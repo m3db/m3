@@ -753,9 +753,14 @@ type databaseFlushManager interface {
 }
 
 // databaseCleanupManager manages cleaning up persistent storage space.
+// NB(bodu): We have to separate flush methods since we separated out flushing into warm/cold flush
+// and cleaning up certain types of data concurrently w/ either can be problematic.
 type databaseCleanupManager interface {
-	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time, isBootstrapped bool) error
+	// WarmFlushCleanup cleans up data not needed in the persistent storage before a warm flush.
+	WarmFlushCleanup(t time.Time, isBootstrapped bool) error
+
+	// ColdFlushCleanup cleans up data not needed in the persistent storage before a cold flush.
+	ColdFlushCleanup(t time.Time, isBootstrapped bool) error
 
 	// Report reports runtime information.
 	Report()
