@@ -65,8 +65,9 @@ type seeker struct {
 
 	// Data read from the indexInfo file. Note that we use xtime.UnixNano
 	// instead of time.Time to avoid keeping an extra pointer around.
-	start     xtime.UnixNano
-	blockSize time.Duration
+	start          xtime.UnixNano
+	blockSize      time.Duration
+	versionChecker *schema.VersionChecker
 
 	dataFd        *os.File
 	indexFd       *os.File
@@ -224,6 +225,7 @@ func (s *seeker) Open(
 	}
 	s.start = xtime.UnixNano(info.BlockStart)
 	s.blockSize = time.Duration(info.BlockSize)
+	s.versionChecker = schema.NewVersionChecker(int(info.MajorVersion), int(info.MinorVersion))
 
 	err = s.validateIndexFileDigest(
 		indexFdWithDigest, expectedDigests.indexDigest)
@@ -510,6 +512,8 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		// they are concurrency safe and can be shared among clones.
 		indexFd: s.indexFd,
 		dataFd:  s.dataFd,
+
+		versionChecker: s.versionChecker,
 	}
 
 	return seeker, nil
