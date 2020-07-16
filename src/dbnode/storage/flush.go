@@ -40,9 +40,7 @@ var (
 	errFlushOperationsInProgress = errors.New("flush operations already in progress")
 )
 
-type (
-	flushManagerState int
-)
+type flushManagerState int
 
 const (
 	flushManagerIdle flushManagerState = iota
