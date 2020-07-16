@@ -301,7 +301,6 @@ func (t Tags) ToID() ID {
 
 // ToIDCached is
 func (t Tags) ToIDCached(opts checked.BytesOptions) ID {
-	tt := t.values[0].Name.String()
 	if len(t.values) == 0 {
 		return BinaryID(checked.NewBytes([]byte("{}"), opts))
 	}

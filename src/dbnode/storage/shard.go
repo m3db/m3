@@ -1082,7 +1082,6 @@ func (s *dbShard) ReadEncoded(
 	}
 
 	if entry != nil {
-		fmt.Println("ENTRY", entry.Series.Tags().ToID())
 		return entry.Series.ReadEncoded(ctx, start, end, nsCtx)
 	}
 
