@@ -88,5 +88,5 @@ func (d *decoder) decodeData(buffer []byte, m Unmarshaler) error {
 
 func (d *decoder) ResetReader(r io.Reader) {
 	d.r = r
-	d.rr = d.opts.RWOptions().ResettableReaderFn()(r, d.rOpts)
+	d.rr.Reset(r)
 }

@@ -40,8 +40,8 @@ type ResettableWriterOptions struct {
 // ResettableWriterFn creates a resettable writer.
 type ResettableWriterFn func(r io.Writer, opts ResettableWriterOptions) ResettableWriter
 
-// DefaultResettableWriterFn creates a default resettable writer.
-func DefaultResettableWriterFn() ResettableWriterFn {
+// defaultResettableWriterFn creates a default resettable writer.
+func defaultResettableWriterFn() ResettableWriterFn {
 	return func(r io.Writer, opts ResettableWriterOptions) ResettableWriter {
 		return bufio.NewWriterSize(r, opts.WriteBufferSize)
 	}

@@ -89,7 +89,6 @@ type RawTCPServerConfiguration struct {
 func (c *RawTCPServerConfiguration) NewServerOptions(
 	instrumentOpts instrument.Options,
 ) rawtcp.Options {
-	// may have to add it here.
 	opts := rawtcp.NewOptions().SetInstrumentOptions(instrumentOpts)
 
 	// Set server options.

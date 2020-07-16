@@ -425,8 +425,8 @@ func (w *consumerWriterImpl) reset(opts resetOptions) {
 	)
 
 	w.writeState.conns = make([]*connection, 0, len(opts.connections))
-	wr := writerFn(u, wOpts)
 	for _, conn := range opts.connections {
+		wr := writerFn(u, wOpts)
 		wr.Reset(conn)
 
 		decoder := proto.NewDecoder(conn, w.opts.DecoderOptions(), w.connOpts.ReadBufferSize())

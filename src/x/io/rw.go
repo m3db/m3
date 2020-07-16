@@ -44,7 +44,7 @@ type options struct {
 func NewOptions() Options {
 	return &options{
 		resettableReaderFn: defaultResettableReaderFn(),
-		resettableWriterFn: DefaultResettableWriterFn(),
+		resettableWriterFn: defaultResettableWriterFn(),
 	}
 }
 

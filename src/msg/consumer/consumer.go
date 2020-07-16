@@ -144,8 +144,7 @@ func (c *consumer) Init() {
 func (c *consumer) Message() (Message, error) {
 	m := c.mPool.Get()
 	m.reset(c)
-	err := c.decoder.Decode(m)
-	if err != nil {
+	if err := c.decoder.Decode(m); err != nil {
 		c.mPool.Put(m)
 		c.m.messageDecodeError.Inc(1)
 		return nil, err
