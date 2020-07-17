@@ -2542,18 +2542,32 @@ func (m *MockdatabaseCleanupManager) EXPECT() *MockdatabaseCleanupManagerMockRec
 	return m.recorder
 }
 
-// Cleanup mocks base method
-func (m *MockdatabaseCleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
+// WarmFlushCleanup mocks base method
+func (m *MockdatabaseCleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", t, isBootstrapped)
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t, isBootstrapped)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Cleanup indicates an expected call of Cleanup
-func (mr *MockdatabaseCleanupManagerMockRecorder) Cleanup(t, isBootstrapped interface{}) *gomock.Call {
+// WarmFlushCleanup indicates an expected call of WarmFlushCleanup
+func (mr *MockdatabaseCleanupManagerMockRecorder) WarmFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).Cleanup), t, isBootstrapped)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).WarmFlushCleanup), t, isBootstrapped)
+}
+
+// ColdFlushCleanup mocks base method
+func (m *MockdatabaseCleanupManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlushCleanup", t, isBootstrapped)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ColdFlushCleanup indicates an expected call of ColdFlushCleanup
+func (mr *MockdatabaseCleanupManagerMockRecorder) ColdFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).ColdFlushCleanup), t, isBootstrapped)
 }
 
 // Report mocks base method
@@ -2711,18 +2725,32 @@ func (m *MockdatabaseColdFlushManager) EXPECT() *MockdatabaseColdFlushManagerMoc
 	return m.recorder
 }
 
-// Cleanup mocks base method
-func (m *MockdatabaseColdFlushManager) Cleanup(t time.Time, isBootstrapped bool) error {
+// WarmFlushCleanup mocks base method
+func (m *MockdatabaseColdFlushManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cleanup", t, isBootstrapped)
+	ret := m.ctrl.Call(m, "WarmFlushCleanup", t, isBootstrapped)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Cleanup indicates an expected call of Cleanup
-func (mr *MockdatabaseColdFlushManagerMockRecorder) Cleanup(t, isBootstrapped interface{}) *gomock.Call {
+// WarmFlushCleanup indicates an expected call of WarmFlushCleanup
+func (mr *MockdatabaseColdFlushManagerMockRecorder) WarmFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).Cleanup), t, isBootstrapped)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).WarmFlushCleanup), t, isBootstrapped)
+}
+
+// ColdFlushCleanup mocks base method
+func (m *MockdatabaseColdFlushManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ColdFlushCleanup", t, isBootstrapped)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ColdFlushCleanup indicates an expected call of ColdFlushCleanup
+func (mr *MockdatabaseColdFlushManagerMockRecorder) ColdFlushCleanup(t, isBootstrapped interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ColdFlushCleanup", reflect.TypeOf((*MockdatabaseColdFlushManager)(nil).ColdFlushCleanup), t, isBootstrapped)
 }
 
 // Report mocks base method
