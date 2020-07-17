@@ -209,7 +209,7 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 
 // toRuntimeOptions returns the corresponding RuntimeOptions proto.
 func toRuntimeOptions(opts RuntimeOptions) *nsproto.NamespaceRuntimeOptions {
-	if opts == nil || opts.IsDefaults() {
+	if opts == nil || opts.IsDefault() {
 		return nil
 	}
 	var (

@@ -35,9 +35,9 @@ const (
 // RuntimeOptions is a set of runtime options that can
 // be set per namespace.
 type RuntimeOptions interface {
-	// IsDefaults returns whether the runtime options are purely defaults
+	// IsDefault returns whether the runtime options are purely defaults
 	// with no values explicitly set.
-	IsDefaults() bool
+	IsDefault() bool
 
 	// Equal will return whether it's equal to another runtime options.
 	Equal(other RuntimeOptions) bool
@@ -118,7 +118,7 @@ func newRuntimeOptions() *runtimeOptions {
 	return &runtimeOptions{}
 }
 
-func (o *runtimeOptions) IsDefaults() bool {
+func (o *runtimeOptions) IsDefault() bool {
 	defaults := newRuntimeOptions()
 	return *o == *defaults
 }
@@ -169,6 +169,8 @@ type runtimeOptionsManagerRegistry struct {
 	managers map[string]RuntimeOptionsManager
 }
 
+// NewRuntimeOptionsManagerRegistry returns a new runtime options
+// manager registry.
 func NewRuntimeOptionsManagerRegistry() RuntimeOptionsManagerRegistry {
 	return &runtimeOptionsManagerRegistry{
 		managers: make(map[string]RuntimeOptionsManager),
@@ -180,13 +182,12 @@ func (r *runtimeOptionsManagerRegistry) RuntimeOptionsManager(
 ) RuntimeOptionsManager {
 	r.Lock()
 	defer r.Unlock()
-	manager, ok := r.managers[namespace]
-	if ok {
-		return manager
-	}
 
-	manager = NewRuntimeOptionsManager(namespace)
-	r.managers[namespace] = manager
+	manager, ok := r.managers[namespace]
+	if !ok {
+		manager = NewRuntimeOptionsManager(namespace)
+		r.managers[namespace] = manager
+	}
 
 	return manager
 }
@@ -206,6 +207,7 @@ type runtimeOptionsManager struct {
 	watchable watch.Watchable
 }
 
+// NewRuntimeOptionsManager returns a new runtime options manager.
 func NewRuntimeOptionsManager(namespace string) RuntimeOptionsManager {
 	watchable := watch.NewWatchable()
 	watchable.Update(NewRuntimeOptions())

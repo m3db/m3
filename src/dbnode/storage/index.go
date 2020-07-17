@@ -805,7 +805,7 @@ func (i *nsIndex) writeBatchForBlockStart(
 
 	// Allow for duplicate write errors since due to re-indexing races
 	// we may try to re-index a series more than once.
-	if err := i.allowDuplicatesWriteError(err); err != nil {
+	if err := i.sanitizeAllowDuplicatesWriteError(err); err != nil {
 		numErrors := numPending - int(result.NumSuccess)
 		if partialError, ok := err.(*m3ninxindex.BatchPartialError); ok {
 			// If it was a batch partial error we know exactly how many failed
@@ -1234,7 +1234,7 @@ func (i *nsIndex) flushBlockSegment(
 					continue
 				}
 
-				err = i.allowDuplicatesWriteError(builder.InsertBatch(batch))
+				err = i.sanitizeAllowDuplicatesWriteError(builder.InsertBatch(batch))
 				if err != nil {
 					return err
 				}
@@ -1245,7 +1245,7 @@ func (i *nsIndex) flushBlockSegment(
 
 			// Add last batch if remaining.
 			if len(batch.Docs) > 0 {
-				err := i.allowDuplicatesWriteError(builder.InsertBatch(batch))
+				err := i.sanitizeAllowDuplicatesWriteError(builder.InsertBatch(batch))
 				if err != nil {
 					return err
 				}
@@ -1263,7 +1263,7 @@ func (i *nsIndex) flushBlockSegment(
 	return preparedPersist.Persist(builder)
 }
 
-func (i *nsIndex) allowDuplicatesWriteError(err error) error {
+func (i *nsIndex) sanitizeAllowDuplicatesWriteError(err error) error {
 	if err == nil {
 		return nil
 	}

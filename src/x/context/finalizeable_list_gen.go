@@ -117,11 +117,6 @@ func (e *finalizeableElement) Prev() *finalizeableElement {
 	return nil
 }
 
-var (
-	defaultFinalizeableElementsPoolLock sync.RWMutex
-	defaultFinalizeableElementsPool     *finalizeableElementPool
-)
-
 // finalizeableList represents a doubly linked list.
 // The zero value for finalizeableList is an empty list ready to use.
 type finalizeableList struct {
@@ -139,21 +134,21 @@ func (l *finalizeableList) Init() *finalizeableList {
 		// Use a static pool at least, otherwise each time
 		// we create a list with no pool we create a wholly
 		// new pool of finalizeables (4096 of them).
-		defaultFinalizeableElementsPoolLock.RLock()
+		defaultFinalizeableElementsPoolOnce.Do(initFinalizeableElementsPool)
 		l.Pool = defaultFinalizeableElementsPool
-		defaultFinalizeableElementsPoolLock.RUnlock()
-		if l.Pool == nil {
-			defaultFinalizeableElementsPoolLock.Lock()
-			if defaultFinalizeableElementsPool == nil {
-				// Still not set, allocate pool once.
-				defaultFinalizeableElementsPool = newFinalizeableElementPool(nil)
-			}
-			// Take ref to guaranteed allocated pool.
-			l.Pool = defaultFinalizeableElementsPool
-			defaultFinalizeableElementsPoolLock.Unlock()
-		}
 	}
 	return l
+}
+
+var (
+	defaultFinalizeableElementsPoolOnce sync.Once
+	defaultFinalizeableElementsPool     *finalizeableElementPool
+)
+
+// define as a static method so lambda alloc not required
+// when passing function pointer to sync.Once.Do.
+func initFinalizeableElementsPool() {
+	defaultFinalizeableElementsPool = newFinalizeableElementPool(nil)
 }
 
 // newFinalizeableList returns an initialized list.
