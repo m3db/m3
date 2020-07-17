@@ -2563,7 +2563,7 @@ func (s *dbShard) AggregateTiles(
 			VolumeIndex: latestSourceVolume,
 		},
 		FileSetType: persist.FileSetFlushType,
-		//TODO after https://github.com/chronosphereio/m3/pull/10 for proper streaming - OrderByIndex: true
+		//TODO add after https://github.com/chronosphereio/m3/pull/10 for proper streaming - OrderByIndex: true
 	}
 	if err := reader.Open(openOpts); err != nil {
 		return nil, err
