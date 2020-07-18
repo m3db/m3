@@ -1165,24 +1165,9 @@ func (i *nsIndex) flushBlockSegment(
 
 	var (
 		ctx       = i.opts.ContextPool().Get()
-		docsPool  = i.opts.IndexOptions().DocumentArrayPool()
-		docs      = docsPool.Get()
-		batchSize = cap(docs)
-		batch     = m3ninxindex.Batch{Docs: docs[:0], AllowPartialUpdates: true}
-	)
-	if batchSize == 0 {
+		batch     = m3ninxindex.Batch{AllowPartialUpdates: true}
 		batchSize = defaultFlushDocsBatchSize
-	}
-	defer func() {
-		// Memset optimization to clear refs before returning to pool.
-		var docZeroed doc.Document
-		for i := range batch.Docs {
-			batch.Docs[i] = docZeroed
-		}
-		// Return to pool.
-		docsPool.Put(batch.Docs)
-	}()
-
+	)
 	for _, shard := range shards {
 		var (
 			first     = true

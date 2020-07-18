@@ -1031,26 +1031,27 @@ func (s *dbShard) SeriesReadWriteRef(
 	}
 
 	// NB(r): Insert then wait so caller has access to the series
-	// immediately, otherwise calls to LoadBlock(..) etc on the series itself
-	// may have no effect if a collision with the same series
+	// immediately, otherwise calls to LoadBlock(..) etc on the series
+	// itself may have no effect if a collision with the same series
 	// being put in the insert queue may cause a block to be loaded to a
 	// series which gets discarded.
 	at := s.nowFn()
-	result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
-		hasPendingIndexing: opts.ReverseIndex,
-		pendingIndex: dbShardPendingIndex{
-			timestamp:  at,
-			enqueuedAt: at,
-		},
-	})
+	result, err := s.insertSeriesAsyncBatched(id, tags,
+		dbShardInsertAsyncOptions{
+			hasPendingIndexing: opts.ReverseIndex,
+			pendingIndex: dbShardPendingIndex{
+				timestamp:  at,
+				enqueuedAt: at,
+			},
+		})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
 
-	// Wait for the insert to be batched together and inserted
+	// Wait for the insert to be batched together and inserted.
 	result.wg.Wait()
 
-	// Retrieve the inserted entry
+	// Retrieve the inserted entry.
 	entry, err = s.writableSeries(id, tags)
 	if err != nil {
 		return SeriesReadWriteRef{}, err

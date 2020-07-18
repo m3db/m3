@@ -103,7 +103,7 @@ type RuntimeOptionsListener interface {
 
 // runtimeOptions should always use pointer value types for it's options
 // and provide a "ValueOrDefault()" method so that we can be sure whether
-// the options are all defaults or not with the "AllDefaults" method.
+// the options are all defaults or not with the "IsDefault" method.
 type runtimeOptions struct {
 	writeIndexingPerCPUConcurrency *float64
 	flushIndexingPerCPUConcurrency *float64

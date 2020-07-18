@@ -252,7 +252,7 @@ func (b *builder) SetIndexConcurrency(value int) {
 		for _, fields := range existingUniqueFields {
 			for _, field := range fields {
 				// Calculate the new shard for the field.
-				newShard := b.calculateShard(field.field)
+				newShard := b.calculateShardWithRLock(field.field)
 
 				// Append to the correct shard.
 				b.shardedFields.uniqueFields[newShard] =
@@ -269,7 +269,7 @@ func (b *builder) SetIndexConcurrency(value int) {
 				terms := entry.Value()
 
 				// Calculate the new shard for the field.
-				newShard := b.calculateShard(field)
+				newShard := b.calculateShardWithRLock(field)
 
 				// Set with new correct shard.
 				b.shardedFields.fields.ShardedSetUnsafe(newShard, field,
@@ -287,6 +287,9 @@ func (b *builder) IndexConcurrency() int {
 }
 
 func (b *builder) Reset(offset postings.ID) {
+	b.status.Lock()
+	defer b.status.Unlock()
+
 	b.offset = offset
 
 	// Reset the documents slice.
@@ -303,22 +306,23 @@ func (b *builder) Reset(offset postings.ID) {
 	b.shardedFields.fields.ResetTermsSets()
 
 	// Reset the unique fields slice
+	var emptyField uniqueField
 	for i, shardUniqueFields := range b.shardedFields.uniqueFields {
 		for i := range shardUniqueFields {
-			shardUniqueFields[i] = uniqueField{}
+			shardUniqueFields[i] = emptyField
 		}
 		b.shardedFields.uniqueFields[i] = shardUniqueFields[:0]
 	}
 }
 
 func (b *builder) Insert(d doc.Document) ([]byte, error) {
-	b.status.RLock()
-	defer b.status.RUnlock()
+	b.status.Lock()
+	defer b.status.Unlock()
 
 	// Use a preallocated slice to make insert able to avoid alloc
 	// a slice to call insert batch with.
 	b.batchSizeOne.Docs[0] = d
-	err := b.insertBatchWithRLock(b.batchSizeOne)
+	err := b.insertBatchWithLock(b.batchSizeOne)
 	if err != nil {
 		if errs := err.Errs(); len(errs) == 1 {
 			// Return concrete error instead of the batch partial error.
@@ -332,8 +336,8 @@ func (b *builder) Insert(d doc.Document) ([]byte, error) {
 }
 
 func (b *builder) InsertBatch(batch index.Batch) error {
-	b.status.RLock()
-	defer b.status.RUnlock()
+	b.status.Lock()
+	defer b.status.Unlock()
 
 	if b.status.closed {
 		return errClosed
@@ -342,7 +346,7 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 	// NB(r): This switch is required or else *index.BatchPartialError
 	// is returned as a non-nil wrapped "error" even though it is not
 	// an error and underlying error is nil.
-	if err := b.insertBatchWithRLock(batch); err != nil {
+	if err := b.insertBatchWithLock(batch); err != nil {
 		return err
 	}
 	return nil
@@ -356,7 +360,7 @@ func (b *builder) resetShardedJobs() {
 	}
 }
 
-func (b *builder) insertBatchWithRLock(batch index.Batch) *index.BatchPartialError {
+func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialError {
 	// NB(r): This is all kept in a single method to make the
 	// insertion path avoid too much function call overhead.
 	wg := &sync.WaitGroup{}
@@ -406,9 +410,9 @@ func (b *builder) insertBatchWithRLock(batch index.Batch) *index.BatchPartialErr
 
 		// Index the terms.
 		for _, f := range d.Fields {
-			b.queueIndexJobEntry(wg, postings.ID(postingsListID), f, i, batchErr)
+			b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), f, i, batchErr)
 		}
-		b.queueIndexJobEntry(wg, postings.ID(postingsListID), doc.Field{
+		b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), doc.Field{
 			Name:  doc.IDReservedFieldName,
 			Value: d.ID,
 		}, i, batchErr)
@@ -417,7 +421,7 @@ func (b *builder) insertBatchWithRLock(batch index.Batch) *index.BatchPartialErr
 	// Enqueue any partially filled sharded jobs.
 	for shard := 0; shard < b.concurrency; shard++ {
 		if b.shardedJobs[shard].usedEntries > 0 {
-			b.flushShardedIndexJob(shard, wg, batchErr)
+			b.flushShardedIndexJobWithLock(shard, wg, batchErr)
 		}
 	}
 
@@ -430,14 +434,14 @@ func (b *builder) insertBatchWithRLock(batch index.Batch) *index.BatchPartialErr
 	return nil
 }
 
-func (b *builder) queueIndexJobEntry(
+func (b *builder) queueIndexJobEntryWithLock(
 	wg *sync.WaitGroup,
 	id postings.ID,
 	field doc.Field,
 	docIdx int,
 	batchErr *index.BatchPartialError,
 ) {
-	shard := b.calculateShard(field.Name)
+	shard := b.calculateShardWithRLock(field.Name)
 	entryIndex := b.shardedJobs[shard].usedEntries
 	b.shardedJobs[shard].usedEntries++
 	b.shardedJobs[shard].entries[entryIndex].id = id
@@ -450,13 +454,13 @@ func (b *builder) queueIndexJobEntry(
 	}
 
 	// Ready to flush this job since all entries are used.
-	b.flushShardedIndexJob(shard, wg, batchErr)
+	b.flushShardedIndexJobWithLock(shard, wg, batchErr)
 
 	// Reset for reuse.
 	b.shardedJobs[shard] = indexJob{}
 }
 
-func (b *builder) flushShardedIndexJob(
+func (b *builder) flushShardedIndexJobWithLock(
 	shard int,
 	wg *sync.WaitGroup,
 	batchErr *index.BatchPartialError,
@@ -473,17 +477,23 @@ func (b *builder) flushShardedIndexJob(
 	globalIndexWorkers.indexJob(b.shardedJobs[shard])
 }
 
-func (b *builder) calculateShard(field []byte) int {
+func (b *builder) calculateShardWithRLock(field []byte) int {
 	return int(xxhash.Sum64(field) % uint64(b.concurrency))
 }
 
 func (b *builder) AllDocs() (index.IDDocIterator, error) {
+	b.status.RLock()
+	defer b.status.RUnlock()
+
 	rangeIter := postings.NewRangeIterator(b.offset,
 		b.offset+postings.ID(len(b.docs)))
 	return index.NewIDDocIterator(b, rangeIter), nil
 }
 
 func (b *builder) Doc(id postings.ID) (doc.Document, error) {
+	b.status.RLock()
+	defer b.status.RUnlock()
+
 	idx := int(id - b.offset)
 	if idx < 0 || idx >= len(b.docs) {
 		return doc.Document{}, errDocNotFound
@@ -493,6 +503,9 @@ func (b *builder) Doc(id postings.ID) (doc.Document, error) {
 }
 
 func (b *builder) Docs() []doc.Document {
+	b.status.RLock()
+	defer b.status.RUnlock()
+
 	return b.docs
 }
 
@@ -505,11 +518,18 @@ func (b *builder) TermsIterable() segment.TermsIterable {
 }
 
 func (b *builder) FieldsPostingsList() (segment.FieldsPostingsListIterator, error) {
+	b.status.RLock()
+	defer b.status.RUnlock()
+
 	return newOrderedFieldsPostingsListIter(b.shardedFields.uniqueFields), nil
 }
 
 func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
-	shard := b.calculateShard(field)
+	// NB(r): Need write lock since sort if required below.
+	b.status.Lock()
+	defer b.status.Unlock()
+
+	shard := b.calculateShardWithRLock(field)
 	terms, ok := b.shardedFields.fields.ShardedGet(shard, field)
 	if !ok {
 		return nil, fmt.Errorf("field not found: %s", string(field))
@@ -525,6 +545,7 @@ func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 func (b *builder) Close() error {
 	b.status.Lock()
 	defer b.status.Unlock()
+
 	b.status.closed = true
 	// Indiciate we could possibly spin down workers if no builders open.
 	globalIndexWorkers.unregisterBuilder()
