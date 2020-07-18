@@ -134,21 +134,21 @@ func (l *finalizeableList) Init() *finalizeableList {
 		// Use a static pool at least, otherwise each time
 		// we create a list with no pool we create a wholly
 		// new pool of finalizeables (4096 of them).
-		defaultFinalizeableElementsPoolOnce.Do(initFinalizeableElementsPool)
-		l.Pool = defaultFinalizeableElementsPool
+		defaultElementPoolOnce.Do(initElementPool)
+		l.Pool = defaultElementPool
 	}
 	return l
 }
 
 var (
-	defaultFinalizeableElementsPoolOnce sync.Once
-	defaultFinalizeableElementsPool     *finalizeableElementPool
+	defaultElementPoolOnce sync.Once
+	defaultElementPool     *finalizeableElementPool
 )
 
 // define as a static method so lambda alloc not required
 // when passing function pointer to sync.Once.Do.
-func initFinalizeableElementsPool() {
-	defaultFinalizeableElementsPool = newFinalizeableElementPool(nil)
+func initElementPool() {
+	defaultElementPool = newFinalizeableElementPool(nil)
 }
 
 // newFinalizeableList returns an initialized list.

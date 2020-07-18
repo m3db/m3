@@ -4310,6 +4310,34 @@ func (mr *MockOptionsMockRecorder) DoNotIndexWithFieldsMap() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).DoNotIndexWithFieldsMap))
 }
 
+// SetNamespaceRuntimeOptionsManagerRegistry mocks base method
+func (m *MockOptions) SetNamespaceRuntimeOptionsManagerRegistry(value namespace.RuntimeOptionsManagerRegistry) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceRuntimeOptionsManagerRegistry", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceRuntimeOptionsManagerRegistry indicates an expected call of SetNamespaceRuntimeOptionsManagerRegistry
+func (mr *MockOptionsMockRecorder) SetNamespaceRuntimeOptionsManagerRegistry(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).SetNamespaceRuntimeOptionsManagerRegistry), value)
+}
+
+// NamespaceRuntimeOptionsManagerRegistry mocks base method
+func (m *MockOptions) NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceRuntimeOptionsManagerRegistry")
+	ret0, _ := ret[0].(namespace.RuntimeOptionsManagerRegistry)
+	return ret0
+}
+
+// NamespaceRuntimeOptionsManagerRegistry indicates an expected call of NamespaceRuntimeOptionsManagerRegistry
+func (mr *MockOptionsMockRecorder) NamespaceRuntimeOptionsManagerRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).NamespaceRuntimeOptionsManagerRegistry))
+}
+
 // MockMemoryTracker is a mock of MemoryTracker interface
 type MockMemoryTracker struct {
 	ctrl     *gomock.Controller
