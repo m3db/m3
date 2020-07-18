@@ -200,12 +200,12 @@ func (e *encoder) encodeUInt16(v uint16) []byte {
 	// NB(r): Use static buffer on the struct for encoding, otherwise if it's
 	// statically defined inline in the function it will escape to heap.
 	dest := e.staticBufferSlice[:2]
-	encodeUInt16(v, dest)
-	return dest
+	return encodeUInt16(v, dest)
 }
 
-func encodeUInt16(v uint16, dest []byte) {
+func encodeUInt16(v uint16, dest []byte) []byte {
 	byteOrder.PutUint16(dest, v)
+	return dest
 }
 
 func decodeUInt16(b []byte) uint16 {

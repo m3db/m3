@@ -441,7 +441,7 @@ func TestDownsampleAndWriteBatch(t *testing.T) {
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
-	mockMetricsAppender.EXPECT().Reset().Times(2)
+	mockMetricsAppender.EXPECT().NextMetric().Times(2)
 	mockMetricsAppender.EXPECT().Finalize()
 
 	for _, entry := range testEntries {
@@ -487,7 +487,7 @@ func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
-	mockMetricsAppender.EXPECT().Reset().Times(2)
+	mockMetricsAppender.EXPECT().NextMetric().Times(2)
 	mockMetricsAppender.EXPECT().Finalize()
 
 	for _, entry := range testEntries2 {
@@ -537,7 +537,7 @@ func TestDownsampleAndWriteBatchSingleDrop(t *testing.T) {
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
-	mockMetricsAppender.EXPECT().Reset().Times(2)
+	mockMetricsAppender.EXPECT().NextMetric().Times(2)
 	mockMetricsAppender.EXPECT().Finalize()
 
 	for _, dp := range testEntries[1].datapoints {
@@ -615,7 +615,7 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 	}
 	downsampler.EXPECT().NewMetricsAppender().Return(mockMetricsAppender, nil)
 
-	mockMetricsAppender.EXPECT().Reset()
+	mockMetricsAppender.EXPECT().NextMetric()
 	mockMetricsAppender.EXPECT().Finalize()
 
 	iter := newTestIter(entries)
