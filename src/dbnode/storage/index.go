@@ -2029,6 +2029,11 @@ func (i *nsIndex) Close() error {
 		i.runtimeOptsListener = nil
 	}
 
+	if i.runtimeNsOptsListener != nil {
+		i.runtimeNsOptsListener.Close()
+		i.runtimeNsOptsListener = nil
+	}
+
 	// Can now unlock after collecting blocks to close and setting closed state.
 	i.state.Unlock()
 
