@@ -1051,11 +1051,23 @@ func (s *dbShard) SeriesReadWriteRef(
 	// Wait for the insert to be batched together and inserted.
 	result.wg.Wait()
 
-	// Retrieve the inserted entry.
-	entry, err = s.writableSeries(id, tags)
+	// Guaranteed now to be available in the shard map, otherwise
+	// an invariant is not held.
+	s.RLock()
+	defer s.RUnlock()
+
+	entry, _, err = s.lookupEntryWithLock(result.copiedID)
 	if err != nil {
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+			func(l *zap.Logger) {
+				l.Error("read write ref inserted series not found", zap.Error(err))
+			})
 		return SeriesReadWriteRef{}, err
 	}
+
+	// Increment before releasing lock so won't be expired until operation
+	// complete by calling ReleaseReadWriteRef.
+	entry.IncrementReaderWriterCount()
 
 	return SeriesReadWriteRef{
 		Series:              entry.Series,
@@ -1306,7 +1318,7 @@ func (s *dbShard) insertSeriesAsyncBatched(
 	})
 	return insertAsyncResult{
 		wg: wg,
-		// Make sure to return the copied ID from the new series
+		// Make sure to return the copied ID from the new series.
 		copiedID: entry.Series.ID(),
 		entry:    entry,
 	}, err

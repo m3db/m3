@@ -1164,10 +1164,12 @@ func (i *nsIndex) flushBlockSegment(
 	builder.Reset(0)
 
 	var (
-		ctx       = i.opts.ContextPool().Get()
 		batch     = m3ninxindex.Batch{AllowPartialUpdates: true}
 		batchSize = defaultFlushDocsBatchSize
 	)
+	ctx := i.opts.ContextPool().Get()
+	defer ctx.Close()
+
 	for _, shard := range shards {
 		var (
 			first     = true

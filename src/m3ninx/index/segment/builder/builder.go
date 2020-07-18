@@ -553,7 +553,7 @@ func (b *builder) Close() error {
 }
 
 var (
-	sortConcurrencyLock sync.Mutex
+	sortConcurrencyLock sync.RWMutex
 )
 
 // SetSortConcurrency sets the sort concurrency for when
