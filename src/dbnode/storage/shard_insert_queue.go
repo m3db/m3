@@ -315,6 +315,7 @@ func newDatabaseShardInsertQueue(
 		// it being lost.
 		notifyInsert:                     make(chan struct{}, 2*xsync.NumCores()),
 		closeCh:                          make(chan struct{}, 1),
+		insertPerSecondLimit:             atomic.NewUint64(0),
 		insertPerSecondLimitWindowNanos:  atomic.NewUint64(0),
 		insertPerSecondLimitWindowValues: atomic.NewUint64(0),
 		metrics:                          newDatabaseShardInsertQueueMetrics(scope),
