@@ -50,7 +50,7 @@ const (
 	// TODO(prateek): runtime options for this stuff
 	defaultIndexBatchBackoff = 2 * time.Millisecond
 
-	indexResetAllInsertsEvery = 30 * time.Second
+	indexResetAllInsertsEvery = 3 * time.Minute
 )
 
 type nsIndexInsertQueue struct {

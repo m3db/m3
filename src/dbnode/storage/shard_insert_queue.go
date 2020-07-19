@@ -43,7 +43,7 @@ import (
 )
 
 const (
-	resetShardInsertsEvery = 30 * time.Second
+	resetShardInsertsEvery = 3 * time.Minute
 )
 
 var (
@@ -338,7 +338,11 @@ func (q *dbShardInsertQueue) insertLoop() {
 		close(q.closeCh)
 	}()
 
-	var lastInsert time.Time
+	var (
+		lastInsert          time.Time
+		allInserts          []dbShardInsert
+		allInsertsLastReset time.Time
+	)
 	batch := newDbShardInsertBatch(q.nowFn, tally.NoopScope)
 	for range q.notifyInsert {
 		// Check if inserting too fast
@@ -363,18 +367,36 @@ func (q *dbShardInsertQueue) insertLoop() {
 
 		batchWg := q.currBatch.Rotate(batch)
 
+		// NB(r): Either reset (to avoid spikey allocations sticking around
+		// forever) or reuse existing slice.
+		now := q.nowFn()
+		if now.Sub(allInsertsLastReset) > resetShardInsertsEvery {
+			allInserts = nil
+			allInsertsLastReset = now
+		} else {
+			allInserts = allInserts[:0]
+		}
+		// Batch together for single insertion.
 		for _, batchByCPUCore := range batch.insertsByCPUCore {
 			batchByCPUCore.Lock()
-			err := q.insertEntryBatchFn(batchByCPUCore.inserts)
+			allInserts = append(allInserts, batchByCPUCore.inserts...)
 			batchByCPUCore.Unlock()
-			if err != nil {
-				q.metrics.insertsBatchErrors.Inc(1)
-				q.logger.Error("shard insert queue batch insert failed",
-					zap.Error(err))
-			}
+		}
+
+		err := q.insertEntryBatchFn(allInserts)
+		if err != nil {
+			q.metrics.insertsBatchErrors.Inc(1)
+			q.logger.Error("shard insert queue batch insert failed",
+				zap.Error(err))
 		}
 
 		batchWg.Done()
+
+		// Memset optimization to clear inserts holding refs to objects.
+		var insertZeroValue dbShardInsert
+		for i := range allInserts {
+			allInserts[i] = insertZeroValue
+		}
 
 		lastInsert = q.nowFn()
 
