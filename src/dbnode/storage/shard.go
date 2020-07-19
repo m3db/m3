@@ -1038,6 +1038,10 @@ func (s *dbShard) SeriesReadWriteRef(
 	at := s.nowFn()
 	result, err := s.insertSeriesAsyncBatched(id, tags,
 		dbShardInsertAsyncOptions{
+			// Make sure to skip the rate limit since this is called
+			// from the bootstrapper and does not need to be rate
+			// limited.
+			skipRateLimit:      true,
 			hasPendingIndexing: opts.ReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  at,

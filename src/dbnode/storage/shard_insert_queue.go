@@ -22,6 +22,7 @@ package storage
 
 import (
 	"errors"
+	"strconv"
 	"sync"
 	"time"
 
@@ -33,10 +34,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+)
+
+const (
+	resetShardInsertsEvery = 30 * time.Second
 )
 
 var (
@@ -99,11 +105,136 @@ func newDatabaseShardInsertQueueMetrics(
 }
 
 type dbShardInsertBatch struct {
+	nowFn clock.NowFn
+	wg    *sync.WaitGroup
+	// Note: since inserts by CPU core is allocated when
+	// nsIndexInsertBatch is constructed and then never modified
+	// it is safe to concurently read (but not modify obviously).
+	insertsByCPUCore []*dbShardInsertsByCPUCore
+	lastReset        time.Time
+}
+
+func newDbShardInsertBatch(
+	nowFn clock.NowFn,
+	scope tally.Scope,
+) *dbShardInsertBatch {
+	b := &dbShardInsertBatch{
+		nowFn: nowFn,
+		wg:    &sync.WaitGroup{},
+	}
+	numCores := xsync.NumCores()
+	for i := 0; i < numCores; i++ {
+		b.insertsByCPUCore = append(b.insertsByCPUCore, &dbShardInsertsByCPUCore{
+			wg:      b.wg,
+			metrics: newDBShardInsertsByCPUCoreMetrics(i, scope),
+		})
+	}
+	b.Rotate(nil)
+	return b
+}
+
+type dbShardInsertsByCPUCore struct {
+	sync.Mutex
+
 	wg      *sync.WaitGroup
 	inserts []dbShardInsert
+	metrics dbShardInsertsByCPUCoreMetrics
+}
+
+type dbShardInsertsByCPUCoreMetrics struct {
+	rotateInserts tally.Counter
+}
+
+func newDBShardInsertsByCPUCoreMetrics(
+	cpuIndex int,
+	scope tally.Scope,
+) dbShardInsertsByCPUCoreMetrics {
+	scope = scope.Tagged(map[string]string{
+		"cpu-index": strconv.Itoa(cpuIndex),
+	})
+
+	return dbShardInsertsByCPUCoreMetrics{
+		rotateInserts: scope.Counter("rotate-inserts"),
+	}
+}
+
+func (b *dbShardInsertBatch) Rotate(target *dbShardInsertBatch) *sync.WaitGroup {
+	prevWg := b.wg
+
+	// We always expect to be waiting for an index.
+	b.wg = &sync.WaitGroup{}
+	b.wg.Add(1)
+
+	reset := false
+	now := b.nowFn()
+	if now.Sub(b.lastReset) > resetShardInsertsEvery {
+		// NB(r): Sometimes this can grow very high, so we reset it
+		// relatively frequently.
+		reset = true
+		b.lastReset = now
+	}
+
+	// Rotate to target if we need to.
+	for idx, inserts := range b.insertsByCPUCore {
+		if target == nil {
+			// No target to rotate with.
+			inserts.Lock()
+			// Reset
+			inserts.inserts = inserts.inserts[:0]
+			// Use new wait group.
+			inserts.wg = b.wg
+			inserts.Unlock()
+			continue
+		}
+
+		// First prepare the target to take the current batch's inserts.
+		targetInserts := target.insertsByCPUCore[idx]
+		targetInserts.Lock()
+
+		// Reset the target inserts since we'll take ref to them in a second.
+		var prevTargetInserts []dbShardInsert
+		if !reset {
+			// Only reuse if not resetting the allocation.
+			// memset optimization.
+			var zeroDbShardInsert dbShardInsert
+			for i := range targetInserts.inserts {
+				targetInserts.inserts[i] = zeroDbShardInsert
+			}
+			prevTargetInserts = targetInserts.inserts[:0]
+		}
+
+		// Lock the current batch inserts now ready to rotate to the target.
+		inserts.Lock()
+
+		// Update current slice refs to take target's inserts.
+		targetInserts.inserts = inserts.inserts
+		targetInserts.wg = inserts.wg
+
+		// Reuse the target's old slices.
+		inserts.inserts = prevTargetInserts
+
+		// Use new wait group.
+		inserts.wg = b.wg
+
+		// Unlock as early as possible for writes to keep enqueuing.
+		inserts.Unlock()
+
+		numTargetInserts := len(targetInserts.inserts)
+
+		// Now can unlock target inserts too.
+		targetInserts.Unlock()
+
+		if n := numTargetInserts; n > 0 {
+			inserts.metrics.rotateInserts.Inc(int64(n))
+		}
+	}
+
+	return prevWg
 }
 
 type dbShardInsertAsyncOptions struct {
+	skipRateLimit bool
+
 	pendingWrite          dbShardPendingWrite
 	pendingRetrievedBlock dbShardPendingRetrievedBlock
 	pendingIndex          dbShardPendingIndex
@@ -148,16 +279,6 @@ type dbShardPendingRetrievedBlock struct {
 	nsCtx   namespace.Context
 }
 
-func (b *dbShardInsertBatch) reset() {
-	b.wg = &sync.WaitGroup{}
-	// We always expect to be waiting for an insert
-	b.wg.Add(1)
-	for i := range b.inserts {
-		b.inserts[i] = dbShardInsertZeroed
-	}
-	b.inserts = b.inserts[:0]
-}
-
 type dbShardInsertEntryBatchFn func(inserts []dbShardInsert) error
 
 // newDatabaseShardInsertQueue creates a new shard insert queue. The shard
@@ -181,9 +302,8 @@ func newDatabaseShardInsertQueue(
 	scope tally.Scope,
 	logger *zap.Logger,
 ) *dbShardInsertQueue {
-	currBatch := &dbShardInsertBatch{}
-	currBatch.reset()
-	subscope := scope.SubScope("insert-queue")
+	scope = scope.SubScope("insert-queue")
+	currBatch := newDbShardInsertBatch(nowFn, scope)
 	return &dbShardInsertQueue{
 		nowFn:              nowFn,
 		insertEntryBatchFn: insertEntryBatchFn,
@@ -191,7 +311,7 @@ func newDatabaseShardInsertQueue(
 		currBatch:          currBatch,
 		notifyInsert:       make(chan struct{}, 1),
 		closeCh:            make(chan struct{}, 1),
-		metrics:            newDatabaseShardInsertQueueMetrics(subscope),
+		metrics:            newDatabaseShardInsertQueueMetrics(scope),
 		logger:             logger,
 	}
 }
@@ -209,8 +329,7 @@ func (q *dbShardInsertQueue) insertLoop() {
 	}()
 
 	var lastInsert time.Time
-	freeBatch := &dbShardInsertBatch{}
-	freeBatch.reset()
+	batch := newDbShardInsertBatch(q.nowFn, tally.NoopScope)
 	for range q.notifyInsert {
 		// Check if inserting too fast
 		elapsedSinceLastInsert := q.nowFn().Sub(lastInsert)
@@ -219,41 +338,33 @@ func (q *dbShardInsertQueue) insertLoop() {
 		var (
 			state   dbShardInsertQueueState
 			backoff time.Duration
-			batch   *dbShardInsertBatch
 		)
 		q.Lock()
 		state = q.state
 		if elapsedSinceLastInsert < q.insertBatchBackoff {
 			// Need to backoff before rotate and insert
 			backoff = q.insertBatchBackoff - elapsedSinceLastInsert
-		} else {
-			// No backoff required, rotate and go
-			batch = q.currBatch
-			q.currBatch = freeBatch
 		}
 		q.Unlock()
 
 		if backoff > 0 {
 			q.sleepFn(backoff)
-			q.Lock()
-			// Rotate after backoff
-			batch = q.currBatch
-			q.currBatch = freeBatch
-			q.Unlock()
 		}
 
-		if len(batch.inserts) > 0 {
-			if err := q.insertEntryBatchFn(batch.inserts); err != nil {
+		batchWg := q.currBatch.Rotate(batch)
+
+		for _, batchByCPUCore := range batch.insertsByCPUCore {
+			batchByCPUCore.Lock()
+			err := q.insertEntryBatchFn(batchByCPUCore.inserts)
+			batchByCPUCore.Unlock()
+			if err != nil {
 				q.metrics.insertsBatchErrors.Inc(1)
 				q.logger.Error("shard insert queue batch insert failed",
 					zap.Error(err))
 			}
 		}
-		batch.wg.Done()
 
-		// Set the free batch
-		batch.reset()
-		freeBatch = batch
+		batchWg.Done()
 
 		lastInsert = q.nowFn()
 
@@ -303,26 +414,28 @@ func (q *dbShardInsertQueue) Stop() error {
 func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, error) {
 	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
 
-	q.Lock()
-	if q.state != dbShardInsertQueueStateOpen {
+	if !insert.opts.skipRateLimit {
+		q.Lock()
+		if limit := q.insertPerSecondLimit; limit > 0 {
+			if q.insertPerSecondLimitWindowNanos != windowNanos {
+				// Rolled into a new window
+				q.insertPerSecondLimitWindowNanos = windowNanos
+				q.insertPerSecondLimitWindowValues = 0
+			}
+			q.insertPerSecondLimitWindowValues++
+			if q.insertPerSecondLimitWindowValues > limit {
+				q.Unlock()
+				return nil, errNewSeriesInsertRateLimitExceeded
+			}
+		}
 		q.Unlock()
-		return nil, errShardInsertQueueNotOpen
 	}
-	if limit := q.insertPerSecondLimit; limit > 0 {
-		if q.insertPerSecondLimitWindowNanos != windowNanos {
-			// Rolled into a new window
-			q.insertPerSecondLimitWindowNanos = windowNanos
-			q.insertPerSecondLimitWindowValues = 0
-		}
-		q.insertPerSecondLimitWindowValues++
-		if q.insertPerSecondLimitWindowValues > limit {
-			q.Unlock()
-			return nil, errNewSeriesInsertRateLimitExceeded
-		}
-	}
-	q.currBatch.inserts = append(q.currBatch.inserts, insert)
-	wg := q.currBatch.wg
-	q.Unlock()
+
+	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
+	inserts.Lock()
+	inserts.inserts = append(inserts.inserts, insert)
+	wg := inserts.wg
+	inserts.Unlock()
 
 	// Notify insert loop
 	select {

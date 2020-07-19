@@ -354,7 +354,6 @@ func (b *nsIndexInsertBatch) Rotate(target *nsIndexInsertBatch) *sync.WaitGroup 
 	b.wg.Add(1)
 
 	// Rotate to target if we need to.
-
 	for idx, inserts := range b.insertsByCPUCore {
 		if target == nil {
 			// No target to rotate with.
