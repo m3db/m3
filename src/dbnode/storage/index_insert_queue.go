@@ -102,10 +102,13 @@ func newNamespaceIndexInsertQueue(
 		indexBatchFn:      indexBatchFn,
 		nowFn:             nowFn,
 		sleepFn:           time.Sleep,
-		notifyInsert:      make(chan struct{}, 1),
-		closeCh:           make(chan struct{}, 1),
-		scope:             subscope,
-		metrics:           newNamespaceIndexInsertQueueMetrics(subscope),
+		// NB(r): Use 2 * num cores so that each CPU insert queue which
+		// is 1 per num CPU core can always enqueue a notification without
+		// it being lost.
+		notifyInsert: make(chan struct{}, 2*xsync.NumCores()),
+		closeCh:      make(chan struct{}, 1),
+		scope:        subscope,
+		metrics:      newNamespaceIndexInsertQueueMetrics(subscope),
 	}
 	q.currBatch = q.newBatch(newBatchOptions{instrumented: true})
 	return q
@@ -180,15 +183,19 @@ func (q *nsIndexInsertQueue) InsertBatch(
 	// it is safe to concurently read (but not modify obviously).
 	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
 	inserts.Lock()
+	firstInsert := len(inserts.shardInserts) == 0
 	inserts.shardInserts = append(inserts.shardInserts, batch)
 	wg := inserts.wg
 	inserts.Unlock()
 
-	// Notify insert loop.
-	select {
-	case q.notifyInsert <- struct{}{}:
-	default:
-		// Loop busy, already ready to consume notification.
+	// Notify insert loop, only required if first to insert for this
+	// this CPU core.
+	if firstInsert {
+		select {
+		case q.notifyInsert <- struct{}{}:
+		default:
+			// Loop busy, already ready to consume notification.
+		}
 	}
 
 	q.metrics.numPending.Inc(int64(batchLen))
@@ -206,15 +213,19 @@ func (q *nsIndexInsertQueue) InsertPending(
 	// it is safe to concurently read (but not modify obviously).
 	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
 	inserts.Lock()
+	firstInsert := len(inserts.batchInserts) == 0
 	inserts.batchInserts = append(inserts.batchInserts, pending...)
 	wg := inserts.wg
 	inserts.Unlock()
 
-	// Notify insert loop.
-	select {
-	case q.notifyInsert <- struct{}{}:
-	default:
-		// Loop busy, already ready to consume notification.
+	// Notify insert loop, only required if first to insert for this
+	// this CPU core.
+	if firstInsert {
+		select {
+		case q.notifyInsert <- struct{}{}:
+		default:
+			// Loop busy, already ready to consume notification.
+		}
 	}
 
 	q.metrics.numPending.Inc(int64(batchLen))

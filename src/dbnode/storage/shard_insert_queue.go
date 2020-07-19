@@ -38,6 +38,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -69,10 +70,10 @@ type dbShardInsertQueue struct {
 
 	// rate limits, protected by mutex
 	insertBatchBackoff   time.Duration
-	insertPerSecondLimit int
+	insertPerSecondLimit *atomic.Uint64
 
-	insertPerSecondLimitWindowNanos  int64
-	insertPerSecondLimitWindowValues int
+	insertPerSecondLimitWindowNanos  *atomic.Uint64
+	insertPerSecondLimitWindowValues *atomic.Uint64
 
 	currBatch    *dbShardInsertBatch
 	notifyInsert chan struct{}
@@ -309,18 +310,26 @@ func newDatabaseShardInsertQueue(
 		insertEntryBatchFn: insertEntryBatchFn,
 		sleepFn:            time.Sleep,
 		currBatch:          currBatch,
-		notifyInsert:       make(chan struct{}, 1),
-		closeCh:            make(chan struct{}, 1),
-		metrics:            newDatabaseShardInsertQueueMetrics(scope),
-		logger:             logger,
+		// NB(r): Use 2 * num cores so that each CPU insert queue which
+		// is 1 per num CPU core can always enqueue a notification without
+		// it being lost.
+		notifyInsert:                     make(chan struct{}, 2*xsync.NumCores()),
+		closeCh:                          make(chan struct{}, 1),
+		insertPerSecondLimitWindowNanos:  atomic.NewUint64(0),
+		insertPerSecondLimitWindowValues: atomic.NewUint64(0),
+		metrics:                          newDatabaseShardInsertQueueMetrics(scope),
+		logger:                           logger,
 	}
 }
 
 func (q *dbShardInsertQueue) SetRuntimeOptions(value runtime.Options) {
 	q.Lock()
 	q.insertBatchBackoff = value.WriteNewSeriesBackoffDuration()
-	q.insertPerSecondLimit = value.WriteNewSeriesLimitPerShardPerSecond()
 	q.Unlock()
+
+	// Use atomics so no locks outside of per CPU core lock used.
+	v := uint64(value.WriteNewSeriesLimitPerShardPerSecond())
+	q.insertPerSecondLimit.Store(v)
 }
 
 func (q *dbShardInsertQueue) insertLoop() {
@@ -398,11 +407,11 @@ func (q *dbShardInsertQueue) Stop() error {
 	q.state = dbShardInsertQueueStateClosed
 	q.Unlock()
 
-	// Final flush
+	// Final flush.
 	select {
 	case q.notifyInsert <- struct{}{}:
 	default:
-		// Loop busy, already ready to consume notification
+		// Loop busy, already ready to consume notification.
 	}
 
 	// wait till other go routine is done
@@ -412,36 +421,42 @@ func (q *dbShardInsertQueue) Stop() error {
 }
 
 func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, error) {
-	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
-
 	if !insert.opts.skipRateLimit {
-		q.Lock()
-		if limit := q.insertPerSecondLimit; limit > 0 {
-			if q.insertPerSecondLimitWindowNanos != windowNanos {
-				// Rolled into a new window
-				q.insertPerSecondLimitWindowNanos = windowNanos
-				q.insertPerSecondLimitWindowValues = 0
+		if limit := q.insertPerSecondLimit.Load(); limit > 0 {
+			windowNanos := uint64(q.nowFn().Truncate(time.Second).UnixNano())
+			currLimitWindowNanos := q.insertPerSecondLimitWindowNanos.Load()
+			if currLimitWindowNanos != windowNanos {
+				// Rolled into a new window.
+				if q.insertPerSecondLimitWindowNanos.CAS(currLimitWindowNanos, windowNanos) {
+					// If managed to set it to the new window, reset the counter
+					// otherwise another goroutine got to it first and
+					// will zero the counter.
+					q.insertPerSecondLimitWindowValues.Store(0)
+				}
 			}
-			q.insertPerSecondLimitWindowValues++
-			if q.insertPerSecondLimitWindowValues > limit {
-				q.Unlock()
+			if q.insertPerSecondLimitWindowValues.Inc() > uint64(limit) {
 				return nil, errNewSeriesInsertRateLimitExceeded
 			}
 		}
-		q.Unlock()
 	}
 
 	inserts := q.currBatch.insertsByCPUCore[xsync.CPUCore()]
 	inserts.Lock()
+	// Track if first insert, if so then we need to notify insert loop,
+	// otherwise we already have a pending notification.
+	firstInsert := len(inserts.inserts) == 0
 	inserts.inserts = append(inserts.inserts, insert)
 	wg := inserts.wg
 	inserts.Unlock()
 
-	// Notify insert loop
-	select {
-	case q.notifyInsert <- struct{}{}:
-	default:
-		// Loop busy, already ready to consume notification
+	// Notify insert loop, only required if first to insert for this
+	// this CPU core.
+	if firstInsert {
+		select {
+		case q.notifyInsert <- struct{}{}:
+		default:
+			// Loop busy, already ready to consume notification.
+		}
 	}
 
 	if insert.opts.hasPendingWrite {
