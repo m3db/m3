@@ -115,11 +115,13 @@ require (
 	go.etcd.io/etcd v3.4.3+incompatible
 	go.uber.org/atomic v1.5.1
 	go.uber.org/config v1.4.0
+	go.uber.org/ratelimit v0.1.0
 	go.uber.org/zap v1.13.0
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/net v0.0.0-20200301022130-244492dfa37a
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20200302150141-5c8b2ff67527
+	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.0.0-20200601175630-2caf76543d99 // indirect
 	google.golang.org/grpc v1.27.1
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect

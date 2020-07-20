@@ -21,6 +21,7 @@
 package digest
 
 import (
+	"hash"
 	"hash/adler32"
 
 	"github.com/m3db/stackadler32"
@@ -30,6 +31,11 @@ import (
 // The default 32-bit hashing algorithm is adler32.
 func NewDigest() stackadler32.Digest {
 	return stackadler32.NewDigest()
+}
+
+// NewDigestWriter returns a stateful digest writer.
+func NewDigestWriter() hash.Hash32 {
+	return adler32.New()
 }
 
 // Checksum returns the checksum for a buffer.
