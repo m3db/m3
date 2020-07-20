@@ -62,6 +62,7 @@ func (d *decoder) Decode(m Unmarshaler) error {
 		return err
 	}
 	if size > d.maxMessageSize {
+		d.rr.Reset(d.r)
 		return fmt.Errorf(
 			"proto decoded message size %d is larger than maximum supported size %d",
 			size, d.maxMessageSize)
