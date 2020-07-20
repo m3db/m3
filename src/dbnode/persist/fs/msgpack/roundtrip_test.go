@@ -401,9 +401,10 @@ func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
 // Make sure the V3 decoding code can handle the V1 file format.
 func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV1}
-		enc  = newEncoder(opts)
-		dec  = newDecoder(opts, nil)
+		opts = legacyEncodingOptions{encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV1,
+			decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent}
+		enc = newEncoder(opts)
+		dec = newDecoder(opts, nil)
 	)
 
 	// Set the default values on the fields that did not exist in V1
@@ -456,9 +457,10 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 // Make sure the V3 decoding code can handle the V2 file format.
 func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV2}
-		enc  = newEncoder(opts)
-		dec  = newDecoder(opts, nil)
+		opts = legacyEncodingOptions{encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV2,
+			decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent}
+		enc = newEncoder(opts)
+		dec = newDecoder(opts, nil)
 	)
 
 	// The additional field added to V3 is the index entry checksum that's transparently used by the encoder

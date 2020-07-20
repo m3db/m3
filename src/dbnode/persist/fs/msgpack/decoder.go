@@ -361,6 +361,12 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 		opts.override = true
 		opts.numExpectedMinFields = 5
 		opts.numExpectedCurrFields = 6
+	case legacyEncodingIndexEntryVersionCurrent:
+		// V3 is current version, no overrides needed
+		break
+	default:
+		dec.err = fmt.Errorf("invalid legacyEncodingIndexEntryVersion provided: %v", dec.legacy.decodeLegacyIndexEntryVersion)
+		return emptyIndexEntry
 	}
 
 	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexEntryType, opts)
