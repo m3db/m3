@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -1989,6 +1990,22 @@ func (m *MockdatabaseShard) SeriesReadWriteRef(id ident.ID, tags ident.TagIterat
 func (mr *MockdatabaseShardMockRecorder) SeriesReadWriteRef(id, tags, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesReadWriteRef", reflect.TypeOf((*MockdatabaseShard)(nil).SeriesReadWriteRef), id, tags, opts)
+}
+
+// DocRef mocks base method
+func (m *MockdatabaseShard) DocRef(id ident.ID) (doc.Document, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DocRef", id)
+	ret0, _ := ret[0].(doc.Document)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DocRef indicates an expected call of DocRef
+func (mr *MockdatabaseShardMockRecorder) DocRef(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRef", reflect.TypeOf((*MockdatabaseShard)(nil).DocRef), id)
 }
 
 // MockShardColdFlush is a mock of ShardColdFlush interface

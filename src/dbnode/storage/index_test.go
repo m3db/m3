@@ -368,14 +368,18 @@ func verifyFlushForShards(
 	var (
 		mockFlush          = persist.NewMockIndexFlush(ctrl)
 		shardMap           = make(map[uint32]struct{})
-		now                = idx.nowFn()
-		warmBlockStart     = now.Truncate(idx.blockSize)
+		now                = time.Now()
+		warmBlockStart     = now.Add(-idx.bufferPast).Truncate(idx.blockSize)
 		mockShards         []*MockdatabaseShard
 		dbShards           []databaseShard
 		numBlocks          int
 		persistClosedTimes int
 		persistCalledTimes int
 	)
+	// NB(bodu): Always align now w/ the index's view of now.
+	idx.nowFn = func() time.Time {
+		return now
+	}
 	for _, shard := range shards {
 		mockShard := NewMockdatabaseShard(ctrl)
 		mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
@@ -411,7 +415,7 @@ func verifyFlushForShards(
 			NamespaceMetadata: idx.nsMetadata,
 			BlockStart:        blockStart,
 			FileSetType:       persist.FileSetFlushType,
-			Shards:            map[uint32]struct{}{0: struct{}{}},
+			Shards:            map[uint32]struct{}{0: {}},
 			IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
 		})).Return(preparedPersist, nil)
 
@@ -432,8 +436,8 @@ func verifyFlushForShards(
 		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 	}
 	require.NoError(t, idx.WarmFlush(mockFlush, dbShards))
-	require.Equal(t, persistClosedTimes, numBlocks)
-	require.Equal(t, persistCalledTimes, numBlocks)
+	require.Equal(t, numBlocks, persistClosedTimes)
+	require.Equal(t, numBlocks, persistCalledTimes)
 }
 
 type testIndex struct {
