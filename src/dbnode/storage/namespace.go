@@ -921,6 +921,7 @@ func (n *dbNamespace) Bootstrap(
 		return errNamespaceIsBootstrapping
 	}
 	n.bootstrapState = Bootstrapping
+	nsCtx := n.nsContextWithRLock()
 	n.Unlock()
 
 	n.metrics.bootstrapStart.Inc(1)
@@ -986,7 +987,7 @@ func (n *dbNamespace) Bootstrap(
 		wg.Add(1)
 		shard := shard
 		workers.Go(func() {
-			err := shard.Bootstrap(ctx)
+			err := shard.Bootstrap(ctx, nsCtx)
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)

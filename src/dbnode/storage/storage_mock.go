@@ -1837,17 +1837,17 @@ func (mr *MockdatabaseShardMockRecorder) PrepareBootstrap(ctx interface{}) *gomo
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseShard) Bootstrap(ctx context.Context) error {
+func (m *MockdatabaseShard) Bootstrap(ctx context.Context, nsCtx namespace.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", ctx)
+	ret := m.ctrl.Call(m, "Bootstrap", ctx, nsCtx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseShardMockRecorder) Bootstrap(ctx interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) Bootstrap(ctx, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap), ctx, nsCtx)
 }
 
 // UpdateFlushStates mocks base method

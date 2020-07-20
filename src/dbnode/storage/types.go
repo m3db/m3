@@ -516,7 +516,7 @@ type databaseShard interface {
 
 	// Bootstrap bootstraps the shard after all provided data
 	// has been loaded using LoadBootstrapBlocks.
-	Bootstrap(ctx context.Context) error
+	Bootstrap(ctx context.Context, nsCtx namespace.Context) error
 
 	// UpdateFlushStates updates all the flush states for the current shard
 	// by checking the file volumes that exist on disk at a point in time.

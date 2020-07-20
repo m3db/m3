@@ -786,7 +786,7 @@ func (s *dbShard) tickAndExpire(
 			}
 			expired = expired[:0]
 		}
-		// Continue
+		// Continue.
 		return true
 	})
 
@@ -1456,25 +1456,25 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// for the same ID.
 		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
 		if entry != nil {
-			// Already exists so update the entry we're pointed at for this insert
+			// Already exists so update the entry we're pointed at for this insert.
 			inserts[i].entry = entry
 		}
 
 		if hasPendingIndexing || hasPendingWrite || hasPendingRetrievedBlock {
 			// We're definitely writing a value, ensure that the pending write is
-			// visible before we release the lookup write lock
+			// visible before we release the lookup write lock.
 			inserts[i].entry.IncrementReaderWriterCount()
-			// also indicate that we have a ref count on this entry for this operation
+			// also indicate that we have a ref count on this entry for this operation.
 			inserts[i].opts.entryRefCountIncremented = true
 		}
 
 		if err == nil {
-			// Already inserted
+			// Already inserted.
 			continue
 		}
 
 		if err != errShardEntryNotFound {
-			// Shard is not taking inserts
+			// Shard is not taking inserts.
 			s.Unlock()
 			// FOLLOWUP(prateek): is this an existing bug? why don't we need to release any ref's we've inc'd
 			// on entries in the loop before this point, i.e. in range [0, i). Otherwise, how are those entries
@@ -1979,7 +1979,10 @@ func (s *dbShard) UpdateFlushStates() {
 	}
 }
 
-func (s *dbShard) Bootstrap(ctx context.Context) error {
+func (s *dbShard) Bootstrap(
+	ctx context.Context,
+	nsCtx namespace.Context,
+) error {
 	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.ShardBootstrap)
 	defer span.Finish()
 
@@ -2012,6 +2015,14 @@ func (s *dbShard) Bootstrap(ctx context.Context) error {
 	if err := s.cacheShardIndices(); err != nil {
 		multiErr = multiErr.Add(err)
 	}
+
+	// Move any bootstrap buffers into position for reading.
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		if err := entry.Series.Bootstrap(nsCtx); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+		return true
+	})
 
 	s.Lock()
 	s.bootstrapState = Bootstrapped
