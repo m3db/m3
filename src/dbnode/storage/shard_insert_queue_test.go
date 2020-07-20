@@ -48,8 +48,8 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 			currTime = currTime.Add(d)
 		}
 		backoff           = 10 * time.Millisecond
-		insertWgs         [3]sync.WaitGroup
-		insertProgressWgs [3]sync.WaitGroup
+		insertWgs         [64]sync.WaitGroup
+		insertProgressWgs [64]sync.WaitGroup
 	)
 	for i := range insertWgs {
 		insertWgs[i].Add(1)
@@ -146,7 +146,7 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 		return currTime
 	}, tally.NoopScope, zap.NewNop())
 
-	q.insertPerSecondLimit = 2
+	q.insertPerSecondLimit.Store(2)
 
 	require.NoError(t, q.Start())
 	defer func() {

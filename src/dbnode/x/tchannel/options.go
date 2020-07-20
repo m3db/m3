@@ -29,6 +29,9 @@ import (
 const (
 	defaultIdleCheckInterval = 5 * time.Minute
 	defaultMaxIdleTime       = 5 * time.Minute
+	// defaultSendBufferSize sets the default send buffer size,
+	// by default only 512 frames would be buffered.
+	defaultSendBufferSize = 16384
 )
 
 // NewDefaultChannelOptions returns the default tchannel options used.
@@ -37,5 +40,8 @@ func NewDefaultChannelOptions() *tchannel.ChannelOptions {
 		Logger:            NewNoopLogger(),
 		MaxIdleTime:       defaultMaxIdleTime,
 		IdleCheckInterval: defaultIdleCheckInterval,
+		DefaultConnectionOptions: tchannel.ConnectionOptions{
+			SendBufferSize: defaultSendBufferSize,
+		},
 	}
 }
