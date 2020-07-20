@@ -1092,7 +1092,9 @@ func (d *db) AggregateTiles(
 		return err
 	}
 
-	return targetNs.AggregateTiles(sourceNs, start, end, step)
+	// TODO: Create and use a dedicated persist manager
+	pm := d.opts.PersistManager()
+	return targetNs.AggregateTiles(ctx, sourceNs, start, end, step, pm)
 }
 
 func (d *db) nextIndex() uint64 {
