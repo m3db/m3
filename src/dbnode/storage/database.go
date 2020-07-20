@@ -1067,6 +1067,7 @@ func (d *db) AggregateTiles(
 	ctx context.Context,
 	sourceNsID, targetNsID ident.ID,
 	start, end time.Time,
+	step time.Duration,
 ) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
@@ -1091,7 +1092,7 @@ func (d *db) AggregateTiles(
 		return err
 	}
 
-	return targetNs.AggregateTiles(sourceNs, start, end)
+	return targetNs.AggregateTiles(sourceNs, start, end, step)
 }
 
 func (d *db) nextIndex() uint64 {

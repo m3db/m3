@@ -1283,6 +1283,7 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		end        = time.Now().Truncate(time.Hour)
 		start      = end.Add(-time.Hour)
+		step       = time.Minute
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1292,7 +1293,7 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapping
 
-	require.Equal(t, errNamespaceNotBootstrapped, targetNs.AggregateTiles(sourceNs, start, end))
+	require.Equal(t, errNamespaceNotBootstrapped, targetNs.AggregateTiles(sourceNs, start, end, step))
 }
 
 func TestNamespaceAggregateTiles(t *testing.T) {
@@ -1304,6 +1305,7 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		end        = time.Now().Truncate(time.Hour)
 		start      = end.Add(-time.Hour)
+		step       = time.Minute
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1340,10 +1342,14 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	shardColdFlush2.EXPECT().Done().Return(nil)
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(gomock.Any(), sourceNsIDMatcher, sourceShard0, start, gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush1, nil)
-	targetShard1.EXPECT().AggregateTiles(gomock.Any(), sourceNsIDMatcher, sourceShard1, start, gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush2, nil)
+	targetShard0.EXPECT().AggregateTiles(
+		gomock.Any(), sourceNsIDMatcher, sourceShard0, start, step, gomock.Any(), nsCtx, onColdFlushNs).
+		Return(shardColdFlush1, nil)
+	targetShard1.EXPECT().AggregateTiles(
+		gomock.Any(), sourceNsIDMatcher, sourceShard1, start, step, gomock.Any(), nsCtx, onColdFlushNs).
+		Return(shardColdFlush2, nil)
 
-	require.NoError(t, targetNs.AggregateTiles(sourceNs, start, end))
+	require.NoError(t, targetNs.AggregateTiles(sourceNs, start, end, step))
 }
 
 func waitForStats(

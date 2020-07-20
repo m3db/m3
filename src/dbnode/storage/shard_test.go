@@ -1758,6 +1758,7 @@ func TestAggregateTiles(t *testing.T) {
 
 	var (
 		blockStart = time.Now().Truncate(time.Hour)
+		step = time.Minute
 	)
 
 	sourceShard := testDatabaseShard(t, DefaultTestOptions())
@@ -1794,6 +1795,6 @@ func TestAggregateTiles(t *testing.T) {
 	cfReusableResources := coldFlushReuseableResources{dirtySeries: &dirtySeriesMap{}}
 
 	_, err = targetShard.AggregateTiles(
-		reader, sourceNsID, sourceShard, blockStart, cfReusableResources, namespace.Context{}, &persist.NoOpColdFlushNamespace{})
+		reader, sourceNsID, sourceShard, blockStart, step, cfReusableResources, namespace.Context{}, &persist.NoOpColdFlushNamespace{})
 	require.NoError(t, err)
 }

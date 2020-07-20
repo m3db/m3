@@ -1590,7 +1590,7 @@ func (n *dbNamespace) nsContextWithRLock() namespace.Context {
 	return namespace.Context{ID: n.id, Schema: n.schemaDescr}
 }
 
-func (n *dbNamespace) AggregateTiles(sourceNs databaseNamespace, start, end time.Time) error {
+func (n *dbNamespace) AggregateTiles(sourceNs databaseNamespace, start, end time.Time, step time.Duration) error {
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
@@ -1642,7 +1642,8 @@ func (n *dbNamespace) AggregateTiles(sourceNs databaseNamespace, start, end time
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		shardColdFlush, err := targetShard.AggregateTiles(reader, sourceNs.ID(), sourceShard, start, resources, nsCtx, onColdFlushNs)
+		shardColdFlush, err := targetShard.AggregateTiles(
+			reader, sourceNs.ID(), sourceShard, start, step, resources, nsCtx, onColdFlushNs)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to compact: %v", targetShard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
