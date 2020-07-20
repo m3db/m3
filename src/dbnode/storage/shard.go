@@ -2546,6 +2546,7 @@ func (s *dbShard) AggregateTiles(
 	sourceNsID ident.ID,
 	sourceShard databaseShard,
 	blockStart time.Time,
+	step time.Duration,
 	resources coldFlushReuseableResources,
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,

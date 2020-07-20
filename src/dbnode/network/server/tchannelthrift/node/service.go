@@ -567,14 +567,15 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 func (s *service) aggregateTiles(ctx context.Context, db storage.Database, req *rpc.AggregateTilesRequest) error {
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
-	if rangeStartErr != nil || rangeEndErr != nil {
-		return tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+	step, stepErr := time.ParseDuration(req.Step)
+	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil {
+		return tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr, stepErr))
 	}
 
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
 	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
 
-	err := db.AggregateTiles(ctx, sourceNsID, targetNsID, start, end)
+	err := db.AggregateTiles(ctx, sourceNsID, targetNsID, start, end, step)
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
