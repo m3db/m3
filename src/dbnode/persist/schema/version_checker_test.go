@@ -15,6 +15,9 @@ func TestIndexEntryValidationEnabled(t *testing.T) {
 
 	checker = NewVersionChecker(2, 1)
 	require.True(t, checker.IndexEntryValidationEnabled())
+
+	checker = NewVersionChecker(2, 0)
+	require.True(t, checker.IndexEntryValidationEnabled())
 }
 
 func TestIndexEntryValidationDisabled(t *testing.T) {

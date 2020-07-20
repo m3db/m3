@@ -18,5 +18,5 @@ func NewVersionChecker(majorVersion int, minorVersion int) *VersionChecker {
 // fileset files of the specified version allow for doing checksum validation
 // on individual index entries
 func (v *VersionChecker) IndexEntryValidationEnabled() bool {
-	return v.majorVersion >= 1 && v.minorVersion >= 1
+	return v.majorVersion >= 2 || v.majorVersion == 1 && v.minorVersion >= 1
 }

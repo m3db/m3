@@ -227,16 +227,14 @@ func (s *seeker) Open(
 	s.blockSize = time.Duration(info.BlockSize)
 	s.versionChecker = schema.NewVersionChecker(int(info.MajorVersion), int(info.MinorVersion))
 
-	if !s.versionChecker.IndexEntryValidationEnabled() {
-		err = s.validateIndexFileDigest(
-			indexFdWithDigest, expectedDigests.indexDigest)
-		if err != nil {
-			s.Close()
-			return fmt.Errorf(
-				"index file digest for file: %s does not match the expected digest: %c",
-				filesetPathFromTimeLegacy(shardDir, blockStart, indexFileSuffix), err,
-			)
-		}
+	err = s.validateIndexFileDigest(
+		indexFdWithDigest, expectedDigests.indexDigest)
+	if err != nil {
+		s.Close()
+		return fmt.Errorf(
+			"index file digest for file: %s does not match the expected digest: %c",
+			filesetPathFromTimeLegacy(shardDir, blockStart, indexFileSuffix), err,
+		)
 	}
 
 	indexFdStat, err := s.indexFd.Stat()
@@ -525,6 +523,12 @@ func (s *seeker) validateIndexFileDigest(
 	indexFdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
 ) error {
+	// If piecemeal checksumming validation enabled for index entries, do not attempt to validate the
+	// checksum of the entire file
+	if s.versionChecker.IndexEntryValidationEnabled() {
+		return nil
+	}
+
 	buf := make([]byte, s.opts.dataBufferSize)
 	for {
 		n, err := indexFdWithDigest.Read(buf)

@@ -271,7 +271,7 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 
 	// Update to invalid checksum
-	enc.buf.Truncate(len(enc.Bytes()) - 5)
+	enc.buf.Truncate(len(enc.Bytes()) - 5) // 5 bytes = 1 byte for integer code + 4 bytes for checksum
 	require.NoError(t, enc.enc.EncodeInt64(1234))
 
 	// validate set to true

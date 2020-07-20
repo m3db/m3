@@ -419,6 +419,8 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool, validate bool) sc
 		return indexEntry
 	}
 
+	// NB(nate): Any new fields should be parsed here.
+
 	// Intentionally skip any extra fields here as we've stipulated that from V3 onward, IndexEntryChecksum will be the
 	// final field on index entries
 	dec.skip(numFieldsToSkip)
