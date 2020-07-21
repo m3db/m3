@@ -1267,24 +1267,24 @@
 <li><strong>Digests file:</strong> Stores the digest checksums of the info file, summaries file, index file, data file and bloom filter file in the fileset volume for integrity verification.</li>
 <li><strong>Checkpoint file:</strong> Stores a digest of the digests file and written at the succesful completion of a fileset volume being persisted, allows for quickly checking if a volume was completed.</li>
 </ul>
-<div class="highlight"><pre><span></span>                                                     ┌─────────────────────┐
-┌─────────────────────┐  ┌─────────────────────┐     │     Index File      │
-│      Info File      │  │   Summaries File    │     │   (sorted by ID)    │
-├─────────────────────┤  │   (sorted by ID)    │     ├─────────────────────┤
-│- Block Start        │  ├─────────────────────┤  ┌─&gt;│- Idx                │
-│- Block Size         │  │- Idx                │  │  │- ID                 │
-│- Entries (Num)      │  │- ID                 │  │  │- Size               │
-│- Major Version      │  │- Index Entry Offset ├──┘  │- Checksum           │
-│- Summaries (Num)    │  └─────────────────────┘     │- Data Entry Offset  ├──┐
-│- BloomFilter (K/M)  │                              │- Encoded Tags       |  |
-│- Snapshot Time      │                              └─────────────────────┘  │
-│- Type (Flush/Snap)  |                                                       |
-│- Snapshot ID        |                                                       │
-│- Volume Index       |                                                       │
-│- Minor Version      |                                                       │
-└─────────────────────┘                                                       │
-                                                                              │
-                         ┌─────────────────────┐  ┌───────────────────────────┘
+<div class="highlight"><pre><span></span>                                                     ┌───────────────────────┐
+┌─────────────────────┐  ┌─────────────────────┐     │     Index File        │
+│      Info File      │  │   Summaries File    │     │   (sorted by ID)      │
+├─────────────────────┤  │   (sorted by ID)    │     ├───────────────────────┤
+│- Block Start        │  ├─────────────────────┤  ┌─&gt;│- Idx                  │
+│- Block Size         │  │- Idx                │  │  │- ID                   │
+│- Entries (Num)      │  │- ID                 │  │  │- Size                 │
+│- Major Version      │  │- Index Entry Offset ├──┘  │- Checksum             │
+│- Summaries (Num)    │  └─────────────────────┘     │- Data Entry Offset    ├──┐
+│- BloomFilter (K/M)  │                              │- Encoded Tags         │  │
+│- Snapshot Time      │                              │- Index Entry Checksum │  │
+│- Type (Flush/Snap)  │                              └───────────────────────┘  │
+│- Snapshot ID        │                                                         │
+│- Volume Index       │                                                         │
+│- Minor Version      │                                                         │
+└─────────────────────┘                                                         │
+                                                                                │
+                         ┌─────────────────────┐  ┌─────────────────────────────┘
 ┌─────────────────────┐  │  Bloom Filter File  │  │
 │    Digests File     │  ├─────────────────────┤  │  ┌─────────────────────┐
 ├─────────────────────┤  │- Bitset             │  │  │      Data File      │
