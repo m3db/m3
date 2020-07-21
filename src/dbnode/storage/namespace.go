@@ -1655,6 +1655,7 @@ func (n *dbNamespace) AggregateTiles(
 			sourceNs.ID(),
 			sourceShard,
 			start,
+			step,
 			wOpts,
 		)
 		if err != nil {

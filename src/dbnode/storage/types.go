@@ -603,6 +603,7 @@ type databaseShard interface {
 		sourceNsID ident.ID,
 		sourceShard databaseShard,
 		blockStart time.Time,
+		step time.Duration,
 		wOpts series.WriteOptions,
 	) error
 

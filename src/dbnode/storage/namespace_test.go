@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -1281,6 +1282,8 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm, _      = fs.NewPersistManager(fs.NewOptions())
 		end        = time.Now().Truncate(time.Hour)
 		start      = end.Add(-time.Hour)
 		step       = time.Minute
@@ -1293,7 +1296,7 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapping
 
-	require.Equal(t, errNamespaceNotBootstrapped, targetNs.AggregateTiles(sourceNs, start, end, step))
+	require.Equal(t, errNamespaceNotBootstrapped, targetNs.AggregateTiles(ctx, sourceNs, start, end, step, pm))
 }
 
 func TestNamespaceAggregateTiles(t *testing.T) {
@@ -1303,6 +1306,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm, _      = fs.NewPersistManager(fs.NewOptions())
 		end        = time.Now().Truncate(time.Hour)
 		start      = end.Add(-time.Hour)
 		step       = time.Minute
@@ -1314,11 +1319,12 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapped
+	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true)
 
-	nsCtx := targetNs.nsContextWithRLock()
-
-	onColdFlushNs, err := targetNs.opts.OnColdFlush().ColdFlushNamespace(targetNs)
-	require.NoError(t, err)
+	wOpts := series.WriteOptions{
+		TruncateType: targetNs.opts.TruncateType(),
+		SchemaDesc:   targetNs.Schema(),
+	}
 
 	sourceShard0 := NewMockdatabaseShard(ctrl)
 	sourceShard1 := NewMockdatabaseShard(ctrl)
@@ -1336,20 +1342,22 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard0.EXPECT().ID().Return(uint32(0))
 	targetShard1.EXPECT().ID().Return(uint32(1))
 
+	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
+	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard0, start, step, wOpts).Return(nil)
+	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard1, start, step, wOpts).Return(nil)
+
+	shardColdFlush0 := NewMockShardColdFlush(ctrl)
+	shardColdFlush0.EXPECT().Done().Return(nil)
 	shardColdFlush1 := NewMockShardColdFlush(ctrl)
 	shardColdFlush1.EXPECT().Done().Return(nil)
-	shardColdFlush2 := NewMockShardColdFlush(ctrl)
-	shardColdFlush2.EXPECT().Done().Return(nil)
 
-	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(
-		gomock.Any(), sourceNsIDMatcher, sourceShard0, start, step, gomock.Any(), nsCtx, onColdFlushNs).
-		Return(shardColdFlush1, nil)
-	targetShard1.EXPECT().AggregateTiles(
-		gomock.Any(), sourceNsIDMatcher, sourceShard1, start, step, gomock.Any(), nsCtx, onColdFlushNs).
-		Return(shardColdFlush2, nil)
+	nsCtx := targetNs.nsContextWithRLock()
+	onColdFlushNs, err := targetNs.opts.OnColdFlush().ColdFlushNamespace(targetNs)
+	require.NoError(t, err)
+	targetShard0.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush0, nil)
+	targetShard1.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush1, nil)
 
-	require.NoError(t, targetNs.AggregateTiles(sourceNs, start, end, step))
+	require.NoError(t, targetNs.AggregateTiles(ctx, sourceNs, start, end, step, pm))
 }
 
 func waitForStats(

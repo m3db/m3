@@ -2552,6 +2552,7 @@ func (s *dbShard) AggregateTiles(
 	sourceNsID ident.ID,
 	sourceShard databaseShard,
 	blockStart time.Time,
+	step time.Duration,
 	wOpts series.WriteOptions,
 ) error {
 	latestSourceVolume, err := sourceShard.latestVolume(blockStart)
