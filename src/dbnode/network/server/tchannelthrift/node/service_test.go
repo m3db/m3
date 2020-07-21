@@ -3032,12 +3032,12 @@ func TestServiceAggregateTiles(t *testing.T) {
 	ctx := tchannelthrift.Context(tctx)
 	defer ctx.Close()
 
-	start := time.Now().Add(-2 * time.Hour)
-	end := start.Add(2 * time.Hour)
+	start := time.Now().Truncate(time.Hour).Add(-1 * time.Hour)
+	end := start.Add(time.Hour)
 
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 
-	step := "2h"
+	step := "10m"
 	stepDuration, _ := time.ParseDuration(step)
 
 	sourceNsID := "source"
