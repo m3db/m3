@@ -410,7 +410,13 @@ type databaseNamespace interface {
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
 
 	// AggregateTiles does large tile aggregation from source namespace into this namespace.
-	AggregateTiles(sourceNs databaseNamespace, start, end time.Time, step time.Duration) error
+	AggregateTiles(
+		ctx context.Context,
+		sourceNs databaseNamespace,
+		start, end time.Time,
+		step time.Duration,
+		pm persist.Manager,
+	) error
 
 	readableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
@@ -592,15 +598,13 @@ type databaseShard interface {
 
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
+		ctx context.Context,
 		reader fs.DataFileSetReader,
 		sourceNsID ident.ID,
 		sourceShard databaseShard,
 		blockStart time.Time,
-		step time.Duration,
-		resources coldFlushReuseableResources,
-		nsCtx namespace.Context,
-		onFlush persist.OnFlushSeries,
-	) (ShardColdFlush, error)
+		wOpts series.WriteOptions,
+	) error
 
 	latestVolume(blockStart time.Time) (int, error)
 }
