@@ -40,19 +40,33 @@ func testCapturingEncoder(t *testing.T) (*Encoder, *[]interface{}) {
 	encoder := NewEncoder()
 
 	var result []interface{}
+	actualEncodeVarintFn := encoder.encodeVarintFn
 	encoder.encodeVarintFn = func(value int64) {
+		actualEncodeVarintFn(value)
 		result = append(result, value)
 	}
+
+	actualEncodeVarUintFn := encoder.encodeVarUintFn
 	encoder.encodeVarUintFn = func(value uint64) {
+		actualEncodeVarUintFn(value)
 		result = append(result, value)
 	}
+
+	actualEncodeFloat64Fn := encoder.encodeFloat64Fn
 	encoder.encodeFloat64Fn = func(value float64) {
+		actualEncodeFloat64Fn(value)
 		result = append(result, value)
 	}
+
+	actualEncodeBytesFn := encoder.encodeBytesFn
 	encoder.encodeBytesFn = func(value []byte) {
+		actualEncodeBytesFn(value)
 		result = append(result, value)
 	}
+
+	actualEncodeArrayLenFn := encoder.encodeArrayLenFn
 	encoder.encodeArrayLenFn = func(value int) {
+		actualEncodeArrayLenFn(value)
 		result = append(result, value)
 	}
 
@@ -98,8 +112,9 @@ func testExpectedResultForIndexEntry(t *testing.T, indexEntry schema.IndexEntry)
 		indexEntry.ID,
 		indexEntry.Size,
 		indexEntry.Offset,
-		indexEntry.Checksum,
+		indexEntry.DataChecksum,
 		indexEntry.EncodedTags,
+		testIndexEntryChecksum, // Checksum auto-added to the end of the index entry
 	}
 }
 
