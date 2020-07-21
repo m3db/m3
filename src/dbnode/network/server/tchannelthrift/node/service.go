@@ -575,7 +575,9 @@ func (s *service) aggregateTiles(ctx context.Context, db storage.Database, req *
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
 	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
 
-	err := db.AggregateTiles(ctx, sourceNsID, targetNsID, start, end, step)
+	opts := storage.AggregateTilesOptions{Start: start, End: end, Step: step}
+
+	err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {
 		return convert.ToRPCError(err)
 	}

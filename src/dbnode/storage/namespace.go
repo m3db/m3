@@ -1595,8 +1595,7 @@ func (n *dbNamespace) nsContextWithRLock() namespace.Context {
 func (n *dbNamespace) AggregateTiles(
 	ctx context.Context,
 	sourceNs databaseNamespace,
-	start, end time.Time,
-	step time.Duration,
+	opts AggregateTilesOptions,
 	pm persist.Manager,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -1649,15 +1648,7 @@ func (n *dbNamespace) AggregateTiles(
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		err = targetShard.AggregateTiles(
-			ctx,
-			reader,
-			sourceNs.ID(),
-			sourceShard,
-			start,
-			step,
-			wOpts,
-		)
+		err = targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceShard, opts, wOpts)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)

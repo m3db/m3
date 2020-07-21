@@ -489,17 +489,17 @@ func (mr *MockDatabaseMockRecorder) FlushState(namespace, shardID, blockStart in
 }
 
 // AggregateTiles mocks base method
-func (m *MockDatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, start, end time.Time, step time.Duration) error {
+func (m *MockDatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, start, end, step)
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockDatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, start, end, step interface{}) *gomock.Call {
+func (mr *MockDatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockDatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, start, end, step)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockDatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
 }
 
 // Mockdatabase is a mock of database interface
@@ -898,17 +898,17 @@ func (mr *MockdatabaseMockRecorder) FlushState(namespace, shardID, blockStart in
 }
 
 // AggregateTiles mocks base method
-func (m *Mockdatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, start, end time.Time, step time.Duration) error {
+func (m *Mockdatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, start, end, step)
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockdatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, start, end, step interface{}) *gomock.Call {
+func (mr *MockdatabaseMockRecorder) AggregateTiles(ctx, sourceNsID, targetNsID, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*Mockdatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, start, end, step)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*Mockdatabase)(nil).AggregateTiles), ctx, sourceNsID, targetNsID, opts)
 }
 
 // OwnedNamespaces mocks base method
@@ -1561,17 +1561,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) WritePendingIndexInserts(pending in
 }
 
 // AggregateTiles mocks base method
-func (m *MockdatabaseNamespace) AggregateTiles(ctx context.Context, sourceNs databaseNamespace, start, end time.Time, step time.Duration, pm persist.Manager) error {
+func (m *MockdatabaseNamespace) AggregateTiles(ctx context.Context, sourceNs databaseNamespace, opts AggregateTilesOptions, pm persist.Manager) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, start, end, step, pm)
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, opts, pm)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockdatabaseNamespaceMockRecorder) AggregateTiles(ctx, sourceNs, start, end, step, pm interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) AggregateTiles(ctx, sourceNs, opts, pm interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateTiles), ctx, sourceNs, start, end, step, pm)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseNamespace)(nil).AggregateTiles), ctx, sourceNs, opts, pm)
 }
 
 // readableShardAt mocks base method
@@ -2067,17 +2067,17 @@ func (mr *MockdatabaseShardMockRecorder) DocRef(id interface{}) *gomock.Call {
 }
 
 // AggregateTiles mocks base method
-func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, reader fs.DataFileSetReader, sourceNsID ident.ID, sourceShard databaseShard, blockStart time.Time, step time.Duration, wOpts series.WriteOptions) error {
+func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, reader fs.DataFileSetReader, sourceNsID ident.ID, sourceShard databaseShard, opts AggregateTilesOptions, wOpts series.WriteOptions) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", ctx, reader, sourceNsID, sourceShard, blockStart, step, wOpts)
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, reader, sourceNsID, sourceShard, opts, wOpts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockdatabaseShardMockRecorder) AggregateTiles(ctx, reader, sourceNsID, sourceShard, blockStart, step, wOpts interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) AggregateTiles(ctx, reader, sourceNsID, sourceShard, opts, wOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), ctx, reader, sourceNsID, sourceShard, blockStart, step, wOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), ctx, reader, sourceNsID, sourceShard, opts, wOpts)
 }
 
 // latestVolume mocks base method
