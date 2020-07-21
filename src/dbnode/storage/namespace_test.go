@@ -1297,6 +1297,25 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 	require.Equal(t, errNamespaceNotBootstrapped, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
 }
 
+func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm, _      = fs.NewPersistManager(fs.NewOptions())
+		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+	)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapped
+
+	require.Equal(t, errColdWritesDisabled, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
+}
+
 func TestNamespaceAggregateTiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

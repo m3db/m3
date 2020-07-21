@@ -1612,12 +1612,10 @@ func (n *dbNamespace) AggregateTiles(
 	targetShards := n.OwnedShards()
 	n.RUnlock()
 
-	// If repair is enabled we still need cold flush regardless of whether cold writes is
-	// enabled since repairs are dependent on the cold flushing logic.
 	// Note: Cold writes must be enabled for Large Tiles to work.
-	if !n.nopts.ColdWritesEnabled() && !n.nopts.RepairEnabled() {
-		n.metrics.writeAggData.ReportSuccess(n.nowFn().Sub(callStart))
-		return nil
+	if !n.nopts.ColdWritesEnabled() {
+		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
+		return errColdWritesDisabled
 	}
 
 	sourceNsOpts := sourceNs.StorageOptions()

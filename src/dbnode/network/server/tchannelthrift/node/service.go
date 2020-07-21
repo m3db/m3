@@ -552,6 +552,7 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 			opentracinglog.String("targetNameSpace", req.TargetNameSpace),
 			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
 			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+			opentracinglog.String("step", req.Step),
 		)
 	}
 

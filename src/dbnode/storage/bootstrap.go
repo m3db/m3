@@ -61,6 +61,9 @@ var (
 
 	// errBootstrapEnqueued raised when trying to bootstrap and bootstrap becomes enqueued.
 	errBootstrapEnqueued = errors.New("database bootstrapping enqueued bootstrap")
+
+	// errColdWritesDisabled raised when trying to do large tiles aggregation with cold writes disabled.
+	errColdWritesDisabled = errors.New("cold writes are disabled")
 )
 
 const (
