@@ -1745,6 +1745,7 @@ func TestAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
+		ctx        = context.NewContext()
 		blockStart = time.Now().Truncate(time.Hour)
 		step = time.Minute
 	)
@@ -1778,11 +1779,6 @@ func TestAggregateTiles(t *testing.T) {
 		Return(nil, nil, nil, uint32(0), io.EOF)
 	reader.EXPECT().Close()
 
-	//FIXME - this should most likely be removed once the actual writes are integrated:
-	targetShard.flushState.initialized = true
-	cfReusableResources := coldFlushReuseableResources{dirtySeries: &dirtySeriesMap{}}
-
-	_, err = targetShard.AggregateTiles(
-		reader, sourceNsID, sourceShard, blockStart, step, cfReusableResources, namespace.Context{}, &persist.NoOpColdFlushNamespace{})
+	err = targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, blockStart, step, series.WriteOptions{})
 	require.NoError(t, err)
 }

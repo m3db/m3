@@ -3038,6 +3038,7 @@ func TestServiceAggregateTiles(t *testing.T) {
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 
 	step := "2h"
+	stepDuration, _ := time.ParseDuration(step)
 
 	sourceNsID := "source"
 	targetNsID := "target"
@@ -3048,6 +3049,7 @@ func TestServiceAggregateTiles(t *testing.T) {
 		ident.NewIDMatcher(targetNsID),
 		start,
 		end,
+		stepDuration,
 	).Return(nil)
 
 	_, err := service.AggregateTiles(tctx, &rpc.AggregateTilesRequest{
