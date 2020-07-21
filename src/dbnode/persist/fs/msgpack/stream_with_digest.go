@@ -31,50 +31,40 @@ var (
 	errChecksumMismatch = errors.New("calculated checksum doesn't match stored checksum")
 )
 
-// DecoderStreamWithDigest calculates the digest as it processes a decoder stream.
-type DecoderStreamWithDigest interface {
-	DecoderStream
+var _ DecoderStream = &decoderStreamWithDigest{}
 
-	// Reset resets the reader for use with a new reader.
-	Reset(stream DecoderStream)
-
-	// Digest returns the digest
-	Digest() hash.Hash32
-
-	// Validate compares the current digest against the expected digest and returns
-	// an error if they don't match.
-	Validate(expectedDigest uint32) error
-
-	// Capture provides a mechanism for manually capturing bytes to add to digest when reader is manipulated
-	// through atypical means (e.g. reading directly from the backing byte slice of a ByteReader)
-	Capture(bytes []byte) error
-
-	// Returns the decoder stream wrapped by this object
-	wrappedStream() DecoderStream
-}
-
+// decoderStreamWithDigest calculates the digest as it processes a decoder stream.
 type decoderStreamWithDigest struct {
-	reader     DecoderStream
-	digest     hash.Hash32
-	unreadByte bool
+	reader       DecoderStream
+	readerDigest hash.Hash32
+	unreadByte   bool
+	enabled      bool
 }
 
-func newDecoderStreamWithDigest(reader DecoderStream) DecoderStreamWithDigest {
+// newDecoderStreamWithDigest returns a new decoderStreamWithDigest
+func newDecoderStreamWithDigest(reader DecoderStream) *decoderStreamWithDigest {
 	return &decoderStreamWithDigest{
-		reader: reader,
-		digest: adler32.New(),
+		reader:       reader,
+		readerDigest: adler32.New(),
 	}
 }
 
 func (d *decoderStreamWithDigest) Read(p []byte) (n int, err error) {
 	n, err = d.reader.Read(p)
-	if n > 0 {
-		start := 0
-		if d.unreadByte {
-			d.unreadByte = false
-			start++
-		}
-		if _, err := d.digest.Write(p[start:n]); err != nil {
+	if err != nil {
+		return n, err
+	}
+	if n <= 0 {
+		return n, nil
+	}
+
+	start := 0
+	if d.unreadByte {
+		d.unreadByte = false
+		start++
+	}
+	if d.enabled {
+		if _, err := d.readerDigest.Write(p[start:n]); err != nil {
 			return 0, err
 		}
 	}
@@ -83,13 +73,15 @@ func (d *decoderStreamWithDigest) Read(p []byte) (n int, err error) {
 
 func (d *decoderStreamWithDigest) ReadByte() (byte, error) {
 	b, err := d.reader.ReadByte()
-	if err == nil {
-		if d.unreadByte {
-			d.unreadByte = false
-		} else {
-			if _, err := d.digest.Write([]byte{b}); err != nil {
-				return b, err
-			}
+	if err != nil {
+		return 0, err
+	}
+
+	if d.unreadByte {
+		d.unreadByte = false
+	} else if d.enabled {
+		if _, err := d.readerDigest.Write([]byte{b}); err != nil {
+			return b, err
 		}
 	}
 	return b, err
@@ -103,32 +95,49 @@ func (d *decoderStreamWithDigest) UnreadByte() error {
 	return err
 }
 
-func (d *decoderStreamWithDigest) Reset(stream DecoderStream) {
+// reset resets the reader for use with a new reader.
+func (d *decoderStreamWithDigest) reset(stream DecoderStream) {
 	d.reader = stream
-	d.digest.Reset()
+	d.readerDigest.Reset()
 }
 
-func (d *decoderStreamWithDigest) Digest() hash.Hash32 {
-	return d.digest
+// digest returns the digest
+func (d *decoderStreamWithDigest) digest() hash.Hash32 {
+	return d.readerDigest
 }
 
-func (d *decoderStreamWithDigest) Validate(expectedDigest uint32) error {
-	if d.digest.Sum32() != expectedDigest {
+// validate compares the current digest against the expected digest and returns
+// an error if they don't match.
+func (d *decoderStreamWithDigest) validate(expectedDigest uint32) error {
+	if d.readerDigest.Sum32() != expectedDigest {
 		return errChecksumMismatch
 	}
 	return nil
 }
 
-func (d *decoderStreamWithDigest) Capture(bytes []byte) error {
+// capture provides a mechanism for manually capturing bytes to add to digest when reader is manipulated
+// through atypical means (e.g. reading directly from the backing byte slice of a ByteReader)
+func (d *decoderStreamWithDigest) capture(bytes []byte) error {
 	// No-op if not actually capturing at the moment
-	if d.reader != nil {
-		if _, err := d.digest.Write(bytes); err != nil {
+	if d.enabled {
+		if _, err := d.readerDigest.Write(bytes); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// setDigestReaderEnabled enables calculating of digest for bytes read. If this is false, behaves like a regular reader.
+func (d *decoderStreamWithDigest) setDigestReaderEnabled(enabled bool) {
+	if !d.enabled && enabled {
+		d.enabled = true
+		d.readerDigest.Reset()
+	} else if d.enabled && !enabled {
+		d.enabled = false
+	}
+}
+
+// Returns the decoder stream wrapped by this object
 func (d *decoderStreamWithDigest) wrappedStream() DecoderStream {
 	return d.reader
 }

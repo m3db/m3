@@ -46,7 +46,7 @@ func TestDecoderStreamWithDigestRead(t *testing.T) {
 		n, err := stream.Read(buf[start:end])
 		require.NoError(t, err)
 		require.Equal(t, chunkLen, n)
-		require.Equal(t, adler32.Checksum(buf[:end]), stream.Digest().Sum32())
+		require.Equal(t, adler32.Checksum(buf[:end]), stream.digest().Sum32())
 	}
 }
 
@@ -58,14 +58,14 @@ func TestDecoderStreamWithDigestReadByte(t *testing.T) {
 		n, err := stream.Read(buf[i-1 : i])
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
-		require.Equal(t, adler32.Checksum(buf[:i]), stream.Digest().Sum32())
+		require.Equal(t, adler32.Checksum(buf[:i]), stream.digest().Sum32())
 	}
 }
 
 func TestDecoderStreamWithDigestUnreadByte(t *testing.T) {
 	stream := decoderStreamWithDigest{
-		reader: bufio.NewReader(bytes.NewReader([]byte(srcString))),
-		digest: adler32.New(),
+		reader:       bufio.NewReader(bytes.NewReader([]byte(srcString))),
+		readerDigest: adler32.New(),
 	}
 
 	b, err := stream.ReadByte()
@@ -89,7 +89,7 @@ func TestDecoderStreamWithDigestReset(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, srcString[1], b)
 
-	stream.Reset(bufio.NewReader(bytes.NewReader([]byte(srcString))))
+	stream.reset(bufio.NewReader(bytes.NewReader([]byte(srcString))))
 
 	b, err = stream.ReadByte()
 	require.NoError(t, err)
@@ -104,19 +104,19 @@ func TestDecoderStreamWithDigestValidate(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 5, n)
 
-	require.NoError(t, stream.Validate(adler32.Checksum(buf)))
-	require.Error(t, stream.Validate(adler32.Checksum([]byte("asdf"))))
+	require.NoError(t, stream.validate(adler32.Checksum(buf)))
+	require.Error(t, stream.validate(adler32.Checksum([]byte("asdf"))))
 }
 
 func TestDecoderStreamWithDigestCapture(t *testing.T) {
 	stream := newTestDecoderStream()
 
-	require.NoError(t, stream.Validate(1))
+	require.NoError(t, stream.validate(1))
 
 	bytes := []byte("manual capture")
-	require.NoError(t, stream.Capture(bytes))
+	require.NoError(t, stream.capture(bytes))
 
-	require.Equal(t, adler32.Checksum(bytes), stream.Digest().Sum32())
+	require.Equal(t, adler32.Checksum(bytes), stream.digest().Sum32())
 }
 
 func TestDecoderStreamWithDigestReadUnreadRead(t *testing.T) {
@@ -129,7 +129,7 @@ func TestDecoderStreamWithDigestReadUnreadRead(t *testing.T) {
 	require.NoError(t, err)
 	buf[0] = b1
 	end++
-	require.Equal(t, adler32.Checksum(buf[:end]), stream.Digest().Sum32())
+	require.Equal(t, adler32.Checksum(buf[:end]), stream.digest().Sum32())
 
 	err = stream.UnreadByte()
 	end--
@@ -139,13 +139,13 @@ func TestDecoderStreamWithDigestReadUnreadRead(t *testing.T) {
 	require.NoError(t, err)
 	end++
 	require.Equal(t, b1, b2)
-	require.Equal(t, adler32.Checksum(buf[:end]), stream.Digest().Sum32())
+	require.Equal(t, adler32.Checksum(buf[:end]), stream.digest().Sum32())
 
 	n, err := stream.Read(buf[end : end+4])
 	require.NoError(t, err)
 	require.Equal(t, 4, n)
 	end += n
-	require.Equal(t, adler32.Checksum(buf[:end]), stream.Digest().Sum32())
+	require.Equal(t, adler32.Checksum(buf[:end]), stream.digest().Sum32())
 
 	err = stream.UnreadByte()
 	end--
@@ -155,9 +155,38 @@ func TestDecoderStreamWithDigestReadUnreadRead(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 4, n)
 	end += n
-	require.Equal(t, adler32.Checksum(buf[:end]), stream.Digest().Sum32())
+	require.Equal(t, adler32.Checksum(buf[:end]), stream.digest().Sum32())
 }
 
-func newTestDecoderStream() DecoderStreamWithDigest {
-	return newDecoderStreamWithDigest(bufio.NewReader(bytes.NewReader([]byte(srcString))))
+func TestDecoderStreamWithDigestSetEnabled(t *testing.T) {
+	stream := newTestDecoderStream()
+
+	// Disable digest calculation
+	stream.setDigestReaderEnabled(false)
+
+	buf := make([]byte, 5)
+	_, err := stream.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, stream.digest().Sum32(), uint32(1))
+
+	_, err = stream.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, stream.digest().Sum32(), uint32(1))
+
+	// Enable digest calculation
+	stream.setDigestReaderEnabled(true)
+
+	_, err = stream.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, stream.digest().Sum32(), adler32.Checksum([]byte(srcString[6:11])))
+
+	_, err = stream.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, stream.digest().Sum32(), adler32.Checksum([]byte(srcString[6:12])))
+}
+
+func newTestDecoderStream() *decoderStreamWithDigest {
+	d := newDecoderStreamWithDigest(bufio.NewReader(bytes.NewReader([]byte(srcString))))
+	d.setDigestReaderEnabled(true)
+	return d
 }
