@@ -1767,8 +1767,6 @@ func TestAggregateTiles(t *testing.T) {
 	targetShard := testDatabaseShard(t, DefaultTestOptions())
 	defer targetShard.Close()
 
-	targetShard.bootstrapState = Bootstrapped
-
 	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
 	require.NoError(t, err)
 
