@@ -1063,19 +1063,15 @@ func (d *db) OwnedNamespaces() ([]databaseNamespace, error) {
 	return d.ownedNamespacesWithLock(), nil
 }
 
-func (d *db) AggregateTiles(
-	ctx context.Context,
-	sourceNsID, targetNsID ident.ID,
-	start, end time.Time,
-	step time.Duration,
-) error {
+func (d *db) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("sourceNameSpace", sourceNsID.String()),
 			opentracinglog.String("targetNameSpace", targetNsID.String()),
-			xopentracing.Time("start", start),
-			xopentracing.Time("end", end),
+			xopentracing.Time("start", opts.Start),
+			xopentracing.Time("end", opts.End),
+			xopentracing.Duration("step", opts.Step),
 		)
 	}
 	defer sp.Finish()
@@ -1094,7 +1090,7 @@ func (d *db) AggregateTiles(
 
 	// TODO: Create and use a dedicated persist manager
 	pm := d.opts.PersistManager()
-	return targetNs.AggregateTiles(ctx, sourceNs, start, end, step, pm)
+	return targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
 }
 
 func (d *db) nextIndex() uint64 {

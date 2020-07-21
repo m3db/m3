@@ -1302,14 +1302,12 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
 		pm         = d.opts.PersistManager()
-		end        = time.Now().Truncate(time.Hour)
-		start      = end.Add(-time.Hour)
-		step       = time.Minute
+		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
 	)
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, start, end, step, pm).Return(nil)
+	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts, pm).Return(nil)
 
-	require.NoError(t, d.AggregateTiles(ctx, sourceNsID, targetNsID, start, end, step))
+	require.NoError(t, d.AggregateTiles(ctx, sourceNsID, targetNsID, opts))
 }

@@ -221,7 +221,7 @@ type Database interface {
 	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
 
 	// AggregateTiles does large tile aggregation from source namespace to target namespace.
-	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, start, end time.Time, step time.Duration) error
+	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error
 }
 
 // database is the internal database interface.
@@ -413,8 +413,7 @@ type databaseNamespace interface {
 	AggregateTiles(
 		ctx context.Context,
 		sourceNs databaseNamespace,
-		start, end time.Time,
-		step time.Duration,
+		opts AggregateTilesOptions,
 		pm persist.Manager,
 	) error
 
@@ -602,8 +601,7 @@ type databaseShard interface {
 		reader fs.DataFileSetReader,
 		sourceNsID ident.ID,
 		sourceShard databaseShard,
-		blockStart time.Time,
-		step time.Duration,
+		opts AggregateTilesOptions,
 		wOpts series.WriteOptions,
 	) error
 
@@ -1232,3 +1230,8 @@ type newFSMergeWithMemFn func(
 	dirtySeries *dirtySeriesMap,
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith
+
+type AggregateTilesOptions struct {
+	Start, End time.Time
+	Step time.Duration
+}

@@ -1746,8 +1746,7 @@ func TestAggregateTiles(t *testing.T) {
 
 	var (
 		ctx        = context.NewContext()
-		blockStart = time.Now().Truncate(time.Hour)
-		step = time.Minute
+		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
 	)
 
 	sourceShard := testDatabaseShard(t, DefaultTestOptions())
@@ -1758,7 +1757,7 @@ func TestAggregateTiles(t *testing.T) {
 
 	targetShard.bootstrapState = Bootstrapped
 
-	latestSourceVolume, err := sourceShard.latestVolume(blockStart)
+	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
 	require.NoError(t, err)
 
 	sourceNsID := sourceShard.namespace.ID()
@@ -1766,7 +1765,7 @@ func TestAggregateTiles(t *testing.T) {
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   sourceNsID,
 			Shard:       sourceShard.ID(),
-			BlockStart:  blockStart,
+			BlockStart:  opts.Start,
 			VolumeIndex: latestSourceVolume,
 		},
 		FileSetType: persist.FileSetFlushType,
@@ -1779,6 +1778,6 @@ func TestAggregateTiles(t *testing.T) {
 		Return(nil, nil, nil, uint32(0), io.EOF)
 	reader.EXPECT().Close()
 
-	err = targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, blockStart, step, series.WriteOptions{})
+	err = targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, opts, series.WriteOptions{})
 	require.NoError(t, err)
 }
