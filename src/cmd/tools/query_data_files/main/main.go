@@ -132,6 +132,12 @@ func main() {
 		return
 	}
 
+	defer func() {
+		if err := it.Close(); err != nil {
+			fmt.Println("iterator close error:", err)
+		}
+	}()
+
 	i := 0
 	printNonZero := func() {
 		for j := range prints {
