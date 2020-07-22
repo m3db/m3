@@ -187,7 +187,7 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
 	GOBIN=$(tools_bin_path) go install github.com/mjibson/esc
 	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
-	GOBIN=$(tools_bin_path) go install github.com/prateek/gorename
+	GOBIN=$(tools_bin_path) go install github.com/robskillington/gorename
 	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
 	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
 

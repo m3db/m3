@@ -991,7 +991,8 @@ func testDownsamplerAggregationIngest(
 		opts = *testOpts.sampleAppenderOpts
 	}
 	for _, metric := range testCounterMetrics {
-		appender.Reset()
+		appender.NextMetric()
+
 		for name, value := range metric.tags {
 			appender.AddTag([]byte(name), []byte(value))
 		}
@@ -1018,7 +1019,8 @@ func testDownsamplerAggregationIngest(
 		}
 	}
 	for _, metric := range testGaugeMetrics {
-		appender.Reset()
+		appender.NextMetric()
+
 		for name, value := range metric.tags {
 			appender.AddTag([]byte(name), []byte(value))
 		}
@@ -1118,13 +1120,20 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
 	tagDecoderOptions := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{})
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
+		SetSize(2).
 		SetInstrumentOptions(instrumentOpts.
 			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("tag-encoder-pool")))
 	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
+		SetSize(2).
 		SetInstrumentOptions(instrumentOpts.
 			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("tag-decoder-pool")))
+	metricsAppenderPoolOptions := pool.NewObjectPoolOptions().
+		SetSize(2).
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().
+				SubScope("metrics-appender-pool")))
 
 	var cfg Configuration
 	if opts.remoteClientMock != nil {
@@ -1139,17 +1148,18 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	}
 
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
-		Storage:               storage,
-		ClusterClient:         clusterclient.NewMockClient(xtest.NewController(t)),
-		RulesKVStore:          rulesKVStore,
-		AutoMappingRules:      opts.autoMappingRules,
-		ClockOptions:          clockOpts,
-		InstrumentOptions:     instrumentOpts,
-		TagEncoderOptions:     tagEncoderOptions,
-		TagDecoderOptions:     tagDecoderOptions,
-		TagEncoderPoolOptions: tagEncoderPoolOptions,
-		TagDecoderPoolOptions: tagDecoderPoolOptions,
-		RWOptions:             xio.NewOptions(),
+		Storage:                    storage,
+		ClusterClient:              clusterclient.NewMockClient(gomock.NewController(t)),
+		RulesKVStore:               rulesKVStore,
+		AutoMappingRules:           opts.autoMappingRules,
+		ClockOptions:               clockOpts,
+		InstrumentOptions:          instrumentOpts,
+		TagEncoderOptions:          tagEncoderOptions,
+		TagDecoderOptions:          tagDecoderOptions,
+		TagEncoderPoolOptions:      tagEncoderPoolOptions,
+		TagDecoderPoolOptions:      tagDecoderPoolOptions,
+		MetricsAppenderPoolOptions: metricsAppenderPoolOptions,
+		RWOptions:                  xio.NewOptions(),
 	})
 	require.NoError(t, err)
 

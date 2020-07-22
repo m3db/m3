@@ -229,8 +229,6 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 	unit xtime.Unit,
 	overrides WriteOptions,
 ) (bool, error) {
-	// TODO(rartoul): MetricsAppender has a Finalize() method, but it does not actually reuse many
-	// resources. If we can pool this properly we can get a nice speedup.
 	appender, err := d.downsampler.NewMetricsAppender()
 	if err != nil {
 		return false, err
@@ -432,7 +430,8 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 	defer appender.Finalize()
 
 	for iter.Next() {
-		appender.Reset()
+		appender.NextMetric()
+
 		value := iter.Current()
 		for _, tag := range value.Tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)

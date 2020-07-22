@@ -33,11 +33,13 @@ const (
 )
 
 type tags struct {
-	names    [][]byte
-	values   [][]byte
-	idx      int
-	nameBuf  []byte
-	valueBuf []byte
+	names             [][]byte
+	values            [][]byte
+	idx               int
+	nameBuf           []byte
+	valueBuf          []byte
+	reuseableTagName  *ident.ReuseableBytesID
+	reuseableTagValue *ident.ReuseableBytesID
 }
 
 // Ensure tags implements TagIterator and sort Interface
@@ -48,9 +50,11 @@ var (
 
 func newTags() *tags {
 	return &tags{
-		names:  make([][]byte, 0, initAllocTagsSliceCapacity),
-		values: make([][]byte, 0, initAllocTagsSliceCapacity),
-		idx:    -1,
+		names:             make([][]byte, 0, initAllocTagsSliceCapacity),
+		values:            make([][]byte, 0, initAllocTagsSliceCapacity),
+		idx:               -1,
+		reuseableTagName:  ident.NewReuseableBytesID(),
+		reuseableTagValue: ident.NewReuseableBytesID(),
 	}
 }
 
@@ -90,9 +94,11 @@ func (t *tags) CurrentIndex() int {
 func (t *tags) Current() ident.Tag {
 	t.nameBuf = append(t.nameBuf[:0], t.names[t.idx]...)
 	t.valueBuf = append(t.valueBuf[:0], t.values[t.idx]...)
+	t.reuseableTagName.Reset(t.nameBuf)
+	t.reuseableTagValue.Reset(t.valueBuf)
 	return ident.Tag{
-		Name:  ident.BytesID(t.nameBuf),
-		Value: ident.BytesID(t.valueBuf),
+		Name:  t.reuseableTagName,
+		Value: t.reuseableTagValue,
 	}
 }
 
