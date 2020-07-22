@@ -486,6 +486,9 @@ func (s *dbShard) OnRetrieveBlock(
 	s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
+			// NB(r): Caching blocks should not be considered for
+			// new series insert rate limit.
+			skipRateLimit:            true,
 			hasPendingRetrievedBlock: true,
 			pendingRetrievedBlock: dbShardPendingRetrievedBlock{
 				id:      copiedID,
@@ -1030,48 +1033,33 @@ func (s *dbShard) SeriesReadWriteRef(
 		}, nil
 	}
 
-	// NB(r): Insert then wait so caller has access to the series
-	// immediately, otherwise calls to LoadBlock(..) etc on the series
-	// itself may have no effect if a collision with the same series
+	// NB(r): Insert synchronously so caller has access to the series
+	// immediately, otherwise calls to LoadBlock(..) etc on the series itself
+	// may have no effect if a collision with the same series
 	// being put in the insert queue may cause a block to be loaded to a
 	// series which gets discarded.
+	// TODO(r): Probably can't insert series sync otherwise we stall a ton
+	// of writes... need a better solution for bootstrapping.
+	// This is what can cause writes to degrade during bootstrap if
+	// write lock is super contended
+	// Having said that, now that writes are kept in a separate "bootstrap"
+	// buffer in the series itself to normal writes then merged at tick
+	// it somewhat mitigates some lock contention since the shard lock
+	// is still contended but at least series writes due to commit log
+	// bootstrapping do not interrupt normal writes waiting for ability
+	// to write to an individual series.
 	at := s.nowFn()
-	result, err := s.insertSeriesAsyncBatched(id, tags,
-		dbShardInsertAsyncOptions{
-			// Make sure to skip the rate limit since this is called
-			// from the bootstrapper and does not need to be rate
-			// limited.
-			skipRateLimit:      true,
-			hasPendingIndexing: opts.ReverseIndex,
-			pendingIndex: dbShardPendingIndex{
-				timestamp:  at,
-				enqueuedAt: at,
-			},
-		})
+	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
+		insertType:      insertSyncIncReaderWriterCount,
+		hasPendingIndex: opts.ReverseIndex,
+		pendingIndex: dbShardPendingIndex{
+			timestamp:  at,
+			enqueuedAt: at,
+		},
+	})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
-
-	// Wait for the insert to be batched together and inserted.
-	result.wg.Wait()
-
-	// Guaranteed now to be available in the shard map, otherwise
-	// an invariant is not held.
-	s.RLock()
-	defer s.RUnlock()
-
-	entry, _, err = s.lookupEntryWithLock(result.copiedID)
-	if err != nil {
-		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
-			func(l *zap.Logger) {
-				l.Error("read write ref inserted series not found", zap.Error(err))
-			})
-		return SeriesReadWriteRef{}, err
-	}
-
-	// Increment before releasing lock so won't be expired until operation
-	// complete by calling ReleaseReadWriteRef.
-	entry.IncrementReaderWriterCount()
 
 	return SeriesReadWriteRef{
 		Series:              entry.Series,
@@ -1274,6 +1262,9 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 	wg, err := s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
+			// NB(r): Just indexing, should not be considered for new
+			// series insert rate limiting.
+			skipRateLimit:      true,
 			hasPendingIndexing: true,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  timestamp,
@@ -1347,10 +1338,19 @@ func (s *dbShard) insertSeriesSync(
 	tagsArgOpts tagsArgOptions,
 	opts insertSyncOptions,
 ) (*lookup.Entry, error) {
-	var (
-		entry *lookup.Entry
-		err   error
-	)
+	// NB(r): Create new shard entry outside of write lock to reduce
+	// time using write lock.
+	entry, err := s.newShardEntry(id, tagsArgOpts)
+	if err != nil {
+		// should never happen
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
+			func(logger *zap.Logger) {
+				logger.Error("insertSeriesSync error creating shard entry",
+					zap.String("id", id.String()),
+					zap.Error(err))
+			})
+		return nil, err
+	}
 
 	s.Lock()
 	unlocked := false
@@ -1370,18 +1370,6 @@ func (s *dbShard) insertSeriesSync(
 		return entry, nil
 	}
 
-	entry, err = s.newShardEntry(id, tagsArgOpts)
-	if err != nil {
-		// should never happen
-		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
-			func(logger *zap.Logger) {
-				logger.Error("insertSeriesSync error creating shard entry",
-					zap.String("id", id.String()),
-					zap.Error(err))
-			})
-		return nil, err
-	}
-
 	s.insertNewShardEntryWithLock(entry)
 
 	// Track unlocking.
@@ -1393,6 +1381,9 @@ func (s *dbShard) insertSeriesSync(
 		if _, err := s.insertQueue.Insert(dbShardInsert{
 			entry: entry,
 			opts: dbShardInsertAsyncOptions{
+				// NB(r): Just indexing, should not be considered for new
+				// series insert rate limiting.
+				skipRateLimit:      true,
 				hasPendingIndexing: opts.hasPendingIndex,
 				pendingIndex:       opts.pendingIndex,
 			},

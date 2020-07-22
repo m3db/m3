@@ -112,7 +112,7 @@ func (w *indexWorkers) registerBuilder() {
 	}
 }
 
-func (w *indexWorkers) indexWorker(indexQueue chan indexJob) {
+func (w *indexWorkers) indexWorker(indexQueue <-chan indexJob) {
 	for job := range indexQueue {
 		for i := 0; i < job.usedEntries; i++ {
 			entry := job.entries[i]
