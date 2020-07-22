@@ -220,7 +220,7 @@ func (w *forwardedWriter) Prepare() {
 
 func (w *forwardedWriter) Flush() error {
 	if err := w.client.Flush(); err != nil {
-		w.metrics.flushErrors.Inc(1)
+		w.metrics.flushErrorsClient.Inc(1)
 		return err
 	}
 	w.metrics.flushSuccess.Inc(1)
