@@ -64,6 +64,8 @@ service Node {
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 
+    AggregateTilesResult aggregateTiles(1: AggregateTilesRequest req) throws (1: Error err)
+
 	// Management endpoints
 	NodeHealthResult health() throws (1: Error err)
 	// NB: bootstrapped is for use with cluster management tools like k8s.
@@ -489,6 +491,19 @@ struct Query {
   5: optional DisjunctionQuery disjunction
   6: optional AllQuery         all
   7: optional FieldQuery       field
+}
+
+struct AggregateTilesRequest {
+	1: required string sourceNameSpace
+	2: required string targetNameSpace
+	3: required i64 rangeStart
+	4: required i64 rangeEnd
+	5: required string step
+	6: bool removeResets
+	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
+}
+
+struct AggregateTilesResult {
 }
 
 struct DebugProfileStartRequest {

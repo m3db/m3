@@ -538,6 +538,54 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	return result, nil
 }
 
+func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesRequest) (*rpc.AggregateTilesResult_, error) {
+	db, err := s.startWriteRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.writeRPCCompleted()
+
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.AggregateTiles)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("sourceNameSpace", req.SourceNameSpace),
+			opentracinglog.String("targetNameSpace", req.TargetNameSpace),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+			opentracinglog.String("step", req.Step),
+		)
+	}
+
+	err = s.aggregateTiles(ctx, db, req)
+	if sampled && err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return &rpc.AggregateTilesResult_{}, err
+}
+
+func (s *service) aggregateTiles(ctx context.Context, db storage.Database, req *rpc.AggregateTilesRequest) error {
+	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
+	step, stepErr := time.ParseDuration(req.Step)
+	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil {
+		return tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr, stepErr))
+	}
+
+	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
+	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
+
+	opts := storage.AggregateTilesOptions{Start: start, End: end, Step: step}
+
+	err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
+	if err != nil {
+		return convert.ToRPCError(err)
+	}
+
+	return nil
+}
+
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {

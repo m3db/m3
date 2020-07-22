@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -1275,6 +1276,103 @@ func TestNamespaceFlushState(t *testing.T) {
 	flushState, err := ns.FlushState(0, blockStart)
 	require.NoError(t, err)
 	require.Equal(t, expectedFlushState, flushState)
+}
+
+func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm, _      = fs.NewPersistManager(fs.NewOptions())
+		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+	)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapping
+
+	require.Equal(t, errNamespaceNotBootstrapped, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
+}
+
+func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm, _      = fs.NewPersistManager(fs.NewOptions())
+		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+	)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapped
+
+	require.Equal(t, errColdWritesDisabled, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
+}
+
+func TestNamespaceAggregateTiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		pm, _      = fs.NewPersistManager(fs.NewOptions())
+		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+	)
+
+	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
+	defer sourceCloser()
+
+	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
+	defer targetCloser()
+	targetNs.bootstrapState = Bootstrapped
+	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true)
+
+	wOpts := series.WriteOptions{
+		TruncateType: targetNs.opts.TruncateType(),
+		SchemaDesc:   targetNs.Schema(),
+	}
+
+	sourceShard0 := NewMockdatabaseShard(ctrl)
+	sourceShard1 := NewMockdatabaseShard(ctrl)
+	sourceNs.shards[0] = sourceShard0
+	sourceNs.shards[1] = sourceShard1
+
+	sourceShard0.EXPECT().IsBootstrapped().Return(true)
+	sourceShard1.EXPECT().IsBootstrapped().Return(true)
+
+	targetShard0 := NewMockdatabaseShard(ctrl)
+	targetShard1 := NewMockdatabaseShard(ctrl)
+	targetNs.shards[0] = targetShard0
+	targetNs.shards[1] = targetShard1
+
+	targetShard0.EXPECT().ID().Return(uint32(0))
+	targetShard1.EXPECT().ID().Return(uint32(1))
+
+	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
+	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard0, opts, wOpts).Return(nil)
+	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard1, opts, wOpts).Return(nil)
+
+	shardColdFlush0 := NewMockShardColdFlush(ctrl)
+	shardColdFlush0.EXPECT().Done().Return(nil)
+	shardColdFlush1 := NewMockShardColdFlush(ctrl)
+	shardColdFlush1.EXPECT().Done().Return(nil)
+
+	nsCtx := targetNs.nsContextWithRLock()
+	onColdFlushNs, err := targetNs.opts.OnColdFlush().ColdFlushNamespace(targetNs)
+	require.NoError(t, err)
+	targetShard0.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush0, nil)
+	targetShard1.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush1, nil)
+
+	require.NoError(t, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
 }
 
 func waitForStats(

@@ -219,6 +219,9 @@ type Database interface {
 
 	// FlushState returns the flush state for the specified shard and block start.
 	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
+
+	// AggregateTiles does large tile aggregation from source namespace to target namespace.
+	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error
 }
 
 // database is the internal database interface.
@@ -405,6 +408,16 @@ type databaseNamespace interface {
 
 	// WritePendingIndexInserts will write any pending index inserts.
 	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
+
+	// AggregateTiles does large tile aggregation from source namespace into this namespace.
+	AggregateTiles(
+		ctx context.Context,
+		sourceNs databaseNamespace,
+		opts AggregateTilesOptions,
+		pm persist.Manager,
+	) error
+
+	readableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -581,6 +594,18 @@ type databaseShard interface {
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Document, bool, error)
+
+	// AggregateTiles does large tile aggregation from source shards into this shard.
+	AggregateTiles(
+		ctx context.Context,
+		reader fs.DataFileSetReader,
+		sourceNsID ident.ID,
+		sourceShard databaseShard,
+		opts AggregateTilesOptions,
+		wOpts series.WriteOptions,
+	) error
+
+	latestVolume(blockStart time.Time) (int, error)
 }
 
 // ShardColdFlush exposes a done method to finalize shard cold flush
@@ -1205,3 +1230,8 @@ type newFSMergeWithMemFn func(
 	dirtySeries *dirtySeriesMap,
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith
+
+type AggregateTilesOptions struct {
+	Start, End time.Time
+	Step time.Duration
+}

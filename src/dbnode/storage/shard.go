@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
@@ -30,6 +31,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -210,6 +213,7 @@ type dbShardMetrics struct {
 	insertAsyncWriteInternalErrors      tally.Counter
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
+	largeTilesWriteErrors               tally.Counter
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
@@ -237,6 +241,10 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 		insertAsyncIndexErrors: scope.Tagged(map[string]string{
 			"error_type":    "reverse-index",
 			"suberror_type": "write-batch-error",
+		}).Counter(insertErrorName),
+		largeTilesWriteErrors: scope.Tagged(map[string]string{
+			"error_type":    "large_tiles",
+			"suberror_type": "write-error",
 		}).Counter(insertErrorName),
 	}
 }
@@ -2538,6 +2546,70 @@ func (s *dbShard) Repair(
 	return repairer.Repair(ctx, nsCtx, nsMeta, tr, s)
 }
 
+func (s *dbShard) AggregateTiles(
+	ctx context.Context,
+	reader fs.DataFileSetReader,
+	sourceNsID ident.ID,
+	sourceShard databaseShard,
+	opts AggregateTilesOptions,
+	wOpts series.WriteOptions,
+) error {
+	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
+	if err != nil {
+		return err
+	}
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   sourceNsID,
+			Shard:       sourceShard.ID(),
+			BlockStart:  opts.Start,
+			VolumeIndex: latestSourceVolume,
+		},
+		FileSetType: persist.FileSetFlushType,
+		//TODO add after https://github.com/chronosphereio/m3/pull/10 for proper streaming - OrderByIndex: true
+	}
+	if err := reader.Open(openOpts); err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
+	bytesReader := bytes.NewReader(nil)
+	dataPointIter := m3tsz.NewReaderIterator(bytesReader, true, encodingOpts)
+	var lastWriteError error
+
+	for {
+		id, tags, data, _, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		data.IncRef()
+		bytesReader.Reset(data.Bytes())
+		dataPointIter.Reset(bytesReader, nil)
+
+		for dataPointIter.Next() {
+			dp, unit, annot := dataPointIter.Current()
+			_, err = s.writeAndIndex(ctx, id, tags, dp.Timestamp, dp.Value, unit, annot, wOpts, true)
+			if err != nil {
+				s.metrics.largeTilesWriteErrors.Inc(1)
+				lastWriteError = err
+			}
+		}
+
+		dataPointIter.Close()
+
+		data.DecRef()
+		data.Finalize()
+	}
+
+	return lastWriteError
+}
+
 func (s *dbShard) BootstrapState() BootstrapState {
 	s.RLock()
 	bs := s.bootstrapState
@@ -2557,6 +2629,10 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 		return emptyDoc, false, nil
 	}
 	return emptyDoc, false, err
+}
+
+func (s *dbShard) latestVolume(blockStart time.Time) (int, error) {
+	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
 func (s *dbShard) logFlushResult(r dbShardFlushResult) {
