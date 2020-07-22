@@ -52,9 +52,9 @@ func TestEmptyDecode(t *testing.T) {
 func TestEmptyTagNameDecode(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
-	b = append(b, encodeUInt16(uint16(1))...) /* num tags */
-	b = append(b, encodeUInt16(0)...)         /* len empty string */
-	b = append(b, encodeUInt16(4)...)         /* len defg */
+	b = append(b, encodeUInt16(1, make([]byte, 2))...) /* num tags */
+	b = append(b, encodeUInt16(0, make([]byte, 2))...) /* len empty string */
+	b = append(b, encodeUInt16(4, make([]byte, 2))...) /* len defg */
 	b = append(b, []byte("defg")...)
 
 	d := newTagDecoder(testDecodeOpts, nil)
@@ -66,10 +66,10 @@ func TestEmptyTagNameDecode(t *testing.T) {
 func TestEmptyTagValueDecode(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
-	b = append(b, encodeUInt16(uint16(1))...) /* num tags */
-	b = append(b, encodeUInt16(1)...)         /* len "1" */
-	b = append(b, []byte("a")...)             /* tag name */
-	b = append(b, encodeUInt16(0)...)         /* len tag value */
+	b = append(b, encodeUInt16(1, make([]byte, 2))...) /* num tags */
+	b = append(b, encodeUInt16(1, make([]byte, 2))...) /* len "1" */
+	b = append(b, []byte("a")...)                      /* tag name */
+	b = append(b, encodeUInt16(0, make([]byte, 2))...) /* len tag value */
 
 	d := newTagDecoder(testDecodeOpts, nil)
 	d.Reset(wrapAsCheckedBytes(b))
@@ -189,7 +189,7 @@ func TestDecodeLiteralTooLong(t *testing.T) {
 func TestDecodeMissingTags(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
-	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
+	b = append(b, encodeUInt16(2, make([]byte, 2))...) /* num tags */
 
 	d := newTestTagDecoder()
 	d.Reset(wrapAsCheckedBytes(b))
@@ -202,7 +202,7 @@ func TestDecodeMissingTags(t *testing.T) {
 func TestDecodeOwnershipFinalize(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
-	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
+	b = append(b, encodeUInt16(2, make([]byte, 2))...) /* num tags */
 
 	wrappedBytes := wrapAsCheckedBytes(b)
 	require.Equal(t, 0, wrappedBytes.NumRef())
@@ -224,14 +224,14 @@ func TestDecodeOwnershipFinalize(t *testing.T) {
 func TestDecodeMissingValue(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
-	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
-	b = append(b, encodeUInt16(3)...)         /* len abc */
+	b = append(b, encodeUInt16(2, make([]byte, 2))...) /* num tags */
+	b = append(b, encodeUInt16(3, make([]byte, 2))...) /* len abc */
 	b = append(b, []byte("abc")...)
 
-	b = append(b, encodeUInt16(4)...) /* len defg */
+	b = append(b, encodeUInt16(4, make([]byte, 2))...) /* len defg */
 	b = append(b, []byte("defg")...)
 
-	b = append(b, encodeUInt16(1)...) /* len x */
+	b = append(b, encodeUInt16(1, make([]byte, 2))...) /* len x */
 	b = append(b, []byte("x")...)
 
 	d := newTestTagDecoder()
@@ -365,18 +365,18 @@ func wrapAsCheckedBytes(b []byte) checked.Bytes {
 func testTagDecoderBytesRaw() []byte {
 	var b []byte
 	b = append(b, headerMagicBytes...)
-	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
+	b = append(b, encodeUInt16(2, make([]byte, 2))...) /* num tags */
 
-	b = append(b, encodeUInt16(3)...) /* len abc */
+	b = append(b, encodeUInt16(3, make([]byte, 2))...) /* len abc */
 	b = append(b, []byte("abc")...)
 
-	b = append(b, encodeUInt16(4)...) /* len defg */
+	b = append(b, encodeUInt16(4, make([]byte, 2))...) /* len defg */
 	b = append(b, []byte("defg")...)
 
-	b = append(b, encodeUInt16(1)...) /* len x */
+	b = append(b, encodeUInt16(1, make([]byte, 2))...) /* len x */
 	b = append(b, []byte("x")...)
 
-	b = append(b, encodeUInt16(3)...) /* len bar */
+	b = append(b, encodeUInt16(3, make([]byte, 2))...) /* len bar */
 	b = append(b, []byte("bar")...)
 	return b
 }

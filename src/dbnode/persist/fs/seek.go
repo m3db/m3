@@ -85,10 +85,10 @@ type seeker struct {
 // IndexEntry is an entry from the index file which can be passed to
 // SeekUsingIndexEntry to seek to the data for that entry
 type IndexEntry struct {
-	Size        uint32
-	Checksum    uint32
-	Offset      int64
-	EncodedTags checked.Bytes
+	Size         uint32
+	DataChecksum uint32
+	Offset       int64
+	EncodedTags  checked.Bytes
 }
 
 // NewSeeker returns a new seeker.
@@ -363,7 +363,7 @@ func (s *seeker) SeekByIndexEntry(
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if entry.Checksum != digest.Checksum(underlyingBuf) {
+	if entry.DataChecksum != digest.Checksum(underlyingBuf) {
 		return nil, errSeekChecksumMismatch
 	}
 
@@ -434,10 +434,10 @@ func (s *seeker) SeekIndexEntry(
 			}
 
 			indexEntry := IndexEntry{
-				Size:        uint32(entry.Size),
-				Checksum:    uint32(entry.Checksum),
-				Offset:      entry.Offset,
-				EncodedTags: checkedEncodedTags,
+				Size:         uint32(entry.Size),
+				DataChecksum: uint32(entry.DataChecksum),
+				Offset:       entry.Offset,
+				EncodedTags:  checkedEncodedTags,
 			}
 
 			// Safe to return resources to the pool because ID will not be

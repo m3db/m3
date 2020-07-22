@@ -83,34 +83,36 @@ const (
 var (
 	numShards = runtime.NumCPU()
 
-	errNoStorage               = errors.New("dynamic downsampling enabled with storage not set")
-	errNoClusterClient         = errors.New("dynamic downsampling enabled with cluster client not set")
-	errNoRulesStore            = errors.New("dynamic downsampling enabled with rules store not set")
-	errNoClockOptions          = errors.New("dynamic downsampling enabled with clock options not set")
-	errNoInstrumentOptions     = errors.New("dynamic downsampling enabled with instrument options not set")
-	errNoTagEncoderOptions     = errors.New("dynamic downsampling enabled with tag encoder options not set")
-	errNoTagDecoderOptions     = errors.New("dynamic downsampling enabled with tag decoder options not set")
-	errNoTagEncoderPoolOptions = errors.New("dynamic downsampling enabled with tag encoder pool options not set")
-	errNoTagDecoderPoolOptions = errors.New("dynamic downsampling enabled with tag decoder pool options not set")
-	errRollupRuleNoTransforms  = errors.New("rollup rule has no transforms set")
+	errNoStorage                    = errors.New("downsampling enabled with storage not set")
+	errNoClusterClient              = errors.New("downsampling enabled with cluster client not set")
+	errNoRulesStore                 = errors.New("downsampling enabled with rules store not set")
+	errNoClockOptions               = errors.New("downsampling enabled with clock options not set")
+	errNoInstrumentOptions          = errors.New("downsampling enabled with instrument options not set")
+	errNoTagEncoderOptions          = errors.New("downsampling enabled with tag encoder options not set")
+	errNoTagDecoderOptions          = errors.New("downsampling enabled with tag decoder options not set")
+	errNoTagEncoderPoolOptions      = errors.New("downsampling enabled with tag encoder pool options not set")
+	errNoTagDecoderPoolOptions      = errors.New("downsampling enabled with tag decoder pool options not set")
+	errNoMetricsAppenderPoolOptions = errors.New("downsampling enabled with metrics appender pool options not set")
+	errRollupRuleNoTransforms       = errors.New("rollup rule has no transforms set")
 )
 
 // DownsamplerOptions is a set of required downsampler options.
 type DownsamplerOptions struct {
-	Storage                 storage.Storage
-	StorageFlushConcurrency int
-	ClusterClient           clusterclient.Client
-	RulesKVStore            kv.Store
-	AutoMappingRules        []AutoMappingRule
-	NameTag                 string
-	ClockOptions            clock.Options
-	InstrumentOptions       instrument.Options
-	TagEncoderOptions       serialize.TagEncoderOptions
-	TagDecoderOptions       serialize.TagDecoderOptions
-	TagEncoderPoolOptions   pool.ObjectPoolOptions
-	TagDecoderPoolOptions   pool.ObjectPoolOptions
-	OpenTimeout             time.Duration
-	TagOptions              models.TagOptions
+	Storage                    storage.Storage
+	StorageFlushConcurrency    int
+	ClusterClient              clusterclient.Client
+	RulesKVStore               kv.Store
+	AutoMappingRules           []AutoMappingRule
+	NameTag                    string
+	ClockOptions               clock.Options
+	InstrumentOptions          instrument.Options
+	TagEncoderOptions          serialize.TagEncoderOptions
+	TagDecoderOptions          serialize.TagDecoderOptions
+	TagEncoderPoolOptions      pool.ObjectPoolOptions
+	TagDecoderPoolOptions      pool.ObjectPoolOptions
+	OpenTimeout                time.Duration
+	TagOptions                 models.TagOptions
+	MetricsAppenderPoolOptions pool.ObjectPoolOptions
 }
 
 // AutoMappingRule is a mapping rule to apply to metrics.
@@ -168,6 +170,9 @@ func (o DownsamplerOptions) validate() error {
 	}
 	if o.TagDecoderPoolOptions == nil {
 		return errNoTagDecoderPoolOptions
+	}
+	if o.MetricsAppenderPoolOptions == nil {
+		return errNoMetricsAppenderPoolOptions
 	}
 	return nil
 }
@@ -874,6 +879,7 @@ type aggPools struct {
 	tagEncoderPool         serialize.TagEncoderPool
 	tagDecoderPool         serialize.TagDecoderPool
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool
+	metricsAppenderPool    *metricsAppenderPool
 }
 
 func (o DownsamplerOptions) newAggregatorPools() aggPools {
@@ -889,10 +895,13 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 		o.TagDecoderPoolOptions)
 	metricTagsIteratorPool.Init()
 
+	metricsAppenderPool := newMetricsAppenderPool(o.MetricsAppenderPoolOptions)
+
 	return aggPools{
 		tagEncoderPool:         tagEncoderPool,
 		tagDecoderPool:         tagDecoderPool,
 		metricTagsIteratorPool: metricTagsIteratorPool,
+		metricsAppenderPool:    metricsAppenderPool,
 	}
 }
 

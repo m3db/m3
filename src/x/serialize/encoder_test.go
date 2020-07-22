@@ -108,7 +108,7 @@ func TestSimpleEncode(t *testing.T) {
 		2 /* bar length */ + len("bar")
 	require.Len(t, b, numExpectedBytes)
 	require.Equal(t, headerMagicBytes, b[:2])
-	require.Equal(t, encodeUInt16(2), b[2:4])
+	require.Equal(t, encodeUInt16(2, make([]byte, 2)), b[2:4])
 	require.Equal(t, uint16(3), decodeUInt16(b[4:6])) /* len abc */
 	require.Equal(t, "abc", string(b[6:9]))
 	require.Equal(t, uint16(4), decodeUInt16(b[9:11])) /* len defg */
@@ -147,18 +147,17 @@ func TestEmptyTagIterEncode(t *testing.T) {
 		return mockBytes
 	}
 
-	clonedIter := ident.NewMockTagIterator(ctrl)
 	iter := ident.NewMockTagIterator(ctrl)
 
 	mockBytes.EXPECT().IncRef()
 	mockBytes.EXPECT().Reset(gomock.Any())
 	gomock.InOrder(
 		mockBytes.EXPECT().NumRef().Return(0),
-		iter.EXPECT().Duplicate().Return(clonedIter),
-		clonedIter.EXPECT().Remaining().Return(0),
-		clonedIter.EXPECT().Next().Return(false),
-		clonedIter.EXPECT().Err().Return(nil),
-		clonedIter.EXPECT().Close(),
+		iter.EXPECT().Rewind(),
+		iter.EXPECT().Remaining().Return(0),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(nil),
+		iter.EXPECT().Rewind(),
 	)
 
 	enc := newTagEncoder(newBytesFn, newTestEncoderOpts(), nil)
@@ -169,15 +168,14 @@ func TestTooManyTags(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	clonedIter := ident.NewMockTagIterator(ctrl)
 	iter := ident.NewMockTagIterator(ctrl)
 	testOpts := newTestEncoderOpts()
 
 	maxNumTags := testOpts.TagSerializationLimits().MaxNumberTags()
 	gomock.InOrder(
-		iter.EXPECT().Duplicate().Return(clonedIter),
-		clonedIter.EXPECT().Remaining().Return(1+int(maxNumTags)),
-		clonedIter.EXPECT().Close(),
+		iter.EXPECT().Rewind(),
+		iter.EXPECT().Remaining().Return(1+int(maxNumTags)),
+		iter.EXPECT().Rewind(),
 	)
 
 	enc := newTagEncoder(defaultNewCheckedBytesFn, testOpts, nil)
@@ -193,22 +191,21 @@ func TestSingleValueTagIterEncode(t *testing.T) {
 		return mockBytes
 	}
 
-	clonedIter := ident.NewMockTagIterator(ctrl)
 	iter := ident.NewMockTagIterator(ctrl)
 
 	mockBytes.EXPECT().IncRef()
 	mockBytes.EXPECT().Reset(gomock.Any())
 	gomock.InOrder(
 		mockBytes.EXPECT().NumRef().Return(0),
-		iter.EXPECT().Duplicate().Return(clonedIter),
-		clonedIter.EXPECT().Remaining().Return(1),
-		clonedIter.EXPECT().Next().Return(true),
-		clonedIter.EXPECT().Current().Return(
+		iter.EXPECT().Rewind(),
+		iter.EXPECT().Remaining().Return(1),
+		iter.EXPECT().Next().Return(true),
+		iter.EXPECT().Current().Return(
 			ident.StringTag("some", "tag"),
 		),
-		clonedIter.EXPECT().Next().Return(false),
-		clonedIter.EXPECT().Err().Return(nil),
-		clonedIter.EXPECT().Close(),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(nil),
+		iter.EXPECT().Rewind(),
 	)
 
 	enc := newTagEncoder(newBytesFn, newTestEncoderOpts(), nil)

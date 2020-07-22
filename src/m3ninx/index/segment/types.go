@@ -192,6 +192,12 @@ type Builder interface {
 type DocumentsBuilder interface {
 	Builder
 	index.Writer
+
+	// SetIndexConcurrency sets the concurrency used for building the segment.
+	SetIndexConcurrency(value int)
+
+	// IndexConcurrency returns the concurrency used for building the segment.
+	IndexConcurrency() int
 }
 
 // CloseableDocumentsBuilder is a builder that has documents written to it and has freeable resources.

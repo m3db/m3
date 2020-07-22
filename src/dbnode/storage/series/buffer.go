@@ -75,6 +75,11 @@ const (
 )
 
 type databaseBuffer interface {
+	MoveTo(
+		buffer databaseBuffer,
+		nsCtx namespace.Context,
+	) error
+
 	Write(
 		ctx context.Context,
 		id ident.ID,
@@ -245,6 +250,39 @@ func (b *dbBuffer) Reset(opts databaseBufferResetOptions) {
 	b.bucketPool = opts.Options.BufferBucketPool()
 	b.bucketVersionsPool = opts.Options.BufferBucketVersionsPool()
 	b.blockRetriever = opts.BlockRetriever
+}
+
+func (b *dbBuffer) MoveTo(
+	buffer databaseBuffer,
+	nsCtx namespace.Context,
+) error {
+	blockSize := b.opts.RetentionOptions().BlockSize()
+	for _, buckets := range b.bucketsMap {
+		for _, bucket := range buckets.buckets {
+			// Load any existing blocks.
+			for _, block := range bucket.loadedBlocks {
+				// Load block.
+				buffer.Load(block, bucket.writeType)
+			}
+
+			// Load encoders.
+			for _, elem := range bucket.encoders {
+				if elem.encoder.Len() == 0 {
+					// No data.
+					continue
+				}
+				// Take ownership of the encoder.
+				segment := elem.encoder.Discard()
+				// Create block and load into new buffer.
+				block := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+				block.Reset(bucket.start, blockSize, segment, nsCtx)
+				// Load block.
+				buffer.Load(block, bucket.writeType)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (b *dbBuffer) Write(
