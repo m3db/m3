@@ -1130,9 +1130,18 @@ func (i *nsIndex) flushBlockSegment(
 			}
 
 			for _, result := range results.Results() {
-				doc, err := convert.FromSeriesIDAndTagIter(result.ID, result.Tags)
+				doc, exists, err := shard.DocRef(result.ID)
 				if err != nil {
 					return err
+				}
+				if !exists {
+					doc, err = convert.FromSeriesIDAndTagIter(result.ID, result.Tags)
+					if err != nil {
+						return err
+					}
+					i.metrics.flushDocsNew.Inc(1)
+				} else {
+					i.metrics.flushDocsCached.Inc(1)
 				}
 
 				_, err = builder.Insert(doc)
@@ -1964,6 +1973,8 @@ type nsIndexMetrics struct {
 	insertEndToEndLatency        tally.Timer
 	blocksEvictedMutableSegments tally.Counter
 	blockMetrics                 nsIndexBlocksMetrics
+	flushDocsNew                 tally.Counter
+	flushDocsCached              tally.Counter
 
 	loadedDocsPerQuery                 tally.Histogram
 	queryExhaustiveSuccess             tally.Counter
@@ -2018,6 +2029,12 @@ func newNamespaceIndexMetrics(
 			"insert-end-to-end-latency", iopts.TimerOptions()),
 		blocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
 		blockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
+		flushDocsNew: scope.Tagged(map[string]string{
+			"status": "new",
+		}).Counter("flush-docs"),
+		flushDocsCached: scope.Tagged(map[string]string{
+			"status": "cached",
+		}).Counter("flush-docs"),
 		loadedDocsPerQuery: scope.Histogram(
 			"loaded-docs-per-query",
 			tally.MustMakeExponentialValueBuckets(10, 2, 16),

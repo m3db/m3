@@ -92,7 +92,7 @@ type indexEntry struct {
 	dataFileOffset  int64
 	indexFileOffset int64
 	size            uint32
-	checksum        uint32
+	dataChecksum    uint32
 }
 
 type indexEntries []indexEntry
@@ -259,22 +259,22 @@ func (w *writer) writeData(data []byte) error {
 func (w *writer) Write(
 	metadata persist.Metadata,
 	data checked.Bytes,
-	checksum uint32,
+	dataChecksum uint32,
 ) error {
 	w.singleCheckedBytes[0] = data
-	return w.WriteAll(metadata, w.singleCheckedBytes, checksum)
+	return w.WriteAll(metadata, w.singleCheckedBytes, dataChecksum)
 }
 
 func (w *writer) WriteAll(
 	metadata persist.Metadata,
 	data []checked.Bytes,
-	checksum uint32,
+	dataChecksum uint32,
 ) error {
 	if w.err != nil {
 		return w.err
 	}
 
-	if err := w.writeAll(metadata, data, checksum); err != nil {
+	if err := w.writeAll(metadata, data, dataChecksum); err != nil {
 		w.err = err
 		return err
 	}
@@ -284,7 +284,7 @@ func (w *writer) WriteAll(
 func (w *writer) writeAll(
 	metadata persist.Metadata,
 	data []checked.Bytes,
-	checksum uint32,
+	dataChecksum uint32,
 ) error {
 	var size int64
 	for _, d := range data {
@@ -302,7 +302,7 @@ func (w *writer) writeAll(
 		metadata:       metadata,
 		dataFileOffset: w.currOffset,
 		size:           uint32(size),
-		checksum:       checksum,
+		dataChecksum:   dataChecksum,
 	}
 	for _, d := range data {
 		if d == nil {
@@ -480,12 +480,12 @@ func (w *writer) writeIndexFileContents(
 		}
 
 		entry := schema.IndexEntry{
-			Index:       entry.index,
-			ID:          id,
-			Size:        int64(entry.size),
-			Offset:      entry.dataFileOffset,
-			Checksum:    int64(entry.checksum),
-			EncodedTags: encodedTags,
+			Index:        entry.index,
+			ID:           id,
+			Size:         int64(entry.size),
+			Offset:       entry.dataFileOffset,
+			DataChecksum: int64(entry.dataChecksum),
+			EncodedTags:  encodedTags,
 		}
 
 		w.encoder.Reset()
@@ -571,6 +571,7 @@ func (w *writer) writeInfoFileContents(
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,
+		MinorVersion: schema.MinorVersion,
 		Summaries: schema.IndexSummariesInfo{
 			Summaries: int64(summaries),
 		},

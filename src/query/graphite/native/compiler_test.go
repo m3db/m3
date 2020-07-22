@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/graphite/common"
+	"github.com/m3db/m3/src/query/graphite/lexer"
 	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
 
@@ -56,6 +57,7 @@ func TestCompile1(t *testing.T) {
 
 	tests := []testCompile{
 		{"", noopExpression{}},
+		{"foobar", newFetchExpression("foobar")},
 		{"foo.bar.{a,b,c}.baz-*.stat[0-9]",
 			newFetchExpression("foo.bar.{a,b,c}.baz-*.stat[0-9]")},
 		{"noArgs()", &funcExpression{&functionCall{f: noArgs}}},
@@ -290,6 +292,8 @@ type testCompilerError struct {
 func TestCompileErrors(t *testing.T) {
 	tests := []testCompilerError{
 		{"hello()", "top-level functions must return timeseries data"},
+		{"foobar(", "invalid expression 'foobar(': could not find function named foobar"},
+		{"foobar()", "invalid expression 'foobar()': could not find function named foobar"},
 		{"sortByName(foo.*.zed)junk", "invalid expression 'sortByName(foo.*.zed)junk': " +
 			"extra data junk"},
 		{"aliasByNode(",
@@ -435,7 +439,40 @@ func TestExtractFetchExpressions(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, test.targets, targets, test.expr)
 	}
+}
 
+func TestTokenLookforward(t *testing.T) {
+	tokenVals := []string{"a", "b", "c"}
+	tokens := make(chan *lexer.Token)
+	go func() {
+		for _, v := range tokenVals {
+			tokens <- lexer.MustMakeToken(v)
+		}
+
+		close(tokens)
+	}()
+
+	lookforward := newTokenLookforward(tokens)
+	token := lookforward.get()
+	assert.Equal(t, "a", token.Value())
+
+	// assert that peek does not iterate token.
+	token, found := lookforward.peek()
+	assert.True(t, found)
+	assert.Equal(t, "b", token.Value())
+	token, found = lookforward.peek()
+	assert.True(t, found)
+	assert.Equal(t, "b", token.Value())
+
+	// assert that next get after peek will iterate forward.
+	token = lookforward.get()
+	assert.Equal(t, "b", token.Value())
+	token = lookforward.get()
+	assert.Equal(t, "c", token.Value())
+
+	// assert peek is empty once channel is closed.
+	_, found = lookforward.peek()
+	assert.False(t, found)
 }
 
 func init() {
