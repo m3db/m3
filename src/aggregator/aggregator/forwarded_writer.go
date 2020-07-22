@@ -91,10 +91,14 @@ type forwardedWriterMetrics struct {
 	unregisterAggregationNotFound tally.Counter
 	prepare                       tally.Counter
 	flushSuccess                  tally.Counter
-	flushErrors                   tally.Counter
+	flushErrorsClient             tally.Counter
 }
 
 func newForwardedWriterMetrics(scope tally.Scope) forwardedWriterMetrics {
+	const (
+		errorsName = "errors"
+		reasonTag  = "reason"
+	)
 	registerScope := scope.Tagged(map[string]string{"action": "register"})
 	unregisterScope := scope.Tagged(map[string]string{"action": "unregister"})
 	prepareScope := scope.Tagged(map[string]string{"action": "prepare"})
@@ -102,23 +106,23 @@ func newForwardedWriterMetrics(scope tally.Scope) forwardedWriterMetrics {
 	return forwardedWriterMetrics{
 		registerSuccess: registerScope.Counter("success"),
 		registerWriterClosed: registerScope.Tagged(map[string]string{
-			"reason": "writer-closed",
-		}).Counter("errors"),
+			reasonTag: "writer-closed",
+		}).Counter(errorsName),
 		unregisterSuccess: unregisterScope.Counter("success"),
 		unregisterWriterClosed: unregisterScope.Tagged(map[string]string{
-			"reason": "writer-closed",
-		}).Counter("errors"),
+			reasonTag: "writer-closed",
+		}).Counter(errorsName),
 		unregisterMetricNotFound: unregisterScope.Tagged(map[string]string{
-			"reason": "metric-not-found",
-		}).Counter("errors"),
+			reasonTag: "metric-not-found",
+		}).Counter(errorsName),
 		unregisterAggregationNotFound: unregisterScope.Tagged(map[string]string{
-			"reason": "aggregation-not-found",
-		}).Counter("errors"),
+			reasonTag: "aggregation-not-found",
+		}).Counter(errorsName),
 		prepare:      prepareScope.Counter("prepare"),
 		flushSuccess: flushScope.Counter("success"),
-		flushErrors:  flushScope.Tagged(map[string]string{
-			"reason": "n/a",
-		}).Counter("errors"),
+		flushErrorsClient: flushScope.Tagged(map[string]string{
+			reasonTag: "client-flush-error",
+		}).Counter(errorsName),
 	}
 }
 
