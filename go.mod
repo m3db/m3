@@ -82,13 +82,13 @@ require (
 	github.com/pointlander/jetset v1.0.0 // indirect
 	github.com/pointlander/peg v1.0.0
 	github.com/prashantv/protectmem v0.0.0-20171002184600-e20412882b3a // indirect
-	github.com/prateek/gorename v0.0.0-20180424020013-52c7307cddd2
 	github.com/prometheus/client_golang v1.5.1
 	github.com/prometheus/common v0.9.1
 	github.com/prometheus/prometheus v1.8.2-0.20200420081721-18254838fbe2
 	github.com/rakyll/statik v0.1.6
 	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
 	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
+	github.com/robskillington/gorename v0.0.0-20180424020013-52c7307cddd2
 	github.com/russross/blackfriday v2.0.0+incompatible
 	github.com/rveen/ogdl v0.0.0-20200522080342-eeeda1a978e7 // indirect
 	github.com/satori/go.uuid v1.2.0

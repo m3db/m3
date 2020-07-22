@@ -368,6 +368,34 @@ func (mr *MockOptionsMockRecorder) SchemaHistory() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaHistory", reflect.TypeOf((*MockOptions)(nil).SchemaHistory))
 }
 
+// SetRuntimeOptions mocks base method
+func (m *MockOptions) SetRuntimeOptions(value RuntimeOptions) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetRuntimeOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRuntimeOptions indicates an expected call of SetRuntimeOptions
+func (mr *MockOptionsMockRecorder) SetRuntimeOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRuntimeOptions", reflect.TypeOf((*MockOptions)(nil).SetRuntimeOptions), value)
+}
+
+// RuntimeOptions mocks base method
+func (m *MockOptions) RuntimeOptions() RuntimeOptions {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RuntimeOptions")
+	ret0, _ := ret[0].(RuntimeOptions)
+	return ret0
+}
+
+// RuntimeOptions indicates an expected call of RuntimeOptions
+func (mr *MockOptionsMockRecorder) RuntimeOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RuntimeOptions", reflect.TypeOf((*MockOptions)(nil).RuntimeOptions))
+}
+
 // MockIndexOptions is a mock of IndexOptions interface
 type MockIndexOptions struct {
 	ctrl     *gomock.Controller
@@ -709,18 +737,18 @@ func (mr *MockSchemaRegistryMockRecorder) GetLatestSchema(id interface{}) *gomoc
 }
 
 // GetSchema mocks base method
-func (m *MockSchemaRegistry) GetSchema(id ident.ID, schemaId string) (SchemaDescr, error) {
+func (m *MockSchemaRegistry) GetSchema(id ident.ID, schemaID string) (SchemaDescr, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSchema", id, schemaId)
+	ret := m.ctrl.Call(m, "GetSchema", id, schemaID)
 	ret0, _ := ret[0].(SchemaDescr)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetSchema indicates an expected call of GetSchema
-func (mr *MockSchemaRegistryMockRecorder) GetSchema(id, schemaId interface{}) *gomock.Call {
+func (mr *MockSchemaRegistryMockRecorder) GetSchema(id, schemaID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetSchema), id, schemaId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchema", reflect.TypeOf((*MockSchemaRegistry)(nil).GetSchema), id, schemaID)
 }
 
 // SetSchemaHistory mocks base method

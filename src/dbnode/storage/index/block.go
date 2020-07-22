@@ -139,6 +139,7 @@ type block struct {
 	iopts                           instrument.Options
 	blockOpts                       BlockOptions
 	nsMD                            namespace.Metadata
+	namespaceRuntimeOptsMgr         namespace.RuntimeOptionsManager
 	queryStats                      stats.QueryStats
 
 	metrics blockMetrics
@@ -190,12 +191,25 @@ type BlockOptions struct {
 	BackgroundCompactorMmapDocsData bool
 }
 
+// NewBlockFn is a new block constructor.
+type NewBlockFn func(
+	blockStart time.Time,
+	md namespace.Metadata,
+	blockOpts BlockOptions,
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
+	opts Options,
+) (Block, error)
+
+// Ensure NewBlock implements NewBlockFn.
+var _ NewBlockFn = NewBlock
+
 // NewBlock returns a new Block, representing a complete reverse index for the
 // duration of time specified. It is backed by one or more segments.
 func NewBlock(
 	blockStart time.Time,
 	md namespace.Metadata,
 	blockOpts BlockOptions,
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	opts Options,
 ) (Block, error) {
 	blockSize := md.Options().IndexOptions().BlockSize()
@@ -206,6 +220,7 @@ func NewBlock(
 		blockStart,
 		opts,
 		blockOpts,
+		namespaceRuntimeOptsMgr,
 		iopts,
 	)
 	// NB(bodu): The length of coldMutableSegments is always at least 1.
@@ -214,6 +229,7 @@ func NewBlock(
 			blockStart,
 			opts,
 			blockOpts,
+			namespaceRuntimeOptsMgr,
 			iopts,
 		),
 	}
@@ -229,6 +245,7 @@ func NewBlock(
 		opts:                            opts,
 		iopts:                           iopts,
 		nsMD:                            md,
+		namespaceRuntimeOptsMgr:         namespaceRuntimeOptsMgr,
 		metrics:                         newBlockMetrics(scope),
 		logger:                          iopts.Logger(),
 		queryStats:                      opts.QueryStats(),
@@ -1070,6 +1087,7 @@ func (b *block) RotateColdMutableSegments() {
 		b.blockStart,
 		b.opts,
 		b.blockOpts,
+		b.namespaceRuntimeOptsMgr,
 		b.iopts,
 	))
 }
