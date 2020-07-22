@@ -48,8 +48,8 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 			currTime = currTime.Add(d)
 		}
 		backoff           = 10 * time.Millisecond
-		insertWgs         [64]sync.WaitGroup
-		insertProgressWgs [64]sync.WaitGroup
+		insertWgs         [3]sync.WaitGroup
+		insertProgressWgs [3]sync.WaitGroup
 	)
 	for i := range insertWgs {
 		insertWgs[i].Add(1)
@@ -58,6 +58,10 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 		insertProgressWgs[i].Add(1)
 	}
 	q := newDatabaseShardInsertQueue(func(value []dbShardInsert) error {
+		if len(inserts) == len(insertWgs) {
+			return nil // Overflow.
+		}
+
 		inserts = append(inserts, value)
 		insertWgs[len(inserts)-1].Done()
 		insertProgressWgs[len(inserts)-1].Wait()
@@ -187,9 +191,9 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	q.Lock()
-	expectedCurrWindow := currTime.Truncate(time.Second).UnixNano()
-	assert.Equal(t, expectedCurrWindow, q.insertPerSecondLimitWindowNanos)
-	assert.Equal(t, 1, q.insertPerSecondLimitWindowValues)
+	expectedCurrWindow := uint64(currTime.Truncate(time.Second).UnixNano())
+	assert.Equal(t, expectedCurrWindow, q.insertPerSecondLimitWindowNanos.Load())
+	assert.Equal(t, uint64(1), q.insertPerSecondLimitWindowValues.Load())
 	q.Unlock()
 }
 
