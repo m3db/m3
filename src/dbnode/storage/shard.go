@@ -2580,7 +2580,7 @@ func (s *dbShard) AggregateTiles(
 	if err != nil {
 		return err
 	}
-	// FIXME (see https://github.com/m3db/m3/pull/2451#discussion_r458559512) defer readerIter.Close()
+	defer readerIter.Close()
 
 	var lastWriteError error
 
