@@ -1023,18 +1023,20 @@ func (i *nsIndex) flushableBlocks(
 	currentBlockStart := now.Truncate(i.blockSize)
 	// Check for flushable blocks by iterating through all block starts w/in retention.
 	for blockStart := earliestBlockStartToRetain; blockStart.Before(currentBlockStart); blockStart = blockStart.Add(i.blockSize) {
-		canFlush, err := i.canFlushBlockWithRLock(infoFiles, now, blockStart, shards, flushType)
+		block, err := i.ensureBlockPresentWithRLock(blockStart)
+		if err != nil {
+			return nil, err
+		}
+
+		canFlush, err := i.canFlushBlockWithRLock(infoFiles, now, blockStart,
+			block, shards, flushType)
 		if err != nil {
 			return nil, err
 		}
 		if !canFlush {
 			continue
 		}
-		// Ensure all flushable blocks exist.
-		block, err := i.ensureBlockPresentWithRLock(blockStart)
-		if err != nil {
-			return nil, err
-		}
+
 		flushable = append(flushable, block)
 	}
 	return flushable, nil
@@ -1044,6 +1046,7 @@ func (i *nsIndex) canFlushBlockWithRLock(
 	infoFiles []fs.ReadIndexInfoFileResult,
 	startTime time.Time,
 	blockStart time.Time,
+	block index.Block,
 	shards []databaseShard,
 	flushType series.WriteType,
 ) (bool, error) {
@@ -1054,16 +1057,10 @@ func (i *nsIndex) canFlushBlockWithRLock(
 		// `block.NeedsMutableSegmentsEvicted()` since bootstrap writes for cold block starts
 		// get marked as warm writes if there doesn't already exist data on disk and need to
 		// properly go through the warm flush lifecycle.
-		isSealed := !blockStart.After(i.lastSealableBlockStart(startTime))
-		if !isSealed || i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
+		if !block.IsSealed() || i.hasIndexWarmFlushedToDisk(infoFiles, blockStart) {
 			return false, nil
 		}
 	case series.ColdWrite:
-		block, ok := i.state.blocksByTime[xtime.ToUnixNano(blockStart)]
-		// If there is no allocated block then there are definitely no pending cold writes to flush.
-		if !ok {
-			return false, nil
-		}
 		if !block.NeedsColdMutableSegmentsEvicted() {
 			return false, nil
 		}
