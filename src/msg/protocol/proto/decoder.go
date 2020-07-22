@@ -29,13 +29,13 @@ import (
 )
 
 type decoder struct {
-	r              io.Reader
-	rOpts          xio.ResettableReaderOptions
-	rr             xio.ResettableReader
-	buffer         []byte
-	bytesPool      pool.BytesPool
-	maxMessageSize int
-	opts           Options
+	reader           io.Reader
+	rOpts            xio.ResettableReaderOptions
+	resettableReader xio.ResettableReader
+	buffer           []byte
+	bytesPool        pool.BytesPool
+	maxMessageSize   int
+	opts             Options
 }
 
 // NewDecoder decodes a new decoder, the implementation is not thread safe.
@@ -46,13 +46,13 @@ func NewDecoder(r io.Reader, opts Options, bufferSize int) Decoder {
 	pool := opts.BytesPool()
 	rOpts := xio.ResettableReaderOptions{ReadBufferSize: bufferSize}
 	return &decoder{
-		r:              r,
-		rr:             opts.RWOptions().ResettableReaderFn()(r, rOpts),
-		buffer:         getByteSliceWithLength(sizeEncodingLength, pool),
-		bytesPool:      pool,
-		maxMessageSize: opts.MaxMessageSize(),
-		rOpts:          rOpts,
-		opts:           opts,
+		reader:           r,
+		resettableReader: opts.RWOptions().ResettableReaderFn()(r, rOpts),
+		buffer:           getByteSliceWithLength(sizeEncodingLength, pool),
+		bytesPool:        pool,
+		maxMessageSize:   opts.MaxMessageSize(),
+		rOpts:            rOpts,
+		opts:             opts,
 	}
 }
 
@@ -62,7 +62,7 @@ func (d *decoder) Decode(m Unmarshaler) error {
 		return err
 	}
 	if size > d.maxMessageSize {
-		d.rr.Reset(d.r)
+		d.resettableReader.Reset(d.reader)
 		return fmt.Errorf(
 			"proto decoded message size %d is larger than maximum supported size %d",
 			size, d.maxMessageSize)
@@ -72,7 +72,8 @@ func (d *decoder) Decode(m Unmarshaler) error {
 }
 
 func (d *decoder) decodeSize() (int, error) {
-	if _, err := io.ReadFull(d.rr, d.buffer[:sizeEncodingLength]); err != nil {
+	_, err := io.ReadFull(d.resettableReader, d.buffer[:sizeEncodingLength])
+	if err != nil {
 		return 0, err
 	}
 	size := sizeEncodeDecoder.Uint32(d.buffer[:sizeEncodingLength])
@@ -80,7 +81,7 @@ func (d *decoder) decodeSize() (int, error) {
 }
 
 func (d *decoder) decodeData(buffer []byte, m Unmarshaler) error {
-	_, err := io.ReadFull(d.rr, buffer)
+	_, err := io.ReadFull(d.resettableReader, buffer)
 	if err != nil {
 		return err
 	}
@@ -88,6 +89,6 @@ func (d *decoder) decodeData(buffer []byte, m Unmarshaler) error {
 }
 
 func (d *decoder) ResetReader(r io.Reader) {
-	d.r = r
-	d.rr.Reset(r)
+	d.reader = r
+	d.resettableReader.Reset(r)
 }

@@ -99,8 +99,8 @@ func Run(opts RunOptions) {
 		}
 
 		serverOptions = serverOptions.
-			SetM3msgAddr(cfg.M3Msg.Server.ListenAddress).
-			SetM3msgServerOpts(m3msgServerOpts)
+			SetM3MsgAddr(cfg.M3Msg.Server.ListenAddress).
+			SetM3MsgServerOpts(m3msgServerOpts)
 	}
 
 	if cfg.RawTCP != nil {

@@ -30,17 +30,17 @@ import (
 
 // Options are aggregator options.
 type Options interface {
-	// SetM3msgAddr sets the M3 message address.
-	SetM3msgAddr(value string) Options
+	// SetM3MsgAddr sets the M3 message address.
+	SetM3MsgAddr(value string) Options
 
-	// M3msgAddr returns the M3 message address.
-	M3msgAddr() string
+	// M3MsgAddr returns the M3 message address.
+	M3MsgAddr() string
 
-	// SetM3msgServerOpts sets the M3msgServerOpts.
-	SetM3msgServerOpts(value m3msgserver.Options) Options
+	// SetM3MsgServerOpts sets the M3MsgServerOpts.
+	SetM3MsgServerOpts(value m3msgserver.Options) Options
 
-	// M3msgServerOpts returns the M3msgServerOpts.
-	M3msgServerOpts() m3msgserver.Options
+	// M3MsgServerOpts returns the M3MsgServerOpts.
+	M3MsgServerOpts() m3msgserver.Options
 
 	// SetRawTCPAddr sets the RawTCP address.
 	SetRawTCPAddr(value string) Options
@@ -98,23 +98,23 @@ func NewOptions(iOpts instrument.Options) Options {
 	}
 }
 
-func (o *options) SetM3msgAddr(value string) Options {
+func (o *options) SetM3MsgAddr(value string) Options {
 	opts := *o
 	opts.m3msgAddr = value
 	return &opts
 }
 
-func (o *options) M3msgAddr() string {
+func (o *options) M3MsgAddr() string {
 	return o.m3msgAddr
 }
 
-func (o *options) SetM3msgServerOpts(value m3msgserver.Options) Options {
+func (o *options) SetM3MsgServerOpts(value m3msgserver.Options) Options {
 	opts := *o
 	opts.m3msgServerOpts = value
 	return &opts
 }
 
-func (o *options) M3msgServerOpts() m3msgserver.Options {
+func (o *options) M3MsgServerOpts() m3msgserver.Options {
 	return o.m3msgServerOpts
 }
 

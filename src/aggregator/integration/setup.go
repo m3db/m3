@@ -265,8 +265,8 @@ func (ts *testServerSetup) startServer() error {
 
 	instrumentOpts := instrument.NewOptions()
 	serverOpts := serve.NewOptions(instrumentOpts).
-		SetM3msgAddr(ts.m3msgAddr).
-		SetM3msgServerOpts(ts.m3msgServerOpts).
+		SetM3MsgAddr(ts.m3msgAddr).
+		SetM3MsgServerOpts(ts.m3msgServerOpts).
 		SetRawTCPAddr(ts.rawTCPAddr).
 		SetRawTCPServerOpts(ts.rawTCPServerOpts).
 		SetHTTPAddr(ts.httpAddr).

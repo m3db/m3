@@ -41,7 +41,7 @@ const (
 var (
 	errNoActiveConnection = errors.New("no active connection")
 	errInvalidConnection  = errors.New("connection is invalid")
-	u                     uninitializedReadWriter
+	uninitWriter          uninitializedWriter
 )
 
 type sleepFn func(time.Duration)
@@ -94,15 +94,15 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 		nowFn:          opts.ClockOptions().NowFn(),
 		sleepFn:        time.Sleep,
 		threshold:      opts.InitReconnectThreshold(),
-		writer: opts.RWOptions().ResettableWriterFn()(u, xio.ResettableWriterOptions{
-			WriteBufferSize: 0,
-		}),
+		writer: opts.RWOptions().ResettableWriterFn()(
+			uninitWriter,
+			xio.ResettableWriterOptions{WriteBufferSize: 0},
+		),
 		metrics: newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
 
-	// reset write conection
 	c.Lock()
 	if err := c.connectWithLockFn(); err != nil {
 		c.numFailures++
@@ -181,7 +181,6 @@ func (c *connection) connectWithLock() error {
 		return err
 	}
 
-	// this needs to be a writer not a conn.
 	tcpConn := conn.(*net.TCPConn)
 	if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
 		c.metrics.setKeepAliveError.Inc(1)
@@ -276,8 +275,7 @@ func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 	}
 }
 
-type uninitializedReadWriter struct{}
+type uninitializedWriter struct{}
 
-func (u uninitializedReadWriter) Read(p []byte) (int, error)  { return 0, errInvalidConnection }
-func (u uninitializedReadWriter) Write(p []byte) (int, error) { return 0, errInvalidConnection }
-func (u uninitializedReadWriter) Close() error                { return nil }
+func (u uninitializedWriter) Write(p []byte) (int, error) { return 0, errInvalidConnection }
+func (u uninitializedWriter) Close() error                { return nil }

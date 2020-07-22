@@ -41,8 +41,8 @@ func Serve(
 	log := iOpts.Logger()
 	defer aggregator.Close()
 
-	if m3msgAddr := opts.M3msgAddr(); m3msgAddr != "" {
-		serverOpts := opts.M3msgServerOpts()
+	if m3msgAddr := opts.M3MsgAddr(); m3msgAddr != "" {
+		serverOpts := opts.M3MsgServerOpts()
 		m3msgServer, err := m3msgserver.NewServer(m3msgAddr, aggregator, serverOpts)
 		if err != nil {
 			return fmt.Errorf("could not create m3msg server: addr=%s, err=%v", m3msgAddr, err)
