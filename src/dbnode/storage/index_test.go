@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
@@ -368,14 +369,20 @@ func verifyFlushForShards(
 	var (
 		mockFlush          = persist.NewMockIndexFlush(ctrl)
 		shardMap           = make(map[uint32]struct{})
-		now                = idx.nowFn()
-		warmBlockStart     = now.Truncate(idx.blockSize)
+		now                = time.Now()
+		warmBlockStart     = now.Add(-idx.bufferPast).Truncate(idx.blockSize)
 		mockShards         []*MockdatabaseShard
 		dbShards           []databaseShard
 		numBlocks          int
 		persistClosedTimes int
 		persistCalledTimes int
+		actualDocs         = make([]doc.Document, 0)
+		expectedDocs       = make([]doc.Document, 0)
 	)
+	// NB(bodu): Always align now w/ the index's view of now.
+	idx.nowFn = func() time.Time {
+		return now
+	}
 	for _, shard := range shards {
 		mockShard := NewMockdatabaseShard(ctrl)
 		mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
@@ -399,8 +406,9 @@ func verifyFlushForShards(
 			persistClosedTimes++
 			return nil, nil
 		}
-		persistFn := func(segment.Builder) error {
+		persistFn := func(b segment.Builder) error {
 			persistCalledTimes++
+			actualDocs = append(actualDocs, b.Docs()...)
 			return nil
 		}
 		preparedPersist := persist.PreparedIndexPersist{
@@ -411,18 +419,46 @@ func verifyFlushForShards(
 			NamespaceMetadata: idx.nsMetadata,
 			BlockStart:        blockStart,
 			FileSetType:       persist.FileSetFlushType,
-			Shards:            map[uint32]struct{}{0: struct{}{}},
+			Shards:            map[uint32]struct{}{0: {}},
 			IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
 		})).Return(preparedPersist, nil)
 
 		results := block.NewMockFetchBlocksMetadataResults(ctrl)
 
+		resultsID1 := ident.StringID("CACHED")
+		resultsID2 := ident.StringID("NEW")
+		doc1 := doc.Document{
+			ID:     resultsID1.Bytes(),
+			Fields: []doc.Field{},
+		}
+		doc2 := doc.Document{
+			ID:     resultsID2.Bytes(),
+			Fields: []doc.Field{},
+		}
+		expectedDocs = append(expectedDocs, doc1)
+		expectedDocs = append(expectedDocs, doc2)
+
 		for _, mockShard := range mockShards {
 			mockShard.EXPECT().FlushState(blockStart).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 			mockShard.EXPECT().FlushState(blockStart.Add(blockSize)).Return(fileOpState{WarmStatus: fileOpSuccess}, nil)
 
-			results.EXPECT().Results().Return(nil)
+			resultsTags1 := ident.NewTagsIterator(ident.NewTags())
+			resultsTags2 := ident.NewTagsIterator(ident.NewTags())
+			resultsInShard := []block.FetchBlocksMetadataResult{
+				block.FetchBlocksMetadataResult{
+					ID:   resultsID1,
+					Tags: resultsTags1,
+				},
+				block.FetchBlocksMetadataResult{
+					ID:   resultsID2,
+					Tags: resultsTags2,
+				},
+			}
+			results.EXPECT().Results().Return(resultsInShard)
 			results.EXPECT().Close()
+
+			mockShard.EXPECT().DocRef(resultsID1).Return(doc1, true, nil)
+			mockShard.EXPECT().DocRef(resultsID2).Return(doc.Document{}, false, nil)
 
 			mockShard.EXPECT().FetchBlocksMetadataV2(gomock.Any(), blockStart, blockStart.Add(idx.blockSize),
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
@@ -432,8 +468,9 @@ func verifyFlushForShards(
 		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 	}
 	require.NoError(t, idx.WarmFlush(mockFlush, dbShards))
-	require.Equal(t, persistClosedTimes, numBlocks)
-	require.Equal(t, persistCalledTimes, numBlocks)
+	require.Equal(t, numBlocks, persistClosedTimes)
+	require.Equal(t, numBlocks, persistCalledTimes)
+	require.Equal(t, expectedDocs, actualDocs)
 }
 
 type testIndex struct {

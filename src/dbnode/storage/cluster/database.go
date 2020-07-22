@@ -51,16 +51,22 @@ type newStorageDatabaseFn func(
 ) (storage.Database, error)
 
 type databaseMetrics struct {
-	initializing tally.Gauge
-	leaving      tally.Gauge
-	available    tally.Gauge
+	initializing          tally.Gauge
+	leaving               tally.Gauge
+	available             tally.Gauge
+	shardsClusterTotal    tally.Gauge
+	shardsClusterReplicas tally.Gauge
 }
 
 func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
+	shardsScope := scope.SubScope("shards")
+	shardsClusterScope := scope.SubScope("shards-cluster")
 	return databaseMetrics{
-		initializing: scope.Gauge("shards.initializing"),
-		leaving:      scope.Gauge("shards.leaving"),
-		available:    scope.Gauge("shards.available"),
+		initializing:          shardsScope.Gauge("initializing"),
+		leaving:               shardsScope.Gauge("leaving"),
+		available:             shardsScope.Gauge("available"),
+		shardsClusterTotal:    shardsClusterScope.Gauge("total"),
+		shardsClusterReplicas: shardsClusterScope.Gauge("replicas"),
 	}
 }
 
@@ -319,7 +325,8 @@ func (d *clusterDB) activeTopologyWatch() {
 }
 
 func (d *clusterDB) analyzeAndReportShardStates() {
-	entry, ok := d.watch.Get().LookupHostShardSet(d.hostID)
+	placement := d.watch.Get()
+	entry, ok := placement.LookupHostShardSet(d.hostID)
 	if !ok {
 		return
 	}
@@ -343,6 +350,9 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		d.metrics.initializing.Update(float64(initializing))
 		d.metrics.leaving.Update(float64(leaving))
 		d.metrics.available.Update(float64(available))
+		shardsClusterTotal := len(placement.ShardSet().All())
+		d.metrics.shardsClusterTotal.Update(float64(shardsClusterTotal))
+		d.metrics.shardsClusterReplicas.Update(float64(placement.Replicas()))
 	}
 
 	defer reportStats()
