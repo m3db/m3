@@ -484,10 +484,18 @@ type Options interface {
 	FSTOptions() fst.Options
 
 	// SetMmapReporter sets the mmap reporter.
-	SetMmapReporter(mmapReporter mmap.Reporter) Options
+	SetMmapReporter(value mmap.Reporter) Options
 
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
+
+	// SetIndexReaderAutovalidateIndexSegments sets the index reader to
+	// autovalidate index segments data integrity on file open.
+	SetIndexReaderAutovalidateIndexSegments(value bool) Options
+
+	// IndexReaderAutovalidateIndexSegments returns the index reader to
+	// autovalidate index segments data integrity on file open.
+	IndexReaderAutovalidateIndexSegments() bool
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

@@ -67,6 +67,11 @@ const (
 	// defaultForceIndexBloomFilterMmapMemory is the default configuration for whether the bytes for the bloom filter
 	// should be mmap'd as an anonymous region (forced completely into memory) or mmap'd as a file.
 	defaultForceIndexBloomFilterMmapMemory = false
+
+	// defaultIndexReaderAutovalidateIndexSegments is the default configuration for
+	// whether or not the index reader should autovalidate the index segments when
+	// opening segments. This is an expensive operation and should be done post-open.
+	defaultIndexReaderAutovalidateIndexSegments = false
 )
 
 var (
@@ -100,6 +105,7 @@ type options struct {
 	forceBloomFilterMmapMemory           bool
 	mmapEnableHugePages                  bool
 	mmapReporter                         mmap.Reporter
+	indexReaderAutovalidateIndexSegments bool
 }
 
 // NewOptions creates a new set of fs options
@@ -134,6 +140,7 @@ func NewOptions() Options {
 		tagEncoderPool:                       tagEncoderPool,
 		tagDecoderPool:                       tagDecoderPool,
 		fstOptions:                           fstOptions,
+		indexReaderAutovalidateIndexSegments: defaultIndexReaderAutovalidateIndexSegments,
 	}
 }
 
@@ -365,4 +372,14 @@ func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {
 
 func (o *options) MmapReporter() mmap.Reporter {
 	return o.mmapReporter
+}
+
+func (o *options) SetIndexReaderAutovalidateIndexSegments(value bool) Options {
+	opts := *o
+	opts.indexReaderAutovalidateIndexSegments = value
+	return &opts
+}
+
+func (o *options) IndexReaderAutovalidateIndexSegments() bool {
+	return o.indexReaderAutovalidateIndexSegments
 }
