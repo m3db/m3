@@ -1156,6 +1156,18 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
 	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
 	require.True(t, ok)
+
+	// Verify the documents in the shard's series are present.
+	for _, w := range writes {
+		doc, exists, err := shard.DocRef(ident.StringID(w.id))
+		require.NoError(t, err)
+		require.True(t, exists)
+		require.Equal(t, w.id, string(doc.ID))
+	}
+	document, exists, err := shard.DocRef(ident.StringID("NOT_PRESENT_ID"))
+	require.NoError(t, err)
+	require.False(t, exists)
+	require.Equal(t, doc.Document{}, document)
 }
 
 // This tests a race in shard ticking with an empty series pending expiration.
