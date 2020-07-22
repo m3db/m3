@@ -78,6 +78,7 @@ var (
 	defaultFilePathPrefix   = os.TempDir()
 	defaultNewFileMode      = os.FileMode(0666)
 	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
+	defaultFSTWriterOptions = fst.WriterOptions{}
 
 	errTagEncoderPoolNotSet = errors.New("tag encoder pool is not set")
 	errTagDecoderPoolNotSet = errors.New("tag decoder pool is not set")
@@ -101,6 +102,7 @@ type options struct {
 	tagEncoderPool                       serialize.TagEncoderPool
 	tagDecoderPool                       serialize.TagDecoderPool
 	fstOptions                           fst.Options
+	fstWriterOptions                     fst.WriterOptions
 	forceIndexSummariesMmapMemory        bool
 	forceBloomFilterMmapMemory           bool
 	mmapEnableHugePages                  bool
@@ -140,6 +142,7 @@ func NewOptions() Options {
 		tagEncoderPool:                       tagEncoderPool,
 		tagDecoderPool:                       tagDecoderPool,
 		fstOptions:                           fstOptions,
+		fstWriterOptions:                     defaultFSTWriterOptions,
 		indexReaderAutovalidateIndexSegments: defaultIndexReaderAutovalidateIndexSegments,
 	}
 }
@@ -362,6 +365,16 @@ func (o *options) SetFSTOptions(value fst.Options) Options {
 
 func (o *options) FSTOptions() fst.Options {
 	return o.fstOptions
+}
+
+func (o *options) SetFSTWriterOptions(value fst.WriterOptions) Options {
+	opts := *o
+	opts.fstWriterOptions = value
+	return &opts
+}
+
+func (o *options) FSTWriterOptions() fst.WriterOptions {
+	return o.fstWriterOptions
 }
 
 func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {

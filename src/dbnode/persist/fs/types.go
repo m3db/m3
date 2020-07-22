@@ -477,11 +477,17 @@ type Options interface {
 	// TagDecoderPool returns the tag decoder pool.
 	TagDecoderPool() serialize.TagDecoderPool
 
-	// SetFStOptions sets the fst options.
+	// SetFSTOptions sets the fst options.
 	SetFSTOptions(value fst.Options) Options
 
 	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
+
+	// SetFStWriterOptions sets the fst writer options.
+	SetFSTWriterOptions(value fst.WriterOptions) Options
+
+	// FSTWriterOptions returns the fst writer options.
+	FSTWriterOptions() fst.WriterOptions
 
 	// SetMmapReporter sets the mmap reporter.
 	SetMmapReporter(value mmap.Reporter) Options
