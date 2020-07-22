@@ -172,6 +172,9 @@ type DataFileSetReader interface {
 
 	// MetadataRead returns the position of metadata read into the volume
 	MetadataRead() int
+
+	// IsOrderedByIndex returns true if the reader reads the data in the order of index.
+	IsOrderedByIndex() bool
 }
 
 // DataFileSetSeeker provides an out of order reader for a TSDB file set
@@ -588,7 +591,7 @@ type Segments interface {
 }
 
 // CrossBlockReader allows reading data (encoded bytes) from multiple DataFileSetReaders of the same shard,
-// ordered by series id first, and block start next.
+// ordered by series id first, and block start time next.
 type CrossBlockReader interface {
 	io.Closer
 

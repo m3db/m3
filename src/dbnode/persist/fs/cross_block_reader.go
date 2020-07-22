@@ -3,15 +3,21 @@ package fs
 import (
 	"bytes"
 	"container/heap"
+	"errors"
 	"fmt"
+	"io"
+	"time"
+
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
-	"io"
-	"time"
 )
 
-var _ CrossBlockReader = (*crossBlockReader)(nil)
+var (
+	errReaderNotOrderedByIndex = errors.New("CrossBlockReader can only use DataFileSetReaders ordered by index")
+	_ CrossBlockReader = (*crossBlockReader)(nil)
+	_ heap.Interface   = (*minHeap)(nil)
+)
 
 type crossBlockReader struct {
 	dataFileSetReaders []DataFileSetReader
@@ -28,16 +34,19 @@ type minHeapEntry struct {
 	checksum               uint32
 }
 
-var _ heap.Interface = (*minHeap)(nil)
-
 type minHeap []*minHeapEntry
 
 // NewCrossBlockReader constructs a new CrossBlockReader based on given DataFileSetReaders.
+// DataFileSetReaders must be configured to return the data in the order of index, and must be
+// provided in a slice sorted by block start time.
 // Callers are responsible for closing the DataFileSetReaders.
 func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (*crossBlockReader, error) {
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
 		currentStart := dataFileSetReader.Range().Start
+		if !dataFileSetReader.IsOrderedByIndex() {
+			return nil, errReaderNotOrderedByIndex
+		}
 		if !currentStart.After(previousStart) {
 			return nil, fmt.Errorf("dataFileSetReaders are not ordered by time (%s followed by %s)", previousStart, currentStart)
 		}

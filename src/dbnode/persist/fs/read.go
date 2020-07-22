@@ -570,6 +570,10 @@ func (r *reader) MetadataRead() int {
 	return r.metadataRead
 }
 
+func (r *reader) IsOrderedByIndex() bool {
+	return r.orderedByIndex
+}
+
 func (r *reader) Close() error {
 	// Close and prepare resources that are to be reused
 	multiErr := xerrors.NewMultiError()
