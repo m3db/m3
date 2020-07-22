@@ -34,7 +34,6 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/mmap"
 
-	"go.uber.org/ratelimit"
 	"go.uber.org/zap"
 )
 
@@ -258,39 +257,11 @@ func (r *indexReader) ReadSegmentFileSet() (
 			r.logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 		}
 
-		// Create limiter right before file read in case value just changed.
-		limits := r.opts.RuntimeOptionsManager().Get().PersistRateLimitOptions()
-		limiter := ratelimit.NewUnlimited()
-		if limits.LimitEnabled() {
-			// We copy 1mb at a time, so set the limit to be how
-			// many per second we can call.
-			megaBytesPerSecond := int(limits.LimitMbps() / 8.0)
-			limiter = ratelimit.New(megaBytesPerSecond)
-		}
-
-		// Use 1mb batch read size to match the rate limit value.
-		const batchReadSize = 1024 * 1024
-		hash := digest.NewDigestWriter()
-		reader := bytes.NewReader(desc.Bytes)
-		for {
-			// Wait for availability.
-			limiter.Take()
-
-			// Read batch now rate limiter allowed progression.
-			_, err := io.CopyN(hash, reader, batchReadSize)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return nil, err
-			}
-		}
-
 		file := newReadableIndexSegmentFileMmap(segFileType, fd, desc)
 		result.files = append(result.files, file)
 		digests.files = append(digests.files, indexReaderReadSegmentFileDigest{
 			segmentFileType: segFileType,
-			digest:          hash.Sum32(),
+			digest:          digest.Checksum(desc.Bytes),
 		})
 
 		// NB(bodu): Free mmaped bytes after we take the checksum so we don't get memory spikes at bootstrap time.

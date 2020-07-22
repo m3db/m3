@@ -44,8 +44,7 @@ import (
 )
 
 const (
-	// BytesPerMegabit is the number of bytes per megabit.
-	BytesPerMegabit = 1024 * 1024 / 8
+	bytesPerMegabit = 1024 * 1024 / 8
 )
 
 type persistManagerStatus int
@@ -514,7 +513,7 @@ func (pm *persistManager) persist(
 		if pm.start.IsZero() {
 			pm.start = start
 		} else if pm.count >= opts.LimitCheckEvery() {
-			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / (rateLimitMbps * BytesPerMegabit))
+			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / (rateLimitMbps * bytesPerMegabit))
 			if elapsed := start.Sub(pm.start); elapsed < target {
 				pm.sleepFn(target - elapsed)
 				// Recapture start for precise timing, might take some time to "wakeup"
