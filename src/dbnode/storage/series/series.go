@@ -313,6 +313,11 @@ func (s *dbSeries) Write(
 	wOpts WriteOptions,
 ) (bool, WriteType, error) {
 	if wOpts.BootstrapWrite {
+		// NB(r): If this is a bootstrap write we store this in a
+		// side buffer so that we don't need to take the series lock
+		// and contend with normal writes that are flowing into the DB
+		// while bootstrapping which can significantly interrupt
+		// write latency and cause entire DB to stall/degrade in performance.
 		return s.bootstrapWrite(ctx, timestamp, value, unit, annotation, wOpts)
 	}
 
@@ -639,6 +644,12 @@ func (s *dbSeries) Bootstrap(nsCtx namespace.Context) error {
 		return nil
 	}
 
+	// NB(r): Now bootstrapped need to move bootstrap writes to the
+	// normal series buffer to make them visible to DB.
+	// We store these bootstrap writes in a side buffer so that we don't
+	// need to take the series lock and contend with normal writes
+	// that flow into the DB while bootstrapping which can significantly
+	// interrupt write latency and cause entire DB to stall/degrade in performance.
 	return bootstrapBuffer.MoveTo(s.buffer, nsCtx)
 }
 

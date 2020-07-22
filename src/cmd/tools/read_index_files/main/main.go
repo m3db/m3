@@ -50,7 +50,7 @@ func main() {
 		optVolumeIndex           = getopt.Int64Long("volume-index", 'v', 0, "Volume index")
 		optLargeFieldLimit       = getopt.Int64Long("large-field-limit", 'l', 0, "Large Field Limit (non-zero to display fields with num terms > limit)")
 		optOutputIdsPrefix       = getopt.StringLong("output-ids-prefix", 'o', "", "If set, it emits all terms for the _m3ninx_id field.")
-		optSkipValidateIntegrity = getopt.BoolLong("skip-validate-integrity", 's', "If set will not skip integrity validation on segment open")
+		optSkipValidateIntegrity = getopt.BoolLong("skip-validate-integrity", 's', "If set will skip integrity validation on segment open")
 	)
 	getopt.Parse()
 

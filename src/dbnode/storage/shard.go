@@ -1041,11 +1041,11 @@ func (s *dbShard) SeriesReadWriteRef(
 	// TODO(r): Probably can't insert series sync otherwise we stall a ton
 	// of writes... need a better solution for bootstrapping.
 	// This is what can cause writes to degrade during bootstrap if
-	// write lock is super contended
+	// write lock is super contended.
 	// Having said that, now that writes are kept in a separate "bootstrap"
-	// buffer in the series itself to normal writes then merged at tick
-	// it somewhat mitigates some lock contention since the shard lock
-	// is still contended but at least series writes due to commit log
+	// buffer in the series itself to normal writes then merged at end of
+	// bootstrap it somewhat mitigates some lock contention since the shard
+	// lock is still contended but at least series writes due to commit log
 	// bootstrapping do not interrupt normal writes waiting for ability
 	// to write to an individual series.
 	at := s.nowFn()

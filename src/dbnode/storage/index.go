@@ -85,7 +85,7 @@ const (
 	defaultFlushReadDataBlocksBatchSize = int64(4096)
 	nsIndexReportStatsInterval          = 10 * time.Second
 
-	defaultFlushDocsBatchSize = 256
+	defaultFlushDocsBatchSize = 8192
 )
 
 var (
