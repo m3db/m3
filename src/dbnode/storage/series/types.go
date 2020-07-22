@@ -112,8 +112,9 @@ type DatabaseSeries interface {
 	// IsEmpty returns whether series is empty (includes both cached blocks and in-mem buffer data).
 	IsEmpty() bool
 
-	// IsBufferEmpty returns whether the series buffer is empty (only checks for in-mem buffer data).
-	IsBufferEmpty() bool
+	// IsBufferEmptyAtBlockStart returns whether the series buffer is empty at block start
+	// (only checks for in-mem buffer data).
+	IsBufferEmptyAtBlockStart(time.Time) bool
 
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int

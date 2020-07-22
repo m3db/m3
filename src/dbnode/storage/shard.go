@@ -2383,13 +2383,13 @@ func (s *dbShard) Snapshot(
 		emptySnapshotOnDisk = s.emptySnapshotOnDiskByTime[blockStart]
 	)
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
-		if !entry.Series.IsBufferEmpty() {
+		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
 			needsSnapshot = true
 			return false
 		}
 		return true
 	})
-	// Only terminate only when we would be over-writing an empty snapshot fileset on disk.
+	// Only terminate early when we would be over-writing an empty snapshot fileset on disk.
 	// TODO(bodu): We could bootstrap empty snapshot state in the bs path to avoid doing extra
 	// snapshotting work after a bootstrap since this cached state gets cleared.
 	if !needsSnapshot && emptySnapshotOnDisk {
@@ -2397,7 +2397,9 @@ func (s *dbShard) Snapshot(
 	}
 	// We're proceeding w/ the snaphot at this point but we know it will be empty or contain data that is recoverable
 	// from commit logs since we would have rotated commit logs before checking for flushable data.
-	if !needsSnapshot {
+	if needsSnapshot {
+		s.emptySnapshotOnDiskByTime[blockStart] = false
+	} else {
 		s.emptySnapshotOnDiskByTime[blockStart] = true
 	}
 
