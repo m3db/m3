@@ -187,6 +187,10 @@ type dbShard struct {
 	ticking                  bool
 	shard                    uint32
 	coldWritesEnabled        bool
+	// NB(bodu): Cache state on whether we snapshotted last or not to avoid
+	// going to disk to see if filesets are empty. We don't need to lock on this
+	// because snapshots happen sequentially.
+	emptySnapshotOnDiskByTime map[time.Time]bool
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -274,32 +278,33 @@ func newDatabaseShard(
 		SubScope("dbshard")
 
 	s := &dbShard{
-		opts:                 opts,
-		seriesOpts:           seriesOpts,
-		nowFn:                opts.ClockOptions().NowFn(),
-		state:                dbShardStateOpen,
-		namespace:            namespaceMetadata,
-		shard:                shard,
-		namespaceReaderMgr:   namespaceReaderMgr,
-		increasingIndex:      increasingIndex,
-		seriesPool:           opts.DatabaseSeriesPool(),
-		reverseIndex:         reverseIndex,
-		lookup:               newShardMap(shardMapOptions{}),
-		list:                 list.New(),
-		newMergerFn:          fs.NewMerger,
-		newFSMergeWithMemFn:  newFSMergeWithMem,
-		filesetsFn:           fs.DataFiles,
-		filesetPathsBeforeFn: fs.DataFileSetsBefore,
-		deleteFilesFn:        fs.DeleteFiles,
-		snapshotFilesFn:      fs.SnapshotFiles,
-		sleepFn:              time.Sleep,
-		identifierPool:       opts.IdentifierPool(),
-		contextPool:          opts.ContextPool(),
-		flushState:           newShardFlushState(),
-		tickWg:               &sync.WaitGroup{},
-		coldWritesEnabled:    namespaceMetadata.Options().ColdWritesEnabled(),
-		logger:               opts.InstrumentOptions().Logger(),
-		metrics:              newDatabaseShardMetrics(shard, scope),
+		opts:                      opts,
+		seriesOpts:                seriesOpts,
+		nowFn:                     opts.ClockOptions().NowFn(),
+		state:                     dbShardStateOpen,
+		namespace:                 namespaceMetadata,
+		shard:                     shard,
+		namespaceReaderMgr:        namespaceReaderMgr,
+		increasingIndex:           increasingIndex,
+		seriesPool:                opts.DatabaseSeriesPool(),
+		reverseIndex:              reverseIndex,
+		lookup:                    newShardMap(shardMapOptions{}),
+		list:                      list.New(),
+		newMergerFn:               fs.NewMerger,
+		newFSMergeWithMemFn:       newFSMergeWithMem,
+		filesetsFn:                fs.DataFiles,
+		filesetPathsBeforeFn:      fs.DataFileSetsBefore,
+		deleteFilesFn:             fs.DeleteFiles,
+		snapshotFilesFn:           fs.SnapshotFiles,
+		sleepFn:                   time.Sleep,
+		identifierPool:            opts.IdentifierPool(),
+		contextPool:               opts.ContextPool(),
+		flushState:                newShardFlushState(),
+		tickWg:                    &sync.WaitGroup{},
+		coldWritesEnabled:         namespaceMetadata.Options().ColdWritesEnabled(),
+		emptySnapshotOnDiskByTime: make(map[time.Time]bool),
+		logger:                    opts.InstrumentOptions().Logger(),
+		metrics:                   newDatabaseShardMetrics(shard, scope),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope, opts.InstrumentOptions().Logger())
@@ -2371,6 +2376,30 @@ func (s *dbShard) Snapshot(
 		return errShardNotBootstrappedToSnapshot
 	}
 	s.RUnlock()
+
+	var (
+		needsSnapshot bool
+		// NB(bodu): This always defaults to false if the record does not exist.
+		emptySnapshotOnDisk = s.emptySnapshotOnDiskByTime[blockStart]
+	)
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		if !entry.Series.IsBufferEmpty() {
+			needsSnapshot = true
+			return false
+		}
+		return true
+	})
+	// Only terminate only when we would be over-writing an empty snapshot fileset on disk.
+	// TODO(bodu): We could bootstrap empty snapshot state in the bs path to avoid doing extra
+	// snapshotting work after a bootstrap since this cached state gets cleared.
+	if !needsSnapshot && emptySnapshotOnDisk {
+		return nil
+	}
+	// We're proceeding w/ the snaphot at this point but we know it will be empty or contain data that is recoverable
+	// from commit logs since we would have rotated commit logs before checking for flushable data.
+	if !needsSnapshot {
+		s.emptySnapshotOnDiskByTime[blockStart] = true
+	}
 
 	var multiErr xerrors.MultiError
 
