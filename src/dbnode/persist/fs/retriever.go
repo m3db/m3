@@ -335,7 +335,7 @@ func (r *blockRetriever) fetchBatch(
 
 		var (
 			seg, onRetrieveSeg ts.Segment
-			checksum           = req.indexEntry.Checksum
+			checksum           = req.indexEntry.DataChecksum
 		)
 		if data != nil {
 			seg = ts.NewSegment(data, nil, checksum, ts.FinalizeHead)

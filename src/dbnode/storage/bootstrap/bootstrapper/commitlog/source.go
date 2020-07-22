@@ -891,15 +891,9 @@ func (s *commitLogSource) startAccumulateWorker(worker *accumulateWorker) {
 
 		_, _, err := entry.Series.Write(ctx, dp.Timestamp, dp.Value,
 			unit, annotation, series.WriteOptions{
-				SchemaDesc: namespace.namespaceContext.Schema,
-				// NB(r): Make sure this is the series we originally
-				// checked out for writing too (which should be guaranteed
-				// by the fact during shard tick we do not expire any
-				// series unless they are bootstrapped).
-				MatchUniqueIndex:      true,
-				MatchUniqueIndexValue: entry.UniqueIndex,
-				BootstrapWrite:        true,
-				SkipOutOfRetention:    true,
+				SchemaDesc:         namespace.namespaceContext.Schema,
+				BootstrapWrite:     true,
+				SkipOutOfRetention: true,
 			})
 		if err != nil {
 			// NB(r): Only log first error per worker since this could be very

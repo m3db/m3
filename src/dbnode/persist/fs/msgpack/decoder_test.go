@@ -23,6 +23,7 @@ package msgpack
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -128,12 +129,27 @@ func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 	// Intentionally bump number of fields for the index entry object
 	enc.encodeNumObjectFieldsForFn = testGenEncodeNumObjectFieldsForFn(enc, indexEntryType, 1)
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+
+	// This hokey bit of logic is done so we can add extra fields in the correct location (since new IndexEntry fields
+	// will be added *before* the checksum). Confirm current checksum is correct, strip it, add unexpected field,
+	// and re-add updated checksum value
+
+	// Validate existing checksum
+	checksumPos := len(enc.Bytes()) - 5 // 5 bytes = 1 byte for integer code + 4 bytes for checksum
+	dec.Reset(NewByteDecoderStream(enc.Bytes()[checksumPos:]))
+	currChecksum := dec.decodeVarint()
+	require.Equal(t, currChecksum, int64(digest.Checksum(enc.Bytes()[:checksumPos])))
+
+	// Strip checksum, add new field, add updated checksum
+	enc.buf.Truncate(len(enc.Bytes()) - 5)
 	require.NoError(t, enc.enc.EncodeInt64(1234))
+	require.NoError(t, enc.enc.EncodeInt64(int64(digest.Checksum(enc.Bytes()))))
 
 	// Verify we can successfully skip unnecessary fields
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
+
 	require.Equal(t, testIndexEntry, res)
 }
 
@@ -245,4 +261,20 @@ func TestDecodeBytesAllocNew(t *testing.T) {
 		data[i] = byte('a')
 	}
 	require.Equal(t, []byte("testIndexEntry"), res.ID)
+}
+
+func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
+	var (
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
+	)
+	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+
+	// Update to invalid checksum
+	enc.buf.Truncate(len(enc.Bytes()) - 5) // 5 bytes = 1 byte for integer code + 4 bytes for checksum
+	require.NoError(t, enc.enc.EncodeInt64(1234))
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	_, err := dec.DecodeIndexEntry(nil)
+	require.Error(t, err)
 }
