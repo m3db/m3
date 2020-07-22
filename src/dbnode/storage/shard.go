@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
@@ -32,7 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -2575,39 +2574,57 @@ func (s *dbShard) AggregateTiles(
 	defer reader.Close()
 
 	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
-	bytesReader := bytes.NewReader(nil)
-	dataPointIter := m3tsz.NewReaderIterator(bytesReader, true, encodingOpts)
+
+	readerIter, err := tile.NewSeriesBlockIterator(
+		reader, xtime.UnixNano(opts.Step.Nanoseconds()), xtime.ToUnixNano(opts.Start), 1, encodingOpts)
+	if err != nil {
+		return err
+	}
+	// FIXME (see https://github.com/m3db/m3/pull/2451#discussion_r458559512) defer readerIter.Close()
+
 	var lastWriteError error
 
-	for {
-		id, tags, data, _, err := reader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
+	for readerIter.Next() {
 
-		data.IncRef()
-		bytesReader.Reset(data.Bytes())
-		dataPointIter.Reset(bytesReader, nil)
+		seriesIters := readerIter.Current()
+		for _, seriesIter := range seriesIters {
 
-		for dataPointIter.Next() {
-			dp, unit, annot := dataPointIter.Current()
-			_, err = s.writeAndIndex(ctx, id, tags, dp.Timestamp, dp.Value, unit, annot, wOpts, true)
-			if err != nil {
-				s.metrics.largeTilesWriteErrors.Inc(1)
-				lastWriteError = err
+			for seriesIter.Next() {
+
+				frame := seriesIter.Current()
+				id := frame.ID()
+				tags := frame.Tags()
+				singleUnit, isSingleUnit := frame.Units().SingleValue()
+				var units []xtime.Unit
+				if !isSingleUnit {
+					units = frame.Units().Values()
+				}
+
+				if frame.Values() != nil && frame.Values().Len() > 0 {
+
+					lastIdx := frame.Values().Len() - 1
+					lastValue := frame.Values().Value(lastIdx)
+					lastTimestamp := time.Unix(0, frame.Timestamps().Value(lastIdx))
+					unit := singleUnit
+					if units != nil {
+						unit = units[lastIdx]
+					}
+					lastAnnot := frame.Annotations().Values()[lastIdx]
+					_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, lastAnnot, wOpts, true)
+					if err != nil {
+						s.metrics.largeTilesWriteErrors.Inc(1)
+						lastWriteError = err
+					}
+				}
 			}
 		}
-
-		dataPointIter.Close()
-
-		data.DecRef()
-		data.Finalize()
 	}
 
-	return lastWriteError
+	if lastWriteError != nil {
+		return lastWriteError
+	}
+
+	return readerIter.Err()
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {
