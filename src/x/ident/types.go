@@ -476,7 +476,9 @@ func (t Tags) Equal(other Tags) bool {
 		return false
 	}
 	for i := 0; i < len(t.Values()); i++ {
-		equal := t.values[i].Name.Equal(other.values[i].Name) &&
+		name1 := t.values[i].Name
+		name2 := other.values[i].Name
+		equal := name1.Equal(name2) &&
 			t.values[i].Value.Equal(other.values[i].Value)
 		if !equal {
 			return false

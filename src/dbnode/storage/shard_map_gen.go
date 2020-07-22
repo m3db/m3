@@ -200,6 +200,7 @@ func (m *shardMap) Get(k *ident.Tags) (shardListElement, bool) {
 
 // Set will set the value for an identifier.
 func (m *shardMap) Set(k *ident.Tags, v shardListElement) {
+	k.NoFinalize()
 	m.set(k, v, _shardMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,

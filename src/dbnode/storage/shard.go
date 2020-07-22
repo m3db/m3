@@ -882,6 +882,7 @@ func (s *dbShard) writeAndIndex(
 ) (ts.Series, bool, error) {
 	// Prepare write
 	seriesTags, err := s.tagsIterToTags(tags)
+	defer seriesTags.Finalize()
 	if err != nil {
 		return ts.Series{}, false, err
 	}
@@ -895,6 +896,7 @@ func (s *dbShard) writeAndIndex(
 	// If no entry and we are not writing new series asynchronously.
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately.
+		//seriesTags.NoFinalize()
 		result, err := s.insertSeriesAsyncBatched(id, seriesTags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
@@ -1013,6 +1015,7 @@ func (s *dbShard) SeriesReadWriteRef(
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
 	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
+	defer seriesTags.Finalize()
 	entry, _, err := s.tryRetrieveWritableSeries(&seriesTags)
 	if err != nil {
 		return SeriesReadWriteRef{}, err
@@ -1214,10 +1217,12 @@ func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator) (*ident.Tags, error
 		t := iter.Current()
 
 		tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+		//tag.Name.NoFinalize()
 		tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+		//tag.Value.NoFinalize()
 
 		// TODO: need this?
-		t.NoFinalize()
+		//t.NoFinalize()
 
 		tags.Append(tag)
 	}

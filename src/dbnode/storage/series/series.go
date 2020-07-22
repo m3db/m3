@@ -454,13 +454,14 @@ func (s *dbSeries) OnRetrieveBlock(
 		}
 	}()
 
-	if !id.Equal(s.tags.ToID()) {
+	seriesID := s.tags.ToID()
+	if !id.Equal(seriesID) {
 		return
 	}
 
 	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	b.ResetFromDisk(startTime, blockSize, segment, s.tags.ToID(), nsCtx)
+	b.ResetFromDisk(startTime, blockSize, segment, seriesID, nsCtx)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.
