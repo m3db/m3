@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	osruntime "runtime"
 	"sync"
 	"time"
 
@@ -2566,7 +2567,6 @@ func (s *dbShard) AggregateTiles(
 			VolumeIndex: latestSourceVolume,
 		},
 		FileSetType: persist.FileSetFlushType,
-		//TODO add after https://github.com/chronosphereio/m3/pull/10 for proper streaming - OrderByIndex: true
 	}
 	if err := reader.Open(openOpts); err != nil {
 		return err
@@ -2574,57 +2574,90 @@ func (s *dbShard) AggregateTiles(
 	defer reader.Close()
 
 	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
-
+	concurrency := osruntime.NumCPU()
 	readerIter, err := tile.NewSeriesBlockIterator(
-		reader, xtime.UnixNano(opts.Step.Nanoseconds()), xtime.ToUnixNano(opts.Start), 1, encodingOpts)
+		reader,
+		xtime.UnixNano(opts.Step.Nanoseconds()),
+		xtime.ToUnixNano(opts.Start),
+		concurrency,
+		encodingOpts,
+	)
+
 	if err != nil {
 		return err
 	}
-	// FIXME (see https://github.com/m3db/m3/pull/2451#discussion_r458559512) defer readerIter.Close()
 
-	var lastWriteError error
+	closed := false
+	defer func() {
+		if !closed {
+			if err := readerIter.Close(); err != nil {
+				// NB: log the error on ungraceful exit.
+				s.logger.Error("could not close read iterator on error", zap.Error(err))
+			}
+		}
+	}()
+
+	var (
+		multiErr xerrors.MultiError
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+	)
 
 	for readerIter.Next() {
-
 		seriesIters := readerIter.Current()
 		for _, seriesIter := range seriesIters {
+			wg.Add(1)
+			seriesIter := seriesIter
+			go func() {
+				for seriesIter.Next() {
+					frame := seriesIter.Current()
+					id := frame.ID()
+					tags := frame.Tags()
+					unit, singleUnit := frame.Units().SingleValue()
+					annotation, singleAnnotation := frame.Annotations().SingleValue()
+					if frame.Values() != nil && frame.Values().Len() > 0 {
+						lastIdx := frame.Values().Len() - 1
+						lastValue := frame.Values().Value(lastIdx)
+						lastTimestamp := time.Unix(0, frame.Timestamps().Value(lastIdx))
+						if !singleUnit {
+							// TODO: what happens if unit has changed mid-tile?
+							// Write early and then do the remaining values separately?
+							unit = frame.Units().Values()[lastIdx]
+						}
+						if !singleAnnotation {
+							// TODO: what happens if annotation has changed mid-tile?
+							// Write early and then do the remaining values separately?
+							annotation = frame.Annotations().Values()[lastIdx]
+						}
 
-			for seriesIter.Next() {
+						_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, annotation, wOpts, true)
+						if err != nil {
+							mu.Lock()
+							s.metrics.largeTilesWriteErrors.Inc(1)
+							multiErr = multiErr.Add(err)
+							mu.Unlock()
+						}
 
-				frame := seriesIter.Current()
-				id := frame.ID()
-				tags := frame.Tags()
-				singleUnit, isSingleUnit := frame.Units().SingleValue()
-				var units []xtime.Unit
-				if !isSingleUnit {
-					units = frame.Units().Values()
+					}
 				}
 
-				if frame.Values() != nil && frame.Values().Len() > 0 {
+				wg.Done()
+			}()
 
-					lastIdx := frame.Values().Len() - 1
-					lastValue := frame.Values().Value(lastIdx)
-					lastTimestamp := time.Unix(0, frame.Timestamps().Value(lastIdx))
-					unit := singleUnit
-					if units != nil {
-						unit = units[lastIdx]
-					}
-					lastAnnot := frame.Annotations().Values()[lastIdx]
-					_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, lastAnnot, wOpts, true)
-					if err != nil {
-						s.metrics.largeTilesWriteErrors.Inc(1)
-						lastWriteError = err
-					}
-				}
-			}
+			wg.Wait()
 		}
 	}
 
-	if lastWriteError != nil {
-		return lastWriteError
+	if err := readerIter.Err(); err != nil {
+		multiErr = multiErr.Add(err)
 	}
 
-	return readerIter.Err()
+	closed = true
+	if err := readerIter.Close(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	return multiErr.FinalError()
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

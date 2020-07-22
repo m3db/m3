@@ -87,7 +87,10 @@ func (b *seriesFrameIter) Close() error {
 		b.iter = nil
 	}
 
-	b.curr.tags.Close()
+	if b.curr.tags != nil {
+		b.curr.tags.Close()
+	}
+
 	return nil
 }
 
