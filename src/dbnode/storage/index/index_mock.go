@@ -964,6 +964,18 @@ func (mr *MockBlockStatsReporterMockRecorder) ReportSegmentStats(stats interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportSegmentStats", reflect.TypeOf((*MockBlockStatsReporter)(nil).ReportSegmentStats), stats)
 }
 
+// ReportIndexingStats mocks base method
+func (m *MockBlockStatsReporter) ReportIndexingStats(stats BlockIndexingStats) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ReportIndexingStats", stats)
+}
+
+// ReportIndexingStats indicates an expected call of ReportIndexingStats
+func (mr *MockBlockStatsReporterMockRecorder) ReportIndexingStats(stats interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportIndexingStats", reflect.TypeOf((*MockBlockStatsReporter)(nil).ReportIndexingStats), stats)
+}
+
 // MockfieldsAndTermsIterator is a mock of fieldsAndTermsIterator interface
 type MockfieldsAndTermsIterator struct {
 	ctrl     *gomock.Controller

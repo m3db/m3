@@ -1837,17 +1837,17 @@ func (mr *MockdatabaseShardMockRecorder) PrepareBootstrap(ctx interface{}) *gomo
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseShard) Bootstrap(ctx context.Context) error {
+func (m *MockdatabaseShard) Bootstrap(ctx context.Context, nsCtx namespace.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bootstrap", ctx)
+	ret := m.ctrl.Call(m, "Bootstrap", ctx, nsCtx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseShardMockRecorder) Bootstrap(ctx interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) Bootstrap(ctx, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap), ctx, nsCtx)
 }
 
 // UpdateFlushStates mocks base method
@@ -4308,6 +4308,34 @@ func (m *MockOptions) DoNotIndexWithFieldsMap() map[string]string {
 func (mr *MockOptionsMockRecorder) DoNotIndexWithFieldsMap() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoNotIndexWithFieldsMap", reflect.TypeOf((*MockOptions)(nil).DoNotIndexWithFieldsMap))
+}
+
+// SetNamespaceRuntimeOptionsManagerRegistry mocks base method
+func (m *MockOptions) SetNamespaceRuntimeOptionsManagerRegistry(value namespace.RuntimeOptionsManagerRegistry) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNamespaceRuntimeOptionsManagerRegistry", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNamespaceRuntimeOptionsManagerRegistry indicates an expected call of SetNamespaceRuntimeOptionsManagerRegistry
+func (mr *MockOptionsMockRecorder) SetNamespaceRuntimeOptionsManagerRegistry(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).SetNamespaceRuntimeOptionsManagerRegistry), value)
+}
+
+// NamespaceRuntimeOptionsManagerRegistry mocks base method
+func (m *MockOptions) NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NamespaceRuntimeOptionsManagerRegistry")
+	ret0, _ := ret[0].(namespace.RuntimeOptionsManagerRegistry)
+	return ret0
+}
+
+// NamespaceRuntimeOptionsManagerRegistry indicates an expected call of NamespaceRuntimeOptionsManagerRegistry
+func (mr *MockOptionsMockRecorder) NamespaceRuntimeOptionsManagerRegistry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceRuntimeOptionsManagerRegistry", reflect.TypeOf((*MockOptions)(nil).NamespaceRuntimeOptionsManagerRegistry))
 }
 
 // MockMemoryTracker is a mock of MemoryTracker interface

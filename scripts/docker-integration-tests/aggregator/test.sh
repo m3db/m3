@@ -151,7 +151,7 @@ function test_aggregated_graphite_metric {
   echo "Read back aggregated averaged metric"
   ATTEMPTS=100 TIMEOUT=1 MAX_TIMEOUT=4 retry_with_backoff read_carbon foo.bar.* 42
 
-  # echo "Finished with carbon metrics"
+  echo "Finished with carbon metrics"
   kill $METRIC_EMIT_PID
   export METRIC_EMIT_PID="-1"
 }

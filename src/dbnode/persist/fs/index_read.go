@@ -259,12 +259,18 @@ func (r *indexReader) ReadSegmentFileSet() (
 
 		file := newReadableIndexSegmentFileMmap(segFileType, fd, desc)
 		result.files = append(result.files, file)
-		digests.files = append(digests.files, indexReaderReadSegmentFileDigest{
-			segmentFileType: segFileType,
-			digest:          digest.Checksum(desc.Bytes),
-		})
 
-		// NB(bodu): Free mmaped bytes after we take the checksum so we don't get memory spikes at bootstrap time.
+		if r.opts.IndexReaderAutovalidateIndexSegments() {
+			// Only checksum the file if we are autovalidating the index
+			// segments on open.
+			digests.files = append(digests.files, indexReaderReadSegmentFileDigest{
+				segmentFileType: segFileType,
+				digest:          digest.Checksum(desc.Bytes),
+			})
+		}
+
+		// NB(bodu): Free mmaped bytes after we take the checksum so we don't
+		// get memory spikes at bootstrap time.
 		if err := mmap.MadviseDontNeed(desc); err != nil {
 			return nil, err
 		}
@@ -282,6 +288,10 @@ func (r *indexReader) Validate() error {
 	}
 	if err := r.validateInfoFileDigest(); err != nil {
 		return err
+	}
+	if !r.opts.IndexReaderAutovalidateIndexSegments() {
+		// Do not validate on segment open.
+		return nil
 	}
 	for i, segment := range r.info.Segments {
 		for j := range segment.Files {
