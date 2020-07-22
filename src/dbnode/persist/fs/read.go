@@ -99,7 +99,6 @@ type reader struct {
 	shard                     uint32
 	volume                    int
 	open                      bool
-	versionChecker            *schema.VersionChecker
 }
 
 // NewReader returns a new reader and expects all files to exist. Will read the
@@ -326,14 +325,13 @@ func (r *reader) readInfo(size int) error {
 	r.entriesRead = 0
 	r.metadataRead = 0
 	r.bloomFilterInfo = info.BloomFilter
-	r.versionChecker = schema.NewVersionChecker(int(info.MajorVersion), int(info.MinorVersion))
 	return nil
 }
 
 func (r *reader) readIndexAndSortByOffsetAsc() error {
 	r.decoder.Reset(r.indexDecoderStream)
 	for i := 0; i < r.entries; i++ {
-		entry, err := r.decoder.DecodeIndexEntry(nil, r.versionChecker.IndexEntryValidationEnabled())
+		entry, err := r.decoder.DecodeIndexEntry(nil)
 		if err != nil {
 			return err
 		}

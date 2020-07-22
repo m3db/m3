@@ -62,7 +62,7 @@ func TestDecodeNewerVersionThanExpected(t *testing.T) {
 	// Verify decoding index entry results in an error
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	_, err = dec.DecodeIndexEntry(nil, true)
+	_, err = dec.DecodeIndexEntry(nil)
 	require.Error(t, err)
 
 	// Verify decoding log info results in an error
@@ -147,7 +147,7 @@ func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 
 	// Verify we can successfully skip unnecessary fields
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	res, err := dec.DecodeIndexEntry(nil, true)
+	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
 
 	require.Equal(t, testIndexEntry, res)
@@ -232,7 +232,7 @@ func TestDecodeBytesNoAlloc(t *testing.T) {
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	data := enc.Bytes()
 	dec.Reset(NewByteDecoderStream(data))
-	res, err := dec.DecodeIndexEntry(nil, true)
+	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
 	require.Equal(t, []byte("testIndexEntry"), res.ID)
 
@@ -252,7 +252,7 @@ func TestDecodeBytesAllocNew(t *testing.T) {
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	data := enc.Bytes()
 	dec.Reset(NewByteDecoderStream(data))
-	res, err := dec.DecodeIndexEntry(nil, true)
+	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
 	require.Equal(t, []byte("testIndexEntry"), res.ID)
 
@@ -274,13 +274,7 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 	enc.buf.Truncate(len(enc.Bytes()) - 5) // 5 bytes = 1 byte for integer code + 4 bytes for checksum
 	require.NoError(t, enc.enc.EncodeInt64(1234))
 
-	// validate set to true
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	_, err := dec.DecodeIndexEntry(nil, true)
+	_, err := dec.DecodeIndexEntry(nil)
 	require.Error(t, err)
-
-	// validate set to false
-	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	_, err = dec.DecodeIndexEntry(nil, false)
-	require.NoError(t, err)
 }

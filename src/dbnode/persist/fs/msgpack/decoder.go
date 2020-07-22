@@ -56,7 +56,7 @@ type Decoder struct {
 	// that also implements ByteStream.
 	byteReader ByteStream
 	// Wraps original reader with reader that can calculate digest. Digest calculation must be enabled,
-	// otherwise it defaults to off
+	// otherwise it defaults to off.
 	readerWithDigest  *decoderStreamWithDigest
 	dec               *msgpack.Decoder
 	err               error
@@ -117,13 +117,13 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 }
 
 // DecodeIndexEntry decodes index entry
-func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool, validate bool) (schema.IndexEntry, error) {
+func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
 	}
 	dec.readerWithDigest.setDigestReaderEnabled(true)
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
-	indexEntry := dec.decodeIndexEntry(bytesPool, validate)
+	indexEntry := dec.decodeIndexEntry(bytesPool)
 	dec.readerWithDigest.setDigestReaderEnabled(false)
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -356,7 +356,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	return indexBloomFilterInfo
 }
 
-func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool, validate bool) schema.IndexEntry {
+func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
 	var opts checkNumFieldsOptions
 	switch dec.legacy.decodeLegacyIndexEntryVersion {
 	case legacyEncodingIndexEntryVersionV1:
@@ -427,7 +427,7 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool, validate bool) sc
 	// Decode checksum field originally added in V3
 	expectedChecksum := uint32(dec.decodeVarint())
 
-	if validate && expectedChecksum != actualChecksum {
+	if expectedChecksum != actualChecksum {
 		dec.err = errorIndexEntryChecksumMismatch
 	}
 

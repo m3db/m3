@@ -405,8 +405,7 @@ func (s *seeker) SeekIndexEntry(
 		// this is a tight loop (scanning linearly through the index file) we want to use a
 		// very cheap pool until we find what we're looking for, and then we can perform a single
 		// copy into checked.Bytes from the more expensive pool.
-		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(
-			resources.decodeIndexEntryBytesPool, s.versionChecker.IndexEntryValidationEnabled())
+		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(resources.decodeIndexEntryBytesPool)
 		if err == io.EOF {
 			// We reached the end of the file without finding it.
 			return IndexEntry{}, errSeekIDNotFound

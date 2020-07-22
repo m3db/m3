@@ -35,17 +35,19 @@ var _ DecoderStream = &decoderStreamWithDigest{}
 
 // decoderStreamWithDigest calculates the digest as it processes a decoder stream.
 type decoderStreamWithDigest struct {
-	reader       DecoderStream
-	readerDigest hash.Hash32
-	unreadByte   bool
-	enabled      bool
+	reader        DecoderStream
+	readerDigest  hash.Hash32
+	unreadByte    bool
+	enabled       bool
+	singleByteBuf []byte
 }
 
 // newDecoderStreamWithDigest returns a new decoderStreamWithDigest
 func newDecoderStreamWithDigest(reader DecoderStream) *decoderStreamWithDigest {
 	return &decoderStreamWithDigest{
-		reader:       reader,
-		readerDigest: adler32.New(),
+		reader:        reader,
+		readerDigest:  adler32.New(),
+		singleByteBuf: make([]byte, 1),
 	}
 }
 
@@ -80,7 +82,8 @@ func (d *decoderStreamWithDigest) ReadByte() (byte, error) {
 	if d.unreadByte {
 		d.unreadByte = false
 	} else if d.enabled {
-		if _, err := d.readerDigest.Write([]byte{b}); err != nil {
+		d.singleByteBuf[0] = b
+		if _, err := d.readerDigest.Write(d.singleByteBuf); err != nil {
 			return b, err
 		}
 	}
