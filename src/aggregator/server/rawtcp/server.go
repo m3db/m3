@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
+	xio "github.com/m3db/m3/src/x/io"
 	xserver "github.com/m3db/m3/src/x/server"
 
 	"github.com/uber-go/tally"
@@ -93,6 +94,8 @@ type handler struct {
 	errLogRateLimiter *rate.Limiter
 	rand              *rand.Rand
 	metrics           handlerMetrics
+
+	opts Options
 }
 
 // NewHandler creates a new raw TCP handler.
@@ -112,6 +115,7 @@ func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler 
 		errLogRateLimiter: limiter,
 		rand:              rand.New(rand.NewSource(nowFn().UnixNano())),
 		metrics:           newHandlerMetrics(iOpts.MetricsScope()),
+		opts:              opts,
 	}
 }
 
@@ -121,7 +125,9 @@ func (s *handler) Handle(conn net.Conn) {
 		remoteAddress = remoteAddr.String()
 	}
 
-	reader := bufio.NewReaderSize(conn, s.readBufferSize)
+	rOpts := xio.ResettableReaderOptions{ReadBufferSize: s.readBufferSize}
+	read := s.opts.RWOptions().ResettableReaderFn()(conn, rOpts)
+	reader := bufio.NewReaderSize(read, s.readBufferSize)
 	it := migration.NewUnaggregatedIterator(reader, s.msgpackItOpts, s.protobufItOpts)
 	defer it.Close()
 
