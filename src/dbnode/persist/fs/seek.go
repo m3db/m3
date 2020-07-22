@@ -67,7 +67,7 @@ type seeker struct {
 	// instead of time.Time to avoid keeping an extra pointer around.
 	start          xtime.UnixNano
 	blockSize      time.Duration
-	versionChecker *schema.VersionChecker
+	versionChecker schema.VersionChecker
 
 	dataFd        *os.File
 	indexFd       *os.File

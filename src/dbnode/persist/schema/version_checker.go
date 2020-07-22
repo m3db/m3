@@ -28,8 +28,8 @@ type VersionChecker struct {
 }
 
 // NewVersionChecker creates a new VersionChecker
-func NewVersionChecker(majorVersion int, minorVersion int) *VersionChecker {
-	return &VersionChecker{
+func NewVersionChecker(majorVersion int, minorVersion int) VersionChecker {
+	return VersionChecker{
 		majorVersion: majorVersion,
 		minorVersion: minorVersion,
 	}
