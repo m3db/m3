@@ -15,14 +15,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// SeriesBlockIterator iterates series blocks.
-type SeriesBlockIterator interface {
-	Next() bool
-	Close() error
-	Current() []SeriesFrameIterator
-	Err() error
-}
-
 type seriesBlockIter struct {
 	reader fs.DataFileSetReader
 
@@ -43,6 +35,7 @@ type seriesBlockIter struct {
 	bytesRefHeld []bool
 	dataBytes    []checked.Bytes
 	tagIters     []ident.TagIterator
+	ids          []ident.ID
 }
 
 // NewSeriesBlockIterator creates a new SeriesBlockIterator.
@@ -54,7 +47,7 @@ func NewSeriesBlockIterator(
 	encodingOpts encoding.Options,
 ) (SeriesBlockIterator, error) {
 	if concurrency < 1 {
-		return nil, fmt.Errorf("concurrency must be greater than 1, is: %d", concurrency)
+		return nil, fmt.Errorf("concurrency must be greater than 0, is: %d", concurrency)
 	}
 
 	var (
@@ -88,6 +81,7 @@ func NewSeriesBlockIterator(
 		bytesRefHeld: make([]bool, concurrency),
 		dataBytes:    make([]checked.Bytes, concurrency),
 		tagIters:     make([]ident.TagIterator, concurrency),
+		ids:          make([]ident.ID, concurrency),
 	}, nil
 }
 
@@ -105,7 +99,7 @@ func (b *seriesBlockIter) Next() bool {
 
 	var err error
 	for i := 0; i < b.concurrency; i++ {
-		_, b.tagIters[i], b.dataBytes[i], _, err = b.reader.Read()
+		b.ids[i], b.tagIters[i], b.dataBytes[i], _, err = b.reader.Read()
 
 		if err != nil {
 			b.exhausted = true
@@ -129,10 +123,10 @@ func (b *seriesBlockIter) Next() bool {
 		b.bytesRefHeld[i] = true
 
 		bs := b.dataBytes[i].Bytes()
-		bbs := append(make([]byte, 0, len(bs)), bs...)
-		b.byteReaders[i].Reset(bbs)
+		// bbs := append(make([]byte, 0, len(bs)), bs...)
+		b.byteReaders[i].Reset(bs)
 		b.baseIters[i].Reset(b.byteReaders[i], nil)
-		b.iters[i].Reset(b.start, b.step, b.baseIters[i])
+		b.iters[i].Reset(b.start, b.step, b.baseIters[i], b.ids[i], b.tagIters[i])
 	}
 
 	return true
@@ -145,6 +139,7 @@ func (b *seriesBlockIter) freeAfterIndex(fromIdx int) error {
 		b.baseIters[i].Close()
 		b.byteReaders[i] = nil
 		b.tagIters[i].Close()
+		b.ids[i].Finalize()
 		if b.bytesRefHeld[i] {
 			b.dataBytes[i].DecRef()
 			b.bytesRefHeld[i] = false

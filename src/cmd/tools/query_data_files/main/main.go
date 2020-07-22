@@ -117,11 +117,13 @@ func main() {
 		start  = xtime.UnixNano(*optBlockstart)
 		c      = int(*concurrency)
 		prints = make([]bool, c)
+		tags   = make([][]string, c)
 		vals   = make([][]float64, 0, c)
 	)
 
 	for i := 0; i < c; i++ {
 		vals = append(vals, make([]float64, 0, initValLength))
+		tags = append(tags, make([]string, 0, initValLength))
 	}
 
 	it, err := tile.NewSeriesBlockIterator(reader, step, start, c, encodingOpts)
@@ -137,6 +139,7 @@ func main() {
 				prints[j] = false
 				idx := (i-1)*c + j
 				fmt.Printf("%d : %v\n", idx, vals[j])
+				fmt.Printf("%v\n", tags[j])
 			}
 		}
 	}
@@ -147,6 +150,10 @@ func main() {
 		printNonZero()
 		for i := range vals {
 			vals[i] = vals[i][:0]
+		}
+
+		for i := range tags {
+			tags[i] = tags[i][:0]
 		}
 
 		frameIters := it.Current()
@@ -163,6 +170,20 @@ func main() {
 					}
 
 					vals[j] = append(vals[j], v)
+					ts := frame.Tags()
+					sep := fmt.Sprintf("ID: %s\ntags:", frame.ID().String())
+					tags[j] = append(tags[j], sep)
+					for ts.Next() {
+						tag := ts.Current()
+						t := fmt.Sprintf("%s:%s", tag.Name.String(), tag.Value.String())
+						tags[j] = append(tags[j], t)
+					}
+
+					unit, single := frame.Units().SingleValue()
+					annotation, annotationSingle := frame.Annotations().SingleValue()
+					meta := fmt.Sprintf("\nunit: %v, single: %v\nannotation: %v, single: %v",
+						unit, single, annotation, annotationSingle)
+					tags[j] = append(tags[j], meta)
 				}
 
 				if err := frameIter.Err(); err != nil {

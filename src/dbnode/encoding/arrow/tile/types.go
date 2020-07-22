@@ -1,45 +1,69 @@
 package tile
 
 import (
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/apache/arrow/go/arrow/array"
 )
 
-// SeriesBlockFrame contains either all raw values
-// for a given series in a block if the frame size
-// was not specified, or the number of values
-// that fall into the next sequential frame
-// for a series in the block given the progression
-// through each time series from the query Start time.
-// e.g. with 10minute frame size that aligns with the
-// query start, each series will return
-// 12 frames in a two hour block.
-type SeriesBlockFrame struct {
-	// FrameStart is start of frame.
-	FrameStart xtime.UnixNano
-	// FrameEnd is end of frame.
-	FrameEnd xtime.UnixNano
-	// DatapointRecord is the apache arrow datapoint record.
-	record *datapointRecord
+// SeriesFrameUnits describes units in this series frame.
+type SeriesFrameUnits interface {
+	// SingleValue returns the last unit seen, and a boolean indicating if
+	// that unit is constant for all datapoints accross the series frame.
+	SingleValue() (xtime.Unit, bool)
+
+	// Values returns all values seen.
+	// NB: if this is called on a recorder with a constant unit, this will
+	// generate a full slice filled with that unit, corresponding to the
+	// number of units added to the recorder. It is recommended to call
+	// SingleValue first to avoid unnecessary allocs if SingleValue is true.
+	Values() []xtime.Unit
 }
 
-func (f *SeriesBlockFrame) release() {
-	f.record.release()
+// SeriesFrameAnnotations describes annotations in this series frame.
+type SeriesFrameAnnotations interface {
+	// SingleValue returns the last annotation seen, and a boolean indicating if
+	// that annotation is constant for all datapoints accross the series frame.
+	SingleValue() (ts.Annotation, bool)
+
+	// Values returns all values seen.
+	// NB: if this is called on a recorder with a constant annotation, this will
+	// generate a full slice filled with that annotation, corresponding to the
+	// number of annotations added to the recorder. It is recommended to call
+	// SingleValue first to avoid unnecessary allocs if SingleValue is true.
+	Values() []ts.Annotation
 }
 
-func (f *SeriesBlockFrame) reset(start xtime.UnixNano, end xtime.UnixNano) {
-	f.release()
-	f.FrameStart = start
-	f.FrameEnd = end
+// SeriesFrameIterator is a frame-wise iterator across a series block.
+type SeriesFrameIterator interface {
+	// Err returns any errors encountered.
+	Err() error
+	// Next moves to the next element.
+	Next() bool
+	// Close closes the iterator.
+	Close() error
+	// Current returns the current series block frame.
+	Current() SeriesBlockFrame
+	// Reset resets the series frame iterator.
+	Reset(
+		start xtime.UnixNano,
+		step xtime.UnixNano,
+		it encoding.ReaderIterator,
+		id ident.ID,
+		tags ident.TagIterator,
+	) error
 }
 
-// Values returns values for the record in a float64 arrow array.
-func (f *SeriesBlockFrame) Values() *array.Float64 {
-	return f.record.values()
-}
-
-// Timestamps returns timestamps for the record in an int64 arrow array.
-func (f *SeriesBlockFrame) Timestamps() *array.Int64 {
-	return f.record.timestamps()
+// SeriesBlockIterator provides concurrent iteration across multiple series
+// in a frame-wise fashion, exposing results as arrow slices.
+type SeriesBlockIterator interface {
+	// Err returns any errors encountered.
+	Err() error
+	// Next moves to the next element.
+	Next() bool
+	// Close closes the iterator.
+	Close() error
+	// Current returns the next set of series frame iterators.
+	Current() []SeriesFrameIterator
 }

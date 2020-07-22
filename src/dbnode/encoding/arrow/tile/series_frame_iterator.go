@@ -4,28 +4,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 )
-
-// SeriesFrameIterator is a frame-wise iterator across a series block.
-type SeriesFrameIterator interface {
-	// Err returns any errors encountered.
-	Err() error
-	// Next moves to the next element.
-	Next() bool
-	// Close closes the iterator.
-	Close() error
-	// Current returns the current series block frame.
-	Current() SeriesBlockFrame
-	// Reset resets the series frame iterator.
-	Reset(
-		start xtime.UnixNano,
-		step xtime.UnixNano,
-		it encoding.ReaderIterator,
-	) error
-}
 
 type seriesFrameIter struct {
 	err error
@@ -55,19 +38,22 @@ func (b *seriesFrameIter) Reset(
 	start xtime.UnixNano,
 	frameStep xtime.UnixNano,
 	iter encoding.ReaderIterator,
+	id ident.ID,
+	tags ident.TagIterator,
 ) error {
 	if frameStep <= 0 {
 		b.err = fmt.Errorf("frame step must be >= 0, is %d", frameStep)
 		return b.err
 	}
 
+	id.NoFinalize()
 	b.err = nil
 	b.iter = iter
 	b.started = false
 	b.exhausted = false
 	b.frameStart = start
 	b.frameStep = frameStep
-	b.curr.reset(start, start+frameStep)
+	b.curr.reset(start, start+frameStep, id, tags)
 	return nil
 }
 
@@ -81,6 +67,7 @@ func (b *seriesFrameIter) Close() error {
 		b.iter = nil
 	}
 
+	b.curr.tags.Close()
 	return nil
 }
 
@@ -107,28 +94,30 @@ func (b *seriesFrameIter) Next() bool {
 	b.curr.FrameStart = b.frameStart
 	b.curr.FrameEnd = cutover
 	b.frameStart = cutover
-	firstPoint, _, _ := b.iter.Current()
+	firstPoint, firstUnit, firstAnnotation := b.iter.Current()
 	if firstPoint.TimestampNanos >= cutover {
 		// NB: empty block.
 		b.recorder.updateRecord(b.curr.record)
+		b.curr.tags.Rewind()
 		return true
 	}
 
 	var hasAny bool
 	var hasMore bool
-	b.recorder.appendPoints(firstPoint)
+	b.recorder.record(firstPoint, firstUnit, firstAnnotation)
 	for b.iter.Next() {
 		hasAny = true
-		curr, _, _ := b.iter.Current()
+		curr, unit, annotation := b.iter.Current()
 		if curr.TimestampNanos >= cutover {
 			hasMore = true
 			break
 		}
 
-		b.recorder.appendPoints(curr)
+		b.recorder.record(curr, unit, annotation)
 	}
 
 	b.recorder.updateRecord(b.curr.record)
+	b.curr.tags.Rewind()
 
 	if !hasAny {
 		b.exhausted = true

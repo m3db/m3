@@ -7,6 +7,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -148,6 +149,8 @@ func TestSeriesFrameIterator(t *testing.T) {
 			xtime.ToUnixNano(start),
 			xtime.UnixNano(tt.frameSize),
 			bl,
+			ident.StringID("foo"),
+			ident.MustNewTagStringsIterator("foo", "bar"),
 		))
 
 		step := 0
@@ -173,8 +176,15 @@ func TestSeriesFrameIterator(t *testing.T) {
 				exTime = exTime + int64(time.Second*10)
 			}
 
+			require.True(t, rec.tags.Next())
+			tag := rec.tags.Current()
+			assert.Equal(t, "foo", tag.Name.String())
+			assert.Equal(t, "bar", tag.Value.String())
+			require.False(t, rec.tags.Next())
+
 			step++
 		}
+
 		assert.Equal(t, len(tt.exSums), step)
 		assert.NoError(t, it.Err())
 	}

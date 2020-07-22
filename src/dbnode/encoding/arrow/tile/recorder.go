@@ -5,6 +5,7 @@ import (
 	"github.com/apache/arrow/go/arrow/array"
 	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -14,17 +15,19 @@ const (
 
 // datapointRecorder records datapoints.
 type datapointRecorder struct {
-	builder *array.RecordBuilder
+	builder     *array.RecordBuilder
+	units       *unitRecorder
+	annotations *annotationRecorder
 }
 
-func (r *datapointRecorder) appendPoints(dps ...ts.Datapoint) {
+func (r *datapointRecorder) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation) {
 	valFieldBuilder := r.builder.Field(valIdx).(*array.Float64Builder)
 	timeFieldBuilder := r.builder.Field(timeIdx).(*array.Int64Builder)
+	valFieldBuilder.Append(dp.Value)
+	timeFieldBuilder.Append(int64(dp.TimestampNanos))
 
-	for _, dp := range dps {
-		valFieldBuilder.Append(dp.Value)
-		timeFieldBuilder.Append(int64(dp.TimestampNanos))
-	}
+	r.units.record(u)
+	r.annotations.record(a)
 }
 
 func newDatapointRecorder(pool memory.Allocator) *datapointRecorder {
@@ -42,16 +45,31 @@ func newDatapointRecorder(pool memory.Allocator) *datapointRecorder {
 
 	b := array.NewRecordBuilder(pool, schema)
 	return &datapointRecorder{
-		builder: b,
+		builder:     b,
+		units:       newUnitRecorder(),
+		annotations: newAnnotationRecorder(),
 	}
 }
 
 func (r *datapointRecorder) release() {
+	r.units.reset()
+	r.annotations.reset()
 	r.builder.Release()
+}
+
+// NB: caller must release record.
+func (r *datapointRecorder) updateRecord(rec *datapointRecord) {
+	rec.Record = r.builder.NewRecord()
+	rec.units = r.units
+	rec.annotations = r.annotations
+
+	// rec.tags
 }
 
 type datapointRecord struct {
 	array.Record
+	units       *unitRecorder
+	annotations *annotationRecorder
 }
 
 func (r *datapointRecord) values() *array.Float64 {
@@ -71,12 +89,15 @@ func (r *datapointRecord) release() {
 		r.Record.Release()
 	}
 
-	r.Record = nil
-}
+	if r.units != nil {
+		r.units.reset()
+	}
 
-// NB: caller must release record.
-func (r *datapointRecorder) updateRecord(rec *datapointRecord) {
-	rec.Record = r.builder.NewRecord()
+	if r.annotations != nil {
+		r.annotations.reset()
+	}
+
+	r.Record = nil
 }
 
 func newDatapointRecord() *datapointRecord {
