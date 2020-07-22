@@ -1340,7 +1340,7 @@ func (s *dbShard) insertSeriesSync(
 ) (*lookup.Entry, error) {
 	// NB(r): Create new shard entry outside of write lock to reduce
 	// time using write lock.
-	entry, err := s.newShardEntry(id, tagsArgOpts)
+	newEntry, err := s.newShardEntry(id, tagsArgOpts)
 	if err != nil {
 		// should never happen
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
@@ -1360,17 +1360,17 @@ func (s *dbShard) insertSeriesSync(
 		}
 	}()
 
-	entry, _, err = s.lookupEntryWithLock(id)
+	existingEntry, _, err := s.lookupEntryWithLock(id)
 	if err != nil && err != errShardEntryNotFound {
 		// Shard not taking inserts likely.
 		return nil, err
 	}
-	if entry != nil {
-		// Already inserted.
-		return entry, nil
+	if existingEntry != nil {
+		// Already inserted, likely a race.
+		return existingEntry, nil
 	}
 
-	s.insertNewShardEntryWithLock(entry)
+	s.insertNewShardEntryWithLock(newEntry)
 
 	// Track unlocking.
 	unlocked = true
@@ -1379,7 +1379,7 @@ func (s *dbShard) insertSeriesSync(
 	// Be sure to enqueue for indexing if requires a pending index.
 	if opts.hasPendingIndex {
 		if _, err := s.insertQueue.Insert(dbShardInsert{
-			entry: entry,
+			entry: newEntry,
 			opts: dbShardInsertAsyncOptions{
 				// NB(r): Just indexing, should not be considered for new
 				// series insert rate limiting.
@@ -1396,10 +1396,10 @@ func (s *dbShard) insertSeriesSync(
 	// to increment the writer count so it's visible when we release
 	// the lock.
 	if opts.insertType == insertSyncIncReaderWriterCount {
-		entry.IncrementReaderWriterCount()
+		newEntry.IncrementReaderWriterCount()
 	}
 
-	return entry, nil
+	return newEntry, nil
 }
 
 func (s *dbShard) insertNewShardEntryWithLock(entry *lookup.Entry) {
