@@ -518,14 +518,17 @@ func (b *builder) TermsIterable() segment.TermsIterable {
 }
 
 func (b *builder) FieldsPostingsList() (segment.FieldsPostingsListIterator, error) {
-	b.status.RLock()
-	defer b.status.RUnlock()
+	// NB(r): Need write lock since sort in newOrderedFieldsPostingsListIter
+	// and SetConcurrency causes sharded fields to change.
+	b.status.Lock()
+	defer b.status.Unlock()
 
 	return newOrderedFieldsPostingsListIter(b.shardedFields.uniqueFields), nil
 }
 
 func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
-	// NB(r): Need write lock since sort if required below.
+	// NB(r): Need write lock since sort if required below
+	// and SetConcurrency causes sharded fields to change.
 	b.status.Lock()
 	defer b.status.Unlock()
 
