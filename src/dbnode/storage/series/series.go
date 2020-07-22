@@ -297,9 +297,9 @@ func (s *dbSeries) IsEmpty() bool {
 	return false
 }
 
-func (s *dbSeries) IsBufferEmpty() bool {
+func (s *dbSeries) IsBufferEmptyAtBlockStart(blockStart time.Time) bool {
 	s.RLock()
-	bufferEmpty := s.buffer.IsEmpty()
+	bufferEmpty := s.buffer.IsEmptyAtBlockStart(blockStart)
 	s.RUnlock()
 	if bufferEmpty {
 		return true
