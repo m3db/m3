@@ -881,7 +881,7 @@ func (s *dbShard) writeAndIndex(
 	shouldReverseIndex bool,
 ) (ts.Series, bool, error) {
 	// Prepare write
-	seriesTags, err := s.tagsIterToTags(tags)
+	seriesTags, err := s.tagsIterToTags(tags, s.opts.IdentifierPool())
 	defer seriesTags.Finalize()
 	if err != nil {
 		return ts.Series{}, false, err
@@ -1197,9 +1197,14 @@ type insertAsyncResult struct {
 	entry *lookup.Entry
 }
 
-func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator) (*ident.Tags, error) {
-	tagSlice := make([]ident.Tag, 0, tagsIter.Len())
-	tags := ident.NewTags(tagSlice...)
+func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool) (*ident.Tags, error) {
+	var tags ident.Tags
+	if pool != nil {
+		tags = pool.Tags()
+	} else {
+		tagSlice := make([]ident.Tag, 0, tagsIter.Len())
+		tags = ident.NewTags(tagSlice...)
+	}
 	// NB(r): Take a duplicate so that we don't double close the tag iterator
 	// passed to this method
 	iter := tagsIter.Duplicate()
@@ -1237,7 +1242,7 @@ func (s *dbShard) toTags(tagsArgOpts tagsArgOptions) (*ident.Tags, error) {
 	)
 	switch tagsArgOpts.arg {
 	case tagsIterArg:
-		seriesTags, err = s.tagsIterToTags(tagsArgOpts.tagsIter)
+		seriesTags, err = s.tagsIterToTags(tagsArgOpts.tagsIter, s.opts.IdentifierPool())
 		if err != nil {
 			return nil, err
 		}
