@@ -158,13 +158,23 @@ func (b *seriesBlockIter) freeAfterIndex(fromIdx int) error {
 		b.recorders[i].release()
 		b.baseIters[i].Close()
 		b.byteReaders[i] = nil
-		b.tagIters[i].Close()
-		b.ids[i].Finalize()
+		if b.tagIters[i] != nil {
+			b.tagIters[i].Close()
+		}
+
+		if b.ids[i] != nil {
+			b.ids[i].Finalize()
+		}
+
 		if b.bytesRefHeld[i] {
 			b.dataBytes[i].DecRef()
 			b.bytesRefHeld[i] = false
 		}
-		b.dataBytes[i].Finalize()
+
+		if b.dataBytes[i] != nil {
+			b.dataBytes[i].Finalize()
+		}
+
 		multiErr = multiErr.Add(b.iters[i].Close())
 	}
 
