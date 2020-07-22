@@ -586,3 +586,15 @@ type Segments interface {
 	AbsoluteFilePaths() []string
 	BlockStart() time.Time
 }
+
+// CrossBlockReader allows reading data (encoded bytes) from multiple DataFileSetReaders of the same shard,
+// ordered by series id first, and block start next.
+type CrossBlockReader interface {
+	io.Closer
+
+	// Read returns the next id, data, checksum tuple or error, will return io.EOF after all DataFileSetReaders exhausted.
+	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
+	// them so they can be returned to their respective pools.
+	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
+
+}
