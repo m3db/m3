@@ -34,6 +34,7 @@ import (
 	"unsafe"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -82,9 +83,12 @@ func testDatabaseShardWithIndexFn(
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetColdWritesEnabled(coldWritesEnabled))
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
+
 	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions()).
 		SetBufferBucketVersionsPool(series.NewBufferBucketVersionsPool(nil)).
-		SetBufferBucketPool(series.NewBufferBucketPool(nil))
+		SetBufferBucketPool(series.NewBufferBucketPool(nil)).
+		SetColdWritesEnabled(coldWritesEnabled)
+
 	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
 		&testIncreasingIndex{}, idx, true, opts, seriesOpts).(*dbShard)
 }
@@ -1758,14 +1762,18 @@ func TestAggregateTiles(t *testing.T) {
 
 	var (
 		ctx        = context.NewContext()
-		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour), Step: time.Minute}
 	)
 
 	sourceShard := testDatabaseShard(t, DefaultTestOptions())
 	defer sourceShard.Close()
 
-	targetShard := testDatabaseShard(t, DefaultTestOptions())
+	targetShard := testDatabaseShardWithIndexFn(t, DefaultTestOptions(), nil, true)
 	defer targetShard.Close()
+
+	reverseIndex := NewMockNamespaceIndex(ctrl)
+	reverseIndex.EXPECT().WriteBatch(gomock.Any()).Return(nil)
+	targetShard.reverseIndex = reverseIndex
 
 	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
 	require.NoError(t, err)
@@ -1781,11 +1789,22 @@ func TestAggregateTiles(t *testing.T) {
 		FileSetType: persist.FileSetFlushType,
 	}
 
+	encoder := m3tsz.NewEncoder(opts.Start, nil, false, encoding.NewOptions())
+	datapointTimestamp := opts.Start.Add(10*time.Second)
+	datapoint := ts.Datapoint{Timestamp: datapointTimestamp, TimestampNanos: xtime.ToUnixNano(datapointTimestamp), Value: 5}
+	err = encoder.Encode(datapoint, xtime.Nanosecond, ts.Annotation{1, 2})
+	require.NoError(t, err)
+	m3tszSegment := encoder.Discard()
+	m3tszBytes := checked.NewBytes(m3tszSegment.Head.Bytes(), checked.NewBytesOptions())
+	m3tszBytes.IncRef()
+	m3tszBytes.AppendAll(m3tszSegment.Tail.Bytes())
+	m3tszBytes.DecRef()
+	m3tszSegment.Finalize()
+
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(readerOpenOpts).Return(nil)
-	reader.EXPECT().Read().
-		Return(ident.StringID("id1"), ident.EmptyTagIterator, checked.NewMockBytes(ctrl), uint32(11), nil).
-		Return(nil, nil, nil, uint32(0), io.EOF)
+	first := reader.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, m3tszBytes, uint32(11), nil)
+	reader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF).After(first)
 	reader.EXPECT().Close()
 
 	err = targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, opts, series.WriteOptions{})
