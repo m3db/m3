@@ -264,8 +264,8 @@ func (r *indexReader) ReadSegmentFileSet() (
 		if limits.LimitEnabled() {
 			// We copy 1mb at a time, so set the limit to be how
 			// many per second we can call.
-			// megaBytesPerSecond := int(limits.LimitMbps() / 8.0)
-			// limiter = ratelimit.New(megaBytesPerSecond)
+			megaBytesPerSecond := int(limits.LimitMbps() / 8.0)
+			limiter = ratelimit.New(megaBytesPerSecond)
 		}
 
 		// Use 1mb batch read size to match the rate limit value.
