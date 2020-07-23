@@ -43,10 +43,10 @@ type minHeap []*minHeapEntry
 func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (*crossBlockReader, error) {
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
-		currentStart := dataFileSetReader.Range().Start
 		if !dataFileSetReader.IsOrderedByIndex() {
 			return nil, errReaderNotOrderedByIndex
 		}
+		currentStart := dataFileSetReader.Range().Start
 		if !currentStart.After(previousStart) {
 			return nil, fmt.Errorf("dataFileSetReaders are not ordered by time (%s followed by %s)", previousStart, currentStart)
 		}
