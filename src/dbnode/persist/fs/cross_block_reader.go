@@ -132,7 +132,10 @@ func (r *crossBlockReader) Close() error {
 	for _, entry := range r.minHeap {
 		entry.id.Finalize()
 		entry.tags.Close()
+		entry.data.DecRef()
+		entry.data.Finalize()
 	}
+	r.minHeap = r.minHeap[:0]
 	return nil
 }
 

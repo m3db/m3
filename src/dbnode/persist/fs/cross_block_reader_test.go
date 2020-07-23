@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"testing"
@@ -13,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var expectedError = errors.New("expected error")
 
 func TestCrossBlockReaderRejectMisconfiguredInputs(t *testing.T) {
 	ctrl := xtest.NewController(t)
@@ -60,6 +63,7 @@ func TestCrossBlockReader(t *testing.T) {
 		{"many readers with different series", [][]string{{"id1"}, {"id2"}, {"id3"}}},
 		{"many readers with unordered series", [][]string{{"id3"}, {"id1"}, {"id2"}}},
 		{"complex case", [][]string{{"id2", "id3", "id5"}, {"id1", "id2", "id4"}, {"id1", "id4"}}},
+		{"reader error", [][]string{{"id1", "id2"}, {"id1", "error"}}},
 	}
 
 	for _, tt := range tests {
@@ -82,14 +86,22 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 		dfsReader.EXPECT().IsOrderedByIndex().Return(true)
 		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))})
 
+		blockHasError := false
 		for j, id := range ids {
 			tags := ident.NewTags(ident.StringTag("foo", string(j)))
 			data := checkedBytes([]byte{byte(j)})
 			checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
-			dfsReader.EXPECT().Read().Return(ident.StringID(id), ident.NewTagsIterator(tags), data, checksum, nil)
+			if id == "error" {
+				dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), expectedError)
+				blockHasError = true
+			} else {
+				dfsReader.EXPECT().Read().Return(ident.StringID(id), ident.NewTagsIterator(tags), data, checksum, nil)
+			}
 		}
 
-		dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
+		if !blockHasError {
+			dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF).MaxTimes(1)
+		}
 
 		dfsReaders = append(dfsReaders, dfsReader)
 		expectedCount += len(ids)
@@ -99,12 +111,17 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 	require.NoError(t, err)
 	defer cbReader.Close()
 
+	hadError := false
 	actualCount := 0
 	previousId := ""
 	var previousBlockIndex uint32
 	for {
 		id, tags, data, checksum, err := cbReader.Read()
 		if err == io.EOF {
+			break
+		}
+		if err == expectedError {
+			hadError = true
 			break
 		}
 		require.NoError(t, err)
@@ -130,5 +147,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 		actualCount++
 	}
 
-	assert.Equal(t, expectedCount, actualCount, "count of series read")
+	if !hadError {
+		assert.Equal(t, expectedCount, actualCount, "count of series read")
+	}
 }
