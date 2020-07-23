@@ -166,11 +166,8 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 		mockSnapshotPersist = persist.NewMockSnapshotPreparer(ctrl)
 	)
 
-	gomock.InOrder(
-		mockFlushPersist.EXPECT().DoneFlush().Return(fakeErr),
-		mockFlushPersist.EXPECT().DoneFlush().Return(nil),
-	)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
+	mockFlushPersist.EXPECT().DoneFlush().Return(fakeErr)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -208,8 +205,8 @@ func TestFlushManagerNamespaceFlushTimesErr(t *testing.T) {
 	)
 
 	// Make sure DoneFlush is called despite encountering an error, once for snapshot and once for warm flush.
-	mockFlushPersist.EXPECT().DoneFlush().Return(nil).Times(2)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
+	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -254,8 +251,8 @@ func TestFlushManagerFlushDoneSnapshotError(t *testing.T) {
 		mockSnapshotPersist = persist.NewMockSnapshotPreparer(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(nil).Times(2)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
+	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(fakeErr)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -289,8 +286,8 @@ func TestFlushManagerFlushDoneIndexError(t *testing.T) {
 		mockPersistManager  = persist.NewMockManager(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(nil).Times(2)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
+	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -334,8 +331,8 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 		mockPersistManager  = persist.NewMockManager(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(nil).Times(2)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
+	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -379,8 +376,8 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 		mockPersistManager  = persist.NewMockManager(ctrl)
 	)
 
-	mockFlushPersist.EXPECT().DoneFlush().Return(nil).Times(2)
-	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil).Times(2)
+	mockFlushPersist.EXPECT().DoneFlush().Return(nil)
+	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), testCommitlogFile).Return(nil)
 	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
@@ -548,13 +545,10 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 			ns.EXPECT().NeedsFlush(st, st).Return(false, nil)
 		}
 
-		ns.EXPECT().ColdFlush(gomock.Any())
-
 		snapshotEnd := now.Add(bufferFuture).Truncate(blockSize)
 		num = numIntervals(start, snapshotEnd, blockSize)
 		for i := 0; i < num; i++ {
 			st := start.Add(time.Duration(i) * blockSize)
-			ns.EXPECT().NeedsFlush(st, st).Return(true, nil)
 			ns.EXPECT().Snapshot(st, now, gomock.Any())
 		}
 	}
