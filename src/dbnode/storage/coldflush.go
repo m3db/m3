@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -34,7 +33,6 @@ import (
 )
 
 type coldFlushManager struct {
-	databaseFlushManager
 	databaseCleanupManager
 	sync.RWMutex
 
@@ -52,16 +50,14 @@ type coldFlushManager struct {
 func newColdFlushManager(
 	database database,
 	pm persist.Manager,
-	commitLog commitlog.CommitLog,
 	opts Options,
 ) databaseColdFlushManager {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("fs")
-	fm := newFlushManager(database, commitLog, scope)
-	cm := newCleanupManager(database, commitLog, scope)
+	// NB(bodu): cold flush cleanup doesn't require commit logs.
+	cm := newCleanupManager(database, nil, scope)
 
 	return &coldFlushManager{
-		databaseFlushManager:   fm,
 		databaseCleanupManager: cm,
 		log:                    instrumentOpts.Logger(),
 		database:               database,

@@ -119,7 +119,7 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 	if err != nil {
 		return nil, err
 	}
-	cfm := newColdFlushManager(database, pm, commitlog, opts)
+	cfm := newColdFlushManager(database, pm, opts)
 	d.databaseColdFlushManager = cfm
 
 	d.databaseRepairer = newNoopDatabaseRepairer()
