@@ -98,7 +98,6 @@ pages:
     - "Overview": "operational_guide/index.md"
     - "Replication and Deployment in Zones": "operational_guide/replication_and_deployment_in_zones.md"
     - "Monitoring": "operational_guide/monitoring.md"
-    - "Upgrading M3": "operational_guide/upgrading_m3.md"
     - "Resource Limits and Preventing Abusive Reads/Writes": "operational_guide/resource_limits.md"
     - "Tuning Availability, Consistency, and Durability": "operational_guide/availability_consistency_durability.md"
     - "Placement/Topology": "operational_guide/placement.md"
