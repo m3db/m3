@@ -151,6 +151,7 @@ func parseTime(s string) (time.Time, error) {
 	case maxTimeFormatted:
 		return time.Now(), nil
 	}
+
 	return time.Time{}, fmt.Errorf("cannot parse %q to a valid timestamp", s)
 }
 
