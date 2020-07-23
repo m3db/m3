@@ -1284,7 +1284,8 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
 		pm, _      = fs.NewPersistManager(fs.NewOptions())
-		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+		start      = time.Now().Truncate(time.Hour)
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1303,7 +1304,8 @@ func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
 		pm, _      = fs.NewPersistManager(fs.NewOptions())
-		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+		start      = time.Now().Truncate(time.Hour)
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1325,7 +1327,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
 		pm, _      = fs.NewPersistManager(fs.NewOptions())
-		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+		start      = time.Now().Truncate(time.Hour)
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1358,8 +1361,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard1.EXPECT().ID().Return(uint32(1))
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard0, opts, wOpts).Return(nil)
-	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard1, opts, wOpts).Return(nil)
+	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard0, opts, wOpts).Return(nil)
+	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard1, opts, wOpts).Return(nil)
 
 	shardColdFlush0 := NewMockShardColdFlush(ctrl)
 	shardColdFlush0.EXPECT().Done().Return(nil)

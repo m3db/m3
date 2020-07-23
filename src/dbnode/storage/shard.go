@@ -2550,11 +2550,12 @@ func (s *dbShard) AggregateTiles(
 	ctx context.Context,
 	reader fs.DataFileSetReader,
 	sourceNsID ident.ID,
+	sourceBlockStart time.Time,
 	sourceShard databaseShard,
 	opts AggregateTilesOptions,
 	wOpts series.WriteOptions,
 ) error {
-	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
+	latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
 	if err != nil {
 		return err
 	}
@@ -2563,7 +2564,7 @@ func (s *dbShard) AggregateTiles(
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   sourceNsID,
 			Shard:       sourceShard.ID(),
-			BlockStart:  opts.Start,
+			BlockStart:  sourceBlockStart,
 			VolumeIndex: latestSourceVolume,
 		},
 		FileSetType: persist.FileSetFlushType,

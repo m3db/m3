@@ -600,6 +600,7 @@ type databaseShard interface {
 		ctx context.Context,
 		reader fs.DataFileSetReader,
 		sourceNsID ident.ID,
+		sourceBlockStart time.Time,
 		sourceShard databaseShard,
 		opts AggregateTilesOptions,
 		wOpts series.WriteOptions,

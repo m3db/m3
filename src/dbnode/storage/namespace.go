@@ -1603,13 +1603,25 @@ func (n *dbNamespace) AggregateTiles(
 	callStart := n.nowFn()
 
 	n.RLock()
+
+	targetBlockSize := n.Metadata().Options().RetentionOptions().BlockSize()
+	blockStart := opts.Start.Truncate(targetBlockSize)
+	if blockStart.Add(targetBlockSize).Before(opts.End) {
+		n.RUnlock()
+		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
+		return fmt.Errorf("tile aggregation must be done within a single target block (start=%s, end=%s, blockSize=%s)",
+			opts.Start, opts.End, targetBlockSize.String())
+	}
+
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
+
 	nsCtx := n.nsContextWithRLock()
 	targetShards := n.OwnedShards()
+
 	n.RUnlock()
 
 	// Note: Cold writes must be enabled for Large Tiles to work.
@@ -1617,6 +1629,9 @@ func (n *dbNamespace) AggregateTiles(
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
 		return errColdWritesDisabled
 	}
+
+	sourceBlockSize := sourceNs.Metadata().Options().RetentionOptions().BlockSize()
+	sourceBlockStart := opts.Start.Truncate(sourceBlockSize)
 
 	sourceNsOpts := sourceNs.StorageOptions()
 	reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
@@ -1646,7 +1661,7 @@ func (n *dbNamespace) AggregateTiles(
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		err = targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceShard, opts, wOpts)
+		err = targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceBlockStart, sourceShard, opts, wOpts)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
