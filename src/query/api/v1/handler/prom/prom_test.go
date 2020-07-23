@@ -21,42 +21,13 @@
 package prom
 
 import (
-	"net/http"
-	"time"
-
-	"github.com/m3db/m3/src/query/api/v1/options"
-	"github.com/m3db/m3/src/query/storage/prometheus"
+	"testing"
 
 	"github.com/prometheus/prometheus/promql"
+	"gotest.tools/assert"
 )
 
-// NB: since Prometheus engine is not brought up in the usual fashion,
-// default subquery evaluation interval is unset, causing div by 0 errors.
-func init() {
-	promql.SetDefaultEvaluationInterval(time.Minute)
-}
-
-// Options defines options for PromQL handler.
-type Options struct {
-	PromQLEngine *promql.Engine
-}
-
-// NewReadHandler creates a handler to handle PromQL requests.
-func NewReadHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
-	queryable := prometheus.NewPrometheusQueryable(
-		prometheus.PrometheusOptions{
-			Storage:           hOpts.Storage(),
-			InstrumentOptions: hOpts.InstrumentOpts(),
-		})
-	return newReadHandler(opts, hOpts, queryable)
-}
-
-// NewReadInstantHandler creates a handler to handle PromQL requests.
-func NewReadInstantHandler(opts Options, hOpts options.HandlerOptions) http.Handler {
-	queryable := prometheus.NewPrometheusQueryable(
-		prometheus.PrometheusOptions{
-			Storage:           hOpts.Storage(),
-			InstrumentOptions: hOpts.InstrumentOpts(),
-		})
-	return newReadInstantHandler(opts, hOpts, queryable)
+func TestIntervalSet(t *testing.T) {
+	intervalMillis := promql.GetDefaultEvaluationInterval()
+	assert.Equal(t, int64(60*1000), intervalMillis)
 }
