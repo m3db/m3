@@ -1208,7 +1208,13 @@ func (i *nsIndex) Query(
 
 	// Get results and set the namespace ID and size limit.
 	results := i.resultsPool.Get()
-	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
+
+	ns := i.nsMetadata.ID()
+	if opts.ComputedNamespaceID != nil {
+		ns = opts.ComputedNamespaceID
+	}
+
+	results.Reset(ns, index.QueryResultsOptions{
 		SizeLimit: opts.SeriesLimit,
 		FilterID:  i.shardsFilterID(),
 	})

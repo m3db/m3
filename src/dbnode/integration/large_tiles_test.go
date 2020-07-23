@@ -23,13 +23,16 @@
 package integration
 
 import (
+	"os"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -42,18 +45,26 @@ import (
 func TestReadAggregateWrite(t *testing.T) {
 	var (
 		blockSize      = 2 * time.Hour
+		largeBlockSize = 6 * blockSize
 		indexBlockSize = 2 * blockSize
-		rOpts          = retention.NewOptions().SetRetentionPeriod(24 * blockSize).SetBlockSize(blockSize)
-		idxOpts        = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
-		nsOpts         = namespace.NewOptions().
-				SetRetentionOptions(rOpts).
-				SetIndexOptions(idxOpts).
+		srcROpts       = retention.NewOptions().SetRetentionPeriod(24 * blockSize).SetBlockSize(blockSize)
+		trgROpts       = retention.NewOptions().SetRetentionPeriod(20 * largeBlockSize).SetBlockSize(largeBlockSize)
+		srcIdxOpts     = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
+		trgIdxOpts     = namespace.NewIndexOptions().SetEnabled(false)
+		srcNsOpts      = namespace.NewOptions().
+				SetRetentionOptions(srcROpts).
+				SetIndexOptions(srcIdxOpts).
+				SetColdWritesEnabled(true)
+		trgNsOpts = namespace.NewOptions().
+				SetRetentionOptions(trgROpts).
+				SetIndexOptions(trgIdxOpts).
 				SetColdWritesEnabled(true)
 	)
 
-	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
+	os.Setenv("RAW_NAMESPACE", testNamespaces[0].String())
+	srcNs, err := namespace.NewMetadata(testNamespaces[0], srcNsOpts)
 	require.NoError(t, err)
-	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
+	trgNs, err := namespace.NewMetadata(testNamespaces[1], trgNsOpts)
 	require.NoError(t, err)
 
 	testOpts := NewTestOptions(t).
@@ -93,7 +104,7 @@ func TestReadAggregateWrite(t *testing.T) {
 		ident.StringTag("job", "job1"),
 	}
 
-	dpTimeStart := nowFn().Truncate(indexBlockSize).Add(-3 * indexBlockSize)
+	dpTimeStart := nowFn().Truncate(largeBlockSize).Add(-2 * largeBlockSize)
 	dpTime := dpTimeStart
 
 	// Write test data.
@@ -118,7 +129,7 @@ func TestReadAggregateWrite(t *testing.T) {
 
 	aggOpts := storage.AggregateTilesOptions{
 		Start: dpTimeStart,
-		End:   time.Now(),
+		End:   dpTimeStart.Add(largeBlockSize),
 		Step:  time.Hour,
 	}
 
@@ -133,8 +144,10 @@ func TestReadAggregateWrite(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	log.Info("fetching aggregated data")
-	series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
+	log.Info("querying aggregated data")
+	query := index.Query{
+		Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
+	result, _, err := session.FetchTagged(trgNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart, EndExclusive: nowFn()})
 	require.NoError(t, err)
 
 	expectedDps := make(map[int64]float64)
@@ -143,21 +156,23 @@ func TestReadAggregateWrite(t *testing.T) {
 	// TODO: now we aggregate only a single block, that's why we do expect
 	// 12 items in place of 20
 	for a := 0; a < 12; a++ {
-		expectedDps[timestamp.Unix()] = 42.1 + float64(a)
+		expectedDps[timestamp.Unix()] = (42.1 + float64(a)) * 2
 		timestamp = timestamp.Add(10 * time.Minute)
 	}
 
 	count := 0
-	for series.Next() {
-		dp, _, _ := series.Current()
-		value, ok := expectedDps[dp.Timestamp.Unix()]
-		require.True(t, ok,
-			"didn't expect to find timestamp %v in aggregated result",
-			dp.Timestamp.Unix())
-		require.Equal(t, value, dp.Value,
-			"value for timestamp %v doesn't match. Expected %v but got %v",
-			dp.Timestamp.Unix(), value, dp.Value)
-		count++
+	for _, iter := range result.Iters() {
+		for iter.Next() {
+			dp, _, _ := iter.Current()
+			value, ok := expectedDps[dp.Timestamp.Unix()]
+			require.True(t, ok,
+				"didn't expect to find timestamp %v in aggregated result",
+				dp.Timestamp.Unix())
+			require.Equal(t, value, dp.Value,
+				"value for timestamp %v doesn't match. Expected %v but got %v",
+				dp.Timestamp.Unix(), value, dp.Value)
+			count++
+		}
 	}
 	require.Equal(t, len(expectedDps), count)
 }

@@ -946,7 +946,7 @@ func (s *dbShard) writeAndIndex(
 		// overhead of ownership tracking. This makes taking a ref here safe.
 		commitLogSeriesID = entry.Series.ID()
 		commitLogSeriesUniqueIndex = entry.Index
-		if err == nil && shouldReverseIndex {
+		if err == nil && shouldReverseIndex && s.reverseIndex != nil {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
 				if !opts.writeNewSeriesAsync {
 					return SeriesWrite{}, fmt.Errorf("to index async need write new series to be enabled")
@@ -2595,7 +2595,9 @@ func (s *dbShard) AggregateTiles(
 
 		for dataPointIter.Next() {
 			dp, unit, annot := dataPointIter.Current()
-			_, err = s.writeAndIndex(ctx, id, tags, dp.Timestamp, dp.Value, unit, annot, wOpts, true)
+			// TODO: remove "*2" when aggregations are in place, that's just
+			//       temporary to see if data actually were mutated
+			_, err = s.writeAndIndex(ctx, id, tags, dp.Timestamp, dp.Value*2, unit, annot, wOpts, true)
 			if err != nil {
 				s.metrics.largeTilesWriteErrors.Inc(1)
 				lastWriteError = err

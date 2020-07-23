@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -803,6 +804,12 @@ func (d *db) QueryIDs(
 		)
 	}
 	defer sp.Finish()
+
+	rawNamespace := os.Getenv("RAW_NAMESPACE")
+	if len(rawNamespace) > 0 && namespace.String() != rawNamespace {
+		opts.ComputedNamespaceID = namespace
+		namespace = ident.StringID(rawNamespace)
+	}
 
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
