@@ -609,7 +609,7 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(databaseBufferResetOptions{
-		ID:             s.tags.ToID(),
+		tags:           s.tags,
 		BlockRetriever: opts.BlockRetriever,
 		Options:        opts.Options,
 	})

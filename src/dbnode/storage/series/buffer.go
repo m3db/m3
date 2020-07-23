@@ -141,7 +141,7 @@ type databaseBuffer interface {
 }
 
 type databaseBufferResetOptions struct {
-	ID             ident.ID
+	tags           *ident.Tags
 	BlockRetriever QueryableBlockRetriever
 	Options        Options
 }
@@ -214,7 +214,7 @@ func (t *OptimizedTimes) ForEach(fn func(t xtime.UnixNano)) {
 }
 
 type dbBuffer struct {
-	id    ident.ID
+	tags  *ident.Tags
 	opts  Options
 	nowFn clock.NowFn
 
@@ -243,8 +243,7 @@ func newDatabaseBuffer() databaseBuffer {
 }
 
 func (b *dbBuffer) Reset(opts databaseBufferResetOptions) {
-	// REMOVE
-	b.id = opts.ID
+	b.tags = opts.tags
 	b.opts = opts.Options
 	b.nowFn = opts.Options.ClockOptions().NowFn()
 	b.bucketPool = opts.Options.BufferBucketPool()
@@ -294,7 +293,7 @@ func (b *dbBuffer) Write(
 				fmt.Errorf("datapoint too far in past: "+
 					"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
 					"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
-					b.id.Bytes(), pastLimit.Sub(timestamp).String(),
+					b.tags.ToID().Bytes(), pastLimit.Sub(timestamp).String(),
 					timestamp.Format(errTimestampFormat),
 					pastLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), pastLimit.UnixNano()))
@@ -307,7 +306,7 @@ func (b *dbBuffer) Write(
 				fmt.Errorf("datapoint too far in future: "+
 					"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
 					"timestamp_unix_nanos=%d, future_limit_unix_nanos=%d",
-					b.id.Bytes(), timestamp.Sub(futureLimit).String(),
+					b.tags.ToID().Bytes(), timestamp.Sub(futureLimit).String(),
 					timestamp.Format(errTimestampFormat),
 					futureLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), futureLimit.UnixNano()))
@@ -335,7 +334,7 @@ func (b *dbBuffer) Write(
 				fmt.Errorf("datapoint too far in past and out of retention: "+
 					"id=%s, off_by=%s, timestamp=%s, retention_past_limit=%s, "+
 					"timestamp_unix_nanos=%d, retention_past_limit_unix_nanos=%d",
-					b.id.Bytes(), retentionLimit.Sub(timestamp).String(),
+					b.tags.ToID().Bytes(), retentionLimit.Sub(timestamp).String(),
 					timestamp.Format(errTimestampFormat),
 					retentionLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), retentionLimit.UnixNano()))
@@ -352,7 +351,7 @@ func (b *dbBuffer) Write(
 				fmt.Errorf("datapoint too far in future and out of retention: "+
 					"id=%s, off_by=%s, timestamp=%s, retention_future_limit=%s, "+
 					"timestamp_unix_nanos=%d, retention_future_limit_unix_nanos=%d",
-					b.id.Bytes(), timestamp.Sub(futureRetentionLimit).String(),
+					b.tags.ToID().Bytes(), timestamp.Sub(futureRetentionLimit).String(),
 					timestamp.Format(errTimestampFormat),
 					futureRetentionLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), futureRetentionLimit.UnixNano()))

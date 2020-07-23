@@ -294,6 +294,19 @@ func (t Tags) Copy(opts checked.BytesOptions) Tags {
 	return NewTags(tags...)
 }
 
+// CopyTags is
+func (t Tags) CopyTags() Tags {
+	vals := t.Values()
+	tags := make([]Tag, 0, len(vals))
+	for _, t := range vals {
+		var tag Tag
+		tag.Name = t.Name
+		tag.Value = t.Value
+		tags = append(tags, tag)
+	}
+	return NewTags(tags...)
+}
+
 // ToID is
 func (t Tags) ToID() ID {
 	if len(t.values) == 0 {

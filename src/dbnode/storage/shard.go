@@ -897,7 +897,8 @@ func (s *dbShard) writeAndIndex(
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately.
 		//seriesTags.NoFinalize()
-		result, err := s.insertSeriesAsyncBatched(id, seriesTags, dbShardInsertAsyncOptions{
+		unpooledTags := seriesTags.CopyTags()
+		result, err := s.insertSeriesAsyncBatched(id, &unpooledTags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  timestamp,
@@ -1222,12 +1223,7 @@ func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool) (*
 		t := iter.Current()
 
 		tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
-		//tag.Name.NoFinalize()
 		tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
-		//tag.Value.NoFinalize()
-
-		// TODO: need this?
-		//t.NoFinalize()
 
 		tags.Append(tag)
 	}
