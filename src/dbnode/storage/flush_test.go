@@ -141,17 +141,12 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 		// Allow the flush to finish.
 		doneCh <- struct{}{}
 
-		// Wait until we start the compaction process.
+		// Allow the snapshot to begin and finish.
 		<-startCh
 
 		// Ensure it doesn't allow a parallel flush.
 		require.Equal(t, errFlushOperationsInProgress, fm.Flush(now))
 
-		// Allow the compaction to finish.
-		doneCh <- struct{}{}
-
-		// Allow the snapshot to begin and finish.
-		<-startCh
 		doneCh <- struct{}{}
 	}()
 
