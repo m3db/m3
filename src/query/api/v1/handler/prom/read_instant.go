@@ -147,10 +147,11 @@ func parseTime(s string) (time.Time, error) {
 	// Upstream issue: https://github.com/golang/go/issues/20555
 	switch s {
 	case minTimeFormatted:
-		return minTime, nil
+		return time.Time{}, nil
 	case maxTimeFormatted:
-		return maxTime, nil
+		return time.Now(), nil
 	}
+
 	return time.Time{}, fmt.Errorf("cannot parse %q to a valid timestamp", s)
 }
 
