@@ -357,8 +357,8 @@ func TestMultipleRead(t *testing.T) {
 
 	req := &prompb.ReadRequest{
 		Queries: []*prompb.Query{
-			{StartTimestampMs: 10},
-			{StartTimestampMs: 20},
+			{StartTimestampMs: 10, EndTimestampMs: 100},
+			{StartTimestampMs: 20, EndTimestampMs: 200},
 		},
 	}
 
@@ -435,7 +435,7 @@ func TestReadWithOptions(t *testing.T) {
 	}
 
 	req := &prompb.ReadRequest{
-		Queries: []*prompb.Query{{StartTimestampMs: 10}},
+		Queries: []*prompb.Query{{StartTimestampMs: 10, EndTimestampMs: 100}},
 	}
 
 	q, err := storage.PromReadQueryToM3(req.Queries[0])
