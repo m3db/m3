@@ -1242,7 +1242,8 @@ func (s *dbShard) toTags(tagsArgOpts tagsArgOptions) (*ident.Tags, error) {
 	)
 	switch tagsArgOpts.arg {
 	case tagsIterArg:
-		seriesTags, err = s.tagsIterToTags(tagsArgOpts.tagsIter, s.opts.IdentifierPool())
+		// nil because we insert.
+		seriesTags, err = s.tagsIterToTags(tagsArgOpts.tagsIter, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -243,6 +243,7 @@ func newDatabaseBuffer() databaseBuffer {
 }
 
 func (b *dbBuffer) Reset(opts databaseBufferResetOptions) {
+	// REMOVE
 	b.id = opts.ID
 	b.opts = opts.Options
 	b.nowFn = opts.Options.ClockOptions().NowFn()
