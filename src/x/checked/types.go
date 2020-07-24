@@ -23,7 +23,6 @@ package checked
 
 import (
 	"bytes"
-	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/x/resource"
@@ -161,7 +160,6 @@ func (t *stringTable) GetOrSet(b []byte) Bytes {
 	for existing, ok := t.vals[key]; ok; existing, ok = t.vals[key] {
 		if bytes.Compare(b, existing.Bytes()) == 0 {
 			t.lock.RUnlock()
-			fmt.Println("CACHE", string(b))
 			return existing
 		}
 		// Linear probing for collisions.

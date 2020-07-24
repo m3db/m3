@@ -83,7 +83,8 @@ var (
 	// is hit or exceeded.
 	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
 
-	seriesCountTag = ident.StringID("database_status_active_series")
+	//seriesCountTag = ident.StringID("database_status_active_series")
+	seriesCountTag = ident.StringID("database_tick_active_series")
 )
 
 type filesetsFn func(

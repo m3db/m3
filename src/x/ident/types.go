@@ -75,8 +75,8 @@ type TagValue ID
 
 // Tag represents a timeseries tag.
 type Tag struct {
-	Name       TagName
-	Value      TagValue
+	Name       ID
+	Value      ID
 	noFinalize bool
 }
 

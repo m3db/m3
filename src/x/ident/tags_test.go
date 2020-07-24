@@ -23,6 +23,7 @@ package ident
 import (
 	"fmt"
 	"testing"
+	"unsafe"
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/stretchr/testify/require"
@@ -61,6 +62,30 @@ func TestBytes(t *testing.T) {
 	b[1] = 'B'
 	c[2] = 'C'
 	fmt.Println(string(a), b.String(), c.String())
+
+	d := []byte("abc")
+	e := checked.NewBytes(d, nil)
+	e.IncRef()
+	f := BytesID(e.Bytes())
+	fmt.Println(string(d), string(e.Bytes()), f.String())
+	d[0] = 'A'
+	fmt.Println(string(d), string(e.Bytes()), f.String())
+
+	fmt.Println(unsafe.Sizeof(a))
+	fmt.Println(unsafe.Sizeof(b))
+	fmt.Println(unsafe.Sizeof(c))
+	fmt.Println(unsafe.Sizeof(d))
+	fmt.Println(unsafe.Sizeof(e))
+	fmt.Println(unsafe.Sizeof(f))
+
+	ts1 := testStruct{}
+	ts2 := testStruct{}
+	fmt.Printf("%p\n", &ts1)
+	fmt.Printf("%p\n", &ts2)
+}
+
+type testStruct struct {
+	b int
 }
 
 func TestTagsUnequalLength(t *testing.T) {
