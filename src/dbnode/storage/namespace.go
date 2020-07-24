@@ -1598,31 +1598,26 @@ func (n *dbNamespace) AggregateTiles(
 	opts AggregateTilesOptions,
 	pm persist.Manager,
 ) (int64, error) {
-	// NB(rartoul): This value can be used for emitting metrics, but should not be used
-	// for business logic.
 	callStart := n.nowFn()
-
-	n.RLock()
 
 	targetBlockSize := n.Metadata().Options().RetentionOptions().BlockSize()
 	blockStart := opts.Start.Truncate(targetBlockSize)
 	if blockStart.Add(targetBlockSize).Before(opts.End) {
-		n.RUnlock()
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
 		return 0, fmt.Errorf("tile aggregation must be done within a single target block (start=%s, end=%s, blockSize=%s)",
 			opts.Start, opts.End, targetBlockSize.String())
 	}
 
+	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
 		return 0, errNamespaceNotBootstrapped
 	}
-
 	nsCtx := n.nsContextWithRLock()
-	targetShards := n.OwnedShards()
-
 	n.RUnlock()
+
+	targetShards := n.OwnedShards()
 
 	// Note: Cold writes must be enabled for Large Tiles to work.
 	if !n.nopts.ColdWritesEnabled() {
