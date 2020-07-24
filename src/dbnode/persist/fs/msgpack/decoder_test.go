@@ -262,3 +262,19 @@ func TestDecodeBytesAllocNew(t *testing.T) {
 	}
 	require.Equal(t, []byte("testIndexEntry"), res.ID)
 }
+
+func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
+	var (
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
+	)
+	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+
+	// Update to invalid checksum
+	enc.buf.Truncate(len(enc.Bytes()) - 5) // 5 bytes = 1 byte for integer code + 4 bytes for checksum
+	require.NoError(t, enc.enc.EncodeInt64(1234))
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	_, err := dec.DecodeIndexEntry(nil)
+	require.Error(t, err)
+}
