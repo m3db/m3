@@ -546,6 +546,8 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 	defer s.writeRPCCompleted()
 
 	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.AggregateTiles)
+	defer sp.Finish()
+
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("sourceNameSpace", req.SourceNameSpace),
@@ -557,10 +559,9 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 	}
 
 	processedBlockCount, err := s.aggregateTiles(ctx, db, req)
-	if sampled && err != nil {
+	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
-	sp.Finish()
 
 	return &rpc.AggregateTilesResult_{
 		ProcessedBlockCount: processedBlockCount,
@@ -576,7 +577,8 @@ func (s *service) aggregateTiles(
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	step, stepErr := time.ParseDuration(req.Step)
 	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil {
-		return 0, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr, stepErr))
+		multiErr := xerrors.NewMultiError().Add(rangeStartErr).Add(rangeEndErr).Add(stepErr)
+		return 0, tterrors.NewBadRequestError(multiErr.FinalError())
 	}
 
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
