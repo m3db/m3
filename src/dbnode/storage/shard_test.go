@@ -1777,6 +1777,7 @@ func TestAggregateTiles(t *testing.T) {
 		Return(nil, nil, nil, uint32(0), io.EOF)
 	reader.EXPECT().Close()
 
-	err = targetShard.AggregateTiles(ctx, reader, sourceNsID, start, sourceShard, opts, series.WriteOptions{})
+	processedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNsID, start, sourceShard, opts, series.WriteOptions{})
 	require.NoError(t, err)
+	assert.Equal(t, int64(1), processedBlockCount)
 }

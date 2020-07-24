@@ -489,11 +489,12 @@ func (mr *MockDatabaseMockRecorder) FlushState(namespace, shardID, blockStart in
 }
 
 // AggregateTiles mocks base method
-func (m *MockDatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error {
+func (m *MockDatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
@@ -898,11 +899,12 @@ func (mr *MockdatabaseMockRecorder) FlushState(namespace, shardID, blockStart in
 }
 
 // AggregateTiles mocks base method
-func (m *Mockdatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error {
+func (m *Mockdatabase) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, targetNsID, opts)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
@@ -1561,11 +1563,12 @@ func (mr *MockdatabaseNamespaceMockRecorder) WritePendingIndexInserts(pending in
 }
 
 // AggregateTiles mocks base method
-func (m *MockdatabaseNamespace) AggregateTiles(ctx context.Context, sourceNs databaseNamespace, opts AggregateTilesOptions, pm persist.Manager) error {
+func (m *MockdatabaseNamespace) AggregateTiles(ctx context.Context, sourceNs databaseNamespace, opts AggregateTilesOptions, pm persist.Manager) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, opts, pm)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
@@ -2067,11 +2070,12 @@ func (mr *MockdatabaseShardMockRecorder) DocRef(id interface{}) *gomock.Call {
 }
 
 // AggregateTiles mocks base method
-func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, reader fs.DataFileSetReader, sourceNsID ident.ID, sourceBlockStart time.Time, sourceShard databaseShard, opts AggregateTilesOptions, wOpts series.WriteOptions) error {
+func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, reader fs.DataFileSetReader, sourceNsID ident.ID, sourceBlockStart time.Time, sourceShard databaseShard, opts AggregateTilesOptions, wOpts series.WriteOptions) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AggregateTiles", ctx, reader, sourceNsID, sourceBlockStart, sourceShard, opts, wOpts)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles

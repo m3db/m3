@@ -1295,7 +1295,8 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapping
 
-	require.Equal(t, errNamespaceNotBootstrapped, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
+	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	require.Equal(t, errNamespaceNotBootstrapped, err)
 }
 
 func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
@@ -1315,7 +1316,8 @@ func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapped
 
-	require.Equal(t, errColdWritesDisabled, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
+	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	require.Equal(t, errColdWritesDisabled, err)
 }
 
 func TestNamespaceAggregateTiles(t *testing.T) {
@@ -1327,7 +1329,7 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
 		pm, _      = fs.NewPersistManager(fs.NewOptions())
-		start      = time.Now().Truncate(time.Hour)
+		start      = time.Now().Truncate(2 * time.Hour)
 		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
 
@@ -1361,8 +1363,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard1.EXPECT().ID().Return(uint32(1))
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard0, opts, wOpts).Return(nil)
-	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard1, opts, wOpts).Return(nil)
+	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard0, opts, wOpts).Return(int64(3), nil)
+	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard1, opts, wOpts).Return(int64(2), nil)
 
 	shardColdFlush0 := NewMockShardColdFlush(ctrl)
 	shardColdFlush0.EXPECT().Done().Return(nil)
@@ -1375,7 +1377,9 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard0.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush0, nil)
 	targetShard1.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush1, nil)
 
-	require.NoError(t, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
+	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3+2), processedBlockCount)
 }
 
 func waitForStats(

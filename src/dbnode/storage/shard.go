@@ -2554,10 +2554,10 @@ func (s *dbShard) AggregateTiles(
 	sourceShard databaseShard,
 	opts AggregateTilesOptions,
 	wOpts series.WriteOptions,
-) error {
+) (int64, error) {
 	latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	openOpts := fs.DataReaderOpenOptions{
@@ -2571,7 +2571,7 @@ func (s *dbShard) AggregateTiles(
 		//TODO add after https://github.com/chronosphereio/m3/pull/10 for proper streaming - OrderByIndex: true
 	}
 	if err := reader.Open(openOpts); err != nil {
-		return err
+		return 0, err
 	}
 	defer reader.Close()
 
@@ -2579,6 +2579,7 @@ func (s *dbShard) AggregateTiles(
 	bytesReader := bytes.NewReader(nil)
 	dataPointIter := m3tsz.NewReaderIterator(bytesReader, true, encodingOpts)
 	var lastWriteError error
+	var processedBlockCount int64
 
 	for {
 		id, tags, data, _, err := reader.Read()
@@ -2586,7 +2587,7 @@ func (s *dbShard) AggregateTiles(
 			break
 		}
 		if err != nil {
-			return err
+			return processedBlockCount, err
 		}
 
 		data.IncRef()
@@ -2606,9 +2607,15 @@ func (s *dbShard) AggregateTiles(
 
 		data.DecRef()
 		data.Finalize()
+
+		processedBlockCount++
 	}
 
-	return lastWriteError
+	s.logger.Debug("finished aggregating tiles",
+		zap.Uint32("shard", s.ID()),
+		zap.Int64("processedBlocks", processedBlockCount))
+
+	return processedBlockCount, lastWriteError
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

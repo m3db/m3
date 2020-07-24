@@ -1597,7 +1597,7 @@ func (n *dbNamespace) AggregateTiles(
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 	pm persist.Manager,
-) error {
+) (int64, error) {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
@@ -1609,14 +1609,14 @@ func (n *dbNamespace) AggregateTiles(
 	if blockStart.Add(targetBlockSize).Before(opts.End) {
 		n.RUnlock()
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-		return fmt.Errorf("tile aggregation must be done within a single target block (start=%s, end=%s, blockSize=%s)",
+		return 0, fmt.Errorf("tile aggregation must be done within a single target block (start=%s, end=%s, blockSize=%s)",
 			opts.Start, opts.End, targetBlockSize.String())
 	}
 
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-		return errNamespaceNotBootstrapped
+		return 0, errNamespaceNotBootstrapped
 	}
 
 	nsCtx := n.nsContextWithRLock()
@@ -1627,7 +1627,7 @@ func (n *dbNamespace) AggregateTiles(
 	// Note: Cold writes must be enabled for Large Tiles to work.
 	if !n.nopts.ColdWritesEnabled() {
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-		return errColdWritesDisabled
+		return 0, errColdWritesDisabled
 	}
 
 	sourceBlockSize := sourceNs.Metadata().Options().RetentionOptions().BlockSize()
@@ -1637,7 +1637,7 @@ func (n *dbNamespace) AggregateTiles(
 	reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-		return err
+		return 0, err
 	}
 
 	wOpts := series.WriteOptions{
@@ -1648,12 +1648,13 @@ func (n *dbNamespace) AggregateTiles(
 	resources, err := newColdFlushReuseableResources(n.opts)
 	if err != nil {
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-		return err
+		return 0, err
 	}
 
 	// NB(bodu): Deferred targetShard cold flushes so that we can ensure that cold flush index data is
 	// persisted before persisting TSDB data to ensure crash consistency.
 	multiErr := xerrors.NewMultiError()
+	var processedBlockCount int64
 	for _, targetShard := range targetShards {
 		sourceShard, _, err := sourceNs.readableShardAt(targetShard.ID())
 		if err != nil {
@@ -1661,7 +1662,8 @@ func (n *dbNamespace) AggregateTiles(
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		err = targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceBlockStart, sourceShard, opts, wOpts)
+		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceBlockStart, sourceShard, opts, wOpts)
+		processedBlockCount += shardProcessedBlockCount
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -1673,7 +1675,8 @@ func (n *dbNamespace) AggregateTiles(
 
 	res := multiErr.FinalError()
 	n.metrics.writeAggData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
-	return res
+
+	return processedBlockCount, res
 }
 
 func (n *dbNamespace) coldFlushSingleShard(

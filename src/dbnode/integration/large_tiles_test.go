@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
@@ -118,20 +119,22 @@ func TestReadAggregateWrite(t *testing.T) {
 
 	aggOpts := storage.AggregateTilesOptions{
 		Start: dpTimeStart,
-		End:   time.Now(),
+		End:   dpTimeStart.Add(blockSize),
 		Step:  time.Hour,
 	}
 
 	// Retry aggregation as persist manager could be still locked by cold writes.
 	// TODO: Remove retry when a separate persist manager will be implemented.
+	var processedBlockCount int64
 	for retries := 0; retries < 10; retries++ {
-		err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
+		processedBlockCount, err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
 		if err == nil {
 			break
 		}
 		time.Sleep(time.Second)
 	}
 	require.NoError(t, err)
+	assert.Equal(t, int64(1), processedBlockCount)
 
 	log.Info("fetching aggregated data")
 	series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())

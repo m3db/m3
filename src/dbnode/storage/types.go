@@ -221,7 +221,7 @@ type Database interface {
 	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
 
 	// AggregateTiles does large tile aggregation from source namespace to target namespace.
-	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error
+	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error)
 }
 
 // database is the internal database interface.
@@ -415,7 +415,7 @@ type databaseNamespace interface {
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
 		pm persist.Manager,
-	) error
+	) (int64, error)
 
 	readableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
@@ -604,7 +604,7 @@ type databaseShard interface {
 		sourceShard databaseShard,
 		opts AggregateTilesOptions,
 		wOpts series.WriteOptions,
-	) error
+	) (int64, error)
 
 	latestVolume(blockStart time.Time) (int, error)
 }
