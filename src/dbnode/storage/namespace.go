@@ -1599,11 +1599,21 @@ func (n *dbNamespace) AggregateTiles(
 	pm persist.Manager,
 ) (int64, error) {
 	callStart := n.nowFn()
+	processedBlockCount, err := n.aggregateTiles(ctx, sourceNs, opts, pm)
+	n.metrics.writeAggData.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
+	return processedBlockCount, err
+}
+
+func (n *dbNamespace) aggregateTiles(
+	ctx context.Context,
+	sourceNs databaseNamespace,
+	opts AggregateTilesOptions,
+	pm persist.Manager,
+) (int64, error) {
 	targetBlockSize := n.Metadata().Options().RetentionOptions().BlockSize()
 	blockStart := opts.Start.Truncate(targetBlockSize)
 	if blockStart.Add(targetBlockSize).Before(opts.End) {
-		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
 		return 0, fmt.Errorf("tile aggregation must be done within a single target block (start=%s, end=%s, blockSize=%s)",
 			opts.Start, opts.End, targetBlockSize.String())
 	}
@@ -1611,7 +1621,6 @@ func (n *dbNamespace) AggregateTiles(
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
-		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
 		return 0, errNamespaceNotBootstrapped
 	}
 	nsCtx := n.nsContextWithRLock()
@@ -1621,7 +1630,6 @@ func (n *dbNamespace) AggregateTiles(
 
 	// Note: Cold writes must be enabled for Large Tiles to work.
 	if !n.nopts.ColdWritesEnabled() {
-		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
 		return 0, errColdWritesDisabled
 	}
 
@@ -1631,7 +1639,6 @@ func (n *dbNamespace) AggregateTiles(
 	sourceNsOpts := sourceNs.StorageOptions()
 	reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
-		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
 		return 0, err
 	}
 
@@ -1642,7 +1649,6 @@ func (n *dbNamespace) AggregateTiles(
 
 	resources, err := newColdFlushReuseableResources(n.opts)
 	if err != nil {
-		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
 		return 0, err
 	}
 
@@ -1668,10 +1674,7 @@ func (n *dbNamespace) AggregateTiles(
 		multiErr = n.coldFlushSingleShard(nsCtx, targetShard, pm, resources, multiErr)
 	}
 
-	res := multiErr.FinalError()
-	n.metrics.writeAggData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
-
-	return processedBlockCount, res
+	return processedBlockCount, multiErr.FinalError()
 }
 
 func (n *dbNamespace) coldFlushSingleShard(
