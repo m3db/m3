@@ -241,9 +241,15 @@ func (m *mediator) ongoingSeries() {
 			fmt.Println("SERIES", series)
 
 			if series > 500000 {
+				runtime.GC()
 				var m runtime.MemStats
 				runtime.ReadMemStats(&m)
-				fmt.Println("SERIES", series, (m.Alloc / 1024 / 1024), (m.TotalAlloc / 1024 / 1024))
+				fmt.Println("SERIES", series,
+					(m.Alloc / 1024 / 1024),
+					(m.TotalAlloc / 1024 / 1024),
+					(m.HeapAlloc / 1024 / 1024),
+					(m.HeapInuse / 1024 / 1024),
+				)
 				panic("DONE")
 			}
 
