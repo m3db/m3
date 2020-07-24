@@ -57,3 +57,46 @@ eval instant at 0s http_requests{foo!~"bar", job="api-server"}
 eval instant at 0s http_requests{foo!~"bar", job="api-server", instance="1", x!="y", z="", group!=""}
 	http_requests{job="api-server", instance="1", group="production"} 0
 	http_requests{job="api-server", instance="1", group="canary"} 0
+
+# check special casing for existing label
+eval instant at 0s http_requests{job="", instance="0", group="production"}
+
+eval instant at 0s http_requests{job!="", instance="0", group="production"}
+	http_requests{job="api-server", instance="0", group="production"} 0
+
+eval instant at 0s http_requests{job=~"", instance="0", group="production"}
+
+eval instant at 0s http_requests{job!~"", instance="0", group="production"}
+	http_requests{job="api-server", instance="0", group="production"} 0
+
+eval instant at 0s http_requests{job=~".+", instance="0", group="production"}
+	http_requests{job="api-server", instance="0", group="production"} 0
+
+eval instant at 0s http_requests{job=~".*", instance="0", group="production"}
+	http_requests{job="api-server", instance="0", group="production"} 0
+
+eval instant at 0s http_requests{job!~".+", instance="0", group="production"}
+
+eval instant at 0s http_requests{job!~".*", instance="0", group="production"}
+
+# check special casing for non-existent label
+eval instant at 0s http_requests{foo="", job="api-server", instance="0", group="production"}
+	http_requests{job="api-server", instance="0", group="production"} 0
+
+eval instant at 0s http_requests{foo!="", job="api-server", instance="0", group="production"}
+
+eval instant at 0s http_requests{foo=~"", job="api-server", instance="0", group="production"}
+	http_requests{job="api-server", instance="0", group="production"} 0
+
+eval instant at 0s http_requests{foo!~"", job="api-server", instance="0", group="production"}
+
+eval instant at 0s http_requests{foo=~".+", job="api-server", instance="0", group="production"}
+
+eval instant at 0s http_requests{foo=~".*", job="api-server", instance="0", group="production"}
+	http_requests{job="api-server", instance="0", group="production"} 0
+
+eval instant at 0s http_requests{foo!~".+", job="api-server", instance="0", group="production"}
+	http_requests{job="api-server", instance="0", group="production"} 0
+
+eval instant at 0s http_requests{foo!~".*", job="api-server", instance="0", group="production"}
+

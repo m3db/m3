@@ -89,9 +89,10 @@ function test_range_query {
 }
 
 function test_search {
-  start=$(date -d "$(date +%Y-%m-%dT%H:%M:%SZ) -1 minute" +%Y-%m-%dT%H:%M:%SZ)
-  end=$(date -d "$(date +%Y-%m-%dT%H:%M:%SZ) +1 minute" +%Y-%m-%dT%H:%M:%SZ)
-
+  s=$(( $(date +%s) - 60 ))
+  start=$(date -r $s +%Y-%m-%dT%H:%M:%SZ)
+  e=$(( $(date +%s) + 60 ))
+  end=$(date -r $e +%Y-%m-%dT%H:%M:%SZ)
   curl -D headers -X POST 0.0.0.0:7201/search -d '{
     "start": "'$start'",
     "end": "'$end'",
@@ -255,14 +256,14 @@ function test_fanout_warning_search {
   # write 5 metrics to cluster a
   write_metrics coordinator-cluster-a 5
   # unlimited query against cluster a has no header
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 15
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 1000
   # limited query against cluster a has header
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied
 
   # write 10 metrics to cluster b
   write_metrics coordinator-cluster-b 10
   # unlimited query against cluster a has no header
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 16
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 1000
   # remote limited query against cluster a has header
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied
 }
@@ -357,7 +358,7 @@ function test_fanout_warning_missing_zone {
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_range_query 9 14 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_error
 
   METRIC_NAME=$SEARCH_NAME
-  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 16 remote_store_cluster-c_fetch_data_error
+  ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 1000 remote_store_cluster-c_fetch_data_error
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_search 4 max_fetch_series_limit_applied,remote_store_cluster-c_fetch_data_error
 
   ATTEMPTS=3 TIMEOUT=1 retry_with_backoff test_labels 100 remote_store_cluster-c_fetch_data_error
@@ -391,4 +392,3 @@ function test_fanout_warnings {
   test_fanout_warning_graphite
   test_fanout_warning_missing_zone
 }
- 
