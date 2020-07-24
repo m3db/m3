@@ -149,12 +149,14 @@ func ParseTagCompletionParamsToQueries(
 	r *http.Request,
 ) (TagCompletionQueries, *xhttp.ParseError) {
 	tagCompletionQueries := TagCompletionQueries{}
-	start, err := parseTimeWithDefault(r, "start", time.Time{})
+	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
+		time.Unix(0, 0))
 	if err != nil {
 		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	end, err := parseTimeWithDefault(r, "end", time.Now())
+	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
+		time.Now())
 	if err != nil {
 		return tagCompletionQueries, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -218,18 +220,6 @@ func parseTagCompletionQueries(r *http.Request) ([]string, error) {
 	return queries, nil
 }
 
-func parseTimeWithDefault(
-	r *http.Request,
-	key string,
-	defaultTime time.Time,
-) (time.Time, error) {
-	if t := r.FormValue(key); t != "" {
-		return util.ParseTimeString(t)
-	}
-
-	return defaultTime, nil
-}
-
 // ParseSeriesMatchQuery parses all params from the GET request.
 func ParseSeriesMatchQuery(
 	r *http.Request,
@@ -241,12 +231,14 @@ func ParseSeriesMatchQuery(
 		return nil, xhttp.NewParseError(errors.ErrInvalidMatchers, http.StatusBadRequest)
 	}
 
-	start, err := parseTimeWithDefault(r, "start", time.Time{})
+	start, err := util.ParseTimeStringWithDefault(r.FormValue("start"),
+		time.Unix(0, 0))
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	end, err := parseTimeWithDefault(r, "end", time.Now())
+	end, err := util.ParseTimeStringWithDefault(r.FormValue("end"),
+		time.Now())
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
