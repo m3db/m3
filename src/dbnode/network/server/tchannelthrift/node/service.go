@@ -576,15 +576,14 @@ func (s *service) aggregateTiles(
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	step, stepErr := time.ParseDuration(req.Step)
-	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil {
-		multiErr := xerrors.NewMultiError().Add(rangeStartErr).Add(rangeEndErr).Add(stepErr)
+	opts, optsErr := storage.NewAggregateTilesOptions(start, end, step)
+	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil || optsErr != nil {
+		multiErr := xerrors.NewMultiError().Add(rangeStartErr).Add(rangeEndErr).Add(stepErr).Add(optsErr)
 		return 0, tterrors.NewBadRequestError(multiErr.FinalError())
 	}
 
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
 	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
-
-	opts := storage.AggregateTilesOptions{Start: start, End: end, Step: step}
 
 	processedBlockCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {

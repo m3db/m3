@@ -1313,3 +1313,22 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(4), processedBlockCount)
 }
+
+func TestNewAggregateTilesOptions(t *testing.T) {
+	start := time.Now().Truncate(time.Hour)
+
+	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, start, time.Minute)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0)
+	assert.Error(t, err)
+
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute)
+	assert.NoError(t, err)
+}
