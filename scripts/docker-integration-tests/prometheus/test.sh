@@ -304,6 +304,29 @@ function test_query_restrict_tags {
     '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 0 ]]'
 }
 
+function test_series {
+  # Test series search with start/end specified
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_succeeded_samples_total&start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 1 ]]'
+
+  # Test series search with no start/end specified
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_succeeded_samples_total" | jq -r ".data | length") -eq 1 ]]'
+
+  # Test series search with min/max start time using the Prometheus Go
+  # min/max formatted timestamps, which is sent as part of a Prometheus
+  # remote query.
+  # minTime = time.Unix(math.MinInt64/1000+62135596801, 0).UTC()
+  # maxTime = time.Unix(math.MaxInt64/1000-62135596801, 999999999).UTC()
+  # minTimeFormatted = minTime.Format(time.RFC3339Nano)
+  # maxTimeFormatted = maxTime.Format(time.RFC3339Nano)
+  # Which:
+  # minTimeFormatted="-292273086-05-16T16:47:06Z"
+  # maxTimeFormatted="292277025-08-18T07:12:54.999999999Z"
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_succeeded_samples_total&start=-292273086-05-16T16:47:06Z&end=292277025-08-18T07:12:54.999999999Z" | jq -r ".data | length") -eq 1 ]]'
+}
+
 echo "Running prometheus tests"
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
@@ -316,6 +339,7 @@ test_query_limits_applied
 test_query_restrict_metrics_type
 test_query_restrict_tags
 test_prometheus_remote_write_map_tags
+test_series
 
 echo "Running function correctness tests"
 test_correctness
