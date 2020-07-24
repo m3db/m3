@@ -23,11 +23,13 @@ package checked
 
 import (
 	"bytes"
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/x/resource"
 
 	"github.com/cespare/xxhash/v2"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 // Ref is an entity that checks ref counts.
@@ -132,14 +134,21 @@ type StringTable interface {
 }
 
 type stringTable struct {
-	vals map[uint64]Bytes
-	lock sync.RWMutex
+	vals  map[uint64]Bytes
+	vals2 *lru.Cache
+	lock  sync.RWMutex
 }
 
 // NewStringTable returns a new StringTable.
 func NewStringTable() StringTable {
+	c, _ := lru.NewWithEvict(10000, func(k interface{}, v interface{}) {
+		e := v.(Bytes)
+		e.DecRef()
+		e.Finalize()
+	})
 	return &stringTable{
-		vals: make(map[uint64]Bytes),
+		vals:  make(map[uint64]Bytes),
+		vals2: c,
 	}
 }
 
@@ -148,11 +157,11 @@ func (t *stringTable) GetOrSet(b []byte) Bytes {
 	// checked bytes and then use chaining collision resolution by adding 1
 	// Maybe we can skip this though for proto.
 	key := xxhash.Sum64(b)
-
 	t.lock.RLock()
 	for existing, ok := t.vals[key]; ok; existing, ok = t.vals[key] {
 		if bytes.Compare(b, existing.Bytes()) == 0 {
 			t.lock.RUnlock()
+			fmt.Println("CACHE", string(b))
 			return existing
 		}
 		// Linear probing for collisions.
@@ -165,6 +174,33 @@ func (t *stringTable) GetOrSet(b []byte) Bytes {
 	new.IncRef()
 	t.lock.Lock()
 	t.vals[key] = new
+	t.lock.Unlock()
+
+	return new
+}
+
+func (t *stringTable) GetOrSet2(b []byte) Bytes {
+	// For collision handling, before we return new bytes, compare the two
+	// checked bytes and then use chaining collision resolution by adding 1
+	// Maybe we can skip this though for proto.
+	key := xxhash.Sum64(b)
+	t.lock.RLock()
+	for existing, ok := t.vals2.Get(key); ok; existing, ok = t.vals2.Get(key) {
+		ee := existing.(Bytes)
+		if bytes.Compare(b, ee.Bytes()) == 0 {
+			t.lock.RUnlock()
+			return ee
+		}
+		// Linear probing for collisions.
+		key++
+	}
+	t.lock.RUnlock()
+
+	copied := append([]byte(nil), b...)
+	new := NewBytes(copied, nil)
+	new.IncRef()
+	t.lock.Lock()
+	t.vals2.Add(key, new)
 	t.lock.Unlock()
 
 	return new

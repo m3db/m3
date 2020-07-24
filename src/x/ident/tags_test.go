@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,6 +48,19 @@ func TestTagsID(t *testing.T) {
 	fmt.Println(tagsB.ToID())
 	fmt.Println(ToTags(tagsA.ToID(), nil).Values())
 	fmt.Println(ToTags(tagsB.ToID(), nil).Values())
+}
+
+func TestBytes(t *testing.T) {
+	opts := checked.NewBytesOptions().SetStringTable(checked.NewStringTable())
+
+	a := []byte("abc")
+	b := BytesID(checked.NewBytes(a, opts).Bytes())
+	c := BytesID(checked.NewBytes(a, opts).Bytes())
+	fmt.Println(string(a), b.String(), c.String())
+	a[0] = 'A'
+	b[1] = 'B'
+	c[2] = 'C'
+	fmt.Println(string(a), b.String(), c.String())
 }
 
 func TestTagsUnequalLength(t *testing.T) {

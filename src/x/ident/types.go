@@ -309,8 +309,13 @@ func (t Tags) CopyTags() Tags {
 
 // ToID is
 func (t Tags) ToID() ID {
+	return BytesID(t.ToIDBytes())
+}
+
+// ToIDBytes is
+func (t Tags) ToIDBytes() []byte {
 	if len(t.values) == 0 {
-		return BytesID([]byte("{}"))
+		return []byte("{}")
 	}
 
 	// NOTE: from tags_id_schemes.go
@@ -337,7 +342,7 @@ func (t Tags) ToID() ID {
 	idLen += tagLength + 1 // account for separators and brackets
 	if needEscaping == nil {
 		bytes := quoteIDSimple(t, idLen)
-		return BytesID(bytes)
+		return bytes
 	}
 
 	// TODO: pool these bytes
@@ -353,7 +358,7 @@ func (t Tags) ToID() ID {
 
 	idx = writeAtIndex(t.values[lastIndex], id, needEscaping[lastIndex], idx)
 	id[idx] = rightBracket
-	return BytesID(id)
+	return id
 }
 
 func quoteIDSimple(t Tags, length int) []byte {

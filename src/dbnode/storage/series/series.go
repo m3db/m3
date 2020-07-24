@@ -112,7 +112,6 @@ func (s *dbSeries) ID() ident.ID {
 
 func (s *dbSeries) Tags() ident.Tags {
 	s.RLock()
-	//tags := s.tags.Copy(nil)
 	tags := *s.tags
 	s.RUnlock()
 	return tags

@@ -82,6 +82,8 @@ var (
 	// ErrDatabaseLoadLimitHit is the error returned when the database load limit
 	// is hit or exceeded.
 	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
+
+	seriesCountTag = ident.StringID("database_status_active_series")
 )
 
 type filesetsFn func(
@@ -482,7 +484,9 @@ func (s *dbShard) OnRetrieveBlock(
 	copiedID := entry.Series.ID()
 	copiedTagsIter := s.identifierPool.TagsIterator()
 	copiedTagsIter.Reset(entry.Series.Tags())
+	id.NoFinalize()
 	s.insertQueue.Insert(dbShardInsert{
+		id:    id,
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
 			hasPendingRetrievedBlock: true,
@@ -881,7 +885,8 @@ func (s *dbShard) writeAndIndex(
 	shouldReverseIndex bool,
 ) (ts.Series, bool, error) {
 	// Prepare write
-	seriesTags, err := s.tagsIterToTags(tags, s.opts.IdentifierPool())
+	// s.opts.IdentifierPool()
+	seriesTags, err := s.tagsIterToTags(tags, nil)
 	defer seriesTags.Finalize()
 	if err != nil {
 		return ts.Series{}, false, err
@@ -897,8 +902,8 @@ func (s *dbShard) writeAndIndex(
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately.
 		//seriesTags.NoFinalize()
-		unpooledTags := seriesTags.CopyTags()
-		result, err := s.insertSeriesAsyncBatched(id, &unpooledTags, dbShardInsertAsyncOptions{
+		//unpooledTags := seriesTags.CopyTags()
+		result, err := s.insertSeriesAsyncBatched(id, seriesTags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  timestamp,
@@ -948,7 +953,7 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesUniqueIndex = entry.Index
 		if err == nil && shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
-				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
+				err = s.insertSeriesForIndexingAsyncBatched(id, entry, timestamp,
 					opts.writeNewSeriesAsync)
 			}
 		}
@@ -1038,7 +1043,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	// being put in the insert queue may cause a block to be loaded to a
 	// series which gets discarded.
 	at := s.nowFn()
-	entry, err = s.insertSeriesSync(newTagsIterArg(tags), insertSyncOptions{
+	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
 		insertType:      insertSyncIncReaderWriterCount,
 		hasPendingIndex: opts.ReverseIndex,
 		pendingIndex: dbShardPendingIndex{
@@ -1222,6 +1227,10 @@ func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool) (*
 		var tag ident.Tag
 		t := iter.Current()
 
+		// name := append([]byte(nil), t.Name.Bytes()...)
+		// tag.Name = ident.BytesID(name)
+		// value := append([]byte(nil), t.Value.Bytes()...)
+		// tag.Value = ident.BytesID(value)
 		tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
 		tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
 
@@ -1255,6 +1264,7 @@ func (s *dbShard) toTags(tagsArgOpts tagsArgOptions) (*ident.Tags, error) {
 }
 
 func (s *dbShard) insertSeriesForIndexingAsyncBatched(
+	id ident.ID,
 	entry *lookup.Entry,
 	timestamp time.Time,
 	async bool,
@@ -1262,7 +1272,9 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 	indexBlockStart := s.reverseIndex.BlockStartForWriteTime(timestamp)
 	// inc a ref on the entry to ensure it's valid until the queue acts upon it.
 	entry.OnIndexPrepare()
+	id.NoFinalize()
 	wg, err := s.insertQueue.Insert(dbShardInsert{
+		id:    id,
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
 			hasPendingIndexing: true,
@@ -1306,8 +1318,9 @@ func (s *dbShard) insertSeriesAsyncBatched(
 	if err != nil {
 		return insertAsyncResult{}, err
 	}
-
+	id.NoFinalize()
 	wg, err := s.insertQueue.Insert(dbShardInsert{
+		id:    id,
 		entry: entry,
 		opts:  opts,
 	})
@@ -1335,6 +1348,7 @@ type insertSyncOptions struct {
 }
 
 func (s *dbShard) insertSeriesSync(
+	id ident.ID,
 	tagsArgOpts tagsArgOptions,
 	opts insertSyncOptions,
 ) (*lookup.Entry, error) {
@@ -1384,7 +1398,9 @@ func (s *dbShard) insertSeriesSync(
 
 	// Be sure to enqueue for indexing if requires a pending index.
 	if opts.hasPendingIndex {
+		id.NoFinalize()
 		if _, err := s.insertQueue.Insert(dbShardInsert{
+			id:    id,
 			entry: entry,
 			opts: dbShardInsertAsyncOptions{
 				hasPendingIndexing: opts.hasPendingIndex,
@@ -1540,11 +1556,32 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			entry.OnIndexPrepare()
 
 			// Don't insert cold index writes into the index insert queue.
-			id := entry.Series.ID()
+			// id := inserts[i].id
+			// var seriesID ident.BytesID
+			// if id.IsNoFinalize() {
+			// 	// If the ID is already marked as NoFinalize, meaning it won't be returned
+			// 	// to any pools, then we can directly take reference to it.
+			// 	// We make sure to use ident.BytesID for this ID to avoid inc/decref when
+			// 	// accessing the ID since it's not pooled and therefore the safety is not
+			// 	// required.
+			// 	seriesID = ident.BytesID(id.Bytes())
+			// } else {
+			// 	seriesID = ident.BytesID(append([]byte(nil), id.Bytes()...))
+			// 	seriesID.NoFinalize()
+			// }
+
 			tags := entry.Series.Tags().Values()
 
 			var d doc.Document
-			d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
+			d.ID = nil //seriesID.Bytes()
+			for _, t := range tags {
+				if t.Value.Equal(seriesCountTag) {
+					s.logger.Info("MATCH", zap.Any("val", t.Value))
+					d.ID = entry.Series.ID().Bytes() //seriesID.Bytes()
+					break
+				}
+			}
+
 			d.Fields = make(doc.Fields, 0, len(tags))
 			for _, tag := range tags {
 				// copiedName := append([]byte(nil), tag.Name.Bytes()...)
@@ -1596,7 +1633,6 @@ func (s *dbShard) FetchBlocks(
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
 	tags := ident.ToTags(id, s.seriesOpts.BytesOpts())
-	fmt.Println("FETCH", id.String(), tags.Values())
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(&tags)
 	if entry != nil {
@@ -2100,7 +2136,7 @@ func (s *dbShard) loadBlock(
 	if entry == nil {
 		// Synchronously insert to avoid waiting for the insert queue which could potentially
 		// delay the insert.
-		entry, err = s.insertSeriesSync(newTagsArg(tags),
+		entry, err = s.insertSeriesSync(id, newTagsArg(tags),
 			insertSyncOptions{
 				// NB(r): Because insertSyncIncReaderWriterCount is used here we
 				// don't need to explicitly increment the reader/writer count and it
@@ -2148,7 +2184,7 @@ func (s *dbShard) loadBlock(
 	// Check if needs to be reverse indexed.
 	if s.reverseIndex != nil &&
 		entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
-		err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
+		err = s.insertSeriesForIndexingAsyncBatched(id, entry, timestamp,
 			shardOpts.writeNewSeriesAsync)
 		if err != nil {
 			return result, err

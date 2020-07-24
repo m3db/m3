@@ -747,16 +747,16 @@ func (i *nsIndex) writeBatchForBlockStart(
 			err = partialError.FilterDuplicateIDErrors()
 		}
 	}
-	if err != nil {
-		numErrors := numPending - int(result.NumSuccess)
-		if partialError, ok := err.(*m3ninxindex.BatchPartialError); ok {
-			// If it was a batch partial error we know exactly how many failed
-			// after filtering out for duplicate ID errors.
-			numErrors = len(partialError.Errs())
-		}
-		i.metrics.asyncInsertErrors.Inc(int64(numErrors))
-		i.logger.Error("error writing to index block", zap.Error(err))
-	}
+	// if err != nil {
+	// 	numErrors := numPending - int(result.NumSuccess)
+	// 	if partialError, ok := err.(*m3ninxindex.BatchPartialError); ok {
+	// 		// If it was a batch partial error we know exactly how many failed
+	// 		// after filtering out for duplicate ID errors.
+	// 		numErrors = len(partialError.Errs())
+	// 	}
+	// 	i.metrics.asyncInsertErrors.Inc(int64(numErrors))
+	// 	i.logger.Error("error writing to index block", zap.Error(err))
+	// }
 }
 
 // Bootstrap bootstraps the index with the provide blocks.
