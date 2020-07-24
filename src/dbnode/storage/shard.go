@@ -2577,7 +2577,7 @@ func (s *dbShard) AggregateTiles(
 
 	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
 	bytesReader := bytes.NewReader(nil)
-	dataPointIter := m3tsz.NewReaderIterator(bytesReader, true, encodingOpts)
+	dataPointIter := m3tsz.NewReaderIterator(bytesReader, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	var lastWriteError error
 	var processedBlockCount int64
 
