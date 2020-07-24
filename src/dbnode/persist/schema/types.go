@@ -32,7 +32,7 @@ const MajorVersion = 1
 // MinorVersion is the minor schema version for a set of fileset files.
 // This is only incremented when *non-breaking* changes are introduced that
 // we want to have some level of control around how they're rolled out.
-const MinorVersion = 1
+const MinorVersion = 0
 
 // IndexInfo stores metadata information about block filesets
 type IndexInfo struct {
