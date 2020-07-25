@@ -250,12 +250,12 @@ func (r *reader) seriesMetadataForEntry(
 		}
 
 		// Reset the series ID being returned.
-		r.seriesIDReused.Reset(decoded.ID)
+		//r.seriesIDReused.Reset(decoded.ID)
 		// Find or allocate the namespace ID.
 		namespaceID := r.namespaceIDReused(decoded.Namespace)
 		metadata := ts.Series{
 			UniqueIndex: entry.Index,
-			ID:          r.seriesIDReused,
+			//ID:          r.seriesIDReused,
 			Namespace:   namespaceID,
 			Shard:       decoded.Shard,
 			EncodedTags: ts.EncodedTags(decoded.EncodedTags),
@@ -308,13 +308,13 @@ func (r *reader) seriesMetadataForEntry(
 		}
 	}
 
-	seriesID := idPool.BinaryID(id)
+	//seriesID := idPool.BinaryID(id)
 	metadata = ts.Series{
 		UniqueIndex: entry.Index,
-		ID:          seriesID,
-		Namespace:   namespaceID,
-		Shard:       decoded.Shard,
-		Tags:        tags,
+		//ID:          seriesID,
+		Namespace: namespaceID,
+		Shard:     decoded.Shard,
+		Tags:      tags,
 	}
 
 	r.metadataLookup[entry.Index] = metadata

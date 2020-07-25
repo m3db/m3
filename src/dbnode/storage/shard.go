@@ -485,9 +485,7 @@ func (s *dbShard) OnRetrieveBlock(
 	copiedID := entry.Series.ID()
 	copiedTagsIter := s.identifierPool.TagsIterator()
 	copiedTagsIter.Reset(entry.Series.Tags())
-	id.NoFinalize()
 	s.insertQueue.Insert(dbShardInsert{
-		id:    id,
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
 			hasPendingRetrievedBlock: true,
@@ -904,7 +902,7 @@ func (s *dbShard) writeAndIndex(
 		// Avoid double lookup by enqueueing insert immediately.
 		//seriesTags.NoFinalize()
 		//unpooledTags := seriesTags.CopyTags()
-		result, err := s.insertSeriesAsyncBatched(id, seriesTags, dbShardInsertAsyncOptions{
+		result, err := s.insertSeriesAsyncBatched(seriesTags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  timestamp,
@@ -919,7 +917,7 @@ func (s *dbShard) writeAndIndex(
 		result.wg.Wait()
 
 		// Retrieve the inserted entry
-		entry, err = s.writableSeries(id, seriesTags)
+		entry, err = s.writableSeries(seriesTags)
 		if err != nil {
 			return ts.Series{}, false, err
 		}
@@ -930,7 +928,7 @@ func (s *dbShard) writeAndIndex(
 	}
 
 	var (
-		commitLogSeriesID          ident.ID
+		//commitLogSeriesID          ident.ID
 		commitLogSeriesTags        ident.Tags
 		commitLogSeriesUniqueIndex uint64
 		// Err on the side of caution and always write to the commitlog if writing
@@ -949,7 +947,7 @@ func (s *dbShard) writeAndIndex(
 		// pool as high frequency users of series IDs such
 		// as the commit log need to use the reference without the
 		// overhead of ownership tracking. This makes taking a ref here safe.
-		commitLogSeriesID = entry.Series.ID()
+		//commitLogSeriesID = entry.Series.ID()
 		commitLogSeriesTags = entry.Series.Tags()
 		commitLogSeriesUniqueIndex = entry.Index
 		if err == nil && shouldReverseIndex {
@@ -975,7 +973,7 @@ func (s *dbShard) writeAndIndex(
 			annotationClone.AppendAll(annotation)
 		}
 
-		result, err := s.insertSeriesAsyncBatched(id, seriesTags, dbShardInsertAsyncOptions{
+		result, err := s.insertSeriesAsyncBatched(seriesTags, dbShardInsertAsyncOptions{
 			hasPendingWrite: true,
 			pendingWrite: dbShardPendingWrite{
 				timestamp:  timestamp,
@@ -998,7 +996,7 @@ func (s *dbShard) writeAndIndex(
 		// The `id` var here is volatile after the context is closed
 		// and adding ownership tracking to use it in the commit log
 		// (i.e. registering a dependency on the context) is too expensive.
-		commitLogSeriesID = result.copiedID
+		//commitLogSeriesID = result.copiedID
 		commitLogSeriesTags = result.copiedTags
 		commitLogSeriesUniqueIndex = result.entry.Index
 	}
@@ -1007,9 +1005,9 @@ func (s *dbShard) writeAndIndex(
 	series := ts.Series{
 		UniqueIndex: commitLogSeriesUniqueIndex,
 		Namespace:   s.namespace.ID(),
-		ID:          commitLogSeriesID,
-		Tags:        commitLogSeriesTags,
-		Shard:       s.shard,
+		//ID:          commitLogSeriesID,
+		Tags:  commitLogSeriesTags,
+		Shard: s.shard,
 	}
 
 	return series, wasWritten, nil
@@ -1116,7 +1114,7 @@ func (s *dbShard) lookupEntryWithLock(tags *ident.Tags) (*lookup.Entry, *list.El
 	return elem.Value.(*lookup.Entry), elem, nil
 }
 
-func (s *dbShard) writableSeries(id ident.ID, tags *ident.Tags) (*lookup.Entry, error) {
+func (s *dbShard) writableSeries(tags *ident.Tags) (*lookup.Entry, error) {
 	for {
 		entry, _, err := s.tryRetrieveWritableSeries(tags)
 		if entry != nil {
@@ -1127,7 +1125,7 @@ func (s *dbShard) writableSeries(id ident.ID, tags *ident.Tags) (*lookup.Entry, 
 		}
 
 		// Not inserted, attempt a batched insert
-		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{})
+		result, err := s.insertSeriesAsyncBatched(tags, dbShardInsertAsyncOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -1195,8 +1193,8 @@ func (s *dbShard) newShardEntry(
 }
 
 type insertAsyncResult struct {
-	wg         *sync.WaitGroup
-	copiedID   ident.ID
+	wg *sync.WaitGroup
+	//copiedID   ident.ID
 	copiedTags ident.Tags
 	// entry is not guaranteed to be the final entry
 	// inserted into the shard map in case there is already
@@ -1234,6 +1232,10 @@ func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool) (*
 		// tag.Value = ident.BytesID(value)
 		tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
 		tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+
+		// table := s.seriesOpts.BytesOpts().StringTable()
+		// tag.Name = ident.BytesID(table.GetCached(t.Name.Bytes()))
+		// tag.Value = ident.BytesID(table.GetCached(t.Value.Bytes()))
 
 		tags.Append(tag)
 	}
@@ -1273,9 +1275,7 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 	indexBlockStart := s.reverseIndex.BlockStartForWriteTime(timestamp)
 	// inc a ref on the entry to ensure it's valid until the queue acts upon it.
 	entry.OnIndexPrepare()
-	id.NoFinalize()
 	wg, err := s.insertQueue.Insert(dbShardInsert{
-		id:    id,
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
 			hasPendingIndexing: true,
@@ -1311,7 +1311,6 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 }
 
 func (s *dbShard) insertSeriesAsyncBatched(
-	id ident.ID,
 	tags *ident.Tags,
 	opts dbShardInsertAsyncOptions,
 ) (insertAsyncResult, error) {
@@ -1319,16 +1318,14 @@ func (s *dbShard) insertSeriesAsyncBatched(
 	if err != nil {
 		return insertAsyncResult{}, err
 	}
-	id.NoFinalize()
 	wg, err := s.insertQueue.Insert(dbShardInsert{
-		id:    id,
 		entry: entry,
 		opts:  opts,
 	})
 	return insertAsyncResult{
 		wg: wg,
 		// Make sure to return the copied ID from the new series
-		copiedID:   entry.Series.ID(),
+		//copiedID:   entry.Series.ID(),
 		copiedTags: entry.Series.Tags(),
 		entry:      entry,
 	}, err
@@ -1401,7 +1398,6 @@ func (s *dbShard) insertSeriesSync(
 	if opts.hasPendingIndex {
 		id.NoFinalize()
 		if _, err := s.insertQueue.Insert(dbShardInsert{
-			id:    id,
 			entry: entry,
 			opts: dbShardInsertAsyncOptions{
 				hasPendingIndexing: opts.hasPendingIndex,

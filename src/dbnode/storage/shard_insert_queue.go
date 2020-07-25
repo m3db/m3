@@ -121,7 +121,6 @@ type dbShardInsertAsyncOptions struct {
 }
 
 type dbShardInsert struct {
-	id    ident.ID
 	entry *lookup.Entry
 	opts  dbShardInsertAsyncOptions
 }

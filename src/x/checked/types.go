@@ -130,24 +130,27 @@ type BytesOptions interface {
 // StringTable is
 type StringTable interface {
 	GetOrSet(b []byte) Bytes
+	GetCached(b []byte) []byte
 }
 
 type stringTable struct {
 	vals  map[uint64]Bytes
+	vals3 map[uint64][]byte
 	vals2 *lru.Cache
 	lock  sync.RWMutex
 }
 
 // NewStringTable returns a new StringTable.
 func NewStringTable() StringTable {
-	c, _ := lru.NewWithEvict(10000, func(k interface{}, v interface{}) {
-		e := v.(Bytes)
-		e.DecRef()
-		e.Finalize()
-	})
+	// c, _ := lru.NewWithEvict(10000, func(k interface{}, v interface{}) {
+	// 	e := v.(Bytes)
+	// 	e.DecRef()
+	// 	e.Finalize()
+	// })
 	return &stringTable{
-		vals:  make(map[uint64]Bytes),
-		vals2: c,
+		vals: make(map[uint64]Bytes),
+		//vals2: c,
+		//vals3: make(map[uint64][]byte),
 	}
 }
 
@@ -199,6 +202,30 @@ func (t *stringTable) GetOrSet2(b []byte) Bytes {
 	new.IncRef()
 	t.lock.Lock()
 	t.vals2.Add(key, new)
+	t.lock.Unlock()
+
+	return new
+}
+
+func (t *stringTable) GetCached(b []byte) []byte {
+	// For collision handling, before we return new bytes, compare the two
+	// checked bytes and then use chaining collision resolution by adding 1
+	// Maybe we can skip this though for proto.
+	key := xxhash.Sum64(b)
+	t.lock.RLock()
+	for existing, ok := t.vals3[key]; ok; existing, ok = t.vals3[key] {
+		if bytes.Compare(b, existing) == 0 {
+			t.lock.RUnlock()
+			return existing
+		}
+		// Linear probing for collisions.
+		key++
+	}
+	t.lock.RUnlock()
+
+	new := append([]byte(nil), b...)
+	t.lock.Lock()
+	t.vals3[key] = new
 	t.lock.Unlock()
 
 	return new

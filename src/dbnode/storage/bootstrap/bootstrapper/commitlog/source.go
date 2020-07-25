@@ -465,7 +465,7 @@ func (s *commitLogSource) Read(
 				// checking out of series.
 				series, owned, err := accumulator.CheckoutSeriesWithoutLock(
 					entry.Series.Shard,
-					entry.Series.ID,
+					entry.Series.Tags.ToID(),
 					tagIter)
 				if err != nil {
 					if !owned {
