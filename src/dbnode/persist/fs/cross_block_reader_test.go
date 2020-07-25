@@ -120,7 +120,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 		if err == io.EOF {
 			break
 		}
-		if err == expectedError {
+		if err != nil && err.Error() == expectedError.Error() {
 			hadError = true
 			break
 		}

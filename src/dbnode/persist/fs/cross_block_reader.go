@@ -15,7 +15,6 @@ import (
 
 var (
 	errReaderNotOrderedByIndex = errors.New("CrossBlockReader can only use DataFileSetReaders ordered by index")
-	_ CrossBlockReader = (*crossBlockReader)(nil)
 	_ heap.Interface   = (*minHeap)(nil)
 )
 
@@ -26,21 +25,11 @@ type crossBlockReader struct {
 	err                error
 }
 
-type minHeapEntry struct {
-	dataFileSetReaderIndex int
-	id                     ident.ID
-	tags                   ident.TagIterator
-	data                   checked.Bytes
-	checksum               uint32
-}
-
-type minHeap []*minHeapEntry
-
 // NewCrossBlockReader constructs a new CrossBlockReader based on given DataFileSetReaders.
 // DataFileSetReaders must be configured to return the data in the order of index, and must be
 // provided in a slice sorted by block start time.
 // Callers are responsible for closing the DataFileSetReaders.
-func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (*crossBlockReader, error) {
+func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (CrossBlockReader, error) {
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
 		if !dataFileSetReader.IsOrderedByIndex() {
@@ -112,11 +101,10 @@ func (r *crossBlockReader) readFromDataFileSet(index int) (*minHeapEntry, error)
 	}
 
 	if err != nil {
-		closeErr := r.Close()
-		if closeErr != nil {
-			return nil, xerrors.NewMultiError().Add(err).Add(closeErr)
-		}
-		return nil, err
+		multiErr := xerrors.NewMultiError().
+			Add(err).
+			Add(r.Close())
+		return nil, multiErr.FinalError()
 	}
 
 	return &minHeapEntry{
@@ -138,6 +126,16 @@ func (r *crossBlockReader) Close() error {
 	r.minHeap = r.minHeap[:0]
 	return nil
 }
+
+type minHeapEntry struct {
+	dataFileSetReaderIndex int
+	id                     ident.ID
+	tags                   ident.TagIterator
+	data                   checked.Bytes
+	checksum               uint32
+}
+
+type minHeap []*minHeapEntry
 
 func (h minHeap) Len() int {
 	return len(h)
