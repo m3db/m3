@@ -61,11 +61,9 @@ type seriesBlockIter struct {
 // NewSeriesBlockIterator creates a new SeriesBlockIterator.
 func NewSeriesBlockIterator(
 	reader fs.DataFileSetReader,
-	step xtime.UnixNano,
-	start xtime.UnixNano,
-	concurrency int,
-	encodingOpts encoding.Options,
+	opts Options,
 ) (SeriesBlockIterator, error) {
+	concurrency := opts.Concurrency
 	if concurrency < 1 {
 		return nil, fmt.Errorf("concurrency must be greater than 0, is: %d", concurrency)
 	}
@@ -78,11 +76,17 @@ func NewSeriesBlockIterator(
 	)
 
 	for i := 0; i < concurrency; i++ {
-		recorder := newDatapointRecorder(memory.NewGoAllocator())
+		var recorder recorder
+		if opts.UseArrow {
+			recorder = newDatapointRecorder(memory.NewGoAllocator())
+		} else {
+			recorder = newFlatDatapointRecorder()
+		}
+
 		recorders = append(recorders, recorder)
 		iters = append(iters, newSeriesFrameIterator(recorder))
 		byteReaders = append(byteReaders, bytes.NewReader(nil))
-		baseIters = append(baseIters, m3tsz.NewReaderIterator(nil, true, encodingOpts))
+		baseIters = append(baseIters, m3tsz.NewReaderIterator(nil, true, opts.EncodingOpts))
 	}
 
 	return &seriesBlockIter{
@@ -90,10 +94,10 @@ func NewSeriesBlockIterator(
 
 		concurrency: concurrency,
 		freedAfter:  concurrency,
-		start:       start,
-		step:        step,
+		start:       opts.Start,
+		step:        opts.FrameSize,
 
-		encodingOpts: encodingOpts,
+		encodingOpts: opts.EncodingOpts,
 		recorders:    recorders,
 		iters:        iters,
 		byteReaders:  byteReaders,
@@ -143,7 +147,6 @@ func (b *seriesBlockIter) Next() bool {
 		b.bytesRefHeld[i] = true
 
 		bs := b.dataBytes[i].Bytes()
-		// bbs := append(make([]byte, 0, len(bs)), bs...)
 		b.byteReaders[i].Reset(bs)
 		b.baseIters[i].Reset(b.byteReaders[i], nil)
 		b.iters[i].Reset(b.start, b.step, b.baseIters[i], b.ids[i], b.tagIters[i])

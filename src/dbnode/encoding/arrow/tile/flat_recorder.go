@@ -23,83 +23,60 @@ package tile
 import (
 	"time"
 
-	"github.com/apache/arrow/go/arrow/array"
-	"github.com/apache/arrow/go/arrow/math"
+	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
-type record struct {
-	vals  []float64
-	times []time.Time
+const (
+	// NB: 2 hr block / 15 sec scrape as an initial size.
+	initLength = 2 * 60 * 4
+)
 
-	array.Record
+// flatDatapointRecorder records datapoints without using arrow buffers.
+type flatDatapointRecorder struct {
+	vals        []float64
+	times       []time.Time // todo: consider delta-delta here?
 	units       *unitRecorder
 	annotations *annotationRecorder
 }
 
-func (r *record) values() []float64 {
-	if r.vals != nil {
-		return r.vals
-	}
-
-	return r.Columns()[valIdx].(*array.Float64).Float64Values()
+func (r *flatDatapointRecorder) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation) {
+	r.vals = append(r.vals, dp.Value)
+	r.times = append(r.times, dp.Timestamp)
+	r.units.record(u)
+	r.annotations.record(a)
 }
 
-func (r *record) sum() float64 {
-	if len(r.vals) > 0 {
-		sum := 0.0
-		for _, v := range r.vals {
-			sum += v
-		}
+var _ recorder = (*flatDatapointRecorder)(nil)
 
-		return sum
+func newFlatDatapointRecorder() recorder {
+	return &flatDatapointRecorder{
+		vals:        make([]float64, 0, initLength),
+		times:       make([]time.Time, 0, initLength),
+		units:       newUnitRecorder(),
+		annotations: newAnnotationRecorder(),
 	}
-
-	arr := r.Columns()[valIdx].(*array.Float64)
-	return math.Float64.Sum(arr)
 }
 
-func (r *record) timestamps() []time.Time {
-	if r.times != nil {
-		return r.times
-	}
-
-	arrowTimes := r.Columns()[timeIdx].(*array.Int64).Int64Values()
-	r.times = make([]time.Time, 0, len(arrowTimes))
-	for _, t := range arrowTimes {
-		r.times = append(r.times, time.Unix(0, t))
-	}
-
-	return r.times
-}
-
-func (r *record) release() {
-	if r == nil {
-		return
-	}
-
-	if r.Record != nil {
-		r.Record.Release()
-	}
-
-	if r.units != nil {
-		r.units.reset()
-	}
-
-	if r.annotations != nil {
-		r.annotations.reset()
-	}
-
+func (r *flatDatapointRecorder) release() {
+	r.units.reset()
+	r.annotations.reset()
 	if r.vals != nil {
 		r.vals = r.vals[:0]
+		r.vals = nil
 	}
 
 	if r.times != nil {
 		r.times = r.times[:0]
+		r.times = nil
 	}
-
-	r.Record = nil
 }
 
-func newDatapointRecord() *record {
-	return &record{}
+// NB: caller must release record.
+func (r *flatDatapointRecorder) updateRecord(rec *record) {
+	rec.units = r.units
+	rec.annotations = r.annotations
+	rec.vals = r.vals
+	rec.times = r.times
+	rec.Record = nil
 }

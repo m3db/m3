@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/apache/arrow/go/arrow/math"
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
 )
@@ -113,12 +112,12 @@ func main() {
 	}
 
 	var (
-		step   = xtime.UnixNano(*optTilesize) * xtime.UnixNano(time.Minute)
-		start  = xtime.UnixNano(*optBlockstart)
-		c      = int(*concurrency)
-		prints = make([]bool, c)
-		tags   = make([][]string, c)
-		vals   = make([][]float64, 0, c)
+		frameSize = xtime.UnixNano(*optTilesize) * xtime.UnixNano(time.Minute)
+		start     = xtime.UnixNano(*optBlockstart)
+		c         = int(*concurrency)
+		prints    = make([]bool, c)
+		tags      = make([][]string, c)
+		vals      = make([][]float64, 0, c)
 	)
 
 	for i := 0; i < c; i++ {
@@ -126,7 +125,15 @@ func main() {
 		tags = append(tags, make([]string, 0, initValLength))
 	}
 
-	it, err := tile.NewSeriesBlockIterator(reader, step, start, c, encodingOpts)
+	opts := tile.Options{
+		FrameSize:    frameSize,
+		Start:        start,
+		Concurrency:  c,
+		UseArrow:     false,
+		EncodingOpts: encodingOpts,
+	}
+
+	it, err := tile.NewSeriesBlockIterator(reader, opts)
 	if err != nil {
 		fmt.Println("error creating block iterator", err)
 		return
@@ -170,7 +177,7 @@ func main() {
 			go func() {
 				for frameIter.Next() {
 					frame := frameIter.Current()
-					v := math.Float64.Sum(frame.Values())
+					v := frame.Sum()
 					if v != 0 {
 						prints[j] = true
 					}

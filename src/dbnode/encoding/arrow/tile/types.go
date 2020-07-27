@@ -96,6 +96,14 @@ type recorder interface {
 
 // Options are series block iterator options.
 type Options struct {
+	// FrameSize is the frame size in nanos.
+	FrameSize xtime.UnixNano
+	// Start is the start time for the iterator in nanos from epoch.
+	Start xtime.UnixNano
+	// Concurrency is the concurrency to run with.
+	Concurrency int
 	// UseArrow determines if arrow buffers shoudld be used vs flat slices.
 	UseArrow bool
+	// EncodingOpts are options for the encoder.
+	EncodingOpts encoding.Options
 }

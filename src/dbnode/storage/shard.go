@@ -2575,14 +2575,15 @@ func (s *dbShard) AggregateTiles(
 
 	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
 	concurrency := osruntime.NumCPU()
-	readerIter, err := tile.NewSeriesBlockIterator(
-		reader,
-		xtime.UnixNano(opts.Step.Nanoseconds()),
-		xtime.ToUnixNano(opts.Start),
-		concurrency,
-		encodingOpts,
-	)
+	tileOpts := tile.Options{
+		FrameSize:    xtime.UnixNano(opts.Step.Nanoseconds()),
+		Start:        xtime.ToUnixNano(opts.Start),
+		Concurrency:  concurrency,
+		UseArrow:     false,
+		EncodingOpts: encodingOpts,
+	}
 
+	readerIter, err := tile.NewSeriesBlockIterator(reader, tileOpts)
 	if err != nil {
 		return err
 	}
@@ -2615,10 +2616,10 @@ func (s *dbShard) AggregateTiles(
 					tags := frame.Tags()
 					unit, singleUnit := frame.Units().SingleValue()
 					annotation, singleAnnotation := frame.Annotations().SingleValue()
-					if frame.Values() != nil && frame.Values().Len() > 0 {
-						lastIdx := frame.Values().Len() - 1
-						lastValue := frame.Values().Value(lastIdx)
-						lastTimestamp := time.Unix(0, frame.Timestamps().Value(lastIdx))
+					if vals := frame.Values(); len(vals) > 0 {
+						lastIdx := len(vals) - 1
+						lastValue := vals[lastIdx]
+						lastTimestamp := frame.Timestamps()[lastIdx]
 						if !singleUnit {
 							// TODO: what happens if unit has changed mid-tile?
 							// Write early and then do the remaining values separately?
