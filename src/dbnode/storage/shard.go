@@ -881,7 +881,6 @@ func (s *dbShard) writeAndIndex(
 ) (ts.Series, bool, error) {
 	// Prepare write
 	idTags := &ident.TagsOrID{ID: id}
-	fmt.Println("ID", id.IsNoFinalize())
 	entry, opts, err := s.tryRetrieveWritableSeries(idTags)
 	if err != nil {
 		return ts.Series{}, false, err
@@ -1213,20 +1212,26 @@ func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool) (*
 	// with a large capacity to store the tags. Since these tags are long-lived, it's
 	// better to allocate an array of the exact size to save memory.
 	for iter.Next() {
-
+		var tag ident.Tag
 		t := iter.Current()
 
-		// table := s.seriesOpts.BytesOpts().StringTable()
-		// tag.Name = ident.BytesID(table.GetCached(t.Name.Bytes()))
-		// tag.Value = ident.BytesID(table.GetCached(t.Value.Bytes()))
+		table := s.seriesOpts.BytesOpts().StringTable()
+		tag.Name = ident.BytesID(table.GetCached(t.Name.Bytes()))
+		tag.Value = ident.BytesID(table.GetCached(t.Value.Bytes()))
 
 		// name := append([]byte(nil), t.Name.Bytes()...)
 		// tag.Name = ident.BytesID(name)
 		// value := append([]byte(nil), t.Value.Bytes()...)
 		// tag.Value = ident.BytesID(value)
-		var tag ident.Tag
-		tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
-		tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+
+		// tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+		// tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+
+		// name := checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts())
+		// tag.Name = pool.BinaryID(name)
+		// value := checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts())
+		// tag.Value = pool.BinaryID(value)
+
 		tags.Append(tag)
 	}
 	iter.Close()
