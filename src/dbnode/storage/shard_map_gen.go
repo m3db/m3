@@ -25,7 +25,7 @@
 package storage
 
 import (
-	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/m3ninx/doc"
 )
 
 // Copyright (c) 2019 Uber Technologies, Inc.
@@ -77,16 +77,16 @@ import (
 type shardMapHash uint64
 
 // shardMapHashFn is the hash function to execute when hashing a key.
-type shardMapHashFn func(ident.ID) shardMapHash
+type shardMapHashFn func(doc.Document) shardMapHash
 
 // shardMapEqualsFn is the equals key function to execute when detecting equality of a key.
-type shardMapEqualsFn func(ident.ID, ident.ID) bool
+type shardMapEqualsFn func(doc.Document, doc.Document) bool
 
 // shardMapCopyFn is the copy key function to execute when copying the key.
-type shardMapCopyFn func(ident.ID) ident.ID
+type shardMapCopyFn func(doc.Document) doc.Document
 
 // shardMapFinalizeFn is the finalize key function to execute when finished with a key.
-type shardMapFinalizeFn func(ident.ID)
+type shardMapFinalizeFn func(doc.Document)
 
 // shardMap uses the genny package to provide a generic hash map that can be specialized
 // by running the following command from this root of the repository:
@@ -143,12 +143,12 @@ type shardMapEntry struct {
 }
 
 type _shardMapKey struct {
-	key      ident.ID
+	key      doc.Document
 	finalize bool
 }
 
 // Key returns the map entry key.
-func (e shardMapEntry) Key() ident.ID {
+func (e shardMapEntry) Key() doc.Document {
 	return e.key.key
 }
 
@@ -167,7 +167,7 @@ func _shardMapAlloc(opts _shardMapOptions) *shardMap {
 	return m
 }
 
-func (m *shardMap) newMapKey(k ident.ID, opts _shardMapKeyOptions) _shardMapKey {
+func (m *shardMap) newMapKey(k doc.Document, opts _shardMapKeyOptions) _shardMapKey {
 	key := _shardMapKey{key: k, finalize: opts.finalizeKey}
 	if !opts.copyKey {
 		return key
@@ -185,7 +185,7 @@ func (m *shardMap) removeMapKey(hash shardMapHash, key _shardMapKey) {
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *shardMap) Get(k ident.ID) (shardListElement, bool) {
+func (m *shardMap) Get(k doc.Document) (shardListElement, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -199,7 +199,7 @@ func (m *shardMap) Get(k ident.ID) (shardListElement, bool) {
 }
 
 // Set will set the value for an identifier.
-func (m *shardMap) Set(k ident.ID, v shardListElement) {
+func (m *shardMap) Set(k doc.Document, v shardListElement) {
 	m.set(k, v, _shardMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
@@ -215,7 +215,7 @@ type shardMapSetUnsafeOptions struct {
 
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
-func (m *shardMap) SetUnsafe(k ident.ID, v shardListElement, opts shardMapSetUnsafeOptions) {
+func (m *shardMap) SetUnsafe(k doc.Document, v shardListElement, opts shardMapSetUnsafeOptions) {
 	m.set(k, v, _shardMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
@@ -227,7 +227,7 @@ type _shardMapKeyOptions struct {
 	finalizeKey bool
 }
 
-func (m *shardMap) set(k ident.ID, v shardListElement, opts _shardMapKeyOptions) {
+func (m *shardMap) set(k doc.Document, v shardListElement, opts _shardMapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -261,13 +261,13 @@ func (m *shardMap) Len() int {
 
 // Contains returns true if value exists for key, false otherwise, it is
 // shorthand for a call to Get that doesn't return the value.
-func (m *shardMap) Contains(k ident.ID) bool {
+func (m *shardMap) Contains(k doc.Document) bool {
 	_, ok := m.Get(k)
 	return ok
 }
 
 // Delete will remove a value set in the map for the specified key.
-func (m *shardMap) Delete(k ident.ID) {
+func (m *shardMap) Delete(k doc.Document) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {

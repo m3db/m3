@@ -65,7 +65,6 @@ type dbSeries struct {
 	// that are behind the ID in "metadata doc.Document", the whole
 	// reason we keep an ident.ID on the series is since there's a lot
 	// of existing callsites that require the ID as an ident.ID.
-	id          ident.ID
 	metadata    doc.Document
 	uniqueIndex uint64
 
@@ -118,7 +117,7 @@ func (s *dbSeries) now() time.Time {
 
 func (s *dbSeries) ID() ident.ID {
 	s.RLock()
-	id := s.id
+	id := ident.BytesID(s.metadata.ID())
 	s.RUnlock()
 	return id
 }
@@ -322,7 +321,7 @@ func (s *dbSeries) Write(
 	}
 
 	s.Lock()
-	written, writeType, err := s.buffer.Write(ctx, s.id, timestamp, value,
+	written, writeType, err := s.buffer.Write(ctx, ident.BytesID(s.metadata.ID()), timestamp, value,
 		unit, annotation, wOpts)
 	s.Unlock()
 
@@ -372,11 +371,6 @@ func (s *dbSeries) bufferResetOpts() (databaseBufferResetOptions, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	if s.id == nil {
-		// Not active, expired series.
-		return databaseBufferResetOptions{}, ErrSeriesAllDatapointsExpired
-	}
-
 	return databaseBufferResetOptions{
 		BlockRetriever: s.blockRetriever,
 		Options:        s.opts,
@@ -389,7 +383,7 @@ func (s *dbSeries) ReadEncoded(
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
-	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
+	reader := NewReaderUsingRetriever(ident.BytesID(s.metadata.ID()), s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return r, err
@@ -418,7 +412,7 @@ func (s *dbSeries) FetchBlocks(
 	s.RLock()
 	r, err := Reader{
 		opts:       s.opts,
-		id:         s.id,
+		id:         ident.BytesID(s.metadata.ID()),
 		retriever:  s.blockRetriever,
 		onRetrieve: s.onRetrieveBlock,
 	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer, nsCtx)
@@ -453,7 +447,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 	// return refs.
 	tagsIter := s.opts.IdentifierPool().TagsIterator()
 	tagsIter.ResetFields(s.metadata.Fields)
-	return block.NewFetchBlocksMetadataResult(s.id, tagsIter, res), nil
+	return block.NewFetchBlocksMetadataResult(ident.BytesID(s.metadata.ID()), tagsIter, res), nil
 }
 
 func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
@@ -526,13 +520,13 @@ func (s *dbSeries) OnRetrieveBlock(
 		}
 	}()
 
-	if !id.Equal(s.id) {
+	if !id.Equal(ident.BytesID(s.metadata.ID())) {
 		return
 	}
 
 	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	b.ResetFromDisk(startTime, blockSize, segment, s.id, nsCtx)
+	b.ResetFromDisk(startTime, blockSize, segment, ident.BytesID(s.metadata.ID()), nsCtx)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.
@@ -568,11 +562,6 @@ func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
 	defer s.Unlock()
-
-	// Should never happen
-	if !id.Equal(s.id) {
-		return
-	}
 
 	block, ok := s.cachedBlocks.BlockAt(blockStart)
 	if ok {
@@ -664,7 +653,6 @@ func (s *dbSeries) Close() {
 	defer s.Unlock()
 
 	// See Reset() for why these aren't finalized.
-	s.id = nil
 	s.metadata = doc.Document{}
 	s.uniqueIndex = 0
 
@@ -708,7 +696,6 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	//
 	// The same goes for the series tags.
 	s.Lock()
-	s.id = opts.ID
 	s.metadata = opts.Metadata
 	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()

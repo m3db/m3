@@ -41,7 +41,6 @@ import (
 
 // DatabaseSeriesOptions is a set of options for creating a database series.
 type DatabaseSeriesOptions struct {
-	ID                     ident.ID
 	Metadata               doc.Document
 	UniqueIndex            uint64
 	BlockRetriever         QueryableBlockRetriever

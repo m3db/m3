@@ -98,7 +98,7 @@ func (m Metadata) BytesID() []byte {
 	if m.id != nil {
 		return m.id.Bytes()
 	}
-	return m.metadata.ID
+	return m.metadata.ID()
 }
 
 // ResetOrReturnProvidedTagIterator returns a tag iterator

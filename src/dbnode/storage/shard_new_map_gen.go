@@ -25,7 +25,9 @@
 package storage
 
 import (
-	"github.com/m3db/m3/src/x/ident"
+	"bytes"
+
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/cespare/xxhash/v2"
@@ -64,29 +66,37 @@ func newShardMap(opts shardMapOptions) *shardMap {
 		finalizeFn shardMapFinalizeFn
 	)
 	if pool := opts.KeyCopyPool; pool == nil {
-		copyFn = func(k ident.ID) ident.ID {
-			return ident.BytesID(append([]byte(nil), k.Bytes()...))
+		copyFn = func(k doc.Document) doc.Document {
+			return k
 		}
 	} else {
-		copyFn = func(k ident.ID) ident.ID {
-			bytes := k.Bytes()
-			keyLen := len(bytes)
-			pooled := pool.Get(keyLen)[:keyLen]
-			copy(pooled, bytes)
-			return ident.BytesID(pooled)
+		copyFn = func(k doc.Document) doc.Document {
+			return k
 		}
-		finalizeFn = func(k ident.ID) {
-			if slice, ok := k.(ident.BytesID); ok {
-				pool.Put(slice)
-			}
+		finalizeFn = func(k doc.Document) {
 		}
 	}
 	return _shardMapAlloc(_shardMapOptions{
-		hash: func(id ident.ID) shardMapHash {
-			return shardMapHash(xxhash.Sum64(id.Bytes()))
+		hash: func(id doc.Document) shardMapHash {
+			if id.LookupID != nil {
+				return shardMapHash(xxhash.Sum64(id.LookupID))
+			}
+			return shardMapHash(xxhash.Sum64(id.ID()))
 		},
-		equals: func(x, y ident.ID) bool {
-			return x.Equal(y)
+		equals: func(x, y doc.Document) bool {
+			var xID []byte
+			if x.LookupID != nil {
+				xID = x.LookupID
+			} else {
+				xID = x.ID()
+			}
+			var yID []byte
+			if y.LookupID != nil {
+				yID = y.LookupID
+			} else {
+				yID = y.ID()
+			}
+			return bytes.Equal(xID, yID)
 		},
 		copy:        copyFn,
 		finalize:    finalizeFn,

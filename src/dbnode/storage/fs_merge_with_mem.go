@@ -128,7 +128,7 @@ func (m *fsMergeWithMem) ForEachRemaining(
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
 		seriesMetadata := seriesElement.Value
-		reuseableID.Reset(seriesMetadata.ID)
+		reuseableID.Reset(seriesMetadata.ID())
 		mergeWithData, hasData, err := m.fetchBlocks(ctx, reuseableID, blockStart, nsCtx)
 		if err != nil {
 			return err

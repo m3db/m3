@@ -810,7 +810,7 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 	s.Lock()
 	for _, entry := range expiredEntries {
 		series := entry.Series
-		id := series.ID()
+		id := series.Metadata()
 		elem, exists := s.lookup.Get(id)
 		if !exists {
 			continue
@@ -1113,7 +1113,7 @@ func (s *dbShard) lookupEntryWithLock(id ident.ID) (*lookup.Entry, *list.Element
 		// callers will not retry this operation
 		return nil, nil, xerrors.NewInvalidParamsError(errShardNotOpen)
 	}
-	elem, exists := s.lookup.Get(id)
+	elem, exists := s.lookup.Get(doc.Document{LookupID: id.Bytes()})
 	if !exists {
 		return nil, nil, errShardEntryNotFound
 	}
@@ -1209,13 +1209,9 @@ func (s *dbShard) newShardEntry(
 		return nil, errNewShardEntryTagsTypeInvalid
 	}
 
-	// Use the same bytes as the series metadata for the ID.
-	seriesID := ident.BytesID(seriesMetadata.ID)
-
 	uniqueIndex := s.increasingIndex.nextIndex()
 	newSeries := s.seriesPool.Get()
 	newSeries.Reset(series.DatabaseSeriesOptions{
-		ID:                     seriesID,
 		Metadata:               seriesMetadata,
 		UniqueIndex:            uniqueIndex,
 		BlockRetriever:         s.seriesBlockRetriever,
@@ -1406,9 +1402,9 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *lookup.Entry) {
 	// Set the lookup value, we use the copied ID and since it is GC'd
 	// we explicitly set it with options to not copy the key and not to
 	// finalize it.
-	copiedID := entry.Series.ID()
+	doc := entry.Series.Metadata()
 	listElem := s.list.PushBack(entry)
-	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
+	s.lookup.SetUnsafe(doc, listElem, shardMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
@@ -2299,7 +2295,7 @@ func (s *dbShard) ColdFlush(
 
 			dirtySeries.Set(idAndBlockStart{
 				blockStart: t,
-				id:         seriesMetadata.ID,
+				id:         seriesMetadata.ID(),
 			}, element)
 		})
 

@@ -22,6 +22,8 @@ package storage
 
 import (
 	"errors"
+	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -140,6 +142,7 @@ func (m *mediator) Open() error {
 	go m.reportLoop()
 	go m.ongoingFileSystemProcesses()
 	go m.ongoingTick()
+	go m.ongoingSeries()
 	m.databaseRepairer.Start()
 	return nil
 }
@@ -217,6 +220,38 @@ func (m *mediator) ongoingFileSystemProcesses() {
 			}
 
 			m.runFileSystemProcesses()
+		}
+	}
+}
+
+func (m *mediator) ongoingSeries() {
+	for {
+		select {
+		case <-m.closedCh:
+			return
+		default:
+			time.Sleep(time.Second)
+
+			var series int64
+			for _, n := range m.database.Namespaces() {
+				for _, s := range n.Shards() {
+					series += s.NumSeries()
+				}
+			}
+			fmt.Println("SERIES", series)
+			if series > 500000 {
+				runtime.GC()
+				var m runtime.MemStats
+				runtime.ReadMemStats(&m)
+				fmt.Println("SERIES", series,
+					(m.Alloc / 1024 / 1024),
+					(m.TotalAlloc / 1024 / 1024),
+					(m.HeapAlloc / 1024 / 1024),
+					(m.HeapInuse / 1024 / 1024),
+				)
+				panic("DONE")
+			}
+
 		}
 	}
 }

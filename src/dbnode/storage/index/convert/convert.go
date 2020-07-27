@@ -24,8 +24,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
 	"unicode/utf8"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -44,15 +46,13 @@ var (
 
 	errInvalidResultMissingID = errors.New(
 		"corrupt data, unable to extract id")
+
+	byteCache = make(map[uint64][]byte)
+	byteLock  = &sync.RWMutex{}
 )
 
 // Validate returns a bool indicating whether the document is valid.
 func Validate(d doc.Document) error {
-	if !utf8.Valid(d.ID) {
-		return fmt.Errorf("document has invalid non-UTF8 ID: id=%v, id_hex=%x",
-			d.ID, d.ID)
-	}
-
 	for _, f := range d.Fields {
 		if !utf8.Valid(f.Name) {
 			return fmt.Errorf("document has invalid non-UTF8 field name: name=%v, name_hex=%x",
@@ -107,22 +107,12 @@ func ValidateSeriesTag(tag ident.Tag) error {
 
 // FromSeriesIDAndTags converts the provided series id+tags into a document.
 func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
-	clonedID := clone(id)
 	fields := make([]doc.Field, 0, len(tags.Values()))
 	for _, tag := range tags.Values() {
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
-		var clonedName, clonedValue []byte
-		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-			clonedName = clonedID[idx : idx+len(nameBytes)]
-		} else {
-			clonedName = append([]byte(nil), nameBytes...)
-		}
-		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-			clonedValue = clonedID[idx : idx+len(valueBytes)]
-		} else {
-			clonedValue = append([]byte(nil), valueBytes...)
-		}
+		clonedName := getCached(nameBytes)
+		clonedValue := getCached(valueBytes)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -131,7 +121,6 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	}
 
 	d := doc.Document{
-		ID:     clonedID,
 		Fields: fields,
 	}
 	if err := Validate(d); err != nil {
@@ -140,25 +129,35 @@ func FromSeriesIDAndTags(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	return d, nil
 }
 
+func getCached(b []byte) []byte {
+	key := xxhash.Sum64(b)
+	byteLock.RLock()
+	for existing, ok := byteCache[key]; ok; existing, ok = byteCache[key] {
+		if bytes.Compare(b, existing) == 0 {
+			byteLock.RUnlock()
+			return existing
+		}
+		// Linear probing for collisions.
+		key++
+	}
+	byteLock.RUnlock()
+
+	new := append([]byte(nil), b...)
+	byteLock.Lock()
+	byteCache[key] = new
+	byteLock.Unlock()
+	return new
+}
+
 // FromSeriesIDAndTagIter converts the provided series id+tags into a document.
 func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
-	clonedID := clone(id)
 	fields := make([]doc.Field, 0, tags.Remaining())
 	for tags.Next() {
 		tag := tags.Current()
 		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
 
-		var clonedName, clonedValue []byte
-		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-			clonedName = clonedID[idx : idx+len(nameBytes)]
-		} else {
-			clonedName = append([]byte(nil), nameBytes...)
-		}
-		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-			clonedValue = clonedID[idx : idx+len(valueBytes)]
-		} else {
-			clonedValue = append([]byte(nil), valueBytes...)
-		}
+		clonedName := getCached(nameBytes)
+		clonedValue := getCached(valueBytes)
 
 		fields = append(fields, doc.Field{
 			Name:  clonedName,
@@ -170,7 +169,6 @@ func FromSeriesIDAndTagIter(id ident.ID, tags ident.TagIterator) (doc.Document, 
 	}
 
 	d := doc.Document{
-		ID:     clonedID,
 		Fields: fields,
 	}
 	if err := Validate(d); err != nil {
@@ -277,10 +275,7 @@ func (o Opts) wrapBytes(b []byte) ident.ID {
 
 // ToSeries converts the provided doc to metric id+tags.
 func ToSeries(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
-	if len(d.ID) == 0 {
-		return nil, nil, errInvalidResultMissingID
-	}
-	return opts.wrapBytes(d.ID), ToSeriesTags(d, opts), nil
+	return opts.wrapBytes(d.ID()), ToSeriesTags(d, opts), nil
 }
 
 // ToSeriesTags converts the provided doc to metric tags.

@@ -89,8 +89,29 @@ func (f Fields) shallowCopy() Fields {
 
 // Document represents a document to be indexed.
 type Document struct {
-	ID     []byte
 	Fields []Field
+
+	LookupID []byte
+}
+
+// ID is
+func (d Document) ID() []byte {
+	bytesID := make([]byte, 0)
+	bytesID = append(bytesID, '{')
+	for ti, tag := range d.Fields {
+		nameBytes, valueBytes := tag.Name, tag.Value
+
+		bytesID = append(bytesID, nameBytes...)
+		bytesID = append(bytesID, "=\""...)
+		bytesID = append(bytesID, valueBytes...)
+		bytesID = append(bytesID, '"')
+
+		if ti < len(d.Fields)-1 {
+			bytesID = append(bytesID, ',')
+		}
+	}
+	bytesID = append(bytesID, '}')
+	return bytesID
 }
 
 // Get returns the value of the specified field name in the document if it exists.
@@ -106,10 +127,6 @@ func (d Document) Get(fieldName []byte) ([]byte, bool) {
 // Compare returns an integer comparing two documents. The result will be 0 if the documents
 // are equal, -1 if d is ordered before other, and 1 if d is ordered aftered other.
 func (d Document) Compare(other Document) int {
-	if c := bytes.Compare(d.ID, other.ID); c != 0 {
-		return c
-	}
-
 	l, r := Fields(d.Fields), Fields(other.Fields)
 
 	// Make a shallow copy of the Fields so we don't mutate the document.
@@ -156,10 +173,6 @@ func (d Document) Validate() error {
 		return ErrEmptyDocument
 	}
 
-	if !utf8.Valid(d.ID) {
-		return fmt.Errorf("document has invalid ID: id=%v, id_hex=%x", d.ID, d.ID)
-	}
-
 	for _, f := range d.Fields {
 		// TODO: Should we enforce uniqueness of field names?
 		if !utf8.Valid(f.Name) {
@@ -182,7 +195,7 @@ func (d Document) Validate() error {
 
 // HasID returns a bool indicating whether the document has an ID or not.
 func (d Document) HasID() bool {
-	return len(d.ID) > 0
+	return true
 }
 
 func (d Document) String() string {

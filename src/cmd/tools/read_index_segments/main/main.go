@@ -179,7 +179,7 @@ func readNamespaceSegments(
 				jw.WriteInt(postingsID)
 
 				jw.BeginObjectField("id")
-				unsafe.WithString(d.ID, func(str string) {
+				unsafe.WithString(d.ID(), func(str string) {
 					jw.WriteString(str)
 				})
 

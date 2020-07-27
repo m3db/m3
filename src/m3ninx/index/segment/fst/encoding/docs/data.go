@@ -45,7 +45,7 @@ func NewDataWriter(w io.Writer) *DataWriter {
 }
 
 func (w *DataWriter) Write(d doc.Document) (int, error) {
-	n := w.enc.PutBytes(d.ID)
+	n := w.enc.PutBytes(d.ID())
 	n += w.enc.PutUvarint(uint64(len(d.Fields)))
 	for _, f := range d.Fields {
 		n += w.enc.PutBytes(f.Name)
@@ -95,10 +95,6 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 		return doc.Document{}, fmt.Errorf("invalid offset: %v is past the end of the data file", offset)
 	}
 	dec := encoding.NewDecoder(r.data[int(offset):])
-	id, err := dec.Bytes()
-	if err != nil {
-		return doc.Document{}, err
-	}
 
 	x, err := dec.Uvarint()
 	if err != nil {
@@ -107,7 +103,6 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 	n := int(x)
 
 	d := doc.Document{
-		ID:     id,
 		Fields: make([]doc.Field, n),
 	}
 

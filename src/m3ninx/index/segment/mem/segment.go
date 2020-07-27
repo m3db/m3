@@ -194,7 +194,7 @@ func (s *segment) Insert(d doc.Document) ([]byte, error) {
 		s.readerID.Inc()
 	}
 
-	return d.ID, nil
+	return d.ID(), nil
 }
 
 func (s *segment) InsertBatch(b index.Batch) error {
@@ -259,14 +259,14 @@ func (s *segment) prepareDocsWithLocks(
 		}
 
 		if d.HasID() {
-			if s.containsIDWithStateLock(d.ID) {
+			if s.containsIDWithStateLock(d.ID()) {
 				// The segment already contains this document so we can remove it from those
 				// we need to index.
 				b.Docs[i] = emptyDoc
 				continue
 			}
 
-			if _, ok := s.writer.idSet.Get(d.ID); ok {
+			if _, ok := s.writer.idSet.Get(d.ID()); ok {
 				if !b.AllowPartialUpdates {
 					return index.ErrDuplicateID
 				}
@@ -275,23 +275,11 @@ func (s *segment) prepareDocsWithLocks(
 				continue
 			}
 		} else {
-			id, err := s.newUUIDFn()
-			if err != nil {
-				if !b.AllowPartialUpdates {
-					return err
-				}
-				batchErr.Add(index.BatchError{Err: err, Idx: i})
-				b.Docs[i] = emptyDoc
-				continue
-			}
-
-			d.ID = id
-
 			// Update the document in the batch since we added an ID to it.
 			b.Docs[i] = d
 		}
 
-		s.writer.idSet.SetUnsafe(d.ID, struct{}{}, idsMapSetUnsafeOptions{
+		s.writer.idSet.SetUnsafe(d.ID(), struct{}{}, idsMapSetUnsafeOptions{
 			NoCopyKey:     true,
 			NoFinalizeKey: true,
 		})
@@ -319,7 +307,7 @@ func (s *segment) indexDocWithStateLock(id postings.ID, d doc.Document) error {
 	}
 	return s.termsDict.Insert(doc.Field{
 		Name:  doc.IDReservedFieldName,
-		Value: d.ID,
+		Value: d.ID(),
 	}, id)
 }
 

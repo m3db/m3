@@ -124,13 +124,13 @@ func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
 }
 
 func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
-	if len(d.ID) == 0 {
+	if len(d.Fields) == 0 {
 		return false, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}
 
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
 	// before we're sure we need it.
-	tsID := ident.BytesID(d.ID)
+	tsID := ident.BytesID(d.ID())
 
 	// Need to apply filter if set first.
 	if r.opts.FilterID != nil && !r.opts.FilterID(tsID) {

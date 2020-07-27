@@ -48,12 +48,6 @@ func ReadDocs(path string, n int) ([]doc.Document, error) {
 			return nil, err
 		}
 
-		// Generate a new random UUID for the document.
-		id, err := NewUUID()
-		if err != nil {
-			return nil, err
-		}
-
 		fields := make([]doc.Field, 0, len(fieldsMap))
 		for k, v := range fieldsMap {
 			if len(k) == 0 || len(v) == 0 {
@@ -65,7 +59,6 @@ func ReadDocs(path string, n int) ([]doc.Document, error) {
 			})
 		}
 		docs = append(docs, doc.Document{
-			ID:     id,
 			Fields: fields,
 		})
 	}

@@ -111,11 +111,11 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 		)
 		for iter.Next() {
 			d := iter.Current()
-			if b.idSet.Contains(d.ID) {
+			if b.idSet.Contains(d.ID()) {
 				duplicates = append(duplicates, iter.PostingsID())
 				continue
 			}
-			b.idSet.SetUnsafe(d.ID, struct{}{}, IDsMapSetUnsafeOptions{
+			b.idSet.SetUnsafe(d.ID(), struct{}{}, IDsMapSetUnsafeOptions{
 				NoCopyKey:     true,
 				NoFinalizeKey: true,
 			})

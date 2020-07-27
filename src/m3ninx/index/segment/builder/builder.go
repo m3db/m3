@@ -332,7 +332,7 @@ func (b *builder) Insert(d doc.Document) ([]byte, error) {
 		return nil, err
 	}
 	last := b.docs[len(b.docs)-1]
-	return last.ID, nil
+	return last.ID(), nil
 }
 
 func (b *builder) InsertBatch(batch index.Batch) error {
@@ -386,20 +386,18 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 				continue
 			}
 
-			d.ID = id
-
 			// Update the document in the batch since we added an ID to it.
 			batch.Docs[i] = d
 		}
 
 		// Avoid duplicates.
-		if _, ok := b.idSet.Get(d.ID); ok {
+		if _, ok := b.idSet.Get(d.ID()); ok {
 			batchErr.Add(index.BatchError{Err: index.ErrDuplicateID, Idx: i})
 			continue
 		}
 
 		// Write to document set.
-		b.idSet.SetUnsafe(d.ID, struct{}{}, IDsMapSetUnsafeOptions{
+		b.idSet.SetUnsafe(d.ID(), struct{}{}, IDsMapSetUnsafeOptions{
 			NoCopyKey:     true,
 			NoFinalizeKey: true,
 		})
@@ -414,7 +412,7 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 		}
 		b.queueIndexJobEntryWithLock(wg, postings.ID(postingsListID), doc.Field{
 			Name:  doc.IDReservedFieldName,
-			Value: d.ID,
+			Value: d.ID(),
 		}, i, batchErr)
 	}
 

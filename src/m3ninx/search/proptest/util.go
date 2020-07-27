@@ -33,7 +33,7 @@ type documentIteratorMatcher struct {
 func newDocumentIteratorMatcher(docs ...doc.Document) (*documentIteratorMatcher, error) {
 	docMap := make(map[string]doc.Document, len(docs))
 	for _, d := range docs {
-		id := string(d.ID)
+		id := string(d.ID())
 		if _, ok := docMap[id]; ok {
 			return nil, fmt.Errorf("received document with duplicate id: %v", d)
 		}
@@ -50,7 +50,7 @@ func (m *documentIteratorMatcher) Matches(i doc.Iterator) error {
 	}
 	for i.Next() {
 		d := i.Current()
-		id := string(d.ID)
+		id := string(d.ID())
 		expectedDoc, ok := m.expectedDocs[id]
 		if !ok {
 			return fmt.Errorf("received un-expected document: %+v", d)
