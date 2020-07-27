@@ -21,11 +21,12 @@
 package tile
 
 import (
+	"github.com/m3db/m3/src/dbnode/ts"
+	xtime "github.com/m3db/m3/src/x/time"
+
 	"github.com/apache/arrow/go/arrow"
 	"github.com/apache/arrow/go/arrow/array"
 	"github.com/apache/arrow/go/arrow/memory"
-	"github.com/m3db/m3/src/dbnode/ts"
-	xtime "github.com/m3db/m3/src/x/time"
 )
 
 const (
@@ -50,7 +51,7 @@ func (r *datapointRecorder) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotatio
 	r.annotations.record(a)
 }
 
-func newDatapointRecorder(pool memory.Allocator) *datapointRecorder {
+func newDatapointRecorder(pool memory.Allocator) recorder {
 	fields := make([]arrow.Field, 2)
 	fields[valIdx] = arrow.Field{Name: "value", Type: arrow.PrimitiveTypes.Float64}
 	fields[timeIdx] = arrow.Field{Name: "time", Type: arrow.PrimitiveTypes.Int64}
@@ -78,48 +79,10 @@ func (r *datapointRecorder) release() {
 }
 
 // NB: caller must release record.
-func (r *datapointRecorder) updateRecord(rec *datapointRecord) {
-	rec.Record = r.builder.NewRecord()
+func (r *datapointRecorder) updateRecord(rec *record) {
 	rec.units = r.units
 	rec.annotations = r.annotations
-
-	// rec.tags
-}
-
-type datapointRecord struct {
-	array.Record
-	units       *unitRecorder
-	annotations *annotationRecorder
-}
-
-func (r *datapointRecord) values() *array.Float64 {
-	return r.Columns()[valIdx].(*array.Float64)
-}
-
-func (r *datapointRecord) timestamps() *array.Int64 {
-	return r.Columns()[timeIdx].(*array.Int64)
-}
-
-func (r *datapointRecord) release() {
-	if r == nil {
-		return
-	}
-
-	if r.Record != nil {
-		r.Record.Release()
-	}
-
-	if r.units != nil {
-		r.units.reset()
-	}
-
-	if r.annotations != nil {
-		r.annotations.reset()
-	}
-
-	r.Record = nil
-}
-
-func newDatapointRecord() *datapointRecord {
-	return &datapointRecord{}
+	rec.Record = r.builder.NewRecord()
+	rec.vals = nil
+	rec.times = nil
 }

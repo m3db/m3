@@ -37,14 +37,14 @@ type seriesFrameIter struct {
 	started   bool
 	curr      SeriesBlockFrame
 
-	recorder *datapointRecorder
+	recorder recorder
 	iter     encoding.ReaderIterator
 
 	frameStep  xtime.UnixNano
 	frameStart xtime.UnixNano
 }
 
-func newSeriesFrameIterator(recorder *datapointRecorder) SeriesFrameIterator {
+func newSeriesFrameIterator(recorder recorder) SeriesFrameIterator {
 	return &seriesFrameIter{
 		recorder: recorder,
 		err:      errors.New("unset"),

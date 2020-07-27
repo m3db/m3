@@ -23,7 +23,6 @@ package tile
 import (
 	"testing"
 
-	"github.com/apache/arrow/go/arrow/math"
 	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -47,20 +46,20 @@ func TestDatapointRecorder(t *testing.T) {
 		}
 	}
 
-	verify := func(rec *datapointRecord, size int) {
+	verify := func(rec *record, size int) {
 		ex := float64(size*(size-1)) / 2
-		vals := rec.values()
-		assert.Equal(t, ex, math.Float64.Sum(vals))
+		assert.Equal(t, ex, rec.sum())
 
-		require.Equal(t, size, vals.Len())
+		vals := rec.values()
+		require.Equal(t, size, len(vals))
 		for i := 0; i < size; i++ {
-			assert.Equal(t, float64(i), vals.Value(i))
+			assert.Equal(t, float64(i), vals[i])
 		}
 
 		times := rec.timestamps()
-		require.Equal(t, size, times.Len())
+		require.Equal(t, size, len(times))
 		for i := 0; i < size; i++ {
-			assert.Equal(t, int64(i), times.Value(i))
+			assert.Equal(t, int64(i), times[i].UnixNano())
 		}
 
 		annotation, isSingle := rec.annotations.SingleValue()

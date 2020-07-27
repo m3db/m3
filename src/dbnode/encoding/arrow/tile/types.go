@@ -87,3 +87,15 @@ type SeriesBlockIterator interface {
 	// Current returns the next set of series frame iterators.
 	Current() []SeriesFrameIterator
 }
+
+type recorder interface {
+	updateRecord(record *record)
+	record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation)
+	release()
+}
+
+// Options are series block iterator options.
+type Options struct {
+	// UseArrow determines if arrow buffers shoudld be used vs flat slices.
+	UseArrow bool
+}

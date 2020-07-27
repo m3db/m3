@@ -28,7 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/arrow/go/arrow/math"
 	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/apache/arrow/go/arrow/math"
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
 )

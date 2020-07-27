@@ -48,7 +48,7 @@ type seriesBlockIter struct {
 	start xtime.UnixNano
 
 	encodingOpts encoding.Options
-	recorders    []*datapointRecorder
+	recorders    []recorder
 	iters        []SeriesFrameIterator
 	byteReaders  []*bytes.Reader
 	baseIters    []encoding.ReaderIterator
@@ -71,7 +71,7 @@ func NewSeriesBlockIterator(
 	}
 
 	var (
-		recorders   = make([]*datapointRecorder, 0, concurrency)
+		recorders   = make([]recorder, 0, concurrency)
 		iters       = make([]SeriesFrameIterator, 0, concurrency)
 		byteReaders = make([]*bytes.Reader, 0, concurrency)
 		baseIters   = make([]encoding.ReaderIterator, 0, concurrency)

@@ -21,10 +21,10 @@
 package tile
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"github.com/apache/arrow/go/arrow/array"
 )
 
 // SeriesBlockFrame contains either all raw values
@@ -41,8 +41,8 @@ type SeriesBlockFrame struct {
 	FrameStart xtime.UnixNano
 	// FrameEnd is end of frame.
 	FrameEnd xtime.UnixNano
-	// record is the apache arrow datapoint record.
-	record *datapointRecord
+	// datapointRecord is the record.
+	record *record
 	// tags are the tags for the current series.
 	tags ident.TagIterator
 	// id is the id for this series.
@@ -66,24 +66,19 @@ func (f *SeriesBlockFrame) reset(
 	f.tags = tags
 }
 
-// Values returns values for the record in a float64 arrow array.
-func (f *SeriesBlockFrame) Values() *array.Float64 {
+// Values returns values in this SeriesBlockFrame.
+func (f *SeriesBlockFrame) Values() []float64 {
 	return f.record.values()
 }
 
-// Timestamps returns timestamps for the record in an int64 arrow array.
-func (f *SeriesBlockFrame) Timestamps() *array.Int64 {
+// Sum returns the sum of values in this SeriesBlockFrame.
+func (f *SeriesBlockFrame) Sum() float64 {
+	return f.record.sum()
+}
+
+// Timestamps returns timestamps for the SeriesBlockFrame.
+func (f *SeriesBlockFrame) Timestamps() []time.Time {
 	return f.record.timestamps()
-}
-
-// Tags returns the tags for this SeriesBlockFrame.
-func (f *SeriesBlockFrame) Tags() ident.TagIterator {
-	return f.tags
-}
-
-// ID returns the ID for this SeriesBlockFrame.
-func (f *SeriesBlockFrame) ID() ident.ID {
-	return f.id
 }
 
 // Units returns units for the SeriesBlockFrame.
@@ -94,4 +89,14 @@ func (f *SeriesBlockFrame) Units() SeriesFrameUnits {
 // Annotations returns annotations for the SeriesBlockFrame.
 func (f *SeriesBlockFrame) Annotations() SeriesFrameAnnotations {
 	return f.record.annotations
+}
+
+// Tags returns the tags for this SeriesBlockFrame.
+func (f *SeriesBlockFrame) Tags() ident.TagIterator {
+	return f.tags
+}
+
+// ID returns the ID for this SeriesBlockFrame.
+func (f *SeriesBlockFrame) ID() ident.ID {
+	return f.id
 }

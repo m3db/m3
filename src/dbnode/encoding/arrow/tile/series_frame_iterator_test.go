@@ -31,7 +31,6 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/apache/arrow/go/arrow/math"
 	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -180,19 +179,19 @@ func TestSeriesFrameIterator(t *testing.T) {
 			require.True(t, step < len(tt.exSums))
 			rec := it.Current()
 			assert.NotNil(t, rec)
+			assert.Equal(t, tt.exSums[step], rec.Sum())
 
 			vals := rec.Values()
-			assert.Equal(t, tt.exSums[step], math.Float64.Sum(vals))
-			require.Equal(t, tt.exCounts[step], vals.Len())
+			require.Equal(t, tt.exCounts[step], len(vals))
 			for i := 0; i < tt.exCounts[step]; i++ {
-				assert.Equal(t, exVal, vals.Value(i))
+				assert.Equal(t, exVal, vals[i])
 				exVal++
 			}
 
 			times := rec.Timestamps()
-			require.Equal(t, tt.exCounts[step], times.Len())
+			require.Equal(t, tt.exCounts[step], len(times))
 			for i := 0; i < tt.exCounts[step]; i++ {
-				assert.Equal(t, exTime, times.Value(i))
+				assert.Equal(t, exTime, times[i].UnixNano())
 				exTime = exTime + int64(time.Second*10)
 			}
 
