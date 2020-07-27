@@ -32,7 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/cluster"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/x/headers"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -163,7 +163,7 @@ func TestRegisterHandlersRequestDisableUnknownFields(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/query", body)
-	req.Header.Set(handleroptions.DisableJSONDisallowUnknownFields, "true")
+	req.Header.Set(headers.DisableJSONDisallowUnknownFields, "true")
 	mux.ServeHTTP(recorder, req)
 
 	// Make sure not bad request, but expected error.
