@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
@@ -50,7 +51,7 @@ func TestPromReadHandlerRead(t *testing.T) {
 	testPromReadHandlerRead(t, block.NewResultMetadata(), "")
 	testPromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
 	testPromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
-		handleroptions.LimitHeaderSeriesLimitApplied)
+		headers.LimitHeaderSeriesLimitApplied)
 }
 
 func testPromReadHandlerRead(
@@ -109,7 +110,7 @@ func TestM3PromReadHandlerRead(t *testing.T) {
 	testM3PromReadHandlerRead(t, block.NewResultMetadata(), "")
 	testM3PromReadHandlerRead(t, buildWarningMeta("foo", "bar"), "foo_bar")
 	testM3PromReadHandlerRead(t, block.ResultMetadata{Exhaustive: false},
-		handleroptions.LimitHeaderSeriesLimitApplied)
+		headers.LimitHeaderSeriesLimitApplied)
 }
 
 func testM3PromReadHandlerRead(
@@ -133,13 +134,13 @@ func testM3PromReadHandlerRead(
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	req.Header.Add(handleroptions.RenderFormat, "m3ql")
+	req.Header.Add(headers.RenderFormat, "m3ql")
 	req.URL.RawQuery = defaultParams().Encode()
 
 	recorder := httptest.NewRecorder()
 	promRead.ServeHTTP(recorder, req)
 
-	header := recorder.Header().Get(handleroptions.LimitHeader)
+	header := recorder.Header().Get(headers.LimitHeader)
 	assert.Equal(t, ex, header)
 
 	var m3qlResp M3QLResp
