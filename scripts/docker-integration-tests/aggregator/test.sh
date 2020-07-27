@@ -172,7 +172,7 @@ function prometheus_remote_write {
   local label2_value=${label2_value:-label2}
 
   network_name="aggregator"
-  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ')
+  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://m3coordinator01:7202/api/v1/prom/remote/write \
