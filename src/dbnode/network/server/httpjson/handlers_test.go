@@ -163,7 +163,7 @@ func TestRegisterHandlersRequestDisableUnknownFields(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/query", body)
-	req.Header.Set(headers.DisableJSONDisallowUnknownFields, "true")
+	req.Header.Set(headers.JSONDisableDisallowUnknownFields, "true")
 	mux.ServeHTTP(recorder, req)
 
 	// Make sure not bad request, but expected error.

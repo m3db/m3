@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -165,8 +166,9 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 			if reqIn != nil {
 				in = reflect.New(reqIn.Elem()).Interface()
 				decoder := json.NewDecoder(r.Body)
-				disableDisallowUnknownFields := r.Header.Get(headers.DisableJSONDisallowUnknownFields)
-				if disableDisallowUnknownFields != "true" {
+				disableDisallowUnknownFields, err := strconv.ParseBool(
+					r.Header.Get(headers.JSONDisableDisallowUnknownFields))
+				if err != nil || !disableDisallowUnknownFields {
 					decoder.DisallowUnknownFields()
 				}
 				if err := decoder.Decode(in); err != nil {

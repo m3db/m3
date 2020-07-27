@@ -114,10 +114,10 @@ const (
 	// RenderFormat is used to switch result format for query results rendering.
 	RenderFormat = M3HeaderPrefix + "Render-Format"
 
-	// DisableJSONDisallowUnknownFields is header if set to true that allows
+	// JSONDisableDisallowUnknownFields is header if set to true that allows
 	// for clients to send fields unknown by a HTTP/JSON endpoint and still
 	// parse the request, this is helpful for sending a request with a new
 	// schema to an older instance and still have it respond successfully
 	// using the fields it knows about.
-	DisableJSONDisallowUnknownFields = "Disable-JSON-Disallow-Unknown-Fields"
+	JSONDisableDisallowUnknownFields = M3HeaderPrefix + "JSON-Disable-Disallow-Unknown-Fields"
 )
