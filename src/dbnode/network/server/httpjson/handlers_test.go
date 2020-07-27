@@ -30,13 +30,13 @@ import (
 	"strings"
 	"testing"
 
-	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/cluster"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
@@ -89,9 +89,9 @@ func TestRegisterHandlersRequestPostRequestFn(t *testing.T) {
 	calledPostRequestFn := 0
 	opts := NewServerOptions().
 		SetPostResponseFn(func(
-			ctx context.Context,
+			_ context.Context,
 			method string,
-			response apachethrift.TStruct,
+			_ apachethrift.TStruct,
 		) {
 			require.Equal(t, "Health", method)
 			calledPostRequestFn++

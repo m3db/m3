@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/logging"
 	xdebug "github.com/m3db/m3/src/x/debug"
+	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/net/http/cors"
 
@@ -58,7 +59,7 @@ const (
 	routesURL = "/routes"
 	// EngineHeaderName defines header name which is used to switch between
 	// prometheus and m3query engines.
-	EngineHeaderName = handleroptions.M3HeaderPrefix + "Engine"
+	EngineHeaderName = headers.M3HeaderPrefix + "Engine"
 	// EngineURLParam defines query url parameter which is used to switch between
 	// prometheus and m3query engines.
 	EngineURLParam = "engine"

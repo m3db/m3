@@ -29,8 +29,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/headers"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go/thrift"
@@ -154,10 +154,10 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 				return
 			}
 
-			headers := make(map[string]string)
+			httpHeaders := make(map[string]string)
 			for key, values := range r.Header {
 				if len(values) > 0 {
-					headers[key] = values[0]
+					httpHeaders[key] = values[0]
 				}
 			}
 
@@ -165,7 +165,7 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 			if reqIn != nil {
 				in = reflect.New(reqIn.Elem()).Interface()
 				decoder := json.NewDecoder(r.Body)
-				disableDisallowUnknownFields := r.Header.Get(handleroptions.DisableJSONDisallowUnknownFields)
+				disableDisallowUnknownFields := r.Header.Get(headers.DisableJSONDisallowUnknownFields)
 				if disableDisallowUnknownFields != "true" {
 					decoder.DisallowUnknownFields()
 				}
@@ -180,10 +180,10 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 			callContext, _ := thrift.NewContext(opts.RequestTimeout())
 			if contextFn != nil {
 				// Allow derivation of context if context fn is set
-				callContext = contextFn(callContext, method.Name, headers)
+				callContext = contextFn(callContext, method.Name, httpHeaders)
 			}
 			// Always set headers finally
-			callContext = thrift.WithHeaders(callContext, headers)
+			callContext = thrift.WithHeaders(callContext, httpHeaders)
 
 			var (
 				svc = reflect.ValueOf(service)

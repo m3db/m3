@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -152,7 +153,7 @@ func parseParams(
 		params.IncludeEnd = !excludeEnd
 	}
 
-	if strings.ToLower(r.Header.Get(handleroptions.RenderFormat)) == "m3ql" {
+	if strings.ToLower(r.Header.Get(headers.RenderFormat)) == "m3ql" {
 		params.FormatType = models.FormatM3QL
 	}
 
