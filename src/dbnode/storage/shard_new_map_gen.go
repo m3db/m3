@@ -63,24 +63,49 @@ func newShardMap(opts shardMapOptions) *shardMap {
 		copyFn     shardMapCopyFn
 		finalizeFn shardMapFinalizeFn
 	)
-	copyFn = func(k *ident.Tags) *ident.Tags {
+	copyFn = func(k *ident.TagsOrID) *ident.TagsOrID {
 		// Do not need a key copy pool since we
 		// will be relying on the string table.
 		// TODO: make clone not actually copy.
 		return k
 	}
 	return _shardMapAlloc(_shardMapOptions{
-		hash: func(id *ident.Tags) shardMapHash {
-			b := id.ToID().Bytes()
-			// d := xxhash.New()
-			// for _, t := range id.Values() {
-			// 	d.Write(t.Name.Bytes())
-			// 	d.Write(t.Value.Bytes())
-			// }
-			return shardMapHash(xxhash.Sum64(b))
+		hash: func(id *ident.TagsOrID) shardMapHash {
+			if id.Tags != nil {
+				//b := id.Tags.ToID().Bytes()
+				d := xxhash.New()
+				for _, t := range id.Tags.Values() {
+					d.Write(t.Name.Bytes())
+					d.Write(t.Value.Bytes())
+				}
+				return shardMapHash(d.Sum64())
+			}
+			return shardMapHash(xxhash.Sum64(id.ID.Bytes()))
 		},
-		equals: func(x, y *ident.Tags) bool {
-			return x.Equal(*y)
+		equals: func(x, y *ident.TagsOrID) bool {
+			if x.Tags != nil && y.Tags != nil {
+				return x.Tags.Equal(*y.Tags)
+			}
+			if x.ID != nil && y.ID != nil {
+				return x.ID.Equal(y.ID)
+			}
+			if x.ID != nil {
+				return ident.IDMatchesTags(x.ID, y.Tags)
+			}
+			return ident.IDMatchesTags(y.ID, x.Tags)
+			// var xID []byte
+			// if x.ID == nil {
+			// 	xID = x.Tags.ToIDBytes()
+			// } else {
+			// 	xID = x.ID.Bytes()
+			// }
+			// var yID []byte
+			// if y.ID == nil {
+			// 	yID = y.Tags.ToIDBytes()
+			// } else {
+			// 	yID = y.ID.Bytes()
+			// }
+			// return bytes.Equal(xID, yID)
 		},
 		copy:        copyFn,
 		finalize:    finalizeFn,

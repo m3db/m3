@@ -248,6 +248,60 @@ type tagEscaping struct {
 	escapeValue bool
 }
 
+// IDMatchesTags is
+func IDMatchesTags(id ID, tags *Tags) bool {
+	if len(tags.values) == 0 {
+		return false
+	}
+
+	idBytes := id.Bytes()
+	idCap := len(idBytes) - 1
+	if len(idBytes) == 0 {
+		return false
+	}
+	i := 0
+	if idBytes[i] != '{' {
+		return false
+	}
+	i++
+	for ti, t := range tags.values {
+		for _, c := range t.Name.Bytes() {
+			if i > idCap || idBytes[i] != c {
+				return false
+			}
+			i++
+		}
+		if i > idCap || idBytes[i] != '=' {
+			return false
+		}
+		i++
+		if i > idCap || idBytes[i] != '"' {
+			return false
+		}
+		i++
+		for _, c := range t.Value.Bytes() {
+			if i > idCap || idBytes[i] != c {
+				return false
+			}
+			i++
+		}
+		if i > idCap || idBytes[i] != '"' {
+			return false
+		}
+		i++
+		if ti < len(tags.values)-1 {
+			if i > idCap || idBytes[i] != ',' {
+				return false
+			}
+			i++
+		}
+	}
+	if i > idCap || idBytes[i] != '}' {
+		return false
+	}
+	return true
+}
+
 // ToTags is
 func ToTags(id ID, opts checked.BytesOptions) Tags {
 	idString := id.String()
@@ -426,6 +480,12 @@ func serializedLength(t *Tag) (int, tagEscaping) {
 	}
 
 	return idLen, escaping
+}
+
+// TagsOrID is
+type TagsOrID struct {
+	ID   ID
+	Tags *Tags
 }
 
 // Tags is a collection of Tag instances that can be pooled.

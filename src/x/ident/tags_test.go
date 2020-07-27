@@ -49,6 +49,7 @@ func TestTagsID(t *testing.T) {
 	fmt.Println(tagsB.ToID())
 	fmt.Println(ToTags(tagsA.ToID(), nil).Values())
 	fmt.Println(ToTags(tagsB.ToID(), nil).Values())
+	fmt.Println(IDMatchesTags(StringID("{foo=\"bar\",and=\"done\"}"), &tagsB))
 }
 
 func TestBytes(t *testing.T) {

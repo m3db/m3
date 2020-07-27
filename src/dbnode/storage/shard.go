@@ -82,9 +82,6 @@ var (
 	// ErrDatabaseLoadLimitHit is the error returned when the database load limit
 	// is hit or exceeded.
 	ErrDatabaseLoadLimitHit = errors.New("error loading series, database load limit hit")
-
-	//seriesCountTag = ident.StringID("database_status_active_series")
-	seriesCountTag = ident.StringID("database_tick_active_series")
 )
 
 type filesetsFn func(
@@ -451,9 +448,8 @@ func (s *dbShard) OnRetrieveBlock(
 	segment ts.Segment,
 	nsCtx namespace.Context,
 ) {
-	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(&seriesTags)
+	entry, _, err := s.lookupEntryWithLock(&ident.TagsOrID{ID: id})
 	if entry != nil {
 		entry.IncrementReaderWriterCount()
 		defer entry.DecrementReaderWriterCount()
@@ -469,6 +465,7 @@ func (s *dbShard) OnRetrieveBlock(
 		return
 	}
 
+	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	entry, err = s.newShardEntry(&seriesTags)
 	if err != nil {
 		// should never happen
@@ -501,9 +498,8 @@ func (s *dbShard) OnRetrieveBlock(
 }
 
 func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
-	tags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(&tags)
+	entry, _, err := s.lookupEntryWithLock(&ident.TagsOrID{ID: id})
 	s.RUnlock()
 
 	if err != nil && err != errShardEntryNotFound {
@@ -811,7 +807,7 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 	for _, entry := range expiredEntries {
 		series := entry.Series
 		tags := series.Tags()
-		elem, exists := s.lookup.Get(&tags)
+		elem, exists := s.lookup.Get(&ident.TagsOrID{ID: series.ID()})
 		if !exists {
 			continue
 		}
@@ -839,7 +835,7 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 		// safe to remove it.
 		series.Close()
 		s.list.Remove(elem)
-		s.lookup.Delete(&tags)
+		s.lookup.Delete(&ident.TagsOrID{Tags: &tags})
 	}
 	s.Unlock()
 }
@@ -884,12 +880,8 @@ func (s *dbShard) writeAndIndex(
 	shouldReverseIndex bool,
 ) (ts.Series, bool, error) {
 	// Prepare write
-	seriesTags, err := s.tagsIterToTags(tags, s.opts.IdentifierPool(), false)
-	defer seriesTags.Finalize()
-	if err != nil {
-		return ts.Series{}, false, err
-	}
-	entry, opts, err := s.tryRetrieveWritableSeries(seriesTags)
+	idTags := &ident.TagsOrID{ID: id}
+	entry, opts, err := s.tryRetrieveWritableSeries(idTags)
 	if err != nil {
 		return ts.Series{}, false, err
 	}
@@ -900,8 +892,11 @@ func (s *dbShard) writeAndIndex(
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately.
 		//seriesTags.NoFinalize()
-		unpooledTags := seriesTags.CopyTags()
-		result, err := s.insertSeriesAsyncBatched(&unpooledTags, dbShardInsertAsyncOptions{
+		seriesTags, err := s.tagsIterToTags(tags, nil)
+		if err != nil {
+			return ts.Series{}, false, err
+		}
+		result, err := s.insertSeriesAsyncBatched(seriesTags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  timestamp,
@@ -916,7 +911,7 @@ func (s *dbShard) writeAndIndex(
 		result.wg.Wait()
 
 		// Retrieve the inserted entry
-		entry, err = s.writableSeries(&unpooledTags)
+		entry, err = s.writableSeries(id, seriesTags)
 		if err != nil {
 			return ts.Series{}, false, err
 		}
@@ -972,6 +967,10 @@ func (s *dbShard) writeAndIndex(
 			annotationClone.AppendAll(annotation)
 		}
 
+		seriesTags, err := s.tagsIterToTags(tags, nil)
+		if err != nil {
+			return ts.Series{}, false, err
+		}
 		result, err := s.insertSeriesAsyncBatched(seriesTags, dbShardInsertAsyncOptions{
 			hasPendingWrite: true,
 			pendingWrite: dbShardPendingWrite{
@@ -1018,9 +1017,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	opts ShardSeriesReadWriteRefOptions,
 ) (SeriesReadWriteRef, error) {
 	// Try retrieve existing series.
-	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
-	defer seriesTags.Finalize()
-	entry, _, err := s.tryRetrieveWritableSeries(&seriesTags)
+	entry, _, err := s.tryRetrieveWritableSeries(&ident.TagsOrID{ID: id})
 	if err != nil {
 		return SeriesReadWriteRef{}, err
 	}
@@ -1041,7 +1038,8 @@ func (s *dbShard) SeriesReadWriteRef(
 	// being put in the insert queue may cause a block to be loaded to a
 	// series which gets discarded.
 	at := s.nowFn()
-	entry, err = s.insertSeriesSync(&seriesTags, insertSyncOptions{
+	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
+	entry, err = s.insertSeriesSync(id, &seriesTags, insertSyncOptions{
 		insertType:      insertSyncIncReaderWriterCount,
 		hasPendingIndex: opts.ReverseIndex,
 		pendingIndex: dbShardPendingIndex{
@@ -1068,8 +1066,8 @@ func (s *dbShard) ReadEncoded(
 	nsCtx namespace.Context,
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
-	seriesTags := ident.ToTags(id, s.seriesOpts.BytesOpts())
-	entry, _, err := s.lookupEntryWithLock(&seriesTags)
+	idTags := &ident.TagsOrID{ID: id}
+	entry, _, err := s.lookupEntryWithLock(idTags)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
@@ -1100,7 +1098,7 @@ func (s *dbShard) ReadEncoded(
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
-func (s *dbShard) lookupEntryWithLock(tags *ident.Tags) (*lookup.Entry, *list.Element, error) {
+func (s *dbShard) lookupEntryWithLock(tags *ident.TagsOrID) (*lookup.Entry, *list.Element, error) {
 	if s.state != dbShardStateOpen {
 		// NB(r): Return an invalid params error here so any upstream
 		// callers will not retry this operation
@@ -1113,9 +1111,9 @@ func (s *dbShard) lookupEntryWithLock(tags *ident.Tags) (*lookup.Entry, *list.El
 	return elem.Value.(*lookup.Entry), elem, nil
 }
 
-func (s *dbShard) writableSeries(tags *ident.Tags) (*lookup.Entry, error) {
+func (s *dbShard) writableSeries(id ident.ID, tags *ident.Tags) (*lookup.Entry, error) {
 	for {
-		entry, _, err := s.tryRetrieveWritableSeries(tags)
+		entry, _, err := s.tryRetrieveWritableSeries(&ident.TagsOrID{ID: id})
 		if entry != nil {
 			return entry, nil
 		}
@@ -1138,7 +1136,7 @@ type writableSeriesOptions struct {
 	writeNewSeriesAsync bool
 }
 
-func (s *dbShard) tryRetrieveWritableSeries(tags *ident.Tags) (
+func (s *dbShard) tryRetrieveWritableSeries(tags *ident.TagsOrID) (
 	*lookup.Entry,
 	writableSeriesOptions,
 	error,
@@ -1193,7 +1191,7 @@ type insertAsyncResult struct {
 	entry *lookup.Entry
 }
 
-func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool, copy bool) (*ident.Tags, error) {
+func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool) (*ident.Tags, error) {
 	var tags ident.Tags
 	if pool != nil {
 		tags = pool.Tags()
@@ -1225,14 +1223,10 @@ func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool, co
 		// tag.Name = ident.BytesID(name)
 		// value := append([]byte(nil), t.Value.Bytes()...)
 		// tag.Value = ident.BytesID(value)
-		if copy {
-			var tag ident.Tag
-			tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
-			tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
-			tags.Append(tag)
-		} else {
-			tags.Append(t)
-		}
+		var tag ident.Tag
+		tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+		tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+		tags.Append(tag)
 	}
 	iter.Close()
 	return &tags, nil
@@ -1318,6 +1312,7 @@ type insertSyncOptions struct {
 }
 
 func (s *dbShard) insertSeriesSync(
+	id ident.ID,
 	tags *ident.Tags,
 	opts insertSyncOptions,
 ) (*lookup.Entry, error) {
@@ -1334,7 +1329,7 @@ func (s *dbShard) insertSeriesSync(
 		}
 	}()
 
-	entry, _, err = s.lookupEntryWithLock(tags)
+	entry, _, err = s.lookupEntryWithLock(&ident.TagsOrID{ID: id})
 	if err != nil && err != errShardEntryNotFound {
 		// Shard not taking inserts likely.
 		return nil, err
@@ -1390,7 +1385,8 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *lookup.Entry) {
 	// finalize it.
 	tags := entry.Series.Tags()
 	listElem := s.list.PushBack(entry)
-	s.lookup.SetUnsafe(&tags, listElem, shardMapSetUnsafeOptions{
+	tagsOrID := &ident.TagsOrID{Tags: &tags}
+	s.lookup.SetUnsafe(tagsOrID, listElem, shardMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
@@ -1428,7 +1424,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// enqueue in the shard insert queue, and this function executing, an entry was created
 		// for the same ID.
 		tags := inserts[i].entry.Series.Tags()
-		entry, _, err := s.lookupEntryWithLock(&tags)
+		entry, _, err := s.lookupEntryWithLock(&ident.TagsOrID{Tags: &tags})
 		if entry != nil {
 			// Already exists so update the entry we're pointed at for this insert
 			inserts[i].entry = entry
@@ -1537,13 +1533,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 			var d doc.Document
 			d.ID = nil //seriesID.Bytes()
-			for _, t := range tags {
-				if t.Value.Equal(seriesCountTag) {
-					s.logger.Info("MATCH", zap.Any("val", t.Value))
-					d.ID = entry.Series.ID().Bytes() //seriesID.Bytes()
-					break
-				}
-			}
 
 			d.Fields = make(doc.Fields, 0, len(tags))
 			for _, tag := range tags {
@@ -1595,9 +1584,8 @@ func (s *dbShard) FetchBlocks(
 	starts []time.Time,
 	nsCtx namespace.Context,
 ) ([]block.FetchBlockResult, error) {
-	tags := ident.ToTags(id, s.seriesOpts.BytesOpts())
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(&tags)
+	entry, _, err := s.lookupEntryWithLock(&ident.TagsOrID{ID: id})
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
@@ -1637,9 +1625,8 @@ func (s *dbShard) FetchBlocksForColdFlush(
 	version int,
 	nsCtx namespace.Context,
 ) (block.FetchBlockResult, error) {
-	tags := ident.ToTags(seriesID, s.seriesOpts.BytesOpts())
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(&tags)
+	entry, _, err := s.lookupEntryWithLock(&ident.TagsOrID{ID: seriesID})
 	s.RUnlock()
 	if entry == nil || err != nil {
 		return block.FetchBlockResult{}, err
@@ -2092,14 +2079,14 @@ func (s *dbShard) loadBlock(
 	)
 
 	// First lookup if series already exists.
-	entry, shardOpts, err := s.tryRetrieveWritableSeries(tags)
+	entry, shardOpts, err := s.tryRetrieveWritableSeries(&ident.TagsOrID{ID: id})
 	if err != nil && err != errShardEntryNotFound {
 		return result, err
 	}
 	if entry == nil {
 		// Synchronously insert to avoid waiting for the insert queue which could potentially
 		// delay the insert.
-		entry, err = s.insertSeriesSync(tags,
+		entry, err = s.insertSeriesSync(id, tags,
 			insertSyncOptions{
 				// NB(r): Because insertSyncIncReaderWriterCount is used here we
 				// don't need to explicitly increment the reader/writer count and it
