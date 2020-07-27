@@ -58,7 +58,7 @@ const (
 	routesURL = "/routes"
 	// EngineHeaderName defines header name which is used to switch between
 	// prometheus and m3query engines.
-	EngineHeaderName = "M3-Engine"
+	EngineHeaderName = handleroptions.M3HeaderPrefix + "Engine"
 	// EngineURLParam defines query url parameter which is used to switch between
 	// prometheus and m3query engines.
 	EngineURLParam = "engine"

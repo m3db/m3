@@ -133,7 +133,7 @@ func testM3PromReadHandlerRead(
 	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	req.Header.Add("X-M3-Render-Format", "m3ql")
+	req.Header.Add(handleroptions.RenderFormat, "m3ql")
 	req.URL.RawQuery = defaultParams().Encode()
 
 	recorder := httptest.NewRecorder()

@@ -29,6 +29,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	xerrors "github.com/m3db/m3/src/x/errors"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
@@ -36,9 +37,8 @@ import (
 )
 
 var (
-	errRequestMustBeGet   = xerrors.NewInvalidParamsError(errors.New("request without request params must be GET"))
-	errRequestMustBePost  = xerrors.NewInvalidParamsError(errors.New("request with request params must be POST"))
-	errInvalidRequestBody = xerrors.NewInvalidParamsError(errors.New("request contains an invalid request body"))
+	errRequestMustBeGet  = xerrors.NewInvalidParamsError(errors.New("request without request params must be GET"))
+	errRequestMustBePost = xerrors.NewInvalidParamsError(errors.New("request with request params must be POST"))
 )
 
 // Error is an HTTP JSON error that also sets a return status code.
@@ -164,8 +164,14 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 			var in interface{}
 			if reqIn != nil {
 				in = reflect.New(reqIn.Elem()).Interface()
-				if err := json.NewDecoder(r.Body).Decode(in); err != nil {
-					writeError(w, errInvalidRequestBody)
+				decoder := json.NewDecoder(r.Body)
+				disableDisallowUnknownFields := r.Header.Get(handleroptions.DisableJSONDisallowUnknownFields)
+				if disableDisallowUnknownFields != "true" {
+					decoder.DisallowUnknownFields()
+				}
+				if err := decoder.Decode(in); err != nil {
+					err := fmt.Errorf("invalid request body: %v", err)
+					writeError(w, xerrors.NewInvalidParamsError(err))
 					return
 				}
 			}

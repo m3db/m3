@@ -152,7 +152,7 @@ func parseParams(
 		params.IncludeEnd = !excludeEnd
 	}
 
-	if strings.ToLower(r.Header.Get("X-M3-Render-Format")) == "m3ql" {
+	if strings.ToLower(r.Header.Get(handleroptions.RenderFormat)) == "m3ql" {
 		params.FormatType = models.FormatM3QL
 	}
 
