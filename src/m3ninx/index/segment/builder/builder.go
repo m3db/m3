@@ -380,12 +380,6 @@ func (b *builder) insertBatchWithLock(batch index.Batch) *index.BatchPartialErro
 
 		// Generate ID if needed.
 		if !d.HasID() {
-			id, err := b.newUUIDFn()
-			if err != nil {
-				batchErr.Add(index.BatchError{Err: err, Idx: i})
-				continue
-			}
-
 			// Update the document in the batch since we added an ID to it.
 			batch.Docs[i] = d
 		}

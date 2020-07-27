@@ -195,7 +195,7 @@ func (d Document) Validate() error {
 
 // HasID returns a bool indicating whether the document has an ID or not.
 func (d Document) HasID() bool {
-	return true
+	return d.Fields != nil && len(d.Fields) > 0
 }
 
 func (d Document) String() string {
