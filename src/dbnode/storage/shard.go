@@ -469,7 +469,7 @@ func (s *dbShard) OnRetrieveBlock(
 		return
 	}
 
-	entry, err = s.newShardEntry(newTagsIterArg(tags))
+	entry, err = s.newShardEntry(&seriesTags)
 	if err != nil {
 		// should never happen
 		s.logger.Error("[invariant violated] unable to create shardEntry from retrieved block data",
@@ -884,8 +884,7 @@ func (s *dbShard) writeAndIndex(
 	shouldReverseIndex bool,
 ) (ts.Series, bool, error) {
 	// Prepare write
-	// s.opts.IdentifierPool()
-	seriesTags, err := s.tagsIterToTags(tags, nil)
+	seriesTags, err := s.tagsIterToTags(tags, s.opts.IdentifierPool(), false)
 	defer seriesTags.Finalize()
 	if err != nil {
 		return ts.Series{}, false, err
@@ -901,8 +900,8 @@ func (s *dbShard) writeAndIndex(
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately.
 		//seriesTags.NoFinalize()
-		//unpooledTags := seriesTags.CopyTags()
-		result, err := s.insertSeriesAsyncBatched(seriesTags, dbShardInsertAsyncOptions{
+		unpooledTags := seriesTags.CopyTags()
+		result, err := s.insertSeriesAsyncBatched(&unpooledTags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp:  timestamp,
@@ -917,7 +916,7 @@ func (s *dbShard) writeAndIndex(
 		result.wg.Wait()
 
 		// Retrieve the inserted entry
-		entry, err = s.writableSeries(seriesTags)
+		entry, err = s.writableSeries(&unpooledTags)
 		if err != nil {
 			return ts.Series{}, false, err
 		}
@@ -1042,7 +1041,7 @@ func (s *dbShard) SeriesReadWriteRef(
 	// being put in the insert queue may cause a block to be loaded to a
 	// series which gets discarded.
 	at := s.nowFn()
-	entry, err = s.insertSeriesSync(id, newTagsIterArg(tags), insertSyncOptions{
+	entry, err = s.insertSeriesSync(&seriesTags, insertSyncOptions{
 		insertType:      insertSyncIncReaderWriterCount,
 		hasPendingIndex: opts.ReverseIndex,
 		pendingIndex: dbShardPendingIndex{
@@ -1161,27 +1160,19 @@ func (s *dbShard) tryRetrieveWritableSeries(tags *ident.Tags) (
 }
 
 func (s *dbShard) newShardEntry(
-	tagsArgOpts tagsArgOptions,
+	tags *ident.Tags,
 ) (*lookup.Entry, error) {
 	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
 	// are garbage collected, hence we cast the ID to a BytesID that can't be
 	// finalized.
 	// Since series are purged so infrequently the overhead of not releasing
 	// back an ID to a pool is amortized over a long period of time.
-	var (
-		seriesTags *ident.Tags
-		err        error
-	)
-	seriesTags, err = s.toTags(tagsArgOpts)
-	if err != nil {
-		return nil, err
-	}
-	seriesTags.NoFinalize()
+	tags.NoFinalize()
 
 	uniqueIndex := s.increasingIndex.nextIndex()
 	newSeries := s.seriesPool.Get()
 	newSeries.Reset(series.DatabaseSeriesOptions{
-		Tags:                   seriesTags,
+		Tags:                   tags,
 		UniqueIndex:            uniqueIndex,
 		BlockRetriever:         s.seriesBlockRetriever,
 		OnRetrieveBlock:        s.seriesOnRetrieveBlock,
@@ -1202,7 +1193,7 @@ type insertAsyncResult struct {
 	entry *lookup.Entry
 }
 
-func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool) (*ident.Tags, error) {
+func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool, copy bool) (*ident.Tags, error) {
 	var tags ident.Tags
 	if pool != nil {
 		tags = pool.Tags()
@@ -1223,47 +1214,28 @@ func (s *dbShard) tagsIterToTags(tagsIter ident.TagIterator, pool ident.Pool) (*
 	// with a large capacity to store the tags. Since these tags are long-lived, it's
 	// better to allocate an array of the exact size to save memory.
 	for iter.Next() {
-		var tag ident.Tag
-		t := iter.Current()
 
-		// name := append([]byte(nil), t.Name.Bytes()...)
-		// tag.Name = ident.BytesID(name)
-		// value := append([]byte(nil), t.Value.Bytes()...)
-		// tag.Value = ident.BytesID(value)
-		tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
-		tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+		t := iter.Current()
 
 		// table := s.seriesOpts.BytesOpts().StringTable()
 		// tag.Name = ident.BytesID(table.GetCached(t.Name.Bytes()))
 		// tag.Value = ident.BytesID(table.GetCached(t.Value.Bytes()))
 
-		tags.Append(tag)
+		// name := append([]byte(nil), t.Name.Bytes()...)
+		// tag.Name = ident.BytesID(name)
+		// value := append([]byte(nil), t.Value.Bytes()...)
+		// tag.Value = ident.BytesID(value)
+		if copy {
+			var tag ident.Tag
+			tag.Name = ident.BytesID(checked.NewBytes(t.Name.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+			tag.Value = ident.BytesID(checked.NewBytes(t.Value.Bytes(), s.seriesOpts.BytesOpts()).Bytes())
+			tags.Append(tag)
+		} else {
+			tags.Append(t)
+		}
 	}
 	iter.Close()
 	return &tags, nil
-}
-
-func (s *dbShard) toTags(tagsArgOpts tagsArgOptions) (*ident.Tags, error) {
-	var (
-		seriesTags *ident.Tags
-		err        error
-	)
-	switch tagsArgOpts.arg {
-	case tagsIterArg:
-		// nil because we insert.
-		seriesTags, err = s.tagsIterToTags(tagsArgOpts.tagsIter, nil)
-		if err != nil {
-			return nil, err
-		}
-	case tagsArg:
-		seriesTags = tagsArgOpts.tags
-	default:
-		return nil, errNewShardEntryTagsTypeInvalid
-	}
-	// Don't put tags back in a pool since the merge logic may still have a
-	// handle on these.
-	//seriesTags.NoFinalize()
-	return seriesTags, nil
 }
 
 func (s *dbShard) insertSeriesForIndexingAsyncBatched(
@@ -1314,7 +1286,7 @@ func (s *dbShard) insertSeriesAsyncBatched(
 	tags *ident.Tags,
 	opts dbShardInsertAsyncOptions,
 ) (insertAsyncResult, error) {
-	entry, err := s.newShardEntry(newTagsArg(tags))
+	entry, err := s.newShardEntry(tags)
 	if err != nil {
 		return insertAsyncResult{}, err
 	}
@@ -1346,8 +1318,7 @@ type insertSyncOptions struct {
 }
 
 func (s *dbShard) insertSeriesSync(
-	id ident.ID,
-	tagsArgOpts tagsArgOptions,
+	tags *ident.Tags,
 	opts insertSyncOptions,
 ) (*lookup.Entry, error) {
 	var (
@@ -1363,10 +1334,6 @@ func (s *dbShard) insertSeriesSync(
 		}
 	}()
 
-	tags, err := s.toTags(tagsArgOpts)
-	if err != nil {
-		return nil, err
-	}
 	entry, _, err = s.lookupEntryWithLock(tags)
 	if err != nil && err != errShardEntryNotFound {
 		// Shard not taking inserts likely.
@@ -1377,7 +1344,7 @@ func (s *dbShard) insertSeriesSync(
 		return entry, nil
 	}
 
-	entry, err = s.newShardEntry(tagsArgOpts)
+	entry, err = s.newShardEntry(tags)
 	if err != nil {
 		// should never happen
 		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(),
@@ -1396,7 +1363,6 @@ func (s *dbShard) insertSeriesSync(
 
 	// Be sure to enqueue for indexing if requires a pending index.
 	if opts.hasPendingIndex {
-		id.NoFinalize()
 		if _, err := s.insertQueue.Insert(dbShardInsert{
 			entry: entry,
 			opts: dbShardInsertAsyncOptions{
@@ -2133,7 +2099,7 @@ func (s *dbShard) loadBlock(
 	if entry == nil {
 		// Synchronously insert to avoid waiting for the insert queue which could potentially
 		// delay the insert.
-		entry, err = s.insertSeriesSync(id, newTagsArg(tags),
+		entry, err = s.insertSeriesSync(tags,
 			insertSyncOptions{
 				// NB(r): Because insertSyncIncReaderWriterCount is used here we
 				// don't need to explicitly increment the reader/writer count and it

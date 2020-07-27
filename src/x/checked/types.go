@@ -150,7 +150,7 @@ func NewStringTable() StringTable {
 	return &stringTable{
 		vals: make(map[uint64]Bytes),
 		//vals2: c,
-		//vals3: make(map[uint64][]byte),
+		vals3: make(map[uint64][]byte),
 	}
 }
 

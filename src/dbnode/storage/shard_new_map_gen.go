@@ -71,13 +71,13 @@ func newShardMap(opts shardMapOptions) *shardMap {
 	}
 	return _shardMapAlloc(_shardMapOptions{
 		hash: func(id *ident.Tags) shardMapHash {
-			//b := id.ToID().Bytes()
-			d := xxhash.New()
-			for _, t := range id.Values() {
-				d.Write(t.Name.Bytes())
-				d.Write(t.Value.Bytes())
-			}
-			return shardMapHash(d.Sum64())
+			b := id.ToID().Bytes()
+			// d := xxhash.New()
+			// for _, t := range id.Values() {
+			// 	d.Write(t.Name.Bytes())
+			// 	d.Write(t.Value.Bytes())
+			// }
+			return shardMapHash(xxhash.Sum64(b))
 		},
 		equals: func(x, y *ident.Tags) bool {
 			return x.Equal(*y)
