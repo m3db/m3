@@ -479,7 +479,7 @@ func (s *dbShard) OnRetrieveBlock(
 
 	// NB(r): Do not need to specify that needs to be indexed as series would
 	// have been already been indexed when it was written
-	copiedID := entry.Series.ID()
+	//copiedID := entry.Series.ID()
 	copiedTagsIter := s.identifierPool.TagsIterator()
 	copiedTagsIter.Reset(entry.Series.Tags())
 	s.insertQueue.Insert(dbShardInsert{
@@ -487,7 +487,7 @@ func (s *dbShard) OnRetrieveBlock(
 		opts: dbShardInsertAsyncOptions{
 			hasPendingRetrievedBlock: true,
 			pendingRetrievedBlock: dbShardPendingRetrievedBlock{
-				id:      copiedID,
+				id:      nil, //copiedID,
 				tags:    copiedTagsIter,
 				start:   startTime,
 				segment: segment,
@@ -881,6 +881,7 @@ func (s *dbShard) writeAndIndex(
 ) (ts.Series, bool, error) {
 	// Prepare write
 	idTags := &ident.TagsOrID{ID: id}
+	fmt.Println("ID", id.IsNoFinalize())
 	entry, opts, err := s.tryRetrieveWritableSeries(idTags)
 	if err != nil {
 		return ts.Series{}, false, err
