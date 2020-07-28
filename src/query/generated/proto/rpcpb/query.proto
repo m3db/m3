@@ -86,9 +86,10 @@ enum MetricsType {
 }
 
 enum FanoutOption {
-	DEFAULT_OPTION   = 0;
-	FORCE_ENABLED    = 1;
-	FORCE_DISABLED   = 2;
+	DEFAULT_OPTION          = 0;
+	FORCE_ENABLED           = 1;
+	FORCE_DISABLED          = 2;
+	FORCE_ENABLE_AS_PARTIAL = 3;
 }
 
 message FetchResponse {

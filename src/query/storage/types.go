@@ -166,6 +166,9 @@ const (
 	FanoutForceDisable
 	// FanoutForceEnable forces enabling fanout.
 	FanoutForceEnable
+	// FanoutForceEnableAsPartial forces enabling fanout, but necessarily
+	// marks the target namespaces as a partial.
+	FanoutForceEnableAsPartial
 )
 
 // RestrictByType are specific restrictions to stick to a single data type.

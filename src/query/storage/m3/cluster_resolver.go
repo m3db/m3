@@ -34,7 +34,8 @@ type unaggregatedNamespaceType uint8
 
 const (
 	partiallySatisfiesRange unaggregatedNamespaceType = iota
-	fullySatisfiesRange
+	completeFullySatisfiesRange
+	incompleteFullySatisfiesRange
 	disabled
 )
 
@@ -55,20 +56,21 @@ func resolveUnaggregatedNamespaceForQuery(
 		return unaggregatedNamespaceDetails{satisfies: disabled}
 	}
 
+	satisfies := partiallySatisfiesRange
 	retention := unaggregated.Options().Attributes().Retention
 	unaggregatedStart := now.Add(-1 * retention)
-	if unaggregatedStart.Before(start) || unaggregatedStart.Equal(start) {
-		return unaggregatedNamespaceDetails{
-			clusterNamespace: unaggregated,
-			retention:        retention,
-			satisfies:        fullySatisfiesRange,
+	if !unaggregatedStart.After(start) {
+		if opts.FanoutUnaggregated == storage.FanoutForceEnableAsPartial {
+			satisfies = incompleteFullySatisfiesRange
+		} else {
+			satisfies = completeFullySatisfiesRange
 		}
 	}
 
 	return unaggregatedNamespaceDetails{
 		clusterNamespace: unaggregated,
 		retention:        retention,
-		satisfies:        partiallySatisfiesRange,
+		satisfies:        satisfies,
 	}
 }
 
@@ -91,19 +93,19 @@ func resolveClusterNamespacesForQuery(
 	// every metric.
 	unaggregated := resolveUnaggregatedNamespaceForQuery(now, start,
 		clusters.UnaggregatedClusterNamespace(), opts)
-	if unaggregated.satisfies == fullySatisfiesRange {
+	if unaggregated.satisfies == completeFullySatisfiesRange {
 		return consolidators.NamespaceCoversAllQueryRange,
 			ClusterNamespaces{unaggregated.clusterNamespace},
 			nil
 	}
 
 	if opts.FanoutAggregated == storage.FanoutForceDisable {
-		if unaggregated.satisfies == partiallySatisfiesRange {
-			return consolidators.NamespaceCoversPartialQueryRange,
-				ClusterNamespaces{unaggregated.clusterNamespace}, nil
+		if unaggregated.satisfies == disabled {
+			return consolidators.NamespaceInvalid, nil, errUnaggregatedAndAggregatedDisabled
 		}
 
-		return consolidators.NamespaceInvalid, nil, errUnaggregatedAndAggregatedDisabled
+		return consolidators.NamespaceCoversPartialQueryRange,
+			ClusterNamespaces{unaggregated.clusterNamespace}, nil
 	}
 
 	// The filter function will drop namespaces which do not cover the entire
@@ -119,6 +121,9 @@ func resolveClusterNamespacesForQuery(
 	// Filter aggregated namespaces by filter function and options.
 	var r reusedAggregatedNamespaceSlices
 	r = aggregatedNamespaces(clusters.ClusterNamespaces(), r, coversRangeFilter, opts)
+	if unaggregated.satisfies == incompleteFullySatisfiesRange {
+		r.partialAggregated = append(r.partialAggregated, unaggregated.clusterNamespace)
+	}
 
 	// If any of the aggregated clusters have a complete set of metrics, use
 	// those that have the smallest resolutions, supplemented by lower resolution
@@ -153,7 +158,8 @@ func resolveClusterNamespacesForQuery(
 		result := r.partialAggregated
 		// If unaggregated namespace can partially satisfy this range, add it as a
 		// fanout contender.
-		if unaggregated.satisfies == partiallySatisfiesRange {
+		if unaggregated.satisfies == partiallySatisfiesRange ||
+			unaggregated.satisfies == incompleteFullySatisfiesRange {
 			result = append(result, unaggregated.clusterNamespace)
 		}
 
@@ -267,10 +273,12 @@ func aggregatedNamespaces(
 			continue
 		}
 
-		// If not optimizing fanout to aggregated namespaces, set all aggregated
+		// If aggregated fanout is forced to enable as partial, or if not
+		// optimizing fanout to aggregated namespaces, set all aggregated
 		// namespaces satisfying the filter as partially aggregated, as all metrics
 		// do not necessarily appear in all namespaces, depending on configuration.
-		if opts.FanoutAggregatedOptimized == storage.FanoutForceDisable {
+		if opts.FanoutAggregated == storage.FanoutForceEnableAsPartial ||
+			opts.FanoutAggregatedOptimized == storage.FanoutForceDisable {
 			slices.partialAggregated = append(slices.partialAggregated, namespace)
 			continue
 		}

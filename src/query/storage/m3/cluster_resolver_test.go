@@ -93,6 +93,52 @@ func TestFanoutUnaggregatedEnabledReturnsUnaggregatedNamespaces(t *testing.T) {
 	assert.Equal(t, "metrics_unaggregated", clusters[0].NamespaceID().String())
 }
 
+func TestFanoutUnaggregatedForceAsPartialReturnsAggregatedNamespaceAndUnagg(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	s, _ := setup(t, ctrl)
+	store, ok := s.(*m3storage)
+	assert.True(t, ok)
+	opts := &storage.FanoutOptions{
+		FanoutUnaggregated: storage.FanoutForceEnableAsPartial,
+	}
+
+	start := time.Now()
+	end := start.Add(time.Hour * 24 * -90)
+	_, clusters, err := resolveClusterNamespacesForQuery(start,
+		start, end, store.clusters, opts, nil)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(clusters))
+	assert.Equal(t, "metrics_aggregated_1m:30d", clusters[0].NamespaceID().String())
+	assert.Equal(t, "metrics_unaggregated", clusters[1].NamespaceID().String())
+}
+
+func TestFanoutAllForceAsPartialReturnsAggregatedNamespaces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	s, _ := setup(t, ctrl)
+	store, ok := s.(*m3storage)
+	assert.True(t, ok)
+	opts := &storage.FanoutOptions{
+		FanoutUnaggregated: storage.FanoutForceEnableAsPartial,
+		FanoutAggregated:   storage.FanoutForceEnableAsPartial,
+	}
+
+	start := time.Now()
+	end := start.Add(time.Hour * 24 * -90)
+	_, clusters, err := resolveClusterNamespacesForQuery(start,
+		start, end, store.clusters, opts, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 5, len(clusters))
+	expected := []string{"metrics_aggregated_1m:30d", "metrics_aggregated_5m:90d",
+		"metrics_aggregated_partial_1m:180d", "metrics_aggregated_10m:365d",
+		"metrics_unaggregated"}
+
+	for i, cluster := range clusters {
+		assert.Equal(t, expected[i], cluster.NamespaceID().String())
+	}
+}
+
 func TestGraphitePath(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
