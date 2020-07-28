@@ -1671,7 +1671,8 @@ func (n *dbNamespace) aggregateTiles(
 			continue
 		}
 
-		multiErr = n.coldFlushSingleShard(nsCtx, targetShard, pm, resources, multiErr)
+		err = n.coldFlushSingleShard(nsCtx, targetShard, pm, resources)
+		multiErr = multiErr.Add(err)
 	}
 
 	return processedBlockCount, multiErr.FinalError()
@@ -1682,8 +1683,7 @@ func (n *dbNamespace) coldFlushSingleShard(
 	shard databaseShard,
 	pm persist.Manager,
 	resources coldFlushReuseableResources,
-	multiErr xerrors.MultiError,
-) xerrors.MultiError {
+) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
@@ -1701,29 +1701,26 @@ func (n *dbNamespace) coldFlushSingleShard(
 		onColdFlushDone, err = n.reverseIndex.ColdFlush([]databaseShard{shard})
 		if err != nil {
 			n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-			return multiErr.Add(
-				fmt.Errorf("error preparing to coldflush a reverse index for shard %d: %v",
-					shard.ID(),
-					err))
+			return fmt.Errorf("error preparing to coldflush a reverse index for shard %d: %v",
+				shard.ID(),
+				err)
 		}
 	}
 
 	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
 	if err != nil {
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-		return multiErr.Add(
-			fmt.Errorf("error preparing to coldflush a namespace for shard %d: %v",
-				shard.ID(),
-				err))
+		return fmt.Errorf("error preparing to coldflush a namespace for shard %d: %v",
+			shard.ID(),
+			err)
 	}
 
 	flushPersist, err := pm.StartFlushPersist()
 	if err != nil {
 		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-		return multiErr.Add(
-			fmt.Errorf("error starting flush persist for shard %d: %v",
-				shard.ID(),
-				err))
+		return fmt.Errorf("error starting flush persist for shard %d: %v",
+			shard.ID(),
+			err)
 	}
 
 	localErrors := xerrors.NewMultiError()
@@ -1748,14 +1745,9 @@ func (n *dbNamespace) coldFlushSingleShard(
 	}
 	localErrors = localErrors.Add(indexColdFlushError)
 	err = flushPersist.DoneFlush()
-	localErrors = multiErr.Add(err)
+	localErrors = localErrors.Add(err)
 
 	res := localErrors.FinalError()
 	n.metrics.writeAggData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
-
-	for _, err := range localErrors.Errors() {
-		multiErr = multiErr.Add(err)
-	}
-
-	return multiErr
+	return res
 }

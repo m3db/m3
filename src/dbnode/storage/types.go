@@ -1011,6 +1011,12 @@ type Options interface {
 	// PersistManager returns the persistence manager.
 	PersistManager() persist.Manager
 
+	// SetLargeTilesPersistManager sets the persistence manager dedicated for large tiles.
+	SetLargeTilesPersistManager(value persist.Manager) Options
+
+	// LargeTilesPersistManager returns the persistence manager dedicated for large tiles.
+	LargeTilesPersistManager() persist.Manager
+
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks
 	// containing data.
@@ -1234,5 +1240,5 @@ type newFSMergeWithMemFn func(
 
 type AggregateTilesOptions struct {
 	Start, End time.Time
-	Step time.Duration
+	Step       time.Duration
 }

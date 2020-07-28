@@ -135,6 +135,7 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcessProvider       bootstrap.ProcessProvider
 	persistManager                 persist.Manager
+	largeTilesPersistManager       persist.Manager
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
 	contextPool                    context.Pool
@@ -531,6 +532,16 @@ func (o *options) SetPersistManager(value persist.Manager) Options {
 
 func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
+}
+
+func (o *options) LargeTilesPersistManager() persist.Manager {
+	return o.largeTilesPersistManager
+}
+
+func (o *options) SetLargeTilesPersistManager(value persist.Manager) Options {
+	opts := *o
+	opts.largeTilesPersistManager = value
+	return &opts
 }
 
 func (o *options) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {

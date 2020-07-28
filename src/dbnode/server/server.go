@@ -585,6 +585,13 @@ func Run(runOpts RunOptions) {
 	}
 	opts = opts.SetPersistManager(pm)
 
+	// Set the persistence manager
+	ltpm, err := fs.NewPersistManager(fsopts)
+	if err != nil {
+		logger.Fatal("could not create large tiles persist manager", zap.Error(err))
+	}
+	opts = opts.SetLargeTilesPersistManager(ltpm)
+
 	var (
 		envCfg environment.ConfigureResults
 	)
@@ -595,7 +602,7 @@ func Run(runOpts RunOptions) {
 			InstrumentOpts:         iopts,
 			HashingSeed:            cfg.Hashing.Seed,
 			NewDirectoryMode:       newDirectoryMode,
-			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
+			ForceColdWritesEnabled: true,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize dynamic config", zap.Error(err))
@@ -606,7 +613,7 @@ func Run(runOpts RunOptions) {
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
 			InstrumentOpts:         iopts,
 			HostID:                 hostID,
-			ForceColdWritesEnabled: runOpts.StorageOptions.ForceColdWritesEnabled,
+			ForceColdWritesEnabled: true,
 		})
 		if err != nil {
 			logger.Fatal("could not initialize static config", zap.Error(err))
