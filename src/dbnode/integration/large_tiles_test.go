@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
@@ -35,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -120,16 +121,15 @@ func TestReadAggregateWrite(t *testing.T) {
 	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSize), time.Hour)
 	require.NoError(t, err)
 
-	var processedBlockCount int64
-	processedBlockCount, err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
+	processedBlockCount, err := testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), processedBlockCount)
 
 	flushed = xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
-		writes, _ := counters["database.writeAggData.success"] // Wait until data is written
-		errors, _ := counters["database.writeAggData.errors"]  // Wait until data is flushed
-		return writes+errors == 13
+		writes, _ := counters["database.writeAggData.success"]
+		errors, _ := counters["database.writeAggData.errors"]
+		return writes+errors == 13 // wait until aggregated data will be flushed
 	}, time.Minute)
 	require.True(t, flushed)
 
