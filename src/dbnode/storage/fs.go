@@ -184,6 +184,7 @@ func (m *fileSystemManager) Run(
 }
 
 func (m *fileSystemManager) Report() {
+	m.databaseCleanupManager.Report()
 	m.databaseFlushManager.Report()
 }
 

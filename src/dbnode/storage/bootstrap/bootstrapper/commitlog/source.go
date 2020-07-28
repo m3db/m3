@@ -678,13 +678,13 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 ) error {
 	// NB(bodu): We use info files on disk to check if a snapshot should be loaded in as cold or warm.
-	// We do this instead of cross refing blockstarts and current time to handle the case of bootsrapping a
+	// We do this instead of cross refing blockstarts and current time to handle the case of bootstrapping a
 	// once warm block start after a node has been shut down for a long time. We consider all block starts we
 	// haven't flushed data for yet a warm block start.
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), ns.ID(), shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
-	shardBlockStartsOnDisk := make(map[time.Time]struct{})
+	shardBlockStartsOnDisk := make(map[xtime.UnixNano]struct{})
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {
 			// If we couldn't read the info files then keep going to be consistent
@@ -698,7 +698,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 		}
 		info := result.Info
 		at := xtime.FromNanoseconds(info.BlockStart)
-		shardBlockStartsOnDisk[at] = struct{}{}
+		shardBlockStartsOnDisk[xtime.ToUnixNano(at)] = struct{}{}
 	}
 
 	rangeIter := shardTimeRanges.Iter()
@@ -734,7 +734,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 			}
 
 			writeType := series.WarmWrite
-			if _, ok := shardBlockStartsOnDisk[blockStart]; ok {
+			if _, ok := shardBlockStartsOnDisk[xtime.ToUnixNano(blockStart)]; ok {
 				writeType = series.ColdWrite
 			}
 			if err := s.bootstrapShardBlockSnapshot(
