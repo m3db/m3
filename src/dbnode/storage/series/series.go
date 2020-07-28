@@ -301,10 +301,7 @@ func (s *dbSeries) IsBufferEmptyAtBlockStart(blockStart time.Time) bool {
 	s.RLock()
 	bufferEmpty := s.buffer.IsEmptyAtBlockStart(blockStart)
 	s.RUnlock()
-	if bufferEmpty {
-		return true
-	}
-	return false
+	return bufferEmpty
 }
 
 func (s *dbSeries) NumActiveBlocks() int {

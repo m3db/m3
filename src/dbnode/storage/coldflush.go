@@ -109,13 +109,13 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 	if err := m.ColdFlushCleanup(t, m.database.IsBootstrapped()); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
-				l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
+				l.Error("error when cleaning up cold flush data", zap.Time("time", t), zap.Error(err))
 			})
 	}
-	if err := m.coldFlush(); err != nil {
+	if err := m.trackedColdFlush(); err != nil {
 		instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
 			func(l *zap.Logger) {
-				l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
+				l.Error("error when cold flushing data", zap.Time("time", t), zap.Error(err))
 			})
 	}
 	m.Lock()
@@ -124,12 +124,7 @@ func (m *coldFlushManager) Run(t time.Time) bool {
 	return true
 }
 
-func (m *coldFlushManager) coldFlush() error {
-	namespaces, err := m.database.OwnedNamespaces()
-	if err != nil {
-		return err
-	}
-
+func (m *coldFlushManager) trackedColdFlush() error {
 	// The cold flush process will persist any data that has been "loaded" into memory via
 	// the Load() API but has not yet been persisted durably. As a result, if the cold flush
 	// process completes without error, then we want to "decrement" the number of tracked bytes
@@ -153,16 +148,22 @@ func (m *coldFlushManager) coldFlush() error {
 	memTracker := m.opts.MemoryTracker()
 	memTracker.MarkLoadedAsPending()
 
-	defer func() {
-		if err == nil {
-			// Only decrement if the cold flush was a success. In this case, the decrement will reduce the
-			// value by however many bytes had been tracked when the cold flush began.
-			memTracker.DecPendingLoadedBytes()
-		} else {
-			m.log.Error("data cold flush failed",
-				zap.Error(err))
-		}
-	}()
+	if err := m.coldFlush(); err != nil {
+		return err
+	}
+
+	// Only decrement if the cold flush was a success. In this case, the decrement will reduce the
+	// value by however many bytes had been tracked when the cold flush began.
+	memTracker.DecPendingLoadedBytes()
+	return nil
+}
+
+func (m *coldFlushManager) coldFlush() error {
+	namespaces, err := m.database.OwnedNamespaces()
+	if err != nil {
+		return err
+	}
+
 	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
 		return err

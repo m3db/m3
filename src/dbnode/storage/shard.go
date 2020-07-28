@@ -188,9 +188,8 @@ type dbShard struct {
 	shard                    uint32
 	coldWritesEnabled        bool
 	// NB(bodu): Cache state on whether we snapshotted last or not to avoid
-	// going to disk to see if filesets are empty. We don't need to lock on this
-	// because snapshots happen sequentially.
-	emptySnapshotOnDiskByTime map[time.Time]bool
+	// going to disk to see if filesets are empty.
+	emptySnapshotOnDiskByTime map[xtime.UnixNano]bool
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -302,7 +301,7 @@ func newDatabaseShard(
 		flushState:                newShardFlushState(),
 		tickWg:                    &sync.WaitGroup{},
 		coldWritesEnabled:         namespaceMetadata.Options().ColdWritesEnabled(),
-		emptySnapshotOnDiskByTime: make(map[time.Time]bool),
+		emptySnapshotOnDiskByTime: make(map[xtime.UnixNano]bool),
 		logger:                    opts.InstrumentOptions().Logger(),
 		metrics:                   newDatabaseShardMetrics(shard, scope),
 	}
@@ -2375,13 +2374,13 @@ func (s *dbShard) Snapshot(
 		s.RUnlock()
 		return errShardNotBootstrappedToSnapshot
 	}
+
+	// NB(bodu): This always defaults to false if the record does not exist.
+	emptySnapshotOnDisk := s.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)]
+
 	s.RUnlock()
 
-	var (
-		needsSnapshot bool
-		// NB(bodu): This always defaults to false if the record does not exist.
-		emptySnapshotOnDisk = s.emptySnapshotOnDiskByTime[blockStart]
-	)
+	var needsSnapshot bool
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
 			needsSnapshot = true
@@ -2394,13 +2393,6 @@ func (s *dbShard) Snapshot(
 	// snapshotting work after a bootstrap since this cached state gets cleared.
 	if !needsSnapshot && emptySnapshotOnDisk {
 		return nil
-	}
-	// We're proceeding w/ the snaphot at this point but we know it will be empty or contain data that is recoverable
-	// from commit logs since we would have rotated commit logs before checking for flushable data.
-	if needsSnapshot {
-		s.emptySnapshotOnDiskByTime[blockStart] = false
-	} else {
-		s.emptySnapshotOnDiskByTime[blockStart] = true
 	}
 
 	var multiErr xerrors.MultiError
@@ -2447,6 +2439,21 @@ func (s *dbShard) Snapshot(
 
 	if err := prepared.Close(); err != nil {
 		multiErr = multiErr.Add(err)
+	}
+
+	if multiErr.FinalError() != nil {
+		// Only update cached snapshot state if we successfully flushed data to disk.
+		s.Lock()
+		if needsSnapshot {
+			s.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = false
+		} else {
+			// NB(bodu): If we flushed an empty snapshot to disk, it means that the previous
+			// snapshot on disk was not empty (or we just bootstrapped and cached state was lost).
+			// The snapshot we just flushed may or may not have data, although whatever data we flushed
+			// would be recoverable from the rotate commit log as well.
+			s.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = true
+		}
+		s.Unlock()
 	}
 
 	return multiErr.FinalError()

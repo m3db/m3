@@ -70,13 +70,15 @@ type cleanupManager struct {
 
 	deleteFilesFn               deleteFilesFn
 	deleteInactiveDirectoriesFn deleteInactiveDirectoriesFn
-	cleanupInProgress           bool
+	warmFlushCleanupInProgress  bool
+	coldFlushCleanupInProgress  bool
 	metrics                     cleanupManagerMetrics
 	logger                      *zap.Logger
 }
 
 type cleanupManagerMetrics struct {
-	status                      tally.Gauge
+	warmFlushCleanupStatus      tally.Gauge
+	coldFlushCleanupStatus      tally.Gauge
 	corruptCommitlogFile        tally.Counter
 	corruptSnapshotFile         tally.Counter
 	corruptSnapshotMetadataFile tally.Counter
@@ -90,7 +92,8 @@ func newCleanupManagerMetrics(scope tally.Scope) cleanupManagerMetrics {
 	sScope := scope.SubScope("snapshot")
 	smScope := scope.SubScope("snapshot-metadata")
 	return cleanupManagerMetrics{
-		status:                      scope.Gauge("cleanup"),
+		warmFlushCleanupStatus:      scope.Gauge("warm-flush-cleanup"),
+		coldFlushCleanupStatus:      scope.Gauge("cold-flush-cleanup"),
 		corruptCommitlogFile:        clScope.Counter("corrupt"),
 		corruptSnapshotFile:         sScope.Counter("corrupt"),
 		corruptSnapshotMetadataFile: smScope.Counter("corrupt"),
@@ -132,12 +135,12 @@ func (m *cleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) erro
 	}
 
 	m.Lock()
-	m.cleanupInProgress = true
+	m.warmFlushCleanupInProgress = true
 	m.Unlock()
 
 	defer func() {
 		m.Lock()
-		m.cleanupInProgress = false
+		m.warmFlushCleanupInProgress = false
 		m.Unlock()
 	}()
 
@@ -183,12 +186,12 @@ func (m *cleanupManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) erro
 	}
 
 	m.Lock()
-	m.cleanupInProgress = true
+	m.coldFlushCleanupInProgress = true
 	m.Unlock()
 
 	defer func() {
 		m.Lock()
-		m.cleanupInProgress = false
+		m.coldFlushCleanupInProgress = false
 		m.Unlock()
 	}()
 
@@ -212,13 +215,20 @@ func (m *cleanupManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) erro
 }
 func (m *cleanupManager) Report() {
 	m.RLock()
-	cleanupInProgress := m.cleanupInProgress
+	coldFlushCleanupInProgress := m.coldFlushCleanupInProgress
+	warmFlushCleanupInProgress := m.warmFlushCleanupInProgress
 	m.RUnlock()
 
-	if cleanupInProgress {
-		m.metrics.status.Update(1)
+	if coldFlushCleanupInProgress {
+		m.metrics.coldFlushCleanupStatus.Update(1)
 	} else {
-		m.metrics.status.Update(0)
+		m.metrics.coldFlushCleanupStatus.Update(0)
+	}
+
+	if warmFlushCleanupInProgress {
+		m.metrics.warmFlushCleanupStatus.Update(1)
+	} else {
+		m.metrics.warmFlushCleanupStatus.Update(0)
 	}
 }
 
