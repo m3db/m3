@@ -37,19 +37,28 @@ type flatDatapointRecorder struct {
 	shouldClear bool
 	vals        []float64
 	times       []time.Time // todo: consider delta-delta here?
+	summary     *summary
+
 	units       *unitRecorder
 	annotations *annotationRecorder
+}
+
+func (r *flatDatapointRecorder) clear() {
+	r.shouldClear = false
+	r.units.reset()
+	r.annotations.reset()
+	r.vals = r.vals[:0]
+	r.times = r.times[:0]
+	r.summary.reset()
 }
 
 func (r *flatDatapointRecorder) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation) {
 	if r.shouldClear {
 		r.shouldClear = false
-		r.units.reset()
-		r.annotations.reset()
-		r.vals = r.vals[:0]
-		r.times = r.times[:0]
+		r.clear()
 	}
 
+	r.summary.record(dp.Value)
 	r.vals = append(r.vals, dp.Value)
 	r.times = append(r.times, dp.Timestamp)
 	r.units.record(u)
@@ -60,8 +69,10 @@ var _ recorder = (*flatDatapointRecorder)(nil)
 
 func newFlatDatapointRecorder() recorder {
 	return &flatDatapointRecorder{
-		vals:        make([]float64, 0, initLength),
-		times:       make([]time.Time, 0, initLength),
+		vals:    make([]float64, 0, initLength),
+		times:   make([]time.Time, 0, initLength),
+		summary: newSummary(),
+
 		units:       newUnitRecorder(),
 		annotations: newAnnotationRecorder(),
 	}
@@ -77,6 +88,6 @@ func (r *flatDatapointRecorder) release() {
 // NB: caller must release record.
 func (r *flatDatapointRecorder) updateRecord(rec *record) {
 	rec.setUnitsAnnotations(r.units, r.annotations)
-	rec.setFlatValues(r.vals, r.times)
+	rec.setFlatValues(r.vals, r.times, r.summary)
 	r.shouldClear = true
 }
