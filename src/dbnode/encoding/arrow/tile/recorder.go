@@ -64,6 +64,9 @@ func newDatapointRecorder(pool memory.Allocator) recorder {
 		nil,
 	)
 
+	float64s := array.NewFloat64Data(nil)
+	float64s.Reset(data)
+
 	b := array.NewRecordBuilder(pool, schema)
 	return &datapointRecorder{
 		builder:     b,
@@ -80,8 +83,7 @@ func (r *datapointRecorder) release() {
 
 // NB: caller must release record.
 func (r *datapointRecorder) updateRecord(rec *record) {
-	rec.units = r.units
-	rec.annotations = r.annotations
+	rec.setUnitsAnnotations(r.units, r.annotations)
 	rec.Record = r.builder.NewRecord()
 	rec.vals = nil
 	rec.times = nil

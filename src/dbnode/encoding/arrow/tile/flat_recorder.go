@@ -34,6 +34,7 @@ const (
 
 // flatDatapointRecorder records datapoints without using arrow buffers.
 type flatDatapointRecorder struct {
+	shouldClear bool
 	vals        []float64
 	times       []time.Time // todo: consider delta-delta here?
 	units       *unitRecorder
@@ -41,6 +42,14 @@ type flatDatapointRecorder struct {
 }
 
 func (r *flatDatapointRecorder) record(dp ts.Datapoint, u xtime.Unit, a ts.Annotation) {
+	if r.shouldClear {
+		r.shouldClear = false
+		r.units.reset()
+		r.annotations.reset()
+		r.vals = r.vals[:0]
+		r.times = r.times[:0]
+	}
+
 	r.vals = append(r.vals, dp.Value)
 	r.times = append(r.times, dp.Timestamp)
 	r.units.record(u)
@@ -61,22 +70,13 @@ func newFlatDatapointRecorder() recorder {
 func (r *flatDatapointRecorder) release() {
 	r.units.reset()
 	r.annotations.reset()
-	if r.vals != nil {
-		r.vals = r.vals[:0]
-		r.vals = nil
-	}
-
-	if r.times != nil {
-		r.times = r.times[:0]
-		r.times = nil
-	}
+	r.vals = r.vals[:0]
+	r.times = r.times[:0]
 }
 
 // NB: caller must release record.
 func (r *flatDatapointRecorder) updateRecord(rec *record) {
-	rec.units = r.units
-	rec.annotations = r.annotations
-	rec.vals = r.vals
-	rec.times = r.times
-	rec.Record = nil
+	rec.setUnitsAnnotations(r.units, r.annotations)
+	rec.setFlatValues(r.vals, r.times)
+	r.shouldClear = true
 }

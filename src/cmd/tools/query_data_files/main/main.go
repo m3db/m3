@@ -23,6 +23,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"runtime"
 	"sync"
@@ -54,6 +55,9 @@ func main() {
 		volume         = getopt.Int64Long("volume", 'v', 0, "Volume number")
 		concurrency    = getopt.Int64Long("concurrency", 'c', int64(runtime.NumCPU()), "Concurrent iteration count")
 		fileSetTypeArg = getopt.StringLong("fileset-type", 'f', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
+
+		iterationCount = getopt.IntLong("iterations", 'i', 50, "Concurrent iteration count")
+		disableArrow   = getopt.BoolLong("arrow", 'a', "Use arrow")
 	)
 	getopt.Parse()
 
@@ -70,6 +74,7 @@ func main() {
 		*optTilesize <= 0 ||
 		*volume < 0 ||
 		*concurrency < 1 ||
+		*iterationCount < 1 ||
 		(*fileSetTypeArg != snapshotType && *fileSetTypeArg != flushType) {
 		getopt.Usage()
 		os.Exit(1)
@@ -88,133 +93,149 @@ func main() {
 	bytesPool := tools.NewCheckedBytesPool()
 	bytesPool.Init()
 
-	encodingOpts := encoding.NewOptions().SetBytesPool(bytesPool)
-
-	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
-	reader, err := fs.NewReader(bytesPool, fsOpts)
-	if err != nil {
-		log.Fatalf("could not create new reader: %v", err)
-	}
-
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   ident.StringID(*optNamespace),
-			Shard:       *optShard,
-			BlockStart:  time.Unix(0, *optBlockstart),
-			VolumeIndex: int(*volume),
-		},
-		FileSetType: fileSetType,
-	}
-
-	err = reader.Open(openOpts)
-	if err != nil {
-		log.Fatalf("unable to open reader: %v", err)
-	}
-
 	var (
-		frameSize = xtime.UnixNano(*optTilesize) * xtime.UnixNano(time.Minute)
-		start     = xtime.UnixNano(*optBlockstart)
-		c         = int(*concurrency)
-		prints    = make([]bool, c)
-		tags      = make([][]string, c)
-		vals      = make([][]float64, 0, c)
+		encodingOpts = encoding.NewOptions().SetBytesPool(bytesPool)
+		fsOpts       = fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
+
+		iterations = *iterationCount
+		useArrow   = !*disableArrow
+		c          = int(*concurrency)
+
+		readStart = time.Now()
 	)
 
-	for i := 0; i < c; i++ {
-		vals = append(vals, make([]float64, 0, initValLength))
-		tags = append(tags, make([]string, 0, initValLength))
-	}
+	for iteration := 0; iteration < iterations; iteration++ {
+		fmt.Println("Running iteration", iteration)
 
-	opts := tile.Options{
-		FrameSize:    frameSize,
-		Start:        start,
-		Concurrency:  c,
-		UseArrow:     false,
-		EncodingOpts: encodingOpts,
-	}
-
-	it, err := tile.NewSeriesBlockIterator(reader, opts)
-	if err != nil {
-		fmt.Println("error creating block iterator", err)
-		return
-	}
-
-	defer func() {
-		if err := it.Close(); err != nil {
-			fmt.Println("iterator close error:", err)
+		reader, err := fs.NewReader(bytesPool, fsOpts)
+		if err != nil {
+			log.Fatalf("could not create new reader: %v", err)
 		}
-	}()
 
-	i := 0
-	printNonZero := func() {
-		for j := range prints {
-			if prints[j] {
-				prints[j] = false
-				idx := (i-1)*c + j
-				fmt.Printf("%d : %v\n", idx, vals[j])
-				fmt.Printf("%v\n", tags[j])
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   ident.StringID(*optNamespace),
+				Shard:       *optShard,
+				BlockStart:  time.Unix(0, *optBlockstart),
+				VolumeIndex: int(*volume),
+			},
+			FileSetType: fileSetType,
+		}
+
+		err = reader.Open(openOpts)
+		if err != nil {
+			log.Fatalf("unable to open reader: %v", err)
+		}
+
+		var (
+			frameSize = xtime.UnixNano(*optTilesize) * xtime.UnixNano(time.Minute)
+			start     = xtime.UnixNano(*optBlockstart)
+			prints    = make([]bool, c)
+			tags      = make([][]string, c)
+			vals      = make([][]float64, 0, c)
+		)
+
+		for i := 0; i < c; i++ {
+			vals = append(vals, make([]float64, 0, initValLength))
+			tags = append(tags, make([]string, 0, initValLength))
+		}
+
+		opts := tile.Options{
+			FrameSize:    frameSize,
+			Start:        start,
+			Concurrency:  c,
+			UseArrow:     useArrow,
+			EncodingOpts: encodingOpts,
+		}
+
+		it, err := tile.NewSeriesBlockIterator(reader, opts)
+		if err != nil {
+			fmt.Println("error creating block iterator", err)
+			return
+		}
+
+		defer func() {
+			if err := it.Close(); err != nil {
+				fmt.Println("iterator close error:", err)
+			}
+		}()
+
+		i := 0
+		printNonZero := func() {
+			for j := range prints {
+				if prints[j] {
+					prints[j] = false
+					// idx := (i-1)*c + j
+					// fmt.Printf("%d : %v\n", idx, vals[j])
+					// fmt.Printf("%v\n", tags[j])
+				}
 			}
 		}
-	}
 
-	readStart := time.Now()
-	var wg sync.WaitGroup
-	for it.Next() {
+		var wg sync.WaitGroup
+		for it.Next() {
+			printNonZero()
+			for i := range vals {
+				vals[i] = vals[i][:0]
+			}
+
+			for i := range tags {
+				tags[i] = tags[i][:0]
+			}
+
+			frameIters := it.Current()
+			for j, frameIter := range frameIters {
+				// NB: capture loop variables.
+				j, frameIter := j, frameIter
+				wg.Add(1)
+				go func() {
+					for frameIter.Next() {
+						frame := frameIter.Current()
+						v := frame.Sum()
+						if v != 0 && !math.IsNaN(v) {
+							prints[j] = true
+						}
+
+						vals[j] = append(vals[j], v)
+						// ts := frame.Tags()
+						// sep := fmt.Sprintf("ID: %s\ntags:", frame.ID().String())
+						// tags[j] = append(tags[j], sep)
+						// for ts.Next() {
+						// 	tag := ts.Current()
+						// 	t := fmt.Sprintf("%s:%s", tag.Name.String(), tag.Value.String())
+						// 	tags[j] = append(tags[j], t)
+						// }
+
+						// unit, single := frame.Units().SingleValue()
+						// annotation, annotationSingle := frame.Annotations().SingleValue()
+						// meta := fmt.Sprintf("\nunit: %v, single: %v\nannotation: %v, single: %v",
+						// 	unit, single, annotation, annotationSingle)
+						// tags[j] = append(tags[j], meta)
+					}
+
+					if err := frameIter.Err(); err != nil {
+						panic(fmt.Sprint("frame error:", err))
+					}
+
+					wg.Done()
+				}()
+			}
+
+			i++
+			wg.Wait()
+		}
+
 		printNonZero()
-		for i := range vals {
-			vals[i] = vals[i][:0]
+		if err := it.Err(); err != nil {
+			fmt.Println("series error:", err)
 		}
-
-		for i := range tags {
-			tags[i] = tags[i][:0]
-		}
-
-		frameIters := it.Current()
-		for j, frameIter := range frameIters {
-			// NB: capture loop variables.
-			j, frameIter := j, frameIter
-			wg.Add(1)
-			go func() {
-				for frameIter.Next() {
-					frame := frameIter.Current()
-					v := frame.Sum()
-					if v != 0 {
-						prints[j] = true
-					}
-
-					vals[j] = append(vals[j], v)
-					ts := frame.Tags()
-					sep := fmt.Sprintf("ID: %s\ntags:", frame.ID().String())
-					tags[j] = append(tags[j], sep)
-					for ts.Next() {
-						tag := ts.Current()
-						t := fmt.Sprintf("%s:%s", tag.Name.String(), tag.Value.String())
-						tags[j] = append(tags[j], t)
-					}
-
-					unit, single := frame.Units().SingleValue()
-					annotation, annotationSingle := frame.Annotations().SingleValue()
-					meta := fmt.Sprintf("\nunit: %v, single: %v\nannotation: %v, single: %v",
-						unit, single, annotation, annotationSingle)
-					tags[j] = append(tags[j], meta)
-				}
-
-				if err := frameIter.Err(); err != nil {
-					panic(fmt.Sprint("frame error:", err))
-				}
-
-				wg.Done()
-			}()
-		}
-
-		i++
-		wg.Wait()
 	}
 
-	printNonZero()
-	if err := it.Err(); err != nil {
-		fmt.Println("series error:", err)
+	if useArrow {
+		fmt.Printf("Using arrow buffers\nIterations: %d\nConcurrency: %d\nTook: %v",
+			iterations, c, time.Since(readStart))
+	} else {
+		fmt.Printf("Using flat buffers\nIterations: %d\nConcurrency: %d\nTook: %v",
+			iterations, c, time.Since(readStart))
 	}
-
-	fmt.Println("With concurrency", c, "took", time.Since(readStart))
 }

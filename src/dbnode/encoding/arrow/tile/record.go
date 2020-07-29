@@ -100,6 +100,22 @@ func (r *record) release() {
 	r.Record = nil
 }
 
+func (r *record) setFlatValues(vals []float64, times []time.Time) {
+	if r.Record != nil {
+		r.Record.Release()
+		r.Record = nil
+	}
+
+	r.vals = vals
+	r.times = times
+}
+
+func (r *record) setUnitsAnnotations(
+	units *unitRecorder, annotations *annotationRecorder) {
+	r.units = units
+	r.annotations = annotations
+}
+
 func newDatapointRecord() *record {
 	return &record{}
 }
