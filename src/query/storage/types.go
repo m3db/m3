@@ -145,6 +145,8 @@ type FetchOptions struct {
 // FanoutOptions describes which namespaces should be fanned out to for
 // the query.
 type FanoutOptions struct {
+	// FanoutToAll fans out to all available namespaces.
+	FanoutToAll bool
 	// FanoutUnaggregated describes the fanout options for
 	// unaggregated namespaces.
 	FanoutUnaggregated FanoutOption
@@ -166,9 +168,6 @@ const (
 	FanoutForceDisable
 	// FanoutForceEnable forces enabling fanout.
 	FanoutForceEnable
-	// FanoutForceEnableAsPartial forces enabling fanout, but necessarily
-	// marks the target namespaces as a partial.
-	FanoutForceEnableAsPartial
 )
 
 // RestrictByType are specific restrictions to stick to a single data type.

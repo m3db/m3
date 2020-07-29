@@ -62,6 +62,7 @@ message FetchOptions {
 	FanoutOption aggregated          = 5;
 	FanoutOption aggregatedOptimized = 6;
 	bool includeResolution           = 7;
+	bool    fanoutToAll              = 8;
 }
 
 message RestrictQueryOptions {
@@ -89,7 +90,6 @@ enum FanoutOption {
 	DEFAULT_OPTION          = 0;
 	FORCE_ENABLED           = 1;
 	FORCE_DISABLED          = 2;
-	FORCE_ENABLE_AS_PARTIAL = 3;
 }
 
 message FetchResponse {

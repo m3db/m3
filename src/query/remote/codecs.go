@@ -153,8 +153,6 @@ func encodeFanoutOption(opt storage.FanoutOption) (rpc.FanoutOption, error) {
 		return rpc.FanoutOption_FORCE_DISABLED, nil
 	case storage.FanoutForceEnable:
 		return rpc.FanoutOption_FORCE_ENABLED, nil
-	case storage.FanoutForceEnableAsPartial:
-		return rpc.FanoutOption_FORCE_ENABLE_AS_PARTIAL, nil
 	}
 
 	return 0, fmt.Errorf("unknown fanout option for proto encoding: %v", opt)
@@ -169,6 +167,7 @@ func encodeFetchOptions(options *storage.FetchOptions) (*rpc.FetchOptions, error
 	result := &rpc.FetchOptions{
 		Limit:             int64(options.SeriesLimit),
 		IncludeResolution: options.IncludeResolution,
+		FanoutToAll:       options.FanoutOptions.FanoutToAll,
 	}
 
 	unagg, err := encodeFanoutOption(fanoutOpts.FanoutUnaggregated)
@@ -485,6 +484,7 @@ func decodeFetchOptions(rpcFetchOptions *rpc.FetchOptions) (*storage.FetchOption
 	}
 
 	result.FanoutOptions = &storage.FanoutOptions{
+		FanoutToAll:               rpcFetchOptions.GetFanoutToAll(),
 		FanoutUnaggregated:        unagg,
 		FanoutAggregated:          agg,
 		FanoutAggregatedOptimized: aggOpt,

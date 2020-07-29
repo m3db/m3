@@ -30,12 +30,19 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
+// unaggregatedNamespaceType is an enum indicating how unaggregated namespace
+// should be used in the query.
 type unaggregatedNamespaceType uint8
 
 const (
+	// partiallySatisfiesRange indicates the unaggregated namespace can serve
+	// part of this query, but cannot fully satisfy it, because the query range
+	// is longer than the unaggregated retention.
 	partiallySatisfiesRange unaggregatedNamespaceType = iota
-	completeFullySatisfiesRange
-	incompleteFullySatisfiesRange
+	// fullySatisfiesRange indicates the unaggregated namespace fully satisfies
+	// the given query.
+	fullySatisfiesRange
+	// disabled indicates the unaggregated namespace is disabled for this query.
 	disabled
 )
 
@@ -60,11 +67,7 @@ func resolveUnaggregatedNamespaceForQuery(
 	retention := unaggregated.Options().Attributes().Retention
 	unaggregatedStart := now.Add(-1 * retention)
 	if !unaggregatedStart.After(start) {
-		if opts.FanoutUnaggregated == storage.FanoutForceEnableAsPartial {
-			satisfies = incompleteFullySatisfiesRange
-		} else {
-			satisfies = completeFullySatisfiesRange
-		}
+		satisfies = fullySatisfiesRange
 	}
 
 	return unaggregatedNamespaceDetails{
@@ -82,6 +85,21 @@ func resolveClusterNamespacesForQuery(
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
 ) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
+	// NB (arnikola): All this logic is super annoying and not getting better
+	// or more straightforward as we add more logic here. This FanoutToAll option
+	// will hit every single namespace and ignore any optimizations to look at
+	// smaller namespace sets.
+	//
+	// Options going forward with this logic would most likely involve splitting
+	// the logic here out by FanoutOptions explicitly, splitting up logic based
+	// on an initial set of options.
+	if opts.FanoutToAll {
+		// NB: since pulling from all namespaces, each should be marked as partial
+		// to yield results.
+		return consolidators.NamespaceCoversPartialQueryRange,
+			clusters.ClusterNamespaces(), nil
+	}
+
 	if typeRestrict := restrict.GetRestrictByType(); typeRestrict != nil {
 		// If a specific restriction is set, then attempt to satisfy.
 		return resolveClusterNamespacesForQueryWithRestrictQueryOptions(now,
@@ -93,7 +111,7 @@ func resolveClusterNamespacesForQuery(
 	// every metric.
 	unaggregated := resolveUnaggregatedNamespaceForQuery(now, start,
 		clusters.UnaggregatedClusterNamespace(), opts)
-	if unaggregated.satisfies == completeFullySatisfiesRange {
+	if unaggregated.satisfies == fullySatisfiesRange {
 		return consolidators.NamespaceCoversAllQueryRange,
 			ClusterNamespaces{unaggregated.clusterNamespace},
 			nil
@@ -121,9 +139,6 @@ func resolveClusterNamespacesForQuery(
 	// Filter aggregated namespaces by filter function and options.
 	var r reusedAggregatedNamespaceSlices
 	r = aggregatedNamespaces(clusters.ClusterNamespaces(), r, coversRangeFilter, opts)
-	if unaggregated.satisfies == incompleteFullySatisfiesRange {
-		r.partialAggregated = append(r.partialAggregated, unaggregated.clusterNamespace)
-	}
 
 	// If any of the aggregated clusters have a complete set of metrics, use
 	// those that have the smallest resolutions, supplemented by lower resolution
@@ -158,8 +173,7 @@ func resolveClusterNamespacesForQuery(
 		result := r.partialAggregated
 		// If unaggregated namespace can partially satisfy this range, add it as a
 		// fanout contender.
-		if unaggregated.satisfies == partiallySatisfiesRange ||
-			unaggregated.satisfies == incompleteFullySatisfiesRange {
+		if unaggregated.satisfies == partiallySatisfiesRange {
 			result = append(result, unaggregated.clusterNamespace)
 		}
 
@@ -277,8 +291,7 @@ func aggregatedNamespaces(
 		// optimizing fanout to aggregated namespaces, set all aggregated
 		// namespaces satisfying the filter as partially aggregated, as all metrics
 		// do not necessarily appear in all namespaces, depending on configuration.
-		if opts.FanoutAggregated == storage.FanoutForceEnableAsPartial ||
-			opts.FanoutAggregatedOptimized == storage.FanoutForceDisable {
+		if opts.FanoutAggregatedOptimized == storage.FanoutForceDisable {
 			slices.partialAggregated = append(slices.partialAggregated, namespace)
 			continue
 		}
