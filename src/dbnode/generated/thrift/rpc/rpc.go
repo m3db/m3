@@ -57,6 +57,10 @@ var (
 		})
 )
 
+func init() {
+	bytesPool.Init()
+}
+
 type TimeType int64
 
 const (
