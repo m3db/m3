@@ -1075,6 +1075,8 @@ func (p *Datapoint) ReadField3(
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	ctx.RegisterFinalizer(buf)
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 3: ", err)
@@ -1760,6 +1762,8 @@ func (p *FetchBatchRawRequest) ReadField3(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 3: ", err)
 	} else {
@@ -1998,6 +2002,8 @@ func (p *FetchBatchRawV2Request) ReadField1(iprot thrift.TProtocol) error {
 			return thrift.PrependError("error reading field size: ", err)
 		}
 		buf := bytesPool.Get(int(size))
+		buf.IncRef()
+		defer buf.DecRef()
 		if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 			return thrift.PrependError("error reading field 0: ", err)
 		} else {
@@ -2251,6 +2257,8 @@ func (p *FetchBatchRawV2RequestElement) ReadField4(iprot thrift.TProtocol) error
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 4: ", err)
 	} else {
@@ -2951,6 +2959,8 @@ func (p *Segment) ReadField1(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -2965,6 +2975,8 @@ func (p *Segment) ReadField2(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
@@ -3298,6 +3310,8 @@ func (p *FetchTaggedRequest) ReadField1(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -3312,6 +3326,8 @@ func (p *FetchTaggedRequest) ReadField2(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
@@ -3839,6 +3855,8 @@ func (p *FetchTaggedIDResult_) ReadField1(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -3853,6 +3871,8 @@ func (p *FetchTaggedIDResult_) ReadField2(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
@@ -3867,6 +3887,8 @@ func (p *FetchTaggedIDResult_) ReadField3(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 3: ", err)
 	} else {
@@ -4107,6 +4129,8 @@ func (p *FetchBlocksRawRequest) ReadField1(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -4295,6 +4319,8 @@ func (p *FetchBlocksRawRequestElement) ReadField1(iprot thrift.TProtocol) error 
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -4578,6 +4604,8 @@ func (p *Blocks) ReadField1(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -5235,6 +5263,8 @@ func (p *FetchBlocksMetadataRawV2Request) ReadField1(iprot thrift.TProtocol) err
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -5285,6 +5315,8 @@ func (p *FetchBlocksMetadataRawV2Request) ReadField6(iprot thrift.TProtocol) err
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 6: ", err)
 	} else {
@@ -5590,6 +5622,8 @@ func (p *FetchBlocksMetadataRawV2Result_) ReadField2(iprot thrift.TProtocol) err
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
@@ -5845,6 +5879,8 @@ func (p *BlockMetadataV2) ReadField1(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -5915,6 +5951,8 @@ func (p *BlockMetadataV2) ReadField8(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 8: ", err)
 	} else {
@@ -6164,6 +6202,8 @@ func (p *WriteBatchRawRequest) ReadField1(
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	ctx.RegisterFinalizer(buf)
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
@@ -6339,6 +6379,8 @@ func (p *WriteBatchRawV2Request) ReadField1(iprot thrift.TProtocol) error {
 			return thrift.PrependError("error reading field size: ", err)
 		}
 		buf := bytesPool.Get(int(size))
+		buf.IncRef()
+		defer buf.DecRef()
 		if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 			return thrift.PrependError("error reading field 0: ", err)
 		} else {
@@ -6530,6 +6572,8 @@ func (p *WriteBatchRawRequestElement) ReadField1(
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	ctx.RegisterFinalizer(buf)
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
@@ -6703,6 +6747,8 @@ func (p *WriteBatchRawV2RequestElement) ReadField1(iprot thrift.TProtocol) error
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -6873,6 +6919,8 @@ func (p *WriteTaggedBatchRawRequest) ReadField1(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -7044,6 +7092,8 @@ func (p *WriteTaggedBatchRawV2Request) ReadField1(iprot thrift.TProtocol) error 
 			return thrift.PrependError("error reading field size: ", err)
 		}
 		buf := bytesPool.Get(int(size))
+		buf.IncRef()
+		defer buf.DecRef()
 		if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 			return thrift.PrependError("error reading field 0: ", err)
 		} else {
@@ -7244,6 +7294,8 @@ func (p *WriteTaggedBatchRawRequestElement) ReadField1(iprot thrift.TProtocol) e
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -7258,6 +7310,8 @@ func (p *WriteTaggedBatchRawRequestElement) ReadField2(iprot thrift.TProtocol) e
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
@@ -7458,6 +7512,8 @@ func (p *WriteTaggedBatchRawV2RequestElement) ReadField1(iprot thrift.TProtocol)
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -7472,6 +7528,8 @@ func (p *WriteTaggedBatchRawV2RequestElement) ReadField2(iprot thrift.TProtocol)
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
@@ -7792,6 +7850,8 @@ func (p *TruncateRequest) ReadField1(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -9668,6 +9728,8 @@ func (p *AggregateQueryRawRequest) ReadField1(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -9700,6 +9762,8 @@ func (p *AggregateQueryRawRequest) ReadField4(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 4: ", err)
 	} else {
@@ -9731,6 +9795,8 @@ func (p *AggregateQueryRawRequest) ReadField6(iprot thrift.TProtocol) error {
 			return thrift.PrependError("error reading field size: ", err)
 		}
 		buf := bytesPool.Get(int(size))
+		buf.IncRef()
+		defer buf.DecRef()
 		if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 			return thrift.PrependError("error reading field 0: ", err)
 		} else {
@@ -10162,6 +10228,8 @@ func (p *AggregateQueryRawResultTagNameElement) ReadField1(iprot thrift.TProtoco
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
@@ -10312,6 +10380,8 @@ func (p *AggregateQueryRawResultTagValueElement) ReadField1(iprot thrift.TProtoc
 		return thrift.PrependError("error reading field size: ", err)
 	}
 	buf := bytesPool.Get(int(size))
+	buf.IncRef()
+	defer buf.DecRef()
 	if err := iprot.ReadBinary(buf.Bytes()); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
