@@ -150,7 +150,7 @@ func (m *mediator) Open() error {
 	return nil
 }
 
-func (m *mediator) DisableFileOps() {
+func (m *mediator) DisableFileOpsAndWait() {
 	status := m.databaseFileSystemManager.Disable()
 	for status == fileOpInProgress {
 		m.sleepFn(fileOpCheckInterval)

@@ -3064,16 +3064,16 @@ func (mr *MockdatabaseMediatorMockRecorder) Bootstrap() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseMediator)(nil).Bootstrap))
 }
 
-// DisableFileOps mocks base method
-func (m *MockdatabaseMediator) DisableFileOps() {
+// DisableFileOpsAndWait mocks base method
+func (m *MockdatabaseMediator) DisableFileOpsAndWait() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DisableFileOps")
+	m.ctrl.Call(m, "DisableFileOpsAndWait")
 }
 
-// DisableFileOps indicates an expected call of DisableFileOps
-func (mr *MockdatabaseMediatorMockRecorder) DisableFileOps() *gomock.Call {
+// DisableFileOpsAndWait indicates an expected call of DisableFileOpsAndWait
+func (mr *MockdatabaseMediatorMockRecorder) DisableFileOpsAndWait() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableFileOps", reflect.TypeOf((*MockdatabaseMediator)(nil).DisableFileOps))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableFileOpsAndWait", reflect.TypeOf((*MockdatabaseMediator)(nil).DisableFileOpsAndWait))
 }
 
 // EnableFileOps mocks base method
