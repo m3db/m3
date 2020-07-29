@@ -31,3 +31,9 @@
 - [PromCon 2018 Panel Discussion: Prometheus Long-Term Storage Approaches](https://youtube.com/watch?v=3pTG_N8yGSU) including highlights of the M3 stack by Nikunj Aggarwal - Aug 9, 2018.
 
 - [Putting billions of time series to work at Uber with autonomous monitoring](https://vimeo.com/274821002) By Prateek Rungta - Jun 6, 2018. [Slides](http://bit.ly/m3db-monitorama2018)
+
+## M3 Community Meetups
+
+- Recordings of all past meetups can be found here: vimeo.com/user/120001164/folder/2290331. 
+- June 2020 Meetup: https://vimeo.com/440390957.
+- July 2020 Meetup: https://vimeo.com/440449118.  
