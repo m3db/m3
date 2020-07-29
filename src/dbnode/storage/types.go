@@ -869,8 +869,8 @@ type databaseMediator interface {
 	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() (BootstrapResult, error)
 
-	// DisableFileOps disables file operations.
-	DisableFileOps()
+	// DisableFileOpsAndWait disables file operations.
+	DisableFileOpsAndWait()
 
 	// EnableFileOps enables file operations.
 	EnableFileOps()
