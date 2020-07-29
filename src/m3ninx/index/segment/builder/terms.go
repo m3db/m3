@@ -96,7 +96,11 @@ func (t *terms) sortIfRequired() {
 		return
 	}
 
+	// NB(r): See SetSortConcurrency why this RLock is required.
+	sortConcurrencyLock.RLock()
 	sorts.ByBytes(t)
+	sortConcurrencyLock.RUnlock()
+
 	t.uniqueTermsIsSorted = true
 }
 

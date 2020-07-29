@@ -23,6 +23,7 @@ package m3msg
 import (
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/server"
 )
@@ -42,6 +43,7 @@ type Configuration struct {
 // NewServer creates a new server.
 func (c Configuration) NewServer(
 	writeFn WriteFn,
+	rwOpts xio.Options,
 	iOpts instrument.Options,
 ) (server.Server, error) {
 	scope := iOpts.MetricsScope().Tagged(map[string]string{"server": "m3msg"})
@@ -50,6 +52,8 @@ func (c Configuration) NewServer(
 			"component": "consumer",
 		})),
 	)
+
+	cOpts = cOpts.SetDecoderOptions(cOpts.DecoderOptions().SetRWOptions(rwOpts))
 	h, err := c.Handler.newHandler(writeFn, cOpts, iOpts.SetMetricsScope(scope))
 	if err != nil {
 		return nil, err

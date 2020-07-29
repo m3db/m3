@@ -116,16 +116,16 @@ func (mr *MockMetricsAppenderMockRecorder) Finalize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockMetricsAppender)(nil).Finalize))
 }
 
-// Reset mocks base method
-func (m *MockMetricsAppender) Reset() {
+// NextMetric mocks base method
+func (m *MockMetricsAppender) NextMetric() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset")
+	m.ctrl.Call(m, "NextMetric")
 }
 
-// Reset indicates an expected call of Reset
-func (mr *MockMetricsAppenderMockRecorder) Reset() *gomock.Call {
+// NextMetric indicates an expected call of NextMetric
+func (mr *MockMetricsAppenderMockRecorder) NextMetric() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMetricsAppender)(nil).Reset))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NextMetric", reflect.TypeOf((*MockMetricsAppender)(nil).NextMetric))
 }
 
 // SamplesAppender mocks base method

@@ -23,7 +23,6 @@ package downsample
 import (
 	"time"
 
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -35,9 +34,14 @@ type Downsampler interface {
 // MetricsAppender is a metrics appender that can build a samples
 // appender, only valid to use with a single caller at a time.
 type MetricsAppender interface {
+	// NextMetric progresses to building the next metric.
+	NextMetric()
+	// AddTag adds a tag to the current metric being built.
 	AddTag(name, value []byte)
+	// SamplesAppender returns a samples appender for the current
+	// metric built with the tags that have been set.
 	SamplesAppender(opts SampleAppenderOptions) (SamplesAppenderResult, error)
-	Reset()
+	// Finalize finalizes the entire metrics appender for reuse.
 	Finalize()
 }
 
@@ -72,11 +76,9 @@ type SamplesAppender interface {
 }
 
 type downsampler struct {
-	opts DownsamplerOptions
-	agg  agg
-
-	debugLogging bool
-	logger       *zap.Logger
+	opts                DownsamplerOptions
+	agg                 agg
+	metricsAppenderOpts metricsAppenderOptions
 }
 
 type downsamplerOptions struct {
@@ -95,24 +97,27 @@ func newDownsampler(opts downsamplerOptions) (*downsampler, error) {
 		debugLogging = true
 	}
 
+	metricsAppenderOpts := metricsAppenderOptions{
+		agg:                          opts.agg.aggregator,
+		clientRemote:                 opts.agg.clientRemote,
+		defaultStagedMetadatasProtos: opts.agg.defaultStagedMetadatasProtos,
+		clockOpts:                    opts.agg.clockOpts,
+		tagEncoderPool:               opts.agg.pools.tagEncoderPool,
+		matcher:                      opts.agg.matcher,
+		metricTagsIteratorPool:       opts.agg.pools.metricTagsIteratorPool,
+		debugLogging:                 debugLogging,
+		logger:                       logger,
+	}
+
 	return &downsampler{
-		opts:         opts.opts,
-		agg:          opts.agg,
-		debugLogging: debugLogging,
-		logger:       logger,
+		opts:                opts.opts,
+		agg:                 opts.agg,
+		metricsAppenderOpts: metricsAppenderOpts,
 	}, nil
 }
 
 func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
-	return newMetricsAppender(metricsAppenderOptions{
-		agg:                          d.agg.aggregator,
-		clientRemote:                 d.agg.clientRemote,
-		defaultStagedMetadatasProtos: d.agg.defaultStagedMetadatasProtos,
-		clockOpts:                    d.agg.clockOpts,
-		tagEncoder:                   d.agg.pools.tagEncoderPool.Get(),
-		matcher:                      d.agg.matcher,
-		metricTagsIteratorPool:       d.agg.pools.metricTagsIteratorPool,
-		debugLogging:                 d.debugLogging,
-		logger:                       d.logger,
-	}), nil
+	metricsAppender := d.agg.pools.metricsAppenderPool.Get()
+	metricsAppender.reset(d.metricsAppenderOpts)
+	return metricsAppender, nil
 }

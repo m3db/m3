@@ -48,8 +48,10 @@ import (
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -630,7 +632,7 @@ func TestDownsamplerAggregationWithOverrideRules(t *testing.T) {
 }
 
 func TestDownsamplerAggregationWithRemoteAggregatorClient(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	// Create mock client
@@ -989,7 +991,8 @@ func testDownsamplerAggregationIngest(
 		opts = *testOpts.sampleAppenderOpts
 	}
 	for _, metric := range testCounterMetrics {
-		appender.Reset()
+		appender.NextMetric()
+
 		for name, value := range metric.tags {
 			appender.AddTag([]byte(name), []byte(value))
 		}
@@ -1016,7 +1019,8 @@ func testDownsamplerAggregationIngest(
 		}
 	}
 	for _, metric := range testGaugeMetrics {
-		appender.Reset()
+		appender.NextMetric()
+
 		for name, value := range metric.tags {
 			appender.AddTag([]byte(name), []byte(value))
 		}
@@ -1116,13 +1120,20 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
 	tagDecoderOptions := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{})
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
+		SetSize(2).
 		SetInstrumentOptions(instrumentOpts.
 			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("tag-encoder-pool")))
 	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
+		SetSize(2).
 		SetInstrumentOptions(instrumentOpts.
 			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("tag-decoder-pool")))
+	metricsAppenderPoolOptions := pool.NewObjectPoolOptions().
+		SetSize(2).
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().
+				SubScope("metrics-appender-pool")))
 
 	var cfg Configuration
 	if opts.remoteClientMock != nil {
@@ -1137,16 +1148,18 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	}
 
 	instance, err := cfg.NewDownsampler(DownsamplerOptions{
-		Storage:               storage,
-		ClusterClient:         clusterclient.NewMockClient(gomock.NewController(t)),
-		RulesKVStore:          rulesKVStore,
-		AutoMappingRules:      opts.autoMappingRules,
-		ClockOptions:          clockOpts,
-		InstrumentOptions:     instrumentOpts,
-		TagEncoderOptions:     tagEncoderOptions,
-		TagDecoderOptions:     tagDecoderOptions,
-		TagEncoderPoolOptions: tagEncoderPoolOptions,
-		TagDecoderPoolOptions: tagDecoderPoolOptions,
+		Storage:                    storage,
+		ClusterClient:              clusterclient.NewMockClient(gomock.NewController(t)),
+		RulesKVStore:               rulesKVStore,
+		AutoMappingRules:           opts.autoMappingRules,
+		ClockOptions:               clockOpts,
+		InstrumentOptions:          instrumentOpts,
+		TagEncoderOptions:          tagEncoderOptions,
+		TagDecoderOptions:          tagDecoderOptions,
+		TagEncoderPoolOptions:      tagEncoderPoolOptions,
+		TagDecoderPoolOptions:      tagDecoderPoolOptions,
+		MetricsAppenderPoolOptions: metricsAppenderPoolOptions,
+		RWOptions:                  xio.NewOptions(),
 	})
 	require.NoError(t, err)
 
