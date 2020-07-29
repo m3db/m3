@@ -176,8 +176,8 @@ func (t *calcTransport) ReadDouble() (value float64, err error) {
 func (t *calcTransport) ReadString() (value string, err error) {
 	return "", errCalcTransportNotImplemented
 }
-func (t *calcTransport) ReadBinary() (value []byte, err error) {
-	return nil, errCalcTransportNotImplemented
+func (t *calcTransport) ReadBinary(value []byte) error {
+	return errCalcTransportNotImplemented
 }
 func (t *calcTransport) Skip(fieldType thrift.TType) (err error) {
 	return errCalcTransportNotImplemented

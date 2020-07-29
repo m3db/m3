@@ -27,7 +27,12 @@ import (
 	"fmt"
 
 	athrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/uber/tchannel-go/thrift"
+)
+
+const (
+	contextkey = "m3dbcontext"
 )
 
 // Interfaces for the service and client for the services defined in the IDL.
@@ -1876,12 +1881,12 @@ func (s *tchanNodeServer) handleWriteBatchRaw(ctx thrift.Context, protocol athri
 	var req NodeWriteBatchRawArgs
 	var res NodeWriteBatchRawResult
 
-	if err := req.Read(protocol); err != nil {
+	m3ctx := ctx.Value(contextkey).(context.Context)
+	if err := req.readWithContext(m3ctx, protocol); err != nil {
 		return false, nil, err
 	}
 
-	err :=
-		s.handler.WriteBatchRaw(ctx, req.Req)
+	err := s.handler.WriteBatchRaw(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -1953,7 +1958,7 @@ func (s *tchanNodeServer) handleWriteTagged(ctx thrift.Context, protocol athrift
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleWriteTaggedBatchRaw(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+func (s *tchanNodeServer) handleWriteTaggedBatchRaw(tctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	var req NodeWriteTaggedBatchRawArgs
 	var res NodeWriteTaggedBatchRawResult
 
@@ -1961,8 +1966,7 @@ func (s *tchanNodeServer) handleWriteTaggedBatchRaw(ctx thrift.Context, protocol
 		return false, nil, err
 	}
 
-	err :=
-		s.handler.WriteTaggedBatchRaw(ctx, req.Req)
+	err := s.handler.WriteTaggedBatchRaw(tctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
