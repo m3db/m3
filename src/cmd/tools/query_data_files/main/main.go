@@ -57,7 +57,8 @@ func main() {
 		fileSetTypeArg = getopt.StringLong("fileset-type", 'f', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
 
 		iterationCount = getopt.IntLong("iterations", 'i', 50, "Concurrent iteration count")
-		disableArrow   = getopt.BoolLong("arrow", 'a', "Use arrow")
+		arrow          = getopt.Bool('a', "Use arrow")
+		optimized      = getopt.Bool('o', "Optimized iteration")
 	)
 	getopt.Parse()
 
@@ -97,9 +98,10 @@ func main() {
 		encodingOpts = encoding.NewOptions().SetBytesPool(bytesPool)
 		fsOpts       = fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
 
-		iterations = *iterationCount
-		useArrow   = !*disableArrow
-		c          = int(*concurrency)
+		iterations  = *iterationCount
+		useArrow    = *arrow
+		optimizeSum = *optimized
+		c           = int(*concurrency)
 
 		readStart = time.Now()
 	)
@@ -191,7 +193,13 @@ func main() {
 				go func() {
 					for frameIter.Next() {
 						frame := frameIter.Current()
-						v := frame.Sum()
+						var v float64
+						if summary := frame.Summary(); optimizeSum && summary.Valid() {
+							v = summary.Sum()
+						} else {
+							v = frame.Sum()
+						}
+
 						if v != 0 && !math.IsNaN(v) {
 							prints[j] = true
 						}
@@ -231,11 +239,14 @@ func main() {
 		}
 	}
 
+	frameSize := time.Duration(*optTilesize) * time.Minute
 	if useArrow {
-		fmt.Printf("Using arrow buffers\nIterations: %d\nConcurrency: %d\nTook: %v",
-			iterations, c, time.Since(readStart))
+		fmt.Printf("\nUsing arrow buffers\nIterations: %d\nConcurrency: %d"+
+			"\nOptimizing sum: %v\nTilesize: %v\nTook: %v\n",
+			iterations, c, optimizeSum, frameSize, time.Since(readStart))
 	} else {
-		fmt.Printf("Using flat buffers\nIterations: %d\nConcurrency: %d\nTook: %v",
-			iterations, c, time.Since(readStart))
+		fmt.Printf("\nUsing flat buffers\nIterations: %d\nConcurrency: %d"+
+			"\nOptimizing sum: %v\nTilesize: %v\nTook: %v\n",
+			iterations, c, optimizeSum, frameSize, time.Since(readStart))
 	}
 }

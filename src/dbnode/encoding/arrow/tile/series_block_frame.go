@@ -66,6 +66,11 @@ func (f *SeriesBlockFrame) reset(
 	f.tags = tags
 }
 
+// Summary provides a summary for this block frame.
+func (f *SeriesBlockFrame) Summary() *SeriesFrameSummary {
+	return f.record.summary
+}
+
 // Values returns values in this SeriesBlockFrame.
 func (f *SeriesBlockFrame) Values() []float64 {
 	return f.record.values()

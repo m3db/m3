@@ -30,7 +30,7 @@ import (
 type record struct {
 	vals    []float64
 	times   []time.Time
-	summary *summary
+	summary *SeriesFrameSummary
 
 	array.Record
 	units       *unitRecorder
@@ -101,7 +101,7 @@ func (r *record) release() {
 	r.Record = nil
 }
 
-func (r *record) setFlatValues(vals []float64, times []time.Time, s *summary) {
+func (r *record) setFlatValues(vals []float64, times []time.Time, s *SeriesFrameSummary) {
 	if r.Record != nil {
 		r.Record.Release()
 		r.Record = nil
@@ -109,6 +109,7 @@ func (r *record) setFlatValues(vals []float64, times []time.Time, s *summary) {
 
 	r.vals = vals
 	r.times = times
+	r.summary = s
 }
 
 func (r *record) setUnitsAnnotations(

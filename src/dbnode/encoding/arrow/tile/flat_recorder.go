@@ -37,7 +37,7 @@ type flatDatapointRecorder struct {
 	shouldClear bool
 	vals        []float64
 	times       []time.Time // todo: consider delta-delta here?
-	summary     *summary
+	summary     *SeriesFrameSummary
 
 	units       *unitRecorder
 	annotations *annotationRecorder
@@ -71,7 +71,7 @@ func newFlatDatapointRecorder() recorder {
 	return &flatDatapointRecorder{
 		vals:    make([]float64, 0, initLength),
 		times:   make([]time.Time, 0, initLength),
-		summary: newSummary(),
+		summary: newSeriesFrameSummary(),
 
 		units:       newUnitRecorder(),
 		annotations: newAnnotationRecorder(),
