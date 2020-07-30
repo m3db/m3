@@ -152,6 +152,12 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 			return
 		}
 	}
+	if inspect := opts.SeriesIteratorInspectFn; inspect != nil {
+		if err = inspect(replicas); err != nil {
+			it.err = err
+			return
+		}
+	}
 
 	for _, replica := range replicas {
 		if !replica.Next() || !it.iters.push(replica) {

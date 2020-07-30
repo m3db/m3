@@ -310,6 +310,7 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 		EndExclusive:               xtime.ToUnixNano(accum.endTime),
 		Replicas:                   iters,
 		SeriesIteratorConsolidator: opts.SeriesIteratorConsolidator,
+		SeriesIteratorInspectFn:    opts.SeriesIteratorInspectFn,
 	})
 
 	return seriesIter

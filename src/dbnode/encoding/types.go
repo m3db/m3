@@ -287,6 +287,10 @@ type SeriesIteratorConsolidator interface {
 	ConsolidateReplicas([]MultiReaderIterator) ([]MultiReaderIterator, error)
 }
 
+// SeriesIteratorInspectFn optionally defines a method
+// for inspecting newly reset series iterator replicas.
+type SeriesIteratorInspectFn func([]MultiReaderIterator) error
+
 // SeriesIteratorOptions is a set of options for using a series iterator.
 type SeriesIteratorOptions struct {
 	ID                            ident.ID
@@ -297,6 +301,7 @@ type SeriesIteratorOptions struct {
 	EndExclusive                  xtime.UnixNano
 	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
 	SeriesIteratorConsolidator    SeriesIteratorConsolidator
+	SeriesIteratorInspectFn       SeriesIteratorInspectFn
 }
 
 // SeriesIterators is a collection of SeriesIterator that can
