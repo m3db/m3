@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	xpromql "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/m3"
@@ -91,7 +92,7 @@ func TestParseExpr(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
 	req := httptest.NewRequest(http.MethodPost, "/", buildBody(query, start))
 	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeFormURLEncoded)
-	readReq, err := ParseExpr(req)
+	readReq, err := ParseExpr(req, xpromql.NewParseOptions())
 	require.NoError(t, err)
 
 	q := func(start, end time.Time, matchers []*prompb.LabelMatcher) *prompb.Query {
