@@ -677,6 +677,30 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	blockSize time.Duration,
 	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 ) error {
+	// NB(bodu): We use info files on disk to check if a snapshot should be loaded in as cold or warm.
+	// We do this instead of cross refing blockstarts and current time to handle the case of bootstrapping a
+	// once warm block start after a node has been shut down for a long time. We consider all block starts we
+	// haven't flushed data for yet a warm block start.
+	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
+	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), ns.ID(), shard,
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+	shardBlockStartsOnDisk := make(map[xtime.UnixNano]struct{})
+	for _, result := range readInfoFilesResults {
+		if err := result.Err.Error(); err != nil {
+			// If we couldn't read the info files then keep going to be consistent
+			// with the way the db shard updates its flush states in UpdateFlushStates().
+			s.log.Error("unable to read info files in commit log bootstrap",
+				zap.Uint32("shard", shard),
+				zap.Stringer("namespace", ns.ID()),
+				zap.String("filepath", result.Err.Filepath()),
+				zap.Error(err))
+			continue
+		}
+		info := result.Info
+		at := xtime.FromNanoseconds(info.BlockStart)
+		shardBlockStartsOnDisk[xtime.ToUnixNano(at)] = struct{}{}
+	}
+
 	rangeIter := shardTimeRanges.Iter()
 	for rangeIter.Next() {
 		var (
@@ -709,9 +733,13 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 				continue
 			}
 
+			writeType := series.WarmWrite
+			if _, ok := shardBlockStartsOnDisk[xtime.ToUnixNano(blockStart)]; ok {
+				writeType = series.ColdWrite
+			}
 			if err := s.bootstrapShardBlockSnapshot(
 				ns, accumulator, shard, blockStart, blockSize,
-				mostRecentCompleteSnapshotForShardBlock); err != nil {
+				mostRecentCompleteSnapshotForShardBlock, writeType); err != nil {
 				return err
 			}
 		}
@@ -727,6 +755,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	blockStart time.Time,
 	blockSize time.Duration,
 	mostRecentCompleteSnapshot fs.FileSetFile,
+	writeType series.WriteType,
 ) error {
 	var (
 		bOpts      = s.opts.ResultOptions()
@@ -806,7 +835,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		// Load into series.
-		if err := ref.Series.LoadBlock(dbBlock, series.WarmWrite); err != nil {
+		if err := ref.Series.LoadBlock(dbBlock, writeType); err != nil {
 			return err
 		}
 

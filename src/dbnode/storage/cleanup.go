@@ -70,13 +70,15 @@ type cleanupManager struct {
 
 	deleteFilesFn               deleteFilesFn
 	deleteInactiveDirectoriesFn deleteInactiveDirectoriesFn
-	cleanupInProgress           bool
+	warmFlushCleanupInProgress  bool
+	coldFlushCleanupInProgress  bool
 	metrics                     cleanupManagerMetrics
 	logger                      *zap.Logger
 }
 
 type cleanupManagerMetrics struct {
-	status                      tally.Gauge
+	warmFlushCleanupStatus      tally.Gauge
+	coldFlushCleanupStatus      tally.Gauge
 	corruptCommitlogFile        tally.Counter
 	corruptSnapshotFile         tally.Counter
 	corruptSnapshotMetadataFile tally.Counter
@@ -90,7 +92,8 @@ func newCleanupManagerMetrics(scope tally.Scope) cleanupManagerMetrics {
 	sScope := scope.SubScope("snapshot")
 	smScope := scope.SubScope("snapshot-metadata")
 	return cleanupManagerMetrics{
-		status:                      scope.Gauge("cleanup"),
+		warmFlushCleanupStatus:      scope.Gauge("warm-flush-cleanup"),
+		coldFlushCleanupStatus:      scope.Gauge("cold-flush-cleanup"),
 		corruptCommitlogFile:        clScope.Counter("corrupt"),
 		corruptSnapshotFile:         sScope.Counter("corrupt"),
 		corruptSnapshotMetadataFile: smScope.Counter("corrupt"),
@@ -124,7 +127,7 @@ func newCleanupManager(
 	}
 }
 
-func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
+func (m *cleanupManager) WarmFlushCleanup(t time.Time, isBootstrapped bool) error {
 	// Don't perform any cleanup if we are not boostrapped yet.
 	if !isBootstrapped {
 		m.logger.Debug("database is still bootstrapping, terminating cleanup")
@@ -132,12 +135,12 @@ func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	}
 
 	m.Lock()
-	m.cleanupInProgress = true
+	m.warmFlushCleanupInProgress = true
 	m.Unlock()
 
 	defer func() {
 		m.Lock()
-		m.cleanupInProgress = false
+		m.warmFlushCleanupInProgress = false
 		m.Unlock()
 	}()
 
@@ -147,11 +150,6 @@ func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	}
 
 	multiErr := xerrors.NewMultiError()
-	if err := m.cleanupDataFiles(t, namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up data files for %v: %v", t, err))
-	}
-
 	if err := m.cleanupExpiredIndexFiles(t, namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up index files for %v: %v", t, err))
@@ -160,11 +158,6 @@ func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	if err := m.cleanupDuplicateIndexFiles(namespaces); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up index files for %v: %v", t, err))
-	}
-
-	if err := m.deleteInactiveDataFiles(namespaces); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive data files for %v: %v", t, err))
 	}
 
 	if err := m.deleteInactiveDataSnapshotFiles(namespaces); err != nil {
@@ -185,15 +178,57 @@ func (m *cleanupManager) Cleanup(t time.Time, isBootstrapped bool) error {
 	return multiErr.FinalError()
 }
 
+func (m *cleanupManager) ColdFlushCleanup(t time.Time, isBootstrapped bool) error {
+	// Don't perform any cleanup if we are not boostrapped yet.
+	if !isBootstrapped {
+		m.logger.Debug("database is still bootstrapping, terminating cleanup")
+		return nil
+	}
+
+	m.Lock()
+	m.coldFlushCleanupInProgress = true
+	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.coldFlushCleanupInProgress = false
+		m.Unlock()
+	}()
+
+	namespaces, err := m.database.OwnedNamespaces()
+	if err != nil {
+		return err
+	}
+
+	multiErr := xerrors.NewMultiError()
+	if err := m.cleanupDataFiles(t, namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up data files for %v: %v", t, err))
+	}
+
+	if err := m.deleteInactiveDataFiles(namespaces); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when deleting inactive data files for %v: %v", t, err))
+	}
+
+	return multiErr.FinalError()
+}
 func (m *cleanupManager) Report() {
 	m.RLock()
-	cleanupInProgress := m.cleanupInProgress
+	coldFlushCleanupInProgress := m.coldFlushCleanupInProgress
+	warmFlushCleanupInProgress := m.warmFlushCleanupInProgress
 	m.RUnlock()
 
-	if cleanupInProgress {
-		m.metrics.status.Update(1)
+	if coldFlushCleanupInProgress {
+		m.metrics.coldFlushCleanupStatus.Update(1)
 	} else {
-		m.metrics.status.Update(0)
+		m.metrics.coldFlushCleanupStatus.Update(0)
+	}
+
+	if warmFlushCleanupInProgress {
+		m.metrics.warmFlushCleanupStatus.Update(1)
+	} else {
+		m.metrics.warmFlushCleanupStatus.Update(0)
 	}
 }
 
