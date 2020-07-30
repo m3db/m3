@@ -29,8 +29,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 	"go.uber.org/zap"
@@ -192,8 +192,8 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 					expectedSeriesMap := datapoints[:lastDatapointsIdx].toSeriesMap(ns1BlockSize)
 					log.Info("verifying data in database equals expected data")
-					if !verifySeriesMaps(t, setup, nsID, expectedSeriesMap) {
-						// verifySeriesMaps will make sure the actual failure is included
+					if !seriesMapsIsExpected(t, setup, nsID, expectedSeriesMap) {
+						// seriesMapsIsExpected will make sure the actual failure is included
 						// in the go test output, but it uses assert() under the hood so
 						// there is not a clean way to return the explicit error to gopter
 						// as well.

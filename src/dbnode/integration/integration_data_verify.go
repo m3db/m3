@@ -276,6 +276,15 @@ func verifySeriesMaps(
 	ts TestSetup,
 	namespace ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+) {
+	assert.True(t, seriesMapsIsExpected(t, ts, namespace, seriesMaps))
+}
+
+func seriesMapsIsExpected(
+	t *testing.T,
+	ts TestSetup,
+	namespace ident.ID,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) bool {
 	debugFilePathPrefix := ts.Opts().VerifySeriesDebugFilePathPrefix()
 	expectedDebugFilePath, ok := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-expected.log", namespace.String()))
