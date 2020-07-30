@@ -29,10 +29,13 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/client"
+	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/matcher"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/query/graphite/graphite"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -40,6 +43,11 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+)
+
+var (
+	m3MetricsPrefix              = []byte("__m3")
+	m3MetricsGraphiteAggregation = []byte("__m3_graphite_aggregation__")
 )
 
 type metricsAppenderPool struct {
@@ -152,6 +160,12 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
+	// Filter out the m3 custom tags once the ForwardMatch is complete. If
+	// modified set the unowned ID to nil so that we know to recreate it later.
+	if modified := a.tags.filterPrefix(m3MetricsPrefix); modified {
+		unownedID = nil
+	}
+
 	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
 	if opts.Override {
 		// Reuse a slice to keep the current staged metadatas we will apply.
@@ -171,12 +185,11 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
-		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:             a.agg,
-			clientRemote:    a.clientRemote,
-			unownedID:       unownedID,
-			stagedMetadatas: []metadata.StagedMetadata{a.curr},
-		})
+		appenders, err := a.newSamplesAppenders(a.curr)
+		if err != nil {
+			return SamplesAppenderResult{}, err
+		}
+		a.multiSamplesAppender.addSamplesAppenders(appenders)
 	} else {
 		// Reuse a slice to keep the current staged metadatas we will apply.
 		a.curr.Pipelines = a.curr.Pipelines[:0]
@@ -300,16 +313,14 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 		if len(a.curr.Pipelines) > 0 && !a.curr.IsDropPolicyApplied() {
 			// Send to downsampler if we have something in the pipeline.
-			mappingStagedMetadatas := []metadata.StagedMetadata{a.curr}
 			a.debugLogMatch("downsampler using built mapping staged metadatas",
-				debugLogMatchOptions{Meta: mappingStagedMetadatas})
+				debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
 
-			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-				agg:             a.agg,
-				clientRemote:    a.clientRemote,
-				unownedID:       unownedID,
-				stagedMetadatas: mappingStagedMetadatas,
-			})
+			appenders, err := a.newSamplesAppenders(a.curr)
+			if err != nil {
+				return SamplesAppenderResult{}, err
+			}
+			a.multiSamplesAppender.addSamplesAppenders(appenders)
 		}
 
 		numRollups := matchResult.NumNewRollupIDs()
@@ -368,6 +379,138 @@ func (a *metricsAppender) NextMetric() {
 func (a *metricsAppender) Finalize() {
 	// Return to pool.
 	a.pool.Put(a)
+}
+
+func (a *metricsAppender) newSamplesAppenders(
+	stagedMetadata metadata.StagedMetadata,
+) ([]samplesAppender, error) {
+	var (
+		pipelines []metadata.PipelineMetadata
+		appenders []samplesAppender
+	)
+	for _, pipeline := range stagedMetadata.Pipelines {
+		// For pipeline which have tags to augment we generate and send
+		// separate IDs. Other pipelines return the same.
+		pipeline := pipeline
+		if len(pipeline.Tags) == 0 && len(pipeline.GraphitePrefix) == 0 {
+			pipelines = append(pipelines, pipeline)
+			continue
+		}
+
+		tags := augmentTags(a.tags, pipeline.GraphitePrefix, pipeline.Tags, pipeline.AggregationID)
+
+		sm := stagedMetadata
+		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
+
+		appender, err := a.newSamplesAppender(tags, sm, true)
+		if err != nil {
+			return []samplesAppender{}, err
+		}
+		appenders = append(appenders, appender)
+	}
+
+	if len(pipelines) == 0 {
+		return appenders, nil
+	}
+
+	sm := stagedMetadata
+	sm.Pipelines = pipelines
+	appender, err := a.newSamplesAppender(a.tags, sm, false)
+	if err != nil {
+		return []samplesAppender{}, err
+	}
+	return append(appenders, appender), nil
+}
+
+func (a *metricsAppender) newSamplesAppender(
+	tags *tags,
+	sm metadata.StagedMetadata,
+	copyID bool,
+) (samplesAppender, error) {
+	a.tagEncoder.Reset()
+	if err := a.tagEncoder.Encode(tags); err != nil {
+		return samplesAppender{}, err
+	}
+	data, ok := a.tagEncoder.Data()
+	if !ok {
+		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
+	}
+	// NB (@shreyas): if this is the last use of the tagEncoder we do not need
+	// this copy. The caller tells us what to do here.
+	var id []byte
+	if copyID {
+		id = make([]byte, data.Len())
+		copy(id, data.Bytes())
+	} else {
+		id = data.Bytes()
+	}
+	return samplesAppender{
+		agg:             a.agg,
+		clientRemote:    a.clientRemote,
+		unownedID:       id,
+		stagedMetadatas: []metadata.StagedMetadata{sm},
+	}, nil
+}
+
+func augmentTags(
+	originalTags *tags,
+	graphitePrefix [][]byte,
+	t []models.Tag,
+	id aggregation.ID,
+) *tags {
+	// Create the prefix tags if any.
+	tags := newTags()
+	for i, path := range graphitePrefix {
+		// Add the graphite prefix as the initial graphite tags.
+		tags.append(graphite.TagName(i), path)
+	}
+
+	// Make a copy of the tags to augment.
+	prefixes := len(graphitePrefix)
+	for i := range originalTags.names {
+		// If we applied prefixes then we need to parse and modify the original
+		// tags. Check if the original tag was graphite type, if so add the
+		// number of prefixes to the tag index and update.
+		var (
+			name  = originalTags.names[i]
+			value = originalTags.values[i]
+		)
+		if prefixes > 0 {
+			// If the tag seen is a graphite tag then offset it based on number
+			// of prefixes we have seen.
+			if index, ok := graphite.TagIndex(name); ok {
+				name = graphite.TagName(index + prefixes)
+			}
+		}
+		tags.append(name, value)
+	}
+
+	// Add any additional tags we need to.
+	for _, tag := range t {
+		// If these are simply random tags to be added, then just add them.
+		if !bytes.HasPrefix(tag.Name, m3MetricsPrefix) {
+			if len(tag.Name) > 0 && len(tag.Value) > 0 {
+				tags.append(tag.Name, tag.Value)
+			}
+			continue
+		}
+
+		// Handle m3 special tags.
+		if bytes.Equal(tag.Name, m3MetricsGraphiteAggregation) {
+			// Add the aggregation tag as the last graphite tag.
+			types, err := id.Types()
+			if err != nil || len(types) == 0 {
+				continue
+			}
+			var (
+				count = tags.countPrefix(graphite.Prefix)
+				name  = graphite.TagName(count)
+				value = types[0].Bytes()
+			)
+			tags.append(name, value)
+		}
+	}
+	return tags
 }
 
 func stagedMetadatasLogField(sm metadata.StagedMetadatas) zapcore.Field {

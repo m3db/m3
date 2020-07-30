@@ -137,6 +137,10 @@ func (a *multiSamplesAppender) addSamplesAppender(v samplesAppender) {
 	a.appenders = append(a.appenders, v)
 }
 
+func (a *multiSamplesAppender) addSamplesAppenders(v []samplesAppender) {
+	a.appenders = append(a.appenders, v...)
+}
+
 func (a *multiSamplesAppender) AppendCounterSample(value int64) error {
 	var multiErr xerrors.MultiError
 	for _, appender := range a.appenders {

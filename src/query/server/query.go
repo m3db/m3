@@ -629,7 +629,11 @@ func newM3DBStorage(
 	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
 			zap.Int("numAggregatedClusterNamespaces", n))
-		autoMappingRules, err := newDownsamplerAutoMappingRules(namespaces)
+		var (
+			autoMappingRules []downsample.AutoMappingRule
+			err              error
+		)
+		autoMappingRules, err = newDownsamplerAutoMappingRules(namespaces)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
