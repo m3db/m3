@@ -151,7 +151,7 @@ SeriesIterator also has a TagIterator representing the tags associated with it.
 This function transforms a SeriesIterator into a protobuf representation to be
 able to send it across the wire without needing to expand the series.
 */
-func compressedSeriesFromSeriesIterator(
+func CompressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
 	iterPools encoding.IteratorPools,
 ) (*rpc.Series, error) {
@@ -209,7 +209,7 @@ func encodeToCompressedSeries(
 	iters := results.SeriesIterators()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
-		series, err := compressedSeriesFromSeriesIterator(iter, iterPools)
+		series, err := CompressedSeriesFromSeriesIterator(iter, iterPools)
 		if err != nil {
 			return nil, err
 		}
