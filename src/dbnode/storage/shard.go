@@ -21,18 +21,18 @@
 package storage
 
 import (
-	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	osruntime "runtime"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -2576,74 +2576,126 @@ func (s *dbShard) AggregateTiles(
 	ctx context.Context,
 	reader fs.DataFileSetReader,
 	sourceNsID ident.ID,
-	sourceBlockStart time.Time,
 	sourceShard databaseShard,
 	opts AggregateTilesOptions,
 	wOpts series.WriteOptions,
-) (int64, error) {
-	latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
+) error {
+	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   sourceNsID,
 			Shard:       sourceShard.ID(),
-			BlockStart:  sourceBlockStart,
+			BlockStart:  opts.Start,
 			VolumeIndex: latestSourceVolume,
 		},
 		FileSetType: persist.FileSetFlushType,
 		//TODO add after https://github.com/chronosphereio/m3/pull/10 for proper streaming - OrderByIndex: true
 	}
 	if err := reader.Open(openOpts); err != nil {
-		return 0, err
+		return err
 	}
 	defer reader.Close()
 
 	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
-	bytesReader := bytes.NewReader(nil)
-	dataPointIter := m3tsz.NewReaderIterator(bytesReader, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	var lastWriteError error
-	var processedBlockCount int64
+	concurrency := osruntime.NumCPU()
+	// TODO: fix it. concurrency currently raises panics
+	concurrency = 1
+	tileOpts := tile.Options{
+		FrameSize:    xtime.UnixNano(opts.Step.Nanoseconds()),
+		Start:        xtime.ToUnixNano(opts.Start),
+		Concurrency:  concurrency,
+		UseArrow:     false,
+		EncodingOpts: encodingOpts,
+	}
+	var (
+		wg             sync.WaitGroup
+		lastWriteError error
+	)
 
-	for {
-		id, tags, data, _, err := reader.Read()
-		if err == io.EOF {
-			break
+	readerIter, err := tile.NewSeriesBlockIterator(reader, tileOpts)
+	if err != nil {
+		return err
+	}
+
+	for readerIter.Next() {
+		seriesIters := readerIter.Current()
+		for _, seriesIter := range seriesIters {
+			wg.Add(1)
+			seriesIter := seriesIter
+			go func() {
+				for seriesIter.Next() {
+					frame := seriesIter.Current()
+					id := frame.ID()
+					tags := frame.Tags()
+					unit, singleUnit := frame.Units().SingleValue()
+					annotation, singleAnnotation := frame.Annotations().SingleValue()
+					if vals := frame.Values(); len(vals) > 0 {
+						lastIdx := len(vals) - 1
+						lastValue := vals[lastIdx]
+						lastTimestamp := frame.Timestamps()[lastIdx]
+						if !singleUnit {
+							// TODO: what happens if unit has changed mid-tile?
+							// Write early and then do the remaining values separately?
+							if len(frame.Units().Values()) > lastIdx {
+								unit = frame.Units().Values()[lastIdx]
+							}
+						}
+						if !singleAnnotation {
+							// TODO: what happens if annotation has changed mid-tile?
+							// Write early and then do the remaining values separately?
+							if len(frame.Annotations().Values()) > lastIdx {
+								annotation = frame.Annotations().Values()[lastIdx]
+							}
+						}
+
+						if tags == nil || tags.Len() == 0 {
+							s.logger.Error("empty tags array found", zap.String("id", id.String()))
+						}
+
+						_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, annotation, wOpts, true)
+						if err != nil {
+							s.metrics.largeTilesWriteErrors.Inc(1)
+							lastWriteError = err
+						}
+					}
+				}
+
+				wg.Done()
+			}()
+
+			wg.Wait()
 		}
-		if err != nil {
-			return processedBlockCount, err
-		}
-
-		data.IncRef()
-		bytesReader.Reset(data.Bytes())
-		dataPointIter.Reset(bytesReader, nil)
-
-		for dataPointIter.Next() {
-			dp, unit, annot := dataPointIter.Current()
-			_, err = s.writeAndIndex(ctx, id, tags, dp.Timestamp, dp.Value, unit, annot, wOpts, true)
-			if err != nil {
-				s.metrics.largeTilesWriteErrors.Inc(1)
-				lastWriteError = err
-			} else {
-				s.metrics.largeTilesWrites.Inc(1)
-			}
-		}
-
-		dataPointIter.Close()
-
-		data.DecRef()
-		data.Finalize()
-
-		processedBlockCount++
 	}
 
 	// If there were some errors shard is still flushable. Log an error but do not return it to the upper level.
 	if lastWriteError != nil {
 		s.logger.Error("error writing large tiles",
 			zap.Uint32("shardID", sourceShard.ID()),
-			zap.Time("sourceBlockStart", sourceBlockStart),
+			zap.Time("start", opts.Start),
+			zap.String("sourceNs", sourceNsID.String()),
+			zap.String("targetNs", s.namespace.ID().String()),
+			zap.Error(lastWriteError),
+		)
+	}
+
+	if err := readerIter.Err(); err != nil {
+		s.logger.Error("error reading for large tiles",
+			zap.Uint32("shardID", sourceShard.ID()),
+			zap.Time("start", opts.Start),
+			zap.String("sourceNs", sourceNsID.String()),
+			zap.String("targetNs", s.namespace.ID().String()),
+			zap.Error(lastWriteError),
+		)
+	}
+
+	if err := readerIter.Close(); err != nil {
+		s.logger.Error("error closing large tiles reader",
+			zap.Uint32("shardID", sourceShard.ID()),
+			zap.Time("start", opts.Start),
 			zap.String("sourceNs", sourceNsID.String()),
 			zap.String("targetNs", s.namespace.ID().String()),
 			zap.Error(lastWriteError),
@@ -2651,10 +2703,9 @@ func (s *dbShard) AggregateTiles(
 	}
 
 	s.logger.Debug("finished aggregating tiles",
-		zap.Uint32("shard", s.ID()),
-		zap.Int64("processedBlocks", processedBlockCount))
+		zap.Uint32("shard", s.ID()))
 
-	return processedBlockCount, nil
+	return nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

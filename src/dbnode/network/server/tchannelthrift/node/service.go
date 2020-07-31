@@ -546,8 +546,6 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 	defer s.writeRPCCompleted()
 
 	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.AggregateTiles)
-	defer sp.Finish()
-
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("sourceNameSpace", req.SourceNameSpace),
@@ -558,34 +556,32 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 		)
 	}
 
-	processedBlockCount, err := s.aggregateTiles(ctx, db, req)
+	err = s.aggregateTiles(ctx, db, req)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
 
-	return &rpc.AggregateTilesResult_{
-		ProcessedBlockCount: processedBlockCount,
-	}, err
+	return &rpc.AggregateTilesResult_{}, err
 }
 
 func (s *service) aggregateTiles(
 	ctx context.Context,
 	db storage.Database,
 	req *rpc.AggregateTilesRequest,
-) (int64, error) {
+) error {
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	step, stepErr := time.ParseDuration(req.Step)
-	opts, optsErr := storage.NewAggregateTilesOptions(start, end, step)
-	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil || optsErr != nil {
-		multiErr := xerrors.NewMultiError().Add(rangeStartErr).Add(rangeEndErr).Add(stepErr).Add(optsErr)
-		return 0, tterrors.NewBadRequestError(multiErr.FinalError())
+	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil {
+		return tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr, stepErr))
 	}
 
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
 	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
 
-	processedBlockCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
+	opts := storage.AggregateTilesOptions{Start: start, End: end, Step: step}
+
+	err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {
 		s.logger.Error("error calling large tiles aggregation",
 			zap.String("sourceNameSpace", req.SourceNameSpace),
@@ -595,10 +591,10 @@ func (s *service) aggregateTiles(
 			zap.String("rangeType", req.RangeType.String()),
 			zap.String("step", req.Step),
 		)
-		return processedBlockCount, convert.ToRPCError(err)
+		return convert.ToRPCError(err)
 	}
 
-	return processedBlockCount, nil
+	return nil
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {

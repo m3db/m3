@@ -1088,7 +1088,7 @@ func (d *db) AggregateTiles(
 	sourceNsID,
 	targetNsID ident.ID,
 	opts AggregateTilesOptions,
-) (int64, error) {
+) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
@@ -1104,17 +1104,17 @@ func (d *db) AggregateTiles(
 	sourceNs, err := d.namespaceFor(sourceNsID)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return 0, err
+		return err
 	}
 
 	targetNs, err := d.namespaceFor(targetNsID)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return 0, err
+		return err
 	}
 
 	pm := d.opts.LargeTilesPersistManager()
-	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	err = targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
 	if err != nil {
 		d.log.Error("error writing large tiles",
 			zap.String("sourceNs", sourceNsID.String()),
@@ -1122,7 +1122,7 @@ func (d *db) AggregateTiles(
 			zap.Error(err),
 		)
 	}
-	return processedBlockCount, err
+	return err
 }
 
 func (d *db) nextIndex() uint64 {

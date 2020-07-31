@@ -12,6 +12,7 @@ require (
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/RoaringBitmap/roaring v0.4.21
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
+	github.com/apache/arrow/go/arrow v0.0.0-20200623135148-0d1b2f8e7158
 	github.com/apache/thrift v0.13.0
 	github.com/apex/log v1.3.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.1 // indirect

@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -121,9 +120,8 @@ func TestReadAggregateWrite(t *testing.T) {
 	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSize), time.Hour)
 	require.NoError(t, err)
 
-	processedBlockCount, err := testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
+	err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), processedBlockCount)
 
 	flushed = xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
@@ -143,14 +141,9 @@ func TestReadAggregateWrite(t *testing.T) {
 	series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
 	require.NoError(t, err)
 
-	expectedDps := make(map[int64]float64)
-	// TODO: Replace with exact values when aggregation will be implemented.
-	timestamp := dpTimeStart
-	// TODO: now we aggregate only a single block, that's why we do expect
-	// 12 items in place of 20
-	for a := 0; a < 12; a++ {
-		expectedDps[timestamp.Unix()] = 42.1 + float64(a)
-		timestamp = timestamp.Add(10 * time.Minute)
+	expectedDps := map[int64]float64{
+		dpTimeStart.Add(50 * time.Minute).Unix():  47.1,
+		dpTimeStart.Add(110 * time.Minute).Unix(): 53.1,
 	}
 
 	count := 0
