@@ -129,12 +129,9 @@ func compressedTagsFromTagIterator(
 }
 
 // BuildTags returns the compressed tag bytes from the tag iterator.
-func BuildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, error) {
-	if iterPools != nil {
-		encoderPool := iterPools.TagEncoder()
-		if encoderPool != nil {
-			return compressedTagsFromTagIterator(tagIter, encoderPool)
-		}
+func BuildTags(tagIter ident.TagIterator, tagEncoderPool serialize.TagEncoderPool) ([]byte, error) {
+	if tagEncoderPool != nil {
+		return compressedTagsFromTagIterator(tagIter, tagEncoderPool)
 	}
 
 	return nil, errors.ErrCannotEncodeCompressedTags
@@ -184,7 +181,10 @@ func CompressedSeriesFromSeriesIterator(
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
-	tags, err := BuildTags(it.Tags(), iterPools)
+	if iterPools == nil {
+		return nil, errors.ErrCannotEncodeCompressedTags
+	}
+	tags, err := BuildTags(it.Tags(), iterPools.TagEncoder())
 	if err != nil {
 		return nil, err
 	}
