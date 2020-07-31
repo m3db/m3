@@ -39,7 +39,6 @@ import (
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
-	promql "github.com/prometheus/prometheus/promql/parser"
 )
 
 const (
@@ -223,6 +222,7 @@ func parseTagCompletionQueries(r *http.Request) ([]string, error) {
 // ParseSeriesMatchQuery parses all params from the GET request.
 func ParseSeriesMatchQuery(
 	r *http.Request,
+	parseOpts xpromql.ParseOptions,
 	tagOptions models.TagOptions,
 ) ([]*storage.FetchQuery, *xhttp.ParseError) {
 	r.ParseForm()
@@ -244,8 +244,9 @@ func ParseSeriesMatchQuery(
 	}
 
 	queries := make([]*storage.FetchQuery, len(matcherValues))
+	fn := parseOpts.MetricSelectorFn()
 	for i, s := range matcherValues {
-		promMatchers, err := promql.ParseMetricSelector(s)
+		promMatchers, err := fn(s)
 		if err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}
