@@ -73,7 +73,7 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 	}, nil
 }
 
-func compressedSegmentsFromReaders(
+func CompressedSegmentsFromReaders(
 	readers xio.ReaderSliceOfSlicesIterator,
 ) (*rpc.M3Segments, error) {
 	segments := &rpc.M3Segments{}
@@ -127,7 +127,7 @@ func compressedTagsFromTagIterator(
 	return append(make([]byte, 0, len(db)), db...), nil
 }
 
-func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, error) {
+func BuildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, error) {
 	if iterPools != nil {
 		encoderPool := iterPools.TagEncoder()
 		if encoderPool != nil {
@@ -165,7 +165,7 @@ func CompressedSeriesFromSeriesIterator(
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
 		for next := true; next; next = readers.Next() {
-			segments, err := compressedSegmentsFromReaders(readers)
+			segments, err := CompressedSegmentsFromReaders(readers)
 			if err != nil {
 				return nil, err
 			}
@@ -173,15 +173,16 @@ func CompressedSeriesFromSeriesIterator(
 			replicaSegments = append(replicaSegments, segments)
 		}
 
-		compressedReplicas = append(compressedReplicas, &rpc.M3CompressedValuesReplica{
+		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
-		})
+		}
+		compressedReplicas = append(compressedReplicas, r)
 	}
 
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
-	tags, err := buildTags(it.Tags(), iterPools)
+	tags, err := BuildTags(it.Tags(), iterPools)
 	if err != nil {
 		return nil, err
 	}
@@ -209,6 +210,8 @@ func encodeToCompressedSeries(
 	iters := results.SeriesIterators()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
+		// stats, err := iter.Stats()
+		// stats.ApproximateSizeInBytes
 		series, err := CompressedSeriesFromSeriesIterator(iter, iterPools)
 		if err != nil {
 			return nil, err
