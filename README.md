@@ -17,7 +17,7 @@ More information:
 M3 contributors and maintainers have monthly (every four weeks) meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
 [https://www.meetup.com/M3-Community/](https://www.meetup.com/M3-Community/).
 
-Recordings of past meetups can be found here: vimeo.com/user/120001164/folder/2290331. 
+Recordings of past meetups can be found here: [vimeo.com/user/120001164/folder/2290331](vimeo.com/user/120001164/folder/2290331).
 
 ## Office Hours
 
