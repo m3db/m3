@@ -34,6 +34,8 @@
 
 ## M3 Community Meetups
 
-- Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings folder](https://vimeo.com/user/120001164/folder/2290331).
-  - [June 2020 Meetup](https://vimeo.com/440390957).
-  - [July 2020 Meetup](https://vimeo.com/440449118).
+Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings folder](https://vimeo.com/user/120001164/folder/2290331).
+
+- [June 2020 Meetup](https://vimeo.com/440390957).
+
+- [July 2020 Meetup](https://vimeo.com/440449118).
