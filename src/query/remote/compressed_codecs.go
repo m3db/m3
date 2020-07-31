@@ -73,6 +73,7 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 	}, nil
 }
 
+// CompressedSegmentsFromReaders returns the compressed segments for the readers.
 func CompressedSegmentsFromReaders(
 	readers xio.ReaderSliceOfSlicesIterator,
 ) (*rpc.M3Segments, error) {
@@ -127,6 +128,7 @@ func compressedTagsFromTagIterator(
 	return append(make([]byte, 0, len(db)), db...), nil
 }
 
+// BuildTags returns the compressed tag bytes from the tag iterator.
 func BuildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, error) {
 	if iterPools != nil {
 		encoderPool := iterPools.TagEncoder()
