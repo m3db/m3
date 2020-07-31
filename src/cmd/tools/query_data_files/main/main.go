@@ -37,6 +37,9 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
 )
@@ -61,6 +64,10 @@ func main() {
 		optimized      = getopt.Bool('o', "Optimized iteration")
 	)
 	getopt.Parse()
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	rawLogger, err := zap.NewDevelopment()
 	if err != nil {
@@ -167,8 +174,8 @@ func main() {
 			for j := range prints {
 				if prints[j] {
 					prints[j] = false
-					// idx := (i-1)*c + j
-					// fmt.Printf("%d : %v\n", idx, vals[j])
+					idx := (i-1)*c + j
+					fmt.Printf("%d : %v\n", idx, vals[j])
 					// fmt.Printf("%v\n", tags[j])
 				}
 			}
@@ -212,7 +219,7 @@ func main() {
 						// 	tag := ts.Current()
 						// 	t := fmt.Sprintf("%s:%s", tag.Name.String(), tag.Value.String())
 						// 	tags[j] = append(tags[j], t)
-						// }
+						// }.
 
 						// unit, single := frame.Units().SingleValue()
 						// annotation, annotationSingle := frame.Annotations().SingleValue()

@@ -21,6 +21,7 @@
 package tile
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -50,13 +51,21 @@ func TestFlatRecorder(t *testing.T) {
 
 	verify := func(rec *record, size int) {
 		ex := float64(size*(size-1)) / 2
-		assert.Equal(t, ex, rec.sum())
 
 		vals := rec.values()
 		require.Equal(t, size, len(vals))
 		for i := 0; i < size; i++ {
 			assert.Equal(t, float64(i), vals[i])
 		}
+
+		require.True(t, rec.summary.Valid())
+
+		fmt.Println(vals)
+		require.Equal(t, ex, rec.summary.Sum())
+		// require.InDelta(t, size/2*(size+size), rec.summary.Sum(), 0.00001)
+		rec.summary.Count()
+
+		assert.Equal(t, ex, rec.sum())
 
 		times := rec.timestamps()
 		require.Equal(t, size, len(times))

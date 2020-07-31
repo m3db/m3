@@ -36,7 +36,9 @@ const (
 
 // datapointRecorder records datapoints.
 type datapointRecorder struct {
-	builder     *array.RecordBuilder
+	builder      *array.RecordBuilder
+	floatBuilder *array.Float64Builder
+
 	units       *unitRecorder
 	annotations *annotationRecorder
 }
@@ -63,9 +65,6 @@ func newDatapointRecorder(pool memory.Allocator) recorder {
 		},
 		nil,
 	)
-
-	float64s := array.NewFloat64Data(nil)
-	float64s.Reset(data)
 
 	b := array.NewRecordBuilder(pool, schema)
 	return &datapointRecorder{
