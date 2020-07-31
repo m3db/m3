@@ -289,7 +289,7 @@ type SeriesIteratorConsolidator interface {
 
 // SeriesIteratorInspectFn optionally defines a method
 // for inspecting newly reset series iterator replicas.
-type SeriesIteratorInspectFn func([]MultiReaderIterator) error
+type SeriesIteratorInspectFn func(context.Context, []MultiReaderIterator) error
 
 // SeriesIteratorOptions is a set of options for using a series iterator.
 type SeriesIteratorOptions struct {
