@@ -112,13 +112,24 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			},
 		},
 		{
-			name:     "regexp match dot star -> field",
+			name:     "regexp match dot star -> all",
 			expected: "all()",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchRegexp,
 					Name:  []byte("t1"),
 					Value: []byte(".*"),
+				},
+			},
+		},
+		{
+			name:     "regexp match dot plus -> field",
+			expected: "field(t1)",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".+"),
 				},
 			},
 		},
