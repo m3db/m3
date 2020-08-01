@@ -8,8 +8,8 @@ load 5m
   http_requests{instance="baz", group="foo"} 0+60x10 
 
 eval instant at 0s http_requests{job=~".*foo"}
-	http_requests{job="foo", instance="bar"} 0
-	http_requests{job="foo", instance="baz"} 0
+  http_requests{job="foo", instance="bar"} 0
+  http_requests{job="foo", instance="baz"} 0
 
 eval instant at 0s http_requests{job!~".*foo"}
   http_requests{job="baz", instance="bar"}   0
@@ -18,8 +18,8 @@ eval instant at 0s http_requests{job!~".*foo"}
   http_requests{instance="baz", group="foo"} 0
 
 eval instant at 0s http_requests{job=~".+oo"}
-	http_requests{job="foo", instance="bar"} 0
-	http_requests{job="foo", instance="baz"} 0
+  http_requests{job="foo", instance="bar"} 0
+  http_requests{job="foo", instance="baz"} 0
 
 eval instant at 0s http_requests{job!~".+oo"}
   http_requests{job="baz", instance="bar"}   0
