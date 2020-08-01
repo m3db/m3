@@ -29,8 +29,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 	"go.uber.org/zap"
@@ -228,7 +228,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						} else {
 							snapshotBlock = now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
 						}
-						_, err := waitUntilSnapshotFilesFlushed(
+						err := waitUntilSnapshotFilesFlushed(
 							filePathPrefix,
 							setup.ShardSet(),
 							nsID,

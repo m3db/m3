@@ -141,7 +141,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 
 	// NB(xichen): disable filesystem manager before we bootstrap to minimize
 	// the impact of file operations on bootstrapping performance
-	m.mediator.DisableFileOpsAndWait()
+	m.mediator.DisableFileOps()
 	defer m.mediator.EnableFileOps()
 
 	// Keep performing bootstraps until none pending and no error returned.

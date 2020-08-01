@@ -194,20 +194,6 @@ func (mr *MockdatabaseBufferMockRecorder) IsEmpty() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockdatabaseBuffer)(nil).IsEmpty))
 }
 
-// IsEmptyAtBlockStart mocks base method
-func (m *MockdatabaseBuffer) IsEmptyAtBlockStart(arg0 time.Time) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsEmptyAtBlockStart", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsEmptyAtBlockStart indicates an expected call of IsEmptyAtBlockStart
-func (mr *MockdatabaseBufferMockRecorder) IsEmptyAtBlockStart(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmptyAtBlockStart", reflect.TypeOf((*MockdatabaseBuffer)(nil).IsEmptyAtBlockStart), arg0)
-}
-
 // ColdFlushBlockStarts mocks base method
 func (m *MockdatabaseBuffer) ColdFlushBlockStarts(blockStates map[time0.UnixNano]BlockState) OptimizedTimes {
 	m.ctrl.T.Helper()

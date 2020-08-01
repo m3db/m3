@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/x/ident/testutil"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,8 +84,7 @@ func waitUntilSnapshotFilesFlushed(
 	namespace ident.ID,
 	expectedSnapshots []snapshotID,
 	timeout time.Duration,
-) (uuid.UUID, error) {
-	var snapshotID uuid.UUID
+) error {
 	dataFlushed := func() bool {
 		for _, shard := range shardSet.AllIDs() {
 			for _, e := range expectedSnapshots {
@@ -104,19 +102,14 @@ func waitUntilSnapshotFilesFlushed(
 				if !(latest.ID.VolumeIndex >= e.minVolume) {
 					return false
 				}
-
-				_, snapshotID, err = latest.SnapshotTimeAndID()
-				if err != nil {
-					panic(err)
-				}
 			}
 		}
 		return true
 	}
 	if waitUntil(dataFlushed, timeout) {
-		return snapshotID, nil
+		return nil
 	}
-	return snapshotID, errDiskFlushTimedOut
+	return errDiskFlushTimedOut
 }
 
 func waitUntilDataFilesFlushed(

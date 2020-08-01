@@ -133,8 +133,6 @@ type databaseBuffer interface {
 
 	IsEmpty() bool
 
-	IsEmptyAtBlockStart(time.Time) bool
-
 	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
 	Stats() bufferStats
@@ -417,14 +415,6 @@ func (b *dbBuffer) IsEmpty() bool {
 	// buckets are only created when a write for a new block start is done, and
 	// buckets are removed from the map when they are evicted from memory.
 	return len(b.bucketsMap) == 0
-}
-
-func (b *dbBuffer) IsEmptyAtBlockStart(start time.Time) bool {
-	bv, exists := b.bucketVersionsAt(start)
-	if !exists {
-		return true
-	}
-	return bv.streamsLen() == 0
 }
 
 func (b *dbBuffer) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {

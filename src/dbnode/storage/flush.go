@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -34,7 +33,6 @@ import (
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 var (
@@ -49,33 +47,10 @@ const (
 	// when we haven't begun either a flush or snapshot.
 	flushManagerNotIdle
 	flushManagerFlushInProgress
+	flushManagerColdFlushInProgress
 	flushManagerSnapshotInProgress
 	flushManagerIndexFlushInProgress
 )
-
-type flushManagerMetrics struct {
-	isFlushing      tally.Gauge
-	isSnapshotting  tally.Gauge
-	isIndexFlushing tally.Gauge
-	// This is a "debug" metric for making sure that the snapshotting process
-	// is not overly aggressive.
-	maxBlocksSnapshottedByNamespace tally.Gauge
-	dataWarmFlushDuration           tally.Timer
-	dataSnapshotDuration            tally.Timer
-	indexFlushDuration              tally.Timer
-}
-
-func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
-	return flushManagerMetrics{
-		isFlushing:                      scope.Gauge("flush"),
-		isSnapshotting:                  scope.Gauge("snapshot"),
-		isIndexFlushing:                 scope.Gauge("index-flush"),
-		maxBlocksSnapshottedByNamespace: scope.Gauge("max-blocks-snapshotted-by-namespace"),
-		dataWarmFlushDuration:           scope.Timer("data-warm-flush-duration"),
-		dataSnapshotDuration:            scope.Timer("data-snapshot-duration"),
-		indexFlushDuration:              scope.Timer("index-flush-duration"),
-	}
-}
 
 type flushManager struct {
 	sync.RWMutex
@@ -87,12 +62,16 @@ type flushManager struct {
 	// state is used to protect the flush manager against concurrent use,
 	// while flushInProgress and snapshotInProgress are more granular and
 	// are used for emitting granular gauges.
-	state   flushManagerState
-	metrics flushManagerMetrics
+	state           flushManagerState
+	isFlushing      tally.Gauge
+	isColdFlushing  tally.Gauge
+	isSnapshotting  tally.Gauge
+	isIndexFlushing tally.Gauge
+	// This is a "debug" metric for making sure that the snapshotting process
+	// is not overly aggressive.
+	maxBlocksSnapshottedByNamespace tally.Gauge
 
 	lastSuccessfulSnapshotStartTime time.Time
-	logger                          *zap.Logger
-	nowFn                           clock.NowFn
 }
 
 func newFlushManager(
@@ -102,13 +81,15 @@ func newFlushManager(
 ) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
-		database:  database,
-		commitlog: commitlog,
-		opts:      opts,
-		pm:        opts.PersistManager(),
-		metrics:   newFlushManagerMetrics(scope),
-		logger:    opts.InstrumentOptions().Logger(),
-		nowFn:     opts.ClockOptions().NowFn(),
+		database:                        database,
+		commitlog:                       commitlog,
+		opts:                            opts,
+		pm:                              opts.PersistManager(),
+		isFlushing:                      scope.Gauge("flush"),
+		isColdFlushing:                  scope.Gauge("cold-flush"),
+		isSnapshotting:                  scope.Gauge("snapshot"),
+		isIndexFlushing:                 scope.Gauge("index-flush"),
+		maxBlocksSnapshottedByNamespace: scope.Gauge("max-blocks-snapshotted-by-namespace"),
 	}
 }
 
@@ -129,16 +110,16 @@ func (m *flushManager) Flush(startTime time.Time) error {
 		return err
 	}
 
-	// Perform two separate loops through all the namespaces so that we can
+	// Perform three separate loops through all the namespaces so that we can
 	// emit better gauges, i.e. all the flushing for all the namespaces happens
-	// at once then all the snapshotting. This is
+	// at once, then all the cold flushes, then all the snapshotting. This is
 	// also slightly better semantically because flushing should take priority
-	// over snapshotting.
+	// over cold flushes and snapshotting.
 	//
 	// In addition, we need to make sure that for any given shard/blockStart
-	// combination, we attempt a flush before a snapshot as the snapshotting process
-	// will attempt to snapshot blocks w/ unflushed data which would be wasteful if
-	// the block is already flushable.
+	// combination, we attempt a flush and then a cold flush before a snapshot
+	// as the snapshotting process will attempt to snapshot any unflushed blocks
+	// which would be wasteful if the block is already flushable.
 	multiErr := xerrors.NewMultiError()
 	if err = m.dataWarmFlush(namespaces, startTime); err != nil {
 		multiErr = multiErr.Add(err)
@@ -146,6 +127,44 @@ func (m *flushManager) Flush(startTime time.Time) error {
 
 	rotatedCommitlogID, err := m.commitlog.RotateLogs()
 	if err == nil {
+		// The cold flush process will persist any data that has been "loaded" into memory via
+		// the Load() API but has not yet been persisted durably. As a result, if the cold flush
+		// process completes without error, then we want to "decrement" the number of tracked bytes
+		// by however many were outstanding right before the cold flush began.
+		//
+		// For example:
+		// t0: Load 100 bytes --> (numLoadedBytes == 100, numPendingLoadedBytes == 0)
+		// t1: memTracker.MarkLoadedAsPending() --> (numLoadedBytes == 100, numPendingLoadedBytes == 100)
+		// t2: Load 200 bytes --> (numLoadedBytes == 300, numPendingLoadedBytes == 100)
+		// t3: ColdFlushStart()
+		// t4: Load 300 bytes --> (numLoadedBytes == 600, numPendingLoadedBytes == 100)
+		// t5: ColdFlushEnd()
+		// t6: memTracker.DecPendingLoadedBytes() --> (numLoadedBytes == 500, numPendingLoadedBytes == 0)
+		// t7: memTracker.MarkLoadedAsPending() --> (numLoadedBytes == 500, numPendingLoadedBytes == 500)
+		// t8: ColdFlushStart()
+		// t9: ColdFlushError()
+		// t10: memTracker.MarkLoadedAsPending() --> (numLoadedBytes == 500, numPendingLoadedBytes == 500)
+		// t11: ColdFlushStart()
+		// t12: ColdFlushEnd()
+		// t13: memTracker.DecPendingLoadedBytes() --> (numLoadedBytes == 0, numPendingLoadedBytes == 0)
+		memTracker := m.opts.MemoryTracker()
+		memTracker.MarkLoadedAsPending()
+		if err = m.dataColdFlush(namespaces); err != nil {
+			multiErr = multiErr.Add(err)
+			// If cold flush fails, we can't proceed to snapshotting because
+			// commit log cleanup logic uses the presence of a successful
+			// snapshot checkpoint file to determine which commit log files are
+			// safe to delete. Therefore if a cold flush fails and a snapshot
+			// succeeds, the writes from the failed cold flush might be lost
+			// when commit logs get cleaned up, leaving the node in an undurable
+			// state such that if it restarted, it would not be able to recover
+			// the cold writes from its commit log.
+			return multiErr.FinalError()
+		}
+		// Only decrement if the cold flush was a success. In this case, the decrement will reduce the
+		// value by however many bytes had been tracked when the cold flush began.
+		memTracker.DecPendingLoadedBytes()
+
 		if err = m.dataSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -170,10 +189,7 @@ func (m *flushManager) dataWarmFlush(
 	}
 
 	m.setState(flushManagerFlushInProgress)
-	var (
-		start    = m.nowFn()
-		multiErr = xerrors.NewMultiError()
-	)
+	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes.
 		flushTimes, err := m.namespaceFlushTimes(ns, startTime)
@@ -192,7 +208,30 @@ func (m *flushManager) dataWarmFlush(
 		multiErr = multiErr.Add(err)
 	}
 
-	m.metrics.dataWarmFlushDuration.Record(m.nowFn().Sub(start))
+	return multiErr.FinalError()
+}
+
+func (m *flushManager) dataColdFlush(
+	namespaces []databaseNamespace,
+) error {
+	flushPersist, err := m.pm.StartFlushPersist()
+	if err != nil {
+		return err
+	}
+
+	m.setState(flushManagerColdFlushInProgress)
+	multiErr := xerrors.NewMultiError()
+	for _, ns := range namespaces {
+		if err = ns.ColdFlush(flushPersist); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	err = flushPersist.DoneFlush()
+	if err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
 	return multiErr.FinalError()
 }
 
@@ -210,7 +249,6 @@ func (m *flushManager) dataSnapshot(
 
 	m.setState(flushManagerSnapshotInProgress)
 	var (
-		start                           = m.nowFn()
 		maxBlocksSnapshottedByNamespace = 0
 		multiErr                        = xerrors.NewMultiError()
 	)
@@ -240,7 +278,7 @@ func (m *flushManager) dataSnapshot(
 			}
 		}
 	}
-	m.metrics.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
+	m.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 
 	err = snapshotPersist.DoneSnapshot(snapshotID, rotatedCommitlogID)
 	multiErr = multiErr.Add(err)
@@ -249,7 +287,6 @@ func (m *flushManager) dataSnapshot(
 	if finalErr == nil {
 		m.lastSuccessfulSnapshotStartTime = startTime
 	}
-	m.metrics.dataSnapshotDuration.Record(m.nowFn().Sub(start))
 	return finalErr
 }
 
@@ -262,10 +299,7 @@ func (m *flushManager) indexFlush(
 	}
 
 	m.setState(flushManagerIndexFlushInProgress)
-	var (
-		start    = m.nowFn()
-		multiErr = xerrors.NewMultiError()
-	)
+	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
 		var (
 			indexOpts    = ns.Options().IndexOptions()
@@ -278,7 +312,6 @@ func (m *flushManager) indexFlush(
 	}
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 
-	m.metrics.indexFlushDuration.Record(m.nowFn().Sub(start))
 	return multiErr.FinalError()
 }
 
@@ -288,21 +321,27 @@ func (m *flushManager) Report() {
 	m.RUnlock()
 
 	if state == flushManagerFlushInProgress {
-		m.metrics.isFlushing.Update(1)
+		m.isFlushing.Update(1)
 	} else {
-		m.metrics.isFlushing.Update(0)
+		m.isFlushing.Update(0)
+	}
+
+	if state == flushManagerColdFlushInProgress {
+		m.isColdFlushing.Update(1)
+	} else {
+		m.isColdFlushing.Update(0)
 	}
 
 	if state == flushManagerSnapshotInProgress {
-		m.metrics.isSnapshotting.Update(1)
+		m.isSnapshotting.Update(1)
 	} else {
-		m.metrics.isSnapshotting.Update(0)
+		m.isSnapshotting.Update(0)
 	}
 
 	if state == flushManagerIndexFlushInProgress {
-		m.metrics.isIndexFlushing.Update(1)
+		m.isIndexFlushing.Update(1)
 	} else {
-		m.metrics.isIndexFlushing.Update(0)
+		m.isIndexFlushing.Update(0)
 	}
 }
 
@@ -353,8 +392,13 @@ func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Ti
 	candidateTimes := timesInRange(earliest, latest, blockSize)
 	var loopErr error
 	return filterTimes(candidateTimes, func(t time.Time) bool {
-		// NB(bodu): Snapshot everything since to account for cold writes/blocks.
-		return true
+		// Snapshot anything that is unflushed.
+		needsFlush, err := ns.NeedsFlush(t, t)
+		if err != nil {
+			loopErr = err
+			return false
+		}
+		return needsFlush
 	}), loopErr
 }
 

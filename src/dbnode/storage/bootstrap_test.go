@@ -58,7 +58,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	db.EXPECT().OwnedNamespaces().Return(namespaces, nil)
 
 	m := NewMockdatabaseMediator(ctrl)
-	m.EXPECT().DisableFileOpsAndWait()
+	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
 
 	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
@@ -101,7 +101,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	}))
 
 	m := NewMockdatabaseMediator(ctrl)
-	m.EXPECT().DisableFileOpsAndWait()
+	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
 
 	db := NewMockdatabase(ctrl)
@@ -159,7 +159,7 @@ func TestDatabaseBootstrapBootstrapHooks(t *testing.T) {
 	}))
 
 	m := NewMockdatabaseMediator(ctrl)
-	m.EXPECT().DisableFileOpsAndWait()
+	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
 
 	db := NewMockdatabase(ctrl)

@@ -56,7 +56,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	require.Equal(t, errMediatorAlreadyClosed, m.Close())
 }
 
-func TestDatabaseMediatorDisableFileOpsAndWait(t *testing.T) {
+func TestDatabaseMediatorDisableFileOps(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -86,6 +86,6 @@ func TestDatabaseMediatorDisableFileOpsAndWait(t *testing.T) {
 		fsm.EXPECT().Status().Return(fileOpNotStarted),
 	)
 
-	m.DisableFileOpsAndWait()
+	m.DisableFileOps()
 	require.Equal(t, 3, len(slept))
 }

@@ -1441,29 +1441,14 @@ func DataFileSetExists(
 }
 
 // SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
-func SnapshotFileSetExistsAt(
-	prefix string,
-	namespace ident.ID,
-	snapshotID uuid.UUID,
-	shard uint32,
-	blockStart time.Time,
-) (bool, error) {
+func SnapshotFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
 	snapshotFiles, err := SnapshotFiles(prefix, namespace, shard)
 	if err != nil {
 		return false, err
 	}
 
-	latest, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
+	_, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
 	if !ok {
-		return false, nil
-	}
-
-	_, latestSnapshotID, err := latest.SnapshotTimeAndID()
-	if err != nil {
-		return false, err
-	}
-
-	if !uuid.Equal(latestSnapshotID, snapshotID) {
 		return false, nil
 	}
 
