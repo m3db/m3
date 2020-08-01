@@ -112,7 +112,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			},
 		},
 		{
-			name:     "regexp match dot star -> field",
+			name:     "regexp match dot star -> all",
 			expected: "all()",
 			matchers: models.Matchers{
 				{
@@ -188,6 +188,50 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			matchers: models.Matchers{
 				{
 					Type: models.MatchAll,
+				},
+			},
+		},
+		{
+			name:     "regexp match dot star with trailing characters -> regex",
+			expected: "regexp(t1, .*foo)",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".*foo"),
+				},
+			},
+		},
+		{
+			name:     "regexp match dot plus with trailing characters -> regex",
+			expected: "regexp(t1, .+foo)",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".+foo"),
+				},
+			},
+		},
+		{
+			name:     "not regexp match dot star with trailing characters -> regex",
+			expected: "negation(regexp(t1, .*foo))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".*foo"),
+				},
+			},
+		},
+		{
+			name:     "not regexp match dot plus with trailing characters -> regex",
+			expected: "negation(regexp(t1, .+foo))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".+foo"),
 				},
 			},
 		},
