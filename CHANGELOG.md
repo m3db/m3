@@ -2,7 +2,7 @@
 
 # 0.15.8
 
-## Bug Fixes
+## Misc
 
 - **M3DB**: Pause rollout of background cold flush process by revert until further testing ([6830a8cb4](https://github.com/m3db/m3/commit/6830a8cb4))
 
