@@ -254,7 +254,7 @@ docker-integration-test:
 .PHONY: docker-compatibility-test
 docker-compatibility-test:
 	@echo "--- Running Prometheus compatibility test"
-  ./scripts/comparator/run.sh
+	./scripts/comparator/run.sh
 
 .PHONY: prom-compat
 prom-compat:
