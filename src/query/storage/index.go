@@ -195,7 +195,7 @@ func isSpecialCaseMatcher(matcher models.Matcher) specialCase {
 		return specialCase{}
 	}
 
-	if len(matcher.Value) != 2 && matcher.Value[0] != dot {
+	if len(matcher.Value) != 2 || matcher.Value[0] != dot {
 		return specialCase{}
 	}
 
@@ -235,6 +235,7 @@ func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
 			query idx.Query
 			err   error
 		)
+
 		query, err = idx.NewRegexpQuery(matcher.Name, matcher.Value)
 		if err != nil {
 			return idx.Query{}, err
