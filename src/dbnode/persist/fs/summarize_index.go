@@ -51,8 +51,8 @@ type summarizer struct {
 	start     time.Time
 	blockSize time.Duration
 
-	// infoFdWithDigest           digest.FdWithDigestReader
-	// bloomFilterWithDigest      digest.FdWithDigestReader
+	infoFdWithDigest           digest.FdWithDigestReader
+	bloomFilterWithDigest      digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
 	indexFd                 *os.File
@@ -60,29 +60,23 @@ type summarizer struct {
 	indexDecoderStream      dataFileSetReaderDecoderStream
 	indexEntriesByOffsetAsc []schema.IndexEntry
 
-	// dataFd     *os.File
-	// dataMmap   mmap.Descriptor
-	// dataReader digest.ReaderWithDigest
-
 	bloomFilterFd *os.File
 
-	entries int
-	// bloomFilterInfo schema.IndexBloomFilterInfo
-	entriesRead  int
-	metadataRead int
-	decoder      *msgpack.Decoder
-	digestBuf    digest.Buffer
-	bytesPool    pool.CheckedBytesPool
-	// tagDecoderPool  serialize.TagDecoderPool
+	entries         int
+	bloomFilterInfo schema.IndexBloomFilterInfo
+	metadataRead    int
+	decoder         *msgpack.Decoder
+	digestBuf       digest.Buffer
+	bytesPool       pool.CheckedBytesPool
 
-	// expectedInfoDigest        uint32
-	expectedIndexDigest uint32
-	// expectedDataDigest        uint32
-	expectedDigestOfDigest uint32
-	// expectedBloomFilterDigest uint32
-	shard  uint32
-	volume int
-	open   bool
+	expectedInfoDigest        uint32
+	expectedIndexDigest       uint32
+	expectedDataDigest        uint32
+	expectedDigestOfDigest    uint32
+	expectedBloomFilterDigest uint32
+	shard                     uint32
+	volume                    int
+	open                      bool
 
 	orderedByIndex bool
 }
@@ -93,7 +87,7 @@ type summarizer struct {
 func NewSummarizer(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
-) (DataFileSetReader, error) {
+) (IndexFileSetSummarizer, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -106,15 +100,13 @@ func NewSummarizer(
 			Enabled:   opts.MmapEnableHugeTLB(),
 			Threshold: opts.MmapHugeTLBThreshold(),
 		},
-		// infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
-		// digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
-		// bloomFilterWithDigest:      digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
-		indexDecoderStream: newReaderDecoderStream(),
-		// dataReader:         digest.NewReaderWithDigest(nil),
-		decoder:   msgpack.NewDecoder(opts.DecodingOptions()),
-		digestBuf: digest.NewBuffer(),
-		bytesPool: bytesPool,
-		// tagDecoderPool:             opts.TagDecoderPool(),
+		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
+		bloomFilterWithDigest:      digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
+		indexDecoderStream:         newReaderDecoderStream(),
+		decoder:                    msgpack.NewDecoder(opts.DecodingOptions()),
+		digestBuf:                  digest.NewBuffer(),
+		bytesPool:                  bytesPool,
 	}, nil
 }
 
@@ -128,13 +120,12 @@ func (r *summarizer) Open(opts DataReaderOpenOptions) error {
 	)
 
 	var (
-		shardDir           string
-		checkpointFilepath string
-		// infoFilepath        string
-		// digestFilepath      string
-		// bloomFilterFilepath string
-		indexFilepath string
-		// dataFilepath        string
+		shardDir            string
+		checkpointFilepath  string
+		infoFilepath        string
+		digestFilepath      string
+		bloomFilterFilepath string
+		indexFilepath       string
 	)
 
 	r.orderedByIndex = opts.OrderedByIndex
@@ -143,10 +134,9 @@ func (r *summarizer) Open(opts DataReaderOpenOptions) error {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
-		// infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
-		// digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
-		// bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
-		// dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
+		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
+		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
+		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
 		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
@@ -160,10 +150,9 @@ func (r *summarizer) Open(opts DataReaderOpenOptions) error {
 		}
 
 		checkpointFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, isLegacy)
-		// infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy)
-		// digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy)
-		// bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
-		// dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy)
+		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
 		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy)
 	default:
 		return fmt.Errorf("unable to open summarizer with fileset type: %s", opts.FileSetType)
@@ -176,24 +165,24 @@ func (r *summarizer) Open(opts DataReaderOpenOptions) error {
 	}
 	r.expectedDigestOfDigest = digest
 
-	// var infoFd, digestFd *os.File
-	// err = openFiles(os.Open, map[string]**os.File{
-	// 	infoFilepath:        &infoFd,
-	// 	digestFilepath:      &digestFd,
-	// 	bloomFilterFilepath: &r.bloomFilterFd,
-	// })
-	// if err != nil {
-	// 	return err
-	// }
+	var infoFd, digestFd *os.File
+	err = openFiles(os.Open, map[string]**os.File{
+		infoFilepath:        &infoFd,
+		digestFilepath:      &digestFd,
+		bloomFilterFilepath: &r.bloomFilterFd,
+	})
+	if err != nil {
+		return err
+	}
 
-	// r.infoFdWithDigest.Reset(infoFd)
-	// r.digestFdWithDigestContents.Reset(digestFd)
+	r.infoFdWithDigest.Reset(infoFd)
+	r.digestFdWithDigestContents.Reset(digestFd)
 
-	// defer func() {
-	// 	// NB(r): We don't need to keep these FDs open as we use these up front
-	// 	r.infoFdWithDigest.Close()
-	// 	r.digestFdWithDigestContents.Close()
-	// }()
+	defer func() {
+		// NB(r): We don't need to keep these FDs open as we use these up front
+		r.infoFdWithDigest.Close()
+		r.digestFdWithDigestContents.Close()
+	}()
 
 	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
 		indexFilepath: mmap.FileDesc{
@@ -210,20 +199,6 @@ func (r *summarizer) Open(opts DataReaderOpenOptions) error {
 				},
 			},
 		},
-		// dataFilepath: mmap.FileDesc{
-		// 	File:       &r.dataFd,
-		// 	Descriptor: &r.dataMmap,
-		// 	Options: mmap.Options{
-		// 		Read:    true,
-		// 		HugeTLB: r.hugePagesOpts,
-		// 		ReporterOptions: mmap.ReporterOptions{
-		// 			Context: mmap.Context{
-		// 				Name: mmapPersistFsDataName,
-		// 			},
-		// 			Reporter: r.opts.MmapReporter(),
-		// 		},
-		// 	},
-		// },
 	})
 	if err != nil {
 		return err
@@ -235,8 +210,6 @@ func (r *summarizer) Open(opts DataReaderOpenOptions) error {
 	}
 
 	r.indexDecoderStream.Reset(r.indexMmap.Bytes)
-	// r.dataReader.Reset(bytes.NewReader(r.dataMmap.Bytes))
-
 	if err := r.readDigest(); err != nil {
 		// Try to close if failed to read
 		r.Close()
@@ -291,10 +264,10 @@ func (r *summarizer) readDigest() error {
 
 	// Note that we skip over the summaries file digest here which is available,
 	// but we don't need
+	r.expectedInfoDigest = fsDigests.infoDigest
 	r.expectedIndexDigest = fsDigests.indexDigest
-	// r.expectedInfoDigest = fsDigests.infoDigest
-	// r.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
-	// r.expectedDataDigest = fsDigests.dataDigest
+	r.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
+	r.expectedDataDigest = fsDigests.dataDigest
 
 	return nil
 }
@@ -314,9 +287,8 @@ func (r *summarizer) readInfo(size int) error {
 	r.volume = info.VolumeIndex
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
-	r.entriesRead = 0
 	r.metadataRead = 0
-	// r.bloomFilterInfo = info.BloomFilter
+	r.bloomFilterInfo = info.BloomFilter
 	return nil
 }
 
@@ -339,131 +311,39 @@ func (r *summarizer) readIndexAndSortByOffsetAsc() error {
 	return nil
 }
 
-func (r *summarizer) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
-	if r.orderedByIndex {
-		return r.readInIndexedOrder()
-	}
-	return r.readInStoredOrder()
-}
-
-func (r *summarizer) readInIndexedOrder() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
-	if r.entriesRead >= r.entries {
-		return nil, nil, nil, 0, io.EOF
-	}
-
-	entry, err := r.decoder.DecodeIndexEntry(nil)
-	if err != nil {
-		return nil, nil, nil, 0, err
-	}
-
-	var data checked.Bytes
-	if r.bytesPool != nil {
-		data = r.bytesPool.Get(int(entry.Size))
-		data.IncRef()
-		defer data.DecRef()
-	} else {
-		data = checked.NewBytes(make([]byte, 0, entry.Size), nil)
-		data.IncRef()
-		defer data.DecRef()
-	}
-
-	data.AppendAll(r.dataMmap.Bytes[entry.Offset : entry.Offset+entry.Size])
-
-	// NB(r): _must_ check the checksum against known checksum as the data
-	// file might not have been verified if we haven't read through the file yet.
-	if entry.DataChecksum != int64(digest.Checksum(data.Bytes())) {
-		return nil, nil, nil, 0, errSeekChecksumMismatch
-	}
-
-	id := r.entryClonedID(entry.ID)
-	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
-
-	r.entriesRead++
-
-	return id, tags, data, uint32(entry.DataChecksum), nil
-}
-
-func (r *summarizer) readInStoredOrder() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
-	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
-		// Have not read the index yet, this is required when reading
-		// data as we need each index entry in order by by the offset ascending
-		if err := r.readIndexAndSortByOffsetAsc(); err != nil {
-			return nil, nil, nil, 0, err
-		}
-	}
-
-	if r.entriesRead >= r.entries {
-		return nil, nil, nil, 0, io.EOF
-	}
-
-	entry := r.indexEntriesByOffsetAsc[r.entriesRead]
-
-	var data checked.Bytes
-	if r.bytesPool != nil {
-		data = r.bytesPool.Get(int(entry.Size))
-		data.IncRef()
-		defer data.DecRef()
-		data.Resize(int(entry.Size))
-	} else {
-		data = checked.NewBytes(make([]byte, entry.Size), nil)
-		data.IncRef()
-		defer data.DecRef()
-	}
-
-	n, err := r.dataReader.Read(data.Bytes())
-	if err != nil {
-		return nil, nil, nil, 0, err
-	}
-	if n != int(entry.Size) {
-		return nil, nil, nil, 0, errReadNotExpectedSize
-	}
-
-	id := r.entryClonedID(entry.ID)
-	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
-
-	r.entriesRead++
-	return id, tags, data, uint32(entry.DataChecksum), nil
-}
-
-func (r *summarizer) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
+func (r *summarizer) ReadMetadata() (ident.ID, int, uint32, error) {
 	if r.orderedByIndex {
 		return r.readMetadataInIndexedOrder()
 	}
 	return r.readMetadataInStoredOrder()
 }
 
-func (r *summarizer) readMetadataInIndexedOrder() (ident.ID, ident.TagIterator, int, uint32, error) {
-	if r.entriesRead >= r.entries {
-		return nil, nil, 0, 0, io.EOF
-	}
-
+func (r *summarizer) readMetadataInIndexedOrder() (ident.ID, int, uint32, error) {
 	entry, err := r.decoder.DecodeIndexEntry(nil)
 	if err != nil {
-		return nil, nil, 0, 0, err
+		return nil, 0, 0, err
 	}
 
 	id := r.entryClonedID(entry.ID)
-	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 	length := int(entry.Size)
 	checksum := uint32(entry.DataChecksum)
 
 	r.metadataRead++
-	return id, tags, length, checksum, nil
+	return id, length, checksum, nil
 }
 
-func (r *summarizer) readMetadataInStoredOrder() (ident.ID, ident.TagIterator, int, uint32, error) {
+func (r *summarizer) readMetadataInStoredOrder() (ident.ID, int, uint32, error) {
 	if r.metadataRead >= r.entries {
-		return nil, nil, 0, 0, io.EOF
+		return nil, 0, 0, io.EOF
 	}
 
 	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
 	id := r.entryClonedID(entry.ID)
-	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 	length := int(entry.Size)
 	checksum := uint32(entry.DataChecksum)
 
 	r.metadataRead++
-	return id, tags, length, checksum, nil
+	return id, length, checksum, nil
 }
 
 func (r *summarizer) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
@@ -497,41 +377,12 @@ func (r *summarizer) entryClonedID(id []byte) ident.ID {
 	return ident.BinaryID(r.entryClonedBytes(id))
 }
 
-func (r *summarizer) entryClonedEncodedTagsIter(encodedTags []byte) ident.TagIterator {
-	if len(encodedTags) == 0 {
-		// No tags set for this entry, return an empty tag iterator
-		return ident.EmptyTagIterator
-	}
-	decoder := r.tagDecoderPool.Get()
-	decoder.Reset(r.entryClonedBytes(encodedTags))
-	return decoder
-}
-
-// NB(xichen): Validate should be called after all data is read because
-// the digest is calculated for the entire data file.
-func (r *summarizer) Validate() error {
-	var multiErr xerrors.MultiError
-	multiErr = multiErr.Add(r.ValidateMetadata())
-	multiErr = multiErr.Add(r.ValidateData())
-	return multiErr.FinalError()
-}
-
 // NB(r): ValidateMetadata can be called immediately after Open(...) since
 // the metadata is read upfront.
 func (r *summarizer) ValidateMetadata() error {
 	err := r.indexDecoderStream.reader().Validate(r.expectedIndexDigest)
 	if err != nil {
 		return fmt.Errorf("could not validate index file: %v", err)
-	}
-	return nil
-}
-
-// NB(xichen): ValidateData should be called after all data is read because
-// the digest is calculated for the entire data file.
-func (r *summarizer) ValidateData() error {
-	err := r.dataReader.Validate(r.expectedDataDigest)
-	if err != nil {
-		return fmt.Errorf("could not validate data file: %v", err)
 	}
 	return nil
 }
@@ -544,10 +395,6 @@ func (r *summarizer) Entries() int {
 	return r.entries
 }
 
-func (r *summarizer) EntriesRead() int {
-	return r.entriesRead
-}
-
 func (r *summarizer) MetadataRead() int {
 	return r.metadataRead
 }
@@ -556,12 +403,9 @@ func (r *summarizer) Close() error {
 	// Close and prepare resources that are to be reused
 	multiErr := xerrors.NewMultiError()
 	multiErr = multiErr.Add(mmap.Munmap(r.indexMmap))
-	multiErr = multiErr.Add(mmap.Munmap(r.dataMmap))
 	multiErr = multiErr.Add(r.indexFd.Close())
-	multiErr = multiErr.Add(r.dataFd.Close())
 	multiErr = multiErr.Add(r.bloomFilterFd.Close())
 	r.indexDecoderStream.Reset(nil)
-	r.dataReader.Reset(nil)
 	for i := 0; i < len(r.indexEntriesByOffsetAsc); i++ {
 		r.indexEntriesByOffsetAsc[i].ID = nil
 	}
@@ -571,14 +415,13 @@ func (r *summarizer) Close() error {
 	opts := r.opts
 	filePathPrefix := r.filePathPrefix
 	hugePagesOpts := r.hugePagesOpts
+	infoFdWithDigest := r.infoFdWithDigest
 	digestFdWithDigestContents := r.digestFdWithDigestContents
 	bloomFilterWithDigest := r.bloomFilterWithDigest
 	indexDecoderStream := r.indexDecoderStream
-	dataReader := r.dataReader
 	decoder := r.decoder
 	digestBuf := r.digestBuf
 	bytesPool := r.bytesPool
-	tagDecoderPool := r.tagDecoderPool
 	indexEntriesByOffsetAsc := r.indexEntriesByOffsetAsc
 
 	// Reset struct
@@ -588,14 +431,13 @@ func (r *summarizer) Close() error {
 	r.opts = opts
 	r.filePathPrefix = filePathPrefix
 	r.hugePagesOpts = hugePagesOpts
+	r.infoFdWithDigest = infoFdWithDigest
 	r.digestFdWithDigestContents = digestFdWithDigestContents
 	r.bloomFilterWithDigest = bloomFilterWithDigest
 	r.indexDecoderStream = indexDecoderStream
-	r.dataReader = dataReader
 	r.decoder = decoder
 	r.digestBuf = digestBuf
 	r.bytesPool = bytesPool
-	r.tagDecoderPool = tagDecoderPool
 	r.indexEntriesByOffsetAsc = indexEntriesByOffsetAsc
 
 	return multiErr.FinalError()
