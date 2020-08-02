@@ -142,4 +142,9 @@ func TestCommitLogBootstrapWithSnapshotsAfterRestart(t *testing.T) {
 			require.Equal(t, 0, int(info.Entries))
 		}
 	}
+
+	// Verify that data is still what we expect
+	metadatasByShard = testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-5*blockSize), now.Add(-blockSize))
+	observedSeriesMaps = testSetupToSeriesMaps(t, setup, ns, metadatasByShard)
+	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
 }
