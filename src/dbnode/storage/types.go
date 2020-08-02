@@ -1171,6 +1171,12 @@ type Options interface {
 
 	// NamespaceRuntimeOptionsManagerRegistry returns the namespace runtime options manager.
 	NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry
+
+	// SetMediatorTickInterval sets the ticking interval for the medidator.
+	SetMediatorTickInterval(value time.Duration) Options
+
+	// MediatorTickInterval returns the ticking interval for the mediator.
+	MediatorTickInterval() time.Duration
 }
 
 // MemoryTracker tracks memory.

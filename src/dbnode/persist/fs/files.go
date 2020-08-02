@@ -828,12 +828,13 @@ func ReadInfoFiles(
 	shard uint32,
 	readerBufferSize int,
 	decodingOpts msgpack.DecodingOptions,
+	fileSetType persist.FileSetType,
 ) []ReadInfoFileResult {
 	var infoFileResults []ReadInfoFileResult
 	decoder := msgpack.NewDecoder(decodingOpts)
 	forEachInfoFile(
 		forEachInfoFileSelector{
-			fileSetType:    persist.FileSetFlushType,
+			fileSetType:    fileSetType,
 			contentType:    persist.FileSetDataContentType,
 			filePathPrefix: filePathPrefix,
 			namespace:      namespace,

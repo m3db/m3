@@ -683,7 +683,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	// haven't flushed data for yet a warm block start.
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), ns.ID(), shard,
-		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 	shardBlockStartsOnDisk := make(map[xtime.UnixNano]struct{})
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {
