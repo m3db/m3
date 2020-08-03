@@ -21,6 +21,7 @@
 package encoding
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -28,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -248,7 +248,7 @@ func (c *testConsolidator) ConsolidateReplicas(
 
 func (c *testConsolidator) ConsolidateSeries(
 	_ context.Context,
-	iters []SeriesIterator,
+	_ []SeriesIterator,
 ) error {
 	return nil
 }

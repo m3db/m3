@@ -154,6 +154,9 @@ SeriesIterator also has a TagIterator representing the tags associated with it.
 
 This function transforms a SeriesIterator into a protobuf representation to be
 able to send it across the wire without needing to expand the series.
+
+If reset argument is true, the SeriesIterator readers will be reset so it can
+be iterated again. If false, the SeriesIterator will no longer be useable.
 */
 func CompressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
@@ -223,8 +226,6 @@ func encodeToCompressedSeries(
 	iters := results.SeriesIterators()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
-		// stats, err := iter.Stats()
-		// stats.ApproximateSizeInBytes
 		series, err := CompressedSeriesFromSeriesIterator(iter, iterPools, false)
 		if err != nil {
 			return nil, err
