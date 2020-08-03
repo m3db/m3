@@ -89,6 +89,7 @@ TOOLS :=               \
 	read_data_files      \
 	read_index_files     \
 	read_index_segments  \
+	query_data_files     \
 	clone_fileset        \
 	dtest                \
 	verify_data_files    \

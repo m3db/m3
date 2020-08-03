@@ -57,7 +57,7 @@ func main() {
 		fileSetTypeArg = getopt.StringLong("fileset-type", 'f', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
 
 		iterationCount = getopt.IntLong("iterations", 'i', 50, "Concurrent iteration count")
-		disableArrow   = getopt.BoolLong("arrow", 'a', "Use arrow")
+		optUseArrow    = getopt.BoolLong("arrow", 'a', "Use arrow")
 	)
 	getopt.Parse()
 
@@ -98,7 +98,7 @@ func main() {
 		fsOpts       = fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
 
 		iterations = *iterationCount
-		useArrow   = !*disableArrow
+		useArrow   = *optUseArrow
 		c          = int(*concurrency)
 
 		readStart = time.Now()
@@ -232,10 +232,10 @@ func main() {
 	}
 
 	if useArrow {
-		fmt.Printf("Using arrow buffers\nIterations: %d\nConcurrency: %d\nTook: %v",
+		fmt.Printf("Using arrow buffers\nIterations: %d\nConcurrency: %d\nTook: %v\n",
 			iterations, c, time.Since(readStart))
 	} else {
-		fmt.Printf("Using flat buffers\nIterations: %d\nConcurrency: %d\nTook: %v",
+		fmt.Printf("Using flat buffers\nIterations: %d\nConcurrency: %d\nTook: %v\n",
 			iterations, c, time.Since(readStart))
 	}
 }
