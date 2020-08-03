@@ -325,6 +325,7 @@ func (s *m3storage) fetchCompressed(
 
 	if consolidator := opts.IterationOptions.SeriesIteratorConsolidator; consolidator != nil {
 		if err := consolidator.ConsolidateSeries(ctx, result.SeriesIterators()); err != nil {
+			accumulator.Close()
 			return consolidators.SeriesFetchResult{}, nil, nil, err
 		}
 	}
