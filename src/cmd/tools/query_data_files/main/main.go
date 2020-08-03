@@ -57,6 +57,7 @@ func main() {
 		volume         = getopt.Int64Long("volume", 'v', 0, "Volume number")
 		concurrency    = getopt.Int64Long("concurrency", 'c', int64(runtime.NumCPU()), "Concurrent iteration count")
 		fileSetTypeArg = getopt.StringLong("fileset-type", 'f', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
+		orderByIndex   = getopt.BoolLong("ordered", 'o', "read data ordered by index")
 
 		iterationCount = getopt.IntLong("iterations", 'i', 50, "Concurrent iteration count")
 	)
@@ -102,6 +103,7 @@ func main() {
 		c          = int(*concurrency)
 
 		readStart = time.Now()
+		cnt       = 0
 	)
 
 	for iteration := 0; iteration < iterations; iteration++ {
@@ -120,6 +122,7 @@ func main() {
 				VolumeIndex: int(*volume),
 			},
 			FileSetType: fileSetType,
+			OrderedByIndex: *orderByIndex,
 		}
 
 		err = reader.Open(openOpts)
@@ -138,7 +141,7 @@ func main() {
 
 		bytesReader := bytes.NewReader(nil)
 		dataPointIter := m3tsz.NewReaderIterator(bytesReader, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-		downsampler := downsamplers.NewSumDownsampler()
+		downsampler := downsamplers.NewCountDownsampler()
 
 		tags = tags[:0]
 
@@ -162,8 +165,12 @@ func main() {
 			for aggregatedIter.Next() {
 				dp, _, _ := aggregatedIter.Current()
 				v := dp.Value
+				cnt += int(v)
 
 				vals = append(vals, v)
+			}
+			if err := aggregatedIter.Err(); err != nil {
+				panic(fmt.Sprint("aggregatedIter error:", err))
 			}
 
 			aggregatedIter.Close()
@@ -180,6 +187,8 @@ func main() {
 
 		dataPointIter.Close()
 	}
+
+	fmt.Printf("%f data points per second\n", float64(cnt) / time.Since(readStart).Seconds())
 
 	fmt.Printf("Using step iterator\nIterations: %d\nConcurrency: %d\nTook: %v\n",
 		iterations, c, time.Since(readStart))
