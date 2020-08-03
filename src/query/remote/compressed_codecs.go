@@ -75,19 +75,22 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 
 func compressedSegmentsFromReaders(
 	readers xio.ReaderSliceOfSlicesIterator,
-) (*rpc.M3Segments, error) {
+) (*rpc.M3Segments, []xio.BlockReader, error) {
 	segments := &rpc.M3Segments{}
 	l, _, _ := readers.CurrentReaders()
+	blocks := make([]xio.BlockReader, 0, l)
 	// NB(arnikola) If there's only a single reader, the segment has been merged
 	// otherwise, multiple unmerged segments exist.
 	if l == 1 {
 		br := readers.CurrentReaderAt(0)
 		segment, err := compressedSegmentFromBlockReader(br)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		segments.Merged = segment
+
+		blocks = append(blocks, br)
 	} else {
 		unmerged := make([]*rpc.M3Segment, 0, l)
 		for i := 0; i < l; i++ {
@@ -97,12 +100,13 @@ func compressedSegmentsFromReaders(
 				return nil, err
 			}
 			unmerged = append(unmerged, segment)
+			blocks = append(blocks, br)
 		}
 
 		segments.Unmerged = unmerged
 	}
 
-	return segments, nil
+	return segments, blocks, nil
 }
 
 func compressedTagsFromTagIterator(
@@ -154,6 +158,7 @@ able to send it across the wire without needing to expand the series.
 func CompressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
 	iterPools encoding.IteratorPools,
+	reset bool,
 ) (*rpc.Series, error) {
 	replicas, err := it.Replicas()
 	if err != nil {
@@ -163,20 +168,28 @@ func CompressedSeriesFromSeriesIterator(
 	compressedReplicas := make([]*rpc.M3CompressedValuesReplica, 0, len(replicas))
 	for _, replica := range replicas {
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
+		replicaBlocks := make([][]xio.BlockReader, 0, len(replicas))
 		readers := replica.Readers()
 		for next := true; next; next = readers.Next() {
-			segments, err := compressedSegmentsFromReaders(readers)
+			segments, blocks, err := compressedSegmentsFromReaders(readers)
 			if err != nil {
 				return nil, err
 			}
 
 			replicaSegments = append(replicaSegments, segments)
+			replicaBlocks = append(replicaBlocks, blocks)
 		}
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
 		}
 		compressedReplicas = append(compressedReplicas, r)
+
+		if reset {
+			schema := replica.Schema()
+			readerBlock := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(replicaBlocks)
+			replica.ResetSliceOfSlices(readerBlock, schema)
+		}
 	}
 
 	start := xtime.ToNanoseconds(it.Start())
@@ -212,7 +225,7 @@ func encodeToCompressedSeries(
 	for _, iter := range iters {
 		// stats, err := iter.Stats()
 		// stats.ApproximateSizeInBytes
-		series, err := CompressedSeriesFromSeriesIterator(iter, iterPools)
+		series, err := CompressedSeriesFromSeriesIterator(iter, iterPools, false)
 		if err != nil {
 			return nil, err
 		}
