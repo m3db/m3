@@ -102,7 +102,8 @@ type reader struct {
 	volume                    int
 	open                      bool
 
-	orderedByIndex bool
+	orderedByIndex  bool
+	indexSummaryMap map[uint64]int64
 }
 
 // NewReader returns a new reader and expects all files to exist. Will read the
@@ -156,6 +157,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	)
 
 	r.orderedByIndex = opts.OrderedByIndex
+	r.indexSummaryMap = opts.IndexSummaryMap
 
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
@@ -634,4 +636,151 @@ func (e indexEntriesByOffsetAsc) Less(i, j int) bool {
 
 func (e indexEntriesByOffsetAsc) Swap(i, j int) {
 	e[i], e[j] = e[j], e[i]
+}
+
+func (r *reader) RemainingMismatches() []ReadMismatch {
+	mismatches := make([]ReadMismatch, 0, len(r.indexSummaryMap))
+	for hash := range r.indexSummaryMap {
+		mismatches = append(mismatches, ReadMismatch{
+			Type:   MismatchOnlyInSummary,
+			IDHash: hash,
+		})
+	}
+
+	return mismatches
+}
+
+/*
+
+TODO: can probably reuse other read methods to stick to DRY.
+
+*/
+func (r *reader) ReadMismatch() (ReadMismatch, error) {
+	var mismatch ReadMismatch
+	var err error
+	if r.orderedByIndex {
+		for mismatch.Type == MismatchNone && err == nil {
+			mismatch, err = r.readMismatchInIndexedOrder()
+		}
+	} else {
+		for mismatch.Type == MismatchNone && err == nil {
+			mismatch, err = r.readMismatchInStoredOrder()
+		}
+	}
+	return mismatch, err
+}
+
+func (r *reader) readMismatchInIndexedOrder() (ReadMismatch, error) {
+	if r.entriesRead >= r.entries {
+		return ReadMismatch{}, io.EOF
+	}
+
+	entry, err := r.decoder.DecodeIndexEntry(nil)
+	if err != nil {
+		return ReadMismatch{}, err
+	}
+
+	r.entriesRead++
+	var mismatchType MismatchType
+	hashedID := hashID(entry.ID)
+	expectedChecksum, found := r.indexSummaryMap[hashedID]
+	delete(r.indexSummaryMap, hashedID)
+	if found {
+		if expectedChecksum == entry.DataChecksum {
+			return ReadMismatch{}, nil
+		}
+		mismatchType = MismatchChecksumMismatch
+	} else {
+		mismatchType = MismatchMissingInSummary
+	}
+
+	var data checked.Bytes
+	if r.bytesPool != nil {
+		data = r.bytesPool.Get(int(entry.Size))
+		data.IncRef()
+		defer data.DecRef()
+	} else {
+		data = checked.NewBytes(make([]byte, 0, entry.Size), nil)
+		data.IncRef()
+		defer data.DecRef()
+	}
+
+	data.AppendAll(r.dataMmap.Bytes[entry.Offset : entry.Offset+entry.Size])
+
+	// NB(r): _must_ check the checksum against known checksum as the data
+	// file might not have been verified if we haven't read through the file yet.
+	if entry.DataChecksum != int64(digest.Checksum(data.Bytes())) {
+		return ReadMismatch{}, errSeekChecksumMismatch
+	}
+
+	id := r.entryClonedID(entry.ID)
+	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
+
+	return ReadMismatch{
+		Type:     mismatchType,
+		Checksum: uint32(entry.DataChecksum),
+		Data:     data,
+		ID:       id,
+		Tags:     tags,
+	}, nil
+}
+
+func (r *reader) readMismatchInStoredOrder() (ReadMismatch, error) {
+	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
+		// Have not read the index yet, this is required when reading
+		// data as we need each index entry in order by by the offset ascending
+		if err := r.readIndexAndSortByOffsetAsc(); err != nil {
+			return ReadMismatch{}, err
+		}
+	}
+
+	if r.entriesRead >= r.entries {
+		return ReadMismatch{}, io.EOF
+	}
+
+	entry := r.indexEntriesByOffsetAsc[r.entriesRead]
+	r.entriesRead++
+	var mismatchType MismatchType
+	hashedID := hashID(entry.ID)
+	expectedChecksum, found := r.indexSummaryMap[hashedID]
+	delete(r.indexSummaryMap, hashedID)
+	if found {
+		if expectedChecksum == entry.DataChecksum {
+			return ReadMismatch{}, nil
+		}
+		mismatchType = MismatchChecksumMismatch
+	} else {
+		mismatchType = MismatchMissingInSummary
+	}
+
+	var data checked.Bytes
+	if r.bytesPool != nil {
+		data = r.bytesPool.Get(int(entry.Size))
+		data.IncRef()
+		defer data.DecRef()
+		data.Resize(int(entry.Size))
+	} else {
+		data = checked.NewBytes(make([]byte, entry.Size), nil)
+		data.IncRef()
+		defer data.DecRef()
+	}
+
+	n, err := r.dataReader.Read(data.Bytes())
+	if err != nil {
+		return ReadMismatch{}, err
+	}
+	if n != int(entry.Size) {
+		return ReadMismatch{}, errReadNotExpectedSize
+	}
+
+	id := r.entryClonedID(entry.ID)
+	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
+
+	return ReadMismatch{
+		Type:     mismatchType,
+		Checksum: uint32(entry.DataChecksum),
+		Data:     data,
+		ID:       id,
+		Tags:     tags,
+	}, nil
 }

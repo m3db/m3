@@ -115,7 +115,7 @@ func (b *seriesBlockIter) Next() bool {
 	b.RLock()
 	err := b.err
 	b.RUnlock()
-	if exhausted || err != nil {
+	if err != nil {
 		return false
 	}
 
@@ -126,13 +126,11 @@ func (b *seriesBlockIter) Next() bool {
 		}
 	}
 
-	var err error
 	for i := 0; i < b.concurrency; i++ {
 		b.ids[i], b.tagIters[i], b.dataBytes[i], _, err = b.reader.Read()
 
 		if err != nil {
 			b.Lock()
-			b.exhausted = true
 			b.err = err
 			b.Unlock()
 			return false

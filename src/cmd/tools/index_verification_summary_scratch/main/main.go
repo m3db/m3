@@ -31,8 +31,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cespare/xxhash"
-	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/ident"
@@ -121,15 +119,12 @@ func main() {
 		log.Fatalf("unknown fileset type: %s", *fileSetTypeArg)
 	}
 
-	bytesPool := tools.NewCheckedBytesPool()
-	bytesPool.Init()
-
 	var (
 		fsOpts = fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
 	)
 
-	for i, shard := range shardDescriptions[:1] {
-		summarizer, err := fs.NewSummarizer(bytesPool, fsOpts)
+	for i, shard := range shardDescriptions {
+		summarizer, err := fs.NewSummarizer(fsOpts)
 		if err != nil {
 			log.Fatalf("could not create new summarizer: %v", err)
 		}
@@ -152,8 +147,7 @@ func main() {
 
 		count := 0
 		for {
-			// _, _, _, err := summarizer.ReadMetadata()
-			id, _, checksum, err := summarizer.ReadMetadata()
+			_, err := summarizer.ReadMetadata()
 			if err != nil {
 				if err != io.EOF {
 					log.Fatalf("reading failure: %v", err)
@@ -162,8 +156,7 @@ func main() {
 				break
 			}
 
-			hash := xxhash.Sum64(id.Bytes())
-			fmt.Println(id.String(), checksum, hash)
+			// fmt.Println(summary.DataChecksum, summary.IDHash)
 			count++
 		}
 

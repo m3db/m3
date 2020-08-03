@@ -294,6 +294,35 @@ func (mr *MockDataFileSetReaderMockRecorder) ReadMetadata() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMetadata", reflect.TypeOf((*MockDataFileSetReader)(nil).ReadMetadata))
 }
 
+// ReadMismatch mocks base method
+func (m *MockDataFileSetReader) ReadMismatch() (ReadMismatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadMismatch")
+	ret0, _ := ret[0].(ReadMismatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadMismatch indicates an expected call of ReadMismatch
+func (mr *MockDataFileSetReaderMockRecorder) ReadMismatch() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMismatch", reflect.TypeOf((*MockDataFileSetReader)(nil).ReadMismatch))
+}
+
+// RemainingMismatches mocks base method
+func (m *MockDataFileSetReader) RemainingMismatches() []ReadMismatch {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemainingMismatches")
+	ret0, _ := ret[0].([]ReadMismatch)
+	return ret0
+}
+
+// RemainingMismatches indicates an expected call of RemainingMismatches
+func (mr *MockDataFileSetReaderMockRecorder) RemainingMismatches() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemainingMismatches", reflect.TypeOf((*MockDataFileSetReader)(nil).RemainingMismatches))
+}
+
 // Status mocks base method
 func (m *MockDataFileSetReader) Status() DataFileSetReaderStatus {
 	m.ctrl.T.Helper()

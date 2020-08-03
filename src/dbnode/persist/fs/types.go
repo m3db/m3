@@ -124,6 +124,9 @@ type DataReaderOpenOptions struct {
 	FileSetType persist.FileSetType
 	// OrderedByIndex enforces reading of series in the order of index (which is by series Id).
 	OrderedByIndex bool
+	// IndexSummaryMap is a map of index hashes to their respective data checksums
+	// that this reader should be matching.
+	IndexSummaryMap map[uint64]int64
 }
 
 type fileSetReader interface {
@@ -134,10 +137,6 @@ type fileSetReader interface {
 
 	// Status returns the status of the reader.
 	Status() DataFileSetReaderStatus
-
-	// ReadBloomFilter returns the bloom filter stored on disk in a container object that is safe
-	// for concurrent use and has a Close() method for releasing resources when done.
-	ReadBloomFilter() (*ManagedConcurrentBloomFilter, error)
 
 	// ValidateMetadata validates the data and returns an error if the data is corrupted.
 	ValidateMetadata() error
@@ -152,6 +151,14 @@ type fileSetReader interface {
 	MetadataRead() int
 }
 
+// IndexSummary is a summary for an index entry.
+type IndexSummary struct {
+	// IDHash is the hash for the ID.
+	IDHash uint64
+	// DataChecksum is the data checksum
+	DataChecksum int64
+}
+
 // IndexFileSetSummarizer provides an unsynchronized index summarizer for a TSDB file set.
 type IndexFileSetSummarizer interface {
 	fileSetReader
@@ -160,7 +167,33 @@ type IndexFileSetSummarizer interface {
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	// Note: make sure to finalize the ID, and close the Tags when done with them so they can
 	// be returned to their respective pools.
-	ReadMetadata() (id ident.ID, length int, checksum uint32, err error)
+	ReadMetadata() (IndexSummary, error)
+}
+
+// MismatchType indicates the reason for the mismatch.
+type MismatchType uint8
+
+const (
+	// MismatchNone is the default value when there is no mismatch.
+	MismatchNone MismatchType = iota
+	// MismatchMissingInSummary indicates this index was not found in the summary.
+	MismatchMissingInSummary
+	// MismatchOnlyInSummary indicates this index was not found in the fileset.
+	MismatchOnlyInSummary
+	// MismatchChecksumMismatch indicates this index has a different data checksum
+	// between the expected checksum from the summary and the fileset.
+	MismatchChecksumMismatch
+)
+
+// ReadMismatch describes a metric that does not match a given summary,
+// with descriptor of the mismatch.
+type ReadMismatch struct {
+	Type     MismatchType
+	Checksum uint32
+	IDHash   uint64
+	Data     checked.Bytes
+	ID       ident.ID
+	Tags     ident.TagIterator
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set.
@@ -168,16 +201,30 @@ type DataFileSetReader interface {
 	fileSetReader
 
 	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
-	// Use either Read or ReadMetadata to progress through a volume, but not both.
+	// Use either Read or ReadMetadata or ReadMimatch to progress through a volume, but use only that one.
 	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
 	// them so they can be returned to their respective pools.
 	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
-	// Use either Read or ReadMetadata to progress through a volume, but not both.
+	// Use either Read or ReadMetadata or ReadMimatch to progress through a volume, but use only that one.
 	// Note: make sure to finalize the ID, and close the Tags when done with them so they can
 	// be returned to their respective pools.
 	ReadMetadata() (id ident.ID, tags ident.TagIterator, length int, checksum uint32, err error)
+
+	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
+	// This detects any mismatches against given hashed index checksum map in options.IndexSummaryMap.
+	// Use either Read or ReadMetadata or ReadMimatch to progress through a volume, but use only that one.
+	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
+	// them so they can be returned to their respective pools.
+	ReadMismatch() (read ReadMismatch, err error)
+
+	// RemainingMismatches returns any remaining mismatches.
+	RemainingMismatches() []ReadMismatch
+
+	// ReadBloomFilter returns the bloom filter stored on disk in a container object that is safe
+	// for concurrent use and has a Close() method for releasing resources when done.
+	ReadBloomFilter() (*ManagedConcurrentBloomFilter, error)
 
 	// Validate validates both the metadata and data and returns an error if either is corrupted.
 	Validate() error

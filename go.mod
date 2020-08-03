@@ -20,10 +20,12 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/briandowns/spinner v1.11.1 // indirect
 	github.com/c2h5oh/datasize v0.0.0-20171227191756-4eba002a5eae
+	github.com/cespare/xxhash v1.1.0
 	github.com/cespare/xxhash/v2 v2.1.1
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
+	github.com/couchbase/vellum v1.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
@@ -65,6 +67,7 @@ require (
 	github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f
 	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e // indirect
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
+	github.com/m3db/vellum v0.0.0-20190111185746-e766292d14de
 	github.com/m3dbx/pilosa v0.0.0-20200602205121-7f389745e9ab
 	github.com/m3dbx/vellum v0.0.0-20200602203954-e10aaedbd934
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
@@ -97,7 +100,7 @@ require (
 	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
 	github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72
 	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
-	github.com/spf13/cobra v0.0.3
+	github.com/spf13/cobra v0.0.5
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.1
