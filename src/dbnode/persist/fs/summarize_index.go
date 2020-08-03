@@ -22,7 +22,6 @@ package fs
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"time"
@@ -71,7 +70,6 @@ type summarizer struct {
 
 	expectedInfoDigest        uint32
 	expectedIndexDigest       uint32
-	expectedDataDigest        uint32
 	expectedDigestOfDigest    uint32
 	expectedBloomFilterDigest uint32
 	shard                     uint32
@@ -267,7 +265,6 @@ func (r *summarizer) readDigest() error {
 	r.expectedInfoDigest = fsDigests.infoDigest
 	r.expectedIndexDigest = fsDigests.indexDigest
 	r.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
-	r.expectedDataDigest = fsDigests.dataDigest
 
 	return nil
 }
@@ -312,32 +309,11 @@ func (r *summarizer) readIndexAndSortByOffsetAsc() error {
 }
 
 func (r *summarizer) ReadMetadata() (ident.ID, int, uint32, error) {
-	if r.orderedByIndex {
-		return r.readMetadataInIndexedOrder()
-	}
-	return r.readMetadataInStoredOrder()
-}
-
-func (r *summarizer) readMetadataInIndexedOrder() (ident.ID, int, uint32, error) {
 	entry, err := r.decoder.DecodeIndexEntry(nil)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	id := r.entryClonedID(entry.ID)
-	length := int(entry.Size)
-	checksum := uint32(entry.DataChecksum)
-
-	r.metadataRead++
-	return id, length, checksum, nil
-}
-
-func (r *summarizer) readMetadataInStoredOrder() (ident.ID, int, uint32, error) {
-	if r.metadataRead >= r.entries {
-		return nil, 0, 0, io.EOF
-	}
-
-	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
 	id := r.entryClonedID(entry.ID)
 	length := int(entry.Size)
 	checksum := uint32(entry.DataChecksum)
