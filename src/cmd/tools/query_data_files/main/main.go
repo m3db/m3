@@ -21,17 +21,19 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/streaming/downsamplers"
+	"github.com/m3db/m3/src/dbnode/streaming/iterators"
+	"io"
 	"log"
-	"math"
 	"os"
 	"runtime"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/tools"
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/ident"
@@ -57,7 +59,6 @@ func main() {
 		fileSetTypeArg = getopt.StringLong("fileset-type", 'f', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
 
 		iterationCount = getopt.IntLong("iterations", 'i', 50, "Concurrent iteration count")
-		optUseArrow    = getopt.BoolLong("arrow", 'a', "Use arrow")
 	)
 	getopt.Parse()
 
@@ -98,7 +99,6 @@ func main() {
 		fsOpts       = fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
 
 		iterations = *iterationCount
-		useArrow   = *optUseArrow
 		c          = int(*concurrency)
 
 		readStart = time.Now()
@@ -128,114 +128,60 @@ func main() {
 		}
 
 		var (
-			frameSize = xtime.UnixNano(*optTilesize) * xtime.UnixNano(time.Minute)
-			start     = xtime.UnixNano(*optBlockstart)
-			prints    = make([]bool, c)
-			tags      = make([][]string, c)
-			vals      = make([][]float64, 0, c)
+			step  = time.Duration(*optTilesize) * time.Minute
+			start = xtime.UnixNano(*optBlockstart)
+			tags  = make([]string, initValLength)
+			vals  = make([]float64, 0, initValLength)
 		)
 
-		for i := 0; i < c; i++ {
-			vals = append(vals, make([]float64, 0, initValLength))
-			tags = append(tags, make([]string, 0, initValLength))
-		}
+		reader.Open(openOpts)
+		defer reader.Close()
 
-		opts := tile.Options{
-			FrameSize:    frameSize,
-			Start:        start,
-			Concurrency:  c,
-			UseArrow:     useArrow,
-			EncodingOpts: encodingOpts,
-		}
+		bytesReader := bytes.NewReader(nil)
+		dataPointIter := m3tsz.NewReaderIterator(bytesReader, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		downsampler := downsamplers.NewSumDownsampler()
 
-		it, err := tile.NewSeriesBlockIterator(reader, opts)
-		if err != nil {
-			fmt.Println("error creating block iterator", err)
-			return
-		}
+		tags = tags[:0]
 
-		defer func() {
-			if err := it.Close(); err != nil {
-				fmt.Println("iterator close error:", err)
+		for {
+			id, tags, data, _, err := reader.Read()
+			if err == io.EOF {
+				break
 			}
-		}()
-
-		i := 0
-		printNonZero := func() {
-			for j := range prints {
-				if prints[j] {
-					prints[j] = false
-					// idx := (i-1)*c + j
-					// fmt.Printf("%d : %v\n", idx, vals[j])
-					// fmt.Printf("%v\n", tags[j])
-				}
-			}
-		}
-
-		var wg sync.WaitGroup
-		for it.Next() {
-			printNonZero()
-			for i := range vals {
-				vals[i] = vals[i][:0]
+			if err != nil {
+				fmt.Println("error from Reader: ", err)
+				return
 			}
 
-			for i := range tags {
-				tags[i] = tags[i][:0]
+			data.IncRef()
+			bytesReader.Reset(data.Bytes())
+			dataPointIter.Reset(bytesReader, nil)
+			aggregatedIter := iterators.NewStepIterator(dataPointIter, start, step, downsampler)
+
+			vals = vals[:0]
+
+			for aggregatedIter.Next() {
+				dp, _, _ := aggregatedIter.Current()
+				v := dp.Value
+
+				vals = append(vals, v)
 			}
 
-			frameIters := it.Current()
-			for j, frameIter := range frameIters {
-				// NB: capture loop variables.
-				j, frameIter := j, frameIter
-				wg.Add(1)
-				go func() {
-					for frameIter.Next() {
-						frame := frameIter.Current()
-						v := frame.Sum()
-						if v != 0 && !math.IsNaN(v) {
-							prints[j] = true
-						}
-
-						vals[j] = append(vals[j], v)
-						// ts := frame.Tags()
-						// sep := fmt.Sprintf("ID: %s\ntags:", frame.ID().String())
-						// tags[j] = append(tags[j], sep)
-						// for ts.Next() {
-						// 	tag := ts.Current()
-						// 	t := fmt.Sprintf("%s:%s", tag.Name.String(), tag.Value.String())
-						// 	tags[j] = append(tags[j], t)
-						// }
-
-						// unit, single := frame.Units().SingleValue()
-						// annotation, annotationSingle := frame.Annotations().SingleValue()
-						// meta := fmt.Sprintf("\nunit: %v, single: %v\nannotation: %v, single: %v",
-						// 	unit, single, annotation, annotationSingle)
-						// tags[j] = append(tags[j], meta)
-					}
-
-					if err := frameIter.Err(); err != nil {
-						panic(fmt.Sprint("frame error:", err))
-					}
-
-					wg.Done()
-				}()
-			}
-
-			i++
-			wg.Wait()
+			aggregatedIter.Close()
+fmt.Printf("%s %f", id, vals)
+			id.Finalize()
+			tags.Close()
+			data.DecRef()
+			data.Finalize()
 		}
 
-		printNonZero()
-		if err := it.Err(); err != nil {
+		if err := dataPointIter.Err(); err != nil {
 			fmt.Println("series error:", err)
 		}
+
+		dataPointIter.Close()
 	}
 
-	if useArrow {
-		fmt.Printf("Using arrow buffers\nIterations: %d\nConcurrency: %d\nTook: %v\n",
-			iterations, c, time.Since(readStart))
-	} else {
-		fmt.Printf("Using flat buffers\nIterations: %d\nConcurrency: %d\nTook: %v\n",
-			iterations, c, time.Since(readStart))
-	}
+	fmt.Printf("Using step iterator\nIterations: %d\nConcurrency: %d\nTook: %v\n",
+		iterations, c, time.Since(readStart))
 }
