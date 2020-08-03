@@ -1,5 +1,27 @@
 # Changelog
 
+# 0.15.8
+
+## Misc
+
+- **M3DB**: Pause rollout of background cold flush process by revert until further testing ([6830a8cb4](https://github.com/m3db/m3/commit/6830a8cb4))
+
+# 0.15.7
+
+## Performance
+
+- **M3DB**: Background cold flush process to no longer block data snapshotting or commit log rotation ([#2460](https://github.com/m3db/m3/pull/2460))
+- **M3DB**: Validate individual index entries on decode instead of entire file on open, to further improve bootstrap speed ([#2468](https://github.com/m3db/m3/pull/2468))
+
+## Bug Fixes
+
+- **M3DB**: Strict JSON unmarshal (disallow unknown fields) for raw HTTP/JSON DB node APIs ([#2490](https://github.com/m3db/m3/pull/2490))
+- **M3Query**: Fix to regex selectors with leading wildcard ([#2505](https://github.com/m3db/m3/pull/#2505))
+
+## Documentation
+
+- **All**: Links to M3 meetup recordings ([#2494](https://github.com/m3db/m3/pull/2494))
+
 # 0.15.6
 
 ## Features
