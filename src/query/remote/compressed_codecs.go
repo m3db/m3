@@ -73,8 +73,7 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 	}, nil
 }
 
-// CompressedSegmentsFromReaders returns the compressed segments for the readers.
-func CompressedSegmentsFromReaders(
+func compressedSegmentsFromReaders(
 	readers xio.ReaderSliceOfSlicesIterator,
 ) (*rpc.M3Segments, error) {
 	segments := &rpc.M3Segments{}
@@ -128,10 +127,12 @@ func compressedTagsFromTagIterator(
 	return append(make([]byte, 0, len(db)), db...), nil
 }
 
-// BuildTags returns the compressed tag bytes from the tag iterator.
-func BuildTags(tagIter ident.TagIterator, tagEncoderPool serialize.TagEncoderPool) ([]byte, error) {
-	if tagEncoderPool != nil {
-		return compressedTagsFromTagIterator(tagIter, tagEncoderPool)
+func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, error) {
+	if iterPools != nil {
+		encoderPool := iterPools.TagEncoder()
+		if encoderPool != nil {
+			return compressedTagsFromTagIterator(tagIter, encoderPool)
+		}
 	}
 
 	return nil, errors.ErrCannotEncodeCompressedTags
@@ -164,7 +165,7 @@ func CompressedSeriesFromSeriesIterator(
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
 		for next := true; next; next = readers.Next() {
-			segments, err := CompressedSegmentsFromReaders(readers)
+			segments, err := compressedSegmentsFromReaders(readers)
 			if err != nil {
 				return nil, err
 			}
@@ -181,10 +182,7 @@ func CompressedSeriesFromSeriesIterator(
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
-	if iterPools == nil {
-		return nil, errors.ErrCannotEncodeCompressedTags
-	}
-	tags, err := BuildTags(it.Tags(), iterPools.TagEncoder())
+	tags, err := buildTags(it.Tags(), iterPools)
 	if err != nil {
 		return nil, err
 	}

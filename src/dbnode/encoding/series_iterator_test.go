@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -240,8 +241,16 @@ type testConsolidator struct {
 }
 
 func (c *testConsolidator) ConsolidateReplicas(
-	_ []MultiReaderIterator) ([]MultiReaderIterator, error) {
+	_ []MultiReaderIterator,
+) ([]MultiReaderIterator, error) {
 	return c.iters, nil
+}
+
+func (c *testConsolidator) ConsolidateSeries(
+	_ context.Context,
+	iters []SeriesIterator,
+) error {
+	return nil
 }
 
 func TestSeriesIteratorSetSeriesIteratorConsolidator(t *testing.T) {

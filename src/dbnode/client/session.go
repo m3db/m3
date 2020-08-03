@@ -1641,7 +1641,6 @@ func (s *session) fetchIDsAttempt(
 					EndExclusive:               xtime.ToUnixNano(endExclusive),
 					Replicas:                   itersToInclude,
 					SeriesIteratorConsolidator: iterOpts.SeriesIteratorConsolidator,
-					SeriesIteratorInspectFn:    iterOpts.SeriesIteratorInspectFn,
 				})
 				iters.SetAt(idx, iter)
 			}

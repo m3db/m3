@@ -91,16 +91,11 @@ func (s *m3storage) FetchProm(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (storage.PromResult, error) {
-	accumulator, err := s.fetchCompressed(ctx, query, options)
+	result, _, cleanup, err := s.fetchCompressed(ctx, query, options)
 	if err != nil {
 		return storage.PromResult{}, err
 	}
-
-	defer accumulator.Close()
-	result, _, err := accumulator.FinalResultWithAttrs()
-	if err != nil {
-		return storage.PromResult{}, err
-	}
+	defer cleanup()
 
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
 		result,
@@ -184,17 +179,11 @@ func (s *m3storage) FetchCompressed(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (consolidators.SeriesFetchResult, Cleanup, error) {
-	accumulator, err := s.fetchCompressed(ctx, query, options)
+	result, attrs, cleanup, err := s.fetchCompressed(ctx, query, options)
 	if err != nil {
 		return consolidators.SeriesFetchResult{
 			Metadata: block.NewResultMetadata(),
 		}, noop, err
-	}
-
-	result, attrs, err := accumulator.FinalResultWithAttrs()
-	if err != nil {
-		accumulator.Close()
-		return result, noop, err
 	}
 
 	if options.IncludeResolution {
@@ -206,7 +195,7 @@ func (s *m3storage) FetchCompressed(
 		result.Metadata.Resolutions = resolutions
 	}
 
-	return result, accumulator.Close, nil
+	return result, cleanup, nil
 }
 
 // fetches compressed series, returning a MultiFetchResult accumulator
@@ -214,23 +203,23 @@ func (s *m3storage) fetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (consolidators.MultiFetchResult, error) {
+) (consolidators.SeriesFetchResult, []storagemetadata.Attributes, Cleanup, error) {
 	if err := options.BlockType.Validate(); err != nil {
 		// This is an invariant error; should not be able to get to here.
-		return nil, instrument.InvariantErrorf("invalid block type on "+
+		return consolidators.SeriesFetchResult{}, nil, nil, instrument.InvariantErrorf("invalid block type on "+
 			"fetch, got: %v with error %v", options.BlockType, err)
 	}
 
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return consolidators.SeriesFetchResult{}, nil, nil, ctx.Err()
 	default:
 	}
 
 	m3query, err := storage.FetchQueryToM3Query(query, options)
 	if err != nil {
-		return nil, err
+		return consolidators.SeriesFetchResult{}, nil, nil, err
 	}
 
 	// NB(r): Since we don't use a single index we fan out to each
@@ -246,7 +235,7 @@ func (s *m3storage) fetchCompressed(
 		options.RestrictQueryOptions,
 	)
 	if err != nil {
-		return nil, err
+		return consolidators.SeriesFetchResult{}, nil, nil, err
 	}
 
 	if s.logger.Core().Enabled(zapcore.DebugLevel) {
@@ -278,17 +267,17 @@ func (s *m3storage) fetchCompressed(
 		wg   sync.WaitGroup
 	)
 	if len(namespaces) == 0 {
-		return nil, errNoNamespacesConfigured
+		return consolidators.SeriesFetchResult{}, nil, nil, errNoNamespacesConfigured
 	}
 
 	pools, err := namespaces[0].Session().IteratorPools()
 	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve iterator pools: %v", err)
+		return consolidators.SeriesFetchResult{}, nil, nil, fmt.Errorf("unable to retrieve iterator pools: %v", err)
 	}
 
 	matchOpts := s.opts.SeriesConsolidationMatchOptions()
 	tagOpts := s.opts.TagOptions()
-	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts)
+	accumulator := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		wg.Add(1)
@@ -315,7 +304,7 @@ func (s *m3storage) fetchCompressed(
 			blockMeta.Exhaustive = metadata.Exhaustive
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
-			result.Add(iters, blockMeta, namespace.Options().Attributes(), err)
+			accumulator.Add(iters, blockMeta, namespace.Options().Attributes(), err)
 		}()
 	}
 
@@ -324,11 +313,23 @@ func (s *m3storage) fetchCompressed(
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return consolidators.SeriesFetchResult{}, nil, nil, ctx.Err()
 	default:
 	}
 
-	return result, err
+	result, attr, err := accumulator.FinalResultWithAttrs()
+	if err != nil {
+		accumulator.Close()
+		return consolidators.SeriesFetchResult{}, nil, nil, err
+	}
+
+	if consolidator := opts.IterationOptions.SeriesIteratorConsolidator; consolidator != nil {
+		if err := consolidator.ConsolidateSeries(ctx, result.SeriesIterators()); err != nil {
+			return consolidators.SeriesFetchResult{}, nil, nil, err
+		}
+	}
+
+	return result, attr, accumulator.Close, err
 }
 
 func (s *m3storage) SearchSeries(

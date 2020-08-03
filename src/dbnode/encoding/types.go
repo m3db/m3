@@ -21,6 +21,7 @@
 package encoding
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/context"
+	xcontext "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -55,7 +56,7 @@ type Encoder interface {
 	// passed to this method is closed, so to avoid not returning the
 	// encoder's buffer back to the pool when it is completed be sure to call
 	// close on the context eventually.
-	Stream(ctx context.Context) (xio.SegmentReader, bool)
+	Stream(ctx xcontext.Context) (xio.SegmentReader, bool)
 
 	// NumEncoded returns the number of encoded datapoints.
 	NumEncoded() int
@@ -285,11 +286,10 @@ type SeriesIteratorStats struct {
 type SeriesIteratorConsolidator interface {
 	// ConsolidateReplicas consolidates MultiReaderIterator slices.
 	ConsolidateReplicas([]MultiReaderIterator) ([]MultiReaderIterator, error)
-}
 
-// SeriesIteratorInspectFn optionally defines a method
-// for inspecting newly reset series iterator replicas.
-type SeriesIteratorInspectFn func(context.Context, []MultiReaderIterator) error
+	// ConsolidateSeries consolidates SeriesIterator slices.
+	ConsolidateSeries(context.Context, []SeriesIterator) error
+}
 
 // SeriesIteratorOptions is a set of options for using a series iterator.
 type SeriesIteratorOptions struct {
@@ -301,7 +301,6 @@ type SeriesIteratorOptions struct {
 	EndExclusive                  xtime.UnixNano
 	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
 	SeriesIteratorConsolidator    SeriesIteratorConsolidator
-	SeriesIteratorInspectFn       SeriesIteratorInspectFn
 }
 
 // SeriesIterators is a collection of SeriesIterator that can
