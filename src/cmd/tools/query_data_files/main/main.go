@@ -134,7 +134,6 @@ func main() {
 			vals  = make([]float64, 0, initValLength)
 		)
 
-		reader.Open(openOpts)
 		defer reader.Close()
 
 		bytesReader := bytes.NewReader(nil)
@@ -168,7 +167,7 @@ func main() {
 			}
 
 			aggregatedIter.Close()
-fmt.Printf("%s %f", id, vals)
+
 			id.Finalize()
 			tags.Close()
 			data.DecRef()
