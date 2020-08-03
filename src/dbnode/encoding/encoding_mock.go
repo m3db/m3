@@ -25,6 +25,7 @@
 package encoding
 
 import (
+	"context"
 	"io"
 	"reflect"
 	"time"
@@ -34,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/context"
+	context0 "github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -93,7 +94,7 @@ func (mr *MockEncoderMockRecorder) Encode(dp, unit, annotation interface{}) *gom
 }
 
 // Stream mocks base method
-func (m *MockEncoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
+func (m *MockEncoder) Stream(ctx context0.Context) (xio.SegmentReader, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stream", ctx)
 	ret0, _ := ret[0].(xio.SegmentReader)
@@ -1305,6 +1306,20 @@ func (m *MockSeriesIteratorConsolidator) ConsolidateReplicas(arg0 []MultiReaderI
 func (mr *MockSeriesIteratorConsolidatorMockRecorder) ConsolidateReplicas(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateReplicas", reflect.TypeOf((*MockSeriesIteratorConsolidator)(nil).ConsolidateReplicas), arg0)
+}
+
+// ConsolidateSeries mocks base method
+func (m *MockSeriesIteratorConsolidator) ConsolidateSeries(arg0 context.Context, arg1 []SeriesIterator) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConsolidateSeries", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ConsolidateSeries indicates an expected call of ConsolidateSeries
+func (mr *MockSeriesIteratorConsolidatorMockRecorder) ConsolidateSeries(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateSeries", reflect.TypeOf((*MockSeriesIteratorConsolidator)(nil).ConsolidateSeries), arg0, arg1)
 }
 
 // MockSeriesIterators is a mock of SeriesIterators interface
