@@ -169,7 +169,10 @@ func (b bootstrapProcess) Run(
 		idxopts := namespace.Metadata.Options().IndexOptions()
 		dataRanges := b.targetRangesForData(at, ropts)
 		indexRanges := b.targetRangesForIndex(at, ropts, idxopts)
-
+		shardTimeRanges := b.newShardTimeRanges(
+			dataRanges.firstRangeWithPersistTrue.Range,
+			namespace.Shards,
+		)
 		namespacesRunFirst.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
@@ -178,14 +181,14 @@ func (b bootstrapProcess) Run(
 			DataTargetRange:  dataRanges.firstRangeWithPersistTrue,
 			IndexTargetRange: indexRanges.firstRangeWithPersistTrue,
 			DataRunOptions: NamespaceRunOptions{
-				ShardTimeRanges: b.newShardTimeRanges(
-					dataRanges.firstRangeWithPersistTrue.Range, namespace.Shards),
-				RunOptions: dataRanges.firstRangeWithPersistTrue.RunOptions,
+				ShardTimeRanges:       shardTimeRanges,
+				TargetShardTimeRanges: shardTimeRanges.Copy(),
+				RunOptions:            dataRanges.firstRangeWithPersistTrue.RunOptions,
 			},
 			IndexRunOptions: NamespaceRunOptions{
-				ShardTimeRanges: b.newShardTimeRanges(
-					indexRanges.firstRangeWithPersistTrue.Range, namespace.Shards),
-				RunOptions: indexRanges.firstRangeWithPersistTrue.RunOptions,
+				ShardTimeRanges:       shardTimeRanges.Copy(),
+				TargetShardTimeRanges: shardTimeRanges.Copy(),
+				RunOptions:            indexRanges.firstRangeWithPersistTrue.RunOptions,
 			},
 		})
 		namespacesRunSecond.Namespaces.Set(namespace.Metadata.ID(), Namespace{

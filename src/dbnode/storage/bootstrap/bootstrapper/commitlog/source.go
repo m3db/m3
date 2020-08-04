@@ -216,9 +216,11 @@ func (s *commitLogSource) Read(
 		// NB(r): Combine all shard time ranges across data and index
 		// so we can do in one go.
 		shardTimeRanges := result.NewShardTimeRanges()
-		shardTimeRanges.AddRanges(ns.DataRunOptions.ShardTimeRanges)
+		// NB(bodu): Use TargetShardTimeRanges which covers the entire original target shard range
+		// since the commitlog bootstrapper should run for the entire bootstrappable range per shard.
+		shardTimeRanges.AddRanges(ns.DataRunOptions.TargetShardTimeRanges)
 		if ns.Metadata.Options().IndexOptions().Enabled() {
-			shardTimeRanges.AddRanges(ns.IndexRunOptions.ShardTimeRanges)
+			shardTimeRanges.AddRanges(ns.IndexRunOptions.TargetShardTimeRanges)
 		}
 
 		namespaceResults[ns.Metadata.ID().String()] = &readNamespaceResult{
