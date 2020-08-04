@@ -3701,6 +3701,34 @@ func (mr *MockOptionsMockRecorder) PersistManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistManager", reflect.TypeOf((*MockOptions)(nil).PersistManager))
 }
 
+// SetLargeTilesPersistManager mocks base method
+func (m *MockOptions) SetLargeTilesPersistManager(value persist.Manager) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetLargeTilesPersistManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetLargeTilesPersistManager indicates an expected call of SetLargeTilesPersistManager
+func (mr *MockOptionsMockRecorder) SetLargeTilesPersistManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLargeTilesPersistManager", reflect.TypeOf((*MockOptions)(nil).SetLargeTilesPersistManager), value)
+}
+
+// LargeTilesPersistManager mocks base method
+func (m *MockOptions) LargeTilesPersistManager() persist.Manager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LargeTilesPersistManager")
+	ret0, _ := ret[0].(persist.Manager)
+	return ret0
+}
+
+// LargeTilesPersistManager indicates an expected call of LargeTilesPersistManager
+func (mr *MockOptionsMockRecorder) LargeTilesPersistManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LargeTilesPersistManager", reflect.TypeOf((*MockOptions)(nil).LargeTilesPersistManager))
+}
+
 // SetDatabaseBlockRetrieverManager mocks base method
 func (m *MockOptions) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
 	m.ctrl.T.Helper()
