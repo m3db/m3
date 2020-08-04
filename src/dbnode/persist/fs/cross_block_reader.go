@@ -40,6 +40,7 @@ var (
 
 type crossBlockReader struct {
 	dataFileSetReaders []DataFileSetReader
+	activeReadersCount int
 	initialized        bool
 	minHeap            minHeap
 	err                error
@@ -62,20 +63,51 @@ func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (CrossBlockRead
 		previousStart = currentStart
 	}
 
-	return &crossBlockReader{dataFileSetReaders: dataFileSetReaders}, nil
+	return &crossBlockReader{dataFileSetReaders: dataFileSetReaders, activeReadersCount: len(dataFileSetReaders)}, nil
 }
 
-func (r *crossBlockReader) Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error) {
+func (r *crossBlockReader) Read() (id ident.ID, tags ident.TagIterator, datas []checked.Bytes, checksums []uint32, err error) {
 	if !r.initialized {
 		r.initialized = true
 		err := r.init()
 		if err != nil {
-			return nil, nil, nil, 0, err
+			return nil, nil, nil, nil, err
 		}
 	}
 
+	firstEntry, err := r.readOne()
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	datas = make([]checked.Bytes, 0, r.activeReadersCount)
+	checksums = make([]uint32, 0, r.activeReadersCount)
+
+	datas = append(datas, firstEntry.data)
+	checksums = append(checksums, firstEntry.checksum)
+
+	for len(r.minHeap) > 0 && r.minHeap[0].id.Equal(firstEntry.id) {
+		nextEntry, err := r.readOne()
+		if err != nil {
+			// Finalize what was already read:
+			for _, data := range datas {
+				data.DecRef()
+				data.Finalize()
+			}
+			return nil, nil, nil, nil, err
+		}
+		nextEntry.id.Finalize()
+		nextEntry.tags.Close()
+		datas = append(datas, nextEntry.data)
+		checksums = append(checksums, nextEntry.checksum)
+	}
+
+	return firstEntry.id, firstEntry.tags, datas, checksums, nil
+}
+
+func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 	if len(r.minHeap) == 0 {
-		return nil, nil, nil, 0, io.EOF
+		return nil, io.EOF
 	}
 
 	entry := heap.Pop(&r.minHeap).(*minHeapEntry)
@@ -84,14 +116,15 @@ func (r *crossBlockReader) Read() (id ident.ID, tags ident.TagIterator, data che
 		if err == io.EOF {
 			// will no longer read from this one
 			r.dataFileSetReaders[entry.dataFileSetReaderIndex] = nil
+			r.activeReadersCount--
 		} else if err != nil {
-			return nil, nil, nil, 0, err
+			return nil, err
 		} else {
 			heap.Push(&r.minHeap, nextEntry)
 		}
 	}
 
-	return entry.id, entry.tags, entry.data, entry.checksum, nil
+	return entry, nil
 }
 
 func (r *crossBlockReader) init() error {

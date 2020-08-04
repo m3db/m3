@@ -595,9 +595,10 @@ type Segments interface {
 type CrossBlockReader interface {
 	io.Closer
 
-	// Read returns the next id, data, checksum tuple or error, will return io.EOF after all DataFileSetReaders exhausted.
+	// Read returns the next distinct id and tags, plus slices with data and checksums from all blocks corresponding to
+	// the id returned. Returns io.EOF after all DataFileSetReaders exhausted.
 	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
 	// them so they can be returned to their respective pools.
-	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
+	Read() (id ident.ID, tags ident.TagIterator, datas []checked.Bytes, checksums []uint32, err error)
 
 }

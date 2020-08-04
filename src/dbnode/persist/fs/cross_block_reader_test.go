@@ -134,9 +134,8 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 	hadError := false
 	actualCount := 0
 	previousId := ""
-	var previousBlockIndex uint32
 	for {
-		id, tags, data, checksum, err := cbReader.Read()
+		id, tags, datas, checksums, err := cbReader.Read()
 		if err == io.EOF {
 			break
 		}
@@ -148,23 +147,27 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 
 		strId := id.String()
 		id.Finalize()
-		blockIndex := checksum // see the comment above
-		assert.True(t, strId >= previousId, "series must be read in non-decreasing id order")
-		if strId == previousId {
-			assert.True(t, blockIndex >= previousBlockIndex, "same id blocks must be read in temporal order")
-		}
+		assert.True(t, strId > previousId, "series must be read in increasing id order")
 
 		assert.NotNil(t, tags)
 		tags.Close()
 
-		assert.NotNil(t, data)
-		data.DecRef()
-		data.Finalize()
+		assert.Equal(t, len(datas), len(checksums))
+
+		var previousBlockIndex uint32
+		for _, blockIndex := range checksums { // see the comment above
+			assert.True(t, blockIndex >= previousBlockIndex, "same id blocks must be read in temporal order")
+			previousBlockIndex = blockIndex
+		}
+
+		for _, data := range datas {
+			assert.NotNil(t, data)
+			data.DecRef()
+			data.Finalize()
+		}
 
 		previousId = strId
-		previousBlockIndex = blockIndex
-
-		actualCount++
+		actualCount += len(datas)
 	}
 
 	if !hadError {
