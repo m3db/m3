@@ -34,13 +34,16 @@ import (
 )
 
 var (
-	errReaderNotOrderedByIndex = errors.New("CrossBlockReader can only use DataFileSetReaders ordered by index")
-	_ heap.Interface   = (*minHeap)(nil)
+	errReaderNotOrderedByIndex                = errors.New("CrossBlockReader can only use DataFileSetReaders ordered by index")
+	errEmptyReader                            = errors.New("trying to read from empty reader")
+	_                          heap.Interface = (*minHeap)(nil)
 )
 
 type crossBlockReader struct {
 	dataFileSetReaders []DataFileSetReader
-	activeReadersCount int
+	id                 ident.ID
+	tags               ident.TagIterator
+	records            []BlockRecord
 	initialized        bool
 	minHeap            minHeap
 	err                error
@@ -63,51 +66,66 @@ func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (CrossBlockRead
 		previousStart = currentStart
 	}
 
-	return &crossBlockReader{dataFileSetReaders: dataFileSetReaders, activeReadersCount: len(dataFileSetReaders)}, nil
+	return &crossBlockReader{
+		dataFileSetReaders: dataFileSetReaders,
+		records:            make([]BlockRecord, 0, len(dataFileSetReaders)),
+	}, nil
 }
 
-func (r *crossBlockReader) Read() (id ident.ID, tags ident.TagIterator, datas []checked.Bytes, checksums []uint32, err error) {
+func (r *crossBlockReader) Next() bool {
 	if !r.initialized {
-		r.initialized = true
 		err := r.init()
 		if err != nil {
-			return nil, nil, nil, nil, err
+			r.err = err
+			return false
 		}
+	}
+
+	if len(r.minHeap) == 0 {
+		return false
 	}
 
 	firstEntry, err := r.readOne()
 	if err != nil {
-		return nil, nil, nil, nil, err
+		r.err = err
+		return false
 	}
 
-	datas = make([]checked.Bytes, 0, r.activeReadersCount)
-	checksums = make([]uint32, 0, r.activeReadersCount)
+	r.id = firstEntry.id
+	r.tags = firstEntry.tags
 
-	datas = append(datas, firstEntry.data)
-	checksums = append(checksums, firstEntry.checksum)
+	r.records = r.records[:0]
+	r.records = append(r.records, BlockRecord{firstEntry.data, firstEntry.checksum})
 
 	for len(r.minHeap) > 0 && r.minHeap[0].id.Equal(firstEntry.id) {
 		nextEntry, err := r.readOne()
 		if err != nil {
-			// Finalize what was already read:
-			for _, data := range datas {
-				data.DecRef()
-				data.Finalize()
+			// Close the resources that were already read but not returned to the consumer:
+			r.id.Finalize()
+			r.tags.Close()
+			for _, record := range r.records {
+				record.Data.DecRef()
+				record.Data.Finalize()
 			}
-			return nil, nil, nil, nil, err
+			r.records = r.records[:0]
+			r.err = err
+			return false
 		}
 		nextEntry.id.Finalize()
 		nextEntry.tags.Close()
-		datas = append(datas, nextEntry.data)
-		checksums = append(checksums, nextEntry.checksum)
+		r.records = append(r.records, BlockRecord{nextEntry.data, nextEntry.checksum})
 	}
 
-	return firstEntry.id, firstEntry.tags, datas, checksums, nil
+	return true
+}
+
+func (r *crossBlockReader) Current() (ident.ID, ident.TagIterator, []BlockRecord) {
+	return r.id, r.tags, r.records
 }
 
 func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 	if len(r.minHeap) == 0 {
-		return nil, io.EOF
+		return nil, errEmptyReader
 	}
 
 	entry := heap.Pop(&r.minHeap).(*minHeapEntry)
@@ -116,7 +134,6 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 		if err == io.EOF {
 			// will no longer read from this one
 			r.dataFileSetReaders[entry.dataFileSetReaderIndex] = nil
-			r.activeReadersCount--
 		} else if err != nil {
 			return nil, err
 		} else {
@@ -128,6 +145,7 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 }
 
 func (r *crossBlockReader) init() error {
+	r.initialized = true
 	r.minHeap = make([]*minHeapEntry, 0, len(r.dataFileSetReaders))
 
 	for i := range r.dataFileSetReaders {
@@ -169,7 +187,12 @@ func (r *crossBlockReader) readFromDataFileSet(index int) (*minHeapEntry, error)
 	}, nil
 }
 
+func (r *crossBlockReader) Err() error {
+	return r.err
+}
+
 func (r *crossBlockReader) Close() error {
+	// Close the resources that were buffered in minHeap:
 	for _, entry := range r.minHeap {
 		entry.id.Finalize()
 		entry.tags.Close()

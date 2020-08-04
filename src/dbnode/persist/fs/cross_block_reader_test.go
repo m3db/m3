@@ -83,7 +83,8 @@ func TestCrossBlockReader(t *testing.T) {
 		{"many readers with different series", [][]string{{"id1"}, {"id2"}, {"id3"}}},
 		{"many readers with unordered series", [][]string{{"id3"}, {"id1"}, {"id2"}}},
 		{"complex case", [][]string{{"id2", "id3", "id5"}, {"id1", "id2", "id4"}, {"id1", "id4"}}},
-		{"reader error", [][]string{{"id1", "id2"}, {"id1", "error"}}},
+		{"immediate reader error", [][]string{{"error"}}},
+		{"reader error later", [][]string{{"id1", "id2"}, {"id1", "error"}}},
 	}
 
 	for _, tt := range tests {
@@ -131,19 +132,10 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 	require.NoError(t, err)
 	defer cbReader.Close()
 
-	hadError := false
 	actualCount := 0
 	previousId := ""
-	for {
-		id, tags, datas, checksums, err := cbReader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil && err.Error() == expectedError.Error() {
-			hadError = true
-			break
-		}
-		require.NoError(t, err)
+	for cbReader.Next() {
+		id, tags, records := cbReader.Current()
 
 		strId := id.String()
 		id.Finalize()
@@ -152,25 +144,23 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 		assert.NotNil(t, tags)
 		tags.Close()
 
-		assert.Equal(t, len(datas), len(checksums))
-
 		var previousBlockIndex uint32
-		for _, blockIndex := range checksums { // see the comment above
+		for _, record := range records {
+			blockIndex := record.Checksum // see the comment above
 			assert.True(t, blockIndex >= previousBlockIndex, "same id blocks must be read in temporal order")
 			previousBlockIndex = blockIndex
-		}
-
-		for _, data := range datas {
-			assert.NotNil(t, data)
-			data.DecRef()
-			data.Finalize()
+			assert.NotNil(t, record.Data)
+			record.Data.DecRef()
+			record.Data.Finalize()
 		}
 
 		previousId = strId
-		actualCount += len(datas)
+		actualCount += len(records)
 	}
 
-	if !hadError {
+	err = cbReader.Err()
+	if err == nil || err.Error() != expectedError.Error() {
+		require.NoError(t, cbReader.Err())
 		assert.Equal(t, expectedCount, actualCount, "count of series read")
 	}
 }

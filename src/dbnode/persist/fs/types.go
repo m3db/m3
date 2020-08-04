@@ -590,15 +590,25 @@ type Segments interface {
 	BlockStart() time.Time
 }
 
+// BlockRecord wraps together M3TSZ data bytes with their checksum.
+type BlockRecord struct {
+	Data checked.Bytes
+	Checksum uint32
+}
+
 // CrossBlockReader allows reading data (encoded bytes) from multiple DataFileSetReaders of the same shard,
 // ordered by series id first, and block start time next.
 type CrossBlockReader interface {
 	io.Closer
 
-	// Read returns the next distinct id and tags, plus slices with data and checksums from all blocks corresponding to
-	// the id returned. Returns io.EOF after all DataFileSetReaders exhausted.
+	Next() bool
+
+	Err() error
+
+	// Current returns distinct series id and tags, plus a slice with data and checksums from all blocks corresponding
+	// to that series (in temporal order).
 	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
 	// them so they can be returned to their respective pools.
-	Read() (id ident.ID, tags ident.TagIterator, datas []checked.Bytes, checksums []uint32, err error)
+	Current() (ident.ID, ident.TagIterator, []BlockRecord)
 
 }
