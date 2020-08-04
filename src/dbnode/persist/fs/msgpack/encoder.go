@@ -51,43 +51,47 @@ type Encoder struct {
 	encodeBytesFn              encodeBytesFn
 	encodeArrayLenFn           encodeArrayLenFn
 
-	legacy legacyEncodingOptions
+	legacy LegacyEncodingOptions
 }
 
-type legacyEncodingIndexInfoVersion int
+// LegacyEncodingIndexInfoVersion is the encoding/decoding version to use when processing index info files
+type LegacyEncodingIndexInfoVersion int
 
 const (
-	legacyEncodingIndexVersionCurrent                                = legacyEncodingIndexVersionV5
-	legacyEncodingIndexVersionV1      legacyEncodingIndexInfoVersion = iota
-	legacyEncodingIndexVersionV2
-	legacyEncodingIndexVersionV3
-	legacyEncodingIndexVersionV4
-	legacyEncodingIndexVersionV5
+	LegacyEncodingIndexVersionCurrent                                = LegacyEncodingIndexVersionV5
+	LegacyEncodingIndexVersionV1      LegacyEncodingIndexInfoVersion = iota
+	LegacyEncodingIndexVersionV2
+	LegacyEncodingIndexVersionV3
+	LegacyEncodingIndexVersionV4
+	LegacyEncodingIndexVersionV5
 )
 
-type legacyEncodingIndexEntryVersion int
+// LegacyEncodingIndexEntryVersion is the encoding/decoding version to use when processing index entries
+type LegacyEncodingIndexEntryVersion int
 
 const (
-	legacyEncodingIndexEntryVersionCurrent                                 = legacyEncodingIndexEntryVersionV3
-	legacyEncodingIndexEntryVersionV1      legacyEncodingIndexEntryVersion = iota
-	legacyEncodingIndexEntryVersionV2
-	legacyEncodingIndexEntryVersionV3
+	LegacyEncodingIndexEntryVersionCurrent                                 = LegacyEncodingIndexEntryVersionV3
+	LegacyEncodingIndexEntryVersionV1      LegacyEncodingIndexEntryVersion = iota
+	LegacyEncodingIndexEntryVersionV2
+	LegacyEncodingIndexEntryVersionV3
 )
 
-type legacyEncodingOptions struct {
-	encodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
-	decodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
+// LegacyEncodingOptions allows you to specify the version to use when encoding/decoding
+// index info and index files
+type LegacyEncodingOptions struct {
+	EncodeLegacyIndexInfoVersion LegacyEncodingIndexInfoVersion
+	DecodeLegacyIndexInfoVersion LegacyEncodingIndexInfoVersion
 
-	encodeLegacyIndexEntryVersion legacyEncodingIndexEntryVersion
-	decodeLegacyIndexEntryVersion legacyEncodingIndexEntryVersion
+	EncodeLegacyIndexEntryVersion LegacyEncodingIndexEntryVersion
+	DecodeLegacyIndexEntryVersion LegacyEncodingIndexEntryVersion
 }
 
-var defaultlegacyEncodingOptions = legacyEncodingOptions{
-	encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
-	decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
+var defaultlegacyEncodingOptions = LegacyEncodingOptions{
+	EncodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionCurrent,
+	DecodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionCurrent,
 
-	encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent,
-	decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent,
+	EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent,
+	DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent,
 }
 
 // NewEncoder creates a new encoder.
@@ -95,7 +99,13 @@ func NewEncoder() *Encoder {
 	return newEncoder(defaultlegacyEncodingOptions)
 }
 
-func newEncoder(legacy legacyEncodingOptions) *Encoder {
+// NewEncoderWithOptions creates a new encoder with the specified legacy options. Used for testing. Non-testing uses
+// should use NewEncoder unless you have a good reason not to.
+func NewEncoderWithOptions(legacy LegacyEncodingOptions) *Encoder {
+	return newEncoder(legacy)
+}
+
+func newEncoder(legacy LegacyEncodingOptions) *Encoder {
 	buf := bytes.NewBuffer(nil)
 	enc := &Encoder{
 		buf: buf,
@@ -132,14 +142,14 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 		return enc.err
 	}
 	enc.encodeRootObject(indexInfoVersion, indexInfoType)
-	switch enc.legacy.encodeLegacyIndexInfoVersion {
-	case legacyEncodingIndexVersionV1:
+	switch enc.legacy.EncodeLegacyIndexInfoVersion {
+	case LegacyEncodingIndexVersionV1:
 		enc.encodeIndexInfoV1(info)
-	case legacyEncodingIndexVersionV2:
+	case LegacyEncodingIndexVersionV2:
 		enc.encodeIndexInfoV2(info)
-	case legacyEncodingIndexVersionV3:
+	case LegacyEncodingIndexVersionV3:
 		enc.encodeIndexInfoV3(info)
-	case legacyEncodingIndexVersionV4:
+	case LegacyEncodingIndexVersionV4:
 		enc.encodeIndexInfoV4(info)
 	default:
 		enc.encodeIndexInfoV5(info)
@@ -158,10 +168,10 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	checksumStart := enc.buf.Len()
 
 	enc.encodeRootObject(indexEntryVersion, indexEntryType)
-	switch enc.legacy.encodeLegacyIndexEntryVersion {
-	case legacyEncodingIndexEntryVersionV1:
+	switch enc.legacy.EncodeLegacyIndexEntryVersion {
+	case LegacyEncodingIndexEntryVersionV1:
 		enc.encodeIndexEntryV1(entry)
-	case legacyEncodingIndexEntryVersionV2:
+	case LegacyEncodingIndexEntryVersionV2:
 		enc.encodeIndexEntryV2(entry)
 	default:
 		enc.encodeIndexEntryV3(entry, checksumStart)

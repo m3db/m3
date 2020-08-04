@@ -62,7 +62,7 @@ type Decoder struct {
 	err               error
 	allocDecodedBytes bool
 
-	legacy legacyEncodingOptions
+	legacy LegacyEncodingOptions
 }
 
 // NewDecoder creates a new decoder
@@ -70,7 +70,7 @@ func NewDecoder(opts DecodingOptions) *Decoder {
 	return newDecoder(defaultlegacyEncodingOptions, opts)
 }
 
-func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
+func newDecoder(legacy LegacyEncodingOptions, opts DecodingOptions) *Decoder {
 	if opts == nil {
 		opts = NewDecodingOptions()
 	}
@@ -250,23 +250,23 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	var opts checkNumFieldsOptions
 
 	// Overrides only used to test forwards compatibility.
-	switch dec.legacy.decodeLegacyIndexInfoVersion {
-	case legacyEncodingIndexVersionV1:
+	switch dec.legacy.DecodeLegacyIndexInfoVersion {
+	case LegacyEncodingIndexVersionV1:
 		// V1 had 6 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 6
-	case legacyEncodingIndexVersionV2:
+	case LegacyEncodingIndexVersionV2:
 		// V2 had 8 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 8
-	case legacyEncodingIndexVersionV3:
+	case LegacyEncodingIndexVersionV3:
 		// V3 had 9 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 9
-	case legacyEncodingIndexVersionV4:
+	case LegacyEncodingIndexVersionV4:
 		// V4 had 10 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
@@ -287,7 +287,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
 	// At this point if its a V1 file we've decoded all the available fields.
-	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 || actual < 8 {
+	if dec.legacy.DecodeLegacyIndexInfoVersion == LegacyEncodingIndexVersionV1 || actual < 8 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
@@ -297,7 +297,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.FileType = persist.FileSetType(dec.decodeVarint())
 
 	// At this point if its a V2 file we've decoded all the available fields.
-	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 || actual < 9 {
+	if dec.legacy.DecodeLegacyIndexInfoVersion == LegacyEncodingIndexVersionV2 || actual < 9 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
@@ -306,7 +306,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.SnapshotID, _, _ = dec.decodeBytes()
 
 	// At this point if its a V3 file we've decoded all the available fields.
-	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV3 || actual < 10 {
+	if dec.legacy.DecodeLegacyIndexInfoVersion == LegacyEncodingIndexVersionV3 || actual < 10 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
@@ -315,7 +315,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.VolumeIndex = int(dec.decodeVarint())
 
 	// At this point if its a V4 file we've decoded all the available fields.
-	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV4 || actual < 11 {
+	if dec.legacy.DecodeLegacyIndexInfoVersion == LegacyEncodingIndexVersionV4 || actual < 11 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
@@ -358,22 +358,22 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 
 func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
 	var opts checkNumFieldsOptions
-	switch dec.legacy.decodeLegacyIndexEntryVersion {
-	case legacyEncodingIndexEntryVersionV1:
+	switch dec.legacy.DecodeLegacyIndexEntryVersion {
+	case LegacyEncodingIndexEntryVersionV1:
 		// V1 had 5 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 5
 		opts.numExpectedCurrFields = 5
-	case legacyEncodingIndexEntryVersionV2:
+	case LegacyEncodingIndexEntryVersionV2:
 		// V2 had 6 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 5
 		opts.numExpectedCurrFields = 6
-	case legacyEncodingIndexEntryVersionCurrent:
+	case LegacyEncodingIndexEntryVersionCurrent:
 		// V3 is current version, no overrides needed
 		break
 	default:
-		dec.err = fmt.Errorf("invalid legacyEncodingIndexEntryVersion provided: %v", dec.legacy.decodeLegacyIndexEntryVersion)
+		dec.err = fmt.Errorf("invalid legacyEncodingIndexEntryVersion provided: %v", dec.legacy.DecodeLegacyIndexEntryVersion)
 		return emptyIndexEntry
 	}
 
@@ -396,7 +396,7 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	indexEntry.DataChecksum = dec.decodeVarint()
 
 	// At this point, if its a V1 file, we've decoded all the available fields.
-	if dec.legacy.decodeLegacyIndexEntryVersion == legacyEncodingIndexEntryVersionV1 || actual < 6 {
+	if dec.legacy.DecodeLegacyIndexEntryVersion == LegacyEncodingIndexEntryVersionV1 || actual < 6 {
 		dec.skip(numFieldsToSkip)
 		return indexEntry
 	}
@@ -409,7 +409,7 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	}
 
 	// At this point, if its a V2 file, we've decoded all the available fields.
-	if dec.legacy.decodeLegacyIndexEntryVersion == legacyEncodingIndexEntryVersionV2 || actual < 7 {
+	if dec.legacy.DecodeLegacyIndexEntryVersion == LegacyEncodingIndexEntryVersionV2 || actual < 7 {
 		dec.skip(numFieldsToSkip)
 		return indexEntry
 	}
