@@ -193,8 +193,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -269,8 +269,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -326,8 +326,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -1787,7 +1787,8 @@ func TestAggregateTiles(t *testing.T) {
 			BlockStart:  opts.Start,
 			VolumeIndex: latestSourceVolume,
 		},
-		FileSetType: persist.FileSetFlushType,
+		FileSetType:    persist.FileSetFlushType,
+		OrderedByIndex: true,
 	}
 
 	buildBytes := func() checked.Bytes {
