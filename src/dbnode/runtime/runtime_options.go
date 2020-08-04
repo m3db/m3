@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -67,6 +68,7 @@ type options struct {
 	writeNewSeriesAsync                  bool
 	writeNewSeriesBackoffDuration        time.Duration
 	writeNewSeriesLimitPerShardPerSecond int
+	encodersPerBlockLimit                *atomic.Uint32
 	tickSeriesBatchSize                  int
 	tickPerSeriesSleepDuration           time.Duration
 	tickMinimumInterval                  time.Duration
@@ -158,6 +160,16 @@ func (o *options) SetWriteNewSeriesLimitPerShardPerSecond(value int) Options {
 
 func (o *options) WriteNewSeriesLimitPerShardPerSecond() int {
 	return o.writeNewSeriesLimitPerShardPerSecond
+}
+
+func (o *options) SetEncodersPerBlockLimit(value int) Options {
+	opts := *o
+	opts.encodersPerBlockLimit.Store(uint32(value))
+	return &opts
+}
+
+func (o *options) EncodersPerBlockLimit() int {
+	return int(o.encodersPerBlockLimit.Load())
 }
 
 func (o *options) SetTickSeriesBatchSize(value int) Options {
