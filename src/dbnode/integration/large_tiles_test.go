@@ -131,20 +131,15 @@ func TestReadAggregateWrite(t *testing.T) {
 		time.Sleep(time.Second)
 	}
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), processedBlockCount)
+	assert.Equal(t, int64(2), processedBlockCount)
 
 	log.Info("fetching aggregated data")
 	series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
 	require.NoError(t, err)
 
-	expectedDps := make(map[int64]float64)
-	// TODO: Replace with exact values when aggregation will be implemented.
-	timestamp := dpTimeStart
-	// TODO: now we aggregate only a single block, that's why we do expect
-	// 12 items in place of 20
-	for a := 0; a < 12; a++ {
-		expectedDps[timestamp.Unix()] = 42.1 + float64(a)
-		timestamp = timestamp.Add(10 * time.Minute)
+	expectedDps := map[int64]float64{
+		dpTimeStart.Add(50 * time.Minute).Unix():  47.1,
+		dpTimeStart.Add(110 * time.Minute).Unix(): 53.1,
 	}
 
 	count := 0
