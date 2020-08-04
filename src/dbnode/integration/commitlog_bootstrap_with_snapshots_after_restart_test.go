@@ -101,8 +101,13 @@ func TestCommitLogBootstrapWithSnapshotsAfterRestart(t *testing.T) {
 
 	// Stop and restart server to allow bootstrapping from commit logs.
 	require.NoError(t, setup.StopServer())
-	// Setup bootstrapper after writing data so filesystem inspection can find it.
-	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
+	// Setup commitlog bootstrapper after writing data so filesystem inspection can find it.
+	require.NoError(t, setup.InitializeBootstrappers(InitializeBootstrappersOptions{
+		CommitLogOptions: commitLogOpts,
+		WithCommitLog:    true,
+		// Also setup fs bootstrapper to be ensure correct behaviour on restart w/ fs bootstrapper enabled.
+		WithFileSystem: true,
+	}))
 	require.NoError(t, setup.StartServer())
 	log.Debug("server restarted")
 

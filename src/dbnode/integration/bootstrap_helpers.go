@@ -26,15 +26,11 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
-	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/x/context"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -140,30 +136,12 @@ func (t testBootstrapperSource) String() string {
 }
 
 func setupCommitLogBootstrapperWithFSInspection(
-	t *testing.T, setup TestSetup, commitLogOpts commitlog.Options) {
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.StorageOpts())
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts).
-		SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
-	bs, err := bcl.NewCommitLogBootstrapperProvider(
-		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
-	require.NoError(t, err)
-	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(setup).
-		SetOrigin(setup.Origin())
-	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
-	require.NoError(t, err)
-	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(process))
-}
-
-func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {
-	inspection, err := fs.InspectFilesystem(fsOpts)
-	if err != nil {
-		panic(err)
-	}
-
-	return inspection
+	t *testing.T,
+	setup TestSetup,
+	commitLogOpts commitlog.Options,
+) {
+	require.NoError(t, setup.InitializeBootstrappers(InitializeBootstrappersOptions{
+		CommitLogOptions: commitLogOpts,
+		WithCommitLog:    true,
+	}))
 }
