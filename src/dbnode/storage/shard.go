@@ -24,6 +24,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"go.uber.org/atomic"
 	"io"
 	"math"
 	osruntime "runtime"
@@ -2553,10 +2554,10 @@ func (s *dbShard) AggregateTiles(
 	sourceShard databaseShard,
 	opts AggregateTilesOptions,
 	wOpts series.WriteOptions,
-) error {
+) (int64, error) {
 	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	openOpts := fs.DataReaderOpenOptions{
@@ -2569,12 +2570,15 @@ func (s *dbShard) AggregateTiles(
 		FileSetType: persist.FileSetFlushType,
 	}
 	if err := reader.Open(openOpts); err != nil {
-		return err
+		return 0, err
 	}
 	defer reader.Close()
 
 	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
+
 	concurrency := osruntime.NumCPU()
+	// TODO: fix it. concurrency currently raises panics
+	concurrency = 1
 	tileOpts := tile.Options{
 		FrameSize:    xtime.UnixNano(opts.Step.Nanoseconds()),
 		Start:        xtime.ToUnixNano(opts.Start),
@@ -2585,7 +2589,7 @@ func (s *dbShard) AggregateTiles(
 
 	readerIter, err := tile.NewSeriesBlockIterator(reader, tileOpts)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	closed := false
@@ -2599,9 +2603,10 @@ func (s *dbShard) AggregateTiles(
 	}()
 
 	var (
-		multiErr xerrors.MultiError
-		wg       sync.WaitGroup
-		mu       sync.Mutex
+		processedBlockCount atomic.Int64
+		multiErr            xerrors.MultiError
+		wg                  sync.WaitGroup
+		mu                  sync.Mutex
 	)
 
 	for readerIter.Next() {
@@ -2638,7 +2643,7 @@ func (s *dbShard) AggregateTiles(
 							multiErr = multiErr.Add(err)
 							mu.Unlock()
 						}
-
+						processedBlockCount.Inc()
 					}
 				}
 
@@ -2658,7 +2663,11 @@ func (s *dbShard) AggregateTiles(
 		multiErr = multiErr.Add(err)
 	}
 
-	return multiErr.FinalError()
+	s.logger.Debug("finished aggregating tiles",
+		zap.Uint32("shard", s.ID()),
+		zap.Int64("processedBlocks", processedBlockCount.Load()))
+
+	return processedBlockCount.Load(), multiErr.FinalError()
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

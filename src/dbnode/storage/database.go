@@ -1063,7 +1063,12 @@ func (d *db) OwnedNamespaces() ([]databaseNamespace, error) {
 	return d.ownedNamespacesWithLock(), nil
 }
 
-func (d *db) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error {
+func (d *db) AggregateTiles(
+	ctx context.Context,
+	sourceNsID,
+	targetNsID ident.ID,
+	opts AggregateTilesOptions,
+) (int64, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
@@ -1079,13 +1084,13 @@ func (d *db) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID
 	sourceNs, err := d.namespaceFor(sourceNsID)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return err
+		return 0, err
 	}
 
 	targetNs, err := d.namespaceFor(targetNsID)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return err
+		return 0, err
 	}
 
 	// TODO: Create and use a dedicated persist manager
@@ -1135,4 +1140,16 @@ func (m metadatas) String() (string, error) {
 	}
 	buf.WriteRune(']')
 	return buf.String(), nil
+}
+
+func NewAggregateTilesOptions(start, end time.Time, step time.Duration) (AggregateTilesOptions, error) {
+	if !end.After(start) {
+		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
+	}
+
+	if step <= 0 {
+		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
+	}
+
+	return AggregateTilesOptions{Start: start, End: end, Step: step}, nil
 }
