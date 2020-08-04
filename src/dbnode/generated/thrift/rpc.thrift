@@ -504,6 +504,7 @@ struct AggregateTilesRequest {
 }
 
 struct AggregateTilesResult {
+    1: required i64 processedBlockCount
 }
 
 struct DebugProfileStartRequest {

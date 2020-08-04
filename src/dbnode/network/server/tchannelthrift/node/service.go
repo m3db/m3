@@ -546,6 +546,8 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 	defer s.writeRPCCompleted()
 
 	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.AggregateTiles)
+	defer sp.Finish()
+
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("sourceNameSpace", req.SourceNameSpace),
@@ -556,34 +558,39 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 		)
 	}
 
-	err = s.aggregateTiles(ctx, db, req)
-	if sampled && err != nil {
+	processedBlockCount, err := s.aggregateTiles(ctx, db, req)
+	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
-	sp.Finish()
 
-	return &rpc.AggregateTilesResult_{}, err
+	return &rpc.AggregateTilesResult_{
+		ProcessedBlockCount: processedBlockCount,
+	}, err
 }
 
-func (s *service) aggregateTiles(ctx context.Context, db storage.Database, req *rpc.AggregateTilesRequest) error {
+func (s *service) aggregateTiles(
+	ctx context.Context,
+	db storage.Database,
+	req *rpc.AggregateTilesRequest,
+) (int64, error) {
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	step, stepErr := time.ParseDuration(req.Step)
-	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil {
-		return tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr, stepErr))
+	opts, optsErr := storage.NewAggregateTilesOptions(start, end, step)
+	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil || optsErr != nil {
+		multiErr := xerrors.NewMultiError().Add(rangeStartErr).Add(rangeEndErr).Add(stepErr).Add(optsErr)
+		return 0, tterrors.NewBadRequestError(multiErr.FinalError())
 	}
 
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
 	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
 
-	opts := storage.AggregateTilesOptions{Start: start, End: end, Step: step}
-
-	err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
+	processedBlockCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {
-		return convert.ToRPCError(err)
+		return processedBlockCount, convert.ToRPCError(err)
 	}
 
-	return nil
+	return processedBlockCount, nil
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {

@@ -1757,8 +1757,10 @@ func TestAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		ctx        = context.NewContext()
-		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+		ctx   = context.NewContext()
+		start = time.Now().Truncate(time.Hour)
+		opts  = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
+		bytes = checked.NewBytes([]byte{}, checked.NewBytesOptions())
 	)
 
 	sourceShard := testDatabaseShard(t, DefaultTestOptions())
@@ -1783,11 +1785,11 @@ func TestAggregateTiles(t *testing.T) {
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(readerOpenOpts).Return(nil)
-	reader.EXPECT().Read().
-		Return(ident.StringID("id1"), ident.EmptyTagIterator, checked.NewMockBytes(ctrl), uint32(11), nil).
-		Return(nil, nil, nil, uint32(0), io.EOF)
+	reader.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, bytes, uint32(11), nil)
+	reader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
 	reader.EXPECT().Close()
 
-	err = targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, opts, series.WriteOptions{})
+	processedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, opts, series.WriteOptions{})
 	require.NoError(t, err)
+	assert.Equal(t, int64(1), processedBlockCount)
 }
