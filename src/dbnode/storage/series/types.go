@@ -372,16 +372,21 @@ type Options interface {
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
 type Stats struct {
-	encoderCreated tally.Counter
-	coldWrites     tally.Counter
+	encoderCreated   tally.Counter
+	coldWrites       tally.Counter
+	encodersPerBlock tally.Histogram
 }
 
 // NewStats returns a new Stats for the provided scope.
 func NewStats(scope tally.Scope) Stats {
 	subScope := scope.SubScope("series")
+
+	buckets := append(tally.ValueBuckets{0},
+		tally.MustMakeExponentialValueBuckets(1, 2, 20)...)
 	return Stats{
-		encoderCreated: subScope.Counter("encoder-created"),
-		coldWrites:     subScope.Counter("cold-writes"),
+		encoderCreated:   subScope.Counter("encoder-created"),
+		coldWrites:       subScope.Counter("cold-writes"),
+		encodersPerBlock: subScope.Histogram("encoders-per-block", buckets),
 	}
 }
 
@@ -393,6 +398,11 @@ func (s Stats) IncCreatedEncoders() {
 // IncColdWrites incs the ColdWrites stat.
 func (s Stats) IncColdWrites() {
 	s.coldWrites.Inc(1)
+}
+
+// RecordEncodersPerBlock records the number of encoders histogram.
+func (s Stats) RecordEncodersPerBlock(num int) {
+	s.encodersPerBlock.RecordValue(float64(num))
 }
 
 // WriteType is an enum for warm/cold write types.
