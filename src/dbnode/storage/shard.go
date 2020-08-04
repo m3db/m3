@@ -2569,7 +2569,8 @@ func (s *dbShard) AggregateTiles(
 			BlockStart:  opts.Start,
 			VolumeIndex: latestSourceVolume,
 		},
-		FileSetType: persist.FileSetFlushType,
+		FileSetType:    persist.FileSetFlushType,
+		OrderedByIndex: true,
 	}
 	if err := reader.Open(openOpts); err != nil {
 		return 0, err
