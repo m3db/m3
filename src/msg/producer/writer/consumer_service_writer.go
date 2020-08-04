@@ -124,7 +124,8 @@ func newConsumerServiceWriter(
 	numShards uint32,
 	opts Options,
 ) (consumerServiceWriter, error) {
-	ps, err := opts.ServiceDiscovery().PlacementService(cs.ServiceID(), nil)
+	ps, err := opts.ServiceDiscovery().
+		PlacementService(cs.ServiceID(), opts.PlacementOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +162,7 @@ func initShardWriters(
 		sws = make([]shardWriter, numberOfShards)
 		m   = newMessageWriterMetrics(
 			opts.InstrumentOptions().MetricsScope(),
-			opts.InstrumentOptions().MetricsSamplingRate(),
+			opts.InstrumentOptions().TimerOptions(),
 		)
 		mPool messagePool
 	)
@@ -215,7 +216,8 @@ func (w *consumerServiceWriterImpl) Init(t initType) error {
 		SetInstrumentOptions(w.opts.InstrumentOptions()).
 		SetNewUpdatableFn(updatableFn).
 		SetGetUpdateFn(getFn).
-		SetProcessFn(w.processFn)
+		SetProcessFn(w.processFn).
+		SetKey(w.opts.TopicName())
 	w.value = watch.NewValue(vOptions)
 	err := w.value.Watch()
 	if err == nil {

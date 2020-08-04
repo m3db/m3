@@ -2,7 +2,12 @@
 
 set -xe
 
-source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+TEST_PATH=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests
+FANOUT_PATH=$TEST_PATH/query_fanout
+source $TEST_PATH/common.sh
+source $FANOUT_PATH/warning.sh
+source $FANOUT_PATH/restrict.sh
+
 REVISION=$(git rev-parse HEAD)
 COMPOSE_FILE=$GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/query_fanout/docker-compose.yml
 export REVISION
@@ -106,7 +111,7 @@ curl -vvvsS -X POST 0.0.0.0:29003/writetagged -d '{
 
 function read {
   RESPONSE=$(curl "http://0.0.0.0:7201/api/v1/query?query=test_metric")
-  ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.cluster)
+  ACTUAL=$(echo $RESPONSE | jq .data.result[].metric.cluster | sort)
   test "$(echo $ACTUAL)" = '"cluster-a" "cluster-b" "cluster-c"'
 }
 
@@ -211,3 +216,9 @@ function complete_tags {
 }
 
 ATTEMPTS=5 TIMEOUT=1 retry_with_backoff complete_tags
+
+echo "running fanout warning tests"
+test_fanout_warnings
+
+echo "running restrict tests"
+test_restrictions

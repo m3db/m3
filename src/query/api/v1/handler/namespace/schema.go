@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"fmt"
 	"net/http"
 	"path"
 
@@ -28,14 +29,15 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
-	"fmt"
 )
 
 var (
@@ -44,7 +46,6 @@ var (
 
 	// SchemaDeployHTTPMethod is the HTTP method used to append to this resource.
 	SchemaDeployHTTPMethod = http.MethodPost
-
 )
 
 // SchemaHandler is the handler for namespace schema upserts.
@@ -54,13 +55,23 @@ type SchemaHandler Handler
 var newAdminService = kvadmin.NewAdminService
 
 // NewSchemaHandler returns a new instance of SchemaHandler.
-func NewSchemaHandler(client clusterclient.Client) *SchemaHandler {
-	return &SchemaHandler{client: client}
+func NewSchemaHandler(
+	client clusterclient.Client,
+	instrumentOpts instrument.Options,
+) *SchemaHandler {
+	return &SchemaHandler{
+		client:         client,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
-func (h *SchemaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *SchemaHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
@@ -69,7 +80,7 @@ func (h *SchemaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
 	resp, err := h.Add(md, opts)
 	if err != nil {
 		if err == kv.ErrNotFound || xerrors.InnerError(err) == kv.ErrNotFound {
@@ -102,14 +113,13 @@ func (h *SchemaHandler) parseRequest(r *http.Request) (*admin.NamespaceSchemaAdd
 }
 
 // Add adds schema to an existing namespace.
-func (h *SchemaHandler) Add(addReq *admin.NamespaceSchemaAddRequest, opts handler.ServiceOptions) (admin.NamespaceSchemaAddResponse, error) {
+func (h *SchemaHandler) Add(
+	addReq *admin.NamespaceSchemaAddRequest,
+	opts handleroptions.ServiceOptions,
+) (admin.NamespaceSchemaAddResponse, error) {
 	var emptyRep = admin.NamespaceSchemaAddResponse{}
 
-	kvOpts := kv.NewOverrideOptions().
-		SetEnvironment(opts.ServiceEnvironment).
-		SetZone(opts.ServiceZone)
-
-	store, err := h.client.Store(kvOpts)
+	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
 		return emptyRep, err
 	}
@@ -126,13 +136,23 @@ func (h *SchemaHandler) Add(addReq *admin.NamespaceSchemaAddRequest, opts handle
 type SchemaResetHandler Handler
 
 // NewSchemaResetHandler returns a new instance of SchemaHandler.
-func NewSchemaResetHandler(client clusterclient.Client) *SchemaResetHandler {
-	return &SchemaResetHandler{client: client}
+func NewSchemaResetHandler(
+	client clusterclient.Client,
+	instrumentOpts instrument.Options,
+) *SchemaResetHandler {
+	return &SchemaResetHandler{
+		client:         client,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
-func (h *SchemaResetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *SchemaResetHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOpts)
 
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
@@ -141,7 +161,7 @@ func (h *SchemaResetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handler.NewServiceOptions("kv", r.Header, nil)
+	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
 	resp, err := h.Reset(md, opts)
 	if err != nil {
 		if err == kv.ErrNotFound || xerrors.InnerError(err) == kv.ErrNotFound {
@@ -174,17 +194,16 @@ func (h *SchemaResetHandler) parseRequest(r *http.Request) (*admin.NamespaceSche
 }
 
 // Reset resets schema for an existing namespace.
-func (h *SchemaResetHandler) Reset(addReq *admin.NamespaceSchemaResetRequest, opts handler.ServiceOptions) (*admin.NamespaceSchemaResetResponse, error) {
+func (h *SchemaResetHandler) Reset(
+	addReq *admin.NamespaceSchemaResetRequest,
+	opts handleroptions.ServiceOptions,
+) (*admin.NamespaceSchemaResetResponse, error) {
 	var emptyRep = admin.NamespaceSchemaResetResponse{}
 	if !opts.Force {
 		return &emptyRep, fmt.Errorf("CAUTION! Reset schema will prevent proto-enabled namespace from loading, proceed if you know what you are doing, please retry with force set to true")
 	}
 
-	kvOpts := kv.NewOverrideOptions().
-		SetEnvironment(opts.ServiceEnvironment).
-		SetZone(opts.ServiceZone)
-
-	store, err := h.client.Store(kvOpts)
+	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
 		return &emptyRep, err
 	}

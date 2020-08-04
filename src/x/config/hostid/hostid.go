@@ -23,11 +23,13 @@
 package hostid
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -72,6 +74,9 @@ type Configuration struct {
 
 	// File is the file config.
 	File *FileConfig `yaml:"file"`
+
+	// Hostname is the hostname config.
+	Hostname *HostnameConfig `yaml:"hostname"`
 }
 
 // FileConfig contains the info needed to construct a FileResolver.
@@ -83,17 +88,30 @@ type FileConfig struct {
 	Timeout *time.Duration `yaml:"timeout"`
 }
 
+// HostnameConfig contains the info needed to construct a HostnameConfig.
+type HostnameConfig struct {
+	// Format is a custom format to use, using go templates.
+	// i.e. Using the M3DB operator if using no ID based on the disk
+	// you can format it how the operator would expect:
+	// '{"name":"{{.Hostname}}"}'
+	Format string `yaml:"format"`
+}
+
 func (c Configuration) resolver() (IDResolver, error) {
 	switch c.Resolver {
 	case HostnameResolver:
-		return hostnameResolver{}, nil
+		var format string
+		if c.Hostname != nil {
+			format = c.Hostname.Format
+		}
+		return hostnameResolver{format: format}, nil
 	case ConfigResolver:
 		return &configResolver{value: c.Value}, nil
 	case EnvironmentResolver:
 		return &environmentResolver{envVarName: c.EnvVarName}, nil
 	case FileResolver:
 		if c.File == nil {
-			return nil, errors.New("file config cannot be nil")
+			return nil, errors.New("file resolver requires config, cannot be nil")
 		}
 		return &file{
 			path:    c.File.Path,
@@ -113,10 +131,35 @@ func (c Configuration) Resolve() (string, error) {
 	return r.ID()
 }
 
-type hostnameResolver struct{}
+type hostnameResolver struct {
+	format string
+}
 
-func (hostnameResolver) ID() (string, error) {
-	return os.Hostname()
+func (h hostnameResolver) ID() (string, error) {
+	v, err := os.Hostname()
+	if err != nil {
+		return "", err
+	}
+
+	if h.format == "" {
+		return v, nil
+	}
+
+	tmpl, err := template.New("format").Parse(h.format)
+	if err != nil {
+		return "", fmt.Errorf("problem parsing host resolver template: %v", err)
+	}
+
+	buff := bytes.NewBuffer(nil)
+	if err := tmpl.Execute(buff, struct {
+		Hostname string
+	}{
+		Hostname: v,
+	}); err != nil {
+		return "", fmt.Errorf("problem executing host resolver template: %v", err)
+	}
+
+	return buff.String(), nil
 }
 
 type configResolver struct {

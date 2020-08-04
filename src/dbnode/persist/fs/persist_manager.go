@@ -35,7 +35,7 @@ import (
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/ident"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
@@ -92,6 +92,8 @@ type persistManager struct {
 	slept        time.Duration
 
 	metrics persistManagerMetrics
+
+	runtimeOptsListener xclose.SimpleCloser
 }
 
 type dataPersistManager struct {
@@ -165,7 +167,9 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter()
+
+	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter(
+		opts.FSTWriterOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +194,8 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 	}
 	pm.indexPM.newReaderFn = NewIndexReader
 	pm.indexPM.newPersistentSegmentFn = m3ninxpersist.NewSegment
-	opts.RuntimeOptionsManager().RegisterListener(pm)
+	pm.runtimeOptsListener = opts.RuntimeOptionsManager().RegisterListener(pm)
+
 	return pm, nil
 }
 
@@ -269,10 +274,11 @@ func (pm *persistManager) PrepareIndex(opts persist.IndexPrepareOptions) (persis
 	}
 	blockSize := nsMetadata.Options().IndexOptions().BlockSize()
 	idxWriterOpts := IndexWriterOpenOptions{
-		BlockSize:   blockSize,
-		FileSetType: opts.FileSetType,
-		Identifier:  fileSetID,
-		Shards:      opts.Shards,
+		BlockSize:       blockSize,
+		FileSetType:     opts.FileSetType,
+		Identifier:      fileSetID,
+		Shards:          opts.Shards,
+		IndexVolumeType: opts.IndexVolumeType,
 	}
 
 	// create writer for required fileset file.
@@ -416,14 +422,19 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 		return prepared, errPersistManagerCannotPrepareDataNotPersisting
 	}
 
-	exists, err := pm.dataFilesetExistsAt(opts)
+	exists, err := pm.dataFilesetExists(opts)
 	if err != nil {
 		return prepared, err
 	}
 
 	var volumeIndex int
-	if opts.FileSetType == persist.FileSetSnapshotType {
-		// Need to work out the volume index for the next snapshot
+	switch opts.FileSetType {
+	case persist.FileSetFlushType:
+		// Use the volume index passed in. This ensures that the volume index is
+		// the same as the cold flush version.
+		volumeIndex = opts.VolumeIndex
+	case persist.FileSetSnapshotType:
+		// Need to work out the volume index for the next snapshot.
 		volumeIndex, err = NextSnapshotFileSetVolumeIndex(pm.opts.FilePathPrefix(),
 			nsMetadata.ID(), shard, blockStart)
 		if err != nil {
@@ -453,7 +464,7 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 	}
 
 	if exists && opts.DeleteIfExists {
-		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
+		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart, volumeIndex)
 		if err != nil {
 			return prepared, err
 		}
@@ -480,13 +491,13 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 
 	prepared.Persist = pm.persist
 	prepared.Close = pm.closeData
+	prepared.DeferClose = pm.deferCloseData
 
 	return prepared, nil
 }
 
 func (pm *persistManager) persist(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	segment ts.Segment,
 	checksum uint32,
 ) error {
@@ -518,7 +529,7 @@ func (pm *persistManager) persist(
 
 	pm.dataPM.segmentHolder[0] = segment.Head
 	pm.dataPM.segmentHolder[1] = segment.Tail
-	err := pm.dataPM.writer.WriteAll(id, tags, pm.dataPM.segmentHolder, checksum)
+	err := pm.dataPM.writer.WriteAll(metadata, pm.dataPM.segmentHolder, checksum)
 	pm.count++
 	pm.bytesWritten += int64(segment.Len())
 
@@ -532,6 +543,10 @@ func (pm *persistManager) persist(
 
 func (pm *persistManager) closeData() error {
 	return pm.dataPM.writer.Close()
+}
+
+func (pm *persistManager) deferCloseData() (persist.DataCloser, error) {
+	return pm.dataPM.writer.DeferClose()
 }
 
 // DoneFlush is called by the databaseFlushManager to finish the data persist process.
@@ -587,6 +602,11 @@ func (pm *persistManager) DoneSnapshot(
 	return pm.doneShared()
 }
 
+// Close all resources.
+func (pm *persistManager) Close() {
+	pm.runtimeOptsListener.Close()
+}
+
 func (pm *persistManager) doneShared() error {
 	// Emit timing metrics
 	pm.metrics.writeDurationMs.Update(float64(pm.worked / time.Millisecond))
@@ -598,20 +618,25 @@ func (pm *persistManager) doneShared() error {
 	return nil
 }
 
-func (pm *persistManager) dataFilesetExistsAt(prepareOpts persist.DataPrepareOptions) (bool, error) {
+func (pm *persistManager) dataFilesetExists(prepareOpts persist.DataPrepareOptions) (bool, error) {
 	var (
-		blockStart = prepareOpts.BlockStart
-		shard      = prepareOpts.Shard
 		nsID       = prepareOpts.NamespaceMetadata.ID()
+		shard      = prepareOpts.Shard
+		blockStart = prepareOpts.BlockStart
+		volume     = prepareOpts.VolumeIndex
 	)
 
 	switch prepareOpts.FileSetType {
 	case persist.FileSetSnapshotType:
-		// Snapshot files are indexed (multiple per block-start), so checking if the file
-		// already exist doesn't make much sense
+		// Checking if a snapshot file exists for a block start doesn't make
+		// sense in this context because the logic for creating new snapshot
+		// files does not use the volume index provided in the prepareOpts.
+		// Instead, the new volume index is determined by looking at what files
+		// exist on disk. This means that there can never be a conflict when
+		// trying to write new snapshot files.
 		return false, nil
 	case persist.FileSetFlushType:
-		return DataFileSetExistsAt(pm.filePathPrefix, nsID, shard, blockStart)
+		return DataFileSetExists(pm.filePathPrefix, nsID, shard, blockStart, volume)
 	default:
 		return false, fmt.Errorf(
 			"unable to determine if fileset exists in persist manager for fileset type: %s",

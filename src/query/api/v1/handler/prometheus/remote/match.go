@@ -26,10 +26,15 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -40,37 +45,38 @@ const (
 )
 
 var (
-	// PromSeriesMatchHTTPMethods are the HTTP methods used with this resource.
+	// PromSeriesMatchHTTPMethods are the HTTP methods for this handler.
 	PromSeriesMatchHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
-// PromSeriesMatchHandler represents a handler for prometheus series matcher endpoint.
+// PromSeriesMatchHandler represents a handler for
+// the prometheus series matcher endpoint.
 type PromSeriesMatchHandler struct {
 	storage             storage.Storage
 	tagOptions          models.TagOptions
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
+	instrumentOpts      instrument.Options
+	parseOpts           promql.ParseOptions
 }
 
 // NewPromSeriesMatchHandler returns a new instance of handler.
-func NewPromSeriesMatchHandler(
-	storage storage.Storage,
-	tagOptions models.TagOptions,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-) http.Handler {
+func NewPromSeriesMatchHandler(opts options.HandlerOptions) http.Handler {
 	return &PromSeriesMatchHandler{
-		tagOptions:          tagOptions,
-		storage:             storage,
-		fetchOptionsBuilder: fetchOptionsBuilder,
+		tagOptions:          opts.TagOptions(),
+		storage:             opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		instrumentOpts:      opts.InstrumentOpts(),
+		parseOpts:           opts.Engine().Options().ParseOptions(),
 	}
 }
 
 func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
-	w.Header().Set("Content-Type", "application/json")
+	logger := logging.WithContext(ctx, h.instrumentOpts)
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	queries, err := prometheus.ParseSeriesMatchQuery(r, h.tagOptions)
+	queries, err := prometheus.ParseSeriesMatchQuery(r, h.parseOpts, h.tagOptions)
 	if err != nil {
 		logger.Error("unable to parse series match values to query", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
@@ -84,6 +90,7 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	results := make([]models.Metrics, len(queries))
+	meta := block.NewResultMetadata()
 	for i, query := range queries {
 		result, err := h.storage.SearchSeries(ctx, query, opts)
 		if err != nil {
@@ -93,8 +100,10 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		}
 
 		results[i] = result.Metrics
+		meta = meta.CombineMetadata(result.Metadata)
 	}
 
+	handleroptions.AddWarningHeaders(w, meta)
 	// TODO: Support multiple result types
 	if err := prometheus.RenderSeriesMatchResultsJSON(w, results, false); err != nil {
 		logger.Error("unable to write matched series", zap.Error(err))

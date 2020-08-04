@@ -60,6 +60,7 @@ type writer struct {
 
 	summariesPercent                float64
 	bloomFilterFalsePositivePercent float64
+	bufferSize                      int
 
 	infoFdWithDigest           digest.FdWithDigestWriter
 	indexFdWithDigest          digest.FdWithDigestWriter
@@ -71,6 +72,7 @@ type writer struct {
 	indexEntries               indexEntries
 
 	start        time.Time
+	volumeIndex  int
 	snapshotTime time.Time
 	snapshotID   uuid.UUID
 
@@ -79,24 +81,28 @@ type writer struct {
 	encoder            *msgpack.Encoder
 	digestBuf          digest.Buffer
 	singleCheckedBytes []checked.Bytes
+	tagsIterator       ident.TagsIterator
 	tagEncoderPool     serialize.TagEncoderPool
 	err                error
 }
 
 type indexEntry struct {
 	index           int64
-	id              ident.ID
-	tags            ident.Tags
+	metadata        persist.Metadata
 	dataFileOffset  int64
 	indexFileOffset int64
 	size            uint32
-	checksum        uint32
+	dataChecksum    uint32
 }
 
 type indexEntries []indexEntry
 
 func (e indexEntries) releaseRefs() {
-	// memset zero loop optimization
+	// Close any metadata.
+	for _, elem := range e {
+		elem.metadata.Finalize()
+	}
+	// Apply memset zero loop optimization.
 	var zeroed indexEntry
 	for i := range e {
 		e[i] = zeroed
@@ -108,7 +114,7 @@ func (e indexEntries) Len() int {
 }
 
 func (e indexEntries) Less(i, j int) bool {
-	return bytes.Compare(e[i].id.Bytes(), e[j].id.Bytes()) < 0
+	return bytes.Compare(e[i].metadata.BytesID(), e[j].metadata.BytesID()) < 0
 }
 
 func (e indexEntries) Swap(i, j int) {
@@ -127,6 +133,7 @@ func NewWriter(opts Options) (DataFileSetWriter, error) {
 		newDirectoryMode:                opts.NewDirectoryMode(),
 		summariesPercent:                opts.IndexSummariesPercent(),
 		bloomFilterFalsePositivePercent: opts.IndexBloomFilterFalsePositivePercent(),
+		bufferSize:                      bufferSize,
 		infoFdWithDigest:                digest.NewFdWithDigestWriter(bufferSize),
 		indexFdWithDigest:               digest.NewFdWithDigestWriter(bufferSize),
 		summariesFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
@@ -136,6 +143,7 @@ func NewWriter(opts Options) (DataFileSetWriter, error) {
 		encoder:                         msgpack.NewEncoder(),
 		digestBuf:                       digest.NewBuffer(),
 		singleCheckedBytes:              make([]checked.Bytes, 1),
+		tagsIterator:                    ident.NewTagsIterator(ident.Tags{}),
 		tagEncoderPool:                  opts.TagEncoderPool(),
 	}, nil
 }
@@ -145,20 +153,13 @@ func NewWriter(opts Options) (DataFileSetWriter, error) {
 // opening / truncating files associated with that shard for writing.
 func (w *writer) Open(opts DataWriterOpenOptions) error {
 	var (
-		nextSnapshotIndex int
-		err               error
-		namespace         = opts.Identifier.Namespace
-		shard             = opts.Identifier.Shard
-		blockStart        = opts.Identifier.BlockStart
+		err         error
+		namespace   = opts.Identifier.Namespace
+		shard       = opts.Identifier.Shard
+		blockStart  = opts.Identifier.BlockStart
+		volumeIndex = opts.Identifier.VolumeIndex
 	)
-
-	w.blockSize = opts.BlockSize
-	w.start = blockStart
-	w.snapshotTime = opts.Snapshot.SnapshotTime
-	w.snapshotID = opts.Snapshot.SnapshotID
-	w.currIdx = 0
-	w.currOffset = 0
-	w.err = nil
+	w.reset(opts)
 
 	var (
 		shardDir            string
@@ -178,27 +179,26 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 			return err
 		}
 
-		nextSnapshotIndex = opts.Identifier.VolumeIndex
-		w.checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, infoFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, indexFileSuffix)
-		summariesFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, summariesFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, bloomFilterFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, dataFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, digestFileSuffix)
+		w.checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
+		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
+		summariesFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix)
+		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
+		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
+		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(w.filePathPrefix, namespace, shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
 
-		w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
-		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
-		summariesFilepath = filesetPathFromTime(shardDir, blockStart, summariesFileSuffix)
-		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
-		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
-		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
+		w.checkpointFilePath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, false)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, false)
+		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, false)
+		summariesFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix, false)
+		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, false)
+		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, false)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, false)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
@@ -228,6 +228,22 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 	return nil
 }
 
+func (w *writer) reset(opts DataWriterOpenOptions) {
+	w.blockSize = opts.BlockSize
+	w.start = opts.Identifier.BlockStart
+	w.volumeIndex = opts.Identifier.VolumeIndex
+	w.snapshotTime = opts.Snapshot.SnapshotTime
+	w.snapshotID = opts.Snapshot.SnapshotID
+	w.currIdx = 0
+	w.currOffset = 0
+	w.err = nil
+	// This happens after writing the previous set of files index files, however, do it
+	// again to ensure they get cleared even if there was a premature error writing out the
+	// previous set of files which would have prevented them from being cleared.
+	w.indexEntries.releaseRefs()
+	w.indexEntries = w.indexEntries[:0]
+}
+
 func (w *writer) writeData(data []byte) error {
 	if len(data) == 0 {
 		return nil
@@ -241,26 +257,24 @@ func (w *writer) writeData(data []byte) error {
 }
 
 func (w *writer) Write(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	data checked.Bytes,
-	checksum uint32,
+	dataChecksum uint32,
 ) error {
 	w.singleCheckedBytes[0] = data
-	return w.WriteAll(id, tags, w.singleCheckedBytes, checksum)
+	return w.WriteAll(metadata, w.singleCheckedBytes, dataChecksum)
 }
 
 func (w *writer) WriteAll(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	data []checked.Bytes,
-	checksum uint32,
+	dataChecksum uint32,
 ) error {
 	if w.err != nil {
 		return w.err
 	}
 
-	if err := w.writeAll(id, tags, data, checksum); err != nil {
+	if err := w.writeAll(metadata, data, dataChecksum); err != nil {
 		w.err = err
 		return err
 	}
@@ -268,10 +282,9 @@ func (w *writer) WriteAll(
 }
 
 func (w *writer) writeAll(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	data []checked.Bytes,
-	checksum uint32,
+	dataChecksum uint32,
 ) error {
 	var size int64
 	for _, d := range data {
@@ -286,11 +299,10 @@ func (w *writer) writeAll(
 
 	entry := indexEntry{
 		index:          w.currIdx,
-		id:             id,
-		tags:           tags,
+		metadata:       metadata,
 		dataFileOffset: w.currOffset,
 		size:           uint32(size),
-		checksum:       checksum,
+		dataChecksum:   dataChecksum,
 	}
 	for _, d := range data {
 		if d == nil {
@@ -318,11 +330,38 @@ func (w *writer) Close() error {
 	}
 	// NB(xichen): only write out the checkpoint file if there are no errors
 	// encountered between calling writer.Open() and writer.Close().
-	if err := w.writeCheckpointFile(); err != nil {
+	if err := writeCheckpointFile(
+		w.checkpointFilePath,
+		w.digestFdWithDigestContents.Digest().Sum32(),
+		w.digestBuf,
+		w.newFileMode,
+	); err != nil {
 		w.err = err
 		return err
 	}
 	return nil
+}
+
+func (w *writer) DeferClose() (persist.DataCloser, error) {
+	err := w.close()
+	if w.err != nil {
+		return nil, w.err
+	}
+	if err != nil {
+		w.err = err
+		return nil, err
+	}
+	checkpointFilePath := w.checkpointFilePath
+	digestChecksum := w.digestFdWithDigestContents.Digest().Sum32()
+	newFileMode := w.newFileMode
+	return func() error {
+		return writeCheckpointFile(
+			checkpointFilePath,
+			digestChecksum,
+			digest.NewBuffer(),
+			newFileMode,
+		)
+	}, nil
 }
 
 func (w *writer) close() error {
@@ -348,21 +387,6 @@ func (w *writer) close() error {
 		w.dataFdWithDigest,
 		w.digestFdWithDigestContents,
 	)
-}
-
-func (w *writer) writeCheckpointFile() error {
-	fd, err := w.openWritable(w.checkpointFilePath)
-	if err != nil {
-		return err
-	}
-	digestChecksum := w.digestFdWithDigestContents.Digest().Sum32()
-	if err := w.digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
-		// NB(prateek): intentionally skipping fd.Close() error, as failure
-		// to write takes precedence over failure to close the file
-		fd.Close()
-		return err
-	}
-	return fd.Close()
 }
 
 func (w *writer) openWritable(filePath string) (*os.File, error) {
@@ -420,41 +444,48 @@ func (w *writer) writeIndexFileContents(
 	sort.Sort(w.indexEntries)
 
 	var (
-		offset      int64
-		prevID      []byte
-		tagsIter    = ident.NewTagsIterator(ident.Tags{})
-		tagsEncoder = w.tagEncoderPool.Get()
+		offset        int64
+		prevID        []byte
+		tagsReuseable = w.tagsIterator
+		tagsEncoder   = w.tagEncoderPool.Get()
 	)
 	defer tagsEncoder.Finalize()
-	for i := range w.indexEntries {
-		id := w.indexEntries[i].id.Bytes()
+	for i, entry := range w.indexEntries {
+		metadata := entry.metadata
+		id := metadata.BytesID()
 		// Need to check if i > 0 or we can never write an empty string ID
 		if i > 0 && bytes.Equal(id, prevID) {
 			// Should never happen, Write() should only be called once per ID
 			return fmt.Errorf("encountered duplicate ID: %s", id)
 		}
 
+		tagsIter, err := metadata.ResetOrReturnProvidedTagIterator(tagsReuseable)
+		if err != nil {
+			return err
+		}
+
 		var encodedTags []byte
-		if tags := w.indexEntries[i].tags; tags.Values() != nil {
-			tagsIter.Reset(tags)
+		if numTags := tagsIter.Remaining(); numTags > 0 {
 			tagsEncoder.Reset()
 			if err := tagsEncoder.Encode(tagsIter); err != nil {
 				return err
 			}
-			data, ok := tagsEncoder.Data()
+
+			encodedTagsData, ok := tagsEncoder.Data()
 			if !ok {
 				return errWriterEncodeTagsDataNotAccessible
 			}
-			encodedTags = data.Bytes()
+
+			encodedTags = encodedTagsData.Bytes()
 		}
 
 		entry := schema.IndexEntry{
-			Index:       w.indexEntries[i].index,
-			ID:          id,
-			Size:        int64(w.indexEntries[i].size),
-			Offset:      w.indexEntries[i].dataFileOffset,
-			Checksum:    int64(w.indexEntries[i].checksum),
-			EncodedTags: encodedTags,
+			Index:        entry.index,
+			ID:           id,
+			Size:         int64(entry.size),
+			Offset:       entry.dataFileOffset,
+			DataChecksum: int64(entry.dataChecksum),
+			EncodedTags:  encodedTags,
 		}
 
 		w.encoder.Reset()
@@ -497,7 +528,7 @@ func (w *writer) writeSummariesFileContents(
 
 		summary := schema.IndexSummary{
 			Index:            w.indexEntries[i].index,
-			ID:               w.indexEntries[i].id.Bytes(),
+			ID:               w.indexEntries[i].metadata.BytesID(),
 			IndexEntryOffset: w.indexEntries[i].indexFileOffset,
 		}
 
@@ -534,11 +565,13 @@ func (w *writer) writeInfoFileContents(
 
 	info := schema.IndexInfo{
 		BlockStart:   xtime.ToNanoseconds(w.start),
+		VolumeIndex:  w.volumeIndex,
 		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
 		SnapshotID:   snapshotBytes,
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,
+		MinorVersion: schema.MinorVersion,
 		Summaries: schema.IndexSummariesInfo{
 			Summaries: int64(summaries),
 		},
@@ -555,4 +588,23 @@ func (w *writer) writeInfoFileContents(
 
 	_, err = w.infoFdWithDigest.Write(w.encoder.Bytes())
 	return err
+}
+
+func writeCheckpointFile(
+	checkpointFilePath string,
+	digestChecksum uint32,
+	digestBuf digest.Buffer,
+	newFileMode os.FileMode,
+) error {
+	fd, err := OpenWritable(checkpointFilePath, newFileMode)
+	if err != nil {
+		return err
+	}
+	if err := digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
+		// NB(prateek): intentionally skipping fd.Close() error, as failure
+		// to write takes precedence over failure to close the file
+		fd.Close()
+		return err
+	}
+	return fd.Close()
 }

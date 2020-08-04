@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -42,7 +43,7 @@ var (
 	defaultCounterPrefix              = []byte("counts.")
 	defaultTimerPrefix                = []byte("timers.")
 	defaultGaugePrefix                = []byte("gauges.")
-	defaultEntryTTL                   = 24 * time.Hour
+	defaultEntryTTL                   = time.Hour
 	defaultEntryCheckInterval         = time.Hour
 	defaultEntryCheckBatchPercent     = 0.01
 	defaultMaxTimerBatchSizePerWrite  = 0
@@ -199,6 +200,12 @@ type Options interface {
 	// FlushHandler returns the handler that flushes buffered encoders.
 	FlushHandler() handler.Handler
 
+	// SetPassthroughWriter sets the writer for passthrough metrics.
+	SetPassthroughWriter(value writer.Writer) Options
+
+	// PassthroughWriter returns the writer for passthrough metrics.
+	PassthroughWriter() writer.Writer
+
 	// SetEntryTTL sets the ttl for expiring stale entries.
 	SetEntryTTL(value time.Duration) Options
 
@@ -328,6 +335,7 @@ type options struct {
 	bufferDurationAfterShardCutoff   time.Duration
 	flushManager                     FlushManager
 	flushHandler                     handler.Handler
+	passthroughWriter                writer.Writer
 	entryTTL                         time.Duration
 	entryCheckInterval               time.Duration
 	entryCheckBatchPercent           float64
@@ -374,6 +382,7 @@ func NewOptions() Options {
 		shardFn:                          sharding.Murmur32Hash.MustShardFn(),
 		bufferDurationBeforeShardCutover: defaultBufferDurationBeforeShardCutover,
 		bufferDurationAfterShardCutoff:   defaultBufferDurationAfterShardCutoff,
+		passthroughWriter:                writer.NewBlackholeWriter(),
 		entryTTL:                         defaultEntryTTL,
 		entryCheckInterval:               defaultEntryCheckInterval,
 		entryCheckBatchPercent:           defaultEntryCheckBatchPercent,
@@ -589,6 +598,16 @@ func (o *options) SetFlushHandler(value handler.Handler) Options {
 
 func (o *options) FlushHandler() handler.Handler {
 	return o.flushHandler
+}
+
+func (o *options) SetPassthroughWriter(value writer.Writer) Options {
+	opts := *o
+	opts.passthroughWriter = value
+	return &opts
+}
+
+func (o *options) PassthroughWriter() writer.Writer {
+	return o.passthroughWriter
 }
 
 func (o *options) SetEntryTTL(value time.Duration) Options {

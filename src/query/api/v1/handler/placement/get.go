@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -70,13 +71,17 @@ func NewGetHandler(opts HandlerOptions) *GetHandler {
 	return &GetHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *GetHandler) ServeHTTP(
+	service handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOptions)
 	)
 
-	placement, badRequest, err := h.Get(serviceName, r)
+	placement, badRequest, err := h.Get(service, r)
 	if err != nil && badRequest {
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
@@ -107,7 +112,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 
 // Get gets a placement.
 func (h *GetHandler) Get(
-	serviceName string,
+	svc handleroptions.ServiceNameAndDefaults,
 	httpReq *http.Request,
 ) (placement placement.Placement, badRequest bool, err error) {
 	var headers http.Header
@@ -115,10 +120,8 @@ func (h *GetHandler) Get(
 		headers = httpReq.Header
 	}
 
-	opts := handler.NewServiceOptions(
-		serviceName, headers, h.M3AggServiceOptions)
-
-	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
+	opts := handleroptions.NewServiceOptions(svc, headers, h.m3AggServiceOptions)
+	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		return nil, false, err
 	}

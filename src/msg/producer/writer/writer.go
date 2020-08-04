@@ -53,7 +53,7 @@ func newWriterMetrics(scope tally.Scope) writerMetrics {
 		topicUpdateError:   scope.Counter("topic-update-error"),
 		invalidTopicUpdate: scope.Counter("invalid-topic"),
 		invalidShard: scope.Tagged(map[string]string{"reason": "invalid-shard"}).
-			Counter("invalid-write"),
+			Counter("invalid-shard-write"),
 		numConsumerServices: scope.Gauge("num-consumer-services"),
 	}
 }
@@ -137,7 +137,8 @@ func (w *writer) Init() error {
 		SetInstrumentOptions(w.opts.InstrumentOptions()).
 		SetNewUpdatableFn(newUpdatableFn).
 		SetGetUpdateFn(getUpdateFn).
-		SetProcessFn(w.processFn)
+		SetProcessFn(w.processFn).
+		SetKey(w.opts.TopicName())
 	w.value = watch.NewValue(vOptions)
 	if err := w.value.Watch(); err != nil {
 		return fmt.Errorf("writer init error: %v", err)

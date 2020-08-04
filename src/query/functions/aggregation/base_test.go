@@ -79,22 +79,22 @@ func TestFunctionFilteringWithA(t *testing.T) {
 	require.NoError(t, err)
 	sink := processAggregationOp(t, op)
 	expected := [][]float64{
+		// stddev of fifth and sixth series
+		{250, 250, 250, 250, 250},
 		// stddev of first three series
 		{5, 7, 12.19289, 16.39105, 20.60744},
 		// stddev of fourth series
 		{0, 0, 0, 0, 0},
-		// stddev of fifth and sixth series
-		{250, 250, 250, 250, 250},
 	}
 
 	expectedMetas := []block.SeriesMeta{
+		{Name: typeBytes, Tags: models.EmptyTags()},
 		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("1")}})},
 		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("2")}})},
-		{Name: typeBytes, Tags: models.EmptyTags()},
 	}
 	expectedMetaTags := models.EmptyTags()
 
-	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
+	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
@@ -106,22 +106,22 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 	require.NoError(t, err)
 	sink := processAggregationOp(t, op)
 	expected := [][]float64{
-		// stddev of first two series
-		{0, 0, 2.5, 2.5, 2.5},
-		// stddev of third, fourth, and fifth series
+		// stddev of third, fourth, and fifth series
 		{36.81787, 77.17225, 118.97712, 161.10728, 203.36065},
 		// stddev of sixth series
 		{0, 0, 0, 0, 0},
+		// stddev of first two series
+		{0, 0, 2.5, 2.5, 2.5},
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: typeBytes, Tags: models.EmptyTags()},
 		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
 		{Name: typeBytes, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
+		{Name: typeBytes, Tags: models.EmptyTags()},
 	}
 
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
-	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
+	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
@@ -142,7 +142,7 @@ func TestFunctionFilteringWithD(t *testing.T) {
 	}
 
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
-	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
+	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
@@ -176,7 +176,7 @@ func TestFunctionFilteringWithoutD(t *testing.T) {
 	}
 	expectedMetaTags := models.EmptyTags()
 
-	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
+	test.CompareValuesInOrder(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }

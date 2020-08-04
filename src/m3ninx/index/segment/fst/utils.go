@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/x/mmap"
 
 	"github.com/stretchr/testify/require"
 )
@@ -62,11 +63,11 @@ func newFSTSegmentWithVersion(
 	data := SegmentData{
 		Version:       readerVersion,
 		Metadata:      w.Metadata(),
-		DocsData:      docsDataBuffer.Bytes(),
-		DocsIdxData:   docsIndexBuffer.Bytes(),
-		PostingsData:  postingsBuffer.Bytes(),
-		FSTTermsData:  fstTermsBuffer.Bytes(),
-		FSTFieldsData: fstFieldsBuffer.Bytes(),
+		DocsData:      mmap.Descriptor{Bytes: docsDataBuffer.Bytes()},
+		DocsIdxData:   mmap.Descriptor{Bytes: docsIndexBuffer.Bytes()},
+		PostingsData:  mmap.Descriptor{Bytes: postingsBuffer.Bytes()},
+		FSTTermsData:  mmap.Descriptor{Bytes: fstTermsBuffer.Bytes()},
+		FSTFieldsData: mmap.Descriptor{Bytes: fstFieldsBuffer.Bytes()},
 	}
 	reader, err := NewSegment(data, opts)
 	require.NoError(t, err)

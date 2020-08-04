@@ -22,33 +22,49 @@
 package main
 
 import (
-	"flag"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/m3db/m3/src/x/docs"
 
+	"github.com/pborman/getopt"
 	"github.com/russross/blackfriday"
 )
 
 func main() {
-	var (
-		docsDirArg = flag.String("docsdir", "docs", "The documents directory to test")
-	)
-	flag.Parse()
+	// Default link excludes.
+	linkExcludes := []string{
+		// Youtube has some problematic public rate limits.
+		"youtu.be",
+		"youtube.com",
+	}
 
-	if *docsDirArg == "" {
-		flag.Usage()
-		os.Exit(1)
+	var (
+		docsDirArg   = getopt.StringLong("docsdir", 'd', "docs", "The documents directory to test")
+		linkSleepArg = getopt.DurationLong("linksleep", 's', time.Second, "Amount to sleep between checking links to avoid 429 rate limits from github")
+	)
+	getopt.ListVarLong(&linkExcludes, "linkexcludes", 'e', "Exclude strings to check links against due to rate limiting/flakiness")
+	getopt.Parse()
+	if len(*docsDirArg) == 0 {
+		getopt.Usage()
+		return
 	}
 
 	docsDir := *docsDirArg
+	linkSleep := *linkSleepArg
 
-	repoPathsValidated := 0
+	var (
+		excluded           []string
+		repoPathsValidated int
+	)
 	resultErr := filepath.Walk(docsDir, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return fmt.Errorf("failed to walk path=%s: %v", filePath, err)
@@ -73,17 +89,76 @@ func main() {
 			switch node.Type {
 			case blackfriday.Link:
 				link := node.LinkData
-				url := strings.TrimSpace(string(link.Destination))
+				linkURL := strings.TrimSpace(string(link.Destination))
 
-				parse, ok := docs.ParseRepoPathURL(url)
-				if !ok {
-					break
+				resolvedPath := ""
+				if parse, ok := docs.ParseRepoPathURL(linkURL); ok {
+					// Internal relative local repo path
+					resolvedPath = parse.RepoPath
+				} else if isHTTPOrHTTPS(linkURL) {
+					// External link
+					resolvedPath = linkURL
+				} else {
+					// Otherwise should be a direct relative link
+					// (not repo URL prefixed)
+					if v := strings.Index(linkURL, "#"); v != -1 {
+						// Remove links to subsections of docs
+						linkURL = linkURL[:v]
+					}
+					if len(linkURL) > 0 && linkURL[0] == '/' {
+						// This is an absolute link to within the docs directory
+						resolvedPath = path.Join(docsDir, linkURL[1:])
+					} else {
+						// We assume this is a relative path from the current doc
+						resolvedPath = path.Join(path.Dir(filePath), linkURL)
+					}
 				}
 
-				if _, err := os.Stat(parse.RepoPath); err != nil {
-					return abort(fmt.Errorf(
-						"could not stat repo path: link=%s, path=%s, err=%v",
-						url, parse.RepoPath, err))
+				checked := checkedLink{
+					document:     filePath,
+					url:          linkURL,
+					resolvedPath: resolvedPath,
+				}
+				if isHTTPOrHTTPS(resolvedPath) {
+					excludeCheck := false
+					for _, str := range linkExcludes {
+						if strings.Contains(resolvedPath, str) {
+							excludeCheck = true
+							break
+						}
+					}
+					if excludeCheck {
+						// Exclude this link and walk to next.
+						excluded = append(excluded, resolvedPath)
+						return blackfriday.GoToNext
+					}
+
+					// Check external link using HEAD request
+					client := &http.Client{
+						Transport: &http.Transport{
+							// Some sites have invalid certs, like some kubernetes docs
+							TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+						},
+					}
+					resp, err := client.Head(resolvedPath)
+					if err == nil {
+						class := resp.StatusCode / 100
+						// Ignore 5xx errors since they are indicative of a problem with the external server
+						// and not our documentation.
+						if class != 2 && class != 5 {
+							err = fmt.Errorf("unexpected status code: status=%v", resp.StatusCode)
+						}
+					}
+					if err != nil {
+						return abort(checkedLinkError(checked, err))
+					}
+					// Sleep to avoid rate limits.
+					time.Sleep(linkSleep)
+				} else {
+					// Check relative path
+					if _, err := os.Stat(resolvedPath); err != nil {
+						return abort(checkedLinkError(checked, err))
+					}
 				}
 
 				// Valid
@@ -98,5 +173,27 @@ func main() {
 		log.Fatalf("failed validation: %v", resultErr)
 	}
 
-	log.Printf("validated docs (repoPathsValidated=%d)\n", repoPathsValidated)
+	log.Printf("validated docs (repoPathsValidated=%d, excluded=%d)\n",
+		repoPathsValidated, len(excluded))
+
+	for _, linkURL := range excluded {
+		log.Printf("excluded: %s\n", linkURL)
+	}
+}
+
+func isHTTPOrHTTPS(url string) bool {
+	return strings.HasPrefix(strings.ToLower(url), "http://") ||
+		strings.HasPrefix(strings.ToLower(url), "https://")
+}
+
+type checkedLink struct {
+	document     string
+	url          string
+	resolvedPath string
+}
+
+func checkedLinkError(l checkedLink, err error) error {
+	return fmt.Errorf(
+		"could not validate URL link: document=%s, link=%s, resolved_path=%s, err=%v",
+		l.document, l.url, l.resolvedPath, err)
 }

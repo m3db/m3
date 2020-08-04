@@ -24,6 +24,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +54,22 @@ func TestTracingConfiguration_NewTracer(t *testing.T) {
 			Backend: "someone_else",
 		}
 		_, _, err := doCall(&cfg)
-		require.EqualError(t, err, "unknown tracing backend: someone_else. Supported backends are: jaeger")
+		require.Contains(t, err.Error(), "unknown tracing backend: someone_else")
+	})
+
+	t.Run("initializes LightStep", func(t *testing.T) {
+		cfg := TracingConfiguration{
+			Backend: "lightstep",
+			Lightstep: lightstep.Options{
+				AccessToken: "foo",
+			},
+		}
+
+		tr, closer, err := doCall(&cfg)
+		defer closer.Close()
+
+		assert.NoError(t, err)
+		assert.NotNil(t, tr)
 	})
 
 	t.Run("initializes jaeger tracer", func(t *testing.T) {

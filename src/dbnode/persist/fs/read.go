@@ -52,6 +52,11 @@ var (
 	errReadNotExpectedSize = errors.New("next read not expected size")
 )
 
+const (
+	mmapPersistFsDataName      = "mmap.persist.fs.data"
+	mmapPersistFsDataIndexName = "mmap.persist.fs.dataindex"
+)
+
 type reader struct {
 	opts          Options
 	hugePagesOpts mmap.HugeTLBOptions
@@ -67,12 +72,12 @@ type reader struct {
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
 	indexFd                 *os.File
-	indexMmap               []byte
+	indexMmap               mmap.Descriptor
 	indexDecoderStream      dataFileSetReaderDecoderStream
 	indexEntriesByOffsetAsc []schema.IndexEntry
 
 	dataFd     *os.File
-	dataMmap   []byte
+	dataMmap   mmap.Descriptor
 	dataReader digest.ReaderWithDigest
 
 	bloomFilterFd *os.File
@@ -92,6 +97,7 @@ type reader struct {
 	expectedDigestOfDigest    uint32
 	expectedBloomFilterDigest uint32
 	shard                     uint32
+	volume                    int
 	open                      bool
 }
 
@@ -128,11 +134,11 @@ func NewReader(
 
 func (r *reader) Open(opts DataReaderOpenOptions) error {
 	var (
-		namespace     = opts.Identifier.Namespace
-		shard         = opts.Identifier.Shard
-		blockStart    = opts.Identifier.BlockStart
-		snapshotIndex = opts.Identifier.VolumeIndex
-		err           error
+		namespace   = opts.Identifier.Namespace
+		shard       = opts.Identifier.Shard
+		blockStart  = opts.Identifier.BlockStart
+		volumeIndex = opts.Identifier.VolumeIndex
+		err         error
 	)
 
 	var (
@@ -144,23 +150,33 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		indexFilepath       string
 		dataFilepath        string
 	)
+
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, infoFileSuffix)
-		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, digestFileSuffix)
-		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, bloomFilterFileSuffix)
-		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, indexFileSuffix)
-		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, dataFileSuffix)
+		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix)
+		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix)
+		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix)
+		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix)
+		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
-		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
-		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
-		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
-		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
+
+		isLegacy := false
+		if volumeIndex == 0 {
+			isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+			if err != nil {
+				return err
+			}
+		}
+
+		checkpointFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, checkpointFileSuffix, isLegacy)
+		infoFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy)
+		digestFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy)
+		bloomFilterFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy)
+		indexFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy)
+		dataFilepath = dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
@@ -193,14 +209,32 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 
 	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
 		indexFilepath: mmap.FileDesc{
-			File:    &r.indexFd,
-			Bytes:   &r.indexMmap,
-			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			File:       &r.indexFd,
+			Descriptor: &r.indexMmap,
+			Options: mmap.Options{
+				Read:    true,
+				HugeTLB: r.hugePagesOpts,
+				ReporterOptions: mmap.ReporterOptions{
+					Context: mmap.Context{
+						Name: mmapPersistFsDataIndexName,
+					},
+					Reporter: r.opts.MmapReporter(),
+				},
+			},
 		},
 		dataFilepath: mmap.FileDesc{
-			File:    &r.dataFd,
-			Bytes:   &r.dataMmap,
-			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			File:       &r.dataFd,
+			Descriptor: &r.dataMmap,
+			Options: mmap.Options{
+				Read:    true,
+				HugeTLB: r.hugePagesOpts,
+				ReporterOptions: mmap.ReporterOptions{
+					Context: mmap.Context{
+						Name: mmapPersistFsDataName,
+					},
+					Reporter: r.opts.MmapReporter(),
+				},
+			},
 		},
 	})
 	if err != nil {
@@ -212,8 +246,8 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		logger.Warn("warning while mmapping files in reader", zap.Error(warning))
 	}
 
-	r.indexDecoderStream.Reset(r.indexMmap)
-	r.dataReader.Reset(bytes.NewReader(r.dataMmap))
+	r.indexDecoderStream.Reset(r.indexMmap.Bytes)
+	r.dataReader.Reset(bytes.NewReader(r.dataMmap.Bytes))
 
 	if err := r.readDigest(); err != nil {
 		// Try to close if failed to read
@@ -246,7 +280,9 @@ func (r *reader) Status() DataFileSetReaderStatus {
 		Open:       r.open,
 		Namespace:  r.namespace,
 		Shard:      r.shard,
+		Volume:     r.volume,
 		BlockStart: r.start,
+		BlockSize:  time.Duration(r.blockSize),
 	}
 }
 
@@ -283,6 +319,7 @@ func (r *reader) readInfo(size int) error {
 		return err
 	}
 	r.start = xtime.FromNanoseconds(info.BlockStart)
+	r.volume = info.VolumeIndex
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
 	r.entriesRead = 0
@@ -345,7 +382,7 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 
 	r.entriesRead++
-	return id, tags, data, uint32(entry.Checksum), nil
+	return id, tags, data, uint32(entry.DataChecksum), nil
 }
 
 func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
@@ -357,7 +394,7 @@ func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error
 	id := r.entryClonedID(entry.ID)
 	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 	length := int(entry.Size)
-	checksum := uint32(entry.Checksum)
+	checksum := uint32(entry.DataChecksum)
 
 	r.metadataRead++
 	return id, tags, length, checksum, nil
@@ -371,6 +408,9 @@ func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
 		uint(r.bloomFilterInfo.NumElementsM),
 		uint(r.bloomFilterInfo.NumHashesK),
 		r.opts.ForceBloomFilterMmapMemory(),
+		mmap.ReporterOptions{
+			Reporter: r.opts.MmapReporter(),
+		},
 	)
 }
 
@@ -495,27 +535,6 @@ func (r *reader) Close() error {
 	r.indexEntriesByOffsetAsc = indexEntriesByOffsetAsc
 
 	return multiErr.FinalError()
-}
-
-func readCheckpointFile(filePath string, digestBuf digest.Buffer) (uint32, error) {
-	exists, err := CompleteCheckpointFileExists(filePath)
-	if err != nil {
-		return 0, err
-	}
-	if !exists {
-		return 0, ErrCheckpointFileNotFound
-	}
-	fd, err := os.Open(filePath)
-	if err != nil {
-		return 0, err
-	}
-	defer fd.Close()
-	digest, err := digestBuf.ReadDigestFromFile(fd)
-	if err != nil {
-		return 0, err
-	}
-
-	return digest, nil
 }
 
 // indexEntriesByOffsetAsc implements sort.Sort

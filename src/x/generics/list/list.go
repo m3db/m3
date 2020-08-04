@@ -56,6 +56,8 @@
 package list
 
 import (
+	"sync"
+
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/mauricelam/genny/generic"
@@ -99,9 +101,9 @@ func (e *Element) Prev() *Element {
 // List represents a doubly linked list.
 // The zero value for List is an empty list ready to use.
 type List struct {
-	root  Element // sentinel list element, only &root, root.prev, and root.next are used
-	len   int     // current list length excluding (this) sentinel element
-	ePool *ElementPool
+	root Element // sentinel list element, only &root, root.prev, and root.next are used
+	len  int     // current list length excluding (this) sentinel element
+	Pool *ElementPool
 }
 
 // Init initializes or clears list l.
@@ -109,15 +111,30 @@ func (l *List) Init() *List {
 	l.root.next = &l.root
 	l.root.prev = &l.root
 	l.len = 0
-	if l.ePool == nil {
-		l.ePool = newElementPool(nil)
+	if l.Pool == nil {
+		// Use a static pool at least, otherwise each time
+		// we create a list with no pool we create a wholly
+		// new pool of finalizeables (4096 of them).
+		defaultElementPoolOnce.Do(initElementPool)
+		l.Pool = defaultElementPool
 	}
 	return l
 }
 
+var (
+	defaultElementPoolOnce sync.Once
+	defaultElementPool     *ElementPool
+)
+
+// define as a static method so lambda alloc not required
+// when passing function pointer to sync.Once.Do.
+func initElementPool() {
+	defaultElementPool = newElementPool(nil)
+}
+
 // newList returns an initialized list.
 func newList(p *ElementPool) *List {
-	l := &List{ePool: p}
+	l := &List{Pool: p}
 	return l.Init()
 }
 
@@ -162,7 +179,7 @@ func (l *List) insert(e, at *Element) *Element {
 
 // insertValue is a convenience wrapper for inserting using the list's pool.
 func (l *List) insertValue(v ValueType, at *Element) *Element {
-	e := l.ePool.get()
+	e := l.Pool.get()
 	e.Value = v
 	return l.insert(e, at)
 }
@@ -186,7 +203,7 @@ func (l *List) Remove(e *Element) ValueType {
 		// if e.list == l, l must have been initialized when e was inserted
 		// in l or l == nil (e is a zero Element) and l.remove will crash.
 		l.remove(e)
-		l.ePool.put(e)
+		l.Pool.put(e)
 	}
 	return e.Value
 }
@@ -287,7 +304,8 @@ func (l *List) PushFrontList(other *List) {
 
 // Reset resets list l for reuse and puts all elements back into the pool.
 func (l *List) Reset() {
-	for e := l.Back(); e != nil; l.Remove(e) {
+	for e := l.Back(); e != nil; e = l.Back() {
+		l.Remove(e)
 	}
 }
 

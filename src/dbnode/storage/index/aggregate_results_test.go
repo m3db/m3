@@ -22,12 +22,11 @@ package index
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,19 +51,47 @@ func genDoc(strs ...string) doc.Document {
 func TestAggResultsInsertInvalid(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	dInvalid := doc.Document{Fields: []doc.Field{{}}}
-	size, err := res.AddDocuments([]doc.Document{dInvalid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
+	require.Equal(t, 1, docsCount)
+
+	require.Equal(t, 0, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
 
 	dInvalid = genDoc("", "foo")
-	size, err = res.AddDocuments([]doc.Document{dInvalid})
+	size, docsCount, err = res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
+	require.Equal(t, 2, docsCount)
 
-	dInvalid = genDoc("foo", "")
-	size, err = res.AddDocuments([]doc.Document{dInvalid})
-	require.Error(t, err)
-	require.Equal(t, 0, size)
+	require.Equal(t, 0, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
+}
+
+func TestAggResultsInsertEmptyTermValue(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
+	dValidEmptyTerm := genDoc("foo", "")
+	size, docsCount, err := res.AddDocuments([]doc.Document{dValidEmptyTerm})
+	require.NoError(t, err)
+	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
+
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
+}
+
+func TestAggResultsInsertBatchOfTwo(t *testing.T) {
+	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
+	d1 := genDoc("d1", "")
+	d2 := genDoc("d2", "")
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1, d2})
+	require.NoError(t, err)
+	require.Equal(t, 2, size)
+	require.Equal(t, 2, docsCount)
+
+	require.Equal(t, 2, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
 }
 
 func TestAggResultsTermOnlyInsert(t *testing.T) {
@@ -72,30 +99,50 @@ func TestAggResultsTermOnlyInsert(t *testing.T) {
 		Type: AggregateTagNames,
 	}, testOpts)
 	dInvalid := doc.Document{Fields: []doc.Field{{}}}
-	size, err := res.AddDocuments([]doc.Document{dInvalid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
+	require.Equal(t, 1, docsCount)
+
+	require.Equal(t, 0, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
 
 	dInvalid = genDoc("", "foo")
-	size, err = res.AddDocuments([]doc.Document{dInvalid})
+	size, docsCount, err = res.AddDocuments([]doc.Document{dInvalid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
+	require.Equal(t, 2, docsCount)
+
+	require.Equal(t, 0, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
 
 	valid := genDoc("foo", "")
-	size, err = res.AddDocuments([]doc.Document{valid})
+	size, docsCount, err = res.AddDocuments([]doc.Document{valid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 3, docsCount)
+
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 3, res.TotalDocsCount())
 }
 
 func testAggResultsInsertIdempotency(t *testing.T, res AggregateResults) {
 	dValid := genDoc("foo", "bar")
-	size, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
-	size, err = res.AddDocuments([]doc.Document{dValid})
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 1, res.TotalDocsCount())
+
+	size, docsCount, err = res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 2, docsCount)
+
+	require.Equal(t, 1, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
 }
 
 func TestAggResultsInsertIdempotency(t *testing.T) {
@@ -115,17 +162,19 @@ func TestInvalidAggregateType(t *testing.T) {
 		Type: 100,
 	}, testOpts)
 	dValid := genDoc("foo", "bar")
-	size, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
 	require.Error(t, err)
 	require.Equal(t, 0, size)
+	require.Equal(t, 1, docsCount)
 }
 
 func TestAggResultsSameName(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	d1 := genDoc("foo", "bar")
-	size, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	rMap := res.Map()
 	aggVals, ok := rMap.Get(ident.StringID("foo"))
@@ -134,9 +183,10 @@ func TestAggResultsSameName(t *testing.T) {
 	assert.True(t, aggVals.Map().Contains(ident.StringID("bar")))
 
 	d2 := genDoc("foo", "biz")
-	size, err = res.AddDocuments([]doc.Document{d2})
+	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 2, docsCount)
 
 	aggVals, ok = rMap.Get(ident.StringID("foo"))
 	require.True(t, ok)
@@ -145,63 +195,63 @@ func TestAggResultsSameName(t *testing.T) {
 	assert.True(t, aggVals.Map().Contains(ident.StringID("biz")))
 }
 
+func assertNoValuesInNameOnlyAggregate(t *testing.T, v AggregateValues) {
+	assert.False(t, v.hasValues)
+	assert.Nil(t, v.valuesMap)
+	assert.Nil(t, v.pool)
+
+	assert.Equal(t, 0, v.Size())
+	assert.Nil(t, v.Map())
+	assert.False(t, v.HasValues())
+}
+
 func TestAggResultsTermOnlySameName(t *testing.T) {
 	res := NewAggregateResults(nil, AggregateResultsOptions{
 		Type: AggregateTagNames,
 	}, testOpts)
 	d1 := genDoc("foo", "bar")
-	size, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	rMap := res.Map()
 	aggVals, ok := rMap.Get(ident.StringID("foo"))
 	require.True(t, ok)
-	require.Equal(t, 0, aggVals.Size())
+	assertNoValuesInNameOnlyAggregate(t, aggVals)
 
 	d2 := genDoc("foo", "biz")
-	size, err = res.AddDocuments([]doc.Document{d2})
+	size, docsCount, err = res.AddDocuments([]doc.Document{d2})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 2, docsCount)
 
 	aggVals, ok = rMap.Get(ident.StringID("foo"))
 	require.True(t, ok)
-	require.Equal(t, 0, aggVals.Size())
+	require.False(t, aggVals.hasValues)
+	assertNoValuesInNameOnlyAggregate(t, aggVals)
 }
 
-func assertContains(t *testing.T,
-	ex map[string][]string, ac *AggregateResultsMap) {
-	require.Equal(t, len(ex), ac.Len())
-	for k, v := range ex {
-		aggVals, ok := ac.Get(ident.StringID(k))
-		require.True(t, ok)
-		require.Equal(t, len(v), aggVals.Size())
-		for _, actual := range v {
-			require.True(t, aggVals.Map().Contains(ident.StringID(actual)))
-		}
-	}
-}
-
-func addMultipleDocuments(t *testing.T, res AggregateResults) int {
-	_, err := res.AddDocuments([]doc.Document{
+func addMultipleDocuments(t *testing.T, res AggregateResults) (int, int) {
+	_, _, err := res.AddDocuments([]doc.Document{
 		genDoc("foo", "bar"),
 		genDoc("fizz", "bar"),
 		genDoc("buzz", "bar"),
 	})
 	require.NoError(t, err)
 
-	_, err = res.AddDocuments([]doc.Document{
+	_, _, err = res.AddDocuments([]doc.Document{
 		genDoc("foo", "biz"),
 		genDoc("fizz", "bar"),
 	})
 	require.NoError(t, err)
 
-	size, err := res.AddDocuments([]doc.Document{
+	size, docsCount, err := res.AddDocuments([]doc.Document{
 		genDoc("foo", "baz", "buzz", "bag", "qux", "qaz"),
 	})
 
 	require.NoError(t, err)
-	return size
+	return size, docsCount
 }
 
 func expectedTermsOnly(ex map[string][]string) map[string][]string {
@@ -231,28 +281,28 @@ var mergeTests = []struct {
 		name: "no limit no filter",
 		opts: AggregateResultsOptions{},
 		expected: map[string][]string{
-			"foo":  []string{"bar", "biz", "baz"},
-			"fizz": []string{"bar"},
-			"buzz": []string{"bar", "bag"},
-			"qux":  []string{"qaz"},
+			"foo":  {"bar", "biz", "baz"},
+			"fizz": {"bar"},
+			"buzz": {"bar", "bag"},
+			"qux":  {"qaz"},
 		},
 	},
 	{
 		name: "with limit no filter",
 		opts: AggregateResultsOptions{SizeLimit: 2},
 		expected: map[string][]string{
-			"foo":  []string{"bar", "biz", "baz"},
-			"fizz": []string{"bar"},
+			"foo":  {"bar", "biz", "baz"},
+			"fizz": {"bar"},
 		},
 	},
 	{
 		name: "no limit empty filter",
 		opts: AggregateResultsOptions{FieldFilter: toFilter()},
 		expected: map[string][]string{
-			"foo":  []string{"bar", "biz", "baz"},
-			"fizz": []string{"bar"},
-			"buzz": []string{"bar", "bag"},
-			"qux":  []string{"qaz"},
+			"foo":  {"bar", "biz", "baz"},
+			"fizz": {"bar"},
+			"buzz": {"bar", "bag"},
+			"qux":  {"qaz"},
 		},
 	},
 	{
@@ -264,7 +314,7 @@ var mergeTests = []struct {
 		name: "empty limit with filter",
 		opts: AggregateResultsOptions{FieldFilter: toFilter("buzz")},
 		expected: map[string][]string{
-			"buzz": []string{"bar", "bag"},
+			"buzz": {"bar", "bag"},
 		},
 	},
 	{
@@ -272,8 +322,8 @@ var mergeTests = []struct {
 		opts: AggregateResultsOptions{
 			SizeLimit: 2, FieldFilter: toFilter("buzz", "qux", "fizz")},
 		expected: map[string][]string{
-			"fizz": []string{"bar"},
-			"buzz": []string{"bar", "bag"},
+			"fizz": {"bar"},
+			"buzz": {"bar", "bag"},
 		},
 	},
 }
@@ -282,19 +332,41 @@ func TestAggResultsMerge(t *testing.T) {
 	for _, tt := range mergeTests {
 		t.Run(tt.name, func(t *testing.T) {
 			res := NewAggregateResults(nil, tt.opts, testOpts)
-			size := addMultipleDocuments(t, res)
+			size, docsCount := addMultipleDocuments(t, res)
 
 			require.Equal(t, len(tt.expected), size)
-			assertContains(t, tt.expected, res.Map())
+			require.Equal(t, 6, docsCount)
+			ac := res.Map()
+			require.Equal(t, len(tt.expected), ac.Len())
+			for k, v := range tt.expected {
+				aggVals, ok := ac.Get(ident.StringID(k))
+				require.True(t, ok)
+				require.Equal(t, len(v), aggVals.Size())
+				for _, actual := range v {
+					require.True(t, aggVals.Map().Contains(ident.StringID(actual)))
+				}
+			}
 		})
+	}
+}
 
+func TestAggResultsMergeNameOnly(t *testing.T) {
+	for _, tt := range mergeTests {
 		t.Run(tt.name+" name only", func(t *testing.T) {
 			tt.opts.Type = AggregateTagNames
 			res := NewAggregateResults(nil, tt.opts, testOpts)
-			size := addMultipleDocuments(t, res)
+			size, docsCount := addMultipleDocuments(t, res)
 
 			require.Equal(t, len(tt.expected), size)
-			assertContains(t, expectedTermsOnly(tt.expected), res.Map())
+			require.Equal(t, 6, docsCount)
+
+			ac := res.Map()
+			require.Equal(t, len(tt.expected), ac.Len())
+			for k := range tt.expected {
+				aggVals, ok := ac.Get(ident.StringID(k))
+				require.True(t, ok)
+				assertNoValuesInNameOnlyAggregate(t, aggVals)
+			}
 		})
 	}
 }
@@ -304,9 +376,10 @@ func TestAggResultsInsertCopies(t *testing.T) {
 	dValid := genDoc("foo", "bar")
 	name := dValid.Fields[0].Name
 	value := dValid.Fields[0].Value
-	size, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	found := false
 
@@ -345,9 +418,10 @@ func TestAggResultsNameOnlyInsertCopies(t *testing.T) {
 	}, testOpts)
 	dValid := genDoc("foo", "bar")
 	name := dValid.Fields[0].Name
-	size, err := res.AddDocuments([]doc.Document{dValid})
+	size, docsCount, err := res.AddDocuments([]doc.Document{dValid})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	found := false
 	// our genny generated maps don't provide access to MapEntry directly,
@@ -364,9 +438,7 @@ func TestAggResultsNameOnlyInsertCopies(t *testing.T) {
 		// than the original.
 		require.False(t, xtest.ByteSlicesBackedBySameData(n, name))
 		found = true
-		v := entry.Value()
-		require.NotNil(t, v.Map())
-		require.Equal(t, 0, v.Size())
+		assertNoValuesInNameOnlyAggregate(t, entry.Value())
 	}
 
 	require.True(t, found)
@@ -376,9 +448,10 @@ func TestAggResultsReset(t *testing.T) {
 	res := NewAggregateResults(ident.StringID("qux"),
 		AggregateResultsOptions{}, testOpts)
 	d1 := genDoc("foo", "bar")
-	size, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	aggVals, ok := res.Map().Get(ident.StringID("foo"))
 	require.True(t, ok)
@@ -401,7 +474,6 @@ func TestAggResultsReset(t *testing.T) {
 	aggResults, ok = res.(*aggregatedResults)
 	require.True(t, ok)
 	require.Equal(t, 100, aggResults.aggregateOpts.SizeLimit)
-	fmt.Println(aggResults.nsID.String())
 	require.Equal(t, newID.Bytes(), aggResults.nsID.Bytes())
 
 	// Ensure new NS is cloned
@@ -426,9 +498,10 @@ func TestAggResultFinalize(t *testing.T) {
 	// Create a Results and insert some data.
 	res := NewAggregateResults(nil, AggregateResultsOptions{}, testOpts)
 	d1 := genDoc("foo", "bar")
-	size, err := res.AddDocuments([]doc.Document{d1})
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1})
 	require.NoError(t, err)
 	require.Equal(t, 1, size)
+	require.Equal(t, 1, docsCount)
 
 	// Ensure the data is present.
 	rMap := res.Map()

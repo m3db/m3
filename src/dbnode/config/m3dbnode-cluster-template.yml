@@ -1,6 +1,5 @@
 coordinator:
   listenAddress:
-    type: "config"
     value: "0.0.0.0:7201"
 
   local:
@@ -8,6 +7,9 @@ coordinator:
       - namespace: default
         type: unaggregated
         retention: 48h
+
+  logging:
+    level: info
 
   metrics:
     scope:

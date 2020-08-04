@@ -27,20 +27,35 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/pool"
 )
 
 var (
-	defaultDefaultShardConcurrency     = runtime.NumCPU()
-	defaultShardPersistenceConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
+	// DefaultShardConcurrency controls how many shards in parallel to stream
+	// for in memory data being streamed between peers (most recent block).
+	// Update BootstrapPeersConfiguration comment in
+	// src/cmd/services/m3dbnode/config package if this is changed.
+	DefaultShardConcurrency = runtime.NumCPU()
+	// DefaultShardPersistenceConcurrency controls how many shards in parallel to stream
+	// for historical data being streamed between peers (historical blocks).
+	// Update BootstrapPeersConfiguration comment in
+	// src/cmd/services/m3dbnode/config package if this is changed.
+	DefaultShardPersistenceConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
 	defaultPersistenceMaxQueueSize     = 0
 )
 
 var (
 	errAdminClientNotSet           = errors.New("admin client not set")
 	errPersistManagerNotSet        = errors.New("persist manager not set")
+	errCompactorNotSet             = errors.New("compactor not set")
+	errIndexOptionsNotSet          = errors.New("index options not set")
+	errFilesystemOptionsNotSet     = errors.New("filesystem options not set")
 	errRuntimeOptionsManagerNotSet = errors.New("runtime options manager not set")
 )
 
@@ -51,17 +66,24 @@ type options struct {
 	shardPersistenceConcurrency int
 	persistenceMaxQueueSize     int
 	persistManager              persist.Manager
-	blockRetrieverManager       block.DatabaseBlockRetrieverManager
 	runtimeOptionsManager       m3dbruntime.OptionsManager
+	contextPool                 context.Pool
+	fsOpts                      fs.Options
+	indexOpts                   index.Options
+	compactor                   *compaction.Compactor
 }
 
-// NewOptions creates new bootstrap options
+// NewOptions creates new bootstrap options.
 func NewOptions() Options {
 	return &options{
 		resultOpts:                  result.NewOptions(),
-		defaultShardConcurrency:     defaultDefaultShardConcurrency,
-		shardPersistenceConcurrency: defaultShardPersistenceConcurrency,
+		defaultShardConcurrency:     DefaultShardConcurrency,
+		shardPersistenceConcurrency: DefaultShardPersistenceConcurrency,
 		persistenceMaxQueueSize:     defaultPersistenceMaxQueueSize,
+		// Use a zero pool, this should be overriden at config time.
+		contextPool: context.NewPool(context.NewOptions().
+			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
+			SetFinalizerPoolOptions(pool.NewObjectPoolOptions().SetSize(0))),
 	}
 }
 
@@ -72,8 +94,17 @@ func (o *options) Validate() error {
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
 	}
+	if o.compactor == nil {
+		return errCompactorNotSet
+	}
 	if o.runtimeOptionsManager == nil {
 		return errRuntimeOptionsManagerNotSet
+	}
+	if o.indexOpts == nil {
+		return errIndexOptionsNotSet
+	}
+	if o.fsOpts == nil {
+		return errFilesystemOptionsNotSet
 	}
 	return nil
 }
@@ -138,16 +169,14 @@ func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
 }
 
-func (o *options) SetDatabaseBlockRetrieverManager(
-	value block.DatabaseBlockRetrieverManager,
-) Options {
+func (o *options) SetCompactor(value *compaction.Compactor) Options {
 	opts := *o
-	opts.blockRetrieverManager = value
+	opts.compactor = value
 	return &opts
 }
 
-func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
-	return o.blockRetrieverManager
+func (o *options) Compactor() *compaction.Compactor {
+	return o.compactor
 }
 
 func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options {
@@ -158,4 +187,34 @@ func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Opt
 
 func (o *options) RuntimeOptionsManager() m3dbruntime.OptionsManager {
 	return o.runtimeOptionsManager
+}
+
+func (o *options) SetContextPool(value context.Pool) Options {
+	opts := *o
+	opts.contextPool = value
+	return &opts
+}
+
+func (o *options) ContextPool() context.Pool {
+	return o.contextPool
+}
+
+func (o *options) SetFilesystemOptions(value fs.Options) Options {
+	opts := *o
+	opts.fsOpts = value
+	return &opts
+}
+
+func (o *options) FilesystemOptions() fs.Options {
+	return o.fsOpts
+}
+
+func (o *options) SetIndexOptions(value index.Options) Options {
+	opts := *o
+	opts.indexOpts = value
+	return &opts
+}
+
+func (o *options) IndexOptions() index.Options {
+	return o.indexOpts
 }

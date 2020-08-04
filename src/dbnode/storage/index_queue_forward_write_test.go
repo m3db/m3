@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
@@ -74,7 +75,7 @@ func generateOptionsNowAndBlockSize() (Options, time.Time, time.Duration) {
 func setupForwardIndex(
 	t *testing.T,
 	ctrl *gomock.Controller,
-) (namespaceIndex, time.Time, time.Duration) {
+) (NamespaceIndex, time.Time, time.Duration) {
 	newFn := func(
 		fn nsIndexInsertBatchFn,
 		md namespace.Metadata,
@@ -90,7 +91,9 @@ func setupForwardIndex(
 	require.NoError(t, err)
 
 	opts, now, blockSize := generateOptionsNowAndBlockSize()
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newFn, opts)
 	require.NoError(t, err)
 
 	var (
@@ -128,6 +131,8 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
 	defer idx.Close()
 
@@ -153,7 +158,7 @@ func TestNamespaceForwardIndexInsertQuery(t *testing.T) {
 		require.True(t, ok)
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("name", "value")).Matches(
-			ident.NewTagsIterator(tags)))
+			tags))
 	}
 }
 
@@ -163,6 +168,8 @@ func TestNamespaceForwardIndexAggregateQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	ctx := context.NewContext()
+	defer ctx.Close()
+
 	idx, now, blockSize := setupForwardIndex(t, ctrl)
 	defer idx.Close()
 
@@ -228,7 +235,7 @@ func createMockBlocks(
 	ctrl *gomock.Controller,
 	blockStart time.Time,
 	nextBlockStart time.Time,
-) (*index.MockBlock, *index.MockBlock, newBlockFn) {
+) (*index.MockBlock, *index.MockBlock, index.NewBlockFn) {
 	mockBlock := index.NewMockBlock(ctrl)
 	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
 	mockBlock.EXPECT().Close().Return(nil)
@@ -244,6 +251,7 @@ func createMockBlocks(
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(blockStart) {
@@ -276,7 +284,9 @@ func TestNamespaceIndexForwardWrite(t *testing.T) {
 	mockBlock, futureBlock, newBlockFn := createMockBlocks(ctrl, blockStart, futureStart)
 
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -316,7 +326,9 @@ func TestNamespaceIndexForwardWriteCreatesBlock(t *testing.T) {
 	mockBlock, futureBlock, newBlockFn := createMockBlocks(ctrl, blockStart, futureStart)
 
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -374,7 +386,9 @@ func testShardForwardWriteTaggedRefCountIndex(
 	opts, now, blockSize := generateOptionsNowAndBlockSize()
 	opts = opts.SetIndexOptions(opts.IndexOptions().SetInsertMode(syncType))
 
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -393,6 +407,7 @@ func writeToShard(
 	ctx context.Context,
 	t *testing.T,
 	shard *dbShard,
+	idx NamespaceIndex,
 	now time.Time,
 	id string,
 	shouldWrite bool,
@@ -400,7 +415,7 @@ func writeToShard(
 	tag := ident.Tag{Name: ident.StringID(id), Value: ident.StringID("")}
 	idTags := ident.NewTags(tag)
 	iter := ident.NewTagsIterator(idTags)
-	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID(id), iter, now,
+	seriesWrite, err := shard.WriteTagged(ctx, ident.StringID(id), iter, now,
 		1.0, xtime.Second, nil, series.WriteOptions{
 			TruncateType: series.TypeBlock,
 			TransformOptions: series.WriteTransformOptions{
@@ -409,13 +424,19 @@ func writeToShard(
 			},
 		})
 	require.NoError(t, err)
-	require.Equal(t, shouldWrite, wasWritten)
+	require.Equal(t, shouldWrite, seriesWrite.WasWritten)
+	if seriesWrite.NeedsIndex {
+		err = idx.WritePending([]writes.PendingIndexInsert{
+			seriesWrite.PendingIndexInsert,
+		})
+		require.NoError(t, err)
+	}
 }
 
 func verifyShard(
 	ctx context.Context,
 	t *testing.T,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 	now time.Time,
 	next time.Time,
 	id string,
@@ -461,13 +482,13 @@ func writeToShardAndVerify(
 	ctx context.Context,
 	t *testing.T,
 	shard *dbShard,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 	now time.Time,
 	next time.Time,
 	id string,
 	shouldWrite bool,
 ) {
-	writeToShard(ctx, t, shard, now, id, shouldWrite)
+	writeToShard(ctx, t, shard, idx, now, id, shouldWrite)
 	verifyShard(ctx, t, idx, now, next, id)
 }
 
@@ -475,10 +496,10 @@ func testShardForwardWriteTaggedSyncRefCount(
 	t *testing.T,
 	now time.Time,
 	next time.Time,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 	opts Options,
 ) {
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(false))
 	defer shard.Close()
@@ -520,7 +541,7 @@ func testShardForwardWriteTaggedAsyncRefCount(
 	t *testing.T,
 	now time.Time,
 	next time.Time,
-	idx namespaceIndex,
+	idx NamespaceIndex,
 	opts Options,
 ) {
 	testReporterOpts := xmetrics.NewTestStatsReporterOptions()
@@ -534,7 +555,7 @@ func testShardForwardWriteTaggedAsyncRefCount(
 			SetMetricsScope(scope).
 			SetReportInterval(100 * time.Millisecond))
 
-	shard := testDatabaseShardWithIndexFn(t, opts, idx)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx, false)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(true))
 	defer shard.Close()
@@ -542,9 +563,9 @@ func testShardForwardWriteTaggedAsyncRefCount(
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	writeToShard(ctx, t, shard, now, "foo", true)
-	writeToShard(ctx, t, shard, now, "bar", true)
-	writeToShard(ctx, t, shard, now, "baz", true)
+	writeToShard(ctx, t, shard, idx, now, "foo", true)
+	writeToShard(ctx, t, shard, idx, now, "bar", true)
+	writeToShard(ctx, t, shard, idx, now, "baz", true)
 
 	verifyShard(ctx, t, idx, now, next, "foo")
 	verifyShard(ctx, t, idx, now, next, "bar")

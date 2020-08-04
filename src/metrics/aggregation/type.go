@@ -22,7 +22,6 @@ package aggregation
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
@@ -200,37 +199,31 @@ func (a Type) Proto() (aggregationpb.AggregationType, error) {
 	return s, nil
 }
 
-// MarshalJSON returns the JSON encoding of an aggregation type.
-func (a Type) MarshalJSON() ([]byte, error) {
-	if !a.IsValid() {
-		return nil, fmt.Errorf("invalid aggregation type %s", a.String())
-	}
-	marshalled := strconv.Quote(a.String())
-	return []byte(marshalled), nil
-}
-
-// UnmarshalJSON unmarshals JSON-encoded data into an aggregation type.
-func (a *Type) UnmarshalJSON(data []byte) error {
-	str := string(data)
-	unquoted, err := strconv.Unquote(str)
-	if err != nil {
-		return err
-	}
-	parsed, err := ParseType(unquoted)
-	if err != nil {
-		return err
-	}
-	*a = parsed
-	return nil
-}
-
-// UnmarshalYAML unmarshals aggregation type from a string.
+// UnmarshalYAML unmarshals text-encoded data into an aggregation type.
 func (a *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
+	value, err := ParseType(str)
+	if err != nil {
+		return err
+	}
+	*a = value
+	return nil
+}
 
+// MarshalText returns the text encoding of an aggregation type.
+func (a Type) MarshalText() ([]byte, error) {
+	if !a.IsValid() {
+		return nil, fmt.Errorf("invalid aggregation type %s", a.String())
+	}
+	return []byte(a.String()), nil
+}
+
+// UnmarshalText unmarshals text-encoded data into an aggregation type.
+func (a *Type) UnmarshalText(data []byte) error {
+	str := string(data)
 	parsed, err := ParseType(str)
 	if err != nil {
 		return err

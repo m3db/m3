@@ -21,11 +21,14 @@
 package models
 
 import (
+	"bytes"
 	"errors"
+
+	"github.com/prometheus/common/model"
 )
 
 var (
-	defaultMetricName = []byte("__name__")
+	defaultMetricName = []byte(model.MetricNameLabel)
 	defaultBucketName = []byte("le")
 
 	errNoName   = errors.New("metric name is missing or empty")
@@ -37,6 +40,7 @@ type tagOptions struct {
 	idScheme   IDSchemeType
 	bucketName []byte
 	metricName []byte
+	filters    Filters
 }
 
 // NewTagOptions builds a new tag options with default values.
@@ -61,9 +65,9 @@ func (o *tagOptions) Validate() error {
 	return o.idScheme.Validate()
 }
 
-func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
+func (o *tagOptions) SetMetricName(value []byte) TagOptions {
 	opts := *o
-	opts.metricName = metricName
+	opts.metricName = value
 	return &opts
 }
 
@@ -71,9 +75,9 @@ func (o *tagOptions) MetricName() []byte {
 	return o.metricName
 }
 
-func (o *tagOptions) SetBucketName(bucketName []byte) TagOptions {
+func (o *tagOptions) SetBucketName(value []byte) TagOptions {
 	opts := *o
-	opts.bucketName = bucketName
+	opts.bucketName = value
 	return &opts
 }
 
@@ -81,12 +85,28 @@ func (o *tagOptions) BucketName() []byte {
 	return o.bucketName
 }
 
-func (o *tagOptions) SetIDSchemeType(scheme IDSchemeType) TagOptions {
+func (o *tagOptions) SetIDSchemeType(value IDSchemeType) TagOptions {
 	opts := *o
-	opts.idScheme = scheme
+	opts.idScheme = value
 	return &opts
 }
 
 func (o *tagOptions) IDSchemeType() IDSchemeType {
 	return o.idScheme
+}
+
+func (o *tagOptions) SetFilters(value Filters) TagOptions {
+	opts := *o
+	opts.filters = value
+	return &opts
+}
+
+func (o *tagOptions) Filters() Filters {
+	return o.filters
+}
+
+func (o *tagOptions) Equals(other TagOptions) bool {
+	return o.idScheme == other.IDSchemeType() &&
+		bytes.Equal(o.metricName, other.MetricName()) &&
+		bytes.Equal(o.bucketName, other.BucketName())
 }

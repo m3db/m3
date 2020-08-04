@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -40,7 +41,7 @@ func TestNamespaceDeleteHandlerNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	deleteHandler := NewDeleteHandler(mockClient)
+	deleteHandler := NewDeleteHandler(mockClient, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
 
@@ -62,7 +63,7 @@ func TestNamespaceDeleteHandlerDeleteAll(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	deleteHandler := NewDeleteHandler(mockClient)
+	deleteHandler := NewDeleteHandler(mockClient, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
 
@@ -109,7 +110,7 @@ func TestNamespaceDeleteHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	deleteHandler := NewDeleteHandler(mockClient)
+	deleteHandler := NewDeleteHandler(mockClient, instrument.NewOptions())
 
 	w := httptest.NewRecorder()
 

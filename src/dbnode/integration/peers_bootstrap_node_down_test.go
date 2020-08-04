@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
@@ -50,8 +50,12 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 	namesp, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
+	opts := NewTestOptions(t).
+		SetNamespaces([]namespace.Metadata{namesp}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
@@ -62,7 +66,7 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 	defer closeFn()
 
 	// Write test data for first node
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 	blockSize := retentionOpts.BlockSize()
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process
@@ -73,20 +77,20 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
 	})
-	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps, 0)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	// Leave second node down, start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[2].startServer())
+	require.NoError(t, setups[2].StartServer())
 	log.Debug("first and third servers are now up")
 
 	// Stop the servers
 	defer func() {
-		testSetups{setups[0], setups[2]}.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+		testSetups{setups[0], setups[2]}.parallel(func(s TestSetup) {
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

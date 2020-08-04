@@ -21,7 +21,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -31,15 +30,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/query/util/logging"
 	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -129,14 +128,12 @@ db:
 
   repair:
       enabled: false
-      interval: 2h
-      offset: 30m
-      jitter: 1h
       throttle: 2m
       checkInterval: 1m
 
   pooling:
       blockAllocSize: 16
+      thriftBytesPoolAllocSize: 2048
       type: simple
       seriesPool:
           size: 5242880
@@ -150,6 +147,10 @@ db:
           size: 25165824
           lowWatermark: 0.01
           highWatermark: 0.02
+      checkedBytesWrapperPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
       closersPool:
           size: 104857
           lowWatermark: 0.01
@@ -158,7 +159,6 @@ db:
           size: 524288
           lowWatermark: 0.01
           highWatermark: 0.02
-          maxFinalizerCapacity: 8
       segmentReaderPool:
           size: 16384
           lowWatermark: 0.01
@@ -177,7 +177,7 @@ db:
           lowWatermark: 0.01
           highWatermark: 0.02
           capacity: 4096
-      hostBlockMetadataSlicePool:
+      replicaMetadataSlicePool:
           size: 131072
           capacity: 3
           lowWatermark: 0.01
@@ -242,6 +242,10 @@ db:
           size: 65536
           lowWatermark: 0.01
           highWatermark: 0.02
+      retrieveRequestPool:
+          size: 65536
+          lowWatermark: 0.01
+          highWatermark: 0.02
       bytesPool:
           buckets:
               - capacity: 16
@@ -289,6 +293,7 @@ db:
                     - 1.1.1.1:2379
                     - 1.1.1.2:2379
                     - 1.1.1.3:2379
+
       seedNodes:
           listenPeerUrls:
               - http://0.0.0.0:2380
@@ -370,6 +375,7 @@ func TestConfiguration(t *testing.T) {
     value: host1
     envVarName: null
     file: null
+    hostname: null
   client:
     config: null
     writeConsistencyLevel: 2
@@ -392,11 +398,16 @@ func TestConfiguration(t *testing.T) {
       maxRetries: 3
       forever: null
       jitter: true
+    logErrorSampleRate: 0
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
       seed: 42
     proto: null
+    asyncWriteWorkerPoolSize: null
+    asyncWriteMaxConcurrency: null
+    useV2BatchAPIs: null
+    writeTimestampOffset: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
@@ -410,6 +421,7 @@ func TestConfiguration(t *testing.T) {
       numProcessorsPerCPU: 0.42
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
+    peers: null
     cacheSeriesMetadata: null
   blockRetrieve: null
   cache:
@@ -431,6 +443,7 @@ func TestConfiguration(t *testing.T) {
     mmap: null
     force_index_summaries_mmap_memory: true
     force_bloom_filter_mmap_memory: true
+    bloomFilterFalsePositivePercent: null
   commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s
@@ -441,13 +454,14 @@ func TestConfiguration(t *testing.T) {
     blockSize: null
   repair:
     enabled: false
-    interval: 2h0m0s
-    offset: 30m0s
-    jitter: 1h0m0s
     throttle: 2m0s
     checkInterval: 1m0s
+    debugShadowComparisonsEnabled: false
+    debugShadowComparisonsPercentage: 0
+  replication: null
   pooling:
     blockAllocSize: 16
+    thriftBytesPoolAllocSize: 2048
     type: simple
     bytesPool:
       buckets:
@@ -483,6 +497,10 @@ func TestConfiguration(t *testing.T) {
         lowWatermark: 0.01
         highWatermark: 0.02
         capacity: 8192
+    checkedBytesWrapperPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
     closersPool:
       size: 104857
       lowWatermark: 0.01
@@ -491,7 +509,6 @@ func TestConfiguration(t *testing.T) {
       size: 524288
       lowWatermark: 0.01
       highWatermark: 0.02
-      maxFinalizerCapacity: 8
     seriesPool:
       size: 5242880
       lowWatermark: 0.01
@@ -526,7 +543,7 @@ func TestConfiguration(t *testing.T) {
       lowWatermark: 0.01
       highWatermark: 0.02
       capacity: 4096
-    hostBlockMetadataSlicePool:
+    replicaMetadataSlicePool:
       size: 131072
       lowWatermark: 0.01
       highWatermark: 0.02
@@ -583,28 +600,39 @@ func TestConfiguration(t *testing.T) {
       size: 65536
       lowWatermark: 0.01
       highWatermark: 0.02
+    retrieveRequestPool:
+      size: 65536
+      lowWatermark: 0.01
+      highWatermark: 0.02
     postingsListPool:
       size: 8
       lowWatermark: 0
       highWatermark: 0
   config:
-    service:
-      zone: embedded
-      env: production
-      service: m3db
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-      - zone: embedded
-        endpoints:
-        - 1.1.1.1:2379
-        - 1.1.1.2:2379
-        - 1.1.1.3:2379
-        keepAlive: null
-        tls: null
-      m3sd:
-        initTimeout: null
-      watchWithRevision: 0
-    static: null
+    services:
+    - async: false
+      clientOverrides:
+        hostQueueFlushInterval: null
+        targetHostQueueFlushSize: null
+      service:
+        zone: embedded
+        env: production
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+        - zone: embedded
+          endpoints:
+          - 1.1.1.1:2379
+          - 1.1.1.2:2379
+          - 1.1.1.3:2379
+          keepAlive: null
+          tls: null
+          autoSyncInterval: 0s
+        m3sd:
+          initTimeout: null
+        watchWithRevision: 0
+        newDirectoryMode: null
+    statics: []
     seedNodes:
       rootDir: /var/lib/etcd
       initialAdvertisePeerUrls:
@@ -656,6 +684,41 @@ func TestConfiguration(t *testing.T) {
       headers: null
       baggage_restrictions: null
       throttler: null
+    lightstep:
+      access_token: ""
+      collector:
+        scheme: ""
+        host: ""
+        port: 0
+        plaintext: false
+        custom_ca_cert_file: ""
+      tags: {}
+      lightstep_api:
+        scheme: ""
+        host: ""
+        port: 0
+        plaintext: false
+        custom_ca_cert_file: ""
+      max_buffered_spans: 0
+      max_log_key_len: 0
+      max_log_value_len: 0
+      max_logs_per_span: 0
+      grpc_max_call_send_msg_size_bytes: 0
+      reporting_period: 0s
+      min_reporting_period: 0s
+      report_timeout: 0s
+      drop_span_logs: false
+      verbose: false
+      use_http: false
+      usegrpc: false
+      reconnect_period: 0s
+      meta_event_reporting_enabled: false
+  limits:
+    maxRecentlyQueriedSeriesBlocks: null
+    maxOutstandingWriteRequests: 0
+    maxOutstandingReadRequests: 0
+    maxOutstandingRepairedBytes: 0
+  tchannel: null
 coordinator: null
 `
 
@@ -845,13 +908,9 @@ func TestNewJaegerTracer(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	logging.InitWithCores(nil)
-	ctx := context.Background()
-	zapLogger := logging.WithContext(ctx)
-	defer zapLogger.Sync()
-
-	testScope := tally.NewTestScope("test_scope", map[string]string{"app": "test"})
-	tracer, closer, err := cfg.DB.Tracing.NewTracer("m3dbnode", testScope, zapLogger)
+	instrumentOpts := instrument.NewOptions()
+	tracer, closer, err := cfg.DB.Tracing.NewTracer("m3dbnode",
+		instrumentOpts.MetricsScope(), instrumentOpts.Logger())
 	require.NoError(t, err)
 	defer closer.Close()
 
@@ -987,6 +1046,6 @@ db:
 	adminClient := client.NewMockAdminClient(ctrl)
 
 	_, err = cfg.DB.Bootstrap.New(validator,
-		storage.DefaultTestOptions(), mapProvider, origin, adminClient)
+		result.NewOptions(), storage.DefaultTestOptions(), mapProvider, origin, adminClient)
 	require.NoError(t, err)
 }

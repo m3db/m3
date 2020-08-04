@@ -29,29 +29,29 @@ import (
 )
 
 const (
-	// EqType checks that lhs is equal to rhs
+	// EqType checks that lhs is equal to rhs.
 	EqType = "=="
 
-	// NotEqType checks that lhs is equal to rhs
+	// NotEqType checks that lhs is equal to rhs.
 	NotEqType = "!="
 
-	// GreaterType checks that lhs is equal to rhs
+	// GreaterType checks that lhs is equal to rhs.
 	GreaterType = ">"
 
-	// LesserType checks that lhs is equal to rhs
+	// LesserType checks that lhs is equal to rhs.
 	LesserType = "<"
 
-	// GreaterEqType checks that lhs is equal to rhs
+	// GreaterEqType checks that lhs is equal to rhs.
 	GreaterEqType = ">="
 
-	// LesserEqType checks that lhs is equal to rhs
+	// LesserEqType checks that lhs is equal to rhs.
 	LesserEqType = "<="
 
-	// suffix to return bool values instead of lhs values
+	// suffix to return bool values instead of lhs values.
 	returnBoolSuffix = "BOOL"
 )
 
-// convert true to 1, false to 0
+// convert true to 1, false to 0.
 func toFloat(b bool) float64 {
 	if b {
 		return 1
@@ -59,7 +59,7 @@ func toFloat(b bool) float64 {
 	return 0
 }
 
-// convert true to x, false to NaN
+// convert true to x, false to NaN.
 func toComparisonValue(b bool, x float64) float64 {
 	if b {
 		return x
@@ -68,7 +68,7 @@ func toComparisonValue(b bool, x float64) float64 {
 }
 
 var (
-	comparisonFuncs = map[string]Function{
+	comparisonFuncs = map[string]binaryFunction{
 		EqType:        func(x, y float64) float64 { return toComparisonValue(x == y, x) },
 		NotEqType:     func(x, y float64) float64 { return toComparisonValue(x != y, x) },
 		GreaterType:   func(x, y float64) float64 { return toComparisonValue(x > y, x) },
@@ -86,7 +86,7 @@ var (
 )
 
 // Builds a comparison processing function if able. If wrong opType supplied,
-// returns no function and false
+// returns no function and false.
 func buildComparisonFunction(
 	opType string,
 	params NodeParams,

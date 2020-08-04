@@ -1,6 +1,8 @@
 listenAddress:
-  type: "config"
   value: "0.0.0.0:7201"
+
+logging:
+  level: info
 
 metrics:
   scope:
@@ -41,3 +43,12 @@ clusters:
 
 tagOptions:
   idScheme: quoted
+
+query:
+  restrictTags:
+    match:
+      - name: restricted_metrics_type
+        type: NOTEQUAL
+        value: hidden
+    strip:
+    - restricted_metrics_type

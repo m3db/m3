@@ -36,6 +36,7 @@ import (
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -64,8 +65,9 @@ type seeker struct {
 
 	// Data read from the indexInfo file. Note that we use xtime.UnixNano
 	// instead of time.Time to avoid keeping an extra pointer around.
-	start     xtime.UnixNano
-	blockSize time.Duration
+	start          xtime.UnixNano
+	blockSize      time.Duration
+	versionChecker schema.VersionChecker
 
 	dataFd        *os.File
 	indexFd       *os.File
@@ -84,10 +86,10 @@ type seeker struct {
 // IndexEntry is an entry from the index file which can be passed to
 // SeekUsingIndexEntry to seek to the data for that entry
 type IndexEntry struct {
-	Size        uint32
-	Checksum    uint32
-	Offset      int64
-	EncodedTags checked.Bytes
+	Size         uint32
+	DataChecksum uint32
+	Offset       int64
+	EncodedTags  checked.Bytes
 }
 
 // NewSeeker returns a new seeker.
@@ -145,6 +147,7 @@ func (s *seeker) Open(
 	namespace ident.ID,
 	shard uint32,
 	blockStart time.Time,
+	volumeIndex int,
 	resources ReusableSeekerResources,
 ) error {
 	if s.isClone {
@@ -152,30 +155,40 @@ func (s *seeker) Open(
 	}
 
 	shardDir := ShardDataDirPath(s.opts.filePathPrefix, namespace, shard)
-	var infoFd, digestFd, bloomFilterFd, summariesFd *os.File
+	var (
+		infoFd, digestFd, bloomFilterFd, summariesFd *os.File
+		err                                          error
+		isLegacy                                     bool
+	)
+
+	if volumeIndex == 0 {
+		isLegacy, err = isFirstVolumeLegacy(shardDir, blockStart, checkpointFileSuffix)
+		if err != nil {
+			return err
+		}
+	}
 
 	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &s.indexFd,
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &s.dataFd,
-		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
-		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
-		filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, infoFileSuffix, isLegacy):        &infoFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, indexFileSuffix, isLegacy):       &s.indexFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, dataFileSuffix, isLegacy):        &s.dataFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, digestFileSuffix, isLegacy):      &digestFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, bloomFilterFileSuffix, isLegacy): &bloomFilterFd,
+		dataFilesetPathFromTimeAndIndex(shardDir, blockStart, volumeIndex, summariesFileSuffix, isLegacy):   &summariesFd,
 	}); err != nil {
 		return err
 	}
 
-	// Setup digest readers
 	var (
-		infoFdWithDigest           = digest.NewFdWithDigestReader(s.opts.infoBufferSize)
-		indexFdWithDigest          = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
-		bloomFilterFdWithDigest    = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
-		summariesFdWithDigest      = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
-		digestFdWithDigestContents = digest.NewFdWithDigestContentsReader(s.opts.infoBufferSize)
+		infoFdWithDigest           = resources.seekerOpenResources.infoFDDigestReader
+		indexFdWithDigest          = resources.seekerOpenResources.indexFDDigestReader
+		bloomFilterFdWithDigest    = resources.seekerOpenResources.bloomFilterFDDigestReader
+		summariesFdWithDigest      = resources.seekerOpenResources.summariesFDDigestReader
+		digestFdWithDigestContents = resources.seekerOpenResources.digestFDDigestContentsReader
 	)
 	defer func() {
-		// NB(rartoul): We don't need to keep these FDs open as we use these up front
+		// NB(rartoul): We don't need to keep these FDs open as we use them up front.
 		infoFdWithDigest.Close()
 		bloomFilterFdWithDigest.Close()
 		summariesFdWithDigest.Close()
@@ -212,6 +225,7 @@ func (s *seeker) Open(
 	}
 	s.start = xtime.UnixNano(info.BlockStart)
 	s.blockSize = time.Duration(info.BlockSize)
+	s.versionChecker = schema.NewVersionChecker(int(info.MajorVersion), int(info.MinorVersion))
 
 	err = s.validateIndexFileDigest(
 		indexFdWithDigest, expectedDigests.indexDigest)
@@ -219,7 +233,7 @@ func (s *seeker) Open(
 		s.Close()
 		return fmt.Errorf(
 			"index file digest for file: %s does not match the expected digest: %c",
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix), err,
+			filesetPathFromTimeLegacy(shardDir, blockStart, indexFileSuffix), err,
 		)
 	}
 
@@ -237,6 +251,9 @@ func (s *seeker) Open(
 		uint(info.BloomFilter.NumElementsM),
 		uint(info.BloomFilter.NumHashesK),
 		s.opts.opts.ForceBloomFilterMmapMemory(),
+		mmap.ReporterOptions{
+			Reporter: s.opts.opts.MmapReporter(),
+		},
 	)
 	if err != nil {
 		s.Close()
@@ -251,6 +268,9 @@ func (s *seeker) Open(
 		resources.byteDecoderStream,
 		int(info.Summaries.Summaries),
 		s.opts.opts.ForceIndexSummariesMmapMemory(),
+		mmap.ReporterOptions{
+			Reporter: s.opts.opts.MmapReporter(),
+		},
 	)
 	if err != nil {
 		s.Close()
@@ -345,7 +365,7 @@ func (s *seeker) SeekByIndexEntry(
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if entry.Checksum != digest.Checksum(underlyingBuf) {
+	if entry.DataChecksum != digest.Checksum(underlyingBuf) {
 		return nil, errSeekChecksumMismatch
 	}
 
@@ -385,8 +405,7 @@ func (s *seeker) SeekIndexEntry(
 		// this is a tight loop (scanning linearly through the index file) we want to use a
 		// very cheap pool until we find what we're looking for, and then we can perform a single
 		// copy into checked.Bytes from the more expensive pool.
-		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(
-			resources.decodeIndexEntryBytesPool)
+		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(resources.decodeIndexEntryBytesPool)
 		if err == io.EOF {
 			// We reached the end of the file without finding it.
 			return IndexEntry{}, errSeekIDNotFound
@@ -416,10 +435,10 @@ func (s *seeker) SeekIndexEntry(
 			}
 
 			indexEntry := IndexEntry{
-				Size:        uint32(entry.Size),
-				Checksum:    uint32(entry.Checksum),
-				Offset:      entry.Offset,
-				EncodedTags: checkedEncodedTags,
+				Size:         uint32(entry.Size),
+				DataChecksum: uint32(entry.DataChecksum),
+				Offset:       entry.Offset,
+				EncodedTags:  checkedEncodedTags,
 			}
 
 			// Safe to return resources to the pool because ID will not be
@@ -492,6 +511,8 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		// they are concurrency safe and can be shared among clones.
 		indexFd: s.indexFd,
 		dataFd:  s.dataFd,
+
+		versionChecker: s.versionChecker,
 	}
 
 	return seeker, nil
@@ -501,6 +522,12 @@ func (s *seeker) validateIndexFileDigest(
 	indexFdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
 ) error {
+	// If piecemeal checksumming validation enabled for index entries, do not attempt to validate the
+	// checksum of the entire file
+	if s.versionChecker.IndexEntryValidationEnabled() {
+		return nil
+	}
+
 	buf := make([]byte, s.opts.dataBufferSize)
 	for {
 		n, err := indexFdWithDigest.Read(buf)
@@ -531,6 +558,27 @@ type ReusableSeekerResources struct {
 	// since the ReusableSeekerResources is only ever used by a single seeker at
 	// a time, we can size this pool such that it almost never has to allocate.
 	decodeIndexEntryBytesPool pool.BytesPool
+
+	seekerOpenResources reusableSeekerOpenResources
+}
+
+// reusableSeekerOpenResources contains resources used for the Open() method of the seeker.
+type reusableSeekerOpenResources struct {
+	infoFDDigestReader           digest.FdWithDigestReader
+	indexFDDigestReader          digest.FdWithDigestReader
+	bloomFilterFDDigestReader    digest.FdWithDigestReader
+	summariesFDDigestReader      digest.FdWithDigestReader
+	digestFDDigestContentsReader digest.FdWithDigestContentsReader
+}
+
+func newReusableSeekerOpenResources(opts Options) reusableSeekerOpenResources {
+	return reusableSeekerOpenResources{
+		infoFDDigestReader:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
+		indexFDDigestReader:          digest.NewFdWithDigestReader(opts.DataReaderBufferSize()),
+		bloomFilterFDDigestReader:    digest.NewFdWithDigestReader(opts.DataReaderBufferSize()),
+		summariesFDDigestReader:      digest.NewFdWithDigestReader(opts.DataReaderBufferSize()),
+		digestFDDigestContentsReader: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
+	}
 }
 
 // NewReusableSeekerResources creates a new ReusableSeekerResources.
@@ -543,6 +591,7 @@ func NewReusableSeekerResources(opts Options) ReusableSeekerResources {
 		byteDecoderStream:         xmsgpack.NewByteDecoderStream(nil),
 		offsetFileReader:          newOffsetFileReader(),
 		decodeIndexEntryBytesPool: newSimpleBytesPool(),
+		seekerOpenResources:       newReusableSeekerOpenResources(opts),
 	}
 }
 

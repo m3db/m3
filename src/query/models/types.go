@@ -85,24 +85,41 @@ const (
 type TagOptions interface {
 	// Validate validates these tag options.
 	Validate() error
+
 	// SetMetricName sets the name for the `metric name` tag.
-	SetMetricName(metricName []byte) TagOptions
+	SetMetricName(value []byte) TagOptions
+
 	// MetricName gets the name for the `metric name` tag.
 	MetricName() []byte
+
 	// SetBucketName sets the name for the `bucket label` tag.
-	SetBucketName(metricName []byte) TagOptions
+	SetBucketName(value []byte) TagOptions
+
 	// BucketName gets the name for the `bucket label` tag.
 	BucketName() []byte
+
 	// SetIDSchemeType sets the ID generation scheme type.
-	SetIDSchemeType(scheme IDSchemeType) TagOptions
+	SetIDSchemeType(value IDSchemeType) TagOptions
+
 	// IDSchemeType gets the ID generation scheme type.
 	IDSchemeType() IDSchemeType
+
+	// SetFilters sets tag filters.
+	SetFilters(value Filters) TagOptions
+
+	// Filters gets the tag filters.
+	Filters() Filters
+
+	// Equals determines if two tag options are equivalent.
+	Equals(other TagOptions) bool
 }
 
 // Tags represents a set of tags with options.
 type Tags struct {
-	Opts TagOptions
-	Tags []Tag
+	Opts     TagOptions
+	Tags     []Tag
+	hashedID uint64
+	id       []byte
 }
 
 // Tag is a key/value metric tag pair.
@@ -146,3 +163,15 @@ type Metric struct {
 
 // Metrics is a list of individual metrics.
 type Metrics []Metric
+
+// Filters is a set of tag filters.
+type Filters []Filter
+
+// Filter is a regex tag filter.
+type Filter struct {
+	// Name is the name of the series.
+	Name []byte
+	// Values are a set of filter values. If this is unset, all series containing
+	// the tag name are filtered.
+	Values [][]byte
+}

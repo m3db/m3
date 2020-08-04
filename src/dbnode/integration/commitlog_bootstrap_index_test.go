@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -57,23 +57,23 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
 
 	// Write test data
 	log.Info("generating data")
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	fooSeries := generate.Series{
 		ID:   ident.StringID("foo"),
 		Tags: ident.NewTags(ident.StringTag("city", "new_york"), ident.StringTag("foo", "foo")),
@@ -134,14 +134,14 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
-	setup.setNowFn(now)
+	setup.SetNowFn(now)
 	// Start the server with filesystem bootstrapper
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 
@@ -151,7 +151,7 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	verifySeriesMaps(t, setup, testNamespaces[1], seriesMaps)
 
 	// Issue some index queries
-	session, err := setup.m3dbClient.DefaultSession()
+	session, err := setup.M3DBClient().DefaultSession()
 	require.NoError(t, err)
 
 	start := now.Add(-rOpts.RetentionPeriod())
@@ -161,28 +161,28 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err := session.FetchTaggedIDs(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, fetchResponse, err := session.FetchTaggedIDs(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
+		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:    []generate.Series{fooSeries, barSeries},
+		expected:   []generate.Series{fooSeries, barSeries},
 	})
 
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err = session.FetchTaggedIDs(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.FetchTaggedIDs(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
 	defer iter.Finalize()
 
-	verifyQueryMetadataResults(t, iter, exhaustive, verifyQueryMetadataResultsOptions{
-		namespace:   ns1.ID(),
+	verifyQueryMetadataResults(t, iter, fetchResponse.Exhaustive, verifyQueryMetadataResultsOptions{
+		namespace:  ns1.ID(),
 		exhaustive: true,
-		expected:    []generate.Series{barSeries, bazSeries},
+		expected:   []generate.Series{barSeries, bazSeries},
 	})
 }

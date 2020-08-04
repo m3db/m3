@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -42,8 +43,8 @@ func TestPlacementInitHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewInitHandler(nil, config.Configuration{})
-	handler.serviceFn = testServiceFn(mockService)
+	handler := newInitHandler(nil, config.Configuration{}, instrument.NewOptions())
+	handler.(*InitHandler).serviceFn = testServiceFn(mockService)
 
 	// Test topic init success
 	initProto := admin.TopicInitRequest{

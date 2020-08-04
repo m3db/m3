@@ -36,11 +36,12 @@ import (
 	"github.com/m3db/m3/src/m3nsch/agent"
 	"github.com/m3db/m3/src/m3nsch/datums"
 	proto "github.com/m3db/m3/src/m3nsch/generated/proto/m3nsch"
+	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/instrument"
 
-	"go.uber.org/zap"
 	"github.com/pborman/getopt"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -65,6 +66,8 @@ func main() {
 		logger.Fatalf("unable to read configuration file: %v", err.Error())
 	}
 
+	xconfig.WarnOnDeprecation(conf, rawLogger)
+
 	maxProcs := int(float64(runtime.NumCPU()) * conf.Server.CPUFactor)
 	logger.Infof("setting maxProcs = %d", maxProcs)
 	runtime.GOMAXPROCS(maxProcs)
@@ -86,7 +89,7 @@ func main() {
 		NewOptions().
 		SetLogger(rawLogger).
 		SetMetricsScope(scope).
-		SetMetricsSamplingRate(conf.Metrics.SamplingRate)
+		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: conf.Metrics.SampleRate()})
 	datumRegistry := datums.NewDefaultRegistry(conf.M3nsch.NumPointsPerDatum)
 	agentOpts := agent.NewOptions(iopts).
 		SetConcurrency(conf.M3nsch.Concurrency).
@@ -97,7 +100,12 @@ func main() {
 
 func newSessionFn(conf config.Configuration, iopts instrument.Options) m3nsch.NewSessionFn {
 	return m3nsch.NewSessionFn(func(zone, env string) (client.Session, error) {
-		svc := conf.DBClient.EnvironmentConfig.Service
+		cluster, err := conf.DBClient.EnvironmentConfig.Services.SyncCluster()
+		if err != nil {
+			return nil, err
+		}
+
+		svc := cluster.Service
 		svc.Env = env
 		svc.Zone = zone
 		cl, err := conf.DBClient.NewClient(client.ConfigurationParameters{

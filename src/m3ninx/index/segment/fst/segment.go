@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
@@ -36,13 +37,17 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/x"
+	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	pilosaroaring "github.com/m3db/pilosa/roaring"
-	"github.com/m3db/vellum"
+	"github.com/m3db/m3/src/x/mmap"
+
+	pilosaroaring "github.com/m3dbx/pilosa/roaring"
+	"github.com/m3dbx/vellum"
 )
 
 var (
 	errReaderClosed            = errors.New("segment is closed")
+	errReaderFinalized         = errors.New("segment is finalized")
 	errReaderNilRegexp         = errors.New("nil regexp provided")
 	errUnsupportedMajorVersion = errors.New("unsupported major version")
 	errDocumentsDataUnset      = errors.New("documents data bytes are not set")
@@ -57,11 +62,11 @@ type SegmentData struct {
 	Version  Version
 	Metadata []byte
 
-	DocsData      []byte
-	DocsIdxData   []byte
-	PostingsData  []byte
-	FSTTermsData  []byte
-	FSTFieldsData []byte
+	DocsData      mmap.Descriptor
+	DocsIdxData   mmap.Descriptor
+	PostingsData  mmap.Descriptor
+	FSTTermsData  mmap.Descriptor
+	FSTFieldsData mmap.Descriptor
 
 	// DocsReader is an alternative to specifying
 	// the docs data and docs idx data if the documents
@@ -78,24 +83,24 @@ func (sd SegmentData) Validate() error {
 		return err
 	}
 
-	if sd.PostingsData == nil {
+	if sd.PostingsData.Bytes == nil {
 		return errPostingsDataUnset
 	}
 
-	if sd.FSTTermsData == nil {
+	if sd.FSTTermsData.Bytes == nil {
 		return errFSTTermsDataUnset
 	}
 
-	if sd.FSTFieldsData == nil {
+	if sd.FSTFieldsData.Bytes == nil {
 		return errFSTFieldsDataUnset
 	}
 
 	if sd.DocsReader == nil {
-		if sd.DocsData == nil {
+		if sd.DocsData.Bytes == nil {
 			return errDocumentsDataUnset
 		}
 
-		if sd.DocsIdxData == nil {
+		if sd.DocsIdxData.Bytes == nil {
 			return errDocumentsIdxUnset
 		}
 	}
@@ -120,7 +125,7 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		return nil, fmt.Errorf("unsupported postings format: %v", metadata.PostingsFormat.String())
 	}
 
-	fieldsFST, err := vellum.Load(data.FSTFieldsData)
+	fieldsFST, err := vellum.Load(data.FSTFieldsData.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load fields fst: %v", err)
 	}
@@ -136,8 +141,8 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		startInclusive = docsSliceReader.Base()
 		endExclusive = startInclusive + postings.ID(docsSliceReader.Len())
 	} else {
-		docsDataReader = docs.NewDataReader(data.DocsData)
-		docsIndexReader, err = docs.NewIndexReader(data.DocsIdxData)
+		docsDataReader = docs.NewDataReader(data.DocsData.Bytes)
+		docsIndexReader, err = docs.NewIndexReader(data.DocsIdxData.Bytes)
 		if err != nil {
 			return nil, fmt.Errorf("unable to load documents index: %v", err)
 		}
@@ -147,7 +152,7 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		endExclusive = startInclusive + postings.ID(docsIndexReader.Len())
 	}
 
-	return &fsSegment{
+	s := &fsSegment{
 		fieldsFST:       fieldsFST,
 		docsDataReader:  docsDataReader,
 		docsIndexReader: docsIndexReader,
@@ -158,12 +163,26 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		numDocs:        metadata.NumDocs,
 		startInclusive: startInclusive,
 		endExclusive:   endExclusive,
-	}, nil
+	}
+
+	// NB(r): The segment uses the context finalization to finalize
+	// resources. Finalize is called after Close is called and all
+	// the segment readers have also been closed.
+	s.ctx = opts.ContextPool().Get()
+	s.ctx.RegisterFinalizer(s)
+
+	return s, nil
 }
+
+// Ensure FST segment implements ImmutableSegment so can be casted upwards
+// and mmap's can be freed.
+var _ segment.ImmutableSegment = (*fsSegment)(nil)
 
 type fsSegment struct {
 	sync.RWMutex
+	ctx             context.Context
 	closed          bool
+	finalized       bool
 	fieldsFST       *vellum.FST
 	docsDataReader  *docs.DataReader
 	docsIndexReader *docs.IndexReader
@@ -174,6 +193,19 @@ type fsSegment struct {
 	numDocs        int64
 	startInclusive postings.ID
 	endExclusive   postings.ID
+}
+
+func (r *fsSegment) SegmentData(ctx context.Context) (SegmentData, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return SegmentData{}, errReaderClosed
+	}
+
+	// NB(r): Ensure that we do not release, mmaps, etc
+	// until all readers have been closed.
+	r.ctx.DependsOn(ctx)
+	return r.data, nil
 }
 
 func (r *fsSegment) Size() int64 {
@@ -225,24 +257,38 @@ func (r *fsSegment) Reader() (index.Reader, error) {
 	if r.closed {
 		return nil, errReaderClosed
 	}
-	return &fsSegmentReader{
-		fsSegment: r,
-	}, nil
+
+	reader := newReader(r, r.opts)
+
+	// NB(r): Ensure that we do not release, mmaps, etc
+	// until all readers have been closed.
+	r.ctx.DependsOn(reader.ctx)
+
+	return reader, nil
 }
 
 func (r *fsSegment) Close() error {
 	r.Lock()
-	defer r.Unlock()
 	if r.closed {
+		r.Unlock()
 		return errReaderClosed
 	}
 	r.closed = true
-	var multiErr xerrors.MultiError
-	multiErr = multiErr.Add(r.fieldsFST.Close())
+	r.Unlock()
+	// NB(r): Inform context we are done, once all segment readers are
+	// closed the segment Finalize will be called async.
+	r.ctx.Close()
+	return nil
+}
+
+func (r *fsSegment) Finalize() {
+	r.Lock()
+	r.fieldsFST.Close()
 	if r.data.Closer != nil {
-		multiErr = multiErr.Add(r.data.Closer.Close())
+		r.data.Closer.Close()
 	}
-	return multiErr.FinalError()
+	r.finalized = true
+	r.Unlock()
 }
 
 func (r *fsSegment) FieldsIterable() sgmt.FieldsIterable {
@@ -270,6 +316,35 @@ func (r *fsSegment) TermsIterable() sgmt.TermsIterable {
 		fieldsIter:   newFSTTermsIter(),
 		postingsIter: newFSTTermsPostingsIter(),
 	}
+}
+
+func (r *fsSegment) FreeMmap() error {
+	multiErr := xerrors.NewMultiError()
+
+	// NB(bodu): PostingsData, FSTTermsData and FSTFieldsData always present.
+	if err := mmap.MadviseDontNeed(r.data.PostingsData); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	if err := mmap.MadviseDontNeed(r.data.FSTTermsData); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+	if err := mmap.MadviseDontNeed(r.data.FSTFieldsData); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	// DocsData and DocsIdxData are not always present.
+	if r.data.DocsData.Bytes != nil {
+		if err := mmap.MadviseDontNeed(r.data.DocsData); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+	if r.data.DocsIdxData.Bytes != nil {
+		if err := mmap.MadviseDontNeed(r.data.DocsIdxData); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
 }
 
 // termsIterable allows multiple term lookups to share the same roaring
@@ -311,7 +386,7 @@ func (r *fsSegment) UnmarshalPostingsListBitmap(b *pilosaroaring.Bitmap, offset 
 		return errReaderClosed
 	}
 
-	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData, offset)
+	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
 	if err != nil {
 		return fmt.Errorf("unable to retrieve postings data: %v", err)
 	}
@@ -326,9 +401,21 @@ func (r *fsSegment) MatchField(field []byte) (postings.List, error) {
 	if r.closed {
 		return nil, errReaderClosed
 	}
+	return r.matchFieldNotClosedMaybeFinalizedWithRLock(field)
+}
+
+func (r *fsSegment) matchFieldNotClosedMaybeFinalizedWithRLock(
+	field []byte,
+) (postings.List, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return nil, errReaderFinalized
+	}
+
 	if !r.data.Version.supportsFieldPostingsList() {
 		// i.e. don't have the field level postings list, so fall back to regexp
-		return r.matchRegexpWithRLock(field, index.DotStarCompiledRegex())
+		return r.matchRegexpNotClosedMaybeFinalizedWithRLock(field, index.DotStarCompiledRegex())
 	}
 
 	termsFSTOffset, exists, err := r.fieldsFST.Get(field)
@@ -340,7 +427,7 @@ func (r *fsSegment) MatchField(field []byte) (postings.List, error) {
 		return r.opts.PostingsListPool().Get(), nil
 	}
 
-	protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData, termsFSTOffset)
+	protoBytes, _, err := r.retrieveTermsBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -359,6 +446,17 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 	defer r.RUnlock()
 	if r.closed {
 		return nil, errReaderClosed
+	}
+	return r.matchTermNotClosedMaybeFinalizedWithRLock(field, term)
+}
+
+func (r *fsSegment) matchTermNotClosedMaybeFinalizedWithRLock(
+	field, term []byte,
+) (postings.List, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return nil, errReaderFinalized
 	}
 
 	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
@@ -396,16 +494,26 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 	return pl, nil
 }
 
-func (r *fsSegment) MatchRegexp(field []byte, compiled index.CompiledRegex) (postings.List, error) {
+func (r *fsSegment) MatchRegexp(
+	field []byte,
+	compiled index.CompiledRegex,
+) (postings.List, error) {
 	r.RLock()
-	pl, err := r.matchRegexpWithRLock(field, compiled)
-	r.RUnlock()
-	return pl, err
-}
-
-func (r *fsSegment) matchRegexpWithRLock(field []byte, compiled index.CompiledRegex) (postings.List, error) {
+	defer r.Unlock()
 	if r.closed {
 		return nil, errReaderClosed
+	}
+	return r.matchRegexpNotClosedMaybeFinalizedWithRLock(field, compiled)
+}
+
+func (r *fsSegment) matchRegexpNotClosedMaybeFinalizedWithRLock(
+	field []byte,
+	compiled index.CompiledRegex,
+) (postings.List, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return nil, errReaderFinalized
 	}
 
 	re := compiled.FST
@@ -475,6 +583,15 @@ func (r *fsSegment) MatchAll() (postings.MutableList, error) {
 	if r.closed {
 		return nil, errReaderClosed
 	}
+	return r.matchAllNotClosedMaybeFinalizedWithRLock()
+}
+
+func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.MutableList, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return nil, errReaderFinalized
+	}
 
 	pl := r.opts.PostingsListPool().Get()
 	err := pl.AddRange(r.startInclusive, r.endExclusive)
@@ -490,6 +607,15 @@ func (r *fsSegment) Doc(id postings.ID) (doc.Document, error) {
 	defer r.RUnlock()
 	if r.closed {
 		return doc.Document{}, errReaderClosed
+	}
+	return r.docNotClosedMaybeFinalizedWithRLock(id)
+}
+
+func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Document, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return doc.Document{}, errReaderFinalized
 	}
 
 	// If using docs slice reader, return from the in memory slice reader
@@ -511,8 +637,20 @@ func (r *fsSegment) Docs(pl postings.List) (doc.Iterator, error) {
 	if r.closed {
 		return nil, errReaderClosed
 	}
+	return r.docsNotClosedMaybeFinalizedWithRLock(r, pl)
+}
 
-	return index.NewIDDocIterator(r, pl.Iterator()), nil
+func (r *fsSegment) docsNotClosedMaybeFinalizedWithRLock(
+	retriever index.DocRetriever,
+	pl postings.List,
+) (doc.Iterator, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return nil, errReaderFinalized
+	}
+
+	return index.NewIDDocIterator(retriever, pl.Iterator()), nil
 }
 
 func (r *fsSegment) AllDocs() (index.IDDocIterator, error) {
@@ -521,12 +659,24 @@ func (r *fsSegment) AllDocs() (index.IDDocIterator, error) {
 	if r.closed {
 		return nil, errReaderClosed
 	}
+	return r.allDocsNotClosedMaybeFinalizedWithRLock(r)
+}
+
+func (r *fsSegment) allDocsNotClosedMaybeFinalizedWithRLock(
+	retriever index.DocRetriever,
+) (index.IDDocIterator, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if r.finalized {
+		return nil, errReaderFinalized
+	}
+
 	pi := postings.NewRangeIterator(r.startInclusive, r.endExclusive)
-	return index.NewIDDocIterator(r, pi), nil
+	return index.NewIDDocIterator(retriever, pi), nil
 }
 
 func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postings.List, error) {
-	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData, postingsOffset)
+	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, postingsOffset)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve postings data: %v", err)
 	}
@@ -544,7 +694,7 @@ func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, bool, 
 		return nil, false, nil
 	}
 
-	termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData, termsFSTOffset)
+	termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData.Bytes, termsFSTOffset)
 	if err != nil {
 		return nil, false, fmt.Errorf("error while decoding terms fst: %v", err)
 	}
@@ -683,99 +833,123 @@ func (r *fsSegment) retrieveBytesWithRLock(base []byte, offset uint64) ([]byte, 
 	return base[payloadStart:payloadEnd], nil
 }
 
-type fsSegmentReader struct {
-	sync.RWMutex
-	closed bool
+var _ index.Reader = (*fsSegmentReader)(nil)
 
+// fsSegmentReader is not thread safe for use and relies on the underlying
+// segment for synchronization.
+type fsSegmentReader struct {
+	closed    bool
+	ctx       context.Context
 	fsSegment *fsSegment
 }
 
-var _ index.Reader = &fsSegmentReader{}
+func newReader(
+	fsSegment *fsSegment,
+	opts Options,
+) *fsSegmentReader {
+	return &fsSegmentReader{
+		ctx:       opts.ContextPool().Get(),
+		fsSegment: fsSegment,
+	}
+}
 
 func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	pl, err := sr.fsSegment.MatchField(field)
-	sr.RUnlock()
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	sr.fsSegment.RLock()
+	pl, err := sr.fsSegment.matchFieldNotClosedMaybeFinalizedWithRLock(field)
+	sr.fsSegment.RUnlock()
 	return pl, err
 }
 
 func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	pl, err := sr.fsSegment.MatchTerm(field, term)
-	sr.RUnlock()
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	sr.fsSegment.RLock()
+	pl, err := sr.fsSegment.matchTermNotClosedMaybeFinalizedWithRLock(field, term)
+	sr.fsSegment.RUnlock()
 	return pl, err
 }
 
-func (sr *fsSegmentReader) MatchRegexp(field []byte, compiled index.CompiledRegex) (postings.List, error) {
-	sr.RLock()
+func (sr *fsSegmentReader) MatchRegexp(
+	field []byte,
+	compiled index.CompiledRegex,
+) (postings.List, error) {
 	if sr.closed {
-		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	pl, err := sr.fsSegment.MatchRegexp(field, compiled)
-	sr.RUnlock()
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	sr.fsSegment.RLock()
+	pl, err := sr.fsSegment.matchRegexpNotClosedMaybeFinalizedWithRLock(field, compiled)
+	sr.fsSegment.RUnlock()
 	return pl, err
 }
 
 func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	pl, err := sr.fsSegment.MatchAll()
-	sr.RUnlock()
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	sr.fsSegment.RLock()
+	pl, err := sr.fsSegment.matchAllNotClosedMaybeFinalizedWithRLock()
+	sr.fsSegment.RUnlock()
 	return pl, err
 }
 
 func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
 		return doc.Document{}, errReaderClosed
 	}
-	pl, err := sr.fsSegment.Doc(id)
-	sr.RUnlock()
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	sr.fsSegment.RLock()
+	pl, err := sr.fsSegment.docNotClosedMaybeFinalizedWithRLock(id)
+	sr.fsSegment.RUnlock()
 	return pl, err
 }
 
 func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	iter, err := sr.fsSegment.Docs(pl)
-	sr.RUnlock()
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	// Also make sure the doc retriever is the reader not the segment so that
+	// is closed check is not performed and only the is finalized check.
+	sr.fsSegment.RLock()
+	iter, err := sr.fsSegment.docsNotClosedMaybeFinalizedWithRLock(sr, pl)
+	sr.fsSegment.RUnlock()
 	return iter, err
 }
 
 func (sr *fsSegmentReader) AllDocs() (index.IDDocIterator, error) {
-	sr.RLock()
 	if sr.closed {
-		sr.RUnlock()
 		return nil, errReaderClosed
 	}
-	iter, err := sr.fsSegment.AllDocs()
-	sr.RUnlock()
+	// NB(r): We are allowed to call match field after Close called on
+	// the segment but not after it is finalized.
+	// Also make sure the doc retriever is the reader not the segment so that
+	// is closed check is not performed and only the is finalized check.
+	sr.fsSegment.RLock()
+	iter, err := sr.fsSegment.allDocsNotClosedMaybeFinalizedWithRLock(sr)
+	sr.fsSegment.RUnlock()
 	return iter, err
 }
 
 func (sr *fsSegmentReader) Close() error {
-	sr.Lock()
 	if sr.closed {
-		sr.Unlock()
 		return errReaderClosed
 	}
 	sr.closed = true
-	sr.Unlock()
+	// Close the context so that segment doesn't need to track this any longer.
+	sr.ctx.Close()
 	return nil
 }

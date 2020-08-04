@@ -24,6 +24,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -39,7 +40,8 @@ type results struct {
 	nsID ident.ID
 	opts QueryResultsOptions
 
-	resultsMap *ResultsMap
+	resultsMap     *ResultsMap
+	totalDocsCount int
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
@@ -82,11 +84,12 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	// Reset all values from map first
 	for _, entry := range r.resultsMap.Iter() {
 		tags := entry.Value()
-		tags.Finalize()
+		tags.Close()
 	}
 
 	// Reset all keys in the map next, this will finalize the keys.
 	r.resultsMap.Reset()
+	r.totalDocsCount = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
@@ -96,12 +99,14 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 
 // NB: If documents with duplicate IDs are added, they are simply ignored and
 // the first document added with an ID is returned.
-func (r *results) AddDocuments(batch []doc.Document) (int, error) {
+func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
+	docsCount := r.totalDocsCount + len(batch)
+	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size, err
+	return size, docsCount, err
 }
 
 func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
@@ -118,9 +123,7 @@ func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
 	return nil
 }
 
-func (r *results) addDocumentWithLock(
-	d doc.Document,
-) (bool, int, error) {
+func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
 	if len(d.ID) == 0 {
 		return false, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}
@@ -129,31 +132,28 @@ func (r *results) addDocumentWithLock(
 	// before we're sure we need it.
 	tsID := ident.BytesID(d.ID)
 
+	// Need to apply filter if set first.
+	if r.opts.FilterID != nil && !r.opts.FilterID(tsID) {
+		return false, r.resultsMap.Len(), nil
+	}
+
 	// check if it already exists in the map.
 	if r.resultsMap.Contains(tsID) {
 		return false, r.resultsMap.Len(), nil
 	}
 
 	// i.e. it doesn't exist in the map, so we create the tags wrapping
-	// fields prodided by the document.
-	tags := r.cloneTagsFromFields(d.Fields)
+	// fields provided by the document.
+	tags := convert.ToSeriesTags(d, convert.Opts{NoClone: true})
 
-	// We use Set() instead of SetUnsafe to ensure we're taking a copy of
-	// the tsID's bytes.
-	r.resultsMap.Set(tsID, tags)
+	// It is assumed that the document is valid for the lifetime of the index
+	// results.
+	r.resultsMap.SetUnsafe(tsID, tags, ResultsMapSetUnsafeOptions{
+		NoCopyKey:     true,
+		NoFinalizeKey: true,
+	})
 
 	return true, r.resultsMap.Len(), nil
-}
-
-func (r *results) cloneTagsFromFields(fields doc.Fields) ident.Tags {
-	tags := r.idPool.Tags()
-	for _, f := range fields {
-		tags.Append(r.idPool.CloneTag(ident.Tag{
-			Name:  ident.BytesID(f.Name),
-			Value: ident.BytesID(f.Value),
-		}))
-	}
-	return tags
 }
 
 func (r *results) Namespace() ident.ID {
@@ -177,15 +177,14 @@ func (r *results) Size() int {
 	return v
 }
 
-func (r *results) Finalize() {
+func (r *results) TotalDocsCount() int {
 	r.RLock()
-	noFinalize := r.noFinalize
+	count := r.totalDocsCount
 	r.RUnlock()
+	return count
+}
 
-	if noFinalize {
-		return
-	}
-
+func (r *results) Finalize() {
 	// Reset locks so cannot hold onto lock for call to Finalize.
 	r.Reset(nil, QueryResultsOptions{})
 
@@ -193,19 +192,4 @@ func (r *results) Finalize() {
 		return
 	}
 	r.pool.Put(r)
-}
-
-func (r *results) NoFinalize() {
-	r.Lock()
-
-	// Ensure neither the results object itself, nor any of its underlying
-	// IDs and tags will be finalized.
-	r.noFinalize = true
-	for _, entry := range r.resultsMap.Iter() {
-		id, tags := entry.Key(), entry.Value()
-		id.NoFinalize()
-		tags.NoFinalize()
-	}
-
-	r.Unlock()
 }

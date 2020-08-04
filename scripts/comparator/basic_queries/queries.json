@@ -1,0 +1,107 @@
+[
+  {
+    "queryGroup":"scalar",
+    "queries":[
+      "42",
+      "time()"
+    ],
+    "steps" : [
+      "1m"
+    ]
+  },
+  {
+    "queryGroup":"fetch",
+    "queries":[
+      "quail",
+      "quail offset 60s"
+    ],
+    "steps" : [
+      "15s",
+      "30s",
+      "1m"
+    ]
+  },
+  {
+    "queryGroup":"temporal",
+    "queries":[
+      "rate(multi_1[1m])",
+      "irate(multi_1[5m])",
+      "delta(multi_1[123s])",
+      "idelta(multi_1[1m] offset 1h)",
+      "deriv(multi_1[3m])"
+    ],
+    "steps" : [
+      "15s",
+      "30s", 
+      "1m",
+      "5m"
+    ]
+  },
+  {
+    "queryGroup":"binary",
+    "queries":[
+      "quail*1",
+      "1-quail",
+      "quail*quail",
+      "quail offset 1m / quail"
+    ],
+    "steps" : [
+      "15s",
+      "30s",
+      "1m"
+    ]
+  },
+  {
+    "queryGroup":"aggregation",
+    "queries":[
+      "sum({foobar=\"qux\"})",
+      "sum({foobar=\"qux\"}) - 1",
+      "sum({foobar=\"qux\"} offset 1m)"
+    ],
+    "steps" : [
+      "15s",
+      "30s", 
+      "1m"
+    ]
+  },
+  {
+    "queryGroup":"transform",
+    "queries":[
+      "clamp_max(quail, 0.5)",
+      "clamp_min(quail offset 60s, 0.5)",
+      "sum({foobar=\"qux\"}) - 1",
+      "sum({foobar=\"qux\"} offset 1m)"
+    ],
+    "steps" : [
+      "15s",
+      "30s", 
+      "1m"
+    ]
+  },
+  {
+    "queryGroup":"label",
+    "queries":[
+      "label_replace(quail,\"foo\", \"$1!\", \"name\", \"(.*)\")",
+      "label_replace(quail offset 1m,\"foo\", \"$1!\", \"name\", \"(.*)\")",
+      "label_replace(quail,\"foo\", \"$1!\", \"name\", \"(.*)\")-100",
+      "label_join(quail,\"quince\", \"!\", \"foobar\", \"name\")"
+    ],
+    "steps" : [
+      "15s",
+      "30s", 
+      "1m"
+    ]
+  },
+  {
+    "queryGroup":"topk",
+    "reruns": 5,
+    "queries":[
+      "topk(2, quack)",
+      "topk(2, avg_over_time(quack[30s]))",
+      "topk(2, avg(avg_over_time(quack[30s])) by (name))"
+    ],
+    "steps" : [
+      "1m"
+    ]
+  }
+]

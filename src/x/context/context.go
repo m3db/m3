@@ -27,7 +27,9 @@ import (
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
 	"github.com/m3db/m3/src/x/resource"
 
+	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/uber/jaeger-client-go"
 )
 
@@ -44,7 +46,7 @@ type ctx struct {
 	pool                 contextPool
 	done                 bool
 	wg                   sync.WaitGroup
-	finalizeables        []finalizeable
+	finalizeables        *finalizeableList
 	parent               Context
 	checkedAndNotSampled bool
 }
@@ -120,23 +122,23 @@ func (c *ctx) registerFinalizeable(f finalizeable) {
 		return
 	}
 
-	if c.finalizeables != nil {
-		c.finalizeables = append(c.finalizeables, f)
-		c.Unlock()
-		return
+	if c.finalizeables == nil {
+		if c.pool != nil {
+			c.finalizeables = c.pool.getFinalizeablesList()
+		} else {
+			c.finalizeables = newFinalizeableList(nil)
+		}
 	}
-
-	if c.pool != nil {
-		c.finalizeables = append(c.pool.getFinalizeables(), f)
-	} else {
-		c.finalizeables = append(allocateFinalizeables(), f)
-	}
+	c.finalizeables.PushBack(f)
 
 	c.Unlock()
 }
 
-func allocateFinalizeables() []finalizeable {
-	return make([]finalizeable, 0, defaultInitFinalizersCap)
+func (c *ctx) numFinalizeables() int {
+	if c.finalizeables == nil {
+		return 0
+	}
+	return c.finalizeables.Len()
 }
 
 func (c *ctx) DependsOn(blocker Context) {
@@ -168,80 +170,105 @@ const (
 	closeBlock
 )
 
+type returnToPoolMode int
+
+const (
+	returnToPool returnToPoolMode = iota
+	reuse
+)
+
 func (c *ctx) Close() {
+	returnMode := returnToPool
 	parent := c.parentCtx()
 	if parent != nil {
 		if !parent.IsClosed() {
 			parent.Close()
 		}
-		c.returnToPool()
+		c.tryReturnToPool(returnMode)
 		return
 	}
 
-	c.close(closeAsync)
+	c.close(closeAsync, returnMode)
 }
 
 func (c *ctx) BlockingClose() {
+	returnMode := returnToPool
 	parent := c.parentCtx()
 	if parent != nil {
 		if !parent.IsClosed() {
 			parent.BlockingClose()
 		}
-		c.returnToPool()
+		c.tryReturnToPool(returnMode)
 		return
 	}
 
-	c.close(closeBlock)
+	c.close(closeBlock, returnMode)
 }
 
-func (c *ctx) close(mode closeMode) {
+func (c *ctx) BlockingCloseReset() {
+	returnMode := reuse
+	parent := c.parentCtx()
+	if parent != nil {
+		if !parent.IsClosed() {
+			parent.BlockingCloseReset()
+		}
+		c.tryReturnToPool(returnMode)
+		return
+	}
+
+	c.close(closeBlock, returnMode)
+	c.Reset()
+}
+
+func (c *ctx) close(mode closeMode, returnMode returnToPoolMode) {
 	if c.Lock(); c.done {
 		c.Unlock()
 		return
 	}
 
 	c.done = true
-	c.Unlock()
-
-	if c.finalizeables == nil {
-		c.returnToPool()
-		return
-	}
 
 	// Capture finalizeables to avoid concurrent r/w if Reset
 	// is used after a caller waits for the finalizers to finish
 	f := c.finalizeables
 	c.finalizeables = nil
 
+	c.Unlock()
+
+	if f == nil {
+		c.tryReturnToPool(returnMode)
+		return
+	}
+
 	switch mode {
 	case closeAsync:
-		go c.finalize(f)
+		go c.finalize(f, returnMode)
 	case closeBlock:
-		c.finalize(f)
+		c.finalize(f, returnMode)
 	}
 }
 
-func (c *ctx) finalize(f []finalizeable) {
+func (c *ctx) finalize(f *finalizeableList, returnMode returnToPoolMode) {
 	// Wait for dependencies.
 	c.wg.Wait()
 
 	// Now call finalizers.
-	for i := range f {
-		if f[i].finalizer != nil {
-			f[i].finalizer.Finalize()
-			f[i].finalizer = nil
+	for elem := f.Front(); elem != nil; elem = elem.Next() {
+		if elem.Value.finalizer != nil {
+			elem.Value.finalizer.Finalize()
 		}
-		if f[i].closer != nil {
-			f[i].closer.Close()
-			f[i].closer = nil
+		if elem.Value.closer != nil {
+			elem.Value.closer.Close()
 		}
 	}
 
 	if c.pool != nil {
-		c.pool.putFinalizeables(f)
+		// NB(r): Always return finalizeables, only the
+		// context itself might want to be reused immediately.
+		c.pool.putFinalizeablesList(f)
 	}
 
-	c.returnToPool()
+	c.tryReturnToPool(returnMode)
 }
 
 func (c *ctx) Reset() {
@@ -256,8 +283,8 @@ func (c *ctx) Reset() {
 	c.Unlock()
 }
 
-func (c *ctx) returnToPool() {
-	if c.pool == nil {
+func (c *ctx) tryReturnToPool(returnMode returnToPoolMode) {
+	if c.pool == nil || returnMode != returnToPool {
 		return
 	}
 
@@ -296,57 +323,61 @@ func (c *ctx) parentCtx() Context {
 	return parent
 }
 
-// Until OpenTracing supports the `IsSampled()` method, we need to cast to a Jaeger span.
-// See https://github.com/opentracing/specification/issues/92 for more information.
-func (c *ctx) spanIsSampled(sp opentracing.Span) bool {
-	jaegerSpan, ok := sp.(*jaeger.Span)
-	if !ok {
-		return false
-	}
-
-	jaegerCtx := jaegerSpan.Context()
-	spanCtx, ok := jaegerCtx.(*jaeger.SpanContext)
-	if !ok {
-		return false
-	}
-
-	if !spanCtx.IsSampled() {
-		return false
-	}
-
-	return true
-}
-
 func (c *ctx) StartSampledTraceSpan(name string) (Context, opentracing.Span, bool) {
 	goCtx, exists := c.GoContext()
 	if !exists || c.checkedAndNotSampled {
 		return c, noopTracer.StartSpan(name), false
 	}
 
-	var (
-		sp    opentracing.Span
-		spCtx stdctx.Context
-	)
-
-	sp = opentracing.SpanFromContext(goCtx)
-	if sp == nil {
-		sp, spCtx = xopentracing.StartSpanFromContext(goCtx, name)
-		if c.spanIsSampled(sp) {
-			child := c.newChildContext()
-			child.SetGoContext(spCtx)
-			return child, sp, true
-		}
+	childGoCtx, span, sampled := StartSampledTraceSpan(goCtx, name)
+	if !sampled {
 		c.checkedAndNotSampled = true
 		return c, noopTracer.StartSpan(name), false
 	}
 
-	sp, spCtx = xopentracing.StartSpanFromContext(goCtx, name)
 	child := c.newChildContext()
-	child.SetGoContext(spCtx)
-	return child, sp, true
+	child.SetGoContext(childGoCtx)
+	return child, span, true
 }
 
 func (c *ctx) StartTraceSpan(name string) (Context, opentracing.Span) {
 	ctx, sp, _ := c.StartSampledTraceSpan(name)
 	return ctx, sp
+}
+
+// StartSampledTraceSpan starts a span that may or may not be sampled and will
+// return whether it was sampled or not.
+func StartSampledTraceSpan(ctx stdctx.Context, name string, opts ...opentracing.StartSpanOption) (stdctx.Context, opentracing.Span, bool) {
+	sp, spCtx := xopentracing.StartSpanFromContext(ctx, name, opts...)
+	sampled := spanIsSampled(sp)
+	if !sampled {
+		return ctx, noopTracer.StartSpan(name), false
+	}
+	return spCtx, sp, true
+}
+
+func spanIsSampled(sp opentracing.Span) bool {
+	if sp == nil {
+		return false
+	}
+
+	// Until OpenTracing supports the `IsSampled()` method, we need to cast to a Jaeger/Lightstep/etc. spans.
+	// See https://github.com/opentracing/specification/issues/92 for more information.
+	spanCtx := sp.Context()
+	jaegerSpCtx, ok := spanCtx.(jaeger.SpanContext)
+	if ok && jaegerSpCtx.IsSampled() {
+		return true
+	}
+
+	lightstepSpCtx, ok := spanCtx.(lightstep.SpanContext)
+	if ok && lightstepSpCtx.TraceID != 0 {
+		return true
+	}
+
+	mockSpCtx, ok := spanCtx.(mocktracer.MockSpanContext)
+	if ok && mockSpCtx.Sampled {
+		return true
+	}
+
+	return false
 }

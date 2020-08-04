@@ -124,9 +124,10 @@ func writeTestDataWithVolume(
 	assert.NoError(t, err)
 
 	for i := range entries {
-		assert.NoError(t, w.Write(
-			entries[i].ID(),
+		metadata := persist.NewMetadataFromIDAndTags(entries[i].ID(),
 			entries[i].Tags(),
+			persist.MetadataOptions{})
+		assert.NoError(t, w.Write(metadata,
 			bytesRefd(entries[i].data),
 			digest.Checksum(entries[i].data)))
 	}
@@ -141,8 +142,7 @@ func writeTestDataWithVolume(
 
 	// Check every entry has ID and Tags nil
 	for _, elem := range slice {
-		assert.Nil(t, elem.id)
-		assert.Nil(t, elem.tags.Values())
+		assert.Equal(t, persist.Metadata{}, elem.metadata)
 	}
 }
 
@@ -301,9 +301,10 @@ func TestDuplicateWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := range entries {
-		require.NoError(t, w.Write(
-			entries[i].ID(),
+		metadata := persist.NewMetadataFromIDAndTags(entries[i].ID(),
 			entries[i].Tags(),
+			persist.MetadataOptions{})
+		require.NoError(t, w.Write(metadata,
 			bytesRefd(entries[i].data),
 			digest.Checksum(entries[i].data)))
 	}
@@ -362,6 +363,32 @@ func TestInfoReadWrite(t *testing.T) {
 
 	infoFile := readInfoFileResults[0].Info
 	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
+	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
+	require.Equal(t, int64(len(entries)), infoFile.Entries)
+}
+
+func TestInfoReadWriteVolumeIndex(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	var (
+		entries = []testEntry{}
+		w       = newTestWriter(t, filePathPrefix)
+		volume  = 1
+	)
+
+	writeTestDataWithVolume(t, w, 0, testWriterStart, volume, entries, persist.FileSetFlushType)
+
+	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
+	require.Equal(t, 1, len(readInfoFileResults))
+	for _, result := range readInfoFileResults {
+		require.NoError(t, result.Err.Error())
+	}
+
+	infoFile := readInfoFileResults[0].Info
+	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
+	require.Equal(t, volume, infoFile.VolumeIndex)
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }
@@ -431,19 +458,21 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(entries[0].ID(),
+		entries[0].Tags(),
+		persist.MetadataOptions{})
 	require.NoError(t, w.Open(writerOpts))
 
-	require.NoError(t, w.Write(
-		entries[0].ID(),
-		entries[0].Tags(),
+	require.NoError(t, w.Write(metadata,
 		bytesRefd(entries[0].data),
 		digest.Checksum(entries[0].data)))
 
 	// Intentionally force a writer error.
 	w.(*writer).err = errors.New("foo")
-	require.Equal(t, "foo", w.Write(
-		entries[1].ID(),
+	metadata = persist.NewMetadataFromIDAndTags(entries[1].ID(),
 		entries[1].Tags(),
+		persist.MetadataOptions{})
+	require.Equal(t, "foo", w.Write(metadata,
 		bytesRefd(entries[1].data),
 		digest.Checksum(entries[1].data)).Error())
 	w.Close()
@@ -468,12 +497,6 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	checkedBytes := func(b []byte) checked.Bytes {
-		r := checked.NewBytes(b, nil)
-		r.IncRef()
-		return r
-	}
-
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
@@ -483,15 +506,20 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(
+		ident.StringID("foo"),
+		ident.Tags{},
+		persist.MetadataOptions{})
 	require.NoError(t, w.Open(writerOpts))
 
-	w.WriteAll(ident.StringID("foo"), ident.Tags{},
+	err := w.WriteAll(metadata,
 		[]checked.Bytes{
 			checkedBytes([]byte{1, 2, 3}),
 			nil,
 			checkedBytes([]byte{4, 5, 6}),
 		},
 		digest.Checksum([]byte{1, 2, 3, 4, 5, 6}))
+	require.NoError(t, err)
 
 	assert.NoError(t, w.Close())
 
@@ -499,4 +527,10 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, []testEntry{
 		{"foo", nil, []byte{1, 2, 3, 4, 5, 6}},
 	})
+}
+
+func checkedBytes(b []byte) checked.Bytes {
+	r := checked.NewBytes(b, nil)
+	r.IncRef()
+	return r
 }

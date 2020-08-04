@@ -36,9 +36,13 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/atomic"
 )
 
 var (
+	commitLogFileReadCounter = atomic.NewUint64(0)
+
 	// var instead of const so we can modify them in tests.
 	defaultDecodeEntryBufSize = 1024
 	decoderInBufChanSize      = 1000
@@ -54,32 +58,19 @@ var (
 	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
 )
 
-// ReadAllSeriesPredicate can be passed as the seriesPredicate for callers
-// that want a convenient way to read all series in the commitlogs
-func ReadAllSeriesPredicate() SeriesFilterPredicate {
-	return func(id ident.ID, namespace ident.ID) bool { return true }
-}
-
-type seriesMetadata struct {
-	ts.Series
-	passedPredicate bool
-}
-
 type commitLogReader interface {
 	// Open opens the commit log for reading
 	Open(filePath string) (int64, error)
 
 	// Read returns the next id and data pair or error, will return io.EOF at end of volume
-	Read() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation, error)
+	Read() (LogEntry, error)
 
 	// Close the reader
 	Close() error
 }
 
 type reader struct {
-	opts Options
-
-	seriesPredicate SeriesFilterPredicate
+	opts commitLogReaderOptions
 
 	logEntryBytes          []byte
 	tagDecoder             serialize.TagDecoder
@@ -89,25 +80,38 @@ type reader struct {
 	infoDecoder            *msgpack.Decoder
 	infoDecoderStream      msgpack.ByteDecoderStream
 	hasBeenOpened          bool
+	fileReadID             uint64
 
-	metadataLookup map[uint64]seriesMetadata
-	namespacesRead []ident.ID
+	metadataLookup map[uint64]ts.Series
+	namespacesRead []namespaceRead
+	seriesIDReused *ident.ReuseableBytesID
 }
 
-func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) commitLogReader {
+type namespaceRead struct {
+	namespaceIDBytes []byte
+	namespaceIDRef   ident.ID
+}
+
+type commitLogReaderOptions struct {
+	commitLogOptions Options
+	// returnMetadataAsRef indicates to not allocate metadata results.
+	returnMetadataAsRef bool
+}
+
+func newCommitLogReader(opts commitLogReaderOptions) commitLogReader {
 	tagDecoderCheckedBytes := checked.NewBytes(nil, nil)
 	tagDecoderCheckedBytes.IncRef()
 	return &reader{
 		opts:                   opts,
-		seriesPredicate:        seriesPredicate,
-		logEntryBytes:          make([]byte, 0, opts.FlushSize()),
-		metadataLookup:         make(map[uint64]seriesMetadata),
-		tagDecoder:             opts.FilesystemOptions().TagDecoderPool().Get(),
+		logEntryBytes:          make([]byte, 0, opts.commitLogOptions.FlushSize()),
+		metadataLookup:         make(map[uint64]ts.Series),
+		tagDecoder:             opts.commitLogOptions.FilesystemOptions().TagDecoderPool().Get(),
 		tagDecoderCheckedBytes: tagDecoderCheckedBytes,
-		checkedBytesPool:       opts.BytesPool(),
-		chunkReader:            newChunkReader(opts.FlushSize()),
-		infoDecoder:            msgpack.NewDecoder(opts.FilesystemOptions().DecodingOptions()),
+		checkedBytesPool:       opts.commitLogOptions.BytesPool(),
+		chunkReader:            newChunkReader(opts.commitLogOptions.FlushSize()),
+		infoDecoder:            msgpack.NewDecoder(opts.commitLogOptions.FilesystemOptions().DecodingOptions()),
 		infoDecoderStream:      msgpack.NewByteDecoderStream(nil),
+		seriesIDReused:         ident.NewReuseableBytesID(),
 	}
 }
 
@@ -129,6 +133,9 @@ func (r *reader) Open(filePath string) (int64, error) {
 		r.Close()
 		return 0, err
 	}
+
+	r.fileReadID = commitLogFileReadCounter.Inc()
+
 	index := info.Index
 	return index, nil
 }
@@ -144,49 +151,42 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 }
 
 // Read reads the next log entry in order.
-func (r *reader) Read() (
-	series ts.Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
-	err error,
-) {
-	var (
-		entry    schema.LogEntry
-		metadata seriesMetadata
-	)
-	for !metadata.passedPredicate {
-		err = r.readLogEntry()
-		if err != nil {
-			return ts.Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
-		}
-
-		entry, err = msgpack.DecodeLogEntryFast(r.logEntryBytes)
-		if err != nil {
-			return ts.Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
-		}
-
-		metadata, err = r.seriesMetadataForEntry(entry)
-		if err != nil {
-			return ts.Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
-		}
+func (r *reader) Read() (LogEntry, error) {
+	err := r.readLogEntry()
+	if err != nil {
+		return LogEntry{}, err
 	}
 
-	series = metadata.Series
-
-	datapoint = ts.Datapoint{
-		Timestamp: time.Unix(0, entry.Timestamp),
-		Value:     entry.Value,
+	entry, err := msgpack.DecodeLogEntryFast(r.logEntryBytes)
+	if err != nil {
+		return LogEntry{}, err
 	}
 
-	unit = xtime.Unit(entry.Unit)
+	metadata, err := r.seriesMetadataForEntry(entry)
+	if err != nil {
+		return LogEntry{}, err
+	}
+
+	result := LogEntry{
+		Series: metadata,
+		Datapoint: ts.Datapoint{
+			Timestamp:      time.Unix(0, entry.Timestamp),
+			TimestampNanos: xtime.UnixNano(entry.Timestamp),
+			Value:          entry.Value,
+		},
+		Unit: xtime.Unit(entry.Unit),
+		Metadata: LogEntryMetadata{
+			FileReadID:        r.fileReadID,
+			SeriesUniqueIndex: entry.Index,
+		},
+	}
 
 	if len(entry.Annotation) > 0 {
 		// Copy annotation to prevent reference to pooled byte slice
-		annotation = append(ts.Annotation(nil), ts.Annotation(entry.Annotation)...)
+		result.Annotation = append(ts.Annotation(nil), ts.Annotation(entry.Annotation)...)
 	}
 
-	return series, datapoint, unit, annotation, nil
+	return result, nil
 }
 
 func (r *reader) readLogEntry() error {
@@ -207,9 +207,64 @@ func (r *reader) readLogEntry() error {
 	return nil
 }
 
+func (r *reader) namespaceIDReused(id []byte) ident.ID {
+	var namespaceID ident.ID
+	for _, ns := range r.namespacesRead {
+		if bytes.Equal(ns.namespaceIDBytes, id) {
+			namespaceID = ns.namespaceIDRef
+			break
+		}
+	}
+	if namespaceID == nil {
+		// Take a copy and keep around to reuse later.
+		namespaceBytes := append(make([]byte, 0, len(id)), id...)
+		namespaceID = ident.BytesID(namespaceBytes)
+		r.namespacesRead = append(r.namespacesRead, namespaceRead{
+			namespaceIDBytes: namespaceBytes,
+			namespaceIDRef:   namespaceID,
+		})
+	}
+	return namespaceID
+}
+
 func (r *reader) seriesMetadataForEntry(
 	entry schema.LogEntry,
-) (seriesMetadata, error) {
+) (ts.Series, error) {
+	if r.opts.returnMetadataAsRef {
+		// NB(r): This is a fast path for callers where nothing
+		// is cached locally in terms of metadata lookup and the
+		// caller is returned just references to all the bytes in
+		// the backing commit log file the first and only time
+		// we encounter the series metadata, and then the refs are
+		// invalid on the next call to metadata.
+		if len(entry.Metadata) == 0 {
+			// Valid, nothing to return here and caller will already
+			// have processed metadata for this entry (based on the
+			// FileReadID and the SeriesUniqueIndex returned).
+			return ts.Series{}, nil
+		}
+
+		decoded, err := msgpack.DecodeLogMetadataFast(entry.Metadata)
+		if err != nil {
+			return ts.Series{}, err
+		}
+
+		// Reset the series ID being returned.
+		r.seriesIDReused.Reset(decoded.ID)
+		// Find or allocate the namespace ID.
+		namespaceID := r.namespaceIDReused(decoded.Namespace)
+		metadata := ts.Series{
+			UniqueIndex: entry.Index,
+			ID:          r.seriesIDReused,
+			Namespace:   namespaceID,
+			Shard:       decoded.Shard,
+			EncodedTags: ts.EncodedTags(decoded.EncodedTags),
+		}
+		return metadata, nil
+	}
+
+	// We only check for previously returned metadata
+	// if we're allocating results and can hold onto them.
 	metadata, ok := r.metadataLookup[entry.Index]
 	if ok {
 		// If the metadata already exists, we can skip this step.
@@ -218,12 +273,12 @@ func (r *reader) seriesMetadataForEntry(
 
 	if len(entry.Metadata) == 0 {
 		// Expected metadata but not encoded.
-		return seriesMetadata{}, errCommitLogReaderMissingMetadata
+		return ts.Series{}, errCommitLogReaderMissingMetadata
 	}
 
 	decoded, err := msgpack.DecodeLogMetadataFast(entry.Metadata)
 	if err != nil {
-		return seriesMetadata{}, err
+		return ts.Series{}, err
 	}
 
 	id := r.checkedBytesPool.Get(len(decoded.ID))
@@ -231,49 +286,21 @@ func (r *reader) seriesMetadataForEntry(
 	id.AppendAll(decoded.ID)
 
 	// Find or allocate the namespace ID.
-	var namespaceID ident.ID
-	for _, ns := range r.namespacesRead {
-		if bytes.Equal(ns.Bytes(), decoded.Namespace) {
-			namespaceID = ns
-			break
-		}
-	}
-	if namespaceID == nil {
-		// Take a copy and keep around to reuse later.
-		namespaceID = ident.BytesID(append([]byte(nil), decoded.Namespace...))
-		r.namespacesRead = append(r.namespacesRead, namespaceID)
-	}
+	namespaceID := r.namespaceIDReused(decoded.Namespace)
 
-	var (
-		idPool      = r.opts.IdentifierPool()
-		tags        ident.Tags
-		tagBytesLen = len(decoded.EncodedTags)
-	)
-	if tagBytesLen != 0 {
-		r.tagDecoderCheckedBytes.Reset(decoded.EncodedTags)
-		r.tagDecoder.Reset(r.tagDecoderCheckedBytes)
+	// Need to copy encoded tags since will be invalid when
+	// progressing to next record.
+	encodedTags := append(
+		make([]byte, 0, len(decoded.EncodedTags)),
+		decoded.EncodedTags...)
 
-		tags = idPool.Tags()
-		for r.tagDecoder.Next() {
-			curr := r.tagDecoder.Current()
-			tags.Append(idPool.CloneTag(curr))
-		}
-		err = r.tagDecoder.Err()
-		if err != nil {
-			return seriesMetadata{}, err
-		}
-	}
-
-	seriesID := idPool.BinaryID(id)
-	metadata = seriesMetadata{
-		Series: ts.Series{
-			UniqueIndex: entry.Index,
-			ID:          seriesID,
-			Namespace:   namespaceID,
-			Shard:       decoded.Shard,
-			Tags:        tags,
-		},
-		passedPredicate: r.seriesPredicate(seriesID, namespaceID),
+	idPool := r.opts.commitLogOptions.IdentifierPool()
+	metadata = ts.Series{
+		UniqueIndex: entry.Index,
+		ID:          idPool.BinaryID(id),
+		Namespace:   namespaceID,
+		Shard:       decoded.Shard,
+		EncodedTags: ts.EncodedTags(encodedTags),
 	}
 
 	r.metadataLookup[entry.Index] = metadata
@@ -284,7 +311,12 @@ func (r *reader) seriesMetadataForEntry(
 }
 
 func (r *reader) Close() error {
-	return r.chunkReader.fd.Close()
+	err := r.chunkReader.fd.Close()
+	// NB(r): Reset to free resources, but explicitly do
+	// not support reopening for now.
+	*r = reader{}
+	r.hasBeenOpened = true
+	return err
 }
 
 func resizeBufferOrGrowIfNeeded(buf []byte, length int) []byte {

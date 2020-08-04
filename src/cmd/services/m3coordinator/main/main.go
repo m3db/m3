@@ -22,29 +22,35 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/server"
+	xconfig "github.com/m3db/m3/src/x/config"
+	"github.com/m3db/m3/src/x/config/configflag"
 	"github.com/m3db/m3/src/x/etcd"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
 func main() {
-	flag.Parse()
+	var cfgOpts configflag.Options
+	cfgOpts.Register()
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
+	flag.Parse()
 
 	// Set globals for etcd related packages.
 	etcd.SetGlobals()
 
+	var cfg config.Configuration
+	if err := cfgOpts.MainLoad(&cfg, xconfig.Options{}); err != nil {
+		// NB(r): Use fmt.Fprintf(os.Stderr, ...) to avoid etcd.SetGlobals()
+		// sending stdlib "log" to black hole. Don't remove unless with good reason.
+		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
 	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
+		Config: cfg,
 	})
 }

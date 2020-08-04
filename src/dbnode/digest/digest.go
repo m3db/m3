@@ -23,7 +23,6 @@ package digest
 import (
 	"hash/adler32"
 
-	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/stackadler32"
 )
 
@@ -31,19 +30,6 @@ import (
 // The default 32-bit hashing algorithm is adler32.
 func NewDigest() stackadler32.Digest {
 	return stackadler32.NewDigest()
-}
-
-// SegmentChecksum returns the 32-bit checksum for a segment
-// avoiding any allocations.
-func SegmentChecksum(segment ts.Segment) uint32 {
-	d := stackadler32.NewDigest()
-	if segment.Head != nil {
-		d = d.Update(segment.Head.Bytes())
-	}
-	if segment.Tail != nil {
-		d = d.Update(segment.Tail.Bytes())
-	}
-	return d.Sum32()
 }
 
 // Checksum returns the checksum for a buffer.

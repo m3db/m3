@@ -23,6 +23,7 @@ package storage
 import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -41,6 +42,7 @@ type fsMergeWithMem struct {
 	retriever          series.QueryableBlockRetriever
 	dirtySeries        *dirtySeriesMap
 	dirtySeriesToWrite map[xtime.UnixNano]*idList
+	reuseableID        *ident.ReuseableBytesID
 }
 
 func newFSMergeWithMem(
@@ -54,6 +56,7 @@ func newFSMergeWithMem(
 		retriever:          retriever,
 		dirtySeries:        dirtySeries,
 		dirtySeriesToWrite: dirtySeriesToWrite,
+		reuseableID:        ident.NewReuseableBytesID(),
 	}
 }
 
@@ -64,7 +67,10 @@ func (m *fsMergeWithMem) Read(
 	nsCtx namespace.Context,
 ) ([]xio.BlockReader, bool, error) {
 	// Check if this series is in memory (and thus requires merging).
-	element, exists := m.dirtySeries.Get(idAndBlockStart{blockStart: blockStart, id: seriesID})
+	element, exists := m.dirtySeries.Get(idAndBlockStart{
+		blockStart: blockStart,
+		id:         seriesID.Bytes(),
+	})
 	if !exists {
 		return nil, false, nil
 	}
@@ -75,7 +81,11 @@ func (m *fsMergeWithMem) Read(
 	// it.
 	m.dirtySeriesToWrite[blockStart].Remove(element)
 
-	return m.fetchBlocks(ctx, element.Value, blockStart, nsCtx)
+	result, ok, err := m.fetchBlocks(ctx, seriesID, blockStart, nsCtx)
+	if err != nil {
+		return nil, false, err
+	}
+	return result.Blocks, ok, nil
 }
 
 func (m *fsMergeWithMem) fetchBlocks(
@@ -83,20 +93,24 @@ func (m *fsMergeWithMem) fetchBlocks(
 	id ident.ID,
 	blockStart xtime.UnixNano,
 	nsCtx namespace.Context,
-) ([]xio.BlockReader, bool, error) {
+) (block.FetchBlockResult, bool, error) {
 	startTime := blockStart.ToTime()
-	nextVersion := m.retriever.RetrievableBlockColdVersion(startTime) + 1
-
-	blocks, err := m.shard.FetchBlocksForColdFlush(ctx, id, startTime, nextVersion, nsCtx)
+	currVersion, err := m.retriever.RetrievableBlockColdVersion(startTime)
 	if err != nil {
-		return nil, false, err
+		return block.FetchBlockResult{}, false, err
+	}
+	nextVersion := currVersion + 1
+
+	result, err := m.shard.FetchBlocksForColdFlush(ctx, id, startTime, nextVersion, nsCtx)
+	if err != nil {
+		return block.FetchBlockResult{}, false, err
 	}
 
-	if len(blocks) > 0 {
-		return blocks, true, nil
+	if len(result.Blocks) > 0 {
+		return result, true, nil
 	}
 
-	return nil, false, nil
+	return block.FetchBlockResult{}, false, nil
 }
 
 // The data passed to ForEachRemaining (through the fs.ForEachRemainingFn) is
@@ -109,27 +123,19 @@ func (m *fsMergeWithMem) ForEachRemaining(
 	fn fs.ForEachRemainingFn,
 	nsCtx namespace.Context,
 ) error {
+	reuseableID := m.reuseableID
 	seriesList := m.dirtySeriesToWrite[blockStart]
 
 	for seriesElement := seriesList.Front(); seriesElement != nil; seriesElement = seriesElement.Next() {
-		seriesID := seriesElement.Value
-		tags, ok, err := m.shard.TagsFromSeriesID(seriesID)
+		seriesMetadata := seriesElement.Value
+		reuseableID.Reset(seriesMetadata.ID)
+		mergeWithData, hasData, err := m.fetchBlocks(ctx, reuseableID, blockStart, nsCtx)
 		if err != nil {
 			return err
-		}
-		if !ok {
-			// Receiving not ok means that the series was not found, for some
-			// reason like it falling out of retention, therefore we skip this
-			// series and continue.
-			continue
 		}
 
-		mergeWithData, hasData, err := m.fetchBlocks(ctx, seriesID, blockStart, nsCtx)
-		if err != nil {
-			return err
-		}
 		if hasData {
-			err = fn(seriesID, tags, mergeWithData)
+			err = fn(seriesMetadata, mergeWithData)
 			if err != nil {
 				return err
 			}

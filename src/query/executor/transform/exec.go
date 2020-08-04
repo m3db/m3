@@ -55,7 +55,18 @@ func ProcessSimpleBlock(
 		return err
 	}
 
+	// NB: The flow here is a little weird; this kicks off the next block's
+	// processing step after retrieving it, then attempts to close it. There is a
+	// trick here where some blocks (specifically lazy wrappers) that should not
+	// be closed, as they would free underlying data. The general story in block
+	// lifecycle should be revisited to remove quirks arising from these edge
+	// cases (something where blocks are responsible for calling their own
+	// downstreams would seem more intuitive and allow finer grained lifecycle
+	// control).
 	err = controller.Process(queryCtx, nextBlock)
-	nextBlock.Close()
+	if nextBlock.Info().Type() != block.BlockLazy {
+		nextBlock.Close()
+	}
+
 	return err
 }

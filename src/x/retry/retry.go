@@ -37,6 +37,7 @@ var (
 )
 
 type retrier struct {
+	opts           Options
 	initialBackoff time.Duration
 	backoffFactor  float64
 	maxBackoff     time.Duration
@@ -49,12 +50,14 @@ type retrier struct {
 }
 
 type retrierMetrics struct {
+	calls              tally.Counter
+	attempts           tally.Counter
 	success            tally.Counter
-	successLatency     tally.Timer
+	successLatency     tally.Histogram
 	errors             tally.Counter
 	errorsNotRetryable tally.Counter
 	errorsFinal        tally.Counter
-	errorsLatency      tally.Timer
+	errorsLatency      tally.Histogram
 	retries            tally.Counter
 }
 
@@ -72,7 +75,9 @@ func NewRetrier(opts Options) Retrier {
 			"type": "not-retryable",
 		},
 	}
+
 	return &retrier{
+		opts:           opts,
 		initialBackoff: opts.InitialBackoff(),
 		backoffFactor:  opts.BackoffFactor(),
 		maxBackoff:     opts.MaxBackoff(),
@@ -82,15 +87,21 @@ func NewRetrier(opts Options) Retrier {
 		rngFn:          opts.RngFn(),
 		sleepFn:        time.Sleep,
 		metrics: retrierMetrics{
+			calls:              scope.Counter("calls"),
+			attempts:           scope.Counter("attempts"),
 			success:            scope.Counter("success"),
-			successLatency:     scope.Timer("success-latency"),
+			successLatency:     histogramWithDurationBuckets(scope, "success-latency"),
 			errors:             scope.Tagged(errorTags.retryable).Counter("errors"),
 			errorsNotRetryable: scope.Tagged(errorTags.notRetryable).Counter("errors"),
 			errorsFinal:        scope.Counter("errors-final"),
-			errorsLatency:      scope.Timer("errors-latency"),
+			errorsLatency:      histogramWithDurationBuckets(scope, "errors-latency"),
 			retries:            scope.Counter("retries"),
 		},
 	}
+}
+
+func (r *retrier) Options() Options {
+	return r.opts
 }
 
 func (r *retrier) Attempt(fn Fn) error {
@@ -102,6 +113,9 @@ func (r *retrier) AttemptWhile(continueFn ContinueFn, fn Fn) error {
 }
 
 func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
+	// Always track a call, useful for counting number of total operations.
+	r.metrics.calls.Inc(1)
+
 	attempt := 0
 
 	if continueFn != nil && !continueFn(attempt) {
@@ -111,13 +125,14 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 	start := time.Now()
 	err := fn()
 	duration := time.Since(start)
+	r.metrics.attempts.Inc(1)
 	attempt++
 	if err == nil {
-		r.metrics.successLatency.Record(duration)
+		r.metrics.successLatency.RecordDuration(duration)
 		r.metrics.success.Inc(1)
 		return nil
 	}
-	r.metrics.errorsLatency.Record(duration)
+	r.metrics.errorsLatency.RecordDuration(duration)
 	if xerrors.IsNonRetryableError(err) {
 		r.metrics.errorsNotRetryable.Inc(1)
 		return err
@@ -142,13 +157,14 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 		start := time.Now()
 		err = fn()
 		duration := time.Since(start)
+		r.metrics.attempts.Inc(1)
 		attempt++
 		if err == nil {
-			r.metrics.successLatency.Record(duration)
+			r.metrics.successLatency.RecordDuration(duration)
 			r.metrics.success.Inc(1)
 			return nil
 		}
-		r.metrics.errorsLatency.Record(duration)
+		r.metrics.errorsLatency.RecordDuration(duration)
 		if xerrors.IsNonRetryableError(err) {
 			r.metrics.errorsNotRetryable.Inc(1)
 			return err
@@ -187,4 +203,16 @@ func BackoffNanos(
 		backoff = maxBackoff
 	}
 	return backoff
+}
+
+// histogramWithDurationBuckets returns a histogram with the standard duration buckets.
+func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogram {
+	sub := scope.Tagged(map[string]string{
+		// Bump the version if the histogram buckets need to be changed to avoid overlapping buckets
+		// in the same query causing errors.
+		"schema": "v1",
+	})
+	buckets := append(tally.DurationBuckets{0, time.Millisecond},
+		tally.MustMakeExponentialDurationBuckets(2*time.Millisecond, 1.5, 30)...)
+	return sub.Histogram(name, buckets)
 }

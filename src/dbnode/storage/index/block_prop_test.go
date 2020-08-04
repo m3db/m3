@@ -30,13 +30,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/proptest"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/resource"
 
@@ -123,8 +125,8 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				}
 
 				uncachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err := uncachedBlock.Query(cancellable, indexQuery,
-					queryOpts, uncachedResults)
+				exhaustive, err := uncachedBlock.Query(context.NewContext(), cancellable, indexQuery,
+					queryOpts, uncachedResults, emptyLogFields)
 				if err != nil {
 					return false, fmt.Errorf("error querying uncached block: %v", err)
 				}
@@ -133,8 +135,8 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 				}
 
 				cachedResults := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-				exhaustive, err = cachedBlock.Query(cancellable, indexQuery,
-					queryOpts, cachedResults)
+				exhaustive, err = cachedBlock.Query(context.NewContext(), cancellable, indexQuery,
+					queryOpts, cachedResults, emptyLogFields)
 				if err != nil {
 					return false, fmt.Errorf("error querying cached block: %v", err)
 				}
@@ -176,19 +178,22 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 }
 
 func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metadata, opts Options) (Block, error) {
-	blk, err := NewBlock(blockStart, nsMeta, BlockOptions{}, opts)
+	blk, err := NewBlock(blockStart, nsMeta, BlockOptions{},
+		namespace.NewRuntimeOptionsManager(nsMeta.ID().String()), opts)
 	require.NoError(t, err)
 
 	var (
 		memSeg = testSegment(t, lotsTestDocuments...).(segment.MutableSegment)
 		fstSeg = fst.ToTestSegment(t, memSeg, testFstOptions)
 		// Need at least one shard to look fulfilled.
-		fulfilled  = result.NewShardTimeRanges(blockStart, blockStart.Add(testBlockSize), uint32(1))
-		indexBlock = result.NewIndexBlock(blockStart, []segment.Segment{fstSeg}, fulfilled)
+		fulfilled              = result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(testBlockSize), uint32(1))
+		indexBlockByVolumeType = result.NewIndexBlockByVolumeType(blockStart)
 	)
+	indexBlockByVolumeType.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{fstSeg}, fulfilled))
+
 	// Use the AddResults API because thats the only scenario in which we'll wrap a segment
 	// in a ReadThroughSegment to use the postings list cache.
-	err = blk.AddResults(indexBlock)
+	err = blk.AddResults(indexBlockByVolumeType)
 	require.NoError(t, err)
 	return blk, nil
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,10 +25,13 @@ import (
 	"strings"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -42,7 +45,7 @@ const (
 	HeaderTopicName = "topic-name"
 )
 
-type serviceFn func(clusterClient clusterclient.Client) (topic.Service, error)
+type serviceFn func(clusterClient clusterclient.Client, opts handleroptions.ServiceOptions) (topic.Service, error)
 
 // Handler represents a generic handler for topic endpoints.
 // nolint: structcheck
@@ -51,27 +54,47 @@ type Handler struct {
 	client clusterclient.Client
 	cfg    config.Configuration
 
-	serviceFn serviceFn
+	serviceFn      serviceFn
+	instrumentOpts instrument.Options
 }
 
 // Service gets a topic service from m3cluster client
-func Service(clusterClient clusterclient.Client) (topic.Service, error) {
-	return topic.NewService(
-		topic.NewServiceOptions().
-			SetConfigService(clusterClient),
-	)
+func Service(clusterClient clusterclient.Client, opts handleroptions.ServiceOptions) (topic.Service, error) {
+	kvOverride := kv.NewOverrideOptions().
+		SetEnvironment(opts.ServiceEnvironment).
+		SetZone(opts.ServiceZone)
+	topicOpts := topic.NewServiceOptions().
+		SetConfigService(clusterClient).
+		SetKVOverrideOptions(kvOverride)
+	return topic.NewService(topicOpts)
 }
 
 // RegisterRoutes registers the topic routes
-func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
-	wrapped := logging.WithResponseTimeAndPanicErrorLogging
+func RegisterRoutes(
+	r *mux.Router,
+	client clusterclient.Client,
+	cfg config.Configuration,
+	instrumentOpts instrument.Options,
+) {
+	wrapped := func(n http.Handler) http.Handler {
+		return logging.WithResponseTimeAndPanicErrorLogging(n, instrumentOpts)
+	}
 
-	r.HandleFunc(InitURL, wrapped(NewInitHandler(client, cfg)).ServeHTTP).
+	r.HandleFunc(InitURL,
+		wrapped(newInitHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(InitHTTPMethod)
-	r.HandleFunc(GetURL, wrapped(NewGetHandler(client, cfg)).ServeHTTP).
+	r.HandleFunc(GetURL,
+		wrapped(newGetHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(GetHTTPMethod)
-	r.HandleFunc(AddURL, wrapped(NewAddHandler(client, cfg)).ServeHTTP).
+	r.HandleFunc(AddURL,
+		wrapped(newAddHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(AddHTTPMethod)
+	r.HandleFunc(UpdateURL,
+		wrapped(newUpdateHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		Methods(UpdateHTTPMethod)
+	r.HandleFunc(DeleteURL,
+		wrapped(newDeleteHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		Methods(DeleteHTTPMethod)
 }
 
 func topicName(headers http.Header) string {

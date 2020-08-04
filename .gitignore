@@ -14,7 +14,7 @@
 .DS_Store
 test.log
 
-# glide manages this
+# go modules manages this
 vendor/
 
 # Build binaries
@@ -27,7 +27,6 @@ _tools/
 !**/openapi/*.html
 
 # Debug binaries
-debug
 debug.test
 
 # Test data
@@ -53,7 +52,11 @@ yarn-error.log*
 # Used to serve m3db.io site
 !m3db.io/**/*.html
 !m3db.io/**/*.xml
-# glide does not manage this
+# go modules does not manage this
 !m3db.io/**/vendor
 # Automatically populated from asset sources
 m3db.io/openapi
+
+# Vagrant
+.vagrant
+

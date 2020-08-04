@@ -34,6 +34,7 @@ import (
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/runtime"
 	httpserver "github.com/m3db/m3/src/aggregator/server/http"
+	m3msgserver "github.com/m3db/m3/src/aggregator/server/m3msg"
 	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
@@ -42,6 +43,8 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
@@ -55,8 +58,10 @@ var (
 
 type testServerSetup struct {
 	opts             testServerOptions
+	m3msgAddr        string
 	rawTCPAddr       string
 	httpAddr         string
+	m3msgServerOpts  m3msgserver.Options
 	rawTCPServerOpts rawtcpserver.Options
 	httpServerOpts   httpserver.Options
 	aggregator       aggregator.Aggregator
@@ -80,12 +85,18 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		opts = newTestServerOptions()
 	}
 
+	// TODO: based on environment variable, use M3MSG aggregator as default
+	// server and client, run both legacy and M3MSG tests by setting it to
+	// different type in the Makefile.
+
 	// Set up worker pool.
 	workerPool := xsync.NewWorkerPool(opts.WorkerPoolSize())
 	workerPool.Init()
 
 	// Create the server options.
-	rawTCPServerOpts := rawtcpserver.NewOptions()
+	rwOpts := xio.NewOptions()
+	rawTCPServerOpts := rawtcpserver.NewOptions().SetRWOptions(rwOpts)
+	m3msgServerOpts := m3msgserver.NewOptions()
 	httpServerOpts := httpserver.NewOptions()
 
 	// Creating the aggregator options.
@@ -158,8 +169,12 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetClockOptions(clockOpts).
 		SetConnectionOptions(opts.ClientConnectionOptions()).
 		SetShardFn(opts.ShardFn()).
-		SetStagedPlacementWatcherOptions(placementWatcherOpts)
-	adminClient := aggclient.NewClient(clientOpts).(aggclient.AdminClient)
+		SetStagedPlacementWatcherOptions(placementWatcherOpts).
+		SetRWOptions(rwOpts)
+	c, err := aggclient.NewClient(clientOpts)
+	require.NoError(t, err)
+	adminClient, ok := c.(aggclient.AdminClient)
+	require.True(t, ok)
 	require.NoError(t, adminClient.Init())
 	aggregatorOpts = aggregatorOpts.SetAdminClient(adminClient)
 
@@ -169,7 +184,11 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		resultLock sync.Mutex
 	)
 	handler := &capturingHandler{results: &results, resultLock: &resultLock}
-	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
+	pw, err := handler.NewWriter(tally.NoopScope)
+	if err != nil {
+		panic(err.Error())
+	}
+	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler).SetPassthroughWriter(pw)
 
 	// Set up entry pool.
 	runtimeOpts := runtime.NewOptions()
@@ -203,6 +222,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		rawTCPAddr:       opts.RawTCPAddr(),
 		httpAddr:         opts.HTTPAddr(),
 		rawTCPServerOpts: rawTCPServerOpts,
+		m3msgServerOpts:  m3msgServerOpts,
 		httpServerOpts:   httpServerOpts,
 		aggregatorOpts:   aggregatorOpts,
 		handler:          handler,
@@ -243,14 +263,21 @@ func (ts *testServerSetup) startServer() error {
 		return err
 	}
 
+	instrumentOpts := instrument.NewOptions()
+	serverOpts := serve.NewOptions(instrumentOpts).
+		SetM3MsgAddr(ts.m3msgAddr).
+		SetM3MsgServerOpts(ts.m3msgServerOpts).
+		SetRawTCPAddr(ts.rawTCPAddr).
+		SetRawTCPServerOpts(ts.rawTCPServerOpts).
+		SetHTTPAddr(ts.httpAddr).
+		SetHTTPServerOpts(ts.httpServerOpts).
+		SetRWOptions(xio.NewOptions())
+
 	go func() {
 		if err := serve.Serve(
-			ts.rawTCPAddr,
-			ts.rawTCPServerOpts,
-			ts.httpAddr,
-			ts.httpServerOpts,
 			ts.aggregator,
 			ts.doneCh,
+			serverOpts,
 		); err != nil {
 			select {
 			case errCh <- err:

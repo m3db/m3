@@ -31,12 +31,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -120,7 +124,7 @@ func bs(ss ...string) [][]byte {
 	return bb
 }
 
-func setupStorage(ctrl *gomock.Controller) storage.Storage {
+func setupStorage(ctrl *gomock.Controller, ex, ex2 bool) storage.Storage {
 	store := storage.NewMockStorage(ctrl)
 	// set up no children case
 	noChildrenMatcher := &completeTagQueryMatcher{
@@ -131,10 +135,14 @@ func setupStorage(ctrl *gomock.Controller) storage.Storage {
 		},
 	}
 
-	noChildrenResult := &storage.CompleteTagsResult{
+	noChildrenResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("__g1__"), Values: bs("bug", "bar", "baz")},
+		},
+		Metadata: block.ResultMetadata{
+			LocalOnly:  true,
+			Exhaustive: ex,
 		},
 	}
 
@@ -150,11 +158,19 @@ func setupStorage(ctrl *gomock.Controller) storage.Storage {
 		},
 	}
 
-	childrenResult := &storage.CompleteTagsResult{
+	childrenResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("__g1__"), Values: bs("baz", "bix", "bug")},
 		},
+		Metadata: block.ResultMetadata{
+			LocalOnly:  false,
+			Exhaustive: true,
+		},
+	}
+
+	if !ex2 {
+		childrenResult.Metadata.AddWarning("foo", "bar")
 	}
 
 	store.EXPECT().CompleteTags(gomock.Any(), childrenMatcher, gomock.Any()).
@@ -165,12 +181,20 @@ func setupStorage(ctrl *gomock.Controller) storage.Storage {
 
 type writer struct {
 	results []string
+	header  http.Header
 }
 
 var _ http.ResponseWriter = &writer{}
 
-func (w *writer) WriteHeader(_ int)   {}
-func (w *writer) Header() http.Header { return make(http.Header) }
+func (w *writer) WriteHeader(_ int) {}
+func (w *writer) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+
+	return w.header
+}
+
 func (w *writer) Write(b []byte) (int, error) {
 	if w.results == nil {
 		w.results = make([]string, 0, 10)
@@ -196,26 +220,40 @@ func (r results) Less(i, j int) bool {
 	return strings.Compare(r[i].ID, r[j].ID) == -1
 }
 
-func TestFind(t *testing.T) {
-	logging.InitWithCores(nil)
-
+func testFind(t *testing.T, httpMethod string, ex bool, ex2 bool, header string) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	// setup storage and handler
-	store := setupStorage(ctrl)
-	handler := NewFindHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}))
+	store := setupStorage(ctrl, ex, ex2)
+
+	builder := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
+	opts := options.EmptyHandlerOptions().
+		SetFetchOptionsBuilder(builder).
+		SetStorage(store)
+	h := NewFindHandler(opts)
 
 	// execute the query
+	params := make(url.Values)
+	params.Set("query", "foo.b*")
+	params.Set("from", from.s)
+	params.Set("until", until.s)
+
 	w := &writer{}
 	req := &http.Request{
-		URL: &url.URL{
-			RawQuery: fmt.Sprintf("query=foo.b*&from=%s&until=%s", from.s, until.s),
-		},
+		Method: httpMethod,
+	}
+	switch httpMethod {
+	case http.MethodGet:
+		req.URL = &url.URL{
+			RawQuery: params.Encode(),
+		}
+	case http.MethodPost:
+		req.Form = params
 	}
 
-	handler.ServeHTTP(w, req)
+	h.ServeHTTP(w, req)
 
 	// convert results to comparable format
 	require.Equal(t, 1, len(w.results))
@@ -236,10 +274,37 @@ func TestFind(t *testing.T) {
 
 	expected := results{
 		makeNoChildrenResult("bar"),
+		makeNoChildrenResult("baz"),
 		makeWithChildrenResult("baz"),
 		makeWithChildrenResult("bix"),
+		makeNoChildrenResult("bug"),
 		makeWithChildrenResult("bug"),
 	}
 
 	require.Equal(t, expected, r)
+	actual := w.Header().Get(headers.LimitHeader)
+	assert.Equal(t, header, actual)
+}
+
+var limitTests = []struct {
+	name    string
+	ex, ex2 bool
+	header  string
+}{
+	{"both incomplete", false, false, fmt.Sprintf(
+		"%s,%s_%s", headers.LimitHeaderSeriesLimitApplied, "foo", "bar")},
+	{"with terminator incomplete", true, false, "foo_bar"},
+	{"with children incomplete", false, true,
+		headers.LimitHeaderSeriesLimitApplied},
+	{"both complete", true, true, ""},
+}
+
+func TestFind(t *testing.T) {
+	for _, tt := range limitTests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, httpMethod := range FindHTTPMethods {
+				testFind(t, httpMethod, tt.ex, tt.ex2, tt.header)
+			}
+		})
+	}
 }

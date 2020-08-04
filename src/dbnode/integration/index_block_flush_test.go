@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
@@ -61,6 +61,7 @@ func TestIndexBlockFlush(t *testing.T) {
 		indexBlockSize  = time.Hour
 		bufferFuture    = 20 * time.Minute
 		bufferPast      = 10 * time.Minute
+		verifyTimeout   = 2 * time.Minute
 	)
 
 	// Test setup
@@ -77,77 +78,77 @@ func TestIndexBlockFlush(t *testing.T) {
 					SetBlockSize(indexBlockSize).SetEnabled(true)))
 	require.NoError(t, err)
 
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
 		SetWriteNewSeriesAsync(true)
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(
 		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
-	testSetup.storageOpts = testSetup.storageOpts.SetInstrumentOptions(
-		instrument.NewOptions().SetMetricsScope(scope))
+	testSetup.SetStorageOpts(testSetup.StorageOpts().SetInstrumentOptions(
+		instrument.NewOptions().SetMetricsScope(scope)))
 
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
 	assert.True(t, t0.Equal(t0.Truncate(indexBlockSize)))
 	t1 := t0.Add(20 * time.Minute)
 	t2 := t0.Add(2 * time.Hour)
-	testSetup.setNowFn(t0)
+	testSetup.SetNowFn(t0)
 
-	writesPeriod0 := generateTestIndexWrite(0, numWrites, numTags, t0, t1)
+	writesPeriod0 := GenerateTestIndexWrite(0, numWrites, numTags, t0, t1)
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 
-	client := testSetup.m3dbClient
+	client := testSetup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 
 	log.Info("starting data write")
 	start := time.Now()
-	writesPeriod0.write(t, md.ID(), session)
+	writesPeriod0.Write(t, md.ID(), session)
 	log.Info("test data written", zap.Duration("took", time.Since(start)))
 
 	log.Info("waiting till data is indexed")
 	indexed := xclock.WaitUntil(func() bool {
-		indexPeriod0 := writesPeriod0.numIndexed(t, md.ID(), session)
+		indexPeriod0 := writesPeriod0.NumIndexed(t, md.ID(), session)
 		return indexPeriod0 == len(writesPeriod0)
-	}, 5*time.Second)
+	}, verifyTimeout)
 	require.True(t, indexed)
 	log.Info("verified data is indexed", zap.Duration("took", time.Since(start)))
 
 	// "shared":"shared", is a common tag across all written metrics
 	query := index.Query{
-		idx.NewTermQuery([]byte("shared"), []byte("shared"))}
+		Query: idx.NewTermQuery([]byte("shared"), []byte("shared"))}
 
 	// ensure all data is present
 	log.Info("querying period0 results")
 	period0Results, _, err := session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
-	writesPeriod0.matchesSeriesIters(t, period0Results)
+	writesPeriod0.MatchesSeriesIters(t, period0Results)
 	log.Info("found period0 results")
 
 	// move time to 3p
-	testSetup.setNowFn(t2)
+	testSetup.SetNowFn(t2)
 
 	// waiting till filesets found on disk
 	log.Info("waiting till filesets found on disk")
 	found := xclock.WaitUntil(func() bool {
-		filesets, err := fs.IndexFileSetsAt(testSetup.filePathPrefix, md.ID(), t0)
+		filesets, err := fs.IndexFileSetsAt(testSetup.FilePathPrefix(), md.ID(), t0)
 		require.NoError(t, err)
 		return len(filesets) == 1
-	}, 10*time.Second)
+	}, verifyTimeout)
 	require.True(t, found)
 	log.Info("found filesets found on disk")
 
@@ -157,7 +158,7 @@ func TestIndexBlockFlush(t *testing.T) {
 		counters := reporter.Counters()
 		counter, ok := counters["dbindex.blocks-evicted-mutable-segments"]
 		return ok && counter > 0
-	}, 10*time.Second)
+	}, verifyTimeout)
 	require.True(t, evicted)
 	log.Info("mutable segments are evicted!")
 
@@ -166,6 +167,6 @@ func TestIndexBlockFlush(t *testing.T) {
 	period0Results, _, err = session.FetchTagged(
 		md.ID(), query, index.QueryOptions{StartInclusive: t0, EndExclusive: t1})
 	require.NoError(t, err)
-	writesPeriod0.matchesSeriesIters(t, period0Results)
+	writesPeriod0.MatchesSeriesIters(t, period0Results)
 	log.Info("found period0 results after flush")
 }

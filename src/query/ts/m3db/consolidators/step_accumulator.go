@@ -35,7 +35,9 @@ type StepLookbackAccumulator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback time.Time
-	datapoints       [][]xts.Datapoint
+	datapoints       []xts.Datapoint
+	buffer           [][]xts.Datapoint
+	unconsumed       [][]xts.Datapoint
 }
 
 // Ensure StepLookbackAccumulator satisfies StepCollector.
@@ -46,50 +48,72 @@ var _ StepCollector = (*StepLookbackAccumulator)(nil)
 func NewStepLookbackAccumulator(
 	lookbackDuration, stepSize time.Duration,
 	startTime time.Time,
-	resultSize int,
 ) *StepLookbackAccumulator {
-	datapoints := make([][]xts.Datapoint, resultSize)
-	for i := range datapoints {
-		datapoints[i] = make([]xts.Datapoint, 0, initLength)
-	}
-
+	datapoints := make([]xts.Datapoint, 0, initLength)
+	buffer := make([][]xts.Datapoint, BufferSteps)
 	return &StepLookbackAccumulator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		datapoints:       datapoints,
+		buffer:           buffer,
+		unconsumed:       buffer[:0],
 	}
 }
 
-// AddPointForIterator adds a datapoint to a given step if it's within the valid
+// AddPoint adds a datapoint to a given step if it's within the valid
 // time period; otherwise drops it silently, which is fine for accumulation.
-func (c *StepLookbackAccumulator) AddPointForIterator(
-	dp ts.Datapoint,
-	i int,
-) {
+func (c *StepLookbackAccumulator) AddPoint(dp ts.Datapoint) {
 	if dp.Timestamp.Before(c.earliestLookback) {
 		// this datapoint is too far in the past, it can be dropped.
 		return
 	}
 
-	c.datapoints[i] = append(c.datapoints[i], xts.Datapoint{
+	c.datapoints = append(c.datapoints, xts.Datapoint{
 		Timestamp: dp.Timestamp,
 		Value:     dp.Value,
 	})
 }
 
-// AccumulateAndMoveToNext consolidates the current values and moves the
-// consolidator to the next given value, purging stale values.
-func (c *StepLookbackAccumulator) AccumulateAndMoveToNext() []xts.Datapoints {
+// BufferStep adds viable points to the next unconsumed buffer step.
+func (c *StepLookbackAccumulator) BufferStep() {
 	// Update earliest lookback then remove stale values for the next
 	// iteration of the datapoint set.
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
-	accumulated := make([]xts.Datapoints, len(c.datapoints))
-	for i, dps := range c.datapoints {
-		accumulated[i] = make(xts.Datapoints, len(dps))
-		copy(accumulated[i], dps)
-		c.datapoints[i] = c.datapoints[i][:0]
+	if len(c.datapoints) == 0 {
+		c.unconsumed = append(c.unconsumed, nil)
+		return
 	}
 
-	return accumulated
+	accumulated := make([]xts.Datapoint, len(c.datapoints))
+	copy(accumulated, c.datapoints)
+	c.datapoints = c.datapoints[:0]
+	c.unconsumed = append(c.unconsumed, accumulated)
+}
+
+// BufferStepCount indicates how many accumulated points are still unconsumed.
+func (c *StepLookbackAccumulator) BufferStepCount() int {
+	return len(c.unconsumed)
+}
+
+// AccumulateAndMoveToNext consolidates the current values and moves the
+// consolidator to the next given value, purging stale values.
+func (c *StepLookbackAccumulator) AccumulateAndMoveToNext() []xts.Datapoint {
+	if len(c.unconsumed) == 0 {
+		return nil
+	}
+
+	val := c.unconsumed[0]
+	remaining := c.unconsumed[1:]
+
+	if len(remaining) > 0 {
+		// Move any unconsumed values to the front of unconsumed.
+		c.unconsumed = c.buffer[:len(remaining)]
+		copy(c.unconsumed, remaining)
+	} else {
+		// Otherwise just repoint to the start of the buffer.
+		c.unconsumed = c.buffer[:0]
+	}
+
+	return val
 }

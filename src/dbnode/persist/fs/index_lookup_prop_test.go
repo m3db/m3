@@ -32,9 +32,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/mmap"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -107,8 +109,8 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		}
 
 		// Read the summaries file into memory
-		summariesFilePath := filesetPathFromTime(
-			shardDirPath, testWriterStart, summariesFileSuffix)
+		summariesFilePath := dataFilesetPathFromTimeAndIndex(
+			shardDirPath, testWriterStart, 0, summariesFileSuffix, false)
 		summariesFile, err := os.Open(summariesFilePath)
 		if err != nil {
 			return false, fmt.Errorf("err opening summaries file: %v, ", err)
@@ -120,7 +122,7 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		decoderStream := msgpack.NewByteDecoderStream(nil)
 		indexLookup, err := newNearestIndexOffsetLookupFromSummariesFile(
 			summariesFdWithDigest, expectedSummariesDigest,
-			decoder, decoderStream, len(writes), input.forceMmapMemory)
+			decoder, decoderStream, len(writes), input.forceMmapMemory, mmap.ReporterOptions{})
 		if err != nil {
 			return false, fmt.Errorf("err reading index lookup from summaries file: %v, ", err)
 		}
@@ -163,7 +165,9 @@ func calculateExpectedChecksum(t *testing.T, filePath string) uint32 {
 
 func writeTestSummariesData(w DataFileSetWriter, writes []generatedWrite) error {
 	for _, write := range writes {
-		err := w.Write(write.id, write.tags, write.data, write.checksum)
+		metadata := persist.NewMetadataFromIDAndTags(write.id, write.tags,
+			persist.MetadataOptions{})
+		err := w.Write(metadata, write.data, write.checksum)
 		if err != nil {
 			return err
 		}
@@ -254,7 +258,7 @@ func genTagIdent() gopter.Gen {
 }
 
 func readIndexFileOffsets(shardDirPath string, numEntries int, start time.Time) (map[string]int64, error) {
-	indexFilePath := filesetPathFromTime(shardDirPath, start, indexFileSuffix)
+	indexFilePath := dataFilesetPathFromTimeAndIndex(shardDirPath, start, 0, indexFileSuffix, false)
 	buf, err := ioutil.ReadFile(indexFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("err reading index file: %v, ", err)

@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -42,8 +43,8 @@ func TestTopicAddHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewAddHandler(nil, config.Configuration{})
-	handler.serviceFn = testServiceFn(mockService)
+	handler := newAddHandler(nil, config.Configuration{}, instrument.NewOptions())
+	handler.(*AddHandler).serviceFn = testServiceFn(mockService)
 
 	t1 := topic.NewTopic().SetName(DefaultTopicName).SetNumberOfShards(256)
 

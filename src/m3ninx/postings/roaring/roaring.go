@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/x"
-	"github.com/m3db/pilosa/roaring"
+	"github.com/m3dbx/pilosa/roaring"
 )
 
 var (
@@ -42,18 +42,25 @@ func Union(inputs []postings.List) (postings.MutableList, error) {
 		return NewPostingsList(), nil
 	}
 
+	unioned := roaring.NewBitmap()
+	if err := union(unioned, inputs); err != nil {
+		return nil, err
+	}
+	return NewPostingsListFromBitmap(unioned), nil
+}
+
+func union(unionedBitmap *roaring.Bitmap, inputs []postings.List) error {
 	bitmaps := make([]*roaring.Bitmap, 0, len(inputs))
 	for _, in := range inputs {
 		pl, ok := in.(*postingsList)
 		if !ok {
-			return nil, fmt.Errorf("unable to convert inputs into roaring postings lists")
+			return fmt.Errorf("unable to convert inputs into roaring postings lists")
 		}
 		bitmaps = append(bitmaps, pl.bitmap)
 	}
 
-	unionedBitmap := roaring.NewBitmap()
 	unionedBitmap.UnionInPlace(bitmaps...)
-	return NewPostingsListFromBitmap(unionedBitmap), nil
+	return nil
 }
 
 // BitmapFromPostingsList returns a bitmap from a postings list if it
@@ -117,6 +124,10 @@ func (d *postingsList) Union(other postings.List) error {
 
 	d.bitmap.UnionInPlace(o.bitmap)
 	return nil
+}
+
+func (d *postingsList) UnionMany(others []postings.List) error {
+	return union(d.bitmap, others)
 }
 
 func (d *postingsList) AddRange(min, max postings.ID) error {

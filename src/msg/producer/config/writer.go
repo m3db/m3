@@ -25,11 +25,13 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/producer/writer"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 
@@ -38,6 +40,7 @@ import (
 
 // ConnectionConfiguration configs the connection options.
 type ConnectionConfiguration struct {
+	NumConnections  *int                 `yaml:"numConnections"`
 	DialTimeout     *time.Duration       `yaml:"dialTimeout"`
 	WriteTimeout    *time.Duration       `yaml:"writeTimeout"`
 	KeepAlivePeriod *time.Duration       `yaml:"keepAlivePeriod"`
@@ -51,6 +54,9 @@ type ConnectionConfiguration struct {
 // NewOptions creates connection options.
 func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.ConnectionOptions {
 	opts := writer.NewConnectionOptions()
+	if c.NumConnections != nil {
+		opts = opts.SetNumConnections(*c.NumConnections)
+	}
 	if c.DialTimeout != nil {
 		opts = opts.SetDialTimeout(*c.DialTimeout)
 	}
@@ -83,6 +89,7 @@ type WriterConfiguration struct {
 	TopicName                         string                         `yaml:"topicName" validate:"nonzero"`
 	TopicServiceOverride              kv.OverrideConfiguration       `yaml:"topicServiceOverride"`
 	TopicWatchInitTimeout             *time.Duration                 `yaml:"topicWatchInitTimeout"`
+	PlacementOptions                  placement.Configuration        `yaml:"placement"`
 	PlacementServiceOverride          services.OverrideConfiguration `yaml:"placementServiceOverride"`
 	PlacementWatchInitTimeout         *time.Duration                 `yaml:"placementWatchInitTimeout"`
 	MessagePool                       *pool.ObjectPoolConfiguration  `yaml:"messagePool"`
@@ -102,21 +109,28 @@ type WriterConfiguration struct {
 func (c *WriterConfiguration) NewOptions(
 	cs client.Client,
 	iOpts instrument.Options,
+	rwOptions xio.Options,
 ) (writer.Options, error) {
-	opts := writer.NewOptions().SetTopicName(c.TopicName)
+	opts := writer.NewOptions().
+		SetTopicName(c.TopicName).
+		SetPlacementOptions(c.PlacementOptions.NewOptions()).
+		SetInstrumentOptions(iOpts)
+
 	kvOpts, err := c.TopicServiceOverride.NewOverrideOptions()
 	if err != nil {
 		return nil, err
 	}
-	ts, err := topic.NewService(
-		topic.NewServiceOptions().
-			SetConfigService(cs).
-			SetKVOverrideOptions(kvOpts),
-	)
+
+	topicServiceOpts := topic.NewServiceOptions().
+		SetConfigService(cs).
+		SetKVOverrideOptions(kvOpts)
+	ts, err := topic.NewService(topicServiceOpts)
 	if err != nil {
 		return nil, err
 	}
+
 	opts = opts.SetTopicService(ts)
+
 	if c.TopicWatchInitTimeout != nil {
 		opts = opts.SetTopicWatchInitTimeout(*c.TopicWatchInitTimeout)
 	}
@@ -124,7 +138,9 @@ func (c *WriterConfiguration) NewOptions(
 	if err != nil {
 		return nil, err
 	}
+
 	opts = opts.SetServiceDiscovery(sd)
+
 	if c.PlacementWatchInitTimeout != nil {
 		opts = opts.SetPlacementWatchInitTimeout(*c.PlacementWatchInitTimeout)
 	}
@@ -161,5 +177,7 @@ func (c *WriterConfiguration) NewOptions(
 	if c.Connection != nil {
 		opts = opts.SetConnectionOptions(c.Connection.NewOptions(iOpts))
 	}
-	return opts.SetInstrumentOptions(iOpts), nil
+
+	opts = opts.SetDecoderOptions(opts.DecoderOptions().SetRWOptions(rwOptions))
+	return opts, nil
 }

@@ -20,12 +20,6 @@
 
 package block
 
-import (
-	"time"
-
-	"github.com/m3db/m3/src/query/ts"
-)
-
 type lazyBlock struct {
 	block Block
 	opts  LazyOptions
@@ -39,18 +33,15 @@ func NewLazyBlock(block Block, opts LazyOptions) Block {
 	}
 }
 
+func (b *lazyBlock) Info() BlockInfo {
+	return NewWrappedBlockInfo(BlockLazy, b.block.Info())
+}
+
 func (b *lazyBlock) Close() error { return b.block.Close() }
 
-func (b *lazyBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (Block, error) {
-	bl, err := b.block.WithMetadata(meta, sm)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewLazyBlock(bl, b.opts), nil
+func (b *lazyBlock) Meta() Metadata {
+	mt := b.opts.MetaTransform()
+	return mt(b.block.Meta())
 }
 
 // StepIter returns a StepIterator
@@ -71,15 +62,14 @@ type lazyStepIter struct {
 	opts LazyOptions
 }
 
-func (it *lazyStepIter) Close()                   { it.it.Close() }
-func (it *lazyStepIter) Err() error               { return it.it.Err() }
-func (it *lazyStepIter) StepCount() int           { return it.it.StepCount() }
-func (it *lazyStepIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
-func (it *lazyStepIter) Next() bool               { return it.it.Next() }
+func (it *lazyStepIter) Close()         { it.it.Close() }
+func (it *lazyStepIter) Err() error     { return it.it.Err() }
+func (it *lazyStepIter) StepCount() int { return it.it.StepCount() }
+func (it *lazyStepIter) Next() bool     { return it.it.Next() }
 
-func (it *lazyStepIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
+func (it *lazyStepIter) SeriesMeta() []SeriesMeta {
+	mt := it.opts.SeriesMetaTransform()
+	return mt(it.it.SeriesMeta())
 }
 
 func (it *lazyStepIter) Current() Step {
@@ -100,15 +90,14 @@ func (it *lazyStepIter) Current() Step {
 	}
 }
 
-// SeriesIter returns a SeriesIterator
 func (b *lazyBlock) SeriesIter() (SeriesIter, error) {
-	iter, err := b.block.SeriesIter()
+	seriesIter, err := b.block.SeriesIter()
 	if err != nil {
 		return nil, err
 	}
 
 	return &lazySeriesIter{
-		it:   iter,
+		it:   seriesIter,
 		opts: b.opts,
 	}, nil
 }
@@ -118,196 +107,45 @@ type lazySeriesIter struct {
 	opts LazyOptions
 }
 
-func (it *lazySeriesIter) Close()                   { it.it.Close() }
-func (it *lazySeriesIter) Err() error               { return it.it.Err() }
-func (it *lazySeriesIter) SeriesCount() int         { return it.it.SeriesCount() }
-func (it *lazySeriesIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
-func (it *lazySeriesIter) Next() bool               { return it.it.Next() }
+func (it *lazySeriesIter) Close()           { it.it.Close() }
+func (it *lazySeriesIter) Err() error       { return it.it.Err() }
+func (it *lazySeriesIter) SeriesCount() int { return it.it.SeriesCount() }
+func (it *lazySeriesIter) Next() bool       { return it.it.Next() }
 
-func (it *lazySeriesIter) Current() Series {
-	var (
-		c    = it.it.Current()
-		vt   = it.opts.ValueTransform()
-		vals = make([]float64, 0, len(c.values))
-	)
-
-	for _, val := range c.values {
-		vals = append(vals, vt(val))
-	}
-
-	c.values = vals
-	return c
+func (it *lazySeriesIter) SeriesMeta() []SeriesMeta {
+	mt := it.opts.SeriesMetaTransform()
+	return mt(it.it.SeriesMeta())
 }
 
-func (it *lazySeriesIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
-}
-
-// Unconsolidated returns the unconsolidated version for the block
-func (b *lazyBlock) Unconsolidated() (UnconsolidatedBlock, error) {
-	unconsolidated, err := b.block.Unconsolidated()
-	if err != nil {
-		return nil, err
-	}
-
-	return &ucLazyBlock{
-		block: unconsolidated,
-		opts:  b.opts,
-	}, nil
-}
-
-type ucLazyBlock struct {
-	block UnconsolidatedBlock
-	opts  LazyOptions
-}
-
-func (b *ucLazyBlock) Close() error { return b.block.Close() }
-
-func (b *ucLazyBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (UnconsolidatedBlock, error) {
-	bl, err := b.block.WithMetadata(meta, sm)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ucLazyBlock{
-		block: bl,
-		opts:  b.opts,
-	}, nil
-}
-
-func (b *ucLazyBlock) Consolidate() (Block, error) {
-	block, err := b.block.Consolidate()
-	if err != nil {
-		return nil, err
-	}
-
-	return &lazyBlock{
-		block: block,
-		opts:  b.opts,
-	}, nil
-}
-
-func (b *ucLazyBlock) StepIter() (UnconsolidatedStepIter, error) {
-	iter, err := b.block.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	return &ucLazyStepIter{
-		it:   iter,
-		opts: b.opts,
-	}, nil
-}
-
-type ucLazyStepIter struct {
-	it   UnconsolidatedStepIter
-	opts LazyOptions
-}
-
-func (it *ucLazyStepIter) Close()                   { it.it.Close() }
-func (it *ucLazyStepIter) Err() error               { return it.it.Err() }
-func (it *ucLazyStepIter) StepCount() int           { return it.it.StepCount() }
-func (it *ucLazyStepIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
-func (it *ucLazyStepIter) Next() bool               { return it.it.Next() }
-
-func (it *ucLazyStepIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
-}
-
-type unconsolidatedStep struct {
-	time   time.Time
-	values []ts.Datapoints
-}
-
-// Time for the step.
-func (s unconsolidatedStep) Time() time.Time {
-	return s.time
-}
-
-// Values for the column.
-func (s unconsolidatedStep) Values() []ts.Datapoints {
-	return s.values
-}
-
-func (it *ucLazyStepIter) Current() UnconsolidatedStep {
-	var (
-		c      = it.it.Current()
-		values = c.Values()
-		dpList = make([]ts.Datapoints, 0, len(values))
-		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
-	)
-
-	for _, val := range values {
-		dps := make([]ts.Datapoint, 0, len(val))
-		for _, dp := range val.Datapoints() {
-			dps = append(dps, ts.Datapoint{
-				Timestamp: tt(dp.Timestamp),
-				Value:     vt(dp.Value),
-			})
-		}
-
-		dpList = append(dpList, dps)
-	}
-
-	return unconsolidatedStep{
-		time:   tt(c.Time()),
-		values: dpList,
-	}
-}
-
-func (b *ucLazyBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
-	seriesIter, err := b.block.SeriesIter()
-	if err != nil {
-		return nil, err
-	}
-
-	return &ucLazySeriesIter{
-		it:   seriesIter,
-		opts: b.opts,
-	}, nil
-}
-
-type ucLazySeriesIter struct {
-	it   UnconsolidatedSeriesIter
-	opts LazyOptions
-}
-
-func (it *ucLazySeriesIter) Close()                   { it.it.Close() }
-func (it *ucLazySeriesIter) Err() error               { return it.it.Err() }
-func (it *ucLazySeriesIter) SeriesCount() int         { return it.it.SeriesCount() }
-func (it *ucLazySeriesIter) SeriesMeta() []SeriesMeta { return it.it.SeriesMeta() }
-func (it *ucLazySeriesIter) Next() bool               { return it.it.Next() }
-
-func (it *ucLazySeriesIter) Current() UnconsolidatedSeries {
+func (it *lazySeriesIter) Current() UnconsolidatedSeries {
 	var (
 		c      = it.it.Current()
 		values = c.datapoints
-		dpList = make([]ts.Datapoints, 0, len(values))
 		tt, vt = it.opts.TimeTransform(), it.opts.ValueTransform()
 	)
 
-	for _, val := range values {
-		dps := make([]ts.Datapoint, 0, len(val))
-		for _, dp := range val.Datapoints() {
-			dps = append(dps, ts.Datapoint{
-				Timestamp: tt(dp.Timestamp),
-				Value:     vt(dp.Value),
-			})
-		}
-
-		dpList = append(dpList, dps)
+	for i, v := range values {
+		c.datapoints[i].Timestamp = tt(v.Timestamp)
+		c.datapoints[i].Value = vt(v.Value)
 	}
 
-	c.datapoints = dpList
 	return c
 }
 
-func (it *ucLazySeriesIter) Meta() Metadata {
-	mt := it.opts.MetaTransform()
-	return mt(it.it.Meta())
+func (b *lazyBlock) MultiSeriesIter(
+	concurrency int,
+) ([]SeriesIterBatch, error) {
+	batches, err := b.block.MultiSeriesIter(concurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, batch := range batches {
+		batches[i].Iter = &lazySeriesIter{
+			it:   batch.Iter,
+			opts: b.opts,
+		}
+	}
+
+	return batches, err
 }

@@ -110,6 +110,10 @@ var fetchBlocksMetadataV2ShardFn testShardReadFn = func(shard *dbShard) {
 func propTestDatabaseShard(t *testing.T, tickBatchSize int) (*dbShard, Options) {
 	opts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
 	shard := testDatabaseShard(t, opts)
+	// This sleep duration needs to be at the microsecond level because tests
+	// can have a high number of iterations, using a high number of series in
+	// combination with a small batch size, causing frequent timeouts during
+	// execution.
 	shard.currRuntimeOptions.tickSleepPerSeries = time.Microsecond
 	shard.currRuntimeOptions.tickSleepSeriesBatchSize = tickBatchSize
 	return shard, opts
@@ -127,14 +131,37 @@ func anyIDs() gopter.Gen {
 }
 
 func TestShardTickWriteRace(t *testing.T) {
-	shard, opts := propTestDatabaseShard(t, 10)
+	parameters := gopter.DefaultTestParameters()
+	seed := time.Now().UnixNano()
+	parameters.MinSuccessfulTests = 200
+	parameters.MaxSize = 10
+	parameters.Rng = rand.New(rand.NewSource(seed))
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("Concurrent Tick and Write doesn't deadlock", prop.ForAll(
+		func(tickBatchSize, numSeries int) bool {
+			testShardTickWriteRace(t, tickBatchSize, numSeries)
+			return true
+		},
+		gen.IntRange(1, 100).WithLabel("tickBatchSize"),
+		gen.IntRange(1, 100).WithLabel("numSeries"),
+	))
+
+	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
+	if !properties.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
+	}
+}
+
+func testShardTickWriteRace(t *testing.T, tickBatchSize, numSeries int) {
+	shard, opts := propTestDatabaseShard(t, tickBatchSize)
 	defer func() {
 		shard.Close()
 		opts.RuntimeOptionsManager().Close()
 	}()
 
 	ids := []ident.ID{}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < numSeries; i++ {
 		ids = append(ids, ident.StringID(fmt.Sprintf("foo.%d", i)))
 	}
 
@@ -160,9 +187,9 @@ func TestShardTickWriteRace(t *testing.T) {
 			<-barrier
 			ctx := context.NewContext()
 			now := time.Now()
-			_, wasWritten, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
+			seriesWrite, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 			assert.NoError(t, err)
-			assert.True(t, wasWritten)
+			assert.True(t, seriesWrite.WasWritten)
 			ctx.BlockingClose()
 		}()
 	}
@@ -215,7 +242,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
 		// existing ids
 		if i < 20 {
-			addTestSeriesWithCountAndBootstrap(shard, id, 0, false)
+			addTestSeriesWithCount(shard, id, 0)
 		}
 		// write ids
 		if i >= 10 {
@@ -246,6 +273,10 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 		wg.Done()
 	}
 
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	assert.NoError(t, shard.Bootstrap(ctx, namespace.Context{ID: ident.StringID("foo")}))
 	for _, id := range writeIDs {
 		id := id
 		go func() {
@@ -253,9 +284,9 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 			<-barrier
 			ctx := context.NewContext()
 			now := time.Now()
-			_, wasWritten, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
+			seriesWrite, err := shard.Write(ctx, id, now, 1.0, xtime.Second, nil, series.WriteOptions{})
 			assert.NoError(t, err)
-			assert.True(t, wasWritten)
+			assert.True(t, seriesWrite.WasWritten)
 			ctx.BlockingClose()
 		}()
 	}
@@ -263,7 +294,7 @@ func TestShardTickBootstrapWriteRace(t *testing.T) {
 	go func() {
 		defer doneFn()
 		<-barrier
-		err := shard.Bootstrap(bootstrapResult)
+		err := shard.LoadBlocks(bootstrapResult)
 		assert.NoError(t, err)
 	}()
 

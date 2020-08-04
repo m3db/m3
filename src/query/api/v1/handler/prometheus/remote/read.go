@@ -21,22 +21,37 @@
 package remote
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
+	comparator "github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	xpromql "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
+	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/prometheus/prometheus/pkg/labels"
+	promql "github.com/prometheus/prometheus/promql/parser"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
@@ -44,31 +59,26 @@ import (
 const (
 	// PromReadURL is the url for remote prom read handler
 	PromReadURL = handler.RoutePrefixV1 + "/prom/remote/read"
-
-	// PromReadHTTPMethod is the HTTP method used with this resource.
-	PromReadHTTPMethod = http.MethodPost
 )
 
-// PromReadHandler represents a handler for prometheus read endpoint.
-type PromReadHandler struct {
-	engine              executor.Engine
-	promReadMetrics     promReadMetrics
-	timeoutOpts         *prometheus.TimeoutOpts
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+var (
+	// PromReadHTTPMethods are the HTTP methods used with this resource.
+	PromReadHTTPMethods = []string{http.MethodPost, http.MethodGet}
+)
+
+// promReadHandler is a handler for the prometheus remote read endpoint.
+type promReadHandler struct {
+	promReadMetrics promReadMetrics
+	opts            options.HandlerOptions
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(
-	engine executor.Engine,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	scope tally.Scope,
-	timeoutOpts *prometheus.TimeoutOpts,
-) http.Handler {
-	return &PromReadHandler{
-		engine:              engine,
-		promReadMetrics:     newPromReadMetrics(scope),
-		timeoutOpts:         timeoutOpts,
-		fetchOptionsBuilder: fetchOptionsBuilder,
+func NewPromReadHandler(opts options.HandlerOptions) http.Handler {
+	taggedScope := opts.InstrumentOpts().MetricsScope().
+		Tagged(map[string]string{"handler": "remote-read"})
+	return &promReadHandler{
+		promReadMetrics: newPromReadMetrics(taggedScope),
+		opts:            opts,
 	}
 }
 
@@ -76,6 +86,7 @@ type promReadMetrics struct {
 	fetchSuccess      tally.Counter
 	fetchErrorsServer tally.Counter
 	fetchErrorsClient tally.Counter
+	fetchTimerSuccess tally.Timer
 }
 
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
@@ -86,126 +97,483 @@ func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 			Counter("fetch.errors"),
 		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
 			Counter("fetch.errors"),
+		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
 	}
 }
 
-func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *promReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	timer := h.promReadMetrics.fetchTimerSuccess.Start()
+	defer timer.Stop()
+
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-
-	logger := logging.WithContext(ctx)
-
-	req, rErr := h.parseRequest(r)
-
+	logger := logging.WithContext(ctx, h.opts.InstrumentOpts())
+	req, fetchOpts, rErr := ParseRequest(ctx, r, h.opts)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return
-	}
-
-	timeout, err := prometheus.ParseRequestTimeout(r, h.timeoutOpts.FetchTimeout)
-	if err != nil {
+		err := rErr.Inner()
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
-		xhttp.Error(w, err, http.StatusBadRequest)
+		logger.Error("remote read query parse error",
+			zap.Error(err),
+			zap.Any("req", req),
+			zap.Any("fetchOpts", fetchOpts))
+		xhttp.Error(w, err, rErr.Code())
 		return
 	}
 
-	fetchOpts, rErr := h.fetchOptionsBuilder.NewFetchOptions(r)
-	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return
-	}
-
-	result, err := h.read(ctx, w, req, timeout, fetchOpts.Limit)
+	cancelWatcher := handler.NewResponseWriterCanceller(w, h.opts.InstrumentOpts())
+	readResult, err := Read(ctx, cancelWatcher, req, fetchOpts, h.opts)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
-		logger.Error("unable to fetch data", zap.Error(err))
+		logger.Error("remote read query error",
+			zap.Error(err),
+			zap.Any("req", req),
+			zap.Any("fetchOpts", fetchOpts))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
+	// NB: if this errors, all relevant headers and information should already
+	// be sent to the writer; so it is not necessary to do anything here other
+	// than increment success/failure metrics.
+	switch r.FormValue("format") {
+	case "json":
+		result := readResultsJSON{
+			Queries: make([]queryResultsJSON, 0, len(req.Queries)),
+		}
+		for i, q := range req.Queries {
+			start := storage.PromTimestampToTime(q.StartTimestampMs)
+			end := storage.PromTimestampToTime(q.EndTimestampMs)
+
+			all := readResult.Result[i].Timeseries
+			timeseries := make([]comparator.Series, 0, len(all))
+			for _, s := range all {
+				datapoints := storage.PromSamplesToM3Datapoints(s.Samples)
+				tags := storage.PromLabelsToM3Tags(s.Labels, h.opts.TagOptions())
+				series := toSeries(datapoints, tags)
+				series.Start = start
+				series.End = end
+				timeseries = append(timeseries, series)
+			}
+
+			matchers := make([]labelMatcherJSON, 0, len(q.Matchers))
+			for _, m := range q.Matchers {
+				matcher := labelMatcherJSON{
+					Type:  m.Type.String(),
+					Name:  string(m.Name),
+					Value: string(m.Value),
+				}
+				matchers = append(matchers, matcher)
+			}
+
+			result.Queries = append(result.Queries, queryResultsJSON{
+				Query: queryJSON{
+					Matchers: matchers,
+				},
+				Start:  start,
+				End:    end,
+				Series: timeseries,
+			})
+		}
+
+		w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
+		handleroptions.AddWarningHeaders(w, readResult.Meta)
+
+		err = json.NewEncoder(w).Encode(result)
+	default:
+		err = WriteSnappyCompressed(w, readResult, logger)
+	}
+
+	if err != nil {
+		h.promReadMetrics.fetchErrorsServer.Inc(1)
+	} else {
+		h.promReadMetrics.fetchSuccess.Inc(1)
+	}
+}
+
+type readResultsJSON struct {
+	Queries []queryResultsJSON `json:"queries"`
+}
+
+type queryResultsJSON struct {
+	Query  queryJSON           `json:"query"`
+	Start  time.Time           `json:"start"`
+	End    time.Time           `json:"end"`
+	Series []comparator.Series `json:"series"`
+}
+
+type queryJSON struct {
+	Matchers []labelMatcherJSON `json:"matchers"`
+}
+
+type labelMatcherJSON struct {
+	Type  string `json:"type"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// WriteSnappyCompressed writes snappy compressed results to the given writer.
+func WriteSnappyCompressed(
+	w http.ResponseWriter,
+	readResult ReadResult,
+	logger *zap.Logger,
+) error {
 	resp := &prompb.ReadResponse{
-		Results: result,
+		Results: readResult.Result,
 	}
 
 	data, err := proto.Marshal(resp)
 	if err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to marshal read results to protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
-		return
+		return err
 	}
 
-	w.Header().Set("Content-Type", "application/x-protobuf")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 	w.Header().Set("Content-Encoding", "snappy")
+	handleroptions.AddWarningHeaders(w, readResult.Meta)
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
-		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to encode read results to snappy",
 			zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
-		return
 	}
 
-	h.promReadMetrics.fetchSuccess.Inc(1)
+	return err
 }
 
-func (h *PromReadHandler) parseRequest(
+func parseCompressedRequest(
 	r *http.Request,
 ) (*prompb.ReadRequest, *xhttp.ParseError) {
-	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
+	result, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
 	}
 
 	var req prompb.ReadRequest
-	if err := proto.Unmarshal(reqBuf, &req); err != nil {
+	if err := proto.Unmarshal(result.UncompressedBody, &req); err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return &req, nil
 }
 
-func (h *PromReadHandler) read(
-	reqCtx context.Context,
-	w http.ResponseWriter,
-	r *prompb.ReadRequest,
-	timeout time.Duration,
-	limit int,
-) ([]*prompb.QueryResult, error) {
-	// TODO: Handle multi query use case
-	if len(r.Queries) != 1 {
-		return nil, fmt.Errorf("only one query at a time is currently supported")
+// ReadResult is a read result.
+type ReadResult struct {
+	Meta   block.ResultMetadata
+	Result []*prompb.QueryResult
+}
+
+// ParseExpr parses a prometheus request expression into the constituent
+// fetches, rather than the full query application.
+func ParseExpr(
+	r *http.Request,
+	opts xpromql.ParseOptions,
+) (*prompb.ReadRequest, *xhttp.ParseError) {
+	var req *prompb.ReadRequest
+	exprParam := strings.TrimSpace(r.FormValue("query"))
+	if len(exprParam) == 0 {
+		return nil, xhttp.NewParseError(
+			fmt.Errorf("cannot parse params: no expr"),
+			http.StatusBadRequest)
 	}
 
-	ctx, cancel := context.WithTimeout(reqCtx, timeout)
-	defer cancel()
-	promQuery := r.Queries[0]
-	query, err := storage.PromReadQueryToM3(promQuery)
+	queryStart, err := util.ParseTimeString(r.FormValue("start"))
 	if err != nil {
-		return nil, err
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	// Results is closed by execute
-	results := make(chan *storage.QueryResult)
+	queryEnd, err := util.ParseTimeString(r.FormValue("end"))
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
 
-	queryOpts := &executor.QueryOptions{
-		QueryContextOptions: models.QueryContextOptions{
-			LimitMaxTimeseries: limit,
-		}}
+	fn := opts.ParseFn()
+	req = &prompb.ReadRequest{}
+	expr, err := fn(exprParam)
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
 
-	// Detect clients closing connections
-	handler.CloseWatcher(ctx, cancel, w)
-	go h.engine.Execute(ctx, query, queryOpts, results)
+	var vectorsInspected []*promql.VectorSelector
+	promql.Inspect(expr, func(node promql.Node, path []promql.Node) error {
+		var (
+			start         = queryStart
+			end           = queryEnd
+			offset        time.Duration
+			labelMatchers []*labels.Matcher
+		)
 
-	promResults := make([]*prompb.QueryResult, 0, 1)
-	for result := range results {
-		if result.Err != nil {
-			return nil, result.Err
+		if n, ok := node.(*promql.MatrixSelector); ok {
+			if n.Range > 0 {
+				start = start.Add(-1 * n.Range)
+			}
+
+			vectorSelector := n.VectorSelector.(*promql.VectorSelector)
+
+			// Check already inspected (matrix can be walked further into
+			// child vector selector).
+			for _, existing := range vectorsInspected {
+				if existing == vectorSelector {
+					return nil // Already inspected.
+				}
+			}
+
+			vectorsInspected = append(vectorsInspected, vectorSelector)
+
+			offset = vectorSelector.Offset
+			labelMatchers = vectorSelector.LabelMatchers
+		} else if n, ok := node.(*promql.VectorSelector); ok {
+			// Check already inspected (matrix can be walked further into
+			// child vector selector).
+			for _, existing := range vectorsInspected {
+				if existing == n {
+					return nil // Already inspected.
+				}
+			}
+
+			vectorsInspected = append(vectorsInspected, n)
+
+			offset = n.Offset
+			labelMatchers = n.LabelMatchers
+		} else {
+			return nil
 		}
 
-		promRes := storage.FetchResultToPromResult(result.FetchResult)
-		promResults = append(promResults, promRes)
+		if offset > 0 {
+			start = start.Add(-1 * offset)
+			end = end.Add(-1 * offset)
+		}
+
+		matchers, err := toLabelMatchers(labelMatchers)
+		if err != nil {
+			return err
+		}
+
+		query := &prompb.Query{
+			StartTimestampMs: storage.TimeToPromTimestamp(start),
+			EndTimestampMs:   storage.TimeToPromTimestamp(end),
+			Matchers:         matchers,
+		}
+
+		req.Queries = append(req.Queries, query)
+		return nil
+	})
+
+	return req, nil
+}
+
+// ParseRequest parses the compressed request
+func ParseRequest(
+	ctx context.Context,
+	r *http.Request,
+	opts options.HandlerOptions,
+) (*prompb.ReadRequest, *storage.FetchOptions, *xhttp.ParseError) {
+	var req *prompb.ReadRequest
+	var rErr *xhttp.ParseError
+	switch {
+	case r.Method == http.MethodGet && strings.TrimSpace(r.FormValue("query")) != "":
+		req, rErr = ParseExpr(r, opts.Engine().Options().ParseOptions())
+	default:
+		req, rErr = parseCompressedRequest(r)
 	}
 
-	return promResults, nil
+	if rErr != nil {
+		return nil, nil, rErr
+	}
+
+	timeout := opts.TimeoutOpts().FetchTimeout
+	timeout, err := prometheus.ParseRequestTimeout(r, timeout)
+	if err != nil {
+		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	if rErr != nil {
+		return nil, nil, rErr
+	}
+
+	fetchOpts.Timeout = timeout
+	return req, fetchOpts, nil
+}
+
+// Read performs a remote read on the given engine.
+func Read(
+	ctx context.Context,
+	cancelWatcher handler.CancelWatcher,
+	r *prompb.ReadRequest,
+	fetchOpts *storage.FetchOptions,
+	opts options.HandlerOptions,
+) (ReadResult, error) {
+	var (
+		queryCount   = len(r.Queries)
+		cancelFuncs  = make([]context.CancelFunc, queryCount)
+		queryResults = make([]*prompb.QueryResult, queryCount)
+		meta         = block.NewResultMetadata()
+		queryOpts    = &executor.QueryOptions{
+			QueryContextOptions: models.QueryContextOptions{
+				LimitMaxTimeseries: fetchOpts.SeriesLimit,
+				LimitMaxDocs:       fetchOpts.DocsLimit,
+			}}
+
+		engine = opts.Engine()
+
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		multiErr xerrors.MultiError
+	)
+
+	wg.Add(queryCount)
+	for i, promQuery := range r.Queries {
+		i, promQuery := i, promQuery // Capture vars for lambda.
+		go func() {
+			ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
+			defer func() {
+				wg.Done()
+				cancel()
+			}()
+
+			cancelFuncs[i] = cancel
+			query, err := storage.PromReadQueryToM3(promQuery)
+			if err != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+				return
+			}
+
+			// Detect clients closing connections.
+			if cancelWatcher != nil {
+				cancelWatcher.WatchForCancel(ctx, cancel)
+			}
+
+			result, err := engine.ExecuteProm(ctx, query, queryOpts, fetchOpts)
+			if err != nil {
+				mu.Lock()
+				multiErr = multiErr.Add(err)
+				mu.Unlock()
+				return
+			}
+
+			result.PromResult.Timeseries = filterResults(
+				result.PromResult.GetTimeseries(), fetchOpts)
+			mu.Lock()
+			queryResults[i] = result.PromResult
+			meta = meta.CombineMetadata(result.Metadata)
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
+	for _, cancel := range cancelFuncs {
+		cancel()
+	}
+
+	if err := multiErr.FinalError(); err != nil {
+		return ReadResult{Result: nil, Meta: meta}, err
+	}
+
+	return ReadResult{Result: queryResults, Meta: meta}, nil
+}
+
+// filterResults removes series tags based on options.
+func filterResults(
+	series []*prompb.TimeSeries,
+	opts *storage.FetchOptions,
+) []*prompb.TimeSeries {
+	if opts == nil {
+		return series
+	}
+
+	keys := opts.RestrictQueryOptions.GetRestrictByTag().GetFilterByNames()
+	if len(keys) == 0 {
+		return series
+	}
+
+	for i, s := range series {
+		series[i].Labels = filterLabels(s.Labels, keys)
+	}
+
+	return series
+}
+
+func filterLabels(
+	labels []prompb.Label,
+	filtering [][]byte,
+) []prompb.Label {
+	if len(filtering) == 0 {
+		return labels
+	}
+
+	filtered := labels[:0]
+	for _, l := range labels {
+		skip := false
+		for _, f := range filtering {
+			if bytes.Equal(l.GetName(), f) {
+				skip = true
+				break
+			}
+		}
+
+		if skip {
+			continue
+		}
+
+		filtered = append(filtered, l)
+	}
+
+	return filtered
+}
+
+func tagsConvert(ts models.Tags) comparator.Tags {
+	tags := make(comparator.Tags, 0, ts.Len())
+	for _, t := range ts.Tags {
+		tags = append(tags, comparator.NewTag(string(t.Name), string(t.Value)))
+	}
+
+	return tags
+}
+
+func datapointsConvert(dps ts.Datapoints) comparator.Datapoints {
+	datapoints := make(comparator.Datapoints, 0, dps.Len())
+	for _, dp := range dps.Datapoints() {
+		val := comparator.Datapoint{
+			Value:     comparator.Value(dp.Value),
+			Timestamp: dp.Timestamp,
+		}
+		datapoints = append(datapoints, val)
+	}
+
+	return datapoints
+}
+
+func toSeries(dps ts.Datapoints, tags models.Tags) comparator.Series {
+	return comparator.Series{
+		Tags:       tagsConvert(tags),
+		Datapoints: datapointsConvert(dps),
+	}
+}
+
+func toLabelMatchers(matchers []*labels.Matcher) ([]*prompb.LabelMatcher, error) {
+	pbMatchers := make([]*prompb.LabelMatcher, 0, len(matchers))
+	for _, m := range matchers {
+		var mType prompb.LabelMatcher_Type
+		switch m.Type {
+		case labels.MatchEqual:
+			mType = prompb.LabelMatcher_EQ
+		case labels.MatchNotEqual:
+			mType = prompb.LabelMatcher_NEQ
+		case labels.MatchRegexp:
+			mType = prompb.LabelMatcher_RE
+		case labels.MatchNotRegexp:
+			mType = prompb.LabelMatcher_NRE
+		default:
+			return nil, errors.New("invalid matcher type")
+		}
+		pbMatchers = append(pbMatchers, &prompb.LabelMatcher{
+			Type:  mType,
+			Name:  []byte(m.Name),
+			Value: []byte(m.Value),
+		})
+	}
+	return pbMatchers, nil
 }

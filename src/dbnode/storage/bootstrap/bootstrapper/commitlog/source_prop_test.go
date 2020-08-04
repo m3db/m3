@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
@@ -80,7 +81,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters.Rng.Seed(seed)
 	nsMeta, err := namespace.NewMetadata(testNamespaceID, nsOpts)
 	require.NoError(t, err)
-	nsCtx := namespace.NewContextFrom(nsMeta)
 
 	props.Property("Commitlog bootstrapping properly bootstraps the entire commitlog", prop.ForAll(
 		func(input propTestInput) (bool, error) {
@@ -187,7 +187,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 					}
 
-					reader, ok := encoder.Stream(encoding.StreamOptions{})
+					ctx := context.NewContext()
+					reader, ok := encoder.Stream(ctx)
 					if ok {
 						seg, err := reader.Segment()
 						if err != nil {
@@ -201,6 +202,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						}
 						encodersBySeries[seriesID] = bytes
 					}
+					ctx.Close()
+
 					compressedWritesByShards[shard] = encodersBySeries
 				}
 
@@ -226,8 +229,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					for seriesID, data := range seriesForShard {
 						checkedBytes := checked.NewBytes(data, nil)
 						checkedBytes.IncRef()
-						tags := orderedWritesBySeries[seriesID][0].series.Tags
-						writer.Write(ident.StringID(seriesID), tags, checkedBytes, digest.Checksum(data))
+						tags := orderedWritesBySeries[seriesID][0].tags
+						metadata := persist.NewMetadataFromIDAndTags(ident.StringID(seriesID), tags,
+							persist.MetadataOptions{})
+						writer.Write(metadata, checkedBytes, digest.Checksum(data))
 					}
 
 					err = writer.Close()
@@ -277,6 +282,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					if err != nil {
 						return false, err
 					}
+
 					writesCh <- struct{}{}
 				}
 				close(writesCh)
@@ -327,11 +333,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 
 			// Determine time range to bootstrap
 			end := input.currentTime.Add(blockSize)
-			ranges := xtime.Ranges{}
-			ranges = ranges.AddRange(xtime.Range{
-				Start: start,
-				End:   end,
-			})
+			ranges := xtime.NewRanges(xtime.Range{Start: start, End: end})
 
 			// Determine which shards we need to bootstrap (based on the randomly
 			// generated data)
@@ -348,9 +350,9 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Assign the previously-determined bootstrap range to each known shard
-			shardTimeRanges := result.ShardTimeRanges{}
+			shardTimeRanges := result.NewShardTimeRanges()
 			for shard := range allShardsMap {
-				shardTimeRanges[shard] = ranges
+				shardTimeRanges.Set(shard, ranges)
 			}
 
 			// Perform the bootstrap
@@ -366,16 +368,24 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					tu.SelfID: tu.Shards(allShardsSlice, shard.Available),
 				})
 			}
+
 			runOpts := testDefaultRunOpts.SetInitialTopologyState(initialTopoState)
-			dataResult, err := source.BootstrapData(nsMeta, shardTimeRanges, runOpts)
+			tester := bootstrap.BuildNamespacesTester(t, runOpts, shardTimeRanges, nsMeta)
+
+			ctx := context.NewContext()
+			defer ctx.Close()
+
+			bootstrapResults, err := source.Bootstrap(ctx, tester.Namespaces)
 			if err != nil {
 				return false, err
 			}
 
 			// Create testValues for each datapoint for comparison
-			values := []testValue{}
+			values := testValues{}
 			for _, write := range input.writes {
-				values = append(values, testValue{write.series, write.datapoint.Timestamp, write.datapoint.Value, write.unit, write.annotation})
+				values = append(values, testValue{
+					write.series, write.datapoint.Timestamp,
+					write.datapoint.Value, write.unit, write.annotation})
 			}
 
 			commitLogFiles, corruptFiles, err := commitlog.Files(commitLogOpts)
@@ -398,6 +408,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					!shardTimeRanges.IsEmpty()
 			)
 
+			nsResult, found := bootstrapResults.Results.Get(nsMeta.ID())
+			if !found {
+				return false, fmt.Errorf("could not find id: %s", nsMeta.ID().String())
+			}
+
+			dataResult := nsResult.DataResult
 			if shouldReturnUnfulfilled {
 				if dataResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
@@ -410,23 +426,13 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						dataResult.Unfulfilled().String())
 				}
 			}
-			err = verifyShardResultsAreCorrect(nsCtx, values, blockSize, dataResult.ShardResults(), bootstrapOpts)
+
+			written, err := tester.EnsureDumpAllForNamespace(nsMeta)
 			if err != nil {
 				return false, err
 			}
 
-			indexResult, err := source.BootstrapIndex(nsMeta, shardTimeRanges, runOpts)
-			if err != nil {
-				return false, err
-			}
-
-			indexBlockSize := nsMeta.Options().IndexOptions().BlockSize()
-			err = verifyIndexResultsAreCorrect(
-				values, map[string]struct{}{}, indexResult.IndexResults(), indexBlockSize)
-			if err != nil {
-				return false, err
-			}
-
+			indexResult := nsResult.IndexResult
 			if shouldReturnUnfulfilled {
 				if indexResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
@@ -440,9 +446,14 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				}
 			}
 
+			err = verifyValuesAreCorrect(values, written)
+			if err != nil {
+				return false, err
+			}
+
 			return true, nil
 		},
-		genPropTestInputs(nsMeta, startTime),
+		genPropTestInputs(t, nsMeta, startTime),
 	))
 
 	if !props.Run(reporter) {
@@ -467,6 +478,7 @@ type generatedWrite struct {
 	// between time.Now().Add(-bufferFuture) and time.Now().Add(bufferPast).
 	arrivedAt  time.Time
 	series     ts.Series
+	tags       ident.Tags
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
@@ -476,7 +488,7 @@ func (w generatedWrite) String() string {
 	return fmt.Sprintf("ID = %v, Datapoint = %+v", w.series.ID.String(), w.datapoint)
 }
 
-func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.Gen {
+func genPropTestInputs(t *testing.T, nsMeta namespace.Metadata, blockStart time.Time) gopter.Gen {
 	curriedGenPropTestInput := func(input interface{}) gopter.Gen {
 		var (
 			inputs                        = input.([]interface{})
@@ -491,6 +503,7 @@ func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.G
 		)
 
 		return genPropTestInput(
+			t,
 			blockStart, bufferPast, bufferFuture,
 			snapshotTime, snapshotExists, commitLogExists,
 			numDatapoints, nsMeta.ID().String(), includeCorruptedCommitlogFile, multiNodeCluster)
@@ -520,6 +533,7 @@ func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.G
 }
 
 func genPropTestInput(
+	t *testing.T,
 	start time.Time,
 	bufferPast,
 	bufferFuture time.Duration,
@@ -531,7 +545,7 @@ func genPropTestInput(
 	includeCorruptedCommitlogFile bool,
 	multiNodeCluster bool,
 ) gopter.Gen {
-	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
+	return gen.SliceOfN(numDatapoints, genWrite(t, start, bufferPast, bufferFuture, ns)).
 		Map(func(val []generatedWrite) propTestInput {
 			return propTestInput{
 				currentTime:                   start,
@@ -547,7 +561,7 @@ func genPropTestInput(
 		})
 }
 
-func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string) gopter.Gen {
+func genWrite(t *testing.T, start time.Time, bufferPast, bufferFuture time.Duration, ns string) gopter.Gen {
 	latestDatapointTime := start.Truncate(blockSize).Add(blockSize).Sub(start)
 
 	return gopter.CombineGens(
@@ -570,13 +584,16 @@ func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string
 	).Map(func(val []interface{}) generatedWrite {
 		var (
 			id                 = val[0].(string)
-			t                  = val[1].(time.Time)
-			a                  = t
+			tm                 = val[1].(time.Time)
+			a                  = tm
 			bufferPastOrFuture = val[2].(bool)
 			tagKey             = val[3].(string)
 			tagVal             = val[4].(string)
 			includeTags        = val[5].(bool)
 			v                  = val[6].(float64)
+
+			tagEncoderPool = testCommitlogOpts.FilesystemOptions().TagEncoderPool()
+			tagSliceIter   = ident.NewTagsIterator(ident.Tags{})
 		)
 
 		if bufferPastOrFuture {
@@ -585,17 +602,28 @@ func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string
 			a = a.Add(bufferPast)
 		}
 
+		tags := seriesUniqueTags(id, tagKey, tagVal, includeTags)
+		tagSliceIter.Reset(tags)
+
+		tagEncoder := tagEncoderPool.Get()
+		err := tagEncoder.Encode(tagSliceIter)
+		require.NoError(t, err)
+
+		encodedTagsChecked, ok := tagEncoder.Data()
+		require.True(t, ok)
+
 		return generatedWrite{
 			arrivedAt: a,
 			series: ts.Series{
 				ID:          ident.StringID(id),
-				Tags:        seriesUniqueTags(id, tagKey, tagVal, includeTags),
 				Namespace:   ident.StringID(ns),
 				Shard:       hashIDToShard(ident.StringID(id)),
 				UniqueIndex: seriesUniqueIndex(id),
+				EncodedTags: ts.EncodedTags(encodedTagsChecked.Bytes()),
 			},
+			tags: tags,
 			datapoint: ts.Datapoint{
-				Timestamp: t,
+				Timestamp: tm,
 				Value:     v,
 			},
 			unit: xtime.Nanosecond,

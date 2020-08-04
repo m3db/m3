@@ -23,15 +23,18 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"runtime"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	aggruntime "github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -39,12 +42,14 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cmd/services/m3aggregator/serve"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/config/hostid"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	"github.com/m3db/m3/src/x/sync"
@@ -55,10 +60,21 @@ var (
 	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
 )
 
+var (
+	defaultNumPassthroughWriters = 8
+)
+
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
 	// HostID is the local host ID configuration.
 	HostID *hostid.Configuration `yaml:"hostID"`
+
+	// InstanceID is the instance ID configuration.
+	InstanceID InstanceIDConfiguration `yaml:"instanceID"`
+
+	// VerboseErrors sets whether or not to use verbose errors when
+	// value arrives too early, late, or other bad request like operation.
+	VerboseErrors bool `yaml:"verboseErrors"`
 
 	// AggregationTypes configs the aggregation types.
 	AggregationTypes aggregation.TypesConfiguration `yaml:"aggregationTypes"`
@@ -102,6 +118,11 @@ type AggregatorConfiguration struct {
 	// Resign timeout.
 	ResignTimeout time.Duration `yaml:"resignTimeout"`
 
+	// ShutdownWaitTimeout if non-zero will be how long the aggregator waits from
+	// receiving a shutdown signal to exit. This can make coordinating graceful
+	// shutdowns between two replicas safer.
+	ShutdownWaitTimeout time.Duration `yaml:"shutdownWaitTimeout"`
+
 	// Flush times manager.
 	FlushTimesManager flushTimesManagerConfiguration `yaml:"flushTimesManager"`
 
@@ -113,6 +134,9 @@ type AggregatorConfiguration struct {
 
 	// Flushing handler configuration.
 	Flush handler.FlushHandlerConfiguration `yaml:"flush"`
+
+	// Passthrough controls the passthrough knobs.
+	Passthrough *passthroughConfiguration `yaml:"passthrough"`
 
 	// Forwarding configuration.
 	Forwarding forwardingConfiguration `yaml:"forwarding"`
@@ -130,7 +154,7 @@ type AggregatorConfiguration struct {
 	MaxTimerBatchSizePerWrite int `yaml:"maxTimerBatchSizePerWrite" validate:"min=0"`
 
 	// Default storage policies.
-	DefaultStoragePolicies []policy.StoragePolicy `yaml:"defaultStoragePolicies" validate:"nonzero"`
+	DefaultStoragePolicies []policy.StoragePolicy `yaml:"defaultStoragePolicies"`
 
 	// Maximum number of cached source sets.
 	MaxNumCachedSourceSets *int `yaml:"maxNumCachedSourceSets"`
@@ -151,17 +175,95 @@ type AggregatorConfiguration struct {
 	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
 }
 
+// InstanceIDType is the instance ID type that defines how the
+// instance ID is constructed, which is then used to lookup the
+// aggregator instance in the placement.
+type InstanceIDType uint
+
+const (
+	// HostIDPortInstanceIDType specifies to use the host ID
+	// concatenated with the port to be used for lookup
+	// in the placement.
+	// NB: this is a legacy instance ID type and is how the instance
+	// ID used to be constructed which imposed the strange
+	// requirement that the instance ID in the topology used to require
+	// the port concat'd with the host ID).
+	HostIDPortInstanceIDType InstanceIDType = iota
+	// HostIDInstanceIDType specifies to just use the host ID
+	// as the instance ID for lookup in the placement.
+	HostIDInstanceIDType
+
+	// defaultInstanceIDType must be used as the legacy instance ID
+	// since the config needs to be backwards compatible and for those
+	// not explicitly specifying the instance ID type it will cause
+	// existing placements to not work with latest versions of the aggregator
+	// in a backwards compatible fashion.
+	defaultInstanceIDType = HostIDPortInstanceIDType
+)
+
+func (t InstanceIDType) String() string {
+	switch t {
+	case HostIDInstanceIDType:
+		return "host_id"
+	case HostIDPortInstanceIDType:
+		return "host_id_port"
+	}
+	return "unknown"
+}
+
+var (
+	validInstanceIDTypes = []InstanceIDType{
+		HostIDInstanceIDType,
+		HostIDPortInstanceIDType,
+	}
+)
+
+// UnmarshalYAML unmarshals a InstanceIDType into a valid type from string.
+func (t *InstanceIDType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		*t = defaultInstanceIDType
+		return nil
+	}
+	strs := make([]string, 0, len(validInstanceIDTypes))
+	for _, valid := range validInstanceIDTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+		strs = append(strs, "'"+valid.String()+"'")
+	}
+	return fmt.Errorf(
+		"invalid InstanceIDType '%s' valid types are: %s", str, strings.Join(strs, ", "))
+}
+
+// InstanceIDConfiguration is the instance ID configuration.
+type InstanceIDConfiguration struct {
+	// InstanceIDType specifies how to construct the instance ID
+	// that is used for lookup of the aggregator in the placement.
+	InstanceIDType InstanceIDType `yaml:"type"`
+}
+
 // NewAggregatorOptions creates a new set of aggregator options.
 func (c *AggregatorConfiguration) NewAggregatorOptions(
 	address string,
 	client client.Client,
+	serveOpts serve.Options,
 	runtimeOptsManager aggruntime.OptionsManager,
 	instrumentOpts instrument.Options,
 ) (aggregator.Options, error) {
 	opts := aggregator.NewOptions().
 		SetInstrumentOptions(instrumentOpts).
-		SetRuntimeOptionsManager(runtimeOptsManager)
+		SetRuntimeOptionsManager(runtimeOptsManager).
+		SetVerboseErrors(c.VerboseErrors)
 
+	rwOpts := serveOpts.RWOptions()
+	if rwOpts == nil {
+		rwOpts = xio.NewOptions()
+	}
 	// Set the aggregation types options.
 	aggTypesOpts, err := c.AggregationTypes.NewOptions(instrumentOpts)
 	if err != nil {
@@ -187,7 +289,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	// Set administrative client.
 	// TODO(xichen): client retry threshold likely needs to be low for faster retries.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("client"))
-	adminClient, err := c.Client.NewAdminClient(client, clock.NewOptions(), iOpts)
+	adminClient, err := c.Client.NewAdminClient(
+		client, clock.NewOptions(), iOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +299,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 	opts = opts.SetAdminClient(adminClient)
 
-	// Set instance id.
+	// Set instance ID.
 	instanceID, err := c.newInstanceID(address)
 	if err != nil {
 		return nil, err
@@ -280,11 +383,23 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	// Set flushing handler.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-handler"))
-	flushHandler, err := c.Flush.NewHandler(client, iOpts)
+	flushHandler, err := c.Flush.NewHandler(client, iOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}
 	opts = opts.SetFlushHandler(flushHandler)
+
+	// Set passthrough writer.
+	aggShardFn, err := hashType.AggregatedShardFn()
+	if err != nil {
+		return nil, err
+	}
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("passthrough-writer"))
+	passthroughWriter, err := c.newPassthroughWriter(flushHandler, iOpts, aggShardFn)
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetPassthroughWriter(passthroughWriter)
 
 	// Set max allowed forwarding delay function.
 	jitterEnabled := flushManagerOpts.JitterEnabled()
@@ -360,23 +475,31 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) {
 	var (
-		hostName string
-		err      error
+		hostIDValue string
+		err         error
 	)
 	if c.HostID != nil {
-		hostName, err = c.HostID.Resolve()
+		hostIDValue, err = c.HostID.Resolve()
 	} else {
-		hostName, err = os.Hostname()
+		hostIDValue, err = os.Hostname()
 	}
 	if err != nil {
-		return "", fmt.Errorf("error determining host name: %v", err)
+		return "", fmt.Errorf("error determining host ID: %v", err)
 	}
 
-	_, port, err := net.SplitHostPort(address)
-	if err != nil {
-		return "", fmt.Errorf("error parsing server address %s: %v", address, err)
+	switch c.InstanceID.InstanceIDType {
+	case HostIDInstanceIDType:
+		return hostIDValue, nil
+	case HostIDPortInstanceIDType:
+		_, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return "", fmt.Errorf("error parsing server address %s: %v", address, err)
+		}
+		return net.JoinHostPort(hostIDValue, port), nil
+	default:
+		return "", fmt.Errorf("unknown instance ID type: value=%d, str=%s",
+			c.InstanceID.InstanceIDType, c.InstanceID.InstanceIDType.String())
 	}
-	return net.JoinHostPort(hostName, port), nil
 }
 
 func bufferForPastTimedMetricFn(buffer time.Duration) aggregator.BufferForPastTimedMetricFn {
@@ -480,12 +603,20 @@ func (c placementManagerConfiguration) NewPlacementManager(
 type forwardingConfiguration struct {
 	// MaxSingleDelay is the maximum delay for a single forward step.
 	MaxSingleDelay time.Duration `yaml:"maxSingleDelay"`
+	// MaxConstDelay is the maximum delay for a forward step as a constant + resolution*numForwardedTimes.
+	MaxConstDelay time.Duration `yaml:"maxConstDelay"`
 }
 
 func (c forwardingConfiguration) MaxAllowedForwardingDelayFn(
 	jitterEnabled bool,
 	maxJitterFn aggregator.FlushJitterFn,
 ) aggregator.MaxAllowedForwardingDelayFn {
+	if v := c.MaxConstDelay; v > 0 {
+		return func(resolution time.Duration, numForwardedTimes int) time.Duration {
+			return v + (resolution * time.Duration(numForwardedTimes))
+		}
+	}
+
 	return func(resolution time.Duration, numForwardedTimes int) time.Duration {
 		// If jittering is enabled, we use max jitter fn to determine the initial jitter.
 		// Otherwise, flushing may start at any point within a resolution interval so we
@@ -522,7 +653,7 @@ func (c flushTimesManagerConfiguration) NewFlushTimesManager(
 		return nil, err
 	}
 	scope := instrumentOpts.MetricsScope()
-	retrier := c.FlushTimesPersistRetrier.NewRetrier(scope.SubScope("flush-times-persist"))
+	retrier := c.FlushTimesPersistRetrier.NewRetrier(scope.SubScope("flush-times-persist-retrier"))
 	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetFlushTimesKeyFmt(c.FlushTimesKeyFmt).
@@ -576,9 +707,9 @@ func (c electionManagerConfiguration) NewElectionManager(
 	}
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
 	scope := instrumentOpts.MetricsScope()
-	campaignRetryOpts := c.CampaignRetrier.NewOptions(scope.SubScope("campaign"))
-	changeRetryOpts := c.ChangeRetrier.NewOptions(scope.SubScope("change"))
-	resignRetryOpts := c.ResignRetrier.NewOptions(scope.SubScope("resign"))
+	campaignRetryOpts := c.CampaignRetrier.NewOptions(scope.SubScope("campaign-retrier"))
+	changeRetryOpts := c.ChangeRetrier.NewOptions(scope.SubScope("change-retrier"))
+	resignRetryOpts := c.ResignRetrier.NewOptions(scope.SubScope("resign-retrier"))
 	opts := aggregator.NewElectionManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetElectionOptions(electionOpts).
@@ -689,7 +820,12 @@ func (c flushManagerConfiguration) NewFlushManagerOptions(
 		opts = opts.SetMaxJitterFn(maxJitterFn)
 	}
 	if c.NumWorkersPerCPU != 0 {
-		workerPoolSize := int(float64(runtime.NumCPU()) * c.NumWorkersPerCPU)
+		runtimeCPU := float64(runtime.NumCPU())
+		numWorkers := c.NumWorkersPerCPU * runtimeCPU
+		workerPoolSize := int(math.Ceil(numWorkers))
+		if workerPoolSize < 1 {
+			workerPoolSize = 1
+		}
 		workerPool := sync.NewWorkerPool(workerPoolSize)
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)
@@ -755,4 +891,41 @@ func setMetricPrefix(
 		return opts
 	}
 	return fn([]byte(*str))
+}
+
+// PassthroughConfiguration contains the knobs for pass-through server.
+type passthroughConfiguration struct {
+	// Enabled controls whether the passthrough server/writer is enabled.
+	Enabled bool `yaml:"enabled"`
+
+	// NumWriters controls the number of passthrough writers used.
+	NumWriters int `yaml:"numWriters"`
+}
+
+func (c *AggregatorConfiguration) newPassthroughWriter(
+	flushHandler handler.Handler,
+	iOpts instrument.Options,
+	shardFn sharding.AggregatedShardFn,
+) (writer.Writer, error) {
+	// fallback gracefully
+	if c.Passthrough == nil || !c.Passthrough.Enabled {
+		iOpts.Logger().Info("passthrough writer disabled, blackholing all passthrough writes")
+		return writer.NewBlackholeWriter(), nil
+	}
+
+	count := defaultNumPassthroughWriters
+	if c.Passthrough.NumWriters != 0 {
+		count = c.Passthrough.NumWriters
+	}
+
+	writers := make([]writer.Writer, 0, count)
+	for i := 0; i < count; i++ {
+		writer, err := flushHandler.NewWriter(iOpts.MetricsScope())
+		if err != nil {
+			return nil, err
+		}
+		writers = append(writers, writer)
+	}
+
+	return writer.NewShardedWriter(writers, shardFn, iOpts)
 }

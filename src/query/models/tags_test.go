@@ -23,14 +23,15 @@ package models
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
 	"reflect"
 	"testing"
 	"unsafe"
 
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/util/writer"
 	xtest "github.com/m3db/m3/src/x/test"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +51,7 @@ func testLongTagIDOutOfOrder(t *testing.T, scheme IDSchemeType) Tags {
 func TestLongTagNewIDOutOfOrderLegacy(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
 	actual := tags.ID()
-	assert.Equal(t, tags.idLen(), len(actual))
+	assert.Equal(t, idLen(tags), len(actual))
 	assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), actual)
 }
 
@@ -86,10 +87,7 @@ func TestHashedID(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
 	actual := tags.HashedID()
 
-	h := fnv.New64a()
-	h.Write([]byte("t1=v1,t2=v2,t3=v3,t4=v4,"))
-	expected := h.Sum64()
-
+	expected := xxhash.Sum64String("t1=v1,t2=v2,t3=v3,t4=v4,")
 	assert.Equal(t, expected, actual)
 }
 
@@ -122,7 +120,7 @@ func TestLongTagNewIDOutOfOrderPrefixed(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypePrependMeta).
 		AddTag(Tag{Name: []byte("t9"), Value: []byte(`"v1"t2"v2"`)})
 	actual := tags.ID()
-	expectedLength, _ := tags.prependMetaLen()
+	expectedLength, _ := prependMetaLen(tags)
 	require.Equal(t, expectedLength, len(actual))
 	assert.Equal(t, []byte(`2,2,2,2,2,2,2,2,2,10!t1v1t2v2t3v3t4v4t9"v1"t2"v2"`), actual)
 }
@@ -192,6 +190,29 @@ func TestAddTags(t *testing.T) {
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("x"), Value: []byte("3")},
+		{Name: []byte("z"), Value: []byte("4")},
+	}
+
+	assert.Equal(t, expected, tags.Tags)
+}
+
+func TestAddTagsIfNotExists(t *testing.T) {
+	tags := NewTags(3, nil)
+	tags = tags.AddTags([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("z"), Value: []byte("4")},
+	})
+
+	tags = tags.AddTagsIfNotExists([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("c"), Value: []byte("3")},
+	})
+
+	expected := []Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("c"), Value: []byte("3")},
 		{Name: []byte("z"), Value: []byte("4")},
 	}
 
@@ -316,6 +337,9 @@ func TestCloneTags(t *testing.T) {
 
 	assert.Equal(t, cloned.Opts, tags.Opts)
 	assert.Equal(t, cloned.Tags, tags.Tags)
+	assert.True(t, cloned.Equals(tags))
+	assert.True(t, tags.Equals(cloned))
+
 	aHeader := (*reflect.SliceHeader)(unsafe.Pointer(&cloned.Tags))
 	bHeader := (*reflect.SliceHeader)(unsafe.Pointer(&tags.Tags))
 	assert.False(t, aHeader.Data == bHeader.Data)
@@ -327,6 +351,37 @@ func TestCloneTags(t *testing.T) {
 	assert.True(t, bytes.Equal(tv, cv))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tn, cn))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tv, cv))
+}
+
+func TestTagsEquals(t *testing.T) {
+	tags, other := createTags(true), createTags(true)
+	assert.True(t, tags.Equals(other))
+
+	bad := []byte("a")
+	n := tags.Opts.BucketName()
+	tags.Opts = tags.Opts.SetBucketName(bad)
+	assert.False(t, tags.Equals(other))
+
+	tags.Opts = tags.Opts.SetBucketName(n)
+	assert.True(t, tags.Equals(other))
+
+	n = tags.Tags[0].Name
+	tags.Tags[0].Name = bad
+	assert.False(t, tags.Equals(other))
+
+	tags.Tags[0].Name = n
+	assert.True(t, tags.Equals(other))
+
+	tags = tags.AddTag(Tag{n, n})
+	assert.False(t, tags.Equals(other))
+}
+
+func TestTagEquals(t *testing.T) {
+	a, b, c := []byte("a"), []byte("b"), []byte("c")
+	assert.True(t, Tag{a, b}.Equals(Tag{a, b}))
+	assert.False(t, Tag{a, b}.Equals(Tag{a, c}))
+	assert.False(t, Tag{a, b}.Equals(Tag{b, c}))
+	assert.False(t, Tag{a, b}.Equals(Tag{b, b}))
 }
 
 func TestTagAppend(t *testing.T) {
@@ -365,6 +420,96 @@ func TestWriteTagLengthMeta(t *testing.T) {
 	count := writeTagLengthMeta(buf, lengths)
 	require.Equal(t, 42, count)
 	assert.Equal(t, []byte("0,1,2,8,10,8,100,8,101,8,110,123456,12345!"), buf)
+}
+
+func TestTagsValidateEmptyNameQuoted(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
+	tags = tags.AddTag(Tag{Name: []byte(""), Value: []byte("bar")})
+	require.Error(t, tags.Validate())
+}
+
+func TestTagsValidateEmptyValueQuoted(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
+	tags = tags.AddTag(Tag{Name: []byte("foo"), Value: []byte("")})
+	require.Error(t, tags.Validate())
+}
+
+func TestTagsValidateOutOfOrderQuoted(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
+	tags.Tags = []Tag{
+		{
+			Name:  []byte("foo"),
+			Value: []byte("bar"),
+		},
+		{
+			Name:  []byte("bar"),
+			Value: []byte("baz"),
+		},
+	}
+	require.Error(t, tags.Validate())
+
+	// Test fixes after normalize.
+	tags.Normalize()
+	require.NoError(t, tags.Validate())
+}
+
+func TestTagsValidateDuplicateQuoted(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeQuoted))
+	tags = tags.AddTag(Tag{
+		Name:  []byte("foo"),
+		Value: []byte("bar"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  []byte("bar"),
+		Value: []byte("baz"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  []byte("foo"),
+		Value: []byte("qux"),
+	})
+	require.Error(t, tags.Validate())
+}
+
+func TestTagsValidateEmptyNameGraphite(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeGraphite))
+	tags = tags.AddTag(Tag{Name: nil, Value: []byte("bar")})
+	require.Error(t, tags.Validate())
+}
+
+func TestTagsValidateOutOfOrderGraphite(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeGraphite))
+	tags.Tags = []Tag{
+		{
+			Name:  graphite.TagName(10),
+			Value: []byte("foo"),
+		},
+		{
+			Name:  graphite.TagName(2),
+			Value: []byte("bar"),
+		},
+	}
+	require.Error(t, tags.Validate())
+
+	// Test fixes after normalize.
+	tags.Normalize()
+	require.NoError(t, tags.Validate())
+}
+
+func TestTagsValidateDuplicateGraphite(t *testing.T) {
+	tags := NewTags(0, NewTagOptions().SetIDSchemeType(TypeGraphite))
+	tags = tags.AddTag(Tag{
+		Name:  graphite.TagName(0),
+		Value: []byte("foo"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  graphite.TagName(1),
+		Value: []byte("bar"),
+	})
+	tags = tags.AddTag(Tag{
+		Name:  graphite.TagName(1),
+		Value: []byte("baz"),
+	})
+	require.Error(t, tags.Validate())
 }
 
 func buildTags(b *testing.B, count, length int, opts TagOptions, escape bool) Tags {
@@ -485,25 +630,25 @@ func BenchmarkIDs(b *testing.B) {
 
 func TestSerializedLength(t *testing.T) {
 	tag := Tag{Name: []byte("foo"), Value: []byte("bar")}
-	len, escaping := tag.serializedLength()
+	len, escaping := serializedLength(tag)
 	assert.Equal(t, 8, len)
 	assert.False(t, escaping.escapeName)
 	assert.False(t, escaping.escapeValue)
 
 	tag.Name = []byte("f\ao")
-	len, escaping = tag.serializedLength()
+	len, escaping = serializedLength(tag)
 	assert.Equal(t, 9, len)
 	assert.True(t, escaping.escapeName)
 	assert.False(t, escaping.escapeValue)
 
 	tag.Value = []byte(`b"ar`)
-	len, escaping = tag.serializedLength()
+	len, escaping = serializedLength(tag)
 	assert.Equal(t, 11, len)
 	assert.True(t, escaping.escapeName)
 	assert.True(t, escaping.escapeValue)
 
 	tag.Name = []byte("baz")
-	len, escaping = tag.serializedLength()
+	len, escaping = serializedLength(tag)
 	assert.Equal(t, 10, len)
 	assert.False(t, escaping.escapeName)
 	assert.True(t, escaping.escapeValue)

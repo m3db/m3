@@ -50,7 +50,7 @@ func FetchWithBootstrap(ctx *Context, seriesList ts.SeriesList, duration time.Du
 	endTime := ctx.StartTime
 	bootstrapList, err := bootstrapWithIDs(ctx, seriesList, startTime, endTime)
 	if err != nil {
-		return ts.SeriesList{}, fmt.Errorf("unable to fetch bootstrap series, error=%s", err)
+		return ts.NewSeriesList(), fmt.Errorf("unable to fetch bootstrap series, error=%s", err)
 	}
 
 	// Assemble the bootstrapped list
@@ -60,7 +60,7 @@ func FetchWithBootstrap(ctx *Context, seriesList ts.SeriesList, duration time.Du
 		if bootstrap.MillisPerStep() < original.MillisPerStep() {
 			bootstrap, err = bootstrap.IntersectAndResize(bootstrap.StartTime(), bootstrap.EndTime(), original.MillisPerStep(), original.ConsolidationFunc())
 			if err != nil {
-				return ts.SeriesList{}, err
+				return ts.NewSeriesList(), err
 			}
 		}
 		ratio := bootstrap.MillisPerStep() / original.MillisPerStep()

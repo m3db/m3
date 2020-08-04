@@ -38,7 +38,10 @@ type nonMirroredSelector struct {
 	opts placement.Options
 }
 
-func newNonMirroredSelector(opts placement.Options) placement.InstanceSelector {
+// NewNonMirroredSelector constructs an instance selector which doesn't mirror traffic
+// (no shardsets) and which takes into account existing
+// shard placement and instance weight in order to choose instances.
+func NewNonMirroredSelector(opts placement.Options) placement.InstanceSelector {
 	return &nonMirroredSelector{opts: opts}
 }
 
@@ -79,13 +82,9 @@ func (f *nonMirroredSelector) SelectReplaceInstances(
 		return nil, err
 	}
 
-	leavingInstances := make([]placement.Instance, 0, len(leavingInstanceIDs))
-	for _, id := range leavingInstanceIDs {
-		leavingInstance, exist := p.Instance(id)
-		if !exist {
-			return nil, errInstanceAbsent
-		}
-		leavingInstances = append(leavingInstances, leavingInstance)
+	leavingInstances, err := getLeavingInstances(p, leavingInstanceIDs)
+	if err != nil {
+		return nil, err
 	}
 
 	if f.opts.AddAllCandidates() {

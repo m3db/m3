@@ -29,12 +29,15 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/m3db/bloom"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -43,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -56,6 +60,7 @@ type testBlockRetrieverOptions struct {
 	retrieverOpts  BlockRetrieverOptions
 	fsOpts         Options
 	newSeekerMgrFn newSeekerMgrFn
+	shards         []uint32
 }
 
 type testCleanupFn func()
@@ -75,12 +80,18 @@ func newOpenTestBlockRetriever(
 		retriever.newSeekerMgrFn = opts.newSeekerMgrFn
 	}
 
+	shardSet, err := sharding.NewShardSet(
+		sharding.NewShards(opts.shards, shard.Available),
+		sharding.DefaultHashFn(1),
+	)
+	require.NoError(t, err)
+
 	nsPath := NamespaceDataDirPath(opts.fsOpts.FilePathPrefix(), testNs1ID)
 	require.NoError(t, os.MkdirAll(nsPath, opts.fsOpts.NewDirectoryMode()))
-	require.NoError(t, retriever.Open(testNs1Metadata(t)))
+	require.NoError(t, retriever.Open(testNs1Metadata(t), shardSet))
 
 	return retriever, func() {
-		assert.NoError(t, retriever.Close())
+		require.NoError(t, retriever.Close())
 	}
 }
 
@@ -89,19 +100,21 @@ func newOpenTestWriter(
 	fsOpts Options,
 	shard uint32,
 	start time.Time,
+	volume int,
 ) (DataFileSetWriter, testCleanupFn) {
 	w := newTestWriter(t, fsOpts.FilePathPrefix())
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
 		Identifier: FileSetFileIdentifier{
-			Namespace:  testNs1ID,
-			Shard:      shard,
-			BlockStart: start,
+			Namespace:   testNs1ID,
+			Shard:       shard,
+			BlockStart:  start,
+			VolumeIndex: volume,
 		},
 	}
 	require.NoError(t, w.Open(writerOpts))
 	return w, func() {
-		assert.NoError(t, w.Close())
+		require.NoError(t, w.Close())
 	}
 }
 
@@ -130,75 +143,170 @@ func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
 	testBlockRetrieverHighConcurrentSeeks(t, true)
 }
 
+type seekerTrackCloses struct {
+	DataFileSetSeeker
+
+	trackCloseFn func()
+}
+
+func (s seekerTrackCloses) Close() error {
+	s.trackCloseFn()
+	return s.DataFileSetSeeker.Close()
+}
+
 func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Minute)()
 
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
-	filePathPrefix := filepath.Join(dir, "")
-	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
 
-	fetchConcurrency := 4
-	seekConcurrency := 4 * fetchConcurrency
-	opts := testBlockRetrieverOptions{
-		retrieverOpts: defaultTestBlockRetrieverOptions.
-			SetFetchConcurrency(fetchConcurrency).
-			SetRequestPoolOptions(pool.NewObjectPoolOptions().
-				// NB(r): Try to make sure same req structs are reused frequently
-				// to surface any race issues that might occur with pooling.
-				SetSize(fetchConcurrency / 2)),
-		fsOpts: fsOpts,
-	}
-	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
-	defer cleanup()
-
-	nsMeta := testNs1Metadata(t)
-	ropts := nsMeta.Options().RetentionOptions()
-	nsCtx := namespace.NewContextFrom(nsMeta)
-
-	now := time.Now().Truncate(ropts.BlockSize())
-	min, max := now.Add(-6*ropts.BlockSize()), now.Add(-ropts.BlockSize())
-
+	// Setup data generation.
 	var (
+		nsMeta   = testNs1Metadata(t)
+		ropts    = nsMeta.Options().RetentionOptions()
+		nsCtx    = namespace.NewContextFrom(nsMeta)
+		now      = time.Now().Truncate(ropts.BlockSize())
+		min, max = now.Add(-6 * ropts.BlockSize()), now.Add(-ropts.BlockSize())
+
 		shards         = []uint32{0, 1, 2}
 		idsPerShard    = 16
 		shardIDs       = make(map[uint32][]ident.ID)
 		shardIDStrings = make(map[uint32][]string)
 		dataBytesPerID = 32
-		shardData      = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
-		blockStarts    []time.Time
+		// Shard -> ID -> Blockstart -> Data
+		shardData   = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
+		blockStarts []time.Time
+		volumes     = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 	)
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
 		blockStarts = append(blockStarts, st)
 	}
+
+	// Setup retriever.
+	var (
+		filePathPrefix             = filepath.Join(dir, "")
+		fsOpts                     = testDefaultOpts.SetFilePathPrefix(filePathPrefix)
+		fetchConcurrency           = 4
+		seekConcurrency            = 4 * fetchConcurrency
+		updateOpenLeaseConcurrency = 4
+		// NB(r): Try to make sure same req structs are reused frequently
+		// to surface any race issues that might occur with pooling.
+		poolOpts = pool.NewObjectPoolOptions().
+				SetSize(fetchConcurrency / 2)
+	)
+	segReaderPool := xio.NewSegmentReaderPool(poolOpts)
+	segReaderPool.Init()
+
+	retrieveRequestPool := NewRetrieveRequestPool(segReaderPool, poolOpts)
+	retrieveRequestPool.Init()
+
+	opts := testBlockRetrieverOptions{
+		retrieverOpts: defaultTestBlockRetrieverOptions.
+			SetFetchConcurrency(fetchConcurrency).
+			SetRetrieveRequestPool(retrieveRequestPool),
+		fsOpts: fsOpts,
+		shards: shards,
+	}
+
+	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	defer cleanup()
+
+	// Setup the open seeker function to fail sometimes to exercise that code path.
+	var (
+		seekerMgr                 = retriever.seekerMgr.(*seekerManager)
+		existingNewOpenSeekerFn   = seekerMgr.newOpenSeekerFn
+		seekerStatsLock           sync.Mutex
+		numNonTerminalVolumeOpens int
+		numSeekerCloses           int
+	)
+	newNewOpenSeekerFn := func(shard uint32, blockStart time.Time, volume int) (DataFileSetSeeker, error) {
+		// Artificially slow down how long it takes to open a seeker to exercise the logic where
+		// multiple goroutines are trying to open seekers for the same shard/blockStart and need
+		// to wait for the others to complete.
+		time.Sleep(5 * time.Millisecond)
+		// 10% chance for this to fail so that error paths get exercised as well.
+		if val := rand.Intn(100); val >= 90 {
+			return nil, errors.New("some-error")
+		}
+		seeker, err := existingNewOpenSeekerFn(shard, blockStart, volume)
+		if err != nil {
+			return nil, err
+		}
+
+		if volume != volumes[len(volumes)-1] {
+			// Only track the open if its not for the last volume which will help us determine if the correct
+			// number of seekers were closed later.
+			seekerStatsLock.Lock()
+			numNonTerminalVolumeOpens++
+			seekerStatsLock.Unlock()
+		}
+		return &seekerTrackCloses{
+			DataFileSetSeeker: seeker,
+			trackCloseFn: func() {
+				seekerStatsLock.Lock()
+				numSeekerCloses++
+				seekerStatsLock.Unlock()
+			},
+		}, nil
+	}
+	seekerMgr.newOpenSeekerFn = newNewOpenSeekerFn
+
+	// Setup the block lease manager to return errors sometimes to exercise that code path.
+	mockBlockLeaseManager := block.NewMockLeaseManager(ctrl)
+	mockBlockLeaseManager.EXPECT().RegisterLeaser(gomock.Any()).AnyTimes()
+	mockBlockLeaseManager.EXPECT().UnregisterLeaser(gomock.Any()).AnyTimes()
+	mockBlockLeaseManager.EXPECT().OpenLatestLease(gomock.Any(), gomock.Any()).DoAndReturn(func(_ block.Leaser, _ block.LeaseDescriptor) (block.LeaseState, error) {
+		// 10% chance for this to fail so that error paths get exercised as well.
+		if val := rand.Intn(100); val >= 90 {
+			return block.LeaseState{}, errors.New("some-error")
+		}
+
+		return block.LeaseState{Volume: 0}, nil
+	}).AnyTimes()
+	seekerMgr.blockRetrieverOpts = seekerMgr.blockRetrieverOpts.SetBlockLeaseManager(mockBlockLeaseManager)
+
+	// Generate data.
 	for _, shard := range shards {
 		shardIDs[shard] = make([]ident.ID, 0, idsPerShard)
 		shardData[shard] = make(map[string]map[xtime.UnixNano]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
-			w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart)
-			for i := 0; i < idsPerShard; i++ {
-				idString := fmt.Sprintf("foo.%d", i)
-				shardIDStrings[shard] = append(shardIDStrings[shard], idString)
+			for _, volume := range volumes {
+				w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart, volume)
+				for i := 0; i < idsPerShard; i++ {
+					idString := fmt.Sprintf("foo.%d", i)
+					shardIDStrings[shard] = append(shardIDStrings[shard], idString)
 
-				id := ident.StringID(idString)
-				shardIDs[shard] = append(shardIDs[shard], id)
-				if _, ok := shardData[shard][idString]; !ok {
-					shardData[shard][idString] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
+					id := ident.StringID(idString)
+					shardIDs[shard] = append(shardIDs[shard], id)
+					if _, ok := shardData[shard][idString]; !ok {
+						shardData[shard][idString] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
+					}
+
+					// Always write the same data for each series regardless of volume to make asserting on
+					// Stream() responses simpler. Each volume gets a unique tag so we can verify that leases
+					// are being upgraded by checking the tags.
+					blockStartNanos := xtime.ToUnixNano(blockStart)
+					data, ok := shardData[shard][idString][blockStartNanos]
+					if !ok {
+						data = checked.NewBytes(nil, nil)
+						data.IncRef()
+						for j := 0; j < dataBytesPerID; j++ {
+							data.Append(byte(rand.Int63n(256)))
+						}
+						shardData[shard][idString][blockStartNanos] = data
+					}
+
+					tags := testTagsFromIDAndVolume(id.String(), volume)
+					metadata := persist.NewMetadataFromIDAndTags(id, tags,
+						persist.MetadataOptions{})
+					err := w.Write(metadata, data, digest.Checksum(data.Bytes()))
+					require.NoError(t, err)
 				}
-
-				data := checked.NewBytes(nil, nil)
-				data.IncRef()
-				for j := 0; j < dataBytesPerID; j++ {
-					data.Append(byte(rand.Int63n(256)))
-				}
-				shardData[shard][idString][xtime.ToUnixNano(blockStart)] = data
-
-				tags := testTagsFromTestID(id.String())
-				err := w.Write(id, ident.NewTags(tags...), data, digest.Checksum(data.Bytes()))
-				require.NoError(t, err)
+				closer()
 			}
-			closer()
 		}
 	}
 
@@ -234,6 +342,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		retrievedIDsMutex.Unlock()
 	})
 
+	// Setup concurrent seeks.
 	var enqueueWg sync.WaitGroup
 	startWg.Add(1)
 	for i := 0; i < seekConcurrency; i++ {
@@ -257,8 +366,20 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 				for k := 0; k < len(blockStarts); k++ {
 					ctx := context.NewContext()
-					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieve, nsCtx)
-					require.NoError(t, err)
+
+					var (
+						stream xio.BlockReader
+						err    error
+					)
+					for {
+						// Run in a loop since the open seeker function is configured to randomly fail
+						// sometimes.
+						stream, err = retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieve, nsCtx)
+						if err == nil {
+							break
+						}
+					}
+
 					results = append(results, streamResult{
 						ctx:        ctx,
 						shard:      shard,
@@ -279,7 +400,14 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 					require.NoError(t, err)
 					compare.Head = shardData[r.shard][r.id][xtime.ToUnixNano(r.blockStart)]
-					assert.True(t, seg.Equal(&compare))
+					require.True(
+						t,
+						seg.Equal(&compare),
+						fmt.Sprintf(
+							"data mismatch for series %s, returned data: %v, expected: %v",
+							r.id,
+							string(seg.Head.Bytes()),
+							string(compare.Head.Bytes())))
 
 					r.ctx.Close()
 				}
@@ -288,12 +416,60 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		}()
 	}
 
-	// Wait for all routines to be ready then start.
+	// Wait for all routines to be ready.
 	readyWg.Wait()
+	// Allow all the goroutines to begin.
 	startWg.Done()
+
+	// Setup concurrent block lease updates.
+	workers := xsync.NewWorkerPool(updateOpenLeaseConcurrency)
+	workers.Init()
+	// Volume -> shard -> blockStart to stripe as many shard/blockStart as quickly as possible to
+	// improve the chance of triggering the code path where UpdateOpenLease is the first time a set
+	// of seekers are opened for a shard/blocksStart combination.
+	for _, volume := range volumes {
+		for _, shard := range shards {
+			for _, blockStart := range blockStarts {
+				enqueueWg.Add(1)
+				var (
+					// Capture vars for async goroutine.
+					volume     = volume
+					shard      = shard
+					blockStart = blockStart
+				)
+				workers.Go(func() {
+					defer enqueueWg.Done()
+					leaser := retriever.seekerMgr.(block.Leaser)
+
+					for {
+						// Run in a loop since the open seeker function is configured to randomly fail
+						// sometimes.
+						_, err := leaser.UpdateOpenLease(block.LeaseDescriptor{
+							Namespace:  nsMeta.ID(),
+							Shard:      shard,
+							BlockStart: blockStart,
+						}, block.LeaseState{Volume: volume})
+						// Ignore errOutOfOrderUpdateOpenLease because the goroutines in this test are not coordinated
+						// and thus may try to call UpdateOpenLease() with out of order volumes. Thats fine for the
+						// purposes of this test since the goal here is to make sure there are no race conditions and
+						// ensure that the SeekerManager ends up in the correct state when the test is complete.
+						if err == nil || err == errOutOfOrderUpdateOpenLease {
+							break
+						}
+					}
+				})
+			}
+		}
+	}
 
 	// Wait until done.
 	enqueueWg.Wait()
+
+	seekerStatsLock.Lock()
+	// Don't multiply by fetchConcurrency because the tracking doesn't take concurrent
+	// clones into account.
+	require.Equal(t, numNonTerminalVolumeOpens, numSeekerCloses)
+	seekerStatsLock.Unlock()
 
 	// Verify the onRetrieve callback was called properly for everything.
 	for _, shard := range shardIDStrings {
@@ -303,11 +479,52 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 			retrievedIDsMutex.Unlock()
 			require.True(t, ok, fmt.Sprintf("expected %s to be retrieved, but it was not", id))
 
-			expectedTags := ident.NewTags(testTagsFromTestID(id)...)
+			// Strip the volume tag because these reads were performed while concurrent block lease updates
+			// were happening so its not deterministic which volume tag they'll have at this point.
+			tags = stripVolumeTag(tags)
+			expectedTags := stripVolumeTag(testTagsFromIDAndVolume(id, 0))
 			require.True(
 				t,
 				tags.Equal(expectedTags),
 				fmt.Sprintf("expectedNumTags=%d, actualNumTags=%d", len(expectedTags.Values()), len(tags.Values())))
+		}
+	}
+
+	// Now that all the block lease updates have completed, all reads from this point should return tags with the
+	// highest volume number.
+	ctx := context.NewContext()
+	for _, shard := range shards {
+		for _, blockStart := range blockStarts {
+			for _, idString := range shardIDStrings[shard] {
+				id := ident.StringID(idString)
+				for {
+					// Run in a loop since the open seeker function is configured to randomly fail
+					// sometimes.
+					ctx.Reset()
+					_, err := retriever.Stream(ctx, shard, id, blockStart, onRetrieve, nsCtx)
+					ctx.BlockingClose()
+					if err == nil {
+						break
+					}
+				}
+
+			}
+		}
+	}
+
+	for _, shard := range shardIDStrings {
+		for _, id := range shard {
+			retrievedIDsMutex.Lock()
+			tags, ok := retrievedIDs[id]
+			retrievedIDsMutex.Unlock()
+			require.True(t, ok, fmt.Sprintf("expected %s to be retrieved, but it was not", id))
+			tagsSlice := tags.Values()
+
+			// Highest volume is expected.
+			expectedVolumeTag := strconv.Itoa(volumes[len(volumes)-1])
+			// Volume tag is last.
+			volumeTag := tagsSlice[len(tagsSlice)-1].Value.String()
+			require.Equal(t, expectedVolumeTag, volumeTag)
 		}
 	}
 }
@@ -334,16 +551,19 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	opts := testBlockRetrieverOptions{
 		retrieverOpts: defaultTestBlockRetrieverOptions,
 		fsOpts:        fsOpts,
+		shards:        []uint32{shard},
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
 
 	// Write out a test file
-	w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart)
+	w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart, 0)
 	data := checked.NewBytes([]byte("Hello world!"), nil)
 	data.IncRef()
 	defer data.DecRef()
-	err = w.Write(ident.StringID("exists"), ident.Tags{}, data, digest.Checksum(data.Bytes()))
+	metadata := persist.NewMetadataFromIDAndTags(ident.StringID("exists"), ident.Tags{},
+		persist.MetadataOptions{})
+	err = w.Write(metadata, data, digest.Checksum(data.Bytes()))
 	assert.NoError(t, err)
 	closer()
 
@@ -380,13 +600,14 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	opts := testBlockRetrieverOptions{
 		retrieverOpts: defaultTestBlockRetrieverOptions,
 		fsOpts:        fsOpts,
+		shards:        []uint32{shard},
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
 
 	// Write out a test file.
 	var (
-		w, closer = newOpenTestWriter(t, fsOpts, shard, blockStart)
+		w, closer = newOpenTestWriter(t, fsOpts, shard, blockStart, 0)
 		tag       = ident.Tag{
 			Name:  ident.StringID("name"),
 			Value: ident.StringID("value"),
@@ -410,7 +631,9 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 		data.IncRef()
 		defer data.DecRef()
 
-		err = w.Write(ident.StringID(write.id), write.tags, data, digest.Checksum(data.Bytes()))
+		metadata := persist.NewMetadataFromIDAndTags(ident.StringID(write.id), write.tags,
+			persist.MetadataOptions{})
+		err = w.Write(metadata, data, digest.Checksum(data.Bytes()))
 		require.NoError(t, err)
 	}
 	closer()
@@ -494,16 +717,11 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 		nsCtx      = namespace.NewContextFrom(testNs1Metadata(t))
 		shard      = uint32(0)
 		blockStart = time.Now().Truncate(rOpts.BlockSize())
-
-		// Always true because all the bits in 255 are set.
-		bloomBytes            = []byte{255, 255, 255, 255, 255, 255, 255, 255}
-		alwaysTrueBloomFilter = bloom.NewConcurrentReadOnlyBloomFilter(1, 1, bloomBytes)
-		managedBloomFilter    = newManagedConcurrentBloomFilter(alwaysTrueBloomFilter, bloomBytes)
 	)
 
 	mockSeekerManager := NewMockDataFileSetSeekerManager(ctrl)
-	mockSeekerManager.EXPECT().Open(gomock.Any()).Return(nil)
-	mockSeekerManager.EXPECT().ConcurrentIDBloomFilter(gomock.Any(), gomock.Any()).Return(managedBloomFilter, nil)
+	mockSeekerManager.EXPECT().Open(gomock.Any(), gomock.Any()).Return(nil)
+	mockSeekerManager.EXPECT().Test(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 	mockSeekerManager.EXPECT().Borrow(gomock.Any(), gomock.Any()).Return(mockSeeker, nil)
 	mockSeekerManager.EXPECT().Return(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	mockSeekerManager.EXPECT().Close().Return(nil)
@@ -522,6 +740,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 		retrieverOpts:  defaultTestBlockRetrieverOptions,
 		fsOpts:         fsOpts,
 		newSeekerMgrFn: newSeekerMgr,
+		shards:         []uint32{shard},
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
@@ -539,13 +758,20 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 	assert.Equal(t, nil, segment.Tail)
 }
 
-func testTagsFromTestID(seriesID string) []ident.Tag {
+func testTagsFromIDAndVolume(seriesID string, volume int) ident.Tags {
 	tags := []ident.Tag{}
 	for j := 0; j < 5; j++ {
-		tags = append(tags, ident.Tag{
-			Name:  ident.StringID(fmt.Sprintf("%s.tag.%d.name", seriesID, j)),
-			Value: ident.StringID(fmt.Sprintf("%s.tag.%d.value", seriesID, j)),
-		})
+		tags = append(tags, ident.StringTag(
+			fmt.Sprintf("%s.tag.%d.name", seriesID, j),
+			fmt.Sprintf("%s.tag.%d.value", seriesID, j),
+		))
 	}
-	return tags
+	tags = append(tags, ident.StringTag("volume", strconv.Itoa(volume)))
+	return ident.NewTags(tags...)
+}
+
+func stripVolumeTag(tags ident.Tags) ident.Tags {
+	tagsSlice := tags.Values()
+	tagsSlice = tagsSlice[:len(tagsSlice)-1]
+	return ident.NewTags(tagsSlice...)
 }

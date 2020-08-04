@@ -13,17 +13,18 @@ genny-all: genny-map-all genny-arraypool-all genny-leakcheckpool-all genny-list-
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
-genny-map-all:                                \
-	genny-map-client-received-blocks            \
-	genny-map-storage-block-retriever           \
-	genny-map-storage-bootstrap-result          \
-	genny-map-storage                           \
-	genny-map-storage-namespace-metadata        \
-	genny-map-storage-repair                    \
-	genny-map-storage-index-results             \
-	genny-map-storage-index-aggregate-values    \
-	genny-map-storage-index-aggregation-results \
-	genny-map-storage-bootstrap-bootstrapper-commitlog
+genny-map-all:                                         \
+	genny-map-client-received-blocks                   \
+	genny-map-storage-block-retriever                  \
+	genny-map-storage-bootstrap-namespaces             \
+	genny-map-storage-bootstrap-namespace-results      \
+	genny-map-storage-bootstrap-result                 \
+	genny-map-storage                                  \
+	genny-map-storage-namespace-metadata               \
+	genny-map-storage-repair                           \
+	genny-map-storage-index-results                    \
+	genny-map-storage-index-aggregate-values           \
+	genny-map-storage-index-aggregation-results        \
 
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks
@@ -51,6 +52,34 @@ genny-map-storage-block-retriever:
 	mv -f $(m3db_package_path)/src/dbnode/storage/block/map_gen.go $(m3db_package_path)/src/dbnode/storage/block/retriever_map_gen.go
 	mv -f $(m3db_package_path)/src/dbnode/storage/block/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/block/retriever_new_map_gen.go
 
+# Map generation rule for storage/bootstrap/NamespacesMap
+.PHONY: genny-map-storage-bootstrap-namespaces
+genny-map-storage-bootstrap-namespaces:
+	cd $(m3x_package_path) && make idhashmap-gen                    \
+		pkg=bootstrap                                               \
+		value_type=Namespace                                        \
+		target_package=$(m3db_package)/src/dbnode/storage/bootstrap \
+		rename_type_prefix=Namespaces                               \
+		rename_constructor=NewNamespacesMap                         \
+		rename_constructor_options=NamespacesMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/namespaces_map_gen.go
+	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/namespaces_new_map_gen.go
+
+# Map generation rule for storage/bootstrap/NamespaceResultsMap
+.PHONY: genny-map-storage-bootstrap-namespace-results
+genny-map-storage-bootstrap-namespace-results:
+	cd $(m3x_package_path) && make idhashmap-gen                    \
+		pkg=bootstrap                                               \
+		value_type=NamespaceResult                                  \
+		target_package=$(m3db_package)/src/dbnode/storage/bootstrap \
+		rename_type_prefix=NamespaceResults                         \
+		rename_constructor=NewNamespaceResultsMap                   \
+		rename_constructor_options=NamespaceResultsMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/namespace_results_map_gen.go
+	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/namespace_results_new_map_gen.go
+
 # Map generation rule for storage/bootstrap/result/Map
 .PHONY: genny-map-storage-bootstrap-result
 genny-map-storage-bootstrap-result:
@@ -63,23 +92,8 @@ genny-map-storage-bootstrap-result:
 # when generating map source files in parallel, run these sequentially)
 .PHONY: genny-map-storage
 genny-map-storage:                      \
-	genny-map-storage-database-namespaces \
-	genny-map-storage-shard               \
-	genny-map-storage-dirty-series
-
-# Map generation rule for storage/databaseNamespacesMap
-.PHONY: genny-map-storage-database-namespaces
-genny-map-storage-database-namespaces:
-	cd $(m3x_package_path) && make idhashmap-gen              \
-		pkg=storage                                             \
-		value_type=databaseNamespace                            \
-		target_package=$(m3db_package)/src/dbnode/storage       \
-		rename_type_prefix=databaseNamespaces                   \
-		rename_constructor=newDatabaseNamespacesMap             \
-		rename_constructor_options=databaseNamespacesMapOptions
-	# Rename both generated map and constructor files
-	mv -f $(m3db_package_path)/src/dbnode/storage/map_gen.go $(m3db_package_path)/src/dbnode/namespace_map_gen.go
-	mv -f $(m3db_package_path)/src/dbnode/storage/new_map_gen.go $(m3db_package_path)/src/dbnode/namespace_new_map_gen.go
+	genny-map-storage-shard             \
+	genny-map-storage-dirty-series      \
 
 # Map generation rule for storage/shardMap
 .PHONY: genny-map-storage-shard
@@ -117,19 +131,6 @@ genny-map-storage-repair:
 		value_type=ReplicaSeriesBlocksMetadata        \
 		target_package=$(m3db_package)/src/dbnode/storage/repair
 
-# Map generation rule for storage/bootstrap/bootstrapper/commitlog
-.PHONY: genny-map-storage-bootstrap-bootstrapper-commitlog
-genny-map-storage-bootstrap-bootstrapper-commitlog:
-	cd $(m3x_package_path) && make idhashmap-gen                                         \
-		pkg=commitlog                                                                      \
-		value_type=metadataAndEncodersByTime                                               \
-		target_package=$(m3db_package)/src/dbnode/storage/bootstrap/bootstrapper/commitlog \
-		rename_constructor=newMetadataAndEncodersByTimeMap                                 \
-		rename_constructor_options=newMetadataAndEncodersByTimeMapOptions
-	# Rename both generated map and constructor files
-	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/metadata_and_encoders_by_time_map_gen.go
-	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/metadata_and_encoders_by_time_new_map_gen.go
-
 # Map generation rule for persist/fs
 .PHONY: genny-map-persist-fs
 genny-map-persist-fs:
@@ -151,7 +152,7 @@ genny-map-storage-index-results:
 	cd $(m3x_package_path) && make hashmap-gen                \
 		pkg=index                                               \
 		key_type=ident.ID                                       \
-		value_type=ident.Tags                                   \
+		value_type=ident.TagIterator                            \
 		target_package=$(m3db_package)/src/dbnode/storage/index \
 		rename_nogen_key=true                                   \
 		rename_nogen_value=true                                 \
@@ -301,7 +302,7 @@ genny-list-all:                              \
 genny-list-storage-id:
 	cd $(m3x_package_path) && make genny-pooled-elem-list-gen \
 		pkg=storage                                           \
-		value_type=ident.ID                                   \
+		value_type=doc.Document                               \
 		rename_type_prefix=id                                 \
 		rename_type_middle=ID                                 \
 		target_package=github.com/m3db/m3/src/dbnode/storage

@@ -92,6 +92,12 @@ type Instance interface {
 	// SetPort sets the port of the instance.
 	SetPort(value uint32) Instance
 
+	// Metadata returns the metadata of the instance.
+	Metadata() InstanceMetadata
+
+	// SetMetadata sets the metadata of the instance.
+	SetMetadata(value InstanceMetadata) Instance
+
 	// Proto returns the proto representation for the Instance.
 	Proto() (*placementpb.Instance, error)
 
@@ -106,6 +112,11 @@ type Instance interface {
 
 	// Clone returns a clone of the Instance.
 	Clone() Instance
+}
+
+// InstanceMetadata represents the metadata for a single Instance in the placement.
+type InstanceMetadata struct {
+	DebugPort uint32
 }
 
 // Placement describes how instances are placed.
@@ -350,6 +361,14 @@ type Options interface {
 
 	// SetAddAllCandidates sets AddAllCandidates.
 	SetAddAllCandidates(addAllCandidates bool) Options
+
+	// InstanceSelector defines the strategy used to select new instances from a list of
+	// candidates when adding or replacing nodes in the placement. The default is determined
+	// by IsMirrored(); false => selector.NewNonMirroredSelector, true => NewPortMirroredSelector.
+	InstanceSelector() InstanceSelector
+
+	// SetInstanceSelector -- see InstanceSelector.
+	SetInstanceSelector(s InstanceSelector) Options
 
 	// IsSharded describes whether a placement needs to be sharded,
 	// when set to false, no specific shards will be assigned to any instance.

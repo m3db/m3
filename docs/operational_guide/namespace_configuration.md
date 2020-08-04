@@ -10,11 +10,17 @@ The operations below include sample cURLs, but you can always review the API doc
 
 `http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
 
+Additionally, the following headers can be used in the namespace operations: 
+
+--8<--
+docs/common/headers_placement_namespace.md
+--8<--
+
 ### Adding a Namespace
 
 #### Recommended (Easy way)
 
-The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace` endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.
+The recommended way to add a namespace to M3DB is to use our `api/v1/database/namespace/create` endpoint. This API abstracts over a lot of the complexity of configuring a namespace and requires only two pieces of configuration to be provided: the name of the namespace, as well as its retention.
 
 For example, the following cURL:
 
@@ -47,16 +53,16 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/
     "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodDuration": "2d",
-      "blockSizeDuration": "2h",
-      "bufferFutureDuration": "10m",
-      "bufferPastDuration": "10m",
+      "retentionPeriod": "2d",
+      "blockSize": "2h",
+      "bufferFuture": "10m",
+      "bufferPast": "10m",
       "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+      "blockDataExpiryAfterNotAccessedPeriod": "5m"
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeDuration": "4h"
+      "blockSize": "2h"
     }
   }
 }'
@@ -88,7 +94,7 @@ in duration format as opposed to nanoseconds (default).
 
 ### bootstrapEnabled
 
-This controls whether M3DB will attempt to [bootstrap](bootstrapping.md) the namespace on startup. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` can cause data loss when restarting nodes.
+This controls whether M3DB will attempt to [bootstrap](bootstrapping_crash_recovery.md) the namespace on startup. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` can cause data loss when restarting nodes.
 
 Can be modified without creating a new namespace: `yes`
 
@@ -106,7 +112,7 @@ Can be modified without creating a new namespace: `yes`
 
 ### snapshotEnabled
 
-This controls whether M3DB will periodically write out [snapshot files](../architecture/commitlogs.md) for this namespace which act as compacted commitlog files. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` will increasing bootstrapping times (reading commitlog files is slower than reading snapshot files) and increase disk utilization (snapshot files are compressed but commitlog files are uncompressed).
+This controls whether M3DB will periodically write out [snapshot files](../m3db/architecture/commitlogs.md) for this namespace which act as compacted commitlog files. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` will increasing bootstrapping times (reading commitlog files is slower than reading snapshot files) and increase disk utilization (snapshot files are compressed but commitlog files are uncompressed).
 
 Can be modified without creating a new namespace: `yes`
 
@@ -124,9 +130,19 @@ Can be modified without creating a new namespace: `yes`
 
 #### blockSize
 
-This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../../m3db/architecture/engine.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.
+This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../m3db/architecture/storage.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression. In testing, good compression occurs with blocksizes containing around 720 samples per timeseries.
 
 Can be modified without creating a new namespace: `no`
+
+Below are recommendations for block size based on resolution:
+
+| Resolution | Block Size |
+|------------|------------|
+| 5s         | 60m        |
+| 15s        | 3h         |
+| 30s        | 6h         |
+| 1m         | 12h        |
+| 5m         | 60h        |
 
 #### bufferFuture and bufferPast
 
@@ -156,4 +172,15 @@ Can be modified without creating a new namespace: `yes`
 
 ### Index Options
 
-TODO
+#### enabled
+
+Whether to use the built-in indexing. Must be `true`.
+
+Can be modified without creating a new namespace: `no`
+
+#### blockSize
+
+The size of blocks (in duration) that the index uses.
+Should match the databases [blocksize](#blocksize) for optimal memory usage.
+
+Can be modified without creating a new namespace: `no`

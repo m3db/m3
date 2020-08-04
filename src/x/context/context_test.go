@@ -32,6 +32,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRegisterFinalizerWithChild(t *testing.T) {
@@ -52,7 +53,7 @@ func TestRegisterFinalizerWithChild(t *testing.T) {
 		wg.Done()
 	}))
 
-	assert.Equal(t, 0, len(childCtx.finalizeables))
+	assert.Equal(t, 0, childCtx.numFinalizeables())
 
 	childCtx.Close()
 	wg.Wait()
@@ -75,7 +76,7 @@ func TestRegisterFinalizer(t *testing.T) {
 		wg.Done()
 	}))
 
-	assert.Equal(t, 1, len(ctx.finalizeables))
+	assert.Equal(t, 1, ctx.numFinalizeables())
 
 	ctx.Close()
 	wg.Wait()
@@ -101,7 +102,7 @@ func TestRegisterCloserWithChild(t *testing.T) {
 		wg.Done()
 	}))
 
-	assert.Equal(t, 0, len(childCtx.finalizeables))
+	assert.Equal(t, 0, childCtx.numFinalizeables())
 
 	childCtx.Close()
 	wg.Wait()
@@ -124,7 +125,7 @@ func TestRegisterCloser(t *testing.T) {
 		wg.Done()
 	}))
 
-	assert.Equal(t, 1, len(ctx.finalizeables))
+	assert.Equal(t, 1, ctx.numFinalizeables())
 
 	ctx.Close()
 	wg.Wait()
@@ -137,7 +138,7 @@ func TestDoesNotRegisterFinalizerWhenClosed(t *testing.T) {
 	ctx.Close()
 	ctx.RegisterFinalizer(resource.FinalizerFn(func() {}))
 
-	assert.Equal(t, 0, len(ctx.finalizeables))
+	assert.Equal(t, 0, ctx.numFinalizeables())
 }
 
 func TestDoesNotCloseTwice(t *testing.T) {
@@ -160,7 +161,7 @@ func TestDoesNotCloseTwice(t *testing.T) {
 func TestDependsOnNoCloserAllocation(t *testing.T) {
 	ctx := NewContext().(*ctx)
 	ctx.DependsOn(NewContext())
-	assert.Nil(t, ctx.finalizeables)
+	assert.Equal(t, 0, ctx.numFinalizeables())
 }
 
 func TestDependsOn(t *testing.T) {
@@ -253,9 +254,14 @@ func TestSampledTraceSpan(t *testing.T) {
 	)
 
 	// use a mock tracer to ensure sampling rate is set to 1.
-	mktr := mocktracer.New()
-	sp = mktr.StartSpan("test_op")
+	tracer := mocktracer.New()
+	sp = tracer.StartSpan("foo")
 	defer sp.Finish()
+
+	mockSpan, ok := sp.(*mocktracer.MockSpan)
+	require.True(t, ok)
+
+	mockSpan.SpanContext.Sampled = true
 
 	spGoCtx := opentracing.ContextWithSpan(goCtx, sp)
 

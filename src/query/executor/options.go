@@ -24,30 +24,33 @@ import (
 	"time"
 
 	qcost "github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
-
-	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 type engineOptions struct {
-	costScope        tally.Scope
+	instrumentOpts   instrument.Options
 	globalEnforcer   qcost.ChainedEnforcer
 	store            storage.Storage
+	parseOptions     promql.ParseOptions
 	lookbackDuration time.Duration
 }
 
-// NewEngineOpts returns a new instance of options used to create an engine.
-func NewEngineOpts() EngineOptions {
-	return &engineOptions{}
+// NewEngineOptions returns a new instance of options used to create an engine.
+func NewEngineOptions() EngineOptions {
+	return &engineOptions{
+		parseOptions: promql.NewParseOptions(),
+	}
 }
 
-func (o *engineOptions) CostScope() tally.Scope {
-	return o.costScope
+func (o *engineOptions) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
 }
 
-func (o *engineOptions) SetCostScope(v tally.Scope) EngineOptions {
+func (o *engineOptions) SetInstrumentOptions(v instrument.Options) EngineOptions {
 	opts := *o
-	opts.costScope = v
+	opts.instrumentOpts = v
 	return &opts
 }
 
@@ -78,5 +81,15 @@ func (o *engineOptions) LookbackDuration() time.Duration {
 func (o *engineOptions) SetLookbackDuration(v time.Duration) EngineOptions {
 	opts := *o
 	opts.lookbackDuration = v
+	return &opts
+}
+
+func (o *engineOptions) ParseOptions() promql.ParseOptions {
+	return o.parseOptions
+}
+
+func (o *engineOptions) SetParseOptions(p promql.ParseOptions) EngineOptions {
+	opts := *o
+	opts.parseOptions = p
 	return &opts
 }

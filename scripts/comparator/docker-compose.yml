@@ -1,0 +1,47 @@
+version: "3.5"
+services:
+  m3comparator:
+    expose:
+      - "9000"
+      - "9001"
+    ports:
+      - "0.0.0.0:9000:9000"
+      - "0.0.0.0:9001:9001"
+    networks:
+      - backend
+    image: "m3comparator:${REVISION}"
+  m3query:
+    expose:
+      - "7201"
+      - "7203"
+    ports:
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7203:7203"
+    networks:
+      - backend
+    image: "m3query:${REVISION}"
+    volumes:
+      - "./m3query.yml:/etc/m3query/m3query.yml"
+  prometheus:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./:/etc/prometheus/"
+  grafana:
+    build:
+      context: ./grafana
+      dockerfile: grafana.Dockerfile
+    expose:
+      - "3000"
+    ports:
+      - "0.0.0.0:3000:3000"
+    networks:
+      - backend
+    image: m3grafana:latest
+networks:
+  backend:

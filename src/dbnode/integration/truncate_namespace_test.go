@@ -40,27 +40,27 @@ func TestTruncateNamespace(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testOpts := newTestOptions(t)
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testOpts := NewTestOptions(t)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	blockSize := namespace.NewOptions().RetentionOptions().BlockSize()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	log.Debug("truncate namespace test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 
 	// Write test data
-	now := testSetup.getNowFn()
+	now := testSetup.NowFn()()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []struct {
 		namespace ident.ID
@@ -74,10 +74,10 @@ func TestTruncateNamespace(t *testing.T) {
 		},
 	}
 	for _, input := range inputData {
-		testSetup.setNowFn(input.conf.Start)
+		testSetup.SetNowFn(input.conf.Start)
 		testData := generate.Block(input.conf)
 		seriesMaps[xtime.ToUnixNano(input.conf.Start)] = testData
-		require.NoError(t, testSetup.writeBatch(input.namespace, testData))
+		require.NoError(t, testSetup.WriteBatch(input.namespace, testData))
 	}
 	log.Debug("test data is now written")
 
@@ -90,39 +90,38 @@ func TestTruncateNamespace(t *testing.T) {
 
 	log.Debug("fetching data from nonexistent namespace")
 	fetchReq.NameSpace = "nonexistent"
-	_, err = testSetup.fetch(fetchReq)
+	_, err = testSetup.Fetch(fetchReq)
 	require.Error(t, err)
 
 	log.Debug("fetching data from wrong namespace")
 	fetchReq.NameSpace = testNamespaces[1].String()
-	res, err := testSetup.fetch(fetchReq)
+	res, err := testSetup.Fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(res))
 
 	log.Sugar().Debugf("fetching data from namespace %s", testNamespaces[0])
 	fetchReq.NameSpace = testNamespaces[0].String()
-	res, err = testSetup.fetch(fetchReq)
+	res, err = testSetup.Fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 100, len(res))
 
 	log.Sugar().Debugf("truncate namespace %s", testNamespaces[0])
 	truncateReq := rpc.NewTruncateRequest()
 	truncateReq.NameSpace = testNamespaces[0].Bytes()
-	truncated, err := testSetup.truncate(truncateReq)
+	truncated, err := testSetup.Truncate(truncateReq)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), truncated)
 
 	log.Sugar().Debugf("fetching data from namespace %s again", testNamespaces[0])
-	res, err = testSetup.fetch(fetchReq)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(res))
+	res, err = testSetup.Fetch(fetchReq)
+	require.Error(t, err)
 
 	log.Sugar().Debugf("fetching data from a different namespace %s", testNamespaces[1])
 	fetchReq.ID = "bar"
 	fetchReq.NameSpace = testNamespaces[1].String()
 	fetchReq.RangeStart = xtime.ToNormalizedTime(now.Add(blockSize), time.Second)
 	fetchReq.RangeEnd = xtime.ToNormalizedTime(now.Add(blockSize*2), time.Second)
-	res, err = testSetup.fetch(fetchReq)
+	res, err = testSetup.Fetch(fetchReq)
 	require.NoError(t, err)
 	require.Equal(t, 50, len(res))
 }

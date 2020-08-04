@@ -16,8 +16,8 @@ gopath_bin_path      := $(GOPATH)/bin
 m3_package           := github.com/m3db/m3
 m3_package_path      := $(gopath_prefix)/$(m3_package)
 mockgen_package      := github.com/golang/mock/mockgen
-retool_bin_path      := $(m3_package_path)/_tools/bin
-combined_bin_paths   := $(retool_bin_path):$(gopath_bin_path)
+tools_bin_path       := $(abspath ./_tools/bin)
+combined_bin_paths   := $(tools_bin_path):$(gopath_bin_path)
 retool_src_prefix    := $(m3_package_path)/_tools/src
 retool_package       := github.com/twitchtv/retool
 metalint_check       := .ci/metalint.sh
@@ -33,6 +33,7 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
+genny_target         ?= genny-all
 
 BUILD                     := $(abspath ./bin)
 VENDOR                    := $(m3_package_path)/$(vendor_prefix)
@@ -40,9 +41,18 @@ GO_BUILD_LDFLAGS_CMD      := $(abspath ./scripts/go-build-ldflags.sh)
 GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD) LDFLAG)
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
+# GO_RELEASER_DOCKER_IMAGE is latest goreleaser for go 1.13
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.127.0 
+GO_RELEASER_RELEASE_ARGS  ?= --rm-dist
 GO_RELEASER_WORKING_DIR   := /go/src/github.com/m3db/m3
 GOMETALINT_VERSION        := v2.0.5
+
+# Retool will look for tools.json in the nearest parent git directory if not
+# explicitly told the current dir. Allow setting the base dir so that tools can
+# be built inside of other external repos.
+ifdef RETOOL_BASE_DIR
+	retool_base_args := -base-dir $(RETOOL_BASE_DIR)
+endif
 
 export NPROC := 2 # Maximum package concurrency for unit tests.
 
@@ -52,10 +62,11 @@ SERVICES :=     \
 	m3aggregator  \
 	m3query       \
 	m3collector   \
-	m3ctl         \
 	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \
+	m3comparator  \
+	r2ctl         \
 
 SUBDIRS :=    \
 	x           \
@@ -71,23 +82,36 @@ SUBDIRS :=    \
 	m3ninx      \
 	aggregator  \
 	ctl         \
-	kube        \
 
 TOOLS :=               \
 	read_ids             \
 	read_index_ids       \
 	read_data_files      \
 	read_index_files     \
+	read_index_segments  \
 	clone_fileset        \
 	dtest                \
-	verify_commitlogs    \
+	verify_data_files    \
 	verify_index_files   \
 	carbon_load          \
 	docs_test            \
+	m3ctl                \
 
 .PHONY: setup
 setup:
 	mkdir -p $(BUILD)
+
+.PHONY: install-vendor-m3
+install-vendor-m3:
+	[ -d $(VENDOR) ] || GOSUMDB=off go mod vendor
+
+.PHONY: docker-dev-prep
+docker-dev-prep:
+	mkdir -p ./bin/config
+
+	# Hacky way to find all configs and put into ./bin/config/
+	find ./src | fgrep config | fgrep ".yml" | xargs -I{} cp {} ./bin/config/
+	find ./src | fgrep config | fgrep ".yaml" | xargs -I{} cp {} ./bin/config/
 
 define SERVICE_RULES
 
@@ -98,12 +122,24 @@ ifeq ($(SERVICE),m3ctl)
 	make build-ui-ctl-statik-gen
 endif
 	@echo Building $(SERVICE)
-	[ -d $(VENDOR) ] || make install-vendor
+	[ -d $(VENDOR) ] || make install-vendor-m3
 	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(SERVICE)
+
+.PHONY: $(SERVICE)-docker-dev
+$(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
+	make docker-dev-prep
+
+	# Build development docker image
+	docker build -t $(SERVICE):dev -t quay.io/m3dbtest/$(SERVICE):dev-$(USER) -f ./docker/$(SERVICE)/development.Dockerfile ./bin
+
+.PHONY: $(SERVICE)-docker-dev-push
+$(SERVICE)-docker-dev-push: $(SERVICE)-docker-dev
+	docker push quay.io/m3dbtest/$(SERVICE):dev-$(USER)
+	@echo "Pushed quay.io/m3dbtest/$(SERVICE):dev-$(USER)"
 
 endef
 
@@ -138,38 +174,27 @@ tools-linux-amd64:
 all: metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
-.PHONY: install-retool
-install-retool:
-	@which retool >/dev/null || go get $(retool_package)
-
 .PHONY: install-tools
-install-tools: install-retool
-	@echo "Installing retool dependencies"
-	retool sync
-	retool build
-
-	@# NB(r): to ensure correct version of mock-gen is present we match the version
-	@# of the retool installed mockgen, and if not a match in binary contents, then
-	@# we explicitly install at the version we desire.
-	@# We cannot solely use the retool binary as mock-gen requires its full source
-	@# code to be present in the GOPATH at runtime.
-	@echo "Installing mockgen"
-	$(eval curr_mockgen_md5=`cat $(gopath_bin_path)/mockgen | go run $(m3_package_path)/scripts/md5/md5.go`)
-	$(eval retool_mockgen_md5=`cat $(retool_bin_path)/mockgen | go run $(m3_package_path)/scripts/md5/md5.go`)
-	@test "$(curr_mockgen_md5)" = "$(retool_mockgen_md5)" && echo "Mockgen already up to date" || ( \
-		echo "Installing mockgen from Retool directory"                                            && \
-		rm -rf $(gopath_prefix)/$(mockgen_package)                                                 && \
-		mkdir -p $(shell dirname $(gopath_prefix)/$(mockgen_package))                              && \
- 		cp -r $(retool_src_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package)          && \
-		(rm $(gopath_bin_path)/mockgen || echo "No installed mockgen" > /dev/null)                 && \
-		cp $(retool_bin_path)/mockgen $(gopath_bin_path)/mockgen                                   && \
-		echo "Installed mockgen from Retool directory"                                                \
-	)
+install-tools:
+	@echo "Installing build tools"
+	GOBIN=$(tools_bin_path) go install github.com/fossas/fossa-cli/cmd/fossa
+	GOBIN=$(tools_bin_path) go install github.com/golang/mock/mockgen
+	GOBIN=$(tools_bin_path) go install github.com/google/go-jsonnet/cmd/jsonnet
+	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/badtime
+	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/linters/importorder
+	GOBIN=$(tools_bin_path) go install github.com/m3db/build-tools/utilities/genclean
+	GOBIN=$(tools_bin_path) go install github.com/m3db/tools/update-license
+	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
+	GOBIN=$(tools_bin_path) go install github.com/mjibson/esc
+	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
+	GOBIN=$(tools_bin_path) go install github.com/robskillington/gorename
+	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
+	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
 
 .PHONY: install-gometalinter
 install-gometalinter:
-	@mkdir -p $(retool_bin_path)
-	./scripts/install-gometalinter.sh -b $(retool_bin_path) -d $(GOMETALINT_VERSION)
+	@mkdir -p $(tools_bin_path)
+	./scripts/install-gometalinter.sh -b $(tools_bin_path) -d $(GOMETALINT_VERSION)
 
 .PHONY: check-for-goreleaser-github-token
 check-for-goreleaser-github-token:
@@ -182,12 +207,12 @@ check-for-goreleaser-github-token:
 release: check-for-goreleaser-github-token
 	@echo Releasing new version
 	$(GO_BUILD_LDFLAGS_CMD) ECHO > $(BUILD)/release-vars.env
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" --env-file $(BUILD)/release-vars.env -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release --rm-dist
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" --env-file $(BUILD)/release-vars.env -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release $(GO_RELEASER_RELEASE_ARGS)
 
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) --snapshot --rm-dist
+	make release GO_RELEASER_RELEASE_ARGS="--snapshot --rm-dist"
 
 .PHONY: docs-container
 docs-container:
@@ -224,17 +249,29 @@ docs-test:
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "--- Running Docker integration test"
-	@./scripts/docker-integration-tests/setup.sh
-	@./scripts/docker-integration-tests/simple/test.sh
-	@./scripts/docker-integration-tests/prometheus/test.sh
-	@./scripts/docker-integration-tests/carbon/test.sh
-	@./scripts/docker-integration-tests/aggregator/test.sh
-	@./scripts/docker-integration-tests/query_fanout/test.sh
+	./scripts/docker-integration-tests/run.sh
+
+.PHONY: docker-compatibility-test
+docker-compatibility-test:
+	@echo "--- Running Prometheus compatibility test"
+	./scripts/comparator/run.sh
+
+.PHONY: prom-compat
+prom-compat:
+	@echo "--- Running local Prometheus compatibility test"
+	CI="false" make docker-compatibility-test
 
 .PHONY: site-build
 site-build:
 	@echo "Building site"
 	@./scripts/site-build.sh
+
+# Generate configs in config/
+.PHONY: config-gen
+config-gen: install-tools
+	@echo "--- Generating configs"
+	$(tools_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/local-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/local-etcd/generated.yaml
+	$(tools_bin_path)/jsonnet -S $(m3_package_path)/config/m3db/clustered-etcd/m3dbnode_cmd.jsonnet > $(m3_package_path)/config/m3db/clustered-etcd/generated.yaml
 
 SUBDIR_TARGETS := \
 	mock-gen        \
@@ -256,22 +293,10 @@ test-ci-big-unit: test-big-base
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	$(process_coverfile) $(coverfile)
 
 define SUBDIR_RULES
-
-# We override the rules for `*-gen-kube` to just generate the kube manifest
-# bundle.
-ifeq ($(SUBDIR), kube)
-
-# Builds the single kube bundle from individual manifest files.
-all-gen-kube: install-tools
-	@echo "--- Generating kube bundle"
-	@./kube/scripts/build_bundle.sh
-	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
-
-else
 
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-tools
@@ -297,12 +322,14 @@ asset-gen-$(SUBDIR): install-tools
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
 		PATH=$(combined_bin_paths):$(PATH) PACKAGE=$(m3_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
+# NB(schallert): gorename (used by our genny process) doesn't work with go
+# modules https://github.com/golang/go/issues/34222
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(combined_bin_paths):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all
-	@PATH=$(combined_bin_paths):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
+		PATH=$(combined_bin_paths):$(PATH) GO111MODULE=off make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk $(genny_target)
+	@PATH=$(combined_bin_paths):$(PATH) GO111MODULE=off bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
 license-gen-$(SUBDIR): install-tools
@@ -358,7 +385,7 @@ test-ci-big-unit-$(SUBDIR):
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	@echo "--- test-ci-integration $(SUBDIR)"
-	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	SRC_ROOT=./src/$(SUBDIR) PANIC_ON_INVARIANT_VIOLATED=true INTEGRATION_TIMEOUT=10m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
@@ -367,8 +394,6 @@ metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-i
 	@echo "--- metalinting $(SUBDIR)"
 	@(PATH=$(combined_bin_paths):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
-
-endif
 
 endef
 
@@ -386,6 +411,25 @@ endef
 # of metalint and finishes faster.
 $(foreach SUBDIR_TARGET, $(filter-out metalint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
 
+# Builds the single kube bundle from individual manifest files.
+.PHONY: kube-gen-all
+kube-gen-all: install-tools
+	@echo "--- Generating kube bundle"
+	@./kube/scripts/build_bundle.sh
+	find kube -name '*.yaml' -print0 | PATH=$(combined_bin_paths):$(PATH) xargs -0 kubeval -v=1.12.0
+
+.PHONY: go-mod-tidy
+go-mod-tidy:
+	@echo "--- :golang: tidying modules"
+	go mod tidy
+
+.PHONY: all-gen
+all-gen: \
+	install-tools \
+	$(foreach SUBDIR_TARGET, $(filter-out metalint all-gen,$(SUBDIR_TARGETS)), $(SUBDIR_TARGET)) \
+	kube-gen-all \
+	go-mod-tidy
+
 .PHONY: build-ui-ctl
 build-ui-ctl:
 ifeq ($(shell ls ./src/ctl/ui/build 2>/dev/null),)
@@ -394,7 +438,10 @@ ifeq ($(shell ls ./src/ctl/ui/build 2>/dev/null),)
 	@echo "Building UI components, if npm install or build fails try: npm cache clean"
 	make node-yarn-run \
 		node_version="6" \
-		node_cmd="cd $(m3_package_path)/src/ctl/ui && yarn install && npm run build"
+		node_cmd="cd $(m3_package_path)/src/ctl/ui && yarn install && yarn build"
+	# If we've installed nvm locally, remove it due to some cleanup permissions
+	# issue we run into in CI.
+	rm -rf .nvm
 else
 	@echo "Skip building UI components, already built, to rebuild first make clean"
 endif
@@ -409,57 +456,56 @@ build-ui-ctl-statik-gen: build-ui-ctl-statik license-gen-ctl
 .PHONY: build-ui-ctl-statik
 build-ui-ctl-statik: build-ui-ctl install-tools
 	mkdir -p ./src/ctl/generated/ui
-	$(retool_bin_path)/statik -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
+	$(tools_bin_path)/statik -m -f -src ./src/ctl/ui/build -dest ./src/ctl/generated/ui -p statik
 
 .PHONY: node-yarn-run
 node-yarn-run:
 	make node-run \
 		node_version="$(node_version)" \
-		node_cmd="(yarn --version 2>&1 >/dev/null || npm install -g yarn) && $(node_cmd)"
+		node_cmd="(yarn --version 2>&1 >/dev/null || npm install -g yarn@^1.17.0) && $(node_cmd)"
 
 .PHONY: node-run
 node-run:
-ifneq ($(shell brew --prefix nvm 2>/dev/null),)
-	@echo "Using nvm from brew to select node version $(node_version)"
-	source $(shell brew --prefix nvm)/nvm.sh && nvm use $(node_version) && bash -c "$(node_cmd)"
-else ifneq ($(shell type nvm 2>/dev/null),)
+ifneq ($(shell command -v nvm 2>/dev/null),)
 	@echo "Using nvm to select node version $(node_version)"
 	nvm use $(node_version) && bash -c "$(node_cmd)"
 else
-	node --version 2>&1 >/dev/null || \
-		(echo "Trying apt install" && which apt-get && (curl -sL https://deb.nodesource.com/setup_$(node_version).x | bash) && apt-get install -y nodejs) || \
-		(echo "Trying apk install" && which apk && apk add --update nodejs nodejs-npm) || \
-		(echo "No node install or known package manager" && exit 1)
-	@echo "Not using nvm, using node version $(shell node --version)"
-	bash -c "$(node_cmd)"
+	mkdir .nvm
+	# Install nvm locally
+	NVM_DIR=$(SELF_DIR)/.nvm PROFILE=/dev/null scripts/install_nvm.sh
+	bash -c "source $(SELF_DIR)/.nvm/nvm.sh; nvm install 6"
+	bash -c "source $(SELF_DIR)/.nvm/nvm.sh && nvm use 6 && $(node_cmd)"
 endif
 
 .PHONY: metalint
-metalint: install-gometalinter install-linter-badtime install-linter-importorder
+metalint: install-gometalinter install-tools
 	@echo "--- metalinting src/"
-	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
+	@(PATH=$(tools_bin_path):$(PATH) $(metalint_check) \
 		$(metalint_config) $(metalint_exclude) $(m3_package_path)/src/)
 
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
 test-all-gen: all-gen
-	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git --no-pager diff --exit-code --shortstat 2>/dev/null)" = "" || (git --no-pager diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
 	@test "$(shell git status --exit-code --porcelain 2>/dev/null | grep "^??")" = "" || (git status --exit-code --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 # Runs a fossa license report
 .PHONY: fossa
 fossa: install-tools
-	PATH=$(combined_bin_paths):$(PATH) fossa --option allow-nested-vendor:true --option allow-deep-vendor:true
+	PATH=$(combined_bin_paths):$(PATH) fossa analyze --verbose --no-ansi
 
 # Waits for the result of a fossa test and exits success if pass or fail if fails
 .PHONY: fossa-test
 fossa-test: fossa
 	PATH=$(combined_bin_paths):$(PATH) fossa test
 
-.PHONY: clean
-clean:
-	@rm -f *.html *.xml *.out *.test
+.PHONY: clean-build
+clean-build:
 	@rm -rf $(BUILD)
+
+.PHONY: clean
+clean: clean-build
+	@rm -f *.html *.xml *.out *.test
 	@rm -rf $(VENDOR)
 	@rm -rf ./src/ctl/ui/build
 

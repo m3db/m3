@@ -84,7 +84,7 @@ func (l LogicalPlan) String() string {
 
 // Clone the plan
 func (l LogicalPlan) Clone() LogicalPlan {
-	steps := make(map[parser.NodeID]LogicalStep)
+	steps := make(map[parser.NodeID]LogicalStep, len(l.Steps))
 	for id, step := range l.Steps {
 		steps[id] = step.Clone()
 	}

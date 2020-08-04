@@ -128,18 +128,12 @@ func (t *fileInfoExtractor) visit(fPath string, f os.FileInfo, err error) error 
 	t.shards[uint32(shardNum)] = struct{}{}
 
 	name := f.Name()
-	first := strings.Index(name, "-")
-	if first == -1 {
-		return fmt.Errorf("unable to find '-' in %v", name)
+	nameSplit := strings.Split(name, "-")
+	if len(nameSplit) < 2 {
+		return fmt.Errorf("unable to parse time from %v", name)
 	}
-	last := strings.LastIndex(name, "-")
-	if last == -1 {
-		return fmt.Errorf("unable to find '-' in %v", name)
-	}
-	if first == last {
-		return fmt.Errorf("found only single '-' in %v", name)
-	}
-	num, parseErr := strconv.ParseInt(name[first+1:last], 10, 64)
+
+	num, parseErr := strconv.ParseInt(nameSplit[1], 10, 64)
 	if parseErr != nil {
 		return err
 	}

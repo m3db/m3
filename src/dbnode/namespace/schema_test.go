@@ -227,3 +227,58 @@ func TestSchemaHistoryCheckLineage(t *testing.T) {
 	require.True(t, sr3.Extends(sr1))
 	require.False(t, sr3.Extends(sr2))
 }
+
+const (
+	mainProtoStr = `syntax = "proto3";
+
+package mainpkg;
+
+import "mainpkg/imported.proto";
+
+message TestMessage {
+  double latitude = 1;
+  double longitude = 2;
+  int64 epoch = 3;
+  bytes deliveryID = 4;
+  map<string, string> attributes = 5;
+  ImportedMessage an_imported_message = 6;
+}
+`
+	importedProtoStr = `
+syntax = "proto3";
+
+package mainpkg;
+
+message ImportedMessage {
+  double latitude = 1;
+  double longitude = 2;
+  int64 epoch = 3;
+  bytes deliveryID = 4;
+}
+`
+)
+
+func TestAppendInvalidSchemaOptions(t *testing.T) {
+	protoFile := "mainpkg/test.proto"
+	protoMsg := "mainpkg.TestMessage"
+	protoMap := map[string]string{protoFile: mainProtoStr, "mainpkg/imported.proto": importedProtoStr}
+	schemaOpt, err := AppendSchemaOptions(nil, protoFile, protoMsg, protoMap, "first")
+	require.NoError(t, err)
+	require.NotNil(t, schemaOpt)
+	_, err = AppendSchemaOptions(nil, protoFile, protoMsg, protoMap, "")
+	require.Error(t, err)
+	_, err = AppendSchemaOptions(schemaOpt, protoFile, protoMsg, protoMap, "first")
+	require.Error(t, err)
+
+	invalidMsg := "TestMessage"
+	_, err = AppendSchemaOptions(nil, protoFile, invalidMsg, protoMap, "first")
+	require.Error(t, err)
+	_, err = AppendSchemaOptions(schemaOpt, protoFile, invalidMsg, protoMap, "second")
+	require.Error(t, err)
+
+	invalidMap := map[string]string{protoFile: mainProtoStr}
+	_, err = AppendSchemaOptions(nil, protoFile, protoMsg, invalidMap, "first")
+	require.Error(t, err)
+	_, err = AppendSchemaOptions(schemaOpt, protoFile, protoMsg, invalidMap, "second")
+	require.Error(t, err)
+}

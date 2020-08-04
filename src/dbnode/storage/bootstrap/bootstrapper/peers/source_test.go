@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -52,19 +53,19 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 		nsMetadata                 = testNamespaceMetadata(t)
 		numShards                  = uint32(4)
 		blockStart                 = time.Now().Truncate(blockSize)
-		shardTimeRangesToBootstrap = result.ShardTimeRanges{}
-		bootstrapRanges            = xtime.Ranges{}.AddRange(xtime.Range{
+		shardTimeRangesToBootstrap = result.NewShardTimeRanges()
+		bootstrapRanges            = xtime.NewRanges(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
 		})
 	)
 
 	for i := 0; i < int(numShards); i++ {
-		shardTimeRangesToBootstrap[uint32(i)] = bootstrapRanges
+		shardTimeRangesToBootstrap.Set(uint32(i), bootstrapRanges)
 	}
 
 	shardTimeRangesToBootstrapOneExtra := shardTimeRangesToBootstrap.Copy()
-	shardTimeRangesToBootstrapOneExtra[100] = bootstrapRanges
+	shardTimeRangesToBootstrapOneExtra.Set(100, bootstrapRanges)
 
 	testCases := []struct {
 		title                             string
@@ -81,7 +82,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			}),
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 		{
 			title: "Returns empty if all other peers initializing/unknown",
@@ -92,7 +93,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			}),
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 			expectedErr:                       errors.New("unknown shard state: Unknown"),
 		},
 		{
@@ -126,7 +127,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			}),
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelAll,
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			expectedAvailableShardsTimeRanges: result.NewShardTimeRanges(),
 		},
 	}
 
@@ -146,7 +147,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				Return(mockRuntimeOpts).
 				AnyTimes()
 
-			opts := testDefaultOpts.
+			opts := newTestDefaultOpts(t, ctrl).
 				SetRuntimeOptionsManager(mockRuntimeOptsMgr)
 
 			src, err := newPeersSource(opts)
@@ -177,10 +178,9 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		testNsMd   = testNamespaceMetadata(t)
-		resultOpts = testDefaultResultOpts
-		opts       = testDefaultOpts.SetResultOptions(resultOpts)
-		ropts      = testNsMd.Options().RetentionOptions()
+		testNsMd = testNamespaceMetadata(t)
+		opts     = newTestDefaultOpts(t, ctrl)
+		ropts    = testNsMd.Options().RetentionOptions()
 
 		start = time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		end   = start.Add(2 * ropts.BlockSize())
@@ -189,17 +189,24 @@ func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
-	target := result.ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	).Set(
+		1,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	)
 
 	runOpts := testRunOptsWithPersist.SetPersistConfig(bootstrap.PersistConfig{Enabled: true, FileSetType: 999})
-	_, err = src.ReadData(testNsMd, target, runOpts)
-	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "unknown persist config fileset file type"))
+	tester := bootstrap.BuildNamespacesTester(t, runOpts, target, testNsMd)
+	defer tester.Finish()
 
-	_, err = src.ReadIndex(testNsMd, target, runOpts)
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	_, err = src.Read(ctx, tester.Namespaces)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "unknown persist config fileset file type"))
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }

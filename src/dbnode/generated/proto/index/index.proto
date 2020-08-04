@@ -1,7 +1,10 @@
 syntax = "proto3";
+
 package index;
 
-message IndexInfo {
+import "google/protobuf/wrappers.proto";
+
+message IndexVolumeInfo {
   int64 majorVersion = 1;
   int64 blockStart = 2;
   int64 blockSize = 3;
@@ -9,6 +12,7 @@ message IndexInfo {
   repeated uint32 shards = 5;
   int64 snapshotTime = 6;
   repeated SegmentInfo segments = 7;
+  google.protobuf.StringValue indexVolumeType = 8;
 }
 
 message SegmentInfo {

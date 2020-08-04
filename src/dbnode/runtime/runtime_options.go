@@ -42,19 +42,13 @@ const (
 	// specified for a specific query, zero specifies no timeout.
 	DefaultIndexDefaultQueryTimeout = time.Minute
 
-	// DefaultFlushIndexBlockNumSegments is the default number of segments to
-	// attempt to divide a mutable index block into when flushing the index
-	// block. The fewer the blocks the better for searches, but the more memory
-	// intensive it is to build at runtime.
-	DefaultFlushIndexBlockNumSegments = 4
-
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = 10 * time.Second
-	defaultMaxWiredBlocks                       = uint(1 << 18) // 262,144
+	defaultMaxWiredBlocks                       = uint(1 << 16) // 65,536
 )
 
 var (
@@ -81,7 +75,6 @@ type options struct {
 	clientReadConsistencyLevel           topology.ReadConsistencyLevel
 	clientWriteConsistencyLevel          topology.ConsistencyLevel
 	indexDefaultQueryTimeout             time.Duration
-	flushIndexBlockNumSegments           uint
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -99,7 +92,6 @@ func NewOptions() Options {
 		clientReadConsistencyLevel:           DefaultReadConsistencyLevel,
 		clientWriteConsistencyLevel:          DefaultWriteConsistencyLevel,
 		indexDefaultQueryTimeout:             DefaultIndexDefaultQueryTimeout,
-		flushIndexBlockNumSegments:           DefaultFlushIndexBlockNumSegments,
 	}
 }
 
@@ -246,14 +238,4 @@ func (o *options) SetIndexDefaultQueryTimeout(value time.Duration) Options {
 
 func (o *options) IndexDefaultQueryTimeout() time.Duration {
 	return o.indexDefaultQueryTimeout
-}
-
-func (o *options) SetFlushIndexBlockNumSegments(value uint) Options {
-	opts := *o
-	opts.flushIndexBlockNumSegments = value
-	return &opts
-}
-
-func (o *options) FlushIndexBlockNumSegments() uint {
-	return o.flushIndexBlockNumSegments
 }

@@ -22,12 +22,17 @@ package placement
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -39,19 +44,88 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	runForAllAllowedServices(func(serviceName string) {
-		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
-			handlerOpts                      = NewHandlerOptions(
-				mockClient, config.Configuration{}, nil)
-			handler = NewDeleteAllHandler(handlerOpts)
-		)
+		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
+		handlerOpts, err := NewHandlerOptions(
+			mockClient, config.Configuration{}, nil, instrument.NewOptions())
+		require.NoError(t, err)
+		handler := NewDeleteAllHandler(handlerOpts)
+
+		svcDefaults := handleroptions.ServiceNameAndDefaults{
+			ServiceName: serviceName,
+		}
+
+		inst0 := placement.NewInstance().
+			SetID("foo").
+			SetEndpoint("foo:123").
+			SetHostname("foo").
+			SetPort(123).
+			SetIsolationGroup("foo-group").
+			SetWeight(1).
+			SetZone("default")
+		if serviceName == handleroptions.M3AggregatorServiceName {
+			inst0 = inst0.SetShardSetID(0)
+		}
+
+		inst1 := placement.NewInstance().
+			SetID("bar").
+			SetEndpoint("bar:123").
+			SetHostname("bar").
+			SetPort(123).
+			SetIsolationGroup("bar-group").
+			SetWeight(1).
+			SetZone("default")
+		if serviceName == handleroptions.M3AggregatorServiceName {
+			inst1 = inst1.SetShardSetID(0)
+		}
+
+		instances := []placement.Instance{inst0, inst1}
+
+		existing := placement.NewPlacement().
+			SetInstances(instances)
+
+		mockKVStore := kv.NewMockStore(ctrl)
 
 		// Test delete success
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 		require.NotNil(t, req)
+		mockPlacementService.EXPECT().Placement().Return(existing, nil)
 		mockPlacementService.EXPECT().Delete()
-		handler.ServeHTTP(serviceName, w, req)
+		if serviceName == handleroptions.M3AggregatorServiceName {
+			flushTimesMgrOpts := aggregator.NewFlushTimesManagerOptions()
+			electionMgrOpts := aggregator.NewElectionManagerOptions()
+			mockClient.EXPECT().Store(gomock.Any()).Return(mockKVStore, nil)
+			mockKVStore.EXPECT().
+				Get(gomock.Any()).
+				DoAndReturn(func(k string) (kv.Value, error) {
+					for _, inst := range instances {
+						switch k {
+						case fmt.Sprintf(flushTimesMgrOpts.FlushTimesKeyFmt(), inst.ShardSetID()):
+							return nil, nil
+						case fmt.Sprintf(electionMgrOpts.ElectionKeyFmt(), inst.ShardSetID()):
+							return nil, nil
+						}
+					}
+					return nil, errors.New("unexpected")
+				}).
+				AnyTimes()
+			mockKVStore.EXPECT().
+				Delete(gomock.Any()).
+				DoAndReturn(func(k string) (kv.Value, error) {
+					for _, inst := range instances {
+						switch k {
+						case fmt.Sprintf(flushTimesMgrOpts.FlushTimesKeyFmt(), inst.ShardSetID()):
+							return nil, nil
+						case fmt.Sprintf(electionMgrOpts.ElectionKeyFmt(), inst.ShardSetID()):
+							return nil, nil
+						}
+					}
+					return nil, errors.New("unexpected")
+				}).
+				AnyTimes()
+		}
+
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp := w.Result()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -60,8 +134,9 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 		w = httptest.NewRecorder()
 		req = httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 		require.NotNil(t, req)
+		mockPlacementService.EXPECT().Placement().Return(existing, nil)
 		mockPlacementService.EXPECT().Delete().Return(errors.New("error"))
-		handler.ServeHTTP(serviceName, w, req)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
@@ -70,8 +145,8 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 		w = httptest.NewRecorder()
 		req = httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 		require.NotNil(t, req)
-		mockPlacementService.EXPECT().Delete().Return(kv.ErrNotFound)
-		handler.ServeHTTP(serviceName, w, req)
+		mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
+		handler.ServeHTTP(svcDefaults, w, req)
 
 		resp = w.Result()
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)

@@ -1,0 +1,12 @@
+kind: Cluster
+apiVersion: kind.sigs.k8s.io/v1alpha3
+nodes:
+- role: control-plane
+- role: worker
+  extraPortMappings:
+    # NB(bodu): Forward m3coordinator port.
+  - containerPort: 30000
+    hostPort: 7201
+    # NB(bodu): Forward grafana port.
+  - containerPort: 30001
+    hostPort: 3000

@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -43,12 +44,6 @@ type QueryOptions struct {
 	QueryContextOptions models.QueryContextOptions
 }
 
-// Query is the result after execution.
-type Query struct {
-	Err    error
-	Result Result
-}
-
 // NewEngine returns a new instance of QueryExecutor.
 func NewEngine(
 	engineOpts EngineOptions,
@@ -58,7 +53,7 @@ func NewEngine(
 	}
 
 	return &engine{
-		metrics: newEngineMetrics(engineOpts.CostScope()),
+		metrics: newEngineMetrics(engineOpts.InstrumentOptions().MetricsScope()),
 		opts:    engineOpts,
 	}
 }
@@ -109,72 +104,58 @@ func newEngineMetrics(scope tally.Scope) *engineMetrics {
 	}
 }
 
-func (e *engine) Execute(
+func (e *engine) ExecuteProm(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	opts *QueryOptions,
-	results chan *storage.QueryResult,
-) {
-	defer close(results)
-
-	fetchOpts := storage.NewFetchOptions()
-	fetchOpts.Limit = opts.QueryContextOptions.LimitMaxTimeseries
-
-	result, err := e.opts.Store().Fetch(ctx, query, fetchOpts)
-	if err != nil {
-		results <- &storage.QueryResult{Err: err}
-		return
-	}
-
-	results <- &storage.QueryResult{FetchResult: result}
+	fetchOpts *storage.FetchOptions,
+) (storage.PromResult, error) {
+	return e.opts.Store().FetchProm(ctx, query, fetchOpts)
 }
 
-// nolint: unparam
 func (e *engine) ExecuteExpr(
 	ctx context.Context,
 	parser parser.Parser,
 	opts *QueryOptions,
+	fetchOpts *storage.FetchOptions,
 	params models.RequestParams,
-	results chan Query,
-) {
-	defer close(results)
-
+) (block.Block, error) {
 	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
-	req := newRequest(e, params)
-
+	req := newRequest(e, params, fetchOpts, e.opts.InstrumentOptions())
 	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
 	pp, err := req.plan(ctx, nodes, edges)
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
 	state, err := req.generateExecutionState(ctx, pp)
-	// free up resources
 	if err != nil {
-		results <- Query{Err: err}
-		return
+		return nil, err
 	}
 
+	// free up resources
 	sp, ctx := opentracing.StartSpanFromContext(ctx, "executing")
 	defer sp.Finish()
 
-	result := state.resultNode
-	results <- Query{Result: result}
-
-	queryCtx := models.NewQueryContext(ctx, e.opts.CostScope(), perQueryEnforcer,
+	scope := e.opts.InstrumentOptions().MetricsScope()
+	queryCtx := models.NewQueryContext(ctx, scope, perQueryEnforcer,
 		opts.QueryContextOptions)
+
 	if err := state.Execute(queryCtx); err != nil {
-		result.abort(err)
-	} else {
-		result.done()
+		state.sink.closeWithError(err)
+		return nil, err
 	}
+
+	return state.sink.getValue()
+}
+
+func (e *engine) Options() EngineOptions {
+	return e.opts
 }
 
 func (e *engine) Close() error {

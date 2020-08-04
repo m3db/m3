@@ -22,31 +22,58 @@ package block
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/query/ts"
 	xerrors "github.com/m3db/m3/src/x/errors"
 )
 
 var (
-	errMismatchedStepIter   = errors.New("container step iter has mismatched step size")
-	errMismatchedUcStepIter = errors.New("unconsolidated container step iter has mismatched step size")
+	errMismatchedStepIter = errors.New(
+		"container step iter has mismatched step size")
+	errMismatchedUcStepIter = errors.New(
+		"unconsolidated container step iter has mismatched step size")
+	errNoContainerBlocks = errors.New(
+		"no blocks provided to initialize container block")
 )
 
 type containerBlock struct {
 	err    error
+	meta   Metadata
 	blocks []Block
 }
 
-func newContainerBlock(blocks []Block) AccumulatorBlock {
+func newContainerBlock(blocks []Block) (AccumulatorBlock, error) {
+	if len(blocks) == 0 {
+		return nil, errNoContainerBlocks
+	}
+
+	meta := blocks[0].Meta()
+	for _, b := range blocks[1:] {
+		m := b.Meta()
+		if !m.Equals(meta) {
+			return nil, fmt.Errorf("mismatched metadata in container block: "+
+				"expected %s, got %s", meta.String(), m.String())
+		}
+
+		meta.ResultMetadata = meta.ResultMetadata.CombineMetadata(m.ResultMetadata)
+	}
+
 	return &containerBlock{
 		blocks: blocks,
-	}
+		meta:   meta,
+	}, nil
 }
 
-// NewContainerBlock creates a Container block.
-func NewContainerBlock(blocks ...Block) AccumulatorBlock {
+// NewContainerBlock creates a container block, which allows iterating across
+// blocks incoming from multiple data sources, provided they have the same
+// bounds.
+func NewContainerBlock(blocks ...Block) (AccumulatorBlock, error) {
 	return newContainerBlock(blocks)
+}
+
+func (b *containerBlock) Meta() Metadata {
+	return b.meta
 }
 
 func (b *containerBlock) AddBlock(bl Block) error {
@@ -54,8 +81,20 @@ func (b *containerBlock) AddBlock(bl Block) error {
 		return b.err
 	}
 
+	m, blockMeta := b.Meta(), bl.Meta()
+	if !m.Equals(blockMeta) {
+		return fmt.Errorf("mismatched metadata adding block to container block: "+
+			"expected %s, got %s", m.String(), blockMeta.String())
+	}
+
+	b.meta.ResultMetadata = b.meta.ResultMetadata.
+		CombineMetadata(blockMeta.ResultMetadata)
 	b.blocks = append(b.blocks, bl)
 	return nil
+}
+
+func (b *containerBlock) Info() BlockInfo {
+	return NewBlockInfo(BlockContainer)
 }
 
 func (b *containerBlock) Close() error {
@@ -65,29 +104,12 @@ func (b *containerBlock) Close() error {
 		multiErr = multiErr.Add(bl.Close())
 	}
 
-	return multiErr.FinalError()
-}
-
-func (b *containerBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (Block, error) {
-	if b.err != nil {
-		return nil, b.err
+	if err := multiErr.FinalError(); err != nil {
+		b.err = err
+		return err
 	}
 
-	updatedBlockList := make([]Block, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		updated, err := bl.WithMetadata(meta, sm)
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		updatedBlockList = append(updatedBlockList, updated)
-	}
-
-	return newContainerBlock(updatedBlockList), nil
+	return nil
 }
 
 func (b *containerBlock) StepIter() (StepIter, error) {
@@ -185,15 +207,6 @@ func (it *containerStepIter) Next() bool {
 	return next
 }
 
-func (it *containerStepIter) Meta() Metadata {
-	// NB: metadata should be identical for each series in the contained block.
-	if len(it.its) == 0 {
-		return Metadata{}
-	}
-
-	return it.its[0].Meta()
-}
-
 func (it *containerStepIter) Current() Step {
 	if len(it.its) == 0 {
 		return ColStep{
@@ -223,7 +236,10 @@ func (b *containerBlock) SeriesIter() (SeriesIter, error) {
 		return nil, b.err
 	}
 
-	iters := make([]SeriesIter, 0, len(b.blocks))
+	it := &containerSeriesIter{
+		its: make([]SeriesIter, 0, len(b.blocks)),
+	}
+
 	for _, bl := range b.blocks {
 		iter, err := bl.SeriesIter()
 		if err != nil {
@@ -231,10 +247,10 @@ func (b *containerBlock) SeriesIter() (SeriesIter, error) {
 			return nil, err
 		}
 
-		iters = append(iters, iter)
+		it.its = append(it.its, iter)
 	}
 
-	return &containerSeriesIter{its: iters}, nil
+	return it, nil
 }
 
 type containerSeriesIter struct {
@@ -294,7 +310,7 @@ func (it *containerSeriesIter) Next() bool {
 	for ; it.idx < len(it.its); it.idx++ {
 		iter := it.its[it.idx]
 		if iter.Next() {
-			// the active iterator has been successfuly incremented.
+			// the active iterator has been successfully incremented.
 			return true
 		}
 
@@ -308,330 +324,65 @@ func (it *containerSeriesIter) Next() bool {
 	return false
 }
 
-func (it *containerSeriesIter) Current() Series {
+func (it *containerSeriesIter) Current() UnconsolidatedSeries {
 	return it.its[it.idx].Current()
 }
 
-func (it *containerSeriesIter) Meta() Metadata {
-	// NB: metadata should be identical for each series in the contained block.
-	if len(it.its) == 0 {
-		return Metadata{}
-	}
-
-	return it.its[0].Meta()
-}
-
-// Unconsolidated returns the unconsolidated version for the block
-func (b *containerBlock) Unconsolidated() (UnconsolidatedBlock, error) {
+func (b *containerBlock) MultiSeriesIter(
+	concurrency int,
+) ([]SeriesIterBatch, error) {
 	if b.err != nil {
 		return nil, b.err
 	}
 
-	ucBlock := &ucContainerBlock{
-		blocks: make([]UnconsolidatedBlock, 0, len(b.blocks)),
+	if len(b.blocks) == 0 {
+		return nil, nil
 	}
 
-	for i, bl := range b.blocks {
-		unconsolidated, err := bl.Unconsolidated()
+	multiBatches := make([][]SeriesIterBatch, 0, len(b.blocks))
+	for _, bl := range b.blocks {
+		batch, err := bl.MultiSeriesIter(concurrency)
 		if err != nil {
-			b.err = err
+			// NB: do not have to set the iterator error here, since not all
+			// contained blocks necessarily allow multi series iteration.
 			return nil, err
 		}
 
-		ucBlock.blocks[i] = unconsolidated
+		multiBatches = append(multiBatches, batch)
 	}
 
-	return ucBlock, nil
-}
+	// NB: create a batch and merge into it rather than merging
+	// into an existing batch, in case sizes don't line up across blocks
+	// (e.g. if some contained blocks have fewer than `concurrency` series.)
+	batches := make([]SeriesIterBatch, 0, concurrency)
+	// init batch sizes.
+	for i := 0; i < concurrency; i++ {
+		// Determine container iter size.
+		size := 0
+		for _, b := range multiBatches {
+			if i >= len(b) {
+				// NB: the current batch has been exhausted, but batches from other
+				// contained blocks may still have values.
+				continue
+			}
 
-type ucContainerBlock struct {
-	err    error
-	blocks []UnconsolidatedBlock
-}
-
-func (b *ucContainerBlock) Close() error {
-	multiErr := xerrors.NewMultiError()
-	multiErr = multiErr.Add(b.err)
-	for _, bl := range b.blocks {
-		multiErr = multiErr.Add(bl.Close())
-	}
-
-	return multiErr.FinalError()
-}
-
-func (b *ucContainerBlock) WithMetadata(
-	meta Metadata,
-	sm []SeriesMeta,
-) (UnconsolidatedBlock, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	updatedBlockList := make([]UnconsolidatedBlock, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		updated, err := bl.WithMetadata(meta, sm)
-		if err != nil {
-			b.err = err
-			return nil, err
+			size += b[i].Size
 		}
 
-		updatedBlockList = append(updatedBlockList, updated)
-	}
+		iters := make([]SeriesIter, 0, size)
+		for _, b := range multiBatches {
+			if i >= len(b) {
+				continue
+			}
 
-	return &ucContainerBlock{blocks: updatedBlockList}, nil
-}
-
-func (b *ucContainerBlock) Consolidate() (Block, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	consolidated := make([]Block, 0, len(b.blocks))
-	for _, bl := range b.blocks {
-		block, err := bl.Consolidate()
-		if err != nil {
-			b.err = err
-			return nil, err
+			iters = append(iters, b[i].Iter)
 		}
 
-		consolidated = append(consolidated, block)
+		batches = append(batches, SeriesIterBatch{
+			Size: size,
+			Iter: &containerSeriesIter{its: iters},
+		})
 	}
 
-	return newContainerBlock(consolidated), nil
-}
-
-func (b *ucContainerBlock) StepIter() (UnconsolidatedStepIter, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	it := &ucContainerStepIter{
-		its: make([]UnconsolidatedStepIter, 0, len(b.blocks)),
-	}
-
-	for _, bl := range b.blocks {
-		iter, err := bl.StepIter()
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		it.its = append(it.its, iter)
-	}
-
-	return it, nil
-}
-
-type ucContainerStepIter struct {
-	err error
-	its []UnconsolidatedStepIter
-}
-
-func (it *ucContainerStepIter) Close() {
-	for _, iter := range it.its {
-		iter.Close()
-	}
-}
-
-func (it *ucContainerStepIter) Err() error {
-	if it.err != nil {
-		return it.err
-	}
-
-	for _, iter := range it.its {
-		if it.err = iter.Err(); it.err != nil {
-			return it.err
-		}
-	}
-
-	return nil
-}
-
-func (it *ucContainerStepIter) StepCount() int {
-	// NB: when using a step iterator, step count doesn't change, but the length
-	// of each step does.
-	if len(it.its) == 0 {
-		return 0
-	}
-
-	return it.its[0].StepCount()
-}
-
-func (it *ucContainerStepIter) SeriesMeta() []SeriesMeta {
-	length := 0
-	for _, iter := range it.its {
-		length += len(iter.SeriesMeta())
-	}
-
-	metas := make([]SeriesMeta, 0, length)
-	for _, iter := range it.its {
-		metas = append(metas, iter.SeriesMeta()...)
-	}
-
-	return metas
-}
-
-func (it *ucContainerStepIter) Next() bool {
-	if it.err != nil {
-		return false
-	}
-
-	// advance all the contained iterators; if any have size mismatches, set an
-	// error and stop traversal.
-	var next bool
-	for i, iter := range it.its {
-		n := iter.Next()
-
-		if it.err = iter.Err(); it.err != nil {
-			return false
-		}
-
-		if i == 0 {
-			next = n
-		} else if next != n {
-			it.err = errMismatchedUcStepIter
-			return false
-		}
-	}
-
-	return next
-}
-
-func (it *ucContainerStepIter) Meta() Metadata {
-	// NB: metadata should be identical for each series in the contained block.
-	if len(it.its) == 0 {
-		return Metadata{}
-	}
-
-	return it.its[0].Meta()
-}
-
-func (it *ucContainerStepIter) Current() UnconsolidatedStep {
-	if len(it.its) == 0 {
-		return unconsolidatedStep{
-			time:   time.Time{},
-			values: []ts.Datapoints{},
-		}
-	}
-
-	curr := it.its[0].Current()
-	// NB: to get Current for contained step iterators, append results from all
-	// contained step iterators in order.
-	accumulatorStep := unconsolidatedStep{
-		time:   curr.Time(),
-		values: curr.Values(),
-	}
-
-	for _, iter := range it.its[1:] {
-		curr := iter.Current()
-		accumulatorStep.values = append(accumulatorStep.values, curr.Values()...)
-	}
-
-	return accumulatorStep
-}
-
-func (b *ucContainerBlock) SeriesIter() (UnconsolidatedSeriesIter, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-
-	it := &ucContainerSeriesIter{
-		its: make([]UnconsolidatedSeriesIter, 0, len(b.blocks)),
-	}
-
-	for _, bl := range b.blocks {
-		iter, err := bl.SeriesIter()
-		if err != nil {
-			b.err = err
-			return nil, err
-		}
-
-		it.its = append(it.its, iter)
-	}
-
-	return it, nil
-}
-
-type ucContainerSeriesIter struct {
-	err error
-	idx int
-	its []UnconsolidatedSeriesIter
-}
-
-func (it *ucContainerSeriesIter) Close() {
-	for _, iter := range it.its {
-		iter.Close()
-	}
-}
-
-func (it *ucContainerSeriesIter) Err() error {
-	if it.err != nil {
-		return it.err
-	}
-
-	for _, iter := range it.its {
-		if it.err = iter.Err(); it.err != nil {
-			return it.err
-		}
-	}
-
-	return nil
-}
-
-func (it *ucContainerSeriesIter) SeriesCount() int {
-	count := 0
-	for _, iter := range it.its {
-		count += iter.SeriesCount()
-	}
-
-	return count
-}
-
-func (it *ucContainerSeriesIter) SeriesMeta() []SeriesMeta {
-	length := 0
-	for _, iter := range it.its {
-		length += len(iter.SeriesMeta())
-	}
-
-	metas := make([]SeriesMeta, 0, length)
-	for _, iter := range it.its {
-		metas = append(metas, iter.SeriesMeta()...)
-	}
-
-	return metas
-}
-
-func (it *ucContainerSeriesIter) Next() bool {
-	if it.err != nil {
-		return false
-	}
-
-	for ; it.idx < len(it.its); it.idx++ {
-		iter := it.its[it.idx]
-		if iter.Next() {
-			// the active iterator has been successfuly incremented.
-			return true
-		}
-
-		// active iterator errored.
-		if it.err = iter.Err(); it.err != nil {
-			return false
-		}
-	}
-
-	// all iterators expanded.
-	return false
-}
-
-func (it *ucContainerSeriesIter) Current() UnconsolidatedSeries {
-	return it.its[it.idx].Current()
-}
-
-func (it *ucContainerSeriesIter) Meta() Metadata {
-	// NB: metadata should be identical for each series in the contained block.
-	if len(it.its) == 0 {
-		return Metadata{}
-	}
-
-	return it.its[0].Meta()
+	return batches, nil
 }

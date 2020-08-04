@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"os"
@@ -83,7 +84,41 @@ func (s indexWriteTestSetup) cleanup() {
 	os.RemoveAll(s.rootDir)
 }
 
+type testIndexReadWriteOptions struct {
+	IndexReaderOptions testIndexReaderOptions
+}
+
 func TestIndexSimpleReadWrite(t *testing.T) {
+	tests := []struct {
+		TestOptions testIndexReadWriteOptions
+	}{
+		{
+			TestOptions: testIndexReadWriteOptions{
+				IndexReaderOptions: testIndexReaderOptions{
+					AutovalidateIndexSegments: true,
+				},
+			},
+		},
+		{
+			TestOptions: testIndexReadWriteOptions{
+				IndexReaderOptions: testIndexReaderOptions{
+					AutovalidateIndexSegments: true,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		name, err := json.Marshal(test)
+		require.NoError(t, err)
+		t.Run(string(name), func(t *testing.T) {
+			testIndexSimpleReadWrite(t, test.TestOptions)
+		})
+	}
+}
+
+func testIndexSimpleReadWrite(t *testing.T, testOpts testIndexReadWriteOptions) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -125,7 +160,8 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	reader := newTestIndexReader(t, test.filePathPrefix)
+	reader := newTestIndexReader(t, test.filePathPrefix,
+		testOpts.IndexReaderOptions)
 	result, err := reader.Open(IndexReaderOpenOptions{
 		Identifier:  test.fileSetID,
 		FileSetType: persist.FileSetFlushType,
@@ -150,9 +186,18 @@ func newTestIndexWriter(t *testing.T, filePathPrefix string) IndexFileSetWriter 
 	return writer
 }
 
-func newTestIndexReader(t *testing.T, filePathPrefix string) IndexFileSetReader {
+type testIndexReaderOptions struct {
+	AutovalidateIndexSegments bool
+}
+
+func newTestIndexReader(
+	t *testing.T,
+	filePathPrefix string,
+	opts testIndexReaderOptions,
+) IndexFileSetReader {
 	reader, err := NewIndexReader(testDefaultOpts.
-		SetFilePathPrefix(filePathPrefix))
+		SetFilePathPrefix(filePathPrefix).
+		SetIndexReaderAutovalidateIndexSegments(opts.AutovalidateIndexSegments))
 	require.NoError(t, err)
 	return reader
 }
@@ -246,9 +291,9 @@ func readTestIndexSegments(
 			assert.Equal(t, expected.data, actualData)
 
 			// Assert bytes data (should be mmap'd byte slice) is also correct
-			directBytesData, err := actual.Bytes()
+			directData, err := actual.Mmap()
 			require.NoError(t, err)
-			assert.True(t, bytes.Equal(expected.data, directBytesData))
+			assert.True(t, bytes.Equal(expected.data, directData.Bytes))
 
 			err = actual.Close()
 			require.NoError(t, err)

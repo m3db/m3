@@ -29,8 +29,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +65,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 	_, err = s.SeekByID(ident.StringID("foo"), resources)
 	assert.Error(t, err)
@@ -89,12 +90,15 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(
+		ident.StringID("foo"),
+		ident.Tags{},
+		persist.MetadataOptions{})
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
-	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+	assert.NoError(t, w.Write(metadata,
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -104,7 +108,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	_, err = s.SeekByID(ident.StringID("foo"), resources)
@@ -136,14 +140,17 @@ func TestSeekBadChecksum(t *testing.T) {
 
 	// Write data with wrong checksum
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 4})))
 	assert.NoError(t, w.Close())
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	_, err = s.SeekByID(ident.StringID("foo"), resources)
@@ -175,25 +182,31 @@ func TestSeek(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo1"),
-		ident.NewTags(ident.StringTag("num", "1")),
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo1"),
+			ident.NewTags(ident.StringTag("num", "1")),
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Write(
-		ident.StringID("foo2"),
-		ident.NewTags(ident.StringTag("num", "2")),
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo2"),
+			ident.NewTags(ident.StringTag("num", "2")),
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 2}),
 		digest.Checksum([]byte{1, 2, 2})))
 	assert.NoError(t, w.Write(
-		ident.StringID("foo3"),
-		ident.NewTags(ident.StringTag("num", "3")),
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo3"),
+			ident.NewTags(ident.StringTag("num", "3")),
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	data, err := s.SeekByID(ident.StringID("foo3"), resources)
@@ -246,22 +259,31 @@ func TestSeekIDNotExists(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo10"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo10"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Write(
-		ident.StringID("foo20"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo20"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 2}),
 		digest.Checksum([]byte{1, 2, 2})))
 	assert.NoError(t, w.Write(
-		ident.StringID("foo30"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo30"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	// Test errSeekIDNotFound when we scan far enough into the index file that
@@ -300,7 +322,10 @@ func TestReuseSeeker(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
@@ -316,14 +341,17 @@ func TestReuseSeeker(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), resources)
+	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), 0, resources)
 	assert.NoError(t, err)
 
 	data, err := s.SeekByID(ident.StringID("foo"), resources)
@@ -333,7 +361,7 @@ func TestReuseSeeker(t *testing.T) {
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 
-	err = s.Open(testNs1ID, 0, testWriterStart, resources)
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, resources)
 	assert.NoError(t, err)
 
 	data, err = s.SeekByID(ident.StringID("foo"), resources)
@@ -365,7 +393,10 @@ func TestCloneSeeker(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
@@ -381,14 +412,17 @@ func TestCloneSeeker(t *testing.T) {
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"), ident.Tags{},
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
 	resources := newTestReusableSeekerResources()
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), resources)
+	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour), 0, resources)
 	assert.NoError(t, err)
 
 	clone, err := s.ConcurrentClone()
@@ -400,6 +434,71 @@ func TestCloneSeeker(t *testing.T) {
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
+}
+
+func TestSeekValidateIndexEntriesFile(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	w := newTestWriter(t, filePathPrefix)
+	writerOpts := DataWriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FileSetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = w.Open(writerOpts)
+	assert.NoError(t, err)
+
+	// Write data
+	assert.NoError(t, w.Write(
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
+	assert.NoError(t, w.Close())
+
+	shardDir := ShardDataDirPath(filePathPrefix, testNs1ID, 0)
+
+	// With full file validation disabled
+	s := seeker{opts: seekerOpts{
+		filePathPrefix: filePathPrefix,
+		dataBufferSize: testReaderBufferSize,
+		infoBufferSize: testReaderBufferSize,
+		bytesPool:      testBytesPool,
+		keepUnreadBuf:  false,
+		opts:           testDefaultOpts,
+	}}
+	s.versionChecker = schema.NewVersionChecker(1, 1)
+
+	indexFilePath := dataFilesetPathFromTimeAndIndex(shardDir, testWriterStart, 0, indexFileSuffix, false)
+	indexFd, err := os.Open(indexFilePath)
+	assert.NoError(t, err)
+	indexReader := digest.NewFdWithDigestReader(defaultInfoReaderBufferSize)
+	indexReader.Reset(indexFd)
+
+	assert.NoError(t, s.validateIndexFileDigest(indexReader, 0))
+
+	// With full file validation enabled
+	s.versionChecker = schema.NewVersionChecker(1, 0)
+	_, err = indexFd.Seek(0, 0)
+	assert.NoError(t, err)
+	indexReader.Reset(indexFd)
+
+	assert.Error(t, s.validateIndexFileDigest(indexReader, 0))
+
+	// Sanity check -- call seeker#Open and ensure VersionChecker is set correctly
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, newTestReusableSeekerResources())
+	assert.NoError(t, err)
+	assert.True(t, s.versionChecker.IndexEntryValidationEnabled())
 }
 
 func newTestReusableSeekerResources() ReusableSeekerResources {

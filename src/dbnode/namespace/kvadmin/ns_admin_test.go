@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 )
 
 const (
@@ -153,4 +154,34 @@ func TestAdminService_ResetSchema(t *testing.T) {
 		})
 	err = as.ResetSchema("ns1")
 	require.NoError(t, err)
+}
+
+func TestAdminService_Crud(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mem.NewStore()
+	var nsRegKey = "nsRegKey"
+	as := NewAdminService(store, nsRegKey, func() string {return "first"})
+	require.NotNil(t, as)
+
+	expectedOpt := namespace.NewOptions()
+	require.NoError(t, as.Add("ns1", namespace.OptionsToProto(expectedOpt)))
+	require.Error(t, as.Add("ns1", namespace.OptionsToProto(expectedOpt)))
+	require.NoError(t, as.Set("ns1", namespace.OptionsToProto(expectedOpt)))
+	require.Error(t, as.Set("ns2", namespace.OptionsToProto(expectedOpt)))
+
+	nsOpt, err := as.Get("ns1")
+	require.NoError(t, err)
+	require.NotNil(t, nsOpt)
+	nsMeta, err := namespace.ToMetadata("ns1", nsOpt)
+	require.NoError(t, err)
+	require.True(t, nsMeta.Options().Equal(expectedOpt))
+
+	_, err = as.Get("ns2")
+	require.Error(t, err)
+
+	nsReg, err := as.GetAll()
+	require.NoError(t, err)
+	require.Len(t, nsReg.Namespaces, 1)
 }

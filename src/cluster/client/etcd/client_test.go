@@ -21,13 +21,14 @@
 package etcd
 
 import (
+	"os"
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
 
-	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/integration"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/integration"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,6 +67,17 @@ func TestETCDClientGen(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, len(c.clis))
 	require.True(t, c1 == c1Again)
+
+	t.Run("TestNewDirectoryMode", func(t *testing.T) {
+		require.Equal(t, defaultDirectoryMode, c.opts.NewDirectoryMode())
+
+		expect := os.FileMode(0744)
+		opts := testOptions().SetNewDirectoryMode(expect)
+		require.Equal(t, expect, opts.NewDirectoryMode())
+		cs, err := NewConfigServiceClient(opts)
+		require.NoError(t, err)
+		require.Equal(t, expect, cs.(*csclient).opts.NewDirectoryMode())
+	})
 }
 
 func TestKVAndHeartbeatServiceSharingETCDClient(t *testing.T) {

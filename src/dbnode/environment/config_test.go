@@ -26,45 +26,48 @@ import (
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cluster/services"
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v2"
 )
 
 var initTimeout = time.Minute
 
 func TestConfigureStatic(t *testing.T) {
 	config := Configuration{
-		Static: &StaticConfiguration{
-			Namespaces: []namespace.MetadataConfiguration{
-				namespace.MetadataConfiguration{
-					ID: "metrics",
-					Retention: retention.Configuration{
-						RetentionPeriod: 24 * time.Hour,
-						BlockSize:       time.Hour,
+		Statics: StaticConfiguration{
+			&StaticCluster{
+				Namespaces: []namespace.MetadataConfiguration{
+					namespace.MetadataConfiguration{
+						ID: "metrics",
+						Retention: retention.Configuration{
+							RetentionPeriod: 24 * time.Hour,
+							BlockSize:       time.Hour,
+						},
+					},
+					namespace.MetadataConfiguration{
+						ID: "other-metrics",
+						Retention: retention.Configuration{
+							RetentionPeriod: 24 * time.Hour,
+							BlockSize:       time.Hour,
+						},
 					},
 				},
-				namespace.MetadataConfiguration{
-					ID: "other-metrics",
-					Retention: retention.Configuration{
-						RetentionPeriod: 24 * time.Hour,
-						BlockSize:       time.Hour,
+				TopologyConfig: &topology.StaticConfiguration{
+					Shards: 2,
+					Hosts: []topology.HostShardConfig{
+						topology.HostShardConfig{
+							HostID:        "localhost",
+							ListenAddress: "0.0.0.0:1234",
+						},
 					},
 				},
+				ListenAddress: "0.0.0.0:9000",
 			},
-			TopologyConfig: &topology.StaticConfiguration{
-				Shards: 2,
-				Hosts: []topology.HostShardConfig{
-					topology.HostShardConfig{
-						HostID:        "localhost",
-						ListenAddress: "0.0.0.0:1234",
-					},
-				},
-			},
-			ListenAddress: "0.0.0.0:9000",
 		},
 	}
 
@@ -75,19 +78,23 @@ func TestConfigureStatic(t *testing.T) {
 
 func TestConfigureDynamic(t *testing.T) {
 	config := Configuration{
-		Service: &etcdclient.Configuration{
-			Zone:     "local",
-			Env:      "test",
-			Service:  "m3dbnode_test",
-			CacheDir: "/",
-			ETCDClusters: []etcdclient.ClusterConfig{
-				etcdclient.ClusterConfig{
-					Zone:      "local",
-					Endpoints: []string{"localhost:1111"},
+		Services: DynamicConfiguration{
+			&DynamicCluster{
+				Service: &etcdclient.Configuration{
+					Zone:     "local",
+					Env:      "test",
+					Service:  "m3dbnode_test",
+					CacheDir: "/",
+					ETCDClusters: []etcdclient.ClusterConfig{
+						etcdclient.ClusterConfig{
+							Zone:      "local",
+							Endpoints: []string{"localhost:1111"},
+						},
+					},
+					SDConfig: services.Configuration{
+						InitTimeout: &initTimeout,
+					},
 				},
-			},
-			SDConfig: services.Configuration{
-				InitTimeout: &initTimeout,
 			},
 		},
 	}
@@ -99,4 +106,96 @@ func TestConfigureDynamic(t *testing.T) {
 	configRes, err := config.Configure(cfgParams)
 	assert.NotNil(t, configRes)
 	assert.NoError(t, err)
+}
+
+func TestUnmarshalDynamicSingle(t *testing.T) {
+	in := `
+service:
+  zone: dca8
+  env: test
+`
+
+	var cfg Configuration
+	err := yaml.Unmarshal([]byte(in), &cfg)
+	assert.NoError(t, err)
+	assert.NoError(t, cfg.Validate())
+	assert.Len(t, cfg.Services, 1)
+}
+
+func TestUnmarshalDynamicList(t *testing.T) {
+	in := `
+services:
+  - service:
+      zone: dca8
+      env: test
+  - service:
+      zone: phx3
+      env: test
+    async: true
+`
+
+	var cfg Configuration
+	err := yaml.Unmarshal([]byte(in), &cfg)
+	assert.NoError(t, err)
+	assert.NoError(t, cfg.Validate())
+	assert.Len(t, cfg.Services, 2)
+}
+
+var configValidationTests = []struct {
+	name      string
+	in        string
+	expectErr error
+}{
+	{
+		name:      "empty config",
+		in:        ``,
+		expectErr: errInvalidConfig,
+	},
+	{
+		name: "static and dynamic",
+		in: `
+services:
+  - service:
+      zone: dca8
+      env: test
+statics:
+  - listenAddress: 0.0.0.0:9000`,
+		expectErr: errInvalidConfig,
+	},
+	{
+		name: "invalid dynamic config",
+		in: `
+services:
+  - async: true`,
+		expectErr: errInvalidSyncCount,
+	},
+	{
+		name: "invalid static config",
+		in: `
+statics:
+  - async: true`,
+		expectErr: errInvalidSyncCount,
+	},
+	{
+		name: "valid config",
+		in: `
+services:
+  - service:
+      zone: dca8
+      env: test
+  - service:
+      zone: phx3
+      env: test
+    async: true`,
+		expectErr: nil,
+	},
+}
+
+func TestConfigValidation(t *testing.T) {
+	for _, tt := range configValidationTests {
+		var cfg Configuration
+		err := yaml.Unmarshal([]byte(tt.in), &cfg)
+		assert.NoError(t, err)
+		assert.Equal(t, tt.expectErr, cfg.Validate())
+	}
 }

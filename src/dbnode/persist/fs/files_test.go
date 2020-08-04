@@ -34,9 +34,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -203,25 +203,32 @@ func TestForEachInfoFile(t *testing.T) {
 			shard:          shard,
 		},
 		testReaderBufferSize,
-		func(fname string, _ FileSetFileIdentifier, data []byte) {
+		func(file FileSetFile, data []byte) {
+			fname, ok := file.InfoFilePath()
+			require.True(t, ok)
 			fnames = append(fnames, fname)
 			res = append(res, data...)
 		})
 
-	require.Equal(t, []string{filesetPathFromTime(shardDir, blockStart, infoFileSuffix)}, fnames)
+	require.Equal(t, []string{filesetPathFromTimeLegacy(shardDir, blockStart, infoFileSuffix)}, fnames)
 	require.Equal(t, infoData, res)
 }
 
-func TestTimeFromName(t *testing.T) {
+func TestTimeFromFileName(t *testing.T) {
 	_, err := TimeFromFileName("foo/bar")
 	require.Error(t, err)
-	require.Equal(t, "unexpected file name foo/bar", err.Error())
+	require.Equal(t, "unexpected filename: foo/bar", err.Error())
 
 	_, err = TimeFromFileName("foo/bar-baz")
 	require.Error(t, err)
 
 	v, err := TimeFromFileName("foo-1-bar.db")
 	expected := time.Unix(0, 1)
+	require.Equal(t, expected, v)
+	require.NoError(t, err)
+
+	v, err = TimeFromFileName("foo-12345-6-bar.db")
+	expected = time.Unix(0, 12345)
 	require.Equal(t, expected, v)
 	require.NoError(t, err)
 
@@ -234,7 +241,7 @@ func TestTimeFromName(t *testing.T) {
 func TestTimeAndIndexFromCommitlogFileName(t *testing.T) {
 	_, _, err := TimeAndIndexFromCommitlogFilename("foo/bar")
 	require.Error(t, err)
-	require.Equal(t, "unexpected file name foo/bar", err.Error())
+	require.Equal(t, "unexpected filename: foo/bar", err.Error())
 
 	_, _, err = TimeAndIndexFromCommitlogFilename("foo/bar-baz")
 	require.Error(t, err)
@@ -259,7 +266,7 @@ func TestTimeAndIndexFromCommitlogFileName(t *testing.T) {
 func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 	_, _, err := TimeAndVolumeIndexFromFileSetFilename("foo/bar")
 	require.Error(t, err)
-	require.Equal(t, "unexpected file name foo/bar", err.Error())
+	require.Equal(t, "unexpected filename: foo/bar", err.Error())
 
 	_, _, err = TimeAndVolumeIndexFromFileSetFilename("foo/bar-baz")
 	require.Error(t, err)
@@ -281,6 +288,41 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
+}
+
+func TestTimeAndVolumeIndexFromDataFileSetFilename(t *testing.T) {
+	_, _, err := TimeAndVolumeIndexFromDataFileSetFilename("foo/bar")
+	require.Error(t, err)
+	require.Equal(t, "unexpected filename: foo/bar", err.Error())
+
+	_, _, err = TimeAndVolumeIndexFromDataFileSetFilename("foo/bar-baz")
+	require.Error(t, err)
+
+	type expected struct {
+		t time.Time
+		i int
+	}
+	ts, i, err := TimeAndVolumeIndexFromDataFileSetFilename("foo-1-0-data.db")
+	exp := expected{time.Unix(0, 1), 0}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+
+	validName := "foo/bar/fileset-21234567890-1-data.db"
+	ts, i, err = TimeAndVolumeIndexFromDataFileSetFilename(validName)
+	exp = expected{time.Unix(0, 21234567890), 1}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+	require.Equal(t, dataFilesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data", false), validName)
+
+	unindexedName := "foo/bar/fileset-21234567890-data.db"
+	ts, i, err = TimeAndVolumeIndexFromDataFileSetFilename(unindexedName)
+	exp = expected{time.Unix(0, 21234567890), 0}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+	require.Equal(t, dataFilesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data", true), unindexedName)
 }
 
 func TestSnapshotMetadataFilePathFromIdentifierRoundTrip(t *testing.T) {
@@ -339,7 +381,6 @@ func TestSanitizedUUIDsCanBeParsed(t *testing.T) {
 }
 
 func TestFileExists(t *testing.T) {
-
 	var (
 		dir               = createTempDir(t)
 		shard             = uint32(10)
@@ -351,18 +392,21 @@ func TestFileExists(t *testing.T) {
 	defer os.RemoveAll(dir)
 	require.NoError(t, err)
 
-	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
+	infoFilePath := filesetPathFromTimeLegacy(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, checkpointFileBuf)
 	require.True(t, mustFileExists(t, infoFilePath))
-	exists, err := DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
+	exists, err := DataFileSetExists(dir, testNs1ID, uint32(shard), start, 0)
 	require.NoError(t, err)
 	require.False(t, exists)
 
-	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
+	checkpointFilePath := filesetPathFromTimeLegacy(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, checkpointFileBuf)
-	exists, err = DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
+	exists, err = DataFileSetExists(dir, testNs1ID, uint32(shard), start, 0)
 	require.NoError(t, err)
 	require.True(t, exists)
+	exists, err = DataFileSetExists(dir, testNs1ID, uint32(shard), start, 1)
+	require.NoError(t, err)
+	require.False(t, exists)
 
 	exists, err = CompleteCheckpointFileExists(checkpointFilePath)
 	require.NoError(t, err)
@@ -381,7 +425,7 @@ func TestCompleteCheckpointFileExists(t *testing.T) {
 		shard              = uint32(10)
 		start              = time.Now()
 		shardDir           = ShardDataDirPath(dir, testNs1ID, shard)
-		checkpointFilePath = filesetPathFromTime(shardDir, start, checkpointFileSuffix)
+		checkpointFilePath = filesetPathFromTimeLegacy(shardDir, start, checkpointFileSuffix)
 		err                = os.MkdirAll(shardDir, defaultNewDirectoryMode)
 
 		validCheckpointFileBuf   = make([]byte, CheckpointFileSizeBytes)
@@ -424,7 +468,7 @@ func TestFilePathFromTime(t *testing.T) {
 		{"foo/bar/", infoFileSuffix, "foo/bar/fileset-1465501321123456789-info.db"},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expected, filesetPathFromTime(input.prefix, start, input.suffix))
+		require.Equal(t, input.expected, filesetPathFromTimeLegacy(input.prefix, start, input.suffix))
 	}
 }
 
@@ -442,7 +486,7 @@ func TestFileSetFilesBefore(t *testing.T) {
 	shardDir := path.Join(dir, dataDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
 	for i := 0; i < len(res); i++ {
 		ts := time.Unix(0, int64(i))
-		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
+		require.Equal(t, filesetPathFromTimeLegacy(shardDir, ts, infoFileSuffix), res[i])
 	}
 }
 
@@ -454,7 +498,7 @@ func TestFileSetAt(t *testing.T) {
 
 	for i := 0; i < numIters; i++ {
 		timestamp := time.Unix(0, int64(i))
-		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, timestamp, res.ID.BlockStart)
@@ -469,7 +513,7 @@ func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
 
 	for i := 0; i < numIters; i++ {
 		timestamp := time.Unix(0, int64(i))
-		_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+		_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.False(t, ok)
 	}
@@ -483,15 +527,15 @@ func TestDeleteFileSetAt(t *testing.T) {
 
 	for i := 0; i < numIters; i++ {
 		timestamp := time.Unix(0, int64(i))
-		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, timestamp, res.ID.BlockStart)
 
-		err = DeleteFileSetAt(dir, testNs1ID, shard, timestamp)
+		err = DeleteFileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 
-		res, ok, err = FileSetAt(dir, testNs1ID, shard, timestamp)
+		res, ok, err = FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 		require.NoError(t, err)
 		require.False(t, ok)
 	}
@@ -503,7 +547,7 @@ func TestFileSetAtNotExist(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	timestamp := time.Unix(0, 0)
-	_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+	_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -798,7 +842,7 @@ func TestSnapshotFileHasCompleteCheckpointFile(t *testing.T) {
 
 	// Check validates a valid checkpoint file
 	f := FileSetFile{
-		AbsoluteFilepaths: []string{checkpointFilePath},
+		AbsoluteFilePaths: []string{checkpointFilePath},
 	}
 	require.Equal(t, true, f.HasCompleteCheckpointFile())
 
@@ -806,14 +850,14 @@ func TestSnapshotFileHasCompleteCheckpointFile(t *testing.T) {
 	err = ioutil.WriteFile(checkpointFilePath, []byte{42}, defaultNewFileMode)
 	require.NoError(t, err)
 	f = FileSetFile{
-		AbsoluteFilepaths: []string{checkpointFilePath},
+		AbsoluteFilePaths: []string{checkpointFilePath},
 	}
 	require.Equal(t, false, f.HasCompleteCheckpointFile())
 
 	// Check ignores index file path
 	indexFilePath := path.Join(dir, "123-index-0.db")
 	f = FileSetFile{
-		AbsoluteFilepaths: []string{indexFilePath},
+		AbsoluteFilePaths: []string{indexFilePath},
 	}
 	require.Equal(t, false, f.HasCompleteCheckpointFile())
 }
@@ -1071,7 +1115,7 @@ func TestSnapshotFileSnapshotTimeAndIDZeroValue(t *testing.T) {
 
 func TestSnapshotFileSnapshotTimeAndIDNotSnapshot(t *testing.T) {
 	f := FileSetFile{}
-	f.AbsoluteFilepaths = []string{"/var/lib/m3db/data/fileset-data.db"}
+	f.AbsoluteFilePaths = []string{"/var/lib/m3db/data/fileset-data.db"}
 	_, _, err := f.SnapshotTimeAndID()
 	require.Error(t, err)
 }
@@ -1133,7 +1177,7 @@ func createDataFiles(t *testing.T,
 		if isSnapshot {
 			infoFilePath = filesetPathFromTimeAndIndex(shardDir, ts, 0, fileSuffix)
 		} else {
-			infoFilePath = filesetPathFromTime(shardDir, ts, fileSuffix)
+			infoFilePath = filesetPathFromTimeLegacy(shardDir, ts, fileSuffix)
 		}
 		var contents []byte
 		if fileSuffix == checkpointFileSuffix {
@@ -1190,7 +1234,7 @@ func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fi
 				var path string
 				switch fileSetType {
 				case persist.FileSetFlushType:
-					path = filesetPathFromTime(shardDir, blockStart, suffix)
+					path = filesetPathFromTimeLegacy(shardDir, blockStart, suffix)
 					writeFile(t, path, nil)
 				case persist.FileSetSnapshotType:
 					path = filesetPathFromTimeAndIndex(shardDir, blockStart, 0, fileSuffix)
@@ -1222,7 +1266,7 @@ func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fi
 }
 
 func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix string, b []byte) {
-	filePath := filesetPathFromTime(shardDir, blockStart, suffix)
+	filePath := filesetPathFromTimeLegacy(shardDir, blockStart, suffix)
 	createFile(t, filePath, b)
 }
 

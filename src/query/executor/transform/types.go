@@ -21,35 +21,104 @@
 package transform
 
 import (
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
-// Options to create transform nodes
+var (
+	errNoFetchOptionsSet      = errors.New("no fetch options set")
+	errNoInstrumentOptionsSet = errors.New("no instrument options set")
+)
+
+// Options to create transform nodes.
 type Options struct {
-	TimeSpec  TimeSpec
-	Debug     bool
-	BlockType models.FetchedBlockType
+	fetchOpts         *storage.FetchOptions
+	timeSpec          TimeSpec
+	debug             bool
+	blockType         models.FetchedBlockType
+	instrumentOptions instrument.Options
 }
 
-// OpNode represents the execution node
+// OptionsParams are the parameters used to create Options.
+type OptionsParams struct {
+	FetchOptions      *storage.FetchOptions
+	TimeSpec          TimeSpec
+	Debug             bool
+	BlockType         models.FetchedBlockType
+	InstrumentOptions instrument.Options
+}
+
+// NewOptions enforces that fields are set when options is created.
+func NewOptions(p OptionsParams) (Options, error) {
+	if p.FetchOptions == nil {
+		return Options{}, errNoFetchOptionsSet
+	}
+	if p.InstrumentOptions == nil {
+		return Options{}, errNoInstrumentOptionsSet
+	}
+	return Options{
+		fetchOpts:         p.FetchOptions,
+		timeSpec:          p.TimeSpec,
+		debug:             p.Debug,
+		blockType:         p.BlockType,
+		instrumentOptions: p.InstrumentOptions,
+	}, nil
+}
+
+// FetchOptions returns the FetchOptions option.
+func (o Options) FetchOptions() *storage.FetchOptions {
+	return o.fetchOpts
+}
+
+// TimeSpec returns the TimeSpec option.
+func (o Options) TimeSpec() TimeSpec {
+	return o.timeSpec
+}
+
+// Debug returns the Debug option.
+func (o Options) Debug() bool {
+	return o.debug
+}
+
+// BlockType returns the BlockType option.
+func (o Options) BlockType() models.FetchedBlockType {
+	return o.blockType
+}
+
+// InstrumentOptions returns the InstrumentOptions option.
+func (o Options) InstrumentOptions() instrument.Options {
+	return o.instrumentOptions
+}
+
+// OpNode represents an execution node.
 type OpNode interface {
-	Process(queryCtx *models.QueryContext, ID parser.NodeID, block block.Block) error
+	Process(
+		queryCtx *models.QueryContext,
+		ID parser.NodeID,
+		block block.Block,
+	) error
 }
 
-// TimeSpec defines the time bounds for the query execution. End is exclusive
+// TimeSpec defines the time bounds for the query execution. Start is inclusive
+// and End is exclusive.
 type TimeSpec struct {
+	// Start is the inclusive start bound for the query.
 	Start time.Time
-	End   time.Time
-	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
-	Now  time.Time
+	// End is the exclusive end bound for the query.
+	End time.Time
+	// Now captures the current time and fixes it throughout the request.
+	Now time.Time
+	// Step is the step size for the query.
 	Step time.Duration
 }
 
-// Bounds transforms a timespec to bounds
+// Bounds transforms the timespec to bounds.
 func (ts TimeSpec) Bounds() models.Bounds {
 	return models.Bounds{
 		Start:    ts.Start,
@@ -58,39 +127,32 @@ func (ts TimeSpec) Bounds() models.Bounds {
 	}
 }
 
-// Params are defined by transforms
+// Params are defined by transforms.
 type Params interface {
 	parser.Params
 	Node(controller *Controller, opts Options) OpNode
 }
 
-// MetaNode is implemented by function nodes which can alter metadata for a block
+// MetaNode is implemented by function nodes which
+// can alter metadata for a block.
 type MetaNode interface {
-	// Meta provides the block metadata for the block using the input blocks' metadata as input
+	// Meta provides the block metadata for the block using the
+	// input blocks' metadata as input.
 	Meta(meta block.Metadata) block.Metadata
-	// SeriesMeta provides the series metadata for the block using the previous blocks' series metadata as input
+	// SeriesMeta provides the series metadata for the block using the
+	// previous blocks' series metadata as input.
 	SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta
 }
 
-// SeriesNode is implemented by function nodes which can support series iteration
-type SeriesNode interface {
-	MetaNode
-	ProcessSeries(series block.Series) (block.Series, error)
-}
-
-// StepNode is implemented by function nodes which can support step iteration
-type StepNode interface {
-	MetaNode
-	ProcessStep(step block.Step) (block.Step, error)
-}
-
-// BoundOp is implements by operations which have bounds
+// BoundOp is an operation that is able to yield boundary information.
 type BoundOp interface {
 	Bounds() BoundSpec
 }
 
-// BoundSpec is the bound spec for an operation
+// BoundSpec is the boundary specification for an operation.
 type BoundSpec struct {
-	Range  time.Duration
+	// Range is the time range for the operation.
+	Range time.Duration
+	// Offset is the offset for the operation.
 	Offset time.Duration
 }

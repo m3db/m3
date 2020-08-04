@@ -29,13 +29,18 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	xtchannel "github.com/m3db/m3/src/dbnode/x/tchannel"
+	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/retry"
-	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/x/ident"
-	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/sampler"
+	xsync "github.com/m3db/m3/src/x/sync"
+)
+
+const (
+	asyncWriteWorkerPoolDefaultSize = 128
 )
 
 var (
@@ -72,6 +77,9 @@ type Configuration struct {
 	// FetchRetry is the fetch retry config.
 	FetchRetry *retry.Configuration `yaml:"fetchRetry"`
 
+	// LogErrorSampleRate is the log error sample rate.
+	LogErrorSampleRate sampler.Rate `yaml:"logErrorSampleRate"`
+
 	// BackgroundHealthCheckFailLimit is the amount of times a background check
 	// must fail before a connection is taken out of consideration.
 	BackgroundHealthCheckFailLimit *int `yaml:"backgroundHealthCheckFailLimit"`
@@ -85,6 +93,19 @@ type Configuration struct {
 
 	// Proto contains the configuration specific to running in the ProtoDataMode.
 	Proto *ProtoConfiguration `yaml:"proto"`
+
+	// AsyncWriteWorkerPoolSize is the worker pool size for async write requests.
+	AsyncWriteWorkerPoolSize *int `yaml:"asyncWriteWorkerPoolSize"`
+
+	// AsyncWriteMaxConcurrency is the maximum concurrency for async write requests.
+	AsyncWriteMaxConcurrency *int `yaml:"asyncWriteMaxConcurrency"`
+
+	// UseV2BatchAPIs determines whether the V2 batch APIs are used. Note that the M3DB nodes must
+	// have support for the V2 APIs in order for this feature to be used.
+	UseV2BatchAPIs *bool `yaml:"useV2BatchAPIs"`
+
+	// WriteTimestampOffset offsets all writes by specified duration into the past.
+	WriteTimestampOffset *time.Duration `yaml:"writeTimestampOffset"`
 }
 
 // ProtoConfiguration is the configuration for running with ProtoDataMode enabled.
@@ -96,9 +117,11 @@ type ProtoConfiguration struct {
 	SchemaRegistry map[string]NamespaceProtoSchema `yaml:"schema_registry"`
 }
 
+// NamespaceProtoSchema is the protobuf schema for a namespace.
 type NamespaceProtoSchema struct {
-	SchemaFilePath string `yaml:"schemaFilePath"`
 	MessageName    string `yaml:"messageName"`
+	SchemaDeployID string `yaml:"schemaDeployID"`
+	SchemaFilePath string `yaml:"schemaFilePath"`
 }
 
 // Validate validates the NamespaceProtoSchema.
@@ -142,6 +165,10 @@ func (c *Configuration) Validate() error {
 		return fmt.Errorf("m3db client connectTimeout was: %d but must be >= 0", *c.ConnectTimeout)
 	}
 
+	if err := c.LogErrorSampleRate.Validate(); err != nil {
+		return fmt.Errorf("m3db client error validating log error sample rate: %v", err)
+	}
+
 	if c.BackgroundHealthCheckFailLimit != nil &&
 		(*c.BackgroundHealthCheckFailLimit < 0 || *c.BackgroundHealthCheckFailLimit > 10) {
 		return fmt.Errorf(
@@ -154,6 +181,16 @@ func (c *Configuration) Validate() error {
 		return fmt.Errorf(
 			"m3db client backgroundHealthCheckFailThrottleFactor was: %f but must be >= 0 and <=10",
 			*c.BackgroundHealthCheckFailThrottleFactor)
+	}
+
+	if c.AsyncWriteWorkerPoolSize != nil && *c.AsyncWriteWorkerPoolSize <= 0 {
+		return fmt.Errorf("m3db client async write worker pool size was: %d but must be >0",
+			*c.AsyncWriteWorkerPoolSize)
+	}
+
+	if c.AsyncWriteMaxConcurrency != nil && *c.AsyncWriteMaxConcurrency <= 0 {
+		return fmt.Errorf("m3db client async write max concurrency was: %d but must be >0",
+			*c.AsyncWriteMaxConcurrency)
 	}
 
 	if err := c.Proto.Validate(); err != nil {
@@ -230,44 +267,76 @@ func (c Configuration) NewAdminClient(
 	if iopts == nil {
 		iopts = instrument.NewOptions()
 	}
-
 	writeRequestScope := iopts.MetricsScope().SubScope("write-req")
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
-	envCfg := environment.ConfigureResults{
-		TopologyInitializer: params.TopologyInitializer,
+	cfgParams := environment.ConfigurationParameters{
+		InstrumentOpts: iopts,
+	}
+	if c.HashingConfiguration != nil {
+		cfgParams.HashingSeed = c.HashingConfiguration.Seed
 	}
 
-	if envCfg.TopologyInitializer == nil {
-		if c.EnvironmentConfig.Service != nil {
-			cfgParams := environment.ConfigurationParameters{
-				InstrumentOpts: iopts,
-			}
-			if c.HashingConfiguration != nil {
-				cfgParams.HashingSeed = c.HashingConfiguration.Seed
-			}
+	var (
+		syncTopoInit         = params.TopologyInitializer
+		syncClientOverrides  environment.ClientOverrides
+		asyncTopoInits       = []topology.Initializer{}
+		asyncClientOverrides = []environment.ClientOverrides{}
+	)
 
-			envCfg, err = c.EnvironmentConfig.Configure(cfgParams)
-			if err != nil {
-				err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
-				return nil, err
-			}
-		} else if c.EnvironmentConfig.Static != nil {
-			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
+	var buildAsyncPool bool
+	if syncTopoInit == nil {
+		envCfgs, err := c.EnvironmentConfig.Configure(cfgParams)
+		if err != nil {
+			err = fmt.Errorf("unable to create topology initializer, err: %v", err)
+			return nil, err
+		}
 
-			if err != nil {
-				err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
-				return nil, err
+		for _, envCfg := range envCfgs {
+			if envCfg.Async {
+				asyncTopoInits = append(asyncTopoInits, envCfg.TopologyInitializer)
+				asyncClientOverrides = append(asyncClientOverrides, envCfg.ClientOverrides)
+				buildAsyncPool = true
+			} else {
+				syncTopoInit = envCfg.TopologyInitializer
+				syncClientOverrides = envCfg.ClientOverrides
 			}
-		} else {
-			return nil, errConfigurationMustSupplyConfig
 		}
 	}
 
 	v := NewAdminOptions().
-		SetTopologyInitializer(envCfg.TopologyInitializer).
-		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
-		SetInstrumentOptions(iopts)
+		SetTopologyInitializer(syncTopoInit).
+		SetAsyncTopologyInitializers(asyncTopoInits).
+		SetInstrumentOptions(iopts).
+		SetLogErrorSampleRate(c.LogErrorSampleRate)
+
+	if c.UseV2BatchAPIs != nil {
+		v = v.SetUseV2BatchAPIs(*c.UseV2BatchAPIs)
+	}
+
+	if buildAsyncPool {
+		var size int
+		if c.AsyncWriteWorkerPoolSize == nil {
+			size = asyncWriteWorkerPoolDefaultSize
+		} else {
+			size = *c.AsyncWriteWorkerPoolSize
+		}
+
+		workerPoolInstrumentOpts := iopts.SetMetricsScope(writeRequestScope.SubScope("workerpool"))
+		workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+			SetGrowOnDemand(true).
+			SetInstrumentOptions(workerPoolInstrumentOpts)
+		workerPool, err := xsync.NewPooledWorkerPool(size, workerPoolOpts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create async worker pool: %v", err)
+		}
+		workerPool.Init()
+		v = v.SetAsyncWriteWorkerPool(workerPool)
+	}
+
+	if c.AsyncWriteMaxConcurrency != nil {
+		v = v.SetAsyncWriteMaxConcurrency(*c.AsyncWriteMaxConcurrency)
+	}
 
 	if c.WriteConsistencyLevel != nil {
 		v = v.SetWriteConsistencyLevel(*c.WriteConsistencyLevel)
@@ -295,9 +364,27 @@ func (c Configuration) NewAdminClient(
 	}
 	if c.WriteRetry != nil {
 		v = v.SetWriteRetrier(c.WriteRetry.NewRetrier(writeRequestScope))
+	} else {
+		// Have not set write retry explicitly, but would like metrics
+		// emitted for the write retrier with the scope for write requests.
+		retrierOpts := v.WriteRetrier().Options().
+			SetMetricsScope(writeRequestScope)
+		v = v.SetWriteRetrier(retry.NewRetrier(retrierOpts))
 	}
 	if c.FetchRetry != nil {
 		v = v.SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope))
+	} else {
+		// Have not set fetch retry explicitly, but would like metrics
+		// emitted for the fetch retrier with the scope for fetch requests.
+		retrierOpts := v.FetchRetrier().Options().
+			SetMetricsScope(fetchRequestScope)
+		v = v.SetFetchRetrier(retry.NewRetrier(retrierOpts))
+	}
+	if syncClientOverrides.TargetHostQueueFlushSize != nil {
+		v = v.SetHostQueueOpsFlushSize(*syncClientOverrides.TargetHostQueueFlushSize)
+	}
+	if syncClientOverrides.HostQueueFlushInterval != nil {
+		v = v.SetHostQueueOpsFlushInterval(*syncClientOverrides.HostQueueFlushInterval)
 	}
 
 	encodingOpts := params.EncodingOptions
@@ -313,18 +400,15 @@ func (c Configuration) NewAdminClient(
 	if c.Proto != nil && c.Proto.Enabled {
 		v = v.SetEncodingProto(encodingOpts)
 		schemaRegistry := namespace.NewSchemaRegistry(true, nil)
-		// Load schema from config if it is available.
-		// If admin client is initialized by dbnode, the schema registry can be overridden
-		// by admin custom options.
+		// Load schema registry from file.
+		deployID := "fromfile"
 		for nsID, protoConfig := range c.Proto.SchemaRegistry {
-			dummyDeployID := "fromconfig"
-			if err := namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID),
-				dummyDeployID,
-				protoConfig.SchemaFilePath, protoConfig.MessageName); err != nil {
-				return nil, xerrors.Wrapf(err, "could not load schema from configuration for namespace: %s", nsID)
+			err = namespace.LoadSchemaRegistryFromFile(schemaRegistry, ident.StringID(nsID), deployID, protoConfig.SchemaFilePath, protoConfig.MessageName)
+			if err != nil {
+				return nil, xerrors.Wrapf(err, "could not load schema registry from file %s for namespace %s", protoConfig.SchemaFilePath, nsID)
 			}
 		}
-		v.SetSchemaRegistry(schemaRegistry)
+		v = v.SetSchemaRegistry(schemaRegistry)
 	}
 
 	// Apply programtic custom options last
@@ -333,5 +417,10 @@ func (c Configuration) NewAdminClient(
 		opts = opt(opts)
 	}
 
-	return NewAdminClient(opts)
+	if c.WriteTimestampOffset != nil {
+		opts = opts.SetWriteTimestampOffset(*c.WriteTimestampOffset)
+	}
+
+	asyncClusterOpts := NewOptionsForAsyncClusters(opts, asyncTopoInits, asyncClientOverrides)
+	return NewAdminClient(opts, asyncClusterOpts...)
 }

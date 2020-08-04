@@ -23,6 +23,7 @@ package models
 import (
 	"context"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/cost"
 
 	"github.com/uber-go/tally"
@@ -43,6 +44,18 @@ type QueryContextOptions struct {
 	// LimitMaxTimeseries limits the number of time series returned by each
 	// storage node.
 	LimitMaxTimeseries int
+	// LimitMaxDocs limits the number of docs returned by each storage node.
+	LimitMaxDocs int
+	// RequireExhaustive results in an error if the query exceeds the series limit.
+	RequireExhaustive bool
+	RestrictFetchType *RestrictFetchTypeQueryContextOptions
+}
+
+// RestrictFetchTypeQueryContextOptions allows for specifying the
+// restrict options for a query.
+type RestrictFetchTypeQueryContextOptions struct {
+	MetricsType   uint
+	StoragePolicy policy.StoragePolicy
 }
 
 // NewQueryContext constructs a QueryContext using the given Enforcer to

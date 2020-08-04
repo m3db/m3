@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/metrics/transformation"
 
 	"github.com/fortytw2/leaktest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1113,6 +1114,44 @@ func TestValidatorValidateRollupRuleRollupOpWithValidTagName(t *testing.T) {
 
 	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
 	require.NoError(t, validator.ValidateSnapshot(view))
+}
+
+func TestValidatorValidateNoTimertypeFilter(t *testing.T) {
+	for _, test := range []string{
+		"rollup",
+		"mapping",
+	} {
+		t.Run(test, func(t *testing.T) {
+			ruleView := view.RuleSet{}
+			if test == "rollup" {
+				ruleView.RollupRules = []view.RollupRule{
+					{
+						Name:   "foo",
+						Filter: "service:bar timertype:count",
+					},
+				}
+			} else {
+				ruleView.MappingRules = []view.MappingRule{
+					{
+						Name:       "foo",
+						Filter:     "service:bar timertype:count",
+						DropPolicy: policy.DropMust,
+					},
+				}
+			}
+
+			validator := NewValidator(testValidatorOptions().SetFilterInvalidTagNames([]string{"timertype"}))
+			assert.Error(t, validator.ValidateSnapshot(ruleView))
+
+			if test == "rollup" {
+				ruleView.RollupRules = ruleView.RollupRules[:0]
+			} else {
+				ruleView.MappingRules = ruleView.MappingRules[:0]
+			}
+
+			assert.NoError(t, validator.ValidateSnapshot(ruleView))
+		})
+	}
 }
 
 func TestValidatorValidateRollupRuleRollupOpMultipleAggregationTypes(t *testing.T) {

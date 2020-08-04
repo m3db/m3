@@ -21,9 +21,16 @@
 package opentracing
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"runtime"
+	"strings"
+	"time"
 
+	"github.com/m3db/m3/src/x/instrument"
+
+	lightstep "github.com/lightstep/lightstep-tracer-go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
@@ -32,9 +39,34 @@ import (
 	"go.uber.org/zap"
 )
 
-// Supported tracing backends. Currently only jaeger is supported.
+const (
+	spanTagBuildRevision  = "build.revision"
+	spanTagBuildVersion   = "build.version"
+	spanTagBuildBranch    = "build.branch"
+	spanTagBuildDate      = "build.date"
+	spanTagBuildTimeUnix  = "build.time_unix"
+	spanTagBuildGoVersion = "build.go_version"
+)
+
 var (
+	// TracingBackendJaeger indicates the Jaeger backend should be used.
 	TracingBackendJaeger = "jaeger"
+	// TracingBackendLightstep indices the LightStep backend should be used.
+	TracingBackendLightstep = "lightstep"
+
+	supportedBackends = []string{
+		TracingBackendJaeger,
+		TracingBackendLightstep,
+	}
+
+	tracerSpanTags = map[string]string{
+		spanTagBuildRevision:  instrument.Revision,
+		spanTagBuildBranch:    instrument.Branch,
+		spanTagBuildVersion:   instrument.Version,
+		spanTagBuildDate:      instrument.BuildDate,
+		spanTagBuildTimeUnix:  instrument.BuildTimeUnix,
+		spanTagBuildGoVersion: runtime.Version(),
+	}
 )
 
 // TracingConfiguration configures an opentracing backend for m3query to use. Currently only jaeger is supported.
@@ -43,27 +75,46 @@ type TracingConfiguration struct {
 	ServiceName string                  `yaml:"serviceName"`
 	Backend     string                  `yaml:"backend"`
 	Jaeger      jaegercfg.Configuration `yaml:"jaeger"`
+	Lightstep   lightstep.Options       `yaml:"lightstep"`
 }
 
 // NewTracer returns a tracer configured with the configuration provided by this struct. The tracer's concrete
 // type is determined by cfg.Backend. Currently only `"jaeger"` is supported. `""` implies
 // disabled (NoopTracer).
 func (cfg *TracingConfiguration) NewTracer(defaultServiceName string, scope tally.Scope, logger *zap.Logger) (opentracing.Tracer, io.Closer, error) {
-	if cfg.Backend == "" {
+	switch cfg.Backend {
+	case "":
 		return opentracing.NoopTracer{}, noopCloser{}, nil
-	}
 
-	if cfg.Backend != TracingBackendJaeger {
-		return nil, nil, fmt.Errorf("unknown tracing backend: %s. Supported backends are: %s", cfg.Backend, TracingBackendJaeger)
-	}
+	case TracingBackendJaeger:
+		logger.Info("initializing Jaeger tracer")
+		return cfg.newJaegerTracer(defaultServiceName, scope, logger)
 
+	case TracingBackendLightstep:
+		logger.Info("initializing LightStep tracer")
+		return cfg.newLightstepTracer(defaultServiceName)
+
+	default:
+		return nil, nil, fmt.Errorf("unknown tracing backend: %s. Supported backends are: [%s]",
+			cfg.Backend,
+			strings.Join(supportedBackends, ","))
+	}
+}
+
+func (cfg *TracingConfiguration) newJaegerTracer(defaultServiceName string, scope tally.Scope, logger *zap.Logger) (opentracing.Tracer, io.Closer, error) {
 	if cfg.Jaeger.ServiceName == "" {
 		cfg.Jaeger.ServiceName = defaultServiceName
 	}
 
-	jaegerLog := jaegerzap.NewLogger(logger)
+	for k, v := range tracerSpanTags {
+		cfg.Jaeger.Tags = append(cfg.Jaeger.Tags, opentracing.Tag{
+			Key:   k,
+			Value: v,
+		})
+	}
+
 	tracer, jaegerCloser, err := cfg.Jaeger.NewTracer(
-		jaegercfg.Logger(jaegerLog),
+		jaegercfg.Logger(jaegerzap.NewLogger(logger)),
 		jaegercfg.Metrics(jaegertally.Wrap(scope)))
 
 	if err != nil {
@@ -71,6 +122,40 @@ func (cfg *TracingConfiguration) NewTracer(defaultServiceName string, scope tall
 	}
 
 	return tracer, jaegerCloser, nil
+}
+
+func (cfg *TracingConfiguration) newLightstepTracer(serviceName string) (opentracing.Tracer, io.Closer, error) {
+	if cfg.Lightstep.Tags == nil {
+		cfg.Lightstep.Tags = opentracing.Tags{}
+	}
+
+	tags := cfg.Lightstep.Tags
+	if _, ok := tags[lightstep.ComponentNameKey]; !ok {
+		tags[lightstep.ComponentNameKey] = serviceName
+	}
+
+	for k, v := range tracerSpanTags {
+		tags[k] = v
+	}
+
+	tracer, err := lightstep.CreateTracer(cfg.Lightstep)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create lightstep tracer: %v", err)
+	}
+
+	closer := &lightstepCloser{tracer: tracer}
+	return tracer, closer, nil
+}
+
+type lightstepCloser struct {
+	tracer lightstep.Tracer
+}
+
+func (l *lightstepCloser) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	l.tracer.Close(ctx)
+	cancel()
+	return ctx.Err()
 }
 
 type noopCloser struct{}

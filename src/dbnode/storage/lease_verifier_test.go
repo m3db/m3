@@ -40,7 +40,7 @@ var (
 	testBlockLeaseState = block.LeaseState{Volume: 0}
 )
 
-func TestLeaseVerifierHandlesErrors(t *testing.T) {
+func TestLeaseVerifierVerifyLeaseHandlesErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -58,7 +58,7 @@ func TestLeaseVerifierHandlesErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestLeaseVerifierReturnsErrorIfNotLatestVolume(t *testing.T) {
+func TestLeaseVerifierVerifyLeaseReturnsErrorIfNotLatestVolume(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -70,13 +70,13 @@ func TestLeaseVerifierReturnsErrorIfNotLatestVolume(t *testing.T) {
 		testBlockDescriptor.Namespace,
 		uint32(testBlockDescriptor.Shard),
 		testBlockDescriptor.BlockStart,
-	).Return(fileOpState{ColdVersion: testBlockLeaseState.Volume + 1}, nil)
+	).Return(fileOpState{ColdVersionFlushed: testBlockLeaseState.Volume + 1}, nil)
 
 	err := leaseVerifier.VerifyLease(testBlockDescriptor, testBlockLeaseState)
 	require.Error(t, err)
 }
 
-func TestLeaseVerifierSuccessIfVolumeIsLatest(t *testing.T) {
+func TestLeaseVerifierVerifyLeaseSuccessIfVolumeIsLatest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -90,7 +90,44 @@ func TestLeaseVerifierSuccessIfVolumeIsLatest(t *testing.T) {
 		testBlockDescriptor.Namespace,
 		uint32(testBlockDescriptor.Shard),
 		testBlockDescriptor.BlockStart,
-	).Return(fileOpState{ColdVersion: volumeNum}, nil)
+	).Return(fileOpState{ColdVersionFlushed: volumeNum}, nil)
 
 	require.NoError(t, leaseVerifier.VerifyLease(testBlockDescriptor, state))
+}
+
+func TestLeaseVerifierLatestStateHandlesErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		mockDB        = NewMockDatabase(ctrl)
+		leaseVerifier = NewLeaseVerifier(mockDB)
+	)
+	mockDB.EXPECT().FlushState(
+		testBlockDescriptor.Namespace,
+		uint32(testBlockDescriptor.Shard),
+		testBlockDescriptor.BlockStart,
+	).Return(fileOpState{}, errors.New("some-error"))
+
+	_, err := leaseVerifier.LatestState(testBlockDescriptor)
+	require.Error(t, err)
+}
+
+func TestLeaseVerifierLatestStateSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		mockDB        = NewMockDatabase(ctrl)
+		leaseVerifier = NewLeaseVerifier(mockDB)
+	)
+	mockDB.EXPECT().FlushState(
+		testBlockDescriptor.Namespace,
+		uint32(testBlockDescriptor.Shard),
+		testBlockDescriptor.BlockStart,
+	).Return(fileOpState{ColdVersionFlushed: 1}, nil)
+
+	state, err := leaseVerifier.LatestState(testBlockDescriptor)
+	require.NoError(t, err)
+	require.Equal(t, block.LeaseState{Volume: 1}, state)
 }

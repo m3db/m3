@@ -66,7 +66,7 @@ var (
 	}
 	testTimed = aggregated.Metric{
 		Type:      metric.CounterType,
-		ID:        []byte("testForwarded"),
+		ID:        []byte("testTimed"),
 		TimeNanos: 1234,
 		Value:     178,
 	}
@@ -75,6 +75,12 @@ var (
 		ID:        []byte("testForwarded"),
 		TimeNanos: 1234,
 		Values:    []float64{34567, 256, 178},
+	}
+	testPassthrough = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testPassthrough"),
+		TimeNanos: 12345,
+		Value:     123,
 	}
 	testStagedMetadatas = metadata.StagedMetadatas{
 		{
@@ -127,7 +133,8 @@ var (
 		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
-	testPlacementInstances = []placement.Instance{
+	testPassthroughMetadata = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
+	testPlacementInstances  = []placement.Instance{
 		placement.NewInstance().
 			SetID("instance1").
 			SetEndpoint("instance1_endpoint").
@@ -188,8 +195,16 @@ var (
 			SetInstances(testPlacementInstances)
 )
 
+func mustNewTestClient(t *testing.T, opts Options) *client {
+	c, err := NewClient(opts)
+	require.NoError(t, err)
+	value, ok := c.(*client)
+	require.True(t, ok)
+	return value
+}
+
 func TestClientInitUninitializedOrClosed(t *testing.T) {
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 
 	c.state = clientInitialized
 	require.Equal(t, errClientIsInitializedOrClosed, c.Init())
@@ -205,7 +220,7 @@ func TestClientInitWatcherWatchError(t *testing.T) {
 	errTestWatcherWatch := errors.New("error watching")
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().Watch().Return(errTestWatcherWatch)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.placementWatcher = watcher
 	require.Equal(t, errTestWatcherWatch, c.Init())
 }
@@ -216,14 +231,14 @@ func TestClientInitSuccess(t *testing.T) {
 
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().Watch().Return(nil)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.placementWatcher = watcher
 	require.NoError(t, c.Init())
 	require.Equal(t, clientInitialized, c.state)
 }
 
 func TestClientWriteUntimedMetricClosed(t *testing.T) {
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientUninitialized
 	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
 		var err error
@@ -246,7 +261,7 @@ func TestClientWriteUntimedMetricActiveStagedPlacementError(t *testing.T) {
 	errActiveStagedPlacementError := errors.New("error active staged placement")
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(nil, nil, errActiveStagedPlacementError).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.placementWatcher = watcher
 
@@ -273,7 +288,7 @@ func TestClientWriteUntimedMetricActivePlacementError(t *testing.T) {
 	stagedPlacement.EXPECT().ActivePlacement().Return(nil, nil, errActivePlacementError).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.placementWatcher = watcher
 
@@ -318,7 +333,7 @@ func TestClientWriteUntimedMetricSuccess(t *testing.T) {
 	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -384,7 +399,7 @@ func TestClientWriteUntimedMetricPartialError(t *testing.T) {
 	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -412,7 +427,7 @@ func TestClientWriteUntimedMetricBeforeShardCutover(t *testing.T) {
 	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.shardCutoverWarmupDuration = time.Second
 	c.state = clientInitialized
 	c.nowFn = func() time.Time { return time.Unix(0, testCutoverNanos-1).Add(-time.Second) }
@@ -433,7 +448,7 @@ func TestClientWriteUntimedMetricAfterShardCutoff(t *testing.T) {
 	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.shardCutoffLingerDuration = time.Second
 	c.state = clientInitialized
 	c.nowFn = func() time.Time { return time.Unix(0, testCutoffNanos+1).Add(time.Second) }
@@ -472,7 +487,7 @@ func TestClientWriteTimedMetricSuccess(t *testing.T) {
 	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -524,7 +539,7 @@ func TestClientWriteTimedMetricPartialError(t *testing.T) {
 	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -572,7 +587,7 @@ func TestClientWriteForwardedMetricSuccess(t *testing.T) {
 	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -624,7 +639,7 @@ func TestClientWriteForwardedMetricPartialError(t *testing.T) {
 	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
 	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
 	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	c.writerMgr = writerMgr
@@ -645,8 +660,108 @@ func TestClientWriteForwardedMetricPartialError(t *testing.T) {
 	require.Equal(t, testForwardMetadata, payloadRes.forwarded.metadata)
 }
 
+func TestClientWritePassthroughMetricSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		instancesRes []placement.Instance
+		shardRes     uint32
+		payloadRes   payloadUnion
+	)
+	writerMgr := NewMockinstanceWriterManager(ctrl)
+	writerMgr.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			instance placement.Instance,
+			shardID uint32,
+			payload payloadUnion,
+		) error {
+			instancesRes = append(instancesRes, instance)
+			shardRes = shardID
+			payloadRes = payload
+			return nil
+		}).
+		MinTimes(1)
+	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	c := mustNewTestClient(t, testOptions())
+	c.state = clientInitialized
+	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
+	c.writerMgr = writerMgr
+	c.placementWatcher = watcher
+
+	expectedInstances := []placement.Instance{
+		testPlacementInstances[0],
+		testPlacementInstances[2],
+	}
+	testMetric := testPassthrough
+	testMetric.TimeNanos = testNowNanos
+	err := c.WritePassthrough(testMetric, testPassthroughMetadata)
+	require.NoError(t, err)
+	require.Equal(t, expectedInstances, instancesRes)
+	require.Equal(t, uint32(1), shardRes)
+	require.Equal(t, passthroughType, payloadRes.payloadType)
+	require.Equal(t, testMetric, payloadRes.passthrough.metric)
+	require.Equal(t, testPassthroughMetadata, payloadRes.passthrough.storagePolicy)
+}
+
+func TestClientWritePassthroughMetricPartialError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		instancesRes     []placement.Instance
+		shardRes         uint32
+		payloadRes       payloadUnion
+		errInstanceWrite = errors.New("instance write error")
+	)
+	writerMgr := NewMockinstanceWriterManager(ctrl)
+	writerMgr.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			instance placement.Instance,
+			shardID uint32,
+			payload payloadUnion,
+		) error {
+			if instance.ID() == testPlacementInstances[0].ID() {
+				return errInstanceWrite
+			}
+			instancesRes = append(instancesRes, instance)
+			shardRes = shardID
+			payloadRes = payload
+			return nil
+		}).
+		MinTimes(1)
+	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	c := mustNewTestClient(t, testOptions())
+	c.state = clientInitialized
+	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
+	c.writerMgr = writerMgr
+	c.placementWatcher = watcher
+
+	expectedInstances := []placement.Instance{
+		testPlacementInstances[2],
+	}
+	testMetric := testPassthrough
+	testMetric.TimeNanos = testNowNanos
+	err := c.WritePassthrough(testMetric, testPassthroughMetadata)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), errInstanceWrite.Error()))
+	require.Equal(t, expectedInstances, instancesRes)
+	require.Equal(t, uint32(1), shardRes)
+	require.Equal(t, passthroughType, payloadRes.payloadType)
+	require.Equal(t, testMetric, payloadRes.passthrough.metric)
+	require.Equal(t, testPassthroughMetadata, payloadRes.passthrough.storagePolicy)
+}
+
 func TestClientFlushClosed(t *testing.T) {
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientClosed
 	require.Equal(t, errClientIsUninitializedOrClosed, c.Flush())
 }
@@ -658,8 +773,7 @@ func TestClientFlushError(t *testing.T) {
 	errTestFlush := errors.New("test flush error")
 	writerMgr := NewMockinstanceWriterManager(ctrl)
 	writerMgr.EXPECT().Flush().Return(errTestFlush).MinTimes(1)
-	opts := testOptions()
-	c := NewClient(opts).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.writerMgr = writerMgr
 	require.Equal(t, errTestFlush, c.Flush())
@@ -671,15 +785,14 @@ func TestClientFlushSuccess(t *testing.T) {
 
 	writerMgr := NewMockinstanceWriterManager(ctrl)
 	writerMgr.EXPECT().Flush().Return(nil).MinTimes(1)
-	opts := testOptions()
-	c := NewClient(opts).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	c.writerMgr = writerMgr
 	require.NoError(t, c.Flush())
 }
 
 func TestClientCloseUninitializedOrClosed(t *testing.T) {
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 
 	c.state = clientUninitialized
 	require.Equal(t, errClientIsUninitializedOrClosed, c.Close())
@@ -689,13 +802,13 @@ func TestClientCloseUninitializedOrClosed(t *testing.T) {
 }
 
 func TestClientCloseSuccess(t *testing.T) {
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	c.state = clientInitialized
 	require.NoError(t, c.Close())
 }
 
 func TestClientWriteTimeRangeFor(t *testing.T) {
-	c := NewClient(testOptions()).(*client)
+	c := mustNewTestClient(t, testOptions())
 	testShard := shard.NewShard(0).SetState(shard.Initializing)
 	for _, input := range []struct {
 		cutoverNanos     int64

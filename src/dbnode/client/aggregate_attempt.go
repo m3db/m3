@@ -35,9 +35,9 @@ type aggregateAttempt struct {
 	session   *session
 	attemptFn xretry.Fn
 
-	args             aggregateAttemptArgs
-	resultIter       AggregatedTagsIterator
-	resultExhaustive bool
+	args           aggregateAttemptArgs
+	resultIter     AggregatedTagsIterator
+	resultMetadata FetchResponseMetadata
 }
 
 type aggregateAttemptArgs struct {
@@ -49,12 +49,12 @@ type aggregateAttemptArgs struct {
 func (f *aggregateAttempt) reset() {
 	f.args = aggregateAttemptArgsZeroed
 	f.resultIter = nil
-	f.resultExhaustive = false
+	f.resultMetadata = FetchResponseMetadata{}
 }
 
 func (f *aggregateAttempt) performAttempt() error {
 	var err error
-	f.resultIter, f.resultExhaustive, err = f.session.aggregateAttempt(
+	f.resultIter, f.resultMetadata, err = f.session.aggregateAttempt(
 		f.args.ns, f.args.query, f.args.opts)
 	return err
 }

@@ -12,17 +12,17 @@ docker create --name "${CONTAINER_NAME}" -p 9000:9000 -p 9001:9001 -p 9002:9002 
 
 # think of this as a defer func() in golang
 function defer {
-  echo "Remove docker container"
+  echo "Test complete, dumping logs"
+  echo "---------------------------"
+  docker logs "${CONTAINER_NAME}"
+  echo "---------------------------"
+
+  echo "Removing docker container"
   docker rm --force "${CONTAINER_NAME}"
 }
 trap defer EXIT
 
 docker start "${CONTAINER_NAME}"
-if [ $? -ne 0 ]; then
-  echo "m3dbnode docker failed to start"
-  docker logs "${CONTAINER_NAME}"
-  exit 1
-fi
 
 # TODO(rartoul): Rewrite this test to use a docker-compose file like the others so that we can share all the
 # DB initialization logic with the setup_single_m3db_node command in common.sh like the other files. Right now
@@ -75,7 +75,7 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
     "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodDuration": "48h",
+      "retentionPeriodDuration": "8h",
       "blockSizeDuration": "2h",
       "bufferFutureDuration": "10m",
       "bufferPastDuration": "10m",
@@ -95,7 +95,7 @@ ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
 
 echo "Placement initialization"
 curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/placement/init -d '{
-    "num_shards": 64,
+    "num_shards": 4,
     "replication_factor": 1,
     "instances": [
         {
@@ -115,7 +115,7 @@ ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
 
 echo "Sleep until bootstrapped"
-ATTEMPTS=10 TIMEOUT=2 retry_with_backoff  \
+ATTEMPTS=7 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
 
 echo "Waiting until shards are marked as available"

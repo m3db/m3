@@ -26,12 +26,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	tsconsolidators "github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type consolidationSettings struct {
-	consolidationFn consolidators.ConsolidationFunc
+	consolidationFn tsconsolidators.ConsolidationFunc
 	currentTime     time.Time
 	bounds          models.Bounds
 }
@@ -39,67 +39,77 @@ type consolidationSettings struct {
 type encodedBlock struct {
 	// There is slightly different execution for the last block in the series.
 	lastBlock            bool
-	lookback             time.Duration
 	meta                 block.Metadata
-	tagOptions           models.TagOptions
 	consolidation        consolidationSettings
 	seriesMetas          []block.SeriesMeta
 	seriesBlockIterators []encoding.SeriesIterator
+	options              Options
+	resultMeta           block.ResultMetadata
 }
 
 // NewEncodedBlock builds an encoded block.
 func NewEncodedBlock(
-	seriesBlockIterators []encoding.SeriesIterator,
+	result consolidators.SeriesFetchResult,
 	bounds models.Bounds,
 	lastBlock bool,
 	opts Options,
 ) (block.Block, error) {
+	if err := result.Verify(); err != nil {
+		return nil, err
+	}
+
 	consolidation := consolidationSettings{
-		consolidationFn: consolidators.TakeLast,
+		consolidationFn: tsconsolidators.TakeLast,
 		currentTime:     bounds.Start,
 		bounds:          bounds,
 	}
 
-	bl := newEncodedBlock(
-		seriesBlockIterators,
-		opts.TagOptions(),
+	bl, err := newEncodedBlock(
+		result,
 		consolidation,
-		opts.LookbackDuration(),
 		lastBlock,
+		opts,
 	)
-	err := bl.generateMetas()
+
 	if err != nil {
 		return nil, err
 	}
 
-	return &bl, nil
+	return bl, nil
 }
 
 func newEncodedBlock(
-	seriesBlockIterators []encoding.SeriesIterator,
-	tagOptions models.TagOptions,
+	result consolidators.SeriesFetchResult,
 	consolidation consolidationSettings,
-	lookback time.Duration,
 	lastBlock bool,
-) encodedBlock {
-	return encodedBlock{
-		seriesBlockIterators: seriesBlockIterators,
-		tagOptions:           tagOptions,
-		consolidation:        consolidation,
-		lookback:             lookback,
-		lastBlock:            lastBlock,
-	}
-}
+	options Options,
+) (*encodedBlock, error) {
+	count := result.Count()
+	seriesMetas := make([]block.SeriesMeta, 0, count)
+	for i := 0; i < count; i++ {
+		iter, tags, err := result.IterTagsAtIndex(i, options.TagOptions())
+		if err != nil {
+			return nil, err
+		}
 
-func (b *encodedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
-	return &encodedBlockUnconsolidated{
-		lastBlock:            b.lastBlock,
-		lookback:             b.lookback,
-		meta:                 b.meta,
-		tagOptions:           b.tagOptions,
-		consolidation:        b.consolidation,
-		seriesMetas:          b.seriesMetas,
-		seriesBlockIterators: b.seriesBlockIterators,
+		seriesMetas = append(seriesMetas, block.SeriesMeta{
+			Name: iter.ID().Bytes(),
+			Tags: tags,
+		})
+	}
+
+	return &encodedBlock{
+		seriesBlockIterators: result.SeriesIterators(),
+		consolidation:        consolidation,
+		lastBlock:            lastBlock,
+		resultMeta:           result.Metadata,
+		options:              options,
+		seriesMetas:          seriesMetas,
+		meta: block.Metadata{
+			Tags:           models.NewTags(0, options.TagOptions()),
+			Bounds:         consolidation.bounds,
+			ResultMetadata: result.Metadata,
+		},
 	}, nil
 }
 
@@ -111,53 +121,10 @@ func (b *encodedBlock) Close() error {
 	return nil
 }
 
-func (b *encodedBlock) buildSeriesMeta() error {
-	b.seriesMetas = make([]block.SeriesMeta, len(b.seriesBlockIterators))
-	for i, iter := range b.seriesBlockIterators {
-		tags, err := storage.FromIdentTagIteratorToTags(iter.Tags(), b.tagOptions)
-		if err != nil {
-			return err
-		}
-
-		b.seriesMetas[i] = block.SeriesMeta{
-			Name: iter.ID().Bytes(),
-			Tags: tags,
-		}
-	}
-
-	return nil
+func (b *encodedBlock) Meta() block.Metadata {
+	return b.meta
 }
 
-func (b *encodedBlock) buildMeta() {
-	b.meta = block.Metadata{
-		Tags:   models.NewTags(0, b.tagOptions),
-		Bounds: b.consolidation.bounds,
-	}
-}
-
-func (b *encodedBlock) generateMetas() error {
-	err := b.buildSeriesMeta()
-	if err != nil {
-		return err
-	}
-
-	b.buildMeta()
-	return nil
-}
-
-func (b *encodedBlock) WithMetadata(
-	meta block.Metadata,
-	seriesMetas []block.SeriesMeta,
-) (block.Block, error) {
-	bl := newEncodedBlock(
-		b.seriesBlockIterators,
-		b.tagOptions,
-		b.consolidation,
-		b.lookback,
-		b.lastBlock,
-	)
-
-	bl.meta = meta
-	bl.seriesMetas = seriesMetas
-	return &bl, nil
+func (b *encodedBlock) Info() block.BlockInfo {
+	return block.NewBlockInfo(block.BlockM3TSZCompressed)
 }

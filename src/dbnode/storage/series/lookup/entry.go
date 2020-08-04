@@ -44,6 +44,15 @@ type Entry struct {
 	reverseIndex   entryIndexState
 }
 
+// OnReleaseReadWriteRef is a callback that can release
+// a strongly held series read/write ref.
+type OnReleaseReadWriteRef interface {
+	OnReleaseReadWriteRef()
+}
+
+// ensure Entry satifies the `OnReleaseReadWriteRef` interface.
+var _ OnReleaseReadWriteRef = &Entry{}
+
 // ensure Entry satisfies the `index.OnIndexSeries` interface.
 var _ index.OnIndexSeries = &Entry{}
 
@@ -70,6 +79,15 @@ func (entry *Entry) IncrementReaderWriterCount() {
 // DecrementReaderWriterCount decrements the ref count on the Entry.
 func (entry *Entry) DecrementReaderWriterCount() {
 	atomic.AddInt32(&entry.curReadWriters, -1)
+}
+
+// OnReleaseReadWriteRef decrements a read/write ref, it's named
+// differently to decouple the concrete task needed when a ref
+// is released and the intent to release the ref (simpler for
+// caller readability/reasoning).
+func (entry *Entry) OnReleaseReadWriteRef() {
+	// All we do when we release a read/write ref is decrement.
+	entry.DecrementReaderWriterCount()
 }
 
 // IndexedForBlockStart returns a bool to indicate if the Entry has been successfully
@@ -133,7 +151,8 @@ func (entry *Entry) OnIndexSuccess(blockStartNanos xtime.UnixNano) {
 	entry.reverseIndex.Unlock()
 }
 
-// OnIndexFinalize marks any attempt for the given block start is finished.
+// OnIndexFinalize marks any attempt for the given block start as finished
+// and decrements the entry ref count.
 func (entry *Entry) OnIndexFinalize(blockStartNanos xtime.UnixNano) {
 	entry.reverseIndex.Lock()
 	entry.reverseIndex.setAttemptWithWLock(blockStartNanos, false)
@@ -195,7 +214,7 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 	for i := range s.states {
 		if s.states[i].blockStart.Equal(t) {
 			s.states[i].success = true
-			break
+			return
 		}
 	}
 

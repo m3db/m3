@@ -24,6 +24,7 @@ package main_test
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -110,7 +111,9 @@ func TestIndexEnabledServer(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.DB.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
+	syncCluster, err := cfg.DB.EnvironmentConfig.Services.SyncCluster()
+	require.NoError(t, err)
+	configSvcClient, err := syncCluster.Service.NewClient(instrument.NewOptions().
 		SetLogger(zap.NewNop()))
 	require.NoError(t, err)
 
@@ -135,16 +138,20 @@ func TestIndexEnabledServer(t *testing.T) {
 	placementSvc, err := svcs.PlacementService(serviceID, placementOpts)
 	require.NoError(t, err)
 
-	instance := placement.NewInstance().
-		SetID(hostID).
-		SetEndpoint(endpoint("127.0.0.1", servicePort)).
-		SetPort(servicePort).
-		SetIsolationGroup("local").
-		SetWeight(1).
-		SetZone(serviceZone)
-	instances := []placement.Instance{instance}
-	shards := 256
-	replicas := 1
+	var (
+		instance = placement.NewInstance().
+				SetID(hostID).
+				SetEndpoint(endpoint("127.0.0.1", servicePort)).
+				SetPort(servicePort).
+				SetIsolationGroup("local").
+				SetWeight(1).
+				SetZone(serviceZone)
+		instances = []placement.Instance{instance}
+		// Keep number of shards low to avoid having to tune F.D limits.
+		shards   = 4
+		replicas = 1
+	)
+
 	_, err = placementSvc.BuildInitialPlacement(instances, shards, replicas)
 	require.NoError(t, err)
 
@@ -172,6 +179,11 @@ func TestIndexEnabledServer(t *testing.T) {
 			InterruptCh: interruptCh,
 		})
 		serverWg.Done()
+	}()
+	defer func() {
+		// Resetting DefaultServeMux to prevent multiple assignments
+		// to /debug/dump in Server.Run()
+		http.DefaultServeMux = http.NewServeMux()
 	}()
 
 	// Wait for bootstrap
@@ -245,12 +257,12 @@ func TestIndexEnabledServer(t *testing.T) {
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
-	iters, exhaustive, err := session.FetchTagged(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
+	iters, fetchResponse, err := session.FetchTagged(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
 		StartInclusive: fetchStart,
 		EndExclusive:   fetchEnd,
 	})
 	assert.NoError(t, err)
-	assert.True(t, exhaustive)
+	assert.True(t, fetchResponse.Exhaustive)
 	assert.Equal(t, 1, iters.Len())
 	iter := iters.Iters()[0]
 	assert.Equal(t, namespaceID, iter.Namespace().String())
@@ -267,12 +279,12 @@ func TestIndexEnabledServer(t *testing.T) {
 		assert.Equal(t, v.unit, unit)
 	}
 
-	resultsIter, resultsExhaustive, err := session.FetchTaggedIDs(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
+	resultsIter, resultsFetchResponse, err := session.FetchTaggedIDs(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
 		StartInclusive: fetchStart,
 		EndExclusive:   fetchEnd,
 	})
 	assert.NoError(t, err)
-	assert.True(t, resultsExhaustive)
+	assert.True(t, resultsFetchResponse.Exhaustive)
 	assert.True(t, resultsIter.Next())
 	nsID, tsID, tags := resultsIter.Current()
 	assert.Equal(t, namespaceID, nsID.String())
@@ -363,9 +375,6 @@ db:
 
     repair:
         enabled: false
-        interval: 2h
-        offset: 30m
-        jitter: 1h
         throttle: 2m
         checkInterval: 1m
 
@@ -410,7 +419,7 @@ db:
             capacity: 128
             lowWatermark: 0.01
             highWatermark: 0.02
-        hostBlockMetadataSlicePool:
+        replicaMetadataSlicePool:
             size: 128
             capacity: 3
             lowWatermark: 0.01

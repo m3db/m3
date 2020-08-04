@@ -23,14 +23,17 @@
 package integration
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/block"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
@@ -39,9 +42,11 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
 	// test options
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetTickMinimumInterval(time.Second)
 	require.True(t, len(testOpts.Namespaces()) >= 2)
 	ns0 := testOpts.Namespaces()[0]
@@ -77,23 +82,52 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test setup
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
+	stopped := false
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		stopped = true
+		require.NoError(t, testSetup.StopServer())
 		log.Info("server is now down")
 	}()
 
+	// NB(bodu): concurrently do work on the leaseManager to ensure no race cond deadlock regressions by
+	// calling OpenLease or OpenLatestLease (blocked on DB lock).
+	var wg sync.WaitGroup
+	leaser := block.NewMockLeaser(ctrl)
+	leaseState := block.LeaseState{}
+	for i := 0; i < 100; i++ {
+		leaseDescriptor := block.LeaseDescriptor{
+			Namespace:  ns0.ID(),
+			Shard:      uint32(0),
+			BlockStart: time.Now().Truncate(ns0.Options().RetentionOptions().BlockSize()),
+		}
+		wg.Add(2)
+		go func() {
+			wg.Done()
+			for !stopped {
+				testSetup.BlockLeaseManager().OpenLease(leaser, leaseDescriptor, leaseState)
+			}
+		}()
+		go func() {
+			wg.Done()
+			for !stopped {
+				testSetup.BlockLeaseManager().OpenLatestLease(leaser, leaseDescriptor)
+			}
+		}()
+	}
+	wg.Wait()
+
 	// Write test data
 	blockSize := ns0.Options().RetentionOptions().BlockSize()
-	now := testSetup.getNowFn()
+	now := testSetup.NowFn()()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
@@ -108,7 +142,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// fail to write to non-existent namespaces
 	for _, testData := range seriesMaps {
-		require.Error(t, testSetup.writeBatch(ns0.ID(), testData))
+		require.Error(t, testSetup.WriteBatch(ns0.ID(), testData))
 	}
 
 	// update value in kv
@@ -118,7 +152,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// wait until the new namespace is registered
 	nsExists := func() bool {
-		_, ok := testSetup.db.Namespace(ns0.ID())
+		_, ok := testSetup.DB().Namespace(ns0.ID())
 		return ok
 	}
 	require.True(t, waitUntil(nsExists, 5*time.Second))
@@ -126,15 +160,15 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// write to new namespace
 	for start, testData := range seriesMaps {
-		testSetup.setNowFn(start.ToTime())
-		require.NoError(t, testSetup.writeBatch(ns0.ID(), testData))
+		testSetup.SetNowFn(start.ToTime())
+		require.NoError(t, testSetup.WriteBatch(ns0.ID(), testData))
 	}
 	log.Info("test data is now written")
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
-	testSetup.setNowFn(testSetup.getNowFn().Add(2 * blockSize))
-	later := testSetup.getNowFn()
-	testSetup.sleepFor10xTickMinimumInterval()
+	testSetup.SetNowFn(testSetup.NowFn()().Add(2 * blockSize))
+	later := testSetup.NowFn()()
+	testSetup.SleepFor10xTickMinimumInterval()
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, ns0.ID(), now, later)
 	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, ns0, metadatasByShard)

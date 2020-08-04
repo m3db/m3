@@ -22,6 +22,7 @@ package block
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -123,6 +124,60 @@ func TestOpenLeaseErrorIfNoVerifier(t *testing.T) {
 	require.NoError(t, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
 }
 
+func TestOpenLatestLease(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser    = NewMockLeaser(ctrl)
+		verifier  = NewMockLeaseVerifier(ctrl)
+		leaseMgr  = NewLeaseManager(verifier)
+		leaseDesc = LeaseDescriptor{
+			Namespace:  ident.StringID("test-ns"),
+			Shard:      1,
+			BlockStart: time.Now().Truncate(2 * time.Hour),
+		}
+		leaseState = LeaseState{
+			Volume: 1,
+		}
+	)
+	verifier.EXPECT().LatestState(leaseDesc).Return(leaseState, nil)
+
+	require.Equal(t, errLeaserNotRegistered, leaseMgr.OpenLease(leaser, leaseDesc, leaseState))
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	latestState, err := leaseMgr.OpenLatestLease(leaser, leaseDesc)
+	require.NoError(t, err)
+	require.Equal(t, leaseState, latestState)
+}
+
+func TestOpenLatestLeaseErrorIfNoVerifier(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser    = NewMockLeaser(ctrl)
+		leaseMgr  = NewLeaseManager(nil)
+		leaseDesc = LeaseDescriptor{
+			Namespace:  ident.StringID("test-ns"),
+			Shard:      1,
+			BlockStart: time.Now().Truncate(2 * time.Hour),
+		}
+		leaseState = LeaseState{
+			Volume: 1,
+		}
+	)
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	_, err := leaseMgr.OpenLatestLease(leaser, leaseDesc)
+	require.Equal(t, errOpenLeaseVerifierNotSet, err)
+
+	verifier := NewMockLeaseVerifier(ctrl)
+	verifier.EXPECT().LatestState(leaseDesc).Return(leaseState, nil)
+	require.NoError(t, leaseMgr.SetLeaseVerifier(verifier))
+	latestState, err := leaseMgr.OpenLatestLease(leaser, leaseDesc)
+	require.NoError(t, err)
+	require.Equal(t, leaseState, latestState)
+}
+
 func TestUpdateOpenLeases(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -215,4 +270,136 @@ func TestUpdateOpenLeasesErrorIfNoVerifier(t *testing.T) {
 	// First time the leasers will return that they didn't have an open lease.
 	_, err := leaseMgr.UpdateOpenLeases(leaseDesc, leaseState)
 	require.Equal(t, errUpdateOpenLeasesVerifierNotSet, err)
+}
+
+// TestUpdateOpenLeasesDoesNotDeadlockIfLeasersCallsBack verifies that a deadlock does
+// not occur if a Leaser calls OpenLease or OpenLatestLease while the LeaseManager is
+// waiting for a call to UpdateOpenLease() to complete on the same leaser.
+func TestUpdateOpenLeasesDoesNotDeadlockIfLeasersCallsBack(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser   = NewMockLeaser(ctrl)
+		verifier = NewMockLeaseVerifier(ctrl)
+		leaseMgr = NewLeaseManager(verifier)
+	)
+	verifier.EXPECT().VerifyLease(gomock.Any(), gomock.Any()).AnyTimes()
+	verifier.EXPECT().LatestState(gomock.Any()).AnyTimes()
+	leaser.EXPECT().UpdateOpenLease(gomock.Any(), gomock.Any()).Do(func(_ LeaseDescriptor, _ LeaseState) {
+		require.NoError(t, leaseMgr.OpenLease(leaser, LeaseDescriptor{}, LeaseState{}))
+		_, err := leaseMgr.OpenLatestLease(leaser, LeaseDescriptor{})
+		require.NoError(t, err)
+	})
+
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+	require.NoError(t, err)
+}
+
+// TestUpdateOpenLeasesConcurrentNotAllowed verifies that concurrent calls to
+// UpdateOpenleases() are not allowed which ensures that leasers receive all
+// updates and in the correct order.
+func TestUpdateOpenLeasesConcurrentNotAllowed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser   = NewMockLeaser(ctrl)
+		verifier = NewMockLeaseVerifier(ctrl)
+		leaseMgr = NewLeaseManager(verifier)
+		wg       sync.WaitGroup
+	)
+	wg.Add(1)
+	leaser.EXPECT().UpdateOpenLease(gomock.Any(), gomock.Any()).Do(func(_ LeaseDescriptor, _ LeaseState) {
+		go func() {
+			_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+			require.Equal(t, errConcurrentUpdateOpenLeases, err)
+			wg.Done()
+		}()
+		wg.Wait()
+	})
+
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+	_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+	require.NoError(t, err)
+}
+
+// TestUpdateOpenLeasesConcurrencyTest spins up a number of goroutines to call UpdateOpenLeases(),
+// OpenLease(), and OpenLatestLease() concurrently and ensure there are no deadlocks.
+func TestUpdateOpenLeasesConcurrencyTest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		leaser     = NewMockLeaser(ctrl)
+		verifier   = NewMockLeaseVerifier(ctrl)
+		leaseMgr   = NewLeaseManager(verifier)
+		wg         sync.WaitGroup
+		doneCh     = make(chan struct{}, 1)
+		numWorkers = 1
+	)
+	verifier.EXPECT().VerifyLease(gomock.Any(), gomock.Any()).AnyTimes()
+	verifier.EXPECT().LatestState(gomock.Any()).AnyTimes()
+	leaser.EXPECT().UpdateOpenLease(gomock.Any(), gomock.Any()).Do(func(_ LeaseDescriptor, _ LeaseState) {
+		// Call back into the LeaseManager from the Leaser on each call to UpdateOpenLease to ensure there
+		// are no deadlocks there.
+		require.NoError(t, leaseMgr.OpenLease(leaser, LeaseDescriptor{}, LeaseState{}))
+		_, err := leaseMgr.OpenLatestLease(leaser, LeaseDescriptor{})
+		require.NoError(t, err)
+	}).AnyTimes()
+	require.NoError(t, leaseMgr.RegisterLeaser(leaser))
+
+	// One goroutine calling UpdateOpenLeases in a loop.
+	wg.Add(1)
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				wg.Done()
+				return
+			default:
+				_, err := leaseMgr.UpdateOpenLeases(LeaseDescriptor{}, LeaseState{})
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+	}()
+
+	// Several goroutines calling OpenLease and OpenLatestLease.
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(2)
+		go func() {
+			for {
+				select {
+				case <-doneCh:
+					wg.Done()
+					return
+				default:
+					if err := leaseMgr.OpenLease(leaser, LeaseDescriptor{}, LeaseState{}); err != nil {
+						panic(err)
+					}
+				}
+			}
+		}()
+
+		go func() {
+			for {
+				select {
+				case <-doneCh:
+					wg.Done()
+					return
+				default:
+					if _, err := leaseMgr.OpenLatestLease(leaser, LeaseDescriptor{}); err != nil {
+						panic(err)
+					}
+				}
+			}
+		}()
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	close(doneCh)
+	wg.Wait()
 }

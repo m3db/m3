@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -66,9 +67,13 @@ func NewAddHandler(opts HandlerOptions) *AddHandler {
 	return &AddHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *AddHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOptions)
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
@@ -76,7 +81,7 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 		return
 	}
 
-	placement, err := h.Add(serviceName, r, req)
+	placement, err := h.Add(svc, r, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if _, ok := err.(unsafeAddError); ok {
@@ -114,7 +119,7 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, 
 
 // Add adds a placement.
 func (h *AddHandler) Add(
-	serviceName string,
+	svc handleroptions.ServiceNameAndDefaults,
 	httpReq *http.Request,
 	req *admin.PlacementAddRequest,
 ) (placement.Placement, error) {
@@ -123,13 +128,13 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	serviceOpts := handler.NewServiceOptions(
-		serviceName, httpReq.Header, h.M3AggServiceOptions)
+	serviceOpts := handleroptions.NewServiceOptions(svc, httpReq.Header,
+		h.m3AggServiceOptions)
 	var validateFn placement.ValidateFn
 	if !req.Force {
 		validateFn = validateAllAvailable
 	}
-	service, _, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn(), validateFn)
+	service, _, err := ServiceWithAlgo(h.clusterClient, serviceOpts, h.nowFn(), validateFn)
 	if err != nil {
 		return nil, err
 	}

@@ -39,14 +39,18 @@ import (
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 	xwatch "github.com/m3db/m3/src/x/watch"
 
@@ -70,6 +74,7 @@ var (
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	testSchemaHistory  = prototest.NewSchemaHistory()
+	testClientOptions  = client.NewOptions()
 )
 
 type nsMapCh chan namespace.Map
@@ -126,11 +131,14 @@ func testNamespaceMap(t *testing.T) namespace.Map {
 }
 
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {
+	var (
+		origin     = topology.NewHost("some-id", "some-address")
+		clientOpts = testClientOptions.(client.AdminOptions).SetOrigin(origin)
+		mockClient = client.NewMockAdminClient(ctrl)
+	)
+	mockClient.EXPECT().Options().Return(clientOpts).AnyTimes()
 	return repair.NewOptions().
-		SetAdminClient(client.NewMockAdminClient(ctrl)).
-		SetRepairInterval(time.Second).
-		SetRepairTimeOffset(500 * time.Millisecond).
-		SetRepairTimeJitter(300 * time.Millisecond).
+		SetAdminClients([]client.AdminClient{mockClient}).
 		SetRepairCheckInterval(100 * time.Millisecond)
 }
 
@@ -138,7 +146,7 @@ func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdata
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(DefaultTestOptions()).AnyTimes()
 	if len(ns) != 0 {
-		db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
+		db.EXPECT().OwnedNamespaces().Return(ns, nil).AnyTimes()
 	}
 	return db
 }
@@ -348,7 +356,7 @@ func TestDatabaseNamespaces(t *testing.T) {
 	assert.Equal(t, "testns2", result[1].ID().String())
 }
 
-func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
+func TestOwnedNamespacesErrorIfClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -360,7 +368,7 @@ func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
 	require.NoError(t, d.Open())
 	require.NoError(t, d.Terminate())
 
-	_, err := d.GetOwnedNamespaces()
+	_, err := d.OwnedNamespaces()
 	require.Equal(t, errDatabaseIsClosed, err)
 }
 
@@ -397,7 +405,7 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	wg.Wait()
 }
 
-func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t *testing.T) {
+func TestDatabaseAssignShardSetBehaviorNoNewShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -405,6 +413,11 @@ func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t
 	defer func() {
 		close(mapCh)
 	}()
+
+	// Set a mock mediator to be certain that bootstrap is not called when
+	// no new shards are assigned.
+	mediator := NewMockdatabaseMediator(ctrl)
+	d.mediator = mediator
 
 	var ns []*MockdatabaseNamespace
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
@@ -420,6 +433,7 @@ func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t
 
 	t1 := d.lastReceivedNewShards
 	d.AssignShardSet(d.shardSet)
+	// Ensure that lastReceivedNewShards is not updated if no new shards are assigned.
 	require.True(t, d.lastReceivedNewShards.Equal(t1))
 
 	wg.Wait()
@@ -437,7 +451,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
 	mediator := NewMockdatabaseMediator(ctrl)
-	mediator.EXPECT().Bootstrap().Return(nil)
+	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil)
 	d.mediator = mediator
 
 	assert.NoError(t, d.Bootstrap())
@@ -451,7 +465,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	mediator.EXPECT().Bootstrap().Return(nil).Do(func() {
+	mediator.EXPECT().Bootstrap().Return(BootstrapResult{}, nil).Do(func() {
 		wg.Done()
 	})
 
@@ -769,21 +783,23 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	nsOptions := namespace.NewOptions().
 		SetWritesToCommitLog(commitlogEnabled)
 
-	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	require.NoError(t, d.Open())
 
 	var (
-		namespace = ident.StringID("testns")
-		ctx       = context.NewContext()
-		id        = ident.StringID("foo")
-		tagsIter  = ident.EmptyTagIterator
-		s         = ts.Series{
-			ID:        id,
-			Tags:      ident.Tags{},
-			Namespace: namespace,
+		namespace   = ident.StringID("testns")
+		ctx         = context.NewContext()
+		id          = ident.StringID("foo")
+		tagsIter    = ident.EmptyTagIterator
+		seriesWrite = SeriesWrite{
+			Series: ts.Series{
+				ID:        id,
+				Namespace: namespace,
+			},
+			WasWritten: true,
 		}
 	)
 
@@ -792,14 +808,14 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
-	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(s, true, nil)
+	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
+		time.Time{}, 1.0, xtime.Second, nil).Return(seriesWrite, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
 		id, tagsIter, time.Time{},
 		1.0, xtime.Second, nil))
 
-	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(s, false, fmt.Errorf("random err"))
+	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
+		time.Time{}, 1.0, xtime.Second, nil).Return(SeriesWrite{}, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
 		1.0, xtime.Second, nil))
@@ -823,11 +839,11 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
 	require.Error(t, err)
 
-	ns.EXPECT().AggregateQuery(ctx, q, aggOpts).Return(aggRes, nil)
+	ns.EXPECT().AggregateQuery(gomock.Any(), q, aggOpts).Return(aggRes, nil)
 	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, aggOpts)
 	require.NoError(t, err)
 
-	ns.EXPECT().AggregateQuery(ctx, q, aggOpts).
+	ns.EXPECT().AggregateQuery(gomock.Any(), q, aggOpts).
 		Return(aggRes, fmt.Errorf("random err"))
 	_, err = d.AggregateQuery(ctx, ident.StringID("testns"), q, aggOpts)
 	require.Error(t, err)
@@ -840,10 +856,12 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 
 	sp.Finish()
 	spans := mtr.FinishedSpans()
-	require.Len(t, spans, 3)
+	require.Len(t, spans, 5)
 	assert.Equal(t, tracepoint.DBQueryIDs, spans[0].OperationName)
 	assert.Equal(t, tracepoint.DBQueryIDs, spans[1].OperationName)
-	assert.Equal(t, "root", spans[2].OperationName)
+	assert.Equal(t, tracepoint.DBAggregateQuery, spans[2].OperationName)
+	assert.Equal(t, tracepoint.DBAggregateQuery, spans[3].OperationName)
+	assert.Equal(t, "root", spans[4].OperationName)
 }
 
 func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
@@ -863,7 +881,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteBatch(nil, notExistNamespace, nil, nil)
+	err = d.WriteBatch(context.NewContext(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -886,7 +904,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteTaggedBatch(nil, notExistNamespace, nil, nil)
+	err = d.WriteTaggedBatch(context.NewContext(), notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -949,7 +967,7 @@ func testDatabaseWriteBatch(t *testing.T,
 	nsOptions := namespace.NewOptions().
 		SetWritesToCommitLog(commitlogEnabled)
 
-	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
@@ -959,10 +977,27 @@ func testDatabaseWriteBatch(t *testing.T,
 	var (
 		namespace = ident.StringID("testns")
 		ctx       = context.NewContext()
-		tagsIter  = ident.EmptyTagIterator
+		tags      = ident.NewTags(ident.Tag{
+			Name:  ident.StringID("foo"),
+			Value: ident.StringID("bar"),
+		}, ident.Tag{
+			Name:  ident.StringID("baz"),
+			Value: ident.StringID("qux"),
+		})
+		tagsIter = ident.NewTagsIterator(tags)
 	)
 
-	writes := []struct {
+	testTagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+		pool.NewObjectPoolOptions().SetSize(1))
+	testTagEncodingPool.Init()
+	encoder := testTagEncodingPool.Get()
+	err := encoder.Encode(tagsIter)
+	require.NoError(t, err)
+
+	encodedTags, ok := encoder.Data()
+	require.True(t, ok)
+
+	testWrites := []struct {
 		series string
 		t      time.Time
 		v      float64
@@ -1015,40 +1050,47 @@ func testDatabaseWriteBatch(t *testing.T,
 	require.NoError(t, err)
 
 	var i int
-	for _, write := range writes {
+	for _, write := range testWrites {
 		// Write with the provided index as i*2 so we can assert later that the
 		// ErrorHandler is called with the provided index, not the actual position
 		// in the WriteBatch slice.
 		if tagged {
-			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
+			batchWriter.AddTagged(i*2, ident.StringID(write.series),
+				tagsIter.Duplicate(), encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
-			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
-				write.t, write.v, xtime.Second, nil).Return(
-				ts.Series{
-					ID:        ident.StringID(write.series + "-updated"),
-					Namespace: namespace,
-					Tags:      ident.Tags{},
-				}, wasWritten, write.err)
+			ns.EXPECT().
+				WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
+					write.t, write.v, xtime.Second, nil).
+				Return(SeriesWrite{
+					Series: ts.Series{
+						ID:        ident.StringID(write.series + "-updated"),
+						Namespace: namespace,
+					}, WasWritten: wasWritten,
+				}, write.err)
 		} else {
-			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
+			batchWriter.Add(i*2, ident.StringID(write.series),
+				write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
-			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
-				write.t, write.v, xtime.Second, nil).Return(
-				ts.Series{
-					ID:        ident.StringID(write.series + "-updated"),
-					Namespace: namespace,
-					Tags:      ident.Tags{},
-				}, wasWritten, write.err)
+			ns.EXPECT().
+				Write(ctx, ident.NewIDMatcher(write.series),
+					write.t, write.v, xtime.Second, nil).
+				Return(SeriesWrite{
+					Series: ts.Series{
+						ID:        ident.StringID(write.series + "-updated"),
+						Namespace: namespace,
+					},
+					WasWritten: wasWritten,
+				}, write.err)
 		}
 		i++
 	}
 
 	errHandler := &fakeIndexedErrorHandler{}
 	if tagged {
-		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(writes.WriteBatch),
 			errHandler)
 	} else {
-		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+		err = d.WriteBatch(ctx, namespace, batchWriter.(writes.WriteBatch),
 			errHandler)
 	}
 
@@ -1107,7 +1149,7 @@ func TestDatabaseFlushState(t *testing.T) {
 		shardID            = uint32(0)
 		blockStart         = time.Now().Truncate(2 * time.Hour)
 		expectedFlushState = fileOpState{
-			ColdVersion: 2,
+			ColdVersionRetrievable: 2,
 		}
 		nsID = "testns1"
 		ns   = dbAddNewMockNamespace(ctrl, d, nsID)
@@ -1140,123 +1182,6 @@ func TestDatabaseIsBootstrapped(t *testing.T) {
 	assert.False(t, d.IsBootstrapped())
 }
 
-func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		validIsBootstrapped                  = true
-		validShardSetAssignedAt              = time.Now()
-		validLastBootstrapCompletionTime     = validShardSetAssignedAt.Add(time.Second)
-		validLastSuccessfulSnapshotStartTime = validLastBootstrapCompletionTime.Add(time.Second)
-	)
-	testCases := []struct {
-		title                           string
-		isBootstrapped                  bool
-		lastBootstrapCompletionTime     time.Time
-		lastSuccessfulSnapshotStartTime time.Time
-		shardSetAssignedAt              time.Time
-		expectedResult                  bool
-	}{
-		{
-			title:                           "False is not bootstrapped",
-			isBootstrapped:                  false,
-			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
-			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
-			shardSetAssignedAt:              validShardSetAssignedAt,
-			expectedResult:                  false,
-		},
-		{
-			title:                           "False if no last bootstrap completion time",
-			isBootstrapped:                  validIsBootstrapped,
-			lastBootstrapCompletionTime:     time.Time{},
-			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
-			shardSetAssignedAt:              validShardSetAssignedAt,
-			expectedResult:                  false,
-		},
-		{
-			title:                           "False if no last successful snapshot start time",
-			isBootstrapped:                  validIsBootstrapped,
-			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
-			lastSuccessfulSnapshotStartTime: time.Time{},
-			shardSetAssignedAt:              validShardSetAssignedAt,
-			expectedResult:                  false,
-		},
-		{
-			title:                           "False if last snapshot start is not after last bootstrap completion time",
-			isBootstrapped:                  validIsBootstrapped,
-			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
-			lastSuccessfulSnapshotStartTime: validLastBootstrapCompletionTime,
-			shardSetAssignedAt:              validShardSetAssignedAt,
-			expectedResult:                  false,
-		},
-		{
-			title:                           "False if last bootstrap completion time is not after shardset assigned at time",
-			isBootstrapped:                  validIsBootstrapped,
-			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
-			lastSuccessfulSnapshotStartTime: validLastBootstrapCompletionTime,
-			shardSetAssignedAt:              validLastBootstrapCompletionTime,
-			expectedResult:                  false,
-		},
-		{
-			title:                           "False if last bootstrap completion time is not after/equal shardset assigned at time",
-			isBootstrapped:                  validIsBootstrapped,
-			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
-			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
-			shardSetAssignedAt:              validLastBootstrapCompletionTime.Add(time.Second),
-			expectedResult:                  false,
-		},
-		{
-			title:                           "True if all conditions are met",
-			isBootstrapped:                  validIsBootstrapped,
-			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
-			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
-			shardSetAssignedAt:              validShardSetAssignedAt,
-			expectedResult:                  true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.title, func(t *testing.T) {
-			d, mapCh, _ := defaultTestDatabase(t, ctrl, Bootstrapped)
-			defer func() {
-				close(mapCh)
-			}()
-
-			mediator := NewMockdatabaseMediator(ctrl)
-			d.mediator = mediator
-			d.lastReceivedNewShards = tc.shardSetAssignedAt
-
-			mediator.EXPECT().IsBootstrapped().Return(tc.isBootstrapped)
-			if !tc.isBootstrapped {
-				assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
-				// Early return because other mock calls will not get called.
-				return
-			}
-
-			if tc.lastBootstrapCompletionTime.IsZero() {
-				mediator.EXPECT().LastBootstrapCompletionTime().Return(time.Time{}, false)
-				assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
-				// Early return because other mock calls will not get called.
-				return
-			}
-
-			mediator.EXPECT().LastBootstrapCompletionTime().Return(tc.lastBootstrapCompletionTime, true)
-
-			if tc.lastSuccessfulSnapshotStartTime.IsZero() {
-				mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(time.Time{}, false)
-				assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
-				// Early return because other mock calls will not get called.
-				return
-			}
-
-			mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(tc.lastSuccessfulSnapshotStartTime, true)
-
-			assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
-		})
-	}
-}
-
 func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1272,7 +1197,7 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 	nsOptions := namespace.NewOptions().
 		SetWritesToCommitLog(false)
-	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().OwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
@@ -1280,45 +1205,56 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	require.NoError(t, d.Open())
 
 	var (
-		namespace = ident.StringID("testns")
-		ctx       = context.NewContext()
-		series1   = ts.Series{UniqueIndex: 0}
-		series2   = ts.Series{UniqueIndex: 1}
-		series3   = ts.Series{UniqueIndex: 2}
-		series4   = ts.Series{UniqueIndex: 3}
-		err       = fmt.Errorf("err")
+		namespace    = ident.StringID("testns")
+		ctx          = context.NewContext()
+		seriesWrite1 = SeriesWrite{Series: ts.Series{UniqueIndex: 0}, WasWritten: true}
+		seriesWrite2 = SeriesWrite{Series: ts.Series{UniqueIndex: 1}, WasWritten: true}
+		seriesWrite3 = SeriesWrite{Series: ts.Series{UniqueIndex: 2}, WasWritten: false}
+		seriesWrite4 = SeriesWrite{Series: ts.Series{UniqueIndex: 3}, WasWritten: false}
+		err          = fmt.Errorf("err")
 	)
 
-	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series1, true, nil)
-	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series2, true, err)
-	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series3, false, err)
-	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series4, false, nil)
+	gomock.InOrder(
+		ns.EXPECT().
+			Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any()).
+			Return(seriesWrite1, nil),
+		ns.EXPECT().
+			Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any()).
+			Return(seriesWrite2, err),
+		ns.EXPECT().
+			Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any()).
+			Return(seriesWrite3, err),
+		ns.EXPECT().
+			Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any()).
+			Return(seriesWrite4, nil),
+	)
 
-	write := ts.Write{
+	write := writes.Write{
 		Series: ts.Series{ID: ident.StringID("foo")},
 	}
 
-	iters := []ts.BatchWrite{
+	iters := []writes.BatchWrite{
 		{Write: write},
 		{Write: write},
 		{Write: write},
 		{Write: write},
 	}
 
-	batchWriter := ts.NewMockWriteBatch(ctrl)
-	batchWriter.EXPECT().Iter().Return(iters)
-	batchWriter.EXPECT().Finalize().Times(1)
-	batchWriter.EXPECT().SetOutcome(0, series1, nil)
-	batchWriter.EXPECT().SetOutcome(1, series2, err)
-	batchWriter.EXPECT().SetSkipWrite(1)
-	batchWriter.EXPECT().SetOutcome(2, series3, err)
-	batchWriter.EXPECT().SetSkipWrite(2)
-	batchWriter.EXPECT().SetOutcome(3, series4, nil)
-	batchWriter.EXPECT().SetSkipWrite(3)
+	batchWriter := writes.NewMockWriteBatch(ctrl)
+	gomock.InOrder(
+		batchWriter.EXPECT().Iter().Return(iters),
+		batchWriter.EXPECT().SetSeries(0, seriesWrite1.Series),
+		batchWriter.EXPECT().SetError(1, err),
+		batchWriter.EXPECT().SetError(2, err),
+		batchWriter.EXPECT().SetSeries(3, seriesWrite4.Series),
+		batchWriter.EXPECT().SetSkipWrite(3),
+		batchWriter.EXPECT().PendingIndex().Return(nil),
+		batchWriter.EXPECT().Finalize(),
+	)
 
 	errHandler := &fakeIndexedErrorHandler{}
 	d.WriteBatch(ctx, namespace, batchWriter, errHandler)

@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -66,9 +67,13 @@ func NewInitHandler(opts HandlerOptions) *InitHandler {
 	return &InitHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *InitHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	logger := logging.WithContext(ctx, h.instrumentOptions)
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
@@ -76,7 +81,7 @@ func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *ht
 		return
 	}
 
-	placement, err := h.Init(serviceName, r, req)
+	placement, err := h.Init(svc, r, req)
 	if err != nil {
 		if err == kv.ErrAlreadyExists {
 			logger.Error("placement already exists", zap.Error(err))
@@ -114,7 +119,7 @@ func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest
 
 // Init initializes a placement.
 func (h *InitHandler) Init(
-	serviceName string,
+	svc handleroptions.ServiceNameAndDefaults,
 	httpReq *http.Request,
 	req *admin.PlacementInitRequest,
 ) (placement.Placement, error) {
@@ -123,20 +128,20 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
-	serviceOpts := handler.NewServiceOptions(
-		serviceName, httpReq.Header, h.M3AggServiceOptions)
-
-	service, err := Service(h.ClusterClient, serviceOpts, h.nowFn(), nil)
+	serviceOpts := handleroptions.NewServiceOptions(svc, httpReq.Header,
+		h.m3AggServiceOptions)
+	service, err := Service(h.clusterClient, serviceOpts, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	replicationFactor := int(req.ReplicationFactor)
-	switch serviceName {
-	case handler.M3CoordinatorServiceName:
+	switch svc.ServiceName {
+	case handleroptions.M3CoordinatorServiceName:
 		// M3Coordinator placements are stateless
 		replicationFactor = 1
 	}
+
 	placement, err := service.BuildInitialPlacement(instances,
 		int(req.NumShards), replicationFactor)
 	if err != nil {

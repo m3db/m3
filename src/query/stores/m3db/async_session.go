@@ -144,12 +144,11 @@ func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator,
 // FetchTagged resolves the provided query to known IDs, and
 // fetches the data for them.
 func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query,
-	opts index.QueryOptions) (results encoding.SeriesIterators,
-	exhaustive bool, err error) {
+	opts index.QueryOptions) (encoding.SeriesIterators, client.FetchResponseMetadata, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
-		return nil, false, s.err
+		return nil, client.FetchResponseMetadata{}, s.err
 	}
 
 	return s.session.FetchTagged(namespace, q, opts)
@@ -157,22 +156,26 @@ func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query,
 
 // FetchTaggedIDs resolves the provided query to known IDs.
 func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query,
-	opts index.QueryOptions) (client.TaggedIDsIterator, bool, error) {
+	opts index.QueryOptions) (client.TaggedIDsIterator, client.FetchResponseMetadata, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
-		return nil, false, s.err
+		return nil, client.FetchResponseMetadata{}, s.err
 	}
 
 	return s.session.FetchTaggedIDs(namespace, q, opts)
 }
 
 // Aggregate aggregates values from the database for the given set of constraints.
-func (s *AsyncSession) Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (client.AggregatedTagsIterator, bool, error) {
+func (s *AsyncSession) Aggregate(
+	namespace ident.ID,
+	q index.Query,
+	opts index.AggregationOptions,
+) (client.AggregatedTagsIterator, client.FetchResponseMetadata, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.err != nil {
-		return nil, false, s.err
+		return nil, client.FetchResponseMetadata{}, s.err
 	}
 
 	return s.session.Aggregate(namespace, q, opts)

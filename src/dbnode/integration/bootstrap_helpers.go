@@ -25,6 +25,7 @@ package integration
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/runtime"
@@ -32,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/x/context"
 
 	"github.com/stretchr/testify/require"
 )
@@ -43,25 +44,12 @@ func newTestBootstrapperSource(
 	next bootstrap.Bootstrapper,
 ) bootstrap.BootstrapperProvider {
 	src := testBootstrapperSource{}
-	if opts.can != nil {
-		src.can = opts.can
-	} else {
-		src.can = func(bootstrap.Strategy) bool { return true }
-	}
 
 	if opts.availableData != nil {
 		src.availableData = opts.availableData
 	} else {
 		src.availableData = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.RunOptions) (result.ShardTimeRanges, error) {
 			return shardsTimeRanges, nil
-		}
-	}
-
-	if opts.readData != nil {
-		src.readData = opts.readData
-	} else {
-		src.readData = func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error) {
-			return result.NewDataBootstrapResult(), nil
 		}
 	}
 
@@ -73,11 +61,11 @@ func newTestBootstrapperSource(
 		}
 	}
 
-	if opts.readIndex != nil {
-		src.readIndex = opts.readIndex
+	if opts.read != nil {
+		src.read = opts.read
 	} else {
-		src.readIndex = func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error) {
-			return result.NewIndexBootstrapResult(), nil
+		src.read = func(ctx context.Context, namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error) {
+			return bootstrap.NewNamespaceResults(namespaces), nil
 		}
 	}
 
@@ -111,25 +99,17 @@ type testBootstrapper struct {
 }
 
 type testBootstrapperSourceOptions struct {
-	can            func(bootstrap.Strategy) bool
 	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
 	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
+	read           func(ctx context.Context, namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error)
 }
 
 var _ bootstrap.Source = &testBootstrapperSource{}
 
 type testBootstrapperSource struct {
-	can            func(bootstrap.Strategy) bool
 	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
 	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
-}
-
-func (t testBootstrapperSource) Can(strategy bootstrap.Strategy) bool {
-	return t.can(strategy)
+	read           func(ctx context.Context, namespaces bootstrap.Namespaces) (bootstrap.NamespaceResults, error)
 }
 
 func (t testBootstrapperSource) AvailableData(
@@ -140,14 +120,6 @@ func (t testBootstrapperSource) AvailableData(
 	return t.availableData(ns, shardsTimeRanges, runOpts)
 }
 
-func (t testBootstrapperSource) ReadData(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	opts bootstrap.RunOptions,
-) (result.DataBootstrapResult, error) {
-	return t.readData(ns, shardsTimeRanges, opts)
-}
-
 func (t testBootstrapperSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
@@ -156,12 +128,11 @@ func (t testBootstrapperSource) AvailableIndex(
 	return t.availableIndex(ns, shardsTimeRanges, runOpts)
 }
 
-func (t testBootstrapperSource) ReadIndex(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	opts bootstrap.RunOptions,
-) (result.IndexBootstrapResult, error) {
-	return t.readIndex(ns, shardsTimeRanges, opts)
+func (t testBootstrapperSource) Read(
+	ctx context.Context,
+	namespaces bootstrap.Namespaces,
+) (bootstrap.NamespaceResults, error) {
+	return t.read(ctx, namespaces)
 }
 
 func (t testBootstrapperSource) String() string {
@@ -169,23 +140,23 @@ func (t testBootstrapperSource) String() string {
 }
 
 func setupCommitLogBootstrapperWithFSInspection(
-	t *testing.T, setup *testSetup, commitLogOpts commitlog.Options) {
+	t *testing.T, setup TestSetup, commitLogOpts commitlog.Options) {
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bsOpts := newDefaulTestResultOptions(setup.StorageOpts())
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts).
 		SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 	bs, err := bcl.NewCommitLogBootstrapperProvider(
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
+	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(process))
 }
 
 func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {

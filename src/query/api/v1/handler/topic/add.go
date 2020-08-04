@@ -27,9 +27,11 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -45,15 +47,24 @@ const (
 // AddHandler is the handler for topic adds.
 type AddHandler Handler
 
-// NewAddHandler returns a new instance of AddHandler.
-func NewAddHandler(client clusterclient.Client, cfg config.Configuration) *AddHandler {
-	return &AddHandler{client: client, cfg: cfg, serviceFn: Service}
+// newAddHandler returns a new instance of AddHandler.
+func newAddHandler(
+	client clusterclient.Client,
+	cfg config.Configuration,
+	instrumentOpts instrument.Options,
+) http.Handler {
+	return &AddHandler{
+		client:         client,
+		cfg:            cfg,
+		serviceFn:      Service,
+		instrumentOpts: instrumentOpts,
+	}
 }
 
 func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
+		logger = logging.WithContext(ctx, h.instrumentOpts)
 		req    admin.TopicAddRequest
 	)
 	rErr := parseRequest(r, &req)
@@ -63,7 +74,9 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	service, err := h.serviceFn(h.client)
+	serviceCfg := handleroptions.ServiceNameAndDefaults{}
+	svcOpts := handleroptions.NewServiceOptions(serviceCfg, r.Header, nil)
+	service, err := h.serviceFn(h.client, svcOpts)
 	if err != nil {
 		logger.Error("unable to get service", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)

@@ -21,28 +21,143 @@
 package persist
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/pborman/uuid"
 )
 
+var (
+	errReuseableTagIteratorRequired = errors.New("reuseable tags iterator is required")
+)
+
+// Metadata is metadata for a time series, it can
+// have several underlying sources.
+type Metadata struct {
+	metadata doc.Document
+	id       ident.ID
+	tags     ident.Tags
+	tagsIter ident.TagIterator
+	opts     MetadataOptions
+}
+
+// MetadataOptions is options to use when creating metadata.
+type MetadataOptions struct {
+	FinalizeID          bool
+	FinalizeTags        bool
+	FinalizeTagIterator bool
+}
+
+// NewMetadata returns a new metadata struct from series metadata.
+// Note: because doc.Document has no pools for finalization we do not
+// take MetadataOptions here, in future if we have pools or
+// some other shared options that Metadata needs we will add it to this
+// constructor as well.
+func NewMetadata(metadata doc.Document) Metadata {
+	return Metadata{metadata: metadata}
+}
+
+// NewMetadataFromIDAndTags returns a new metadata struct from
+// explicit ID and tags.
+func NewMetadataFromIDAndTags(
+	id ident.ID,
+	tags ident.Tags,
+	opts MetadataOptions,
+) Metadata {
+	return Metadata{
+		id:   id,
+		tags: tags,
+		opts: opts,
+	}
+}
+
+// NewMetadataFromIDAndTagIterator returns a new metadata struct from
+// explicit ID and tag iterator.
+func NewMetadataFromIDAndTagIterator(
+	id ident.ID,
+	tagsIter ident.TagIterator,
+	opts MetadataOptions,
+) Metadata {
+	return Metadata{
+		id:       id,
+		tagsIter: tagsIter,
+		opts:     opts,
+	}
+}
+
+// BytesID returns the bytes ID of the series.
+func (m Metadata) BytesID() []byte {
+	if m.id != nil {
+		return m.id.Bytes()
+	}
+	return m.metadata.ID
+}
+
+// ResetOrReturnProvidedTagIterator returns a tag iterator
+// for the series, returning a direct ref to a provided tag
+// iterator or using the reuseable tag iterator provided by the
+// callsite if it needs to iterate over tags or fields.
+func (m Metadata) ResetOrReturnProvidedTagIterator(
+	reuseableTagsIterator ident.TagsIterator,
+) (ident.TagIterator, error) {
+	if reuseableTagsIterator == nil {
+		// Always check to make sure callsites won't
+		// get a bad allocation pattern of having
+		// to create one here inline if the metadata
+		// they are passing in suddenly changes from
+		// tagsIter to tags or fields with metadata.
+		return nil, errReuseableTagIteratorRequired
+	}
+	if m.tagsIter != nil {
+		return m.tagsIter, nil
+	}
+
+	if len(m.tags.Values()) > 0 {
+		reuseableTagsIterator.Reset(m.tags)
+		return reuseableTagsIterator, reuseableTagsIterator.Err()
+	}
+
+	reuseableTagsIterator.ResetFields(m.metadata.Fields)
+	return reuseableTagsIterator, reuseableTagsIterator.Err()
+}
+
+// Finalize will finalize any resources that requested
+// to be finalized.
+func (m Metadata) Finalize() {
+	if m.opts.FinalizeID && m.id != nil {
+		m.id.Finalize()
+	}
+	if m.opts.FinalizeTags && m.tags.Values() != nil {
+		m.tags.Finalize()
+	}
+	if m.opts.FinalizeTagIterator && m.tagsIter != nil {
+		m.tagsIter.Close()
+	}
+}
+
 // DataFn is a function that persists a m3db segment for a given ID.
-type DataFn func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint32) error
+type DataFn func(metadata Metadata, segment ts.Segment, checksum uint32) error
 
 // DataCloser is a function that performs cleanup after persisting the data
 // blocks for a (shard, blockStart) combination.
 type DataCloser func() error
 
+// DeferCloser returns a DataCloser that persists the data checkpoint file when called.
+type DeferCloser func() (DataCloser, error)
+
 // PreparedDataPersist is an object that wraps holds a persist function and a closer.
 type PreparedDataPersist struct {
-	Persist DataFn
-	Close   DataCloser
+	Persist    DataFn
+	Close      DataCloser
+	DeferClose DeferCloser
 }
 
 // CommitLogFiles represents a slice of commitlog files.
@@ -89,6 +204,8 @@ type Manager interface {
 
 	// StartIndexPersist begins a flush for index data.
 	StartIndexPersist() (IndexFlush, error)
+
+	Close()
 }
 
 // Preparer can generate a PreparedDataPersist object for writing data for
@@ -136,17 +253,14 @@ type DataPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
 	BlockStart        time.Time
 	Shard             uint32
-	FileSetType       FileSetType
-	DeleteIfExists    bool
+	// This volume index is only used when preparing for a flush fileset type.
+	// When opening a snapshot, the new volume index is determined by looking
+	// at what files exist on disk.
+	VolumeIndex    int
+	FileSetType    FileSetType
+	DeleteIfExists bool
 	// Snapshot options are applicable to snapshots (index yes, data yes)
 	Snapshot DataPrepareSnapshotOptions
-}
-
-// DataPrepareVolumeOptions is the options struct for the prepare method that contains
-// information specific to read/writing filesets that have multiple volumes (such as
-// snapshots and index file sets).
-type DataPrepareVolumeOptions struct {
-	VolumeIndex int
 }
 
 // IndexPrepareOptions is the options struct for the IndexFlush's Prepare method.
@@ -156,6 +270,7 @@ type IndexPrepareOptions struct {
 	BlockStart        time.Time
 	FileSetType       FileSetType
 	Shards            map[uint32]struct{}
+	IndexVolumeType   idxpersist.IndexVolumeType
 }
 
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains
@@ -205,3 +320,27 @@ const (
 	// FileSetIndexContentType indicates that the fileset files contain time series index metadata
 	FileSetIndexContentType
 )
+
+// OnFlushNewSeriesEvent is the fields related to a flush of a new series.
+type OnFlushNewSeriesEvent struct {
+	Shard          uint32
+	BlockStart     time.Time
+	FirstWrite     time.Time
+	SeriesMetadata doc.Document
+}
+
+// OnFlushSeries performs work on a per series level.
+type OnFlushSeries interface {
+	OnFlushNewSeries(OnFlushNewSeriesEvent) error
+}
+
+// NoOpColdFlushNamespace is a no-op impl of OnFlushSeries.
+type NoOpColdFlushNamespace struct{}
+
+// OnFlushNewSeries is a no-op.
+func (n *NoOpColdFlushNamespace) OnFlushNewSeries(event OnFlushNewSeriesEvent) error {
+	return nil
+}
+
+// Done is a no-op.
+func (n *NoOpColdFlushNamespace) Done() error { return nil }

@@ -29,11 +29,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
-
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -74,9 +76,8 @@ func (m *tagValuesMatcher) Matches(x interface{}) bool {
 	}
 
 	tm := q.TagMatchers[0]
-	return models.MatchRegexp == tm.Type &&
-		bytes.Equal([]byte(m.filterTag), tm.Name) &&
-		bytes.Equal(matchValues, tm.Value)
+	return models.MatchField == tm.Type &&
+		bytes.Equal([]byte(m.filterTag), tm.Name)
 }
 
 var _ gomock.Matcher = &tagValuesMatcher{}
@@ -92,8 +93,6 @@ func bs(ss ...string) [][]byte {
 }
 
 func TestTagValues(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -104,8 +103,14 @@ func TestTagValues(t *testing.T) {
 		return now
 	}
 
-	handler := NewTagValuesHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}), nowFn)
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetNowFn(nowFn).
+		SetFetchOptionsBuilder(fb)
+
+	valueHandler := NewTagValuesHandler(opts)
 	names := []struct {
 		name string
 	}{
@@ -128,20 +133,24 @@ func TestTagValues(t *testing.T) {
 			filterTag: tt.name,
 		}
 
-		storeResult := &storage.CompleteTagsResult{
+		storeResult := &consolidators.CompleteTagsResult{
 			CompleteNameOnly: false,
-			CompletedTags: []storage.CompletedTag{
+			CompletedTags: []consolidators.CompletedTag{
 				{
 					Name:   b(tt.name),
 					Values: bs("a", "b", "c", tt.name),
 				},
+			},
+			Metadata: block.ResultMetadata{
+				Exhaustive: false,
+				Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
 			},
 		}
 
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
 			Return(storeResult, nil)
 
-		router.HandleFunc(url, handler.ServeHTTP)
+		router.HandleFunc(url, valueHandler.ServeHTTP)
 		router.ServeHTTP(rr, req)
 
 		read, err := ioutil.ReadAll(rr.Body)
@@ -149,12 +158,14 @@ func TestTagValues(t *testing.T) {
 
 		ex := fmt.Sprintf(`{"status":"success","data":["a","b","c","%s"]}`, tt.name)
 		assert.Equal(t, ex, string(read))
+
+		warning := rr.Header().Get(headers.LimitHeader)
+		exWarn := fmt.Sprintf("%s,foo_bar", headers.LimitHeaderSeriesLimitApplied)
+		assert.Equal(t, exWarn, warning)
 	}
 }
 
 func TestTagValueErrors(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -165,8 +176,14 @@ func TestTagValueErrors(t *testing.T) {
 		return now
 	}
 
-	handler := NewTagValuesHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}), nowFn)
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetNowFn(nowFn).
+		SetFetchOptionsBuilder(fb)
+
+	handler := NewTagValuesHandler(opts)
 	url := "/label"
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

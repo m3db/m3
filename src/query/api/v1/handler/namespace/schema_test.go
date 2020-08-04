@@ -34,6 +34,9 @@ import (
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/namespace/kvadmin"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -93,6 +96,12 @@ message ImportedMessage {
 `
 )
 
+var (
+	svcDefaults = handleroptions.ServiceNameAndDefaults{
+		ServiceName: "m3db",
+	}
+)
+
 func genTestJSON(t *testing.T) string {
 	tempDir, err := ioutil.TempDir("", "schema_deploy_test")
 	require.NoError(t, err)
@@ -127,23 +136,22 @@ func TestSchemaDeploy_KVKeyNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	addHandler := NewSchemaHandler(mockClient)
+	addHandler := NewSchemaHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Error case where required fields are not set
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-    {
-        "name": "testNamespace"
-    }
-    `
+	jsonInput := xjson.Map{
+		"name": "testNamespace",
+	}
 
-	req := httptest.NewRequest("POST", "/schema", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/schema",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	addHandler.ServeHTTP(w, req)
+	addHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -157,7 +165,7 @@ func TestSchemaDeploy(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	schemaHandler := NewSchemaHandler(mockClient)
+	schemaHandler := NewSchemaHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	mockAdminSvc := kvadmin.NewMockNamespaceMetadataAdminService(ctrl)
@@ -185,7 +193,7 @@ func TestSchemaDeploy(t *testing.T) {
 	req := httptest.NewRequest("POST", "/schema", strings.NewReader(testSchemaJSON))
 	require.NotNil(t, req)
 
-	schemaHandler.ServeHTTP(w, req)
+	schemaHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -198,17 +206,16 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	schemaHandler := NewSchemaHandler(mockClient)
+	schemaHandler := NewSchemaHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
-	jsonInput := `
-    {
-        "name": "no-such-namespace"
-    }
-    `
+	jsonInput := xjson.Map{
+		"name": "no-such-namespace",
+	}
 
 	// Ensure adding to an non-existing namespace returns 404
-	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/namespace",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	registry := nsproto.Registry{
@@ -238,7 +245,7 @@ func TestSchemaDeploy_NamespaceNotFound(t *testing.T) {
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
 
 	w := httptest.NewRecorder()
-	schemaHandler.ServeHTTP(w, req)
+	schemaHandler.ServeHTTP(svcDefaults, w, req)
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -250,7 +257,7 @@ func TestSchemaReset(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
-	schemaHandler := NewSchemaResetHandler(mockClient)
+	schemaHandler := NewSchemaResetHandler(mockClient, instrument.NewOptions())
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	mockAdminSvc := kvadmin.NewMockNamespaceMetadataAdminService(ctrl)
@@ -261,26 +268,27 @@ func TestSchemaReset(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-    {
-        "name": "testNamespace"
-    }
-	`
-	req := httptest.NewRequest("DELETE", "/schema", strings.NewReader(jsonInput))
+	jsonInput := xjson.Map{
+		"name": "testNamespace",
+	}
+
+	req := httptest.NewRequest("DELETE", "/schema",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
-	schemaHandler.ServeHTTP(w, req)
+	schemaHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("DELETE", "/schema", strings.NewReader(jsonInput))
+	req = httptest.NewRequest("DELETE", "/schema",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 	req.Header.Add("Force", "true")
 
-	schemaHandler.ServeHTTP(w, req)
+	schemaHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)

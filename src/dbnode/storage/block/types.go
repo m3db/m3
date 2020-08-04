@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -69,9 +70,10 @@ type FilteredBlocksMetadataIter interface {
 // FetchBlockResult captures the block start time, the readers for the underlying streams, the
 // corresponding checksum and any errors encountered.
 type FetchBlockResult struct {
-	Start  time.Time
-	Blocks []xio.BlockReader
-	Err    error
+	Start      time.Time
+	FirstWrite time.Time
+	Blocks     []xio.BlockReader
+	Err        error
 }
 
 // FetchBlocksMetadataOptions are options used when fetching blocks metadata.
@@ -79,6 +81,7 @@ type FetchBlocksMetadataOptions struct {
 	IncludeSizes     bool
 	IncludeChecksums bool
 	IncludeLastRead  bool
+	OnlyDisk         bool
 }
 
 // FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered
@@ -135,7 +138,6 @@ type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
-
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
@@ -280,6 +282,8 @@ type DatabaseBlockRetriever interface {
 		onRetrieve OnRetrieveBlock,
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
+
+	AssignShardSet(shardSet sharding.ShardSet)
 }
 
 // DatabaseShardBlockRetriever is a block retriever bound to a shard.
@@ -297,12 +301,17 @@ type DatabaseShardBlockRetriever interface {
 // DatabaseBlockRetrieverManager creates and holds block retrievers
 // for different namespaces.
 type DatabaseBlockRetrieverManager interface {
-	Retriever(nsMetadata namespace.Metadata) (DatabaseBlockRetriever, error)
+	// Retriever provides the DatabaseBlockRetriever for the given namespace.
+	Retriever(
+		nsMetadata namespace.Metadata,
+		shardSet sharding.ShardSet,
+	) (DatabaseBlockRetriever, error)
 }
 
 // DatabaseShardBlockRetrieverManager creates and holds shard block
 // retrievers binding shards to an existing retriever.
 type DatabaseShardBlockRetrieverManager interface {
+	// ShardRetriever provides the DatabaseShardBlockRetriever for the given shard.
 	ShardRetriever(shard uint32) DatabaseShardBlockRetriever
 }
 
@@ -377,17 +386,28 @@ type FetchBlocksMetadataResultsPool interface {
 
 // LeaseManager is a manager of block leases and leasers.
 type LeaseManager interface {
+	// RegisterLeaser registers the leaser to receive UpdateOpenLease()
+	// calls when leases need to be updated.
 	RegisterLeaser(leaser Leaser) error
+	// UnregisterLeaser unregisters the leaser from receiving UpdateOpenLease()
+	// calls.
 	UnregisterLeaser(leaser Leaser) error
+	// OpenLease opens a lease.
 	OpenLease(
 		leaser Leaser,
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) error
+	// OpenLatestLease opens a lease for the latest LeaseState for a given
+	// LeaseDescriptor.
+	OpenLatestLease(leaser Leaser, descriptor LeaseDescriptor) (LeaseState, error)
+	// UpdateOpenLeases propagate a call to UpdateOpenLease() to each registered
+	// leaser.
 	UpdateOpenLeases(
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) (UpdateLeasesResult, error)
+	// SetLeaseVerifier sets the LeaseVerifier (for delayed initialization).
 	SetLeaseVerifier(leaseVerifier LeaseVerifier) error
 }
 
@@ -412,10 +432,14 @@ type LeaseState struct {
 
 // LeaseVerifier verifies that a lease is valid.
 type LeaseVerifier interface {
+	// VerifyLease is called to determine if the requested lease is valid.
 	VerifyLease(
 		descriptor LeaseDescriptor,
 		state LeaseState,
 	) error
+
+	// LatestState returns the latest LeaseState for a given descriptor.
+	LatestState(descriptor LeaseDescriptor) (LeaseState, error)
 }
 
 // UpdateOpenLeaseResult is the result of processing an update lease.
@@ -424,12 +448,21 @@ type UpdateOpenLeaseResult uint
 const (
 	// UpdateOpenLease is used to communicate a lease updated successfully.
 	UpdateOpenLease UpdateOpenLeaseResult = iota
-	// NoOpenLease is used to communitcate there is no related open lease.
+	// NoOpenLease is used to communicate there is no related open lease.
 	NoOpenLease
 )
 
 // Leaser is a block leaser.
 type Leaser interface {
+	// UpdateOpenLease is called on the Leaser when the latest state
+	// has changed and the leaser needs to update their lease. The leaser
+	// should update its state (releasing any resources as necessary and
+	// optionally acquiring new ones related to the updated lease) accordingly,
+	// but it should *not* call LeaseManager.OpenLease() with the provided
+	// descriptor and state.
+	//
+	// UpdateOpenLease will never be called concurrently on the same Leaser. Each
+	// call to UpdateOpenLease() must return before the next one will begin.
 	UpdateOpenLease(
 		descriptor LeaseDescriptor,
 		state LeaseState,

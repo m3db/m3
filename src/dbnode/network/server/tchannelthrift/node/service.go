@@ -23,6 +23,8 @@ package node
 import (
 	"errors"
 	"fmt"
+	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -36,11 +38,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
-	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
+	xdebug "github.com/m3db/m3/src/x/debug"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -51,16 +54,15 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
 	// NB(r): pool sizes are vars to help reduce stress on tests.
-	checkedBytesPoolSize        = 65536
 	segmentArrayPoolSize        = 65536
 	writeBatchPooledReqPoolSize = 1024
 )
@@ -100,36 +102,42 @@ var (
 )
 
 type serviceMetrics struct {
-	fetch               instrument.MethodMetrics
-	fetchTagged         instrument.MethodMetrics
-	aggregate           instrument.MethodMetrics
-	write               instrument.MethodMetrics
-	writeTagged         instrument.MethodMetrics
-	fetchBlocks         instrument.MethodMetrics
-	fetchBlocksMetadata instrument.MethodMetrics
-	repair              instrument.MethodMetrics
-	truncate            instrument.MethodMetrics
-	fetchBatchRaw       instrument.BatchMethodMetrics
-	writeBatchRaw       instrument.BatchMethodMetrics
-	writeTaggedBatchRaw instrument.BatchMethodMetrics
-	overloadRejected    tally.Counter
+	fetch                   instrument.MethodMetrics
+	fetchTagged             instrument.MethodMetrics
+	aggregate               instrument.MethodMetrics
+	write                   instrument.MethodMetrics
+	writeTagged             instrument.MethodMetrics
+	fetchBlocks             instrument.MethodMetrics
+	fetchBlocksMetadata     instrument.MethodMetrics
+	repair                  instrument.MethodMetrics
+	truncate                instrument.MethodMetrics
+	fetchBatchRawRPCS       tally.Counter
+	fetchBatchRaw           instrument.BatchMethodMetrics
+	writeBatchRawRPCs       tally.Counter
+	writeBatchRaw           instrument.BatchMethodMetrics
+	writeTaggedBatchRawRPCs tally.Counter
+	writeTaggedBatchRaw     instrument.BatchMethodMetrics
+	overloadRejected        tally.Counter
 }
 
-func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
+func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
 	return serviceMetrics{
-		fetch:               instrument.NewMethodMetrics(scope, "fetch", samplingRate),
-		fetchTagged:         instrument.NewMethodMetrics(scope, "fetchTagged", samplingRate),
-		aggregate:           instrument.NewMethodMetrics(scope, "aggregate", samplingRate),
-		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
-		writeTagged:         instrument.NewMethodMetrics(scope, "writeTagged", samplingRate),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		repair:              instrument.NewMethodMetrics(scope, "repair", samplingRate),
-		truncate:            instrument.NewMethodMetrics(scope, "truncate", samplingRate),
-		fetchBatchRaw:       instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
-		writeBatchRaw:       instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
-		writeTaggedBatchRaw: instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", samplingRate),
-		overloadRejected:    scope.Counter("overload-rejected"),
+		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
+		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
+		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", opts),
+		write:                   instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", opts),
+		fetchBlocks:             instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata:     instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		repair:                  instrument.NewMethodMetrics(scope, "repair", opts),
+		truncate:                instrument.NewMethodMetrics(scope, "truncate", opts),
+		fetchBatchRawRPCS:       scope.Counter("fetchBatchRaw-rpcs"),
+		fetchBatchRaw:           instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", opts),
+		writeBatchRawRPCs:       scope.Counter("writeBatchRaw-rpcs"),
+		writeBatchRaw:           instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", opts),
+		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
+		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
+		overloadRejected:        scope.Counter("overload-rejected"),
 	}
 }
 
@@ -149,6 +157,14 @@ type serviceState struct {
 	sync.RWMutex
 	db     storage.Database
 	health *rpc.NodeHealthResult_
+
+	numOutstandingWriteRPCs int
+	maxOutstandingWriteRPCs int
+
+	numOutstandingReadRPCs int
+	maxOutstandingReadRPCs int
+
+	profiles map[string]*xdebug.ContinuousFileProfile
 }
 
 func (s *serviceState) DB() (storage.Database, bool) {
@@ -163,6 +179,52 @@ func (s *serviceState) Health() (*rpc.NodeHealthResult_, bool) {
 	v := s.health
 	s.RUnlock()
 	return v, v != nil
+}
+
+func (s *serviceState) DBForWriteRPCWithLimit() (
+	db storage.Database, dbInitialized bool, rpcDoesNotExceedLimit bool) {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.db == nil {
+		return nil, false, false
+	}
+	if s.numOutstandingWriteRPCs >= s.maxOutstandingWriteRPCs {
+		return nil, true, false
+	}
+
+	v := s.db
+	s.numOutstandingWriteRPCs++
+	return v, true, true
+}
+
+func (s *serviceState) DecNumOutstandingWriteRPCs() {
+	s.Lock()
+	s.numOutstandingWriteRPCs--
+	s.Unlock()
+}
+
+func (s *serviceState) DBForReadRPCWithLimit() (
+	db storage.Database, dbInitialized bool, requestDoesNotExceedLimit bool) {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.db == nil {
+		return nil, false, false
+	}
+	if s.numOutstandingReadRPCs >= s.maxOutstandingReadRPCs {
+		return nil, true, false
+	}
+
+	v := s.db
+	s.numOutstandingReadRPCs++
+	return v, true, true
+}
+
+func (s *serviceState) DecNumOutstandingReadRPCs() {
+	s.Lock()
+	s.numOutstandingReadRPCs--
+	s.Unlock()
 }
 
 type pools struct {
@@ -188,6 +250,13 @@ type Service interface {
 
 	// Only safe to be called one time once the service has started.
 	SetDatabase(db storage.Database) error
+
+	// SetMetadata sets a metadata key to the given value.
+	SetMetadata(key, value string)
+
+	// GetMetadata returns the metadata for the given key and a bool indicating
+	// if it is present.
+	GetMetadata(key string) (string, bool)
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -207,13 +276,6 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 	iopts = iopts.SetMetricsScope(scope)
 	opts = opts.SetInstrumentOptions(iopts)
 
-	wrapperPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(checkedBytesPoolSize).
-		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("node-checked-bytes-wrapper-pool")))
-	wrapperPool := xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
-	wrapperPool.Init()
-
 	segmentPool := newSegmentsArrayPool(segmentsArrayPoolOpts{
 		Capacity:    initSegmentArrayPoolLength,
 		MaxCapacity: maxSegmentArrayPooledLength,
@@ -224,7 +286,15 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 	})
 	segmentPool.Init()
 
-	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts)
+	writeBatchPoolSize := writeBatchPooledReqPoolSize
+	if maxWriteReqs := opts.MaxOutstandingWriteRequests(); maxWriteReqs > 0 {
+		// If a limit on the number of maximum outstanding write
+		// requests has been set then we know the exact number of
+		// of writeBatchPooledReq objects we need to never have to
+		// allocate one on demand.
+		writeBatchPoolSize = maxWriteReqs
+	}
+	writeBatchPooledReqPool := newWriteBatchPooledReqPool(writeBatchPoolSize, iopts)
 	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
 
 	return &service{
@@ -235,14 +305,17 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 				Status:       "up",
 				Bootstrapped: false,
 			},
+			maxOutstandingWriteRPCs: opts.MaxOutstandingWriteRequests(),
+			maxOutstandingReadRPCs:  opts.MaxOutstandingReadRequests(),
+			profiles:                make(map[string]*xdebug.ContinuousFileProfile),
 		},
 		logger:  iopts.Logger(),
 		opts:    opts,
 		nowFn:   opts.ClockOptions().NowFn(),
-		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
+		metrics: newServiceMetrics(scope, iopts.TimerOptions()),
 		pools: pools{
 			id:                      opts.IdentifierPool(),
-			checkedBytesWrapper:     wrapperPool,
+			checkedBytesWrapper:     opts.CheckedBytesWrapperPool(),
 			tagEncoder:              opts.TagEncoderPool(),
 			tagDecoder:              opts.TagDecoderPool(),
 			segmentsArray:           segmentPool,
@@ -251,6 +324,34 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
 		},
 	}
+}
+
+func (s *service) SetMetadata(key, value string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// Copy health state and update single value since in flight
+	// requests might hold ref to current health result.
+	newHealth := &rpc.NodeHealthResult_{}
+	*newHealth = *s.state.health
+	var meta map[string]string
+	if curr := newHealth.Metadata; curr != nil {
+		meta = make(map[string]string, len(curr)+1)
+		for k, v := range curr {
+			meta[k] = v
+		}
+	} else {
+		meta = make(map[string]string, 8)
+	}
+	meta[key] = value
+	newHealth.Metadata = meta
+	s.state.health = newHealth
+}
+
+func (s *service) GetMetadata(key string) (string, bool) {
+	s.state.RLock()
+	md, found := s.state.health.Metadata[key]
+	s.state.RUnlock()
+	return md, found
 }
 
 func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
@@ -346,21 +447,24 @@ func (s *service) BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*rpc
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
-	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.Query)
-	sp.LogFields(
-		opentracinglog.String("query", req.Query.String()),
-		opentracinglog.String("namespace", req.NameSpace),
-		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
-		xopentracing.Time("end", time.Unix(0, req.RangeStart)),
-	)
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.Query)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", req.Query.String()),
+			opentracinglog.String("namespace", req.NameSpace),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+		)
+	}
 
 	result, err := s.query(ctx, db, req)
-	if err != nil {
+	if sampled && err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
 	sp.Finish()
@@ -386,7 +490,7 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 		EndExclusive:   end,
 	}
 	if l := req.Limit; l != nil {
-		opts.Limit = int(*l)
+		opts.SeriesLimit = int(*l)
 	}
 	queryResult, err := db.QueryIDs(ctx, nsID, index.Query{Query: q}, opts)
 	if err != nil {
@@ -402,16 +506,22 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 		fetchData = false
 	}
 	for _, entry := range queryResult.Results.Map().Iter() {
+		tags := entry.Value()
 		elem := &rpc.QueryResultElement{
 			ID:   entry.Key().String(),
-			Tags: make([]*rpc.Tag, 0, len(entry.Value().Values())),
+			Tags: make([]*rpc.Tag, 0, tags.Remaining()),
 		}
 		result.Results = append(result.Results, elem)
-		for _, tag := range entry.Value().Values() {
+
+		for tags.Next() {
+			tag := tags.Current()
 			elem.Tags = append(elem.Tags, &rpc.Tag{
 				Name:  tag.Name.String(),
 				Value: tag.Value.String(),
 			})
+		}
+		if err := tags.Err(); err != nil {
+			return nil, err
 		}
 		if !fetchData {
 			continue
@@ -429,10 +539,11 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	var (
 		callStart = s.nowFn()
@@ -473,12 +584,20 @@ func (s *service) readDatapoints(
 		return nil, err
 	}
 
+	// Resolve all futures (block reads can be backed by async implementations) and filter out any empty segments.
+	filteredBlockReaderSliceOfSlices, err := xio.FilterEmptyBlockReadersSliceOfSlicesInPlace(encoded)
+	if err != nil {
+		return nil, err
+	}
+
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
 	datapoints := make([]*rpc.Datapoint, 0)
 
 	multiIt := db.Options().MultiReaderIteratorPool().Get()
 	nsCtx := namespace.NewContextFor(nsID, db.Options().SchemaRegistry())
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded), nsCtx.Schema)
+	multiIt.ResetSliceOfSlices(
+		xio.NewReaderSliceOfSlicesFromBlockReadersIterator(
+			filteredBlockReaderSliceOfSlices), nsCtx.Schema)
 	defer multiIt.Close()
 
 	for multiIt.Next() {
@@ -505,21 +624,24 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
-	ctx, sp := tchannelthrift.Context(tctx).StartTraceSpan(tracepoint.FetchTagged)
-	sp.LogFields(
-		opentracinglog.String("query", string(req.Query)),
-		opentracinglog.String("namespace", string(req.NameSpace)),
-		xopentracing.Time("start", time.Unix(0, req.RangeStart)),
-		xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
-	)
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.FetchTagged)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", string(req.Query)),
+			opentracinglog.String("namespace", string(req.NameSpace)),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+		)
+	}
 
 	result, err := s.fetchTagged(ctx, db, req)
-	if err != nil {
+	if sampled && err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
 	sp.Finish()
@@ -542,26 +664,71 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		return nil, convert.ToRPCError(err)
 	}
 
+	results := queryResult.Results
 	response := &rpc.FetchTaggedResult_{
 		Exhaustive: queryResult.Exhaustive,
+		Elements:   make([]*rpc.FetchTaggedIDResult_, 0, results.Size()),
 	}
-	results := queryResult.Results
 	nsID := results.Namespace()
-	tagsIter := ident.NewTagsIterator(ident.Tags{})
+	nsIDBytes := nsID.Bytes()
+
+	// NB(r): Step 1 if reading data then read using an asynchronous block reader,
+	// but don't serialize yet so that all block reader requests can
+	// be issued at once before waiting for their results.
+	var encodedDataResults [][][]xio.BlockReader
+	if fetchData {
+		encodedDataResults = make([][][]xio.BlockReader, results.Size())
+	}
+	if err := s.fetchReadEncoded(ctx, db, response, results, nsID, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
+		return nil, err
+	}
+
+	// Step 2: If fetching data read the results of the asynchronuous block readers.
+	if fetchData {
+		s.fetchReadResults(ctx, response, nsID, encodedDataResults)
+	}
+
+	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
+	return response, nil
+}
+
+func (s *service) fetchReadEncoded(ctx context.Context,
+	db storage.Database,
+	response *rpc.FetchTaggedResult_,
+	results index.QueryResults,
+	nsID ident.ID,
+	nsIDBytes []byte,
+	callStart time.Time,
+	opts index.QueryOptions,
+	fetchData bool,
+	encodedDataResults [][][]xio.BlockReader,
+) error {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadEncoded)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+			xopentracing.Time("callStart", callStart),
+		)
+	}
+	defer sp.Finish()
+
+	i := 0
 	for _, entry := range results.Map().Iter() {
+		idx := i
+		i++
+
 		tsID := entry.Key()
 		tags := entry.Value()
 		enc := s.pools.tagEncoder.Get()
 		ctx.RegisterFinalizer(enc)
-		tagsIter.Reset(tags)
-		encodedTags, err := s.encodeTags(enc, tagsIter)
+		encodedTags, err := s.encodeTags(enc, tags)
 		if err != nil { // This is an invariant, should never happen
 			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-			return nil, tterrors.NewInternalError(err)
+			return tterrors.NewInternalError(err)
 		}
 
 		elem := &rpc.FetchTaggedIDResult_{
-			NameSpace:   nsID.Bytes(),
+			NameSpace:   nsIDBytes,
 			ID:          tsID.Bytes(),
 			EncodedTags: encodedTags.Bytes(),
 		}
@@ -569,23 +736,53 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		if !fetchData {
 			continue
 		}
-		segments, rpcErr := s.readEncoded(ctx, db, nsID, tsID, opts.StartInclusive, opts.EndExclusive)
+
+		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
+			opts.StartInclusive, opts.EndExclusive)
+		if err != nil {
+			elem.Err = convert.ToRPCError(err)
+		} else {
+			encodedDataResults[idx] = encoded
+		}
+	}
+	return nil
+}
+
+func (s *service) fetchReadResults(ctx context.Context,
+	response *rpc.FetchTaggedResult_,
+	nsID ident.ID,
+	encodedDataResults [][][]xio.BlockReader,
+) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadResults)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+			opentracinglog.Int("elementCount", len(response.Elements)),
+		)
+	}
+	defer sp.Finish()
+
+	for idx, elem := range response.Elements {
+		if elem.Err != nil {
+			continue
+		}
+
+		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedDataResults[idx])
 		if rpcErr != nil {
 			elem.Err = rpcErr
 			continue
 		}
-		elem.Segments = segments
-	}
 
-	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
-	return response, nil
+		response.Elements[idx].Segments = segments
+	}
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -625,10 +822,11 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 }
 
 func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRequest) (*rpc.AggregateQueryRawResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -654,12 +852,14 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 			TagName: entry.Key().Bytes(),
 		}
 		tagValues := entry.Value()
-		tagValuesMap := tagValues.Map()
-		responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
-		for _, entry := range tagValuesMap.Iter() {
-			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
-				TagValue: entry.Key().Bytes(),
-			})
+		if tagValues.HasValues() {
+			tagValuesMap := tagValues.Map()
+			responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
+			for _, entry := range tagValuesMap.Iter() {
+				responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
+					TagValue: entry.Key().Bytes(),
+				})
+			}
 		}
 		response.Results = append(response.Results, responseElem)
 	}
@@ -692,10 +892,12 @@ func (s *service) encodeTags(
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
-	db, err := s.startRPCWithDB()
+	s.metrics.fetchBatchRawRPCS.Inc(1)
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -709,22 +911,119 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	nsID := s.newID(ctx, req.NameSpace)
-
-	result := rpc.NewFetchBatchRawResult_()
-
 	var (
 		success            int
 		retryableErrors    int
 		nonRetryableErrors int
 	)
+	nsID := s.newID(ctx, req.NameSpace)
+	result := rpc.NewFetchBatchRawResult_()
+	result.Elements = make([]*rpc.FetchRawResult_, len(req.Ids))
 
+	// NB(r): Step 1 read the data using an asychronuous block reader,
+	// but don't serialize yet so that all block reader requests can
+	// be issued at once before waiting for their results.
+	encodedResults := make([]struct {
+		err    error
+		result [][]xio.BlockReader
+	}, len(req.Ids))
+	for i := range req.Ids {
+		tsID := s.newID(ctx, req.Ids[i])
+		encoded, err := db.ReadEncoded(ctx, nsID, tsID, start, end)
+		if err != nil {
+			encodedResults[i].err = err
+			continue
+		}
+		encodedResults[i].result = encoded
+	}
+
+	// Step 2: Read the results of the asynchronuous block readers.
 	for i := range req.Ids {
 		rawResult := rpc.NewFetchRawResult_()
-		result.Elements = append(result.Elements, rawResult)
+		result.Elements[i] = rawResult
 
-		tsID := s.newID(ctx, req.Ids[i])
-		segments, rpcErr := s.readEncoded(ctx, db, nsID, tsID, start, end)
+		if err := encodedResults[i].err; err != nil {
+			rawResult.Err = convert.ToRPCError(err)
+			continue
+		}
+
+		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedResults[i].result)
+		if rpcErr != nil {
+			rawResult.Err = rpcErr
+			if tterrors.IsBadRequestError(rawResult.Err) {
+				nonRetryableErrors++
+			} else {
+				retryableErrors++
+			}
+			continue
+		}
+
+		success++
+		rawResult.Segments = segments
+	}
+
+	s.metrics.fetchBatchRaw.ReportSuccess(success)
+	s.metrics.fetchBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.fetchBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.fetchBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+
+	return result, nil
+}
+
+func (s *service) FetchBatchRawV2(tctx thrift.Context, req *rpc.FetchBatchRawV2Request) (*rpc.FetchBatchRawResult_, error) {
+	s.metrics.fetchBatchRawRPCS.Inc(1)
+	db, err := s.startReadRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.readRPCCompleted()
+
+	var (
+		callStart          = s.nowFn()
+		ctx                = tchannelthrift.Context(tctx)
+		nsIDs              = make([]ident.ID, 0, len(req.Elements))
+		result             = rpc.NewFetchBatchRawResult_()
+		success            int
+		retryableErrors    int
+		nonRetryableErrors int
+	)
+	for _, nsBytes := range req.NameSpaces {
+		nsIDs = append(nsIDs, s.newID(ctx, nsBytes))
+	}
+	for _, elem := range req.Elements {
+		if elem.NameSpace >= int64(len(nsIDs)) {
+			return nil, fmt.Errorf(
+				"received fetch request with namespace index: %d, but only %d namespaces were provided",
+				elem.NameSpace, len(nsIDs))
+		}
+	}
+
+	for _, elem := range req.Elements {
+		start, rangeStartErr := convert.ToTime(elem.RangeStart, elem.RangeTimeType)
+		end, rangeEndErr := convert.ToTime(elem.RangeEnd, elem.RangeTimeType)
+		if rangeStartErr != nil || rangeEndErr != nil {
+			s.metrics.fetchBatchRaw.ReportNonRetryableErrors(len(req.Elements))
+			s.metrics.fetchBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+			return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+		}
+
+		rawResult := rpc.NewFetchRawResult_()
+		result.Elements = append(result.Elements, rawResult)
+		tsID := s.newID(ctx, elem.ID)
+
+		nsIdx := nsIDs[int(elem.NameSpace)]
+		encodedResult, err := db.ReadEncoded(ctx, nsIdx, tsID, start, end)
+		if err != nil {
+			rawResult.Err = convert.ToRPCError(err)
+			if tterrors.IsBadRequestError(rawResult.Err) {
+				nonRetryableErrors++
+			} else {
+				retryableErrors++
+			}
+			continue
+		}
+
+		segments, rpcErr := s.readEncodedResult(ctx, nsIdx, encodedResult)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
 			if tterrors.IsBadRequestError(rawResult.Err) {
@@ -748,10 +1047,11 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 }
 
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	var (
 		callStart = s.nowFn()
@@ -823,10 +1123,11 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 }
 
 func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawV2Request) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
-	db, err := s.startRPCWithDB()
+	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
 	}
+	defer s.readRPCCompleted()
 
 	callStart := s.nowFn()
 	defer func() {
@@ -957,10 +1258,11 @@ func (s *service) getBlocksMetadataV2FromResult(
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1003,10 +1305,11 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	db, err := s.startRPCWithDB()
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1056,10 +1359,12 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
-	db, err := s.startRPCWithDB()
+	s.metrics.writeBatchRawRPCs.Inc(1)
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1082,6 +1387,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
+
 	// The lifecycle of the annotations is more involved than the rest of the data
 	// so we set the annotation pool put method as the finalization function and
 	// let the database take care of returning them to the pool.
@@ -1113,7 +1419,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		)
 	}
 
-	err = db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch),
+	err = db.WriteBatch(ctx, nsID, batchWriter.(writes.WriteBatch),
 		pooledReq)
 	if err != nil {
 		return convert.ToRPCError(err)
@@ -1138,11 +1444,128 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	return nil
 }
 
-func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
-	db, err := s.startRPCWithDB()
+func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2Request) error {
+	s.metrics.writeBatchRawRPCs.Inc(1)
+	db, err := s.startWriteRPCWithDB()
 	if err != nil {
 		return err
 	}
+	defer s.writeRPCCompleted()
+
+	callStart := s.nowFn()
+	ctx := tchannelthrift.Context(tctx)
+
+	// Sanity check input.
+	numNamespaces := int64(len(req.NameSpaces))
+	for _, elem := range req.Elements {
+		if elem.NameSpace >= numNamespaces {
+			return fmt.Errorf("namespace index: %d is out of range of provided namespaces", elem.NameSpace)
+		}
+	}
+
+	// Sort the elements so that they're sorted by namespace so we can reuse the same batch writer.
+	sort.Slice(req.Elements, func(i, j int) bool {
+		return req.Elements[i].NameSpace < req.Elements[j].NameSpace
+	})
+
+	// NB(r): Use the pooled request tracking to return thrift alloc'd bytes
+	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
+	// reuse. We also reduce contention on pools by getting one per batch request
+	// rather than one per ID.
+	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq.writeV2Req = req
+	ctx.RegisterFinalizer(pooledReq)
+
+	var (
+		nsID        ident.ID
+		nsIdx       int64
+		batchWriter writes.BatchWriter
+
+		retryableErrors    int
+		nonRetryableErrors int
+	)
+	for i, elem := range req.Elements {
+		if nsID == nil || elem.NameSpace != nsIdx {
+			if batchWriter != nil {
+				err = db.WriteBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
+				if err != nil {
+					return convert.ToRPCError(err)
+				}
+				batchWriter = nil
+			}
+
+			nsID = s.newPooledID(ctx, req.NameSpaces[elem.NameSpace], pooledReq)
+			nsIdx = elem.NameSpace
+
+			batchWriter, err = db.BatchWriter(nsID, len(req.Elements))
+			if err != nil {
+				return convert.ToRPCError(err)
+			}
+			// The lifecycle of the annotations is more involved than the rest of the data
+			// so we set the annotation pool put method as the finalization function and
+			// let the database take care of returning them to the pool.
+			batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
+		}
+
+		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
+		if unitErr != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
+			continue
+		}
+
+		d, err := unit.Value()
+		if err != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
+			continue
+		}
+
+		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
+		batchWriter.Add(
+			i,
+			seriesID,
+			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
+			elem.Datapoint.Value,
+			unit,
+			elem.Datapoint.Annotation,
+		)
+	}
+
+	if batchWriter != nil {
+		// Write the last batch.
+		err = db.WriteBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
+		if err != nil {
+			return convert.ToRPCError(err)
+		}
+	}
+
+	nonRetryableErrors += pooledReq.numNonRetryableErrors()
+	retryableErrors += pooledReq.numRetryableErrors()
+	totalErrors := nonRetryableErrors + retryableErrors
+
+	s.metrics.writeBatchRaw.ReportSuccess(len(req.Elements) - totalErrors)
+	s.metrics.writeBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.writeBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.writeBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+
+	errs := pooledReq.writeBatchRawErrors()
+	if len(errs) > 0 {
+		batchErrs := rpc.NewWriteBatchRawErrors()
+		batchErrs.Errors = errs
+		return batchErrs
+	}
+
+	return nil
+}
+
+func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
+	s.metrics.writeTaggedBatchRawRPCs.Inc(1)
+	db, err := s.startWriteRPCWithDB()
+	if err != nil {
+		return err
+	}
+	defer s.writeRPCCompleted()
 
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -1165,9 +1588,12 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
-	// The lifecycle of the annotations is more involved than the rest of the data
-	// so we set the annotation pool put method as the finalization function and
-	// let the database take care of returning them to the pool.
+
+	// The lifecycle of the encoded tags and annotations is more involved than
+	// the rest of the data so we set the encoded tags and annotation pool put
+	// calls as finalization functions and let the database take care of
+	// returning them to the pool.
+	batchWriter.SetFinalizeEncodedTagsFn(finalizeEncodedTagsFn)
 	batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
 
 	for i, elem := range req.Elements {
@@ -1197,6 +1623,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			i,
 			seriesID,
 			dec,
+			elem.EncodedTags,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
 			unit,
@@ -1216,6 +1643,131 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	s.metrics.writeTaggedBatchRaw.ReportRetryableErrors(retryableErrors)
 	s.metrics.writeTaggedBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
 	s.metrics.writeTaggedBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+
+	errs := pooledReq.writeBatchRawErrors()
+	if len(errs) > 0 {
+		batchErrs := rpc.NewWriteBatchRawErrors()
+		batchErrs.Errors = errs
+		return batchErrs
+	}
+
+	return nil
+}
+
+func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTaggedBatchRawV2Request) error {
+	s.metrics.writeBatchRawRPCs.Inc(1)
+	db, err := s.startWriteRPCWithDB()
+	if err != nil {
+		return err
+	}
+	defer s.writeRPCCompleted()
+
+	callStart := s.nowFn()
+	ctx := tchannelthrift.Context(tctx)
+
+	// Sanity check input.
+	numNamespaces := int64(len(req.NameSpaces))
+	for _, elem := range req.Elements {
+		if elem.NameSpace >= numNamespaces {
+			return fmt.Errorf("namespace index: %d is out of range of provided namespaces", elem.NameSpace)
+		}
+	}
+
+	// Sort the elements so that they're sorted by namespace so we can reuse the same batch writer.
+	sort.Slice(req.Elements, func(i, j int) bool {
+		return req.Elements[i].NameSpace < req.Elements[j].NameSpace
+	})
+
+	// NB(r): Use the pooled request tracking to return thrift alloc'd bytes
+	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
+	// reuse. We also reduce contention on pools by getting one per batch request
+	// rather than one per ID.
+	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq.writeTaggedV2Req = req
+	ctx.RegisterFinalizer(pooledReq)
+
+	var (
+		nsID        ident.ID
+		nsIdx       int64
+		batchWriter writes.BatchWriter
+
+		retryableErrors    int
+		nonRetryableErrors int
+	)
+	for i, elem := range req.Elements {
+		if nsID == nil || elem.NameSpace != nsIdx {
+			if batchWriter != nil {
+				err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
+				if err != nil {
+					return convert.ToRPCError(err)
+				}
+				batchWriter = nil
+			}
+
+			nsID = s.newPooledID(ctx, req.NameSpaces[elem.NameSpace], pooledReq)
+			nsIdx = elem.NameSpace
+
+			batchWriter, err = db.BatchWriter(nsID, len(req.Elements))
+			if err != nil {
+				return convert.ToRPCError(err)
+			}
+			// The lifecycle of the encoded tags and annotations is more involved than the
+			// rest of the data so we set the annotation pool put method as the finalization
+			// function and let the database take care of returning them to the pool.
+			batchWriter.SetFinalizeEncodedTagsFn(finalizeEncodedTagsFn)
+			batchWriter.SetFinalizeAnnotationFn(finalizeAnnotationFn)
+		}
+
+		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
+		if unitErr != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
+			continue
+		}
+
+		d, err := unit.Value()
+		if err != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
+			continue
+		}
+
+		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
+		if err != nil {
+			nonRetryableErrors++
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
+			continue
+		}
+
+		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
+		batchWriter.AddTagged(
+			i,
+			seriesID,
+			dec,
+			elem.EncodedTags,
+			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
+			elem.Datapoint.Value,
+			unit,
+			elem.Datapoint.Annotation,
+		)
+	}
+
+	if batchWriter != nil {
+		// Write the last batch.
+		err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
+		if err != nil {
+			return convert.ToRPCError(err)
+		}
+	}
+
+	nonRetryableErrors += pooledReq.numNonRetryableErrors()
+	retryableErrors += pooledReq.numRetryableErrors()
+	totalErrors := nonRetryableErrors + retryableErrors
+
+	s.metrics.writeBatchRaw.ReportSuccess(len(req.Elements) - totalErrors)
+	s.metrics.writeBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.writeBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.writeBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
 
 	errs := pooledReq.writeBatchRawErrors()
 	if len(errs) > 0 {
@@ -1430,6 +1982,139 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
 }
 
+func (s *service) DebugProfileStart(
+	ctx thrift.Context,
+	req *rpc.DebugProfileStartRequest,
+) (*rpc.DebugProfileStartResult_, error) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, ok := s.state.profiles[req.Name]
+	if ok {
+		err := fmt.Errorf("profile already exists: %s", req.Name)
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	var (
+		interval time.Duration
+		duration time.Duration
+		debug    int
+		err      error
+	)
+	if v := req.Interval; v != nil {
+		interval, err = time.ParseDuration(*v)
+		if err != nil {
+			return nil, tterrors.NewBadRequestError(err)
+		}
+	}
+	if v := req.Duration; v != nil {
+		duration, err = time.ParseDuration(*v)
+		if err != nil {
+			return nil, tterrors.NewBadRequestError(err)
+		}
+	}
+	if v := req.Debug; v != nil {
+		debug = int(*v)
+	}
+
+	conditional := func() bool {
+		if v := req.ConditionalNumGoroutinesGreaterThan; v != nil {
+			if runtime.NumGoroutine() <= int(*v) {
+				return false
+			}
+		}
+		if v := req.ConditionalNumGoroutinesLessThan; v != nil {
+			if runtime.NumGoroutine() >= int(*v) {
+				return false
+			}
+		}
+		if v := req.ConditionalIsOverloaded; v != nil {
+			overloaded := s.state.db != nil && s.state.db.IsOverloaded()
+			if *v != overloaded {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	p, err := xdebug.NewContinuousFileProfile(xdebug.ContinuousFileProfileOptions{
+		FilePathTemplate:  req.FilePathTemplate,
+		ProfileName:       req.Name,
+		ProfileDuration:   duration,
+		ProfileDebug:      debug,
+		Conditional:       conditional,
+		Interval:          interval,
+		InstrumentOptions: s.opts.InstrumentOptions(),
+	})
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	if err := p.Start(); err != nil {
+		return nil, err
+	}
+
+	s.state.profiles[req.Name] = p
+
+	return &rpc.DebugProfileStartResult_{}, nil
+}
+
+func (s *service) DebugProfileStop(
+	ctx thrift.Context,
+	req *rpc.DebugProfileStopRequest,
+) (*rpc.DebugProfileStopResult_, error) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	existing, ok := s.state.profiles[req.Name]
+	if !ok {
+		err := fmt.Errorf("profile does not exist: %s", req.Name)
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	if err := existing.Stop(); err != nil {
+		return nil, err
+	}
+
+	delete(s.state.profiles, req.Name)
+
+	return &rpc.DebugProfileStopResult_{}, nil
+}
+
+func (s *service) DebugIndexMemorySegments(
+	ctx thrift.Context,
+	req *rpc.DebugIndexMemorySegmentsRequest,
+) (
+	*rpc.DebugIndexMemorySegmentsResult_,
+	error,
+) {
+	db, err := s.startRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var multiErr xerrors.MultiError
+	for _, ns := range db.Namespaces() {
+		idx, err := ns.Index()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := idx.DebugMemorySegments(storage.DebugMemorySegmentsOptions{
+			OutputDirectory: req.Directory,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := multiErr.FinalError(); err != nil {
+		return nil, err
+	}
+
+	return &rpc.DebugIndexMemorySegmentsResult_{}, nil
+}
+
 func (s *service) SetDatabase(db storage.Database) error {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1440,6 +2125,68 @@ func (s *service) SetDatabase(db storage.Database) error {
 
 	s.state.db = db
 	return nil
+}
+
+func (s *service) startWriteRPCWithDB() (storage.Database, error) {
+	if s.state.maxOutstandingWriteRPCs == 0 {
+		// No limitations on number of outstanding requests.
+		return s.startRPCWithDB()
+	}
+
+	db, dbIsInitialized, requestDoesNotExceedLimit := s.state.DBForWriteRPCWithLimit()
+	if !dbIsInitialized {
+		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+	if !requestDoesNotExceedLimit {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+	if db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+
+	return db, nil
+}
+
+func (s *service) writeRPCCompleted() {
+	if s.state.maxOutstandingWriteRPCs == 0 {
+		// Nothing to do since we're not tracking the number outstanding RPCs.
+		return
+	}
+
+	s.state.DecNumOutstandingWriteRPCs()
+}
+
+func (s *service) startReadRPCWithDB() (storage.Database, error) {
+	if s.state.maxOutstandingReadRPCs == 0 {
+		// No limitations on number of outstanding requests.
+		return s.startRPCWithDB()
+	}
+
+	db, dbIsInitialized, requestDoesNotExceedLimit := s.state.DBForReadRPCWithLimit()
+	if !dbIsInitialized {
+		return nil, convert.ToRPCError(errDatabaseIsNotInitializedYet)
+	}
+	if !requestDoesNotExceedLimit {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+	if db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, convert.ToRPCError(errServerIsOverloaded)
+	}
+
+	return db, nil
+}
+
+func (s *service) readRPCCompleted() {
+	if s.state.maxOutstandingReadRPCs == 0 {
+		// Nothing to do since we're not tracking the number outstanding RPCs.
+		return
+	}
+
+	s.state.DecNumOutstandingReadRPCs()
 }
 
 func (s *service) startRPCWithDB() (storage.Database, error) {
@@ -1472,16 +2219,19 @@ func (s *service) newPooledID(
 	return s.newID(ctx, id)
 }
 
-func (s *service) readEncoded(
+func (s *service) readEncodedResult(
 	ctx context.Context,
-	db storage.Database,
-	nsID, tsID ident.ID,
-	start, end time.Time,
+	nsID ident.ID,
+	encoded [][]xio.BlockReader,
 ) ([]*rpc.Segments, *rpc.Error) {
-	encoded, err := db.ReadEncoded(ctx, nsID, tsID, start, end)
-	if err != nil {
-		return nil, convert.ToRPCError(err)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadSingleResult)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+			opentracinglog.Int("segmentCount", len(encoded)),
+		)
 	}
+	defer sp.Finish()
 
 	segments := s.pools.segmentsArray.Get()
 	segments = segmentsArr(segments).grow(len(encoded))
@@ -1491,17 +2241,49 @@ func (s *service) readEncoded(
 	}))
 
 	for _, readers := range encoded {
-		converted, err := convert.ToSegments(readers)
+		segment, err := s.readEncodedResultSegment(ctx, nsID, readers)
 		if err != nil {
-			return nil, convert.ToRPCError(err)
+			return nil, err
 		}
-		if converted.Segments == nil {
+		if segment == nil {
 			continue
 		}
-		segments = append(segments, converted.Segments)
+		segments = append(segments, segment)
 	}
 
 	return segments, nil
+}
+
+func (s *service) readEncodedResultSegment(
+	ctx context.Context,
+	nsID ident.ID,
+	readers []xio.BlockReader,
+) (*rpc.Segments, *rpc.Error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadSegment)
+	defer sp.Finish()
+	converted, err := convert.ToSegments(readers)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+	if converted.Segments == nil {
+		return nil, nil
+	}
+
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+			opentracinglog.Int("blockCount", len(readers)),
+			opentracinglog.Int("unmergedCount", len(converted.Segments.Unmerged)),
+		)
+
+		if converted.Segments.Merged != nil {
+			sp.LogFields(
+				opentracinglog.Int64("mergedBlockSize", converted.Segments.Merged.GetBlockSize()),
+				opentracinglog.Int64("mergedStartTime", converted.Segments.Merged.GetStartTime()),
+			)
+		}
+	}
+	return converted.Segments, nil
 }
 
 func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.TagDecoder, error) {
@@ -1548,10 +2330,12 @@ func (c closeableMetadataV2Result) Finalize() {
 }
 
 type writeBatchPooledReq struct {
-	pooledIDs      []writeBatchPooledReqID
-	pooledIDsUsed  int
-	writeReq       *rpc.WriteBatchRawRequest
-	writeTaggedReq *rpc.WriteTaggedBatchRawRequest
+	pooledIDs        []writeBatchPooledReqID
+	pooledIDsUsed    int
+	writeReq         *rpc.WriteBatchRawRequest
+	writeV2Req       *rpc.WriteBatchRawV2Request
+	writeTaggedReq   *rpc.WriteTaggedBatchRawRequest
+	writeTaggedV2Req *rpc.WriteTaggedBatchRawV2Request
 
 	// We want to avoid allocating an intermediary slice of []error so we
 	// just include all the error handling in this struct for performance
@@ -1617,13 +2401,39 @@ func (r *writeBatchPooledReq) Finalize() {
 		}
 		r.writeReq = nil
 	}
+	if r.writeV2Req != nil {
+		for _, elem := range r.writeV2Req.Elements {
+			apachethrift.BytesPoolPut(elem.ID)
+			// Ownership of the annotations has been transferred to the BatchWriter
+			// so they will get returned the pool automatically by the commitlog once
+			// it finishes writing them to disk via the finalization function that
+			// gets set on the WriteBatch.
+		}
+		r.writeV2Req = nil
+	}
 	if r.writeTaggedReq != nil {
 		for _, elem := range r.writeTaggedReq.Elements {
 			apachethrift.BytesPoolPut(elem.ID)
-			apachethrift.BytesPoolPut(elem.EncodedTags)
+			// Ownership of the encoded tags has been transferred to the BatchWriter
+			// so they will get returned the pool automatically by the commitlog once
+			// it finishes writing them to disk via the finalization function that
+			// gets set on the WriteBatch.
+
 			// See comment above about not finalizing annotations here.
 		}
 		r.writeTaggedReq = nil
+	}
+	if r.writeTaggedV2Req != nil {
+		for _, elem := range r.writeTaggedV2Req.Elements {
+			apachethrift.BytesPoolPut(elem.ID)
+			// Ownership of the encoded tags has been transferred to the BatchWriter
+			// so they will get returned the pool automatically by the commitlog once
+			// it finishes writing them to disk via the finalization function that
+			// gets set on the WriteBatch.
+
+			// See comment above about not finalizing annotations here.
+		}
+		r.writeTaggedV2Req = nil
 	}
 
 	r.nonRetryableErrors = 0
@@ -1686,10 +2496,11 @@ type writeBatchPooledReqPool struct {
 }
 
 func newWriteBatchPooledReqPool(
+	size int,
 	iopts instrument.Options,
 ) *writeBatchPooledReqPool {
 	pool := pool.NewObjectPool(pool.NewObjectPoolOptions().
-		SetSize(writeBatchPooledReqPoolSize).
+		SetSize(size).
 		SetInstrumentOptions(iopts.SetMetricsScope(
 			iopts.MetricsScope().SubScope("write-batch-pooled-req-pool"))))
 	return &writeBatchPooledReqPool{pool: pool}
@@ -1727,6 +2538,13 @@ func (p *writeBatchPooledReqPool) Get() *writeBatchPooledReq {
 
 func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
 	p.pool.Put(v)
+}
+
+// finalizeEncodedTagsFn implements ts.FinalizeEncodedTagsFn because
+// apachethrift.BytesPoolPut(b) returns a bool but ts.FinalizeEncodedTagsFn
+// does not.
+func finalizeEncodedTagsFn(b []byte) {
+	apachethrift.BytesPoolPut(b)
 }
 
 // finalizeAnnotationFn implements ts.FinalizeAnnotationFn because

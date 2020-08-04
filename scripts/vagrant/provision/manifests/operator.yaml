@@ -1,0 +1,94 @@
+# Bundle source: https://github.com/m3db/m3db-operator/blob/master/bundle.yaml
+---
+# Source: m3db-operator/templates/service_account.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: m3db-operator
+  namespace: default
+
+---
+# Source: m3db-operator/templates/cluster_role.yaml
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: m3db-operator
+rules:
+- apiGroups: ["extensions"]
+  resources: ["deployments", "replicasets", "daemonsets"]
+  verbs: ["create", "get", "update", "delete", "list"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["create", "get", "update", "delete", "list"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "list", "create", "delete", "deletecollection"]
+- apiGroups: [""]
+  resources: ["persistentvolumes", "persistentvolumeclaims", "services", "secrets", "configmaps"]
+  verbs: ["create", "get", "update", "delete", "list"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs", "jobs"]
+  verbs: ["create", "get", "deletecollection", "delete"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list", "get", "watch", "patch", "update"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets", "deployments"]
+  verbs: ["*"]
+- apiGroups: ["operator.m3db.io"]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+
+---
+# Source: m3db-operator/templates/cluster_role_binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: m3db-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: m3db-operator
+subjects:
+- kind: ServiceAccount
+  name: m3db-operator
+  namespace: default
+
+---
+# Source: m3db-operator/templates/stateful_set.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: m3db-operator
+  namespace: default
+spec:
+  serviceName: m3db-operator
+  replicas: 1
+  selector:
+    matchLabels:
+      name: m3db-operator
+  template:
+    metadata:
+      labels:
+        name: m3db-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: m3db-operator
+          image: quay.io/m3db/m3db-operator:v0.4.0
+          command:
+          - m3db-operator
+          imagePullPolicy: Always
+          env:
+            - name: ENVIRONMENT
+              value: production
+      serviceAccount: m3db-operator

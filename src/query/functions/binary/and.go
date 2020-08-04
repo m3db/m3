@@ -28,19 +28,32 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-// AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
-// Other elements are replaced by NaNs. The metric name and values are carried over from the left-hand side.
+// AndType uses values from left hand side for which there is a value in right
+// hand side with exactly matching label sets. Other elements are replaced by
+// NaNs. The metric name and values are carried over from the left-hand side.
 const AndType = "and"
 
 func makeAndBlock(
 	queryCtx *models.QueryContext,
+	lMeta, rMeta block.Metadata,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matching VectorMatching,
 ) (block.Block, error) {
-	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
+	if !matching.Set {
+		return nil, errNoMatching
+	}
 
-	builder, err := controller.BlockBuilder(queryCtx, lMeta, rSeriesMeta)
+	lSeriesMetas := lIter.SeriesMeta()
+	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
+
+	rSeriesMetas := rIter.SeriesMeta()
+	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
+
+	lMeta.ResultMetadata = lMeta.ResultMetadata.
+		CombineMetadata(rMeta.ResultMetadata)
+	intersection, metas := andIntersect(matching, lSeriesMetas, rSeriesMetas)
+	builder, err := controller.BlockBuilder(queryCtx, lMeta, metas)
 	if err != nil {
 		return nil, err
 	}
@@ -49,30 +62,40 @@ func makeAndBlock(
 		return nil, err
 	}
 
-	intersection := andIntersect(matching, lIter.SeriesMeta(), rIter.SeriesMeta())
-	for index := 0; lIter.Next() && rIter.Next(); index++ {
+	// NB: shortcircuit and return an empty block if no matching series.
+	if len(metas) == 0 {
+		return builder.Build(), nil
+	}
+
+	data := make([]float64, len(metas))
+	for index := 0; lIter.Next(); index++ {
+		if !rIter.Next() {
+			return nil, errRExhausted
+		}
+
 		lStep := lIter.Current()
 		lValues := lStep.Values()
 		rStep := rIter.Current()
 		rValues := rStep.Values()
-		for idx, value := range lValues {
-			rIdx := intersection[idx]
-			if rIdx < 0 || math.IsNaN(rValues[rIdx]) {
-				if err := builder.AppendValue(index, math.NaN()); err != nil {
-					return nil, err
-				}
-
-				continue
+		for i, match := range intersection {
+			if math.IsNaN(rValues[match.rhsIndex]) {
+				data[i] = math.NaN()
+			} else {
+				data[i] = lValues[match.lhsIndex]
 			}
+		}
 
-			if err := builder.AppendValue(index, value); err != nil {
-				return nil, err
-			}
+		if err := builder.AppendValues(index, data); err != nil {
+			return nil, err
 		}
 	}
 
 	if err = lIter.Err(); err != nil {
 		return nil, err
+	}
+
+	if rIter.Next() {
+		return nil, errLExhausted
 	}
 
 	if err = rIter.Err(); err != nil {
@@ -82,28 +105,31 @@ func makeAndBlock(
 	return builder.Build(), nil
 }
 
-// intersect returns the slice of rhs indices if there is a match with
-// a corresponding lhs index. If no match is found, it returns -1
+// intersect returns the slice of lhs indices matching rhs indices.
 func andIntersect(
-	matching *VectorMatching,
+	matching VectorMatching,
 	lhs, rhs []block.SeriesMeta,
-) []int {
-	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
+) ([]indexMatcher, []block.SeriesMeta) {
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the right-hand side.
 	rightSigs := make(map[uint64]int, len(rhs))
 	for idx, meta := range rhs {
 		rightSigs[idFunction(meta.Tags)] = idx
 	}
 
-	matches := make([]int, len(lhs))
-	for i, ls := range lhs {
-		// If there's a matching entry in the right-hand side Vector, add the sample.
-		if idx, ok := rightSigs[idFunction(ls.Tags)]; ok {
-			matches[i] = idx
-		} else {
-			matches[i] = -1
+	matchers := make([]indexMatcher, 0, len(lhs))
+	metas := make([]block.SeriesMeta, 0, len(lhs))
+	for lhsIndex, ls := range lhs {
+		if rhsIndex, ok := rightSigs[idFunction(ls.Tags)]; ok {
+			matcher := indexMatcher{
+				lhsIndex: lhsIndex,
+				rhsIndex: rhsIndex,
+			}
+
+			matchers = append(matchers, matcher)
+			metas = append(metas, lhs[lhsIndex])
 		}
 	}
 
-	return matches
+	return matchers[:len(matchers)], metas[:len(metas)]
 }

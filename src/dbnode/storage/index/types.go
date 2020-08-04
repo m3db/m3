@@ -26,8 +26,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -37,9 +39,12 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
 var (
@@ -72,17 +77,32 @@ type Query struct {
 	idx.Query
 }
 
-// QueryOptions enables users to specify constraints on query execution.
+// QueryOptions enables users to specify constraints and
+// preferences on query execution.
 type QueryOptions struct {
-	StartInclusive time.Time
-	EndExclusive   time.Time
-	Limit          int
+	StartInclusive    time.Time
+	EndExclusive      time.Time
+	SeriesLimit       int
+	DocsLimit         int
+	RequireExhaustive bool
+	IterationOptions  IterationOptions
 }
 
-// LimitExceeded returns whether a given size exceeds the limit
-// the query options imposes, if it is enabled.
-func (o QueryOptions) LimitExceeded(size int) bool {
-	return o.Limit > 0 && size >= o.Limit
+// IterationOptions enables users to specify iteration preferences.
+type IterationOptions struct {
+	SeriesIteratorConsolidator encoding.SeriesIteratorConsolidator
+}
+
+// SeriesLimitExceeded returns whether a given size exceeds the
+// series limit the query options imposes, if it is enabled.
+func (o QueryOptions) SeriesLimitExceeded(size int) bool {
+	return o.SeriesLimit > 0 && size >= o.SeriesLimit
+}
+
+// DocsLimitExceeded returns whether a given size exceeds the
+// docs limit the query options imposes, if it is enabled.
+func (o QueryOptions) DocsLimitExceeded(size int) bool {
+	return o.DocsLimit > 0 && size >= o.DocsLimit
 }
 
 // AggregationOptions enables users to specify constraints on aggregations.
@@ -114,12 +134,15 @@ type BaseResults interface {
 	// Size returns the number of IDs tracked.
 	Size() int
 
+	// TotalDocsCount returns the total number of documents observed.
+	TotalDocsCount() int
+
 	// AddDocuments adds the batch of documents to the results set, it will
 	// take a copy of the bytes backing the documents so the original can be
 	// modified after this function returns without affecting the results map.
 	// TODO(r): We will need to change this behavior once index fields are
 	// mutable and the most recent need to shadow older entries.
-	AddDocuments(batch []doc.Document) (size int, err error)
+	AddDocuments(batch []doc.Document) (size, docsCount int, err error)
 
 	// Finalize releases any resources held by the Results object,
 	// including returning it to a backing pool.
@@ -141,11 +164,6 @@ type QueryResults interface {
 	// mutates the state of the results after obtaining a reference to the map
 	// with this call.
 	Map() *ResultsMap
-
-	// NoFinalize marks the Results such that a subsequent call to Finalize()
-	// will be a no-op and will not return the object to the pool or release any
-	// of its resources.
-	NoFinalize()
 }
 
 // QueryResultsOptions is a set of options to use for query results.
@@ -153,6 +171,12 @@ type QueryResultsOptions struct {
 	// SizeLimit will limit the total results set to a given limit and if
 	// overflown will return early successfully.
 	SizeLimit int
+
+	// FilterID, if provided, can be used to filter out unwanted IDs from
+	// the query results.
+	// NB(r): This is used to filter out results from shards the DB node
+	// node no longer owns but is still included in index segments.
+	FilterID func(id ident.ID) bool
 }
 
 // QueryResultsAllocator allocates QueryResults types.
@@ -190,7 +214,7 @@ type AggregateResults interface {
 	// i.e. it is not safe to use/modify the idents once this function returns.
 	AddFields(
 		batch []AggregateResultsEntry,
-	) (size int)
+	) (size, docsCount int)
 
 	// Map returns a map from tag name -> possible tag values,
 	// comprising aggregate results.
@@ -217,6 +241,10 @@ type AggregateResultsOptions struct {
 
 	// FieldFilter is an optional param to filter aggregate values.
 	FieldFilter AggregateFieldFilter
+
+	// RestrictByQuery is a query to restrict the set of documents that must
+	// be present for an aggregated term to be returned.
+	RestrictByQuery *Query
 }
 
 // AggregateResultsAllocator allocates AggregateResults types.
@@ -302,26 +330,30 @@ type Block interface {
 
 	// Query resolves the given query into known IDs.
 	Query(
+		ctx context.Context,
 		cancellable *resource.CancellableLifetime,
 		query Query,
 		opts QueryOptions,
 		results BaseResults,
+		logFields []opentracinglog.Field,
 	) (exhaustive bool, err error)
 
 	// Aggregate aggregates known tag names/values.
 	// NB(prateek): different from aggregating by means of Query, as we can
 	// avoid going to documents, relying purely on the indexed FSTs.
 	Aggregate(
+		ctx context.Context,
 		cancellable *resource.CancellableLifetime,
 		opts QueryOptions,
 		results AggregateResults,
+		logFields []opentracinglog.Field,
 	) (exhaustive bool, err error)
 
 	// AddResults adds bootstrap results to the block.
-	AddResults(results result.IndexBlock) error
+	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error
 
 	// Tick does internal house keeping operations.
-	Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error)
+	Tick(c context.Cancellable) (BlockTickResult, error)
 
 	// Stats returns block stats.
 	Stats(reporter BlockStatsReporter) error
@@ -345,6 +377,21 @@ type Block interface {
 	// data the mutable segments should have held at this time.
 	EvictMutableSegments() error
 
+	// NeedsMutableSegmentsEvicted returns whether this block has any cold mutable segments
+	// that are not-empty and sealed.
+	NeedsColdMutableSegmentsEvicted() bool
+
+	// EvictMutableSegments closes any stale cold mutable segments up to the currently active
+	// cold mutable segment (the one we are actively writing to).
+	EvictColdMutableSegments() error
+
+	// RotateColdMutableSegments rotates the currently active cold mutable segment out for a
+	// new cold mutable segment to write to.
+	RotateColdMutableSegments()
+
+	// MemorySegmentsData returns all in memory segments data.
+	MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error)
+
 	// Close will release any held resources and close the Block.
 	Close() error
 }
@@ -366,15 +413,36 @@ func (e *EvictMutableSegmentResults) Add(o EvictMutableSegmentResults) {
 // block and get an immutable list of segments back).
 type BlockStatsReporter interface {
 	ReportSegmentStats(stats BlockSegmentStats)
+	ReportIndexingStats(stats BlockIndexingStats)
 }
 
-// BlockStatsReporterFn implements the block stats reporter using
-// a callback function.
-type BlockStatsReporterFn func(stats BlockSegmentStats)
+type blockStatsReporter struct {
+	reportSegmentStats  func(stats BlockSegmentStats)
+	reportIndexingStats func(stats BlockIndexingStats)
+}
 
-// ReportSegmentStats implements the BlockStatsReporter interface.
-func (f BlockStatsReporterFn) ReportSegmentStats(stats BlockSegmentStats) {
-	f(stats)
+// NewBlockStatsReporter returns a new block stats reporter.
+func NewBlockStatsReporter(
+	reportSegmentStats func(stats BlockSegmentStats),
+	reportIndexingStats func(stats BlockIndexingStats),
+) BlockStatsReporter {
+	return blockStatsReporter{
+		reportSegmentStats:  reportSegmentStats,
+		reportIndexingStats: reportIndexingStats,
+	}
+}
+
+func (r blockStatsReporter) ReportSegmentStats(stats BlockSegmentStats) {
+	r.reportSegmentStats(stats)
+}
+
+func (r blockStatsReporter) ReportIndexingStats(stats BlockIndexingStats) {
+	r.reportIndexingStats(stats)
+}
+
+// BlockIndexingStats is stats about a block's indexing stats.
+type BlockIndexingStats struct {
+	IndexConcurrency int
 }
 
 // BlockSegmentStats has segment stats.
@@ -691,11 +759,11 @@ func (b *WriteBatch) Less(i, j int) bool {
 		panic(fmt.Errorf("unexpected sort by: %d", b.sortBy))
 	}
 
-	if b.entries[i].OnIndexSeries != nil && b.entries[j].OnIndexSeries == nil {
-		// This other entry has already been marked and this hasn't
+	if !b.entries[i].result.Done && b.entries[j].result.Done {
+		// This entry has been marked done and the other this hasn't
 		return true
 	}
-	if b.entries[i].OnIndexSeries == nil && b.entries[j].OnIndexSeries != nil {
+	if b.entries[i].result.Done && !b.entries[j].result.Done {
 		// This entry has already been marked and other hasn't
 		return false
 	}
@@ -885,4 +953,16 @@ type Options interface {
 
 	// ForwardIndexProbability returns the threshold for forward writes.
 	ForwardIndexThreshold() float64
+
+	// SetMmapReporter sets the mmap reporter.
+	SetMmapReporter(mmapReporter mmap.Reporter) Options
+
+	// MmapReporter returns the mmap reporter.
+	MmapReporter() mmap.Reporter
+
+	// SetQueryStatsTracker sets current query stats.
+	SetQueryStats(value stats.QueryStats) Options
+
+	// QueryStats returns the current query stats.
+	QueryStats() stats.QueryStats
 }

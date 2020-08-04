@@ -1,14 +1,69 @@
 # Developer Notes
 
+## Setup your development environment
+
+First fork https://github.com/m3db/m3 into your own workspace on Github.
+
+Then create your clone:
+
+```bash
+export working_dir=$GOPATH/src/github.com/m3db
+mkdir -p $working_dir
+
+# Set this to your Github user
+export user="your github profile name"
+
+# Clone your fork
+cd $working_dir
+git clone git@github.com:$user/m3.git
+# or: https://github.com/$user/m3.git
+
+# Set upstream
+cd m3
+git remote add upstream git@github.com:m3db/m3.git
+# or: https://github.com/m3db/m3.git
+
+# Never push to upstream master
+git remote set-url --push upstream no_push
+
+# Check if it makes sense:
+git remote -v
+```
+
+Install dependencies:
+
+```bash
+cd $working_dir/m3
+
+make install-vendor-m3
+```
+
+If everything is setup correctly you should be able to build `m3dbnode`:
+
+```bash
+make m3dbnode
+```
+
 ## Running the M3 stack locally
 
-Follow the instructions in `./scripts/development/m3_stack/README.md`
+Follow the instructions in [this README](./scripts/development/m3_stack/README.md).
 
 ## Testing Changes
 
 M3 has an extensive, and ever increasing, set of tests to ensure we are able to validate changes. More notes about the various testing strategies we employ can be found in `TESTING.md`. An unfortunate consequence of the number of tests is running the test suite takes too long on a developer's laptop. Here's the workflow most developers employ to be productive. Note: take this as a suggestion of something that works for some people, not as a directive. Do what makes you enjoy the development process most, including disregarding this suggestion!
 
 Once you have identified a change you want to make, and gathered consensus by talking to some devs, go ahead and make a branch with the changes. To test your changes:
+
+(0) If you have updated an interface that has been mocked, you need to update the generated `gomock `files.
+
+```shell
+# Generate mocks for all top level packages
+make mock-gen
+
+# If you just want to generate it for a single package,
+# replace xyz with the package you want to generate files for, e.g. dbnode
+make mock-gen-xyz
+```
 
 (1) Run unit tests locally
 ```

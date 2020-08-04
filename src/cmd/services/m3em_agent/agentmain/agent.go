@@ -65,6 +65,8 @@ func Run() {
 		logger.Fatal("unable to read configuration file", zap.Error(err))
 	}
 
+	xconfig.WarnOnDeprecation(conf, logger)
+
 	// pprof server
 	go func() {
 		if err := http.ListenAndServe(conf.Server.DebugAddress, nil); err != nil {
@@ -91,7 +93,7 @@ func Run() {
 	iopts := instrument.NewOptions().
 		SetLogger(logger).
 		SetMetricsScope(scope).
-		SetMetricsSamplingRate(conf.Metrics.SampleRate)
+		SetTimerOptions(instrument.TimerOptions{StandardSampleRate: conf.Metrics.SampleRate})
 
 	agentOpts := agent.NewOptions(iopts).
 		SetWorkingDirectory(conf.Agent.WorkingDir).

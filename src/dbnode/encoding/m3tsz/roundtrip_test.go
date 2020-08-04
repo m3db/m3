@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/testgen"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/protobuf/proto"
@@ -108,6 +108,9 @@ func testRoundTrip(t *testing.T, input []ts.Datapoint) {
 }
 
 func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
+	ctx := context.NewContext()
+	defer ctx.Close()
+
 	encoder := NewEncoder(testStartTime, nil, intOpt, nil)
 	for j, v := range input {
 		if j == 0 {
@@ -119,7 +122,7 @@ func validateRoundTrip(t *testing.T, input []ts.Datapoint, intOpt bool) {
 		}
 	}
 	decoder := NewDecoder(intOpt, nil)
-	stream, ok := encoder.Stream(encoding.StreamOptions{})
+	stream, ok := encoder.Stream(ctx)
 	require.True(t, ok)
 
 	it := decoder.Decode(stream)
@@ -195,7 +198,7 @@ func generateDataPoints(numPoints int, timeUnit time.Duration, numDig, numDec in
 	currentTime := time.Unix(startTime, 0)
 	endTime := testStartTime.Add(2 * time.Hour)
 	currentValue := 1.0
-	res := []ts.Datapoint{{currentTime, currentValue}}
+	res := []ts.Datapoint{{currentTime, xtime.ToUnixNano(currentTime), currentValue}}
 	for i := 1; i < numPoints; i++ {
 		currentTime = currentTime.Add(time.Second * time.Duration(rand.Intn(1200)))
 		currentValue = testgen.GenerateFloatVal(r, numDig, numDec)
@@ -213,7 +216,7 @@ func generateMixedDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoi
 	currentTime := time.Unix(startTime, 0)
 	endTime := testStartTime.Add(2 * time.Hour)
 	currentValue := testgen.GenerateFloatVal(r, 3, 16)
-	res := []ts.Datapoint{{currentTime, currentValue}}
+	res := []ts.Datapoint{{currentTime, xtime.ToUnixNano(currentTime), currentValue}}
 
 	for i := 1; i < numPoints; i++ {
 		currentTime = currentTime.Add(time.Second * time.Duration(r.Intn(7200)))

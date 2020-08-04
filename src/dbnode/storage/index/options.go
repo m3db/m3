@@ -25,12 +25,14 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -42,8 +44,9 @@ const (
 	// = 256 * 256 * 16
 	// = 1mb (but with Go's heap probably 2mb)
 	// TODO(r): Make this configurable in a followup change.
-	documentArrayPoolSize        = 256
-	documentArrayPoolCapacity    = 256
+	documentArrayPoolSize = 256
+	// DocumentArrayPoolCapacity is the capacity of the document array pool.
+	DocumentArrayPoolCapacity    = 256
 	documentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
 
 	// aggregateResultsEntryArrayPool size in general: 256*256*sizeof(doc.Field)
@@ -65,6 +68,7 @@ var (
 	errOptionsAggResultsEntryPoolUnspecified = errors.New("aggregate results entry array pool is unset")
 	errIDGenerationDisabled                  = errors.New("id generation is disabled")
 	errPostingsListCacheUnspecified          = errors.New("postings list cache is unset")
+	errOptionsQueryStatsUnspecified          = errors.New("query stats is unset")
 
 	defaultForegroundCompactionOpts compaction.PlannerOptions
 	defaultBackgroundCompactionOpts compaction.PlannerOptions
@@ -119,6 +123,8 @@ type opts struct {
 	backgroundCompactionPlannerOpts compaction.PlannerOptions
 	postingsListCache               *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
+	mmapReporter                    mmap.Reporter
+	queryStats                      stats.QueryStats
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -139,7 +145,7 @@ func NewOptions() Options {
 	docArrayPool := doc.NewDocumentArrayPool(doc.DocumentArrayPoolOpts{
 		Options: pool.NewObjectPoolOptions().
 			SetSize(documentArrayPoolSize),
-		Capacity:    documentArrayPoolCapacity,
+		Capacity:    DocumentArrayPoolCapacity,
 		MaxCapacity: documentArrayPoolMaxCapacity,
 	})
 	docArrayPool.Init()
@@ -169,6 +175,7 @@ func NewOptions() Options {
 		aggResultsEntryArrayPool:        aggResultsEntryArrayPool,
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
+		queryStats:                      stats.NoOpQueryStats(),
 	}
 	resultsPool.Init(func() QueryResults {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
@@ -204,6 +211,9 @@ func (o *opts) Validate() error {
 	}
 	if o.postingsListCache == nil {
 		return errPostingsListCacheUnspecified
+	}
+	if o.queryStats == nil {
+		return errOptionsQueryStatsUnspecified
 	}
 	return nil
 }
@@ -400,4 +410,24 @@ func (o *opts) SetForwardIndexThreshold(value float64) Options {
 
 func (o *opts) ForwardIndexThreshold() float64 {
 	return o.forwardIndexThreshold
+}
+
+func (o *opts) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	opts := *o
+	opts.mmapReporter = mmapReporter
+	return &opts
+}
+
+func (o *opts) MmapReporter() mmap.Reporter {
+	return o.mmapReporter
+}
+
+func (o *opts) SetQueryStats(value stats.QueryStats) Options {
+	opts := *o
+	opts.queryStats = value
+	return &opts
+}
+
+func (o *opts) QueryStats() stats.QueryStats {
+	return o.queryStats
 }

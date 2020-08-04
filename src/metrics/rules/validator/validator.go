@@ -206,6 +206,9 @@ func (v *validator) validateFilter(f string) (filters.TagFilterValueMap, error) 
 		if err := v.opts.CheckInvalidCharactersForTagName(tag); err != nil {
 			return nil, fmt.Errorf("tag name '%s' contains invalid character, err: %v", tag, err)
 		}
+		if err := v.opts.CheckFilterTagNameValid(tag); err != nil {
+			return nil, err
+		}
 	}
 	return filterValues, nil
 }

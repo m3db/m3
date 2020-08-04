@@ -23,6 +23,7 @@ package msgpack
 import (
 	"bytes"
 
+	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -56,26 +57,37 @@ type Encoder struct {
 type legacyEncodingIndexInfoVersion int
 
 const (
-	legacyEncodingIndexVersionCurrent                                = legacyEncodingIndexVersionV3
+	legacyEncodingIndexVersionCurrent                                = legacyEncodingIndexVersionV5
 	legacyEncodingIndexVersionV1      legacyEncodingIndexInfoVersion = iota
 	legacyEncodingIndexVersionV2
 	legacyEncodingIndexVersionV3
+	legacyEncodingIndexVersionV4
+	legacyEncodingIndexVersionV5
+)
+
+type legacyEncodingIndexEntryVersion int
+
+const (
+	legacyEncodingIndexEntryVersionCurrent                                 = legacyEncodingIndexEntryVersionV3
+	legacyEncodingIndexEntryVersionV1      legacyEncodingIndexEntryVersion = iota
+	legacyEncodingIndexEntryVersionV2
+	legacyEncodingIndexEntryVersionV3
 )
 
 type legacyEncodingOptions struct {
 	encodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
 	decodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
 
-	encodeLegacyV1IndexEntry bool
-	decodeLegacyV1IndexEntry bool
+	encodeLegacyIndexEntryVersion legacyEncodingIndexEntryVersion
+	decodeLegacyIndexEntryVersion legacyEncodingIndexEntryVersion
 }
 
 var defaultlegacyEncodingOptions = legacyEncodingOptions{
 	encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
 	decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
 
-	encodeLegacyV1IndexEntry: false,
-	decodeLegacyV1IndexEntry: false,
+	encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent,
+	decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent,
 }
 
 // NewEncoder creates a new encoder.
@@ -98,7 +110,8 @@ func newEncoder(legacy legacyEncodingOptions) *Encoder {
 	enc.encodeBytesFn = enc.encodeBytes
 	enc.encodeArrayLenFn = enc.encodeArrayLen
 
-	// Used primarily for testing.
+	// Used primarily for testing however legitimate production uses exist (e.g. addition of IndexEntryChecksum in
+	// IndexEntryV3)
 	enc.legacy = legacy
 
 	return enc
@@ -119,12 +132,17 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 		return enc.err
 	}
 	enc.encodeRootObject(indexInfoVersion, indexInfoType)
-	if enc.legacy.encodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 {
+	switch enc.legacy.encodeLegacyIndexInfoVersion {
+	case legacyEncodingIndexVersionV1:
 		enc.encodeIndexInfoV1(info)
-	} else if enc.legacy.encodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 {
+	case legacyEncodingIndexVersionV2:
 		enc.encodeIndexInfoV2(info)
-	} else {
+	case legacyEncodingIndexVersionV3:
 		enc.encodeIndexInfoV3(info)
+	case legacyEncodingIndexVersionV4:
+		enc.encodeIndexInfoV4(info)
+	default:
+		enc.encodeIndexInfoV5(info)
 	}
 	return enc.err
 }
@@ -134,11 +152,19 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	if enc.err != nil {
 		return enc.err
 	}
+
+	// There's no guarantee EncodeIndexEntry is called with an empty buffer so ensure
+	// only checksumming the bits we care about.
+	checksumStart := enc.buf.Len()
+
 	enc.encodeRootObject(indexEntryVersion, indexEntryType)
-	if enc.legacy.encodeLegacyV1IndexEntry {
+	switch enc.legacy.encodeLegacyIndexEntryVersion {
+	case legacyEncodingIndexEntryVersionV1:
 		enc.encodeIndexEntryV1(entry)
-	} else {
+	case legacyEncodingIndexEntryVersionV2:
 		enc.encodeIndexEntryV2(entry)
+	default:
+		enc.encodeIndexEntryV3(entry, checksumStart)
 	}
 	return enc.err
 }
@@ -200,7 +226,7 @@ func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
 // backwards-compatbility.
 func (enc *Encoder) encodeIndexInfoV2(info schema.IndexInfo) {
 	// Manually encode num fields for testing purposes.
-	enc.encodeNumObjectFieldsForFn(8) // V2 had 8 fields.
+	enc.encodeArrayLenFn(8) // V2 had 8 fields.
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
 	enc.encodeVarintFn(info.Entries)
@@ -211,7 +237,37 @@ func (enc *Encoder) encodeIndexInfoV2(info schema.IndexInfo) {
 	enc.encodeVarintFn(int64(info.FileType))
 }
 
+// We only keep this method around for the sake of testing
+// backwards-compatbility.
 func (enc *Encoder) encodeIndexInfoV3(info schema.IndexInfo) {
+	// Manually encode num fields for testing purposes.
+	enc.encodeArrayLenFn(9) // V3 had 9 fields.
+	enc.encodeVarintFn(info.BlockStart)
+	enc.encodeVarintFn(info.BlockSize)
+	enc.encodeVarintFn(info.Entries)
+	enc.encodeVarintFn(info.MajorVersion)
+	enc.encodeIndexSummariesInfo(info.Summaries)
+	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
+	enc.encodeVarintFn(info.SnapshotTime)
+	enc.encodeVarintFn(int64(info.FileType))
+	enc.encodeBytesFn(info.SnapshotID)
+}
+
+func (enc *Encoder) encodeIndexInfoV4(info schema.IndexInfo) {
+	enc.encodeArrayLenFn(10) // V4 had 10 fields.
+	enc.encodeVarintFn(info.BlockStart)
+	enc.encodeVarintFn(info.BlockSize)
+	enc.encodeVarintFn(info.Entries)
+	enc.encodeVarintFn(info.MajorVersion)
+	enc.encodeIndexSummariesInfo(info.Summaries)
+	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
+	enc.encodeVarintFn(info.SnapshotTime)
+	enc.encodeVarintFn(int64(info.FileType))
+	enc.encodeBytesFn(info.SnapshotID)
+	enc.encodeVarintFn(int64(info.VolumeIndex))
+}
+
+func (enc *Encoder) encodeIndexInfoV5(info schema.IndexInfo) {
 	enc.encodeNumObjectFieldsForFn(indexInfoType)
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
@@ -222,6 +278,8 @@ func (enc *Encoder) encodeIndexInfoV3(info schema.IndexInfo) {
 	enc.encodeVarintFn(info.SnapshotTime)
 	enc.encodeVarintFn(int64(info.FileType))
 	enc.encodeBytesFn(info.SnapshotID)
+	enc.encodeVarintFn(int64(info.VolumeIndex))
+	enc.encodeVarintFn(info.MinorVersion)
 }
 
 func (enc *Encoder) encodeIndexSummariesInfo(info schema.IndexSummariesInfo) {
@@ -244,17 +302,30 @@ func (enc *Encoder) encodeIndexEntryV1(entry schema.IndexEntry) {
 	enc.encodeBytesFn(entry.ID)
 	enc.encodeVarintFn(entry.Size)
 	enc.encodeVarintFn(entry.Offset)
-	enc.encodeVarintFn(entry.Checksum)
+	enc.encodeVarintFn(entry.DataChecksum)
 }
 
 func (enc *Encoder) encodeIndexEntryV2(entry schema.IndexEntry) {
+	enc.encodeArrayLenFn(6) // V2 had 6 fields.
+	enc.encodeVarintFn(entry.Index)
+	enc.encodeBytesFn(entry.ID)
+	enc.encodeVarintFn(entry.Size)
+	enc.encodeVarintFn(entry.Offset)
+	enc.encodeVarintFn(entry.DataChecksum)
+	enc.encodeBytesFn(entry.EncodedTags)
+}
+
+func (enc *Encoder) encodeIndexEntryV3(entry schema.IndexEntry, checksumStart int) {
 	enc.encodeNumObjectFieldsForFn(indexEntryType)
 	enc.encodeVarintFn(entry.Index)
 	enc.encodeBytesFn(entry.ID)
 	enc.encodeVarintFn(entry.Size)
 	enc.encodeVarintFn(entry.Offset)
-	enc.encodeVarintFn(entry.Checksum)
+	enc.encodeVarintFn(entry.DataChecksum)
 	enc.encodeBytesFn(entry.EncodedTags)
+
+	checksum := digest.Checksum(enc.Bytes()[checksumStart:])
+	enc.encodeVarintFn(int64(checksum))
 }
 
 func (enc *Encoder) encodeIndexSummary(summary schema.IndexSummary) {

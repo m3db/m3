@@ -85,10 +85,10 @@ func TestFileSystemManagerRun(t *testing.T) {
 
 	ts := time.Now()
 	gomock.InOrder(
-		cm.EXPECT().Cleanup(ts).Return(errors.New("foo")),
-		fm.EXPECT().Flush(ts, DatabaseBootstrapState{}).Return(errors.New("bar")),
+		cm.EXPECT().Cleanup(ts, true).Return(errors.New("foo")),
+		fm.EXPECT().Flush(ts).Return(errors.New("bar")),
 	)
 
-	mgr.Run(ts, DatabaseBootstrapState{}, syncRun, noForce)
+	mgr.Run(ts, syncRun, noForce)
 	require.Equal(t, fileOpNotStarted, mgr.status)
 }

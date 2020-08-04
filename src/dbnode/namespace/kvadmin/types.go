@@ -26,7 +26,7 @@ import (
 
 type NamespaceMetadataAdminService interface {
 	// GetAll gets namespace options for all namespaces.
-	GetAll() ([]*nsproto.NamespaceOptions, error)
+	GetAll() (*nsproto.Registry, error)
 
 	// Get gets option for the specified namespace.
 	Get(name string) (*nsproto.NamespaceOptions, error)

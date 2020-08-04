@@ -21,32 +21,47 @@
 package binary
 
 import (
+	"math"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 )
 
-// OrType uses all values from left hand side, and appends values from the right hand side which do
-// not have corresponding tags on the right
+// OrType uses all values from left hand side, and appends values from the
+// right hand side which do not have corresponding tags on the right.
 const OrType = "or"
 
 func makeOrBlock(
 	queryCtx *models.QueryContext,
+	lMeta, rMeta block.Metadata,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
-	matching *VectorMatching,
+	matching VectorMatching,
 ) (block.Block, error) {
+	if !matching.Set {
+		return nil, errNoMatching
+	}
+
+	lSeriesMetas := lIter.SeriesMeta()
+	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
+	lMeta, lSeriesMetas = removeNameTags(lMeta, lSeriesMetas)
+
+	rSeriesMetas := rIter.SeriesMeta()
+	rMeta, rSeriesMetas = removeNameTags(rMeta, rSeriesMetas)
+
 	meta, lSeriesMetas, rSeriesMetas, err := combineMetaAndSeriesMeta(
-		lIter.Meta(),
-		rIter.Meta(),
-		lIter.SeriesMeta(),
-		rIter.SeriesMeta(),
+		lMeta,
+		rMeta,
+		lSeriesMetas,
+		rSeriesMetas,
 	)
+
 	if err != nil {
 		return nil, err
 	}
 
-	missingIndices, combinedSeriesMeta := missing(
+	indices, combinedSeriesMeta := mergeIndices(
 		matching,
 		lSeriesMetas,
 		rSeriesMetas,
@@ -61,11 +76,26 @@ func makeOrBlock(
 		return nil, err
 	}
 
-	index := 0
-	for ; lIter.Next(); index++ {
+	values := make([]float64, len(combinedSeriesMeta))
+	for index := 0; lIter.Next(); index++ {
+		if !rIter.Next() {
+			return nil, errRExhausted
+		}
+
 		lStep := lIter.Current()
 		lValues := lStep.Values()
-		if err := builder.AppendValues(index, lValues); err != nil {
+		copy(values, lValues)
+		rStep := rIter.Current()
+		rValues := rStep.Values()
+		for iterIndex, valueIndex := range indices {
+			if valueIndex >= len(lValues) {
+				values[valueIndex] = rValues[iterIndex]
+			} else if math.IsNaN(values[valueIndex]) {
+				values[valueIndex] = rValues[iterIndex]
+			}
+		}
+
+		if err := builder.AppendValues(index, values); err != nil {
 			return nil, err
 		}
 	}
@@ -74,34 +104,48 @@ func makeOrBlock(
 		return nil, err
 	}
 
-	if err = appendValuesAtIndices(missingIndices, rIter, builder); err != nil {
+	if rIter.Next() {
+		return nil, errLExhausted
+	}
+
+	if err = rIter.Err(); err != nil {
 		return nil, err
 	}
 
 	return builder.Build(), nil
 }
 
-// missing returns the slice of rhs indices for which there are no corresponding
-// indices on the lhs. It also returns the metadatas for the series at these
-// indices to avoid having to calculate this separately
-func missing(
-	matching *VectorMatching,
+// mergeIndices returns a slice that maps rhs series to lhs series.
+//
+// NB(arnikola): if the series in the rhs does not exist in the lhs, it is
+// added after all lhs series have been added.
+// This function also combines the series metadatas for the entire block.
+func mergeIndices(
+	matching VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) ([]int, []block.SeriesMeta) {
-	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
-	leftSigs := make(map[uint64]struct{}, len(lhs))
-	for _, meta := range lhs {
-		leftSigs[idFunction(meta.Tags)] = struct{}{}
+	leftSigs := make(map[uint64]int, len(lhs))
+	for i, meta := range lhs {
+		l := idFunction(meta.Tags)
+		leftSigs[l] = i
 	}
 
-	missing := make([]int, 0, initIndexSliceLength)
-	for i, rs := range rhs {
-		// If there's no matching entry in the left-hand side Vector, add the sample.
-		if _, ok := leftSigs[idFunction(rs.Tags)]; !ok {
-			missing = append(missing, i)
-			lhs = append(lhs, rs)
+	rIndices := make([]int, len(rhs))
+	rIndex := len(lhs)
+	for i, meta := range rhs {
+		// If there's no matching entry in the left-hand side Vector,
+		// add the sample.
+		r := idFunction(meta.Tags)
+		if matchingIndex, ok := leftSigs[r]; !ok {
+			rIndices[i] = rIndex
+			rIndex++
+			lhs = append(lhs, meta)
+		} else {
+			rIndices[i] = matchingIndex
 		}
 	}
-	return missing, lhs
+
+	return rIndices, lhs
 }

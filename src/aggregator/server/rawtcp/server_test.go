@@ -70,7 +70,7 @@ var (
 	}
 	testTimed = aggregated.Metric{
 		Type:      metric.CounterType,
-		ID:        []byte("testForwarded"),
+		ID:        []byte("testTimed"),
 		TimeNanos: 12345,
 		Value:     -13,
 	}
@@ -79,6 +79,12 @@ var (
 		ID:        []byte("testForwarded"),
 		TimeNanos: 12345,
 		Values:    []float64{908, -13},
+	}
+	testPassthrough = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testPassthrough"),
+		TimeNanos: 12345,
+		Value:     -13,
 	}
 	testDefaultPoliciesList = policy.DefaultPoliciesList
 	testCustomPoliciesList  = policy.PoliciesList{
@@ -135,6 +141,7 @@ var (
 		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
+	testPassthroughStoragePolicy = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
 	testCounterWithPoliciesList = unaggregated.CounterWithPoliciesList{
 		Counter:      testCounter.Counter(),
 		PoliciesList: testDefaultPoliciesList,
@@ -166,6 +173,10 @@ var (
 	testForwardedMetricWithMetadata = aggregated.ForwardedMetricWithMetadata{
 		ForwardedMetric: testForwarded,
 		ForwardMetadata: testForwardMetadata,
+	}
+	testPassthroughMetricWithMetadata = aggregated.PassthroughMetricWithMetadata{
+		Metric:        testPassthrough,
+		StoragePolicy: testPassthroughStoragePolicy,
 	}
 	testCmpOpts = []cmp.Option{
 		cmpopts.EquateEmpty(),
@@ -224,6 +235,7 @@ func testRawTCPServerHandleUnaggregated(
 		protocol := protocolSelector(i)
 		if protocol == protobufEncoding {
 			expectedResult.TimedMetricWithMetadata = append(expectedResult.TimedMetricWithMetadata, testTimedMetricWithMetadata)
+			expectedResult.PassthroughMetricWithMetadata = append(expectedResult.PassthroughMetricWithMetadata, testPassthroughMetricWithMetadata)
 			expectedResult.ForwardedMetricsWithMetadata = append(expectedResult.ForwardedMetricsWithMetadata, testForwardedMetricWithMetadata)
 			expectedTotalMetrics += 5
 		} else {
@@ -261,6 +273,10 @@ func testRawTCPServerHandleUnaggregated(
 				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
 					Type: encoding.TimedMetricWithMetadataType,
 					TimedMetricWithMetadata: testTimedMetricWithMetadata,
+				}))
+				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+					Type: encoding.PassthroughMetricWithMetadataType,
+					PassthroughMetricWithMetadata: testPassthroughMetricWithMetadata,
 				}))
 				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
 					Type: encoding.ForwardedMetricWithMetadataType,

@@ -26,13 +26,16 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
+	queryconsolidator "github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	xsync "github.com/m3db/m3/src/x/sync"
 )
 
 var (
@@ -43,16 +46,30 @@ var (
 	defaultIterAlloc        = func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
+	defaultIteratorBatchingFn = iteratorBatchingFn
+	defaultInstrumented       = true
 )
 
 type encodedBlockOptions struct {
-	splitSeries      bool
-	lookbackDuration time.Duration
-	consolidationFn  consolidators.ConsolidationFunc
-	tagOptions       models.TagOptions
-	iterAlloc        encoding.ReaderIteratorAllocate
-	pools            encoding.IteratorPools
-	checkedPools     pool.CheckedBytesPool
+	splitSeries                   bool
+	lookbackDuration              time.Duration
+	consolidationFn               consolidators.ConsolidationFunc
+	tagOptions                    models.TagOptions
+	iterAlloc                     encoding.ReaderIteratorAllocate
+	pools                         encoding.IteratorPools
+	checkedPools                  pool.CheckedBytesPool
+	readWorkerPools               xsync.PooledWorkerPool
+	writeWorkerPools              xsync.PooledWorkerPool
+	queryConsolidatorMatchOptions queryconsolidator.MatchOptions
+	batchingFn                    IteratorBatchingFn
+	adminOptions                  []client.CustomAdminOption
+	instrumented                  bool
+}
+
+type nextDetails struct {
+	peek      peekValue
+	iter      encoding.SeriesIterator
+	collector consolidators.StepCollector
 }
 
 // NewOptions creates a default encoded block options which dictates how
@@ -66,13 +83,26 @@ func NewOptions() Options {
 	})
 	bytesPool.Init()
 
+	iteratorPools := pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{})
+	return newOptions(bytesPool, iteratorPools)
+}
+
+func newOptions(
+	bytesPool pool.CheckedBytesPool,
+	iteratorPools encoding.IteratorPools,
+) Options {
 	return &encodedBlockOptions{
 		lookbackDuration: defaultLookbackDuration,
 		consolidationFn:  defaultConsolidationFn,
 		tagOptions:       models.NewTagOptions(),
 		iterAlloc:        defaultIterAlloc,
-		pools:            pools.BuildIteratorPools(),
+		pools:            iteratorPools,
 		checkedPools:     bytesPool,
+		batchingFn:       defaultIteratorBatchingFn,
+		instrumented:     defaultInstrumented,
+		queryConsolidatorMatchOptions: queryconsolidator.MatchOptions{
+			MatchType: queryconsolidator.MatchIDs,
+		},
 	}
 }
 
@@ -144,6 +174,69 @@ func (o *encodedBlockOptions) SetCheckedBytesPool(p pool.CheckedBytesPool) Optio
 
 func (o *encodedBlockOptions) CheckedBytesPool() pool.CheckedBytesPool {
 	return o.checkedPools
+}
+
+func (o *encodedBlockOptions) SetReadWorkerPool(p xsync.PooledWorkerPool) Options {
+	opts := *o
+	opts.readWorkerPools = p
+	return &opts
+}
+
+func (o *encodedBlockOptions) ReadWorkerPool() xsync.PooledWorkerPool {
+	return o.readWorkerPools
+}
+
+func (o *encodedBlockOptions) SetWriteWorkerPool(p xsync.PooledWorkerPool) Options {
+	opts := *o
+	opts.writeWorkerPools = p
+	return &opts
+}
+
+func (o *encodedBlockOptions) WriteWorkerPool() xsync.PooledWorkerPool {
+	return o.writeWorkerPools
+}
+
+func (o *encodedBlockOptions) SetSeriesConsolidationMatchOptions(
+	value queryconsolidator.MatchOptions) Options {
+	opts := *o
+	opts.queryConsolidatorMatchOptions = value
+	return &opts
+}
+
+func (o *encodedBlockOptions) SeriesConsolidationMatchOptions() queryconsolidator.MatchOptions {
+	return o.queryConsolidatorMatchOptions
+}
+
+func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Options {
+	opts := *o
+	opts.batchingFn = fn
+	return &opts
+}
+
+func (o *encodedBlockOptions) IteratorBatchingFn() IteratorBatchingFn {
+	return o.batchingFn
+}
+
+func (o *encodedBlockOptions) SetCustomAdminOptions(
+	val []client.CustomAdminOption) Options {
+	opts := *o
+	opts.adminOptions = val
+	return &opts
+
+}
+
+func (o *encodedBlockOptions) CustomAdminOptions() []client.CustomAdminOption {
+	return o.adminOptions
+}
+
+func (o *encodedBlockOptions) SetInstrumented(i bool) Options {
+	opts := *o
+	opts.instrumented = i
+	return &opts
+}
+
+func (o *encodedBlockOptions) Instrumented() bool {
+	return o.instrumented
 }
 
 func (o *encodedBlockOptions) Validate() error {

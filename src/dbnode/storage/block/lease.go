@@ -29,15 +29,16 @@ import (
 var (
 	errLeaserAlreadyRegistered        = errors.New("leaser already registered")
 	errLeaserNotRegistered            = errors.New("leaser not registered")
-	errLeaseVerifierAlreadySet        = errors.New("lease verifier already set")
 	errOpenLeaseVerifierNotSet        = errors.New("cannot open leases while verifier is not set")
 	errUpdateOpenLeasesVerifierNotSet = errors.New("cannot update open leases while verifier is not set")
+	errConcurrentUpdateOpenLeases     = errors.New("cannot call updateOpenLeases() concurrently")
 )
 
 type leaseManager struct {
 	sync.Mutex
-	leasers  []Leaser
-	verifier LeaseVerifier
+	updateOpenLeasesInProgress bool
+	leasers                    []Leaser
+	verifier                   LeaseVerifier
 }
 
 // NewLeaseManager creates a new lease manager with a provided
@@ -52,12 +53,9 @@ func (m *leaseManager) RegisterLeaser(leaser Leaser) error {
 	m.Lock()
 	defer m.Unlock()
 
-	for _, l := range m.leasers {
-		if l == leaser {
-			return errLeaserAlreadyRegistered
-		}
+	if m.isRegistered(leaser) {
+		return errLeaserAlreadyRegistered
 	}
-
 	m.leasers = append(m.leasers, leaser)
 
 	return nil
@@ -90,40 +88,82 @@ func (m *leaseManager) OpenLease(
 ) error {
 	// NB(r): Take exclusive lock so that upgrade leases can't be called
 	// while we are verifying a lease (racey)
+	// NB(bodu): We don't use defer here since the lease verifier takes out a
+	// a db lock when retrieving flush states resulting in a potential deadlock.
 	m.Lock()
-	defer m.Unlock()
 
 	if m.verifier == nil {
+		m.Unlock()
 		return errOpenLeaseVerifierNotSet
 	}
 
-	registered := false
-	for _, l := range m.leasers {
-		if l == leaser {
-			registered = true
-			break
-		}
-	}
-
-	if !registered {
+	if !m.isRegistered(leaser) {
+		m.Unlock()
 		return errLeaserNotRegistered
 	}
 
+	m.Unlock()
 	return m.verifier.VerifyLease(descriptor, state)
+}
+
+func (m *leaseManager) OpenLatestLease(
+	leaser Leaser,
+	descriptor LeaseDescriptor,
+) (LeaseState, error) {
+	// NB(r): Take exclusive lock so that upgrade leases can't be called
+	// while we are verifying a lease (racey)
+	// NB(bodu): We don't use defer here since the lease verifier takes out a
+	// a db lock when retrieving flush states resulting in a potential deadlock.
+	m.Lock()
+
+	if m.verifier == nil {
+		m.Unlock()
+		return LeaseState{}, errOpenLeaseVerifierNotSet
+	}
+
+	if !m.isRegistered(leaser) {
+		m.Unlock()
+		return LeaseState{}, errLeaserNotRegistered
+	}
+
+	m.Unlock()
+	return m.verifier.LatestState(descriptor)
 }
 
 func (m *leaseManager) UpdateOpenLeases(
 	descriptor LeaseDescriptor,
 	state LeaseState,
 ) (UpdateLeasesResult, error) {
-	// NB(r): Take exclusive lock so that add lease can't be called
-	// while we are notifying existing
 	m.Lock()
-	defer m.Unlock()
-
 	if m.verifier == nil {
+		m.Unlock()
 		return UpdateLeasesResult{}, errUpdateOpenLeasesVerifierNotSet
 	}
+	if m.updateOpenLeasesInProgress {
+		// Prevent UpdateOpenLeases() calls from happening concurrently (since the lock
+		// is not held for the duration) to ensure that Leaser's receive all updates
+		// and in the correct order.
+		//
+		// NB(rartoul): In the future this could be made more granular by preventing
+		// concurrent calls for a given descriptor, but for now this is simpler since
+		// there is no existing code path that calls this method concurrently.
+		m.Unlock()
+		return UpdateLeasesResult{}, errConcurrentUpdateOpenLeases
+	}
+
+	m.updateOpenLeasesInProgress = true
+	// NB(rartoul): Release lock while calling UpdateOpenLease() so that
+	// calls to OpenLease() and OpenLatestLease() are not blocked which
+	// would blocks reads and could cause deadlocks if those calls were
+	// made while holding locks that would not allow UpdateOpenLease() to
+	// return before being released.
+	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.updateOpenLeasesInProgress = false
+		m.Unlock()
+	}()
 
 	var result UpdateLeasesResult
 	for _, l := range m.leasers {
@@ -148,13 +188,15 @@ func (m *leaseManager) UpdateOpenLeases(
 func (m *leaseManager) SetLeaseVerifier(leaseVerifier LeaseVerifier) error {
 	m.Lock()
 	defer m.Unlock()
-
-	if m.verifier != nil {
-		// SetLeaseVerifier is used for delayed initialization so calling it more
-		// than once means there is an initialization bug.
-		return errLeaseVerifierAlreadySet
-	}
-
 	m.verifier = leaseVerifier
 	return nil
+}
+
+func (m *leaseManager) isRegistered(leaser Leaser) bool {
+	for _, l := range m.leasers {
+		if l == leaser {
+			return true
+		}
+	}
+	return false
 }

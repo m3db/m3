@@ -13,7 +13,7 @@ M3 has several features, provided as discrete components, which make it an ideal
 
 * A distributed time series database, [M3DB](m3db/index.md), that provides scalable storage for time series data and a reverse index.
 * A sidecar process, [M3Coordinator](integrations/prometheus.md), that allows M3DB to act as the long-term storage for Prometheus.
-* A distributed query engine, [M3Query](query_engine/index.md), with native support for PromQL and Graphite (M3QL coming soon).
+* A distributed query engine, [M3Query](m3query/index.md), with native support for PromQL and Graphite (M3QL coming soon).
 <!-- Add M3Aggregator link -->
 * An aggregation tier, M3Aggregator, that runs as a dedicated metrics aggregator/downsampler allowing metrics to be stored at various retentions at different resolutions.
 
@@ -33,6 +33,6 @@ Getting started with M3 is as easy as following one of the How-To guides.
 For support with any issues, questions about M3 or its operation, or to leave any comments, the team can be
 reached in a variety of ways:
 
-* [Gitter](https://gitter.im/m3db/Lobby)
+* [Slack](http://bit.ly/m3slack)
 * [Email](https://groups.google.com/forum/#!forum/m3db)
 * [Github issues](https://github.com/m3db/m3/issues)

@@ -19,21 +19,24 @@ A fileset has the following files:
 * **Checkpoint file:** Stores a digest of the digests file and written at the succesful completion of a fileset volume being persisted, allows for quickly checking if a volume was completed.
 
 ```
-                                                     ┌─────────────────────┐
-┌─────────────────────┐  ┌─────────────────────┐     │     Index File      │
-│      Info File      │  │   Summaries File    │     │   (sorted by ID)    │
-├─────────────────────┤  │   (sorted by ID)    │     ├─────────────────────┤
-│- Block Start        │  ├─────────────────────┤  ┌─>│- Idx                │
-│- Block Size         │  │- Idx                │  │  │- ID                 │
-│- Entries (Num)      │  │- ID                 │  │  │- Size               │
-│- Major Version      │  │- Index Entry Offset ├──┘  │- Checksum           │
-│- Summaries (Num)    │  └─────────────────────┘     │- Data Entry Offset  ├──┐
-│- BloomFilter (K/M)  │                              │- Encoded Tags       |  |
-│- Snapshot Time      │                              └─────────────────────┘  │
-│- Type (Flush/Snap)  │                                                       │
-└─────────────────────┘                                                       │
-                                                                              │
-                         ┌─────────────────────┐  ┌───────────────────────────┘
+                                                     ┌───────────────────────┐
+┌─────────────────────┐  ┌─────────────────────┐     │     Index File        │
+│      Info File      │  │   Summaries File    │     │   (sorted by ID)      │
+├─────────────────────┤  │   (sorted by ID)    │     ├───────────────────────┤
+│- Block Start        │  ├─────────────────────┤  ┌─>│- Idx                  │
+│- Block Size         │  │- Idx                │  │  │- ID                   │
+│- Entries (Num)      │  │- ID                 │  │  │- Size                 │
+│- Major Version      │  │- Index Entry Offset ├──┘  │- Checksum             │
+│- Summaries (Num)    │  └─────────────────────┘     │- Data Entry Offset    ├──┐
+│- BloomFilter (K/M)  │                              │- Encoded Tags         │  │
+│- Snapshot Time      │                              │- Index Entry Checksum │  │
+│- Type (Flush/Snap)  │                              └───────────────────────┘  │
+│- Snapshot ID        │                                                         │
+│- Volume Index       │                                                         │
+│- Minor Version      │                                                         │
+└─────────────────────┘                                                         │
+                                                                                │
+                         ┌─────────────────────┐  ┌─────────────────────────────┘
 ┌─────────────────────┐  │  Bloom Filter File  │  │
 │    Digests File     │  ├─────────────────────┤  │  ┌─────────────────────┐
 ├─────────────────────┤  │- Bitset             │  │  │      Data File      │

@@ -29,7 +29,7 @@ const (
 	initAllocSize = 1024
 )
 
-// Ostream encapsulates a writable stream.
+// ostream encapsulates a writable stream.
 type ostream struct {
 	// We want to use a checked.Bytes when transferring ownership of the buffer
 	// of the ostream. Unfortunately, the accounting overhead of going through
@@ -66,12 +66,10 @@ func NewOStream(
 	return stream
 }
 
-// Len returns the length of the Ostream
 func (os *ostream) Len() int {
 	return len(os.rawBuffer)
 }
 
-// Empty returns whether the Ostream is empty
 func (os *ostream) Empty() bool {
 	return os.Len() == 0 && os.pos == 0
 }
@@ -132,7 +130,6 @@ func (os *ostream) fillUnused(v byte) {
 	os.rawBuffer[os.lastIndex()] |= v >> uint(os.pos)
 }
 
-// WriteBit writes the last bit of v.
 func (os *ostream) WriteBit(v Bit) {
 	v <<= 7
 	if !os.hasUnusedBits() {
@@ -143,7 +140,6 @@ func (os *ostream) WriteBit(v Bit) {
 	os.pos++
 }
 
-// WriteByte writes the last byte of v.
 func (os *ostream) WriteByte(v byte) {
 	if !os.hasUnusedBits() {
 		os.grow(v, 8)
@@ -153,7 +149,6 @@ func (os *ostream) WriteByte(v byte) {
 	os.grow(v<<uint(8-os.pos), os.pos)
 }
 
-// WriteBytes writes a byte slice.
 func (os *ostream) WriteBytes(bytes []byte) {
 	// Call ensureCapacityFor ahead of time to ensure that the bytes pool is used to
 	// grow the rawBuffer (as opposed to append possibly triggering an allocation if
@@ -177,15 +172,11 @@ func (os *ostream) WriteBytes(bytes []byte) {
 	}
 }
 
-// Write writes a byte slice. This method exists in addition to WriteBytes()
-// to satisfy the io.Writer interface.
 func (os *ostream) Write(bytes []byte) (int, error) {
 	os.WriteBytes(bytes)
 	return len(bytes), nil
 }
 
-// WriteBits writes the lowest numBits of v to the stream, starting
-// from the most significant bit to the least significant bit.
 func (os *ostream) WriteBits(v uint64, numBits int) {
 	if numBits == 0 {
 		return
@@ -210,7 +201,6 @@ func (os *ostream) WriteBits(v uint64, numBits int) {
 	}
 }
 
-// Discard takes the ref to the checked bytes from the ostream
 func (os *ostream) Discard() checked.Bytes {
 	os.repairCheckedBytes()
 
@@ -224,7 +214,6 @@ func (os *ostream) Discard() checked.Bytes {
 	return buffer
 }
 
-// Reset resets the ostream
 func (os *ostream) Reset(buffer checked.Bytes) {
 	if os.checked != nil {
 		// Release ref of the current raw buffer
@@ -251,13 +240,12 @@ func (os *ostream) Reset(buffer checked.Bytes) {
 	}
 }
 
-// Rawbytes returns the Osteam's raw bytes. Note that this does not transfer ownership
-// of the data and bypasses the checked.Bytes accounting so callers should:
-//     1. Only use the returned slice as a "read-only" snapshot of the data in a context
-//        where the caller has at least a read lock on the ostream itself.
-//     2. Use this function with care.
-func (os *ostream) Rawbytes() ([]byte, int) {
+func (os *ostream) RawBytes() ([]byte, int) {
 	return os.rawBuffer, os.pos
+}
+
+func (os *ostream) CheckedBytes() (checked.Bytes, int) {
+	return os.checked, os.pos
 }
 
 // repairCheckedBytes makes sure that the checked.Bytes wraps the rawBuffer as

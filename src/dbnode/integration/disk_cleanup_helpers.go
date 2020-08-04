@@ -27,11 +27,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/stretchr/testify/require"
@@ -114,7 +114,7 @@ type cleanupTimesFileSet struct {
 
 func (fset *cleanupTimesFileSet) anyExist() bool {
 	for _, t := range fset.times {
-		exists, err := fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
+		exists, err := fs.DataFileSetExists(fset.filePathPrefix, fset.namespace, fset.shard, t, 0)
 		if err != nil {
 			panic(err)
 		}
@@ -169,22 +169,22 @@ func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ident.ID, wai
 }
 
 // nolint: unused
-func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (*testSetup, error) {
-	err := testSetup.stopServer()
+func waitUntilNamespacesHaveReset(testSetup TestSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (TestSetup, error) {
+	err := testSetup.StopServer()
 	if err != nil {
 		return nil, err
 	}
 	// Reset to the desired shard set and namespaces
 	// Because restarting the server would bootstrap
 	// To old data we wanted to delete
-	testSetup.opts = testSetup.opts.SetNamespaces(newNamespaces)
+	testSetup.SetOpts(testSetup.Opts().SetNamespaces(newNamespaces))
 
-	resetSetup, err := newTestSetup(nil, testSetup.opts, testSetup.fsOpts)
+	resetSetup, err := NewTestSetup(nil, testSetup.Opts(), testSetup.FilesystemOpts())
 	if err != nil {
 		return nil, err
 	}
-	resetSetup.shardSet = newShardSet
-	err = resetSetup.startServer()
+	resetSetup.SetShardSet(newShardSet)
+	err = resetSetup.StartServer()
 	if err != nil {
 		return nil, err
 	}

@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 )
 
 const (
@@ -127,7 +127,7 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	}
 
 	params := n.op.params
-	meta := stepIter.Meta()
+	meta := b.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, _ := utils.GroupSeries(
 		params.MatchingTags,
@@ -164,7 +164,7 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 
 // shortcut to return empty when taking <= 0 values
 func takeNone(values []float64, buckets [][]int) []float64 {
-	ts.Memset(values, math.NaN())
+	util.Memset(values, math.NaN())
 	return values
 }
 

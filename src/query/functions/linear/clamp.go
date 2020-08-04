@@ -24,14 +24,18 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/lazy"
+	"github.com/m3db/m3/src/query/parser"
 )
 
 const (
-	// ClampMinType ensures all values except NaNs are greater than or equal to the provided argument
+	// ClampMinType ensures all values except NaNs are greater
+	// than or equal to the provided argument.
 	ClampMinType = "clamp_min"
 
-	// ClampMaxType ensures all values except NaNs are lesser than or equal to provided argument
+	// ClampMaxType ensures all values except NaNs are lesser
+	// than or equal to provided argument.
 	ClampMaxType = "clamp_max"
 )
 
@@ -40,55 +44,50 @@ type clampOp struct {
 	scalar float64
 }
 
-// NewClampOp creates a new clamp op based on the type and arguments
-func NewClampOp(args []interface{}, optype string) (BaseOp, error) {
+func parseClampArgs(args []interface{}) (float64, error) {
 	if len(args) != 1 {
-		return emptyOp, fmt.Errorf("invalid number of args for clamp: %d", len(args))
-	}
-
-	if optype != ClampMinType && optype != ClampMaxType {
-		return emptyOp, fmt.Errorf("unknown clamp type: %s", optype)
+		return 0, fmt.Errorf("invalid number of args for clamp: %d", len(args))
 	}
 
 	scalar, ok := args[0].(float64)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v", args[0])
+		return 0, fmt.Errorf("unable to cast to scalar argument: %v", args[0])
 	}
 
-	spec := clampOp{
-		opType: optype,
-		scalar: scalar,
-	}
-
-	return BaseOp{
-		operatorType: optype,
-		processorFn:  makeClampProcessor(spec),
-	}, nil
+	return scalar, nil
 }
 
-func makeClampProcessor(spec clampOp) makeProcessor {
-	clampOp := spec
-	return func(op BaseOp, controller *transform.Controller) Processor {
-		fn := math.Min
-		if op.operatorType == ClampMinType {
-			fn = math.Max
-		}
-
-		return &clampNode{op: clampOp, controller: controller, clampFn: fn}
-	}
-}
-
-type clampNode struct {
-	op         clampOp
-	clampFn    func(x, y float64) float64
-	controller *transform.Controller
-}
-
-func (c *clampNode) Process(values []float64) []float64 {
-	scalar := c.op.scalar
-	for i := range values {
-		values[i] = c.clampFn(values[i], scalar)
+func clampFn(max bool, roundTo float64) block.ValueTransform {
+	if max {
+		return func(v float64) float64 { return math.Min(v, roundTo) }
 	}
 
-	return values
+	return func(v float64) float64 { return math.Max(v, roundTo) }
+}
+
+func removeName(meta []block.SeriesMeta) []block.SeriesMeta {
+	for i, m := range meta {
+		meta[i].Tags = m.Tags.WithoutName()
+	}
+
+	return meta
+}
+
+// NewClampOp creates a new clamp op based on the type and arguments
+func NewClampOp(args []interface{}, opType string) (parser.Params, error) {
+	isMax := opType == ClampMaxType
+	if opType != ClampMinType && !isMax {
+		return nil, fmt.Errorf("unknown clamp type: %s", opType)
+	}
+
+	clampTo, err := parseClampArgs(args)
+	if err != nil {
+		return nil, err
+	}
+
+	fn := clampFn(isMax, clampTo)
+	lazyOpts := block.NewLazyOptions().
+		SetValueTransform(fn).
+		SetSeriesMetaTransform(removeName)
+	return lazy.NewLazyOp(opType, lazyOpts)
 }

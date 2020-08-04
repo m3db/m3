@@ -24,32 +24,37 @@ import (
 	"context"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
-
-	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/x/instrument"
 )
 
 // Engine executes a Query.
 type Engine interface {
-	// Execute runs the query and closes the results channel once done.
-	Execute(
+	// ExecuteProm runs the query and returns the result in a
+	// Prometheus-compatible format (primarily used for remote read paths).
+	ExecuteProm(
 		ctx context.Context,
 		query *storage.FetchQuery,
 		opts *QueryOptions,
-		results chan *storage.QueryResult,
-	)
+		fetchOpts *storage.FetchOptions,
+	) (storage.PromResult, error)
 
 	// ExecuteExpr runs the query DAG and closes the results channel once done.
 	ExecuteExpr(
 		ctx context.Context,
 		parser parser.Parser,
 		opts *QueryOptions,
+		fetchOpts *storage.FetchOptions,
 		params models.RequestParams,
-		results chan Query,
-	)
+	) (block.Block, error)
+
+	// Options returns the currently configured options.
+	Options() EngineOptions
 
 	// Close kills all running queries and prevents new queries from being attached.
 	Close() error
@@ -57,10 +62,12 @@ type Engine interface {
 
 // EngineOptions are used to create an engine.
 type EngineOptions interface {
-	// CostScopte returns the scope used for metrics.
-	CostScope() tally.Scope
-	// SetCostScope sets the scope used for metrics.
-	SetCostScope(tally.Scope) EngineOptions
+	// InstrumentOptions returns the instrument options and scope used
+	// for metrics.
+	InstrumentOptions() instrument.Options
+	// SetInstrumentOptions sets the instrument options and scope used
+	// for metrics.
+	SetInstrumentOptions(instrument.Options) EngineOptions
 
 	// GlobalEnforcer returns the query cost enforcer.
 	GlobalEnforcer() qcost.ChainedEnforcer
@@ -76,4 +83,9 @@ type EngineOptions interface {
 	LookbackDuration() time.Duration
 	// SetLookbackDuration sets the query lookback duration.
 	SetLookbackDuration(time.Duration) EngineOptions
+
+	// ParseOptions returns the parse options.
+	ParseOptions() promql.ParseOptions
+	// SetParseOptions sets the parse options.
+	SetParseOptions(p promql.ParseOptions) EngineOptions
 }

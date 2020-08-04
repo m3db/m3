@@ -23,22 +23,21 @@ package test
 import (
 	"fmt"
 	"io"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 var (
-	// SeriesID is the expected id for the generated series
-	SeriesID string
 	// SeriesNamespace is the expected namespace for the generated series
 	SeriesNamespace string
 	// TestTags is the expected tags for the generated series
@@ -58,7 +57,6 @@ var (
 )
 
 func init() {
-	SeriesID = "id"
 	SeriesNamespace = "namespace"
 
 	TestTags = map[string]string{"foo": "bar", "baz": "qux"}
@@ -144,6 +142,12 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 	return multiReader, nil
 }
 
+type sortableTags []ident.Tag
+
+func (a sortableTags) Len() int           { return len(a) }
+func (a sortableTags) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a sortableTags) Less(i, j int) bool { return a[i].Name.String() < a[j].Name.String() }
+
 // BuildTestSeriesIterator creates a sample SeriesIterator
 // This series iterator has two identical replicas.
 // Each replica has two blocks.
@@ -153,9 +157,9 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 // The second block is unmerged; when it was merged, it has values 101 -> 130
 // from two readers, one with even values and other with odd values
 // Expected data points for reading through the iterator: [3..30,101..130], 58 in total
-// SeriesIterator ID is 'foo', namespace is 'namespace'
+// SeriesIterator ID is given, namespace is 'namespace'
 // Tags are "foo": "bar" and "baz": "qux"
-func BuildTestSeriesIterator() (encoding.SeriesIterator, error) {
+func BuildTestSeriesIterator(id string) (encoding.SeriesIterator, error) {
 	replicaOne, err := buildReplica()
 	if err != nil {
 		return nil, err
@@ -165,18 +169,24 @@ func BuildTestSeriesIterator() (encoding.SeriesIterator, error) {
 		return nil, err
 	}
 
-	tags := ident.Tags{}
+	sortTags := make(sortableTags, 0, len(TestTags))
 	for name, value := range TestTags {
-		tags.Append(ident.StringTag(name, value))
+		sortTags = append(sortTags, ident.StringTag(name, value))
+	}
+
+	sort.Sort(sortTags)
+	tags := ident.Tags{}
+	for _, t := range sortTags {
+		tags.Append(t)
 	}
 
 	return encoding.NewSeriesIterator(
 		encoding.SeriesIteratorOptions{
-			ID:             ident.StringID(SeriesID),
+			ID:             ident.StringID(id),
 			Namespace:      ident.StringID(SeriesNamespace),
 			Tags:           ident.NewTagsIterator(tags),
-			StartInclusive: SeriesStart,
-			EndExclusive:   End,
+			StartInclusive: xtime.ToUnixNano(SeriesStart),
+			EndExclusive:   xtime.ToUnixNano(End),
 			Replicas: []encoding.MultiReaderIterator{
 				replicaOne,
 				replicaTwo,
@@ -253,8 +263,8 @@ func BuildCustomIterator(
 				ID:             ident.StringID(seriesID),
 				Namespace:      ident.StringID(seriesNamespace),
 				Tags:           ident.NewTagsIterator(tags),
-				StartInclusive: start,
-				EndExclusive:   currentStart.Add(blockSize),
+				StartInclusive: xtime.ToUnixNano(start),
+				EndExclusive:   xtime.ToUnixNano(currentStart.Add(blockSize)),
 				Replicas: []encoding.MultiReaderIterator{
 					multiReader,
 				},

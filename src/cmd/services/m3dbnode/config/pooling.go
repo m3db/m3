@@ -33,8 +33,9 @@ const (
 )
 
 const (
-	defaultMaxFinalizerCapacity = 4
-	defaultBlockAllocSize       = 16
+	defaultMaxFinalizerCapacity     = 4
+	defaultBlockAllocSize           = 16
+	defaultThriftBytesPoolAllocSize = 2048
 )
 
 type poolPolicyDefault struct {
@@ -53,8 +54,8 @@ type bucketPoolPolicyDefault struct {
 }
 
 var (
-	defaultRefillLowWaterMark  = 0.7
-	defaultRefillHighWaterMark = 1.0
+	defaultRefillLowWaterMark  = 0.3
+	defaultRefillHighWaterMark = 0.6
 
 	defaultPoolPolicy = poolPolicyDefault{
 		size:                4096,
@@ -63,37 +64,61 @@ var (
 	}
 
 	defaultPoolPolicies = map[string]poolPolicyDefault{
+		"checkedBytesWrapper": poolPolicyDefault{
+			size:                65536,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
+		},
 		"tagsIterator": defaultPoolPolicy,
-		"indexResults": defaultPoolPolicy,
-		"tagEncoder":   defaultPoolPolicy,
-		"tagDecoder":   defaultPoolPolicy,
+		"indexResults": poolPolicyDefault{
+			// NB(r): There only needs to be one index results map per
+			// concurrent query, so as long as there is no more than
+			// the number of concurrent index queries than the size
+			// specified here the maps should be recycled.
+			size:                256,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
+		},
+		"tagEncoder": poolPolicyDefault{
+			// NB(r): Tag encoder is used for every individual time series
+			// returned from an index query since it needs to encode the tags
+			// back for RPC and has a bytes buffer internally for each time
+			// series being returned.
+			size:                8192,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
+		},
+		"tagDecoder": defaultPoolPolicy,
 		"context": poolPolicyDefault{
-			size:                262144,
-			refillLowWaterMark:  defaultRefillLowWaterMark,
-			refillHighWaterMark: defaultRefillHighWaterMark,
+			size:                32768,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
 		},
 		"series": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"block": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"encoder": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"closers": poolPolicyDefault{
-			size:                104857,
-			refillLowWaterMark:  defaultRefillLowWaterMark,
-			refillHighWaterMark: defaultRefillHighWaterMark,
+			// NB(r): Note this has to be bigger than context pool by
+			// big fraction (by factor of say 4) since each context
+			// usually uses a fair few closers.
+			size:                262144,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
 		},
 		"segmentReader": poolPolicyDefault{
-			size:                16384,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
@@ -113,7 +138,7 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"identifier": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
@@ -135,6 +160,11 @@ var (
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
+		"retrieveRequestPool": poolPolicyDefault{
+			size:                65536,
+			refillLowWaterMark:  0,
+			refillHighWaterMark: 0,
+		},
 
 		// Capacity pools.
 		"fetchBlockMetadataResults": poolPolicyDefault{
@@ -149,7 +179,7 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 			capacity:            4096,
 		},
-		"hostBlockMetadataSlice": poolPolicyDefault{
+		"replicaMetadataSlice": poolPolicyDefault{
 			size:                131072,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
@@ -252,17 +282,23 @@ type PoolingPolicy struct {
 	// The initial alloc size for a block.
 	BlockAllocSize *int `yaml:"blockAllocSize"`
 
+	// The thrift bytes pool max bytes slice allocation for a single binary field.
+	ThriftBytesPoolAllocSize *int `yaml:"thriftBytesPoolAllocSize"`
+
 	// The general pool type (currently only supported: simple).
 	Type *PoolingType `yaml:"type"`
 
 	// The Bytes pool buckets to use.
 	BytesPool BucketPoolPolicy `yaml:"bytesPool"`
 
+	// The policy for the checked bytes wrapper pool.
+	CheckedBytesWrapperPool PoolPolicy `yaml:"checkedBytesWrapperPool"`
+
 	// The policy for the Closers pool.
 	ClosersPool PoolPolicy `yaml:"closersPool"`
 
 	// The policy for the Context pool.
-	ContextPool ContextPoolPolicy `yaml:"contextPool"`
+	ContextPool PoolPolicy `yaml:"contextPool"`
 
 	// The policy for the DatabaseSeries pool.
 	SeriesPool PoolPolicy `yaml:"seriesPool"`
@@ -288,8 +324,8 @@ type PoolingPolicy struct {
 	// The policy for the FetchBlocksMetadataResults pool.
 	FetchBlocksMetadataResultsPool CapacityPoolPolicy `yaml:"fetchBlocksMetadataResultsPool"`
 
-	// The policy for the HostBlockMetadataSlice pool.
-	HostBlockMetadataSlicePool CapacityPoolPolicy `yaml:"hostBlockMetadataSlicePool"`
+	// The policy for the ReplicaMetadataSlicePool pool.
+	ReplicaMetadataSlicePool CapacityPoolPolicy `yaml:"replicaMetadataSlicePool"`
 
 	// The policy for the BlockMetadat pool.
 	BlockMetadataPool PoolPolicy `yaml:"blockMetadataPool"`
@@ -327,12 +363,18 @@ type PoolingPolicy struct {
 	// The policy for the BufferBucketVersions pool.
 	BufferBucketVersionsPool PoolPolicy `yaml:"bufferBucketVersionsPool"`
 
+	// The policy for the RetrieveRequestPool pool.
+	RetrieveRequestPool PoolPolicy `yaml:"retrieveRequestPool"`
+
 	// The policy for the PostingsListPool.
 	PostingsListPool PoolPolicy `yaml:"postingsListPool"`
 }
 
 // InitDefaultsAndValidate initializes all default values and validates the configuration
 func (p *PoolingPolicy) InitDefaultsAndValidate() error {
+	if err := p.CheckedBytesWrapperPool.initDefaultsAndValidate("checkedBytesWrapper"); err != nil {
+		return err
+	}
 	if err := p.ClosersPool.initDefaultsAndValidate("closers"); err != nil {
 		return err
 	}
@@ -363,7 +405,7 @@ func (p *PoolingPolicy) InitDefaultsAndValidate() error {
 	if err := p.FetchBlocksMetadataResultsPool.initDefaultsAndValidate("fetchBlocksMetadataResults"); err != nil {
 		return err
 	}
-	if err := p.HostBlockMetadataSlicePool.initDefaultsAndValidate("hostBlockMetadataSlice"); err != nil {
+	if err := p.ReplicaMetadataSlicePool.initDefaultsAndValidate("replicaMetadataSlice"); err != nil {
 		return err
 	}
 	if err := p.BlockMetadataPool.initDefaultsAndValidate("blockMetadata"); err != nil {
@@ -405,6 +447,9 @@ func (p *PoolingPolicy) InitDefaultsAndValidate() error {
 	if err := p.BufferBucketVersionsPool.initDefaultsAndValidate("bufferBucketVersions"); err != nil {
 		return err
 	}
+	if err := p.RetrieveRequestPool.initDefaultsAndValidate("retrieveRequestPool"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -416,6 +461,16 @@ func (p *PoolingPolicy) BlockAllocSizeOrDefault() int {
 	}
 
 	return defaultBlockAllocSize
+}
+
+// ThriftBytesPoolAllocSizeOrDefault returns the configured thrift bytes pool
+// max alloc size if provided, or a default value otherwise.
+func (p *PoolingPolicy) ThriftBytesPoolAllocSizeOrDefault() int {
+	if p.ThriftBytesPoolAllocSize != nil {
+		return *p.ThriftBytesPoolAllocSize
+	}
+
+	return defaultThriftBytesPoolAllocSize
 }
 
 // TypeOrDefault returns the configured pooling type if provided, or a default
@@ -608,27 +663,6 @@ type WriteBatchPoolPolicy struct {
 	// MaxBatchSize controls the maximum size that a pooled WriteBatch can grow to
 	// and still remain in the pool.
 	MaxBatchSize *int `yaml:"maxBatchSize"`
-}
-
-// ContextPoolPolicy specifies the policy for the context pool.
-type ContextPoolPolicy struct {
-	PoolPolicy `yaml:",inline"`
-
-	// The maximum allowable size for a slice of finalizers that the
-	// pool will allow to be returned (finalizer slices that grow too
-	// large during use will be discarded instead of returning to the
-	// pool where they would consume more memory.)
-	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity" validate:"min=0"`
-}
-
-// MaxFinalizerCapacityOrDefault returns the maximum finalizer capacity and
-// fallsback to the default value if its not set.
-func (p ContextPoolPolicy) MaxFinalizerCapacityOrDefault() int {
-	if p.MaxFinalizerCapacity == 0 {
-		return defaultMaxFinalizerCapacity
-	}
-
-	return p.MaxFinalizerCapacity
 }
 
 func intPtr(x int) *int {

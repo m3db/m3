@@ -21,7 +21,9 @@
 package promql
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
@@ -33,15 +35,15 @@ import (
 	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/prometheus/prometheus/promql"
 
+	pql "github.com/prometheus/prometheus/promql/parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDAGWithCountOp(t *testing.T) {
 	q := "count(http_requests_total{method=\"GET\"}) by (service)"
-	p, err := Parse(q, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -51,13 +53,15 @@ func TestDAGWithCountOp(t *testing.T) {
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
 	assert.Equal(t, transforms[1].Op.OpType(), aggregation.CountType)
 	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"),
+		"fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"),
+		"aggregation should be the child")
 }
 
 func TestDAGWithOffset(t *testing.T) {
 	q := "up offset 2m"
-	p, err := Parse(q, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -67,19 +71,21 @@ func TestDAGWithOffset(t *testing.T) {
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
 	assert.Equal(t, transforms[1].Op.OpType(), lazy.OffsetType)
 	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "offset should be the child")
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"),
+		"fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"),
+		"offset should be the child")
 }
 
 func TestInvalidOffset(t *testing.T) {
 	q := "up offset -2m"
-	_, err := Parse(q, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
 }
 
 func TestNegativeUnary(t *testing.T) {
 	q := "-up"
-	p, err := Parse(q, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -95,7 +101,7 @@ func TestNegativeUnary(t *testing.T) {
 
 func TestPositiveUnary(t *testing.T) {
 	q := "+up"
-	p, err := Parse(q, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -107,30 +113,28 @@ func TestPositiveUnary(t *testing.T) {
 
 func TestInvalidUnary(t *testing.T) {
 	q := "*up"
-	_, err := Parse(q, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
 }
 
 func TestGetUnaryOpType(t *testing.T) {
-	promOpType := promql.ItemType(itemADD)
-	unaryOpType, err := getUnaryOpType(promOpType)
+	unaryOpType, err := getUnaryOpType(pql.ADD)
 	require.NoError(t, err)
 	assert.Equal(t, binary.PlusType, unaryOpType)
 
-	promOpType = promql.ItemType(itemEQL)
-	_, err = getUnaryOpType(promOpType)
+	_, err = getUnaryOpType(pql.EQL)
 	require.Error(t, err)
 }
 
 func TestDAGWithEmptyExpression(t *testing.T) {
 	q := ""
-	_, err := Parse(q, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
 }
 
 func TestDAGWithFakeOp(t *testing.T) {
 	q := "fake(http_requests_total{method=\"GET\"})"
-	_, err := Parse(q, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
 }
 
@@ -150,13 +154,15 @@ var aggregateParseTests = []struct {
 	{"bottomk(3, up)", aggregation.BottomKType},
 	{"quantile(3, up)", aggregation.QuantileType},
 	{"count_values(\"some_name\", up)", aggregation.CountValuesType},
+
+	{"absent(up)", aggregation.AbsentType},
 }
 
 func TestAggregateParses(t *testing.T) {
 	for _, tt := range aggregateParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -177,7 +183,6 @@ var linearParseTests = []struct {
 	expectedType string
 }{
 	{"abs(up)", linear.AbsType},
-	{"absent(up)", linear.AbsentType},
 	{"ceil(up)", linear.CeilType},
 	{"clamp_min(up, 1)", linear.ClampMinType},
 	{"clamp_max(up, 1)", linear.ClampMaxType},
@@ -187,6 +192,7 @@ var linearParseTests = []struct {
 	{"log2(up)", linear.Log2Type},
 	{"log10(up)", linear.Log10Type},
 	{"sqrt(up)", linear.SqrtType},
+	{"round(up)", linear.RoundType},
 	{"round(up, 10)", linear.RoundType},
 
 	{"day_of_month(up)", linear.DayOfMonthType},
@@ -206,11 +212,11 @@ func TestLinearParses(t *testing.T) {
 	for _, tt := range linearParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
-			assert.Len(t, transforms, 2)
+			require.Len(t, transforms, 2)
 			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
 			assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
@@ -218,6 +224,36 @@ func TestLinearParses(t *testing.T) {
 			assert.Len(t, edges, 1)
 			assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
 			assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+		})
+	}
+}
+
+var variadicTests = []struct {
+	q            string
+	expectedType string
+}{
+	{"day_of_month()", linear.DayOfMonthType},
+	{"day_of_week()", linear.DayOfWeekType},
+	{"day_of_month()", linear.DayOfMonthType},
+	{"days_in_month()", linear.DaysInMonthType},
+
+	{"hour()", linear.HourType},
+	{"minute()", linear.MinuteType},
+	{"month()", linear.MonthType},
+	{"year()", linear.YearType},
+}
+
+func TestVariadicParses(t *testing.T) {
+	for _, tt := range variadicTests {
+		t.Run(tt.q, func(t *testing.T) {
+			q := tt.q
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
+			require.NoError(t, err)
+			transforms, _, err := p.DAG()
+			require.NoError(t, err)
+			require.Len(t, transforms, 1)
+			assert.Equal(t, transforms[0].Op.OpType(), tt.expectedType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
 		})
 	}
 }
@@ -234,7 +270,7 @@ func TestSort(t *testing.T) {
 	for _, tt := range sortTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -247,7 +283,8 @@ func TestSort(t *testing.T) {
 }
 
 func TestScalar(t *testing.T) {
-	p, err := Parse("scalar(up)", models.NewTagOptions())
+	p, err := Parse("scalar(up)", time.Second,
+		models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -257,9 +294,31 @@ func TestScalar(t *testing.T) {
 	assert.Len(t, edges, 0)
 }
 
+func TestVector(t *testing.T) {
+	vectorExprs := []string{
+		"vector(12)",
+		"vector(scalar(up))",
+		"vector(12 - scalar(vector(100)-2))",
+	}
+
+	for _, expr := range vectorExprs {
+		t.Run(expr, func(t *testing.T) {
+			p, err := Parse(expr, time.Second,
+				models.NewTagOptions(), NewParseOptions())
+			require.NoError(t, err)
+			transforms, edges, err := p.DAG()
+			require.NoError(t, err)
+			assert.Len(t, transforms, 1)
+			assert.Equal(t, transforms[0].Op.OpType(), scalar.ScalarType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+			assert.Len(t, edges, 0)
+		})
+	}
+}
+
 func TestTimeTypeParse(t *testing.T) {
 	q := "time()"
-	p, err := Parse(q, models.NewTagOptions())
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -299,7 +358,8 @@ var binaryParseTests = []struct {
 func TestBinaryParses(t *testing.T) {
 	for _, tt := range binaryParseTests {
 		t.Run(tt.q, func(t *testing.T) {
-			p, err := Parse(tt.q, models.NewTagOptions())
+			p, err := Parse(tt.q, time.Second,
+				models.NewTagOptions(), NewParseOptions())
 
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
@@ -321,7 +381,8 @@ func TestBinaryParses(t *testing.T) {
 }
 
 func TestParenPrecedenceParses(t *testing.T) {
-	p, err := Parse("(5^(up-6))", models.NewTagOptions())
+	p, err := Parse("(5^(up-6))", time.Second,
+		models.NewTagOptions(), NewParseOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -385,7 +446,7 @@ func TestTemporalParses(t *testing.T) {
 	for _, tt := range temporalParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -413,7 +474,7 @@ func TestTagParses(t *testing.T) {
 	for _, tt := range tagParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q, models.NewTagOptions())
+			p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -431,6 +492,76 @@ func TestTagParses(t *testing.T) {
 
 func TestFailedTemporalParse(t *testing.T) {
 	q := "unknown_over_time(http_requests_total[5m])"
-	_, err := Parse(q, models.NewTagOptions())
+	_, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
 	require.Error(t, err)
+}
+
+func TestMissingTagsDoNotPanic(t *testing.T) {
+	q := `label_join(up, "foo", ",")`
+	p, err := Parse(q, time.Second, models.NewTagOptions(), NewParseOptions())
+	require.NoError(t, err)
+	assert.NotPanics(t, func() { _, _, _ = p.DAG() })
+}
+
+func TestCustomParseOptions(t *testing.T) {
+	q := "query"
+	v := "foo"
+	called := 0
+	fn := func(query string) (pql.Expr, error) {
+		assert.Equal(t, q, query)
+		called++
+		return &pql.StringLiteral{Val: v}, nil
+	}
+
+	opts := NewParseOptions().SetParseFn(fn)
+	ex, err := Parse(q, time.Second, models.NewTagOptions(), opts)
+	require.NoError(t, err)
+	assert.Equal(t, 1, called)
+	parse, ok := ex.(*promParser)
+	require.True(t, ok)
+	assert.Equal(t, pql.ValueTypeString, string(parse.expr.Type()))
+	str, ok := parse.expr.(*pql.StringLiteral)
+	require.True(t, ok)
+	assert.Equal(t, v, str.Val)
+}
+
+type customParam struct {
+	prefix string
+}
+
+func (c customParam) String() string {
+	return fmt.Sprintf("%s_custom", c.prefix)
+}
+
+func (c customParam) OpType() string {
+	return fmt.Sprintf("%s_customOpType", c.prefix)
+}
+
+func TestCustomSort(t *testing.T) {
+	tests := []struct {
+		q  string
+		ex string
+	}{
+		{"sort(up)", "sort_customOpType"},
+		{"clamp_max(up, 0.3)", "clamp_max_customOpType"},
+	}
+
+	fn := func(s string, _ []interface{}, _ []string,
+		_ bool, _ string, _ models.TagOptions) (parser.Params, bool, error) {
+		return customParam{s}, true, nil
+	}
+
+	opts := NewParseOptions().SetFunctionParseExpr(fn)
+	for _, tt := range tests {
+		p, err := Parse(tt.q, time.Second, models.NewTagOptions(), opts)
+		require.NoError(t, err)
+		transforms, edges, err := p.DAG()
+		require.NoError(t, err)
+		require.Len(t, transforms, 2)
+		assert.Equal(t, functions.FetchType, transforms[0].Op.OpType())
+		assert.Equal(t, parser.NodeID("0"), transforms[0].ID)
+		assert.Len(t, edges, 1)
+		assert.Equal(t, tt.ex, transforms[1].Op.OpType())
+		assert.Equal(t, parser.NodeID("1"), transforms[1].ID)
+	}
 }

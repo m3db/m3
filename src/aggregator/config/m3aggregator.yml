@@ -7,6 +7,8 @@ metrics:
   prometheus:
     onError: none
     handlerPath: /metrics
+    listenAddress: 0.0.0.0:6002
+    timerType: histogram
   sanitization: prometheus
   samplingRate: 1.0
   extended: none
@@ -94,6 +96,8 @@ aggregator:
   hostID:
     resolver: environment
     envVarName: M3AGGREGATOR_HOST_ID
+  instanceID:
+    type: host_id
   metricPrefix: ""
   counterPrefix: ""
   timerPrefix: ""
@@ -260,7 +264,7 @@ aggregator:
                 readBufferSize: 256
   forwarding:
     maxSingleDelay: 5s
-  entryTTL: 6h
+  entryTTL: 1h
   entryCheckInterval: 10m
   maxTimerBatchSizePerWrite: 140
   defaultStoragePolicies:

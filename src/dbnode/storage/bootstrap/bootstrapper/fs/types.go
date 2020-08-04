@@ -24,8 +24,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -61,6 +62,12 @@ type Options interface {
 	// when performing a bootstrap run with persistence enabled.
 	PersistManager() persist.Manager
 
+	// SetCompactor sets the compactor used to compact segment builders into segments.
+	SetCompactor(value *compaction.Compactor) Options
+
+	// Compactor returns the compactor used to compact segment builders into segments.
+	Compactor() *compaction.Compactor
+
 	// SetBoostrapDataNumProcessors sets the number of processors for CPU-bound
 	// work for bootstrapping data file sets.
 	SetBoostrapDataNumProcessors(value int) Options
@@ -77,23 +84,6 @@ type Options interface {
 	// work for bootstrapping data file sets.
 	BoostrapIndexNumProcessors() int
 
-	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
-	// use when bootstrapping retrievable blocks instead of blocks
-	// containing data.
-	// If you don't wish to bootstrap retrievable blocks instead of
-	// blocks containing data then do not set this manager.
-	// You can opt into which namespace you wish to have this enabled for
-	// by returning nil instead of a result when creating a new block retriever
-	// for a namespace from the manager.
-	SetDatabaseBlockRetrieverManager(
-		value block.DatabaseBlockRetrieverManager,
-	) Options
-
-	// NewBlockRetrieverFn returns the new block retriever constructor to
-	// use when bootstrapping retrievable blocks instead of blocks
-	// containing data.
-	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
-
 	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
@@ -105,4 +95,10 @@ type Options interface {
 
 	// IdentifierPool returns the identifier pool.
 	IdentifierPool() ident.Pool
+
+	// SetIndexOptions set the indexing options.
+	SetIndexOptions(value index.Options) Options
+
+	// IndexOptions returns the indexing options.
+	IndexOptions() index.Options
 }

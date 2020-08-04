@@ -168,18 +168,6 @@ type Options interface {
 	// IndexDefaultQueryTimeout is the hard timeout value to use if none is
 	// specified for a specific query, zero specifies to use no timeout at all.
 	IndexDefaultQueryTimeout() time.Duration
-
-	// SetFlushIndexBlockNumSegments sets the number of index block segments to
-	// divide into and flush separately to disk, the bigger the number the
-	// greater amount of segments that need to be searched independently but
-	// a higher number reduces the memory pressure when flushing an index block.
-	SetFlushIndexBlockNumSegments(value uint) Options
-
-	// FlushIndexBlockNumSegments sets the number of index block segments to
-	// divide into and flush separately to disk, the bigger the number the
-	// greater amount of segments that need to be searched independently but
-	// a higher number reduces the memory pressure when flushing an index block.
-	FlushIndexBlockNumSegments() uint
 }
 
 // OptionsManager updates and supplies runtime options.

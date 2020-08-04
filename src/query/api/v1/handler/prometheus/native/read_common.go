@@ -25,30 +25,149 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"sort"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser/promql"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 	xopentracing "github.com/m3db/m3/src/x/opentracing"
+	"github.com/uber-go/tally"
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 )
 
-func read(
-	reqCtx context.Context,
-	engine executor.Engine,
-	opts *executor.QueryOptions,
-	tagOpts models.TagOptions,
-	w http.ResponseWriter,
-	params models.RequestParams,
-) ([]*ts.Series, error) {
-	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
-	defer cancel()
+type promReadMetrics struct {
+	fetchSuccess      tally.Counter
+	fetchErrorsServer tally.Counter
+	fetchErrorsClient tally.Counter
+	fetchTimerSuccess tally.Timer
+	maxDatapoints     tally.Gauge
+}
 
+func newPromReadMetrics(scope tally.Scope) promReadMetrics {
+	return promReadMetrics{
+		fetchSuccess: scope.Counter("fetch.success"),
+		fetchErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).
+			Counter("fetch.errors"),
+		fetchErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).
+			Counter("fetch.errors"),
+		fetchTimerSuccess: scope.Timer("fetch.success.latency"),
+		maxDatapoints:     scope.Gauge("max_datapoints"),
+	}
+}
+
+// ReadResponse is the response that gets returned to the user
+type ReadResponse struct {
+	Results []ts.Series `json:"results,omitempty"`
+}
+
+// ReadResult is a result from a remote read.
+type ReadResult struct {
+	Series    []*ts.Series
+	Meta      block.ResultMetadata
+	BlockType block.BlockType
+}
+
+// ParseRequest parses the given request.
+func ParseRequest(
+	ctx context.Context,
+	r *http.Request,
+	instantaneous bool,
+	opts options.HandlerOptions,
+) (ParsedOptions, *xhttp.ParseError) {
+	fetchOpts, rErr := opts.FetchOptionsBuilder().NewFetchOptions(r)
+	if rErr != nil {
+		return ParsedOptions{}, rErr
+	}
+
+	queryOpts := &executor.QueryOptions{
+		QueryContextOptions: models.QueryContextOptions{
+			LimitMaxTimeseries: fetchOpts.SeriesLimit,
+			LimitMaxDocs:       fetchOpts.DocsLimit,
+		}}
+
+	restrictOpts := fetchOpts.RestrictQueryOptions.GetRestrictByType()
+	if restrictOpts != nil {
+		restrict := &models.RestrictFetchTypeQueryContextOptions{
+			MetricsType:   uint(restrictOpts.MetricsType),
+			StoragePolicy: restrictOpts.StoragePolicy,
+		}
+
+		queryOpts.QueryContextOptions.RestrictFetchType = restrict
+	}
+
+	engine := opts.Engine()
+	var params models.RequestParams
+	if instantaneous {
+		params, rErr = parseInstantaneousParams(r, engine.Options(),
+			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+	} else {
+		params, rErr = parseParams(r, engine.Options(),
+			opts.TimeoutOpts(), fetchOpts, opts.InstrumentOpts())
+	}
+
+	if rErr != nil {
+		return ParsedOptions{}, rErr
+	}
+
+	maxPoints := opts.Config().Limits.MaxComputedDatapoints()
+	if err := validateRequest(params, maxPoints); err != nil {
+		return ParsedOptions{}, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	return ParsedOptions{
+		QueryOpts: queryOpts,
+		FetchOpts: fetchOpts,
+		Params:    params,
+	}, nil
+}
+
+func validateRequest(params models.RequestParams, maxPoints int) error {
+	// Impose a rough limit on the number of returned time series.
+	// This is intended to prevent things like querying from the beginning of
+	// time with a 1s step size.
+	numSteps := int(params.End.Sub(params.Start) / params.Step)
+	if maxPoints > 0 && numSteps > maxPoints {
+		return fmt.Errorf(
+			"querying from %v to %v with step size %v would result in too many "+
+				"datapoints (end - start / step > %d). Either decrease the query "+
+				"resolution (?step=XX), decrease the time window, or increase "+
+				"the limit (`limits.maxComputedDatapoints`)",
+			params.Start, params.End, params.Step, maxPoints,
+		)
+	}
+
+	return nil
+}
+
+// ParsedOptions are parsed options for the query.
+type ParsedOptions struct {
+	QueryOpts     *executor.QueryOptions
+	FetchOpts     *storage.FetchOptions
+	Params        models.RequestParams
+	CancelWatcher handler.CancelWatcher
+}
+
+func read(
+	ctx context.Context,
+	parsed ParsedOptions,
+	handlerOpts options.HandlerOptions,
+) (ReadResult, error) {
+	var (
+		opts          = parsed.QueryOpts
+		fetchOpts     = parsed.FetchOpts
+		params        = parsed.Params
+		cancelWatcher = parsed.CancelWatcher
+
+		tagOpts = handlerOpts.TagOptions()
+		engine  = handlerOpts.Engine()
+	)
 	sp := xopentracing.SpanFromContextOrNoop(ctx)
 	sp.LogFields(
 		opentracinglog.String("params.query", params.Query),
@@ -58,203 +177,85 @@ func read(
 		xopentracing.Duration("params.step", params.Step),
 	)
 
-	// Detect clients closing connections
-	handler.CloseWatcher(ctx, cancel, w)
+	emptyResult := ReadResult{
+		Meta:      block.NewResultMetadata(),
+		BlockType: block.BlockEmpty,
+	}
 
 	// TODO: Capture timing
-	parser, err := promql.Parse(params.Query, tagOpts)
+	parseOpts := engine.Options().ParseOptions()
+	parser, err := promql.Parse(params.Query, params.Step, tagOpts, parseOpts)
 	if err != nil {
-		return nil, err
+		return emptyResult, err
 	}
 
-	// Results is closed by execute
-	results := make(chan executor.Query)
-	go engine.ExecuteExpr(ctx, parser, opts, params, results)
-	// Block slices are sorted by start time
-	// TODO: Pooling
-	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
-	var processErr error
-	for result := range results {
-		if result.Err != nil {
-			processErr = result.Err
-			break
-		}
+	// Detect clients closing connections.
+	if cancelWatcher != nil {
+		ctx, cancel := context.WithTimeout(ctx, fetchOpts.Timeout)
+		defer cancel()
 
-		resultChan := result.Result.ResultChan()
-		firstElement := false
-		var numSteps, numSeries int
-		// TODO(nikunj): Stream blocks to client
-		for blkResult := range resultChan {
-			if blkResult.Err != nil {
-				processErr = blkResult.Err
-				break
-			}
-
-			b := blkResult.Block
-			if !firstElement {
-				firstElement = true
-				firstStepIter, err := b.StepIter()
-				if err != nil {
-					processErr = err
-					break
-				}
-
-				firstSeriesIter, err := b.SeriesIter()
-				if err != nil {
-					processErr = err
-					break
-				}
-
-				numSteps = firstStepIter.StepCount()
-				numSeries = firstSeriesIter.SeriesCount()
-			}
-
-			// Insert blocks sorted by start time
-			sortedBlockList, err = insertSortedBlock(b, sortedBlockList, numSteps, numSeries)
-			if err != nil {
-				processErr = err
-				break
-			}
-		}
+		cancelWatcher.WatchForCancel(ctx, cancel)
 	}
 
-	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
-	defer func() {
-		for _, b := range sortedBlockList {
-			// FIXME: this will double close blocks that have gone through the function pipeline
-			b.block.Close()
-		}
-	}()
-
-	if processErr != nil {
-		// Drain anything remaining
-		drainResultChan(results)
-		return nil, processErr
-	}
-
-	return sortedBlocksToSeriesList(sortedBlockList)
-}
-
-func drainResultChan(resultsChan chan executor.Query) {
-	for result := range resultsChan {
-		// Ignore errors during drain
-		if result.Err != nil {
-			continue
-		}
-
-		for range result.Result.ResultChan() {
-			// drain out
-		}
-	}
-}
-
-func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
-	if len(blockList) == 0 {
-		return emptySeriesList, nil
-	}
-
-	firstBlock := blockList[0].block
-	firstSeriesIter, err := firstBlock.SeriesIter()
+	bl, err := engine.ExecuteExpr(ctx, parser, opts, fetchOpts, params)
 	if err != nil {
-		return nil, err
+		return emptyResult, err
 	}
 
-	numSeries := firstSeriesIter.SeriesCount()
-	seriesMeta := firstSeriesIter.SeriesMeta()
-	bounds := firstSeriesIter.Meta().Bounds
-	commonTags := firstSeriesIter.Meta().Tags.Tags
-
-	seriesList := make([]*ts.Series, numSeries)
-	seriesIters := make([]block.SeriesIter, len(blockList))
-	// To create individual series, we iterate over seriesIterators for each block in the block list.
-	// For each iterator, the nth current() will be combined to give the nth series
-	for i, b := range blockList {
-		seriesIter, err := b.block.SeriesIter()
-		if err != nil {
-			return nil, err
-		}
-
-		seriesIters[i] = seriesIter
+	resultMeta := bl.Meta().ResultMetadata
+	it, err := bl.StepIter()
+	if err != nil {
+		return emptyResult, err
 	}
 
-	numValues := 0
-	for _, block := range blockList {
-		b, err := block.block.StepIter()
-		if err != nil {
-			return nil, err
-		}
+	seriesMeta := it.SeriesMeta()
+	numSeries := len(seriesMeta)
 
-		numValues += b.StepCount()
-	}
-
+	bounds := bl.Meta().Bounds
+	// Initialize data slices.
+	data := make([]ts.FixedResolutionMutableValues, 0, numSeries)
 	for i := 0; i < numSeries; i++ {
-		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
-		valIdx := 0
-		for idx, iter := range seriesIters {
-			if !iter.Next() {
-				if err = iter.Err(); err != nil {
-					return nil, err
-				}
+		data = append(data, ts.NewFixedStepValues(bounds.StepSize, bounds.Steps(),
+			math.NaN(), bounds.Start))
+	}
 
-				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
-			}
-
-			if err = iter.Err(); err != nil {
-				return nil, err
-			}
-
-			blockSeries := iter.Current()
-			for j := 0; j < blockSeries.Len(); j++ {
-				values.SetValueAt(valIdx, blockSeries.ValueAtStep(j))
-				valIdx++
-			}
+	stepIndex := 0
+	for it.Next() {
+		step := it.Current()
+		for seriesIndex, v := range step.Values() {
+			mutableValuesForSeries := data[seriesIndex]
+			mutableValuesForSeries.SetValueAt(stepIndex, v)
 		}
 
-		tags := seriesMeta[i].Tags.AddTags(commonTags)
-		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, tags)
+		stepIndex++
 	}
 
-	return seriesList, nil
-}
-
-func insertSortedBlock(
-	b block.Block,
-	blockList []blockWithMeta,
-	stepCount,
-	seriesCount int,
-) ([]blockWithMeta, error) {
-	blockSeriesIter, err := b.SeriesIter()
-	if err != nil {
-		return nil, err
+	if err := it.Err(); err != nil {
+		return emptyResult, err
 	}
 
-	blockMeta := blockSeriesIter.Meta()
-	if len(blockList) == 0 {
-		blockList = append(blockList, blockWithMeta{
-			block: b,
-			meta:  blockMeta,
-		})
-		return blockList, nil
+	seriesList := make([]*ts.Series, 0, len(data))
+	for i, values := range data {
+		var (
+			meta   = seriesMeta[i]
+			tags   = meta.Tags.AddTags(bl.Meta().Tags.Tags)
+			series = ts.NewSeries(meta.Name, values, tags)
+		)
+
+		seriesList = append(seriesList, series)
 	}
 
-	blockSeriesCount := blockSeriesIter.SeriesCount()
-	if seriesCount != blockSeriesCount {
-		return nil, fmt.Errorf("mismatch in number of series for "+
-			"the block, wanted: %d, found: %d", seriesCount, blockSeriesCount)
+	if err := bl.Close(); err != nil {
+		return emptyResult, err
 	}
 
-	// Binary search to keep the start times sorted
-	index := sort.Search(len(blockList), func(i int) bool {
-		return blockList[i].meta.Bounds.Start.After(blockMeta.Bounds.Start)
-	})
+	seriesList = prometheus.FilterSeriesByOptions(seriesList, fetchOpts)
 
-	// Append here ensures enough size in the slice
-	blockList = append(blockList, blockWithMeta{})
-	copy(blockList[index+1:], blockList[index:])
-	blockList[index] = blockWithMeta{
-		block: b,
-		meta:  blockMeta,
-	}
+	blockType := bl.Info().Type()
 
-	return blockList, nil
+	return ReadResult{
+		Series:    seriesList,
+		Meta:      resultMeta,
+		BlockType: blockType,
+	}, nil
 }

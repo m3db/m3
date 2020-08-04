@@ -29,29 +29,29 @@ import (
 )
 
 const (
-	// PlusType adds datapoints in both series
+	// PlusType adds datapoints in both series.
 	PlusType = "+"
 
-	// MinusType subtracts rhs from lhs
+	// MinusType subtracts rhs from lhs.
 	MinusType = "-"
 
-	// MultiplyType multiplies datapoints by series
+	// MultiplyType multiplies datapoints by series.
 	MultiplyType = "*"
 
-	// DivType divides datapoints by series
+	// DivType divides datapoints by series.
 	// Special cases are:
 	// 	 X / 0 = +Inf
 	// 	-X / 0 = -Inf
 	// 	 0 / 0 =  NaN
 	DivType = "/"
 
-	// ExpType raises lhs to the power of rhs
+	// ExpType raises lhs to the power of rhs.
 	// NB: to keep consistency with prometheus (and go)
 	//  0 ^ 0 = 1
 	//  NaN ^ 0 = 1
 	ExpType = "^"
 
-	// ModType takes the modulo of lhs by rhs
+	// ModType takes the modulo of lhs by rhs.
 	// Special cases are:
 	// 	 X % 0 = NaN
 	// 	 NaN % X = NaN
@@ -60,7 +60,7 @@ const (
 )
 
 var (
-	arithmeticFuncs = map[string]Function{
+	arithmeticFuncs = map[string]binaryFunction{
 		PlusType:     func(x, y float64) float64 { return x + y },
 		MinusType:    func(x, y float64) float64 { return x - y },
 		MultiplyType: func(x, y float64) float64 { return x * y },
@@ -71,7 +71,7 @@ var (
 )
 
 // Builds an arithmetic processing function if able. If wrong opType supplied,
-// returns no function and false
+// returns no function and false.
 func buildArithmeticFunction(
 	opType string,
 	params NodeParams,
@@ -81,7 +81,7 @@ func buildArithmeticFunction(
 		return nil, false
 	}
 
-	// Build the binary processing step
+	// Build the binary processing step.
 	return func(
 		queryCtx *models.QueryContext,
 		lhs, rhs block.Block,

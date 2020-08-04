@@ -29,10 +29,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -82,23 +84,23 @@ func TestFetchTaggedResultsAccumulatorIdsMerge(t *testing.T) {
 	accum := workflow.run()
 
 	// not really restricting, ensuring we don't have extra results
-	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(10, th.pools)
+	resultsIter, resultsMetadata, err := accum.AsTaggedIDsIterator(10, th.pools)
 	require.NoError(t, err)
-	require.True(t, resultsExhaustive)
+	require.True(t, resultsMetadata.Exhaustive)
 	matcher := MustNewTaggedIDsIteratorMatcher(ts1.matcherOption(), ts2.matcherOption())
 	require.True(t, matcher.Matches(resultsIter))
 
 	// restrict to 2 elements, i.e. same as above; doing this to check off by ones
-	resultsIter, resultsExhaustive, err = accum.AsTaggedIDsIterator(2, th.pools)
+	resultsIter, resultsMetadata, err = accum.AsTaggedIDsIterator(2, th.pools)
 	require.NoError(t, err)
-	require.True(t, resultsExhaustive)
+	require.True(t, resultsMetadata.Exhaustive)
 	matcher = MustNewTaggedIDsIteratorMatcher(ts1.matcherOption(), ts2.matcherOption())
 	require.True(t, matcher.Matches(resultsIter))
 
 	// restrict to 1 elements, ensuring we actually limit the responses
-	resultsIter, resultsExhaustive, err = accum.AsTaggedIDsIterator(1, th.pools)
+	resultsIter, resultsMetadata, err = accum.AsTaggedIDsIterator(1, th.pools)
 	require.NoError(t, err)
-	require.False(t, resultsExhaustive)
+	require.False(t, resultsMetadata.Exhaustive)
 	matcher = MustNewTaggedIDsIteratorMatcher(ts1.matcherOption())
 	require.True(t, matcher.Matches(resultsIter))
 }
@@ -132,9 +134,9 @@ func TestFetchTaggedResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 	}
 	accum := workflow.run()
 
-	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(10, th.pools)
+	resultsIter, resultsMetadata, err := accum.AsTaggedIDsIterator(10, th.pools)
 	require.NoError(t, err)
-	require.False(t, resultsExhaustive)
+	require.False(t, resultsMetadata.Exhaustive)
 	matcher := newTestSerieses(1, 10).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 }
@@ -168,15 +170,16 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 	}
 	accum := workflow.run()
 
-	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(100, th.pools)
+	resultsIter, resultsMetadata, err := accum.AsTaggedIDsIterator(100, th.pools)
 	require.NoError(t, err)
-	require.False(t, resultsExhaustive)
+	require.False(t, resultsMetadata.Exhaustive)
 	matcher := newTestSerieses(1, 15).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(100, th.pools, nil)
+	iters, meta, err := accum.AsEncodingSeriesIterators(100, th.pools,
+		nil, index.IterationOptions{})
 	require.NoError(t, err)
-	require.False(t, exhaust)
+	require.False(t, meta.Exhaustive)
 	newTestSerieses(1, 15).assertMatchesEncodingIters(t, iters)
 }
 
@@ -222,15 +225,16 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 	}
 	accum := workflow.run()
 
-	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(8, th.pools)
+	resultsIter, resultsMetadata, err := accum.AsTaggedIDsIterator(8, th.pools)
 	require.NoError(t, err)
-	require.False(t, resultsExhaustive)
+	require.False(t, resultsMetadata.Exhaustive)
 	matcher := newTestSerieses(1, 8).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools, nil)
+	iters, meta, err := accum.AsEncodingSeriesIterators(10, th.pools,
+		nil, index.IterationOptions{})
 	require.NoError(t, err)
-	require.False(t, exhaust)
+	require.False(t, meta.Exhaustive)
 	append(sg0, sg1...).assertMatchesEncodingIters(t, iters)
 }
 
@@ -276,15 +280,16 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	}
 	accum := workflow.run()
 
-	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(8, th.pools)
+	resultsIter, resultsMetadata, err := accum.AsTaggedIDsIterator(8, th.pools)
 	require.NoError(t, err)
-	require.False(t, resultsExhaustive)
+	require.False(t, resultsMetadata.Exhaustive)
 	matcher := newTestSerieses(1, 8).indexMatcher()
 	require.True(t, matcher.Matches(resultsIter))
 
-	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools, nil)
+	iters, meta, err := accum.AsEncodingSeriesIterators(10, th.pools,
+		nil, index.IterationOptions{})
 	require.NoError(t, err)
-	require.True(t, exhaust)
+	require.True(t, meta.Exhaustive)
 	// ensure iters are valid after the lifecycle of the accumulator
 	accum.Clear()
 	sg0.assertMatchesEncodingIters(t, iters)
@@ -583,7 +588,7 @@ func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time
 	for _, dp := range td {
 		require.NoError(th.t, enc.Encode(dp, testFetchTaggedTimeUnit, nil), fmt.Sprintf("%+v", dp))
 	}
-	reader, ok := enc.Stream(encoding.StreamOptions{})
+	reader, ok := enc.Stream(context.NewContext())
 	if !ok {
 		return nil
 	}

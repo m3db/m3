@@ -42,7 +42,11 @@ type TimestampEncoder struct {
 
 	TimeUnit xtime.Unit
 
-	hasWrittenFirst bool // Only taken into account if using the WriteTime() API.
+	// Used to keep track of time unit changes that occur directly via the WriteTimeUnit()
+	// API as opposed to indirectly via the WriteTime() API.
+	timeUnitEncodedManually bool
+	// Only taken into account if using the WriteTime() API.
+	hasWrittenFirst bool
 }
 
 // NewTimestampEncoder creates a new TimestampEncoder.
@@ -50,7 +54,7 @@ func NewTimestampEncoder(
 	start time.Time, timeUnit xtime.Unit, opts encoding.Options) TimestampEncoder {
 	return TimestampEncoder{
 		PrevTime: start,
-		TimeUnit: initialTimeUnit(start, timeUnit),
+		TimeUnit: initialTimeUnit(xtime.ToUnixNano(start), timeUnit),
 		Options:  opts,
 	}
 }
@@ -87,13 +91,14 @@ func (enc *TimestampEncoder) WriteNextTime(
 
 	timeDelta := currTime.Sub(enc.PrevTime)
 	enc.PrevTime = currTime
-	if tuChanged {
+	if tuChanged || enc.timeUnitEncodedManually {
 		enc.writeDeltaOfDeltaTimeUnitChanged(stream, enc.PrevTimeDelta, timeDelta)
 		// NB(xichen): if the time unit has changed, we reset the time delta to zero
 		// because we can't guarantee that dt is a multiple of the new time unit, which
 		// means we can't guarantee that the delta of delta when encoding the next
 		// data point is a multiple of the new time unit.
 		enc.PrevTimeDelta = 0
+		enc.timeUnitEncodedManually = false
 		return nil
 	}
 	err := enc.writeDeltaOfDeltaTimeUnitUnchanged(
@@ -107,6 +112,7 @@ func (enc *TimestampEncoder) WriteNextTime(
 func (enc *TimestampEncoder) WriteTimeUnit(stream encoding.OStream, timeUnit xtime.Unit) {
 	stream.WriteByte(byte(timeUnit))
 	enc.TimeUnit = timeUnit
+	enc.timeUnitEncodedManually = true
 }
 
 // maybeWriteTimeUnitChange encodes the time unit and returns true if the time unit has
@@ -174,7 +180,7 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	}
 
 	deltaOfDelta := xtime.ToNormalizedDuration(curDelta-prevDelta, u)
-	tes, exists := enc.Options.TimeEncodingSchemes()[timeUnit]
+	tes, exists := enc.Options.TimeEncodingSchemes().SchemeForUnit(timeUnit)
 	if !exists {
 		return fmt.Errorf("time encoding scheme for time unit %v doesn't exist", timeUnit)
 	}
@@ -199,16 +205,14 @@ func (enc *TimestampEncoder) writeDeltaOfDeltaTimeUnitUnchanged(
 	return nil
 }
 
-func initialTimeUnit(start time.Time, tu xtime.Unit) xtime.Unit {
+func initialTimeUnit(start xtime.UnixNano, tu xtime.Unit) xtime.Unit {
 	tv, err := tu.Value()
 	if err != nil {
 		return xtime.None
 	}
 	// If we want to use tu as the time unit for start, start must
 	// be a multiple of tu.
-	startInNano := xtime.ToNormalizedTime(start, time.Nanosecond)
-	tvInNano := xtime.ToNormalizedDuration(tv, time.Nanosecond)
-	if startInNano%tvInNano == 0 {
+	if start%xtime.UnixNano(tv) == 0 {
 		return tu
 	}
 	return xtime.None

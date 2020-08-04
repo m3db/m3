@@ -29,6 +29,8 @@ import (
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
+	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/gogo/protobuf/proto"
@@ -42,7 +44,8 @@ func TestConfigGetBootstrappersHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockStore, _ := SetupDatabaseTest(t, ctrl)
-	handler := NewConfigGetBootstrappersHandler(mockClient)
+	handler := NewConfigGetBootstrappersHandler(mockClient,
+		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
 	value := kv.NewMockValue(ctrl)
@@ -69,13 +72,14 @@ func TestConfigGetBootstrappersHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	expectedResponse := `
-	{
-		"values": ["filesystem", "commitlog", "peers", "uninitialized_topology"]
+	expectedResp := xjson.Map{
+		"values": xjson.Array{"filesystem", "commitlog", "peers", "uninitialized_topology"},
 	}
-	`
-	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+
+	expected := xtest.MustPrettyJSONMap(t, expectedResp)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
 func TestConfigGetBootstrappersHandlerNotFound(t *testing.T) {
@@ -83,7 +87,8 @@ func TestConfigGetBootstrappersHandlerNotFound(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockStore, _ := SetupDatabaseTest(t, ctrl)
-	handler := NewConfigGetBootstrappersHandler(mockClient)
+	handler := NewConfigGetBootstrappersHandler(mockClient,
+		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
 	mockStore.EXPECT().

@@ -84,6 +84,14 @@ func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 	return s, nil
 }
 
+func (s *segment) SetIndexConcurrency(value int) {
+	// No-op, does not support concurrent indexing.
+}
+
+func (s *segment) IndexConcurrency() int {
+	return 1
+}
+
 func (s *segment) Reset(offset postings.ID) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -461,6 +469,15 @@ func (s *segment) Fields() (sgmt.FieldsIterator, error) {
 	return s.termsDict.Fields(), nil
 }
 
+func (s *segment) FieldsPostingsList() (sgmt.FieldsPostingsListIterator, error) {
+	s.state.RLock()
+	defer s.state.RUnlock()
+	if err := s.checkIsSealedWithRLock(); err != nil {
+		return nil, err
+	}
+	return s.termsDict.FieldsPostingsList(), nil
+}
+
 func (s *segment) Terms(name []byte) (sgmt.TermsIterator, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
@@ -471,6 +488,10 @@ func (s *segment) Terms(name []byte) (sgmt.TermsIterator, error) {
 }
 
 func (s *segment) FieldsIterable() sgmt.FieldsIterable {
+	return s
+}
+
+func (s *segment) FieldsPostingsListIterable() sgmt.FieldsPostingsListIterable {
 	return s
 }
 

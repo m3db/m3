@@ -24,17 +24,21 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
-
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,20 +82,28 @@ var _ gomock.Matcher = &listTagsMatcher{}
 func b(s string) []byte { return []byte(s) }
 
 func TestListTags(t *testing.T) {
-	logging.InitWithCores(nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testListTags(t, tt.meta, tt.ex)
+		})
+	}
+}
 
+func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	storeResult := &storage.CompleteTagsResult{
+	storeResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: true,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("bar")},
 			{Name: b("baz")},
 			{Name: b("foo")},
 		},
+
+		Metadata: meta,
 	}
 
 	now := time.Now()
@@ -99,9 +111,13 @@ func TestListTags(t *testing.T) {
 		return now
 	}
 
-	handler := NewListTagsHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		nowFn)
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetFetchOptionsBuilder(fb).
+		SetNowFn(nowFn)
+	h := NewListTagsHandler(opts)
 	for _, method := range []string{"GET", "POST"} {
 		matcher := &listTagsMatcher{now: now}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).
@@ -110,7 +126,10 @@ func TestListTags(t *testing.T) {
 		req := httptest.NewRequest(method, "/labels", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		h.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+
 		body := w.Result().Body
 		defer body.Close()
 
@@ -119,12 +138,13 @@ func TestListTags(t *testing.T) {
 
 		ex := `{"status":"success","data":["bar","baz","foo"]}`
 		require.Equal(t, ex, string(r))
+
+		actual := w.Header().Get(headers.LimitHeader)
+		assert.Equal(t, header, actual)
 	}
 }
 
 func TestListErrorTags(t *testing.T) {
-	logging.InitWithCores(nil)
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -135,9 +155,13 @@ func TestListErrorTags(t *testing.T) {
 		return now
 	}
 
-	handler := NewListTagsHandler(store,
-		handler.NewFetchOptionsBuilder(handler.FetchOptionsBuilderOptions{}),
-		nowFn)
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
+	opts := options.EmptyHandlerOptions().
+		SetStorage(store).
+		SetFetchOptionsBuilder(fb).
+		SetNowFn(nowFn)
+	handler := NewListTagsHandler(opts)
 	for _, method := range []string{"GET", "POST"} {
 		matcher := &listTagsMatcher{now: now}
 		store.EXPECT().CompleteTags(gomock.Any(), matcher, gomock.Any()).

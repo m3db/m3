@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -33,7 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	m3ts "github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -95,88 +97,113 @@ func TestTranslateQueryTrailingDot(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestTranslateTimeseries(t *testing.T) {
-	ctx := xctx.New()
-	resolution := 10 * time.Second
-	steps := 1
-	start := time.Now()
-	end := start.Add(time.Duration(steps) * resolution)
-	expected := 5
-	seriesList := make(m3ts.SeriesList, expected)
-	for i := 0; i < expected; i++ {
-		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
-		series := m3ts.NewSeries([]byte(fmt.Sprint("a", i)),
-			vals, models.NewTags(0, nil))
-		series.SetResolution(resolution)
-		seriesList[i] = series
+func buildResult(
+	ctrl *gomock.Controller,
+	resolution time.Duration,
+	size int,
+	steps int,
+	start time.Time,
+) block.Result {
+	resos := make([]int64, 0, size)
+	metas := make([]block.SeriesMeta, 0, size)
+	for i := 0; i < size; i++ {
+		resos = append(resos, int64(resolution))
+		metas = append(metas, block.SeriesMeta{Name: []byte(fmt.Sprint("a", i))})
 	}
 
-	translated, err := translateTimeseries(ctx, seriesList, start, end)
-	require.NoError(t, err)
+	var (
+		bl = block.NewMockBlock(ctrl)
+		it = block.NewMockSeriesIter(ctrl)
+	)
 
-	require.Equal(t, expected, len(translated))
-	for i, tt := range translated {
-		ex := []float64{float64(i)}
-		assert.Equal(t, ex, tt.SafeValues())
-		assert.Equal(t, fmt.Sprint("a", i), tt.Name())
+	orderedOps := make([]*gomock.Call, 0, size*2+7)
+	addOp := func(op *gomock.Call) { orderedOps = append(orderedOps, op) }
+	addOp(bl.EXPECT().SeriesIter().Return(it, nil))
+	addOp(it.EXPECT().SeriesMeta().Return(metas))
+	for i := 0; i < size; i++ {
+		addOp(it.EXPECT().Next().Return(true))
+		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
+		c := block.NewUnconsolidatedSeries(vals.Datapoints(), metas[i], block.UnconsolidatedSeriesStats{})
+		addOp(it.EXPECT().Current().Return(c))
+	}
+
+	addOp(it.EXPECT().Next().Return(false))
+	addOp(it.EXPECT().Err().Return(nil))
+	addOp(bl.EXPECT().Close().Return(nil))
+
+	gomock.InOrder(orderedOps...)
+	return block.Result{
+		Blocks: []block.Block{bl},
+		Metadata: block.ResultMetadata{
+			Resolutions: resos,
+		},
 	}
 }
 
-func TestTranslateTimeseriesWithTags(t *testing.T) {
+func TestTranslateTimeseries(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	ctx := xctx.New()
 	resolution := 10 * time.Second
-	steps := 1
-	start := time.Now()
-	end := start.Add(time.Duration(steps) * resolution)
-	expected := 5
-	seriesList := make(m3ts.SeriesList, expected)
-	for i := 0; i < expected; i++ {
-		vals := m3ts.NewFixedStepValues(resolution, steps, float64(i), start)
-		series := m3ts.NewSeries([]byte(fmt.Sprint("a", i)), vals,
-			models.NewTags(0, nil))
-		series.SetResolution(resolution)
-		seriesList[i] = series
-	}
+	steps := 3
+	start := time.Now().Truncate(resolution).Add(time.Second)
+	end := start.Add(time.Duration(steps) * resolution).Add(time.Second * -2)
 
-	translated, err := translateTimeseries(ctx, seriesList, start, end)
+	// NB: truncated steps should have 1 less data point than input series since
+	// the first data point is not valid.
+	truncatedSteps := steps - 1
+	truncated := start.Truncate(resolution).Add(resolution)
+	truncatedEnd := truncated.Add(resolution * time.Duration(truncatedSteps))
+
+	expected := 5
+	result := buildResult(ctrl, resolution, expected, steps, start)
+	translated, err := translateTimeseries(ctx, result, start, end)
 	require.NoError(t, err)
 
 	require.Equal(t, expected, len(translated))
 	for i, tt := range translated {
-		ex := []float64{float64(i)}
+		ex := make([]float64, truncatedSteps)
+		for j := range ex {
+			ex[j] = float64(i)
+		}
+
+		assert.Equal(t, truncated, tt.StartTime())
+		assert.Equal(t, truncatedEnd, tt.EndTime())
 		assert.Equal(t, ex, tt.SafeValues())
 		assert.Equal(t, fmt.Sprint("a", i), tt.Name())
 	}
 }
 
 func TestFetchByQuery(t *testing.T) {
-	store := mock.NewMockStorage()
-	start := time.Now().Add(time.Hour * -1)
-	resolution := 10 * time.Second
-	steps := 3
-	vals := m3ts.NewFixedStepValues(resolution, steps, 3, start)
-	seriesList := m3ts.SeriesList{
-		m3ts.NewSeries([]byte("a"), vals, models.NewTags(0, nil)),
-	}
-	for _, series := range seriesList {
-		series.SetResolution(resolution)
-	}
-
-	store.SetFetchResult(&storage.FetchResult{SeriesList: seriesList}, nil)
-
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	resolution := 10 * time.Second
+	start := time.Now().Add(time.Hour * -1).Truncate(resolution).Add(time.Second)
+	steps := 3
+	res := buildResult(ctrl, resolution, 1, steps, start)
+	res.Metadata = block.ResultMetadata{
+		Exhaustive:  false,
+		LocalOnly:   true,
+		Warnings:    []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		Resolutions: []int64{int64(resolution)},
+	}
+
+	store.EXPECT().FetchBlocks(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(res, nil)
+
 	childEnforcer := cost.NewMockChainedEnforcer(ctrl)
 	childEnforcer.EXPECT().Close()
 
 	enforcer := cost.NewMockChainedEnforcer(ctrl)
 	enforcer.EXPECT().Child(cost.QueryLevel).Return(childEnforcer).MinTimes(1)
 
-	wrapper := NewM3WrappedStorage(store, enforcer,
-		models.QueryContextOptions{})
+	wrapper := NewM3WrappedStorage(store, enforcer, instrument.NewOptions())
 	ctx := xctx.New()
 	ctx.SetRequestContext(context.TODO())
-	end := time.Now()
+	end := start.Add(time.Duration(steps) * resolution)
 	opts := FetchOptions{
 		StartTime: start,
 		EndTime:   end,
@@ -187,18 +214,20 @@ func TestFetchByQuery(t *testing.T) {
 
 	query := "a*b"
 	result, err := wrapper.FetchByQuery(ctx, query, opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	require.Equal(t, 1, len(result.SeriesList))
 	series := result.SeriesList[0]
-	assert.Equal(t, "a", series.Name())
-	assert.Equal(t, []float64{3, 3, 3}, series.SafeValues())
+	assert.Equal(t, "a0", series.Name())
+	// NB: last point is expected to be truncated.
+	assert.Equal(t, []float64{0, 0}, series.SafeValues())
 
-	// NB: ensure the fetch was called with the base enforcer's child correctly
-	assert.Equal(t, childEnforcer, store.LastFetchOptions().Enforcer)
+	assert.False(t, result.Metadata.Exhaustive)
+	assert.True(t, result.Metadata.LocalOnly)
+	require.Equal(t, 1, len(result.Metadata.Warnings))
+	require.Equal(t, "foo_bar", result.Metadata.Warnings[0].Header())
 }
 
 func TestFetchByInvalidQuery(t *testing.T) {
-	logging.InitWithCores(nil)
 	store := mock.NewMockStorage()
 	start := time.Now().Add(time.Hour * -1)
 	end := time.Now()
@@ -212,8 +241,7 @@ func TestFetchByInvalidQuery(t *testing.T) {
 
 	query := "a."
 	ctx := xctx.New()
-	wrapper := NewM3WrappedStorage(store, nil,
-		models.QueryContextOptions{})
+	wrapper := NewM3WrappedStorage(store, nil, instrument.NewOptions())
 	result, err := wrapper.FetchByQuery(ctx, query, opts)
 	assert.NoError(t, err)
 	require.Equal(t, 0, len(result.SeriesList))

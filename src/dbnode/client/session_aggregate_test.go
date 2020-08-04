@@ -372,10 +372,10 @@ func TestSessionAggregateMergeTest(t *testing.T) {
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckAggregateOpPool(session)
 
-	iters, exhaust, err := session.Aggregate(ident.StringID("namespace"),
+	iters, metadata, err := session.Aggregate(ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.NoError(t, err)
-	assert.False(t, exhaust)
+	assert.False(t, metadata.Exhaustive)
 	expected := append(sg0, sg1...)
 	expected = append(expected, sg2...)
 	expected.assertMatchesAggregatedTagsIter(t, iters)
@@ -507,10 +507,10 @@ func TestSessionAggregateMergeWithRetriesTest(t *testing.T) {
 	// NB: stubbing needs to be done after session.Open
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckAggregateOpPool(session)
-	iters, exhaust, err := session.Aggregate(ident.StringID("namespace"),
+	iters, meta, err := session.Aggregate(ident.StringID("namespace"),
 		testSessionAggregateQuery, testSessionAggregateQueryOpts(start, end))
 	assert.NoError(t, err)
-	assert.False(t, exhaust)
+	assert.False(t, meta.Exhaustive)
 	expected := append(sg0, sg1...)
 	expected = append(expected, sg2...)
 	expected.assertMatchesAggregatedTagsIter(t, iters)

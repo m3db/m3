@@ -21,17 +21,19 @@
 package storage
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/ident"
 )
 
-var (
-	dotStar = []byte(".*")
+const (
+	dot  = byte('.')
+	plus = byte('+')
+	star = byte('*')
 )
 
 // FromM3IdentToMetric converts an M3 ident metric to a coordinator metric.
@@ -40,7 +42,7 @@ func FromM3IdentToMetric(
 	iterTags ident.TagIterator,
 	tagOptions models.TagOptions,
 ) (models.Metric, error) {
-	tags, err := FromIdentTagIteratorToTags(iterTags, tagOptions)
+	tags, err := consolidators.FromIdentTagIteratorToTags(iterTags, tagOptions)
 	if err != nil {
 		return models.Metric{}, err
 	}
@@ -49,27 +51,6 @@ func FromM3IdentToMetric(
 		ID:   identID.Bytes(),
 		Tags: tags,
 	}, nil
-}
-
-// FromIdentTagIteratorToTags converts ident tags to coordinator tags.
-func FromIdentTagIteratorToTags(
-	identTags ident.TagIterator,
-	tagOptions models.TagOptions,
-) (models.Tags, error) {
-	tags := models.NewTags(identTags.Remaining(), tagOptions)
-	for identTags.Next() {
-		identTag := identTags.Current()
-		tags = tags.AddTag(models.Tag{
-			Name:  identTag.Name.Bytes(),
-			Value: identTag.Value.Bytes(),
-		})
-	}
-
-	if err := identTags.Err(); err != nil {
-		return models.EmptyTags(), err
-	}
-
-	return tags, nil
 }
 
 // TagsToIdentTagIterator converts coordinator tags to ident tags.
@@ -89,9 +70,11 @@ func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 // FetchOptionsToM3Options converts a set of coordinator options to M3 options.
 func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery) index.QueryOptions {
 	return index.QueryOptions{
-		Limit:          fetchOptions.Limit,
-		StartInclusive: fetchQuery.Start,
-		EndExclusive:   fetchQuery.End,
+		SeriesLimit:       fetchOptions.SeriesLimit,
+		DocsLimit:         fetchOptions.DocsLimit,
+		RequireExhaustive: fetchOptions.RequireExhaustive,
+		StartInclusive:    fetchQuery.Start,
+		EndExclusive:      fetchQuery.End,
 	}
 }
 
@@ -111,7 +94,8 @@ func FetchOptionsToAggregateOptions(
 ) index.AggregationOptions {
 	return index.AggregationOptions{
 		QueryOptions: index.QueryOptions{
-			Limit:          fetchOptions.Limit,
+			SeriesLimit:    fetchOptions.SeriesLimit,
+			DocsLimit:      fetchOptions.DocsLimit,
 			StartInclusive: tagQuery.Start,
 			EndExclusive:   tagQuery.End,
 		},
@@ -123,9 +107,11 @@ func FetchOptionsToAggregateOptions(
 // FetchQueryToM3Query converts an m3coordinator fetch query to an M3 query.
 func FetchQueryToM3Query(
 	fetchQuery *FetchQuery,
+	options *FetchOptions,
 ) (index.Query, error) {
+	fetchQuery = fetchQuery.WithAppliedOptions(options)
 	matchers := fetchQuery.TagMatchers
-	// If no matchers provided, explicitly set this to an AllQuery
+	// If no matchers provided, explicitly set this to an AllQuery.
 	if len(matchers) == 0 {
 		return index.Query{
 			Query: idx.NewAllQuery(),
@@ -134,6 +120,18 @@ func FetchQueryToM3Query(
 
 	// Optimization for single matcher case.
 	if len(matchers) == 1 {
+		specialCase := isSpecialCaseMatcher(matchers[0])
+		if specialCase.skip {
+			// NB: only matcher has no effect; this is synonymous to an AllQuery.
+			return index.Query{
+				Query: idx.NewAllQuery(),
+			}, nil
+		}
+
+		if specialCase.isSpecial {
+			return index.Query{Query: specialCase.query}, nil
+		}
+
 		q, err := matcherToQuery(matchers[0])
 		if err != nil {
 			return index.Query{}, err
@@ -142,18 +140,86 @@ func FetchQueryToM3Query(
 		return index.Query{Query: q}, nil
 	}
 
-	idxQueries := make([]idx.Query, len(matchers))
-	var err error
-	for i, matcher := range matchers {
-		idxQueries[i], err = matcherToQuery(matcher)
+	idxQueries := make([]idx.Query, 0, len(matchers))
+	for _, matcher := range matchers {
+		specialCase := isSpecialCaseMatcher(matcher)
+		if specialCase.skip {
+			continue
+		}
+
+		if specialCase.isSpecial {
+			idxQueries = append(idxQueries, specialCase.query)
+			continue
+		}
+
+		q, err := matcherToQuery(matcher)
 		if err != nil {
 			return index.Query{}, err
 		}
+
+		idxQueries = append(idxQueries, q)
 	}
 
 	q := idx.NewConjunctionQuery(idxQueries...)
 
 	return index.Query{Query: q}, nil
+}
+
+type specialCase struct {
+	query     idx.Query
+	isSpecial bool
+	skip      bool
+}
+
+func isSpecialCaseMatcher(matcher models.Matcher) specialCase {
+	if len(matcher.Value) == 0 {
+		if matcher.Type == models.MatchNotRegexp ||
+			matcher.Type == models.MatchNotEqual {
+			query := idx.NewFieldQuery(matcher.Name)
+			return specialCase{query: query, isSpecial: true}
+		}
+
+		if matcher.Type == models.MatchRegexp ||
+			matcher.Type == models.MatchEqual {
+			query := idx.NewNegationQuery(idx.NewFieldQuery(matcher.Name))
+			return specialCase{query: query, isSpecial: true}
+		}
+
+		return specialCase{}
+	}
+
+	// NB: no special case for regex / not regex here.
+	isNegatedRegex := matcher.Type == models.MatchNotRegexp
+	isRegex := matcher.Type == models.MatchRegexp
+	if !isNegatedRegex && !isRegex {
+		return specialCase{}
+	}
+
+	if len(matcher.Value) != 2 || matcher.Value[0] != dot {
+		return specialCase{}
+	}
+
+	if matcher.Value[1] == star {
+		if isNegatedRegex {
+			// NB: This should match no results.
+			query := idx.NewNegationQuery(idx.NewAllQuery())
+			return specialCase{query: query, isSpecial: true}
+		}
+
+		// NB: this matcher should not affect query results.
+		return specialCase{skip: true}
+	}
+
+	if matcher.Value[1] == plus {
+		query := idx.NewFieldQuery(matcher.Name)
+		if isNegatedRegex {
+			query = idx.NewNegationQuery(query)
+		}
+
+		return specialCase{query: query, isSpecial: true}
+	}
+
+	return specialCase{}
 }
 
 func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
@@ -163,38 +229,41 @@ func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
 	case models.MatchNotRegexp:
 		negate = true
 		fallthrough
+
 	case models.MatchRegexp:
 		var (
 			query idx.Query
 			err   error
 		)
-		if bytes.Equal(dotStar, matcher.Value) {
-			query = idx.NewFieldQuery(matcher.Name)
-		} else {
-			query, err = idx.NewRegexpQuery(matcher.Name, matcher.Value)
-		}
+
+		query, err = idx.NewRegexpQuery(matcher.Name, matcher.Value)
 		if err != nil {
 			return idx.Query{}, err
 		}
+
 		if negate {
 			query = idx.NewNegationQuery(query)
 		}
+
 		return query, nil
 
 		// Support exact matches
 	case models.MatchNotEqual:
 		negate = true
 		fallthrough
+
 	case models.MatchEqual:
 		query := idx.NewTermQuery(matcher.Name, matcher.Value)
 		if negate {
 			query = idx.NewNegationQuery(query)
 		}
+
 		return query, nil
 
 	case models.MatchNotField:
 		negate = true
 		fallthrough
+
 	case models.MatchField:
 		query := idx.NewFieldQuery(matcher.Name)
 		if negate {

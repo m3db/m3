@@ -28,8 +28,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -101,7 +101,7 @@ func generateSeriesMaps(numBlocks int, updateConfig generate.UpdateBlockConfig, 
 
 func writeCommitLogData(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -112,7 +112,7 @@ func writeCommitLogData(
 
 func writeCommitLogDataSpecifiedTS(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -124,7 +124,7 @@ func writeCommitLogDataSpecifiedTS(
 
 func writeCommitLogDataWithPredicate(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -135,7 +135,7 @@ func writeCommitLogDataWithPredicate(
 
 func writeCommitLogDataBase(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -146,23 +146,24 @@ func writeCommitLogDataBase(
 		pred = generate.WriteAllPredicate
 	}
 
-	// ensure commit log is flushing frequently
+	// ensure commit log is flushing frequently.
 	require.Equal(
 		t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
 
 	var (
-		seriesLookup = newCommitLogSeriesStates(data)
-		shardSet     = s.shardSet
+		seriesLookup   = newCommitLogSeriesStates(data)
+		shardSet       = s.ShardSet()
+		tagEncoderPool = opts.FilesystemOptions().TagEncoderPool()
+		tagSliceIter   = ident.NewTagsIterator(ident.Tags{})
 	)
 
-	// Write out commit log data
+	// Write out commit log data.
 	for currTs, blk := range data {
 		if specifiedTS != nil {
-			s.setNowFn(*specifiedTS)
+			s.SetNowFn(*specifiedTS)
 		} else {
-			s.setNowFn(currTs.ToTime())
+			s.SetNowFn(currTs.ToTime())
 		}
-
 		ctx := context.NewContext()
 		defer ctx.Close()
 
@@ -174,37 +175,48 @@ func writeCommitLogDataBase(
 			ToPointsByTime(m).
 			Dearrange(defaultDerrangementPercent)
 
-		// create new commit log
+		// create new commit log.
 		commitLog, err := commitlog.NewCommitLog(opts)
 		require.NoError(t, err)
 		require.NoError(t, commitLog.Open())
 
-		// write points
+		// write points.
 		for _, point := range points {
 			series, ok := seriesLookup[point.ID.String()]
 			require.True(t, ok)
-			cId := ts.Series{
+
+			tagSliceIter.Reset(series.tags)
+
+			tagEncoder := tagEncoderPool.Get()
+			err := tagEncoder.Encode(tagSliceIter)
+			require.NoError(t, err)
+
+			encodedTagsChecked, ok := tagEncoder.Data()
+			require.True(t, ok)
+
+			cID := ts.Series{
 				Namespace:   namespace.ID(),
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,
-				Tags:        series.tags,
+				EncodedTags: ts.EncodedTags(encodedTagsChecked.Bytes()),
 				UniqueIndex: series.uniqueIndex,
 			}
 			if pred(point.Value) {
-				require.NoError(t, commitLog.Write(ctx, cId, point.Value.Datapoint, xtime.Second, point.Value.Annotation))
+				require.NoError(t, commitLog.Write(ctx, cID, point.Value.Datapoint, xtime.Second, point.Value.Annotation))
 			}
 		}
 
-		// ensure writes finished
+		// ensure writes finished.
 		require.NoError(t, commitLog.Close())
 	}
 }
 
 func writeSnapshotsWithPredicate(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
+	volume int,
 	namespace namespace.Metadata,
 	specifiedTS *time.Time,
 	pred generate.WriteDatapointPredicate,
@@ -212,6 +224,6 @@ func writeSnapshotsWithPredicate(
 ) {
 	// Write out snapshots
 	err := writeTestSnapshotsToDiskWithPredicate(
-		namespace, s, data, pred, snapshotInterval)
+		namespace, s, data, volume, pred, snapshotInterval)
 	require.NoError(t, err)
 }

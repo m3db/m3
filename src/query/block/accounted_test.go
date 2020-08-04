@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAccountedBlock_Close(t *testing.T) {
@@ -37,5 +38,9 @@ func TestAccountedBlock_Close(t *testing.T) {
 	mockEnforcer := cost.NewMockChainedEnforcer(ctrl)
 	mockEnforcer.EXPECT().Close()
 
-	NewAccountedBlock(wrapped, mockEnforcer).Close()
+	block := NewAccountedBlock(wrapped, mockEnforcer)
+
+	wrapped.EXPECT().Info().Return(NewBlockInfo(BlockM3TSZCompressed))
+	assert.Equal(t, BlockM3TSZCompressed, block.Info().Type())
+	assert.NotPanics(t, func() { block.Close() })
 }

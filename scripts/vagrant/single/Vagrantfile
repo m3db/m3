@@ -1,0 +1,73 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Documentation:
+# See vagrant/README.md
+
+require 'etc'
+
+# Boxes available at: https://vagrantcloud.com/search
+$BOX=ENV['BOX']
+$BENCHMARK_TYPE=ENV['BENCHMARK_TYPE']
+$BOX_NUM=ENV['BOX_NUM']
+$GOOGLE_PROJECT_ID = ENV['GOOGLE_PROJECT_ID']
+$GOOGLE_JSON_KEY_LOCATION = ENV['GOOGLE_JSON_KEY_LOCATION']
+$USER = ENV['USER']
+$SSH_KEY = ENV['SSH_KEY']
+
+Vagrant.configure("2") do |config|
+  config.vm.box = $BOX
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  config.vm.network "forwarded_port", guest: 3000, host: 3333
+
+  # Local development provider
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "m3-dev-k8s"
+
+    # Assign half CPU cores
+    vb.cpus = Etc.nprocessors / 2
+
+    # Assign 3072mb RAM (has been known to start paging using only 2gb RAM)
+    vb.memory = 3072
+  end
+
+  config.vm.provider :google do |google, override|
+    if $BENCHMARK_TYPE == "HEAVY"
+	# For heavy benchmarks, use pre-emptible n1-standard-64:
+	google.machine_type = "n1-standard-64"
+	google.preemptible = true
+	google.auto_restart = false
+	google.on_host_maintenance = "TERMINATE"
+    else
+	# Normal benchmarks:
+	google.machine_type = "n1-standard-16"
+	google.preemptible = false
+    end
+
+    google.google_project_id = $GOOGLE_PROJECT_ID
+    google.google_json_key_location = $GOOGLE_JSON_KEY_LOCATION
+
+    google.name = "m3-dev" + $BOX_NUM + "-" + $USER
+    google.image_family = "ubuntu-1604-lts"
+    google.zone = "us-central1-f"
+    google.metadata = {}
+    google.tags = ['vagrantbox', 'dev']
+    google.disk_size = '50' # 50gb
+    google.disk_type = 'pd-ssd'
+    google.autodelete_disk = true
+
+    override.ssh.username = $USER
+    override.ssh.private_key_path = $SSH_KEY
+  end
+
+  config.vm.provision "file", source: "../provision", destination: "$HOME/provision"
+  config.vm.provision "file", source: "../../../kube", destination: "$HOME/provision/kube"
+
+  config.vm.provision "shell", privileged: true, inline: <<-SHELL
+    cd provision && DOCKER_USER=#{$USER} ./setup_privileged.sh
+  SHELL
+
+  config.vm.provision "shell", privileged: false, inline: <<-SHELL
+    cd provision && ./setup_unprivileged.sh
+  SHELL
+end

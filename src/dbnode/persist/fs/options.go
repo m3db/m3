@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 )
@@ -66,12 +67,18 @@ const (
 	// defaultForceIndexBloomFilterMmapMemory is the default configuration for whether the bytes for the bloom filter
 	// should be mmap'd as an anonymous region (forced completely into memory) or mmap'd as a file.
 	defaultForceIndexBloomFilterMmapMemory = false
+
+	// defaultIndexReaderAutovalidateIndexSegments is the default configuration for
+	// whether or not the index reader should autovalidate the index segments when
+	// opening segments. This is an expensive operation and should be done post-open.
+	defaultIndexReaderAutovalidateIndexSegments = false
 )
 
 var (
 	defaultFilePathPrefix   = os.TempDir()
 	defaultNewFileMode      = os.FileMode(0666)
 	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
+	defaultFSTWriterOptions = fst.WriterOptions{}
 
 	errTagEncoderPoolNotSet = errors.New("tag encoder pool is not set")
 	errTagDecoderPoolNotSet = errors.New("tag decoder pool is not set")
@@ -95,9 +102,12 @@ type options struct {
 	tagEncoderPool                       serialize.TagEncoderPool
 	tagDecoderPool                       serialize.TagDecoderPool
 	fstOptions                           fst.Options
+	fstWriterOptions                     fst.WriterOptions
 	forceIndexSummariesMmapMemory        bool
 	forceBloomFilterMmapMemory           bool
 	mmapEnableHugePages                  bool
+	mmapReporter                         mmap.Reporter
+	indexReaderAutovalidateIndexSegments bool
 }
 
 // NewOptions creates a new set of fs options
@@ -106,7 +116,8 @@ func NewOptions() Options {
 		serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions())
 	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		pool.NewObjectPoolOptions())
 	tagDecoderPool.Init()
 	fstOptions := fst.NewOptions()
 
@@ -131,6 +142,8 @@ func NewOptions() Options {
 		tagEncoderPool:                       tagEncoderPool,
 		tagDecoderPool:                       tagDecoderPool,
 		fstOptions:                           fstOptions,
+		fstWriterOptions:                     defaultFSTWriterOptions,
+		indexReaderAutovalidateIndexSegments: defaultIndexReaderAutovalidateIndexSegments,
 	}
 }
 
@@ -352,4 +365,34 @@ func (o *options) SetFSTOptions(value fst.Options) Options {
 
 func (o *options) FSTOptions() fst.Options {
 	return o.fstOptions
+}
+
+func (o *options) SetFSTWriterOptions(value fst.WriterOptions) Options {
+	opts := *o
+	opts.fstWriterOptions = value
+	return &opts
+}
+
+func (o *options) FSTWriterOptions() fst.WriterOptions {
+	return o.fstWriterOptions
+}
+
+func (o *options) SetMmapReporter(mmapReporter mmap.Reporter) Options {
+	opts := *o
+	opts.mmapReporter = mmapReporter
+	return &opts
+}
+
+func (o *options) MmapReporter() mmap.Reporter {
+	return o.mmapReporter
+}
+
+func (o *options) SetIndexReaderAutovalidateIndexSegments(value bool) Options {
+	opts := *o
+	opts.indexReaderAutovalidateIndexSegments = value
+	return &opts
+}
+
+func (o *options) IndexReaderAutovalidateIndexSegments() bool {
+	return o.indexReaderAutovalidateIndexSegments
 }

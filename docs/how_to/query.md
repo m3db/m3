@@ -2,7 +2,7 @@
 
 ## Introduction
 
-m3query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with [m3coordinator](../integrations/prometheus.md), you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine such as [block processing](http://m3db.github.io/m3/query_engine/architecture/blocks/). Furthermore, since m3query provides a Prometheus compatible API, you can use 3rd party graphing and alerting solutions like Grafana.
+m3query is used to query data that is stored in M3DB. For instance, if you are using the Prometheus remote write endpoint with [m3coordinator](../integrations/prometheus.md), you can use m3query instead of the Prometheus remote read endpoint. By doing so, you get all of the benefits of m3query's engine such as [block processing](../m3query/architecture/blocks.md). Furthermore, since m3query provides a Prometheus compatible API, you can use 3rd party graphing and alerting solutions like Grafana.
 
 ## Configuration
 
@@ -12,7 +12,7 @@ Before setting up m3query, make sure that you have at least [one M3DB node runni
 
 You can run m3query by either building and running the binary yourself:
 
-```
+```bash
 make m3query
 ./bin/m3query -f ./src/query/config/m3query-local-etcd.yml
 ```
@@ -33,16 +33,18 @@ The configuration file linked above uses an embedded etcd cluster, which is fine
 
 You will notice that in the setup linked above, M3DB has just one unaggregated namespace configured. If you want aggregated metrics, you will need to set up an aggregated namespace in M3DB **and** in the m3query configuration. It is important to note that all writes go to all namespaces so as long as you include all namespaces in your query config, you will be querying all namespaces. Aggregation is done strictly by the query service. For example if you have an aggregated namespace setup in M3DB named `metrics_10s_48h`, you can add the following to the query config:
 
-```json
+```yaml
 - namespace: metrics_10s_48h
   type: aggregated
   retention: 48h
   resolution: 10s
 ```
 
+### Disabling automatic aggregation
+
 If you run Statsite, m3agg, or some other aggregation tier, you will want to set the `all` flag under `downsample` to `false`. Otherwise, you will be aggregating metrics that have already been aggregated.
 
-```json
+```yaml
 - namespace: metrics_10s_48h
   type: aggregated
   retention: 48h
@@ -83,7 +85,7 @@ If you have been running m3query or m3coordinator already, you may want to count
 
 An example of a configuration file for a standalone m3query instance with the ID generation scheme can be found [here](https://github.com/m3db/m3/blob/master/scripts/docker-integration-tests/prometheus/m3coordinator.yml). If you're running m3query or m3coordinator embedded, these configuration options should be nested under the `coordinator:` heading, as seen [here](https://github.com/m3db/m3/blob/28fe5e1e430a651a1d66a0a3e22617b6a7f59ec6/src/dbnode/config/m3dbnode-all-config.yml#L33).
 
-If none of these options work for you, or you would like further clarification, please stop by our [gitter channel](https://gitter.im/m3db/Lobby) and we'll be happy to help you.
+If none of these options work for you, or you would like further clarification, please stop by our [Slack](http://bit.ly/m3slack) and we'll be happy to help you.
 
 ## Grafana
 

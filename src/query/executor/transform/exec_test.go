@@ -24,12 +24,14 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/opentracing/opentracing-go"
@@ -50,7 +52,7 @@ func TestProcessSimpleBlock(t *testing.T) {
 	}
 
 	setup := func(t *testing.T) (*testContext, func()) {
-		ctrl := gomock.NewController(t)
+		ctrl := xtest.NewController(t)
 
 		controller := &Controller{
 			ID: parser.NodeID("foo"),
@@ -58,11 +60,16 @@ func TestProcessSimpleBlock(t *testing.T) {
 		child := NewMockOpNode(ctrl)
 		controller.AddTransform(child)
 
+		step := time.Second
+		bounds := models.Bounds{
+			StepSize: step,
+			Duration: step,
+		}
+
 		return &testContext{
-			MockCtrl:   ctrl,
-			Controller: controller,
-			SourceBlock: test.NewBlockFromValues(
-				models.Bounds{}, [][]float64{{1.0}}),
+			MockCtrl:    ctrl,
+			Controller:  controller,
+			SourceBlock: test.NewBlockFromValues(bounds, [][]float64{{1.0}}),
 			ResultBlock: block.NewMockBlock(ctrl),
 			Node:        NewMocksimpleOpNode(ctrl),
 			ChildNode:   child,
@@ -74,11 +81,22 @@ func TestProcessSimpleBlock(t *testing.T) {
 		return ProcessSimpleBlock(tctx.Node, tctx.Controller, tctx.QueryCtx, tctx.Controller.ID, tctx.SourceBlock)
 	}
 
-	configureSuccessfulNode := func(tctx *testContext) {
+	configureNode := func(
+		tctx *testContext,
+		blockType block.BlockType,
+		closeExpected bool,
+	) {
 		tctx.Node.EXPECT().Params().Return(utils.StaticParams("foo"))
 		tctx.Node.EXPECT().ProcessBlock(gomock.Any(), gomock.Any(), gomock.Any()).Return(tctx.ResultBlock, nil)
 		tctx.ChildNode.EXPECT().Process(gomock.Any(), gomock.Any(), gomock.Any())
-		tctx.ResultBlock.EXPECT().Close()
+		tctx.ResultBlock.EXPECT().Info().Return(block.NewBlockInfo(blockType))
+		if closeExpected {
+			tctx.ResultBlock.EXPECT().Close()
+		}
+	}
+
+	configureSuccessfulNode := func(tctx *testContext) {
+		configureNode(tctx, block.BlockM3TSZCompressed, true)
 	}
 
 	t.Run("closes next block", func(t *testing.T) {
@@ -86,6 +104,19 @@ func TestProcessSimpleBlock(t *testing.T) {
 		defer closer()
 
 		configureSuccessfulNode(tctx)
+
+		require.NoError(t, doCall(tctx))
+	})
+
+	configureLazyNode := func(tctx *testContext) {
+		configureNode(tctx, block.BlockLazy, false)
+	}
+
+	t.Run("does not close lazy block", func(t *testing.T) {
+		tctx, closer := setup(t)
+		defer closer()
+
+		configureLazyNode(tctx)
 
 		require.NoError(t, doCall(tctx))
 	})

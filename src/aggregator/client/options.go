@@ -21,6 +21,8 @@
 package client
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
@@ -28,16 +30,31 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 )
 
+// AggregatorClientType determines the aggregator client type.
+type AggregatorClientType int
+
 const (
+	// LegacyAggregatorClient is the legacy aggregator client type and uses it's own
+	// TCP negotation, load balancing and data transmission protocol.
+	LegacyAggregatorClient AggregatorClientType = iota
+	// M3MsgAggregatorClient is the M3Msg aggregator client type that uses M3Msg to
+	// handle publishing to a M3Msg topic the aggregator consumes from.
+	M3MsgAggregatorClient
+
+	defaultAggregatorClient = LegacyAggregatorClient
+
 	defaultFlushSize = 1440
 
 	// defaultMaxTimerBatchSize is the default maximum timer batch size.
 	// By default there is no limit on the timer batch size.
 	defaultMaxTimerBatchSize = 0
 
-	defaultInstanceQueueSize = 4096
+	// defaultInstanceQueueSize determines how many metrics can be buffered
+	// before it must wait for an existing batch to be flushed to an instance.
+	defaultInstanceQueueSize = 2 << 15 // ~65k
 
 	// By default traffic is cut over to shards 10 minutes before the designated
 	// cutover time in case there are issues with the instances owning the shards.
@@ -51,15 +68,71 @@ const (
 	// By default the oldest metrics in the queue are dropped when it is full.
 	defaultDropType = DropOldest
 
-	// By default set maximum batch size to 32k
-	defaultMaxBatchSize = 2 << 14
+	// By default set maximum batch size to 8mb.
+	defaultMaxBatchSize = 2 << 22
 
-	// By default write at least every 100ms
+	// By default write at least every 100ms.
 	defaultBatchFlushDeadline = 100 * time.Millisecond
 )
 
+var (
+	validAggregatorClientTypes = []AggregatorClientType{
+		LegacyAggregatorClient,
+		M3MsgAggregatorClient,
+	}
+
+	errLegacyClientNoWatcherOptions = errors.New("legacy client: no watcher options set")
+	errM3MsgClientNoOptions         = errors.New("m3msg aggregator client: no m3msg options set")
+	errNoRWOpts                     = errors.New("no rw opts set for aggregator")
+)
+
+func (t AggregatorClientType) String() string {
+	switch t {
+	case LegacyAggregatorClient:
+		return "legacy"
+	case M3MsgAggregatorClient:
+		return "m3msg"
+	}
+	return "unknown"
+}
+
+// UnmarshalYAML unmarshals a AggregatorClientType into a valid type from string.
+func (t *AggregatorClientType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		*t = defaultAggregatorClient
+		return nil
+	}
+	for _, valid := range validAggregatorClientTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid AggregatorClientType: value=%s, valid=%v",
+		str, validAggregatorClientTypes)
+}
+
 // Options provide a set of client options.
 type Options interface {
+	// Validate validates the client options.
+	Validate() error
+
+	// SetAggregatorClientType sets the client type.
+	SetAggregatorClientType(value AggregatorClientType) Options
+
+	// AggregatorClientType returns the client type.
+	AggregatorClientType() AggregatorClientType
+
+	// SetM3MsgOptions sets the M3Msg aggregator client options.
+	SetM3MsgOptions(value M3MsgOptions) Options
+
+	// M3MsgOptions returns the M3Msg aggregator client options.
+	M3MsgOptions() M3MsgOptions
+
 	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options
 
@@ -145,9 +218,16 @@ type Options interface {
 
 	// BatchFlushDeadline returns the deadline that triggers a write of queued buffers.
 	BatchFlushDeadline() time.Duration
+
+	// SetRWOptions sets RW options.
+	SetRWOptions(value xio.Options) Options
+
+	// RWOptions returns the RW options.
+	RWOptions() xio.Options
 }
 
 type options struct {
+	aggregatorClientType       AggregatorClientType
 	clockOpts                  clock.Options
 	instrumentOpts             instrument.Options
 	encoderOpts                protobuf.UnaggregatedOptions
@@ -162,6 +242,8 @@ type options struct {
 	dropType                   DropType
 	maxBatchSize               int
 	batchFlushDeadline         time.Duration
+	m3msgOptions               M3MsgOptions
+	rwOpts                     xio.Options
 }
 
 // NewOptions creates a new set of client options.
@@ -181,7 +263,49 @@ func NewOptions() Options {
 		dropType:                   defaultDropType,
 		maxBatchSize:               defaultMaxBatchSize,
 		batchFlushDeadline:         defaultBatchFlushDeadline,
+		rwOpts:                     xio.NewOptions(),
 	}
+}
+
+func (o *options) Validate() error {
+	if o.rwOpts == nil {
+		return errNoRWOpts
+	}
+	switch o.aggregatorClientType {
+	case M3MsgAggregatorClient:
+		opts := o.m3msgOptions
+		if opts == nil {
+			return errM3MsgClientNoOptions
+		}
+		return opts.Validate()
+	case LegacyAggregatorClient:
+		if o.watcherOpts == nil {
+			return errLegacyClientNoWatcherOptions
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown client type: %v", o.aggregatorClientType)
+	}
+}
+
+func (o *options) SetAggregatorClientType(value AggregatorClientType) Options {
+	opts := *o
+	opts.aggregatorClientType = value
+	return &opts
+}
+
+func (o *options) AggregatorClientType() AggregatorClientType {
+	return o.aggregatorClientType
+}
+
+func (o *options) SetM3MsgOptions(value M3MsgOptions) Options {
+	opts := *o
+	opts.m3msgOptions = value
+	return &opts
+}
+
+func (o *options) M3MsgOptions() M3MsgOptions {
+	return o.m3msgOptions
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
@@ -329,4 +453,14 @@ func (o *options) SetBatchFlushDeadline(value time.Duration) Options {
 
 func (o *options) BatchFlushDeadline() time.Duration {
 	return o.batchFlushDeadline
+}
+
+func (o *options) SetRWOptions(value xio.Options) Options {
+	opts := *o
+	opts.rwOpts = value
+	return &opts
+}
+
+func (o *options) RWOptions() xio.Options {
+	return o.rwOpts
 }

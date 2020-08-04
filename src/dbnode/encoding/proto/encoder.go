@@ -32,10 +32,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/jhump/protoreflect/desc"
 )
 
@@ -66,6 +67,7 @@ type Encoder struct {
 	lastEncodedDP   ts.Datapoint
 	customFields    []customFieldState
 	nonCustomFields []marshalledField
+	prevAnnotation  ts.Annotation
 
 	// Fields that are reused between function calls to
 	// avoid allocations.
@@ -167,6 +169,7 @@ func (enc *Encoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, protoBytes ts.A
 
 	enc.numEncoded++
 	enc.lastEncodedDP = dp
+	enc.prevAnnotation = protoBytes
 	enc.stats.IncUncompressedBytes(len(protoBytes))
 	return nil
 }
@@ -213,8 +216,8 @@ func (enc *Encoder) encodeSchemaAndOrTimeUnit(
 }
 
 // Stream returns a copy of the underlying data stream.
-func (enc *Encoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool) {
-	seg := enc.segment(true)
+func (enc *Encoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
+	seg := enc.segmentZeroCopy(ctx)
 	if seg.Len() == 0 {
 		return nil, false
 	}
@@ -227,26 +230,50 @@ func (enc *Encoder) Stream(opts encoding.StreamOptions) (xio.SegmentReader, bool
 	return xio.NewSegmentReader(seg), true
 }
 
-func (enc *Encoder) segment(copy bool) ts.Segment {
+func (enc *Encoder) segmentZeroCopy(ctx context.Context) ts.Segment {
 	length := enc.stream.Len()
 	if enc.stream.Len() == 0 {
 		return ts.Segment{}
 	}
 
+	// We need a tail to capture an immutable snapshot of the encoder data
+	// as the last byte can change after this method returns.
+	rawBuffer, _ := enc.stream.RawBytes()
+	lastByte := rawBuffer[length-1]
+
+	// Take ref up to last byte.
+	headBytes := rawBuffer[:length-1]
+
+	// Zero copy from the output stream.
 	var head checked.Bytes
-	buffer, _ := enc.stream.Rawbytes()
-	if !copy {
-		// Take ref from the ostream.
-		head = enc.stream.Discard()
+	if pool := enc.opts.CheckedBytesWrapperPool(); pool != nil {
+		head = pool.Get(headBytes)
 	} else {
-		// Copy into new buffer.
-		head = enc.newBuffer(length)
-		head.IncRef()
-		head.AppendAll(buffer)
-		head.DecRef()
+		head = checked.NewBytes(headBytes, nil)
 	}
 
-	return ts.NewSegment(head, nil, ts.FinalizeHead)
+	// Make sure the ostream bytes ref is delayed from finalizing
+	// until this operation is complete (since this is zero copy).
+	buffer, _ := enc.stream.CheckedBytes()
+	ctx.RegisterCloser(buffer.DelayFinalizer())
+
+	// Take a shared ref to a known good tail.
+	tail := tails[lastByte]
+
+	// Only discard the head since tails are shared for process life time.
+	return ts.NewSegment(head, tail, 0, ts.FinalizeHead)
+}
+
+func (enc *Encoder) segmentTakeOwnership() ts.Segment {
+	length := enc.stream.Len()
+	if length == 0 {
+		return ts.Segment{}
+	}
+
+	// Take ref from the ostream.
+	head := enc.stream.Discard()
+
+	return ts.NewSegment(head, nil, 0, ts.FinalizeHead)
 }
 
 // NumEncoded returns the number of encoded messages.
@@ -269,6 +296,16 @@ func (enc *Encoder) LastEncoded() (ts.Datapoint, error) {
 	// but set it again to be safe.
 	enc.lastEncodedDP.Value = 0
 	return enc.lastEncodedDP, nil
+}
+
+// LastAnnotation returns the last encoded annotation (which contain the bytes
+// used for ProtoBuf data).
+func (enc *Encoder) LastAnnotation() (ts.Annotation, error) {
+	if enc.numEncoded == 0 {
+		return nil, errNoEncodedDatapoints
+	}
+
+	return enc.prevAnnotation, nil
 }
 
 // Len returns the length of the data stream.
@@ -442,6 +479,7 @@ func (enc *Encoder) Reset(
 	enc.reset(start, capacity)
 }
 
+// SetSchema sets the schema for the encoder.
 func (enc *Encoder) SetSchema(descr namespace.SchemaDescr) {
 	if descr == nil {
 		enc.schemaDesc = nil
@@ -478,12 +516,24 @@ func (enc *Encoder) reset(start time.Time, capacity int) {
 func (enc *Encoder) resetSchema(schema *desc.MessageDescriptor) {
 	enc.schema = schema
 	if enc.schema == nil {
-		enc.nonCustomFields = nil
-		enc.customFields = nil
-	} else {
-		enc.customFields, enc.nonCustomFields = customAndNonCustomFields(enc.customFields, enc.nonCustomFields, enc.schema)
-		enc.hasEncodedSchema = false
+		// Clear but don't set to nil so they don't need to be reallocated
+		// next time.
+		customFields := enc.customFields
+		for i := range customFields {
+			customFields[i] = customFieldState{}
+		}
+		enc.customFields = customFields[:0]
+
+		nonCustomFields := enc.nonCustomFields
+		for i := range nonCustomFields {
+			nonCustomFields[i] = marshalledField{}
+		}
+		enc.nonCustomFields = nonCustomFields[:0]
+		return
 	}
+
+	enc.customFields, enc.nonCustomFields = customAndNonCustomFields(enc.customFields, enc.nonCustomFields, enc.schema)
+	enc.hasEncodedSchema = false
 }
 
 // Close closes the encoder.
@@ -504,7 +554,7 @@ func (enc *Encoder) Close() {
 // Discard closes the encoder and transfers ownership of the data stream to
 // the caller.
 func (enc *Encoder) Discard() ts.Segment {
-	segment := enc.discard()
+	segment := enc.segmentTakeOwnership()
 	// Close the encoder since its no longer needed
 	enc.Close()
 	return segment
@@ -513,13 +563,9 @@ func (enc *Encoder) Discard() ts.Segment {
 // DiscardReset does the same thing as Discard except it also resets the encoder
 // for reuse.
 func (enc *Encoder) DiscardReset(start time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
-	segment := enc.discard()
+	segment := enc.segmentTakeOwnership()
 	enc.Reset(start, capacity, descr)
 	return segment
-}
-
-func (enc *Encoder) discard() ts.Segment {
-	return enc.segment(false)
 }
 
 // Bytes returns the raw bytes of the underlying data stream. Does not
@@ -529,7 +575,7 @@ func (enc *Encoder) Bytes() ([]byte, error) {
 		return nil, unusableErr
 	}
 
-	bytes, _ := enc.stream.Rawbytes()
+	bytes, _ := enc.stream.RawBytes()
 	return bytes, nil
 }
 
@@ -558,7 +604,7 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	}
 
 	if numPreviousBytes > 0 && hash == lastState.hash {
-		streamBytes, _ := enc.stream.Rawbytes()
+		streamBytes, _ := enc.stream.RawBytes()
 		match, err := enc.bytesMatchEncodedDictionaryValue(
 			streamBytes, lastState, val)
 		if err != nil {
@@ -576,7 +622,7 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	// Bytes changed control bit.
 	enc.stream.WriteBit(opCodeChange)
 
-	streamBytes, _ := enc.stream.Rawbytes()
+	streamBytes, _ := enc.stream.RawBytes()
 	for j, state := range customField.bytesFieldDict {
 		if hash != state.hash {
 			continue
@@ -629,7 +675,7 @@ func (enc *Encoder) encodeBytesValue(i int, val []byte) error {
 	enc.padToNextByte()
 
 	// Track the byte position we're going to start at so we can store it in the LRU after.
-	streamBytes, _ = enc.stream.Rawbytes()
+	streamBytes, _ = enc.stream.RawBytes()
 	bytePos := len(streamBytes)
 
 	// Write the actual bytes.
@@ -767,7 +813,7 @@ func (enc *Encoder) bytesMatchEncodedDictionaryValue(
 // reaches the beginning of the next byte. This allows us begin encoding data
 // with the guarantee that we're aligned at a physical byte boundary.
 func (enc *Encoder) padToNextByte() {
-	_, bitPos := enc.stream.Rawbytes()
+	_, bitPos := enc.stream.RawBytes()
 	for bitPos%8 != 0 {
 		enc.stream.WriteBit(0)
 		bitPos++
@@ -875,4 +921,15 @@ func (enc *Encoder) newBuffer(capacity int) checked.Bytes {
 		return bytesPool.Get(capacity)
 	}
 	return checked.NewBytes(make([]byte, 0, capacity), nil)
+}
+
+// tails is a list of all possible tails based on the
+// byte value of the last byte. For the proto encoder
+// they are all the same.
+var tails [256]checked.Bytes
+
+func init() {
+	for i := 0; i < 256; i++ {
+		tails[i] = checked.NewBytes([]byte{byte(i)}, nil)
+	}
 }

@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -58,8 +58,12 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 		SetIndexOptions(idxOpts)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{ns1})
+	opts := NewTestOptions(t).
+		SetNamespaces([]namespace.Metadata{ns1}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
@@ -70,7 +74,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 
 	// Write test data for first node
 	// Write test data
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 
 	fooSeries := generate.Series{
 		ID:   ident.StringID("foo"),
@@ -113,21 +117,21 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 			Start:     now,
 		},
 	})
-	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps))
+	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	// Start the remaining servers with peers and filesystem bootstrappers
-	setups[1:].parallel(func(s *testSetup) {
-		require.NoError(t, s.startServer())
+	setups[1:].parallel(func(s TestSetup) {
+		require.NoError(t, s.StartServer())
 	})
 	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+		setups.parallel(func(s TestSetup) {
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()
@@ -138,7 +142,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	}
 
 	// Issue aggregate index queries to the second node which bootstrapped the metadata
-	session, err := setups[1].m3dbClient.DefaultSession()
+	session, err := setups[1].M3DBClient().DefaultSession()
 	require.NoError(t, err)
 
 	start := now.Add(-rOpts.RetentionPeriod())
@@ -150,9 +154,10 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err := session.Aggregate(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, fetchResponse, err := session.Aggregate(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
+	exhaustive := fetchResponse.Exhaustive
 	require.True(t, exhaustive)
 	defer iter.Finalize()
 
@@ -173,9 +178,10 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
-	iter, exhaustive, err = session.Aggregate(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.Aggregate(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
+	exhaustive = fetchResponse.Exhaustive
 	defer iter.Finalize()
 
 	verifyQueryAggregateMetadataResults(t, iter, exhaustive,
@@ -193,9 +199,10 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
 	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("foo")})
-	iter, exhaustive, err = session.Aggregate(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.Aggregate(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
+	exhaustive = fetchResponse.Exhaustive
 	require.True(t, exhaustive)
 	defer iter.Finalize()
 
@@ -214,9 +221,10 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	require.NoError(t, err)
 	queryOpts.FieldFilter = index.AggregateFieldFilter([][]byte{[]byte("city")})
 	queryOpts.Type = index.AggregateTagNames
-	iter, exhaustive, err = session.Aggregate(ns1.ID(),
-		index.Query{regexpQuery}, queryOpts)
+	iter, fetchResponse, err = session.Aggregate(ns1.ID(),
+		index.Query{Query: regexpQuery}, queryOpts)
 	require.NoError(t, err)
+	exhaustive = fetchResponse.Exhaustive
 	require.True(t, exhaustive)
 	defer iter.Finalize()
 

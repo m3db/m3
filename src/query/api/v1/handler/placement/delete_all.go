@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/util/logging"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -65,29 +66,70 @@ func NewDeleteAllHandler(opts HandlerOptions) *DeleteAllHandler {
 	return &DeleteAllHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *DeleteAllHandler) ServeHTTP(
+	svc handleroptions.ServiceNameAndDefaults,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	var (
 		ctx    = r.Context()
-		logger = logging.WithContext(ctx)
-		opts   = handler.NewServiceOptions(
-			serviceName, r.Header, h.M3AggServiceOptions)
+		logger = logging.WithContext(ctx, h.instrumentOptions)
+		opts   = handleroptions.NewServiceOptions(svc, r.Header, h.m3AggServiceOptions)
 	)
 
-	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
+	service, err := Service(h.clusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	if err := service.Delete(); err != nil {
+	curPlacement, err := service.Placement()
+	if err != nil {
 		if err == kv.ErrNotFound {
-			logger.Info("cannot delete absent placement", zap.String("service", serviceName))
+			logger.Info("cannot delete placement",
+				zap.String("service", svc.ServiceName),
+				zap.Error(err))
 			xhttp.Error(w, err, http.StatusNotFound)
 			return
 		}
-		logger.Error("unable to delete placement", zap.Error(err))
+
+		logger.Error("unable to fetch placement", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
+	}
+
+	if err := service.Delete(); err != nil {
+		logger.Error("error deleting placement", zap.Error(err))
+		xhttp.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	// Now need to delete aggregator related keys (e.g. for shardsets) if required.
+	if svc.ServiceName == handleroptions.M3AggregatorServiceName {
+		instances := curPlacement.Instances()
+		shardSetIDs := make([]uint32, 0, len(instances))
+		for _, elem := range instances {
+			value := elem.ShardSetID()
+			found := false
+			for _, existing := range shardSetIDs {
+				if existing == value {
+					found = true
+					break
+				}
+			}
+			if !found {
+				shardSetIDs = append(shardSetIDs, value)
+			}
+		}
+
+		err := deleteAggregatorShardSetIDRelatedKeys(svc, opts,
+			h.clusterClient, shardSetIDs)
+		if err != nil {
+			logger.Error("error removing aggregator keys for instances",
+				zap.Error(err))
+			xhttp.Error(w, err, http.StatusInternalServerError)
+			return
+		}
 	}
 
 	json.NewEncoder(w).Encode(struct {

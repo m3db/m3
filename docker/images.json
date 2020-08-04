@@ -1,16 +1,29 @@
 {
   "images": {
-    "m3dbnode": {
-      "dockerfile": "docker/m3dbnode/Dockerfile"
+    "m3aggregator": {
+      "dockerfile": "docker/m3aggregator/Dockerfile",
+      "name": "m3aggregator"
     },
     "m3coordinator": {
-      "dockerfile": "docker/m3coordinator/Dockerfile"
+      "dockerfile": "docker/m3coordinator/Dockerfile",
+      "name": "m3coordinator"
     },
-    "m3query": {
-      "dockerfile": "docker/m3query/Dockerfile"
+    "m3dbnode": {
+      "dockerfile": "docker/m3dbnode/Dockerfile",
+      "name": "m3dbnode"
+    },
+    "m3dbnode-setcap": {
+      "dockerfile": "docker/m3dbnode/Dockerfile-setcap",
+      "name": "m3dbnode",
+      "tag_suffix": "setcap"
     },
     "m3nsch": {
-      "dockerfile": "docker/m3nsch/Dockerfile"
+      "dockerfile": "docker/m3nsch/Dockerfile",
+      "name": "m3nsch"
+    },
+    "m3query": {
+      "dockerfile": "docker/m3query/Dockerfile",
+      "name": "m3query"
     }
   }
 }

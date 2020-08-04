@@ -29,9 +29,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -55,8 +55,12 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 		SetBufferFuture(2 * time.Minute)
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
+	opts := NewTestOptions(t).
+		SetNamespaces([]namespace.Metadata{namesp}).
+		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
+		// and not write/read all nodes in the cluster.
+		SetUseTChannelClientForWriting(true).
+		SetUseTChannelClientForReading(true)
 
 	minShard := uint32(0)
 	maxShard := uint32(opts.NumShards()) - uint32(1)
@@ -103,13 +107,13 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 
 	// Start both servers "simultaneously"
 	go func() {
-		if err := setups[0].startServer(); err != nil {
+		if err := setups[0].StartServer(); err != nil {
 			panic(err)
 		}
 		serversAreUp.Done()
 	}()
 	go func() {
-		if err := setups[1].startServer(); err != nil {
+		if err := setups[1].StartServer(); err != nil {
 			panic(err)
 		}
 		serversAreUp.Done()
@@ -120,8 +124,8 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+		setups.parallel(func(s TestSetup) {
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

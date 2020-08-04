@@ -26,18 +26,20 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
+	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	tchannel "github.com/uber/tchannel-go"
@@ -73,13 +75,13 @@ type Session interface {
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
+	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, FetchResponseMetadata, error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (iter TaggedIDsIterator, exhaustive bool, err error)
+	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, FetchResponseMetadata, error)
 
 	// Aggregate aggregates values from the database for the given set of constraints.
-	Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (iter AggregatedTagsIterator, exhaustive bool, err error)
+	Aggregate(namespace ident.ID, q index.Query, opts index.AggregationOptions) (AggregatedTagsIterator, FetchResponseMetadata, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -91,6 +93,17 @@ type Session interface {
 
 	// Close the session
 	Close() error
+}
+
+// FetchResponseMetadata is metadata about a fetch response.
+type FetchResponseMetadata struct {
+	// Exhaustive indicates whether the underlying data set presents a full
+	// collection of retrieved data.
+	Exhaustive bool
+	// Responses is the count of responses.
+	Responses int
+	// EstimateTotalBytes is an approximation of the total byte size of the response.
+	EstimateTotalBytes int
 }
 
 // AggregatedTagsIterator iterates over a collection of tag names with optionally
@@ -117,6 +130,9 @@ type AggregatedTagsIterator interface {
 type TaggedIDsIterator interface {
 	// Next returns whether there are more items in the collection.
 	Next() bool
+
+	// Remaining returns the number of elements remaining to be iterated over.
+	Remaining() int
 
 	// Current returns the ID, Tags and Namespace for a single timeseries.
 	// These remain valid until Next() is called again.
@@ -236,6 +252,9 @@ type Options interface {
 	// SetEncodingProto sets proto encoding.
 	SetEncodingProto(encodingOpts encoding.Options) Options
 
+	// IsSetEncodingProto returns whether proto encoding is set.
+	IsSetEncodingProto() bool
+
 	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
@@ -253,6 +272,12 @@ type Options interface {
 
 	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
+
+	// SetLogErrorSampleRate sets the log error sample rate between [0,1.0].
+	SetLogErrorSampleRate(value sampler.Rate) Options
+
+	// LogErrorSampleRate returns the log error sample rate between [0,1.0].
+	LogErrorSampleRate() sampler.Rate
 
 	// SetTopologyInitializer sets the TopologyInitializer.
 	SetTopologyInitializer(value topology.Initializer) Options
@@ -505,6 +530,48 @@ type Options interface {
 
 	// SchemaRegistry returns the schema registry.
 	SchemaRegistry() namespace.SchemaRegistry
+
+	// SetAsyncTopologyInitializers sets the AsyncTopologyInitializers
+	SetAsyncTopologyInitializers(value []topology.Initializer) Options
+
+	// AsyncTopologyInitializers returns the AsyncTopologyInitializers
+	AsyncTopologyInitializers() []topology.Initializer
+
+	// SetAsyncWriteWorkerPool sets the worker pool for async writes.
+	SetAsyncWriteWorkerPool(value xsync.PooledWorkerPool) Options
+
+	// AsyncWriteWorkerPool returns the worker pool for async writes.
+	AsyncWriteWorkerPool() xsync.PooledWorkerPool
+
+	// SetAsyncWriteMaxConcurrency sets the async writes maximum concurrency.
+	SetAsyncWriteMaxConcurrency(value int) Options
+
+	// AsyncWriteMaxConcurrency returns the async writes maximum concurrency.
+	AsyncWriteMaxConcurrency() int
+
+	// SetUseV2BatchAPIs sets whether the V2 batch APIs should be used.
+	SetUseV2BatchAPIs(value bool) Options
+
+	// UseV2BatchAPIs returns whether the V2 batch APIs should be used.
+	UseV2BatchAPIs() bool
+
+	// SetIterationOptions sets experimental iteration options.
+	SetIterationOptions(index.IterationOptions) Options
+
+	// IterationOptions returns experimental iteration options.
+	IterationOptions() index.IterationOptions
+
+	// SetWriteTimestampOffset sets the write timestamp offset.
+	SetWriteTimestampOffset(value time.Duration) AdminOptions
+
+	// WriteTimestampOffset returns the write timestamp offset.
+	WriteTimestampOffset() time.Duration
+
+	// SetNewConnectionFn sets a new connection generator function.
+	SetNewConnectionFn(value NewConnectionFn) AdminOptions
+
+	// NewConnectionFn returns the new connection generator function.
+	NewConnectionFn() NewConnectionFn
 }
 
 // AdminOptions is a set of administration client options.
@@ -643,10 +710,16 @@ type op interface {
 	CompletionFn() completionFn
 }
 
+type enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
+type enqueueDelayedDoneFn func()
+
 type enqueueChannel interface {
-	enqueue(peersMetadata []receivedBlockMetadata)
-	enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata)
-	get() <-chan []receivedBlockMetadata
+	enqueue(peersMetadata []receivedBlockMetadata) error
+	enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueDelayedDoneFn, error)
+	// read is always safe to call since you can safely range
+	// over a closed channel, and/or do a checked read in case
+	// it is closed (unlike when publishing to a channel).
+	read() <-chan []receivedBlockMetadata
 	trackPending(amount int)
 	trackProcessed(amount int)
 	unprocessedLen() int

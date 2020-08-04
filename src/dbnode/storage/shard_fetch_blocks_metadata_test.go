@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -66,7 +67,6 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	}
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
-		IncludeCachedBlocks:        true,
 	}
 	lastRead := time.Now().Add(-time.Minute)
 	for i := int64(0); i < 10; i++ {
@@ -195,7 +195,9 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 
 			bytes := checked.NewBytes(data, nil)
 			bytes.IncRef()
-			err = writer.Write(id, ident.Tags{}, bytes, checksum)
+			meta := persist.NewMetadataFromIDAndTags(id, ident.Tags{},
+				persist.MetadataOptions{})
+			err = writer.Write(meta, bytes, checksum)
 			require.NoError(t, err)
 
 			blockMetadataResult := block.NewFetchBlockMetadataResult(at,
@@ -210,7 +212,6 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 	// Add mock active series
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
-		IncludeCachedBlocks:        false,
 	}
 	lastRead := time.Now().Add(-time.Minute)
 	for i := 0; i < numActiveSeries; i++ {

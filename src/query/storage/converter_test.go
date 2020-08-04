@@ -21,33 +21,26 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
-	xcost "github.com/m3db/m3/src/x/cost"
-	"github.com/m3db/m3/src/x/ident"
-	xsync "github.com/m3db/m3/src/x/sync"
+	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLabelConversion(t *testing.T) {
 	// NB: sorted order (__name__, foo, le)
-	labels := []*prompb.Label{
-		&prompb.Label{Name: promDefaultName, Value: []byte("name-val")},
-		&prompb.Label{Name: []byte("foo"), Value: []byte("bar")},
-		&prompb.Label{Name: promDefaultBucketName, Value: []byte("bucket-val")},
+	labels := []prompb.Label{
+		prompb.Label{Name: promDefaultName, Value: []byte("name-val")},
+		prompb.Label{Name: []byte("foo"), Value: []byte("bar")},
+		prompb.Label{Name: promDefaultBucketName, Value: []byte("bucket-val")},
 	}
 
 	opts := models.NewTagOptions().
@@ -73,158 +66,23 @@ func TestLabelConversion(t *testing.T) {
 	assert.Equal(t, labels, reverted)
 }
 
-func verifyExpandSeries(
-	t *testing.T,
-	ctrl *gomock.Controller,
-	num int,
-	pools xsync.PooledWorkerPool,
-) {
-	testTags := seriesiter.GenerateTag()
-	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
-
-	enforcer := cost.NewMockChainedEnforcer(ctrl)
-	enforcer.EXPECT().Add(xcost.Cost(2)).Times(num)
-	results, err := SeriesIteratorsToFetchResult(iters, pools, true, enforcer, nil)
-	assert.NoError(t, err)
-
-	require.NotNil(t, results)
-	require.NotNil(t, results.SeriesList)
-	require.Len(t, results.SeriesList, num)
-	expectedTags := []models.Tag{{Name: testTags.Name.Bytes(),
-		Value: testTags.Value.Bytes()}}
-	for i := 0; i < num; i++ {
-		series := results.SeriesList[i]
-		require.NotNil(t, series)
-		require.Equal(t, expectedTags, series.Tags.Tags)
-	}
-}
-
-func testExpandSeries(t *testing.T, pools xsync.PooledWorkerPool) {
-	ctrl := gomock.NewController(t)
-
-	for i := 0; i < 100; i++ {
-		verifyExpandSeries(t, ctrl, i, pools)
-	}
-}
-
-func TestExpandSeriesNilPools(t *testing.T) {
-	testExpandSeries(t, nil)
-}
-
-func TestExpandSeriesValidPools(t *testing.T) {
-	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
-	require.NoError(t, err)
-	pool.Init()
-	testExpandSeries(t, pool)
-}
-
-func TestExpandSeriesSmallValidPools(t *testing.T) {
-	pool, err := xsync.NewPooledWorkerPool(2, xsync.NewPooledWorkerPoolOptions())
-	require.NoError(t, err)
-	pool.Init()
-	testExpandSeries(t, pool)
-}
-
-func TestFailingExpandSeriesValidPools(t *testing.T) {
-	var (
-		numValidSeries = 8
-		numValues      = 2
-		poolSize       = 2
-		numUncalled    = 10
-	)
-	pool, err := xsync.NewPooledWorkerPool(poolSize,
-		xsync.NewPooledWorkerPoolOptions())
-	require.NoError(t, err)
-	pool.Init()
-	ctrl := gomock.NewController(t)
-
-	iters := seriesiter.NewMockSeriesIterSlice(ctrl,
-		seriesiter.NewMockValidTagGenerator(ctrl), numValidSeries, numValues)
-	// Add poolSize + 1 failing iterators; there can be slight timing
-	// inconsistencies which can sometimes cause failures in this test
-	// as one of the `uncalled` iterators gets unexpectedly used.
-	// This is not a big issue in practice, as all it means is one further
-	// iterator is expanded before erroring out.
-	for i := 0; i < poolSize+1; i++ {
-		invalidIter := encoding.NewMockSeriesIterator(ctrl)
-		invalidIter.EXPECT().ID().Return(ident.StringID("foo")).Times(1)
-
-		tags := ident.NewMockTagIterator(ctrl)
-		tags.EXPECT().Next().Return(false).MaxTimes(1)
-		tags.EXPECT().Remaining().Return(0).MaxTimes(1)
-		tags.EXPECT().Err().Return(errors.New("error")).MaxTimes(1)
-		invalidIter.EXPECT().Tags().Return(tags).MaxTimes(1)
-
-		iters = append(iters, invalidIter)
-	}
-
-	for i := 0; i < numUncalled; i++ {
-		uncalledIter := encoding.NewMockSeriesIterator(ctrl)
-		iters = append(iters, uncalledIter)
-	}
-
-	mockIters := encoding.NewMockSeriesIterators(ctrl)
-	mockIters.EXPECT().Iters().Return(iters).Times(1)
-	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
-	mockIters.EXPECT().Close().Times(1)
-	enforcer := cost.NewMockChainedEnforcer(ctrl)
-	enforcer.EXPECT().Add(xcost.Cost(2)).Times(numValidSeries)
-
-	result, err := SeriesIteratorsToFetchResult(
-		mockIters,
-		pool,
-		true,
-		enforcer,
-		nil,
-	)
-	require.Nil(t, result)
-	require.EqualError(t, err, "error")
-}
-
-func TestOverLimit(t *testing.T) {
-	var (
-		numValidSeries = 8
-		numValues      = 2
-		poolSize       = 2
-		numUncalled    = 10
-	)
-	pool, err := xsync.NewPooledWorkerPool(poolSize,
-		xsync.NewPooledWorkerPoolOptions())
-	require.NoError(t, err)
-	pool.Init()
-	ctrl := gomock.NewController(t)
-
-	iters := seriesiter.NewMockSeriesIterSlice(ctrl,
-		seriesiter.NewMockValidTagGenerator(ctrl), numValidSeries+poolSize+1, numValues)
-	for i := 0; i < numUncalled; i++ {
-		uncalledIter := encoding.NewMockSeriesIterator(ctrl)
-		iters = append(iters, uncalledIter)
-	}
-
-	mockIters := encoding.NewMockSeriesIterators(ctrl)
-	mockIters.EXPECT().Iters().Return(iters).Times(1)
-	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
-	mockIters.EXPECT().Close().Times(1)
-	enforcer := cost.NewMockChainedEnforcer(ctrl)
-	enforcer.EXPECT().Add(xcost.Cost(2)).Times(numValidSeries)
-	enforcer.EXPECT().Add(xcost.Cost(2)).
-		Return(xcost.Report{Error: errors.New("error")}).MinTimes(1)
-
-	result, err := SeriesIteratorsToFetchResult(
-		mockIters,
-		pool,
-		true,
-		enforcer,
-		nil,
-	)
-	require.Nil(t, result)
-	require.EqualError(t, err, "error")
-}
-
 var (
 	name  = []byte("foo")
 	value = []byte("bar")
 )
+
+func TestPromReadQueryToM3BadStartEnd(t *testing.T) {
+	q, err := PromReadQueryToM3(&prompb.Query{
+		StartTimestampMs: 100,
+		EndTimestampMs:   -100,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, time.Time{}, q.Start)
+	// NB: check end is approximately correct.
+	diff := math.Abs(float64(time.Since(q.End)))
+	assert.True(t, diff < float64(time.Minute))
+}
 
 func TestPromReadQueryToM3(t *testing.T) {
 	tests := []struct {
@@ -320,23 +178,63 @@ var (
 	benchResult *prompb.QueryResult
 )
 
-func TestIteratorToTsSeries(t *testing.T) {
-	t.Run("errors on iterator error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockIter := encoding.NewMockSeriesIterator(ctrl)
+func TestFetchResultToPromResult(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
 
-		expectedErr := errors.New("expected")
-		mockIter.EXPECT().Err().Return(expectedErr)
+	now := time.Now()
+	promNow := TimeToPromTimestamp(now)
 
-		mockIter = seriesiter.NewMockSeriesIteratorFromBase(mockIter, seriesiter.NewMockValidTagGenerator(ctrl), 1)
-		enforcer := cost.NewMockChainedEnforcer(ctrl)
-		enforcer.EXPECT().Add(xcost.Cost(2)).Times(1)
+	vals := ts.NewMockValues(ctrl)
+	vals.EXPECT().Len().Return(0).Times(2)
+	vals.EXPECT().Datapoints().Return(ts.Datapoints{})
 
-		dps, err := iteratorToTsSeries(mockIter, enforcer, models.NewTagOptions())
+	tags := models.NewTags(1, models.NewTagOptions()).
+		AddTag(models.Tag{Name: []byte("a"), Value: []byte("b")})
 
-		assert.Nil(t, dps)
-		assert.EqualError(t, err, expectedErr.Error())
-	})
+	valsNonEmpty := ts.NewMockValues(ctrl)
+	valsNonEmpty.EXPECT().Len().Return(1).Times(3)
+	dp := ts.Datapoints{{Timestamp: now, Value: 1}}
+	valsNonEmpty.EXPECT().Datapoints().Return(dp).Times(2)
+	tagsNonEmpty := models.NewTags(1, models.NewTagOptions()).
+		AddTag(models.Tag{Name: []byte("c"), Value: []byte("d")})
+
+	r := &FetchResult{
+		SeriesList: ts.SeriesList{
+			ts.NewSeries([]byte("a"), vals, tags),
+			ts.NewSeries([]byte("c"), valsNonEmpty, tagsNonEmpty),
+		},
+	}
+
+	// NB: not keeping empty series.
+	result := FetchResultToPromResult(r, false)
+	expected := &prompb.QueryResult{
+		Timeseries: []*prompb.TimeSeries{
+			&prompb.TimeSeries{
+				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
+				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, result)
+
+	// NB: keeping empty series.
+	result = FetchResultToPromResult(r, true)
+	expected = &prompb.QueryResult{
+		Timeseries: []*prompb.TimeSeries{
+			&prompb.TimeSeries{
+				Labels:  []prompb.Label{{Name: []byte("a"), Value: []byte("b")}},
+				Samples: []prompb.Sample{},
+			},
+			&prompb.TimeSeries{
+				Labels:  []prompb.Label{{Name: []byte("c"), Value: []byte("d")}},
+				Samples: []prompb.Sample{{Timestamp: promNow, Value: 1}},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, result)
 }
 
 // BenchmarkFetchResultToPromResult-8   	     100	  10563444 ns/op	25368543 B/op	    4443 allocs/op
@@ -374,6 +272,6 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		benchResult = FetchResultToPromResult(fr)
+		benchResult = FetchResultToPromResult(fr, false)
 	}
 }

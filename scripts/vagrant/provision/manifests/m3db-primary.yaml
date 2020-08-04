@@ -1,0 +1,33 @@
+apiVersion: operator.m3db.io/v1alpha1
+kind: M3DBCluster
+metadata:
+  name: test-cluster
+spec:
+  labels:
+    app: m3dbnode
+  image: quay.io/m3db/m3dbnode:latest
+  replicationFactor: 3
+  numberOfShards: 64
+  etcdEndpoints:
+  - http://etcd-0.etcd:2379
+  isolationGroups:
+  - name: group1
+    numInstances: 1
+  - name: group2
+    numInstances: 1
+  - name: group3
+    numInstances: 1
+  namespaces:
+    - name: default
+      preset: 10s:2d
+  podIdentityConfig:
+    sources: []
+  dataDirVolumeClaimTemplate:
+    metadata:
+      name: m3db-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2000Gi

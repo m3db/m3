@@ -33,6 +33,7 @@ import (
 type aggregationFn func(values []float64, bucket []int) float64
 
 var aggregationFunctions = map[string]aggregationFn{
+	AbsentType:            absentFn,
 	SumType:               sumFn,
 	MinType:               minFn,
 	MaxType:               maxFn,
@@ -42,20 +43,21 @@ var aggregationFunctions = map[string]aggregationFn{
 	CountType:             countFn,
 }
 
-// NodeParams contains additional parameters required for aggregation ops
+// NodeParams contains additional parameters required for aggregation ops.
 type NodeParams struct {
-	// MatchingTags is the set of tags by which the aggregation groups output series
+	// MatchingTags is the set of tags by which the aggregation groups
+	// output series.
 	MatchingTags [][]byte
-	// Without indicates if series should use only the MatchingTags or if MatchingTags
-	// should be excluded from grouping
+	// Without indicates if series should use only the MatchingTags or if
+	// MatchingTags should be excluded from grouping.
 	Without bool
-	// Parameter is the param value for the aggregation op when appropriate
+	// Parameter is the param value for the aggregation op when appropriate.
 	Parameter float64
-	// StringParameter is the string representation of the param value
+	// StringParameter is the string representation of the param value.
 	StringParameter string
 }
 
-// NewAggregationOp creates a new aggregation operation
+// NewAggregationOp creates a new aggregation operation.
 func NewAggregationOp(
 	opType string,
 	params NodeParams,
@@ -71,25 +73,28 @@ func NewAggregationOp(
 	return baseOp{}, fmt.Errorf("operator not supported: %s", opType)
 }
 
-// baseOp stores required properties for the baseOp
+// baseOp stores required properties for the baseOp.
 type baseOp struct {
 	params NodeParams
 	opType string
 	aggFn  aggregationFn
 }
 
-// OpType for the operator
+// OpType for the operator.
 func (o baseOp) OpType() string {
 	return o.opType
 }
 
-// String representation
+// String representation.
 func (o baseOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
-// Node creates an execution node
-func (o baseOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
+// Node creates an execution node.
+func (o baseOp) Node(
+	controller *transform.Controller,
+	_ transform.Options,
+) transform.OpNode {
 	return &baseNode{
 		op:         o,
 		controller: controller,
@@ -118,15 +123,20 @@ func (n *baseNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 	return transform.ProcessSimpleBlock(n, n.controller, queryCtx, ID, b)
 }
 
-// ProcessBlock performs the aggregation on the input block, and returns the aggregated result.
-func (n *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
+// ProcessBlock performs the aggregation on the input block, and returns the
+// aggregated result.
+func (n *baseNode) ProcessBlock(
+	queryCtx *models.QueryContext,
+	ID parser.NodeID,
+	b block.Block,
+) (block.Block, error) {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
 	params := n.op.params
-	meta := stepIter.Meta()
+	meta := b.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
@@ -134,8 +144,8 @@ func (n *baseNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		[]byte(n.op.opType),
 		seriesMetas,
 	)
-	meta.Tags, metas = utils.DedupeMetadata(metas)
 
+	meta.Tags, metas = utils.DedupeMetadata(metas, meta.Tags.Opts)
 	builder, err := n.controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
 		return nil, err

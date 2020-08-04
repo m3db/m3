@@ -103,12 +103,10 @@ func TestScalars(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      true,
-					RIsScalar:      true,
-					ReturnBool:     true,
-					VectorMatching: nil,
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           true,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -116,11 +114,24 @@ func TestScalars(t *testing.T) {
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(baseOp).Node(c, transform.Options{})
 
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.lVal }, bounds))
-			require.NoError(t, err)
+			err = node.Process(
+				models.NoopQueryContext(),
+				parser.NodeID(0),
+				block.NewScalar(tt.lVal, block.Metadata{
+					Bounds: bounds,
+					Tags:   models.EmptyTags(),
+				}),
+			)
 
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.rVal }, bounds))
 			require.NoError(t, err)
+			err = node.Process(
+				models.NoopQueryContext(),
+				parser.NodeID(1),
+				block.NewScalar(tt.rVal, block.Metadata{
+					Bounds: bounds,
+					Tags:   models.EmptyTags(),
+				}),
+			)
 
 			expected := [][]float64{{
 				tt.expected, tt.expected, tt.expected,
@@ -147,12 +158,10 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      true,
-					RIsScalar:      true,
-					ReturnBool:     false,
-					VectorMatching: nil,
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           false,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -160,19 +169,33 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(baseOp).Node(c, transform.Options{})
 
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.lVal }, bounds))
-			require.NoError(t, err)
+			err = node.Process(
+				models.NoopQueryContext(),
+				parser.NodeID(0),
+				block.NewScalar(tt.lVal, block.Metadata{
+					Bounds: bounds,
+					Tags:   models.EmptyTags(),
+				}),
+			)
 
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.rVal }, bounds))
+			require.NoError(t, err)
+			err = node.Process(
+				models.NoopQueryContext(),
+				parser.NodeID(1),
+				block.NewScalar(tt.rVal, block.Metadata{
+					Bounds: bounds,
+					Tags:   models.EmptyTags(),
+				}),
+			)
 
 			if tt.opType == EqType || tt.opType == NotEqType ||
 				tt.opType == GreaterType || tt.opType == LesserType ||
 				tt.opType == GreaterEqType || tt.opType == LesserEqType {
-				require.Error(t, err, "scalar comparisons should fail without returnBool")
+				require.Error(t, err, "scalar comparisons must fail without returnBool")
 				return
 			}
 
-			require.NoError(t, err, "scalar arithmetic should succeed without returnBool")
+			require.NoError(t, err, "scalar maths must succeed without returnBool")
 
 			expected := [][]float64{{
 				tt.expected, tt.expected, tt.expected,
@@ -241,8 +264,11 @@ var singleSeriesTests = []struct {
 	},
 	// *
 	{
-		name:         "series * scalar",
-		seriesValues: [][]float64{{-1, 0, math.NaN()}, {math.MaxFloat64 - 1, -1 * (math.MaxFloat64 - 1), 1}},
+		name: "series * scalar",
+		seriesValues: [][]float64{
+			{-1, 0, math.NaN()},
+			{math.MaxFloat64 - 1, -1 * (math.MaxFloat64 - 1), 1},
+		},
 		opType:       MultiplyType,
 		scalarVal:    10,
 		seriesLeft:   true,
@@ -402,27 +428,41 @@ var singleSeriesTests = []struct {
 		opType:     GreaterType,
 		scalarVal:  10,
 		seriesLeft: true,
-		expected: [][]float64{{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.NaN()}},
+		expected: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.NaN()},
+		},
 		expectedBool: [][]float64{{0, 0, 0, 0, 0}, {1, 1, 0, 1, 0}},
 	},
 	{
-		name:         "scalar > series",
-		scalarVal:    10,
-		opType:       GreaterType,
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		seriesLeft:   false,
-		expected:     [][]float64{{10, 10, 10, 10, math.NaN()}, {math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10}},
+		name:      "scalar > series",
+		scalarVal: 10,
+		opType:    GreaterType,
+		seriesValues: [][]float64{
+			{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)},
+		},
+		seriesLeft: false,
+		expected: [][]float64{
+			{10, 10, 10, 10, math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
+		},
 		expectedBool: [][]float64{{1, 1, 1, 1, 0}, {0, 0, 0, 0, 1}},
 	},
 	// >
 	{
-		name:         "series < scalar",
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		opType:       LesserType,
-		scalarVal:    10,
-		seriesLeft:   true,
-		expected:     [][]float64{{-10, 0, 1, 9, math.NaN()}, {math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.Inf(-1)}},
+		name: "series < scalar",
+		seriesValues: [][]float64{
+			{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)},
+		},
+		opType:     LesserType,
+		scalarVal:  10,
+		seriesLeft: true,
+		expected: [][]float64{
+			{-10, 0, 1, 9, math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.Inf(-1)},
+		},
 		expectedBool: [][]float64{{1, 1, 1, 1, 0}, {0, 0, 0, 0, 1}},
 	},
 	{
@@ -432,8 +472,10 @@ var singleSeriesTests = []struct {
 		seriesValues: [][]float64{{-10, 0, 1, 9, 10},
 			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
 		seriesLeft: false,
-		expected: [][]float64{{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{10, 10, math.NaN(), 10, math.NaN()}},
+		expected: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{10, 10, math.NaN(), 10, math.NaN()},
+		},
 		expectedBool: [][]float64{{0, 0, 0, 0, 0}, {1, 1, 0, 1, 0}},
 	},
 	// >=
@@ -449,31 +491,49 @@ var singleSeriesTests = []struct {
 		expectedBool: [][]float64{{0, 0, 0, 0, 1}, {1, 1, 0, 1, 0}},
 	},
 	{
-		name:         "scalar >= series",
-		scalarVal:    10,
-		opType:       GreaterEqType,
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		seriesLeft:   false,
-		expected:     [][]float64{{10, 10, 10, 10, 10}, {math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10}},
+		name:      "scalar >= series",
+		scalarVal: 10,
+		opType:    GreaterEqType,
+		seriesValues: [][]float64{
+			{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)},
+		},
+		seriesLeft: false,
+		expected: [][]float64{
+			{10, 10, 10, 10, 10},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
+		},
 		expectedBool: [][]float64{{1, 1, 1, 1, 1}, {0, 0, 0, 0, 1}},
 	},
 	// <=
 	{
-		name:         "series <= scalar",
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		opType:       LesserEqType,
-		scalarVal:    10,
-		seriesLeft:   true,
-		expected:     [][]float64{{-10, 0, 1, 9, 10}, {math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.Inf(-1)}},
+		name: "series <= scalar",
+		seriesValues: [][]float64{
+			{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)},
+		},
+		opType:     LesserEqType,
+		scalarVal:  10,
+		seriesLeft: true,
+		expected: [][]float64{
+			{-10, 0, 1, 9, 10},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.Inf(-1)},
+		},
 		expectedBool: [][]float64{{1, 1, 1, 1, 1}, {0, 0, 0, 0, 1}},
 	},
 	{
-		name:         "scalar <= series",
-		scalarVal:    10,
-		opType:       LesserEqType,
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		seriesLeft:   false,
-		expected:     [][]float64{{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10}, {10, 10, math.NaN(), 10, math.NaN()}},
+		name:      "scalar <= series",
+		scalarVal: 10,
+		opType:    LesserEqType,
+		seriesValues: [][]float64{
+			{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)},
+		},
+		seriesLeft: false,
+		expected: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
+			{10, 10, math.NaN(), 10, math.NaN()},
+		},
 		expectedBool: [][]float64{{0, 0, 0, 0, 1}, {1, 1, 0, 1, 0}},
 	},
 }
@@ -486,12 +546,10 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      !tt.seriesLeft,
-					RIsScalar:      tt.seriesLeft,
-					ReturnBool:     true,
-					VectorMatching: nil,
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           true,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -513,12 +571,27 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), series)
 				require.NoError(t, err)
 
-				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
+				err = node.Process(
+					models.NoopQueryContext(),
+					parser.NodeID(1),
+					block.NewScalar(tt.scalarVal, block.Metadata{
+						Bounds: bounds,
+						Tags:   models.EmptyTags(),
+					}),
+				)
+
 				require.NoError(t, err)
 			} else {
-				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
-				require.NoError(t, err)
+				err = node.Process(
+					models.NoopQueryContext(),
+					parser.NodeID(0),
+					block.NewScalar(tt.scalarVal, block.Metadata{
+						Bounds: bounds,
+						Tags:   models.EmptyTags(),
+					}),
+				)
 
+				require.NoError(t, err)
 				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), series)
 				require.NoError(t, err)
 			}
@@ -541,16 +614,14 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      !tt.seriesLeft,
-					RIsScalar:      tt.seriesLeft,
-					ReturnBool:     false,
-					VectorMatching: nil,
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           false,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
-			require.NoError(t, err)
 
+			require.NoError(t, err)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(baseOp).Node(c, transform.Options{})
 
@@ -568,12 +639,27 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), series)
 				require.NoError(t, err)
 
-				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
+				err = node.Process(
+					models.NoopQueryContext(),
+					parser.NodeID(1),
+					block.NewScalar(tt.scalarVal, block.Metadata{
+						Bounds: bounds,
+						Tags:   models.EmptyTags(),
+					}),
+				)
+
 				require.NoError(t, err)
 			} else {
-				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
-				require.NoError(t, err)
+				err = node.Process(
+					models.NoopQueryContext(),
+					parser.NodeID(0),
+					block.NewScalar(tt.scalarVal, block.Metadata{
+						Bounds: bounds,
+						Tags:   models.EmptyTags(),
+					}),
+				)
 
+				require.NoError(t, err)
 				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), series)
 				require.NoError(t, err)
 			}
@@ -809,12 +895,10 @@ func TestBothSeries(t *testing.T) {
 			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					LNode:          parser.NodeID(0),
-					RNode:          parser.NodeID(1),
-					LIsScalar:      false,
-					RIsScalar:      false,
-					ReturnBool:     tt.returnBool,
-					VectorMatching: &VectorMatching{},
+					LNode:                parser.NodeID(0),
+					RNode:                parser.NodeID(1),
+					ReturnBool:           tt.returnBool,
+					VectorMatcherBuilder: emptyVectorMatcherBuilder,
 				},
 			)
 			require.NoError(t, err)
@@ -827,18 +911,24 @@ func TestBothSeries(t *testing.T) {
 				StepSize: time.Minute,
 			}
 
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs))
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0),
+				test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs))
 			require.NoError(t, err)
 
-			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs))
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(1),
+				test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs))
 			require.NoError(t, err)
 
 			test.EqualsWithNans(t, tt.expected, sink.Values)
 
 			// Extract duped expected metas
-			expectedMeta := block.Metadata{Bounds: bounds}
+			expectedMeta := block.Metadata{
+				Bounds:         bounds,
+				ResultMetadata: block.NewResultMetadata(),
+			}
 			var expectedMetas []block.SeriesMeta
-			expectedMeta.Tags, expectedMetas = utils.DedupeMetadata(tt.expectedMetas)
+			expectedMeta.Tags, expectedMetas = utils.DedupeMetadata(
+				tt.expectedMetas, models.NewTagOptions())
 			expectedMeta, expectedMetas = removeNameTags(expectedMeta, expectedMetas)
 			assert.Equal(t, expectedMeta, sink.Meta)
 			assert.Equal(t, expectedMetas, sink.Metas)
@@ -849,10 +939,11 @@ func TestBothSeries(t *testing.T) {
 func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 	now := time.Now()
 
-	meta := func(bounds models.Bounds, name string) block.Metadata {
+	meta := func(bounds models.Bounds, name string, m block.ResultMetadata) block.Metadata {
 		return block.Metadata{
-			Bounds: bounds,
-			Tags:   models.NewTags(1, models.NewTagOptions()).SetName([]byte(name)),
+			Bounds:         bounds,
+			Tags:           models.NewTags(1, models.NewTagOptions()).SetName([]byte(name)),
+			ResultMetadata: m,
 		}
 	}
 
@@ -863,14 +954,26 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 			StepSize: time.Minute,
 		}
 
-		lhsMeta  = meta(bounds, "left")
+		lhsResultMeta = block.ResultMetadata{
+			LocalOnly:  true,
+			Exhaustive: false,
+			Warnings:   []block.Warning{},
+		}
+
+		lhsMeta  = meta(bounds, "left", lhsResultMeta)
 		lhsMetas = test.NewSeriesMeta("a", 2)
 		lhs      = [][]float64{{1, 2, 3}, {4, 5, 6}}
 		left     = test.NewBlockFromValuesWithMetaAndSeriesMeta(
 			lhsMeta, lhsMetas, lhs,
 		)
 
-		rhsMeta  = meta(bounds, "right")
+		rhsResultMeta = block.ResultMetadata{
+			LocalOnly:  false,
+			Exhaustive: true,
+			Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+		}
+
+		rhsMeta  = meta(bounds, "right", rhsResultMeta)
 		rhsMetas = test.NewSeriesMeta("a", 3)[1:]
 		rhs      = [][]float64{{10, 20, 30}, {40, 50, 60}}
 		right    = test.NewBlockFromValuesWithMetaAndSeriesMeta(
@@ -883,11 +986,9 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 	op, err := NewOp(
 		PlusType,
 		NodeParams{
-			LNode:          parser.NodeID(0),
-			RNode:          parser.NodeID(1),
-			LIsScalar:      false,
-			RIsScalar:      false,
-			VectorMatching: &VectorMatching{},
+			LNode:                parser.NodeID(0),
+			RNode:                parser.NodeID(1),
+			VectorMatcherBuilder: emptyVectorMatcherBuilder,
 		},
 	)
 	require.NoError(t, err)
@@ -903,10 +1004,17 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 
 	test.EqualsWithNans(t, expected, sink.Values)
 
+	exResultMeta := block.ResultMetadata{
+		LocalOnly:  false,
+		Exhaustive: false,
+		Warnings:   []block.Warning{block.Warning{Name: "foo", Message: "bar"}},
+	}
+
 	// Extract duped expected metas
 	expectedMeta := block.Metadata{
-		Bounds: bounds,
-		Tags:   models.NewTags(1, models.NewTagOptions()).AddTag(toTag("a1", "a1")),
+		Bounds:         bounds,
+		Tags:           models.NewTags(1, models.NewTagOptions()).AddTag(toTag("a1", "a1")),
+		ResultMetadata: exResultMeta,
 	}
 
 	expectedMetas := []block.SeriesMeta{
@@ -918,4 +1026,95 @@ func TestBinaryFunctionWithDifferentNames(t *testing.T) {
 
 	assert.Equal(t, expectedMeta, sink.Meta)
 	assert.Equal(t, expectedMetas, sink.Metas)
+}
+
+func TestOneToOneMatcher(t *testing.T) {
+	now := time.Now()
+
+	meta := func(bounds models.Bounds, name string, m block.ResultMetadata) block.Metadata {
+		return block.Metadata{
+			Bounds:         bounds,
+			Tags:           models.NewTags(1, models.NewTagOptions()).SetName([]byte(name)),
+			ResultMetadata: m,
+		}
+	}
+
+	var (
+		bounds = models.Bounds{
+			Start:    now,
+			Duration: time.Minute * 3,
+			StepSize: time.Minute,
+		}
+
+		lhsResultMeta = block.ResultMetadata{
+			LocalOnly:  true,
+			Exhaustive: false,
+			Warnings:   []block.Warning{},
+		}
+
+		lhsMeta  = meta(bounds, "left", lhsResultMeta)
+		lhsMetas = test.NewSeriesMeta("a", 2)
+		lhs      = [][]float64{{1, 2, 3}, {4, 5, 6}}
+		left     = test.NewBlockFromValuesWithMetaAndSeriesMeta(
+			lhsMeta, lhsMetas, lhs,
+		)
+
+		rhsResultMeta = block.ResultMetadata{
+			LocalOnly:  false,
+			Exhaustive: true,
+			Warnings:   []block.Warning{{Name: "foo", Message: "bar"}},
+		}
+
+		rhsMeta  = meta(bounds, "right", rhsResultMeta)
+		rhsMetas = test.NewSeriesMeta("a", 3)[1:]
+		rhs      = [][]float64{{10, 20, 30}, {40, 50, 60}}
+		right    = test.NewBlockFromValuesWithMetaAndSeriesMeta(
+			rhsMeta, rhsMetas, rhs,
+		)
+
+		expected = [][]float64{{41, 52, 63}, {14, 25, 36}}
+	)
+
+	op, err := NewOp(
+		PlusType,
+		NodeParams{
+			LNode:                parser.NodeID(0),
+			RNode:                parser.NodeID(1),
+			VectorMatcherBuilder: oneToOneVectorMatchingBuilder,
+		},
+	)
+	require.NoError(t, err)
+
+	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	node := op.(baseOp).Node(c, transform.Options{})
+
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(0), left)
+	require.NoError(t, err)
+
+	err = node.Process(models.NoopQueryContext(), parser.NodeID(1), right)
+	require.NoError(t, err)
+
+	test.EqualsWithNans(t, expected, sink.Values)
+
+	expectedMetas := []block.SeriesMeta{
+		{
+			Name: []byte("a0"),
+			Tags: models.EmptyTags(),
+		},
+		{
+			Name: []byte("a1"),
+			Tags: models.NewTags(1, models.NewTagOptions()).AddTag(toTag("a1", "a1")),
+		},
+	}
+
+	assert.Equal(t, expectedMetas, sink.Metas)
+}
+
+func oneToOneVectorMatchingBuilder(_, _ block.Block) VectorMatching {
+	return VectorMatching{
+		Set:            true,
+		Card:           CardOneToOne,
+		On:             true,
+		MatchingLabels: [][]byte{[]byte("a1")},
+	}
 }

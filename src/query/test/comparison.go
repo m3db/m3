@@ -41,7 +41,8 @@ func EqualsWithNans(t *testing.T, expected interface{}, actual interface{}) {
 
 // EqualsWithNansWithDelta helps compare float slices which have NaNs in them
 // allowing a delta for float comparisons.
-func EqualsWithNansWithDelta(t *testing.T, expected interface{}, actual interface{}, delta float64) {
+func EqualsWithNansWithDelta(t *testing.T,
+	expected interface{}, actual interface{}, delta float64) {
 	debugMsg := fmt.Sprintf("expected: %v, actual: %v", expected, actual)
 	switch v := expected.(type) {
 	case [][]float64:
@@ -74,7 +75,8 @@ func EqualsWithNansWithDelta(t *testing.T, expected interface{}, actual interfac
 	}
 }
 
-func equalsWithNans(t *testing.T, expected []float64, actual []float64, delta float64, debugMsg string) {
+func equalsWithNans(t *testing.T, expected []float64,
+	actual []float64, delta float64, debugMsg string) {
 	require.Equal(t, len(expected), len(actual))
 	for i, v := range expected {
 		if math.IsNaN(v) {
@@ -120,25 +122,27 @@ func (m matches) Less(i, j int) bool {
 	) == -1
 }
 
-// CompareLists compares series meta / index pairs
-func CompareLists(t *testing.T, meta, exMeta []block.SeriesMeta, index, exIndex [][]int) {
+// CompareListsInOrder compares series meta / index pairs (order sensitive)
+func CompareListsInOrder(t *testing.T, meta, exMeta []block.SeriesMeta, index, exIndex [][]int) {
 	require.Equal(t, len(exIndex), len(exMeta))
-	require.Equal(t, len(exMeta), len(meta))
-	require.Equal(t, len(exIndex), len(index))
 
-	ex := make(matches, len(meta))
-	actual := make(matches, len(meta))
-	// build matchers
-	for i := range meta {
-		ex[i] = match{exIndex[i], exMeta[i].Tags.Tags, exMeta[i].Name, []float64{}}
-		actual[i] = match{index[i], meta[i].Tags.Tags, meta[i].Name, []float64{}}
-	}
-	sort.Sort(ex)
-	sort.Sort(actual)
-	assert.Equal(t, ex, actual)
+	assert.Equal(t, exMeta, meta)
+	assert.Equal(t, exIndex, index)
 }
 
-// CompareValues compares series meta / value pairs
+// CompareValuesInOrder compares series meta / value pairs (order sensitive)
+func CompareValuesInOrder(t *testing.T, meta, exMeta []block.SeriesMeta, vals, exVals [][]float64) {
+	require.Equal(t, len(exVals), len(exMeta))
+	require.Equal(t, len(exVals), len(vals), "Vals is", meta, "ExVals is", exMeta)
+
+	assert.Equal(t, exMeta, meta)
+
+	for i := range exVals {
+		EqualsWithNansWithDelta(t, exVals[i], vals[i], 0.00001)
+	}
+}
+
+// CompareValues compares series meta / value pairs (order insensitive)
 func CompareValues(t *testing.T, meta, exMeta []block.SeriesMeta, vals, exVals [][]float64) {
 	require.Equal(t, len(exVals), len(exMeta))
 	require.Equal(t, len(exMeta), len(meta), "Meta is", meta, "ExMeta is", exMeta)

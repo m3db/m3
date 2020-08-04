@@ -20,28 +20,31 @@
 
 package repair
 
-import "github.com/m3db/m3/src/x/pool"
+import (
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/x/pool"
+)
 
-type hostBlockMetadataSlicePool struct {
+type replicaMetadataSlicePool struct {
 	pool     pool.ObjectPool
 	capacity int
 }
 
-// NewHostBlockMetadataSlicePool creates a new hostBlockMetadataSlice pool
-func NewHostBlockMetadataSlicePool(opts pool.ObjectPoolOptions, capacity int) HostBlockMetadataSlicePool {
-	p := &hostBlockMetadataSlicePool{pool: pool.NewObjectPool(opts), capacity: capacity}
+// NewReplicaMetadataSlicePool creates a new replicaMetadataSlicePool pool
+func NewReplicaMetadataSlicePool(opts pool.ObjectPoolOptions, capacity int) ReplicaMetadataSlicePool {
+	p := &replicaMetadataSlicePool{pool: pool.NewObjectPool(opts), capacity: capacity}
 	p.pool.Init(func() interface{} {
-		metadata := make([]HostBlockMetadata, 0, capacity)
-		return newPooledHostBlockMetadataSlice(metadata, p)
+		metadata := make([]block.ReplicaMetadata, 0, capacity)
+		return newPooledReplicaMetadataSlice(metadata, p)
 	})
 	return p
 }
 
-func (p *hostBlockMetadataSlicePool) Get() HostBlockMetadataSlice {
-	return p.pool.Get().(HostBlockMetadataSlice)
+func (p *replicaMetadataSlicePool) Get() ReplicaMetadataSlice {
+	return p.pool.Get().(ReplicaMetadataSlice)
 }
 
-func (p *hostBlockMetadataSlicePool) Put(res HostBlockMetadataSlice) {
+func (p *replicaMetadataSlicePool) Put(res ReplicaMetadataSlice) {
 	res.Reset()
 	p.pool.Put(res)
 }

@@ -21,28 +21,43 @@
 package index
 
 import (
+	stdlibctx "context"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
+	opentracing "github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
+	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+)
+
+var (
+	defaultQuery = Query{
+		Query: idx.NewTermQuery([]byte("foo"), []byte("bar")),
+	}
+
+	emptyLogFields = []opentracinglog.Field{}
 )
 
 func newTestNSMetadata(t require.TestingT) namespace.Metadata {
@@ -61,7 +76,8 @@ func newTestNSMetadata(t require.TestingT) namespace.Metadata {
 func TestBlockCtor(t *testing.T) {
 	md := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	b, err := NewBlock(start, md, BlockOptions{}, testOpts)
+	b, err := NewBlock(start, md, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	require.Equal(t, start, b.StartTime())
@@ -84,7 +100,8 @@ func TestBlockWriteAfterClose(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	b, err := NewBlock(blockStart, testMD, BlockOptions{}, testOpts)
+	b, err := NewBlock(blockStart, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	require.NoError(t, b.Close())
 
@@ -132,7 +149,8 @@ func TestBlockWriteAfterSeal(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	b, err := NewBlock(blockStart, testMD, BlockOptions{}, testOpts)
+	b, err := NewBlock(blockStart, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	require.NoError(t, b.Seal())
 
@@ -180,7 +198,8 @@ func TestBlockWrite(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	blk, err := NewBlock(blockStart, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(blockStart, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, blk.Close())
@@ -229,7 +248,8 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	blk, err := NewBlock(blockStart, md, BlockOptions{}, testOpts)
+	blk, err := NewBlock(blockStart, md, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
@@ -251,7 +271,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h2,
-	}, testDoc1DupeID())
+	}, doc.Document{})
 	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
 	require.Equal(t, int64(1), res.NumSuccess)
@@ -261,7 +281,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	batch.ForEach(func(
 		idx int,
 		entry WriteBatchEntry,
-		doc doc.Document,
+		_ doc.Document,
 		result WriteBatchEntryResult,
 	) {
 		verified++
@@ -269,7 +289,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 			require.NoError(t, result.Err)
 		} else {
 			require.Error(t, result.Err)
-			require.Equal(t, index.ErrDuplicateID, result.Err)
+			require.Equal(t, doc.ErrEmptyDocument, result.Err)
 		}
 	})
 	require.Equal(t, 2, verified)
@@ -289,7 +309,8 @@ func TestBlockWritePartialFailure(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	blk, err := NewBlock(blockStart, md, BlockOptions{}, testOpts)
+	blk, err := NewBlock(blockStart, md, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
@@ -311,7 +332,7 @@ func TestBlockWritePartialFailure(t *testing.T) {
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h2,
-	}, testDoc1DupeID())
+	}, doc.Document{})
 
 	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
@@ -338,35 +359,55 @@ func TestBlockWritePartialFailure(t *testing.T) {
 func TestBlockQueryAfterClose(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	b, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	b, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	require.Equal(t, start, b.StartTime())
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
+}
+
+func TestBlockQueryWithCancelledQuery(t *testing.T) {
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	b, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, start, b.StartTime())
+	require.Equal(t, start.Add(time.Hour), b.EndTime())
+
+	// Precancel query.
+	cancellable := resource.NewCancellableLifetime()
+	cancellable.Cancel()
+
+	_, err = b.Query(context.NewContext(), cancellable,
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
+	require.Error(t, err)
+	require.Equal(t, errCancelledQuery, err)
 }
 
 func TestBlockQueryExecutorError(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	b.newExecutorFn = func() (search.Executor, error) {
-		b.RLock() // ensures we call newExecutorFn with RLock, or this would deadlock
-		defer b.RUnlock()
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return nil, fmt.Errorf("random-err")
 	}
 
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -376,19 +417,20 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	seg := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg, testOpts)}
 	randErr := fmt.Errorf("random-err")
 	seg.EXPECT().Reader().Return(nil, randErr)
 
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -398,7 +440,8 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -408,9 +451,12 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg3 := segment.NewMockMutableSegment(ctrl)
 
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
-	b.shardRangesSegments = []blockShardRangesSegments{
-		blockShardRangesSegments{segments: []segment.Segment{seg2, seg3}}}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.shardRangesSegmentsByVolumeType = map[idxpersist.IndexVolumeType][]blockShardRangesSegments{
+		idxpersist.DefaultIndexVolumeType: []blockShardRangesSegments{
+			blockShardRangesSegments{segments: []segment.Segment{seg2, seg3}},
+		},
+	}
 
 	r1 := index.NewMockReader(ctrl)
 	seg1.EXPECT().Reader().Return(r1, nil)
@@ -423,8 +469,8 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	randErr := fmt.Errorf("random-err")
 	seg3.EXPECT().Reader().Return(nil, randErr)
 
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Equal(t, randErr, err)
 }
 
@@ -434,7 +480,8 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -442,15 +489,15 @@ func TestBlockMockQueryExecutorExecError(t *testing.T) {
 
 	// dIter:= doc.NewMockIterator(ctrl)
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 	gomock.InOrder(
 		exec.EXPECT().Execute(gomock.Any()).Return(nil, fmt.Errorf("randomerr")),
 		exec.EXPECT().Close(),
 	)
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, nil)
+	_, err = b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -460,14 +507,15 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -481,10 +529,17 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 		dIter.EXPECT().Close(),
 		exec.EXPECT().Close(),
 	)
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{},
-		NewQueryResults(nil, QueryResultsOptions{}, testOpts))
+
+	ctx := context.NewContext()
+
+	_, err = b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{},
+		NewQueryResults(nil, QueryResultsOptions{}, testOpts), emptyLogFields)
 	require.Error(t, err)
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
@@ -493,14 +548,15 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -517,8 +573,11 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{Limit: limit}, results)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -527,7 +586,11 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
@@ -536,14 +599,15 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -556,56 +620,33 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, results)
+
+	ctx := context.NewContext()
+
+	_, err = b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.Error(t, err)
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
-func TestBlockMockQueryExecutorExecIterExecCloseErr(t *testing.T) {
+func TestBlockMockQuerySeriesLimitNonExhaustive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
-		return exec, nil
-	}
-
-	dIter := doc.NewMockIterator(ctrl)
-	gomock.InOrder(
-		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
-		dIter.EXPECT().Next().Return(false),
-		dIter.EXPECT().Err().Return(nil),
-		dIter.EXPECT().Close().Return(nil),
-		exec.EXPECT().Close().Return(fmt.Errorf("randomerr")),
-	)
-	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, results)
-	require.Error(t, err)
-}
-
-func TestBlockMockQueryLimit(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	testMD := newTestNSMetadata(t)
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
-	require.NoError(t, err)
-
-	b, ok := blk.(*block)
-	require.True(t, ok)
-
-	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -621,8 +662,11 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	)
 	limit := 1
 	results := NewQueryResults(nil, QueryResultsOptions{SizeLimit: 1}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{Limit: limit}, results)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -631,23 +675,28 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
-func TestBlockMockQueryLimitExhaustive(t *testing.T) {
+func TestBlockMockQuerySeriesLimitExhaustive(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
@@ -664,8 +713,11 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 	limit := 2
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{Limit: limit}, results)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -675,7 +727,113 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
+}
+
+func TestBlockMockQueryDocsLimitNonExhaustive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	exec := search.NewMockExecutor(ctrl)
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
+		return exec, nil
+	}
+
+	dIter := doc.NewMockIterator(ctrl)
+	gomock.InOrder(
+		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Current().Return(testDoc1()),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Err().Return(nil),
+		dIter.EXPECT().Close().Return(nil),
+		exec.EXPECT().Close().Return(nil),
+	)
+	docsLimit := 1
+	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
+	require.NoError(t, err)
+	require.False(t, exhaustive)
+
+	require.Equal(t, 1, results.Map().Len())
+	t1, ok := results.Map().Get(ident.StringID(string(testDoc1().ID)))
+	require.True(t, ok)
+	require.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
+}
+
+func TestBlockMockQueryDocsLimitExhaustive(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	exec := search.NewMockExecutor(ctrl)
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
+		return exec, nil
+	}
+
+	dIter := doc.NewMockIterator(ctrl)
+	gomock.InOrder(
+		exec.EXPECT().Execute(gomock.Any()).Return(dIter, nil),
+		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Current().Return(testDoc1()),
+		dIter.EXPECT().Next().Return(false),
+		dIter.EXPECT().Err().Return(nil),
+		dIter.EXPECT().Close().Return(nil),
+		exec.EXPECT().Close().Return(nil),
+	)
+	docsLimit := 2
+	results := NewQueryResults(nil,
+		QueryResultsOptions{}, testOpts)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{DocsLimit: docsLimit}, results, emptyLogFields)
+	require.NoError(t, err)
+	require.True(t, exhaustive)
+
+	rMap := results.Map()
+	require.Equal(t, 1, rMap.Len())
+	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
+	require.True(t, ok)
+	require.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
@@ -684,7 +842,8 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -692,14 +851,14 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	require.NoError(t, b.Seal())
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	_, err = results.AddDocuments([]doc.Document{testDoc1()})
+	_, _, err = results.AddDocuments([]doc.Document{testDoc1()})
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)
@@ -710,8 +869,11 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{Limit: limit}, results)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -721,7 +883,11 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
@@ -730,19 +896,20 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	exec := search.NewMockExecutor(ctrl)
-	b.newExecutorFn = func() (search.Executor, error) {
+	b.newExecutorWithRLockFn = func() (search.Executor, error) {
 		return exec, nil
 	}
 
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	_, err = results.AddDocuments([]doc.Document{testDoc1()})
+	_, _, err = results.AddDocuments([]doc.Document{testDoc1()})
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)
@@ -757,8 +924,11 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{}, QueryOptions{}, results)
+
+	ctx := context.NewContext()
+
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		defaultQuery, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -768,13 +938,17 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagsIterator(t2)))
+		t2))
+
+	// NB(r): Make sure to call finalizers blockingly (to finish
+	// the expected close calls)
+	ctx.BlockingClose()
 }
 
 func TestBlockAddResultsAddsSegment(t *testing.T) {
@@ -783,19 +957,22 @@ func TestBlockAddResultsAddsSegment(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	require.NoError(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg1},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
-	require.Equal(t, 1, len(b.shardRangesSegments))
+	results := result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	require.NoError(t, b.AddResults(results))
+	shardRangesSegments := b.shardRangesSegmentsByVolumeType[idxpersist.DefaultIndexVolumeType]
+	require.Equal(t, 1, len(shardRangesSegments))
 
-	require.Equal(t, seg1, b.shardRangesSegments[0].segments[0])
+	require.Equal(t, seg1, shardRangesSegments[0].segments[0])
 }
 
 func TestBlockAddResultsAfterCloseFails(t *testing.T) {
@@ -804,14 +981,16 @@ func TestBlockAddResultsAfterCloseFails(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	require.NoError(t, blk.Close())
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	require.Error(t, blk.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg1},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	results := result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	require.Error(t, blk.AddResults(results))
 }
 
 func TestBlockAddResultsAfterSealWorks(t *testing.T) {
@@ -820,7 +999,8 @@ func TestBlockAddResultsAfterSealWorks(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	require.NoError(t, blk.Seal())
 
@@ -828,12 +1008,14 @@ func TestBlockAddResultsAfterSealWorks(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	require.NoError(t, blk.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg1},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
-	require.Equal(t, 1, len(b.shardRangesSegments))
+	results := result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	require.NoError(t, b.AddResults(results))
+	shardRangesSegments := b.shardRangesSegmentsByVolumeType[idxpersist.DefaultIndexVolumeType]
+	require.Equal(t, 1, len(shardRangesSegments))
 
-	require.Equal(t, seg1, b.shardRangesSegments[0].segments[0])
+	require.Equal(t, seg1, shardRangesSegments[0].segments[0])
 }
 
 func TestBlockTickSingleSegment(t *testing.T) {
@@ -842,17 +1024,18 @@ func TestBlockTickSingleSegment(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	seg1 := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
-	result, err := blk.Tick(nil, start)
+	result, err := blk.Tick(nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), result.NumSegments)
 	require.Equal(t, int64(10), result.NumDocs)
@@ -864,23 +1047,25 @@ func TestBlockTickMultipleSegment(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	seg1 := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg2.EXPECT().Size().Return(int64(20))
-	require.NoError(t, blk.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg2},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	results := result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	require.NoError(t, b.AddResults(results))
 
-	result, err := blk.Tick(nil, start)
+	result, err := blk.Tick(nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), result.NumSegments)
 	require.Equal(t, int64(30), result.NumDocs)
@@ -892,7 +1077,8 @@ func TestBlockTickAfterSeal(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	require.NoError(t, blk.Seal())
 
@@ -900,10 +1086,10 @@ func TestBlockTickAfterSeal(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockSegment(ctrl)
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	seg1.EXPECT().Size().Return(int64(10))
 
-	result, err := blk.Tick(nil, start)
+	result, err := blk.Tick(nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), result.NumSegments)
 	require.Equal(t, int64(10), result.NumDocs)
@@ -915,11 +1101,12 @@ func TestBlockTickAfterClose(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	require.NoError(t, blk.Close())
 
-	_, err = blk.Tick(nil, start)
+	_, err = blk.Tick(nil)
 	require.Error(t, err)
 }
 
@@ -929,19 +1116,23 @@ func TestBlockAddResultsRangeCheck(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	require.Error(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg1},
-			result.NewShardTimeRanges(start.Add(-1*time.Minute), start.Add(time.Hour), 1, 2, 3))))
-	require.Error(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg1},
-			result.NewShardTimeRanges(start, start.Add(2*time.Hour), 1, 2, 3))))
+	results := result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(start.Add(-1*time.Minute), start, 1, 2, 3)))
+	require.Error(t, b.AddResults(results))
+
+	results = result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(start, start.Add(2*time.Hour), 1, 2, 3)))
+	require.Error(t, b.AddResults(results))
 }
 
 func TestBlockAddResultsCoversCurrentData(t *testing.T) {
@@ -950,22 +1141,25 @@ func TestBlockAddResultsCoversCurrentData(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	require.NoError(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg1},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	results := result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	require.NoError(t, b.AddResults(results))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg1.EXPECT().Close().Return(nil)
-	require.NoError(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg2},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3, 4))))
+	results = result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3, 4)))
+	require.NoError(t, b.AddResults(results))
 
 	require.NoError(t, b.Seal())
 	seg2.EXPECT().Close().Return(nil)
@@ -978,21 +1172,24 @@ func TestBlockAddResultsDoesNotCoverCurrentData(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	require.NoError(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg1},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	results := result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	require.NoError(t, b.AddResults(results))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
-	require.NoError(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg2},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 5))))
+	results = result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 5)))
+	require.NoError(t, b.AddResults(results))
 
 	require.NoError(t, b.Seal())
 
@@ -1007,7 +1204,8 @@ func TestBlockNeedsMutableSegmentsEvicted(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -1041,7 +1239,8 @@ func TestBlockNeedsMutableSegmentsEvictedMutableSegments(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -1051,17 +1250,19 @@ func TestBlockNeedsMutableSegmentsEvictedMutableSegments(t *testing.T) {
 	require.False(t, b.NeedsMutableSegmentsEvicted())
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	seg1.EXPECT().Size().Return(int64(0)).AnyTimes()
-	require.NoError(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg1},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	results := result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	require.NoError(t, b.AddResults(results))
 	require.False(t, b.NeedsMutableSegmentsEvicted())
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg2.EXPECT().Size().Return(int64(1)).AnyTimes()
 	seg3 := segment.NewMockSegment(ctrl)
-	require.NoError(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg2, seg3},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 4))))
+	results = result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2, seg3},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 4)))
+	require.NoError(t, b.AddResults(results))
 	require.True(t, b.NeedsMutableSegmentsEvicted())
 }
 
@@ -1071,7 +1272,8 @@ func TestBlockEvictMutableSegmentsSimple(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	err = blk.EvictMutableSegments()
 	require.Error(t, err)
@@ -1087,7 +1289,8 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -1095,18 +1298,20 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 	require.NoError(t, b.Seal())
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	require.NoError(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg1},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	results := result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	require.NoError(t, b.AddResults(results))
 	seg1.EXPECT().Close().Return(nil)
 	err = b.EvictMutableSegments()
 	require.NoError(t, err)
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
-	require.NoError(t, b.AddResults(
-		result.NewIndexBlock(start, []segment.Segment{seg2, seg3},
-			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 4))))
+	results = result.NewIndexBlockByVolumeType(start)
+	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2, seg3},
+		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 4)))
+	require.NoError(t, b.AddResults(results))
 	seg2.EXPECT().Close().Return(nil)
 	err = b.EvictMutableSegments()
 	require.NoError(t, err)
@@ -1135,7 +1340,9 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 		BlockOptions{
 			ForegroundCompactorMmapDocsData: true,
 			BackgroundCompactorMmapDocsData: true,
-		}, testOpts)
+		},
+		namespace.NewRuntimeOptionsManager("foo"),
+		testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
@@ -1167,9 +1374,16 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{}, results)
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		Query{q}, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1179,13 +1393,18 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagsIterator(t2)))
+		t2))
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
 }
 
 func TestBlockE2EInsertQueryLimit(t *testing.T) {
@@ -1202,7 +1421,8 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	blk, err := NewBlock(blockStart, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(blockStart, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
@@ -1238,8 +1458,8 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	limit := 1
 	results := NewQueryResults(nil,
 		QueryResultsOptions{SizeLimit: limit}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{Limit: limit}, results)
+	exhaustive, err := b.Query(context.NewContext(), resource.NewCancellableLifetime(),
+		Query{q}, QueryOptions{SeriesLimit: limit}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 	require.Equal(t, 1, results.Size())
@@ -1251,7 +1471,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 		numFound++
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-			ident.NewTagsIterator(t1)))
+			t1))
 	}
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
@@ -1259,7 +1479,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 		numFound++
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-			ident.NewTagsIterator(t2)))
+			t2))
 	}
 
 	require.Equal(t, 1, numFound)
@@ -1279,7 +1499,8 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	blk, err := NewBlock(blockStart, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(blockStart, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
@@ -1310,15 +1531,23 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	require.Equal(t, int64(0), res.NumError)
 
 	seg := testSegment(t, testDoc1DupeID())
-	require.NoError(t, blk.AddResults(
-		result.NewIndexBlock(blockStart, []segment.Segment{seg},
-			result.NewShardTimeRanges(blockStart, blockStart.Add(blockSize), 1, 2, 3))))
+	idxResults := result.NewIndexBlockByVolumeType(blockStart)
+	idxResults.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg},
+		result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(blockSize), 1, 2, 3)))
+	require.NoError(t, blk.AddResults(idxResults))
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{}, results)
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		Query{q}, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1328,13 +1557,18 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagsIterator(t2)))
+		t2))
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
 }
 
 func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
@@ -1351,7 +1585,8 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 		Truncate(blockSize).
 		Add(time.Minute)
 
-	blk, err := NewBlock(blockStart, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(blockStart, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
@@ -1374,15 +1609,23 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	require.Equal(t, int64(0), res.NumError)
 
 	seg := testSegment(t, testDoc2())
-	require.NoError(t, blk.AddResults(
-		result.NewIndexBlock(blockStart, []segment.Segment{seg},
-			result.NewShardTimeRanges(blockStart, blockStart.Add(blockSize), 1, 2, 3))))
+	idxResults := result.NewIndexBlockByVolumeType(blockStart)
+	idxResults.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg},
+		result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(blockSize), 1, 2, 3)))
+	require.NoError(t, blk.AddResults(idxResults))
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	results := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
-	exhaustive, err := b.Query(resource.NewCancellableLifetime(),
-		Query{q}, QueryOptions{}, results)
+	exhaustive, err := b.Query(ctx, resource.NewCancellableLifetime(),
+		Query{q}, QueryOptions{}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1392,13 +1635,18 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagsIterator(t1)))
+		t1))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagsIterator(t2)))
+		t2))
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockQuery, spans[0].OperationName)
 }
 
 func TestBlockWriteBackgroundCompact(t *testing.T) {
@@ -1420,7 +1668,8 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	testOpts = testOpts.SetInstrumentOptions(
 		testOpts.InstrumentOptions().SetLogger(logger))
 
-	blk, err := NewBlock(blockStart, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(blockStart, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, blk.Close())
@@ -1457,8 +1706,8 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 
 	// Move the segment to background
 	b.Lock()
-	b.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
-		{Segment: b.foregroundSegments[0].Segment()},
+	b.mutableSegments.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
+		{Segment: b.mutableSegments.foregroundSegments[0].Segment()},
 	})
 	b.Unlock()
 
@@ -1481,19 +1730,19 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	require.Equal(t, int64(0), res.NumError)
 
 	// Move last segment to background, this should kick off a background compaction
-	b.Lock()
-	b.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
-		{Segment: b.foregroundSegments[0].Segment()},
+	b.mutableSegments.Lock()
+	b.mutableSegments.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
+		{Segment: b.mutableSegments.foregroundSegments[0].Segment()},
 	})
-	require.Equal(t, 2, len(b.backgroundSegments))
-	require.True(t, b.compact.compactingBackground)
-	b.Unlock()
+	require.Equal(t, 2, len(b.mutableSegments.backgroundSegments))
+	require.True(t, b.mutableSegments.compact.compactingBackground)
+	b.mutableSegments.Unlock()
 
 	// Wait for compaction to finish
 	for {
-		b.RLock()
-		compacting := b.compact.compactingBackground
-		b.RUnlock()
+		b.mutableSegments.RLock()
+		compacting := b.mutableSegments.compact.compactingBackground
+		b.mutableSegments.RUnlock()
 		if !compacting {
 			break
 		}
@@ -1501,24 +1750,25 @@ func TestBlockWriteBackgroundCompact(t *testing.T) {
 	}
 
 	// Make sure compacted into a single segment
-	b.RLock()
-	require.Equal(t, 1, len(b.backgroundSegments))
-	require.Equal(t, 3, int(b.backgroundSegments[0].Segment().Size()))
-	b.RUnlock()
+	b.mutableSegments.RLock()
+	require.Equal(t, 1, len(b.mutableSegments.backgroundSegments))
+	require.Equal(t, 3, int(b.mutableSegments.backgroundSegments[0].Segment().Size()))
+	b.mutableSegments.RUnlock()
 }
 
 func TestBlockAggregateAfterClose(t *testing.T) {
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	b, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	b, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	require.Equal(t, start, b.StartTime())
 	require.Equal(t, start.Add(time.Hour), b.EndTime())
 	require.NoError(t, b.Close())
 
-	_, err = b.Aggregate(resource.NewCancellableLifetime(),
-		QueryOptions{}, nil)
+	_, err = b.Aggregate(context.NewContext(), resource.NewCancellableLifetime(),
+		QueryOptions{}, nil, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1528,7 +1778,8 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -1536,7 +1787,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
 		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
@@ -1556,7 +1807,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 		iter.EXPECT().Err().Return(fmt.Errorf("unknown error")),
 		iter.EXPECT().Close().Return(nil),
 	)
-	_, err = b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results)
+	_, err = b.Aggregate(context.NewContext(), resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 3}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1566,7 +1817,8 @@ func TestBlockAggregate(t *testing.T) {
 
 	testMD := newTestNSMetadata(t)
 	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, testMD, BlockOptions{}, testOpts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -1574,7 +1826,7 @@ func TestBlockAggregate(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
 		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
@@ -1585,6 +1837,12 @@ func TestBlockAggregate(t *testing.T) {
 		SizeLimit: 3,
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
+
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
 		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
@@ -1600,7 +1858,7 @@ func TestBlockAggregate(t *testing.T) {
 		iter.EXPECT().Err().Return(nil),
 		iter.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 3}, results)
+	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 3}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -1608,6 +1866,11 @@ func TestBlockAggregate(t *testing.T) {
 		"f1": []string{"t1", "t2", "t3"},
 		"f2": []string{"t1"},
 	}, results)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 }
 
 func TestBlockAggregateNotExhaustive(t *testing.T) {
@@ -1626,7 +1889,8 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	aggResultsEntryArrayPool.Init()
 	opts := testOpts.SetAggregateResultsEntryArrayPool(aggResultsEntryArrayPool)
 
-	blk, err := NewBlock(start, testMD, BlockOptions{}, opts)
+	blk, err := NewBlock(start, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), opts)
 	require.NoError(t, err)
 
 	b, ok := blk.(*block)
@@ -1634,7 +1898,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 
-	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
+	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
 		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
@@ -1646,6 +1910,12 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
 
+	ctx := context.NewContext()
+	// create initial span from a mock tracer and get ctx
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
 	gomock.InOrder(
 		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
@@ -1654,13 +1924,18 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 		iter.EXPECT().Err().Return(nil),
 		iter.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 1}, results)
+	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 1}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
 	assertAggregateResultsMapEquals(t, map[string][]string{
 		"f1": []string{"t1"},
 	}, results)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 2)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
 }
 
 func TestBlockE2EInsertAggregate(t *testing.T) {
@@ -1686,7 +1961,9 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		BlockOptions{
 			ForegroundCompactorMmapDocsData: true,
 			BackgroundCompactorMmapDocsData: true,
-		}, testOpts)
+		},
+		namespace.NewRuntimeOptionsManager("foo"),
+		testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
@@ -1728,7 +2005,13 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		SizeLimit: 10,
 		Type:      AggregateTagNamesAndValues,
 	}, testOpts)
-	exhaustive, err := b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
+
+	ctx := context.NewContext()
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+	exhaustive, err := b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 10}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{
@@ -1741,7 +2024,7 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		Type:        AggregateTagNamesAndValues,
 		FieldFilter: AggregateFieldFilter{[]byte("bar")},
 	}, testOpts)
-	exhaustive, err = b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
+	exhaustive, err = b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 10}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{
@@ -1753,10 +2036,17 @@ func TestBlockE2EInsertAggregate(t *testing.T) {
 		Type:        AggregateTagNamesAndValues,
 		FieldFilter: AggregateFieldFilter{[]byte("random")},
 	}, testOpts)
-	exhaustive, err = b.Aggregate(resource.NewCancellableLifetime(), QueryOptions{Limit: 10}, results)
+	exhaustive, err = b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 10}, results, emptyLogFields)
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	assertAggregateResultsMapEquals(t, map[string][]string{}, results)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 4)
+	require.Equal(t, tracepoint.BlockAggregate, spans[0].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[1].OperationName)
+	require.Equal(t, tracepoint.BlockAggregate, spans[2].OperationName)
 }
 
 func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string, observed AggregateResults) {

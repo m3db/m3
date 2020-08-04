@@ -21,15 +21,14 @@
 package database
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
-	"unicode"
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
@@ -39,7 +38,9 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -51,14 +52,18 @@ var (
 	testDBCfg = &dbconfig.DBConfiguration{
 		ListenAddress: "0.0.0.0:9000",
 	}
+
+	svcDefaultOptions = []handleroptions.ServiceOptionsDefault{
+		func(o handleroptions.ServiceOptions) handleroptions.ServiceOptions {
+			return o
+		},
+	}
 )
 
 func SetupDatabaseTest(
 	t *testing.T,
 	ctrl *gomock.Controller,
 ) (*client.MockClient, *kv.MockStore, *placement.MockService) {
-	logging.InitWithCores(nil)
-
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
 	mockKV := kv.NewMockStore(ctrl)
@@ -93,17 +98,18 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	jsonInput := fmt.Sprintf(`
-		{
-			"namespaceName": "testNamespace",
-			"type": "%s"
-		}
-	`, providedType)
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          providedType,
+	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
@@ -164,6 +170,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -182,7 +189,10 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "localhost",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -196,8 +206,11 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 		}
 	}
 	`
-	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+
+	expected := xtest.MustPrettyJSONString(t, expectedResponse)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
 func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
@@ -205,17 +218,18 @@ func TestLocalTypeClusteredPlacementAlreadyExists(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"namespaceName": "testNamespace",
-			"type": "local"
-		}
-	`
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "local",
+	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	placementProto := &placementpb.Placement{
@@ -250,18 +264,20 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
+
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"namespaceName": "testNamespace",
-			"type": "local",
-			"numShards": 51
-		}
-	`
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "local",
+		"numShards":     51,
+	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
@@ -317,6 +333,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -335,7 +352,10 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "localhost",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -349,8 +369,10 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 		}
 	}
 	`
-	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+	expected := xtest.MustPrettyJSONString(t, expectedResponse)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 func TestLocalWithBlockSizeNanos(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -358,18 +380,19 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"namespaceName": "testNamespace",
-			"type": "local",
-			"blockSize": {"time": "3h"}
-		}
-	`
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "local",
+		"blockSize":     xjson.Map{"time": "3h"},
+	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
@@ -425,6 +448,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "10800000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -443,7 +467,10 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "localhost",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -457,8 +484,10 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 		}
 	}
 	`
-	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+	expected := xtest.MustPrettyJSONString(t, expectedResponse)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
 func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
@@ -467,21 +496,24 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
 	min := minRecommendCalculateBlockSize
 	desiredBlockSize := min + 5*time.Minute
 
-	jsonInput := fmt.Sprintf(`
-		{
-			"namespaceName": "testNamespace",
-			"type": "local",
-			"blockSize": {"expectedSeriesDatapointsPerHour": %d}
-		}
-	`, int64(float64(blockSizeFromExpectedSeriesScalar)/float64(desiredBlockSize)))
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "local",
+		"blockSize": xjson.Map{
+			"expectedSeriesDatapointsPerHour": int64(float64(blockSizeFromExpectedSeriesScalar) / float64(desiredBlockSize)),
+		},
+	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
@@ -537,6 +569,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "%d"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -555,7 +588,10 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "localhost",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -570,8 +606,10 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	}
 	`, desiredBlockSize, desiredBlockSize)
 
-	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+	expected := xtest.MustPrettyJSONString(t, expectedResponse)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
 func TestClusterTypeHosts(t *testing.T) {
@@ -588,18 +626,19 @@ func TestClusterTypeHostsPlacementAlreadyExistsHostsProvided(t *testing.T) {
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(nil, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"namespaceName": "testNamespace",
-			"type": "cluster",
-			"hosts": [{"id": "host1"}, {"id": "host2"}]
-		}
-	`
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "cluster",
+		"hosts":         xjson.Array{xjson.Map{"id": "host1"}, xjson.Map{"id": "host2"}},
+	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	placementProto := &placementpb.Placement{
@@ -642,17 +681,18 @@ func TestClusterTypeHostsPlacementAlreadyExistsExistingIsLocal(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"namespaceName": "testNamespace",
-			"type": "cluster"
-		}
-	`
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "cluster",
+	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	placementProto := &placementpb.Placement{
@@ -687,29 +727,30 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	var jsonInput string
+	var jsonInput xjson.Map
 
 	if placementExists {
-		jsonInput = `
-		{
+		jsonInput = xjson.Map{
 			"namespaceName": "testNamespace",
-			"type": "cluster"
+			"type":          "cluster",
 		}
-	`
 	} else {
-		jsonInput = `
-		{
+		jsonInput = xjson.Map{
 			"namespaceName": "testNamespace",
-			"type": "cluster",
-			"hosts": [{"id": "host1"}, {"id": "host2"}]
+			"type":          "cluster",
+			"hosts":         xjson.Array{xjson.Map{"id": "host1"}, xjson.Map{"id": "host2"}},
 		}
-	`
 	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	reqBody := bytes.NewBuffer(nil)
+	require.NoError(t, json.NewEncoder(reqBody).Encode(jsonInput))
+
+	req := httptest.NewRequest("POST", "/database/create", reqBody)
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
@@ -779,6 +820,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -797,7 +839,10 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "host1",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					},
 					"host2": {
 						"id": "host2",
@@ -808,7 +853,10 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "host2",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -822,8 +870,11 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 		}
 	}
 	`
-	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+
+	expected := xtest.MustPrettyJSONString(t, expectedResponse)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
 func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
@@ -833,18 +884,22 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"namespaceName": "testNamespace",
-			"type": "cluster",
-			"hosts": [{"id":"host1", "isolationGroup":"group1"}, {"id":"host2", "isolationGroup":"group2"}]
-		}
-	`
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "cluster",
+		"hosts": xjson.Array{
+			xjson.Map{"id": "host1", "isolationGroup": "group1"},
+			xjson.Map{"id": "host2", "isolationGroup": "group2"},
+		},
+	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound).Times(2)
@@ -909,6 +964,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -927,7 +983,10 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "host1",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					},
 					"host2": {
 						"id": "host2",
@@ -938,7 +997,10 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 						"shards": [],
 						"shardSetId": 0,
 						"hostname": "host2",
-						"port": 9000
+						"port": 9000,
+						"metadata": {
+							"debugPort": 0
+						}
 					}
 				},
 				"replicaFactor": 0,
@@ -952,8 +1014,11 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 		}
 	}
 	`
-	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+
+	expected := xtest.MustPrettyJSONString(t, expectedResponse)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 func TestClusterTypeMissingHostnames(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -962,17 +1027,18 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		testDBCfg, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"namespaceName": "testNamespace",
-			"type": "cluster"
-		}
-	`
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "cluster",
+	}
 
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	createHandler.ServeHTTP(w, req)
@@ -981,7 +1047,13 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, withEndline(`{"error":"missing required field"}`), string(body))
+	assert.Equal(t,
+		xtest.MustPrettyJSONMap(t,
+			xjson.Map{
+				"error": "missing required field",
+			},
+		),
+		xtest.MustPrettyJSONString(t, string(body)))
 }
 
 func TestBadType(t *testing.T) {
@@ -991,16 +1063,18 @@ func TestBadType(t *testing.T) {
 	mockClient, _, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	mockPlacementService.EXPECT().Placement().Return(nil, kv.ErrNotFound)
 
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, nil)
+	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
+		nil, svcDefaultOptions, instrument.NewOptions())
+	require.NoError(t, err)
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"namespaceName": "testNamespace",
-			"type": "badtype"
-		}
-	`
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	jsonInput := xjson.Map{
+		"namespaceName": "testNamespace",
+		"type":          "badtype",
+	}
+
+	req := httptest.NewRequest("POST", "/database/create",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 	createHandler.ServeHTTP(w, req)
 
@@ -1008,27 +1082,11 @@ func TestBadType(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, withEndline(`{"error":"invalid database type"}`), string(body))
-}
-
-func stripAllWhitespace(str string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
-			return -1
-		}
-		return r
-	}, str)
-}
-
-func mustPrettyJSON(t *testing.T, str string) string {
-	var unmarshalled map[string]interface{}
-	err := json.Unmarshal([]byte(str), &unmarshalled)
-	require.NoError(t, err)
-	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
-	require.NoError(t, err)
-	return string(pretty)
-}
-
-func withEndline(str string) string {
-	return str + "\n"
+	assert.Equal(t,
+		xtest.MustPrettyJSONMap(t,
+			xjson.Map{
+				"error": "invalid database type",
+			},
+		),
+		xtest.MustPrettyJSONString(t, string(body)))
 }

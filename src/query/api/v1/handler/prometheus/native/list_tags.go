@@ -27,10 +27,13 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
@@ -42,34 +45,32 @@ const (
 )
 
 var (
-	// ListTagsHTTPMethods are the HTTP methods used with this resource.
+	// ListTagsHTTPMethods are the HTTP methods for this handler.
 	ListTagsHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
 // ListTagsHandler represents a handler for list tags endpoint.
 type ListTagsHandler struct {
 	storage             storage.Storage
-	fetchOptionsBuilder handler.FetchOptionsBuilder
+	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	nowFn               clock.NowFn
+	instrumentOpts      instrument.Options
 }
 
 // NewListTagsHandler returns a new instance of handler.
-func NewListTagsHandler(
-	storage storage.Storage,
-	fetchOptionsBuilder handler.FetchOptionsBuilder,
-	nowFn clock.NowFn,
-) http.Handler {
+func NewListTagsHandler(opts options.HandlerOptions) http.Handler {
 	return &ListTagsHandler{
-		storage:             storage,
-		fetchOptionsBuilder: fetchOptionsBuilder,
-		nowFn:               nowFn,
+		storage:             opts.Storage(),
+		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
+		nowFn:               opts.NowFn(),
+		instrumentOpts:      opts.InstrumentOpts(),
 	}
 }
 
 func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
-	logger := logging.WithContext(ctx)
-	w.Header().Set("Content-Type", "application/json")
+	logger := logging.WithContext(ctx, h.instrumentOpts)
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	query := &storage.CompleteTagsQuery{
 		CompleteNameOnly: true,
@@ -93,6 +94,7 @@ func (h *ListTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	handleroptions.AddWarningHeaders(w, result.Metadata)
 	if err = prometheus.RenderListTagResultsJSON(w, result); err != nil {
 		logger.Error("unable to render results", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)

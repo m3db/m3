@@ -83,7 +83,7 @@ func NewIterator(
 	descr namespace.SchemaDescr,
 	opts encoding.Options,
 ) encoding.ReaderIterator {
-	stream := encoding.NewIStream(reader)
+	stream := encoding.NewIStream(reader, opts.IStreamReaderSizeProto())
 
 	i := &iterator{
 		opts:       opts,
@@ -172,12 +172,6 @@ func (it *iterator) Next() bool {
 				it.err = fmt.Errorf("%s error reading new time unit: %v", itErrPrefix, err)
 				return false
 			}
-
-			if !it.consumedFirstMessage {
-				// Don't interpret the initial time unit as a "change" since the encoder special
-				// cases the first one.
-				it.tsIterator.TimeUnitChanged = false
-			}
 		}
 
 		if schemaHasChangedControlBit == opCodeSchemaChange {
@@ -230,7 +224,8 @@ func (it *iterator) Next() bool {
 func (it *iterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	var (
 		dp = ts.Datapoint{
-			Timestamp: it.tsIterator.PrevTime,
+			Timestamp:      it.tsIterator.PrevTime.ToTime(),
+			TimestampNanos: it.tsIterator.PrevTime,
 		}
 		unit = it.tsIterator.TimeUnit
 	)
@@ -259,7 +254,20 @@ func (it *iterator) resetSchema(schemaDesc namespace.SchemaDescr) {
 	if schemaDesc == nil {
 		it.schemaDesc = nil
 		it.schema = nil
-		it.customFields = nil
+
+		// Clear but don't set to nil so they don't need to be reallocated
+		// next time.
+		customFields := it.customFields
+		for i := range customFields {
+			customFields[i] = customFieldState{}
+		}
+		it.customFields = customFields[:0]
+
+		nonCustomFields := it.nonCustomFields
+		for i := range nonCustomFields {
+			nonCustomFields[i] = marshalledField{}
+		}
+		it.nonCustomFields = nonCustomFields[:0]
 		return
 	}
 
@@ -328,7 +336,7 @@ func (it *iterator) readCustomFieldsSchema() error {
 	}
 
 	for i := 1; i <= int(numCustomFields); i++ {
-		fieldTypeBits, err := it.stream.ReadBits(numBitsToEncodeCustomType)
+		fieldTypeBits, err := it.stream.ReadBits(uint(numBitsToEncodeCustomType))
 		if err != nil {
 			return err
 		}
@@ -520,7 +528,11 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 
 	if bytesChangedControlBit == opCodeNoChange {
 		// No changes to the bytes value.
-		updateArg := updateLastIterArg{i: i, bytesFieldBuf: it.lastValueBytesDict(i)}
+		lastValueBytesDict, err := it.lastValueBytesDict(i)
+		if err != nil {
+			return err
+		}
+		updateArg := updateLastIterArg{i: i, bytesFieldBuf: lastValueBytesDict}
 		return it.updateMarshallerWithCustomValues(updateArg)
 	}
 
@@ -534,7 +546,7 @@ func (it *iterator) readBytesValue(i int, customField customFieldState) error {
 
 	if valueInDictControlBit == opCodeInterpretSubsequentBitsAsLRUIndex {
 		dictIdxBits, err := it.stream.ReadBits(
-			numBitsRequiredForNumUpToN(it.byteFieldDictLRUSize))
+			uint(numBitsRequiredForNumUpToN(it.byteFieldDictLRUSize)))
 		if err != nil {
 			return fmt.Errorf(
 				"%s error trying to read bytes dict idx: %v",
@@ -827,9 +839,12 @@ func (it *iterator) addToBytesDict(fieldIdx int, b []byte) {
 	existing[len(existing)-1] = b
 }
 
-func (it *iterator) lastValueBytesDict(fieldIdx int) []byte {
+func (it *iterator) lastValueBytesDict(fieldIdx int) ([]byte, error) {
 	dict := it.customFields[fieldIdx].iteratorBytesFieldDict
-	return dict[len(dict)-1]
+	if len(dict) == 0 {
+		return nil, fmt.Errorf("tried to read last value of bytes dictionary for empty dictionary")
+	}
+	return dict[len(dict)-1], nil
 }
 
 func (it *iterator) nextToBeEvicted(fieldIdx int) []byte {
@@ -846,7 +861,7 @@ func (it *iterator) nextToBeEvicted(fieldIdx int) []byte {
 	return dict[0]
 }
 
-func (it *iterator) readBits(numBits int) (uint64, error) {
+func (it *iterator) readBits(numBits uint) (uint64, error) {
 	res, err := it.stream.ReadBits(numBits)
 	if err != nil {
 		return 0, err

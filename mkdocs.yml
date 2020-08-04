@@ -47,6 +47,8 @@ markdown_extensions:
   - pymdownx.magiclink
   - pymdownx.mark
   - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
   - pymdownx.superfences
   - pymdownx.tasklist:
       custom_checkbox: true
@@ -58,6 +60,7 @@ pages:
     - "Components": "overview/components.md"
     - "Motivation": "overview/motivation.md"
     - "Media":      "overview/media.md"
+    - "Roadmap":    "overview/roadmap.md"
   - "M3DB":
     - "Introduction": "m3db/index.md"
     - "Architecture":
@@ -69,43 +72,52 @@ pages:
       - "Commit Logs": "m3db/architecture/commitlogs.md"
       - "Peer Streaming": "m3db/architecture/peer_streaming.md"
       - "Caching": "m3db/architecture/caching.md"
-  - "Query Engine and Coordinator":
-    - "Introduction": "query_engine/index.md"
+  - "M3 Coordinator":
+    - "Introduction": "m3coordinator/index.md"
     - "API":
-      - "Query": "query_engine/api/index.md"
-    - "Roadmap": "query_engine/roadmap.md"
-    - "Architecture":
-      - "Overview": "query_engine/architecture/index.md"
-      - "Blocks": "query_engine/architecture/blocks.md"
-      - "Query Fanout": "query_engine/architecture/fanout.md"
-      - "Function Processing": "query_engine/architecture/functions.md"
+      - "Prometheus Remote Write/Read": "m3coordinator/api/remote.md"
+  - "M3 Query":
+    - "Introduction": "m3query/index.md"
     - "Configuration":
-      - "Annotated Config File": "query_engine/config/annotated_config.md"
+      - "Query Engine": "m3query/config/index.md"
+      - "Annotated Config File": "m3query/config/annotated_config.md"
+    - "API":
+      - "Query": "m3query/api/index.md"
+    - "Architecture":
+      - "Overview": "m3query/architecture/index.md"
+      - "Blocks": "m3query/architecture/blocks.md"
+      - "Query Fanout": "m3query/architecture/fanout.md"
+      - "Function Processing": "m3query/architecture/functions.md"
   - "How-To's":
     - "M3DB Single Node Deployment": "how_to/single_node.md"
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
     - "M3DB on Kubernetes": "how_to/kubernetes.md"
     - "M3Query": "how_to/query.md"
     - "M3Aggregator": "how_to/aggregator.md"
+    - "Use M3DB as a general purpose time series database": "how_to/use_as_tsdb.md"
   - "Operational Guides":
+    - "Overview": "operational_guide/index.md"
     - "Replication and Deployment in Zones": "operational_guide/replication_and_deployment_in_zones.md"
+    - "Monitoring": "operational_guide/monitoring.md"
+    - "Upgrading M3": "operational_guide/upgrading_m3.md"
+    - "Resource Limits and Preventing Abusive Reads/Writes": "operational_guide/resource_limits.md"
     - "Tuning Availability, Consistency, and Durability": "operational_guide/availability_consistency_durability.md"
     - "Placement/Topology": "operational_guide/placement.md"
     - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"
     - "Namespace Configuration": "operational_guide/namespace_configuration.md"
-    - "Bootstrapping": "operational_guide/bootstrapping.md"
-    - "Kernel Configuration": "operational_guide/kernel_configuration.md"
+    - "Bootstrapping & Crash Recovery": "operational_guide/bootstrapping_crash_recovery.md"
+    - "Docker & Kernel Configuration": "operational_guide/kernel_configuration.md"
     - "etcd": "operational_guide/etcd.md"
+    - "Configuring Mapping & Rollup Rules": "operational_guide/mapping_rollup.md"
+    - "Upgrading M3": "operational_guide/upgrading_m3.md"
+    - "Repairs": "operational_guide/repairs.md"
+    - "Replication Between Clusters": "operational_guide/replication_between_clusters.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
     - "Graphite": "integrations/graphite.md"
     - "Grafana": "integrations/grafana.md"
-  - "Performance":
-    - "Introduction": "performance/index.md"
-    - "M3DB":
-      - "M3DB Performance": "performance/m3db/index.md"
-    - "m3query":
-      - "m3query Performance":  "performance/m3query/index.md"
+    - "InfluxDB": "integrations/influxdb.md"
   - "Troubleshooting": "troubleshooting/index.md"
   - "FAQs": "faqs/index.md"
+  - "Glossary": "glossary/index.md"
   - "Tips For Writing Documentation": "misc/writing_docs.md"

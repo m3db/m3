@@ -35,6 +35,7 @@ import (
 var (
 	ErrNotImplemented    = errors.New("api not implemented")
 	ErrNamespaceNotFound = errors.New("namespace is not found")
+	ErrNamespaceAlreadyExist = errors.New("namespace already exists")
 )
 
 type adminService struct {
@@ -43,11 +44,19 @@ type adminService struct {
 	idGen func() string
 }
 
+const (
+	// M3DBNodeNamespacesKey is the KV key that holds namespaces.
+	M3DBNodeNamespacesKey = "m3db.node.namespaces"
+)
+
 func NewAdminService(store kv.Store, key string, idGen func() string) NamespaceMetadataAdminService {
 	if idGen == nil {
 		idGen = func() string {
 			return uuid.NewV4().String()
 		}
+	}
+	if len(key) == 0 {
+		key = M3DBNodeNamespacesKey
 	}
 	return &adminService{
 		store: store,
@@ -56,25 +65,87 @@ func NewAdminService(store kv.Store, key string, idGen func() string) NamespaceM
 	}
 }
 
-func (as *adminService) GetAll() ([]*nsproto.NamespaceOptions, error) {
-	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
-	return nil, ErrNotImplemented
+func (as *adminService) GetAll() (*nsproto.Registry, error) {
+	currentRegistry, _, err := as.currentRegistry()
+	if err == kv.ErrNotFound {
+		return nil, ErrNamespaceNotFound
+	}
+	if err != nil {
+		return nil, xerrors.Wrapf(err, "failed to load current namespace metadatas for %s", as.key)
+	}
+	return currentRegistry, nil
 }
 
 func (as *adminService) Get(name string) (*nsproto.NamespaceOptions, error) {
-	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
-	return nil, ErrNotImplemented
+	nsReg, err := as.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	if nsOpt, ok := nsReg.GetNamespaces()[name]; ok {
+		return nsOpt, nil
+	}
+	return nil, ErrNamespaceNotFound
 }
 
 func (as *adminService) Add(name string, options *nsproto.NamespaceOptions) error {
-	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
-	return ErrNotImplemented
+	nsMeta, err := namespace.ToMetadata(name, options)
+	if err != nil {
+		return xerrors.Wrapf(err, "invalid namespace options for namespace: %v", name)
+	}
+	currentRegistry, currentVersion, err := as.currentRegistry()
+	if err == kv.ErrNotFound {
+		_, err = as.store.SetIfNotExists(as.key, &nsproto.Registry{
+			Namespaces: map[string]*nsproto.NamespaceOptions{name: options},
+		})
+		if err != nil {
+			return xerrors.Wrapf(err, "failed to add namespace %v", name)
+		}
+		return nil
+	}
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to load namespace registry at %s", as.key)
+	}
 
+	if _, ok := currentRegistry.GetNamespaces()[name]; ok {
+		return ErrNamespaceAlreadyExist
+	}
+	nsMap, err := namespace.FromProto(*currentRegistry)
+	if err != nil {
+		return xerrors.Wrap(err, "failed to unmarshall namespace registry")
+	}
+
+	newMap, err := namespace.NewMap(append(nsMap.Metadatas(), nsMeta))
+	if err != nil {
+		return err
+	}
+
+	_, err = as.store.CheckAndSet(as.key, currentVersion, namespace.ToProto(newMap))
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to add namespace %v", name)
+	}
+	return nil
 }
 
 func (as *adminService) Set(name string, options *nsproto.NamespaceOptions) error {
-	// TODO [haijun] move logic from src/query/api/v1/handler/namespace here
-	return ErrNotImplemented
+	_, err := namespace.ToMetadata(name, options)
+	if err != nil {
+		return xerrors.Wrapf(err, "invalid options for namespace: %v", name)
+	}
+	currentRegistry, currentVersion, err := as.currentRegistry()
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to load namespace registry at %s", as.key)
+	}
+	if _, ok := currentRegistry.GetNamespaces()[name]; !ok {
+		return ErrNamespaceNotFound
+	}
+
+	currentRegistry.Namespaces[name] = options
+
+	_, err = as.store.CheckAndSet(as.key, currentVersion, currentRegistry)
+	if err != nil {
+		return xerrors.Wrapf(err, "failed to update namespace %v", name)
+	}
+	return nil
 }
 
 func (as *adminService) Delete(name string) error {
@@ -161,4 +232,28 @@ func (as *adminService) currentRegistry() (*nsproto.Registry, int, error) {
 	}
 
 	return &protoRegistry, value.Version(), nil
+}
+
+
+func LoadSchemaRegistryFromKVStore(schemaReg namespace.SchemaRegistry, kvStore kv.Store) error {
+	if kvStore == nil {
+		return errors.New("m3db metadata store is not configured properly")
+	}
+	as := NewAdminService(kvStore, "", nil)
+	nsReg, err := as.GetAll()
+	if err != nil {
+		return xerrors.Wrap(err, "could not get metadata from metadata store")
+	}
+	nsMap, err := namespace.FromProto(*nsReg)
+	if err != nil {
+		return xerrors.Wrap(err, "could not unmarshal metadata")
+	}
+	merr := xerrors.NewMultiError()
+	for _, metadata := range nsMap.Metadatas() {
+		err = schemaReg.SetSchemaHistory(metadata.ID(), metadata.Options().SchemaHistory())
+		if err != nil {
+			merr = merr.Add(xerrors.Wrapf(err, "could not set schema history for namespace %s", metadata.ID().String()))
+		}
+	}
+	return merr.FinalError()
 }

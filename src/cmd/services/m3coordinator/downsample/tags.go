@@ -23,6 +23,7 @@ package downsample
 import (
 	"bytes"
 	"sort"
+	"strings"
 
 	"github.com/m3db/m3/src/x/ident"
 )
@@ -32,11 +33,13 @@ const (
 )
 
 type tags struct {
-	names    [][]byte
-	values   [][]byte
-	idx      int
-	nameBuf  []byte
-	valueBuf []byte
+	names             [][]byte
+	values            [][]byte
+	idx               int
+	nameBuf           []byte
+	valueBuf          []byte
+	reuseableTagName  *ident.ReuseableBytesID
+	reuseableTagValue *ident.ReuseableBytesID
 }
 
 // Ensure tags implements TagIterator and sort Interface
@@ -47,9 +50,11 @@ var (
 
 func newTags() *tags {
 	return &tags{
-		names:  make([][]byte, 0, initAllocTagsSliceCapacity),
-		values: make([][]byte, 0, initAllocTagsSliceCapacity),
-		idx:    -1,
+		names:             make([][]byte, 0, initAllocTagsSliceCapacity),
+		values:            make([][]byte, 0, initAllocTagsSliceCapacity),
+		idx:               -1,
+		reuseableTagName:  ident.NewReuseableBytesID(),
+		reuseableTagValue: ident.NewReuseableBytesID(),
 	}
 }
 
@@ -89,9 +94,11 @@ func (t *tags) CurrentIndex() int {
 func (t *tags) Current() ident.Tag {
 	t.nameBuf = append(t.nameBuf[:0], t.names[t.idx]...)
 	t.valueBuf = append(t.valueBuf[:0], t.values[t.idx]...)
+	t.reuseableTagName.Reset(t.nameBuf)
+	t.reuseableTagValue.Reset(t.valueBuf)
 	return ident.Tag{
-		Name:  ident.BytesID(t.nameBuf),
-		Value: ident.BytesID(t.valueBuf),
+		Name:  t.reuseableTagName,
+		Value: t.reuseableTagValue,
 	}
 }
 
@@ -99,9 +106,7 @@ func (t *tags) Err() error {
 	return nil
 }
 
-func (t *tags) Close() {
-	// No-op
-}
+func (t *tags) Close() {}
 
 func (t *tags) Remaining() int {
 	if t.idx < 0 {
@@ -112,4 +117,27 @@ func (t *tags) Remaining() int {
 
 func (t *tags) Duplicate() ident.TagIterator {
 	return &tags{idx: -1, names: t.names, values: t.values}
+}
+
+func (t *tags) Rewind() {
+	t.idx = -1
+}
+
+func (t *tags) String() string {
+	var str strings.Builder
+	str.WriteString("{")
+	for i, name := range t.names {
+		value := t.values[i]
+
+		str.Write(name)
+		str.WriteString("=\"")
+		str.Write(value)
+		str.WriteString("\"")
+
+		if i != len(t.names)-1 {
+			str.WriteString(",")
+		}
+	}
+	str.WriteString("}")
+	return str.String()
 }

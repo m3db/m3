@@ -55,10 +55,12 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -109,6 +111,8 @@ var (
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
 	errUnableToEncodeTags = errors.New("unable to include tags")
+	// errEnqueueChIsClosed is returned when attempting to use a closed enqueuCh.
+	errEnqueueChIsClosed = errors.New("error enqueueCh is cosed")
 )
 
 // sessionState is volatile state that is protected by a
@@ -138,6 +142,8 @@ type session struct {
 	scope                            tally.Scope
 	nowFn                            clock.NowFn
 	log                              *zap.Logger
+	logWriteErrorSampler             *sampler.Sampler
+	logFetchErrorSampler             *sampler.Sampler
 	newHostQueueFn                   newHostQueueFn
 	writeRetrier                     xretry.Retrier
 	fetchRetrier                     xretry.Retrier
@@ -164,12 +170,14 @@ type shardMetricsKey struct {
 type sessionMetrics struct {
 	sync.RWMutex
 	writeSuccess                         tally.Counter
-	writeErrors                          tally.Counter
+	writeErrorsBadRequest                tally.Counter
+	writeErrorsInternalError             tally.Counter
 	writeLatencyHistogram                tally.Histogram
 	writeNodesRespondingErrors           []tally.Counter
 	writeNodesRespondingBadRequestErrors []tally.Counter
 	fetchSuccess                         tally.Counter
-	fetchErrors                          tally.Counter
+	fetchErrorsBadRequest                tally.Counter
+	fetchErrorsInternalError             tally.Counter
 	fetchLatencyHistogram                tally.Histogram
 	fetchNodesRespondingErrors           []tally.Counter
 	fetchNodesRespondingBadRequestErrors []tally.Counter
@@ -180,11 +188,21 @@ type sessionMetrics struct {
 
 func newSessionMetrics(scope tally.Scope) sessionMetrics {
 	return sessionMetrics{
-		writeSuccess:           scope.Counter("write.success"),
-		writeErrors:            scope.Counter("write.errors"),
-		writeLatencyHistogram:  histogramWithDurationBuckets(scope, "write.latency"),
-		fetchSuccess:           scope.Counter("fetch.success"),
-		fetchErrors:            scope.Counter("fetch.errors"),
+		writeSuccess: scope.Counter("write.success"),
+		writeErrorsBadRequest: scope.Tagged(map[string]string{
+			"error_type": "bad_request",
+		}).Counter("write.errors"),
+		writeErrorsInternalError: scope.Tagged(map[string]string{
+			"error_type": "internal_error",
+		}).Counter("write.errors"),
+		writeLatencyHistogram: histogramWithDurationBuckets(scope, "write.latency"),
+		fetchSuccess:          scope.Counter("fetch.success"),
+		fetchErrorsBadRequest: scope.Tagged(map[string]string{
+			"error_type": "bad_request",
+		}).Counter("fetch.errors"),
+		fetchErrorsInternalError: scope.Tagged(map[string]string{
+			"error_type": "internal_error",
+		}).Counter("fetch.errors"),
 		fetchLatencyHistogram:  histogramWithDurationBuckets(scope, "fetch.latency"),
 		topologyUpdatedSuccess: scope.Counter("topology.updated-success"),
 		topologyUpdatedError:   scope.Counter("topology.updated-error"),
@@ -212,11 +230,17 @@ type streamFromPeersMetrics struct {
 }
 
 type hostQueueOpts struct {
-	writeBatchRawRequestPool                   writeBatchRawRequestPool
-	writeBatchRawRequestElementArrayPool       writeBatchRawRequestElementArrayPool
-	writeTaggedBatchRawRequestPool             writeTaggedBatchRawRequestPool
-	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool
-	opts                                       Options
+	writeBatchRawRequestPool                     writeBatchRawRequestPool
+	writeBatchRawV2RequestPool                   writeBatchRawV2RequestPool
+	writeBatchRawRequestElementArrayPool         writeBatchRawRequestElementArrayPool
+	writeBatchRawV2RequestElementArrayPool       writeBatchRawV2RequestElementArrayPool
+	writeTaggedBatchRawRequestPool               writeTaggedBatchRawRequestPool
+	writeTaggedBatchRawV2RequestPool             writeTaggedBatchRawV2RequestPool
+	writeTaggedBatchRawRequestElementArrayPool   writeTaggedBatchRawRequestElementArrayPool
+	writeTaggedBatchRawV2RequestElementArrayPool writeTaggedBatchRawV2RequestElementArrayPool
+	fetchBatchRawV2RequestPool                   fetchBatchRawV2RequestPool
+	fetchBatchRawV2RequestElementArrayPool       fetchBatchRawV2RequestElementArrayPool
+	opts                                         Options
 }
 
 type newHostQueueFn func(
@@ -226,6 +250,16 @@ type newHostQueueFn func(
 
 func newSession(opts Options) (clientSession, error) {
 	topo, err := opts.TopologyInitializer().Init()
+	if err != nil {
+		return nil, err
+	}
+
+	logWriteErrorSampler, err := sampler.NewSampler(opts.LogErrorSampleRate())
+	if err != nil {
+		return nil, err
+	}
+
+	logFetchErrorSampler, err := sampler.NewSampler(opts.LogErrorSampleRate())
 	if err != nil {
 		return nil, err
 	}
@@ -243,6 +277,8 @@ func newSession(opts Options) (clientSession, error) {
 		scope:                scope,
 		nowFn:                opts.ClockOptions().NowFn(),
 		log:                  opts.InstrumentOptions().Logger(),
+		logWriteErrorSampler: logWriteErrorSampler,
+		logFetchErrorSampler: logFetchErrorSampler,
 		newHostQueueFn:       newHostQueue,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
@@ -416,10 +452,18 @@ func (s *session) recordWriteMetrics(consistencyResultErr error, respErrs int32,
 	}
 	if consistencyResultErr == nil {
 		s.metrics.writeSuccess.Inc(1)
+	} else if IsBadRequestError(consistencyResultErr) {
+		s.metrics.writeErrorsBadRequest.Inc(1)
 	} else {
-		s.metrics.writeErrors.Inc(1)
+		s.metrics.writeErrorsInternalError.Inc(1)
 	}
 	s.metrics.writeLatencyHistogram.RecordDuration(s.nowFn().Sub(start))
+
+	if consistencyResultErr != nil && s.logWriteErrorSampler.Sample() {
+		s.log.Error("m3db client write error occurred",
+			zap.Float64("sampleRateLog", s.logWriteErrorSampler.SampleRate().Value()),
+			zap.Error(consistencyResultErr))
+	}
 }
 
 func (s *session) recordFetchMetrics(consistencyResultErr error, respErrs int32, start time.Time) {
@@ -432,10 +476,18 @@ func (s *session) recordFetchMetrics(consistencyResultErr error, respErrs int32,
 	}
 	if consistencyResultErr == nil {
 		s.metrics.fetchSuccess.Inc(1)
+	} else if IsBadRequestError(consistencyResultErr) {
+		s.metrics.fetchErrorsBadRequest.Inc(1)
 	} else {
-		s.metrics.fetchErrors.Inc(1)
+		s.metrics.fetchErrorsInternalError.Inc(1)
 	}
 	s.metrics.fetchLatencyHistogram.RecordDuration(s.nowFn().Sub(start))
+
+	if consistencyResultErr != nil && s.logFetchErrorSampler.Sample() {
+		s.log.Error("m3db client fetch error occurred",
+			zap.Float64("sampleRateLog", s.logFetchErrorSampler.SampleRate().Value()),
+			zap.Error(consistencyResultErr))
+	}
 }
 
 func (s *session) nodesRespondingErrorsMetricIndex(respErrs int32) int32 {
@@ -849,6 +901,8 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 		))
 	writeBatchRequestPool := newWriteBatchRawRequestPool(writeBatchRequestPoolOpts)
 	writeBatchRequestPool.Init()
+	writeBatchV2RequestPool := newWriteBatchRawV2RequestPool(writeBatchRequestPoolOpts)
+	writeBatchV2RequestPool.Init()
 
 	writeTaggedBatchRequestPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
@@ -857,6 +911,8 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 		))
 	writeTaggedBatchRequestPool := newWriteTaggedBatchRawRequestPool(writeTaggedBatchRequestPoolOpts)
 	writeTaggedBatchRequestPool.Init()
+	writeTaggedBatchV2RequestPool := newWriteTaggedBatchRawV2RequestPool(writeBatchRequestPoolOpts)
+	writeTaggedBatchV2RequestPool.Init()
 
 	writeBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
@@ -866,6 +922,9 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 	writeBatchRawRequestElementArrayPool := newWriteBatchRawRequestElementArrayPool(
 		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeBatchRawRequestElementArrayPool.Init()
+	writeBatchRawV2RequestElementArrayPool := newWriteBatchRawV2RequestElementArrayPool(
+		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
+	writeBatchRawV2RequestElementArrayPool.Init()
 
 	writeTaggedBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
@@ -875,13 +934,38 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQu
 	writeTaggedBatchRawRequestElementArrayPool := newWriteTaggedBatchRawRequestElementArrayPool(
 		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeTaggedBatchRawRequestElementArrayPool.Init()
+	writeTaggedBatchRawV2RequestElementArrayPool := newWriteTaggedBatchRawV2RequestElementArrayPool(
+		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
+	writeTaggedBatchRawV2RequestElementArrayPool.Init()
+
+	fetchBatchRawV2RequestPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("fetch-batch-request-pool"),
+		))
+	fetchBatchRawV2RequestPool := newFetchBatchRawV2RequestPool(fetchBatchRawV2RequestPoolOpts)
+	fetchBatchRawV2RequestPool.Init()
+
+	fetchBatchRawV2RequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("fetch-batch-request-array-pool"),
+		))
+	fetchBatchRawV2RequestElementArrayPool := newFetchBatchRawV2RequestElementArrayPool(fetchBatchRawV2RequestElementArrayPoolOpts, s.opts.FetchBatchSize())
+	fetchBatchRawV2RequestElementArrayPool.Init()
 
 	hostQueue, err := s.newHostQueueFn(host, hostQueueOpts{
-		writeBatchRawRequestPool:                   writeBatchRequestPool,
-		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool:             writeTaggedBatchRequestPool,
-		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
-		opts: s.opts,
+		writeBatchRawRequestPool:                     writeBatchRequestPool,
+		writeBatchRawV2RequestPool:                   writeBatchV2RequestPool,
+		writeBatchRawRequestElementArrayPool:         writeBatchRawRequestElementArrayPool,
+		writeBatchRawV2RequestElementArrayPool:       writeBatchRawV2RequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:               writeTaggedBatchRequestPool,
+		writeTaggedBatchRawV2RequestPool:             writeTaggedBatchV2RequestPool,
+		writeTaggedBatchRawRequestElementArrayPool:   writeTaggedBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawV2RequestElementArrayPool: writeTaggedBatchRawV2RequestElementArrayPool,
+		fetchBatchRawV2RequestPool:                   fetchBatchRawV2RequestPool,
+		fetchBatchRawV2RequestElementArrayPool:       fetchBatchRawV2RequestElementArrayPool,
+		opts:                                         s.opts,
 	})
 	if err != nil {
 		return nil, err
@@ -1022,6 +1106,8 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
 		wop.request.Datapoint.Annotation = annotation
+		wop.requestV2.ID = wop.request.ID
+		wop.requestV2.Datapoint = wop.request.Datapoint
 		op = wop
 	case taggedWriteAttemptType:
 		wop := s.pools.writeTaggedOperation.Get()
@@ -1037,6 +1123,9 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
 		wop.request.Datapoint.Annotation = annotation
+		wop.requestV2.ID = wop.request.ID
+		wop.requestV2.EncodedTags = wop.request.EncodedTags
+		wop.requestV2.Datapoint = wop.request.Datapoint
 		op = wop
 	default:
 		// should never happen
@@ -1118,24 +1207,24 @@ func (s *session) FetchIDs(
 
 func (s *session) Aggregate(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
-) (AggregatedTagsIterator, bool, error) {
+) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	f := s.pools.aggregateAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.attemptFn)
-	iter, exhaustive := f.resultIter, f.resultExhaustive
+	iter, metadata := f.resultIter, f.resultMetadata
 	s.pools.aggregateAttempt.Put(f)
-	return iter, exhaustive, err
+	return iter, metadata, err
 }
 
 func (s *session) aggregateAttempt(
 	ns ident.ID, q index.Query, opts index.AggregationOptions,
-) (AggregatedTagsIterator, bool, error) {
+) (AggregatedTagsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return nil, false, errSessionStatusNotOpen
+		return nil, FetchResponseMetadata{}, errSessionStatusNotOpen
 	}
 
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
@@ -1146,7 +1235,7 @@ func (s *session) aggregateAttempt(
 	if err != nil {
 		s.state.RUnlock()
 		nsClone.Finalize()
-		return nil, false, xerrors.NewNonRetryableError(err)
+		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
@@ -1158,7 +1247,7 @@ func (s *session) aggregateAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1168,49 +1257,52 @@ func (s *session) aggregateAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, exhaustive, err := fetchState.asAggregatedTagsIterator(s.pools)
+	iters, meta, err := fetchState.asAggregatedTagsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iters, exhaustive, err
+	return iters, meta, err
 }
 
 func (s *session) FetchTagged(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (encoding.SeriesIterators, bool, error) {
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.dataAttemptFn)
-	iters, exhaustive := f.dataResultIters, f.dataResultExhaustive
+	iters, metadata := f.dataResultIters, f.dataResultMetadata
 	s.pools.fetchTaggedAttempt.Put(f)
-	return iters, exhaustive, err
+	return iters, metadata, err
 }
 
 func (s *session) FetchTaggedIDs(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (TaggedIDsIterator, bool, error) {
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.idsAttemptFn)
-	iter, exhaustive := f.idsResultIter, f.idsResultExhaustive
+	iter, metadata := f.idsResultIter, f.idsResultMetadata
 	s.pools.fetchTaggedAttempt.Put(f)
-	return iter, exhaustive, err
+	return iter, metadata, err
 }
 
 func (s *session) fetchTaggedAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (encoding.SeriesIterators, bool, error) {
-	nsCtx := namespace.NewContextFor(ns, s.opts.SchemaRegistry())
+) (encoding.SeriesIterators, FetchResponseMetadata, error) {
+	nsCtx, err := s.nsCtxFor(ns)
+	if err != nil {
+		return nil, FetchResponseMetadata{}, err
+	}
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return nil, false, errSessionStatusNotOpen
+		return nil, FetchResponseMetadata{}, errSessionStatusNotOpen
 	}
 
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
@@ -1226,7 +1318,7 @@ func (s *session) fetchTaggedAttempt(
 	if err != nil {
 		s.state.RUnlock()
 		nsClone.Finalize()
-		return nil, false, xerrors.NewNonRetryableError(err)
+		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
@@ -1238,7 +1330,7 @@ func (s *session) fetchTaggedAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1248,22 +1340,23 @@ func (s *session) fetchTaggedAttempt(
 	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(s.pools, nsCtx.Schema)
+	iters, metadata, err := fetchState.asEncodingSeriesIterators(
+		s.pools, nsCtx.Schema, s.opts.IterationOptions())
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iters, exhaustive, err
+	return iters, metadata, err
 }
 
 func (s *session) fetchTaggedIDsAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (TaggedIDsIterator, bool, error) {
+) (TaggedIDsIterator, FetchResponseMetadata, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return nil, false, errSessionStatusNotOpen
+		return nil, FetchResponseMetadata{}, errSessionStatusNotOpen
 	}
 
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
@@ -1279,7 +1372,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	if err != nil {
 		s.state.RUnlock()
 		nsClone.Finalize()
-		return nil, false, xerrors.NewNonRetryableError(err)
+		return nil, FetchResponseMetadata{}, xerrors.NewNonRetryableError(err)
 	}
 
 	fetchState, err := s.newFetchStateWithRLock(nsClone, newFetchStateOpts{
@@ -1291,7 +1384,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return nil, false, err
+		return nil, FetchResponseMetadata{}, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1301,13 +1394,13 @@ func (s *session) fetchTaggedIDsAttempt(
 	// must Unlock before calling `asTaggedIDsIterator` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	iter, exhaustive, err := fetchState.asTaggedIDsIterator(s.pools)
+	iter, metadata, err := fetchState.asTaggedIDsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return iter, exhaustive, err
+	return iter, metadata, err
 }
 
 type newFetchStateOpts struct {
@@ -1400,6 +1493,11 @@ func (s *session) fetchIDsAttempt(
 	inputIDs ident.Iterator,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterators, error) {
+	nsCtx, err := s.nsCtxFor(inputNamespace)
+	if err != nil {
+		return nil, err
+	}
+
 	var (
 		wg                     sync.WaitGroup
 		allPending             int32
@@ -1409,11 +1507,11 @@ func (s *session) fetchIDsAttempt(
 		resultErr              error
 		resultErrs             int32
 		majority               int32
+		numReplicas            int32
 		consistencyLevel       topology.ReadConsistencyLevel
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		success                = false
 		startFetchAttempt      = s.nowFn()
-		nsCtx                  = namespace.NewContextFor(inputNamespace, s.opts.SchemaRegistry())
 	)
 
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
@@ -1461,6 +1559,7 @@ func (s *session) fetchIDsAttempt(
 
 	consistencyLevel = s.state.readLevel
 	majority = int32(s.state.majority)
+	numReplicas = int32(s.state.replicas)
 
 	// NB(prateek): namespaceAccessors tracks the number of pending accessors for nsID.
 	// It is set to incremented by `replica` for each requested ID during fetch enqueuing,
@@ -1517,8 +1616,16 @@ func (s *session) fetchIDsAttempt(
 				resultErrLock.Unlock()
 			} else {
 				resultsLock.RLock()
-				successIters := results[:success]
+				numItersToInclude := int(success)
+				numDesired := topology.NumDesiredForReadConsistency(consistencyLevel, int(numReplicas), int(majority))
+				if numDesired < numItersToInclude {
+					// Avoid decoding more data than is required to satisfy the consistency guarantees.
+					numItersToInclude = numDesired
+				}
+
+				itersToInclude := results[:numItersToInclude]
 				resultsLock.RUnlock()
+
 				iter := s.pools.seriesIterator.Get()
 				// NB(prateek): we need to allocate a copy of ident.ID to allow the seriesIterator
 				// to have control over the lifecycle of ID. We cannot allow seriesIterator
@@ -1526,12 +1633,14 @@ func (s *session) fetchIDsAttempt(
 				// due to a pending request in queue.
 				seriesID := s.pools.id.Clone(tsID)
 				namespaceID := s.pools.id.Clone(namespace)
+				consolidator := s.opts.IterationOptions().SeriesIteratorConsolidator
 				iter.Reset(encoding.SeriesIteratorOptions{
-					ID:             seriesID,
-					Namespace:      namespaceID,
-					StartInclusive: startInclusive,
-					EndExclusive:   endExclusive,
-					Replicas:       successIters,
+					ID:                         seriesID,
+					Namespace:                  namespaceID,
+					StartInclusive:             xtime.ToUnixNano(startInclusive),
+					EndExclusive:               xtime.ToUnixNano(endExclusive),
+					Replicas:                   itersToInclude,
+					SeriesIteratorConsolidator: consolidator,
 				})
 				iters.SetAt(idx, iter)
 			}
@@ -1549,6 +1658,12 @@ func (s *session) fetchIDsAttempt(
 		completionFn := func(result interface{}, err error) {
 			var snapshotSuccess int32
 			if err != nil {
+				if IsBadRequestError(err) {
+					// Wrap with invalid params and non-retryable so it is
+					// not retried.
+					err = xerrors.NewInvalidParamsError(err)
+					err = xerrors.NewNonRetryableError(err)
+				}
 				atomic.AddInt32(&errs, 1)
 				// NB(r): reuse the error lock here as we do not want to create
 				// a whole lot of locks for every single ID fetched due to size
@@ -1921,8 +2036,11 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	start, end time.Time,
 	opts result.Options,
 ) (result.ShardResult, error) {
+	nsCtx, err := s.nsCtxFromMetadata(nsMetadata)
+	if err != nil {
+		return nil, err
+	}
 	var (
-		nsCtx  = namespace.NewContextFrom(nsMetadata)
 		result = newBulkBlocksResult(nsCtx, s.opts, opts,
 			s.pools.tagDecoder, s.pools.id)
 		doneCh   = make(chan struct{})
@@ -1965,12 +2083,16 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	}()
 
 	// Begin consuming metadata and making requests. This will block until all
-	// data has been streamed (or failed to stream). Note that this function does
-	// not return an error and if anything goes wrong here we won't report it to
+	// data has been streamed (or failed to stream). Note that while this function
+	// does return an error, an error will only be returned in a select few cases.
+	// There are some scenarios in which if something goes wrong here we won't report it to
 	// the caller, but metrics and logs are emitted internally. Also note that the
 	// streamAndGroupCollectedBlocksMetadata function is injected.
-	s.streamBlocksFromPeers(nsMetadata, shard, peers, metadataCh, opts,
+	err = s.streamBlocksFromPeers(nsMetadata, shard, peers, metadataCh, opts,
 		level, result, progress, s.streamAndGroupCollectedBlocksMetadata)
+	if err != nil {
+		return nil, err
+	}
 
 	// Check if an error occurred during the metadata streaming
 	if err = <-errCh; err != nil {
@@ -1987,14 +2109,16 @@ func (s *session) FetchBlocksFromPeers(
 	metadatas []block.ReplicaMetadata,
 	opts result.Options,
 ) (PeerBlocksIter, error) {
-
+	nsCtx, err := s.nsCtxFromMetadata(nsMetadata)
+	if err != nil {
+		return nil, err
+	}
 	var (
 		logger   = opts.InstrumentOptions().Logger()
 		level    = newStaticRuntimeReadConsistencyLevel(consistencyLevel)
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		nsCtx    = namespace.NewContextFrom(nsMetadata)
 		result   = newStreamBlocksResult(nsCtx, s.opts, opts, outputCh,
 			s.pools.tagDecoder.Get(), s.pools.id)
 		onDone = func(err error) {
@@ -2050,12 +2174,12 @@ func (s *session) FetchBlocksFromPeers(
 		close(metadataCh)
 	}()
 
-	// Begin consuming metadata and making requests
+	// Begin consuming metadata and making requests.
 	go func() {
-		s.streamBlocksFromPeers(nsMetadata, shard, peers, metadataCh,
+		err := s.streamBlocksFromPeers(nsMetadata, shard, peers, metadataCh,
 			opts, level, result, progress, s.passThroughBlocksMetadata)
 		close(outputCh)
-		onDone(nil)
+		onDone(err)
 	}()
 
 	pbi := newPeerBlocksIter(outputCh, doneCh)
@@ -2265,15 +2389,18 @@ func (s *session) streamBlocksMetadataFromPeer(
 			data.IncRef()
 			data.AppendAll(elem.ID)
 			data.DecRef()
-
 			clonedID := idPool.BinaryID(data)
+			// Return thrift bytes to pool once the ID has been copied.
+			apachethrift.BytesPoolPut(elem.ID)
 
 			var encodedTags checked.Bytes
-			if bytes := elem.EncodedTags; len(bytes) != 0 {
-				encodedTags = bytesPool.Get(len(bytes))
+			if tagBytes := elem.EncodedTags; len(tagBytes) != 0 {
+				encodedTags = bytesPool.Get(len(tagBytes))
 				encodedTags.IncRef()
-				encodedTags.AppendAll(bytes)
+				encodedTags.AppendAll(tagBytes)
 				encodedTags.DecRef()
+				// Return thrift bytes to pool once the tags have been copied.
+				apachethrift.BytesPoolPut(tagBytes)
 			}
 
 			// Error occurred retrieving block metadata, use default values
@@ -2361,7 +2488,7 @@ func (s *session) streamBlocksFromPeers(
 	result blocksResult,
 	progress *streamFromPeersMetrics,
 	streamMetadataFn streamBlocksMetadataFn,
-) {
+) error {
 	var (
 		enqueueCh           = newEnqueueChannel(progress)
 		peerBlocksBatchSize = s.streamBlocksBatchSize
@@ -2400,7 +2527,7 @@ func (s *session) streamBlocksFromPeers(
 			enqueueCh.trackProcessed(1)
 		}
 	)
-	for perPeerBlocksMetadata := range enqueueCh.get() {
+	for perPeerBlocksMetadata := range enqueueCh.read() {
 		// Filter and select which blocks to retrieve from which peers
 		selected, pooled = s.selectPeersFromPerPeerBlockMetadatas(
 			perPeerBlocksMetadata, peerQueues, enqueueCh, consistencyLevel, peers,
@@ -2429,6 +2556,8 @@ func (s *session) streamBlocksFromPeers(
 
 	// Close all queues
 	peerQueues.closeAll()
+
+	return nil
 }
 
 type streamBlocksMetadataFn func(
@@ -3005,6 +3134,22 @@ func (s *session) cloneFinalizable(id ident.ID) ident.ID {
 	return s.pools.id.Clone(id)
 }
 
+func (s *session) nsCtxFromMetadata(nsMeta namespace.Metadata) (namespace.Context, error) {
+	nsCtx := namespace.NewContextFrom(nsMeta)
+	if s.opts.IsSetEncodingProto() && nsCtx.Schema == nil {
+		return nsCtx, fmt.Errorf("no protobuf schema found for namespace: %s", nsMeta.ID().String())
+	}
+	return nsCtx, nil
+}
+
+func (s *session) nsCtxFor(ns ident.ID) (namespace.Context, error) {
+	nsCtx := namespace.NewContextFor(ns, s.opts.SchemaRegistry())
+	if s.opts.IsSetEncodingProto() && nsCtx.Schema == nil {
+		return nsCtx, fmt.Errorf("no protobuf schema found for namespace: %s", ns.String())
+	}
+	return nsCtx, nil
+}
+
 type reason int
 
 const (
@@ -3027,7 +3172,7 @@ type reattemptStreamBlocksFromPeersFn func(
 	reason,
 	reattemptType,
 	*streamFromPeersMetrics,
-)
+) error
 
 func (s *session) streamBlocksReattemptFromPeers(
 	blocks []receivedBlockMetadata,
@@ -3036,7 +3181,7 @@ func (s *session) streamBlocksReattemptFromPeers(
 	reason reason,
 	reattemptType reattemptType,
 	m *streamFromPeersMetrics,
-) {
+) error {
 	switch reason {
 	case reqErrReason:
 		m.fetchBlockRetriesReqError.Inc(int64(len(blocks)))
@@ -3050,16 +3195,25 @@ func (s *session) streamBlocksReattemptFromPeers(
 	// where cannot enqueue into the reattempt channel because no more work is
 	// getting done because new attempts are blocked on existing attempts completing
 	// and existing attempts are trying to enqueue into a full reattempt channel
-	enqueue := enqueueCh.enqueueDelayed(len(blocks))
-	go s.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr, reattemptType, enqueue)
+	enqueue, done, err := enqueueCh.enqueueDelayed(len(blocks))
+	if err != nil {
+		return err
+	}
+	go s.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr, reattemptType,
+		enqueue, done)
+	return nil
 }
 
 func (s *session) streamBlocksReattemptFromPeersEnqueue(
 	blocks []receivedBlockMetadata,
 	attemptErr error,
 	reattemptType reattemptType,
-	enqueueFn func([]receivedBlockMetadata),
+	enqueueFn enqueueDelayedFn,
+	enqueueDoneFn enqueueDelayedDoneFn,
 ) {
+	// NB(r): Notify the delayed enqueue is done.
+	defer enqueueDoneFn()
+
 	for i := range blocks {
 		var reattemptPeersMetadata []receivedBlockMetadata
 		switch reattemptType {
@@ -3160,7 +3314,12 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 		tail.AppendAll(seg.Tail)
 		tail.DecRef()
 	}
-	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
+	var checksum uint32
+	if seg.Checksum != nil {
+		checksum = uint32(*seg.Checksum)
+	}
+
+	return ts.NewSegment(head, tail, checksum, ts.FinalizeHead&ts.FinalizeTail)
 }
 
 func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
@@ -3459,12 +3618,15 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 }
 
 type enqueueCh struct {
-	enqueued         uint64
-	processed        uint64
-	peersMetadataCh  chan []receivedBlockMetadata
-	closed           int64
-	enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
-	metrics          *streamFromPeersMetrics
+	sync.Mutex
+	sending              int
+	enqueued             int
+	processed            int
+	peersMetadataCh      chan []receivedBlockMetadata
+	closed               bool
+	enqueueDelayedFn     enqueueDelayedFn
+	enqueueDelayedDoneFn enqueueDelayedDoneFn
+	metrics              *streamFromPeersMetrics
 }
 
 const enqueueChannelDefaultLen = 32768
@@ -3472,61 +3634,103 @@ const enqueueChannelDefaultLen = 32768
 func newEnqueueChannel(m *streamFromPeersMetrics) enqueueChannel {
 	c := &enqueueCh{
 		peersMetadataCh: make(chan []receivedBlockMetadata, enqueueChannelDefaultLen),
-		closed:          0,
 		metrics:         m,
 	}
+
 	// Allocate the enqueue delayed fn just once
 	c.enqueueDelayedFn = func(peersMetadata []receivedBlockMetadata) {
 		c.peersMetadataCh <- peersMetadata
 	}
+	c.enqueueDelayedDoneFn = func() {
+		c.Lock()
+		c.sending--
+		c.Unlock()
+	}
+
 	go func() {
-		for atomic.LoadInt64(&c.closed) == 0 {
-			m.blocksEnqueueChannel.Update(float64(len(c.peersMetadataCh)))
+		for {
+			c.Lock()
+			closed := c.closed
+			numEnqueued := float64(len(c.peersMetadataCh))
+			c.Unlock()
+			if closed {
+				return
+			}
+			m.blocksEnqueueChannel.Update(numEnqueued)
 			time.Sleep(gaugeReportInterval)
 		}
 	}()
 	return c
 }
 
-func (c *enqueueCh) enqueue(peersMetadata []receivedBlockMetadata) {
-	atomic.AddUint64(&c.enqueued, 1)
+func (c *enqueueCh) enqueue(peersMetadata []receivedBlockMetadata) error {
+	c.Lock()
+	if c.closed {
+		c.Unlock()
+		return errEnqueueChIsClosed
+	}
+	c.enqueued++
+	c.sending++
+	c.Unlock()
 	c.peersMetadataCh <- peersMetadata
+	c.Lock()
+	c.sending--
+	c.Unlock()
+	return nil
 }
 
-func (c *enqueueCh) enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata) {
-	atomic.AddUint64(&c.enqueued, uint64(numToEnqueue))
-	return c.enqueueDelayedFn
+func (c *enqueueCh) enqueueDelayed(numToEnqueue int) (enqueueDelayedFn, enqueueDelayedDoneFn, error) {
+	c.Lock()
+	if c.closed {
+		c.Unlock()
+		return nil, nil, errEnqueueChIsClosed
+	}
+	c.sending++ // NB(r): This is decremented by calling the returned enqueue done function
+	c.enqueued += (numToEnqueue)
+	c.Unlock()
+	return c.enqueueDelayedFn, c.enqueueDelayedDoneFn, nil
 }
 
-func (c *enqueueCh) get() <-chan []receivedBlockMetadata {
+// read is always safe to call since you can safely range
+// over a closed channel, and/or do a checked read in case
+// it is closed (unlike when publishing to a channel).
+func (c *enqueueCh) read() <-chan []receivedBlockMetadata {
 	return c.peersMetadataCh
 }
 
 func (c *enqueueCh) trackPending(amount int) {
-	atomic.AddUint64(&c.enqueued, uint64(amount))
+	c.Lock()
+	c.enqueued += amount
+	c.Unlock()
 }
 
 func (c *enqueueCh) trackProcessed(amount int) {
-	atomic.AddUint64(&c.processed, uint64(amount))
+	c.Lock()
+	c.processed += amount
+	c.Unlock()
 }
 
 func (c *enqueueCh) unprocessedLen() int {
-	return int(atomic.LoadUint64(&c.enqueued) - atomic.LoadUint64(&c.processed))
+	c.Lock()
+	unprocessed := c.unprocessedLenWithLock()
+	c.Unlock()
+	return unprocessed
+}
+
+func (c *enqueueCh) unprocessedLenWithLock() int {
+	return c.enqueued - c.processed
 }
 
 func (c *enqueueCh) closeOnAllProcessed() {
-	defer func() {
-		atomic.StoreInt64(&c.closed, 1)
-	}()
 	for {
-		if c.unprocessedLen() == 0 {
-			// Will only ever be zero after all is processed if called
-			// after enqueueing the desired set of entries as long as
-			// the guarantee that reattempts are enqueued before the
-			// failed attempt is marked as processed is upheld
+		c.Lock()
+		if c.unprocessedLenWithLock() == 0 && c.sending == 0 {
 			close(c.peersMetadataCh)
-			break
+			c.closed = true
+			c.Unlock()
+			return
 		}
+		c.Unlock()
 		time.Sleep(100 * time.Millisecond)
 	}
 }

@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -76,6 +77,12 @@ var (
 		ID:        []byte("testForwarded"),
 		TimeNanos: 12345,
 		Values:    []float64{76109, 23891},
+	}
+	testPassthroughMetric = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testPassthrough"),
+		TimeNanos: 12345,
+		Value:     1000,
 	}
 	testInvalidMetric = unaggregated.MetricUnion{
 		Type: metric.UnknownType,
@@ -126,6 +133,7 @@ var (
 		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
+	testPassthroughStroagePolicy = policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour)
 )
 
 func TestAggregatorOpenAlreadyOpen(t *testing.T) {
@@ -185,15 +193,19 @@ func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
-	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
 	placementManager := NewMockPlacementManager(ctrl)
-	placementManager.EXPECT().Open().Return(nil)
-	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
-	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, ErrInstanceNotFoundInPlacement)
 
 	agg, _ := testAggregator(t, ctrl)
 	agg.placementManager = placementManager
+
+	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
+	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
+
+	placementManager.EXPECT().Open().Return(nil)
+	placementManager.EXPECT().InstanceID().Return(agg.opts.PlacementManager().InstanceID())
+	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
+	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, ErrInstanceNotFoundInPlacement)
+
 	require.NoError(t, agg.Open())
 	require.Equal(t, uint32(0), agg.shardSetID)
 	require.False(t, agg.shardSetOpen)
@@ -660,6 +672,25 @@ func TestAggregatorResignSuccess(t *testing.T) {
 	require.NoError(t, agg.Resign())
 }
 
+func TestAggregatorAddPassthroughNotOpen(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
+	err := agg.AddPassthrough(testPassthroughMetric, testPassthroughStroagePolicy)
+	require.Equal(t, errAggregatorNotOpenOrClosed, err)
+}
+
+func TestAggregatorAddPassthroughSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
+	require.NoError(t, agg.Open())
+	err := agg.AddPassthrough(testPassthroughMetric, testPassthroughStroagePolicy)
+	require.NoError(t, err)
+}
+
 func TestAggregatorStatus(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -915,7 +946,7 @@ func TestAggregatorOwnedShards(t *testing.T) {
 
 func TestAggregatorAddMetricMetrics(t *testing.T) {
 	s := tally.NewTestScope("testScope", nil)
-	m := newAggregatorAddUntimedMetrics(s, 1.0)
+	m := newAggregatorAddUntimedMetrics(s, instrument.TimerOptions{})
 	m.ReportSuccess(time.Second)
 	m.ReportError(errInvalidMetricType)
 	m.ReportError(errShardNotOwned)
@@ -960,7 +991,7 @@ func TestAggregatorAddMetricMetrics(t *testing.T) {
 
 func TestAggregatorAddTimedMetrics(t *testing.T) {
 	s := tally.NewTestScope("testScope", nil)
-	m := newAggregatorAddTimedMetrics(s, 1.0)
+	m := newAggregatorAddTimedMetrics(s, instrument.TimerOptions{})
 	m.ReportSuccess(time.Second)
 	m.ReportError(errShardNotOwned)
 	m.ReportError(errAggregatorShardNotWriteable)
@@ -1096,6 +1127,7 @@ func testOptions(ctrl *gomock.Controller) Options {
 	electionMgr.EXPECT().Reset().Return(nil).AnyTimes()
 	electionMgr.EXPECT().Open(gomock.Any()).Return(nil).AnyTimes()
 	electionMgr.EXPECT().Close().Return(nil).AnyTimes()
+	electionMgr.EXPECT().ElectionState().Return(LeaderState).AnyTimes()
 
 	flushManager := NewMockFlushManager(ctrl)
 	flushManager.EXPECT().Reset().Return(nil).AnyTimes()
@@ -1113,6 +1145,11 @@ func testOptions(ctrl *gomock.Controller) Options {
 	h.EXPECT().NewWriter(gomock.Any()).Return(w, nil).AnyTimes()
 	h.EXPECT().Close().AnyTimes()
 
+	pw := writer.NewMockWriter(ctrl)
+	pw.EXPECT().Write(gomock.Any()).Return(nil).AnyTimes()
+	pw.EXPECT().Flush().Return(nil).AnyTimes()
+	pw.EXPECT().Close().Return(nil).AnyTimes()
+
 	cl := client.NewMockAdminClient(ctrl)
 	cl.EXPECT().Flush().Return(nil).AnyTimes()
 	cl.EXPECT().Close().AnyTimes()
@@ -1129,6 +1166,7 @@ func testOptions(ctrl *gomock.Controller) Options {
 		SetElectionManager(electionMgr).
 		SetFlushManager(flushManager).
 		SetFlushHandler(h).
+		SetPassthroughWriter(pw).
 		SetAdminClient(cl).
 		SetMaxAllowedForwardingDelayFn(infiniteAllowedDelayFn).
 		SetBufferForFutureTimedMetric(math.MaxInt64).

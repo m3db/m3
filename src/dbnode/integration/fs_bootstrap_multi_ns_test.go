@@ -27,13 +27,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -56,44 +56,46 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 
 	persistMgr, err := persistfs.NewPersistManager(fsOpts)
 	require.NoError(t, err)
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
-		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
+		SetSeriesCachePolicy(setup.StorageOpts().SeriesCachePolicy())
+	storageIdxOpts := setup.StorageOpts().IndexOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
-		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
-		SetPersistManager(persistMgr)
+		SetIndexOptions(storageIdxOpts).
+		SetPersistManager(persistMgr).
+		SetCompactor(newCompactor(t, storageIdxOpts))
 
 	bs, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	require.NoError(t, err)
 
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
 
-	setup.storageOpts = setup.storageOpts.
-		SetBootstrapProcessProvider(processProvider)
+	setup.SetStorageOpts(setup.StorageOpts().
+		SetBootstrapProcessProvider(processProvider))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 
 	log.Info("generating data")
 	// Write test data
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	ns1SeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-ns1BlockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
@@ -103,18 +105,18 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-ns2BlockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
 	})
-	require.NoError(t, writeTestDataToDisk(ns1, setup, ns1SeriesMaps))
-	require.NoError(t, writeTestDataToDisk(ns2, setup, ns2SeriesMaps))
+	require.NoError(t, writeTestDataToDisk(ns1, setup, ns1SeriesMaps, 0))
+	require.NoError(t, writeTestDataToDisk(ns2, setup, ns2SeriesMaps, 0))
 	log.Info("generated data")
 
 	// Start the server with filesystem bootstrapper
 	log.Info("filesystem bootstrap test")
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Info("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Info("server is now down")
 	}()
 

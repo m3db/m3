@@ -27,13 +27,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -82,24 +83,24 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1})
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	setup.mustSetTickMinimumInterval(100 * time.Millisecond)
+	setup.MustSetTickMinimumInterval(100 * time.Millisecond)
 
 	// Setup the commitlog and write a single datapoint into it one second into the
 	// active block.
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
 	testID := ident.StringID("foo")
-	now := setup.getNowFn().Truncate(blockSize)
-	setup.setNowFn(now)
+	now := setup.NowFn()().Truncate(blockSize)
+	setup.SetNowFn(now)
 	startTime := now
 	commitlogWrite := ts.Datapoint{
 		Timestamp: startTime.Add(time.Second),
@@ -119,40 +120,43 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	// which does not bootstrap any data, but simply waits until it is signaled, allowing us
 	// to delay bootstrap completion until we've forced a tick to "hang". After the custom
 	// test bootstrapper completes, the commitlog bootstrapper will run.
-	bootstrapOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bootstrapOpts := newDefaulTestResultOptions(setup.StorageOpts())
 	bootstrapCommitlogOpts := bcl.NewOptions().
 		SetResultOptions(bootstrapOpts).
 		SetCommitLogOptions(commitLogOpts).
 		SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 	commitlogBootstrapperProvider, err := bcl.NewCommitLogBootstrapperProvider(
 		bootstrapCommitlogOpts, mustInspectFilesystem(fsOpts), nil)
 	require.NoError(t, err)
 
 	// Setup the test bootstrapper to only return success when a signal is sent.
 	signalCh := make(chan struct{})
-	bootstrapper, err := commitlogBootstrapperProvider.Provide()
+	bs, err := commitlogBootstrapperProvider.Provide()
 	require.NoError(t, err)
+
 	test := newTestBootstrapperSource(testBootstrapperSourceOptions{
-		readData: func(
-			_ namespace.Metadata,
-			shardTimeRanges result.ShardTimeRanges,
-			_ bootstrap.RunOptions,
-		) (result.DataBootstrapResult, error) {
+		read: func(
+			ctx context.Context,
+			namespaces bootstrap.Namespaces,
+		) (bootstrap.NamespaceResults, error) {
 			<-signalCh
-			result := result.NewDataBootstrapResult()
 			// Mark all as unfulfilled so the commitlog bootstrapper will be called after
-			result.SetUnfulfilled(shardTimeRanges)
-			return result, nil
+			noopNone := bootstrapper.NewNoOpNoneBootstrapperProvider()
+			bs, err := noopNone.Provide()
+			if err != nil {
+				return bootstrap.NamespaceResults{}, err
+			}
+			return bs.Bootstrap(ctx, namespaces)
 		},
-	}, bootstrapOpts, bootstrapper)
+	}, bootstrapOpts, bs)
 
 	processOpts := bootstrap.NewProcessOptions().
 		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
+		SetOrigin(setup.Origin())
 	process, err := bootstrap.NewProcessProvider(test, processOpts, bootstrapOpts)
 	require.NoError(t, err)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
+	setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(process))
 
 	// Start a background goroutine which will wait until the server is started,
 	// issue a single write into the active block, change the time to be far enough
@@ -160,15 +164,15 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	// can be rotated, and then signals the test bootstrapper that it can proceed.
 	go func() {
 		// Wait for server to start
-		setup.waitUntilServerIsUp()
+		setup.WaitUntilServerIsUp()
 
 		// Set the time such that the (previously) active block is ready to be flushed.
 		now = now.Add(blockSize).Add(ropts.BufferPast()).Add(time.Second)
-		setup.setNowFn(now)
+		setup.SetNowFn(now)
 
 		// Set the tick interval to be so large we can "hang" a tick at the end, preventing
 		// it from completing until we're ready to "resume" it later.
-		runtimeMgr := setup.storageOpts.RuntimeOptionsManager()
+		runtimeMgr := setup.StorageOpts().RuntimeOptionsManager()
 		existingOptions := runtimeMgr.Get()
 		newOptions := existingOptions.SetTickMinimumInterval(2 * time.Hour)
 
@@ -192,16 +196,16 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		signalCh <- struct{}{}
 		signalCh <- struct{}{}
 	}()
-	require.NoError(t, setup.startServer()) // Blocks until bootstrap is complete
+	require.NoError(t, setup.StartServer()) // Blocks until bootstrap is complete
 
 	// Now that bootstrapping has completed, re-enable ticking so that flushing can take place
-	setup.mustSetTickMinimumInterval(100 * time.Millisecond)
+	setup.MustSetTickMinimumInterval(100 * time.Millisecond)
 
 	// Wait for a flush to complete
-	setup.sleepFor10xTickMinimumInterval()
+	setup.SleepFor10xTickMinimumInterval()
 
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 	}()
 
 	// Verify in-memory data match what we expect - commitlog write should not be lost

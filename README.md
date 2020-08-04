@@ -1,32 +1,31 @@
-# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][fossa] [![Gitter chat][gitter-img]][gitter]
+# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status][fossa-img]][fossa] 
 
 <p align="center"><img src="docs/theme/assets/images/M3-logo.png" alt="M3 Logo" width="256" height="270"></p>
 
-[Distributed TSDB](http://m3db.github.io/m3/m3db/) and [Query Engine](http://m3db.github.io/m3/how_to/query/), [Prometheus Sidecar](http://m3db.github.io/m3/integrations/prometheus/), [Metrics Aggregator](http://m3db.github.io/m3/introduction/components/components/#m3-aggregator), and more. "More" now includes [Graphite storage and query engine](http://m3db.github.io/m3/integrations/graphite/)!
+[Distributed TSDB](https://docs.m3db.io/m3db/) and [Query Engine](https://docs.m3db.io/how_to/query/), [Prometheus Sidecar](https://docs.m3db.io/integrations/prometheus/), [Metrics Aggregator](https://docs.m3db.io/overview/components/#m3-aggregator), and more such as [Graphite storage and query engine](https://docs.m3db.io/integrations/graphite/).
 
 More information:
 
-- [Documentation](https://m3db.github.io/m3/)
+- [Documentation](https://docs.m3db.io/)
 - [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
-- [Gitter (chat channel)](https://gitter.im/m3db/Lobby)
+- [Slack](http://bit.ly/m3slack)
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
 - [Twitter](https://twitter.com/m3db_io)
 
 ## Community meetings
 
-M3 contributors and maintainers have monthly (every four weeks) meetings at 11:00 AM (USA Pacific) on Tuesday.
+M3 contributors and maintainers have monthly (every four weeks) meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
+[https://www.meetup.com/M3-Community/](https://www.meetup.com/M3-Community/).
 
-An initial agenda is posted to the [community meeting shared Google doc](https://docs.google.com/document/d/1eGAd2A8FVtiip5wHxHnmSkz7e_qHc9k_4hGI0vUGdHM/edit?usp=sharing) a day before each meeting, and everyone is welcome to suggest additional topics or other agendas.
+Recordings of past meetups can be found here: [https://vimeo.com/user/120001164/folder/2290331](https://vimeo.com/user/120001164/folder/2290331).
 
-Please download and import the following iCalendar (.ics) files to calendar system.
+## Office Hours
 
-Monthly: [us04web.zoom.us/meeting/519434268/ics?icsToken=0509418cef48c753d095f78eabc177f7ee2ced032a53913644bc86bb88b54862](https://us04web.zoom.us/meeting/519434268/ics?icsToken=0509418cef48c753d095f78eabc177f7ee2ced032a53913644bc86bb88b54862)
-
-Join Zoom Meeting: [us04web.zoom.us/j/519434268](https://us04web.zoom.us/j/519434268)
+Members of the M3 team will hold office hours on the third Thursday of every month from 11-1pm EST. In order to join, make sure to sign up for a slot here: [https://calendly.com/chronosphere-intro/m3-community-office-hours](https://calendly.com/chronosphere-intro/m3-community-office-hours).
 
 ## Test it out
 
-The easiest way to testing out M3 is to follow one of the guides from the documentation. For a fully comprehensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/).
+The easiest way to testing out M3 is to follow one of the guides from the documentation. For a fully comprehensive getting started guide, see our [single node how-to](https://docs.m3db.io/how_to/single_node/).
 
 ### Starting a node
 
@@ -140,5 +139,3 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 [cov]: https://codecov.io/gh/m3db/m3
 [fossa-img]: https://app.fossa.io/api/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3.svg?type=shield
 [fossa]: https://app.fossa.io/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3?ref=badge_shield
-[gitter-img]: https://badges.gitter.im/m3db.png
-[gitter]: https://gitter.im/m3db/Lobby

@@ -27,11 +27,14 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -48,13 +51,17 @@ const (
 
 // WriteJSONHandler represents a handler for the write json endpoint
 type WriteJSONHandler struct {
-	store storage.Storage
+	opts           options.HandlerOptions
+	store          storage.Storage
+	instrumentOpts instrument.Options
 }
 
 // NewWriteJSONHandler returns a new instance of handler.
-func NewWriteJSONHandler(store storage.Storage) http.Handler {
+func NewWriteJSONHandler(opts options.HandlerOptions) http.Handler {
 	return &WriteJSONHandler{
-		store: store,
+		opts:           opts,
+		store:          opts.Storage(),
+		instrumentOpts: opts.InstrumentOpts(),
 	}
 }
 
@@ -69,15 +76,15 @@ type WriteQuery struct {
 }
 
 func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	req, rErr := h.parseRequest(r)
+	req, rErr := parseRequest(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	writeQuery, err := newStorageWriteQuery(req)
+	writeQuery, err := h.newWriteQuery(req)
 	if err != nil {
-		logger := logging.WithContext(r.Context())
+		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("parsing error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Error(err))
@@ -85,7 +92,7 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.Write(r.Context(), writeQuery); err != nil {
-		logger := logging.WithContext(r.Context())
+		logger := logging.WithContext(r.Context(), h.instrumentOpts)
 		logger.Error("write error",
 			zap.String("remoteAddr", r.RemoteAddr),
 			zap.Error(err))
@@ -93,18 +100,18 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
+func (h *WriteJSONHandler) newWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 	parsedTime, err := util.ParseTimeString(req.Timestamp)
 	if err != nil {
 		return nil, err
 	}
 
-	tags := models.NewTags(len(req.Tags), nil)
+	tags := models.NewTags(len(req.Tags), h.opts.TagOptions())
 	for n, v := range req.Tags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
 	}
 
-	return &storage.WriteQuery{
+	return storage.NewWriteQuery(storage.WriteQueryOptions{
 		Tags: tags,
 		Datapoints: ts.Datapoints{
 			{
@@ -114,10 +121,13 @@ func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 		},
 		Unit:       xtime.Millisecond,
 		Annotation: nil,
-	}, nil
+		Attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
+		},
+	})
 }
 
-func (h *WriteJSONHandler) parseRequest(r *http.Request) (*WriteQuery, *xhttp.ParseError) {
+func parseRequest(r *http.Request) (*WriteQuery, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")

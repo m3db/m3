@@ -21,9 +21,6 @@
 package builder
 
 import (
-	"bytes"
-	"sort"
-
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
@@ -40,12 +37,11 @@ type termsIter struct {
 var _ segment.TermsIterator = &termsIter{}
 
 func newTermsIter(
-	maybeUnorderedTerms []termElem,
+	orderedTerms []termElem,
 ) *termsIter {
-	sortTerms(maybeUnorderedTerms)
 	return &termsIter{
 		currentIdx: -1,
-		terms:      maybeUnorderedTerms,
+		terms:      orderedTerms,
 	}
 }
 
@@ -78,10 +74,4 @@ func (b *termsIter) Close() error {
 	b.current = termElem{}
 	b.terms = nil
 	return nil
-}
-
-func sortTerms(terms []termElem) {
-	sort.Slice(terms, func(i, j int) bool {
-		return bytes.Compare(terms[i].term, terms[j].term) < 0
-	})
 }

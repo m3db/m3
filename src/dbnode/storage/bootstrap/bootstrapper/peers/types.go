@@ -23,9 +23,12 @@ package peers
 import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/x/context"
 )
 
 // Options represents the options for bootstrapping from peers
@@ -83,21 +86,33 @@ type Options interface {
 	// when performing a bootstrap with persistence.
 	PersistManager() persist.Manager
 
-	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
-	// pass to newly flushed blocks when performing a bootstrap run with
-	// persistence enabled.
-	SetDatabaseBlockRetrieverManager(
-		value block.DatabaseBlockRetrieverManager,
-	) Options
+	// SetCompactor sets the compactor used to compact segment builders into segments.
+	SetCompactor(value *compaction.Compactor) Options
 
-	// NewBlockRetrieverFn returns the block retriever manager to
-	// pass to newly flushed blocks when performing a bootstrap run with
-	// persistence enabled.
-	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
+	// Compactor returns the compactor used to compact segment builders into segments.
+	Compactor() *compaction.Compactor
 
 	// SetRuntimeOptionsManagers sets the RuntimeOptionsManager.
 	SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options
 
 	// RuntimeOptionsManagers returns the RuntimeOptionsManager.
 	RuntimeOptionsManager() m3dbruntime.OptionsManager
+
+	// SetContextPool sets the contextPool.
+	SetContextPool(value context.Pool) Options
+
+	// ContextPool returns the contextPool.
+	ContextPool() context.Pool
+
+	// SetFilesystemOptions sets the filesystem options.
+	SetFilesystemOptions(value fs.Options) Options
+
+	// FilesystemOptions returns the filesystem options.
+	FilesystemOptions() fs.Options
+
+	// SetIndexOptions set the indexing options.
+	SetIndexOptions(value index.Options) Options
+
+	// IndexOptions returns the indexing options.
+	IndexOptions() index.Options
 }

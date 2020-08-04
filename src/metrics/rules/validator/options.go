@@ -23,6 +23,7 @@ package validator
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
@@ -111,6 +112,14 @@ type Options interface {
 	// returning an error if invalid character(s) present.
 	CheckInvalidCharactersForTagName(tagName string) error
 
+	// SetFiltersInvalidTagNames sets a list of case-insensitive tags that will
+	// cause metric filters to be rejected.
+	SetFilterInvalidTagNames(tagNames []string) Options
+
+	// CheckFilterTagNameValid returns an error if the given tag name is in the list of
+	// invalid tags.
+	CheckFilterTagNameValid(tagName string) error
+
 	// SetMetricNameInvalidChars sets the list of invalid chars for a metric name.
 	SetMetricNameInvalidChars(value []rune) Options
 
@@ -152,6 +161,7 @@ type options struct {
 	maxRollupLevels                             int
 	metricNameInvalidChars                      map[rune]struct{}
 	tagNameInvalidChars                         map[rune]struct{}
+	tagNameInvalidNames                         map[string]struct{}
 	metadatasByType                             map[metric.Type]validationMetadata
 }
 
@@ -265,6 +275,21 @@ func (o *options) SetTagNameInvalidChars(values []rune) Options {
 
 func (o *options) CheckInvalidCharactersForTagName(tagName string) error {
 	return validateChars(tagName, o.tagNameInvalidChars)
+}
+
+func (o *options) SetFilterInvalidTagNames(tagNames []string) Options {
+	o.tagNameInvalidNames = make(map[string]struct{}, len(tagNames))
+	for _, n := range tagNames {
+		o.tagNameInvalidNames[strings.ToLower(n)] = struct{}{}
+	}
+	return o
+}
+
+func (o *options) CheckFilterTagNameValid(tagName string) error {
+	if _, ok := o.tagNameInvalidNames[strings.ToLower(tagName)]; ok {
+		return fmt.Errorf("'%s' in invalid tag name list", tagName)
+	}
+	return nil
 }
 
 func (o *options) SetMetricNameInvalidChars(values []rune) Options {

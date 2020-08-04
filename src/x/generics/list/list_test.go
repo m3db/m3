@@ -389,3 +389,22 @@ func TestMoveUnknownMark(t *testing.T) {
 	checkList(t, &l1, []interface{}{1})
 	checkList(t, &l2, []interface{}{2})
 }
+
+func TestReset(t *testing.T) {
+	var l1 List
+	l1.Reset()
+	checkList(t, &l1, []interface{}{})
+
+	l1.PushBack(1)
+	checkList(t, &l1, []interface{}{1})
+	l1.Reset()
+	checkList(t, &l1, []interface{}{})
+
+	l1.PushBack(2)
+	l1.PushBack(3)
+	l1.PushBack(4)
+	l1.PushBack(5)
+	checkList(t, &l1, []interface{}{2, 3, 4, 5})
+	l1.Reset()
+	checkList(t, &l1, []interface{}{})
+}

@@ -21,22 +21,28 @@
 package peers
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -53,6 +59,8 @@ var (
 		for _, opt := range opts {
 			namespaceOpts = opt(namespaceOpts)
 		}
+		idxOpts := namespaceOpts.IndexOptions()
+		namespaceOpts = namespaceOpts.SetIndexOptions(idxOpts.SetEnabled(true))
 		ns, err := namespace.NewMetadata(testNamespace, namespaceOpts)
 		require.NoError(t, err)
 		return ns
@@ -64,12 +72,30 @@ var (
 				SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 	testBlockOpts         = block.NewOptions()
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
-	testDefaultOpts       = NewOptions().
-				SetResultOptions(testDefaultResultOpts)
 )
 
 func newTestDefaultOpts(t *testing.T, ctrl *gomock.Controller) Options {
-	return testDefaultOpts.
+	idxOpts := index.NewOptions()
+	compactor, err := compaction.NewCompactor(idxOpts.DocumentArrayPool(),
+		index.DocumentArrayPoolCapacity,
+		idxOpts.SegmentBuilderOptions(),
+		idxOpts.FSTSegmentOptions(),
+		compaction.CompactorOptions{
+			FSTWriterOptions: &fst.WriterOptions{
+				// DisableRegistry is set to true to trade a larger FST size
+				// for a faster FST compaction since we want to reduce the end
+				// to end latency for time to first index a metric.
+				DisableRegistry: true,
+			},
+		})
+	require.NoError(t, err)
+	return NewOptions().
+		SetResultOptions(testDefaultResultOpts).
+		SetPersistManager(persist.NewMockManager(ctrl)).
+		SetAdminClient(client.NewMockAdminClient(ctrl)).
+		SetFilesystemOptions(fs.NewOptions()).
+		SetCompactor(compactor).
+		SetIndexOptions(idxOpts).
 		SetAdminClient(newValidMockClient(t, ctrl)).
 		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(t, ctrl))
 }
@@ -105,40 +131,31 @@ func newValidMockRuntimeOptionsManager(t *testing.T, ctrl *gomock.Controller) m3
 
 type namespaceOption func(namespace.Options) namespace.Options
 
-func TestPeersSourceCan(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	src, err := newPeersSource(newTestDefaultOpts(t, ctrl))
-	require.NoError(t, err)
-
-	assert.True(t, src.Can(bootstrap.BootstrapSequential))
-	assert.False(t, src.Can(bootstrap.BootstrapParallel))
-}
-
 func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts.
+	opts := newTestDefaultOpts(t, ctrl).
 		SetRuntimeOptionsManager(newValidMockRuntimeOptionsManager(t, ctrl))
 
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
 	var (
-		nsMetdata = testNamespaceMetadata(t)
-		target    = result.ShardTimeRanges{}
-		runOpts   = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
+		nsMetadata = testNamespaceMetadata(t)
+		target     = result.NewShardTimeRanges()
+		runOpts    = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
 	)
-	available, err := src.AvailableData(nsMetdata, target, runOpts)
+	available, err := src.AvailableData(nsMetadata, target, runOpts)
 	require.NoError(t, err)
 	require.Equal(t, target, available)
 
-	r, err := src.ReadData(nsMetdata, target, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(r.ShardResults()))
-	require.True(t, r.Unfulfilled().IsEmpty())
+	tester := bootstrap.BuildNamespacesTester(t, runOpts, target, nsMetadata)
+	defer tester.Finish()
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
@@ -148,33 +165,44 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	nsMetadata := testNamespaceMetadata(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
-	expectedErr := fmt.Errorf("an error")
+	expectedErr := errors.New("an error")
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(nil, expectedErr)
 
-	opts := testDefaultOpts.SetAdminClient(mockAdminClient)
+	opts := newTestDefaultOpts(t, ctrl).SetAdminClient(mockAdminClient)
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
 
-	target := result.ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	).Set(
+		1,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	)
 
-	_, err = src.ReadData(nsMetadata, target, testDefaultRunOpts)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
+	defer tester.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	_, err = src.Read(ctx, tester.Namespaces)
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
-func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
+func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts
+	opts := newTestDefaultOpts(t, ctrl)
 	nsMetadata := testNamespaceMetadata(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
@@ -183,51 +211,50 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 	goodResult := result.NewShardResult(0, opts.ResultOptions())
 	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts, namespace.Context{})
-	goodResult.AddBlock(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
-	badErr := fmt.Errorf("an error")
+	goodID := ident.StringID("foo")
+	goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
 			uint32(0), start, end, gomock.Any()).
 		Return(goodResult, nil)
+
+	peerMetaIter := client.NewMockPeerBlockMetadataIter(ctrl)
+	peerMetaIter.EXPECT().Next().Return(false).AnyTimes()
+	peerMetaIter.EXPECT().Err().Return(nil).AnyTimes()
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
-			uint32(1), start, end, gomock.Any()).
-		Return(nil, badErr)
+		FetchBootstrapBlocksMetadataFromPeers(gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(peerMetaIter, nil).AnyTimes()
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
-	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
-	target := result.ShardTimeRanges{
-		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	)
 
-	r, err := src.ReadData(nsMetadata, target, testDefaultRunOpts)
-	assert.NoError(t, err)
+	tester := bootstrap.BuildNamespacesTester(t, testDefaultRunOpts, target, nsMetadata)
+	defer tester.Finish()
+	tester.TestReadWith(src)
+	tester.TestUnfulfilledForNamespaceIsEmpty(nsMetadata)
+	vals := tester.DumpLoadedBlocks()
+	assert.Equal(t, 1, len(vals))
+	series, found := vals[nsMetadata.ID().String()]
+	require.True(t, found)
 
-	assert.Equal(t, 1, len(r.ShardResults()))
-	require.NotNil(t, r.ShardResults()[0])
-	require.Nil(t, r.ShardResults()[1])
-
-	require.True(t, r.Unfulfilled()[0].IsEmpty())
-	require.False(t, r.Unfulfilled()[1].IsEmpty())
-	require.Equal(t, 1, r.Unfulfilled()[1].Len())
-
-	block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
-	require.True(t, ok)
-	require.Equal(t, fooBlock, block)
-
-	rangeIter := r.Unfulfilled()[1].Iter()
-	require.True(t, rangeIter.Next())
-	require.Equal(t, xtime.Range{Start: start, End: end}, rangeIter.Value())
-	require.Equal(t, ropts.BlockSize(), block.BlockSize())
+	assert.Equal(t, 1, len(series))
+	points, found := series[goodID.String()]
+	require.True(t, found)
+	assert.Equal(t, 0, len(points))
+	tester.EnsureNoWrites()
 }
 
 func TestPeersSourceRunWithPersist(t *testing.T) {
@@ -240,8 +267,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 
 		testNsMd := testNamespaceMetadata(t)
 		resultOpts := testDefaultResultOpts.SetSeriesCachePolicy(cachePolicy)
-		opts := testDefaultOpts.SetResultOptions(resultOpts)
+		opts := newTestDefaultOpts(t, ctrl).SetResultOptions(resultOpts)
 		ropts := testNsMd.Options().RetentionOptions()
+		testNsMd.Options()
 		blockSize := ropts.BlockSize()
 
 		start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
@@ -250,10 +278,10 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard0ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard0ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
-			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
+			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, 1, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
 		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()), ropts.BlockSize(),
-			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
+			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, 2, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
 		shard0ResultBlock1.AddBlock(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 		shard0ResultBlock2.AddBlock(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "rab")), barBlock)
@@ -261,7 +289,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard1ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		bazBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
-			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
+			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, 3, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
 		shard1ResultBlock1.AddBlock(ident.StringID("baz"), ident.NewTags(ident.StringTag("baz", "zab")), bazBlock)
 
@@ -283,23 +311,18 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 				uint32(1), start.Add(blockSize), start.Add(blockSize*2), gomock.Any()).
 			Return(shard1ResultBlock2, nil)
 
+		peerMetaIter := client.NewMockPeerBlockMetadataIter(ctrl)
+		peerMetaIter.EXPECT().Next().Return(false).AnyTimes()
+		peerMetaIter.EXPECT().Err().Return(nil).AnyTimes()
+		mockAdminSession.EXPECT().
+			FetchBootstrapBlocksMetadataFromPeers(gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(peerMetaIter, nil).AnyTimes()
+
 		mockAdminClient := client.NewMockAdminClient(ctrl)
-		mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+		mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).AnyTimes()
 
 		opts = opts.SetAdminClient(mockAdminClient)
-
-		mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-		// The shard indices are computed from iterating over a map, they can
-		// come in any order
-		mockRetriever.EXPECT().CacheShardIndices([]uint32{0, 1}).AnyTimes()
-		mockRetriever.EXPECT().CacheShardIndices([]uint32{1, 0}).AnyTimes()
-
-		mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
-		mockRetrieverMgr.EXPECT().
-			Retriever(namespace.NewMetadataMatcher(testNsMd)).
-			Return(mockRetriever, nil)
-
-		opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
 		flushPreparer := persist.NewMockFlushPreparer(ctrl)
 		flushPreparer.EXPECT().DoneFlush()
@@ -314,9 +337,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		flushPreparer.EXPECT().
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
-				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 					persists["foo"]++
-					assert.Equal(t, "foo", id.String())
+					assert.Equal(t, "foo", string(metadata.BytesID()))
 					assert.Equal(t, []byte{1, 2, 3}, segment.Head.Bytes())
 					assertBlockChecksum(t, checksum, fooBlock)
 					return nil
@@ -335,9 +358,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		flushPreparer.EXPECT().
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
-				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 					persists["bar"]++
-					assert.Equal(t, "bar", id.String())
+					assert.Equal(t, "bar", string(metadata.BytesID()))
 					assert.Equal(t, []byte{4, 5, 6}, segment.Head.Bytes())
 					assertBlockChecksum(t, checksum, barBlock)
 					return nil
@@ -356,9 +379,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		flushPreparer.EXPECT().
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
-				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 					persists["baz"]++
-					assert.Equal(t, "baz", id.String())
+					assert.Equal(t, "baz", string(metadata.BytesID()))
 					assert.Equal(t, []byte{7, 8, 9}, segment.Head.Bytes())
 					assertBlockChecksum(t, checksum, bazBlock)
 					return nil
@@ -377,7 +400,7 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		flushPreparer.EXPECT().
 			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
-				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+				Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 					assert.Fail(t, "no expected shard 1 second block")
 					return nil
 				},
@@ -395,21 +418,18 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		src, err := newPeersSource(opts)
 		require.NoError(t, err)
 
-		target := result.ShardTimeRanges{
-			0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-			1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
-		}
+		target := result.NewShardTimeRanges().Set(
+			0,
+			xtime.NewRanges(xtime.Range{Start: start, End: end}),
+		).Set(
+			1,
+			xtime.NewRanges(xtime.Range{Start: start, End: end}),
+		)
 
-		r, err := src.ReadData(testNsMd, target, testRunOptsWithPersist)
-		assert.NoError(t, err)
-
-		require.True(t, r.Unfulfilled()[0].IsEmpty())
-		require.True(t, r.Unfulfilled()[1].IsEmpty())
-
-		assert.Equal(t, 0, len(r.ShardResults()))
-		require.Nil(t, r.ShardResults()[0])
-		require.Nil(t, r.ShardResults()[1])
-
+		tester := bootstrap.BuildNamespacesTester(t, testRunOptsWithPersist, target, testNsMd)
+		defer tester.Finish()
+		tester.TestReadWith(src)
+		tester.TestUnfulfilledForNamespaceIsEmpty(testNsMd)
 		assert.Equal(t, map[string]int{
 			"foo": 1, "bar": 1, "baz": 1,
 		}, persists)
@@ -417,6 +437,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		assert.Equal(t, map[string]int{
 			"foo": 1, "bar": 1, "baz": 1, "empty": 1,
 		}, closes)
+
+		tester.EnsureNoLoadedBlocks()
+		tester.EnsureNoWrites()
 	}
 }
 
@@ -424,8 +447,8 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts.
-		SetResultOptions(testDefaultOpts.
+	opts := newTestDefaultOpts(t, ctrl).
+		SetResultOptions(newTestDefaultOpts(t, ctrl).
 			ResultOptions().
 			SetSeriesCachePolicy(series.CacheRecentlyRead),
 		)
@@ -437,35 +460,39 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	end := start.Add(2 * ropts.BlockSize())
 
 	type resultsKey struct {
-		shard uint32
-		start int64
-		end   int64
+		shard       uint32
+		start       int64
+		end         int64
+		expectedErr bool
 	}
 
 	results := make(map[resultsKey]result.ShardResult)
-	addResult := func(shard uint32, id string, b block.DatabaseBlock) {
+	addResult := func(shard uint32, id string, b block.DatabaseBlock, expectedErr bool) {
 		r := result.NewShardResult(0, opts.ResultOptions())
 		r.AddBlock(ident.StringID(id), ident.NewTags(ident.StringTag(id, id)), b)
 		start := b.StartTime()
 		end := start.Add(ropts.BlockSize())
-		results[resultsKey{shard, start.UnixNano(), end.UnixNano()}] = r
+		results[resultsKey{shard, start.UnixNano(), end.UnixNano(), expectedErr}] = r
 	}
+
+	segmentError := errors.New("segment err")
 
 	// foo results
 	var fooBlocks [2]block.DatabaseBlock
 	fooBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
-	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(xio.EmptyBlockReader, fmt.Errorf("stream err"))
-	addResult(0, "foo", fooBlocks[0])
+	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().
+		Stream(gomock.Any()).Return(xio.EmptyBlockReader, errors.New("stream err"))
+	addResult(0, "foo", fooBlocks[0], true)
 
 	fooBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, 1, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
-	addResult(0, "foo", fooBlocks[1])
+	addResult(0, "foo", fooBlocks[1], false)
 
 	// bar results
 	mockStream := xio.NewMockSegmentReader(ctrl)
-	mockStream.EXPECT().Segment().Return(ts.Segment{}, fmt.Errorf("segment err"))
+	mockStream.EXPECT().Segment().Return(ts.Segment{}, segmentError)
 
 	b := xio.BlockReader{
 		SegmentReader: mockStream,
@@ -475,36 +502,36 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	barBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(b, nil)
-	addResult(1, "bar", barBlocks[0])
+	addResult(1, "bar", barBlocks[0], false)
 
 	barBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, 2, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
-	addResult(1, "bar", barBlocks[1])
+	addResult(1, "bar", barBlocks[1], false)
 
 	// baz results
 	var bazBlocks [2]block.DatabaseBlock
 	bazBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, 3, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
-	addResult(2, "baz", bazBlocks[0])
+	addResult(2, "baz", bazBlocks[0], false)
 
 	bazBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, 4, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
-	addResult(2, "baz", bazBlocks[1])
+	addResult(2, "baz", bazBlocks[1], false)
 
 	// qux results
 	var quxBlocks [2]block.DatabaseBlock
 	quxBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{13, 14, 15}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{13, 14, 15}, nil), nil, 5, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
-	addResult(3, "qux", quxBlocks[0])
+	addResult(3, "qux", quxBlocks[0], false)
 
 	quxBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
-		ts.NewSegment(checked.NewBytes([]byte{16, 17, 18}, nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte{16, 17, 18}, nil), nil, 6, ts.FinalizeNone),
 		testBlockOpts, namespace.Context{})
-	addResult(3, "qux", quxBlocks[1])
+	addResult(3, "qux", quxBlocks[1], false)
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 
@@ -514,22 +541,26 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 				key.shard, time.Unix(0, key.start), time.Unix(0, key.end),
 				gomock.Any()).
 			Return(result, nil)
+
+		peerError := segmentError
+		if !key.expectedErr {
+			peerError = nil
+		}
+
+		peerMetaIter := client.NewMockPeerBlockMetadataIter(ctrl)
+		peerMetaIter.EXPECT().Next().Return(false).AnyTimes()
+		peerMetaIter.EXPECT().Err().Return(nil).AnyTimes()
+		mockAdminSession.EXPECT().
+			FetchBootstrapBlocksMetadataFromPeers(testNsMd.ID(),
+				key.shard, time.Unix(0, key.start), time.Unix(0, key.end), gomock.Any()).
+			Return(peerMetaIter, peerError).AnyTimes()
 	}
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
-	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+	mockAdminClient.EXPECT().DefaultAdminSession().
+		Return(mockAdminSession, nil).AnyTimes()
 
 	opts = opts.SetAdminClient(mockAdminClient)
-
-	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
-	mockRetriever.EXPECT().CacheShardIndices(gomock.Any()).AnyTimes()
-
-	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
-	mockRetrieverMgr.EXPECT().
-		Retriever(namespace.NewMetadataMatcher(testNsMd)).
-		Return(mockRetriever, nil)
-
-	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
 	flushPreprarer := persist.NewMockFlushPreparer(ctrl)
 	flushPreprarer.EXPECT().DoneFlush()
@@ -547,7 +578,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start")
 				return nil
 			},
@@ -565,7 +596,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["foo"]++
 				return nil
 			},
@@ -585,7 +616,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start + block size")
 				return nil
 			},
@@ -603,7 +634,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["bar"]++
 				return nil
 			},
@@ -623,7 +654,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return fmt.Errorf("a persist error")
 			},
@@ -641,7 +672,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return nil
 			},
@@ -661,7 +692,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
 			},
@@ -679,7 +710,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	flushPreprarer.EXPECT().
 		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
-			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
 			},
@@ -697,33 +728,50 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	src, err := newPeersSource(opts)
 	require.NoError(t, err)
 
-	target := result.ShardTimeRanges{
-		0: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-		1: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-		2: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-		3: xtime.Ranges{}.
-			AddRange(xtime.Range{Start: start, End: midway}).
-			AddRange(xtime.Range{Start: midway, End: end}),
-	}
+	target := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+	).Set(
+		1,
+		xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+	).Set(
+		2,
+		xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+	).Set(
+		3,
+		xtime.NewRanges(
+			xtime.Range{Start: start, End: midway},
+			xtime.Range{Start: midway, End: end}),
+	)
 
-	r, err := src.ReadData(testNsMd, target, testRunOptsWithPersist)
-	assert.NoError(t, err)
+	tester := bootstrap.BuildNamespacesTester(t, testRunOptsWithPersist, target, testNsMd)
+	defer tester.Finish()
+	tester.TestReadWith(src)
 
-	assert.Equal(t, 0, len(r.ShardResults()))
-	for i := uint32(0); i < uint32(len(target)); i++ {
-		require.False(t, r.Unfulfilled()[i].IsEmpty())
-		require.Equal(t, xtime.NewRanges(xtime.Range{
-			Start: start,
-			End:   midway,
-		}).String(), r.Unfulfilled()[i].String())
-	}
+	expectedRanges := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	).Set(
+		1,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	).Set(
+		2,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	).Set(
+		3,
+		xtime.NewRanges(xtime.Range{Start: start, End: midway}),
+	)
 
+	// NB(bodu): There is no time series data written to disk so all ranges fail to be fulfilled.
+	expectedIndexRanges := target
+
+	tester.TestUnfulfilledForNamespace(testNsMd, expectedRanges, expectedIndexRanges)
 	assert.Equal(t, map[string]int{
 		"foo": 1, "bar": 1, "baz": 2, "qux": 2,
 	}, persists)
@@ -731,6 +779,9 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	assert.Equal(t, map[string]int{
 		"foo": 2, "bar": 2, "baz": 2, "qux": 2,
 	}, closes)
+
+	tester.EnsureNoLoadedBlocks()
+	tester.EnsureNoWrites()
 }
 
 func assertBlockChecksum(t *testing.T, expectedChecksum uint32, block block.DatabaseBlock) {

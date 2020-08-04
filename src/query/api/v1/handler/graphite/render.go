@@ -28,17 +28,18 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/m3db/m3/src/query/models"
-
 	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/native"
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
-	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/x/net/http"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/x/headers"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 const (
@@ -47,14 +48,15 @@ const (
 )
 
 var (
-	// ReadHTTPMethods is the HTTP methods used with this resource.
+	// ReadHTTPMethods are the HTTP methods used with this resource.
 	ReadHTTPMethods = []string{http.MethodGet, http.MethodPost}
 )
 
 // A renderHandler implements the graphite /render endpoint, including full
 // support for executing functions. It only works against data in M3.
 type renderHandler struct {
-	engine *native.Engine
+	engine           *native.Engine
+	queryContextOpts models.QueryContextOptions
 }
 
 type respError struct {
@@ -63,15 +65,12 @@ type respError struct {
 }
 
 // NewRenderHandler returns a new render handler around the given storage.
-func NewRenderHandler(
-	storage storage.Storage,
-	queryContextOpts models.QueryContextOptions,
-	enforcer cost.ChainedEnforcer,
-) http.Handler {
-	wrappedStore := graphite.NewM3WrappedStorage(storage,
-		enforcer, queryContextOpts)
+func NewRenderHandler(opts options.HandlerOptions) http.Handler {
+	wrappedStore := graphite.NewM3WrappedStorage(opts.Storage(),
+		opts.Enforcer(), opts.InstrumentOpts())
 	return &renderHandler{
-		engine: native.NewEngine(wrappedStore),
+		engine:           native.NewEngine(wrappedStore),
+		queryContextOpts: opts.QueryContextOptions(),
 	}
 }
 
@@ -100,6 +99,12 @@ func (h *renderHandler) serveHTTP(
 		return respError{err: err, code: http.StatusBadRequest}
 	}
 
+	limit, err := handleroptions.ParseLimit(r, headers.LimitMaxSeriesHeader,
+		"limit", h.queryContextOpts.LimitMaxTimeseries)
+	if err != nil {
+		return respError{err: err, code: http.StatusBadRequest}
+	}
+
 	var (
 		results = make([]ts.SeriesList, len(p.Targets))
 		errorCh = make(chan error, 1)
@@ -111,6 +116,7 @@ func (h *renderHandler) serveHTTP(
 		Start:   p.From,
 		End:     p.Until,
 		Timeout: p.Timeout,
+		Limit:   limit,
 	})
 
 	// Set the request context.
@@ -118,6 +124,7 @@ func (h *renderHandler) serveHTTP(
 	defer ctx.Close()
 
 	var wg sync.WaitGroup
+	meta := block.NewResultMetadata()
 	wg.Add(len(p.Targets))
 	for i, target := range p.Targets {
 		i, target := i, target
@@ -162,6 +169,7 @@ func (h *renderHandler) serveHTTP(
 			}
 
 			mu.Lock()
+			meta = meta.CombineMetadata(targetSeries.Metadata)
 			results[i] = targetSeries
 			mu.Unlock()
 		}()
@@ -198,6 +206,7 @@ func (h *renderHandler) serveHTTP(
 		SortApplied: true,
 	}
 
+	handleroptions.AddWarningHeaders(w, meta)
 	err = WriteRenderResponse(w, response, p.Format)
 	return respError{err: err, code: http.StatusOK}
 }

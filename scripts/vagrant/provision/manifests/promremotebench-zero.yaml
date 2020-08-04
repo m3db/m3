@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: promremotebench
+  labels:
+    app: promremotebench
+spec:
+  serviceName: "promremotebench"
+  replicas: 0
+  selector:
+    matchLabels:
+      app: promremotebench
+  template:
+    metadata:
+      labels:
+        app: promremotebench
+    spec:
+      containers:
+      - name: promremotebench
+        image: quay.io/m3db/promremotebench:latest
+        env:
+        - name: PROMREMOTEBENCH_TARGET
+          value: "http://m3coordinator-dedicated-test-cluster:7201/api/v1/prom/remote/write"
+        - name: PROMREMOTEBENCH_NUM_HOSTS
+          value: "1000"
+        - name: PROMREMOTEBENCH_INTERVAL
+          value: "10"
+        - name: PROMREMOTEBENCH_BATCH
+          value: "128"
+        - name: PROMREMOTEBENCH_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: PROMREMOTEBENCH_LABELS_JSON_ENV
+          value: '{"generator":"PROMREMOTEBENCH_POD_NAME"}'
+        - name: PROMREMOTEBENCH_QUERY
+          value: "false"
+        - name: PROMREMOTEBENCH_QUERY_TARGET
+          value: http://m3coordinator-dedicated-test-cluster:7201/api/v1/query_range
+        - name: PROMREMOTEBENCH_QUERY_CONCURRENCY
+          value: "15"
+        - name: PROMREMOTEBENCH_QUERY_NUM_SERIES
+          value: "5000"
+        - name: PROMREMOTEBENCH_QUERY_STEP
+          value: 1m
+        - name: PROMREMOTEBENCH_QUERY_RANGE
+          value: 12h
+        - name: PROMREMOTEBENCH_QUERY_AGGREGATION
+          value: sum
+        - name: PROMREMOTEBENCH_QUERY_LABELS_JSON_ENV
+          value: '{"generator":"PROMREMOTEBENCH_POD_NAME"}'
+        - name: PROMREMOTEBENCH_QUERY_SLEEP
+          value: "100ms"
+        - name: PROMREMOTEBENCH_QUERY_DEBUG
+          value: "true"

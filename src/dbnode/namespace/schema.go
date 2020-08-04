@@ -348,6 +348,7 @@ func AppendSchemaOptions(schemaOpt *nsproto.SchemaOptions, protoFile, msgName st
 		}
 	}
 	schemaOpt.History.Versions = append(schemaOpt.History.Versions, &nsproto.FileDescriptorSet{DeployId: deployID, PrevId: prevID, Descriptors: dlist})
+	schemaOpt.DefaultMessageName = msgName
 
 	if _, err := LoadSchemaHistory(schemaOpt); err != nil {
 		return nil, xerrors.Wrap(err, "new schema is not valid")
