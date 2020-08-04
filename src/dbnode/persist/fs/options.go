@@ -108,6 +108,7 @@ type options struct {
 	mmapEnableHugePages                  bool
 	mmapReporter                         mmap.Reporter
 	indexReaderAutovalidateIndexSegments bool
+	encoder                              *msgpack.Encoder
 }
 
 // NewOptions creates a new set of fs options
@@ -144,6 +145,7 @@ func NewOptions() Options {
 		fstOptions:                           fstOptions,
 		fstWriterOptions:                     defaultFSTWriterOptions,
 		indexReaderAutovalidateIndexSegments: defaultIndexReaderAutovalidateIndexSegments,
+		encoder:                              msgpack.NewEncoder(),
 	}
 }
 
@@ -395,4 +397,14 @@ func (o *options) SetIndexReaderAutovalidateIndexSegments(value bool) Options {
 
 func (o *options) IndexReaderAutovalidateIndexSegments() bool {
 	return o.indexReaderAutovalidateIndexSegments
+}
+
+func (o *options) SetEncoder(value *msgpack.Encoder) Options {
+	opts := *o
+	opts.encoder = value
+	return &opts
+}
+
+func (o *options) Encoder() *msgpack.Encoder {
+	return o.encoder
 }
