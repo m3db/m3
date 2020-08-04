@@ -1314,20 +1314,46 @@ func (mr *MockCrossBlockReaderMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockCrossBlockReader)(nil).Close))
 }
 
-// Read mocks base method
-func (m *MockCrossBlockReader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
+// Current mocks base method
+func (m *MockCrossBlockReader) Current() (ident.ID, ident.TagIterator, []BlockRecord) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Read")
+	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(ident.ID)
 	ret1, _ := ret[1].(ident.TagIterator)
-	ret2, _ := ret[2].(checked.Bytes)
-	ret3, _ := ret[3].(uint32)
-	ret4, _ := ret[4].(error)
-	return ret0, ret1, ret2, ret3, ret4
+	ret2, _ := ret[2].([]BlockRecord)
+	return ret0, ret1, ret2
 }
 
-// Read indicates an expected call of Read
-func (mr *MockCrossBlockReaderMockRecorder) Read() *gomock.Call {
+// Current indicates an expected call of Current
+func (mr *MockCrossBlockReaderMockRecorder) Current() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockCrossBlockReader)(nil).Read))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockCrossBlockReader)(nil).Current))
+}
+
+// Err mocks base method
+func (m *MockCrossBlockReader) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockCrossBlockReaderMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockCrossBlockReader)(nil).Err))
+}
+
+// Next mocks base method
+func (m *MockCrossBlockReader) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next
+func (mr *MockCrossBlockReaderMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockCrossBlockReader)(nil).Next))
 }
