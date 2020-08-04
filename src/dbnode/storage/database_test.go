@@ -1297,11 +1297,13 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 		close(mapCh)
 	}()
 
+	d.opts = d.opts.SetLargeTilesPersistManager(d.opts.PersistManager())
+
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
-		pm         = d.opts.PersistManager()
+		pm         = d.opts.LargeTilesPersistManager()
 		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
 	)
 

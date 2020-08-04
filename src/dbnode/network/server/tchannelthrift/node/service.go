@@ -587,6 +587,14 @@ func (s *service) aggregateTiles(
 
 	processedBlockCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {
+		s.logger.Error("error calling large tiles aggregation",
+			zap.String("sourceNameSpace", req.SourceNameSpace),
+			zap.String("targetNameSpace", req.TargetNameSpace),
+			zap.Int64("rangeStart", req.RangeStart),
+			zap.Int64("rangeEnd", req.RangeEnd),
+			zap.String("rangeType", req.RangeType.String()),
+			zap.String("step", req.Step),
+		)
 		return processedBlockCount, convert.ToRPCError(err)
 	}
 

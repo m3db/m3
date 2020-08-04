@@ -214,6 +214,7 @@ type dbShardMetrics struct {
 	insertAsyncWriteInternalErrors      tally.Counter
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
+	largeTilesWrites                    tally.Counter
 	largeTilesWriteErrors               tally.Counter
 }
 
@@ -244,9 +245,10 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
 		largeTilesWriteErrors: scope.Tagged(map[string]string{
-			"error_type":    "large_tiles",
+			"error_type":    "large-tiles",
 			"suberror_type": "write-error",
 		}).Counter(insertErrorName),
+		largeTilesWrites: scope.Counter("large-tiles-writes"),
 	}
 }
 
@@ -2663,11 +2665,22 @@ func (s *dbShard) AggregateTiles(
 		multiErr = multiErr.Add(err)
 	}
 
+	// If there were some errors shard is still flushable. Log an error but do not return it to the upper level.
+	writeErr := multiErr.FinalError()
+	if writeErr != nil {
+		s.logger.Error("error writing large tiles",
+			zap.Uint32("shardID", sourceShard.ID()),
+			zap.String("sourceNs", sourceNsID.String()),
+			zap.String("targetNs", s.namespace.ID().String()),
+			zap.Error(writeErr),
+		)
+	}
+
 	s.logger.Debug("finished aggregating tiles",
 		zap.Uint32("shard", s.ID()),
 		zap.Int64("processedBlocks", processedBlockCount.Load()))
 
-	return processedBlockCount.Load(), multiErr.FinalError()
+	return processedBlockCount.Load(), nil
 }
 
 func (s *dbShard) BootstrapState() BootstrapState {

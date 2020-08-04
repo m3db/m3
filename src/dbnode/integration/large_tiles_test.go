@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
@@ -35,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -110,9 +111,9 @@ func TestReadAggregateWrite(t *testing.T) {
 	expectedNumWrites := int64(20)
 	flushed := xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
-		counter, ok := counters["database.series.cold-writes"]     // Wait until data is written
-		warmData, ok := counters["database.flushWarmData.success"] // Wait until data is flushed
-		return ok && counter == expectedNumWrites && warmData >= expectedNumWrites
+		flushes, _ := counters["database.flushIndex.success"]
+		writes, _ := counters["database.series.cold-writes"]
+		return flushes >= 1 && writes >= expectedNumWrites
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
@@ -120,18 +121,23 @@ func TestReadAggregateWrite(t *testing.T) {
 	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSize), time.Hour)
 	require.NoError(t, err)
 
-	// Retry aggregation as persist manager could be still locked by cold writes.
-	// TODO: Remove retry when a separate persist manager will be implemented.
-	var processedBlockCount int64
-	for retries := 0; retries < 10; retries++ {
-		processedBlockCount, err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Second)
-	}
+	processedBlockCount, err := testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), processedBlockCount)
+
+	flushed = xclock.WaitUntil(func() bool {
+		counters := reporter.Counters()
+		writes, _ := counters["database.writeAggData.success"]
+		errors, _ := counters["database.writeAggData.errors"]
+		return writes+errors == 13 // wait until aggregated data will be flushed
+	}, time.Minute)
+	require.True(t, flushed)
+
+	counters := reporter.Counters()
+	writeErrorsCount, _ := counters["database.writeAggData.errors"]
+	require.Equal(t, int64(0), writeErrorsCount)
+	writeSuccessCount, _ := counters["database.writeAggData.success"]
+	require.Equal(t, int64(13), writeSuccessCount)
 
 	log.Info("fetching aggregated data")
 	series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
