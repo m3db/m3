@@ -48,7 +48,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// FileSetFileIdentifier contains all the information required to identify a FileSetFile
+// FileSetFileIdentifier contains all the information required to identify a FileSetFile.
 type FileSetFileIdentifier struct {
 	FileSetContentType persist.FileSetContentType
 	Namespace          ident.ID
@@ -59,7 +59,7 @@ type FileSetFileIdentifier struct {
 	VolumeIndex int
 }
 
-// DataWriterOpenOptions is the options struct for the Open method on the DataFileSetWriter
+// DataWriterOpenOptions is the options struct for the Open method on the DataFileSetWriter.
 type DataWriterOpenOptions struct {
 	FileSetType        persist.FileSetType
 	FileSetContentType persist.FileSetContentType
@@ -70,13 +70,13 @@ type DataWriterOpenOptions struct {
 }
 
 // DataWriterSnapshotOptions is the options struct for Open method on the DataFileSetWriter
-// that contains information specific to writing snapshot files
+// that contains information specific to writing snapshot files.
 type DataWriterSnapshotOptions struct {
 	SnapshotTime time.Time
 	SnapshotID   []byte
 }
 
-// DataFileSetWriter provides an unsynchronized writer for a TSDB file set
+// DataFileSetWriter provides an unsynchronized writer for a TSDB file set.
 type DataFileSetWriter interface {
 	io.Closer
 
@@ -108,7 +108,7 @@ type SnapshotMetadataFileReader interface {
 	Read(id SnapshotMetadataIdentifier) (SnapshotMetadata, error)
 }
 
-// DataFileSetReaderStatus describes the status of a file set reader
+// DataFileSetReaderStatus describes the status of a file set reader.
 type DataFileSetReaderStatus struct {
 	Namespace  ident.ID
 	BlockStart time.Time
@@ -122,61 +122,125 @@ type DataFileSetReaderStatus struct {
 type DataReaderOpenOptions struct {
 	Identifier  FileSetFileIdentifier
 	FileSetType persist.FileSetType
+	// OrderedByIndex enforces reading of series in the order of index (which is by series Id).
+	OrderedByIndex bool
+	// IndexSummaryMap is a map of index hashes to their respective data checksums
+	// that this reader should be matching.
+	IndexSummaryMap map[uint64]int64
 }
 
-// DataFileSetReader provides an unsynchronized reader for a TSDB file set
-type DataFileSetReader interface {
+type fileSetReader interface {
 	io.Closer
 
-	// Open opens the files for the given shard and version for reading
+	// Open opens the files for the given shard and version for reading.
 	Open(opts DataReaderOpenOptions) error
 
-	// Status returns the status of the reader
+	// Status returns the status of the reader.
 	Status() DataFileSetReaderStatus
 
-	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
-	// Use either Read or ReadMetadata to progress through a volume, but not both.
-	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
-	// them so they can be returned to their respective pools.
-	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
+	// ValidateMetadata validates the data and returns an error if the data is corrupted.
+	ValidateMetadata() error
+
+	// Range returns the time range associated with data in the volume.
+	Range() xtime.Range
+
+	// Entries returns the count of entries in the volume.
+	Entries() int
+
+	// MetadataRead returns the position of metadata read into the volume.
+	MetadataRead() int
+}
+
+// IndexSummary is a summary for an index entry.
+type IndexSummary struct {
+	// IDHash is the hash for the ID.
+	IDHash uint64
+	// DataChecksum is the data checksum
+	DataChecksum int64
+}
+
+// IndexFileSetSummarizer provides an unsynchronized index summarizer for a TSDB file set.
+type IndexFileSetSummarizer interface {
+	fileSetReader
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	// Note: make sure to finalize the ID, and close the Tags when done with them so they can
 	// be returned to their respective pools.
+	ReadMetadata() (IndexSummary, error)
+}
+
+// MismatchType indicates the reason for the mismatch.
+type MismatchType uint8
+
+const (
+	// MismatchNone is the default value when there is no mismatch.
+	MismatchNone MismatchType = iota
+	// MismatchMissingInSummary indicates this index was not found in the summary.
+	MismatchMissingInSummary
+	// MismatchOnlyInSummary indicates this index was not found in the fileset.
+	MismatchOnlyInSummary
+	// MismatchChecksumMismatch indicates this index has a different data checksum
+	// between the expected checksum from the summary and the fileset.
+	MismatchChecksumMismatch
+)
+
+// ReadMismatch describes a metric that does not match a given summary,
+// with descriptor of the mismatch.
+type ReadMismatch struct {
+	Type     MismatchType
+	Checksum uint32
+	IDHash   uint64
+	Data     checked.Bytes
+	ID       ident.ID
+	Tags     ident.TagIterator
+}
+
+// DataFileSetReader provides an unsynchronized reader for a TSDB file set.
+type DataFileSetReader interface {
+	fileSetReader
+
+	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
+	// Use either Read or ReadMetadata or ReadMimatch to progress through a volume, but use only that one.
+	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
+	// them so they can be returned to their respective pools.
+	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
+
+	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
+	// Use either Read or ReadMetadata or ReadMimatch to progress through a volume, but use only that one.
+	// Note: make sure to finalize the ID, and close the Tags when done with them so they can
+	// be returned to their respective pools.
 	ReadMetadata() (id ident.ID, tags ident.TagIterator, length int, checksum uint32, err error)
+
+	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
+	// This detects any mismatches against given hashed index checksum map in options.IndexSummaryMap.
+	// Use either Read or ReadMetadata or ReadMimatch to progress through a volume, but use only that one.
+	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
+	// them so they can be returned to their respective pools.
+	ReadMismatch() (read ReadMismatch, err error)
+
+	// RemainingMismatches returns any remaining mismatches.
+	RemainingMismatches() []ReadMismatch
 
 	// ReadBloomFilter returns the bloom filter stored on disk in a container object that is safe
 	// for concurrent use and has a Close() method for releasing resources when done.
 	ReadBloomFilter() (*ManagedConcurrentBloomFilter, error)
 
-	// Validate validates both the metadata and data and returns an error if either is corrupted
+	// Validate validates both the metadata and data and returns an error if either is corrupted.
 	Validate() error
 
-	// ValidateMetadata validates the data and returns an error if the data is corrupted
-	ValidateMetadata() error
-
-	// ValidateData validates the data and returns an error if the data is corrupted
+	// ValidateData validates the data and returns an error if the data is corrupted.
 	ValidateData() error
 
-	// Range returns the time range associated with data in the volume
-	Range() xtime.Range
-
-	// Entries returns the count of entries in the volume
-	Entries() int
-
-	// EntriesRead returns the position read into the volume
+	// EntriesRead returns the position read into the volume.
 	EntriesRead() int
-
-	// MetadataRead returns the position of metadata read into the volume
-	MetadataRead() int
 }
 
-// DataFileSetSeeker provides an out of order reader for a TSDB file set
+// DataFileSetSeeker provides an out of order reader for a TSDB file set.
 type DataFileSetSeeker interface {
 	io.Closer
 
-	// Open opens the files for the given shard and version for reading
+	// Open opens the files for the given shard and version for reading.
 	Open(
 		namespace ident.ID,
 		shard uint32,
@@ -200,7 +264,7 @@ type DataFileSetSeeker interface {
 	// to prevent duplicate index lookups.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
-	// Range returns the time range associated with data in the volume
+	// Range returns the time range associated with data in the volume.
 	Range() xtime.Range
 
 	// ConcurrentIDBloomFilter returns a concurrency-safe bloom filter that can
@@ -226,16 +290,16 @@ type DataFileSetSeeker interface {
 type ConcurrentDataFileSetSeeker interface {
 	io.Closer
 
-	// SeekByID is the same as in DataFileSetSeeker
+	// SeekByID is the same as in DataFileSetSeeker.
 	SeekByID(id ident.ID, resources ReusableSeekerResources) (data checked.Bytes, err error)
 
-	// SeekByIndexEntry is the same as in DataFileSetSeeker
+	// SeekByIndexEntry is the same as in DataFileSetSeeker.
 	SeekByIndexEntry(entry IndexEntry, resources ReusableSeekerResources) (checked.Bytes, error)
 
-	// SeekIndexEntry is the same as in DataFileSetSeeker
+	// SeekIndexEntry is the same as in DataFileSetSeeker.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
-	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker
+	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
 }
 
@@ -269,19 +333,19 @@ type DataFileSetSeekerManager interface {
 	Test(id ident.ID, shard uint32, start time.Time) (bool, error)
 }
 
-// DataBlockRetriever provides a block retriever for TSDB file sets
+// DataBlockRetriever provides a block retriever for TSDB file sets.
 type DataBlockRetriever interface {
 	io.Closer
 	block.DatabaseBlockRetriever
 
-	// Open the block retriever to retrieve from a namespace
+	// Open the block retriever to retrieve from a namespace.
 	Open(
 		md namespace.Metadata,
 		shardSet sharding.ShardSet,
 	) error
 }
 
-// RetrievableDataBlockSegmentReader is a retrievable block reader
+// RetrievableDataBlockSegmentReader is a retrievable block reader.
 type RetrievableDataBlockSegmentReader interface {
 	xio.SegmentReader
 }
@@ -406,7 +470,7 @@ type Options interface {
 	IndexSummariesPercent() float64
 
 	// SetIndexBloomFilterFalsePositivePercent size sets the percent of false positive
-	// rate to use for the index bloom filter size and k hashes estimation
+	// rate to use for the index bloom filter size and k hashes estimation.
 	SetIndexBloomFilterFalsePositivePercent(value float64) Options
 
 	// IndexBloomFilterFalsePositivePercent size returns the percent of false positive
@@ -421,11 +485,11 @@ type Options interface {
 	// as an anonymous region, or as a file.
 	ForceIndexSummariesMmapMemory() bool
 
-	// SetForceBloomFilterMmapMemory sets whether the bloom filters will be mmap'd.
+	// SetForceBloomFilterMmapMemory sets whether the bloom filters will be mmap'd
 	// as an anonymous region, or as a file.
 	SetForceBloomFilterMmapMemory(value bool) Options
 
-	// ForceBloomFilterMmapMemory returns whether the bloom filters will be mmap'd.
+	// ForceBloomFilterMmapMemory returns whether the bloom filters will be mmap'd
 	// as an anonymous region, or as a file.
 	ForceBloomFilterMmapMemory() bool
 
@@ -504,7 +568,7 @@ type Options interface {
 	IndexReaderAutovalidateIndexSegments() bool
 }
 
-// BlockRetrieverOptions represents the options for block retrieval
+// BlockRetrieverOptions represents the options for block retrieval.
 type BlockRetrieverOptions interface {
 	// Validate validates the options.
 	Validate() error

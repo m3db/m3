@@ -37,6 +37,9 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/pborman/getopt"
 	"go.uber.org/zap"
 )
@@ -57,14 +60,14 @@ func main() {
 		fileSetTypeArg = getopt.StringLong("fileset-type", 'f', flushType, fmt.Sprintf("%s|%s", flushType, snapshotType))
 
 		iterationCount = getopt.IntLong("iterations", 'i', 50, "Concurrent iteration count")
-<<<<<<< HEAD
-		arrow          = getopt.Bool('a', "Use arrow")
 		optimized      = getopt.Bool('o', "Optimized iteration")
-=======
-		optUseArrow    = getopt.BoolLong("arrow", 'a', "Use arrow")
->>>>>>> b66882c11800d888cc36ad722d8dc206304ccfdb
+		optUseArrow    = getopt.Bool('a', "Use arrow")
 	)
 	getopt.Parse()
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	rawLogger, err := zap.NewDevelopment()
 	if err != nil {
@@ -101,18 +104,11 @@ func main() {
 		encodingOpts = encoding.NewOptions().SetBytesPool(bytesPool)
 		fsOpts       = fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
 
-<<<<<<< HEAD
 		iterations  = *iterationCount
-		useArrow    = *arrow
+		useArrow    = *optUseArrow
 		optimizeSum = *optimized
 		c           = int(*concurrency)
-=======
-		iterations = *iterationCount
-		useArrow   = *optUseArrow
-		c          = int(*concurrency)
->>>>>>> b66882c11800d888cc36ad722d8dc206304ccfdb
-
-		readStart = time.Now()
+		readStart   = time.Now()
 	)
 
 	var shards []uint32
@@ -157,8 +153,6 @@ func main() {
 			var (
 				frameSize = xtime.UnixNano(*optTilesize) * xtime.UnixNano(time.Minute)
 				start     = xtime.UnixNano(*optBlockstart)
-				prints    = make([]bool, c)
-				tags      = make([][]string, c)
 				vals      = make([][]float64, 0, c)
 			)
 
@@ -181,29 +175,8 @@ func main() {
 				return
 			}
 
-			i := 0
-			printNonZero := func() {
-				for j := range prints {
-					if prints[j] {
-						prints[j] = false
-						// idx := (i-1)*c + j
-						// fmt.Printf("%d : %v\n", idx, vals[j])
-						// fmt.Printf("%v\n", tags[j])
-					}
-				}
-			}
-
 			var wg sync.WaitGroup
 			for it.Next() {
-				printNonZero()
-				for i := range vals {
-					vals[i] = vals[i][:0]
-				}
-
-				for i := range tags {
-					tags[i] = tags[i][:0]
-				}
-
 				frameIters := it.Current()
 				for j, frameIter := range frameIters {
 					// NB: capture loop variables.
@@ -218,20 +191,6 @@ func main() {
 							}
 
 							vals[j] = append(vals[j], v)
-							// ts := frame.Tags()
-							// sep := fmt.Sprintf("ID: %s\ntags:", frame.ID().String())
-							// tags[j] = append(tags[j], sep)
-							// for ts.Next() {
-							// 	tag := ts.Current()
-							// 	t := fmt.Sprintf("%s:%s", tag.Name.String(), tag.Value.String())
-							// 	tags[j] = append(tags[j], t)
-							// }
-
-							// unit, single := frame.Units().SingleValue()
-							// annotation, annotationSingle := frame.Annotations().SingleValue()
-							// meta := fmt.Sprintf("\nunit: %v, single: %v\nannotation: %v, single: %v",
-							// 	unit, single, annotation, annotationSingle)
-							// tags[j] = append(tags[j], meta)
 						}
 
 						if err := frameIter.Err(); err != nil {

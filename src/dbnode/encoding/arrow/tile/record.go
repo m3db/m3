@@ -21,10 +21,11 @@
 package tile
 
 import (
+	"math"
 	"time"
 
 	"github.com/apache/arrow/go/arrow/array"
-	"github.com/apache/arrow/go/arrow/math"
+	amath "github.com/apache/arrow/go/arrow/math"
 )
 
 type record struct {
@@ -49,14 +50,16 @@ func (r *record) sum() float64 {
 	if len(r.vals) > 0 {
 		sum := 0.0
 		for _, v := range r.vals {
-			sum += v
+			if !math.IsNaN(v) {
+				sum += v
+			}
 		}
 
 		return sum
 	}
 
 	arr := r.Columns()[valIdx].(*array.Float64)
-	return math.Float64.Sum(arr)
+	return amath.Float64.Sum(arr)
 }
 
 func (r *record) timestamps() []time.Time {

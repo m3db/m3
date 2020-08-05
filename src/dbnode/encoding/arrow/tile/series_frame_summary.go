@@ -27,7 +27,6 @@ import "math"
 type SeriesFrameSummary struct {
 	set bool
 
-	avg   float64
 	min   float64
 	max   float64
 	sum   float64
@@ -39,7 +38,10 @@ type SeriesFrameSummary struct {
 
 // Avg returns the average SeriesFrameSummary value.
 func (s *SeriesFrameSummary) Avg() float64 {
-	return s.avg
+	if s.count > 0 && s.set {
+		return s.sum / s.count
+	}
+	return 0
 }
 
 // Min returns the minimum SeriesFrameSummary value.
@@ -90,18 +92,16 @@ func newSeriesFrameSummary() *SeriesFrameSummary {
 
 func (s *SeriesFrameSummary) reset() {
 	s.set = false
-	s.avg = math.NaN()
 	s.min = math.NaN()
 	s.max = math.NaN()
 	s.sum = math.NaN()
 	s.last = math.NaN()
-	s.count = math.NaN()
+	s.count = 0
 	s.anyCounterResets = false
 }
 
 func (s *SeriesFrameSummary) recordFirst(val float64) {
 	s.set = true
-	s.avg = val
 	s.min = val
 	s.max = val
 	s.sum = val
@@ -112,6 +112,7 @@ func (s *SeriesFrameSummary) recordFirst(val float64) {
 func (s *SeriesFrameSummary) record(val float64) {
 	// NB: nan points do not contribute to result.
 	if math.IsNaN(val) {
+		s.count++
 		return
 	}
 
@@ -136,6 +137,4 @@ func (s *SeriesFrameSummary) record(val float64) {
 
 	s.last = val
 	s.count = s.count + 1
-
-	s.avg = s.sum / s.count
 }

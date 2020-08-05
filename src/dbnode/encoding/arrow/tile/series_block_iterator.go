@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -36,6 +37,7 @@ import (
 )
 
 type seriesBlockIter struct {
+	sync.RWMutex
 	reader fs.DataFileSetReader
 
 	err           error
@@ -110,7 +112,10 @@ func NewSeriesBlockIterator(
 }
 
 func (b *seriesBlockIter) Next() bool {
-	if b.exhausted || b.err != nil {
+	b.RLock()
+	err := b.err
+	b.RUnlock()
+	if err != nil {
 		return false
 	}
 
@@ -121,26 +126,14 @@ func (b *seriesBlockIter) Next() bool {
 		}
 	}
 
-	var err error
 	for i := 0; i < b.concurrency; i++ {
 		b.ids[i], b.tagIters[i], b.dataBytes[i], _, err = b.reader.Read()
 
 		if err != nil {
-			b.exhausted = true
-			// NB: errors other than EOF should halt execution.
-			if err != io.EOF {
-				b.err = err
-				return false
-			}
-
-			// NB: tag iters and data bytes are already released at this index;
-			// explicitly free other resources here.
-			b.recorders[i].release()
-			b.baseIters[i].Close()
-			b.byteReaders[i] = nil
-			b.err = b.freeAfterIndex(i + 1)
-			// NB: if any values remain, provide them to consumer.
-			return i > 0
+			b.Lock()
+			b.err = err
+			b.Unlock()
+			return false
 		}
 
 		b.dataBytes[i].IncRef()
@@ -194,5 +187,9 @@ func (b *seriesBlockIter) Close() error {
 }
 
 func (b *seriesBlockIter) Err() error {
+	if b.err == io.EOF {
+		return nil
+	}
+
 	return b.err
 }
