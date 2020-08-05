@@ -54,15 +54,6 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topi
 }'
 ```
 
-#### Initializing m3msg topic for m3coordinator to receive from m3aggregators to write to M3DB
-
-Now we must setup a topic for the `m3aggregator` to send computed metrics aggregations back to an `m3coordinator` instance for storage to M3DB:
-```bash
-curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic/init -d '{
-    "numberOfShards": 64
-}'
-```
-
 #### Add m3aggregagtor consumer group to ingest topic
 
 Add the `m3aggregator` placement to receive traffic from the topic (make sure to set message TTL to match your desired maximum in memory retry message buffer):
@@ -114,7 +105,7 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -X POST 
 
 Add the `m3coordinator` placement to receive traffic from the topic (make sure to set message TTL to match your desired maximum in memory retry message buffer):
 ```bash
-curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic -d '{
+curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregator_ingest" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic -d '{
   "consumerService": {
     "serviceId": {
       "name": "m3coordinator",
