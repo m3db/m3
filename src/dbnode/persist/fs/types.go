@@ -622,3 +622,6 @@ type Segments interface {
 	AbsoluteFilePaths() []string
 	BlockStart() time.Time
 }
+
+// InfoFileResultsPerShard is a map mapping shards to info files.
+type InfoFileResultsPerShard map[uint32][]ReadInfoFileResult
