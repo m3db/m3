@@ -53,6 +53,7 @@ var (
 	errIndexBlockSizePositive                       = errors.New("index block size must positive")
 	errIndexBlockSizeTooLarge                       = errors.New("index block size needs to be <= namespace retention period")
 	errIndexBlockSizeMustBeAMultipleOfDataBlockSize = errors.New("index block size must be a multiple of data block size")
+	errNamespaceRuntimeOptionsNotSet                = errors.New("namespace runtime options is not set")
 )
 
 type options struct {
@@ -66,6 +67,7 @@ type options struct {
 	retentionOpts     retention.Options
 	indexOpts         IndexOptions
 	schemaHis         SchemaHistory
+	runtimeOpts       RuntimeOptions
 }
 
 // NewSchemaHistory returns an empty schema history.
@@ -86,6 +88,7 @@ func NewOptions() Options {
 		retentionOpts:     retention.NewOptions(),
 		indexOpts:         NewIndexOptions(),
 		schemaHis:         NewSchemaHistory(),
+		runtimeOpts:       NewRuntimeOptions(),
 	}
 }
 
@@ -111,6 +114,9 @@ func (o *options) Validate() error {
 	if indexBlockSize%dataBlockSize != 0 {
 		return errIndexBlockSizeMustBeAMultipleOfDataBlockSize
 	}
+	if o.runtimeOpts == nil {
+		return errNamespaceRuntimeOptionsNotSet
+	}
 	return nil
 }
 
@@ -124,7 +130,8 @@ func (o *options) Equal(value Options) bool {
 		o.coldWritesEnabled == value.ColdWritesEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
 		o.indexOpts.Equal(value.IndexOptions()) &&
-		o.schemaHis.Equal(value.SchemaHistory())
+		o.schemaHis.Equal(value.SchemaHistory()) &&
+		o.runtimeOpts.Equal(value.RuntimeOptions())
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -225,4 +232,14 @@ func (o *options) SetSchemaHistory(value SchemaHistory) Options {
 
 func (o *options) SchemaHistory() SchemaHistory {
 	return o.schemaHis
+}
+
+func (o *options) SetRuntimeOptions(value RuntimeOptions) Options {
+	opts := *o
+	opts.runtimeOpts = value
+	return &opts
+}
+
+func (o *options) RuntimeOptions() RuntimeOptions {
+	return o.runtimeOpts
 }

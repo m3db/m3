@@ -52,7 +52,10 @@ func newOrderedFieldsPostingsListIter(
 	maybeUnorderedFields [][]uniqueField,
 ) *orderedFieldsPostingsListIter {
 	sortable := &sortableSliceOfSliceOfUniqueFieldsAsc{data: maybeUnorderedFields}
+	// NB(r): See SetSortConcurrency why this RLock is required.
+	sortConcurrencyLock.RLock()
 	sorts.ByBytes(sortable)
+	sortConcurrencyLock.RUnlock()
 	return &orderedFieldsPostingsListIter{
 		currentIdx:    -1,
 		backingSlices: sortable,

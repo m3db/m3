@@ -188,7 +188,7 @@ install-tools:
 	GOBIN=$(tools_bin_path) go install github.com/mauricelam/genny
 	GOBIN=$(tools_bin_path) go install github.com/mjibson/esc
 	GOBIN=$(tools_bin_path) go install github.com/pointlander/peg
-	GOBIN=$(tools_bin_path) go install github.com/prateek/gorename
+	GOBIN=$(tools_bin_path) go install github.com/robskillington/gorename
 	GOBIN=$(tools_bin_path) go install github.com/rakyll/statik
 	GOBIN=$(tools_bin_path) go install github.com/garethr/kubeval
 
@@ -252,11 +252,15 @@ docker-integration-test:
 	@echo "--- Running Docker integration test"
 	./scripts/docker-integration-tests/run.sh
 
-
 .PHONY: docker-compatibility-test
 docker-compatibility-test:
 	@echo "--- Running Prometheus compatibility test"
 	./scripts/comparator/run.sh
+
+.PHONY: prom-compat
+prom-compat:
+	@echo "--- Running local Prometheus compatibility test"
+	CI="false" make docker-compatibility-test
 
 .PHONY: site-build
 site-build:

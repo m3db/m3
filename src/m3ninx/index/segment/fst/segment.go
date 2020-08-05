@@ -258,7 +258,7 @@ func (r *fsSegment) Reader() (index.Reader, error) {
 		return nil, errReaderClosed
 	}
 
-	reader := newReader(r)
+	reader := newReader(r, r.opts)
 
 	// NB(r): Ensure that we do not release, mmaps, etc
 	// until all readers have been closed.
@@ -845,9 +845,10 @@ type fsSegmentReader struct {
 
 func newReader(
 	fsSegment *fsSegment,
+	opts Options,
 ) *fsSegmentReader {
 	return &fsSegmentReader{
-		ctx:       context.NewContext(),
+		ctx:       opts.ContextPool().Get(),
 		fsSegment: fsSegment,
 	}
 }
