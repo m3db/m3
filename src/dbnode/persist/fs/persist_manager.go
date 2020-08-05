@@ -167,7 +167,9 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter()
+
+	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter(
+		opts.FSTWriterOptions())
 	if err != nil {
 		return nil, err
 	}

@@ -151,7 +151,7 @@ function test_aggregated_graphite_metric {
   echo "Read back aggregated averaged metric"
   ATTEMPTS=100 TIMEOUT=1 MAX_TIMEOUT=4 retry_with_backoff read_carbon foo.bar.* 42
 
-  # echo "Finished with carbon metrics"
+  echo "Finished with carbon metrics"
   kill $METRIC_EMIT_PID
   export METRIC_EMIT_PID="-1"
 }
@@ -172,7 +172,7 @@ function prometheus_remote_write {
   local label2_value=${label2_value:-label2}
 
   network_name="aggregator"
-  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ')
+  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://m3coordinator01:7202/api/v1/prom/remote/write \

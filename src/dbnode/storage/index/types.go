@@ -413,15 +413,36 @@ func (e *EvictMutableSegmentResults) Add(o EvictMutableSegmentResults) {
 // block and get an immutable list of segments back).
 type BlockStatsReporter interface {
 	ReportSegmentStats(stats BlockSegmentStats)
+	ReportIndexingStats(stats BlockIndexingStats)
 }
 
-// BlockStatsReporterFn implements the block stats reporter using
-// a callback function.
-type BlockStatsReporterFn func(stats BlockSegmentStats)
+type blockStatsReporter struct {
+	reportSegmentStats  func(stats BlockSegmentStats)
+	reportIndexingStats func(stats BlockIndexingStats)
+}
 
-// ReportSegmentStats implements the BlockStatsReporter interface.
-func (f BlockStatsReporterFn) ReportSegmentStats(stats BlockSegmentStats) {
-	f(stats)
+// NewBlockStatsReporter returns a new block stats reporter.
+func NewBlockStatsReporter(
+	reportSegmentStats func(stats BlockSegmentStats),
+	reportIndexingStats func(stats BlockIndexingStats),
+) BlockStatsReporter {
+	return blockStatsReporter{
+		reportSegmentStats:  reportSegmentStats,
+		reportIndexingStats: reportIndexingStats,
+	}
+}
+
+func (r blockStatsReporter) ReportSegmentStats(stats BlockSegmentStats) {
+	r.reportSegmentStats(stats)
+}
+
+func (r blockStatsReporter) ReportIndexingStats(stats BlockIndexingStats) {
+	r.reportIndexingStats(stats)
+}
+
+// BlockIndexingStats is stats about a block's indexing stats.
+type BlockIndexingStats struct {
+	IndexConcurrency int
 }
 
 // BlockSegmentStats has segment stats.

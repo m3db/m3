@@ -25,6 +25,8 @@
 package storage
 
 import (
+	"sync"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/pool"
 )
@@ -130,9 +132,24 @@ func (l *idList) Init() *idList {
 	l.root.prev = &l.root
 	l.len = 0
 	if l.Pool == nil {
-		l.Pool = newIDElementPool(nil)
+		// Use a static pool at least, otherwise each time
+		// we create a list with no pool we create a wholly
+		// new pool of finalizeables (4096 of them).
+		defaultElementPoolOnce.Do(initElementPool)
+		l.Pool = defaultElementPool
 	}
 	return l
+}
+
+var (
+	defaultElementPoolOnce sync.Once
+	defaultElementPool     *idElementPool
+)
+
+// define as a static method so lambda alloc not required
+// when passing function pointer to sync.Once.Do.
+func initElementPool() {
+	defaultElementPool = newIDElementPool(nil)
 }
 
 // newIDList returns an initialized list.

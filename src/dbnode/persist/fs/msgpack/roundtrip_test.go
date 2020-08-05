@@ -52,13 +52,14 @@ var (
 	}
 
 	testIndexEntry = schema.IndexEntry{
-		Index:       234,
-		ID:          []byte("testIndexEntry"),
-		Size:        5456,
-		Offset:      2390423,
-		Checksum:    134245634534,
-		EncodedTags: []byte("testEncodedTags"),
+		Index:        234,
+		ID:           []byte("testIndexEntry"),
+		Size:         5456,
+		Offset:       2390423,
+		DataChecksum: 134245634534,
+		EncodedTags:  []byte("testEncodedTags"),
 	}
+	testIndexEntryChecksum = int64(2611877657)
 
 	testIndexSummary = schema.IndexSummary{
 		Index:            234,
@@ -397,12 +398,13 @@ func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
 	require.Equal(t, testIndexEntry, res)
 }
 
-// Make sure the V2 decoding code can handle the V1 file format.
+// Make sure the V3 decoding code can handle the V1 file format.
 func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyV1IndexEntry: true}
-		enc  = newEncoder(opts)
-		dec  = newDecoder(opts, nil)
+		opts = legacyEncodingOptions{encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV1,
+			decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent}
+		enc = newEncoder(opts)
+		dec = newDecoder(opts, nil)
 	)
 
 	// Set the default values on the fields that did not exist in V1
@@ -410,7 +412,9 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	// because the new decoder won't try and read the new fields from
 	// the old file format.
 	currEncodedTags := testIndexEntry.EncodedTags
+
 	testIndexEntry.EncodedTags = nil
+
 	defer func() {
 		testIndexEntry.EncodedTags = currEncodedTags
 	}()
@@ -422,10 +426,10 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	require.Equal(t, testIndexEntry, res)
 }
 
-// Make sure the V1 decoder code can handle the V2 file format.
-func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
+// Make sure the V1 decoder code can handle the V3 file format.
+func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{decodeLegacyV1IndexEntry: true}
+		opts = legacyEncodingOptions{decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV1}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -444,6 +448,45 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 		testIndexEntry.EncodedTags = currEncodedTags
 	}()
 
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntry(nil)
+	require.NoError(t, err)
+	require.Equal(t, testIndexEntry, res)
+}
+
+// Make sure the V3 decoding code can handle the V2 file format.
+func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
+	var (
+		opts = legacyEncodingOptions{encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV2,
+			decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent}
+		enc = newEncoder(opts)
+		dec = newDecoder(opts, nil)
+	)
+
+	// The additional field added to V3 is the index entry checksum that's transparently used by the encoder
+	// and decoder and is never set on the IndexEntry struct. Therefore, no need to zero out any field in the struct
+	// to make a comparison.
+
+	enc.EncodeIndexEntry(testIndexEntry)
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntry(nil)
+	require.NoError(t, err)
+	require.Equal(t, testIndexEntry, res)
+}
+
+// Make sure the V2 decoder code can handle the V3 file format.
+func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
+	var (
+		opts = legacyEncodingOptions{decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV2}
+		enc  = newEncoder(opts)
+		dec  = newDecoder(opts, nil)
+	)
+
+	// The additional field added to V3 is the index entry checksum that's transparently used by the encoder
+	// and decoder and is never set on the IndexEntry struct. Therefore, no need to zero out any field in the struct
+	// to make a comparison.
+
+	enc.EncodeIndexEntry(testIndexEntry)
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
