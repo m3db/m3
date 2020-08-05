@@ -1830,6 +1830,7 @@ func TestAggregateTiles(t *testing.T) {
 	reader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
 	reader.EXPECT().Close()
 
+	//TODO: include more than one block reader here once iteration and processing across multiple blocks is implemented
 	blockReaders := []fs.DataFileSetReader{reader}
 
 	processedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNsID, time.Hour, sourceShard, blockReaders, opts, series.WriteOptions{})
