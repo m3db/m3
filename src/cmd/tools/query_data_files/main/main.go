@@ -103,7 +103,6 @@ func main() {
 		c          = int(*concurrency)
 
 		readStart = time.Now()
-		cnt       = 0
 	)
 
 	for iteration := 0; iteration < iterations; iteration++ {
@@ -141,7 +140,7 @@ func main() {
 
 		bytesReader := bytes.NewReader(nil)
 		dataPointIter := m3tsz.NewReaderIterator(bytesReader, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-		downsampler := downsamplers.NewCountDownsampler()
+		downsampler := downsamplers.NewSumDownsampler()
 
 		tags = tags[:0]
 
@@ -165,7 +164,6 @@ func main() {
 			for aggregatedIter.Next() {
 				dp, _, _ := aggregatedIter.Current()
 				v := dp.Value
-				cnt += int(v)
 
 				vals = append(vals, v)
 			}
@@ -187,8 +185,6 @@ func main() {
 
 		dataPointIter.Close()
 	}
-
-	fmt.Printf("%f data points per second\n", float64(cnt) / time.Since(readStart).Seconds())
 
 	fmt.Printf("Using step iterator\nIterations: %d\nConcurrency: %d\nTook: %v\n",
 		iterations, c, time.Since(readStart))
