@@ -1067,16 +1067,16 @@ func kvWatchEncodersPerBlockLimit(
 	store kv.Store,
 	logger *zap.Logger,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
-	defaultEncodersPerBlockLimit int,
+	defaultEncodersPerBlockLimit int32,
 ) {
-	var initEncoderLimit int
+	var initEncoderLimit int32
 
 	value, err := store.Get(kvconfig.EncodersPerBlockLimitKey)
 	if err == nil {
 		protoValue := &commonpb.Int64Proto{}
 		err = value.Unmarshal(protoValue)
 		if err == nil {
-			initEncoderLimit = int(protoValue.Value)
+			initEncoderLimit = int32(protoValue.Value)
 		}
 	}
 
@@ -1107,7 +1107,7 @@ func kvWatchEncodersPerBlockLimit(
 					logger.Warn("unable to parse new encoder per block limit", zap.Error(err))
 					continue
 				}
-				value = int(protoValue.Value)
+				value = int32(protoValue.Value)
 			}
 
 			err = setEncodersPerBlockLimitOnChange(runtimeOptsMgr, value)
@@ -1280,7 +1280,7 @@ func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) in
 
 func setEncodersPerBlockLimitOnChange(
 	runtimeOptsMgr m3dbruntime.OptionsManager,
-	encoderLimit int,
+	encoderLimit int32,
 ) error {
 	runtimeOpts := runtimeOptsMgr.Get()
 	if runtimeOpts.EncodersPerBlockLimit() == encoderLimit {

@@ -372,9 +372,10 @@ type Options interface {
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
 type Stats struct {
-	encoderCreated   tally.Counter
-	coldWrites       tally.Counter
-	encodersPerBlock tally.Histogram
+	encoderCreated            tally.Counter
+	coldWrites                tally.Counter
+	encodersPerBlock          tally.Histogram
+	encoderLimitWriteRejected tally.Counter
 }
 
 // NewStats returns a new Stats for the provided scope.
@@ -384,9 +385,10 @@ func NewStats(scope tally.Scope) Stats {
 	buckets := append(tally.ValueBuckets{0},
 		tally.MustMakeExponentialValueBuckets(1, 2, 20)...)
 	return Stats{
-		encoderCreated:   subScope.Counter("encoder-created"),
-		coldWrites:       subScope.Counter("cold-writes"),
-		encodersPerBlock: subScope.Histogram("encoders-per-block", buckets),
+		encoderCreated:            subScope.Counter("encoder-created"),
+		coldWrites:                subScope.Counter("cold-writes"),
+		encodersPerBlock:          subScope.Histogram("encoders-per-block", buckets),
+		encoderLimitWriteRejected: subScope.Counter("encoder-limit-write-rejected"),
 	}
 }
 
@@ -403,6 +405,11 @@ func (s Stats) IncColdWrites() {
 // RecordEncodersPerBlock records the number of encoders histogram.
 func (s Stats) RecordEncodersPerBlock(num int) {
 	s.encodersPerBlock.RecordValue(float64(num))
+}
+
+// IncEncoderLimitWriteRejected incs the encoderLimitWriteRejected stat.
+func (s Stats) IncEncoderLimitWriteRejected() {
+	s.encoderLimitWriteRejected.Inc(1)
 }
 
 // WriteType is an enum for warm/cold write types.

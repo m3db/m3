@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -41,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -54,7 +54,7 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
-	errTooManyEncoders = errors.New("too many encoders per block")
+	errTooManyEncoders = xerrors.NewInvalidParamsError(errors.New("too many encoders per block"))
 	logger, _          = zap.NewProduction()
 )
 
@@ -991,7 +991,7 @@ type BufferBucketVersions struct {
 	buckets           []*BufferBucket
 	start             time.Time
 	opts              Options
-	lastReadUnixNanos *atomic.Int64
+	lastReadUnixNanos int64
 	bucketPool        *BufferBucketPool
 }
 
@@ -1007,7 +1007,7 @@ func (b *BufferBucketVersions) resetTo(
 	b.buckets = b.buckets[:0]
 	b.start = start
 	b.opts = opts
-	b.lastReadUnixNanos.Store(0)
+	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
 	b.bucketPool = bucketPool
 }
 
@@ -1107,11 +1107,11 @@ func (b *BufferBucketVersions) removeBucketsUpToVersion(
 }
 
 func (b *BufferBucketVersions) setLastRead(value time.Time) {
-	b.lastReadUnixNanos.Store(value.UnixNano())
+	atomic.StoreInt64(&b.lastReadUnixNanos, value.UnixNano())
 }
 
 func (b *BufferBucketVersions) lastRead() time.Time {
-	return time.Unix(0, b.lastReadUnixNanos.Load())
+	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
 }
 
 func (b *BufferBucketVersions) writableBucket(writeType WriteType) (*BufferBucket, bool) {
@@ -1282,7 +1282,8 @@ func (b *BufferBucket) write(
 
 	// Need a new encoder, we didn't find an encoder to write to.
 	maxEncoders := b.opts.RuntimeOptionsManager().Get().EncodersPerBlockLimit()
-	if len(b.encoders) >= maxEncoders {
+	if maxEncoders != 0 && len(b.encoders) >= int(maxEncoders) {
+		b.opts.Stats().IncEncoderLimitWriteRejected()
 		return false, errTooManyEncoders
 	}
 

@@ -82,14 +82,14 @@ type Options interface {
 	// permitted. This rate limit is primarily offered to defend against
 	// bursts of out of order writes, which creates many encoders, subsequently
 	// causing a large burst in CPU load when trying to merge them.
-	SetEncodersPerBlockLimit(value int) Options
+	SetEncodersPerBlockLimit(value int32) Options
 
 	// EncodersPerBlockLimit sets the maximum number of encoders per block
 	// allowed. Setting to zero means an unlimited number of encoders are
 	// permitted. This rate limit is primarily offered to defend against
 	// bursts of out of order writes, which creates many encoders, subsequently
 	// causing a large burst in CPU load when trying to merge them.
-	EncodersPerBlockLimit() int
+	EncodersPerBlockLimit() int32
 
 	// SetTickSeriesBatchSize sets the batch size to process series together
 	// during a tick before yielding and sleeping the per series duration

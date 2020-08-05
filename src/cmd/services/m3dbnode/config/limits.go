@@ -52,7 +52,7 @@ type LimitsConfiguration struct {
 	// When there are too many encoders, merging them (during a tick) puts a high
 	// load on the CPU, which can prevent other DB operations.
 	// A setting of 0 means there is no maximum.
-	MaxEncodersPerBlock int `yaml:"maxEncodersPerBlock" validate:"min=0"`
+	MaxEncodersPerBlock int32 `yaml:"maxEncodersPerBlock" validate:"min=0"`
 }
 
 // MaxRecentlyQueriedSeriesBlocksConfiguration sets the upper limit on time
