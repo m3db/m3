@@ -105,7 +105,7 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -X POST 
 
 Add the `m3coordinator` placement to receive traffic from the topic (make sure to set message TTL to match your desired maximum in memory retry message buffer):
 ```bash
-curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregator_ingest" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic -d '{
+curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregated_metrics" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic -d '{
   "consumerService": {
     "serviceId": {
       "name": "m3coordinator",
