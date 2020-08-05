@@ -2549,30 +2549,53 @@ func (s *dbShard) Repair(
 
 func (s *dbShard) AggregateTiles(
 	ctx context.Context,
-	reader fs.DataFileSetReader,
-	sourceNsID ident.ID,
+	sourceNs databaseNamespace,
 	sourceShard databaseShard,
 	opts AggregateTilesOptions,
 	wOpts series.WriteOptions,
 ) (int64, error) {
-	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
+	var (
+		readers      []fs.DataFileSetReader
+		sourceNsOpts = sourceNs.StorageOptions()
+	)
+
+	for sourceBlockStart := opts.Start; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(opts.Step) {
+
+		reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
+		if err != nil {
+			return 0, err
+		}
+
+		latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
+		if err != nil {
+			return 0, err
+		}
+
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   sourceNs.ID(),
+				Shard:       sourceShard.ID(),
+				BlockStart:  opts.Start,
+				VolumeIndex: latestSourceVolume,
+			},
+			FileSetType:    persist.FileSetFlushType,
+			OrderedByIndex: true,
+		}
+
+		if err := reader.Open(openOpts); err != nil {
+			return 0, err
+		}
+
+		defer reader.Close()
+
+		readers = append(readers, reader)
+	}
+
+	crossBlockReader, err := fs.NewCrossBlockReader(readers)
 	if err != nil {
 		return 0, err
 	}
-
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   sourceNsID,
-			Shard:       sourceShard.ID(),
-			BlockStart:  opts.Start,
-			VolumeIndex: latestSourceVolume,
-		},
-		FileSetType: persist.FileSetFlushType,
-	}
-	if err := reader.Open(openOpts); err != nil {
-		return 0, err
-	}
-	defer reader.Close()
+	defer crossBlockReader.Close()
 
 	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
 
@@ -2587,7 +2610,8 @@ func (s *dbShard) AggregateTiles(
 		EncodingOpts: encodingOpts,
 	}
 
-	readerIter, err := tile.NewSeriesBlockIterator(reader, tileOpts)
+	//TODO: switch NewSeriesBlockIterator from using readers[0] to using crossBlockReader
+	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
 	if err != nil {
 		return 0, err
 	}

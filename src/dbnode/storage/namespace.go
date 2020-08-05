@@ -1633,12 +1633,6 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errColdWritesDisabled
 	}
 
-	sourceNsOpts := sourceNs.StorageOptions()
-	reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
-	if err != nil {
-		return 0, err
-	}
-
 	wOpts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
 		SchemaDesc:   nsCtx.Schema,
@@ -1660,7 +1654,7 @@ func (n *dbNamespace) aggregateTiles(
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceShard, opts, wOpts)
+		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs, sourceShard, opts, wOpts)
 		processedBlockCount += shardProcessedBlockCount
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)

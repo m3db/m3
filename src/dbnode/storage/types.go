@@ -598,8 +598,7 @@ type databaseShard interface {
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
 		ctx context.Context,
-		reader fs.DataFileSetReader,
-		sourceNsID ident.ID,
+		sourceNs databaseNamespace,
 		sourceShard databaseShard,
 		opts AggregateTilesOptions,
 		wOpts series.WriteOptions,
