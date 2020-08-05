@@ -30,8 +30,8 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -434,6 +434,71 @@ func TestCloneSeeker(t *testing.T) {
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
+}
+
+func TestSeekValidateIndexEntriesFile(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	w := newTestWriter(t, filePathPrefix)
+	writerOpts := DataWriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FileSetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = w.Open(writerOpts)
+	assert.NoError(t, err)
+
+	// Write data
+	assert.NoError(t, w.Write(
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("foo"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
+	assert.NoError(t, w.Close())
+
+	shardDir := ShardDataDirPath(filePathPrefix, testNs1ID, 0)
+
+	// With full file validation disabled
+	s := seeker{opts: seekerOpts{
+		filePathPrefix: filePathPrefix,
+		dataBufferSize: testReaderBufferSize,
+		infoBufferSize: testReaderBufferSize,
+		bytesPool:      testBytesPool,
+		keepUnreadBuf:  false,
+		opts:           testDefaultOpts,
+	}}
+	s.versionChecker = schema.NewVersionChecker(1, 1)
+
+	indexFilePath := dataFilesetPathFromTimeAndIndex(shardDir, testWriterStart, 0, indexFileSuffix, false)
+	indexFd, err := os.Open(indexFilePath)
+	assert.NoError(t, err)
+	indexReader := digest.NewFdWithDigestReader(defaultInfoReaderBufferSize)
+	indexReader.Reset(indexFd)
+
+	assert.NoError(t, s.validateIndexFileDigest(indexReader, 0))
+
+	// With full file validation enabled
+	s.versionChecker = schema.NewVersionChecker(1, 0)
+	_, err = indexFd.Seek(0, 0)
+	assert.NoError(t, err)
+	indexReader.Reset(indexFd)
+
+	assert.Error(t, s.validateIndexFileDigest(indexReader, 0))
+
+	// Sanity check -- call seeker#Open and ensure VersionChecker is set correctly
+	err = s.Open(testNs1ID, 0, testWriterStart, 0, newTestReusableSeekerResources())
+	assert.NoError(t, err)
+	assert.True(t, s.versionChecker.IndexEntryValidationEnabled())
 }
 
 func newTestReusableSeekerResources() ReusableSeekerResources {

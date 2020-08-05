@@ -199,11 +199,13 @@ func (r *dynamicRegistry) run() {
 
 		if m.Equal(r.maps()) {
 			r.metrics.numInvalidUpdates.Inc(1)
-			r.logger.Warn("dynamic namespace registry received identical update, skipping")
+			r.logger.Warn("dynamic namespace registry received identical update, skipping",
+				zap.Int("version", val.Version()))
 			continue
 		}
 
-		r.logger.Info("dynamic namespace registry updated to version", zap.Int("version", val.Version()))
+		r.logger.Info("dynamic namespace registry updated to version",
+			zap.Int("version", val.Version()))
 		r.Lock()
 		r.currentValue = val
 		r.currentMap = m

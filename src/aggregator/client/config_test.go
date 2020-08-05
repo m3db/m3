@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/golang/mock/gomock"
@@ -140,7 +141,8 @@ func TestNewClientOptions(t *testing.T) {
 	kvClient.EXPECT().Store(expectedKvOpts).Return(store, nil)
 	clockOpts := clock.NewOptions()
 	instrumentOpts := instrument.NewOptions()
-	opts, err := cfg.newClientOptions(kvClient, clockOpts, instrumentOpts)
+	rwOpts := xio.NewOptions()
+	opts, err := cfg.newClientOptions(kvClient, clockOpts, instrumentOpts, rwOpts)
 	require.NoError(t, err)
 
 	// Verify the constructed options match expectations.

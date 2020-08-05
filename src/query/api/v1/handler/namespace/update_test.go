@@ -22,6 +22,7 @@ package namespace
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -87,7 +89,7 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"unable to validate update request: retention options must be set\"}\n", string(body))
+	assert.Equal(t, "{\"error\":\"unable to validate update request: update options cannot be empty\"}\n", string(body))
 
 	// Test good case. Note: there is no way to tell the difference between a boolean
 	// being false and it not being set by a user.
@@ -128,7 +130,43 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"345600000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"3600000000000\",\"futureRetentionPeriodNanos\":\"0\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"},\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
+
+	expected := xtest.MustPrettyJSONMap(t,
+		xjson.Map{
+			"registry": xjson.Map{
+				"namespaces": xjson.Map{
+					"testNamespace": xjson.Map{
+						"bootstrapEnabled":  true,
+						"flushEnabled":      true,
+						"writesToCommitLog": true,
+						"cleanupEnabled":    false,
+						"repairEnabled":     false,
+						"retentionOptions": xjson.Map{
+							"retentionPeriodNanos":                     "345600000000000",
+							"blockSizeNanos":                           "7200000000000",
+							"bufferFutureNanos":                        "600000000000",
+							"bufferPastNanos":                          "600000000000",
+							"blockDataExpiry":                          true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "3600000000000",
+							"futureRetentionPeriodNanos":               "0",
+						},
+						"snapshotEnabled": true,
+						"indexOptions": xjson.Map{
+							"enabled":        false,
+							"blockSizeNanos": "7200000000000",
+						},
+						"runtimeOptions":    nil,
+						"schemaOptions":     nil,
+						"coldWritesEnabled": false,
+					},
+				},
+			},
+		})
+
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual,
+		xtest.Diff(expected, actual))
 
 	// Ensure an empty request respects existing namespaces.
 	w = httptest.NewRecorder()
@@ -146,7 +184,43 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"3600000000000\",\"futureRetentionPeriodNanos\":\"0\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"},\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
+
+	expected = xtest.MustPrettyJSONMap(t,
+		xjson.Map{
+			"registry": xjson.Map{
+				"namespaces": xjson.Map{
+					"testNamespace": xjson.Map{
+						"bootstrapEnabled":  true,
+						"flushEnabled":      true,
+						"writesToCommitLog": true,
+						"cleanupEnabled":    false,
+						"repairEnabled":     false,
+						"retentionOptions": xjson.Map{
+							"retentionPeriodNanos":                     "172800000000000",
+							"blockSizeNanos":                           "7200000000000",
+							"bufferFutureNanos":                        "600000000000",
+							"bufferPastNanos":                          "600000000000",
+							"blockDataExpiry":                          true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "3600000000000",
+							"futureRetentionPeriodNanos":               "0",
+						},
+						"snapshotEnabled": true,
+						"indexOptions": xjson.Map{
+							"enabled":        false,
+							"blockSizeNanos": "7200000000000",
+						},
+						"runtimeOptions":    nil,
+						"schemaOptions":     nil,
+						"coldWritesEnabled": false,
+					},
+				},
+			},
+		})
+
+	actual = xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual,
+		xtest.Diff(expected, actual))
 }
 
 func TestValidateUpdateRequest(t *testing.T) {
@@ -161,11 +235,9 @@ func TestValidateUpdateRequest(t *testing.T) {
 			Name: "foo",
 		}
 
-		reqEmptyRetention = &admin.NamespaceUpdateRequest{
-			Name: "foo",
-			Options: &nsproto.NamespaceOptions{
-				BootstrapEnabled: true,
-			},
+		reqNoNonZeroFields = &admin.NamespaceUpdateRequest{
+			Name:    "foo",
+			Options: &nsproto.NamespaceOptions{},
 		}
 
 		reqNonZeroBootstrap = &admin.NamespaceUpdateRequest{
@@ -213,9 +285,9 @@ func TestValidateUpdateRequest(t *testing.T) {
 			expErr:  errEmptyNamespaceOptions,
 		},
 		{
-			name:    "emptyRetention",
-			request: reqEmptyRetention,
-			expErr:  errEmptyRetentionOptions,
+			name:    "emptyNoNonZeroFields",
+			request: reqNoNonZeroFields,
+			expErr:  errEmptyNamespaceOptions,
 		},
 		{
 			name:    "nonZeroBootstrapField",
@@ -236,7 +308,8 @@ func TestValidateUpdateRequest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			err := validateUpdateRequest(test.request)
 			if err != nil {
-				assert.True(t, errors.Is(err, test.expErr))
+				assert.True(t, errors.Is(err, test.expErr),
+					fmt.Sprintf("expected=%s, actual=%s", test.expErr, err))
 				return
 			}
 

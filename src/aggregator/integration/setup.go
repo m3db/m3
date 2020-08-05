@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
@@ -93,7 +94,9 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	workerPool.Init()
 
 	// Create the server options.
-	rawTCPServerOpts := rawtcpserver.NewOptions()
+	rwOpts := xio.NewOptions()
+	rawTCPServerOpts := rawtcpserver.NewOptions().SetRWOptions(rwOpts)
+	m3msgServerOpts := m3msgserver.NewOptions()
 	httpServerOpts := httpserver.NewOptions()
 
 	// Creating the aggregator options.
@@ -166,7 +169,8 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		SetClockOptions(clockOpts).
 		SetConnectionOptions(opts.ClientConnectionOptions()).
 		SetShardFn(opts.ShardFn()).
-		SetStagedPlacementWatcherOptions(placementWatcherOpts)
+		SetStagedPlacementWatcherOptions(placementWatcherOpts).
+		SetRWOptions(rwOpts)
 	c, err := aggclient.NewClient(clientOpts)
 	require.NoError(t, err)
 	adminClient, ok := c.(aggclient.AdminClient)
@@ -218,6 +222,7 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 		rawTCPAddr:       opts.RawTCPAddr(),
 		httpAddr:         opts.HTTPAddr(),
 		rawTCPServerOpts: rawTCPServerOpts,
+		m3msgServerOpts:  m3msgServerOpts,
 		httpServerOpts:   httpServerOpts,
 		aggregatorOpts:   aggregatorOpts,
 		handler:          handler,
@@ -259,18 +264,20 @@ func (ts *testServerSetup) startServer() error {
 	}
 
 	instrumentOpts := instrument.NewOptions()
+	serverOpts := serve.NewOptions(instrumentOpts).
+		SetM3MsgAddr(ts.m3msgAddr).
+		SetM3MsgServerOpts(ts.m3msgServerOpts).
+		SetRawTCPAddr(ts.rawTCPAddr).
+		SetRawTCPServerOpts(ts.rawTCPServerOpts).
+		SetHTTPAddr(ts.httpAddr).
+		SetHTTPServerOpts(ts.httpServerOpts).
+		SetRWOptions(xio.NewOptions())
 
 	go func() {
 		if err := serve.Serve(
-			ts.m3msgAddr,
-			ts.m3msgServerOpts,
-			ts.rawTCPAddr,
-			ts.rawTCPServerOpts,
-			ts.httpAddr,
-			ts.httpServerOpts,
 			ts.aggregator,
 			ts.doneCh,
-			instrumentOpts,
+			serverOpts,
 		); err != nil {
 			select {
 			case errCh <- err:

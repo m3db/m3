@@ -164,7 +164,9 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	)
 	opts = opts.SetIndexOptions(indexOpts)
 
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newFn, opts)
 	assert.NoError(t, err)
 
 	defer func() {
@@ -370,7 +372,9 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 		SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 	opts = opts.SetIndexOptions(indexOpts)
 
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, testShardSet, newFn, opts)
+	idx, err := newNamespaceIndexWithInsertQueueFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newFn, opts)
 	assert.NoError(t, err)
 
 	defer func() {

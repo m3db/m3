@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/msg/producer/buffer"
 	"github.com/m3db/m3/src/msg/producer/writer"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 )
 
 // ProducerConfiguration configs the producer.
@@ -37,8 +38,9 @@ type ProducerConfiguration struct {
 func (c *ProducerConfiguration) newOptions(
 	cs client.Client,
 	iOpts instrument.Options,
+	rwOpts xio.Options,
 ) (producer.Options, error) {
-	wOpts, err := c.Writer.NewOptions(cs, iOpts)
+	wOpts, err := c.Writer.NewOptions(cs, iOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -55,8 +57,9 @@ func (c *ProducerConfiguration) newOptions(
 func (c *ProducerConfiguration) NewProducer(
 	cs client.Client,
 	iOpts instrument.Options,
+	rwOpts xio.Options,
 ) (producer.Producer, error) {
-	opts, err := c.newOptions(cs, iOpts)
+	opts, err := c.newOptions(cs, iOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}

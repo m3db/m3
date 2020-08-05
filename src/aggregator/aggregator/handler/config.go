@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 
 	"go.uber.org/zap"
@@ -53,6 +54,7 @@ type FlushHandlerConfiguration struct {
 func (c FlushHandlerConfiguration) NewHandler(
 	cs client.Client,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (Handler, error) {
 	if len(c.Handlers) == 0 {
 		return nil, errNoHandlerConfiguration
@@ -61,7 +63,7 @@ func (c FlushHandlerConfiguration) NewHandler(
 		handlers = make([]Handler, 0, len(c.Handlers))
 	)
 	for _, hc := range c.Handlers {
-		handler, err := hc.newHandler(cs, instrumentOpts)
+		handler, err := hc.newHandler(cs, instrumentOpts, rwOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -110,6 +112,7 @@ type flushHandlerConfiguration struct {
 func (c flushHandlerConfiguration) newHandler(
 	cs client.Client,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (Handler, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -118,6 +121,7 @@ func (c flushHandlerConfiguration) newHandler(
 		return c.DynamicBackend.newProtobufHandler(
 			cs,
 			instrumentOpts,
+			rwOpts,
 		)
 	}
 	switch c.StaticBackend.Type {
@@ -163,13 +167,14 @@ type dynamicBackendConfiguration struct {
 func (c *dynamicBackendConfiguration) newProtobufHandler(
 	cs client.Client,
 	instrumentOpts instrument.Options,
+	rwOpts xio.Options,
 ) (Handler, error) {
 	scope := instrumentOpts.MetricsScope().Tagged(map[string]string{
 		"backend":   c.Name,
 		"component": "producer",
 	})
 	instrumentOpts = instrumentOpts.SetMetricsScope(scope)
-	p, err := c.Producer.NewProducer(cs, instrumentOpts)
+	p, err := c.Producer.NewProducer(cs, instrumentOpts, rwOpts)
 	if err != nil {
 		return nil, err
 	}

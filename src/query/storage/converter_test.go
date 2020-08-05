@@ -71,6 +71,19 @@ var (
 	value = []byte("bar")
 )
 
+func TestPromReadQueryToM3BadStartEnd(t *testing.T) {
+	q, err := PromReadQueryToM3(&prompb.Query{
+		StartTimestampMs: 100,
+		EndTimestampMs:   -100,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, time.Time{}, q.Start)
+	// NB: check end is approximately correct.
+	diff := math.Abs(float64(time.Since(q.End)))
+	assert.True(t, diff < float64(time.Minute))
+}
+
 func TestPromReadQueryToM3(t *testing.T) {
 	tests := []struct {
 		name        string

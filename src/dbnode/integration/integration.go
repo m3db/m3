@@ -448,7 +448,7 @@ func writeTestIndexDataToDisk(
 	if err != nil {
 		return err
 	}
-	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter()
+	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter(fst.WriterOptions{})
 	if err != nil {
 		return err
 	}

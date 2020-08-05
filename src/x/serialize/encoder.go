@@ -52,8 +52,12 @@ import (
 
 var (
 	byteOrder        binary.ByteOrder = binary.LittleEndian
-	headerMagicBytes                  = encodeUInt16(headerMagicNumber)
+	headerMagicBytes                  = make([]byte, 2)
 )
+
+func init() {
+	encodeUInt16(headerMagicNumber, headerMagicBytes)
+}
 
 var (
 	errTagEncoderInUse     = errors.New("encoder already in use")
@@ -66,8 +70,10 @@ type newCheckedBytesFn func([]byte, checked.BytesOptions) checked.Bytes
 var defaultNewCheckedBytesFn = checked.NewBytes
 
 type encoder struct {
-	buf          *bytes.Buffer
-	checkedBytes checked.Bytes
+	buf               *bytes.Buffer
+	checkedBytes      checked.Bytes
+	staticBuffer      [2]byte
+	staticBufferSlice []byte
 
 	opts TagEncoderOptions
 	pool TagEncoderPool
@@ -80,21 +86,23 @@ func newTagEncoder(
 ) TagEncoder {
 	b := make([]byte, 0, opts.InitialCapacity())
 	cb := newFn(nil, nil)
-	return &encoder{
+	e := &encoder{
 		buf:          bytes.NewBuffer(b),
 		checkedBytes: cb,
 		opts:         opts,
 		pool:         pool,
 	}
+	e.staticBufferSlice = e.staticBuffer[:]
+	return e
 }
 
-func (e *encoder) Encode(srcTags ident.TagIterator) error {
+func (e *encoder) Encode(tags ident.TagIterator) error {
 	if e.checkedBytes.NumRef() > 0 {
 		return errTagEncoderInUse
 	}
 
-	tags := srcTags.Duplicate()
-	defer tags.Close()
+	tags.Rewind()
+	defer tags.Rewind()
 
 	numTags := tags.Remaining()
 	max := int(e.opts.TagSerializationLimits().MaxNumberTags())
@@ -107,7 +115,7 @@ func (e *encoder) Encode(srcTags ident.TagIterator) error {
 		return err
 	}
 
-	if _, err := e.buf.Write(encodeUInt16(uint16(numTags))); err != nil {
+	if _, err := e.buf.Write(e.encodeUInt16(uint16(numTags))); err != nil {
 		e.buf.Reset()
 		return err
 	}
@@ -177,7 +185,7 @@ func (e *encoder) encodeID(i ident.ID) error {
 	}
 
 	ld := uint16(len(d))
-	if _, err := e.buf.Write(encodeUInt16(ld)); err != nil {
+	if _, err := e.buf.Write(e.encodeUInt16(ld)); err != nil {
 		return err
 	}
 
@@ -188,10 +196,16 @@ func (e *encoder) encodeID(i ident.ID) error {
 	return nil
 }
 
-func encodeUInt16(v uint16) []byte {
-	var bytes [2]byte
-	byteOrder.PutUint16(bytes[:], v)
-	return bytes[:]
+func (e *encoder) encodeUInt16(v uint16) []byte {
+	// NB(r): Use static buffer on the struct for encoding, otherwise if it's
+	// statically defined inline in the function it will escape to heap.
+	dest := e.staticBufferSlice[:2]
+	return encodeUInt16(v, dest)
+}
+
+func encodeUInt16(v uint16, dest []byte) []byte {
+	byteOrder.PutUint16(dest, v)
+	return dest
 }
 
 func decodeUInt16(b []byte) uint16 {
