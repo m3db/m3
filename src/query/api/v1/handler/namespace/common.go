@@ -123,7 +123,8 @@ func RegisterRoutes(
 	}
 
 	// Get M3DB namespaces.
-	getHandler := wrapped(NewGetHandler(client, instrumentOpts))
+	getHandler := wrapped(
+		applyMiddleware(NewGetHandler(client, instrumentOpts).ServeHTTP, defaults))
 	r.HandleFunc(DeprecatedM3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getHandler.ServeHTTP).Methods(GetHTTPMethod)
 
