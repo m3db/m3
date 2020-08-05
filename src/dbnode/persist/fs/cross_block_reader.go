@@ -67,7 +67,7 @@ func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (CrossBlockRead
 	}
 
 	return &crossBlockReader{
-		dataFileSetReaders: dataFileSetReaders,
+		dataFileSetReaders: append([]DataFileSetReader{}, dataFileSetReaders...),
 		records:            make([]BlockRecord, 0, len(dataFileSetReaders)),
 	}, nil
 }
