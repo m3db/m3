@@ -163,4 +163,8 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 		require.NoError(t, cbReader.Err())
 		assert.Equal(t, expectedCount, actualCount, "count of series read")
 	}
+
+	for _, dfsReader := range dfsReaders {
+		assert.NotNil(t, dfsReader)
+	}
 }
