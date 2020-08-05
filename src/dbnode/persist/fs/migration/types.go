@@ -20,6 +20,13 @@
 
 package migration
 
+import (
+	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage"
+)
+
 // Options represents the options for migrations
 type Options interface {
 	// SetToVersion1_1 sets the toVersion1_1 migration option
@@ -33,4 +40,52 @@ type Options interface {
 
 	// Concurrency gets the number of concurrent workers performing migrations
 	Concurrency() int
+}
+
+// TaskOptions represents options for individual migration tasks
+type TaskOptions interface {
+	// Validate validates the options
+	Validate() error
+
+	// SetNewMergerFn sets the function to create a new Merger
+	SetNewMergerFn(value fs.NewMergerFn) TaskOptions
+
+	// NewMergerFn returns the function to create a new Merger
+	NewMergerFn() fs.NewMergerFn
+
+	// SetInfoFileResult sets the info file resulted associated with this run
+	SetInfoFileResult(value fs.ReadInfoFileResult) TaskOptions
+
+	// InfoFileResult gets the info file resulted associated with this run
+	InfoFileResult() fs.ReadInfoFileResult
+
+	// SetShard sets the shard associated with this task
+	SetShard(value uint32) TaskOptions
+
+	// Shard gets the shard associated with this task
+	Shard() uint32
+
+	// SetNamespaceMetadata sets the namespace metadata associated with this task
+	SetNamespaceMetadata(value namespace.Metadata) TaskOptions
+
+	// NamespaceMetadata gets the namespace metadata associated with this task
+	NamespaceMetadata() namespace.Metadata
+
+	// SetPersistManager sets the persist manager used for this task
+	SetPersistManager(value persist.Manager) TaskOptions
+
+	// PersistManager gets the persist manager use for this task
+	PersistManager() persist.Manager
+
+	// SetStorageOptions sets the storage options associated with this task
+	SetStorageOptions(value storage.Options) TaskOptions
+
+	// StorageOptions gets the storage options associated with this task
+	StorageOptions() storage.Options
+
+	// SetFilesystemOptions sets the filesystem options.
+	SetFilesystemOptions(value fs.Options) TaskOptions
+
+	// FilesystemOptions returns the filesystem options.
+	FilesystemOptions() fs.Options
 }

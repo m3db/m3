@@ -760,26 +760,6 @@ func newFSMergeWithMemTestFn(
 	return &noopMergeWith{}
 }
 
-type noopMergeWith struct{}
-
-func (m *noopMergeWith) Read(
-	ctx context.Context,
-	seriesID ident.ID,
-	blockStart xtime.UnixNano,
-	nsCtx namespace.Context,
-) ([]xio.BlockReader, bool, error) {
-	return nil, false, nil
-}
-
-func (m *noopMergeWith) ForEachRemaining(
-	ctx context.Context,
-	blockStart xtime.UnixNano,
-	fn fs.ForEachRemainingFn,
-	nsCtx namespace.Context,
-) error {
-	return nil
-}
-
 func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

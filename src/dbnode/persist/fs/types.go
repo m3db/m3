@@ -502,6 +502,12 @@ type Options interface {
 	// IndexReaderAutovalidateIndexSegments returns the index reader to
 	// autovalidate index segments data integrity on file open.
 	IndexReaderAutovalidateIndexSegments() bool
+
+	// SetEncoder sets the encoder used by the writer.
+	SetEncoder(value *msgpack.Encoder) Options
+
+	// Encoder returns the encoder used by the writer.
+	Encoder() *msgpack.Encoder
 }
 
 // BlockRetrieverOptions represents the options for block retrieval
