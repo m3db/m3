@@ -215,7 +215,8 @@ func (bsc BootstrapConfiguration) New(
 				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool()).
-				SetMigrationOptions(fsCfg.migrations().NewOptions())
+				SetMigrationOptions(fsCfg.migrations().NewOptions()).
+				SetStorageOptions(opts)
 			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
 				return nil, err
 			}
