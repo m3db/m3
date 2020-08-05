@@ -1646,6 +1646,16 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, err
 	}
 
+	var blockReaders []fs.DataFileSetReader
+	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
+	for sourceBlockStart := opts.Start; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+		reader, err := fs.NewReader(sourceNs.StorageOptions().BytesPool(), sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
+		if err != nil {
+			return 0, err
+		}
+		blockReaders = append(blockReaders, reader)
+	}
+
 	// NB(bodu): Deferred targetShard cold flushes so that we can ensure that cold flush index data is
 	// persisted before persisting TSDB data to ensure crash consistency.
 	multiErr := xerrors.NewMultiError()
@@ -1657,7 +1667,7 @@ func (n *dbNamespace) aggregateTiles(
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs, sourceShard, opts, wOpts)
+		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceBlockSize, sourceShard, blockReaders, opts, wOpts)
 		processedBlockCount += shardProcessedBlockCount
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)

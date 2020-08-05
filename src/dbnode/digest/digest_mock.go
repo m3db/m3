@@ -5,10 +5,11 @@
 package digest
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	hash "hash"
-	io "io"
-	reflect "reflect"
+	"hash"
+	"io"
+	"reflect"
+
+	"github.com/golang/mock/gomock"
 )
 
 // MockReaderWithDigest is a mock of ReaderWithDigest interface

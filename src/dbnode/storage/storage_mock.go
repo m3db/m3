@@ -2070,17 +2070,18 @@ func (mr *MockdatabaseShardMockRecorder) DocRef(id interface{}) *gomock.Call {
 }
 
 // AggregateTiles mocks base method
-func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, sourceNs databaseNamespace, sourceShard databaseShard, opts AggregateTilesOptions, wOpts series.WriteOptions) error {
+func (m *MockdatabaseShard) AggregateTiles(ctx context.Context, sourceNsID ident.ID, sourceBlockSize time.Duration, sourceShard databaseShard, blockReaders []fs.DataFileSetReader, opts AggregateTilesOptions, wOpts series.WriteOptions) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNs, sourceShard, opts, wOpts)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "AggregateTiles", ctx, sourceNsID, sourceBlockSize, sourceShard, blockReaders, opts, wOpts)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AggregateTiles indicates an expected call of AggregateTiles
-func (mr *MockdatabaseShardMockRecorder) AggregateTiles(ctx, sourceNs, sourceShard, opts, wOpts interface{}) *gomock.Call {
+func (mr *MockdatabaseShardMockRecorder) AggregateTiles(ctx, sourceNsID, sourceBlockSize, sourceShard, blockReaders, opts, wOpts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), ctx, sourceNs, sourceShard, opts, wOpts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AggregateTiles", reflect.TypeOf((*MockdatabaseShard)(nil).AggregateTiles), ctx, sourceNsID, sourceBlockSize, sourceShard, blockReaders, opts, wOpts)
 }
 
 // latestVolume mocks base method
@@ -3698,34 +3699,6 @@ func (m *MockOptions) PersistManager() persist.Manager {
 func (mr *MockOptionsMockRecorder) PersistManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistManager", reflect.TypeOf((*MockOptions)(nil).PersistManager))
-}
-
-// SetLargeTilesPersistManager mocks base method
-func (m *MockOptions) SetLargeTilesPersistManager(value persist.Manager) Options {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetLargeTilesPersistManager", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetLargeTilesPersistManager indicates an expected call of SetLargeTilesPersistManager
-func (mr *MockOptionsMockRecorder) SetLargeTilesPersistManager(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLargeTilesPersistManager", reflect.TypeOf((*MockOptions)(nil).SetLargeTilesPersistManager), value)
-}
-
-// LargeTilesPersistManager mocks base method
-func (m *MockOptions) LargeTilesPersistManager() persist.Manager {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LargeTilesPersistManager")
-	ret0, _ := ret[0].(persist.Manager)
-	return ret0
-}
-
-// LargeTilesPersistManager indicates an expected call of LargeTilesPersistManager
-func (mr *MockOptionsMockRecorder) LargeTilesPersistManager() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LargeTilesPersistManager", reflect.TypeOf((*MockOptions)(nil).LargeTilesPersistManager))
 }
 
 // SetDatabaseBlockRetrieverManager mocks base method

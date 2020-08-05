@@ -2573,22 +2573,16 @@ func (s *dbShard) Repair(
 
 func (s *dbShard) AggregateTiles(
 	ctx context.Context,
-	sourceNs databaseNamespace,
+	sourceNsID ident.ID,
+	sourceBlockSize time.Duration,
 	sourceShard databaseShard,
+	blockReaders []fs.DataFileSetReader,
 	opts AggregateTilesOptions,
 	wOpts series.WriteOptions,
 ) (int64, error) {
-	var (
-		readers      []fs.DataFileSetReader
-		sourceNsOpts = sourceNs.StorageOptions()
-	)
+	for sourceBlockPos, blockReader := range blockReaders {
 
-	for sourceBlockStart := opts.Start; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(opts.Step) {
-
-		reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
-		if err != nil {
-			return 0, err
-		}
+		sourceBlockStart := opts.Start.Add(time.Duration(sourceBlockPos) * sourceBlockSize)
 
 		latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
 		if err != nil {
@@ -2597,25 +2591,23 @@ func (s *dbShard) AggregateTiles(
 
 		openOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
-				Namespace:   sourceNs.ID(),
+				Namespace:   sourceNsID,
 				Shard:       sourceShard.ID(),
-				BlockStart:  opts.Start,
+				BlockStart:  sourceBlockStart,
 				VolumeIndex: latestSourceVolume,
 			},
 			FileSetType:    persist.FileSetFlushType,
 			OrderedByIndex: true,
 		}
 
-		if err := reader.Open(openOpts); err != nil {
+		if err := blockReader.Open(openOpts); err != nil {
 			return 0, err
 		}
 
-		defer reader.Close()
-
-		readers = append(readers, reader)
+		defer blockReader.Close()
 	}
 
-	crossBlockReader, err := fs.NewCrossBlockReader(readers)
+	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders)
 	if err != nil {
 		return 0, err
 	}

@@ -23,8 +23,6 @@ package tile
 import (
 	"bytes"
 	"fmt"
-	"io"
-
 	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -36,7 +34,7 @@ import (
 )
 
 type seriesBlockIter struct {
-	reader fs.DataFileSetReader
+	reader fs.CrossBlockReader
 
 	err           error
 	exhausted     bool
@@ -60,7 +58,7 @@ type seriesBlockIter struct {
 
 // NewSeriesBlockIterator creates a new SeriesBlockIterator.
 func NewSeriesBlockIterator(
-	reader fs.DataFileSetReader,
+	reader fs.CrossBlockReader,
 	opts Options,
 ) (SeriesBlockIterator, error) {
 	concurrency := opts.Concurrency
@@ -123,12 +121,10 @@ func (b *seriesBlockIter) Next() bool {
 
 	var err error
 	for i := 0; i < b.concurrency; i++ {
-		b.ids[i], b.tagIters[i], b.dataBytes[i], _, err = b.reader.Read()
-
-		if err != nil {
+		if !b.reader.Next() {
 			b.exhausted = true
-			// NB: errors other than EOF should halt execution.
-			if err != io.EOF {
+			err = b.reader.Err()
+			if err != nil {
 				b.err = err
 				return false
 			}
@@ -141,6 +137,15 @@ func (b *seriesBlockIter) Next() bool {
 			b.err = b.freeAfterIndex(i + 1)
 			// NB: if any values remain, provide them to consumer.
 			return i > 0
+		}
+
+		var blockRecords []fs.BlockRecord
+		b.ids[i], b.tagIters[i], blockRecords = b.reader.Current()
+		//TODO: currently this reads from the first block only, for each series
+		b.dataBytes[i] = blockRecords[0].Data
+		for _, blockRecord := range blockRecords[1:] {
+			blockRecord.Data.DecRef()
+			blockRecord.Data.Finalize()
 		}
 
 		b.dataBytes[i].IncRef()
