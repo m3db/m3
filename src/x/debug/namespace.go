@@ -45,8 +45,8 @@ type namespaceInfoSource struct {
 // NewNamespaceInfoSource returns a Source for namespace information.
 func NewNamespaceInfoSource(
 	clusterClient clusterclient.Client,
-	instrumentOpts instrument.Options,
 	allDefaults []handleroptions.ServiceNameAndDefaults,
+	instrumentOpts instrument.Options,
 ) (Source, error) {
 	var (
 		m3dbDefault handleroptions.ServiceNameAndDefaults

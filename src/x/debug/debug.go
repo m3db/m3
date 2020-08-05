@@ -93,7 +93,7 @@ func NewPlacementAndNamespaceZipWriterWithDefaultSources(
 	}
 
 	if clusterClient != nil {
-		nsSource, err := NewNamespaceInfoSource(clusterClient, instrumentOpts, services)
+		nsSource, err := NewNamespaceInfoSource(clusterClient, services, instrumentOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not create namespace info source: %w", err)
 		}

@@ -36,11 +36,11 @@ func TestNamespaceSource(t *testing.T) {
 	_, mockKV, mockClient := newHandlerOptsAndClient(t)
 	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 	iOpts := instrument.NewOptions()
-	n, err := NewNamespaceInfoSource(mockClient, iOpts, []handleroptions.ServiceNameAndDefaults{
+	n, err := NewNamespaceInfoSource(mockClient, []handleroptions.ServiceNameAndDefaults{
 		{
 			ServiceName: handleroptions.M3DBServiceName,
 		},
-	})
+	}, iOpts)
 	require.NoError(t, err)
 
 	buff := bytes.NewBuffer([]byte{})
