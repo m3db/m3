@@ -440,7 +440,7 @@ func (r *reader) readInStoredOrder() (ident.ID, ident.TagIterator, checked.Bytes
 	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 
 	r.entriesRead++
-	return id, tags, data, uint32(entry.Checksum), nil
+	return id, tags, data, uint32(entry.DataChecksum), nil
 }
 
 func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
@@ -478,7 +478,7 @@ func (r *reader) readMetadataInStoredOrder() (ident.ID, ident.TagIterator, int, 
 	id := r.entryClonedID(entry.ID)
 	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 	length := int(entry.Size)
-	checksum := uint32(entry.Checksum)
+	checksum := uint32(entry.DataChecksum)
 
 	r.metadataRead++
 	return id, tags, length, checksum, nil

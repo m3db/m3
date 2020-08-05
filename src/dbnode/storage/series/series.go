@@ -43,17 +43,14 @@ import (
 var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
-	// errSeriesMatchUniqueIndexFailed is returned when MatchUniqueIndex is
-	// specified for a write but the value does not match the current series
-	// unique index.
-	errSeriesMatchUniqueIndexFailed = errors.New("series write failed due to unique index not matched")
-	// errSeriesMatchUniqueIndexInvalid is returned when MatchUniqueIndex is
-	// specified for a write but the current series unique index is invalid.
-	errSeriesMatchUniqueIndexInvalid = errors.New("series write failed due to unique index being invalid")
 
 	errSeriesAlreadyBootstrapped         = errors.New("series is already bootstrapped")
 	errSeriesNotBootstrapped             = errors.New("series is not yet bootstrapped")
 	errBlockStateSnapshotNotBootstrapped = errors.New("block state snapshot is not bootstrapped")
+
+	// Placeholder for a timeseries being bootstrapped which does not
+	// have access to the TS ID.
+	bootstrapWriteID = ident.StringID("bootstrap_timeseries")
 )
 
 type dbSeries struct {
@@ -72,12 +69,22 @@ type dbSeries struct {
 	metadata    doc.Document
 	uniqueIndex uint64
 
+	bootstrap dbSeriesBootstrap
+
 	buffer                      databaseBuffer
 	cachedBlocks                block.DatabaseSeriesBlocks
 	blockRetriever              QueryableBlockRetriever
 	onRetrieveBlock             block.OnRetrieveBlock
 	blockOnEvictedFromWiredList block.OnEvictedFromWiredList
 	pool                        DatabaseSeriesPool
+}
+
+type dbSeriesBootstrap struct {
+	sync.Mutex
+
+	// buffer should be nil unless this series
+	// has taken bootstrap writes.
+	buffer databaseBuffer
 }
 
 // NewDatabaseSeries creates a new database series.
@@ -149,10 +156,21 @@ func (s *dbSeries) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 
 	s.Unlock()
 
-	if update.ActiveBlocks == 0 {
-		return r, ErrSeriesAllDatapointsExpired
+	if update.ActiveBlocks > 0 {
+		return r, nil
 	}
-	return r, nil
+
+	// Check if any bootstrap writes that hasn't been merged yet.
+	s.bootstrap.Lock()
+	unmergedBootstrapDatapoints := s.bootstrap.buffer != nil
+	s.bootstrap.Unlock()
+
+	if unmergedBootstrapDatapoints {
+		return r, nil
+	}
+
+	// Everything expired.
+	return r, ErrSeriesAllDatapointsExpired
 }
 
 type updateBlocksResult struct {
@@ -294,26 +312,75 @@ func (s *dbSeries) Write(
 	annotation []byte,
 	wOpts WriteOptions,
 ) (bool, WriteType, error) {
-	var writeType WriteType
+	if wOpts.BootstrapWrite {
+		// NB(r): If this is a bootstrap write we store this in a
+		// side buffer so that we don't need to take the series lock
+		// and contend with normal writes that are flowing into the DB
+		// while bootstrapping which can significantly interrupt
+		// write latency and cause entire DB to stall/degrade in performance.
+		return s.bootstrapWrite(ctx, timestamp, value, unit, annotation, wOpts)
+	}
+
 	s.Lock()
-	defer s.Unlock()
-	matchUniqueIndex := wOpts.MatchUniqueIndex
-	if matchUniqueIndex {
-		if s.uniqueIndex == 0 {
-			return false, writeType, errSeriesMatchUniqueIndexInvalid
+	written, writeType, err := s.buffer.Write(ctx, s.id, timestamp, value,
+		unit, annotation, wOpts)
+	s.Unlock()
+
+	return written, writeType, err
+}
+
+func (s *dbSeries) bootstrapWrite(
+	ctx context.Context,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+	wOpts WriteOptions,
+) (bool, WriteType, error) {
+	s.bootstrap.Lock()
+	defer s.bootstrap.Unlock()
+
+	if s.bootstrap.buffer == nil {
+		// Temporarily release bootstrap lock.
+		s.bootstrap.Unlock()
+
+		// Get reset opts.
+		resetOpts, err := s.bufferResetOpts()
+
+		// Re-lock bootstrap lock.
+		s.bootstrap.Lock()
+
+		if err != nil {
+			// Abort if failed to get buffer opts.
+			var writeType WriteType
+			return false, writeType, err
 		}
-		if s.uniqueIndex != wOpts.MatchUniqueIndexValue {
-			// NB(r): Match unique index allows for a caller to
-			// reliably take a reference to a series and call Write(...)
-			// later while keeping a direct reference to the series
-			// while the shard and namespace continues to own and manage
-			// the lifecycle of the series.
-			return false, writeType, errSeriesMatchUniqueIndexFailed
+
+		// If buffer still nil then set it.
+		if s.bootstrap.buffer == nil {
+			s.bootstrap.buffer = newDatabaseBuffer()
+			s.bootstrap.buffer.Reset(resetOpts)
 		}
 	}
 
-	return s.buffer.Write(ctx, s.id, timestamp, value,
-		unit, annotation, wOpts)
+	return s.bootstrap.buffer.Write(ctx, bootstrapWriteID, timestamp,
+		value, unit, annotation, wOpts)
+}
+
+func (s *dbSeries) bufferResetOpts() (databaseBufferResetOptions, error) {
+	// Grab series lock.
+	s.RLock()
+	defer s.RUnlock()
+
+	if s.id == nil {
+		// Not active, expired series.
+		return databaseBufferResetOptions{}, ErrSeriesAllDatapointsExpired
+	}
+
+	return databaseBufferResetOptions{
+		BlockRetriever: s.blockRetriever,
+		Options:        s.opts,
+	}, nil
 }
 
 func (s *dbSeries) ReadEncoded(
@@ -562,7 +629,37 @@ func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapsh
 	return s.buffer.ColdFlushBlockStarts(blockStates.Snapshot)
 }
 
+func (s *dbSeries) Bootstrap(nsCtx namespace.Context) error {
+	// NB(r): Need to hold the lock the whole time since
+	// this needs to be consistent view for a tick to see.
+	s.Lock()
+	defer s.Unlock()
+
+	s.bootstrap.Lock()
+	bootstrapBuffer := s.bootstrap.buffer
+	s.bootstrap.buffer = nil
+	s.bootstrap.Unlock()
+
+	if bootstrapBuffer == nil {
+		return nil
+	}
+
+	// NB(r): Now bootstrapped need to move bootstrap writes to the
+	// normal series buffer to make them visible to DB.
+	// We store these bootstrap writes in a side buffer so that we don't
+	// need to take the series lock and contend with normal writes
+	// that flow into the DB while bootstrapping which can significantly
+	// interrupt write latency and cause entire DB to stall/degrade in performance.
+	return bootstrapBuffer.MoveTo(s.buffer, nsCtx)
+}
+
 func (s *dbSeries) Close() {
+	s.bootstrap.Lock()
+	if s.bootstrap.buffer != nil {
+		s.bootstrap.buffer = nil
+	}
+	s.bootstrap.Unlock()
+
 	s.Lock()
 	defer s.Unlock()
 

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -55,6 +56,7 @@ type PromSeriesMatchHandler struct {
 	tagOptions          models.TagOptions
 	fetchOptionsBuilder handleroptions.FetchOptionsBuilder
 	instrumentOpts      instrument.Options
+	parseOpts           promql.ParseOptions
 }
 
 // NewPromSeriesMatchHandler returns a new instance of handler.
@@ -64,6 +66,7 @@ func NewPromSeriesMatchHandler(opts options.HandlerOptions) http.Handler {
 		storage:             opts.Storage(),
 		fetchOptionsBuilder: opts.FetchOptionsBuilder(),
 		instrumentOpts:      opts.InstrumentOpts(),
+		parseOpts:           opts.Engine().Options().ParseOptions(),
 	}
 }
 
@@ -73,7 +76,7 @@ func (h *PromSeriesMatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	queries, err := prometheus.ParseSeriesMatchQuery(r, h.tagOptions)
+	queries, err := prometheus.ParseSeriesMatchQuery(r, h.parseOpts, h.tagOptions)
 	if err != nil {
 		logger.Error("unable to parse series match values to query", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
