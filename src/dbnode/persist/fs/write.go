@@ -140,7 +140,7 @@ func NewWriter(opts Options) (DataFileSetWriter, error) {
 		bloomFilterFdWithDigest:         digest.NewFdWithDigestWriter(bufferSize),
 		dataFdWithDigest:                digest.NewFdWithDigestWriter(bufferSize),
 		digestFdWithDigestContents:      digest.NewFdWithDigestContentsWriter(bufferSize),
-		encoder:                         msgpack.NewEncoder(),
+		encoder:                         opts.Encoder(),
 		digestBuf:                       digest.NewBuffer(),
 		singleCheckedBytes:              make([]checked.Bytes, 1),
 		tagsIterator:                    ident.NewTagsIterator(ident.Tags{}),
