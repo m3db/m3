@@ -2655,12 +2655,16 @@ func (s *dbShard) AggregateTiles(
 						if !singleUnit {
 							// TODO: what happens if unit has changed mid-tile?
 							// Write early and then do the remaining values separately?
-							unit = frame.Units().Values()[lastIdx]
+							if len(frame.Units().Values()) > lastIdx {
+								unit = frame.Units().Values()[lastIdx]
+							}
 						}
 						if !singleAnnotation {
 							// TODO: what happens if annotation has changed mid-tile?
 							// Write early and then do the remaining values separately?
-							annotation = frame.Annotations().Values()[lastIdx]
+							if len(frame.Annotations().Values()) > lastIdx {
+								annotation = frame.Annotations().Values()[lastIdx]
+							}
 						}
 
 						_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, annotation, wOpts, true)
