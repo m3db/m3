@@ -117,51 +117,52 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 }
 
 type options struct {
-	clockOpts                      clock.Options
-	instrumentOpts                 instrument.Options
-	nsRegistryInitializer          namespace.Initializer
-	blockOpts                      block.Options
-	commitLogOpts                  commitlog.Options
-	runtimeOptsMgr                 m3dbruntime.OptionsManager
-	errWindowForLoad               time.Duration
-	errThresholdForLoad            int64
-	indexingEnabled                bool
-	repairEnabled                  bool
-	truncateType                   series.TruncateType
-	transformOptions               series.WriteTransformOptions
-	indexOpts                      index.Options
-	repairOpts                     repair.Options
-	newEncoderFn                   encoding.NewEncoderFn
-	newDecoderFn                   encoding.NewDecoderFn
-	bootstrapProcessProvider       bootstrap.ProcessProvider
-	persistManager                 persist.Manager
-	largeTilesPersistManager       persist.Manager
-	blockRetrieverManager          block.DatabaseBlockRetrieverManager
-	poolOpts                       pool.ObjectPoolOptions
-	contextPool                    context.Pool
-	seriesCachePolicy              series.CachePolicy
-	seriesOpts                     series.Options
-	seriesPool                     series.DatabaseSeriesPool
-	bytesPool                      pool.CheckedBytesPool
-	encoderPool                    encoding.EncoderPool
-	segmentReaderPool              xio.SegmentReaderPool
-	readerIteratorPool             encoding.ReaderIteratorPool
-	multiReaderIteratorPool        encoding.MultiReaderIteratorPool
-	identifierPool                 ident.Pool
-	fetchBlockMetadataResultsPool  block.FetchBlockMetadataResultsPool
-	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
-	queryIDsWorkerPool             xsync.WorkerPool
-	writeBatchPool                 *writes.WriteBatchPool
-	bufferBucketPool               *series.BufferBucketPool
-	bufferBucketVersionsPool       *series.BufferBucketVersionsPool
-	retrieveRequestPool            fs.RetrieveRequestPool
-	checkedBytesWrapperPool        xpool.CheckedBytesWrapperPool
-	schemaReg                      namespace.SchemaRegistry
-	blockLeaseManager              block.LeaseManager
-	onColdFlush                    OnColdFlush
-	memoryTracker                  MemoryTracker
-	mmapReporter                   mmap.Reporter
-	doNotIndexWithFieldsMap        map[string]string
+	clockOpts                       clock.Options
+	instrumentOpts                  instrument.Options
+	nsRegistryInitializer           namespace.Initializer
+	blockOpts                       block.Options
+	commitLogOpts                   commitlog.Options
+	runtimeOptsMgr                  m3dbruntime.OptionsManager
+	errWindowForLoad                time.Duration
+	errThresholdForLoad             int64
+	indexingEnabled                 bool
+	repairEnabled                   bool
+	truncateType                    series.TruncateType
+	transformOptions                series.WriteTransformOptions
+	indexOpts                       index.Options
+	repairOpts                      repair.Options
+	newEncoderFn                    encoding.NewEncoderFn
+	newDecoderFn                    encoding.NewDecoderFn
+	bootstrapProcessProvider        bootstrap.ProcessProvider
+	persistManager                  persist.Manager
+	largeTilesPersistManager        persist.Manager
+	blockRetrieverManager           block.DatabaseBlockRetrieverManager
+	poolOpts                        pool.ObjectPoolOptions
+	contextPool                     context.Pool
+	seriesCachePolicy               series.CachePolicy
+	seriesOpts                      series.Options
+	seriesPool                      series.DatabaseSeriesPool
+	bytesPool                       pool.CheckedBytesPool
+	encoderPool                     encoding.EncoderPool
+	segmentReaderPool               xio.SegmentReaderPool
+	readerIteratorPool              encoding.ReaderIteratorPool
+	multiReaderIteratorPool         encoding.MultiReaderIteratorPool
+	identifierPool                  ident.Pool
+	fetchBlockMetadataResultsPool   block.FetchBlockMetadataResultsPool
+	fetchBlocksMetadataResultsPool  block.FetchBlocksMetadataResultsPool
+	queryIDsWorkerPool              xsync.WorkerPool
+	writeBatchPool                  *writes.WriteBatchPool
+	bufferBucketPool                *series.BufferBucketPool
+	bufferBucketVersionsPool        *series.BufferBucketVersionsPool
+	retrieveRequestPool             fs.RetrieveRequestPool
+	checkedBytesWrapperPool         xpool.CheckedBytesWrapperPool
+	schemaReg                       namespace.SchemaRegistry
+	blockLeaseManager               block.LeaseManager
+	onColdFlush                     OnColdFlush
+	memoryTracker                   MemoryTracker
+	mmapReporter                    mmap.Reporter
+	doNotIndexWithFieldsMap         map[string]string
+	namespaceRuntimeOptsMgrRegistry namespace.RuntimeOptionsManagerRegistry
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -222,17 +223,18 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 			TagsPoolOptions:         poolOpts,
 			TagsIteratorPoolOptions: poolOpts,
 		}),
-		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
-		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
-		queryIDsWorkerPool:             queryIDsWorkerPool,
-		writeBatchPool:                 writeBatchPool,
-		bufferBucketVersionsPool:       series.NewBufferBucketVersionsPool(poolOpts),
-		bufferBucketPool:               series.NewBufferBucketPool(poolOpts),
-		retrieveRequestPool:            retrieveRequestPool,
-		checkedBytesWrapperPool:        bytesWrapperPool,
-		schemaReg:                      namespace.NewSchemaRegistry(false, nil),
-		onColdFlush:                    &noOpColdFlush{},
-		memoryTracker:                  NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
+		fetchBlockMetadataResultsPool:   block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
+		fetchBlocksMetadataResultsPool:  block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
+		queryIDsWorkerPool:              queryIDsWorkerPool,
+		writeBatchPool:                  writeBatchPool,
+		bufferBucketVersionsPool:        series.NewBufferBucketVersionsPool(poolOpts),
+		bufferBucketPool:                series.NewBufferBucketPool(poolOpts),
+		retrieveRequestPool:             retrieveRequestPool,
+		checkedBytesWrapperPool:         bytesWrapperPool,
+		schemaReg:                       namespace.NewSchemaRegistry(false, nil),
+		onColdFlush:                     &noOpColdFlush{},
+		memoryTracker:                   NewMemoryTracker(NewMemoryTrackerOptions(defaultNumLoadedBytesLimit)),
+		namespaceRuntimeOptsMgrRegistry: namespace.NewRuntimeOptionsManagerRegistry(),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -793,6 +795,18 @@ func (o *options) SetDoNotIndexWithFieldsMap(value map[string]string) Options {
 
 func (o *options) DoNotIndexWithFieldsMap() map[string]string {
 	return o.doNotIndexWithFieldsMap
+}
+
+func (o *options) SetNamespaceRuntimeOptionsManagerRegistry(
+	value namespace.RuntimeOptionsManagerRegistry,
+) Options {
+	opts := *o
+	opts.namespaceRuntimeOptsMgrRegistry = value
+	return &opts
+}
+
+func (o *options) NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry {
+	return o.namespaceRuntimeOptsMgrRegistry
 }
 
 type noOpColdFlush struct{}

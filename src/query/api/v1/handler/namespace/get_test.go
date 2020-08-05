@@ -30,6 +30,8 @@ import (
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -105,7 +107,40 @@ func TestNamespaceGetHandler(t *testing.T) {
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"test\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"3600000000000\",\"futureRetentionPeriodNanos\":\"0\"},\"snapshotEnabled\":true,\"indexOptions\":null,\"schemaOptions\":null,\"coldWritesEnabled\":false}}}}", string(body))
+
+	expected := xtest.MustPrettyJSONMap(t,
+		xjson.Map{
+			"registry": xjson.Map{
+				"namespaces": xjson.Map{
+					"test": xjson.Map{
+						"bootstrapEnabled":  true,
+						"cleanupEnabled":    false,
+						"coldWritesEnabled": false,
+						"flushEnabled":      true,
+						"indexOptions":      nil,
+						"repairEnabled":     false,
+						"retentionOptions": xjson.Map{
+							"blockDataExpiry":                          true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "3600000000000",
+							"blockSizeNanos":                           "7200000000000",
+							"bufferFutureNanos":                        "600000000000",
+							"bufferPastNanos":                          "600000000000",
+							"futureRetentionPeriodNanos":               "0",
+							"retentionPeriodNanos":                     "172800000000000",
+						},
+						"runtimeOptions":    nil,
+						"schemaOptions":     nil,
+						"snapshotEnabled":   true,
+						"writesToCommitLog": true,
+					},
+				},
+			},
+		})
+
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual,
+		xtest.Diff(expected, actual))
 }
 
 func TestNamespaceGetHandlerWithDebug(t *testing.T) {
@@ -151,5 +186,38 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"test\":{\"bootstrapEnabled\":true,\"cleanupEnabled\":false,\"coldWritesEnabled\":false,\"flushEnabled\":true,\"indexOptions\":null,\"repairEnabled\":false,\"retentionOptions\":{\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodDuration\":\"1h0m0s\",\"blockSizeDuration\":\"2h0m0s\",\"bufferFutureDuration\":\"10m0s\",\"bufferPastDuration\":\"10m0s\",\"futureRetentionPeriodDuration\":\"0s\",\"retentionPeriodDuration\":\"48h0m0s\"},\"schemaOptions\":null,\"snapshotEnabled\":true,\"writesToCommitLog\":true}}}}", string(body))
+
+	expected := xtest.MustPrettyJSONMap(t,
+		xjson.Map{
+			"registry": xjson.Map{
+				"namespaces": xjson.Map{
+					"test": xjson.Map{
+						"bootstrapEnabled":  true,
+						"cleanupEnabled":    false,
+						"coldWritesEnabled": false,
+						"flushEnabled":      true,
+						"indexOptions":      nil,
+						"repairEnabled":     false,
+						"retentionOptions": xjson.Map{
+							"blockDataExpiry": true,
+							"blockDataExpiryAfterNotAccessPeriodDuration": "1h0m0s",
+							"blockSizeDuration":                           "2h0m0s",
+							"bufferFutureDuration":                        "10m0s",
+							"bufferPastDuration":                          "10m0s",
+							"futureRetentionPeriodDuration":               "0s",
+							"retentionPeriodDuration":                     "48h0m0s",
+						},
+						"runtimeOptions":    nil,
+						"schemaOptions":     nil,
+						"snapshotEnabled":   true,
+						"writesToCommitLog": true,
+					},
+				},
+			},
+		})
+
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual,
+		xtest.Diff(expected, actual))
 }

@@ -289,6 +289,7 @@ func newDatabaseNamespaceMetrics(
 
 func newDatabaseNamespace(
 	metadata namespace.Metadata,
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	shardSet sharding.ShardSet,
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
@@ -332,7 +333,8 @@ func newDatabaseNamespace(
 		err   error
 	)
 	if metadata.Options().IndexOptions().Enabled() {
-		index, err = newNamespaceIndex(metadata, shardSet, opts)
+		index, err = newNamespaceIndex(metadata, namespaceRuntimeOptsMgr,
+			shardSet, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -921,6 +923,7 @@ func (n *dbNamespace) Bootstrap(
 		return errNamespaceIsBootstrapping
 	}
 	n.bootstrapState = Bootstrapping
+	nsCtx := n.nsContextWithRLock()
 	n.Unlock()
 
 	n.metrics.bootstrapStart.Inc(1)
@@ -986,7 +989,7 @@ func (n *dbNamespace) Bootstrap(
 		wg.Add(1)
 		shard := shard
 		workers.Go(func() {
-			err := shard.Bootstrap(ctx)
+			err := shard.Bootstrap(ctx, nsCtx)
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)
