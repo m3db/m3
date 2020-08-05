@@ -389,7 +389,7 @@ func (r *reader) readInIndexedOrder() (ident.ID, ident.TagIterator, checked.Byte
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if entry.Checksum != int64(digest.Checksum(data.Bytes())) {
+	if entry.DataChecksum != int64(digest.Checksum(data.Bytes())) {
 		return nil, nil, nil, 0, errSeekChecksumMismatch
 	}
 
@@ -398,7 +398,7 @@ func (r *reader) readInIndexedOrder() (ident.ID, ident.TagIterator, checked.Byte
 
 	r.entriesRead++
 
-	return id, tags, data, uint32(entry.Checksum), nil
+	return id, tags, data, uint32(entry.DataChecksum), nil
 }
 
 func (r *reader) readInStoredOrder() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
@@ -463,7 +463,7 @@ func (r *reader) readMetadataInIndexedOrder() (ident.ID, ident.TagIterator, int,
 	id := r.entryClonedID(entry.ID)
 	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 	length := int(entry.Size)
-	checksum := uint32(entry.Checksum)
+	checksum := uint32(entry.DataChecksum)
 
 	r.metadataRead++
 	return id, tags, length, checksum, nil
