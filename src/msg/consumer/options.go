@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -43,6 +44,7 @@ type options struct {
 	writeBufferSize  int
 	readBufferSize   int
 	iOpts            instrument.Options
+	rwOpts           xio.Options
 }
 
 // NewOptions creates a new options.
@@ -56,6 +58,7 @@ func NewOptions() Options {
 		writeBufferSize:  defaultConnectionBufferSize,
 		readBufferSize:   defaultConnectionBufferSize,
 		iOpts:            instrument.NewOptions(),
+		rwOpts:           xio.NewOptions(),
 	}
 }
 
@@ -137,4 +140,14 @@ func (opts *options) SetInstrumentOptions(value instrument.Options) Options {
 	o := *opts
 	o.iOpts = value
 	return &o
+}
+
+func (opts *options) SetRWOptions(value xio.Options) Options {
+	o := *opts
+	o.rwOpts = value
+	return &o
+}
+
+func (opts *options) RWOptions() xio.Options {
+	return opts.rwOpts
 }

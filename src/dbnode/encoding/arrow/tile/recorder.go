@@ -64,8 +64,8 @@ func newDatapointRecorder(pool memory.Allocator) recorder {
 		nil,
 	)
 
-	float64s := array.NewFloat64Data(nil)
-	float64s.Reset(data)
+	//float64s := array.NewFloat64Data(nil)
+	//float64s.Reset(data)
 
 	b := array.NewRecordBuilder(pool, schema)
 	return &datapointRecorder{

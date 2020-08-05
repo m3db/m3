@@ -91,7 +91,9 @@ func newTestNamespaceWithIDOpts(
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
 	dopts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	closer := dopts.RuntimeOptionsManager().Close
 	return ns.(*dbNamespace), closer
@@ -106,7 +108,9 @@ func newTestNamespaceWithOpts(
 	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	closer := dopts.RuntimeOptionsManager().Close
 	return ns.(*dbNamespace), closer
@@ -359,7 +363,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(shardID)
-		shard.EXPECT().Bootstrap(gomock.Any()).Return(errs[i])
+		shard.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardIDs = append(shardIDs, shardID)
 	}
@@ -404,7 +408,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(testShard.ID())
-		shard.EXPECT().Bootstrap(gomock.Any()).Return(nil)
+		shard.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
 		ns.shards[testShard.ID()] = shard
 		shardIDs = append(shardIDs, testShard.ID())
 	}
@@ -699,7 +703,9 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 
 	dopts = dopts.SetInstrumentOptions(dopts.InstrumentOptions().
 		SetMetricsScope(scope))
-	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 
@@ -772,7 +778,9 @@ func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 		return at
 	}))
 
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	return ns.(*dbNamespace)
 }
@@ -917,7 +925,9 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 
@@ -958,7 +968,9 @@ func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(testNs,
+		namespace.NewRuntimeOptionsManager(testNs.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 	for _, s := range shards {
@@ -1010,7 +1022,9 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(testNs,
+		namespace.NewRuntimeOptionsManager(testNs.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 	for _, s := range shards {
@@ -1202,12 +1216,16 @@ func TestNamespaceTicksIndex(t *testing.T) {
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
+	ns.RLock()
+	nsCtx := ns.nsContextWithRLock()
+	ns.RUnlock()
+
 	ctx := context.NewContext()
 	defer ctx.Close()
 
 	for _, s := range ns.shards {
 		if s != nil {
-			s.Bootstrap(ctx)
+			s.Bootstrap(ctx, nsCtx)
 		}
 	}
 
@@ -1284,7 +1302,8 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
 		pm, _      = fs.NewPersistManager(fs.NewOptions())
-		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+		start      = time.Now().Truncate(time.Hour)
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1294,7 +1313,8 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapping
 
-	require.Equal(t, errNamespaceNotBootstrapped, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
+	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	require.Equal(t, errNamespaceNotBootstrapped, err)
 }
 
 func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
@@ -1303,7 +1323,8 @@ func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
 		pm, _      = fs.NewPersistManager(fs.NewOptions())
-		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+		start      = time.Now().Truncate(time.Hour)
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1313,7 +1334,8 @@ func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapped
 
-	require.Equal(t, errColdWritesDisabled, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
+	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	require.Equal(t, errColdWritesDisabled, err)
 }
 
 func TestNamespaceAggregateTiles(t *testing.T) {
@@ -1325,7 +1347,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
 		pm, _      = fs.NewPersistManager(fs.NewOptions())
-		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
+		start      = time.Now().Truncate(2 * time.Hour)
+		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1358,8 +1381,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard1.EXPECT().ID().Return(uint32(1))
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard0, opts, wOpts).Return(nil)
-	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard1, opts, wOpts).Return(nil)
+	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard0, opts, wOpts).Return(int64(3), nil)
+	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, sourceShard1, opts, wOpts).Return(int64(2), nil)
 
 	shardColdFlush0 := NewMockShardColdFlush(ctrl)
 	shardColdFlush0.EXPECT().Done().Return(nil)
@@ -1372,7 +1395,9 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard0.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush0, nil)
 	targetShard1.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush1, nil)
 
-	require.NoError(t, targetNs.AggregateTiles(ctx, sourceNs, opts, pm))
+	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3+2), processedBlockCount)
 }
 
 func waitForStats(

@@ -221,7 +221,7 @@ type Database interface {
 	FlushState(namespace ident.ID, shardID uint32, blockStart time.Time) (fileOpState, error)
 
 	// AggregateTiles does large tile aggregation from source namespace to target namespace.
-	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error
+	AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) (int64, error)
 }
 
 // database is the internal database interface.
@@ -415,7 +415,7 @@ type databaseNamespace interface {
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
 		pm persist.Manager,
-	) error
+	) (int64, error)
 
 	readableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
@@ -529,7 +529,7 @@ type databaseShard interface {
 
 	// Bootstrap bootstraps the shard after all provided data
 	// has been loaded using LoadBootstrapBlocks.
-	Bootstrap(ctx context.Context) error
+	Bootstrap(ctx context.Context, nsCtx namespace.Context) error
 
 	// UpdateFlushStates updates all the flush states for the current shard
 	// by checking the file volumes that exist on disk at a point in time.
@@ -603,7 +603,7 @@ type databaseShard interface {
 		sourceShard databaseShard,
 		opts AggregateTilesOptions,
 		wOpts series.WriteOptions,
-	) error
+	) (int64, error)
 
 	latestVolume(blockStart time.Time) (int, error)
 }
@@ -1172,6 +1172,12 @@ type Options interface {
 	// DoNotIndexWithFieldsMap returns a map which if fields match it
 	// will not index those metrics.
 	DoNotIndexWithFieldsMap() map[string]string
+
+	// SetNamespaceRuntimeOptionsManagerRegistry sets the namespace runtime options manager.
+	SetNamespaceRuntimeOptionsManagerRegistry(value namespace.RuntimeOptionsManagerRegistry) Options
+
+	// NamespaceRuntimeOptionsManagerRegistry returns the namespace runtime options manager.
+	NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry
 }
 
 // MemoryTracker tracks memory.

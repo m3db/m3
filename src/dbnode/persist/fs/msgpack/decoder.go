@@ -46,6 +46,7 @@ var (
 
 	errorUnableToDetermineNumFieldsToSkip          = errors.New("unable to determine num fields to skip")
 	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes with out byte stream decoder")
+	errorIndexEntryChecksumMismatch                = errors.New("decode index entry encountered checksum mismatch")
 )
 
 // Decoder decodes persisted msgpack-encoded data
@@ -53,7 +54,10 @@ type Decoder struct {
 	reader DecoderStream
 	// Will only be set if the Decoder is Reset() with a DecoderStream
 	// that also implements ByteStream.
-	byteReader        ByteStream
+	byteReader ByteStream
+	// Wraps original reader with reader that can calculate digest. Digest calculation must be enabled,
+	// otherwise it defaults to off.
+	readerWithDigest  *decoderStreamWithDigest
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
@@ -76,6 +80,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
 		legacy:            legacy,
+		readerWithDigest:  newDecoderStreamWithDigest(nil),
 	}
 }
 
@@ -91,7 +96,8 @@ func (dec *Decoder) Reset(stream DecoderStream) {
 		dec.byteReader = nil
 	}
 
-	dec.dec.Reset(dec.reader)
+	dec.readerWithDigest.reset(dec.reader)
+	dec.dec.Reset(dec.readerWithDigest)
 	dec.err = nil
 }
 
@@ -115,8 +121,10 @@ func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntr
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
 	}
+	dec.readerWithDigest.setDigestReaderEnabled(true)
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
 	indexEntry := dec.decodeIndexEntry(bytesPool)
+	dec.readerWithDigest.setDigestReaderEnabled(false)
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
@@ -406,13 +414,22 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 		return indexEntry
 	}
 
+	// NB(nate): Any new fields should be parsed here.
+
 	// Intentionally skip any extra fields here as we've stipulated that from V3 onward, IndexEntryChecksum will be the
 	// final field on index entries
 	dec.skip(numFieldsToSkip)
 
+	// Retrieve actual checksum value here. Attempting to retrieve after decoding the upcoming expected checksum field
+	// would include value in actual checksum calculation which would cause a mismatch
+	actualChecksum := dec.readerWithDigest.digest().Sum32()
+
 	// Decode checksum field originally added in V3
-	// TODO(nate): actually use the checksum value for index entry validation - #2629
-	_ = dec.decodeVarint()
+	expectedChecksum := uint32(dec.decodeVarint())
+
+	if expectedChecksum != actualChecksum {
+		dec.err = errorIndexEntryChecksumMismatch
+	}
 
 	return indexEntry
 }
@@ -663,6 +680,11 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		return nil, -1, -1
 	}
 	value = backingBytes[currPos:targetPos]
+	if err := dec.readerWithDigest.capture(value); err != nil {
+		dec.err = err
+		return nil, -1, -1
+	}
+
 	return value, currPos, bytesLen
 }
 
@@ -680,7 +702,7 @@ func (dec *Decoder) decodeBytesWithPool(bytesPool pool.BytesPool) []byte {
 	}
 
 	bytes := bytesPool.Get(bytesLen)[:bytesLen]
-	n, err := io.ReadFull(dec.reader, bytes)
+	n, err := io.ReadFull(dec.readerWithDigest, bytes)
 	if err != nil {
 		dec.err = err
 		bytesPool.Put(bytes)

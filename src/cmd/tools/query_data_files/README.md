@@ -17,7 +17,7 @@ Usage: query_data_files [-b value] [-t value] [-p value] [-s value] [parameters 
  -p, --path-prefix=value
        Path prefix [e.g. /var/lib/m3db]
  -s, --shard=value
-       Shard [expected format uint32]
+       Shard [expected format uint32]; will read from all shards if omitted.
  -c, --concurrency=value
        Concurrency [Concurrent iteration count, minimum 1, default is numCPUs]
 

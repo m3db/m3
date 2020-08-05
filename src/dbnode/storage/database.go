@@ -94,8 +94,9 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
-	nsWatch    namespace.NamespaceWatch
-	namespaces *databaseNamespacesMap
+	nsWatch                namespace.NamespaceWatch
+	namespaces             *databaseNamespacesMap
+	runtimeOptionsRegistry namespace.RuntimeOptionsManagerRegistry
 
 	commitLog commitlog.CommitLog
 
@@ -174,16 +175,17 @@ func NewDatabase(
 	)
 
 	d := &db{
-		opts:                  opts,
-		nowFn:                 nowFn,
-		shardSet:              shardSet,
-		lastReceivedNewShards: nowFn(),
-		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:             commitLog,
-		scope:                 scope,
-		metrics:               newDatabaseMetrics(scope),
-		log:                   logger,
-		writeBatchPool:        opts.WriteBatchPool(),
+		opts:                   opts,
+		nowFn:                  nowFn,
+		shardSet:               shardSet,
+		lastReceivedNewShards:  nowFn(),
+		namespaces:             newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		runtimeOptionsRegistry: opts.NamespaceRuntimeOptionsManagerRegistry(),
+		commitLog:              commitLog,
+		scope:                  scope,
+		metrics:                newDatabaseMetrics(scope),
+		log:                    logger,
+		writeBatchPool:         opts.WriteBatchPool(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -245,6 +247,19 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		d.log.Error("failed to update schema registry", zap.Error(err))
 	}
 
+	// Always update the runtime options if they were set so that correct
+	// runtime options are set in the runtime options registry before namespaces
+	// are actually created.
+	for _, namespaceMetadata := range newNamespaces.Metadatas() {
+		id := namespaceMetadata.ID().String()
+		runtimeOptsMgr := d.runtimeOptionsRegistry.RuntimeOptionsManager(id)
+		currRuntimeOpts := runtimeOptsMgr.Get()
+		setRuntimeOpts := namespaceMetadata.Options().RuntimeOptions()
+		if !currRuntimeOpts.Equal(setRuntimeOpts) {
+			runtimeOptsMgr.Update(setRuntimeOpts)
+		}
+	}
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -265,7 +280,9 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
 		d.metrics.pendingNamespaceChange.Update(1)
-		d.log.Warn("skipping namespace removals and updates (except schema updates), restart process if you want changes to take effect.")
+		d.log.Warn("skipping namespace removals and updates " +
+			"(except schema updates and runtime options), " +
+			"restart the process if you want changes to take effect")
 	}
 
 	// enqueue bootstraps if new namespaces
@@ -378,7 +395,10 @@ func (d *db) newDatabaseNamespaceWithLock(
 			return nil, err
 		}
 	}
-	return newDatabaseNamespace(md, d.shardSet, retriever, d, d.commitLog, d.opts)
+	nsID := md.ID().String()
+	runtimeOptsMgr := d.runtimeOptionsRegistry.RuntimeOptionsManager(nsID)
+	return newDatabaseNamespace(md, runtimeOptsMgr,
+		d.shardSet, retriever, d, d.commitLog, d.opts)
 }
 
 func (d *db) Options() Options {
@@ -1063,7 +1083,12 @@ func (d *db) OwnedNamespaces() ([]databaseNamespace, error) {
 	return d.ownedNamespacesWithLock(), nil
 }
 
-func (d *db) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID, opts AggregateTilesOptions) error {
+func (d *db) AggregateTiles(
+	ctx context.Context,
+	sourceNsID,
+	targetNsID ident.ID,
+	opts AggregateTilesOptions,
+) (int64, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
@@ -1079,13 +1104,13 @@ func (d *db) AggregateTiles(ctx context.Context, sourceNsID, targetNsID ident.ID
 	sourceNs, err := d.namespaceFor(sourceNsID)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return err
+		return 0, err
 	}
 
 	targetNs, err := d.namespaceFor(targetNsID)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return err
+		return 0, err
 	}
 
 	// TODO: Create and use a dedicated persist manager
@@ -1135,4 +1160,16 @@ func (m metadatas) String() (string, error) {
 	}
 	buf.WriteRune(']')
 	return buf.String(), nil
+}
+
+func NewAggregateTilesOptions(start, end time.Time, step time.Duration) (AggregateTilesOptions, error) {
+	if !end.After(start) {
+		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
+	}
+
+	if step <= 0 {
+		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
+	}
+
+	return AggregateTilesOptions{Start: start, End: end, Step: step}, nil
 }

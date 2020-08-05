@@ -137,8 +137,9 @@ func TestShardBootstrapState(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	require.NoError(t, s.Bootstrap(ctx))
-	require.Error(t, s.Bootstrap(ctx))
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	require.NoError(t, s.Bootstrap(ctx, nsCtx))
+	require.Error(t, s.Bootstrap(ctx, nsCtx))
 }
 
 func TestShardFlushStateNotStarted(t *testing.T) {
@@ -168,7 +169,8 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	s.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	s.Bootstrap(ctx, nsCtx)
 
 	notStarted := fileOpState{WarmStatus: fileOpNotStarted}
 	for st := earliest; !st.After(latest); st = st.Add(ropts.BlockSize()) {
@@ -206,6 +208,7 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	mockSeries := series.NewMockDatabaseSeries(ctrl)
 	mockSeries.EXPECT().ID().Return(mockSeriesID).AnyTimes()
 	mockSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
+	mockSeries.EXPECT().Bootstrap(gomock.Any())
 
 	// Load the mock into the shard as an expected series so that we can assert
 	// on the call to its Bootstrap() method below.
@@ -238,7 +241,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err = s.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	err = s.Bootstrap(ctx, nsCtx)
 	require.NoError(t, err)
 
 	require.Equal(t, Bootstrapped, s.bootstrapState)
@@ -302,7 +306,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err = s.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	err = s.Bootstrap(ctx, nsCtx)
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 
@@ -340,7 +345,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	err = s.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	err = s.Bootstrap(ctx, nsCtx)
 	require.NoError(t, err)
 	require.Equal(t, Bootstrapped, s.bootstrapState)
 }
@@ -391,7 +397,8 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	require.NoError(t, s.Bootstrap(ctx))
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	require.NoError(t, s.Bootstrap(ctx, nsCtx))
 
 	// First load will never trigger the limit.
 	require.NoError(t, s.LoadBlocks(seriesMap))
@@ -415,7 +422,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	s.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	s.Bootstrap(ctx, nsCtx)
 
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		WarmStatus:  fileOpFailed,
@@ -492,7 +500,8 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	s.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	s.Bootstrap(ctx, nsCtx)
 
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		WarmStatus:  fileOpFailed,
@@ -586,7 +595,8 @@ func TestShardColdFlush(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	require.NoError(t, shard.Bootstrap(ctx))
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	require.NoError(t, shard.Bootstrap(ctx, nsCtx))
 	shard.newMergerFn = newMergerTestFn
 	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
 
@@ -633,7 +643,6 @@ func TestShardColdFlush(t *testing.T) {
 		idElementPool:      newIDElementPool(nil),
 		fsReader:           fsReader,
 	}
-	nsCtx := namespace.Context{}
 
 	// Assert that flush state cold versions all start at 0.
 	for i := t0; i.Before(t7.Add(blockSize)); i = i.Add(blockSize) {
@@ -672,7 +681,8 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	require.NoError(t, shard.Bootstrap(ctx))
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	require.NoError(t, shard.Bootstrap(ctx, nsCtx))
 
 	shard.newMergerFn = newMergerTestFn
 	shard.newFSMergeWithMemFn = newFSMergeWithMemTestFn
@@ -706,7 +716,6 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 		idElementPool:      idElementPool,
 		fsReader:           fsReader,
 	}
-	nsCtx := namespace.Context{}
 
 	shardColdFlush, err := shard.ColdFlush(preparer, resources, nsCtx, &persist.NoOpColdFlushNamespace{})
 	require.NoError(t, err)
@@ -934,7 +943,8 @@ func TestShardTick(t *testing.T) {
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	shard.Bootstrap(ctx, nsCtx)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetTickPerSeriesSleepDuration(sleepPerSeries).
 		SetTickSeriesBatchSize(1))
@@ -1103,7 +1113,8 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	shard.Bootstrap(ctx, nsCtx)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(true).
 		SetTickPerSeriesSleepDuration(sleepPerSeries).
@@ -1173,7 +1184,8 @@ func TestShardTickRace(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shard.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	shard.Bootstrap(ctx, nsCtx)
 
 	addTestSeries(shard, ident.StringID("foo"))
 	var wg sync.WaitGroup
@@ -1206,7 +1218,8 @@ func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	shard.Bootstrap(ctx, nsCtx)
 
 	addTestSeries(shard, ident.StringID("foo"))
 	shard.Tick(context.NewNoOpCanncellable(), time.Now(), namespace.Context{})
@@ -1233,7 +1246,8 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 	defer ctx.Close()
 
 	shard := testDatabaseShard(t, opts)
-	shard.Bootstrap(ctx)
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	shard.Bootstrap(ctx, nsCtx)
 	shard.currRuntimeOptions.tickSleepSeriesBatchSize = 1
 	shard.currRuntimeOptions.tickSleepPerSeries = time.Millisecond
 
@@ -1588,7 +1602,8 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	require.NoError(t, shard.Bootstrap(ctx))
+	nsCtx := namespace.Context{ID: ident.StringID("foo")}
+	require.NoError(t, shard.Bootstrap(ctx, nsCtx))
 
 	ropts := shard.seriesOpts.RetentionOptions()
 	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
@@ -1761,8 +1776,9 @@ func TestAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		ctx  = context.NewContext()
-		opts = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour), Step: time.Minute}
+		ctx   = context.NewContext()
+		start = time.Now().Truncate(time.Hour)
+		opts  = AggregateTilesOptions{Start: start, End: start.Add(time.Hour), Step: time.Minute}
 	)
 
 	sourceShard := testDatabaseShard(t, DefaultTestOptions())
@@ -1807,10 +1823,11 @@ func TestAggregateTiles(t *testing.T) {
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(readerOpenOpts).Return(nil)
 	reader.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, buildBytes(), uint32(11), nil)
-	reader.EXPECT().Read().Return(ident.StringID("id2"), ident.MustNewTagStringsIterator("foo", "bar"), buildBytes(), uint32(11), nil)
+	reader.EXPECT().Read().Return(ident.StringID("id2"), ident.MustNewTagStringsIterator("foo", "bar"), buildBytes(), uint32(22), nil)
 	reader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
 	reader.EXPECT().Close()
 
-	err = targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, opts, series.WriteOptions{})
+	processedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, opts, series.WriteOptions{})
 	require.NoError(t, err)
+	assert.Equal(t, int64(2), processedBlockCount)
 }
