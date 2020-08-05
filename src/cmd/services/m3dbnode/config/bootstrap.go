@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
@@ -44,6 +45,9 @@ import (
 var (
 	// defaultNumProcessorsPerCPU is the default number of processors per CPU.
 	defaultNumProcessorsPerCPU = 0.125
+
+	// defaultMigrationConcurrency is the default number of concurrent workers to perform migrations
+	defaultMigrationConcurrency = 10
 )
 
 // BootstrapConfiguration specifies the config for bootstrappers.
@@ -70,16 +74,44 @@ type BootstrapConfiguration struct {
 type BootstrapFilesystemConfiguration struct {
 	// NumProcessorsPerCPU is the number of processors per CPU.
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
+
+	// Migrations configuration
+	Migrations *BootstrapMigrations `yaml:"migrations"`
 }
 
 func (c BootstrapFilesystemConfiguration) numCPUs() int {
 	return int(math.Ceil(float64(c.NumProcessorsPerCPU * float64(runtime.NumCPU()))))
 }
 
+func (c BootstrapFilesystemConfiguration) migrations() BootstrapMigrations {
+	if cfg := c.Migrations; cfg != nil {
+		return *cfg
+	}
+	return BootstrapMigrations{Concurrency: defaultMigrationConcurrency}
+}
+
 func newDefaultBootstrapFilesystemConfiguration() BootstrapFilesystemConfiguration {
 	return BootstrapFilesystemConfiguration{
 		NumProcessorsPerCPU: defaultNumProcessorsPerCPU,
+		Migrations:          &BootstrapMigrations{},
 	}
+}
+
+// BootstrapMigrations specifies configuration for data migrations during bootstrapping
+type BootstrapMigrations struct {
+	// ToVersion1_1Task indicates that we should attempt to upgrade filesets to
+	// what’s expected of 1.1 files
+	ToVersion1_1 bool `yaml:"toVersion1_1"`
+
+	// Concurrency sets the number of concurrent workers performing migrations
+	Concurrency int `yaml:"concurrency"`
+}
+
+// NewOptions generates migration.Options from the configuration
+func (m BootstrapMigrations) NewOptions() migration.Options {
+	return migration.NewOptions().
+		SetToVersion1_1(m.ToVersion1_1).
+		SetConcurrency(m.Concurrency)
 }
 
 // BootstrapCommitlogConfiguration specifies config for the commitlog bootstrapper.
@@ -182,7 +214,8 @@ func (bsc BootstrapConfiguration) New(
 				SetCompactor(compactor).
 				SetBoostrapDataNumProcessors(fsCfg.numCPUs()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
-				SetIdentifierPool(opts.IdentifierPool())
+				SetIdentifierPool(opts.IdentifierPool()).
+				SetMigrationOptions(fsCfg.migrations().NewOptions())
 			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
 				return nil, err
 			}
