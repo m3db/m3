@@ -120,8 +120,10 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
-	Identifier  FileSetFileIdentifier
-	FileSetType persist.FileSetType
+	Identifier     FileSetFileIdentifier
+	FileSetType    persist.FileSetType
+	// OrderedByIndex enforces reading of series in the order of index (which is by series Id).
+	OrderedByIndex bool
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
@@ -170,6 +172,9 @@ type DataFileSetReader interface {
 
 	// MetadataRead returns the position of metadata read into the volume
 	MetadataRead() int
+
+	// IsOrderedByIndex returns true if the reader reads the data in the order of index.
+	IsOrderedByIndex() bool
 }
 
 // DataFileSetSeeker provides an out of order reader for a TSDB file set
@@ -583,4 +588,28 @@ type Segments interface {
 	VolumeIndex() int
 	AbsoluteFilePaths() []string
 	BlockStart() time.Time
+}
+
+// BlockRecord wraps together M3TSZ data bytes with their checksum.
+type BlockRecord struct {
+	Data checked.Bytes
+	Checksum uint32
+}
+
+// CrossBlockReader allows reading data (encoded bytes) from multiple DataFileSetReaders of the same shard,
+// ordered by series id first, and block start time next.
+type CrossBlockReader interface {
+	io.Closer
+
+	Next() bool
+
+	Err() error
+
+	// Current returns distinct series id and tags, plus a slice with data and checksums from all blocks corresponding
+	// to that series (in temporal order).
+	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
+	// them so they can be returned to their respective pools. Also, []BlockRecord slice is being invalidated
+	// on each call to Next().
+	Current() (ident.ID, ident.TagIterator, []BlockRecord)
+
 }
