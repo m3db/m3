@@ -30,10 +30,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/x/headers"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -83,7 +83,7 @@ func TestPromReadInstantHandler(t *testing.T) {
 	testPromReadInstantHandler(t, block.NewResultMetadata(), "", "")
 	testPromReadInstantHandler(t, buildWarningMeta("foo", "bar"), "foo_bar", "foo_bar")
 	testPromReadInstantHandler(t, block.ResultMetadata{Exhaustive: false},
-		handleroptions.LimitHeaderSeriesLimitApplied,
+		headers.LimitHeaderSeriesLimitApplied,
 		"m3db exceeded query limit: results not exhaustive")
 }
 
@@ -121,7 +121,7 @@ func testPromReadInstantHandler(
 
 	require.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 
-	header := recorder.Header().Get(handleroptions.LimitHeader)
+	header := recorder.Header().Get(headers.LimitHeader)
 	assert.Equal(t, ex, header)
 
 	var result vectorResult

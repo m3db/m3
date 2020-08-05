@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/golang/mock/gomock"
@@ -563,7 +564,7 @@ writer:
 	var cfg config.ProducerConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 
-	p, err := cfg.NewProducer(cs, instrument.NewOptions())
+	p, err := cfg.NewProducer(cs, instrument.NewOptions(), xio.NewOptions())
 	require.NoError(t, err)
 	return p
 }

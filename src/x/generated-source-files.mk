@@ -2,7 +2,7 @@ gopath_prefix            := $(GOPATH)/src
 m3x_package              := github.com/m3db/m3/src/x
 m3x_package_path         := $(gopath_prefix)/$(m3x_package)
 temp_suffix              := _temp
-gorename_package         := github.com/prateek/gorename
+gorename_package         := github.com/robskillington/gorename
 gorename_package_version := 52c7307cddd221bb98f0a3215216789f3c821b10
 
 # Tests that all currently generated types match their contents if they were regenerated

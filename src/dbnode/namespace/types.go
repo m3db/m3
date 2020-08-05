@@ -97,6 +97,12 @@ type Options interface {
 
 	// SchemaHistory returns the schema registry for this namespace.
 	SchemaHistory() SchemaHistory
+
+	// SetRuntimeOptions sets the RuntimeOptions.
+	SetRuntimeOptions(value RuntimeOptions) Options
+
+	// RuntimeOptions returns the RuntimeOptions.
+	RuntimeOptions() RuntimeOptions
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -163,7 +169,7 @@ type SchemaRegistry interface {
 
 	// GetSchema gets the latest schema for the namespace.
 	// If proto is not enabled, nil, nil is returned
-	GetSchema(id ident.ID, schemaId string) (SchemaDescr, error)
+	GetSchema(id ident.ID, schemaID string) (SchemaDescr, error)
 
 	// SetSchemaHistory sets the schema history for the namespace.
 	// If proto is not enabled, nil is returned
@@ -277,4 +283,5 @@ type NamespaceWatch interface {
 	Close() error
 }
 
+// NamespaceUpdater is a namespace updater function.
 type NamespaceUpdater func(Map) error

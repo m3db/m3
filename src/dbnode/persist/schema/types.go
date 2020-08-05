@@ -32,7 +32,7 @@ const MajorVersion = 1
 // MinorVersion is the minor schema version for a set of fileset files.
 // This is only incremented when *non-breaking* changes are introduced that
 // we want to have some level of control around how they're rolled out.
-const MinorVersion = 0
+const MinorVersion = 1
 
 // IndexInfo stores metadata information about block filesets
 type IndexInfo struct {
@@ -61,13 +61,17 @@ type IndexBloomFilterInfo struct {
 }
 
 // IndexEntry stores entry-level data indexing
+//
+// When serialized to disk, the encoder will automatically add the IndexEntryChecksum, a checksum to validate
+// the index entry itself, to the end of the entry. That field is not exposed on this struct as this is handled
+// transparently by the encoder and decoder. Appending of checksum starts in V3.
 type IndexEntry struct {
-	Index       int64
-	ID          []byte
-	Size        int64
-	Offset      int64
-	Checksum    int64
-	EncodedTags []byte
+	Index        int64
+	ID           []byte
+	Size         int64
+	Offset       int64
+	DataChecksum int64
+	EncodedTags  []byte
 }
 
 // IndexSummary stores a summary of an index entry to lookup

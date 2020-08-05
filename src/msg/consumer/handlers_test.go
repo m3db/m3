@@ -77,7 +77,7 @@ func TestServerWithMessageFn(t *testing.T) {
 	require.Equal(t, string(testMsg2.Value), data[1])
 
 	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions())
+	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
 	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
 	require.Equal(t, 2, len(ack.Metadata))
@@ -133,7 +133,7 @@ func TestServerWithConsumeFn(t *testing.T) {
 	require.Equal(t, testMsg1.Value, bytes)
 
 	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions())
+	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
 	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(ack.Metadata))

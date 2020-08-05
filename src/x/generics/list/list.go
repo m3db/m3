@@ -56,6 +56,8 @@
 package list
 
 import (
+	"sync"
+
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/mauricelam/genny/generic"
@@ -110,9 +112,24 @@ func (l *List) Init() *List {
 	l.root.prev = &l.root
 	l.len = 0
 	if l.Pool == nil {
-		l.Pool = newElementPool(nil)
+		// Use a static pool at least, otherwise each time
+		// we create a list with no pool we create a wholly
+		// new pool of finalizeables (4096 of them).
+		defaultElementPoolOnce.Do(initElementPool)
+		l.Pool = defaultElementPool
 	}
 	return l
+}
+
+var (
+	defaultElementPoolOnce sync.Once
+	defaultElementPool     *ElementPool
+)
+
+// define as a static method so lambda alloc not required
+// when passing function pointer to sync.Once.Do.
+func initElementPool() {
+	defaultElementPool = newElementPool(nil)
 }
 
 // newList returns an initialized list.
