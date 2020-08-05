@@ -22,6 +22,7 @@ package migration
 
 type options struct {
 	toVersion1_1 bool
+	concurrency  int
 }
 
 // NewOptions creates new migration options
@@ -37,4 +38,14 @@ func (o *options) SetToVersion1_1(value bool) Options {
 
 func (o *options) ToVersion1_1() bool {
 	return o.toVersion1_1
+}
+
+func (o *options) SetConcurrency(value int) Options {
+	opts := *o
+	opts.concurrency = value
+	return &opts
+}
+
+func (o *options) Concurrency() int {
+	return o.concurrency
 }

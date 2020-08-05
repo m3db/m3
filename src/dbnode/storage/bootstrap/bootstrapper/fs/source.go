@@ -28,10 +28,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs/migrator"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -81,8 +83,6 @@ type fileSystemSourceMetrics struct {
 	persistedIndexBlocksRead  tally.Counter
 	persistedIndexBlocksWrite tally.Counter
 }
-
-type shardsInfoFilesResult map[uint32][]fs.ReadInfoFileResult
 
 func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 	if err := opts.Validate(); err != nil {
@@ -150,8 +150,11 @@ func (s *fileSystemSource) Read(
 	}
 	builder := result.NewIndexBuilder(segBuilder)
 
-	// Preload info file results so they can be used to bootstrap data filesets and eventually for data migrations
+	// Preload info file results so they can be used to bootstrap data filesets and data migrations
 	infoFilesByNamespace := s.loadInfoFiles(namespaces)
+
+	// Perform any necessary migrations but don't block bootstrap process on failure
+	s.runMigrations(infoFilesByNamespace)
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
@@ -219,6 +222,30 @@ func (s *fileSystemSource) Read(
 	span.LogEvent("bootstrap_index_done")
 
 	return results, nil
+}
+
+func (s *fileSystemSource) runMigrations(infoFilesByNamespace map[namespace.Metadata]fs.ShardsInfoFilesResult) {
+	// Only one migration for now, so just short circuit entirely if not enabled
+	if !s.opts.MigrationOptions().ToVersion1_1() {
+		return
+	}
+
+	migrator, err := migrator.NewMigrator(migrator.NewOptions().
+		SetNewMigrationFn(migration.NewToVersion1_1Task).
+		SetShouldMigrateFn(migration.ShouldMigrateToVersion1_1).
+		SetInfoFilesByNamespace(infoFilesByNamespace).
+		SetMigrationOptions(s.opts.MigrationOptions()).
+		SetFilesystemOptions(s.fsopts).
+		SetInstrumentOptions(s.opts.InstrumentOptions()).
+		SetStorageOptions(s.opts.StorageOptions()))
+	if err != nil {
+		s.log.Error("error creating migrator. continuing bootstrap", zap.Error(err))
+	}
+
+	err = migrator.Run()
+	if err != nil {
+		s.log.Error("error performing migrations. continuing bootstrap", zap.Error(err))
+	}
 }
 
 func (s *fileSystemSource) availability(
@@ -690,7 +717,7 @@ func (s *fileSystemSource) read(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 	builder *result.IndexBuilder,
-	infoFilesByNamespace map[ident.ID]shardsInfoFilesResult,
+	infoFilesByNamespace map[namespace.Metadata]fs.ShardsInfoFilesResult,
 ) (*runResult, error) {
 	var (
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
@@ -770,7 +797,7 @@ func (s *fileSystemSource) newReader() (fs.DataFileSetReader, error) {
 func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	infoFilesByNamespace map[ident.ID]shardsInfoFilesResult,
+	infoFilesByNamespace map[namespace.Metadata]fs.ShardsInfoFilesResult,
 ) *runResult {
 	runResult := newRunResult()
 	unfulfilled := runResult.data.Unfulfilled()
@@ -778,7 +805,7 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 		if ranges.IsEmpty() {
 			continue
 		}
-		availability := s.shardAvailabilityWithInfoFiles(md.ID(), shard, ranges, infoFilesByNamespace[md.ID()][shard])
+		availability := s.shardAvailabilityWithInfoFiles(md.ID(), shard, ranges, infoFilesByNamespace[md][shard])
 		remaining := ranges.Clone()
 		remaining.RemoveRanges(availability)
 		if !remaining.IsEmpty() {
@@ -901,24 +928,24 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 
 func (s *fileSystemSource) loadInfoFiles(
 	namespaces bootstrap.Namespaces,
-) map[ident.ID]shardsInfoFilesResult {
+) map[namespace.Metadata]fs.ShardsInfoFilesResult {
 	// NB(nate): Info files are currently only used if CacheAll is not set as the cache policy.
 	// Therefore, don't perform load when not necessary.
 	if s.opts.ResultOptions().SeriesCachePolicy() == series.CacheAll {
 		return nil
 	}
 
-	infoFilesByNamespace := make(map[ident.ID]shardsInfoFilesResult)
+	infoFilesByNamespace := make(map[namespace.Metadata]fs.ShardsInfoFilesResult)
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()
 		shardTimeRanges := namespace.DataRunOptions.ShardTimeRanges
-		result := make(shardsInfoFilesResult, shardTimeRanges.Len())
+		result := make(fs.ShardsInfoFilesResult, shardTimeRanges.Len())
 		for shard := range shardTimeRanges.Iter() {
 			result[shard] = fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 				namespace.Metadata.ID(), shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 		}
 
-		infoFilesByNamespace[namespace.Metadata.ID()] = result
+		infoFilesByNamespace[namespace.Metadata] = result
 	}
 
 	return infoFilesByNamespace

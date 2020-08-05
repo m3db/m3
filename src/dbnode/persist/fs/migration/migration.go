@@ -31,16 +31,14 @@ import (
 // Migration interface is implemented by tasks that wish to perform a data migration
 // on a fileset. Typically involves updating files in a fileset that were created by
 // a previous version of the database client
-type Migration interface {
+type Task interface {
 
 	// Run is the set of steps to successfully complete a migration
 	Run() error
 }
 
-var _ Migration = &ToVersion1_1{}
-
-// ToVersion1_1 is an object responsible for migrating a fileset to version 1.1
-type ToVersion1_1 struct {
+// ToVersion1_1Task is an object responsible for migrating a fileset to version 1.1
+type ToVersion1_1Task struct {
 	newMergerFn       fs.NewMergerFn
 	infoFileResult    fs.ReadInfoFileResult
 	shard             uint32
@@ -50,8 +48,16 @@ type ToVersion1_1 struct {
 	fsOpts            fs.Options
 }
 
-func NewToVersion1_1(opts TaskOptions) Migration {
-	return ToVersion1_1{
+// ShouldMigrateToVersion1_1 returns true or false depending on if a fileset should be migrated to 1.1 or not
+func ShouldMigrateToVersion1_1(info fs.ReadInfoFileResult) bool {
+	return info.Info.MajorVersion == 1 && info.Info.MinorVersion == 0
+}
+
+func NewToVersion1_1Task(opts TaskOptions) (Task, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	return &ToVersion1_1Task{
 		newMergerFn:       opts.NewMergerFn(),
 		infoFileResult:    opts.InfoFileResult(),
 		shard:             opts.Shard(),
@@ -59,11 +65,11 @@ func NewToVersion1_1(opts TaskOptions) Migration {
 		persistManager:    opts.PersistManager(),
 		sOpts:             opts.StorageOptions(),
 		fsOpts:            opts.FilesystemOptions(),
-	}
+	}, nil
 }
 
 // Run executes the steps to bring a fileset to Version 1.1
-func (v ToVersion1_1) Run() error {
+func (v *ToVersion1_1Task) Run() error {
 	reader, err := fs.NewReader(v.sOpts.BytesPool(), v.fsOpts)
 	if err != nil {
 		return err

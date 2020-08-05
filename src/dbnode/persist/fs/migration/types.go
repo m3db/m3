@@ -32,8 +32,14 @@ type Options interface {
 	// SetToVersion1_1 sets the toVersion1_1 migration option
 	SetToVersion1_1(value bool) Options
 
-	// ToVersion1_1 returns the value of toVersion1_1 migration option
+	// ToVersion1_1Task returns the value of toVersion1_1 migration option
 	ToVersion1_1() bool
+
+	// SetConcurrency sets the number of concurrent workers performing migrations
+	SetConcurrency(value int) Options
+
+	// Concurrency gets the number of concurrent workers performing migrations
+	Concurrency() int
 }
 
 // TaskOptions represents options for individual migration tasks

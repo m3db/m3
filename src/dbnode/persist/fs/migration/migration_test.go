@@ -76,7 +76,7 @@ func TestToVersion1_1Run(t *testing.T) {
 		SetInfoFileResult(infoFileResult).
 		SetFilesystemOptions(fsOpts)
 
-	task := NewToVersion1_1(opts)
+	task := NewToVersion1_1Task(opts)
 	err = task.Run()
 	require.NoError(t, err)
 
