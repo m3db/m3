@@ -145,21 +145,21 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, commitLog.Open())
 
-	// NB(r): Write points using no up front series metadata or point
-	// generation so that the memory usage is constant during the write phase
 	ctx := context.NewContext()
 	defer ctx.Close()
+
 	shardSet := setup.ShardSet()
 	idPrefix := "test.id.test.id.test.id.test.id.test.id.test.id.test.id.test.id"
 	idPrefixBytes := []byte(idPrefix)
-	checkedBytes := checked.NewBytes(nil, nil)
-	seriesID := ident.BinaryID(checkedBytes)
 	numBytes := make([]byte, 8)
 	numHexBytes := make([]byte, hex.EncodedLen(len(numBytes)))
 	tagEncoderPool := commitLogOpts.FilesystemOptions().TagEncoderPool()
 	tagSliceIter := ident.NewTagsIterator(ident.Tags{})
 	for i := 0; i < numPoints; i++ {
 		for j := 0; j < numSeries; j++ {
+			checkedBytes := checked.NewBytes(nil, nil)
+			seriesID := ident.BinaryID(checkedBytes)
+
 			// Write the ID prefix
 			checkedBytes.Resize(0)
 			checkedBytes.AppendAll(idPrefixBytes)

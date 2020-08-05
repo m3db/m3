@@ -60,7 +60,8 @@ function prometheus_remote_write {
   local metrics_type=$8
   local metrics_storage_policy=$9
 
-  network=$(docker network ls --format '{{.ID}}' | tail -n 1)
+  network_name="simple_v2_batch_apis"
+  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://dbnode01:7201/api/v1/prom/remote/write \

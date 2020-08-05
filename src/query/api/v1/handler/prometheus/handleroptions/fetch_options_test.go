@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
+	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +66,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			name:         "limit with header",
 			defaultLimit: 42,
 			headers: map[string]string{
-				LimitMaxSeriesHeader: "4242",
+				headers.LimitMaxSeriesHeader: "4242",
 			},
 			expectedLimit: 4242,
 		},
@@ -73,14 +74,14 @@ func TestFetchOptionsBuilder(t *testing.T) {
 			name:         "bad header",
 			defaultLimit: 42,
 			headers: map[string]string{
-				LimitMaxSeriesHeader: "not_a_number",
+				headers.LimitMaxSeriesHeader: "not_a_number",
 			},
 			expectedErr: true,
 		},
 		{
 			name: "unaggregated metrics type",
 			headers: map[string]string{
-				MetricsTypeHeader: storagemetadata.UnaggregatedMetricsType.String(),
+				headers.MetricsTypeHeader: storagemetadata.UnaggregatedMetricsType.String(),
 			},
 			expectedRestrict: &storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
@@ -91,8 +92,8 @@ func TestFetchOptionsBuilder(t *testing.T) {
 		{
 			name: "aggregated metrics type",
 			headers: map[string]string{
-				MetricsTypeHeader:          storagemetadata.AggregatedMetricsType.String(),
-				MetricsStoragePolicyHeader: "1m:14d",
+				headers.MetricsTypeHeader:          storagemetadata.AggregatedMetricsType.String(),
+				headers.MetricsStoragePolicyHeader: "1m:14d",
 			},
 			expectedRestrict: &storage.RestrictQueryOptions{
 				RestrictByType: &storage.RestrictByType{
@@ -104,22 +105,22 @@ func TestFetchOptionsBuilder(t *testing.T) {
 		{
 			name: "unaggregated metrics type with storage policy",
 			headers: map[string]string{
-				MetricsTypeHeader:          storagemetadata.UnaggregatedMetricsType.String(),
-				MetricsStoragePolicyHeader: "1m:14d",
+				headers.MetricsTypeHeader:          storagemetadata.UnaggregatedMetricsType.String(),
+				headers.MetricsStoragePolicyHeader: "1m:14d",
 			},
 			expectedErr: true,
 		},
 		{
 			name: "aggregated metrics type without storage policy",
 			headers: map[string]string{
-				MetricsTypeHeader: storagemetadata.AggregatedMetricsType.String(),
+				headers.MetricsTypeHeader: storagemetadata.AggregatedMetricsType.String(),
 			},
 			expectedErr: true,
 		},
 		{
 			name: "unrecognized metrics type",
 			headers: map[string]string{
-				MetricsTypeHeader: "foo",
+				headers.MetricsTypeHeader: "foo",
 			},
 			expectedErr: true,
 		},
@@ -155,7 +156,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 		{
 			name: "restrict by tags json header",
 			headers: map[string]string{
-				RestrictByTagsJSONHeader: stripSpace(`{
+				headers.RestrictByTagsJSONHeader: stripSpace(`{
 					"match":[{"name":"foo", "value":"bar", "type":"EQUAL"}],
 					"strip":["foo"]
 				}`),
@@ -195,7 +196,7 @@ func TestFetchOptionsBuilder(t *testing.T) {
 				Strip: toStrip("foo"),
 			},
 			headers: map[string]string{
-				RestrictByTagsJSONHeader: stripSpace(`{
+				headers.RestrictByTagsJSONHeader: stripSpace(`{
 					"match":[{"name":"qux", "value":"qaz", "type":"EQUAL"}],
 					"strip":["qux"]
 				}`),
@@ -344,9 +345,9 @@ func TestFetchOptionsWithHeader(t *testing.T) {
 	}
 
 	headers := map[string]string{
-		MetricsTypeHeader:          storagemetadata.AggregatedMetricsType.String(),
-		MetricsStoragePolicyHeader: "1m:14d",
-		RestrictByTagsJSONHeader: `{
+		headers.MetricsTypeHeader:          storagemetadata.AggregatedMetricsType.String(),
+		headers.MetricsStoragePolicyHeader: "1m:14d",
+		headers.RestrictByTagsJSONHeader: `{
 			"match":[
 				{"name":"a", "value":"b", "type":"EQUAL"},
 				{"name":"c", "value":"d", "type":"NOTEQUAL"},

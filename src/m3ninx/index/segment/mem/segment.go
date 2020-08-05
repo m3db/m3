@@ -84,6 +84,14 @@ func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 	return s, nil
 }
 
+func (s *segment) SetIndexConcurrency(value int) {
+	// No-op, does not support concurrent indexing.
+}
+
+func (s *segment) IndexConcurrency() int {
+	return 1
+}
+
 func (s *segment) Reset(offset postings.ID) {
 	s.state.Lock()
 	defer s.state.Unlock()

@@ -1,5 +1,53 @@
 # Changelog
 
+# 0.15.8
+
+## Misc
+
+- **M3DB**: Pause rollout of background cold flush process by revert until further testing ([6830a8cb4](https://github.com/m3db/m3/commit/6830a8cb4))
+
+# 0.15.7
+
+## Performance
+
+- **M3DB**: Background cold flush process to no longer block data snapshotting or commit log rotation ([#2460](https://github.com/m3db/m3/pull/2460))
+- **M3DB**: Validate individual index entries on decode instead of entire file on open, to further improve bootstrap speed ([#2468](https://github.com/m3db/m3/pull/2468))
+
+## Bug Fixes
+
+- **M3DB**: Strict JSON unmarshal (disallow unknown fields) for raw HTTP/JSON DB node APIs ([#2490](https://github.com/m3db/m3/pull/2490))
+- **M3Query**: Fix to regex selectors with leading wildcard ([#2505](https://github.com/m3db/m3/pull/#2505))
+
+## Documentation
+
+- **All**: Links to M3 meetup recordings ([#2494](https://github.com/m3db/m3/pull/2494))
+
+# 0.15.6
+
+## Features
+
+- **M3DB**: Add per-namespace indexing runtime options to define concurrency weighted to indexing ([#2446](https://github.com/m3db/m3/pull/2446))
+
+## Performance
+
+- **M3DB**: Faster bootstrapping with deferred index checksum and significantly lower memory bump at block rotation ([#2446](https://github.com/m3db/m3/pull/2446))
+- **M3DB**: Faster series aggregate metadata queries by intersecting postings term results with resolved query postings list ([#2441](https://github.com/m3db/m3/pull/2441))
+
+## Bug Fixes
+
+- **M3Query**: Fix for label matching behavior not the same as regular Prometheus for when label value is ".+" or ".*" ([#2479](https://github.com/m3db/m3/pull/2479))
+- **M3Query**: Special case when request from Go process such as Prometheus Go client library for searching series metadata using Go min/max UTC values ([#2487](https://github.com/m3db/m3/pull/2487))
+- **M3Query**: Auto-detect querying for entire retention time range ([#2483](https://github.com/m3db/m3/pull/2483))
+- **M3Query**: Fix for Graphite query for metric with single identifier and no dot separated elements ([#2450](https://github.com/m3db/m3/pull/2450))
+
+## Documentation
+
+- **M3Coordinator**: Add rollup rules example documentation ([#2461](https://github.com/m3db/m3/pull/2461), [#2462](https://github.com/m3db/m3/pull/2462))
+
+## Misc
+
+- **M3DB**: Expose cluster total shards and replicas as metrics ([#2452](https://github.com/m3db/m3/pull/2452))
+
 # 0.15.5
 
 ## Documentation

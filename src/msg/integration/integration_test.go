@@ -1,5 +1,3 @@
-// +build integration
-
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -59,7 +57,7 @@ func TestSharedConsumer(t *testing.T) {
 	}
 }
 
-func TestReplicatedConsumer(t *testing.T) {
+func TestReplicatedConsumerx(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}

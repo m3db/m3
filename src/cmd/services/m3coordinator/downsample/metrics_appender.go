@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -41,14 +42,39 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+type metricsAppenderPool struct {
+	pool pool.ObjectPool
+}
+
+func newMetricsAppenderPool(opts pool.ObjectPoolOptions) *metricsAppenderPool {
+	p := &metricsAppenderPool{
+		pool: pool.NewObjectPool(opts),
+	}
+	p.pool.Init(func() interface{} {
+		return newMetricsAppender(p)
+	})
+	return p
+}
+
+func (p *metricsAppenderPool) Get() *metricsAppender {
+	return p.pool.Get().(*metricsAppender)
+}
+
+func (p *metricsAppenderPool) Put(v *metricsAppender) {
+	p.pool.Put(v)
+}
+
 type metricsAppender struct {
 	metricsAppenderOptions
+
+	pool *metricsAppenderPool
 
 	tags                         *tags
 	multiSamplesAppender         *multiSamplesAppender
 	curr                         metadata.StagedMetadata
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
+	tagEncoder                   serialize.TagEncoder
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -57,8 +83,8 @@ type metricsAppenderOptions struct {
 	clientRemote client.Client
 
 	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
-	tagEncoder                   serialize.TagEncoder
 	matcher                      matcher.Matcher
+	tagEncoderPool               serialize.TagEncoderPool
 	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
 
 	clockOpts    clock.Options
@@ -66,14 +92,31 @@ type metricsAppenderOptions struct {
 	logger       *zap.Logger
 }
 
-func newMetricsAppender(opts metricsAppenderOptions) *metricsAppender {
-	stagedMetadatasCopies := make([]metadata.StagedMetadatas,
-		len(opts.defaultStagedMetadatasProtos))
+func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
 	return &metricsAppender{
-		metricsAppenderOptions:       opts,
-		tags:                         newTags(),
-		multiSamplesAppender:         newMultiSamplesAppender(),
-		defaultStagedMetadatasCopies: stagedMetadatasCopies,
+		pool:                 pool,
+		tags:                 newTags(),
+		multiSamplesAppender: newMultiSamplesAppender(),
+	}
+}
+
+// reset is called when pulled from the pool.
+func (a *metricsAppender) reset(opts metricsAppenderOptions) {
+	a.metricsAppenderOptions = opts
+	if a.tagEncoder == nil {
+		a.tagEncoder = opts.tagEncoderPool.Get()
+	}
+
+	// Make sure a.defaultStagedMetadatasCopies is right length.
+	capRequired := len(opts.defaultStagedMetadatasProtos)
+	if cap(a.defaultStagedMetadatasCopies) < capRequired {
+		// Too short, reallocate.
+		slice := make([]metadata.StagedMetadatas, capRequired)
+		a.defaultStagedMetadatasCopies = slice
+	} else {
+		// Has enough capacity, take subslice.
+		slice := a.defaultStagedMetadatasCopies[:capRequired]
+		a.defaultStagedMetadatasCopies = slice
 	}
 }
 
@@ -317,14 +360,14 @@ func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
 	a.logger.Debug(str, fields...)
 }
 
-func (a *metricsAppender) Reset() {
+func (a *metricsAppender) NextMetric() {
 	a.tags.names = a.tags.names[:0]
 	a.tags.values = a.tags.values[:0]
 }
 
 func (a *metricsAppender) Finalize() {
-	a.tagEncoder.Finalize()
-	a.tagEncoder = nil
+	// Return to pool.
+	a.pool.Put(a)
 }
 
 func stagedMetadatasLogField(sm metadata.StagedMetadatas) zapcore.Field {

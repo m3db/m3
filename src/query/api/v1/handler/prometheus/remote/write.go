@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/retry"
@@ -401,7 +402,7 @@ func (h *PromWriteHandler) parseRequest(
 	r *http.Request,
 ) (*prompb.WriteRequest, ingest.WriteOptions, prometheus.ParsePromCompressedRequestResult, *xhttp.ParseError) {
 	var opts ingest.WriteOptions
-	if v := strings.TrimSpace(r.Header.Get(handleroptions.MetricsTypeHeader)); v != "" {
+	if v := strings.TrimSpace(r.Header.Get(headers.MetricsTypeHeader)); v != "" {
 		// Allow the metrics type and storage policies to override
 		// the default rules and policies if specified.
 		metricsType, err := storagemetadata.ParseMetricsType(v)
@@ -417,7 +418,7 @@ func (h *PromWriteHandler) parseRequest(
 		opts.DownsampleOverride = true
 		opts.DownsampleMappingRules = nil
 
-		strPolicy := strings.TrimSpace(r.Header.Get(handleroptions.MetricsStoragePolicyHeader))
+		strPolicy := strings.TrimSpace(r.Header.Get(headers.MetricsStoragePolicyHeader))
 		switch metricsType {
 		case storagemetadata.UnaggregatedMetricsType:
 			if strPolicy != emptyStoragePolicyVar {
@@ -442,10 +443,10 @@ func (h *PromWriteHandler) parseRequest(
 			}
 		}
 	}
-	if v := strings.TrimSpace(r.Header.Get(handleroptions.WriteTypeHeader)); v != "" {
+	if v := strings.TrimSpace(r.Header.Get(headers.WriteTypeHeader)); v != "" {
 		switch v {
-		case handleroptions.DefaultWriteType:
-		case handleroptions.AggregateWriteType:
+		case headers.DefaultWriteType:
+		case headers.AggregateWriteType:
 			opts.WriteOverride = true
 			opts.WriteStoragePolicies = policy.StoragePolicies{}
 		default:
@@ -469,7 +470,7 @@ func (h *PromWriteHandler) parseRequest(
 			xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	if mapStr := r.Header.Get(handleroptions.MapTagsByJSONHeader); mapStr != "" {
+	if mapStr := r.Header.Get(headers.MapTagsByJSONHeader); mapStr != "" {
 		var opts handleroptions.MapTagsOptions
 		if err := json.Unmarshal([]byte(mapStr), &opts); err != nil {
 			return nil, ingest.WriteOptions{}, prometheus.ParsePromCompressedRequestResult{},
@@ -501,7 +502,7 @@ func (h *PromWriteHandler) write(
 func (h *PromWriteHandler) forward(
 	ctx context.Context,
 	request prometheus.ParsePromCompressedRequestResult,
-	headers http.Header,
+	header http.Header,
 	target handleroptions.PromWriteHandlerForwardTargetOptions,
 ) error {
 	method := target.Method
@@ -518,10 +519,10 @@ func (h *PromWriteHandler) forward(
 	// (map tags, storage policy, etc.) that we must forward to the target
 	// coordinator to guarantee same behavior as the coordinator that originally
 	// received the request.
-	if headers != nil {
-		for h := range headers {
-			if strings.HasPrefix(h, handleroptions.M3HeaderPrefix) {
-				req.Header.Add(h, headers.Get(h))
+	if header != nil {
+		for h := range header {
+			if strings.HasPrefix(h, headers.M3HeaderPrefix) {
+				req.Header.Add(h, header.Get(h))
 			}
 		}
 	}

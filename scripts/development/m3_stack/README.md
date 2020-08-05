@@ -17,7 +17,7 @@ The environment variables that let's you configure this setup are:
 
 ## Usage
 
-Use the `start_m3.sh` and `stop_m3.sh` scripts.
+Use the `start_m3.sh` and `stop_m3.sh` scripts. Requires successful run of `make m3dbnode` from project root first.
 
 ## Grafana
 

@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	xpromql "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
@@ -264,7 +265,10 @@ type ReadResult struct {
 
 // ParseExpr parses a prometheus request expression into the constituent
 // fetches, rather than the full query application.
-func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
+func ParseExpr(
+	r *http.Request,
+	opts xpromql.ParseOptions,
+) (*prompb.ReadRequest, *xhttp.ParseError) {
 	var req *prompb.ReadRequest
 	exprParam := strings.TrimSpace(r.FormValue("query"))
 	if len(exprParam) == 0 {
@@ -283,8 +287,9 @@ func ParseExpr(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
+	fn := opts.ParseFn()
 	req = &prompb.ReadRequest{}
-	expr, err := promql.ParseExpr(exprParam)
+	expr, err := fn(exprParam)
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -367,7 +372,7 @@ func ParseRequest(
 	var rErr *xhttp.ParseError
 	switch {
 	case r.Method == http.MethodGet && strings.TrimSpace(r.FormValue("query")) != "":
-		req, rErr = ParseExpr(r)
+		req, rErr = ParseExpr(r, opts.Engine().Options().ParseOptions())
 	default:
 		req, rErr = parseCompressedRequest(r)
 	}
