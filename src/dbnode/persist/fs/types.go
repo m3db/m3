@@ -608,7 +608,8 @@ type CrossBlockReader interface {
 	// Current returns distinct series id and tags, plus a slice with data and checksums from all blocks corresponding
 	// to that series (in temporal order).
 	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
-	// them so they can be returned to their respective pools.
+	// them so they can be returned to their respective pools. Also, []BlockRecord slice is being invalidated
+	// on each call to Next().
 	Current() (ident.ID, ident.TagIterator, []BlockRecord)
 
 }

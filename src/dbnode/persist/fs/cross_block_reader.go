@@ -94,6 +94,12 @@ func (r *crossBlockReader) Next() bool {
 	r.id = firstEntry.id
 	r.tags = firstEntry.tags
 
+	// use empty var in inner loop with "for i := range" to have compiler use memclr optimization
+	// see: https://codereview.appspot.com/137880043
+	var emptyRecord BlockRecord
+	for i := range r.records {
+		r.records[i] = emptyRecord
+	}
 	r.records = r.records[:0]
 	r.records = append(r.records, BlockRecord{firstEntry.data, firstEntry.checksum})
 
@@ -106,6 +112,9 @@ func (r *crossBlockReader) Next() bool {
 			for _, record := range r.records {
 				record.Data.DecRef()
 				record.Data.Finalize()
+			}
+			for i := range r.records {
+				r.records[i] = emptyRecord
 			}
 			r.records = r.records[:0]
 			r.err = err
@@ -193,12 +202,14 @@ func (r *crossBlockReader) Err() error {
 
 func (r *crossBlockReader) Close() error {
 	// Close the resources that were buffered in minHeap:
-	for _, entry := range r.minHeap {
+	for i, entry := range r.minHeap {
 		entry.id.Finalize()
 		entry.tags.Close()
 		entry.data.DecRef()
 		entry.data.Finalize()
+		r.minHeap[i] = nil
 	}
+
 	r.minHeap = r.minHeap[:0]
 	return nil
 }
@@ -237,6 +248,7 @@ func (h *minHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	x := old[n-1]
+	old[n-1] = nil
 	*h = old[0 : n-1]
 	return x
 }
