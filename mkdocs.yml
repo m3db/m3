@@ -93,6 +93,7 @@ pages:
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
     - "M3DB on Kubernetes": "how_to/kubernetes.md"
     - "M3Query": "how_to/query.md"
+    - "M3Aggregator": "how_to/aggregator.md"
     - "Use M3DB as a general purpose time series database": "how_to/use_as_tsdb.md"
   - "Operational Guides":
     - "Overview": "operational_guide/index.md"
