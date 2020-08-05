@@ -2,15 +2,15 @@
 
 ## Introduction
 
-`m3aggregator` is used to cluster stateful downsampling and rollup of metrics before they are store in M3DB. The M3 Coordinator also performs this role but is not cluster aware. This means metrics will not get aggregated properly if you send metrics in round round fashion to multiple M3 Coordinators for the same metrics ingestion source (e.g. Prometheus server).
+`m3aggregator` is used to cluster stateful downsampling and rollup of metrics before they are store in M3DB. The M3 Coordinator also performs this role but is not cluster aware. This means metrics will not get aggregated properly if you send metrics in round robin fashion to multiple M3 Coordinators for the same metrics ingestion source (e.g. Prometheus server).
 
-Metrics sent to `m3aggregator` are correctly routed to the instance resposible for aggregating each metric and there is multiple m3aggregator replicas to ensure no single point of failure during aggregation.
+Similar to M3DB, `m3aggregator` supports clustering and replication by default. This means that metrics are correctly routed to the instance(s) responsible for aggregating each metric and multiple `m3aggregator` replicas can be configured such that there are no single points of failure for aggregation.
 
 ## Configuration
 
 Before setting up m3aggregator, make sure that you have at least [one M3DB node running](single_node.md) and a dedicated m3coordinator setup.
 
-We highly recommend running with at least a replication factor 2 for a `m3aggregator` deployment.
+We highly recommend running with at least a replication factor 2 for a `m3aggregator` deployment. If you run with replication factor 1 then when you restart an aggregator it will temporarily interrupt good the stream of aggregated metrics and there will be some data loss.
 
 ### Topology
 
