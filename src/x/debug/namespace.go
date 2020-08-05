@@ -23,11 +23,13 @@ package debug
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
@@ -36,25 +38,46 @@ import (
 )
 
 type namespaceInfoSource struct {
-	handler *namespace.GetHandler
+	handler  *namespace.GetHandler
+	defaults handleroptions.ServiceNameAndDefaults
 }
 
 // NewNamespaceInfoSource returns a Source for namespace information.
 func NewNamespaceInfoSource(
 	clusterClient clusterclient.Client,
 	instrumentOpts instrument.Options,
-) Source {
+	allDefaults []handleroptions.ServiceNameAndDefaults,
+) (Source, error) {
+	var (
+		m3dbDefault handleroptions.ServiceNameAndDefaults
+		found       bool
+	)
+	for _, def := range allDefaults {
+		if def.ServiceName == handleroptions.M3DBServiceName {
+			m3dbDefault = def
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("could not find M3DB service in defaults: %v", allDefaults)
+	}
+
 	handler := namespace.NewGetHandler(clusterClient,
 		instrumentOpts)
+
 	return &namespaceInfoSource{
-		handler: handler,
-	}
+		handler:  handler,
+		defaults: m3dbDefault,
+	}, nil
 }
 
 // Write fetches data about the namespace and writes it in the given writer.
 // The data is formatted in json.
-func (n *namespaceInfoSource) Write(w io.Writer, _ *http.Request) error {
-	nsRegistry, err := n.handler.Get()
+func (n *namespaceInfoSource) Write(w io.Writer, r *http.Request) error {
+	opts := handleroptions.NewServiceOptions(n.defaults, r.Header, nil)
+	nsRegistry, err := n.handler.Get(opts)
 	if err != nil {
 		return err
 	}

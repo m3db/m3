@@ -25,15 +25,23 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestNamespaceSource(t *testing.T) {
-	_, mockClient := newHandlerOptsAndClient(t)
+	_, mockKV, mockClient := newHandlerOptsAndClient(t)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 	iOpts := instrument.NewOptions()
-	n := NewNamespaceInfoSource(mockClient, iOpts)
+	n, err := NewNamespaceInfoSource(mockClient, iOpts, []handleroptions.ServiceNameAndDefaults{
+		{
+			ServiceName: handleroptions.M3DBServiceName,
+		},
+	})
+	require.NoError(t, err)
 
 	buff := bytes.NewBuffer([]byte{})
 	n.Write(buff, &http.Request{})
