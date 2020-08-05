@@ -52,7 +52,9 @@ import (
 
 func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	now := time.Now().Truncate(time.Hour)
@@ -74,7 +76,9 @@ func TestNamespaceIndexCleanupExpiredFilesets(t *testing.T) {
 
 func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	idx := nsIdx.(*nsIndex)
@@ -151,7 +155,9 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 
 func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	idx := nsIdx.(*nsIndex)
@@ -214,7 +220,9 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 	defer ctrl.Finish()
 
 	md := testNamespaceMetadata(time.Hour, time.Hour*8)
-	nsIdx, err := newNamespaceIndex(md, testShardSet, DefaultTestOptions())
+	nsIdx, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, DefaultTestOptions())
 	require.NoError(t, err)
 
 	defer func() {
@@ -301,6 +309,7 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(test.indexBlockSize)).AnyTimes()
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
 
+	mockBlock.EXPECT().IsSealed().Return(true)
 	mockBlock.EXPECT().Close().Return(nil)
 
 	mockShard := NewMockdatabaseShard(ctrl)
@@ -464,6 +473,7 @@ func verifyFlushForShards(
 				gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{OnlyDisk: true}).Return(results, nil, nil)
 		}
 
+		mockBlock.EXPECT().IsSealed().Return(true)
 		mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
 		mockBlock.EXPECT().EvictMutableSegments().Return(nil)
 	}
@@ -496,7 +506,9 @@ func newTestIndex(t *testing.T, ctrl *gomock.Controller) testIndex {
 	md, err := namespace.NewMetadata(ident.StringID("testns"), nopts)
 	require.NoError(t, err)
 	opts := DefaultTestOptions()
-	index, err := newNamespaceIndex(md, testShardSet, opts)
+	index, err := newNamespaceIndex(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, opts)
 	require.NoError(t, err)
 
 	return testIndex{

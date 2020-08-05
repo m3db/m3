@@ -879,6 +879,32 @@ func (mr *MockMutableSegmentMockRecorder) InsertBatch(b interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MockMutableSegment)(nil).InsertBatch), b)
 }
 
+// SetIndexConcurrency mocks base method
+func (m *MockMutableSegment) SetIndexConcurrency(value int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetIndexConcurrency", value)
+}
+
+// SetIndexConcurrency indicates an expected call of SetIndexConcurrency
+func (mr *MockMutableSegmentMockRecorder) SetIndexConcurrency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexConcurrency", reflect.TypeOf((*MockMutableSegment)(nil).SetIndexConcurrency), value)
+}
+
+// IndexConcurrency mocks base method
+func (m *MockMutableSegment) IndexConcurrency() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexConcurrency")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// IndexConcurrency indicates an expected call of IndexConcurrency
+func (mr *MockMutableSegmentMockRecorder) IndexConcurrency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexConcurrency", reflect.TypeOf((*MockMutableSegment)(nil).IndexConcurrency))
+}
+
 // Fields mocks base method
 func (m *MockMutableSegment) Fields() (FieldsIterator, error) {
 	m.ctrl.T.Helper()
@@ -1291,6 +1317,32 @@ func (mr *MockDocumentsBuilderMockRecorder) InsertBatch(b interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MockDocumentsBuilder)(nil).InsertBatch), b)
 }
 
+// SetIndexConcurrency mocks base method
+func (m *MockDocumentsBuilder) SetIndexConcurrency(value int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetIndexConcurrency", value)
+}
+
+// SetIndexConcurrency indicates an expected call of SetIndexConcurrency
+func (mr *MockDocumentsBuilderMockRecorder) SetIndexConcurrency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexConcurrency", reflect.TypeOf((*MockDocumentsBuilder)(nil).SetIndexConcurrency), value)
+}
+
+// IndexConcurrency mocks base method
+func (m *MockDocumentsBuilder) IndexConcurrency() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexConcurrency")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// IndexConcurrency indicates an expected call of IndexConcurrency
+func (mr *MockDocumentsBuilderMockRecorder) IndexConcurrency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexConcurrency", reflect.TypeOf((*MockDocumentsBuilder)(nil).IndexConcurrency))
+}
+
 // MockCloseableDocumentsBuilder is a mock of CloseableDocumentsBuilder interface
 type MockCloseableDocumentsBuilder struct {
 	ctrl     *gomock.Controller
@@ -1412,6 +1464,32 @@ func (m *MockCloseableDocumentsBuilder) InsertBatch(b index.Batch) error {
 func (mr *MockCloseableDocumentsBuilderMockRecorder) InsertBatch(b interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MockCloseableDocumentsBuilder)(nil).InsertBatch), b)
+}
+
+// SetIndexConcurrency mocks base method
+func (m *MockCloseableDocumentsBuilder) SetIndexConcurrency(value int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetIndexConcurrency", value)
+}
+
+// SetIndexConcurrency indicates an expected call of SetIndexConcurrency
+func (mr *MockCloseableDocumentsBuilderMockRecorder) SetIndexConcurrency(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexConcurrency", reflect.TypeOf((*MockCloseableDocumentsBuilder)(nil).SetIndexConcurrency), value)
+}
+
+// IndexConcurrency mocks base method
+func (m *MockCloseableDocumentsBuilder) IndexConcurrency() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexConcurrency")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// IndexConcurrency indicates an expected call of IndexConcurrency
+func (mr *MockCloseableDocumentsBuilderMockRecorder) IndexConcurrency() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexConcurrency", reflect.TypeOf((*MockCloseableDocumentsBuilder)(nil).IndexConcurrency))
 }
 
 // Close mocks base method

@@ -38,6 +38,7 @@ import (
 	graphite "github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
@@ -98,7 +99,8 @@ func (h *renderHandler) serveHTTP(
 		return respError{err: err, code: http.StatusBadRequest}
 	}
 
-	limit, err := handleroptions.ParseLimit(r, handleroptions.LimitMaxSeriesHeader, "limit", h.queryContextOpts.LimitMaxTimeseries)
+	limit, err := handleroptions.ParseLimit(r, headers.LimitMaxSeriesHeader,
+		"limit", h.queryContextOpts.LimitMaxTimeseries)
 	if err != nil {
 		return respError{err: err, code: http.StatusBadRequest}
 	}

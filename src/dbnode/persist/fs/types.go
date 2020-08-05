@@ -482,17 +482,31 @@ type Options interface {
 	// TagDecoderPool returns the tag decoder pool.
 	TagDecoderPool() serialize.TagDecoderPool
 
-	// SetFStOptions sets the fst options.
+	// SetFSTOptions sets the fst options.
 	SetFSTOptions(value fst.Options) Options
 
 	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
 
+	// SetFStWriterOptions sets the fst writer options.
+	SetFSTWriterOptions(value fst.WriterOptions) Options
+
+	// FSTWriterOptions returns the fst writer options.
+	FSTWriterOptions() fst.WriterOptions
+
 	// SetMmapReporter sets the mmap reporter.
-	SetMmapReporter(mmapReporter mmap.Reporter) Options
+	SetMmapReporter(value mmap.Reporter) Options
 
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
+
+	// SetIndexReaderAutovalidateIndexSegments sets the index reader to
+	// autovalidate index segments data integrity on file open.
+	SetIndexReaderAutovalidateIndexSegments(value bool) Options
+
+	// IndexReaderAutovalidateIndexSegments returns the index reader to
+	// autovalidate index segments data integrity on file open.
+	IndexReaderAutovalidateIndexSegments() bool
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

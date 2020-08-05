@@ -115,10 +115,17 @@ func PromReadQueryToM3(query *prompb.Query) (*FetchQuery, error) {
 		return nil, err
 	}
 
+	start := PromTimestampToTime(query.StartTimestampMs)
+	end := PromTimestampToTime(query.EndTimestampMs)
+	if start.After(end) {
+		start = time.Time{}
+		end = time.Now()
+	}
+
 	return &FetchQuery{
 		TagMatchers: tagMatchers,
-		Start:       PromTimestampToTime(query.StartTimestampMs),
-		End:         PromTimestampToTime(query.EndTimestampMs),
+		Start:       start,
+		End:         end,
 	}, nil
 }
 

@@ -44,6 +44,20 @@ func (m *MockDatabaseSeries) EXPECT() *MockDatabaseSeriesMockRecorder {
 	return m.recorder
 }
 
+// Bootstrap mocks base method
+func (m *MockDatabaseSeries) Bootstrap(arg0 namespace.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Bootstrap", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Bootstrap indicates an expected call of Bootstrap
+func (mr *MockDatabaseSeriesMockRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockDatabaseSeries)(nil).Bootstrap), arg0)
+}
+
 // Close mocks base method
 func (m *MockDatabaseSeries) Close() {
 	m.ctrl.T.Helper()
