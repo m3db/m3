@@ -134,7 +134,8 @@ func main() {
 					BlockStart:  time.Unix(0, *optBlockstart),
 					VolumeIndex: int(*volume),
 				},
-				FileSetType: fileSetType,
+				FileSetType:    fileSetType,
+				OrderedByIndex: true,
 			}
 
 			err = reader.Open(openOpts)
@@ -163,7 +164,13 @@ func main() {
 				EncodingOpts: encodingOpts,
 			}
 
-			it, err := tile.NewSeriesBlockIterator(reader, opts)
+			crossBlockReader, err := fs.NewCrossBlockReader([]fs.DataFileSetReader{reader})
+			if err != nil {
+				fmt.Println("error creating CrossBlockReader", err)
+				return
+			}
+
+			it, err := tile.NewSeriesBlockIterator(crossBlockReader, opts)
 			if err != nil {
 				fmt.Println("error creating block iterator", err)
 				return
@@ -241,6 +248,10 @@ func main() {
 			printNonZero()
 			if err := it.Err(); err != nil {
 				fmt.Println("series error:", err)
+			}
+
+			if err := crossBlockReader.Close(); err != nil {
+				fmt.Println("crossBlockReader close error:", err)
 			}
 
 			if err := reader.Close(); err != nil {
