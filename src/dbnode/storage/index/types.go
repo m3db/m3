@@ -80,12 +80,13 @@ type Query struct {
 // QueryOptions enables users to specify constraints and
 // preferences on query execution.
 type QueryOptions struct {
-	StartInclusive    time.Time
-	EndExclusive      time.Time
-	SeriesLimit       int
-	DocsLimit         int
-	RequireExhaustive bool
-	IterationOptions  IterationOptions
+	StartInclusive      time.Time
+	EndExclusive        time.Time
+	SeriesLimit         int
+	DocsLimit           int
+	RequireExhaustive   bool
+	IterationOptions    IterationOptions
+	ComputedNamespaceID ident.ID
 }
 
 // IterationOptions enables users to specify iteration preferences.
