@@ -414,9 +414,9 @@ func seriesIteratorFromCompressedSeries(
 	return seriesIter, nil
 }
 
-// decodeCompressedFetchResponse decodes compressed fetch
+// DecodeCompressedFetchResponse decodes compressed fetch
 // response to seriesIterators.
-func decodeCompressedFetchResponse(
+func DecodeCompressedFetchResponse(
 	fetchResult *rpc.FetchResponse,
 	iteratorPools encoding.IteratorPools,
 ) (encoding.SeriesIterators, error) {
