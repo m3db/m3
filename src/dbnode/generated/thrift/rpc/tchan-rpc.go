@@ -1877,16 +1877,16 @@ func (s *tchanNodeServer) handleWrite(ctx thrift.Context, protocol athrift.TProt
 	return err == nil, &res, nil
 }
 
-func (s *tchanNodeServer) handleWriteBatchRaw(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+func (s *tchanNodeServer) handleWriteBatchRaw(tctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	var req NodeWriteBatchRawArgs
 	var res NodeWriteBatchRawResult
 
-	m3ctx := ctx.Value(contextkey).(context.Context)
+	m3ctx := tctx.Value(contextkey).(context.Context)
 	if err := req.readWithContext(m3ctx, protocol); err != nil {
 		return false, nil, err
 	}
 
-	err := s.handler.WriteBatchRaw(ctx, req.Req)
+	err := s.handler.WriteBatchRaw(tctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -1962,7 +1962,8 @@ func (s *tchanNodeServer) handleWriteTaggedBatchRaw(tctx thrift.Context, protoco
 	var req NodeWriteTaggedBatchRawArgs
 	var res NodeWriteTaggedBatchRawResult
 
-	if err := req.Read(protocol); err != nil {
+	m3ctx := tctx.Value(contextkey).(context.Context)
+	if err := req.readWithContext(m3ctx, protocol); err != nil {
 		return false, nil, err
 	}
 
