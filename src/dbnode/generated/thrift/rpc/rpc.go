@@ -31,7 +31,9 @@ import (
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/m3db/m3/src/x/context"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/uber-go/tally"
 )
 
 // (needed to ensure safety because of naive import list construction.)
@@ -51,13 +53,18 @@ var (
 		pool.Bucket{Count: 8192, Capacity: 2048},
 		pool.Bucket{Count: 4096, Capacity: 4096},
 	}
-	bytesPool = pool.NewCheckedBytesPool(buckets, nil,
+	bytesPool pool.CheckedBytesPool
+)
+
+func Init(scope tally.Scope) {
+	iopts := instrument.NewOptions().
+		SetMetricsScope(scope.SubScope("thrift-rpc-pooling"))
+	opts := pool.NewObjectPoolOptions().
+		SetInstrumentOptions(iopts)
+	bytesPool = pool.NewCheckedBytesPool(buckets, opts,
 		func(s []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(s, nil)
 		})
-)
-
-func init() {
 	bytesPool.Init()
 }
 

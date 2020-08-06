@@ -47,6 +47,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	hjcluster "github.com/m3db/m3/src/dbnode/network/server/httpjson/cluster"
@@ -232,6 +233,7 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
 	}
+	rpc.Init(scope)
 
 	hostID, err := cfg.HostID.Resolve()
 	if err != nil {
