@@ -134,7 +134,10 @@ func verifySeriesMapForRange(
 			}
 		} else {
 			assert.Equal(t, expected[i].ID, series.ID)
-			if !ts.AssertEqual(t, expected[i].Data, series.Data) {
+			isEqual := ts.AssertEqual(t, expected[i].Data, series.Data)
+			// Manually assert True here so that tests fail when expected.
+			assert.True(t, isEqual)
+			if !isEqual {
 				return false
 			}
 		}
