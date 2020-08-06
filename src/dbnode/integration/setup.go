@@ -169,6 +169,8 @@ type TestSetup interface {
 	Close()
 	WriteBatch(ident.ID, generate.SeriesBlock) error
 	ShouldBeEqual() bool
+	// *NOTE*: This method is deprecated and should not be used in future tests.
+	// Also, we should migrate existing tests when we touch them away from using this.
 	SleepFor10xTickMinimumInterval()
 	BlockLeaseManager() block.LeaseManager
 	ShardSet() sharding.ShardSet
