@@ -2967,7 +2967,7 @@ func (p *Segment) ReadField1(iprot thrift.TProtocol) error {
 	buf.IncRef()
 	defer buf.DecRef()
 	b := buf.Bytes()[:size]
-	if err := iprot.ReadBinary(); err != nil {
+	if err := iprot.ReadBinary(b); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
 		p.Head = b
