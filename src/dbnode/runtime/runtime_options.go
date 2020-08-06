@@ -22,7 +22,6 @@ package runtime
 
 import (
 	"errors"
-	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ratelimit"
@@ -68,7 +67,7 @@ type options struct {
 	writeNewSeriesAsync                  bool
 	writeNewSeriesBackoffDuration        time.Duration
 	writeNewSeriesLimitPerShardPerSecond int
-	encodersPerBlockLimit                int32
+	encodersPerBlockLimit                int
 	tickSeriesBatchSize                  int
 	tickPerSeriesSleepDuration           time.Duration
 	tickMinimumInterval                  time.Duration
@@ -162,14 +161,14 @@ func (o *options) WriteNewSeriesLimitPerShardPerSecond() int {
 	return o.writeNewSeriesLimitPerShardPerSecond
 }
 
-func (o *options) SetEncodersPerBlockLimit(value int32) Options {
+func (o *options) SetEncodersPerBlockLimit(value int) Options {
 	opts := *o
-	atomic.StoreInt32(&opts.encodersPerBlockLimit, value)
+	opts.encodersPerBlockLimit = value
 	return &opts
 }
 
-func (o *options) EncodersPerBlockLimit() int32 {
-	return atomic.LoadInt32(&o.encodersPerBlockLimit)
+func (o *options) EncodersPerBlockLimit() int {
+	return o.encodersPerBlockLimit
 }
 
 func (o *options) SetTickSeriesBatchSize(value int) Options {

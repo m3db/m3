@@ -1972,7 +1972,7 @@ func TestEncoderLimit(t *testing.T) {
 
 	tests := []struct {
 		desc                  string
-		encodersPerBlockLimit int32
+		encodersPerBlockLimit int
 		writes                []writeTimeOffset
 	}{
 		{
