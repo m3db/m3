@@ -889,7 +889,7 @@ func TestSnapshotFileSetExistsAt(t *testing.T) {
 
 	writeOutTestSnapshot(t, dir, shard, ts, 0)
 
-	exists, err := SnapshotFileSetExistsAt(dir, testNs1ID, shard, ts)
+	exists, err := SnapshotFileSetExistsAt(dir, testNs1ID, testSnapshotID, shard, ts)
 	require.NoError(t, err)
 	require.True(t, exists)
 }

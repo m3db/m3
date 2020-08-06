@@ -829,6 +829,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		series := series.NewMockDatabaseSeries(ctrl)
 		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		series.EXPECT().IsEmpty().Return(false).AnyTimes()
+		series.EXPECT().IsBufferEmptyAtBlockStart(blockStart).Return(false).AnyTimes()
 		series.EXPECT().
 			Snapshot(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
 			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {

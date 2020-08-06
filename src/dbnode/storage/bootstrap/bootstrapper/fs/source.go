@@ -237,7 +237,8 @@ func (s *fileSystemSource) shardAvailability(
 	}
 
 	readInfoFilesResults := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
-		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
+		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions(),
+		persist.FileSetFlushType)
 
 	tr := xtime.NewRanges()
 	for i := 0; i < len(readInfoFilesResults); i++ {
