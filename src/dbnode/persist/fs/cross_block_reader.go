@@ -28,9 +28,12 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
@@ -251,4 +254,87 @@ func (h *minHeap) Pop() interface{} {
 	old[n-1] = nil
 	*h = old[0 : n-1]
 	return x
+}
+
+type crossBlockIterator struct {
+	started    bool
+	idx        int
+	exhausted  bool
+	current    encoding.ReaderIterator
+	byteReader *bytes.Reader
+	records    []BlockRecord
+}
+
+// NewCrossBlockIterator creates a new CrossBlockIterator.
+func NewCrossBlockIterator(pool encoding.ReaderIteratorPool) CrossBlockIterator {
+	return &crossBlockIterator{
+		idx:        -1,
+		current:    pool.Get(),
+		byteReader: bytes.NewReader(nil),
+	}
+}
+
+func (c *crossBlockIterator) Next() bool {
+	if c.exhausted {
+		return false
+	}
+
+	// NB: if no values remain in current iterator,
+	if !c.started || !c.current.Next() {
+		if c.started && c.current.Err() != nil {
+			c.exhausted = true
+			return false
+		}
+
+		c.started = true
+		c.idx = c.idx + 1
+
+		// NB: clear previous.
+		if c.idx > 0 {
+			c.records[c.idx-1].Data.DecRef()
+			c.records[c.idx-1].Data.Finalize()
+		}
+
+		if c.idx >= len(c.records) {
+			c.exhausted = true
+			return false
+		}
+
+		c.records[c.idx].Data.IncRef()
+		c.byteReader.Reset(c.records[c.idx].Data.Bytes())
+		c.current.Reset(c.byteReader, nil)
+		// NB: rerun using the next record.
+		return c.Next()
+	}
+
+	return true
+}
+
+func (c *crossBlockIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+	return c.current.Current()
+}
+
+func (c *crossBlockIterator) Reset(records []BlockRecord) {
+	// NB: close any open records.
+	if len(c.records) > 0 && c.idx >= 0 {
+		for i := c.idx; i < len(c.records); i++ {
+			c.records[i].Data.DecRef()
+			c.records[i].Data.Finalize()
+		}
+	}
+
+	c.idx = -1
+	c.records = records
+	c.started = false
+	c.exhausted = false
+	c.byteReader.Reset(nil)
+}
+
+func (c *crossBlockIterator) Close() {
+	c.Reset(nil)
+	c.current.Close()
+}
+
+func (c *crossBlockIterator) Err() error {
+	return c.current.Err()
 }

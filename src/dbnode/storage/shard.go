@@ -24,15 +24,12 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
-	"go.uber.org/atomic"
 	"io"
 	"math"
-	osruntime "runtime"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -63,6 +60,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -2613,20 +2611,14 @@ func (s *dbShard) AggregateTiles(
 	}
 	defer crossBlockReader.Close()
 
-	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
-
-	concurrency := osruntime.NumCPU()
-	// TODO: fix it. concurrency currently raises panics
-	concurrency = 1
 	tileOpts := tile.Options{
-		FrameSize:    xtime.UnixNano(opts.Step.Nanoseconds()),
-		Start:        xtime.ToUnixNano(opts.Start),
-		Concurrency:  concurrency,
-		UseArrow:     false,
-		EncodingOpts: encodingOpts,
+		FrameSize:          xtime.UnixNano(opts.Step.Nanoseconds()),
+		Start:              xtime.ToUnixNano(opts.Start),
+		UseArrow:           false,
+		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
 	}
 
-	//TODO: switch NewSeriesBlockIterator from using readers[0] to using crossBlockReader
+	// TODO: these should probably be pooled
 	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
 	if err != nil {
 		return 0, err
@@ -2645,52 +2637,42 @@ func (s *dbShard) AggregateTiles(
 	var (
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
-		wg                  sync.WaitGroup
-		mu                  sync.Mutex
 	)
 
 	for readerIter.Next() {
-		seriesIters := readerIter.Current()
-		for _, seriesIter := range seriesIters {
-			wg.Add(1)
-			seriesIter := seriesIter
-			go func() {
-				for seriesIter.Next() {
-					frame := seriesIter.Current()
-					id := frame.ID()
-					tags := frame.Tags()
-					unit, singleUnit := frame.Units().SingleValue()
-					annotation, singleAnnotation := frame.Annotations().SingleValue()
-					if vals := frame.Values(); len(vals) > 0 {
-						lastIdx := len(vals) - 1
-						lastValue := vals[lastIdx]
-						lastTimestamp := frame.Timestamps()[lastIdx]
-						if !singleUnit {
-							// TODO: what happens if unit has changed mid-tile?
-							// Write early and then do the remaining values separately?
-							unit = frame.Units().Values()[lastIdx]
-						}
-						if !singleAnnotation {
-							// TODO: what happens if annotation has changed mid-tile?
-							// Write early and then do the remaining values separately?
-							annotation = frame.Annotations().Values()[lastIdx]
-						}
-
-						_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, annotation, wOpts, true)
-						if err != nil {
-							mu.Lock()
-							s.metrics.largeTilesWriteErrors.Inc(1)
-							multiErr = multiErr.Add(err)
-							mu.Unlock()
-						}
-						processedBlockCount.Inc()
-					}
+		seriesIter := readerIter.Current()
+		for seriesIter.Next() {
+			frame := seriesIter.Current()
+			id := frame.ID()
+			tags := frame.Tags()
+			unit, singleUnit := frame.Units().SingleValue()
+			annotation, singleAnnotation := frame.Annotations().SingleValue()
+			if vals := frame.Values(); len(vals) > 0 {
+				lastIdx := len(vals) - 1
+				lastValue := vals[lastIdx]
+				lastTimestamp := frame.Timestamps()[lastIdx]
+				if !singleUnit {
+					// TODO: what happens if unit has changed mid-tile?
+					// Write early and then do the remaining values separately?
+					unit = frame.Units().Values()[lastIdx]
+				}
+				if !singleAnnotation {
+					// TODO: what happens if annotation has changed mid-tile?
+					// Write early and then do the remaining values separately?
+					annotation = frame.Annotations().Values()[lastIdx]
 				}
 
-				wg.Done()
-			}()
+				_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, annotation, wOpts, true)
+				if err != nil {
+					s.metrics.largeTilesWriteErrors.Inc(1)
+					multiErr = multiErr.Add(err)
+				}
+				processedBlockCount.Inc()
+			}
+		}
 
-			wg.Wait()
+		if err := seriesIter.Err(); err != nil {
+			multiErr = multiErr.Add(err)
 		}
 	}
 

@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -41,12 +41,13 @@ func newSequentialIterator(
 	start time.Time,
 	step time.Duration,
 	numPoints int,
-) encoding.ReaderIterator {
-	bl := encoding.NewMockReaderIterator(ctrl)
+) fs.CrossBlockIterator {
+	it := fs.NewMockCrossBlockIterator(ctrl)
+	// it := encoding.NewMockReaderIterator(ctrl)
 	currVal, currTs, currTsNano := 0.0, start, xtime.ToUnixNano(start)
 	for i := 0; i < numPoints; i++ {
 		i := i
-		bl.EXPECT().Next().DoAndReturn(func() bool {
+		it.EXPECT().Next().DoAndReturn(func() bool {
 			// NB: only increment after first Next.
 			if i > 0 {
 				currVal++
@@ -56,7 +57,7 @@ func newSequentialIterator(
 			return true
 		}).Times(1)
 
-		bl.EXPECT().Current().DoAndReturn(func() (ts.Datapoint, xtime.Unit, []byte) {
+		it.EXPECT().Current().DoAndReturn(func() (ts.Datapoint, xtime.Unit, []byte) {
 			return ts.Datapoint{
 				Value:          currVal,
 				Timestamp:      currTs,
@@ -65,11 +66,11 @@ func newSequentialIterator(
 		}).AnyTimes()
 	}
 
-	bl.EXPECT().Next().Return(false)
-	bl.EXPECT().Err().Return(nil).AnyTimes()
-	bl.EXPECT().Close().AnyTimes()
+	it.EXPECT().Next().Return(false)
+	it.EXPECT().Err().Return(nil).AnyTimes()
+	it.EXPECT().Close().AnyTimes()
 
-	return bl
+	return it
 }
 
 func halfFrameSizes(numPoints int) []float64 {
@@ -163,11 +164,11 @@ func TestSeriesFrameIterator(t *testing.T) {
 	require.Error(t, it.Err())
 
 	for _, tt := range tests {
-		bl := newSequentialIterator(ctrl, start, stepSize, numPoints)
+		iter := newSequentialIterator(ctrl, start, stepSize, numPoints)
 		require.NoError(t, it.Reset(
 			xtime.ToUnixNano(start),
 			xtime.UnixNano(tt.frameSize),
-			bl,
+			iter,
 			ident.StringID("foo"),
 			ident.MustNewTagStringsIterator("foo", "bar"),
 		))
