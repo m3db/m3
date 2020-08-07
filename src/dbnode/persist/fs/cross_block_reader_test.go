@@ -330,7 +330,6 @@ func TestFailingCrossBlockIterator(t *testing.T) {
 
 	assert.Equal(t, 12, i)
 
-	// reader.EXPECT().Err().Return(errExpected)
 	assert.Equal(t, errExpected, iter.Err())
 	reader.EXPECT().Close()
 	iter.Close()

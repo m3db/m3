@@ -30,9 +30,10 @@ import (
 type seriesBlockIter struct {
 	reader fs.CrossBlockReader
 
-	err           error
-	exhausted     bool
-	hasLastValues bool
+	err       error
+	exhausted bool
+	hasID     bool
+	hasTag    bool
 
 	step  xtime.UnixNano
 	start xtime.UnixNano
@@ -49,7 +50,6 @@ func NewSeriesBlockIterator(
 	reader fs.CrossBlockReader,
 	opts Options,
 ) (SeriesBlockIterator, error) {
-
 	var recorder recorder
 	if opts.UseArrow {
 		recorder = newDatapointRecorder(memory.NewGoAllocator())
@@ -74,6 +74,16 @@ func (b *seriesBlockIter) Next() bool {
 		return false
 	}
 
+	if b.hasID && b.ids != nil {
+		b.ids.Finalize()
+		b.hasID = false
+	}
+
+	if b.hasTag && b.tagIters != nil {
+		b.tagIters.Close()
+		b.hasTag = false
+	}
+
 	if !b.reader.Next() {
 		b.exhausted = true
 		b.err = b.reader.Err()
@@ -82,6 +92,7 @@ func (b *seriesBlockIter) Next() bool {
 
 	var blockRecords []fs.BlockRecord
 	b.ids, b.tagIters, blockRecords = b.reader.Current()
+	b.hasID, b.hasTag = true, true
 	b.blockIter.Reset(blockRecords)
 	b.iter.Reset(b.start, b.step, b.blockIter, b.ids, b.tagIters)
 
@@ -96,12 +107,14 @@ func (b *seriesBlockIter) Close() error {
 	b.recorder.release()
 	b.blockIter.Close()
 
-	if b.tagIters != nil {
-		b.tagIters.Close()
+	if b.hasID && b.ids != nil {
+		b.ids.Finalize()
+		b.hasID = false
 	}
 
-	if b.ids != nil {
-		b.ids.Finalize()
+	if b.hasTag && b.tagIters != nil {
+		b.tagIters.Close()
+		b.hasTag = false
 	}
 
 	return b.iter.Close()

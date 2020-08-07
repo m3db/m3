@@ -43,7 +43,6 @@ func newSequentialIterator(
 	numPoints int,
 ) fs.CrossBlockIterator {
 	it := fs.NewMockCrossBlockIterator(ctrl)
-	// it := encoding.NewMockReaderIterator(ctrl)
 	currVal, currTs, currTsNano := 0.0, start, xtime.ToUnixNano(start)
 	for i := 0; i < numPoints; i++ {
 		i := i
