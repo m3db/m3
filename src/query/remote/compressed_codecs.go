@@ -97,7 +97,7 @@ func compressedSegmentsFromReaders(
 			br := readers.CurrentReaderAt(i)
 			segment, err := compressedSegmentFromBlockReader(br)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			unmerged = append(unmerged, segment)
 			blocks = append(blocks, br)
