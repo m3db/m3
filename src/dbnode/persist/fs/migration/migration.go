@@ -77,7 +77,8 @@ func (v *ToVersion1_1Task) Run() error {
 
 	merger := v.newMergerFn(reader, v.sOpts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
 		v.sOpts.SegmentReaderPool(), v.sOpts.MultiReaderIteratorPool(),
-		v.sOpts.IdentifierPool(), v.sOpts.EncoderPool(), v.sOpts.ContextPool(), v.namespaceMetadata.Options())
+		v.sOpts.IdentifierPool(), v.sOpts.EncoderPool(), v.sOpts.ContextPool(), v.namespaceMetadata.Options(),
+		v.fsOpts.FilePathPrefix())
 
 	volIndex := v.infoFileResult.Info.VolumeIndex
 	fsID := fs.FileSetFileIdentifier{
@@ -96,13 +97,9 @@ func (v *ToVersion1_1Task) Run() error {
 
 	// Intentionally use a noop merger here as we simply want to rewrite the same files with the current encoder which
 	// will generate index files with the entry level checksums.
-	close, err := merger.Merge(fsID, storage.NewNoopMergeWith(), volIndex+1, flushPersist, nsCtx,
+	err = merger.MergeAndCleanup(fsID, fs.NewNoopMergeWith(), volIndex+1, flushPersist, nsCtx,
 		&persist.NoOpColdFlushNamespace{})
 	if err != nil {
-		return err
-	}
-
-	if err := close(); err != nil {
 		return err
 	}
 

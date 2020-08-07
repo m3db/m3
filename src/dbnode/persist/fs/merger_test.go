@@ -22,10 +22,13 @@ package fs
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -53,6 +56,7 @@ var (
 	identPool     ident.Pool
 	encoderPool   encoding.EncoderPool
 	contextPool   context.Pool
+	bytesPool     pool.CheckedBytesPool
 
 	startTime = time.Now().Truncate(blockSize)
 
@@ -86,6 +90,10 @@ func init() {
 	contextPool = context.NewPool(context.NewOptions().
 		SetContextPoolOptions(poolOpts).
 		SetFinalizerPoolOptions(poolOpts))
+	bytesPool = pool.NewCheckedBytesPool(nil, poolOpts, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, poolOpts)
+	})
+	bytesPool.Init()
 }
 
 func TestMergeWithIntersection(t *testing.T) {
@@ -427,6 +435,85 @@ func TestMergeWithNoData(t *testing.T) {
 	testMergeWith(t, diskData, mergeTargetData, expected)
 }
 
+func TestCleanup(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	// Write fileset to disk
+	fsOpts := NewOptions().
+		SetFilePathPrefix(filePathPrefix)
+
+	md, err := namespace.NewMetadata(ident.StringID("foo"), namespace.NewOptions())
+	require.NoError(t, err)
+
+	blockStart := time.Now()
+	var shard uint32 = 1
+	fsId := FileSetFileIdentifier{
+		Namespace:   md.ID(),
+		Shard:       shard,
+		BlockStart:  blockStart,
+		VolumeIndex: 0,
+	}
+	writeFilesetToDisk(t, fsId, fsOpts)
+
+	// Verify fileset exists
+	exists, err := DataFileSetExists(filePathPrefix, md.ID(), shard, blockStart, 0)
+	require.NoError(t, err)
+	require.True(t, exists)
+
+	// Initialize merger
+	reader, err := NewReader(bytesPool, fsOpts)
+	require.NoError(t, err)
+
+	merger := NewMerger(reader, 0, srPool, multiIterPool, identPool, encoderPool, contextPool,
+		namespace.NewOptions(), filePathPrefix)
+
+	// Run merger
+	pm, err := NewPersistManager(fsOpts)
+	require.NoError(t, err)
+
+	preparer, err := pm.StartFlushPersist()
+	require.NoError(t, err)
+
+	err = merger.MergeAndCleanup(fsId, NewNoopMergeWith(), fsId.VolumeIndex+1, preparer,
+		namespace.NewContextFrom(md), &persist.NoOpColdFlushNamespace{})
+	require.NoError(t, err)
+
+	// Verify old fileset gone and new one present
+	exists, err = DataFileSetExists(filePathPrefix, md.ID(), shard, blockStart, 0)
+	require.NoError(t, err)
+	require.False(t, exists)
+
+	exists, err = DataFileSetExists(filePathPrefix, md.ID(), shard, blockStart, 1)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
+func writeFilesetToDisk(t *testing.T, fsId FileSetFileIdentifier, fsOpts Options) {
+	w, err := NewWriter(fsOpts)
+	require.NoError(t, err)
+
+	writerOpts := DataWriterOpenOptions{
+		Identifier: fsId,
+		BlockSize:  2 * time.Hour,
+	}
+	err = w.Open(writerOpts)
+	require.NoError(t, err)
+
+	entry := []byte{1, 2, 3}
+
+	chkdBytes := checked.NewBytes(entry, nil)
+	chkdBytes.IncRef()
+	metadata := persist.NewMetadataFromIDAndTags(ident.StringID("foo"),
+		ident.Tags{}, persist.MetadataOptions{})
+	err = w.Write(metadata, chkdBytes, digest.Checksum(entry))
+	require.NoError(t, err)
+
+	err = w.Close()
+	require.NoError(t, err)
+}
+
 func testMergeWith(
 	t *testing.T,
 	diskData *checkedBytesMap,
@@ -464,7 +551,7 @@ func testMergeWith(
 
 	nsOpts := namespace.NewOptions()
 	merger := NewMerger(reader, 0, srPool, multiIterPool,
-		identPool, encoderPool, contextPool, nsOpts)
+		identPool, encoderPool, contextPool, nsOpts, NewOptions().FilePathPrefix())
 	fsID := FileSetFileIdentifier{
 		Namespace:  ident.StringID("test-ns"),
 		Shard:      uint32(8),

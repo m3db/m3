@@ -733,6 +733,7 @@ func newMergerTestFn(
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
 	nsOpts namespace.Options,
+	filePathPrefix string,
 ) fs.Merger {
 	return &noopMerger{}
 }
@@ -751,13 +752,24 @@ func (m *noopMerger) Merge(
 	return closer, nil
 }
 
+func (m *noopMerger) MergeAndCleanup(
+	fileID fs.FileSetFileIdentifier,
+	mergeWith fs.MergeWith,
+	nextVolumeIndex int,
+	flushPreparer persist.FlushPreparer,
+	nsCtx namespace.Context,
+	onFlush persist.OnFlushSeries,
+) error {
+	return nil
+}
+
 func newFSMergeWithMemTestFn(
 	shard databaseShard,
 	retriever series.QueryableBlockRetriever,
 	dirtySeries *dirtySeriesMap,
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith {
-	return &noopMergeWith{}
+	return fs.NewNoopMergeWith()
 }
 
 func TestShardSnapshotShardNotBootstrapped(t *testing.T) {

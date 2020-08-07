@@ -586,6 +586,18 @@ type Merger interface {
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
 	) (persist.DataCloser, error)
+
+	// MergeAndCleanup merges the specified fileset file with a merge target and removes the previous version of the
+	// fileset. This should only be called within the bootstrapper. Any other file deletions outside of the bootstrapper
+	// should be handled by the CleanupManager.
+	MergeAndCleanup(
+		fileID FileSetFileIdentifier,
+		mergeWith MergeWith,
+		nextVolumeIndex int,
+		flushPreparer persist.FlushPreparer,
+		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
+	) error
 }
 
 // NewMergerFn is the function to call to get a new Merger.
@@ -598,6 +610,7 @@ type NewMergerFn func(
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
 	nsOpts namespace.Options,
+	filePathPrefix string,
 ) Merger
 
 // Segments represents on index segments on disk for an index volume.

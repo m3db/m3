@@ -46,6 +46,7 @@ type merger struct {
 	encoderPool    encoding.EncoderPool
 	contextPool    context.Pool
 	nsOpts         namespace.Options
+	filePathPrefix string
 }
 
 // NewMerger returns a new Merger. This implementation is in charge of merging
@@ -66,6 +67,7 @@ func NewMerger(
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
 	nsOpts namespace.Options,
+	filePathPrefix string,
 ) Merger {
 	return &merger{
 		reader:         reader,
@@ -76,6 +78,7 @@ func NewMerger(
 		encoderPool:    encoderPool,
 		contextPool:    contextPool,
 		nsOpts:         nsOpts,
+		filePathPrefix: filePathPrefix,
 	}
 }
 
@@ -264,6 +267,26 @@ func (m *merger) Merge(
 
 	// NB(bodu): Return a deferred closer so that we can guarantee that cold index writes are persisted first.
 	return prepared.DeferClose()
+}
+
+func (m *merger) MergeAndCleanup(
+	fileID FileSetFileIdentifier,
+	mergeWith MergeWith,
+	nextVolumeIndex int,
+	flushPreparer persist.FlushPreparer,
+	nsCtx namespace.Context,
+	onFlush persist.OnFlushSeries,
+) error {
+	close, err := m.Merge(fileID, mergeWith, nextVolumeIndex, flushPreparer, nsCtx, onFlush)
+	if err != nil {
+		return nil
+	}
+
+	if err = close(); err != nil {
+		return nil
+	}
+
+	return DeleteFileSetAt(m.filePathPrefix, fileID.Namespace, fileID.Shard, fileID.BlockStart, fileID.VolumeIndex)
 }
 
 func appendBlockReadersToSegmentReaders(segReaders []xio.SegmentReader, brs []xio.BlockReader) []xio.SegmentReader {

@@ -140,18 +140,14 @@ func writeUnmigratedData(t *testing.T, filePathPrefix string, nsId ident.ID, sha
 	err = w.Open(writerOpts)
 	require.NoError(t, err)
 
-	entries := [][]byte{
-		{1, 2, 3},
-	}
+	entry := []byte{1, 2, 3}
 
-	for i, entry := range entries {
-		chkdBytes := checked.NewBytes(entry, nil)
-		chkdBytes.IncRef()
-		metadata := persist.NewMetadataFromIDAndTags(ident.StringID(fmt.Sprintf("%d", i)),
-			ident.Tags{}, persist.MetadataOptions{})
-		err := w.Write(metadata, chkdBytes, digest.Checksum(entry))
-		require.NoError(t, err)
-	}
+	chkdBytes := checked.NewBytes(entry, nil)
+	chkdBytes.IncRef()
+	metadata := persist.NewMetadataFromIDAndTags(ident.StringID("foo"),
+		ident.Tags{}, persist.MetadataOptions{})
+	err = w.Write(metadata, chkdBytes, digest.Checksum(entry))
+	require.NoError(t, err)
 
 	err = w.Close()
 	require.NoError(t, err)
