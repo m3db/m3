@@ -1239,6 +1239,9 @@ type newFSMergeWithMemFn func(
 ) fs.MergeWith
 
 type AggregateTilesOptions struct {
-	Start, End time.Time
-	Step time.Duration
+	Start, End          time.Time
+	Step                time.Duration
+	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
+	// TODO: remove once we have metrics type stored in the metadata.
+	HandleCounterResets bool
 }
