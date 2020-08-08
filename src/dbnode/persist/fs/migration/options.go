@@ -20,24 +20,45 @@
 
 package migration
 
+import "errors"
+
+// defaultMigrationConcurrency is the default number of concurrent workers to perform migrations
+const defaultMigrationConcurrency = 10
+
+var (
+	errConcurrencyInvalid = errors.New("concurrency value valid. must be >= 1")
+)
+
 type options struct {
-	toVersion1_1 bool
-	concurrency  int
+	toVersion   MigrateVersion
+	concurrency int
 }
 
 // NewOptions creates new migration options
 func NewOptions() Options {
-	return &options{}
+	return &options{
+		concurrency: defaultMigrationConcurrency,
+	}
 }
 
-func (o *options) SetToVersion1_1(value bool) Options {
+func (o *options) Validate() error {
+	if err := ValidateMigrateVersion(o.toVersion); err != nil {
+		return err
+	}
+	if o.concurrency < 1 {
+		return errConcurrencyInvalid
+	}
+	return nil
+}
+
+func (o *options) SetToVersion(value MigrateVersion) Options {
 	opts := *o
-	opts.toVersion1_1 = value
+	opts.toVersion = value
 	return &opts
 }
 
-func (o *options) ToVersion1_1() bool {
-	return o.toVersion1_1
+func (o *options) ToVersion() MigrateVersion {
+	return o.toVersion
 }
 
 func (o *options) SetConcurrency(value int) Options {

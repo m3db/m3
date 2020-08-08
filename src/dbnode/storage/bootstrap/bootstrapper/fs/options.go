@@ -42,6 +42,7 @@ var (
 	errCompactorNotSet         = errors.New("compactor not set")
 	errIndexOptionsNotSet      = errors.New("index options not set")
 	errFilesystemOptionsNotSet = errors.New("filesystem options not set")
+	errMigrationOptionsNotSet  = errors.New("migration options not set")
 
 	// NB(r): Bootstrapping data doesn't use large amounts of memory
 	// that won't be released, so its fine to do this as fast as possible.
@@ -101,6 +102,12 @@ func (o *options) Validate() error {
 	}
 	if o.fsOpts == nil {
 		return errFilesystemOptionsNotSet
+	}
+	if o.migrationOpts == nil {
+		return errMigrationOptionsNotSet
+	}
+	if err := o.migrationOpts.Validate(); err != nil {
+		return err
 	}
 	return nil
 }

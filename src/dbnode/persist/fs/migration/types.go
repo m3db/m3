@@ -20,17 +20,89 @@
 
 package migration
 
+import "fmt"
+
 // Options represents the options for migrations
 type Options interface {
-	// SetToVersion1_1 sets the toVersion1_1 migration option
-	SetToVersion1_1(value bool) Options
+	// Validate validates migration options
+	Validate() error
 
-	// ToVersion1_1Task returns the value of toVersion1_1 migration option
-	ToVersion1_1() bool
+	// SetToVersion sets the toVersion migration option
+	SetToVersion(value MigrateVersion) Options
+
+	// ToVersion returns the value of toVersion migration option
+	ToVersion() MigrateVersion
 
 	// SetConcurrency sets the number of concurrent workers performing migrations
 	SetConcurrency(value int) Options
 
 	// Concurrency gets the number of concurrent workers performing migrations
 	Concurrency() int
+}
+
+// MigrateVersion is an enum that corresponds to the major and minor version number to migrate data files to
+type MigrateVersion uint
+
+const (
+	// MigrateVersionNone indicates node should not attempt to perform any migrations
+	MigrateVersionNone MigrateVersion = iota
+	// MigrateVersion_1_1 indicates node should attempt to migrate data files up to version 1.1
+	MigrateVersion_1_1
+)
+
+var (
+	validMigrateVersions = []MigrateVersion{
+		MigrateVersionNone,
+		MigrateVersion_1_1,
+	}
+)
+
+func (m *MigrateVersion) String() string {
+	switch *m {
+	case MigrateVersionNone:
+		return "none"
+	case MigrateVersion_1_1:
+		return "1.1"
+	default:
+		return "unknown"
+	}
+}
+
+// ParseMigrateVersion parses a string for a MigrateVersion
+func ParseMigrateVersion(str string) (MigrateVersion, error) {
+	for _, valid := range validMigrateVersions {
+		if str == valid.String() {
+			return valid, nil
+		}
+	}
+
+	return 0, fmt.Errorf("unrecognized migrate version: %v", str)
+}
+
+// ValidateMigrateVersion validates a stored metrics type.
+func ValidateMigrateVersion(m MigrateVersion) error {
+	for _, valid := range validMigrateVersions {
+		if valid == m {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid migrate version '%v': should be one of %v",
+		m, validMigrateVersions)
+}
+
+// UnmarshalYAML unmarshals a migrate version
+func (m *MigrateVersion) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	if value, err := ParseMigrateVersion(str); err == nil {
+		*m = value
+		return nil
+	}
+
+	return fmt.Errorf("invalid MigrateVersion '%s' valid types are: %v",
+		str, validMigrateVersions)
 }
