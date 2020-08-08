@@ -28,17 +28,16 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
-// Migration interface is implemented by tasks that wish to perform a data migration
-// on a fileset. Typically involves updating files in a fileset that were created by
-// a previous version of the database client
+// Task interface is implemented by tasks that wish to perform a data migration
+// on a fileset. This typically involves updating files in a fileset that were created by
+// a previous version of the database client.
 type Task interface {
-
 	// Run is the set of steps to successfully complete a migration
 	Run() error
 }
 
-// ToVersion1_1Task is an object responsible for migrating a fileset to version 1.1
-type ToVersion1_1Task struct {
+// toVersion1_1Task is an object responsible for migrating a fileset to version 1.1
+type toVersion1_1Task struct {
 	newMergerFn       fs.NewMergerFn
 	infoFileResult    fs.ReadInfoFileResult
 	shard             uint32
@@ -48,7 +47,7 @@ type ToVersion1_1Task struct {
 	fsOpts            fs.Options
 }
 
-// ShouldMigrateToVersion1_1 returns true or false depending on if a fileset should be migrated to 1.1 or not
+// ShouldMigrateToVersion1_1 indicates whether the fileset should be migrated to 1.1 or not
 func ShouldMigrateToVersion1_1(info fs.ReadInfoFileResult) bool {
 	return info.Info.MajorVersion == 1 && info.Info.MinorVersion == 0
 }
@@ -57,7 +56,7 @@ func NewToVersion1_1Task(opts TaskOptions) (Task, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	return &ToVersion1_1Task{
+	return &toVersion1_1Task{
 		newMergerFn:       opts.NewMergerFn(),
 		infoFileResult:    opts.InfoFileResult(),
 		shard:             opts.Shard(),
@@ -69,15 +68,16 @@ func NewToVersion1_1Task(opts TaskOptions) (Task, error) {
 }
 
 // Run executes the steps to bring a fileset to Version 1.1
-func (v *ToVersion1_1Task) Run() error {
-	reader, err := fs.NewReader(v.sOpts.BytesPool(), v.fsOpts)
+func (v *toVersion1_1Task) Run() error {
+	opts := v.sOpts
+	reader, err := fs.NewReader(opts.BytesPool(), v.fsOpts)
 	if err != nil {
 		return err
 	}
 
-	merger := v.newMergerFn(reader, v.sOpts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
-		v.sOpts.SegmentReaderPool(), v.sOpts.MultiReaderIteratorPool(),
-		v.sOpts.IdentifierPool(), v.sOpts.EncoderPool(), v.sOpts.ContextPool(), v.namespaceMetadata.Options(),
+	merger := v.newMergerFn(reader, opts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
+		opts.SegmentReaderPool(), opts.MultiReaderIteratorPool(),
+		opts.IdentifierPool(), opts.EncoderPool(), opts.ContextPool(), v.namespaceMetadata.Options(),
 		v.fsOpts.FilePathPrefix())
 
 	volIndex := v.infoFileResult.Info.VolumeIndex

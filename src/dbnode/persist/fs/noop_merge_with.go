@@ -39,19 +39,19 @@ func NewNoopMergeWith() MergeWith {
 }
 
 func (m *noopMergeWith) Read(
-	ctx context.Context,
-	seriesID ident.ID,
-	blockStart xtime.UnixNano,
-	nsCtx namespace.Context,
+	_ context.Context,
+	_ ident.ID,
+	_ xtime.UnixNano,
+	_ namespace.Context,
 ) ([]xio.BlockReader, bool, error) {
 	return nil, false, nil
 }
 
 func (m *noopMergeWith) ForEachRemaining(
-	ctx context.Context,
-	blockStart xtime.UnixNano,
-	fn ForEachRemainingFn,
-	nsCtx namespace.Context,
+	_ context.Context,
+	_ xtime.UnixNano,
+	_ ForEachRemainingFn,
+	_ namespace.Context,
 ) error {
 	return nil
 }

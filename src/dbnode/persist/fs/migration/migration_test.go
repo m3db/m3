@@ -127,7 +127,7 @@ func writeUnmigratedData(t *testing.T, filePathPrefix string, nsId ident.ID, sha
 	w, err := fs.NewWriter(fsOpts)
 	require.NoError(t, err)
 
-	blockStart := time.Now()
+	blockStart := time.Now().Truncate(time.Hour)
 	writerOpts := fs.DataWriterOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
 			Namespace:   nsId,
@@ -157,8 +157,7 @@ func writeUnmigratedData(t *testing.T, filePathPrefix string, nsId ident.ID, sha
 
 func createTempDir(t *testing.T) string {
 	dir, err := ioutil.TempDir("", "testdir")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	return dir
 }
