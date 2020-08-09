@@ -505,6 +505,21 @@ func TestFileSetAt(t *testing.T) {
 	}
 }
 
+func TestFileSetAtNonLegacy(t *testing.T) {
+	shard := uint32(0)
+	numIters := 20
+	dir := createDataFiles(t, dataDirName, testNs1ID, shard, numIters, true, checkpointFileSuffix)
+	defer os.RemoveAll(dir)
+
+	for i := 0; i < numIters; i++ {
+		timestamp := time.Unix(0, int64(i))
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, timestamp, res.ID.BlockStart)
+	}
+}
+
 func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
 	shard := uint32(0)
 	numIters := 20
