@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -277,4 +278,18 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	_, err := dec.DecodeIndexEntry(nil)
 	require.Error(t, err)
+}
+
+func TestDecodeIndexEntryToIndexHash(t *testing.T) {
+	var (
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
+	)
+
+	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+	data := enc.Bytes()
+	dec.Reset(NewByteDecoderStream(data))
+	res, err := dec.DecodeIndexEntryToIndexHash(nil)
+	require.NoError(t, err)
+	assert.Equal(t, testIndexHash, res)
 }

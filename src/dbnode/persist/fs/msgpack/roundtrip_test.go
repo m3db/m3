@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/pool"
@@ -65,6 +66,11 @@ var (
 		Index:            234,
 		ID:               []byte("testIndexSummary"),
 		IndexEntryOffset: 2390423,
+	}
+
+	testIndexHash = schema.IndexHash{
+		IndexHash:    xxhash.Sum64(testIndexEntry.ID),
+		DataChecksum: testIndexEntry.DataChecksum,
 	}
 
 	testLogInfo = schema.LogInfo{
@@ -383,6 +389,20 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 	require.Equal(t, testIndexEntry, res)
 }
 
+func TestIndexEntryIntoIndexHashRoundtripWithBytesPool(t *testing.T) {
+	var (
+		pool = pool.NewBytesPool(nil, nil)
+		enc  = NewEncoder()
+		dec  = NewDecoder(nil)
+	)
+	pool.Init()
+
+	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntryToIndexHash(pool)
+	require.NoError(t, err)
+	require.Equal(t, testIndexHash, res)
+}
 func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
 	var (
 		pool = pool.NewBytesPool(nil, nil)
@@ -396,6 +416,11 @@ func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
 	res, err := dec.DecodeIndexEntry(pool)
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	indexHash, err := dec.DecodeIndexEntryToIndexHash(pool)
+	require.NoError(t, err)
+	require.Equal(t, testIndexHash, indexHash)
 }
 
 // Make sure the V3 decoding code can handle the V1 file format.
@@ -424,6 +449,11 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	indexHash, err := dec.DecodeIndexEntryToIndexHash(nil)
+	require.NoError(t, err)
+	require.Equal(t, testIndexHash, indexHash)
 }
 
 // Make sure the V1 decoder code can handle the V3 file format.
@@ -452,6 +482,11 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	indexHash, err := dec.DecodeIndexEntryToIndexHash(nil)
+	require.NoError(t, err)
+	require.Equal(t, testIndexHash, indexHash)
 }
 
 // Make sure the V3 decoding code can handle the V2 file format.
@@ -472,6 +507,11 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	indexHash, err := dec.DecodeIndexEntryToIndexHash(nil)
+	require.NoError(t, err)
+	require.Equal(t, testIndexHash, indexHash)
 }
 
 // Make sure the V2 decoder code can handle the V3 file format.
@@ -491,6 +531,11 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
+
+	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	indexHash, err := dec.DecodeIndexEntryToIndexHash(nil)
+	require.NoError(t, err)
+	require.Equal(t, testIndexHash, indexHash)
 }
 
 func TestIndexSummaryRoundtrip(t *testing.T) {
@@ -569,7 +614,7 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		output []interface{}
 	)
 	for i := 0; i < iter; i++ {
-		switch i % 5 {
+		switch i % 6 {
 		case 0:
 			require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
 			input = append(input, testIndexInfo)
@@ -585,12 +630,15 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		case 4:
 			require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
 			input = append(input, testLogMetadata)
+		case 5:
+			require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+			input = append(input, testIndexHash)
 		}
 	}
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	for i := 0; i < iter; i++ {
-		switch i % 5 {
+		switch i % 6 {
 		case 0:
 			res, err = dec.DecodeIndexInfo()
 		case 1:
@@ -601,9 +649,12 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 			res, err = dec.DecodeLogEntry()
 		case 4:
 			res, err = dec.DecodeLogMetadata()
+		case 5:
+			res, err = dec.DecodeIndexEntryToIndexHash(nil)
 		}
 		require.NoError(t, err)
 		output = append(output, res)
 	}
+
 	require.Equal(t, input, output)
 }

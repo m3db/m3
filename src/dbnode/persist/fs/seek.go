@@ -461,6 +461,95 @@ func (s *seeker) SeekIndexEntry(
 	}
 }
 
+// SeekIndexEntryToIndexHash performs the following steps:
+//
+//     1. Go to the indexLookup and it will give us an offset that is a good starting
+//        point for scanning the index file.
+//     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
+//        begin at the offset provided by the offset lookup).
+//     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
+//     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
+//        offsetFileReader internally) until we've either found the entry we're looking for or gone so
+//        far we know it does not exist.
+func (s *seeker) SeekIndexEntryToIndexHash(
+	id ident.ID,
+	resources ReusableSeekerResources,
+) (schema.IndexHash, error) {
+	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
+	// Should never happen, either something is really wrong with the code or
+	// the file on disk was corrupted.
+	if err != nil {
+		return schema.IndexHash{}, err
+	}
+
+	resources.offsetFileReader.reset(s.indexFd, offset)
+	resources.fileDecoderStream.Reset(resources.offsetFileReader)
+	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
+
+	idBytes := id.Bytes()
+	for {
+		// Use the bytesPool on resources here because its designed for this express purpose
+		// and is much faster / cheaper than the checked bytes pool which has a lot of
+		// synchronization and is prone to allocation (due to being shared). Basically because
+		// this is a tight loop (scanning linearly through the index file) we want to use a
+		// very cheap pool until we find what we're looking for, and then we can perform a single
+		// copy into checked.Bytes from the more expensive pool.
+		entry, err := resources.xmsgpackDecoder.DecodeIndexEntryToIndexHash(resources.decodeIndexEntryBytesPool)
+		if err == io.EOF {
+			// We reached the end of the file without finding it.
+			return schema.IndexHash{}, errSeekIDNotFound
+		}
+		if err != nil {
+			// Should never happen, either something is really wrong with the code or
+			// the file on disk was corrupted.
+			return schema.IndexHash{}, instrument.InvariantErrorf(err.Error())
+		}
+		if entry.ID == nil {
+			// Should never happen, either something is really wrong with the code or
+			// the file on disk was corrupted.
+			return schema.IndexHash{},
+				instrument.InvariantErrorf("decoded index entry had no ID for: %s", id.String())
+		}
+
+		comparison := bytes.Compare(entry.ID, idBytes)
+		if comparison == 0 {
+			// If it's a match, we need to copy the tags into a checked bytes
+			// so they can be passed along. We use the "real" bytes pool here
+			// because we're passing ownership of the bytes to the entry / caller.
+			var checkedEncodedTags checked.Bytes
+			if len(entry.EncodedTags) > 0 {
+				checkedEncodedTags = s.opts.bytesPool.Get(len(entry.EncodedTags))
+				checkedEncodedTags.IncRef()
+				checkedEncodedTags.AppendAll(entry.EncodedTags)
+			}
+
+			indexEntry := IndexEntry{
+				Size:         uint32(entry.Size),
+				DataChecksum: uint32(entry.DataChecksum),
+				Offset:       entry.Offset,
+				EncodedTags:  checkedEncodedTags,
+			}
+
+			// Safe to return resources to the pool because ID will not be
+			// passed along and tags have been copied.
+			resources.decodeIndexEntryBytesPool.Put(entry.ID)
+			resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
+
+			return indexEntry, nil
+		}
+
+		// No longer being used so we can return to the pool.
+		resources.decodeIndexEntryBytesPool.Put(entry.ID)
+		resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
+
+		// We've scanned far enough through the index file to be sure that the ID
+		// we're looking for doesn't exist (because the index is sorted by ID)
+		if comparison == 1 {
+			return IndexEntry{}, errSeekIDNotFound
+		}
+	}
+}
+
 func (s *seeker) Range() xtime.Range {
 	return xtime.Range{Start: s.start.ToTime(), End: s.start.ToTime().Add(s.blockSize)}
 }

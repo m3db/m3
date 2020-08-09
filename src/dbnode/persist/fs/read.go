@@ -378,6 +378,7 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 		return nil, nil, nil, 0, errReadNotExpectedSize
 	}
 
+	// entry.DataChecksum
 	id := r.entryClonedID(entry.ID)
 	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/pool"
@@ -37,6 +38,7 @@ var (
 	emptyIndexSummariesInfo     schema.IndexSummariesInfo
 	emptyIndexBloomFilterInfo   schema.IndexBloomFilterInfo
 	emptyIndexEntry             schema.IndexEntry
+	emptyIndexHash              schema.IndexHash
 	emptyIndexSummary           schema.IndexSummary
 	emptyIndexSummaryToken      IndexSummaryToken
 	emptyLogInfo                schema.LogInfo
@@ -116,7 +118,7 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	return indexInfo, nil
 }
 
-// DecodeIndexEntry decodes index entry
+// DecodeIndexEntry decodes index entry.
 func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
@@ -132,7 +134,23 @@ func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntr
 	return indexEntry, nil
 }
 
-// DecodeIndexSummary decodes index summary
+// DecodeIndexEntryToIndexHash decodes an index entry into an IndexHash.
+func (dec *Decoder) DecodeIndexEntryToIndexHash() (schema.IndexHash, error) {
+	if dec.err != nil {
+		return emptyIndexHash, dec.err
+	}
+	dec.readerWithDigest.setDigestReaderEnabled(true)
+	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
+	indexHash := dec.decodeIndexHash(bytesPool)
+	dec.readerWithDigest.setDigestReaderEnabled(false)
+	dec.skip(numFieldsToSkip)
+	if dec.err != nil {
+		return emptyIndexHash, dec.err
+	}
+	return indexHash, nil
+}
+
+// DecodeIndexSummary decodes index summary.
 func (dec *Decoder) DecodeIndexSummary() (
 	schema.IndexSummary, IndexSummaryToken, error) {
 	if dec.err != nil {
@@ -147,7 +165,7 @@ func (dec *Decoder) DecodeIndexSummary() (
 	return indexSummary, indexSummaryMetadata, nil
 }
 
-// DecodeLogInfo decodes commit log info
+// DecodeLogInfo decodes commit log info.
 func (dec *Decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	if dec.err != nil {
 		return emptyLogInfo, dec.err
@@ -161,7 +179,7 @@ func (dec *Decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	return logInfo, nil
 }
 
-// DecodeLogEntry decodes commit log entry
+// DecodeLogEntry decodes commit log entry.
 func (dec *Decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	if dec.err != nil {
 		return emptyLogEntry, dec.err
@@ -232,7 +250,7 @@ func (dec *Decoder) DecodeLogEntryRemaining(token DecodeLogEntryRemainingToken, 
 	return logEntry, nil
 }
 
-// DecodeLogMetadata decodes commit log metadata
+// DecodeLogMetadata decodes commit log metadata.
 func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	if dec.err != nil {
 		return emptyLogMetadata, dec.err
@@ -356,7 +374,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	return indexBloomFilterInfo
 }
 
-func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
+func (dec *Decoder) checkNumIndexFields() (numToSkip int, actual int, ok bool) {
 	var opts checkNumFieldsOptions
 	switch dec.legacy.decodeLegacyIndexEntryVersion {
 	case legacyEncodingIndexEntryVersionV1:
@@ -373,11 +391,16 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 		// V3 is current version, no overrides needed
 		break
 	default:
-		dec.err = fmt.Errorf("invalid legacyEncodingIndexEntryVersion provided: %v", dec.legacy.decodeLegacyIndexEntryVersion)
-		return emptyIndexEntry
+		dec.err = fmt.Errorf("invalid legacyEncodingIndexEntryVersion provided: %v",
+			dec.legacy.decodeLegacyIndexEntryVersion)
+		return 0, 0, false
 	}
 
-	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexEntryType, opts)
+	return dec.checkNumFieldsFor(indexEntryType, opts)
+}
+
+func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
+	numFieldsToSkip, actual, ok := dec.checkNumIndexFields()
 	if !ok {
 		return emptyIndexEntry
 	}
@@ -432,6 +455,43 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	}
 
 	return indexEntry
+}
+
+func (dec *Decoder) decodeIndexHash(bytesPool pool.BytesPool) schema.IndexHash {
+	skip, actual, ok := dec.checkNumIndexFields()
+	if !ok {
+		return emptyIndexHash
+	}
+
+	var indexHash schema.IndexHash
+	// NB: don't need Index.
+	dec.skip(1)
+	if bytesPool == nil {
+		indexEntry.ID, _, _ = dec.decodeBytes()
+	} else {
+		indexEntry.ID = dec.decodeBytesWithPool(bytesPool)
+	}
+
+	indexHash.IndexHash = xxhash.Sum64(id)
+	if bytesPool == nil {
+		id, _, _ = dec.decodeBytes()
+		indexHash.IndexHash = xxhash.Sum64(id)
+	} else {
+		id = dec.decodeBytesWithPool(bytesPool)
+		indexHash.IndexHash = xxhash.Sum64(id)
+	}
+
+	// NB: don't need Size or Offset.
+	dec.skip(2)
+	indexHash.DataChecksum = dec.decodeVarint()
+
+	// NB: skip to end.
+	dec.skip(skip)
+	if skip := actual - 5; skip > 0 {
+		dec.skip(skip)
+	}
+
+	return indexHash
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {
