@@ -234,6 +234,17 @@ type OnRetrieveBlock interface {
 	)
 }
 
+// OnRetrieveIndexHash is an interface to callback on when an index hash is retrieved.
+type OnRetrieveIndexHash interface {
+	OnRetrieveIndexHash(
+		id ident.ID,
+		tags ident.TagIterator,
+		startTime time.Time,
+		segment ts.Segment,
+		nsCtx namespace.Context,
+	)
+}
+
 // OnReadBlock is an interface to callback on when a block is read.
 type OnReadBlock interface {
 	OnReadBlock(b DatabaseBlock)

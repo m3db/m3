@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/pool"
@@ -69,7 +68,7 @@ var (
 	}
 
 	testIndexHash = schema.IndexHash{
-		IndexHash:    xxhash.Sum64(testIndexEntry.ID),
+		ID:           testIndexEntry.ID,
 		DataChecksum: testIndexEntry.DataChecksum,
 	}
 

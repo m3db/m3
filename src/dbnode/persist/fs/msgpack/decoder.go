@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/pool"
@@ -135,7 +134,7 @@ func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntr
 }
 
 // DecodeIndexEntryToIndexHash decodes an index entry into an IndexHash.
-func (dec *Decoder) DecodeIndexEntryToIndexHash() (schema.IndexHash, error) {
+func (dec *Decoder) DecodeIndexEntryToIndexHash(bytesPool pool.BytesPool) (schema.IndexHash, error) {
 	if dec.err != nil {
 		return emptyIndexHash, dec.err
 	}
@@ -467,18 +466,9 @@ func (dec *Decoder) decodeIndexHash(bytesPool pool.BytesPool) schema.IndexHash {
 	// NB: don't need Index.
 	dec.skip(1)
 	if bytesPool == nil {
-		indexEntry.ID, _, _ = dec.decodeBytes()
+		indexHash.ID, _, _ = dec.decodeBytes()
 	} else {
-		indexEntry.ID = dec.decodeBytesWithPool(bytesPool)
-	}
-
-	indexHash.IndexHash = xxhash.Sum64(id)
-	if bytesPool == nil {
-		id, _, _ = dec.decodeBytes()
-		indexHash.IndexHash = xxhash.Sum64(id)
-	} else {
-		id = dec.decodeBytesWithPool(bytesPool)
-		indexHash.IndexHash = xxhash.Sum64(id)
+		indexHash.ID = dec.decodeBytesWithPool(bytesPool)
 	}
 
 	// NB: don't need Size or Offset.
@@ -487,8 +477,8 @@ func (dec *Decoder) decodeIndexHash(bytesPool pool.BytesPool) schema.IndexHash {
 
 	// NB: skip to end.
 	dec.skip(skip)
-	if skip := actual - 5; skip > 0 {
-		dec.skip(skip)
+	if skipExtra := actual - 5 - skip; skipExtra > 0 {
+		dec.skip(skipExtra)
 	}
 
 	return indexHash

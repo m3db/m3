@@ -29,6 +29,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/dbnode/digest"
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -84,12 +85,18 @@ type seeker struct {
 }
 
 // IndexEntry is an entry from the index file which can be passed to
-// SeekUsingIndexEntry to seek to the data for that entry
+// SeekUsingIndexEntry to seek to the data for that entry.
 type IndexEntry struct {
 	Size         uint32
 	DataChecksum uint32
 	Offset       int64
 	EncodedTags  checked.Bytes
+}
+
+// IndexHash is an entry from the index file describing a hash of the ID
+type IndexHash struct {
+	IDHash       uint64
+	DataChecksum uint32
 }
 
 // NewSeeker returns a new seeker.
@@ -474,12 +481,12 @@ func (s *seeker) SeekIndexEntry(
 func (s *seeker) SeekIndexEntryToIndexHash(
 	id ident.ID,
 	resources ReusableSeekerResources,
-) (schema.IndexHash, error) {
+) (IndexHash, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted.
 	if err != nil {
-		return schema.IndexHash{}, err
+		return IndexHash{}, err
 	}
 
 	resources.offsetFileReader.reset(s.indexFd, offset)
@@ -487,6 +494,7 @@ func (s *seeker) SeekIndexEntryToIndexHash(
 	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
 
 	idBytes := id.Bytes()
+	idHash := xxhash.Sum64(idBytes)
 	for {
 		// Use the bytesPool on resources here because its designed for this express purpose
 		// and is much faster / cheaper than the checked bytes pool which has a lot of
@@ -497,55 +505,37 @@ func (s *seeker) SeekIndexEntryToIndexHash(
 		entry, err := resources.xmsgpackDecoder.DecodeIndexEntryToIndexHash(resources.decodeIndexEntryBytesPool)
 		if err == io.EOF {
 			// We reached the end of the file without finding it.
-			return schema.IndexHash{}, errSeekIDNotFound
+			return IndexHash{}, errSeekIDNotFound
 		}
 		if err != nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return schema.IndexHash{}, instrument.InvariantErrorf(err.Error())
+			return IndexHash{}, instrument.InvariantErrorf(err.Error())
 		}
 		if entry.ID == nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return schema.IndexHash{},
+			return IndexHash{},
 				instrument.InvariantErrorf("decoded index entry had no ID for: %s", id.String())
 		}
 
 		comparison := bytes.Compare(entry.ID, idBytes)
 		if comparison == 0 {
-			// If it's a match, we need to copy the tags into a checked bytes
-			// so they can be passed along. We use the "real" bytes pool here
-			// because we're passing ownership of the bytes to the entry / caller.
-			var checkedEncodedTags checked.Bytes
-			if len(entry.EncodedTags) > 0 {
-				checkedEncodedTags = s.opts.bytesPool.Get(len(entry.EncodedTags))
-				checkedEncodedTags.IncRef()
-				checkedEncodedTags.AppendAll(entry.EncodedTags)
-			}
-
-			indexEntry := IndexEntry{
-				Size:         uint32(entry.Size),
-				DataChecksum: uint32(entry.DataChecksum),
-				Offset:       entry.Offset,
-				EncodedTags:  checkedEncodedTags,
-			}
-
-			// Safe to return resources to the pool because ID will not be
-			// passed along and tags have been copied.
+			// Safe to return resources to the pool because the hash already exists.
 			resources.decodeIndexEntryBytesPool.Put(entry.ID)
-			resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
-
-			return indexEntry, nil
+			return IndexHash{
+				IDHash:       idHash,
+				DataChecksum: uint32(entry.DataChecksum),
+			}, nil
 		}
 
 		// No longer being used so we can return to the pool.
 		resources.decodeIndexEntryBytesPool.Put(entry.ID)
-		resources.decodeIndexEntryBytesPool.Put(entry.EncodedTags)
 
 		// We've scanned far enough through the index file to be sure that the ID
 		// we're looking for doesn't exist (because the index is sorted by ID)
 		if comparison == 1 {
-			return IndexEntry{}, errSeekIDNotFound
+			return IndexHash{}, errSeekIDNotFound
 		}
 	}
 }

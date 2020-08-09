@@ -281,6 +281,19 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	r.fetchLoopsHaveShutdownCh <- struct{}{}
 }
 
+func (r *blockRetriever) processIndexHashRequest(
+	req *retrieveRequest,
+	seeker ConcurrentDataFileSetSeeker,
+	seekerResources ReusableSeekerResources,
+) {
+	// FIXME: implement
+	// entry, err := seeker.SeekIndexEntryToIndexHash(req.id, seekerResources)
+	// if err != nil && err != errSeekIDNotFound {
+	// 	req.onError(err)
+	// 	return
+	// }
+}
+
 func (r *blockRetriever) fetchBatch(
 	seekerMgr DataFileSetSeekerManager,
 	shard uint32,
@@ -297,22 +310,30 @@ func (r *blockRetriever) fetchBatch(
 		return
 	}
 
+	// NB: filter out stream hash requests, as these are handled seperately.
+	streamReqs := reqs[:0]
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {
+		if req.reqType == streamHashIndexReq {
+			r.processIndexHashRequest(req, seeker, seekerResources)
+			continue
+		}
+
+		streamReqs = append(streamReqs, req)
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
 			continue
 		}
-
 		if err == errSeekIDNotFound {
 			req.notFound = true
 		}
 		req.indexEntry = entry
 	}
-	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 
+	reqs = streamReqs[:len(streamReqs)]
+	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 	tagDecoderPool := r.fsOpts.TagDecoderPool()
 
 	// Seek and execute all requests
@@ -411,6 +432,7 @@ func (r *blockRetriever) Stream(
 	req.start = startTime
 	req.blockSize = r.blockSize
 
+	req.reqType = streamReq
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
 
@@ -461,6 +483,76 @@ func (r *blockRetriever) Stream(
 	// here, the caller may still encounter an error when they attempt to
 	// read the data.
 	return req.toBlock(), nil
+}
+
+func (r *blockRetriever) StreamIndexHash(
+	ctx context.Context,
+	shard uint32,
+	id ident.ID,
+	startTime time.Time,
+	onRetrieveIndexHash block.OnRetrieveIndexHash,
+	nsCtx namespace.Context,
+) (xio.BlockReader, error) {
+	req := r.reqPool.Get()
+	req.shard = shard
+	// NB(r): Clone the ID as we're not positive it will stay valid throughout
+	// the lifecycle of the async request.
+	req.id = r.idPool.Clone(id)
+	req.start = startTime
+	req.blockSize = r.blockSize
+
+	req.reqType = streamHashIndexReq
+	req.onRetrieveIndexHash = onRetrieveIndexHash
+	req.resultWg.Add(1)
+
+	// Ensure to finalize at the end of request
+	ctx.RegisterFinalizer(req)
+
+	// Capture variable and RLock() because this slice can be modified in the
+	// Open() method
+	r.RLock()
+	// This should never happen unless caller tries to use Stream() before Open()
+	if r.seekerMgr == nil {
+		r.RUnlock()
+		return xio.EmptyBlockReader, errNoSeekerMgr
+	}
+	r.RUnlock()
+
+	idExists, err := r.seekerMgr.Test(id, shard, startTime)
+	if err != nil {
+		return xio.EmptyBlockReader, err
+	}
+
+	// FIXME: update below.
+	// // If the ID is not in the seeker's bloom filter, then it's definitely not on
+	// // disk and we can return immediately.
+	// if !idExists {
+	// 	// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
+	// 	req.onRetrieved(ts.Segment{}, namespace.Context{})
+	// 	return req.toBlock(), nil
+	// }
+	// reqs, err := r.shardRequests(shard)
+	// if err != nil {
+	// 	return xio.EmptyBlockReader, err
+	// }
+
+	// reqs.Lock()
+	// reqs.queued = append(reqs.queued, req)
+	// reqs.Unlock()
+
+	// // Notify fetch loop
+	// select {
+	// case r.notifyFetch <- struct{}{}:
+	// default:
+	// 	// Loop busy, already ready to consume notification
+	// }
+
+	// // The request may not have completed yet, but it has an internal
+	// // waitgroup which the caller will have to wait for before retrieving
+	// // the data. This means that even though we're returning nil for error
+	// // here, the caller may still encounter an error when they attempt to
+	// // read the data.
+	// return req.toBlock(), nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -552,20 +644,30 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 	reqs.queued = reqs.queued[:0]
 }
 
+type reqType uint8
+
+const (
+	streamReq reqType = iota
+	streamHashIndexReq
+)
+
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
 	resultWg sync.WaitGroup
 
 	pool *reqPool
 
-	id         ident.ID
-	tags       ident.TagIterator
-	start      time.Time
-	blockSize  time.Duration
-	onRetrieve block.OnRetrieveBlock
-	nsCtx      namespace.Context
+	id                  ident.ID
+	tags                ident.TagIterator
+	start               time.Time
+	blockSize           time.Duration
+	onRetrieve          block.OnRetrieveBlock
+	onRetrieveIndexHash block.OnRetrieveIndexHash
+	nsCtx               namespace.Context
 
+	reqType    reqType
 	indexEntry IndexEntry
+	indexHash  IndexHash
 	reader     xio.SegmentReader
 
 	err error
@@ -595,7 +697,10 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 	if atomic.AddUint32(&req.finalizes, 1) != 2 {
 		return
 	}
-	req.id.Finalize()
+	// NB: streamHashIndexReq ids are used to sort the resultant list.
+	if req.reqType == streamReq {
+		req.id.Finalize()
+	}
 	req.id = nil
 	if req.tags != nil {
 		req.tags.Close()
@@ -675,7 +780,9 @@ func (req *retrieveRequest) resetForReuse() {
 	req.start = time.Time{}
 	req.blockSize = 0
 	req.onRetrieve = nil
+	req.reqType = streamReq
 	req.indexEntry = IndexEntry{}
+	req.indexHash = IndexHash{}
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

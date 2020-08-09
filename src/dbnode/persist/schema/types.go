@@ -81,9 +81,8 @@ type IndexSummary struct {
 	IndexEntryOffset int64
 }
 
-// IndexHash stores a summary of an index entry to lookup.
+// IndexHash stores a minimal representation of an index entry to lookup.
 type IndexHash struct {
-	// IndexHash    uint64
 	ID           []byte
 	DataChecksum int64
 }
