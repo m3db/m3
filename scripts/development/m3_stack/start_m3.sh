@@ -336,7 +336,7 @@ if [[ "$USE_AGGREGATOR" = true ]]; then
 fi
 
 echo "Starting Prometheus"
-docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
+# docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
 
 if [[ "$USE_PROMETHEUS_HA" = true ]] ; then
     echo "Starting Prometheus HA replica"

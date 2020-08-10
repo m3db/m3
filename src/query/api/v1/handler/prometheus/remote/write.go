@@ -496,6 +496,16 @@ func (h *PromWriteHandler) write(
 		var errs xerrors.MultiError
 		return errs.Add(err)
 	}
+
+	logger := h.instrumentOpts.Logger()
+	for i, tags := range iter.tags {
+		logger.Info("received series",
+			zap.ByteString("id", tags.ID()),
+			zap.ByteString("type", r.Timeseries[i].MetaType),
+			zap.ByteString("unit", r.Timeseries[i].MetaUnit),
+			zap.ByteString("help", r.Timeseries[i].MetaHelp))
+	}
+
 	return h.downsamplerAndWriter.WriteBatch(ctx, iter, opts)
 }
 

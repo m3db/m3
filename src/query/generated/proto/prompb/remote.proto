@@ -4,11 +4,10 @@ package m3prometheus;
 
 option go_package = "prompb";
 
-import "github.com/m3db/m3/src/query/generated/proto/prompb/types.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 message WriteRequest {
-  repeated m3prometheus.TimeSeries timeseries = 1 [(gogoproto.nullable) = false];
+  repeated TimeSeries timeseries = 1 [(gogoproto.nullable) = false];
 }
 
 message ReadRequest {
@@ -23,9 +22,75 @@ message ReadResponse {
 message Query {
   int64 start_timestamp_ms = 1;
   int64 end_timestamp_ms = 2;
-  repeated m3prometheus.LabelMatcher matchers = 3;
+  repeated LabelMatcher matchers = 3;
 }
 
 message QueryResult {
-  repeated m3prometheus.TimeSeries timeseries = 1;
+  repeated TimeSeries timeseries = 1;
 }
+
+message Sample {
+  double value    = 1;
+  int64 timestamp = 2;
+}
+
+message TimeSeries {
+  repeated Label labels   = 1 [(gogoproto.nullable) = false];
+  repeated Sample samples = 2 [(gogoproto.nullable) = false];
+  bytes meta_type = 3;
+  bytes meta_unit = 4;
+  bytes meta_help = 5;
+  // NB: These are custom fields that M3 uses. They start at 101 so that they
+  // should never clash with prometheus fields.
+  Type type = 101;
+  Source source = 102;
+}
+
+message Label {
+  bytes name  = 1;
+  bytes value = 2;
+}
+
+message Labels {
+  repeated Label labels = 1 [(gogoproto.nullable) = false];
+}
+
+// Matcher specifies a rule, which can match or set of labels or not.
+message LabelMatcher {
+  enum Type {
+    EQ  = 0;
+    NEQ = 1;
+    RE  = 2;
+    NRE = 3;
+  }
+  Type type    = 1;
+  bytes name  = 2;
+  bytes value = 3;
+}
+
+enum Type {
+  GAUGE = 0;
+  COUNTER = 1;
+  TIMER = 2;
+}
+
+enum Source {
+  PROMETHEUS = 0;
+  GRAPHITE = 1;
+}
+
+message AnnotatedSample {
+  double value    = 1;
+  int64 timestamp = 2;
+  bytes annotation = 3;
+}
+
+message AnnotatedTimeSeries {
+  repeated Label labels            = 1 [(gogoproto.nullable) = false];;
+  repeated AnnotatedSample samples = 2 [(gogoproto.nullable) = false];;
+}
+
+message AnnotatedWriteRequest {
+  repeated AnnotatedTimeSeries timeseries = 1 [(gogoproto.nullable) = false];
+}
+
