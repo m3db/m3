@@ -561,8 +561,9 @@ func (d *db) terminateWithLock() error {
 }
 
 func (d *db) Terminate() error {
-	// NB(bodu): Wait for fs processes to finish.
-	d.mediator.WaitForFileSystemProcesses()
+	// NB(bodu): Disable file ops waits for current fs processes to
+	// finish before disabling.
+	d.mediator.DisableFileOpsAndWait()
 
 	d.Lock()
 	defer d.Unlock()
@@ -571,8 +572,9 @@ func (d *db) Terminate() error {
 }
 
 func (d *db) Close() error {
-	// NB(bodu): Wait for fs processes to finish.
-	d.mediator.WaitForFileSystemProcesses()
+	// NB(bodu): Disable file ops waits for current fs processes to
+	// finish before disabling.
+	d.mediator.DisableFileOpsAndWait()
 
 	d.Lock()
 	defer d.Unlock()

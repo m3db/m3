@@ -54,7 +54,6 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
-	logger, _          = zap.NewProduction()
 )
 
 const (
@@ -132,6 +131,8 @@ type databaseBuffer interface {
 	) (block.FetchBlockMetadataResults, error)
 
 	IsEmpty() bool
+
+	IsEmptyAtBlockStart(time.Time) bool
 
 	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
@@ -417,6 +418,14 @@ func (b *dbBuffer) IsEmpty() bool {
 	return len(b.bucketsMap) == 0
 }
 
+func (b *dbBuffer) IsEmptyAtBlockStart(start time.Time) bool {
+	bv, exists := b.bucketVersionsAt(start)
+	if !exists {
+		return true
+	}
+	return bv.streamsLen() == 0
+}
+
 func (b *dbBuffer) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {
 	var times OptimizedTimes
 
@@ -594,6 +603,7 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	checksum := segment.CalculateChecksum()
+
 	return persistFn(metadata, segment, checksum)
 }
 
