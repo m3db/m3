@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"testing"
 	"time"
 
@@ -109,7 +110,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 
 		blockHasError := false
 		for j, id := range ids {
-			tags := ident.NewTags(ident.StringTag("foo", string(j)))
+			tags := ident.NewTags(ident.StringTag("foo", strconv.Itoa(j)))
 			data := checkedBytes([]byte{byte(j)})
 			checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
 			if id == "error" {
