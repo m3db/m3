@@ -419,6 +419,7 @@ func TestConfiguration(t *testing.T) {
     - noop-all
     fs:
       numProcessorsPerCPU: 0.42
+      migration: null
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
     peers: null
