@@ -73,7 +73,7 @@ func TestCrossBlockReaderRejectMisorderedInputs(t *testing.T) {
 func TestCrossBlockReader(t *testing.T) {
 	tests := []struct {
 		name           string
-		blockSeriesIds [][]string
+		blockSeriesIDs [][]string
 	}{
 		{"no readers", [][]string{}},
 		{"empty readers", [][]string{{}, {}, {}}},
@@ -89,7 +89,7 @@ func TestCrossBlockReader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testCrossBlockReader(t, tt.blockSeriesIds)
+			testCrossBlockReader(t, tt.blockSeriesIDs)
 		})
 	}
 }
@@ -146,7 +146,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 
 		var previousBlockIndex uint32
 		for _, record := range records {
-			blockIndex := record.Checksum // see the comment above
+			blockIndex := record.DataChecksum // see the comment above
 			assert.True(t, blockIndex >= previousBlockIndex, "same id blocks must be read in temporal order")
 			previousBlockIndex = blockIndex
 			assert.NotNil(t, record.Data)

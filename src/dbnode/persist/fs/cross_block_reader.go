@@ -56,7 +56,7 @@ type crossBlockReader struct {
 func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (CrossBlockReader, error) {
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
-		if !dataFileSetReader.IsOrderedByIndex() {
+		if !dataFileSetReader.OrderedByIndex() {
 			return nil, errReaderNotOrderedByIndex
 		}
 		currentStart := dataFileSetReader.Range().Start
@@ -120,8 +120,11 @@ func (r *crossBlockReader) Next() bool {
 			r.err = err
 			return false
 		}
+
+		// id and tags not needed for subsequent blocs because they are the same as in the first block
 		nextEntry.id.Finalize()
 		nextEntry.tags.Close()
+
 		r.records = append(r.records, BlockRecord{nextEntry.data, nextEntry.checksum})
 	}
 

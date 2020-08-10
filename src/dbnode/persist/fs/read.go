@@ -568,7 +568,7 @@ func (r *reader) MetadataRead() int {
 	return r.metadataRead
 }
 
-func (r *reader) IsOrderedByIndex() bool {
+func (r *reader) OrderedByIndex() bool {
 	return r.orderedByIndex
 }
 

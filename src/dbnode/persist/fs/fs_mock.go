@@ -202,9 +202,9 @@ func (mr *MockDataFileSetReaderMockRecorder) EntriesRead() *gomock.Call {
 }
 
 // IsOrderedByIndex mocks base method
-func (m *MockDataFileSetReader) IsOrderedByIndex() bool {
+func (m *MockDataFileSetReader) OrderedByIndex() bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsOrderedByIndex")
+	ret := m.ctrl.Call(m, "OrderedByIndex")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
@@ -212,7 +212,7 @@ func (m *MockDataFileSetReader) IsOrderedByIndex() bool {
 // IsOrderedByIndex indicates an expected call of IsOrderedByIndex
 func (mr *MockDataFileSetReaderMockRecorder) IsOrderedByIndex() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOrderedByIndex", reflect.TypeOf((*MockDataFileSetReader)(nil).IsOrderedByIndex))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OrderedByIndex", reflect.TypeOf((*MockDataFileSetReader)(nil).OrderedByIndex))
 }
 
 // MetadataRead mocks base method
