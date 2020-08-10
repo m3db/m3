@@ -26,17 +26,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOptionsToVersion(t *testing.T) {
+func TestOptionsTargetMigrationVersion(t *testing.T) {
 	opts := NewOptions()
-	require.Equal(t, MigrateVersionNone, opts.ToVersion())
+	require.Equal(t, MigrationVersionNone, opts.TargetMigrationVersion())
 
-	opts = opts.SetToVersion(MigrateVersion_1_1)
-	require.Equal(t, MigrateVersion_1_1, opts.ToVersion())
+	opts = opts.SetTargetMigrationVersion(MigrationVersion_1_1)
+	require.Equal(t, MigrationVersion_1_1, opts.TargetMigrationVersion())
 }
 
 func TestOptionsConcurrency(t *testing.T) {
 	opts := NewOptions()
-	require.Equal(t, 10, opts.Concurrency())
+	require.Equal(t, defaultMigrationConcurrency, opts.Concurrency())
 
 	opts = opts.SetConcurrency(100)
 	require.Equal(t, 100, opts.Concurrency())
@@ -46,6 +46,6 @@ func TestOptionsValidate(t *testing.T) {
 	opts := NewOptions()
 	require.NoError(t, opts.Validate())
 
-	require.Error(t, opts.SetToVersion(2).Validate())
+	require.Error(t, opts.SetTargetMigrationVersion(2).Validate())
 	require.Error(t, opts.SetConcurrency(0).Validate())
 }

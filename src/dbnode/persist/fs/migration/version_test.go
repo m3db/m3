@@ -22,50 +22,42 @@ package migration
 
 import (
 	"fmt"
-	"runtime"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-// defaultMigrationConcurrency is the default number of concurrent workers to perform migrations.
-var defaultMigrationConcurrency = runtime.NumCPU()
+func TestParseMigrateVersion(t *testing.T) {
+	v, err := ParseMigrationVersion("none")
+	require.NoError(t, err)
+	require.Equal(t, MigrationVersionNone, v)
 
-type options struct {
-	targetMigrationVersion MigrationVersion
-	concurrency            int
+	v, err = ParseMigrationVersion("1.1")
+	require.NoError(t, err)
+	require.Equal(t, MigrationVersion_1_1, v)
 }
 
-// NewOptions creates new migration options.
-func NewOptions() Options {
-	return &options{
-		concurrency: defaultMigrationConcurrency,
+func TestValidateMigrateVersion(t *testing.T) {
+	err := ValidateMigrationVersion(MigrationVersion_1_1)
+	require.NoError(t, err)
+
+	err = ValidateMigrationVersion(2)
+	require.Error(t, err)
+}
+
+func TestUnmarshalYAML(t *testing.T) {
+	type config struct {
+		Version MigrationVersion `yaml:"version"`
 	}
-}
 
-func (o *options) Validate() error {
-	if err := ValidateMigrationVersion(o.targetMigrationVersion); err != nil {
-		return err
+	for _, value := range validMigrationVersions {
+		str := fmt.Sprintf("version: %s\n", value.String())
+		var cfg config
+		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+		require.Equal(t, value, cfg.Version)
 	}
-	if o.concurrency < 1 {
-		return fmt.Errorf("concurrency value %d must be >= 1", o.concurrency)
-	}
-	return nil
-}
 
-func (o *options) SetTargetMigrationVersion(value MigrationVersion) Options {
-	opts := *o
-	opts.targetMigrationVersion = value
-	return &opts
-}
-
-func (o *options) TargetMigrationVersion() MigrationVersion {
-	return o.targetMigrationVersion
-}
-
-func (o *options) SetConcurrency(value int) Options {
-	opts := *o
-	opts.concurrency = value
-	return &opts
-}
-
-func (o *options) Concurrency() int {
-	return o.concurrency
+	var cfg config
+	require.Error(t, yaml.Unmarshal([]byte("version: abc"), &cfg))
 }

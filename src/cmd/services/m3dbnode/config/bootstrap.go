@@ -73,7 +73,7 @@ type BootstrapFilesystemConfiguration struct {
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 
 	// Migration configuration specifies what version, if any, existing data filesets should be migrated to
-	// if necessary
+	// if necessary.
 	Migration *BootstrapMigrationConfiguration `yaml:"migration"`
 }
 
@@ -95,19 +95,19 @@ func newDefaultBootstrapFilesystemConfiguration() BootstrapFilesystemConfigurati
 	}
 }
 
-// BootstrapMigrationConfiguration specifies configuration for data migrations during bootstrapping
+// BootstrapMigrationConfiguration specifies configuration for data migrations during bootstrapping.
 type BootstrapMigrationConfiguration struct {
-	// ToVersion indicates that we should attempt to upgrade filesets to
-	// what’s expected of the specified version
-	ToVersion migration.MigrateVersion `yaml:"toVersion"`
+	// TargetMigrationVersion indicates that we should attempt to upgrade filesets to
+	// what’s expected of the specified version.
+	TargetMigrationVersion migration.MigrationVersion `yaml:"targetMigrationVersion"`
 
-	// Concurrency sets the number of concurrent workers performing migrations
+	// Concurrency sets the number of concurrent workers performing migrations.
 	Concurrency int `yaml:"concurrency"`
 }
 
-// NewOptions generates migration.Options from the configuration
+// NewOptions generates migration.Options from the configuration.
 func (m BootstrapMigrationConfiguration) NewOptions() migration.Options {
-	opts := migration.NewOptions().SetToVersion(m.ToVersion)
+	opts := migration.NewOptions().SetTargetMigrationVersion(m.TargetMigrationVersion)
 
 	if m.Concurrency > 0 {
 		opts = opts.SetConcurrency(m.Concurrency)
