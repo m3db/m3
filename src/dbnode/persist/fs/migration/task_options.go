@@ -50,7 +50,7 @@ type taskOptions struct {
 
 var _ TaskOptions = &taskOptions{}
 
-// NewTaskOptions creates new taskOptions
+// NewTaskOptions creates new taskOptions.
 func NewTaskOptions() TaskOptions {
 	return &taskOptions{
 		newMergerFn: fs.NewMerger,

@@ -32,11 +32,11 @@ import (
 // on a fileset. This typically involves updating files in a fileset that were created by
 // a previous version of the database client.
 type Task interface {
-	// Run is the set of steps to successfully complete a migration
+	// Run is the set of steps to successfully complete a migration.
 	Run() error
 }
 
-// toVersion1_1Task is an object responsible for migrating a fileset to version 1.1
+// toVersion1_1Task is an object responsible for migrating a fileset to version 1.1.
 type toVersion1_1Task struct {
 	newMergerFn       fs.NewMergerFn
 	infoFileResult    fs.ReadInfoFileResult
@@ -47,11 +47,12 @@ type toVersion1_1Task struct {
 	fsOpts            fs.Options
 }
 
-// ShouldMigrateToVersion1_1 indicates whether the fileset should be migrated to 1.1 or not
+// ShouldMigrateToVersion1_1 indicates whether the fileset should be migrated to 1.1 or not.
 func ShouldMigrateToVersion1_1(info fs.ReadInfoFileResult) bool {
 	return info.Info.MajorVersion == 1 && info.Info.MinorVersion == 0
 }
 
+// NewToVersion1_1Task creates a task for migrating a fileset to version 1.1.
 func NewToVersion1_1Task(opts TaskOptions) (Task, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -67,7 +68,7 @@ func NewToVersion1_1Task(opts TaskOptions) (Task, error) {
 	}, nil
 }
 
-// Run executes the steps to bring a fileset to Version 1.1
+// Run executes the steps to bring a fileset to Version 1.1.
 func (v *toVersion1_1Task) Run() error {
 	opts := v.sOpts
 	reader, err := fs.NewReader(opts.BytesPool(), v.fsOpts)

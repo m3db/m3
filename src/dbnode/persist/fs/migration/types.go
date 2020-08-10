@@ -48,45 +48,45 @@ type Options interface {
 // MigrationVersion is an enum that corresponds to the major and minor version number to migrate data files to.
 type MigrationVersion uint
 
-// TaskOptions represents options for individual migration tasks
+// TaskOptions represents options for individual migration tasks.
 type TaskOptions interface {
-	// Validate validates the options
+	// Validate validates the options.
 	Validate() error
 
-	// SetNewMergerFn sets the function to create a new Merger
+	// SetNewMergerFn sets the function to create a new Merger.
 	SetNewMergerFn(value fs.NewMergerFn) TaskOptions
 
-	// NewMergerFn returns the function to create a new Merger
+	// NewMergerFn returns the function to create a new Merger.
 	NewMergerFn() fs.NewMergerFn
 
-	// SetInfoFileResult sets the info file resulted associated with this run
+	// SetInfoFileResult sets the info file resulted associated with this run.
 	SetInfoFileResult(value fs.ReadInfoFileResult) TaskOptions
 
-	// InfoFileResult gets the info file resulted associated with this run
+	// InfoFileResult gets the info file resulted associated with this run.
 	InfoFileResult() fs.ReadInfoFileResult
 
-	// SetShard sets the shard associated with this task
+	// SetShard sets the shard associated with this task.
 	SetShard(value uint32) TaskOptions
 
-	// Shard gets the shard associated with this task
+	// Shard gets the shard associated with this task.
 	Shard() uint32
 
-	// SetNamespaceMetadata sets the namespace metadata associated with this task
+	// SetNamespaceMetadata sets the namespace metadata associated with this task.
 	SetNamespaceMetadata(value namespace.Metadata) TaskOptions
 
-	// NamespaceMetadata gets the namespace metadata associated with this task
+	// NamespaceMetadata gets the namespace metadata associated with this task.
 	NamespaceMetadata() namespace.Metadata
 
-	// SetPersistManager sets the persist manager used for this task
+	// SetPersistManager sets the persist manager used for this task.
 	SetPersistManager(value persist.Manager) TaskOptions
 
-	// PersistManager gets the persist manager use for this task
+	// PersistManager gets the persist manager use for this task.
 	PersistManager() persist.Manager
 
-	// SetStorageOptions sets the storage options associated with this task
+	// SetStorageOptions sets the storage options associated with this task.
 	SetStorageOptions(value storage.Options) TaskOptions
 
-	// StorageOptions gets the storage options associated with this task
+	// StorageOptions gets the storage options associated with this task.
 	StorageOptions() storage.Options
 
 	// SetFilesystemOptions sets the filesystem options.
