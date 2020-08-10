@@ -414,7 +414,6 @@ type databaseNamespace interface {
 		ctx context.Context,
 		sourceNs databaseNamespace,
 		opts AggregateTilesOptions,
-		pm persist.Manager,
 	) (int64, error)
 
 	readableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
@@ -602,7 +601,7 @@ type databaseShard interface {
 		sourceNsID ident.ID,
 		sourceShard databaseShard,
 		opts AggregateTilesOptions,
-		wOpts series.WriteOptions,
+		targetSchemaDesc namespace.SchemaDescr,
 	) (int64, error)
 
 	latestVolume(blockStart time.Time) (int, error)
@@ -1009,12 +1008,6 @@ type Options interface {
 
 	// PersistManager returns the persistence manager.
 	PersistManager() persist.Manager
-
-	// SetLargeTilesPersistManager sets the persistence manager dedicated for large tiles.
-	SetLargeTilesPersistManager(value persist.Manager) Options
-
-	// LargeTilesPersistManager returns the persistence manager dedicated for large tiles.
-	LargeTilesPersistManager() persist.Manager
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks

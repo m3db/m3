@@ -125,19 +125,11 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), processedBlockCount)
 
-	flushed = xclock.WaitUntil(func() bool {
-		counters := reporter.Counters()
-		writes, _ := counters["database.writeAggData.success"]
-		errors, _ := counters["database.writeAggData.errors"]
-		return writes+errors == 13 // wait until aggregated data will be flushed
-	}, time.Minute)
-	require.True(t, flushed)
-
 	counters := reporter.Counters()
 	writeErrorsCount, _ := counters["database.writeAggData.errors"]
 	require.Equal(t, int64(0), writeErrorsCount)
-	writeSuccessCount, _ := counters["database.writeAggData.success"]
-	require.Equal(t, int64(13), writeSuccessCount)
+	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
+	require.Equal(t, int64(1), seriesWritesCount)
 
 	log.Info("fetching aggregated data")
 	series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())

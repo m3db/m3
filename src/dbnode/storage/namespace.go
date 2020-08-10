@@ -1599,10 +1599,9 @@ func (n *dbNamespace) AggregateTiles(
 	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
-	pm persist.Manager,
 ) (int64, error) {
 	callStart := n.nowFn()
-	processedBlockCount, err := n.aggregateTiles(ctx, sourceNs, opts, pm)
+	processedBlockCount, err := n.aggregateTiles(ctx, sourceNs, opts)
 	n.metrics.writeAggData.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedBlockCount, err
@@ -1612,7 +1611,6 @@ func (n *dbNamespace) aggregateTiles(
 	ctx context.Context,
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
-	pm persist.Manager,
 ) (int64, error) {
 	targetBlockSize := n.Metadata().Options().RetentionOptions().BlockSize()
 	blockStart := opts.Start.Truncate(targetBlockSize)
@@ -1631,29 +1629,12 @@ func (n *dbNamespace) aggregateTiles(
 
 	targetShards := n.OwnedShards()
 
-	// Note: Cold writes must be enabled for Large Tiles to work.
-	if !n.nopts.ColdWritesEnabled() {
-		return 0, errColdWritesDisabled
-	}
-
 	sourceNsOpts := sourceNs.StorageOptions()
 	reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
 	if err != nil {
 		return 0, err
 	}
 
-	wOpts := series.WriteOptions{
-		TruncateType: n.opts.TruncateType(),
-		SchemaDesc:   nsCtx.Schema,
-	}
-
-	resources, err := newColdFlushReuseableResources(n.opts)
-	if err != nil {
-		return 0, err
-	}
-
-	// NB(bodu): Deferred targetShard cold flushes so that we can ensure that cold flush index data is
-	// persisted before persisting TSDB data to ensure crash consistency.
 	multiErr := xerrors.NewMultiError()
 	var processedBlockCount int64
 	for _, targetShard := range targetShards {
@@ -1663,91 +1644,14 @@ func (n *dbNamespace) aggregateTiles(
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceShard, opts, wOpts)
+		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceShard, opts, nsCtx.Schema)
 		processedBlockCount += shardProcessedBlockCount
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-
-		err = n.coldFlushSingleShard(nsCtx, targetShard, pm, resources)
-		multiErr = multiErr.Add(err)
 	}
 
 	return processedBlockCount, multiErr.FinalError()
-}
-
-func (n *dbNamespace) coldFlushSingleShard(
-	nsCtx namespace.Context,
-	shard databaseShard,
-	pm persist.Manager,
-	resources coldFlushReuseableResources,
-) error {
-	// NB(rartoul): This value can be used for emitting metrics, but should not be used
-	// for business logic.
-	callStart := n.nowFn()
-
-	// NB(bodu): The in-mem index will lag behind the TSDB in terms of new series writes. For a period of
-	// time between when we rotate out the active cold mutable index segments (happens here) and when
-	// we actually cold flush the data to disk we will be making writes to the newly active mutable seg.
-	// This means that some series can live doubly in-mem and loaded from disk until the next cold flush
-	// where they will be evicted from the in-mem index.
-	var (
-		onColdFlushDone OnColdFlushDone
-		err             error
-	)
-	if n.reverseIndex != nil {
-		onColdFlushDone, err = n.reverseIndex.ColdFlush([]databaseShard{shard})
-		if err != nil {
-			n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-			return fmt.Errorf("error preparing to coldflush a reverse index for shard %d: %v",
-				shard.ID(),
-				err)
-		}
-	}
-
-	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
-	if err != nil {
-		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-		return fmt.Errorf("error preparing to coldflush a namespace for shard %d: %v",
-			shard.ID(),
-			err)
-	}
-
-	flushPersist, err := pm.StartFlushPersist()
-	if err != nil {
-		n.metrics.writeAggData.ReportError(n.nowFn().Sub(callStart))
-		return fmt.Errorf("error starting flush persist for shard %d: %v",
-			shard.ID(),
-			err)
-	}
-
-	localErrors := xerrors.NewMultiError()
-	shardColdFlush, err := shard.ColdFlush(flushPersist, resources, nsCtx, onColdFlushNs)
-	if err != nil {
-		detailedErr := fmt.Errorf("shard %d failed to compact: %v", shard.ID(), err)
-		localErrors = localErrors.Add(detailedErr)
-	}
-
-	// We go through this error checking process to allow for partially successful flushes.
-	indexColdFlushError := onColdFlushNs.Done()
-	if indexColdFlushError == nil && onColdFlushDone != nil {
-		// Only evict rotated cold mutable index segments if the index cold flush was successful
-		// or we will lose queryability of data that's still in mem.
-		indexColdFlushError = onColdFlushDone()
-	}
-	if indexColdFlushError == nil {
-		// NB(bodu): We only want to complete data cold flushes if the index cold flush
-		// is successful. If index cold flush is successful, we want to attempt writing
-		// of checkpoint files to complete the cold data flush lifecycle for successful shards.
-		localErrors = localErrors.Add(shardColdFlush.Done())
-	}
-	localErrors = localErrors.Add(indexColdFlushError)
-	err = flushPersist.DoneFlush()
-	localErrors = localErrors.Add(err)
-
-	res := localErrors.FinalError()
-	n.metrics.writeAggData.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
-	return res
 }

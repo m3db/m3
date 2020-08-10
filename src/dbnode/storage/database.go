@@ -1120,8 +1120,7 @@ func (d *db) AggregateTiles(
 		return 0, err
 	}
 
-	pm := d.opts.LargeTilesPersistManager()
-	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 	if err != nil {
 		d.log.Error("error writing large tiles",
 			zap.String("sourceNs", sourceNsID.String()),

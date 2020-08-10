@@ -585,13 +585,6 @@ func Run(runOpts RunOptions) {
 	}
 	opts = opts.SetPersistManager(pm)
 
-	// Set the persistence manager
-	ltpm, err := fs.NewPersistManager(fsopts)
-	if err != nil {
-		logger.Fatal("could not create large tiles persist manager", zap.Error(err))
-	}
-	opts = opts.SetLargeTilesPersistManager(ltpm)
-
 	var (
 		envCfg environment.ConfigureResults
 	)

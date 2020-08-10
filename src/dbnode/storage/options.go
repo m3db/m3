@@ -536,16 +536,6 @@ func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
 }
 
-func (o *options) LargeTilesPersistManager() persist.Manager {
-	return o.largeTilesPersistManager
-}
-
-func (o *options) SetLargeTilesPersistManager(value persist.Manager) Options {
-	opts := *o
-	opts.largeTilesPersistManager = value
-	return &opts
-}
-
 func (o *options) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
 	opts := *o
 	opts.blockRetrieverManager = value

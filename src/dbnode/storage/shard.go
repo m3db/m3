@@ -24,7 +24,6 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
-	"go.uber.org/atomic"
 	"io"
 	"math"
 	osruntime "runtime"
@@ -63,6 +62,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -2579,7 +2579,7 @@ func (s *dbShard) AggregateTiles(
 	sourceNsID ident.ID,
 	sourceShard databaseShard,
 	opts AggregateTilesOptions,
-	wOpts series.WriteOptions,
+	targetSchemaDesc namespace.SchemaDescr,
 ) (int64, error) {
 	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
 	if err != nil {
@@ -2629,60 +2629,87 @@ func (s *dbShard) AggregateTiles(
 		}
 	}()
 
+	encoder := s.opts.EncoderPool().Get()
+	encoder.SetSchema(targetSchemaDesc)
+
+	writer, err := fs.NewLargeTilesWriter(
+		fs.LargeTilesWriterOptions{
+			NamespaceID:      s.namespace.ID(),
+			ShardID:          s.ID(),
+			FilePathPrefix:   s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix(),
+			WriterBufferSize: s.opts.CommitLogOptions().FilesystemOptions().WriterBufferSize(),
+			BlockStart:       opts.Start,
+			BlockSize:        s.namespace.Options().RetentionOptions().BlockSize(),
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := writer.Open(encoder); err != nil {
+		return 0, err
+	}
+
 	var (
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
-		wg                  sync.WaitGroup
-		mu                  sync.Mutex
+		dp                  ts.Datapoint
+		id                  ident.ID
+		tags                ident.TagIterator
 	)
 
 	for readerIter.Next() {
 		seriesIters := readerIter.Current()
 		for _, seriesIter := range seriesIters {
-			wg.Add(1)
 			seriesIter := seriesIter
-			go func() {
-				for seriesIter.Next() {
-					frame := seriesIter.Current()
-					id := frame.ID()
-					tags := frame.Tags()
-					unit, singleUnit := frame.Units().SingleValue()
-					annotation, singleAnnotation := frame.Annotations().SingleValue()
-					if vals := frame.Values(); len(vals) > 0 {
-						lastIdx := len(vals) - 1
-						lastValue := vals[lastIdx]
-						lastTimestamp := frame.Timestamps()[lastIdx]
-						if !singleUnit {
-							// TODO: what happens if unit has changed mid-tile?
-							// Write early and then do the remaining values separately?
-							if len(frame.Units().Values()) > lastIdx {
-								unit = frame.Units().Values()[lastIdx]
-							}
+			encoder.Reset(opts.Start, 0, targetSchemaDesc)
+			for seriesIter.Next() {
+				frame := seriesIter.Current()
+				id = frame.ID()
+				tags = frame.Tags()
+				unit, singleUnit := frame.Units().SingleValue()
+				annotation, singleAnnotation := frame.Annotations().SingleValue()
+				if vals := frame.Values(); len(vals) > 0 {
+					lastIdx := len(vals) - 1
+					lastValue := vals[lastIdx]
+					lastTimestamp := frame.Timestamps()[lastIdx]
+					if !singleUnit {
+						// TODO: what happens if unit has changed mid-tile?
+						// Write early and then do the remaining values separately?
+						if len(frame.Units().Values()) > lastIdx {
+							unit = frame.Units().Values()[lastIdx]
 						}
-						if !singleAnnotation {
-							// TODO: what happens if annotation has changed mid-tile?
-							// Write early and then do the remaining values separately?
-							if len(frame.Annotations().Values()) > lastIdx {
-								annotation = frame.Annotations().Values()[lastIdx]
-							}
-						}
-
-						_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, annotation, wOpts, true)
-						if err != nil {
-							mu.Lock()
-							s.metrics.largeTilesWriteErrors.Inc(1)
-							multiErr = multiErr.Add(err)
-							mu.Unlock()
-						}
-						processedBlockCount.Inc()
 					}
+					if !singleAnnotation {
+						// TODO: what happens if annotation has changed mid-tile?
+						// Write early and then do the remaining values separately?
+						if len(frame.Annotations().Values()) > lastIdx {
+							annotation = frame.Annotations().Values()[lastIdx]
+						}
+					}
+
+					dp.Timestamp = lastTimestamp
+					dp.Value = lastValue
+					err = encoder.Encode(dp, unit, annotation)
+					if err != nil {
+						s.metrics.largeTilesWriteErrors.Inc(1)
+						// FIXME: log only the last error to do not flood the log
+						multiErr = multiErr.Add(err)
+					}
+					processedBlockCount.Inc()
 				}
-
-				wg.Done()
-			}()
-
-			wg.Wait()
+			}
+			if err := writer.Write(ctx, encoder, id, tags); err != nil {
+				s.metrics.largeTilesWriteErrors.Inc(1)
+				multiErr = multiErr.Add(err)
+			} else {
+				s.metrics.largeTilesWrites.Inc(1)
+			}
 		}
+	}
+
+	if err := writer.Close(); err != nil {
+		multiErr = multiErr.Add(err)
 	}
 
 	if err := readerIter.Err(); err != nil {

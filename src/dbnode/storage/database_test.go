@@ -68,9 +68,9 @@ var (
 	defaultTestNs1ID         = ident.StringID("testns1")
 	defaultTestNs2ID         = ident.StringID("testns2")
 	defaultTestRetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-		SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
-		SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 	testSchemaHistory  = prototest.NewSchemaHistory()
@@ -1297,19 +1297,16 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 		close(mapCh)
 	}()
 
-	d.opts = d.opts.SetLargeTilesPersistManager(d.opts.PersistManager())
-
 	var (
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
-		pm         = d.opts.LargeTilesPersistManager()
 		opts       = AggregateTilesOptions{Start: time.Now().Truncate(time.Hour)}
 	)
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
 	targetNs := dbAddNewMockNamespace(ctrl, d, targetNsID.String())
-	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts, pm).Return(int64(4), nil)
+	targetNs.EXPECT().AggregateTiles(ctx, sourceNs, opts).Return(int64(4), nil)
 
 	processedBlockCount, err := d.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	require.NoError(t, err)

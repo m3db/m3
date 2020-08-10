@@ -390,13 +390,6 @@ func NewTestSetup(
 	}
 	storageOpts = storageOpts.SetPersistManager(pm)
 
-	// Set up large tiles persistence manager
-	ltpm, err := fs.NewPersistManager(fsOpts)
-	if err != nil {
-		return nil, err
-	}
-	storageOpts = storageOpts.SetLargeTilesPersistManager(ltpm)
-
 	// Set up repair options
 	storageOpts = storageOpts.
 		SetRepairOptions(storageOpts.RepairOptions().
