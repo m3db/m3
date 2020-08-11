@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -69,6 +70,7 @@ type options struct {
 	runtimeOptsMgr              runtime.OptionsManager
 	identifierPool              ident.Pool
 	migrationOpts               migration.Options
+	storageOpts                 storage.Options
 }
 
 // NewOptions creates new bootstrap options
@@ -87,6 +89,7 @@ func NewOptions() Options {
 		runtimeOptsMgr:              runtime.NewOptionsManager(),
 		identifierPool:              idPool,
 		migrationOpts:               migration.NewOptions(),
+		storageOpts:                 storage.NewOptions(),
 	}
 }
 
@@ -220,4 +223,14 @@ func (o *options) SetMigrationOptions(value migration.Options) Options {
 
 func (o *options) MigrationOptions() migration.Options {
 	return o.migrationOpts
+}
+
+func (o *options) SetStorageOptions(value storage.Options) Options {
+	opts := *o
+	opts.storageOpts = value
+	return &opts
+}
+
+func (o *options) StorageOptions() storage.Options {
+	return o.storageOpts
 }
