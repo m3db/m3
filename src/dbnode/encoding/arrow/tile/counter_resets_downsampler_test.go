@@ -36,30 +36,147 @@ func TestDownsampleCounterResets(t *testing.T) {
 		wantIndices []int
 		wantValues  []float64
 	}{
-		{"empty", []float64{}, nil, nil},
-		{"one value", []float64{3.14}, []int{0}, []float64{3.14}},
-		{"two different values", []float64{3, 5}, []int{0, 1}, []float64{3, 5}},
-		{"two identical values", []float64{5, 5}, []int{1}, []float64{5}},
-		{"two values with reset", []float64{3, 1}, []int{0, 1}, []float64{3, 1}},
-		{"second value equal to first, then reset", []float64{2, 2, 1}, []int{0, 2}, []float64{2, 1}},
-		{"three values, no reset", []float64{3, 4, 5}, []int{0, 2}, []float64{3, 5}},
-		{"three identical values", []float64{5, 5, 5}, []int{2}, []float64{5}},
-		{"three values, reset after first", []float64{3, 1, 5}, []int{0, 1, 2}, []float64{3, 1, 5}},
-		{"three values, reset after second", []float64{3, 5, 1}, []int{0, 1, 2}, []float64{3, 5, 1}},
-		{"three values, two resets", []float64{5, 3, 2}, []int{0, 1, 2}, []float64{5, 8, 2}},
-		{"four values, reset after first", []float64{3, 1, 4, 5}, []int{0, 1, 3}, []float64{3, 1, 5}},
-		{"four values, reset after second (A)", []float64{3, 4, 1, 5}, []int{0, 1, 2, 3}, []float64{3, 4, 1, 5}},
-		{"four values, reset after second (B)", []float64{3, 4, 1, 4}, []int{0, 1, 2, 3}, []float64{3, 4, 1, 4}},
-		{"four values, reset after second (C)", []float64{3, 4, 1, 2}, []int{0, 1, 3}, []float64{3, 4, 2}},
-		{"four values, reset after third", []float64{3, 4, 5, 1}, []int{0, 2, 3}, []float64{3, 5, 1}},
-		{"four values, two resets (A)", []float64{3, 1, 5, 4}, []int{0, 2, 3}, []float64{3, 8, 4}},
-		{"four values, two resets (B)", []float64{5, 2, 1, 4}, []int{0, 1, 3}, []float64{5, 7, 4}},
-		{"four values, two resets (C)", []float64{5, 2, 2, 1}, []int{0, 2, 3}, []float64{5, 7, 1}},
-		{"four values, two resets (D)", []float64{3, 5, 2, 1}, []int{0, 2, 3}, []float64{3, 7, 1}},
-		{"reset between two identical values", []float64{4, 3, 4}, []int{0, 1, 2}, []float64{4, 3, 4}},
-		{"four values, three resets", []float64{9, 7, 4, 1}, []int{0, 2, 3}, []float64{9, 20, 1}},
-		{"five values, two resets (A)", []float64{3, 1, 2, 5, 4}, []int{0, 3, 4}, []float64{3, 8, 4}},
-		{"five equal values", []float64{1, 1, 1, 1, 1}, []int{4}, []float64{1}},
+		{
+			name:        "empty",
+			givenValues: []float64{},
+		},
+		{
+			name:        "one value",
+			givenValues: []float64{3.14},
+			wantIndices: []int{0},
+			wantValues:  []float64{3.14},
+		},
+		{
+			name:        "two different values",
+			givenValues: []float64{3, 5},
+			wantIndices: []int{0, 1},
+			wantValues:  []float64{3, 5},
+		},
+		{
+			name:        "two identical values",
+			givenValues: []float64{5, 5},
+			wantIndices: []int{1},
+			wantValues:  []float64{5},
+		},
+		{
+			name:        "two values with reset",
+			givenValues: []float64{3, 1},
+			wantIndices: []int{0, 1},
+			wantValues:  []float64{3, 1},
+		},
+		{
+			name:        "second value equal to first, then reset",
+			givenValues: []float64{2, 2, 1},
+			wantIndices: []int{0, 2},
+			wantValues:  []float64{2, 1},
+		},
+		{
+			name:        "three values, no reset",
+			givenValues: []float64{3, 4, 5},
+			wantIndices: []int{0, 2},
+			wantValues:  []float64{3, 5},
+		},
+		{
+			name:        "three identical values",
+			givenValues: []float64{5, 5, 5},
+			wantIndices: []int{2},
+			wantValues:  []float64{5},
+		},
+		{
+			name:        "three values, reset after first",
+			givenValues: []float64{3, 1, 5},
+			wantIndices: []int{0, 1, 2},
+			wantValues:  []float64{3, 1, 5}},
+		{
+			name:        "three values, reset after second",
+			givenValues: []float64{3, 5, 1},
+			wantIndices: []int{0, 1, 2},
+			wantValues:  []float64{3, 5, 1},
+		},
+		{
+			name:        "three values, two resets",
+			givenValues: []float64{5, 3, 2},
+			wantIndices: []int{0, 1, 2},
+			wantValues:  []float64{5, 8, 2},
+		},
+		{
+			name:        "four values, reset after first",
+			givenValues: []float64{3, 1, 4, 5},
+			wantIndices: []int{0, 1, 3},
+			wantValues:  []float64{3, 1, 5},
+		},
+		{
+			name:        "four values, reset after second (A)",
+			givenValues: []float64{3, 4, 1, 5},
+			wantIndices: []int{0, 1, 2, 3},
+			wantValues:  []float64{3, 4, 1, 5},
+		},
+		{
+			name:        "four values, reset after second (B)",
+			givenValues: []float64{3, 4, 1, 4},
+			wantIndices: []int{0, 1, 2, 3},
+			wantValues:  []float64{3, 4, 1, 4},
+		},
+		{
+			name:        "four values, reset after second (C)",
+			givenValues: []float64{3, 4, 1, 2},
+			wantIndices: []int{0, 1, 3},
+			wantValues:  []float64{3, 4, 2},
+		},
+		{
+			name:        "four values, reset after third",
+			givenValues: []float64{3, 4, 5, 1},
+			wantIndices: []int{0, 2, 3},
+			wantValues:  []float64{3, 5, 1},
+		},
+		{
+			name:        "four values, two resets (A)",
+			givenValues: []float64{3, 1, 5, 4},
+			wantIndices: []int{0, 2, 3},
+			wantValues:  []float64{3, 8, 4},
+		},
+		{
+			name:        "four values, two resets (B)",
+			givenValues: []float64{5, 2, 1, 4},
+			wantIndices: []int{0, 1, 3},
+			wantValues:  []float64{5, 7, 4},
+		},
+		{
+			name:        "four values, two resets (C)",
+			givenValues: []float64{5, 2, 2, 1},
+			wantIndices: []int{0, 2, 3},
+			wantValues:  []float64{5, 7, 1},
+		},
+		{
+			name:        "four values, two resets (D)",
+			givenValues: []float64{3, 5, 2, 1},
+			wantIndices: []int{0, 2, 3},
+			wantValues:  []float64{3, 7, 1},
+		},
+		{
+			name:        "reset between two identical values",
+			givenValues: []float64{4, 3, 4},
+			wantIndices: []int{0, 1, 2},
+			wantValues:  []float64{4, 3, 4},
+		},
+		{
+			name:        "four values, three resets",
+			givenValues: []float64{9, 7, 4, 1},
+			wantIndices: []int{0, 2, 3},
+			wantValues:  []float64{9, 20, 1},
+		},
+		{
+			name:        "five values, two resets (A)",
+			givenValues: []float64{3, 1, 2, 5, 4},
+			wantIndices: []int{0, 3, 4},
+			wantValues:  []float64{3, 8, 4},
+		},
+		{
+			name:        "five equal values",
+			givenValues: []float64{1, 1, 1, 1, 1},
+			wantIndices: []int{4},
+			wantValues:  []float64{1},
+		},
 	}
 
 	for _, tt := range tests {
@@ -81,15 +198,67 @@ func TestDownsampleCounterResetsWithPrevFrameLastValue(t *testing.T) {
 		wantIndices             []int
 		wantValues              []float64
 	}{
-		{"empty", 3, []float64{}, nil, nil},
-		{"one value equal to prev frame last", 2, []float64{2}, []int{0}, []float64{2}},
-		{"one value less than prev frame last", 3, []float64{2}, []int{0}, []float64{2}},
-		{"one value more than prev frame last", 3, []float64{4}, []int{0}, []float64{4}},
-		{"two values, increasing", 3, []float64{4, 5}, []int{1}, []float64{5}},
-		{"reset between frames", 3, []float64{2, 5}, []int{0, 1}, []float64{2, 5}},
-		{"reset between frames and within frame", 4, []float64{2, 1}, []int{0, 1}, []float64{2, 1}},
-		{"reset within frame", 1, []float64{4, 3}, []int{0, 1}, []float64{4, 3}},
-		{"all equal", 1, []float64{1, 1}, []int{1}, []float64{1}},
+		{
+			name:                    "empty",
+			givenPrevFrameLastValue: 3,
+			givenValues:             []float64{},
+		},
+		{
+			name:                    "one value equal to prev frame last",
+			givenPrevFrameLastValue: 2,
+			givenValues:             []float64{2},
+			wantIndices:             []int{0},
+			wantValues:              []float64{2},
+		},
+		{
+			name:                    "one value less than prev frame last",
+			givenPrevFrameLastValue: 3,
+			givenValues:             []float64{2},
+			wantIndices:             []int{0},
+			wantValues:              []float64{2},
+		},
+		{
+			name:                    "one value more than prev frame last",
+			givenPrevFrameLastValue: 3,
+			givenValues:             []float64{4},
+			wantIndices:             []int{0},
+			wantValues:              []float64{4},
+		},
+		{
+			name:                    "two values, increasing",
+			givenPrevFrameLastValue: 3,
+			givenValues:             []float64{4, 5},
+			wantIndices:             []int{1},
+			wantValues:              []float64{5},
+		},
+		{
+			name:                    "reset between frames",
+			givenPrevFrameLastValue: 3,
+			givenValues:             []float64{2, 5},
+			wantIndices:             []int{0, 1},
+			wantValues:              []float64{2, 5},
+		},
+		{
+			name:                    "reset between frames and within frame",
+			givenPrevFrameLastValue: 4,
+			givenValues:             []float64{2, 1},
+			wantIndices:             []int{0, 1},
+			wantValues:              []float64{2, 1},
+		},
+		{
+			name:                    "reset within frame",
+			givenPrevFrameLastValue: 1,
+			givenValues:             []float64{4, 3},
+			wantIndices:             []int{0, 1},
+			wantValues:              []float64{4, 3},
+		},
+		{
+			name:                    "all equal",
+			givenPrevFrameLastValue: 1,
+			givenValues:             []float64{1, 1},
+			wantIndices:             []int{1},
+			wantValues:              []float64{1},
+		},
 	}
 
 	for _, tt := range tests {
@@ -115,7 +284,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 	params := gopter.DefaultTestParameters()
 	params.MinSize = 1
 	if usePrevFrameLastValue {
-		params.MinSize = 2
+		params.MinSize++
 	}
 	params.MinSuccessfulTests = 10000
 	params.MaxShrinkCount = 0

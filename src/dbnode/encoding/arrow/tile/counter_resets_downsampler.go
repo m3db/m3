@@ -25,7 +25,7 @@ import (
 )
 
 // DownsampleCounterResets downsamples datapoints in a way that preserves counter invariants:
-// The first and the last values stay the same as original (to transfer counter state from tile to tile).
+// The the last (and the first, if necessary) values stay the same as original (to transfer counter state from tile to tile).
 // Also, after applying counter reset adjustment logics, all the values would be the same as
 // after applying this logics to the original values.
 // As an optimization (to reduce the amount of datapoints), prevFrameLastValue can be passed in,
@@ -85,6 +85,7 @@ func DownsampleCounterResets(prevFrameLastValue float64, frame SeriesBlockFrame)
 		results = results[:0]
 		indices = indices[:0]
 	}
+
 	// always include the last original value
 	indices = append(indices, lastPosition)
 	results = append(results, lastValue)
