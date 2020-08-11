@@ -174,6 +174,7 @@ type DataFileSetReader interface {
 	MetadataRead() int
 
 	// OrderedByIndex returns true if the reader reads the data in the order of index.
+	// If false, the reader reads the data in the same order as it is stored in the data file.
 	OrderedByIndex() bool
 }
 

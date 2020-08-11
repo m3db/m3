@@ -124,7 +124,7 @@ func (r *crossBlockReader) Next() bool {
 			return false
 		}
 
-		// id and tags not needed for subsequent blocs because they are the same as in the first block
+		// id and tags not needed for subsequent blocks because they are the same as in the first block
 		nextEntry.id.Finalize()
 		nextEntry.tags.Close()
 
