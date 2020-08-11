@@ -31,7 +31,12 @@ import (
 // As an optimization (to reduce the amount of datapoints), prevFrameLastValue can be passed in,
 // and then in some cases the first value of this tile may be omitted.
 // If the value for prevFrameLastValue is not available, pass math.Nan() instead.
-func DownsampleCounterResets(prevFrameLastValue float64, frame SeriesBlockFrame) (indices []int, results []float64) {
+func DownsampleCounterResets(
+	prevFrameLastValue float64,
+	frame SeriesBlockFrame,
+	indices *[]int,
+	results *[]float64,
+) {
 	frameValues := frame.Values()
 
 	if len(frameValues) == 0 {
@@ -41,8 +46,8 @@ func DownsampleCounterResets(prevFrameLastValue float64, frame SeriesBlockFrame)
 	firstValue := frameValues[0]
 	if math.IsNaN(prevFrameLastValue) || prevFrameLastValue > firstValue {
 		// always include the first original value
-		indices = append(indices, 0)
-		results = append(results, firstValue)
+		*indices = append(*indices, 0)
+		*results = append(*results, firstValue)
 	}
 
 	var (
@@ -64,10 +69,10 @@ func DownsampleCounterResets(prevFrameLastValue float64, frame SeriesBlockFrame)
 		previous = current
 	}
 
-	if lastResetPosition >= 0 && (len(results) == 0 || results[0] != adjustedValueBeforeLastReset) {
+	if lastResetPosition >= 0 && (len(*results) == 0 || (*results)[0] != adjustedValueBeforeLastReset) {
 		// include the adjusted value right before the last reset (if it is not equal to the included first value)
-		indices = append(indices, lastResetPosition)
-		results = append(results, adjustedValueBeforeLastReset)
+		*indices = append(*indices, lastResetPosition)
+		*results = append(*results, adjustedValueBeforeLastReset)
 	}
 
 	lastPosition := len(frameValues) - 1
@@ -76,19 +81,19 @@ func DownsampleCounterResets(prevFrameLastValue float64, frame SeriesBlockFrame)
 	positionAfterLastReset := lastResetPosition + 1
 	if lastResetPosition >= 0 && adjustedValueBeforeLastReset <= lastValue {
 		// include the original value right after the last reset (if it is not the last value, which is always included)
-		indices = append(indices, positionAfterLastReset)
-		results = append(results, frameValues[positionAfterLastReset])
+		*indices = append(*indices, positionAfterLastReset)
+		*results = append(*results, frameValues[positionAfterLastReset])
 	}
 
-	if len(results) == 1 && results[0] == lastValue {
+	if len(*results) == 1 && (*results)[0] == lastValue {
 		// if only the first value was included until now, and it's equal to the last value, it can be discarded
-		results = results[:0]
-		indices = indices[:0]
+		*results = (*results)[:0]
+		*indices = (*indices)[:0]
 	}
 
 	// always include the last original value
-	indices = append(indices, lastPosition)
-	results = append(results, lastValue)
+	*indices = append(*indices, lastPosition)
+	*results = append(*results, lastValue)
 
 	return
 }

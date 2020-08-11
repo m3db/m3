@@ -39,6 +39,8 @@ func TestDownsampleCounterResets(t *testing.T) {
 		{
 			name:        "empty",
 			givenValues: []float64{},
+			wantIndices: []int{},
+			wantValues:  []float64{},
 		},
 		{
 			name:        "one value",
@@ -183,7 +185,9 @@ func TestDownsampleCounterResets(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			record := &record{vals: tt.givenValues}
 			frame := SeriesBlockFrame{record: record}
-			indices, results := DownsampleCounterResets(math.NaN(), frame)
+			indices := make([]int, 0)
+			results := make([]float64, 0)
+			DownsampleCounterResets(math.NaN(), frame, &indices, &results)
 			assert.Equal(t, tt.wantValues, results)
 			assert.Equal(t, tt.wantIndices, indices)
 		})
@@ -202,6 +206,8 @@ func TestDownsampleCounterResetsWithPrevFrameLastValue(t *testing.T) {
 			name:                    "empty",
 			givenPrevFrameLastValue: 3,
 			givenValues:             []float64{},
+			wantIndices:             []int{},
+			wantValues:              []float64{},
 		},
 		{
 			name:                    "one value equal to prev frame last",
@@ -265,7 +271,9 @@ func TestDownsampleCounterResetsWithPrevFrameLastValue(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			record := &record{vals: tt.givenValues}
 			frame := SeriesBlockFrame{record: record}
-			indices, results := DownsampleCounterResets(tt.givenPrevFrameLastValue, frame)
+			indices := make([]int, 0)
+			results := make([]float64, 0)
+			DownsampleCounterResets(tt.givenPrevFrameLastValue, frame, &indices, &results)
 			assert.Equal(t, tt.wantValues, results)
 			assert.Equal(t, tt.wantIndices, indices)
 		})
@@ -380,7 +388,11 @@ func downsample(vals []float64, usePrevFrameLastValue bool) ([]int, []float64) {
 
 	frame := SeriesBlockFrame{record: &record{vals: vals}}
 
-	return DownsampleCounterResets(prevFrameLastValue, frame)
+	indices := make([]int, 0)
+	results := make([]float64, 0)
+	DownsampleCounterResets(prevFrameLastValue, frame, &indices, &results)
+
+	return indices, results
 }
 
 func applyCounterResetAdjustment(vals []float64) []float64 {
