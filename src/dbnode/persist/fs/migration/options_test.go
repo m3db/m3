@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,29 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package migration
 
 import (
-	"bytes"
-	"net/http"
 	"testing"
-
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestPlacementSource(t *testing.T) {
-	handlerOpts, _, _ := newHandlerOptsAndClient(t)
-	iOpts := instrument.NewOptions()
-	svcDefaults := handleroptions.ServiceNameAndDefaults{
-		ServiceName: "m3db",
-	}
-	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts, iOpts)
-	require.NoError(t, err)
+func TestOptionsTargetMigrationVersion(t *testing.T) {
+	opts := NewOptions()
+	require.Equal(t, MigrationVersionNone, opts.TargetMigrationVersion())
 
-	buff := bytes.NewBuffer([]byte{})
-	p.Write(buff, &http.Request{})
-	require.NotZero(t, buff.Len())
+	opts = opts.SetTargetMigrationVersion(MigrationVersion_1_1)
+	require.Equal(t, MigrationVersion_1_1, opts.TargetMigrationVersion())
+}
+
+func TestOptionsConcurrency(t *testing.T) {
+	opts := NewOptions()
+	require.Equal(t, defaultMigrationConcurrency, opts.Concurrency())
+
+	opts = opts.SetConcurrency(100)
+	require.Equal(t, 100, opts.Concurrency())
+}
+
+func TestOptionsValidate(t *testing.T) {
+	opts := NewOptions()
+	require.NoError(t, opts.Validate())
+
+	require.Error(t, opts.SetTargetMigrationVersion(2).Validate())
+	require.Error(t, opts.SetConcurrency(0).Validate())
 }

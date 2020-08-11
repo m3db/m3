@@ -40,7 +40,6 @@ type (
 
 const (
 	fileOpCheckInterval              = time.Second
-	tickCheckInterval                = 5 * time.Second
 	fileSystemProcessesCheckInterval = 100 * time.Millisecond
 
 	mediatorNotOpen mediatorState = iota
@@ -88,6 +87,7 @@ type mediator struct {
 	state               mediatorState
 	mediatorTimeBarrier mediatorTimeBarrier
 	closedCh            chan struct{}
+	tickInterval        time.Duration
 }
 
 // TODO(r): Consider renaming "databaseMediator" to "databaseCoordinator"
@@ -107,6 +107,7 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 		state:               mediatorNotOpen,
 		mediatorTimeBarrier: newMediatorTimeBarrier(nowFn, iOpts),
 		closedCh:            make(chan struct{}),
+		tickInterval:        opts.MediatorTickInterval(),
 	}
 
 	fsm := newFileSystemManager(database, commitlog, opts)
@@ -214,7 +215,7 @@ func (m *mediator) ongoingFileSystemProcesses() {
 		case <-m.closedCh:
 			return
 		default:
-			m.sleepFn(tickCheckInterval)
+			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
 			if !m.isOpen() {
@@ -235,7 +236,7 @@ func (m *mediator) ongoingColdFlushProcesses() {
 		case <-m.closedCh:
 			return
 		default:
-			m.sleepFn(tickCheckInterval)
+			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
 			if !m.isOpen() {
@@ -257,7 +258,7 @@ func (m *mediator) ongoingTick() {
 		case <-m.closedCh:
 			return
 		default:
-			m.sleepFn(tickCheckInterval)
+			m.sleepFn(m.tickInterval)
 
 			// Check if the mediator is already closed.
 			if !m.isOpen() {

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,29 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package migration
 
-import (
-	"bytes"
-	"net/http"
-	"testing"
+// Options represents the options for migrations.
+type Options interface {
+	// Validate validates migration options.
+	Validate() error
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/x/instrument"
+	// SetTargetMigrationVersion sets the target version for a migration
+	SetTargetMigrationVersion(value MigrationVersion) Options
 
-	"github.com/stretchr/testify/require"
-)
+	// TargetMigrationVersion is the target version for a migration.
+	TargetMigrationVersion() MigrationVersion
 
-func TestPlacementSource(t *testing.T) {
-	handlerOpts, _, _ := newHandlerOptsAndClient(t)
-	iOpts := instrument.NewOptions()
-	svcDefaults := handleroptions.ServiceNameAndDefaults{
-		ServiceName: "m3db",
-	}
-	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts, iOpts)
-	require.NoError(t, err)
+	// SetConcurrency sets the number of concurrent workers performing migrations.
+	SetConcurrency(value int) Options
 
-	buff := bytes.NewBuffer([]byte{})
-	p.Write(buff, &http.Request{})
-	require.NotZero(t, buff.Len())
+	// Concurrency gets the number of concurrent workers performing migrations.
+	Concurrency() int
 }
+
+// MigrationVersion is an enum that corresponds to the major and minor version number to migrate data files to.
+type MigrationVersion uint

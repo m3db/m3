@@ -175,23 +175,6 @@ func (s *commitLogSource) Read(
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperCommitLogSourceRead)
 	defer span.Finish()
 
-	timeRangesEmpty := true
-	for _, elem := range namespaces.Namespaces.Iter() {
-		namespace := elem.Value()
-		dataRangesNotEmpty := !namespace.DataRunOptions.ShardTimeRanges.IsEmpty()
-
-		indexEnabled := namespace.Metadata.Options().IndexOptions().Enabled()
-		indexRangesNotEmpty := indexEnabled && !namespace.IndexRunOptions.ShardTimeRanges.IsEmpty()
-		if dataRangesNotEmpty || indexRangesNotEmpty {
-			timeRangesEmpty = false
-			break
-		}
-	}
-	if timeRangesEmpty {
-		// Return empty result with no unfulfilled ranges.
-		return bootstrap.NewNamespaceResults(namespaces), nil
-	}
-
 	var (
 		// Emit bootstrapping gauge for duration of ReadData.
 		doneReadingData         = s.metrics.emitBootstrapping()
@@ -216,9 +199,11 @@ func (s *commitLogSource) Read(
 		// NB(r): Combine all shard time ranges across data and index
 		// so we can do in one go.
 		shardTimeRanges := result.NewShardTimeRanges()
-		shardTimeRanges.AddRanges(ns.DataRunOptions.ShardTimeRanges)
+		// NB(bodu): Use TargetShardTimeRanges which covers the entire original target shard range
+		// since the commitlog bootstrapper should run for the entire bootstrappable range per shard.
+		shardTimeRanges.AddRanges(ns.DataRunOptions.TargetShardTimeRanges)
 		if ns.Metadata.Options().IndexOptions().Enabled() {
-			shardTimeRanges.AddRanges(ns.IndexRunOptions.ShardTimeRanges)
+			shardTimeRanges.AddRanges(ns.IndexRunOptions.TargetShardTimeRanges)
 		}
 
 		namespaceResults[ns.Metadata.ID().String()] = &readNamespaceResult{
@@ -683,7 +668,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	// haven't flushed data for yet a warm block start.
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), ns.ID(), shard,
-		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 	shardBlockStartsOnDisk := make(map[xtime.UnixNano]struct{})
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {

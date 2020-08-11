@@ -10,7 +10,7 @@ More information:
 - [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
 - [Slack](http://bit.ly/m3slack)
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
-- [Twitter](https://twitter.com/m3db_io)
+- [Twitter](https://twitter.com/m3metrics)
 
 ## Community meetings
 

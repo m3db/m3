@@ -100,3 +100,4 @@ eval instant at 0s http_requests{foo!~".+", job="api-server", instance="0", grou
 
 eval instant at 0s http_requests{foo!~".*", job="api-server", instance="0", group="production"}
 
+clear

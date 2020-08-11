@@ -1942,7 +1942,7 @@ func (s *dbShard) initializeFlushStates() {
 func (s *dbShard) UpdateFlushStates() {
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
-		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {

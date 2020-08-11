@@ -54,7 +54,6 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
-	logger, _          = zap.NewProduction()
 )
 
 const (
@@ -604,6 +603,7 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	checksum := segment.CalculateChecksum()
+
 	return persistFn(metadata, segment, checksum)
 }
 

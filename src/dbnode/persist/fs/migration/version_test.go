@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,29 +18,46 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package migration
 
 import (
-	"bytes"
-	"net/http"
+	"fmt"
 	"testing"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
-	"github.com/m3db/m3/src/x/instrument"
-
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-func TestPlacementSource(t *testing.T) {
-	handlerOpts, _, _ := newHandlerOptsAndClient(t)
-	iOpts := instrument.NewOptions()
-	svcDefaults := handleroptions.ServiceNameAndDefaults{
-		ServiceName: "m3db",
-	}
-	p, err := NewPlacementInfoSource(svcDefaults, handlerOpts, iOpts)
+func TestParseMigrateVersion(t *testing.T) {
+	v, err := ParseMigrationVersion("none")
+	require.NoError(t, err)
+	require.Equal(t, MigrationVersionNone, v)
+
+	v, err = ParseMigrationVersion("1.1")
+	require.NoError(t, err)
+	require.Equal(t, MigrationVersion_1_1, v)
+}
+
+func TestValidateMigrateVersion(t *testing.T) {
+	err := ValidateMigrationVersion(MigrationVersion_1_1)
 	require.NoError(t, err)
 
-	buff := bytes.NewBuffer([]byte{})
-	p.Write(buff, &http.Request{})
-	require.NotZero(t, buff.Len())
+	err = ValidateMigrationVersion(2)
+	require.Error(t, err)
+}
+
+func TestUnmarshalYAML(t *testing.T) {
+	type config struct {
+		Version MigrationVersion `yaml:"version"`
+	}
+
+	for _, value := range validMigrationVersions {
+		str := fmt.Sprintf("version: %s\n", value.String())
+		var cfg config
+		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+		require.Equal(t, value, cfg.Version)
+	}
+
+	var cfg config
+	require.Error(t, yaml.Unmarshal([]byte("version: abc"), &cfg))
 }
