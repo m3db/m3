@@ -75,7 +75,7 @@ curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topi
 
 #### Initializing m3msg topic for m3coordinator to receive from m3aggregator to write to M3DB
 
-Now we must setup a topic for the `m3coordinator` to receive unaggregated metrics from `m3aggregator` instances to write to M3DB:
+Now we must setup a topic for the `m3coordinator` to receive aggregated metrics from `m3aggregator` instances to write to M3DB:
 ```bash
 curl -vvvsSf -H "Cluster-Environment-Name: namespace/m3db-cluster-name" -H "Topic-Name: aggregated_metrics" -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic/init -d '{
     "numberOfShards": 64
