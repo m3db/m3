@@ -39,10 +39,11 @@ markdown_extensions:
   - pymdownx.betterem:
       smart_enable: all
   - pymdownx.caret
-  - pymdownx.critic
   - pymdownx.details
   - pymdownx.emoji:
       emoji_generator: !!python/name:pymdownx.emoji.to_svg
+  - pymdownx.highlight:
+      use_pygments: true      
   - pymdownx.inlinehilite
   - pymdownx.magiclink
   - pymdownx.mark
@@ -53,6 +54,7 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+  - admonition
 
 pages:
   - "Introduction": "index.md"
