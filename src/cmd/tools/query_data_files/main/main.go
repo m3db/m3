@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -100,6 +101,7 @@ func main() {
 
 	var (
 		fsOpts = fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
+		iOpts  = instrument.NewOptions()
 
 		iterations = *iterationCount
 		useArrow   = *optUseArrow
@@ -161,7 +163,7 @@ func main() {
 				ReaderIteratorPool: iterPool,
 			}
 
-			crossBlockReader, err := fs.NewCrossBlockReader([]fs.DataFileSetReader{reader})
+			crossBlockReader, err := fs.NewCrossBlockReader([]fs.DataFileSetReader{reader}, iOpts)
 			if err != nil {
 				fmt.Println("error creating CrossBlockReader", err)
 				return

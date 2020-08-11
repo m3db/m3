@@ -24,7 +24,6 @@ require (
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
-	github.com/couchbase/vellum v1.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
@@ -66,7 +65,6 @@ require (
 	github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f
 	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e // indirect
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
-	github.com/m3db/vellum v0.0.0-20190111185746-e766292d14de // indirect
 	github.com/m3dbx/pilosa v0.0.0-20200602205121-7f389745e9ab
 	github.com/m3dbx/vellum v0.0.0-20200602203954-e10aaedbd934
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
