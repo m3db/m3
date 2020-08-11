@@ -31,6 +31,9 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -47,13 +50,14 @@ type crossBlockReader struct {
 	started            bool
 	minHeap            minHeap
 	err                error
+	iOpts              instrument.Options
 }
 
 // NewCrossBlockReader constructs a new CrossBlockReader based on given DataFileSetReaders.
 // DataFileSetReaders must be configured to return the data in the order of index, and must be
 // provided in a slice sorted by block start time.
 // Callers are responsible for closing the DataFileSetReaders.
-func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (CrossBlockReader, error) {
+func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader, iOpts instrument.Options) (CrossBlockReader, error) {
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
 		if !dataFileSetReader.OrderedByIndex() {
@@ -69,6 +73,7 @@ func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (CrossBlockRead
 	return &crossBlockReader{
 		dataFileSetReaders: append(make([]DataFileSetReader, 0, len(dataFileSetReaders)), dataFileSetReaders...),
 		records:            make([]BlockRecord, 0, len(dataFileSetReaders)),
+		iOpts:              iOpts,
 	}, nil
 }
 
@@ -152,8 +157,14 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 		} else if err != nil {
 			return nil, err
 		} else if bytes.Equal(nextEntry.id.Bytes(), entry.id.Bytes()) {
-			return nil, fmt.Errorf("duplicate id %s on block starting at %s",
+			err := fmt.Errorf("duplicate id %s on block starting at %s",
 				entry.id, r.dataFileSetReaders[entry.dataFileSetReaderIndex].Range().Start)
+
+			instrument.EmitAndLogInvariantViolation(r.iOpts, func(l *zap.Logger) {
+				l.Error(err.Error())
+			})
+
+			return nil, err
 		} else {
 			heap.Push(&r.minHeap, nextEntry)
 		}

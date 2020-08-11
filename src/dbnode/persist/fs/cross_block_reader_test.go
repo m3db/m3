@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -46,7 +47,7 @@ func TestCrossBlockReaderRejectMisconfiguredInputs(t *testing.T) {
 	dfsReader := NewMockDataFileSetReader(ctrl)
 	dfsReader.EXPECT().OrderedByIndex().Return(false)
 
-	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader})
+	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader}, instrument.NewTestOptions(t))
 
 	assert.Equal(t, errReaderNotOrderedByIndex, err)
 }
@@ -65,7 +66,7 @@ func TestCrossBlockReaderRejectMisorderedInputs(t *testing.T) {
 	dfsReader2.EXPECT().OrderedByIndex().Return(true)
 	dfsReader2.EXPECT().Range().Return(xtime.Range{Start: later})
 
-	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader2, dfsReader1})
+	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader2, dfsReader1}, instrument.NewTestOptions(t))
 
 	expectedErr := fmt.Errorf("dataFileSetReaders are not ordered by time (%s followed by %s)", later, now)
 
@@ -176,7 +177,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 		expectedBlockCount += len(ids)
 	}
 
-	cbReader, err := NewCrossBlockReader(dfsReaders)
+	cbReader, err := NewCrossBlockReader(dfsReaders, instrument.NewTestOptions(t))
 	require.NoError(t, err)
 	defer cbReader.Close()
 
