@@ -28,7 +28,7 @@ import (
 // The the last (and the first, if necessary) values stay the same as original (to transfer counter state from tile to tile).
 // Also, after applying counter reset adjustment logics, all the values would be the same as
 // after applying this logics to the original values.
-// As an optimization (to reduce the amount of datapoints), prevFrameLastValue can be passed in,
+// As an optimization (to reduce the amount of datapoints), prevFrameLastValue can be passed in (if available),
 // and then in some cases the first value of this tile may be omitted.
 // If the value for prevFrameLastValue is not available, pass math.Nan() instead.
 func DownsampleCounterResets(
@@ -45,7 +45,7 @@ func DownsampleCounterResets(
 
 	firstValue := frameValues[0]
 	if math.IsNaN(prevFrameLastValue) || prevFrameLastValue > firstValue {
-		// always include the first original value
+		// include the first original datapoint to handle resets right before this frame
 		*indices = append(*indices, 0)
 		*results = append(*results, firstValue)
 	}
@@ -80,7 +80,7 @@ func DownsampleCounterResets(
 
 	positionAfterLastReset := lastResetPosition + 1
 	if lastResetPosition >= 0 && adjustedValueBeforeLastReset <= lastValue {
-		// include the original value right after the last reset (if it is not the last value, which is always included)
+		// include the original value right after the last reset (unless it is the last value, which is always included)
 		*indices = append(*indices, positionAfterLastReset)
 		*results = append(*results, frameValues[positionAfterLastReset])
 	}
@@ -91,7 +91,7 @@ func DownsampleCounterResets(
 		*indices = (*indices)[:0]
 	}
 
-	// always include the last original value
+	// always include the last original datapoint
 	*indices = append(*indices, lastPosition)
 	*results = append(*results, lastValue)
 
