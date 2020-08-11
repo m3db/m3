@@ -1510,7 +1510,7 @@
 </pre></div></p>
 <p><strong>Note:</strong> 300000000000 nanoseconds is a TTL of 5 minutes for messages to rebuffer for retry.</p>
 <h4 id="initializing-m3msg-topic-for-m3coordinator-to-receive-from-m3aggregator-to-write-to-m3db">Initializing m3msg topic for m3coordinator to receive from m3aggregator to write to M3DB</h4>
-<p>Now we must setup a topic for the <code>m3coordinator</code> to receive unaggregated metrics from <code>m3aggregator</code> instances to write to M3DB:
+<p>Now we must setup a topic for the <code>m3coordinator</code> to receive aggregated metrics from <code>m3aggregator</code> instances to write to M3DB:
 <div class="highlight"><pre><span></span>curl -vvvsSf -H <span class="s2">&quot;Cluster-Environment-Name: namespace/m3db-cluster-name&quot;</span> -H <span class="s2">&quot;Topic-Name: aggregated_metrics&quot;</span> -X POST http://m3dbnode-with-embedded-coordinator:7201/api/v1/topic/init -d <span class="s1">&#39;{</span>
 <span class="s1">    &quot;numberOfShards&quot;: 64</span>
 <span class="s1">}&#39;</span>
