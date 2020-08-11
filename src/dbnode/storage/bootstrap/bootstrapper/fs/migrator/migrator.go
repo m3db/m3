@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
-	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/x/instrument"
 
@@ -115,8 +114,7 @@ func (m *Migrator) Run() error {
 
 	for i := 0; i < numWorkers; i++ {
 		// Give each worker their own persist manager so that we can write files concurrently.
-		// Additionally, ensure that persist managers don't share encoders.
-		pm, err := fs.NewPersistManager(m.fsOpts.SetEncoder(msgpack.NewEncoder()))
+		pm, err := fs.NewPersistManager(m.fsOpts)
 		if err != nil {
 			return err
 		}

@@ -29,10 +29,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs/migrator"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -155,6 +157,11 @@ func (s *fileSystemSource) Read(
 	// Preload info file results so they can be used to bootstrap data filesets and data migrations
 	infoFilesByNamespace := s.loadInfoFiles(namespaces)
 
+	// Perform any necessary migrations but don't block bootstrap process on failure. Will update info file
+	// in-memory structures in place if migrations have written new files to disk. This saves us the need from
+	// having to re-read migrated info files.
+	s.runMigrations(infoFilesByNamespace)
+
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
 	start := s.nowFn()
@@ -220,6 +227,28 @@ func (s *fileSystemSource) Read(
 	span.LogEvent("bootstrap_index_done")
 
 	return results, nil
+}
+
+func (s *fileSystemSource) runMigrations(infoFilesByNamespace map[namespace.Metadata]fs.InfoFileResultsPerShard) {
+	// Only one migration for now, so just short circuit entirely if not enabled
+	if s.opts.MigrationOptions().TargetMigrationVersion() != migration.MigrationVersion_1_1 {
+		return
+	}
+
+	migrator, err := migrator.NewMigrator(migrator.NewOptions().
+		SetMigrationTaskFn(migration.MigrationTask).
+		SetInfoFilesByNamespace(infoFilesByNamespace).
+		SetMigrationOptions(s.opts.MigrationOptions()).
+		SetFilesystemOptions(s.fsopts).
+		SetInstrumentOptions(s.opts.InstrumentOptions()).
+		SetStorageOptions(s.opts.StorageOptions()))
+	if err != nil {
+		s.log.Error("error creating migrator. continuing bootstrap", zap.Error(err))
+	}
+
+	if err = migrator.Run(); err != nil {
+		s.log.Error("error performing migrations. continuing bootstrap", zap.Error(err))
+	}
 }
 
 func (s *fileSystemSource) availability(
@@ -940,7 +969,8 @@ func (s *fileSystemSource) loadInfoFiles(
 		result := make(fs.InfoFileResultsPerShard, shardTimeRanges.Len())
 		for shard := range shardTimeRanges.Iter() {
 			result[shard] = fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
-				namespace.Metadata.ID(), shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
+				namespace.Metadata.ID(), shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions(),
+				persist.FileSetFlushType)
 		}
 
 		infoFilesByNamespace[namespace.Metadata] = result
