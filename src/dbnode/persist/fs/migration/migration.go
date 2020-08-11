@@ -31,8 +31,9 @@ import (
 // on a fileset. This typically involves updating files in a fileset that were created by
 // a previous version of the database client.
 type Task interface {
-	// Run is the set of steps to successfully complete a migration.
-	Run() error
+	// Run is the set of steps to successfully complete a migration. Returns the potentially
+	// updated ReadInfoFileResult or an error.
+	Run() (fs.ReadInfoFileResult, error)
 }
 
 // NewTaskFn is a function that can create a new migration task.
@@ -63,7 +64,7 @@ func NewToVersion1_1Task(opts TaskOptions) (Task, error) {
 }
 
 // Run executes the steps to bring a fileset to Version 1.1.
-func (v *toVersion1_1Task) Run() error {
+func (v *toVersion1_1Task) Run() (fs.ReadInfoFileResult, error) {
 	var (
 		sOpts          = v.opts.StorageOptions()
 		fsOpts         = v.opts.FilesystemOptions()
@@ -75,7 +76,7 @@ func (v *toVersion1_1Task) Run() error {
 	)
 	reader, err := fs.NewReader(sOpts.BytesPool(), fsOpts)
 	if err != nil {
-		return err
+		return infoFileResult, err
 	}
 
 	merger := newMergerFn(reader, sOpts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
@@ -95,11 +96,19 @@ func (v *toVersion1_1Task) Run() error {
 
 	flushPersist, err := persistManager.StartFlushPersist()
 	if err != nil {
-		return err
+		return infoFileResult, err
 	}
 
 	// Intentionally use a noop merger here as we simply want to rewrite the same files with the current encoder which
 	// will generate index files with the entry level checksums.
-	return merger.MergeAndCleanup(fsID, fs.NewNoopMergeWith(), volIndex+1, flushPersist, nsCtx,
-		&persist.NoOpColdFlushNamespace{}, false)
+	newIndex := volIndex + 1
+	if err = merger.MergeAndCleanup(fsID, fs.NewNoopMergeWith(), newIndex, flushPersist, nsCtx,
+		&persist.NoOpColdFlushNamespace{}, false); err != nil {
+		return infoFileResult, err
+	}
+
+	infoFileResult.Info.VolumeIndex = newIndex
+	infoFileResult.Info.MinorVersion = 1
+
+	return infoFileResult, nil
 }

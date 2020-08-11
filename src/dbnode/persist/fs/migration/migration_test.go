@@ -97,8 +97,22 @@ func TestToVersion1_1Run(t *testing.T) {
 	task, err := NewToVersion1_1Task(opts)
 	require.NoError(t, err)
 
-	err = task.Run()
+	updatedInfoFile, err := task.Run()
 	require.NoError(t, err)
+
+	// Read new info file and make sure it matches results returned by task
+	newInfoFd, err := os.Open(path.Join(fsOpts.FilePathPrefix(), fmt.Sprintf("data/%s/%d/fileset-%d-1-info.db",
+		nsId.String(), shard, updatedInfoFile.Info.BlockStart)))
+	require.NoError(t, err)
+
+	newInfoBytes, err := ioutil.ReadAll(newInfoFd)
+	require.NoError(t, err)
+
+	decoder := msgpack.NewDecoder(nil)
+	decoder.Reset(msgpack.NewByteDecoderStream(newInfoBytes))
+	info, err := decoder.DecodeIndexInfo()
+
+	require.Equal(t, updatedInfoFile.Info, info)
 
 	// Read the index entries of new volume set
 	indexFd, err = os.Open(path.Join(fsOpts.FilePathPrefix(), fmt.Sprintf("data/%s/%d/fileset-%d-1-index.db",
@@ -111,7 +125,6 @@ func TestToVersion1_1Run(t *testing.T) {
 	require.NotEqual(t, oldBytes, newBytes)
 
 	// Corrupt bytes to trip newly added checksum
-	decoder := msgpack.NewDecoder(nil)
 	newBytes[len(newBytes)-1] = 1 + newBytes[len(newBytes)-1]
 	decoder.Reset(msgpack.NewByteDecoderStream(newBytes))
 	_, err = decoder.DecodeIndexEntry(nil)
