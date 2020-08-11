@@ -33,12 +33,10 @@ import (
 // If the value for prevFrameLastValue is not available, pass math.Nan() instead.
 func DownsampleCounterResets(
 	prevFrameLastValue float64,
-	frame SeriesBlockFrame,
+	frameValues []float64,
 	indices *[]int,
 	results *[]float64,
 ) {
-	frameValues := frame.Values()
-
 	if len(frameValues) == 0 {
 		return
 	}
