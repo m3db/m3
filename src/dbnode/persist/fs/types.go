@@ -122,6 +122,10 @@ type DataFileSetReaderStatus struct {
 type DataReaderOpenOptions struct {
 	Identifier  FileSetFileIdentifier
 	FileSetType persist.FileSetType
+	// NB(bodu): This option can inform the reader to optimize for reading
+	// only metadata by not sorting index entries. Setting this option will
+	// throw an error if a regular `Read()` is attempted.
+	OptimizedReadMetadataOnly bool
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
