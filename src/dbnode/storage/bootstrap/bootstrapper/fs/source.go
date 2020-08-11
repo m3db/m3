@@ -50,6 +50,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -120,18 +121,18 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 
 func (s *fileSystemSource) AvailableData(
 	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
-	return s.availability(md, shardsTimeRanges)
+	return s.availability(md, shardTimeRanges)
 }
 
 func (s *fileSystemSource) AvailableIndex(
 	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
-	return s.availability(md, shardsTimeRanges)
+	return s.availability(md, shardTimeRanges)
 }
 
 func (s *fileSystemSource) Read(
@@ -221,10 +222,10 @@ func (s *fileSystemSource) Read(
 
 func (s *fileSystemSource) availability(
 	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 ) (result.ShardTimeRanges, error) {
-	result := result.NewShardTimeRangesFromSize(shardsTimeRanges.Len())
-	for shard, ranges := range shardsTimeRanges.Iter() {
+	result := result.NewShardTimeRangesFromSize(shardTimeRanges.Len())
+	for shard, ranges := range shardTimeRanges.Iter() {
 		result.Set(shard, s.shardAvailability(md.ID(), shard, ranges))
 	}
 	return result, nil
@@ -676,7 +677,7 @@ func (s *fileSystemSource) read(
 	run runType,
 	md namespace.Metadata,
 	accumulator bootstrap.NamespaceDataAccumulator,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 	builder *result.IndexBuilder,
 	span opentracing.Span,
@@ -685,7 +686,7 @@ func (s *fileSystemSource) read(
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		res               *runResult
 	)
-	if shardsTimeRanges.IsEmpty() {
+	if shardTimeRanges.IsEmpty() {
 		return newRunResult(), nil
 	}
 
@@ -704,27 +705,34 @@ func (s *fileSystemSource) read(
 		if seriesCachePolicy != series.CacheAll {
 			// Unless we're caching all series (or all series metadata) in memory, we
 			// return just the availability of the files we have.
-			return s.bootstrapDataRunResultFromAvailability(md, shardsTimeRanges), nil
+			return s.bootstrapDataRunResultFromAvailability(md, shardTimeRanges), nil
 		}
 	}
 
+	logSpan := func(event string) {
+		span.LogFields(
+			opentracinglog.String("event", event),
+			opentracinglog.String("nsID", md.ID().String()),
+			opentracinglog.String("shardTimeRanges", shardTimeRanges.SummaryString()),
+		)
+	}
 	if run == bootstrapIndexRunType {
-		span.LogEvent("bootstrap_from_index_persisted_blocks_start")
+		logSpan("bootstrap_from_index_persisted_blocks_start")
 		// NB(r): First read all the FSTs and add to runResult index results,
 		// subtract the shard + time ranges from what we intend to bootstrap
 		// for those we found.
 		r, err := s.bootstrapFromIndexPersistedBlocks(md,
-			shardsTimeRanges)
+			shardTimeRanges)
 		if err != nil {
 			s.log.Warn("filesystem bootstrapped failed to read persisted index blocks")
 		} else {
 			// We may have less we need to read
-			shardsTimeRanges = shardsTimeRanges.Copy()
-			shardsTimeRanges.Subtract(r.fulfilled)
+			shardTimeRanges = shardTimeRanges.Copy()
+			shardTimeRanges.Subtract(r.fulfilled)
 			// Set or merge result.
 			setOrMergeResult(r.result)
 		}
-		span.LogEvent("bootstrap_from_index_persisted_blocks_done")
+		logSpan("bootstrap_from_index_persisted_blocks_done")
 	}
 
 	// Create a reader pool once per bootstrap as we don't really want to
@@ -747,16 +755,16 @@ func (s *fileSystemSource) read(
 		RunOpts:         runOpts,
 		RuntimeOpts:     runtimeOpts,
 		FsOpts:          s.fsopts,
-		ShardTimeRanges: shardsTimeRanges,
+		ShardTimeRanges: shardTimeRanges,
 		ReaderPool:      readerPool,
 		ReadersCh:       readersCh,
 		BlockSize:       blockSize,
 		// NB(bodu): We only read metadata when bootstrap index
 		// so we do not need to sort the data fileset reader.
-		DataReaderDoNotSort: run == bootstrapIndexRunType,
-		Logger:              s.log,
-		Span:                span,
-		NowFn:               s.nowFn,
+		OptimizedReadMetadataOnly: run == bootstrapIndexRunType,
+		Logger:                    s.log,
+		Span:                      span,
+		NowFn:                     s.nowFn,
 	})
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
 		accumulator, runOpts, readerPool, readersCh, builder)
@@ -774,11 +782,11 @@ func (s *fileSystemSource) newReader() (fs.DataFileSetReader, error) {
 
 func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	md namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 ) *runResult {
 	runResult := newRunResult()
 	unfulfilled := runResult.data.Unfulfilled()
-	for shard, ranges := range shardsTimeRanges.Iter() {
+	for shard, ranges := range shardTimeRanges.Iter() {
 		if ranges.IsEmpty() {
 			continue
 		}
@@ -803,7 +811,7 @@ type bootstrapFromIndexPersistedBlocksResult struct {
 
 func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
+	shardTimeRanges result.ShardTimeRanges,
 ) (bootstrapFromIndexPersistedBlocksResult, error) {
 	res := bootstrapFromIndexPersistedBlocksResult{
 		fulfilled: result.NewShardTimeRanges(),
@@ -818,7 +826,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 			s.log.Error("unable to read index info file",
 				zap.Stringer("namespace", ns.ID()),
 				zap.Error(err),
-				zap.Stringer("shardsTimeRanges", shardsTimeRanges),
+				zap.Stringer("shardTimeRanges", shardTimeRanges),
 				zap.String("filepath", infoFile.Err.Filepath()),
 			)
 			continue
@@ -832,7 +840,7 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 		willFulfill := result.NewShardTimeRanges()
 		for _, shard := range info.Shards {
-			tr, ok := shardsTimeRanges.Get(shard)
+			tr, ok := shardTimeRanges.Get(shard)
 			if !ok {
 				// No ranges match for this shard.
 				continue

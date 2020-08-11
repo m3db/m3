@@ -34,7 +34,9 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/opentracing/opentracing-go"
+	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // TimeWindowReaders are grouped by data block.
@@ -63,18 +65,18 @@ func newTimeWindowReaders(
 
 // EnqueueReadersOptions supplies options to enqueue readers.
 type EnqueueReadersOptions struct {
-	NsMD                namespace.Metadata
-	RunOpts             bootstrap.RunOptions
-	RuntimeOpts         runtime.Options
-	FsOpts              fs.Options
-	ShardTimeRanges     result.ShardTimeRanges
-	ReaderPool          *ReaderPool
-	ReadersCh           chan<- TimeWindowReaders
-	BlockSize           time.Duration
-	DataReaderDoNotSort bool
-	Logger              *zap.Logger
-	Span                opentracing.Span
-	NowFn               clock.NowFn
+	NsMD                      namespace.Metadata
+	RunOpts                   bootstrap.RunOptions
+	RuntimeOpts               runtime.Options
+	FsOpts                    fs.Options
+	ShardTimeRanges           result.ShardTimeRanges
+	ReaderPool                *ReaderPool
+	ReadersCh                 chan<- TimeWindowReaders
+	BlockSize                 time.Duration
+	OptimizedReadMetadataOnly bool
+	Logger                    *zap.Logger
+	Span                      opentracing.Span
+	NowFn                     clock.NowFn
 }
 
 // EnqueueReaders into a readers channel grouped by data block.
@@ -91,7 +93,7 @@ func EnqueueReaders(opts EnqueueReadersOptions) {
 		opts.ReaderPool,
 		opts.ReadersCh,
 		opts.BlockSize,
-		opts.DataReaderDoNotSort,
+		opts.OptimizedReadMetadataOnly,
 		opts.Logger,
 		opts.Span,
 		opts.NowFn,
@@ -106,7 +108,7 @@ func enqueueReadersGroupedByBlockSize(
 	readerPool *ReaderPool,
 	readersCh chan<- TimeWindowReaders,
 	blockSize time.Duration,
-	dataReaderDoNotSort bool,
+	optimizedReadMetadataOnly bool,
 	logger *zap.Logger,
 	span opentracing.Span,
 	nowFn clock.NowFn,
@@ -120,7 +122,7 @@ func enqueueReadersGroupedByBlockSize(
 		readers := make(map[ShardID]ShardReaders, group.Ranges.Len())
 		for shard, tr := range group.Ranges.Iter() {
 			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr,
-				dataReaderDoNotSort, logger, span, nowFn)
+				optimizedReadMetadataOnly, logger, span, nowFn)
 			readers[ShardID(shard)] = shardReaders
 		}
 		readersCh <- newTimeWindowReaders(group.Ranges, readers)
@@ -133,19 +135,31 @@ func newShardReaders(
 	readerPool *ReaderPool,
 	shard uint32,
 	tr xtime.Ranges,
-	dataReaderDoNotSort bool,
+	optimizedReadMetadataOnly bool,
 	logger *zap.Logger,
 	span opentracing.Span,
 	nowFn clock.NowFn,
 ) ShardReaders {
+	logSpan := func(event string) {
+		span.LogFields(
+			opentracinglog.String("event", event),
+			opentracinglog.Uint32("shard", shard),
+			opentracinglog.String("tr", tr.String()),
+		)
+	}
+	logFields := []zapcore.Field{
+		zap.Uint32("shard", shard),
+		zap.String("tr", tr.String()),
+	}
+
 	start := nowFn()
-	logger.Debug("enqueue readers read info files start")
-	span.LogEvent("enqueue_readers_read_info_files_start")
+	logger.Debug("enqueue readers read info files start", logFields...)
+	logSpan("enqueue_readers_read_info_files_start")
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(),
 		ns.ID(), shard, fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 	logger.Debug("enqueue readers read info files done",
-		zap.Duration("took", nowFn().Sub(start)))
-	span.LogEvent("enqueue_readers_read_info_files_done")
+		append(logFields, zap.Duration("took", nowFn().Sub(start)))...)
+	logSpan("enqueue_readers_read_info_files_done")
 
 	if len(readInfoFilesResults) == 0 {
 		// No readers.
@@ -153,8 +167,8 @@ func newShardReaders(
 	}
 
 	start = nowFn()
-	logger.Debug("enqueue readers open data readers start")
-	span.LogEvent("enqueue_readers_open_data_readers_start")
+	logger.Debug("enqueue readers open data readers start", logFields...)
+	logSpan("enqueue_readers_open_data_readers_start")
 	readers := make([]fs.DataFileSetReader, 0, len(readInfoFilesResults))
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
@@ -196,7 +210,7 @@ func newShardReaders(
 				Shard:      shard,
 				BlockStart: blockStart,
 			},
-			DoNotSort: dataReaderDoNotSort,
+			OptimizedReadMetadataOnly: optimizedReadMetadataOnly,
 		}
 		if err := r.Open(openOpts); err != nil {
 			logger.Error("unable to open fileset files",
@@ -213,8 +227,8 @@ func newShardReaders(
 		readers = append(readers, r)
 	}
 	logger.Debug("enqueue readers open data readers done",
-		zap.Duration("took", nowFn().Sub(start)))
-	span.LogEvent("enqueue_readers_open_data_readers_done")
+		append(logFields, zap.Duration("took", nowFn().Sub(start)))...)
+	logSpan("enqueue_readers_open_data_readers_done")
 
 	return ShardReaders{Readers: readers}
 }
