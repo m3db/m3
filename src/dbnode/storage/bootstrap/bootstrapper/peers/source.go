@@ -121,6 +121,23 @@ func (s *peersSource) Read(
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
 	defer span.Finish()
 
+	timeRangesEmpty := true
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		dataRangesNotEmpty := !namespace.DataRunOptions.ShardTimeRanges.IsEmpty()
+
+		indexEnabled := namespace.Metadata.Options().IndexOptions().Enabled()
+		indexRangesNotEmpty := indexEnabled && !namespace.IndexRunOptions.ShardTimeRanges.IsEmpty()
+		if dataRangesNotEmpty || indexRangesNotEmpty {
+			timeRangesEmpty = false
+			break
+		}
+	}
+	if timeRangesEmpty {
+		// Return empty result with no unfulfilled ranges.
+		return bootstrap.NewNamespaceResults(namespaces), nil
+	}
+
 	results := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}

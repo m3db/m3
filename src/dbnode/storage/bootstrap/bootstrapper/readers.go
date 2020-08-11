@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -112,7 +113,7 @@ func newShardReaders(
 	logger *zap.Logger,
 ) ShardReaders {
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(),
-		ns.ID(), shard, fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+		ns.ID(), shard, fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 	if len(readInfoFilesResults) == 0 {
 		// No readers.
 		return ShardReaders{}
