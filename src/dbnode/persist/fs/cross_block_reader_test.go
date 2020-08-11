@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,6 +86,7 @@ func TestCrossBlockReader(t *testing.T) {
 		{"many readers with unordered series", [][]string{{"id3"}, {"id1"}, {"id2"}}},
 		{"complex case", [][]string{{"id2", "id3", "id5"}, {"id1", "id2", "id4"}, {"id1", "id4"}}},
 		{"immediate reader error", [][]string{{"error"}}},
+		{"duplicate id within a reader", [][]string{{"id1", "id2"}, {"id2", "id2"}}},
 		{"reader error later", [][]string{{"id1", "id2"}, {"id1", "error"}}},
 	}
 
@@ -106,7 +108,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 	for blockIndex, ids := range blockSeriesIds {
 		dfsReader := NewMockDataFileSetReader(ctrl)
 		dfsReader.EXPECT().OrderedByIndex().Return(true)
-		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))})
+		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
 
 		blockHasError := false
 		for j, id := range ids {
@@ -145,10 +147,10 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 		assert.NotNil(t, tags)
 		tags.Close()
 
-		var previousBlockIndex uint32
+		previousBlockIndex := -1
 		for _, record := range records {
-			blockIndex := record.DataChecksum // see the comment above
-			assert.True(t, blockIndex >= previousBlockIndex, "same id blocks must be read in temporal order")
+			blockIndex := int(record.DataChecksum) // see the comment above
+			assert.True(t, blockIndex > previousBlockIndex, "same id blocks must be read in temporal order")
 			previousBlockIndex = blockIndex
 			assert.NotNil(t, record.Data)
 			record.Data.DecRef()
@@ -160,7 +162,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string) {
 	}
 
 	err = cbReader.Err()
-	if err == nil || err.Error() != expectedError.Error() {
+	if err == nil || (err.Error() != expectedError.Error() && !strings.HasPrefix(err.Error(), "duplicate id")) {
 		require.NoError(t, cbReader.Err())
 		assert.Equal(t, expectedCount, actualCount, "count of series read")
 	}

@@ -151,6 +151,9 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 			r.dataFileSetReaders[entry.dataFileSetReaderIndex] = nil
 		} else if err != nil {
 			return nil, err
+		} else if bytes.Equal(nextEntry.id.Bytes(), entry.id.Bytes()) {
+			return nil, fmt.Errorf("duplicate id %s on block starting at %s",
+				entry.id, r.dataFileSetReaders[entry.dataFileSetReaderIndex].Range().Start)
 		} else {
 			heap.Push(&r.minHeap, nextEntry)
 		}
