@@ -1823,7 +1823,7 @@ func TestAggregateTiles(t *testing.T) {
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(readerOpenOpts).Return(nil)
-	reader.EXPECT().IsOrderedByIndex().Return(true)
+	reader.EXPECT().OrderedByIndex().Return(true)
 	reader.EXPECT().Range().Return(xtime.Range{Start: start})
 	reader.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, buildBytes(), uint32(11), nil)
 	reader.EXPECT().Read().Return(ident.StringID("id2"), ident.MustNewTagStringsIterator("foo", "bar"), buildBytes(), uint32(22), nil)

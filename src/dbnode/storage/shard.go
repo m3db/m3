@@ -2605,7 +2605,7 @@ func (s *dbShard) AggregateTiles(
 		defer blockReader.Close()
 	}
 
-	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders)
+	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders, s.opts.InstrumentOptions())
 	if err != nil {
 		return 0, err
 	}

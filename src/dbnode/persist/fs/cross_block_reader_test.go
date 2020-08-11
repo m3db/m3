@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -48,9 +51,9 @@ func TestCrossBlockReaderRejectMisconfiguredInputs(t *testing.T) {
 	defer ctrl.Finish()
 
 	dfsReader := NewMockDataFileSetReader(ctrl)
-	dfsReader.EXPECT().IsOrderedByIndex().Return(false)
+	dfsReader.EXPECT().OrderedByIndex().Return(false)
 
-	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader})
+	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader}, instrument.NewTestOptions(t))
 
 	assert.Equal(t, errReaderNotOrderedByIndex, err)
 }
@@ -61,15 +64,15 @@ func TestCrossBlockReaderRejectMisorderedInputs(t *testing.T) {
 
 	now := time.Now().Truncate(time.Hour)
 	dfsReader1 := NewMockDataFileSetReader(ctrl)
-	dfsReader1.EXPECT().IsOrderedByIndex().Return(true)
+	dfsReader1.EXPECT().OrderedByIndex().Return(true)
 	dfsReader1.EXPECT().Range().Return(xtime.Range{Start: now})
 
 	later := now.Add(time.Hour)
 	dfsReader2 := NewMockDataFileSetReader(ctrl)
-	dfsReader2.EXPECT().IsOrderedByIndex().Return(true)
+	dfsReader2.EXPECT().OrderedByIndex().Return(true)
 	dfsReader2.EXPECT().Range().Return(xtime.Range{Start: later})
 
-	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader2, dfsReader1})
+	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader2, dfsReader1}, instrument.NewTestOptions(t))
 
 	expectedErr := fmt.Errorf("dataFileSetReaders are not ordered by time (%s followed by %s)", later, now)
 
@@ -80,42 +83,89 @@ func TestCrossBlockReader(t *testing.T) {
 	tests := []struct {
 		name           string
 		blockSeriesIDs [][]string
+		expectedIDs    []string
 	}{
-		{"no readers", [][]string{}},
-		{"empty readers", [][]string{{}, {}, {}}},
-		{"one reader, one series", [][]string{{"id1"}}},
-		{"one reader, many series", [][]string{{"id1", "id2", "id3"}}},
-		{"many readers with same series", [][]string{{"id1"}, {"id1"}, {"id1"}}},
-		{"many readers with different series", [][]string{{"id1"}, {"id2"}, {"id3"}}},
-		{"many readers with unordered series", [][]string{{"id3"}, {"id1"}, {"id2"}}},
-		{"complex case", [][]string{{"id2", "id3", "id5"}, {"id1", "id2", "id4"}, {"id1", "id4"}}},
-		{"immediate reader error", [][]string{{"error"}}},
-		{"reader error later", [][]string{{"id1", "id2"}, {"id1", "error"}}},
+		{
+			name:           "no readers",
+			blockSeriesIDs: [][]string{},
+			expectedIDs:    []string{},
+		},
+		{
+			name:           "empty readers",
+			blockSeriesIDs: [][]string{{}, {}, {}},
+			expectedIDs:    []string{},
+		},
+		{
+			name:           "one reader, one series",
+			blockSeriesIDs: [][]string{{"id1"}},
+			expectedIDs:    []string{"id1"},
+		},
+		{
+			name:           "one reader, many series",
+			blockSeriesIDs: [][]string{{"id1", "id2", "id3"}},
+			expectedIDs:    []string{"id1", "id2", "id3"},
+		},
+		{
+			name:           "many readers with same series",
+			blockSeriesIDs: [][]string{{"id1"}, {"id1"}, {"id1"}},
+			expectedIDs:    []string{"id1"},
+		},
+		{
+			name:           "many readers with different series",
+			blockSeriesIDs: [][]string{{"id1"}, {"id2"}, {"id3"}},
+			expectedIDs:    []string{"id1", "id2", "id3"},
+		},
+		{
+			name:           "many readers with unordered series",
+			blockSeriesIDs: [][]string{{"id3"}, {"id1"}, {"id2"}},
+			expectedIDs:    []string{"id1", "id2", "id3"},
+		},
+		{
+			name:           "complex case",
+			blockSeriesIDs: [][]string{{"id2", "id3", "id5"}, {"id1", "id2", "id4"}, {"id1", "id4"}},
+			expectedIDs:    []string{"id1", "id2", "id3", "id4", "id5"},
+		},
+		{
+			name:           "duplicate ids within a reader",
+			blockSeriesIDs: [][]string{{"id1", "id2"}, {"id2", "id2"}},
+			expectedIDs:    []string{"id1"},
+		},
+		{
+			name:           "immediate reader error",
+			blockSeriesIDs: [][]string{{"error"}},
+			expectedIDs:    []string{},
+		},
+		{
+			name:           "reader error later",
+			blockSeriesIDs: [][]string{{"id1", "id2"}, {"id1", "error"}},
+			expectedIDs:    []string{},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testCrossBlockReader(t, tt.blockSeriesIDs)
+			testCrossBlockReader(t, tt.blockSeriesIDs, tt.expectedIDs)
 		})
 	}
 }
 
-func testCrossBlockReader(t *testing.T, blockSeriesIDs [][]string) {
+func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs []string) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	now := time.Now().Truncate(time.Hour)
 	var dfsReaders []DataFileSetReader
-	expectedCount := 0
 
-	for blockIndex, ids := range blockSeriesIDs {
+	expectedBlockCount := 0
+
+	for blockIndex, ids := range blockSeriesIds {
 		dfsReader := NewMockDataFileSetReader(ctrl)
-		dfsReader.EXPECT().IsOrderedByIndex().Return(true)
-		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))})
+		dfsReader.EXPECT().OrderedByIndex().Return(true)
+		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
 
 		blockHasError := false
 		for j, id := range ids {
-			tags := ident.NewTags(ident.StringTag("foo", string(j)))
+			tags := ident.NewTags(ident.StringTag("foo", strconv.Itoa(j)))
 			data := checkedBytes([]byte{byte(j)})
 			checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
 			if id == "error" {
@@ -131,43 +181,46 @@ func testCrossBlockReader(t *testing.T, blockSeriesIDs [][]string) {
 		}
 
 		dfsReaders = append(dfsReaders, dfsReader)
-		expectedCount += len(ids)
+		expectedBlockCount += len(ids)
 	}
 
-	cbReader, err := NewCrossBlockReader(dfsReaders)
+	cbReader, err := NewCrossBlockReader(dfsReaders, instrument.NewTestOptions(t))
 	require.NoError(t, err)
 	defer cbReader.Close()
 
-	actualCount := 0
-	previousID := ""
+	blockCount := 0
+	seriesCount := 0
 	for cbReader.Next() {
 		id, tags, records := cbReader.Current()
 
-		strID := id.String()
+		strId := id.String()
 		id.Finalize()
-		assert.True(t, strID > previousID, "series must be read in increasing id order")
+		assert.Equal(t, expectedIDs[seriesCount], strId)
 
 		assert.NotNil(t, tags)
 		tags.Close()
 
-		var previousBlockIndex uint32
+		previousBlockIndex := -1
 		for _, record := range records {
-			blockIndex := record.Checksum // see the comment above
-			assert.True(t, blockIndex >= previousBlockIndex, "same id blocks must be read in temporal order")
+			blockIndex := int(record.DataChecksum) // see the comment above
+			assert.True(t, blockIndex > previousBlockIndex, "same id blocks must be read in temporal order")
+
 			previousBlockIndex = blockIndex
 			assert.NotNil(t, record.Data)
 			record.Data.DecRef()
 			record.Data.Finalize()
 		}
 
-		previousID = strID
-		actualCount += len(records)
+		blockCount += len(records)
+		seriesCount++
 	}
 
+	assert.Equal(t, len(expectedIDs), seriesCount, "count of series read")
+
 	err = cbReader.Err()
-	if err == nil || err.Error() != errExpected.Error() {
+	if err == nil || (err.Error() != errExpected.Error() && !strings.HasPrefix(err.Error(), "duplicate id")) {
 		require.NoError(t, cbReader.Err())
-		assert.Equal(t, expectedCount, actualCount, "count of series read")
+		assert.Equal(t, expectedBlockCount, blockCount, "count of blocks read")
 	}
 
 	for _, dfsReader := range dfsReaders {

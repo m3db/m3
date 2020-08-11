@@ -271,11 +271,9 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	}
 	if opts.OrderedByIndex {
 		r.decoder.Reset(r.indexDecoderStream)
-	} else {
-		if err := r.readIndexAndSortByOffsetAsc(); err != nil {
-			r.Close()
-			return err
-		}
+	} else if err := r.readIndexAndSortByOffsetAsc(); err != nil {
+		r.Close()
+		return err
 	}
 
 	r.open = true
@@ -570,7 +568,7 @@ func (r *reader) MetadataRead() int {
 	return r.metadataRead
 }
 
-func (r *reader) IsOrderedByIndex() bool {
+func (r *reader) OrderedByIndex() bool {
 	return r.orderedByIndex
 }
 

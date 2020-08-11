@@ -33,11 +33,14 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"go.uber.org/zap"
 )
 
 var (
-	errReaderNotOrderedByIndex                = errors.New("CrossBlockReader can only use DataFileSetReaders ordered by index")
+	errReaderNotOrderedByIndex                = errors.New("crossBlockReader can only use DataFileSetReaders ordered by index")
 	errEmptyReader                            = errors.New("trying to read from empty reader")
 	_                          heap.Interface = (*minHeap)(nil)
 )
@@ -47,19 +50,20 @@ type crossBlockReader struct {
 	id                 ident.ID
 	tags               ident.TagIterator
 	records            []BlockRecord
-	initialized        bool
+	started            bool
 	minHeap            minHeap
 	err                error
+	iOpts              instrument.Options
 }
 
 // NewCrossBlockReader constructs a new CrossBlockReader based on given DataFileSetReaders.
 // DataFileSetReaders must be configured to return the data in the order of index, and must be
 // provided in a slice sorted by block start time.
 // Callers are responsible for closing the DataFileSetReaders.
-func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (CrossBlockReader, error) {
+func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader, iOpts instrument.Options) (CrossBlockReader, error) {
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
-		if !dataFileSetReader.IsOrderedByIndex() {
+		if !dataFileSetReader.OrderedByIndex() {
 			return nil, errReaderNotOrderedByIndex
 		}
 		currentStart := dataFileSetReader.Range().Start
@@ -70,17 +74,27 @@ func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader) (CrossBlockRead
 	}
 
 	return &crossBlockReader{
-		dataFileSetReaders: append([]DataFileSetReader{}, dataFileSetReaders...),
+		dataFileSetReaders: append(make([]DataFileSetReader, 0, len(dataFileSetReaders)), dataFileSetReaders...),
 		records:            make([]BlockRecord, 0, len(dataFileSetReaders)),
+		iOpts:              iOpts,
 	}, nil
 }
 
 func (r *crossBlockReader) Next() bool {
-	if !r.initialized {
-		err := r.init()
-		if err != nil {
-			r.err = err
+	if r.err != nil {
+		return false
+	}
+
+	var emptyRecord BlockRecord
+	if !r.started {
+		if r.err = r.start(); r.err != nil {
 			return false
+		}
+	} else {
+		// use empty var in inner loop with "for i := range" to have compiler use memclr optimization
+		// see: https://codereview.appspot.com/137880043
+		for i := range r.records {
+			r.records[i] = emptyRecord
 		}
 	}
 
@@ -97,12 +111,6 @@ func (r *crossBlockReader) Next() bool {
 	r.id = firstEntry.id
 	r.tags = firstEntry.tags
 
-	// use empty var in inner loop with "for i := range" to have compiler use memclr optimization
-	// see: https://codereview.appspot.com/137880043
-	var emptyRecord BlockRecord
-	for i := range r.records {
-		r.records[i] = emptyRecord
-	}
 	r.records = r.records[:0]
 	r.records = append(r.records, BlockRecord{firstEntry.data, firstEntry.checksum})
 
@@ -123,8 +131,11 @@ func (r *crossBlockReader) Next() bool {
 			r.err = err
 			return false
 		}
+
+		// id and tags not needed for subsequent blocks because they are the same as in the first block
 		nextEntry.id.Finalize()
 		nextEntry.tags.Close()
+
 		r.records = append(r.records, BlockRecord{nextEntry.data, nextEntry.checksum})
 	}
 
@@ -148,6 +159,15 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 			r.dataFileSetReaders[entry.dataFileSetReaderIndex] = nil
 		} else if err != nil {
 			return nil, err
+		} else if bytes.Equal(nextEntry.id.Bytes(), entry.id.Bytes()) {
+			err := fmt.Errorf("duplicate id %s on block starting at %s",
+				entry.id, r.dataFileSetReaders[entry.dataFileSetReaderIndex].Range().Start)
+
+			instrument.EmitAndLogInvariantViolation(r.iOpts, func(l *zap.Logger) {
+				l.Error(err.Error())
+			})
+
+			return nil, err
 		} else {
 			heap.Push(&r.minHeap, nextEntry)
 		}
@@ -156,8 +176,8 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 	return entry, nil
 }
 
-func (r *crossBlockReader) init() error {
-	r.initialized = true
+func (r *crossBlockReader) start() error {
+	r.started = true
 	r.minHeap = make([]*minHeapEntry, 0, len(r.dataFileSetReaders))
 
 	for i := range r.dataFileSetReaders {
