@@ -376,9 +376,9 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 
 func downsample(prevFrameLastValue float64, vals []float64) ([]int, []float64) {
 	frame := SeriesBlockFrame{record: &record{vals: vals}}
-
 	indices := make([]int, 0)
 	results := make([]float64, 0)
+
 	DownsampleCounterResets(prevFrameLastValue, frame, &indices, &results)
 
 	return indices, results
