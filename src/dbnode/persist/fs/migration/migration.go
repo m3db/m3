@@ -24,7 +24,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/storage"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -36,20 +35,21 @@ type Task interface {
 	Run() error
 }
 
+// NewTaskFn is a function that can create a new migration task.
+type NewTaskFn func(opts TaskOptions) (Task, error)
+
 // toVersion1_1Task is an object responsible for migrating a fileset to version 1.1.
 type toVersion1_1Task struct {
-	newMergerFn       fs.NewMergerFn
-	infoFileResult    fs.ReadInfoFileResult
-	shard             uint32
-	namespaceMetadata namespace.Metadata
-	persistManager    persist.Manager
-	sOpts             storage.Options
-	fsOpts            fs.Options
+	opts TaskOptions
 }
 
-// ShouldMigrateToVersion1_1 indicates whether the fileset should be migrated to 1.1 or not.
-func ShouldMigrateToVersion1_1(info fs.ReadInfoFileResult) bool {
-	return info.Info.MajorVersion == 1 && info.Info.MinorVersion == 0
+// MigrationTask returns true or false if a fileset should be migrated. If true, also returns
+// a function that can be used to create a new migration task.
+func MigrationTask(info fs.ReadInfoFileResult) (NewTaskFn, bool) {
+	if info.Info.MajorVersion == 1 && info.Info.MinorVersion == 0 {
+		return NewToVersion1_1Task, true
+	}
+	return nil, false
 }
 
 // NewToVersion1_1Task creates a task for migrating a fileset to version 1.1.
@@ -58,51 +58,48 @@ func NewToVersion1_1Task(opts TaskOptions) (Task, error) {
 		return nil, err
 	}
 	return &toVersion1_1Task{
-		newMergerFn:       opts.NewMergerFn(),
-		infoFileResult:    opts.InfoFileResult(),
-		shard:             opts.Shard(),
-		namespaceMetadata: opts.NamespaceMetadata(),
-		persistManager:    opts.PersistManager(),
-		sOpts:             opts.StorageOptions(),
-		fsOpts:            opts.FilesystemOptions(),
+		opts: opts,
 	}, nil
 }
 
 // Run executes the steps to bring a fileset to Version 1.1.
 func (v *toVersion1_1Task) Run() error {
-	opts := v.sOpts
-	reader, err := fs.NewReader(opts.BytesPool(), v.fsOpts)
+	var (
+		sOpts          = v.opts.StorageOptions()
+		fsOpts         = v.opts.FilesystemOptions()
+		newMergerFn    = v.opts.NewMergerFn()
+		nsMd           = v.opts.NamespaceMetadata()
+		infoFileResult = v.opts.InfoFileResult()
+		shard          = v.opts.Shard()
+		persistManager = v.opts.PersistManager()
+	)
+	reader, err := fs.NewReader(sOpts.BytesPool(), fsOpts)
 	if err != nil {
 		return err
 	}
 
-	merger := v.newMergerFn(reader, opts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
-		opts.SegmentReaderPool(), opts.MultiReaderIteratorPool(),
-		opts.IdentifierPool(), opts.EncoderPool(), opts.ContextPool(), v.namespaceMetadata.Options(),
-		v.fsOpts.FilePathPrefix())
+	merger := newMergerFn(reader, sOpts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
+		sOpts.SegmentReaderPool(), sOpts.MultiReaderIteratorPool(),
+		sOpts.IdentifierPool(), sOpts.EncoderPool(), sOpts.ContextPool(),
+		fsOpts.FilePathPrefix(), nsMd.Options())
 
-	volIndex := v.infoFileResult.Info.VolumeIndex
+	volIndex := infoFileResult.Info.VolumeIndex
 	fsID := fs.FileSetFileIdentifier{
-		Namespace:   v.namespaceMetadata.ID(),
-		Shard:       v.shard,
-		BlockStart:  xtime.FromNanoseconds(v.infoFileResult.Info.BlockStart),
+		Namespace:   nsMd.ID(),
+		Shard:       shard,
+		BlockStart:  xtime.FromNanoseconds(infoFileResult.Info.BlockStart),
 		VolumeIndex: volIndex,
 	}
 
-	nsCtx := namespace.NewContextFrom(v.namespaceMetadata)
+	nsCtx := namespace.NewContextFrom(nsMd)
 
-	flushPersist, err := v.persistManager.StartFlushPersist()
+	flushPersist, err := persistManager.StartFlushPersist()
 	if err != nil {
 		return err
 	}
 
 	// Intentionally use a noop merger here as we simply want to rewrite the same files with the current encoder which
 	// will generate index files with the entry level checksums.
-	err = merger.MergeAndCleanup(fsID, fs.NewNoopMergeWith(), volIndex+1, flushPersist, nsCtx,
-		&persist.NoOpColdFlushNamespace{})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return merger.MergeAndCleanup(fsID, fs.NewNoopMergeWith(), volIndex+1, flushPersist, nsCtx,
+		&persist.NoOpColdFlushNamespace{}, false)
 }

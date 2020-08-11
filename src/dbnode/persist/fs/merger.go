@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"io"
 	"time"
 
@@ -36,6 +37,8 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
+
+var errMergeAndCleanupNotSupported = errors.New("function MergeAndCleanup not supported outside of bootstrapping")
 
 type merger struct {
 	reader         DataFileSetReader
@@ -66,8 +69,8 @@ func NewMerger(
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
-	nsOpts namespace.Options,
 	filePathPrefix string,
+	nsOpts namespace.Options,
 ) Merger {
 	return &merger{
 		reader:         reader,
@@ -276,7 +279,12 @@ func (m *merger) MergeAndCleanup(
 	flushPreparer persist.FlushPreparer,
 	nsCtx namespace.Context,
 	onFlush persist.OnFlushSeries,
+	isBootstrapped bool,
 ) error {
+	if isBootstrapped {
+		return errMergeAndCleanupNotSupported
+	}
+
 	close, err := m.Merge(fileID, mergeWith, nextVolumeIndex, flushPreparer, nsCtx, onFlush)
 	if err != nil {
 		return nil

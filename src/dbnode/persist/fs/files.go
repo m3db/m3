@@ -1013,13 +1013,15 @@ func IndexSnapshotFiles(filePathPrefix string, namespace ident.ID) (FileSetFiles
 // FileSetAt returns a FileSetFile for the given namespace/shard/blockStart/volume combination if it exists.
 func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time, volume int) (FileSetFile, bool, error) {
 	pattern := filesetFileForTimeAndIndex(blockStart, volume, anyLowerCaseCharsPattern)
+	// If this is the initial volume, then we need to check if files were written with the legacy file naming (i.e.
+	// without the volume index) so that we can properly locate the fileset.
 	if volume == 0 {
 		dir := ShardDataDirPath(filePathPrefix, namespace, shard)
 		isLegacy, err := isFirstVolumeLegacy(dir, blockStart, checkpointFileSuffix)
 		// NB(nate): don't propagate ErrCheckpointFileNotFound here as expectation is to simply return an
 		// empty FileSetFile if files do not exist.
 		if err != nil && err != ErrCheckpointFileNotFound {
-			return FileSetFile{}, false, err
+			return FileSetFile{}, false, nil
 		}
 
 		if isLegacy {

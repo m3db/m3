@@ -597,6 +597,7 @@ type Merger interface {
 		flushPreparer persist.FlushPreparer,
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
+		isBootstrapped bool,
 	) error
 }
 
@@ -609,8 +610,8 @@ type NewMergerFn func(
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
-	nsOpts namespace.Options,
 	filePathPrefix string,
+	nsOpts namespace.Options,
 ) Merger
 
 // Segments represents on index segments on disk for an index volume.

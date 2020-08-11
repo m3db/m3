@@ -59,10 +59,10 @@ type TaskOptions interface {
 	// NewMergerFn returns the function to create a new Merger.
 	NewMergerFn() fs.NewMergerFn
 
-	// SetInfoFileResult sets the info file resulted associated with this run.
+	// SetInfoFileResult sets the info file resulted associated with this task.
 	SetInfoFileResult(value fs.ReadInfoFileResult) TaskOptions
 
-	// InfoFileResult gets the info file resulted associated with this run.
+	// InfoFileResult gets the info file resulted associated with this task.
 	InfoFileResult() fs.ReadInfoFileResult
 
 	// SetShard sets the shard associated with this task.

@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,8 +56,10 @@ func TestToVersion1_1Run(t *testing.T) {
 	fsOpts := writeUnmigratedData(t, filePathPrefix, nsId, shard)
 
 	// Read info file of just written fileset
-	infoFileResult := fs.ReadInfoFiles(filePathPrefix, nsId, shard,
-		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)[0]
+	results := fs.ReadInfoFiles(filePathPrefix, nsId, shard,
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
+	require.Equal(t, 1, len(results))
+	infoFileResult := results[0]
 	indexFd, err := os.Open(path.Join(fsOpts.FilePathPrefix(), fmt.Sprintf("data/%s/%d/fileset-%d-0-index.db",
 		nsId.String(), shard, infoFileResult.Info.BlockStart)))
 	require.NoError(t, err)
@@ -108,7 +111,7 @@ func TestToVersion1_1Run(t *testing.T) {
 
 	// Corrupt bytes to trip newly added checksum
 	decoder := msgpack.NewDecoder(nil)
-	newBytes[len(newBytes)-1] = 'x'
+	newBytes[len(newBytes)-1] = 1 + newBytes[len(newBytes)-1]
 	decoder.Reset(msgpack.NewByteDecoderStream(newBytes))
 	_, err = decoder.DecodeIndexEntry(nil)
 	require.Error(t, err)

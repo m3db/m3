@@ -31,7 +31,6 @@ import (
 
 var (
 	errNewMergerFnNotSet       = errors.New("newMergerFn not set")
-	errInfoFilesResultError    = errors.New("infoFileResult contains an error")
 	errNamespaceMetadataNotSet = errors.New("namespaceMetadata not set")
 	errPersistManagerNotSet    = errors.New("persistManager not set")
 	errStorageOptionsNotSet    = errors.New("storageOptions not set")
@@ -47,8 +46,6 @@ type taskOptions struct {
 	storageOptions    storage.Options
 	fsOpts            fs.Options
 }
-
-var _ TaskOptions = &taskOptions{}
 
 // NewTaskOptions creates new taskOptions.
 func NewTaskOptions() TaskOptions {
@@ -68,7 +65,7 @@ func (t *taskOptions) Validate() error {
 		return errNewMergerFnNotSet
 	}
 	if t.infoFileResult.Err != nil && t.infoFileResult.Err.Error() != nil {
-		return errInfoFilesResultError
+		return t.infoFileResult.Err.Error()
 	}
 	if t.namespaceMetadata == nil {
 		return errNamespaceMetadataNotSet

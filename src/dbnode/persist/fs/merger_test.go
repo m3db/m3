@@ -467,7 +467,7 @@ func TestCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	merger := NewMerger(reader, 0, srPool, multiIterPool, identPool, encoderPool, contextPool,
-		namespace.NewOptions(), filePathPrefix)
+		filePathPrefix, namespace.NewOptions())
 
 	// Run merger
 	pm, err := NewPersistManager(fsOpts)
@@ -477,7 +477,7 @@ func TestCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	err = merger.MergeAndCleanup(fsId, NewNoopMergeWith(), fsId.VolumeIndex+1, preparer,
-		namespace.NewContextFrom(md), &persist.NoOpColdFlushNamespace{})
+		namespace.NewContextFrom(md), &persist.NoOpColdFlushNamespace{}, false)
 	require.NoError(t, err)
 
 	// Verify old fileset gone and new one present
@@ -488,6 +488,20 @@ func TestCleanup(t *testing.T) {
 	exists, err = DataFileSetExists(filePathPrefix, md.ID(), shard, blockStart, 1)
 	require.NoError(t, err)
 	require.True(t, exists)
+}
+
+func TestCleanupOnceBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	preparer := persist.NewMockFlushPreparer(ctrl)
+	md, err := namespace.NewMetadata(ident.StringID("foo"), namespace.NewOptions())
+	require.NoError(t, err)
+
+	merger := merger{}
+	err = merger.MergeAndCleanup(FileSetFileIdentifier{}, NewNoopMergeWith(), 1, preparer,
+		namespace.NewContextFrom(md), &persist.NoOpColdFlushNamespace{}, true)
+	require.Error(t, err)
 }
 
 func writeFilesetToDisk(t *testing.T, fsId FileSetFileIdentifier, fsOpts Options) {
@@ -551,7 +565,7 @@ func testMergeWith(
 
 	nsOpts := namespace.NewOptions()
 	merger := NewMerger(reader, 0, srPool, multiIterPool,
-		identPool, encoderPool, contextPool, nsOpts, NewOptions().FilePathPrefix())
+		identPool, encoderPool, contextPool, NewOptions().FilePathPrefix(), nsOpts)
 	fsID := FileSetFileIdentifier{
 		Namespace:  ident.StringID("test-ns"),
 		Shard:      uint32(8),
