@@ -183,11 +183,9 @@ func TestDownsampleCounterResets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			record := &record{vals: tt.givenValues}
-			frame := SeriesBlockFrame{record: record}
-			indices := make([]int, 0)
-			results := make([]float64, 0)
-			DownsampleCounterResets(math.NaN(), frame, &indices, &results)
+
+			indices, results := downsample(math.NaN(), tt.givenValues)
+
 			assert.Equal(t, tt.wantValues, results)
 			assert.Equal(t, tt.wantIndices, indices)
 		})
@@ -269,11 +267,9 @@ func TestDownsampleCounterResetsWithPrevFrameLastValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			record := &record{vals: tt.givenValues}
-			frame := SeriesBlockFrame{record: record}
-			indices := make([]int, 0)
-			results := make([]float64, 0)
-			DownsampleCounterResets(tt.givenPrevFrameLastValue, frame, &indices, &results)
+
+			indices, results := downsample(tt.givenPrevFrameLastValue, tt.givenValues)
+
 			assert.Equal(t, tt.wantValues, results)
 			assert.Equal(t, tt.wantIndices, indices)
 		})
@@ -303,7 +299,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 
 	properties.Property("return consistent indices", prop.ForAll(
 		func(v []float64) bool {
-			indices, results := downsample(v, usePrevFrameLastValue)
+			indices, results := downsampleFromSlice(v, usePrevFrameLastValue)
 
 			if len(indices) == 0 || len(indices) != len(results) {
 				return false
@@ -327,7 +323,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 				maxResultLength = 4
 			}
 
-			_, results := downsample(v, usePrevFrameLastValue)
+			_, results := downsampleFromSlice(v, usePrevFrameLastValue)
 
 			return len(results) <= maxResultLength
 		},
@@ -336,7 +332,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 
 	properties.Property("preserve the last value", prop.ForAll(
 		func(v []float64) bool {
-			indices, results := downsample(v, usePrevFrameLastValue)
+			indices, results := downsampleFromSlice(v, usePrevFrameLastValue)
 
 			lastIndex := len(v) - 1
 			if usePrevFrameLastValue {
@@ -351,7 +347,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 
 	properties.Property("preserve values after adjusting for counter resets", prop.ForAll(
 		func(v []float64) bool {
-			indices, results := downsample(v, usePrevFrameLastValue)
+			indices, results := downsampleFromSlice(v, usePrevFrameLastValue)
 			if usePrevFrameLastValue {
 				results = append([]float64{v[0]}, results...)
 			}
@@ -378,14 +374,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 	properties.TestingRun(t)
 }
 
-func downsample(vals []float64, usePrevFrameLastValue bool) ([]int, []float64) {
-	prevFrameLastValue := math.NaN()
-
-	if usePrevFrameLastValue {
-		prevFrameLastValue = vals[0]
-		vals = vals[1:]
-	}
-
+func downsample(prevFrameLastValue float64, vals []float64) ([]int, []float64) {
 	frame := SeriesBlockFrame{record: &record{vals: vals}}
 
 	indices := make([]int, 0)
@@ -393,6 +382,17 @@ func downsample(vals []float64, usePrevFrameLastValue bool) ([]int, []float64) {
 	DownsampleCounterResets(prevFrameLastValue, frame, &indices, &results)
 
 	return indices, results
+}
+
+func downsampleFromSlice(vals []float64, usePrevFrameLastValue bool) ([]int, []float64) {
+	prevFrameLastValue := math.NaN()
+
+	if usePrevFrameLastValue {
+		prevFrameLastValue = vals[0]
+		vals = vals[1:]
+	}
+
+	return downsample(prevFrameLastValue, vals)
 }
 
 func applyCounterResetAdjustment(vals []float64) []float64 {
