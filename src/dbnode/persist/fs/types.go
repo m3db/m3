@@ -120,8 +120,10 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
-	Identifier  FileSetFileIdentifier
-	FileSetType persist.FileSetType
+	Identifier     FileSetFileIdentifier
+	FileSetType    persist.FileSetType
+	// OrderedByIndex enforces reading of series in the order of index (which is by series Id).
+	OrderedByIndex bool
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
@@ -170,6 +172,10 @@ type DataFileSetReader interface {
 
 	// MetadataRead returns the position of metadata read into the volume
 	MetadataRead() int
+
+	// OrderedByIndex returns true if the reader reads the data in the order of index.
+	// If false, the reader reads the data in the same order as it is stored in the data file.
+	OrderedByIndex() bool
 }
 
 // DataFileSetSeeker provides an out of order reader for a TSDB file set
@@ -597,4 +603,29 @@ type Segments interface {
 	VolumeIndex() int
 	AbsoluteFilePaths() []string
 	BlockStart() time.Time
+}
+
+// BlockRecord wraps together M3TSZ data bytes with their checksum.
+type BlockRecord struct {
+	Data checked.Bytes
+	DataChecksum uint32
+}
+
+// CrossBlockReader allows reading data (encoded bytes) from multiple DataFileSetReaders of the same shard,
+// ordered by series id first, and block start time next.
+type CrossBlockReader interface {
+	io.Closer
+
+	// Next advances to the next data record and returns true, or returns false if no more data exists.
+	Next() bool
+
+	// Err returns the last error encountered (if any).
+	Err() error
+
+	// Current returns distinct series id and tags, plus a slice with data and checksums from all blocks corresponding
+	// to that series (in temporal order).
+	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
+	// them so they can be returned to their respective pools. Also, []BlockRecord slice and underlying data
+	// is being invalidated on each call to Next().
+	Current() (ident.ID, ident.TagIterator, []BlockRecord)
 }
