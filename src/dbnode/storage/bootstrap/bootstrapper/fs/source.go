@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -48,6 +49,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -69,6 +71,7 @@ type fileSystemSource struct {
 	opts              Options
 	fsopts            fs.Options
 	log               *zap.Logger
+	nowFn             clock.NowFn
 	idPool            ident.Pool
 	newReaderFn       newDataFileSetReaderFn
 	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
@@ -96,6 +99,7 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		opts:        opts,
 		fsopts:      opts.FilesystemOptions(),
 		log:         iopts.Logger().With(zap.String("bootstrapper", "filesystem")),
+		nowFn:       opts.ResultOptions().ClockOptions().NowFn(),
 		idPool:      opts.IdentifierPool(),
 		newReaderFn: fs.NewReader,
 		persistManager: &bootstrapper.SharedPersistManager{
@@ -150,8 +154,7 @@ func (s *fileSystemSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
-	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
-	start := nowFn()
+	start := s.nowFn()
 	dataLogFields := []zapcore.Field{
 		zap.Stringer("cachePolicy", s.opts.ResultOptions().SeriesCachePolicy()),
 	}
@@ -164,7 +167,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapDataRunType, md, namespace.DataAccumulator,
 			namespace.DataRunOptions.ShardTimeRanges,
-			namespace.DataRunOptions.RunOptions, builder)
+			namespace.DataRunOptions.RunOptions, builder, span)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -176,10 +179,10 @@ func (s *fileSystemSource) Read(
 		})
 	}
 	s.log.Info("bootstrapping time series data success",
-		append(dataLogFields, zap.Duration("took", nowFn().Sub(start)))...)
+		append(dataLogFields, zap.Duration("took", s.nowFn().Sub(start)))...)
 	span.LogEvent("bootstrap_data_done")
 
-	start = nowFn()
+	start = s.nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	span.LogEvent("bootstrap_index_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
@@ -194,7 +197,7 @@ func (s *fileSystemSource) Read(
 
 		r, err := s.read(bootstrapIndexRunType, md, namespace.DataAccumulator,
 			namespace.IndexRunOptions.ShardTimeRanges,
-			namespace.IndexRunOptions.RunOptions, builder)
+			namespace.IndexRunOptions.RunOptions, builder, span)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -210,7 +213,7 @@ func (s *fileSystemSource) Read(
 		results.Results.Set(md.ID(), result)
 	}
 	s.log.Info("bootstrapping index metadata success",
-		zap.Duration("took", nowFn().Sub(start)))
+		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_index_done")
 
 	return results, nil
@@ -459,9 +462,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		var (
 			indexBlockSize            = ns.Options().IndexOptions().BlockSize()
 			retentionPeriod           = ns.Options().RetentionOptions().RetentionPeriod()
-			nowFn                     = s.opts.ResultOptions().ClockOptions().NowFn()
 			beginningOfIndexRetention = retention.FlushTimeStartForRetentionPeriod(
-				retentionPeriod, indexBlockSize, nowFn())
+				retentionPeriod, indexBlockSize, s.nowFn())
 			initialIndexRange = xtime.Range{
 				Start: beginningOfIndexRetention,
 				End:   beginningOfIndexRetention.Add(indexBlockSize),
@@ -677,6 +679,7 @@ func (s *fileSystemSource) read(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 	builder *result.IndexBuilder,
+	span opentracing.Span,
 ) (*runResult, error) {
 	var (
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
@@ -706,6 +709,7 @@ func (s *fileSystemSource) read(
 	}
 
 	if run == bootstrapIndexRunType {
+		span.LogEvent("bootstrap_from_index_persisted_blocks_start")
 		// NB(r): First read all the FSTs and add to runResult index results,
 		// subtract the shard + time ranges from what we intend to bootstrap
 		// for those we found.
@@ -720,6 +724,7 @@ func (s *fileSystemSource) read(
 			// Set or merge result.
 			setOrMergeResult(r.result)
 		}
+		span.LogEvent("bootstrap_from_index_persisted_blocks_done")
 	}
 
 	// Create a reader pool once per bootstrap as we don't really want to
@@ -750,6 +755,8 @@ func (s *fileSystemSource) read(
 		// so we do not need to sort the data fileset reader.
 		DataReaderDoNotSort: run == bootstrapIndexRunType,
 		Logger:              s.log,
+		Span:                span,
+		NowFn:               s.nowFn,
 	})
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
 		accumulator, runOpts, readerPool, readersCh, builder)

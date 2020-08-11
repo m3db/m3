@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -32,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 )
 
@@ -71,6 +73,8 @@ type EnqueueReadersOptions struct {
 	BlockSize           time.Duration
 	DataReaderDoNotSort bool
 	Logger              *zap.Logger
+	Span                opentracing.Span
+	NowFn               clock.NowFn
 }
 
 // EnqueueReaders into a readers channel grouped by data block.
@@ -89,6 +93,8 @@ func EnqueueReaders(opts EnqueueReadersOptions) {
 		opts.BlockSize,
 		opts.DataReaderDoNotSort,
 		opts.Logger,
+		opts.Span,
+		opts.NowFn,
 	)
 }
 
@@ -102,6 +108,8 @@ func enqueueReadersGroupedByBlockSize(
 	blockSize time.Duration,
 	dataReaderDoNotSort bool,
 	logger *zap.Logger,
+	span opentracing.Span,
+	nowFn clock.NowFn,
 ) {
 	// Group them by block size.
 	groupFn := NewShardTimeRangesTimeWindowGroups
@@ -111,7 +119,8 @@ func enqueueReadersGroupedByBlockSize(
 	for _, group := range groupedByBlockSize {
 		readers := make(map[ShardID]ShardReaders, group.Ranges.Len())
 		for shard, tr := range group.Ranges.Iter() {
-			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr, dataReaderDoNotSort, logger)
+			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr,
+				dataReaderDoNotSort, logger, span, nowFn)
 			readers[ShardID(shard)] = shardReaders
 		}
 		readersCh <- newTimeWindowReaders(group.Ranges, readers)
@@ -126,14 +135,26 @@ func newShardReaders(
 	tr xtime.Ranges,
 	dataReaderDoNotSort bool,
 	logger *zap.Logger,
+	span opentracing.Span,
+	nowFn clock.NowFn,
 ) ShardReaders {
+	start := nowFn()
+	logger.Debug("enqueue readers read info files start")
+	span.LogEvent("enqueue_readers_read_info_files_start")
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(),
 		ns.ID(), shard, fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
+	logger.Debug("enqueue readers read info files done",
+		zap.Duration("took", nowFn().Sub(start)))
+	span.LogEvent("enqueue_readers_read_info_files_done")
+
 	if len(readInfoFilesResults) == 0 {
 		// No readers.
 		return ShardReaders{}
 	}
 
+	start = nowFn()
+	logger.Debug("enqueue readers open data readers start")
+	span.LogEvent("enqueue_readers_open_data_readers_start")
 	readers := make([]fs.DataFileSetReader, 0, len(readInfoFilesResults))
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
@@ -191,6 +212,9 @@ func newShardReaders(
 
 		readers = append(readers, r)
 	}
+	logger.Debug("enqueue readers open data readers done",
+		zap.Duration("took", nowFn().Sub(start)))
+	span.LogEvent("enqueue_readers_open_data_readers_done")
 
 	return ShardReaders{Readers: readers}
 }

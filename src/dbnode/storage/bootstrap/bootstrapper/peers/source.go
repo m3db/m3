@@ -44,11 +44,11 @@ import (
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-
 	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -144,8 +144,7 @@ func (s *peersSource) Read(
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
-	nowFn := s.opts.ResultOptions().ClockOptions().NowFn()
-	start := nowFn()
+	start := s.nowFn()
 	s.log.Info("bootstrapping time series data start")
 	span.LogEvent("bootstrap_data_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
@@ -166,7 +165,7 @@ func (s *peersSource) Read(
 		})
 	}
 	s.log.Info("bootstrapping time series data success",
-		zap.Duration("took", nowFn().Sub(start)))
+		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_data_done")
 
 	alloc := s.opts.ResultOptions().IndexDocumentsBuilderAllocator()
@@ -176,7 +175,7 @@ func (s *peersSource) Read(
 	}
 	builder := result.NewIndexBuilder(segBuilder)
 
-	start = nowFn()
+	start = s.nowFn()
 	s.log.Info("bootstrapping index metadata start")
 	span.LogEvent("bootstrap_index_start")
 	for _, elem := range namespaces.Namespaces.Iter() {
@@ -193,7 +192,8 @@ func (s *peersSource) Read(
 		r, err := s.readIndex(md,
 			namespace.IndexRunOptions.ShardTimeRanges,
 			builder,
-			namespace.IndexRunOptions.RunOptions)
+			namespace.IndexRunOptions.RunOptions,
+			span)
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -210,7 +210,7 @@ func (s *peersSource) Read(
 		results.Results.Set(md.ID(), result)
 	}
 	s.log.Info("bootstrapping index metadata success",
-		zap.Duration("took", nowFn().Sub(start)))
+		zap.Duration("took", s.nowFn().Sub(start)))
 	span.LogEvent("bootstrap_index_done")
 
 	return results, nil
@@ -660,6 +660,7 @@ func (s *peersSource) readIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	builder *result.IndexBuilder,
 	opts bootstrap.RunOptions,
+	span opentracing.Span,
 ) (result.IndexBootstrapResult, error) {
 	if err := s.validateRunOpts(opts); err != nil {
 		return nil, err
@@ -704,6 +705,8 @@ func (s *peersSource) readIndex(
 		// so we do not need to sort the data fileset reader.
 		DataReaderDoNotSort: true,
 		Logger:              s.log,
+		Span:                span,
+		NowFn:               s.nowFn,
 	})
 
 	for timeWindowReaders := range readersCh {
