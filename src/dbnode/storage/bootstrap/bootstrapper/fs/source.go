@@ -737,8 +737,20 @@ func (s *fileSystemSource) read(
 		panic(fmt.Errorf("unrecognized run type: %d", run))
 	}
 	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
-	go bootstrapper.EnqueueReaders(md, runOpts, runtimeOpts, s.fsopts, shardsTimeRanges,
-		readerPool, readersCh, blockSize, s.log)
+	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
+		NsMD:            md,
+		RunOpts:         runOpts,
+		RuntimeOpts:     runtimeOpts,
+		FsOpts:          s.fsopts,
+		ShardTimeRanges: shardsTimeRanges,
+		ReaderPool:      readerPool,
+		ReadersCh:       readersCh,
+		BlockSize:       blockSize,
+		// NB(bodu): We only read metadata when bootstrap index
+		// so we do not need to sort the data fileset reader.
+		DataReaderDoNotSort: run == bootstrapIndexRunType,
+		Logger:              s.log,
+	})
 	bootstrapFromDataReadersResult := s.bootstrapFromReaders(run, md,
 		accumulator, runOpts, readerPool, readersCh, builder)
 

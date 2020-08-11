@@ -691,8 +691,20 @@ func (s *peersSource) readIndex(
 		zap.Int("shards", count),
 	)
 
-	go bootstrapper.EnqueueReaders(ns, opts, runtimeOpts, fsOpts, shardsTimeRanges, readerPool,
-		readersCh, indexBlockSize, s.log)
+	go bootstrapper.EnqueueReaders(bootstrapper.EnqueueReadersOptions{
+		NsMD:            ns,
+		RunOpts:         opts,
+		RuntimeOpts:     runtimeOpts,
+		FsOpts:          fsOpts,
+		ShardTimeRanges: shardsTimeRanges,
+		ReaderPool:      readerPool,
+		ReadersCh:       readersCh,
+		BlockSize:       indexBlockSize,
+		// NB(bodu): We only read metadata when performing a peers bootstrap
+		// so we do not need to sort the data fileset reader.
+		DataReaderDoNotSort: true,
+		Logger:              s.log,
+	})
 
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,

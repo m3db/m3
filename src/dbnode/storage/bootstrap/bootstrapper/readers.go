@@ -59,24 +59,37 @@ func newTimeWindowReaders(
 	}
 }
 
+// EnqueueReadersOptions supplies options to enqueue readers.
+type EnqueueReadersOptions struct {
+	NsMD                namespace.Metadata
+	RunOpts             bootstrap.RunOptions
+	RuntimeOpts         runtime.Options
+	FsOpts              fs.Options
+	ShardTimeRanges     result.ShardTimeRanges
+	ReaderPool          *ReaderPool
+	ReadersCh           chan<- TimeWindowReaders
+	BlockSize           time.Duration
+	DataReaderDoNotSort bool
+	Logger              *zap.Logger
+}
+
 // EnqueueReaders into a readers channel grouped by data block.
-func EnqueueReaders(
-	ns namespace.Metadata,
-	runOpts bootstrap.RunOptions,
-	runtimeOpts runtime.Options,
-	fsOpts fs.Options,
-	shardsTimeRanges result.ShardTimeRanges,
-	readerPool *ReaderPool,
-	readersCh chan<- TimeWindowReaders,
-	blockSize time.Duration,
-	logger *zap.Logger,
-) {
+func EnqueueReaders(opts EnqueueReadersOptions) {
 	// Close the readers ch if and only if all readers are enqueued.
-	defer close(readersCh)
+	defer close(opts.ReadersCh)
 
 	// Normal run, open readers
-	enqueueReadersGroupedByBlockSize(ns, runOpts, fsOpts,
-		shardsTimeRanges, readerPool, readersCh, blockSize, logger)
+	enqueueReadersGroupedByBlockSize(
+		opts.NsMD,
+		opts.RunOpts,
+		opts.FsOpts,
+		opts.ShardTimeRanges,
+		opts.ReaderPool,
+		opts.ReadersCh,
+		opts.BlockSize,
+		opts.DataReaderDoNotSort,
+		opts.Logger,
+	)
 }
 
 func enqueueReadersGroupedByBlockSize(
@@ -87,6 +100,7 @@ func enqueueReadersGroupedByBlockSize(
 	readerPool *ReaderPool,
 	readersCh chan<- TimeWindowReaders,
 	blockSize time.Duration,
+	dataReaderDoNotSort bool,
 	logger *zap.Logger,
 ) {
 	// Group them by block size.
@@ -97,7 +111,7 @@ func enqueueReadersGroupedByBlockSize(
 	for _, group := range groupedByBlockSize {
 		readers := make(map[ShardID]ShardReaders, group.Ranges.Len())
 		for shard, tr := range group.Ranges.Iter() {
-			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr, logger)
+			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr, dataReaderDoNotSort, logger)
 			readers[ShardID(shard)] = shardReaders
 		}
 		readersCh <- newTimeWindowReaders(group.Ranges, readers)
@@ -110,6 +124,7 @@ func newShardReaders(
 	readerPool *ReaderPool,
 	shard uint32,
 	tr xtime.Ranges,
+	dataReaderDoNotSort bool,
 	logger *zap.Logger,
 ) ShardReaders {
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(),
@@ -160,6 +175,7 @@ func newShardReaders(
 				Shard:      shard,
 				BlockStart: blockStart,
 			},
+			DoNotSort: dataReaderDoNotSort,
 		}
 		if err := r.Open(openOpts); err != nil {
 			logger.Error("unable to open fileset files",
