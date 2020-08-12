@@ -287,11 +287,11 @@ func (m *merger) MergeAndCleanup(
 
 	close, err := m.Merge(fileID, mergeWith, nextVolumeIndex, flushPreparer, nsCtx, onFlush)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	if err = close(); err != nil {
-		return nil
+		return err
 	}
 
 	return DeleteFileSetAt(m.filePathPrefix, fileID.Namespace, fileID.Shard, fileID.BlockStart, fileID.VolumeIndex)
