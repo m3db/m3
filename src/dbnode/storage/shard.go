@@ -2634,12 +2634,11 @@ func (s *dbShard) AggregateTiles(
 
 	writer, err := fs.NewLargeTilesWriter(
 		fs.LargeTilesWriterOptions{
-			NamespaceID:      s.namespace.ID(),
-			ShardID:          s.ID(),
-			FilePathPrefix:   s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix(),
-			WriterBufferSize: s.opts.CommitLogOptions().FilesystemOptions().WriterBufferSize(),
-			BlockStart:       opts.Start,
-			BlockSize:        s.namespace.Options().RetentionOptions().BlockSize(),
+			NamespaceID: s.namespace.ID(),
+			ShardID:     s.ID(),
+			Options:     s.opts.CommitLogOptions().FilesystemOptions(),
+			BlockStart:  opts.Start,
+			BlockSize:   s.namespace.Options().RetentionOptions().BlockSize(),
 		},
 	)
 	if err != nil {
@@ -2699,6 +2698,7 @@ func (s *dbShard) AggregateTiles(
 					processedBlockCount.Inc()
 				}
 			}
+			// TODO: What if the for loop above will get an error?
 			if err := writer.Write(ctx, encoder, id, tags); err != nil {
 				s.metrics.largeTilesWriteErrors.Inc(1)
 				multiErr = multiErr.Add(err)
