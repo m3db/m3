@@ -24,6 +24,14 @@ import (
 	"math"
 )
 
+// DownsampledValue represents a datapoint value after downsampling.
+type DownsampledValue struct {
+	// FrameIndex is the index to the original datapoint within source frame (before downsampling).
+	FrameIndex int
+	// Value is a downsampled datapoint value.
+	Value float64
+}
+
 // DownsampleCounterResets downsamples datapoints in a way that preserves counter invariants:
 // The the last (and the first, if necessary) values stay the same as original (to transfer counter state from tile to tile).
 // Also, after applying counter reset adjustment logics, all the values would be the same as
@@ -34,8 +42,7 @@ import (
 func DownsampleCounterResets(
 	prevFrameLastValue float64,
 	frameValues []float64,
-	indices *[]int,
-	results *[]float64,
+	results *[]DownsampledValue,
 ) {
 	if len(frameValues) == 0 {
 		return
@@ -44,8 +51,7 @@ func DownsampleCounterResets(
 	firstValue := frameValues[0]
 	if math.IsNaN(prevFrameLastValue) || prevFrameLastValue > firstValue {
 		// include the first original datapoint to handle resets right before this frame
-		*indices = append(*indices, 0)
-		*results = append(*results, firstValue)
+		*results = append(*results, DownsampledValue{0, firstValue})
 	}
 
 	var (
@@ -67,10 +73,9 @@ func DownsampleCounterResets(
 		previous = current
 	}
 
-	if lastResetPosition >= 0 && (len(*results) == 0 || (*results)[0] != adjustedValueBeforeLastReset) {
+	if lastResetPosition >= 0 && (len(*results) == 0 || (*results)[0].Value != adjustedValueBeforeLastReset) {
 		// include the adjusted value right before the last reset (if it is not equal to the included first value)
-		*indices = append(*indices, lastResetPosition)
-		*results = append(*results, adjustedValueBeforeLastReset)
+		*results = append(*results, DownsampledValue{lastResetPosition, adjustedValueBeforeLastReset})
 	}
 
 	lastPosition := len(frameValues) - 1
@@ -79,19 +84,16 @@ func DownsampleCounterResets(
 	positionAfterLastReset := lastResetPosition + 1
 	if lastResetPosition >= 0 && adjustedValueBeforeLastReset <= lastValue {
 		// include the original value right after the last reset (unless it is the last value, which is always included)
-		*indices = append(*indices, positionAfterLastReset)
-		*results = append(*results, frameValues[positionAfterLastReset])
+		*results = append(*results, DownsampledValue{positionAfterLastReset, frameValues[positionAfterLastReset]})
 	}
 
-	if len(*results) == 1 && (*results)[0] == lastValue {
+	if len(*results) == 1 && (*results)[0].Value == lastValue {
 		// if only the first value was included until now, and it's equal to the last value, it can be discarded
 		*results = (*results)[:0]
-		*indices = (*indices)[:0]
 	}
 
 	// always include the last original datapoint
-	*indices = append(*indices, lastPosition)
-	*results = append(*results, lastValue)
+	*results = append(*results, DownsampledValue{lastPosition, lastValue})
 
 	return
 }
