@@ -21,173 +21,149 @@
 package tile
 
 import (
+	"math"
+	"testing"
+
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/assert"
-	"math"
-	"testing"
 )
 
 func TestDownsampleCounterResets(t *testing.T) {
 	tests := []struct {
-		name        string
-		givenValues []float64
-		wantIndices []int
-		wantValues  []float64
+		name       string
+		givenFrame []float64
+		want       []DownsampledValue
 	}{
 		{
-			name:        "empty",
-			givenValues: []float64{},
-			wantIndices: []int{},
-			wantValues:  []float64{},
+			name:       "empty",
+			givenFrame: []float64{},
+			want:       []DownsampledValue{},
 		},
 		{
-			name:        "one value",
-			givenValues: []float64{3.14},
-			wantIndices: []int{0},
-			wantValues:  []float64{3.14},
+			name:       "one value",
+			givenFrame: []float64{3.14},
+			want:       []DownsampledValue{{0, 3.14}},
 		},
 		{
-			name:        "two different values",
-			givenValues: []float64{3, 5},
-			wantIndices: []int{0, 1},
-			wantValues:  []float64{3, 5},
+			name:       "two different values",
+			givenFrame: []float64{3, 5},
+			want:       []DownsampledValue{{0, 3}, {1, 5}},
 		},
 		{
-			name:        "two identical values",
-			givenValues: []float64{5, 5},
-			wantIndices: []int{1},
-			wantValues:  []float64{5},
+			name:       "two identical values",
+			givenFrame: []float64{5, 5},
+			want:       []DownsampledValue{{1, 5}},
 		},
 		{
-			name:        "two values with reset",
-			givenValues: []float64{3, 1},
-			wantIndices: []int{0, 1},
-			wantValues:  []float64{3, 1},
+			name:       "two values with reset",
+			givenFrame: []float64{3, 1},
+			want:       []DownsampledValue{{0, 3}, {1, 1}},
 		},
 		{
-			name:        "second value equal to first, then reset",
-			givenValues: []float64{2, 2, 1},
-			wantIndices: []int{0, 2},
-			wantValues:  []float64{2, 1},
+			name:       "second value equal to first, then reset",
+			givenFrame: []float64{2, 2, 1},
+			want:       []DownsampledValue{{0, 2}, {2, 1}},
 		},
 		{
-			name:        "three values, no reset",
-			givenValues: []float64{3, 4, 5},
-			wantIndices: []int{0, 2},
-			wantValues:  []float64{3, 5},
+			name:       "three values, no reset",
+			givenFrame: []float64{3, 4, 5},
+			want:       []DownsampledValue{{0, 3}, {2, 5}},
 		},
 		{
-			name:        "three identical values",
-			givenValues: []float64{5, 5, 5},
-			wantIndices: []int{2},
-			wantValues:  []float64{5},
+			name:       "three identical values",
+			givenFrame: []float64{5, 5, 5},
+			want:       []DownsampledValue{{2, 5}},
 		},
 		{
-			name:        "three values, reset after first",
-			givenValues: []float64{3, 1, 5},
-			wantIndices: []int{0, 1, 2},
-			wantValues:  []float64{3, 1, 5}},
-		{
-			name:        "three values, reset after second",
-			givenValues: []float64{3, 5, 1},
-			wantIndices: []int{0, 1, 2},
-			wantValues:  []float64{3, 5, 1},
+			name:       "three values, reset after first",
+			givenFrame: []float64{3, 1, 5},
+			want:       []DownsampledValue{{0, 3}, {1, 1}, {2, 5}},
 		},
 		{
-			name:        "three values, two resets",
-			givenValues: []float64{5, 3, 2},
-			wantIndices: []int{0, 1, 2},
-			wantValues:  []float64{5, 8, 2},
+			name:       "three values, reset after second",
+			givenFrame: []float64{3, 5, 1},
+			want:       []DownsampledValue{{0, 3}, {1, 5}, {2, 1}},
 		},
 		{
-			name:        "four values, reset after first",
-			givenValues: []float64{3, 1, 4, 5},
-			wantIndices: []int{0, 1, 3},
-			wantValues:  []float64{3, 1, 5},
+			name:       "three values, two resets",
+			givenFrame: []float64{5, 3, 2},
+			want:       []DownsampledValue{{0, 5}, {1, 8}, {2, 2}},
 		},
 		{
-			name:        "four values, reset after second (A)",
-			givenValues: []float64{3, 4, 1, 5},
-			wantIndices: []int{0, 1, 2, 3},
-			wantValues:  []float64{3, 4, 1, 5},
+			name:       "four values, reset after first",
+			givenFrame: []float64{3, 1, 4, 5},
+			want:       []DownsampledValue{{0, 3}, {1, 1}, {3, 5}},
 		},
 		{
-			name:        "four values, reset after second (B)",
-			givenValues: []float64{3, 4, 1, 4},
-			wantIndices: []int{0, 1, 2, 3},
-			wantValues:  []float64{3, 4, 1, 4},
+			name:       "four values, reset after second (A)",
+			givenFrame: []float64{3, 4, 1, 5},
+			want:       []DownsampledValue{{0, 3}, {1, 4}, {2, 1}, {3, 5}},
 		},
 		{
-			name:        "four values, reset after second (C)",
-			givenValues: []float64{3, 4, 1, 2},
-			wantIndices: []int{0, 1, 3},
-			wantValues:  []float64{3, 4, 2},
+			name:       "four values, reset after second (B)",
+			givenFrame: []float64{3, 4, 1, 4},
+			want:       []DownsampledValue{{0, 3}, {1, 4}, {2, 1}, {3, 4}},
 		},
 		{
-			name:        "four values, reset after third",
-			givenValues: []float64{3, 4, 5, 1},
-			wantIndices: []int{0, 2, 3},
-			wantValues:  []float64{3, 5, 1},
+			name:       "four values, reset after second (C)",
+			givenFrame: []float64{3, 4, 1, 2},
+			want:       []DownsampledValue{{0, 3}, {1, 4}, {3, 2}},
 		},
 		{
-			name:        "four values, two resets (A)",
-			givenValues: []float64{3, 1, 5, 4},
-			wantIndices: []int{0, 2, 3},
-			wantValues:  []float64{3, 8, 4},
+			name:       "four values, reset after third",
+			givenFrame: []float64{3, 4, 5, 1},
+			want:       []DownsampledValue{{0, 3}, {2, 5}, {3, 1}},
 		},
 		{
-			name:        "four values, two resets (B)",
-			givenValues: []float64{5, 2, 1, 4},
-			wantIndices: []int{0, 1, 3},
-			wantValues:  []float64{5, 7, 4},
+			name:       "four values, two resets (A)",
+			givenFrame: []float64{3, 1, 5, 4},
+			want:       []DownsampledValue{{0, 3}, {2, 8}, {3, 4}},
 		},
 		{
-			name:        "four values, two resets (C)",
-			givenValues: []float64{5, 2, 2, 1},
-			wantIndices: []int{0, 2, 3},
-			wantValues:  []float64{5, 7, 1},
+			name:       "four values, two resets (B)",
+			givenFrame: []float64{5, 2, 1, 4},
+			want:       []DownsampledValue{{0, 5}, {1, 7}, {3, 4}},
 		},
 		{
-			name:        "four values, two resets (D)",
-			givenValues: []float64{3, 5, 2, 1},
-			wantIndices: []int{0, 2, 3},
-			wantValues:  []float64{3, 7, 1},
+			name:       "four values, two resets (C)",
+			givenFrame: []float64{5, 2, 2, 1},
+			want:       []DownsampledValue{{0, 5}, {2, 7}, {3, 1}},
 		},
 		{
-			name:        "reset between two identical values",
-			givenValues: []float64{4, 3, 4},
-			wantIndices: []int{0, 1, 2},
-			wantValues:  []float64{4, 3, 4},
+			name:       "four values, two resets (D)",
+			givenFrame: []float64{3, 5, 2, 1},
+			want:       []DownsampledValue{{0, 3}, {2, 7}, {3, 1}},
 		},
 		{
-			name:        "four values, three resets",
-			givenValues: []float64{9, 7, 4, 1},
-			wantIndices: []int{0, 2, 3},
-			wantValues:  []float64{9, 20, 1},
+			name:       "reset between two equal values",
+			givenFrame: []float64{4, 3, 4},
+			want:       []DownsampledValue{{0, 4}, {1, 3}, {2, 4}},
 		},
 		{
-			name:        "five values, two resets (A)",
-			givenValues: []float64{3, 1, 2, 5, 4},
-			wantIndices: []int{0, 3, 4},
-			wantValues:  []float64{3, 8, 4},
+			name:       "four values, three resets",
+			givenFrame: []float64{9, 7, 4, 1},
+			want:       []DownsampledValue{{0, 9}, {2, 20}, {3, 1}},
 		},
 		{
-			name:        "five equal values",
-			givenValues: []float64{1, 1, 1, 1, 1},
-			wantIndices: []int{4},
-			wantValues:  []float64{1},
+			name:       "five values, two resets (A)",
+			givenFrame: []float64{3, 1, 2, 5, 4},
+			want:       []DownsampledValue{{0, 3}, {3, 8}, {4, 4}},
+		},
+		{
+			name:       "five equal values",
+			givenFrame: []float64{1, 1, 1, 1, 1},
+			want:       []DownsampledValue{{4, 1}},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			indices, results := downsample(math.NaN(), tt.givenValues)
+			results := downsample(math.NaN(), tt.givenFrame)
 
-			assert.Equal(t, tt.wantValues, results)
-			assert.Equal(t, tt.wantIndices, indices)
+			assert.Equal(t, tt.want, results)
 		})
 	}
 }
@@ -196,82 +172,71 @@ func TestDownsampleCounterResetsWithPrevFrameLastValue(t *testing.T) {
 	tests := []struct {
 		name                    string
 		givenPrevFrameLastValue float64
-		givenValues             []float64
-		wantIndices             []int
-		wantValues              []float64
+		givenFrame              []float64
+		want                    []DownsampledValue
 	}{
 		{
 			name:                    "empty",
 			givenPrevFrameLastValue: 3,
-			givenValues:             []float64{},
-			wantIndices:             []int{},
-			wantValues:              []float64{},
+			givenFrame:              []float64{},
+			want:                    []DownsampledValue{},
 		},
 		{
 			name:                    "one value equal to prev frame last",
 			givenPrevFrameLastValue: 2,
-			givenValues:             []float64{2},
-			wantIndices:             []int{0},
-			wantValues:              []float64{2},
+			givenFrame:              []float64{2},
+			want:                    []DownsampledValue{{0, 2}},
 		},
 		{
 			name:                    "one value less than prev frame last",
 			givenPrevFrameLastValue: 3,
-			givenValues:             []float64{2},
-			wantIndices:             []int{0},
-			wantValues:              []float64{2},
+			givenFrame:              []float64{2},
+			want:                    []DownsampledValue{{0, 2}},
 		},
 		{
 			name:                    "one value more than prev frame last",
 			givenPrevFrameLastValue: 3,
-			givenValues:             []float64{4},
-			wantIndices:             []int{0},
-			wantValues:              []float64{4},
+			givenFrame:              []float64{4},
+			want:                    []DownsampledValue{{0, 4}},
 		},
 		{
 			name:                    "two values, increasing",
 			givenPrevFrameLastValue: 3,
-			givenValues:             []float64{4, 5},
-			wantIndices:             []int{1},
-			wantValues:              []float64{5},
+			givenFrame:              []float64{4, 5},
+			want:                    []DownsampledValue{{1, 5}},
 		},
 		{
 			name:                    "reset between frames",
 			givenPrevFrameLastValue: 3,
-			givenValues:             []float64{2, 5},
-			wantIndices:             []int{0, 1},
-			wantValues:              []float64{2, 5},
+			givenFrame:              []float64{2, 5},
+			want:                    []DownsampledValue{{0, 2}, {1, 5}},
 		},
 		{
 			name:                    "reset between frames and within frame",
 			givenPrevFrameLastValue: 4,
-			givenValues:             []float64{2, 1},
-			wantIndices:             []int{0, 1},
-			wantValues:              []float64{2, 1},
+			givenFrame:              []float64{2, 1},
+			want:                    []DownsampledValue{{0, 2}, {1, 1}},
 		},
 		{
 			name:                    "reset within frame",
 			givenPrevFrameLastValue: 1,
-			givenValues:             []float64{4, 3},
-			wantIndices:             []int{0, 1},
-			wantValues:              []float64{4, 3},
+			givenFrame:              []float64{4, 3},
+			want:                    []DownsampledValue{{0, 4}, {1, 3}},
 		},
 		{
 			name:                    "all equal",
 			givenPrevFrameLastValue: 1,
-			givenValues:             []float64{1, 1},
-			wantIndices:             []int{1},
-			wantValues:              []float64{1},
+			givenFrame:              []float64{1, 1},
+			want:                    []DownsampledValue{{1, 1}},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			indices, results := downsample(tt.givenPrevFrameLastValue, tt.givenValues)
+			results := downsample(tt.givenPrevFrameLastValue, tt.givenFrame)
 
-			assert.Equal(t, tt.wantValues, results)
-			assert.Equal(t, tt.wantIndices, indices)
+			assert.Equal(t, tt.want, results)
 		})
 	}
 }
@@ -299,14 +264,10 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 
 	properties.Property("return consistent indices", prop.ForAll(
 		func(v []float64) bool {
-			indices, results := downsampleFromSlice(v, usePrevFrameLastValue)
+			results := downsampleFromSlice(v, usePrevFrameLastValue)
 
-			if len(indices) == 0 || len(indices) != len(results) {
-				return false
-			}
-
-			for i := 1; i < len(indices); i++ {
-				if indices[i] <= indices[i-1] {
+			for i := 1; i < len(results); i++ {
+				if results[i].FrameIndex <= results[i-1].FrameIndex {
 					return false
 				}
 			}
@@ -323,7 +284,7 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 				maxResultLength = 4
 			}
 
-			_, results := downsampleFromSlice(v, usePrevFrameLastValue)
+			results := downsampleFromSlice(v, usePrevFrameLastValue)
 
 			return len(results) <= maxResultLength
 		},
@@ -332,36 +293,42 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 
 	properties.Property("preserve the last value", prop.ForAll(
 		func(v []float64) bool {
-			indices, results := downsampleFromSlice(v, usePrevFrameLastValue)
+			results := downsampleFromSlice(v, usePrevFrameLastValue)
 
 			lastIndex := len(v) - 1
+			lastFrameValue := v[lastIndex]
 			if usePrevFrameLastValue {
 				lastIndex--
 			}
 
-			return results[len(results)-1] == v[len(v)-1] &&
-				indices[len(indices)-1] == lastIndex
+			lastResult := results[len(results)-1]
+
+			return lastResult.Value == lastFrameValue && lastResult.FrameIndex == lastIndex
 		},
 		generator,
 	))
 
 	properties.Property("preserve values after adjusting for counter resets", prop.ForAll(
 		func(v []float64) bool {
-			indices, results := downsampleFromSlice(v, usePrevFrameLastValue)
-			if usePrevFrameLastValue {
-				results = append([]float64{v[0]}, results...)
+			results := downsampleFromSlice(v, usePrevFrameLastValue)
+
+			downsampledValues := make([]float64, 0, len(results))
+			for _, result := range results {
+				downsampledValues = append(downsampledValues, result.Value)
 			}
 
-			adjustedInput := applyCounterResetAdjustment(v)
-			adjustedResults := applyCounterResetAdjustment(results)
-
-			indexOffset := 0
+			prevFrameLastValue := 0.0
+			input := v
 			if usePrevFrameLastValue {
-				indexOffset = 1
+				prevFrameLastValue = v[0]
+				input = input[1:]
 			}
 
-			for resultPos, inputPos := range indices {
-				if math.Abs(adjustedResults[resultPos+indexOffset]-adjustedInput[inputPos+indexOffset]) > epsilon {
+			adjustedInput := applyCounterResetAdjustment(prevFrameLastValue, input)
+			adjustedResults := applyCounterResetAdjustment(prevFrameLastValue, downsampledValues)
+
+			for i, result := range results {
+				if math.Abs(adjustedResults[i]-adjustedInput[result.FrameIndex]) > epsilon {
 					return false
 				}
 			}
@@ -374,16 +341,15 @@ func testDownsampleCounterResetsInvariants(t *testing.T, usePrevFrameLastValue b
 	properties.TestingRun(t)
 }
 
-func downsample(prevFrameLastValue float64, vals []float64) ([]int, []float64) {
-	indices := make([]int, 0)
-	results := make([]float64, 0)
+func downsample(prevFrameLastValue float64, vals []float64) []DownsampledValue {
+	results := make([]DownsampledValue, 0, 4)
 
-	DownsampleCounterResets(prevFrameLastValue, vals, &indices, &results)
+	DownsampleCounterResets(prevFrameLastValue, vals, &results)
 
-	return indices, results
+	return results
 }
 
-func downsampleFromSlice(vals []float64, usePrevFrameLastValue bool) ([]int, []float64) {
+func downsampleFromSlice(vals []float64, usePrevFrameLastValue bool) []DownsampledValue {
 	prevFrameLastValue := math.NaN()
 
 	if usePrevFrameLastValue {
@@ -394,17 +360,18 @@ func downsampleFromSlice(vals []float64, usePrevFrameLastValue bool) ([]int, []f
 	return downsample(prevFrameLastValue, vals)
 }
 
-func applyCounterResetAdjustment(vals []float64) []float64 {
+func applyCounterResetAdjustment(previousVal float64, vals []float64) []float64 {
 	transformed := make([]float64, 0, len(vals))
 	if len(vals) == 0 {
 		return transformed
 	}
 
-	previous := vals[0]
-	accumulated := previous
-	transformed = append(transformed, previous)
+	var (
+		previous    = previousVal
+		accumulated float64
+	)
 
-	for i := 1; i < len(vals); i++ {
+	for i := 0; i < len(vals); i++ {
 		current := vals[i]
 		delta := current - previous
 		if delta >= 0 {
