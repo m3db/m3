@@ -23,7 +23,7 @@ mkdocs gh-deploy --force --dirty
 # We do two builds to ensure any behavior of gh-deploy doesn't impact the second
 # build.
 rm -rf site
-mkdocs build -e docs/theme -t material
+mkdocs build -t material
 
 git checkout -t origin/docs
 # Trying to commit 0 changes would fail, so let's check if there's any changes
