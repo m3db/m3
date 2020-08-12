@@ -4,21 +4,21 @@
 
 ## Performance
 
-- **M3DB**: Background cold flush process to no longer block data snapshotting or commit log rotation and integration tests ([#2508](https://github.com/m3db/m3/pull/2508))
+- **M3DB**: Background cold flush process to no longer block data snapshotting or commit log rotation ([#2508](https://github.com/m3db/m3/pull/2508))
 - **M3DB**: Avoid sorting index entries when reading data filesets during bootstrap when not required ([#2533](https://github.com/m3db/m3/pull/2533))
 
 ## Bug Fixes
 
-- **M3Query**: Respect M3Cluster headers in namespace GET ([#2518](https://github.com/m3db/m3/pull/#2518))
+- **M3Coordinator**: Respect M3Cluster headers in namespace GET ([#2518](https://github.com/m3db/m3/pull/#2518))
 
 ## Documentation
 
-- **All**: Update twitter link ([#2530](https://github.com/m3db/m3/pull/2530))
-- **All**: Fix spelling in FAQ ([#2448](https://github.com/m3db/m3/pull/2448))
 - **M3Aggregator**: Add M3Aggregator documentation ([#1741](https://github.com/m3db/m3/pull/1741), [#2529](https://github.com/m3db/m3/pull/2529))
-- **M3DB**: Bootstrapper documentation fix ([#2510](https://github.com/m3db/m3/pull/2510))
+- **M3DB**: Bootstrapper documentation fixes ([#2510](https://github.com/m3db/m3/pull/2510))
 - **All**: Update mkdocs ([#2524](https://github.com/m3db/m3/pull/2524), [#2527](https://github.com/m3db/m3/pull/2527))
-- **All**: Add m3 meetup recordings ([#2495](https://github.com/m3db/m3/pull/2524), [#2527](https://github.com/m3db/m3/pull/2495))
+- **All**: Add M3 meetup recordings ([#2495](https://github.com/m3db/m3/pull/2524), [#2527](https://github.com/m3db/m3/pull/2495))
+- **All**: Update Twitter link ([#2530](https://github.com/m3db/m3/pull/2530))
+- **All**: Fix spelling in FAQ ([#2448](https://github.com/m3db/m3/pull/2448))
 
 ## Misc
 
