@@ -2637,8 +2637,7 @@ func (s *dbShard) AggregateTiles(
 	var (
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
-		downsampledIndices  []int
-		downsampledValues   []float64
+		downsampledValues   []tile.DownsampledValue
 	)
 
 	for readerIter.Next() {
@@ -2653,37 +2652,36 @@ func (s *dbShard) AggregateTiles(
 
 			if frameValues := frame.Values(); len(frameValues) > 0 {
 
-				downsampledIndices = downsampledIndices[:0]
 				downsampledValues = downsampledValues[:0]
 				lastIdx := len(frameValues) - 1
 
 				if opts.HandleCounterResets {
 					// last value plus possible few more datapoints to preserve counter semantics
-					tile.DownsampleCounterResets(prevFrameLastValue, frameValues, &downsampledIndices, &downsampledValues)
+					tile.DownsampleCounterResets(prevFrameLastValue, frameValues, &downsampledValues)
 				} else {
 					// plain last value
-					downsampledIndices = append(downsampledIndices, lastIdx)
-					downsampledValues = append(downsampledValues, frameValues[lastIdx])
+					downsampledValue := tile.DownsampledValue{FrameIndex: lastIdx, Value: frameValues[lastIdx]}
+					downsampledValues = append(downsampledValues, downsampledValue)
 				}
 
-				for i, idx := range downsampledIndices {
+				for _, downsampledValue := range downsampledValues {
 
-					downsampledValue := downsampledValues[i]
-					timestamp := frame.Timestamps()[idx]
+					value := downsampledValue.Value
+					timestamp := frame.Timestamps()[downsampledValue.FrameIndex]
 
 					if !singleUnit {
 						// TODO: what happens if unit has changed mid-tile?
 						// Write early and then do the remaining values separately?
-						unit = frame.Units().Values()[idx]
+						unit = frame.Units().Values()[downsampledValue.FrameIndex]
 					}
 
 					if !singleAnnotation {
 						// TODO: what happens if annotation has changed mid-tile?
 						// Write early and then do the remaining values separately?
-						annotation = frame.Annotations().Values()[idx]
+						annotation = frame.Annotations().Values()[downsampledValue.FrameIndex]
 					}
 
-					_, err = s.writeAndIndex(ctx, id, tags, timestamp, downsampledValue, unit, annotation, wOpts, true)
+					_, err = s.writeAndIndex(ctx, id, tags, timestamp, value, unit, annotation, wOpts, true)
 					if err != nil {
 						s.metrics.largeTilesWriteErrors.Inc(1)
 						multiErr = multiErr.Add(err)
