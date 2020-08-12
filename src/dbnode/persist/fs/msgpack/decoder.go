@@ -67,7 +67,7 @@ type Decoder struct {
 
 // NewDecoder creates a new decoder
 func NewDecoder(opts DecodingOptions) *Decoder {
-	return newDecoder(defaultlegacyEncodingOptions, opts)
+	return newDecoder(DefaultLegacyEncodingOptions, opts)
 }
 
 func newDecoder(legacy LegacyEncodingOptions, opts DecodingOptions) *Decoder {

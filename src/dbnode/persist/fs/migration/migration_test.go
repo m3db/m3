@@ -67,7 +67,8 @@ func TestToVersion1_1Run(t *testing.T) {
 	require.NoError(t, err)
 
 	// Configure and run migration
-	pm, err := fs.NewPersistManager(fsOpts.SetEncoder(msgpack.NewEncoder())) // Set encoder to most up-to-date version
+	pm, err := fs.NewPersistManager(
+		fsOpts.SetEncodingOptions(msgpack.DefaultLegacyEncodingOptions)) // Set encoder to most up-to-date version
 	require.NoError(t, err)
 
 	md, err := namespace.NewMetadata(nsId, namespace.NewOptions())
@@ -119,14 +120,13 @@ func TestToVersion1_1Run(t *testing.T) {
 }
 
 func writeUnmigratedData(t *testing.T, filePathPrefix string, nsId ident.ID, shard uint32) fs.Options {
-	// Use an encoder that doesn't generate entry level checksums
+	// Use encoding options that will not generate entry level checksums
 	eOpts := msgpack.LegacyEncodingOptions{EncodeLegacyIndexEntryVersion: msgpack.LegacyEncodingIndexEntryVersionV2}
-	enc := msgpack.NewEncoderWithOptions(eOpts)
 
 	// Write data
 	fsOpts := fs.NewOptions().
 		SetFilePathPrefix(filePathPrefix).
-		SetEncoder(enc)
+		SetEncodingOptions(eOpts)
 	w, err := fs.NewWriter(fsOpts)
 	require.NoError(t, err)
 

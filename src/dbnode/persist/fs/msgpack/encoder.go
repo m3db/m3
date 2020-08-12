@@ -86,7 +86,8 @@ type LegacyEncodingOptions struct {
 	DecodeLegacyIndexEntryVersion LegacyEncodingIndexEntryVersion
 }
 
-var defaultlegacyEncodingOptions = LegacyEncodingOptions{
+// DefaultLegacyEncodingOptions are the default options to use with msgpack.Encoder and msgpack.Decoder.
+var DefaultLegacyEncodingOptions = LegacyEncodingOptions{
 	EncodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionCurrent,
 	DecodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionCurrent,
 
@@ -96,11 +97,10 @@ var defaultlegacyEncodingOptions = LegacyEncodingOptions{
 
 // NewEncoder creates a new encoder.
 func NewEncoder() *Encoder {
-	return newEncoder(defaultlegacyEncodingOptions)
+	return newEncoder(DefaultLegacyEncodingOptions)
 }
 
-// NewEncoderWithOptions creates a new encoder with the specified legacy options. Used for testing. Non-testing uses
-// should use NewEncoder unless you have a good reason not to.
+// NewEncoderWithOptions creates a new encoder with the specified legacy options.
 func NewEncoderWithOptions(legacy LegacyEncodingOptions) *Encoder {
 	return newEncoder(legacy)
 }
