@@ -2637,36 +2637,60 @@ func (s *dbShard) AggregateTiles(
 	var (
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
+		downsampledIndices  []int
+		downsampledValues   []float64
 	)
 
 	for readerIter.Next() {
 		seriesIter := readerIter.Current()
+		prevFrameLastValue := math.NaN()
 		for seriesIter.Next() {
 			frame := seriesIter.Current()
 			id := frame.ID()
 			tags := frame.Tags()
 			unit, singleUnit := frame.Units().SingleValue()
 			annotation, singleAnnotation := frame.Annotations().SingleValue()
-			if vals := frame.Values(); len(vals) > 0 {
-				lastIdx := len(vals) - 1
-				lastValue := vals[lastIdx]
-				lastTimestamp := frame.Timestamps()[lastIdx]
-				if !singleUnit {
-					// TODO: what happens if unit has changed mid-tile?
-					// Write early and then do the remaining values separately?
-					unit = frame.Units().Values()[lastIdx]
-				}
-				if !singleAnnotation {
-					// TODO: what happens if annotation has changed mid-tile?
-					// Write early and then do the remaining values separately?
-					annotation = frame.Annotations().Values()[lastIdx]
+
+			if frameValues := frame.Values(); len(frameValues) > 0 {
+
+				downsampledIndices = downsampledIndices[:0]
+				downsampledValues = downsampledValues[:0]
+				lastIdx := len(frameValues) - 1
+
+				if opts.HandleCounterResets {
+					// last value plus possible few more datapoints to preserve counter semantics
+					tile.DownsampleCounterResets(prevFrameLastValue, frameValues, &downsampledIndices, &downsampledValues)
+				} else {
+					// plain last value
+					downsampledIndices = append(downsampledIndices, lastIdx)
+					downsampledValues = append(downsampledValues, frameValues[lastIdx])
 				}
 
-				_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, annotation, wOpts, true)
-				if err != nil {
-					s.metrics.largeTilesWriteErrors.Inc(1)
-					multiErr = multiErr.Add(err)
+				for i, idx := range downsampledIndices {
+
+					downsampledValue := downsampledValues[i]
+					timestamp := frame.Timestamps()[idx]
+
+					if !singleUnit {
+						// TODO: what happens if unit has changed mid-tile?
+						// Write early and then do the remaining values separately?
+						unit = frame.Units().Values()[idx]
+					}
+
+					if !singleAnnotation {
+						// TODO: what happens if annotation has changed mid-tile?
+						// Write early and then do the remaining values separately?
+						annotation = frame.Annotations().Values()[idx]
+					}
+
+					_, err = s.writeAndIndex(ctx, id, tags, timestamp, downsampledValue, unit, annotation, wOpts, true)
+					if err != nil {
+						s.metrics.largeTilesWriteErrors.Inc(1)
+						multiErr = multiErr.Add(err)
+					}
 				}
+
+				prevFrameLastValue = frameValues[lastIdx]
 				processedBlockCount.Inc()
 			}
 		}
