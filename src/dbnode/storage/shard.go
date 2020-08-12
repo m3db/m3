@@ -2637,7 +2637,7 @@ func (s *dbShard) AggregateTiles(
 	var (
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
-		downsampledValues   []tile.DownsampledValue
+		downsampledValues   = make([]tile.DownsampledValue, 0, 4)
 	)
 
 	for readerIter.Next() {
