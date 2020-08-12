@@ -506,6 +506,12 @@ type Options interface {
 	// IndexReaderAutovalidateIndexSegments returns the index reader to
 	// autovalidate index segments data integrity on file open.
 	IndexReaderAutovalidateIndexSegments() bool
+
+	// SetEncodingOptions sets the encoder options used by the encoder.
+	SetEncodingOptions(value msgpack.LegacyEncodingOptions) Options
+
+	// EncodingOptions returns the encoder options used by the encoder.
+	EncodingOptions() msgpack.LegacyEncodingOptions
 }
 
 // BlockRetrieverOptions represents the options for block retrieval
@@ -580,6 +586,19 @@ type Merger interface {
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
 	) (persist.DataCloser, error)
+
+	// MergeAndCleanup merges the specified fileset file with a merge target and removes the previous version of the
+	// fileset. This should only be called within the bootstrapper. Any other file deletions outside of the bootstrapper
+	// should be handled by the CleanupManager.
+	MergeAndCleanup(
+		fileID FileSetFileIdentifier,
+		mergeWith MergeWith,
+		nextVolumeIndex int,
+		flushPreparer persist.FlushPreparer,
+		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
+		isBootstrapped bool,
+	) error
 }
 
 // NewMergerFn is the function to call to get a new Merger.
@@ -591,6 +610,7 @@ type NewMergerFn func(
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
+	filePathPrefix string,
 	nsOpts namespace.Options,
 ) Merger
 
