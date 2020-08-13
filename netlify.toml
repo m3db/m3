@@ -7,7 +7,7 @@
   # the build. This is relative to the base directory if one has been set, or the
   # root directory if a base has not been set. This sample publishes the
   # directory located at the absolute path "root/project/build-output"
-  publish = "public"
+  publish = "docs-beta/public"
 
 [context."braskin/hugo_site"]
   command = "hugo"
