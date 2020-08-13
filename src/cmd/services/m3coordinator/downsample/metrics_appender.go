@@ -160,11 +160,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
-	// Filter out the m3 custom tags once the ForwardMatch is complete. If
-	// modified set the unowned ID to nil so that we know to recreate it later.
-	if modified := a.tags.filterPrefix(m3MetricsPrefix); modified {
-		unownedID = nil
-	}
+	// Filter out the m3 custom tags once the ForwardMatch is complete.
+	a.tags.filterPrefix(m3MetricsPrefix)
 
 	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
 	if opts.Override {
@@ -415,6 +412,10 @@ func (a *metricsAppender) newSamplesAppenders(
 
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
+
+	// NB(@shreyas): Passing in copyID as false assumes that this is the last
+	// call to newSamplesAppender. Any further calls will overwrite the ID.
+	// So adding any new calls to newSamplesAppender will need to change this.
 	appender, err := a.newSamplesAppender(a.tags, sm, false)
 	if err != nil {
 		return []samplesAppender{}, err
