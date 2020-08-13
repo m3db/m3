@@ -3,7 +3,6 @@ title = "Getting Started"
 date = 2020-04-01T19:26:56-04:00
 weight = 4
 chapter = true
-pre = "<b>4. </b>"
 +++
 
 ### Getting Started
