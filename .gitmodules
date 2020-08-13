@@ -1,3 +1,6 @@
 [submodule ".ci"]
 	path = .ci
 	url = https://github.com/m3db/ci-scripts.git
+[submodule "docs-beta/themes/docs-theme"]
+	path = docs-beta/themes/docs-theme
+	url = git@github.com:chronosphereio/docs-theme.git
