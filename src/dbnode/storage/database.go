@@ -891,6 +891,34 @@ func (d *db) ReadEncoded(
 	return n.ReadEncoded(ctx, id, start, end)
 }
 
+func (d *db) IndexHashes(
+	ctx context.Context,
+	namespace ident.ID,
+	id ident.ID,
+	start, end time.Time,
+) ([]ident.IndexHashBlock, error) {
+	// TODO: fix these tracepoints.
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexHash)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.String("id", id.String()),
+			xopentracing.Time("start", start),
+			xopentracing.Time("end", end),
+		)
+	}
+	defer sp.Finish()
+
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return nil, err
+	}
+
+	// ARTEM ns read encoded.
+	return n.IndexHashes(ctx, id, start, end)
+}
+
 func (d *db) FetchBlocks(
 	ctx context.Context,
 	namespace ident.ID,

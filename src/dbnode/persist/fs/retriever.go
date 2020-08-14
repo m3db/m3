@@ -491,9 +491,8 @@ func (r *blockRetriever) StreamIndexHash(
 	shard uint32,
 	id ident.ID,
 	startTime time.Time,
-	onRetrieveIndexHash block.OnRetrieveIndexHash,
 	nsCtx namespace.Context,
-) (xio.BlockReader, error) {
+) (ident.IndexHash, bool, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
@@ -503,7 +502,6 @@ func (r *blockRetriever) StreamIndexHash(
 	req.blockSize = r.blockSize
 
 	req.reqType = streamHashIndexReq
-	req.onRetrieveIndexHash = onRetrieveIndexHash
 	req.resultWg.Add(1)
 
 	// Ensure to finalize at the end of request
@@ -515,26 +513,24 @@ func (r *blockRetriever) StreamIndexHash(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return xio.EmptyBlockReader, errNoSeekerMgr
+		return ident.IndexHash{}, false, errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
-		return xio.EmptyBlockReader, err
+		return ident.IndexHash{}, false, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately.
 	if !idExists {
-		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
-		req.onRetrieved(ts.Segment{}, namespace.Context{})
-		return req.toBlock(), nil
+		return ident.IndexHash{}, false, nil
 	}
 
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return xio.EmptyBlockReader, err
+		return ident.IndexHash{}, false, err
 	}
 
 	reqs.Lock()
@@ -548,13 +544,12 @@ func (r *blockRetriever) StreamIndexHash(
 		// Loop busy, already ready to consume notification
 	}
 
-	return xio.EmptyBlockReader, nil
-	// // The request may not have completed yet, but it has an internal
-	// // waitgroup which the caller will have to wait for before retrieving
-	// // the data. This means that even though we're returning nil for error
-	// // here, the caller may still encounter an error when they attempt to
-	// // read the data.
-	// return req.toBlock(), nil
+	// The request may not have completed yet, but it has an internal
+	// waitgroup which the caller will have to wait for before retrieving
+	// the data. This means that even though we're returning nil for error
+	// here, the caller may still encounter an error when they attempt to
+	// read the data.
+	return req.indexHash, true, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -659,17 +654,16 @@ type retrieveRequest struct {
 
 	pool *reqPool
 
-	id                  ident.ID
-	tags                ident.TagIterator
-	start               time.Time
-	blockSize           time.Duration
-	onRetrieve          block.OnRetrieveBlock
-	onRetrieveIndexHash block.OnRetrieveIndexHash
-	nsCtx               namespace.Context
+	id         ident.ID
+	tags       ident.TagIterator
+	start      time.Time
+	blockSize  time.Duration
+	onRetrieve block.OnRetrieveBlock
+	nsCtx      namespace.Context
 
 	reqType    reqType
 	indexEntry IndexEntry
-	indexHash  IndexHash
+	indexHash  ident.IndexHash
 	reader     xio.SegmentReader
 
 	err error
@@ -683,7 +677,7 @@ type retrieveRequest struct {
 	notFound bool
 }
 
-func (req *retrieveRequest) onIndexHashCompleted(indexHash IndexHash) {
+func (req *retrieveRequest) onIndexHashCompleted(indexHash ident.IndexHash) {
 	if req.err == nil {
 		req.indexHash = indexHash
 		// If there was an error, we've already called done.
@@ -792,7 +786,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.onRetrieve = nil
 	req.reqType = streamReq
 	req.indexEntry = IndexEntry{}
-	req.indexHash = IndexHash{}
+	req.indexHash = ident.IndexHash{}
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

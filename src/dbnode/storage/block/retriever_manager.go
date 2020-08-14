@@ -108,9 +108,18 @@ func (r *shardBlockRetriever) Stream(
 	onRetrieve OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
-	// ARTEM streams here.
 	return r.DatabaseBlockRetriever.Stream(ctx, r.shard, id,
 		blockStart, onRetrieve, nsCtx)
+}
+
+func (r *shardBlockRetriever) StreamIndexHash(
+	ctx context.Context,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (ident.IndexHash, bool, error) {
+	return r.DatabaseBlockRetriever.StreamIndexHash(ctx, r.shard, id,
+		blockStart, nsCtx)
 }
 
 type shardBlockRetrieverManager struct {

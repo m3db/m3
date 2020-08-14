@@ -206,6 +206,90 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	return results, nil
 }
 
+func (r Reader) indexHashes(
+	ctx context.Context,
+	start, end time.Time,
+	// seriesBlocks block.DatabaseSeriesBlocks,
+	// seriesBuffer databaseBuffer,
+	nsCtx namespace.Context,
+) ([]ident.IndexHashBlock, error) {
+	// Two-dimensional slice such that the first dimension is unique by blockstart
+	// and the second dimension is blocks of data for that blockstart (not necessarily
+	// in chronological order).
+	//
+	// ex. (querying 2P.M -> 6P.M with a 2-hour blocksize):
+	// [][]xio.BlockReader{
+	//   {block0, block1, block2}, // <- 2P.M
+	//   {block0, block1}, // <-4P.M
+	// }
+	var results []ident.IndexHashBlock
+
+	if end.Before(start) {
+		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
+	}
+
+	var (
+		nowFn        = r.opts.ClockOptions().NowFn()
+		now          = nowFn()
+		ropts        = r.opts.RetentionOptions()
+		size         = ropts.BlockSize()
+		alignedStart = start.Truncate(size)
+		alignedEnd   = end.Truncate(size)
+	)
+
+	if alignedEnd.Equal(end) {
+		// Move back to make range [start, end)
+		alignedEnd = alignedEnd.Add(-1 * size)
+	}
+
+	// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
+	earliest := retention.FlushTimeStart(ropts, now)
+	if alignedStart.Before(earliest) {
+		alignedStart = earliest
+	}
+	latest := now.Add(ropts.BufferFuture()).Truncate(size)
+	if alignedEnd.After(latest) {
+		alignedEnd = latest
+	}
+
+	first, last := alignedStart, alignedEnd
+	for blockAt := first; !blockAt.After(last); blockAt = blockAt.Add(size) {
+		// It is important to look for data in the series buffer one block at
+		// a time within this loop so that the returned results contain data
+		// from blocks in chronological order. Failure to do this will result
+		// in an out of order error in the MultiReaderIterator on query.
+		var resultsBlock []ident.IndexHash
+
+		if r.retriever != nil {
+			// Try to stream from disk
+			isRetrievable, err := r.retriever.IsBlockRetrievable(blockAt)
+			if err != nil {
+				return nil, err
+			}
+			if isRetrievable {
+				// ARTEM streams here.
+				streamedBlock, found, err := r.retriever.StreamIndexHash(ctx, r.id, blockAt, nsCtx)
+				if err != nil {
+					return nil, err
+				}
+				if !found {
+					continue
+				}
+				resultsBlock = append(resultsBlock, streamedBlock)
+			}
+
+			if len(resultsBlock) > 0 {
+				results = append(results, ident.IndexHashBlock{
+					StartTime:   blockAt,
+					IndexHashes: resultsBlock,
+				})
+			}
+		}
+	}
+
+	return results, nil
+}
+
 // FetchBlocks returns data blocks given a list of block start times using
 // just a block retriever.
 func (r Reader) FetchBlocks(

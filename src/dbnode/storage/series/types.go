@@ -85,6 +85,13 @@ type DatabaseSeries interface {
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
+	// IndexHashes reads encoded blocks.
+	IndexHashes(
+		ctx context.Context,
+		start, end time.Time,
+		nsCtx namespace.Context,
+	) ([]ident.IndexHashBlock, error)
+
 	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(
 		ctx context.Context,

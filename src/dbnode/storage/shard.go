@@ -1112,6 +1112,43 @@ func (s *dbShard) ReadEncoded(
 	return reader.ReadEncoded(ctx, start, end, nsCtx)
 }
 
+func (s *dbShard) IndexHashes(
+	ctx context.Context,
+	id ident.ID,
+	start, end time.Time,
+	nsCtx namespace.Context,
+) ([]ident.IndexHash, error) {
+	s.RLock()
+	entry, _, err := s.lookupEntryWithLock(id)
+	if entry != nil {
+		// NB(r): Ensure readers have consistent view of this series, do
+		// not expire the series while being read from.
+		entry.IncrementReaderWriterCount()
+		defer entry.DecrementReaderWriterCount()
+	}
+	s.RUnlock()
+
+	if err == errShardEntryNotFound {
+		switch s.opts.SeriesCachePolicy() {
+		case series.CacheAll:
+			// No-op, would be in memory if cached
+			return nil, nil
+		}
+	} else if err != nil {
+		return nil, err
+	}
+
+	if entry != nil {
+		return entry.Series.ReadEncoded(ctx, start, end, nsCtx)
+	}
+
+	retriever := s.seriesBlockRetriever
+	onRetrieve := s.seriesOnRetrieveBlock
+	opts := s.seriesOpts
+	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
+	return reader.ReadEncoded(ctx, start, end, nsCtx)
+}
+
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
 func (s *dbShard) lookupEntryWithLock(id ident.ID) (*lookup.Entry, *list.Element, error) {
 	if s.state != dbShardStateOpen {

@@ -162,13 +162,21 @@ type Database interface {
 		opts index.AggregationOptions,
 	) (index.AggregateQueryResult, error)
 
-	// ReadEncoded retrieves encoded segments for an ID
+	// ReadEncoded retrieves encoded segments for an ID.
 	ReadEncoded(
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
+
+	// IndexHashes retrieves index hashes for an ID.
+	IndexHashes(
+		ctx context.Context,
+		namespace ident.ID,
+		id ident.ID,
+		start, end time.Time,
+	) ([]ident.IndexHashBlock, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -333,6 +341,13 @@ type databaseNamespace interface {
 		start, end time.Time,
 	) ([][]xio.BlockReader, error)
 
+	// IndexHashes retrieves index hashes within [start, end].
+	IndexHashes(
+		ctx context.Context,
+		id ident.ID,
+		start, end time.Time,
+	) ([]ident.IndexHashBlock, error)
+
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
 	FetchBlocks(
@@ -480,6 +495,14 @@ type databaseShard interface {
 		start, end time.Time,
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
+
+	// IndexHashes retrieves index hashes for an ID.
+	IndexHashes(
+		ctx context.Context,
+		id ident.ID,
+		start, end time.Time,
+		nsCtx namespace.Context,
+	) ([]ident.IndexHashBlock, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.

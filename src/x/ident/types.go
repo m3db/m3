@@ -23,6 +23,7 @@ package ident
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
@@ -309,4 +310,16 @@ func (t Tags) Equal(other Tags) bool {
 		}
 	}
 	return true
+}
+
+// IndexHashBlock is a list of index hash entries for a block at a given time.
+type IndexHashBlock struct {
+	StartTime   time.Time
+	IndexHashes []IndexHash
+}
+
+// IndexHash is an entry from the index file describing a hash of the ID.
+type IndexHash struct {
+	IDHash       uint64
+	DataChecksum uint32
 }

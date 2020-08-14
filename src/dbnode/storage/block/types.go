@@ -234,17 +234,6 @@ type OnRetrieveBlock interface {
 	)
 }
 
-// OnRetrieveIndexHash is an interface to callback on when an index hash is retrieved.
-type OnRetrieveIndexHash interface {
-	OnRetrieveIndexHash(
-		id ident.ID,
-		tags ident.TagIterator,
-		startTime time.Time,
-		segment ts.Segment,
-		nsCtx namespace.Context,
-	)
-}
-
 // OnReadBlock is an interface to callback on when a block is read.
 type OnReadBlock interface {
 	OnReadBlock(b DatabaseBlock)
@@ -294,6 +283,15 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
+	// StreamIndexHash will stream block index hashes for a given id and start.
+	StreamIndexHash(
+		ctx context.Context,
+		shard uint32,
+		id ident.ID,
+		startTime time.Time,
+		nsCtx namespace.Context,
+	) (ident.IndexHash, bool, error)
+
 	AssignShardSet(shardSet sharding.ShardSet)
 }
 
@@ -307,6 +305,14 @@ type DatabaseShardBlockRetriever interface {
 		onRetrieve OnRetrieveBlock,
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
+
+	// StreamIndexHash will stream block index hashes for a given id and start.
+	StreamIndexHash(
+		ctx context.Context,
+		id ident.ID,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (ident.IndexHash, bool, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

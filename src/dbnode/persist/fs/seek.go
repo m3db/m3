@@ -93,18 +93,6 @@ type IndexEntry struct {
 	EncodedTags  checked.Bytes
 }
 
-// IndexHashBlock is a list of index hash entries for a block at a given time.
-type IndexHashBlock struct {
-	StartTime   time.Time
-	IndexHashes []IndexHash
-}
-
-// IndexHash is an entry from the index file describing a hash of the ID.
-type IndexHash struct {
-	IDHash       uint64
-	DataChecksum uint32
-}
-
 // NewSeeker returns a new seeker.
 func NewSeeker(
 	filePathPrefix string,
@@ -487,12 +475,12 @@ func (s *seeker) SeekIndexEntry(
 func (s *seeker) SeekIndexEntryToIndexHash(
 	id ident.ID,
 	resources ReusableSeekerResources,
-) (IndexHash, error) {
+) (ident.IndexHash, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted.
 	if err != nil {
-		return IndexHash{}, err
+		return ident.IndexHash{}, err
 	}
 
 	resources.offsetFileReader.reset(s.indexFd, offset)
@@ -511,17 +499,17 @@ func (s *seeker) SeekIndexEntryToIndexHash(
 		entry, err := resources.xmsgpackDecoder.DecodeIndexEntryToIndexHash(resources.decodeIndexEntryBytesPool)
 		if err == io.EOF {
 			// We reached the end of the file without finding it.
-			return IndexHash{}, errSeekIDNotFound
+			return ident.IndexHash{}, errSeekIDNotFound
 		}
 		if err != nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return IndexHash{}, instrument.InvariantErrorf(err.Error())
+			return ident.IndexHash{}, instrument.InvariantErrorf(err.Error())
 		}
 		if entry.ID == nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return IndexHash{},
+			return ident.IndexHash{},
 				instrument.InvariantErrorf("decoded index entry had no ID for: %s", id.String())
 		}
 
@@ -529,7 +517,7 @@ func (s *seeker) SeekIndexEntryToIndexHash(
 		if comparison == 0 {
 			// Safe to return resources to the pool because the hash already exists.
 			resources.decodeIndexEntryBytesPool.Put(entry.ID)
-			return IndexHash{
+			return ident.IndexHash{
 				IDHash:       idHash,
 				DataChecksum: uint32(entry.DataChecksum),
 			}, nil
@@ -541,7 +529,7 @@ func (s *seeker) SeekIndexEntryToIndexHash(
 		// We've scanned far enough through the index file to be sure that the ID
 		// we're looking for doesn't exist (because the index is sorted by ID)
 		if comparison == 1 {
-			return IndexHash{}, errSeekIDNotFound
+			return ident.IndexHash{}, errSeekIDNotFound
 		}
 	}
 }

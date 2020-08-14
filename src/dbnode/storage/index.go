@@ -1508,7 +1508,7 @@ func (i *nsIndex) queryWithSpan(
 		// the loop.
 		seriesCount := results.Size()
 		docsCount := results.TotalDocsCount()
-		alreadyExceededLimit := opts.limitsExceeded(seriesCount, docsCount)
+		alreadyExceededLimit := opts.LimitsExceeded(seriesCount, docsCount)
 		if alreadyExceededLimit {
 			state.Lock()
 			state.exhaustive = false

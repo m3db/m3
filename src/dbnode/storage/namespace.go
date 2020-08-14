@@ -859,8 +859,22 @@ func (n *dbNamespace) ReadEncoded(
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
-	// ARTEM shard read encoded.
 	res, err := shard.ReadEncoded(ctx, id, start, end, nsCtx)
+	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
+}
+func (n *dbNamespace) IndexHashes(
+	ctx context.Context,
+	id ident.ID,
+	start, end time.Time,
+) ([]ident.IndexHashBlock, error) {
+	callStart := n.nowFn()
+	shard, nsCtx, err := n.readableShardFor(id)
+	if err != nil {
+		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
+		return nil, err
+	}
+	res, err := shard.IndexHashes(ctx, id, start, end, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

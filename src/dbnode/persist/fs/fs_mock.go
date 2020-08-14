@@ -490,10 +490,10 @@ func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1 interface
 }
 
 // SeekIndexEntryToIndexHash mocks base method
-func (m *MockDataFileSetSeeker) SeekIndexEntryToIndexHash(arg0 ident.ID, arg1 ReusableSeekerResources) (IndexHash, error) {
+func (m *MockDataFileSetSeeker) SeekIndexEntryToIndexHash(arg0 ident.ID, arg1 ReusableSeekerResources) (ident.IndexHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexHash", arg0, arg1)
-	ret0, _ := ret[0].(IndexHash)
+	ret0, _ := ret[0].(ident.IndexHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1226,10 +1226,10 @@ func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1
 }
 
 // SeekIndexEntryToIndexHash mocks base method
-func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntryToIndexHash(arg0 ident.ID, arg1 ReusableSeekerResources) (IndexHash, error) {
+func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntryToIndexHash(arg0 ident.ID, arg1 ReusableSeekerResources) (ident.IndexHash, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexHash", arg0, arg1)
-	ret0, _ := ret[0].(IndexHash)
+	ret0, _ := ret[0].(ident.IndexHash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

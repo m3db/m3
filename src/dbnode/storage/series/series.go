@@ -403,6 +403,19 @@ func (s *dbSeries) ReadEncoded(
 	return r, err
 }
 
+func (s *dbSeries) IndexHashes(
+	ctx context.Context,
+	start, end time.Time,
+	nsCtx namespace.Context,
+) ([]ident.IndexHashBlock, error) {
+	s.RLock()
+	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
+	// ARTEM THIS IS USED
+	r, err := reader.indexHashes(ctx, start, end, nsCtx)
+	s.RUnlock()
+	return r, err
+}
+
 func (s *dbSeries) FetchBlocksForColdFlush(
 	ctx context.Context,
 	start time.Time,

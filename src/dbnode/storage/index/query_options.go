@@ -50,7 +50,8 @@ func (o QueryOptions) DocsLimitExceeded(size int) bool {
 	return o.DocsLimit > 0 && size >= o.DocsLimit
 }
 
-func (o QueryOptions) limitsExceeded(seriesCount, docsCount int) bool {
+// LimitsExceeded returns whether a given size exceeds the given limits.
+func (o QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
 	if o.IndexHashQuery {
 		return false
 	}

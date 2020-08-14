@@ -499,7 +499,7 @@ func (b *block) queryWithSpan(
 
 	// does a similar thing to this.
 	for iter.Next() {
-		if opts.limitsExceeded(size, docsCount) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
@@ -667,7 +667,7 @@ func (b *block) aggregateWithSpan(
 
 	segs := b.segmentsWithRLock()
 	for _, s := range segs {
-		if opts.limitsExceeded(size, docsCount) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
@@ -678,7 +678,7 @@ func (b *block) aggregateWithSpan(
 		iterClosed = false // only once the iterator has been successfully Reset().
 
 		for iter.Next() {
-			if opts.limitsExceeded(size, docsCount) {
+			if opts.LimitsExceeded(size, docsCount) {
 				break
 			}
 
