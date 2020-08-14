@@ -71,8 +71,6 @@ func NewReaderUsingRetriever(
 }
 
 // ReadEncoded reads encoded blocks using just a block retriever.
-// ARTEM: PLAN HERE IS TO MAKE ONE OF THESE THAT WILL:
-// READ FR
 func (r Reader) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
@@ -204,6 +202,15 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	}
 
 	return results, nil
+}
+
+// IndexHashes reads index haches blocks using just a block retriever.
+func (r Reader) IndexHashes(
+	ctx context.Context,
+	start, end time.Time,
+	nsCtx namespace.Context,
+) ([]ident.IndexHashBlock, error) {
+	return r.indexHashes(ctx, start, end, nsCtx)
 }
 
 func (r Reader) indexHashes(

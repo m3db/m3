@@ -1302,16 +1302,15 @@ func (i *nsIndex) Query(
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
 
-	ctx, sp := ctx.StartTraceSpan(opts.NSIdxTracepoint())
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQuery)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
 	// Get results and set the namespace ID and size limit.
 	results := i.resultsPool.Get()
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
-		SizeLimit:     opts.SeriesLimit,
-		FilterID:      i.shardsFilterID(),
-		OnlySeriesIDs: opts.IndexHashQuery,
+		SizeLimit: opts.SeriesLimit,
+		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
 	// ARNIKOLA: reverseIndex.Query is this.
@@ -1378,6 +1377,51 @@ func (i *nsIndex) AggregateQuery(
 		Exhaustive: exhaustive,
 	}, nil
 }
+
+// func (i *nsIndex) QueryIndexHashes(
+// 	ctx context.Context,
+// 	query index.Query,
+// 	opts index.QueryOptions,
+// ) ([]fs.IndexHashBlock, error) {
+// 	logFields := []opentracinglog.Field{
+// 		opentracinglog.String("query", query.String()),
+// 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
+// 		opentracinglog.Int("docsLimit", opts.DocsLimit),
+// 		xopentracing.Time("queryStart", opts.StartInclusive),
+// 		xopentracing.Time("queryEnd", opts.EndExclusive),
+// 	}
+
+// 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxIndexHashQuery)
+// 	sp.LogFields(logFields...)
+// 	defer sp.Finish()
+
+// 	// Get results and set the namespace ID and size limit.
+// 	results := i.resultsPool.Get()
+// 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
+// 		SizeLimit:     opts.SeriesLimit,
+// 		FilterID:      i.shardsFilterID(),
+// 		OnlySeriesIDs: true,
+// 	})
+// 	ctx.RegisterFinalizer(results)
+// 	_, err := i.query(ctx, query, results, opts, i.execIndexHashFn, logFields)
+// 	if err != nil {
+// 		sp.LogFields(opentracinglog.Error(err))
+// 		return nil, err
+// 	}
+
+// 	// ARNIKOLA: reverseIndex.Query is this.
+// 	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields)
+// 	if err != nil {
+// 		sp.LogFields(opentracinglog.Error(err))
+// 		return index.QueryResult{}, err
+// 	}
+// 	return index.QueryResult{
+// 		Results:    results,
+// 		Exhaustive: exhaustive,
+// 	}, nil
+// 	// this needs to transform results into []fs.IndexHashBlock.
+// 	return nil, nil
+// }
 
 func (i *nsIndex) query(
 	ctx context.Context,
@@ -1508,7 +1552,7 @@ func (i *nsIndex) queryWithSpan(
 		// the loop.
 		seriesCount := results.Size()
 		docsCount := results.TotalDocsCount()
-		alreadyExceededLimit := opts.LimitsExceeded(seriesCount, docsCount)
+		alreadyExceededLimit := opts.SeriesLimitExceeded(seriesCount) || opts.DocsLimitExceeded(docsCount)
 		if alreadyExceededLimit {
 			state.Lock()
 			state.exhaustive = false
@@ -1680,44 +1724,6 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 		state.multiErr = state.multiErr.Add(err)
 	}
 	state.exhaustive = state.exhaustive && blockExhaustive
-}
-
-// ARTEM THIS IS THE ONE USED FOR QUERY. TODO: make a copy of this that calls .IndexHash.
-func (i *nsIndex) execIndexHashFn(
-	ctx context.Context,
-	cancellable *resource.CancellableLifetime,
-	block index.Block,
-	query index.Query,
-	opts index.QueryOptions,
-	state *asyncQueryExecState,
-	results index.BaseResults,
-	logFields []opentracinglog.Field,
-) {
-	logFields = append(logFields,
-		xopentracing.Time("blockStart", block.StartTime()),
-		xopentracing.Time("blockEnd", block.EndTime()),
-	)
-
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxIndexHash)
-	sp.LogFields(logFields...)
-	defer sp.Finish()
-
-	err := block.IndexHash(ctx, cancellable, query, opts, results, logFields)
-	if err == index.ErrUnableToQueryBlockClosed {
-		// NB(r): Because we query this block outside of the results lock, it's
-		// possible this block may get closed if it slides out of retention, in
-		// that case those results are no longer considered valid and outside of
-		// retention regardless, so this is a non-issue.
-		err = nil
-	}
-
-	state.Lock()
-	defer state.Unlock()
-
-	if err != nil {
-		sp.LogFields(opentracinglog.Error(err))
-		state.multiErr = state.multiErr.Add(err)
-	}
 }
 
 func (i *nsIndex) timeoutForQueryWithRLock(

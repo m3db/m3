@@ -11091,19 +11091,21 @@ func (p *IndexHashResult_) String() string {
 }
 
 // Attributes:
-//  - BlockStart
+//  - IndexHash
 //  - Results
+//  - Err
 type IndexHashListForBlock struct {
-	BlockStart int64                     `thrift:"blockStart,1,required" db:"blockStart" json:"blockStart"`
-	Results    []*IndexHashResultElement `thrift:"results,2" db:"results" json:"results,omitempty"`
+	IndexHash int64                     `thrift:"indexHash,1,required" db:"indexHash" json:"indexHash"`
+	Results   []*IndexHashResultElement `thrift:"results,2" db:"results" json:"results,omitempty"`
+	Err       *Error                    `thrift:"err,3" db:"err" json:"err,omitempty"`
 }
 
 func NewIndexHashListForBlock() *IndexHashListForBlock {
 	return &IndexHashListForBlock{}
 }
 
-func (p *IndexHashListForBlock) GetBlockStart() int64 {
-	return p.BlockStart
+func (p *IndexHashListForBlock) GetIndexHash() int64 {
+	return p.IndexHash
 }
 
 var IndexHashListForBlock_Results_DEFAULT []*IndexHashResultElement
@@ -11111,8 +11113,21 @@ var IndexHashListForBlock_Results_DEFAULT []*IndexHashResultElement
 func (p *IndexHashListForBlock) GetResults() []*IndexHashResultElement {
 	return p.Results
 }
+
+var IndexHashListForBlock_Err_DEFAULT *Error
+
+func (p *IndexHashListForBlock) GetErr() *Error {
+	if !p.IsSetErr() {
+		return IndexHashListForBlock_Err_DEFAULT
+	}
+	return p.Err
+}
 func (p *IndexHashListForBlock) IsSetResults() bool {
 	return p.Results != nil
+}
+
+func (p *IndexHashListForBlock) IsSetErr() bool {
+	return p.Err != nil
 }
 
 func (p *IndexHashListForBlock) Read(iprot thrift.TProtocol) error {
@@ -11120,7 +11135,7 @@ func (p *IndexHashListForBlock) Read(iprot thrift.TProtocol) error {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
-	var issetBlockStart bool = false
+	var issetIndexHash bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -11135,9 +11150,13 @@ func (p *IndexHashListForBlock) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField1(iprot); err != nil {
 				return err
 			}
-			issetBlockStart = true
+			issetIndexHash = true
 		case 2:
 			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
 				return err
 			}
 		default:
@@ -11152,8 +11171,8 @@ func (p *IndexHashListForBlock) Read(iprot thrift.TProtocol) error {
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 	}
-	if !issetBlockStart {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field BlockStart is not set"))
+	if !issetIndexHash {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field IndexHash is not set"))
 	}
 	return nil
 }
@@ -11162,7 +11181,7 @@ func (p *IndexHashListForBlock) ReadField1(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
-		p.BlockStart = v
+		p.IndexHash = v
 	}
 	return nil
 }
@@ -11187,6 +11206,16 @@ func (p *IndexHashListForBlock) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *IndexHashListForBlock) ReadField3(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
 func (p *IndexHashListForBlock) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("IndexHashListForBlock"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -11196,6 +11225,9 @@ func (p *IndexHashListForBlock) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -11209,14 +11241,14 @@ func (p *IndexHashListForBlock) Write(oprot thrift.TProtocol) error {
 }
 
 func (p *IndexHashListForBlock) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("blockStart", thrift.I64, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:blockStart: ", p), err)
+	if err := oprot.WriteFieldBegin("indexHash", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:indexHash: ", p), err)
 	}
-	if err := oprot.WriteI64(int64(p.BlockStart)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.blockStart (1) field write error: ", p), err)
+	if err := oprot.WriteI64(int64(p.IndexHash)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.indexHash (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:blockStart: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:indexHash: ", p), err)
 	}
 	return err
 }
@@ -11244,6 +11276,21 @@ func (p *IndexHashListForBlock) writeField2(oprot thrift.TProtocol) (err error) 
 	return err
 }
 
+func (p *IndexHashListForBlock) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:err: ", p), err)
+		}
+	}
+	return err
+}
+
 func (p *IndexHashListForBlock) String() string {
 	if p == nil {
 		return "<nil>"
@@ -11252,10 +11299,10 @@ func (p *IndexHashListForBlock) String() string {
 }
 
 // Attributes:
-//  - IndexHash
+//  - BlockStart
 //  - DataChecksum
 type IndexHashResultElement struct {
-	IndexHash    int64 `thrift:"indexHash,1,required" db:"indexHash" json:"indexHash"`
+	BlockStart   int64 `thrift:"blockStart,1,required" db:"blockStart" json:"blockStart"`
 	DataChecksum int64 `thrift:"dataChecksum,2,required" db:"dataChecksum" json:"dataChecksum"`
 }
 
@@ -11263,8 +11310,8 @@ func NewIndexHashResultElement() *IndexHashResultElement {
 	return &IndexHashResultElement{}
 }
 
-func (p *IndexHashResultElement) GetIndexHash() int64 {
-	return p.IndexHash
+func (p *IndexHashResultElement) GetBlockStart() int64 {
+	return p.BlockStart
 }
 
 func (p *IndexHashResultElement) GetDataChecksum() int64 {
@@ -11275,7 +11322,7 @@ func (p *IndexHashResultElement) Read(iprot thrift.TProtocol) error {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
-	var issetIndexHash bool = false
+	var issetBlockStart bool = false
 	var issetDataChecksum bool = false
 
 	for {
@@ -11291,7 +11338,7 @@ func (p *IndexHashResultElement) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField1(iprot); err != nil {
 				return err
 			}
-			issetIndexHash = true
+			issetBlockStart = true
 		case 2:
 			if err := p.ReadField2(iprot); err != nil {
 				return err
@@ -11309,8 +11356,8 @@ func (p *IndexHashResultElement) Read(iprot thrift.TProtocol) error {
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 	}
-	if !issetIndexHash {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field IndexHash is not set"))
+	if !issetBlockStart {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field BlockStart is not set"))
 	}
 	if !issetDataChecksum {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field DataChecksum is not set"))
@@ -11322,7 +11369,7 @@ func (p *IndexHashResultElement) ReadField1(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
-		p.IndexHash = v
+		p.BlockStart = v
 	}
 	return nil
 }
@@ -11358,14 +11405,14 @@ func (p *IndexHashResultElement) Write(oprot thrift.TProtocol) error {
 }
 
 func (p *IndexHashResultElement) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("indexHash", thrift.I64, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:indexHash: ", p), err)
+	if err := oprot.WriteFieldBegin("blockStart", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:blockStart: ", p), err)
 	}
-	if err := oprot.WriteI64(int64(p.IndexHash)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.indexHash (1) field write error: ", p), err)
+	if err := oprot.WriteI64(int64(p.BlockStart)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.blockStart (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:indexHash: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:blockStart: ", p), err)
 	}
 	return err
 }

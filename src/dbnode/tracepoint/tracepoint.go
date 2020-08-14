@@ -49,6 +49,9 @@ const (
 	// IndexHash is the operation name for the tchannelthrift IndexHash path.
 	IndexHash = "tchannelthrift/node.service.IndexHash"
 
+	// IndexHashSingleResult is the operation name for the tchannelthrift IndexHashSingleResult path.
+	IndexHashSingleResult = "tchannelthrift/node.service.IndexHashSingleResult"
+
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
 

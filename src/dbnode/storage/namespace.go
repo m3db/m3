@@ -863,6 +863,7 @@ func (n *dbNamespace) ReadEncoded(
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }
+
 func (n *dbNamespace) IndexHashes(
 	ctx context.Context,
 	id ident.ID,

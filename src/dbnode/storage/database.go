@@ -897,7 +897,6 @@ func (d *db) IndexHashes(
 	id ident.ID,
 	start, end time.Time,
 ) ([]ident.IndexHashBlock, error) {
-	// TODO: fix these tracepoints.
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexHash)
 	if sampled {
 		sp.LogFields(
@@ -915,7 +914,6 @@ func (d *db) IndexHashes(
 		return nil, err
 	}
 
-	// ARTEM ns read encoded.
 	return n.IndexHashes(ctx, id, start, end)
 }
 

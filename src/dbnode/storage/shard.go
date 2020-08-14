@@ -375,6 +375,16 @@ func (s *dbShard) Stream(
 	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve, nsCtx)
 }
 
+// Stream implements series.QueryableBlockRetriever
+func (s *dbShard) StreamIndexHash(
+	ctx context.Context,
+	id ident.ID,
+	blockStart time.Time,
+	nsCtx namespace.Context,
+) (ident.IndexHash, bool, error) {
+	return s.DatabaseBlockRetriever.StreamIndexHash(ctx, s.shard, id, blockStart, nsCtx)
+}
+
 // IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) (bool, error) {
 	return s.hasWarmFlushed(blockStart)
@@ -1117,7 +1127,7 @@ func (s *dbShard) IndexHashes(
 	id ident.ID,
 	start, end time.Time,
 	nsCtx namespace.Context,
-) ([]ident.IndexHash, error) {
+) ([]ident.IndexHashBlock, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {
@@ -1139,14 +1149,13 @@ func (s *dbShard) IndexHashes(
 	}
 
 	if entry != nil {
-		return entry.Series.ReadEncoded(ctx, start, end, nsCtx)
+		return entry.Series.IndexHashes(ctx, start, end, nsCtx)
 	}
 
 	retriever := s.seriesBlockRetriever
-	onRetrieve := s.seriesOnRetrieveBlock
 	opts := s.seriesOpts
-	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
-	return reader.ReadEncoded(ctx, start, end, nsCtx)
+	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
+	return reader.IndexHashes(ctx, start, end, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

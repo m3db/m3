@@ -343,6 +343,21 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
 }
 
+// IndexHashes mocks base method
+func (m *MockDatabase) IndexHashes(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([]ident.IndexHashBlock, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexHashes", ctx, namespace, id, start, end)
+	ret0, _ := ret[0].([]ident.IndexHashBlock)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IndexHashes indicates an expected call of IndexHashes
+func (mr *MockDatabaseMockRecorder) IndexHashes(ctx, namespace, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexHashes", reflect.TypeOf((*MockDatabase)(nil).IndexHashes), ctx, namespace, id, start, end)
+}
+
 // FetchBlocks mocks base method
 func (m *MockDatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
@@ -736,6 +751,21 @@ func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, 
 func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*Mockdatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
+}
+
+// IndexHashes mocks base method
+func (m *Mockdatabase) IndexHashes(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([]ident.IndexHashBlock, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexHashes", ctx, namespace, id, start, end)
+	ret0, _ := ret[0].([]ident.IndexHashBlock)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IndexHashes indicates an expected call of IndexHashes
+func (mr *MockdatabaseMockRecorder) IndexHashes(ctx, namespace, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexHashes", reflect.TypeOf((*Mockdatabase)(nil).IndexHashes), ctx, namespace, id, start, end)
 }
 
 // FetchBlocks mocks base method
@@ -1313,6 +1343,21 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadEncoded), ctx, id, start, end)
 }
 
+// IndexHashes mocks base method
+func (m *MockdatabaseNamespace) IndexHashes(ctx context.Context, id ident.ID, start, end time.Time) ([]ident.IndexHashBlock, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexHashes", ctx, id, start, end)
+	ret0, _ := ret[0].([]ident.IndexHashBlock)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IndexHashes indicates an expected call of IndexHashes
+func (mr *MockdatabaseNamespaceMockRecorder) IndexHashes(ctx, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexHashes", reflect.TypeOf((*MockdatabaseNamespace)(nil).IndexHashes), ctx, id, start, end)
+}
+
 // FetchBlocks mocks base method
 func (m *MockdatabaseNamespace) FetchBlocks(ctx context.Context, shardID uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
@@ -1774,6 +1819,21 @@ func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start,
 func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseShard)(nil).ReadEncoded), ctx, id, start, end, nsCtx)
+}
+
+// IndexHashes mocks base method
+func (m *MockdatabaseShard) IndexHashes(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) ([]ident.IndexHashBlock, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexHashes", ctx, id, start, end, nsCtx)
+	ret0, _ := ret[0].([]ident.IndexHashBlock)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IndexHashes indicates an expected call of IndexHashes
+func (mr *MockdatabaseShardMockRecorder) IndexHashes(ctx, id, start, end, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexHashes", reflect.TypeOf((*MockdatabaseShard)(nil).IndexHashes), ctx, id, start, end, nsCtx)
 }
 
 // FetchBlocks mocks base method

@@ -715,8 +715,6 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	defer sp.Finish()
 
 	i := 0
-	// ARTEM Unroll query map here. OK THIS THING DOES ONE BY ONE, I THINK
-	// I WANT TO DO STREAMING, SO RESULT MAP WILL BE A CHANNEL.
 	for _, entry := range results.Map().Iter() {
 		idx := i
 		i++
@@ -741,7 +739,6 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 			continue
 		}
 
-		// ARTEM id is used here for the fetch.
 		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
 			opts.StartInclusive, opts.EndExclusive)
 		if err != nil {
@@ -913,87 +910,64 @@ func (s *service) indexHash(ctx context.Context, db storage.Database, req *rpc.F
 	opts.DocsLimit = 0
 	opts.IndexHashQuery = true
 
-	results, err := db.QueryIDs(ctx, ns, query, opts)
+	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
 	if err != nil {
 		s.metrics.indexHash.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
 
-	blocks := make([]*rpc.IndexHashListForBlock, 0, len(results))
-	for _, bl := range results {
-		hashList := make([]*rpc.IndexHashResultElement, 0, len(bl.IndexHashes))
-		for _, hash := range bl.IndexHashes {
-			hashList = append(hashList, &rpc.IndexHashResultElement{
-				IndexHash:    int64(hash.IDHash),
-				DataChecksum: int64(hash.DataChecksum),
-			})
-		}
+	results := queryResult.Results
+	response := &rpc.IndexHashResult_{
+		Blocks: make([]*rpc.IndexHashListForBlock, 0, results.Size()),
+	}
 
-		blocks = append(blocks, &rpc.IndexHashListForBlock{
-			BlockStart: bl.StartTime.UnixNano(),
-			Results:    hashList,
-		})
+	nsID := results.Namespace()
+	if err := s.indexHashSingle(ctx, db, response, results, nsID, opts); err != nil {
+		s.metrics.indexHash.ReportError(s.nowFn().Sub(callStart))
+		return nil, err
 	}
 
 	s.metrics.indexHash.ReportSuccess(s.nowFn().Sub(callStart))
-	return &rpc.IndexHashResult_{
-		Blocks: blocks,
-	}, nil
+	return response, nil
 }
 
-func (s *service) indexHashEncoded(ctx context.Context,
+func (s *service) indexHashSingle(ctx context.Context,
 	db storage.Database,
-	response *rpc.FetchTaggedResult_,
+	response *rpc.IndexHashResult_,
 	results index.QueryResults,
 	nsID ident.ID,
-	nsIDBytes []byte,
-	callStart time.Time,
 	opts index.QueryOptions,
-	fetchData bool,
-	encodedDataResults [][][]xio.BlockReader,
 ) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexHash)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("id", nsID.String()),
-			xopentracing.Time("callStart", callStart),
 		)
 	}
 	defer sp.Finish()
 
 	i := 0
 	for _, entry := range results.Map().Iter() {
-		idx := i
 		i++
 
 		tsID := entry.Key()
-		tags := entry.Value()
-		enc := s.pools.tagEncoder.Get()
-		ctx.RegisterFinalizer(enc)
-		encodedTags, err := s.encodeTags(enc, tags)
-		if err != nil { // This is an invariant, should never happen
-			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-			return tterrors.NewInternalError(err)
-		}
+		elem := &rpc.IndexHashListForBlock{}
+		response.Blocks = append(response.Blocks, elem)
 
-		elem := &rpc.FetchTaggedIDResult_{
-			NameSpace:   nsIDBytes,
-			ID:          tsID.Bytes(),
-			EncodedTags: encodedTags.Bytes(),
-		}
-		response.Elements = append(response.Elements, elem)
-		if !fetchData {
+		idxHash, err := db.IndexHashes(ctx, nsID, tsID,
+			opts.StartInclusive, opts.EndExclusive)
+		if err != nil {
+			response.Blocks = append(response.Blocks, &rpc.IndexHashListForBlock{
+				Err: convert.ToRPCError(err),
+			})
 			continue
 		}
 
-		// ARTEM id is used here for the fetch.
-		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
-			opts.StartInclusive, opts.EndExclusive)
-		if err != nil {
-			elem.Err = convert.ToRPCError(err)
-		} else {
-			encodedDataResults[idx] = encoded
-		}
+		len(idxHash)
+
+		response.Blocks = append(response.Blocks, &rpc.IndexHashListForBlock{
+			Err: convert.ToRPCError(err),
+		})
 	}
 	return nil
 }

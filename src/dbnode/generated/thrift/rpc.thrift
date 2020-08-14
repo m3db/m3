@@ -436,12 +436,13 @@ struct IndexHashResult {
 }
 
 struct IndexHashListForBlock {
-	1: required i64 blockStart
+	1: required i64 indexHash
 	2: optional list<IndexHashResultElement> results
+	3: optional Error err
 }
 
 struct IndexHashResultElement {
-	1: required i64 indexHash
+	1: required i64 blockStart
 	2: required i64 dataChecksum
 }
 
