@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -172,7 +173,6 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 					return nil, err
 				}
 				if isRetrievable {
-					// ARTEM streams here.
 					streamedBlock, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve, nsCtx)
 					if err != nil {
 						return nil, err
@@ -209,7 +209,7 @@ func (r Reader) IndexHashes(
 	ctx context.Context,
 	start, end time.Time,
 	nsCtx namespace.Context,
-) ([]ident.IndexHashBlock, error) {
+) (ident.IndexHashBlock, error) {
 	return r.indexHashes(ctx, start, end, nsCtx)
 }
 
@@ -219,20 +219,9 @@ func (r Reader) indexHashes(
 	// seriesBlocks block.DatabaseSeriesBlocks,
 	// seriesBuffer databaseBuffer,
 	nsCtx namespace.Context,
-) ([]ident.IndexHashBlock, error) {
-	// Two-dimensional slice such that the first dimension is unique by blockstart
-	// and the second dimension is blocks of data for that blockstart (not necessarily
-	// in chronological order).
-	//
-	// ex. (querying 2P.M -> 6P.M with a 2-hour blocksize):
-	// [][]xio.BlockReader{
-	//   {block0, block1, block2}, // <- 2P.M
-	//   {block0, block1}, // <-4P.M
-	// }
-	var results []ident.IndexHashBlock
-
+) (ident.IndexHashBlock, error) {
 	if end.Before(start) {
-		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
+		return ident.IndexHashBlock{}, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
 	}
 
 	var (
@@ -260,41 +249,35 @@ func (r Reader) indexHashes(
 	}
 
 	first, last := alignedStart, alignedEnd
+	var indexHashes []ident.IndexHash
 	for blockAt := first; !blockAt.After(last); blockAt = blockAt.Add(size) {
-		// It is important to look for data in the series buffer one block at
-		// a time within this loop so that the returned results contain data
-		// from blocks in chronological order. Failure to do this will result
-		// in an out of order error in the MultiReaderIterator on query.
-		var resultsBlock []ident.IndexHash
-
-		if r.retriever != nil {
-			// Try to stream from disk
-			isRetrievable, err := r.retriever.IsBlockRetrievable(blockAt)
-			if err != nil {
-				return nil, err
-			}
-			if isRetrievable {
-				// ARTEM streams here.
-				streamedBlock, found, err := r.retriever.StreamIndexHash(ctx, r.id, blockAt, nsCtx)
-				if err != nil {
-					return nil, err
-				}
-				if !found {
-					continue
-				}
-				resultsBlock = append(resultsBlock, streamedBlock)
-			}
-
-			if len(resultsBlock) > 0 {
-				results = append(results, ident.IndexHashBlock{
-					StartTime:   blockAt,
-					IndexHashes: resultsBlock,
-				})
-			}
+		if r.retriever == nil {
+			continue
 		}
+		// Try to stream from disk
+		isRetrievable, err := r.retriever.IsBlockRetrievable(blockAt)
+		if err != nil {
+			return ident.IndexHashBlock{}, err
+		} else if !isRetrievable {
+			continue
+		}
+
+		streamedBlock, found, err := r.retriever.StreamIndexHash(ctx, r.id, blockAt, nsCtx)
+		if err != nil {
+			return ident.IndexHashBlock{}, err
+		}
+		if !found {
+			continue
+		}
+
+		streamedBlock.BlockStart = blockAt
+		indexHashes = append(indexHashes, streamedBlock)
 	}
 
-	return results, nil
+	return ident.IndexHashBlock{
+		IDHash:      xxhash.Sum64(r.id.Bytes()),
+		IndexHashes: indexHashes,
+	}, nil
 }
 
 // FetchBlocks returns data blocks given a list of block start times using
@@ -381,7 +364,6 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 				}
 
 				if isRetrievable {
-					// ARTEM streams here.
 					streamedBlock, err := r.retriever.Stream(ctx, r.id, start, onRetrieve, nsCtx)
 					if err != nil {
 						// Short-circuit this entire blockstart if an error was encountered.

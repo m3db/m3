@@ -90,7 +90,7 @@ type DatabaseSeries interface {
 		ctx context.Context,
 		start, end time.Time,
 		nsCtx namespace.Context,
-	) ([]ident.IndexHashBlock, error)
+	) (ident.IndexHashBlock, error)
 
 	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(

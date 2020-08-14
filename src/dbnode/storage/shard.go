@@ -371,7 +371,6 @@ func (s *dbShard) Stream(
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
-	// ARTEM streams here. From retriever.
 	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve, nsCtx)
 }
 
@@ -1127,7 +1126,7 @@ func (s *dbShard) IndexHashes(
 	id ident.ID,
 	start, end time.Time,
 	nsCtx namespace.Context,
-) ([]ident.IndexHashBlock, error) {
+) (ident.IndexHashBlock, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {
@@ -1142,10 +1141,10 @@ func (s *dbShard) IndexHashes(
 		switch s.opts.SeriesCachePolicy() {
 		case series.CacheAll:
 			// No-op, would be in memory if cached
-			return nil, nil
+			return ident.IndexHashBlock{}, nil
 		}
 	} else if err != nil {
-		return nil, err
+		return ident.IndexHashBlock{}, err
 	}
 
 	if entry != nil {

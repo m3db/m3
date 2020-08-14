@@ -887,7 +887,6 @@ func (d *db) ReadEncoded(
 		return nil, err
 	}
 
-	// ARTEM ns read encoded.
 	return n.ReadEncoded(ctx, id, start, end)
 }
 
@@ -896,7 +895,7 @@ func (d *db) IndexHashes(
 	namespace ident.ID,
 	id ident.ID,
 	start, end time.Time,
-) ([]ident.IndexHashBlock, error) {
+) (ident.IndexHashBlock, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexHash)
 	if sampled {
 		sp.LogFields(
@@ -911,7 +910,7 @@ func (d *db) IndexHashes(
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return nil, err
+		return ident.IndexHashBlock{}, err
 	}
 
 	return n.IndexHashes(ctx, id, start, end)

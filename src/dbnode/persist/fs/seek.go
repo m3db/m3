@@ -29,7 +29,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/dbnode/digest"
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -488,7 +487,6 @@ func (s *seeker) SeekIndexEntryToIndexHash(
 	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
 
 	idBytes := id.Bytes()
-	idHash := xxhash.Sum64(idBytes)
 	for {
 		// Use the bytesPool on resources here because its designed for this express purpose
 		// and is much faster / cheaper than the checked bytes pool which has a lot of
@@ -518,7 +516,6 @@ func (s *seeker) SeekIndexEntryToIndexHash(
 			// Safe to return resources to the pool because the hash already exists.
 			resources.decodeIndexEntryBytesPool.Put(entry.ID)
 			return ident.IndexHash{
-				IDHash:       idHash,
 				DataChecksum: uint32(entry.DataChecksum),
 			}, nil
 		}

@@ -963,10 +963,18 @@ func (s *service) indexHashSingle(ctx context.Context,
 			continue
 		}
 
-		len(idxHash)
+		// TODO: consider pooling these.
+		hashResults := make([]*rpc.IndexHashResultElement, 0, len(idxHash.IndexHashes))
+		for _, h := range idxHash.IndexHashes {
+			hashResults = append(hashResults, &rpc.IndexHashResultElement{
+				BlockStart:   h.BlockStart.UnixNano(),
+				DataChecksum: int64(h.DataChecksum),
+			})
+		}
 
 		response.Blocks = append(response.Blocks, &rpc.IndexHashListForBlock{
-			Err: convert.ToRPCError(err),
+			IndexHash: int64(idxHash.IDHash),
+			Results:   hashResults,
 		})
 	}
 	return nil
@@ -1185,7 +1193,6 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 			blockStarts = append(blockStarts, xtime.FromNanoseconds(start))
 		}
 
-		// ARTEM here it's done per element?
 		tsID := s.newID(ctx, request.ID)
 		fetched, err := db.FetchBlocks(
 			ctx, nsID, uint32(req.Shard), tsID, blockStarts)

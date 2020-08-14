@@ -344,10 +344,10 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // IndexHashes mocks base method
-func (m *MockDatabase) IndexHashes(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([]ident.IndexHashBlock, error) {
+func (m *MockDatabase) IndexHashes(ctx context.Context, namespace, id ident.ID, start, end time.Time) (ident.IndexHashBlock, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexHashes", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].([]ident.IndexHashBlock)
+	ret0, _ := ret[0].(ident.IndexHashBlock)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -754,10 +754,10 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // IndexHashes mocks base method
-func (m *Mockdatabase) IndexHashes(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([]ident.IndexHashBlock, error) {
+func (m *Mockdatabase) IndexHashes(ctx context.Context, namespace, id ident.ID, start, end time.Time) (ident.IndexHashBlock, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexHashes", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].([]ident.IndexHashBlock)
+	ret0, _ := ret[0].(ident.IndexHashBlock)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1344,10 +1344,10 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end int
 }
 
 // IndexHashes mocks base method
-func (m *MockdatabaseNamespace) IndexHashes(ctx context.Context, id ident.ID, start, end time.Time) ([]ident.IndexHashBlock, error) {
+func (m *MockdatabaseNamespace) IndexHashes(ctx context.Context, id ident.ID, start, end time.Time) (ident.IndexHashBlock, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexHashes", ctx, id, start, end)
-	ret0, _ := ret[0].([]ident.IndexHashBlock)
+	ret0, _ := ret[0].(ident.IndexHashBlock)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1822,10 +1822,10 @@ func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx 
 }
 
 // IndexHashes mocks base method
-func (m *MockdatabaseShard) IndexHashes(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) ([]ident.IndexHashBlock, error) {
+func (m *MockdatabaseShard) IndexHashes(ctx context.Context, id ident.ID, start, end time.Time, nsCtx namespace.Context) (ident.IndexHashBlock, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexHashes", ctx, id, start, end, nsCtx)
-	ret0, _ := ret[0].([]ident.IndexHashBlock)
+	ret0, _ := ret[0].(ident.IndexHashBlock)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

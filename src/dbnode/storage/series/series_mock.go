@@ -164,10 +164,10 @@ func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 }
 
 // IndexHashes mocks base method
-func (m *MockDatabaseSeries) IndexHashes(arg0 context.Context, arg1, arg2 time.Time, arg3 namespace.Context) ([]ident.IndexHashBlock, error) {
+func (m *MockDatabaseSeries) IndexHashes(arg0 context.Context, arg1, arg2 time.Time, arg3 namespace.Context) (ident.IndexHashBlock, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexHashes", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].([]ident.IndexHashBlock)
+	ret0, _ := ret[0].(ident.IndexHashBlock)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

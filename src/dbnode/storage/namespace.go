@@ -868,12 +868,12 @@ func (n *dbNamespace) IndexHashes(
 	ctx context.Context,
 	id ident.ID,
 	start, end time.Time,
-) ([]ident.IndexHashBlock, error) {
+) (ident.IndexHashBlock, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-		return nil, err
+		return ident.IndexHashBlock{}, err
 	}
 	res, err := shard.IndexHashes(ctx, id, start, end, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))

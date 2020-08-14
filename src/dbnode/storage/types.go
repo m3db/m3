@@ -176,7 +176,7 @@ type Database interface {
 		namespace ident.ID,
 		id ident.ID,
 		start, end time.Time,
-	) ([]ident.IndexHashBlock, error)
+	) (ident.IndexHashBlock, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -346,7 +346,7 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
-	) ([]ident.IndexHashBlock, error)
+	) (ident.IndexHashBlock, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -502,7 +502,7 @@ type databaseShard interface {
 		id ident.ID,
 		start, end time.Time,
 		nsCtx namespace.Context,
-	) ([]ident.IndexHashBlock, error)
+	) (ident.IndexHashBlock, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.

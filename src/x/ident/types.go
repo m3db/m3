@@ -314,12 +314,12 @@ func (t Tags) Equal(other Tags) bool {
 
 // IndexHashBlock is a list of index hash entries for a block at a given time.
 type IndexHashBlock struct {
-	StartTime   time.Time
+	IDHash      uint64
 	IndexHashes []IndexHash
 }
 
-// IndexHash is an entry from the index file describing a hash of the ID.
+// IndexHash is an entry from the index file describing a checksum at a time.
 type IndexHash struct {
-	IDHash       uint64
+	BlockStart   time.Time
 	DataChecksum uint32
 }
