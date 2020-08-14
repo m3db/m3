@@ -216,8 +216,6 @@ func (r Reader) IndexHashes(
 func (r Reader) indexHashes(
 	ctx context.Context,
 	start, end time.Time,
-	// seriesBlocks block.DatabaseSeriesBlocks,
-	// seriesBuffer databaseBuffer,
 	nsCtx namespace.Context,
 ) (ident.IndexHashBlock, error) {
 	if end.Before(start) {

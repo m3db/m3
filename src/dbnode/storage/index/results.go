@@ -149,11 +149,8 @@ func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
 		return false, r.resultsMap.Len(), nil
 	}
 
-	// i.e. it doesn't exist in the map
-
 	var tags ident.TagIterator
 	if !r.opts.OnlySeriesIDs {
-		// create the tags wrapping fields provided by the document if expected.
 		tags = convert.ToSeriesTags(d, convert.Opts{NoClone: true})
 	}
 

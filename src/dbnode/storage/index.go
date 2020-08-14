@@ -1313,7 +1313,6 @@ func (i *nsIndex) Query(
 		FilterID:  i.shardsFilterID(),
 	})
 	ctx.RegisterFinalizer(results)
-	// ARNIKOLA: reverseIndex.Query is this.
 	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
@@ -1377,51 +1376,6 @@ func (i *nsIndex) AggregateQuery(
 		Exhaustive: exhaustive,
 	}, nil
 }
-
-// func (i *nsIndex) QueryIndexHashes(
-// 	ctx context.Context,
-// 	query index.Query,
-// 	opts index.QueryOptions,
-// ) ([]fs.IndexHashBlock, error) {
-// 	logFields := []opentracinglog.Field{
-// 		opentracinglog.String("query", query.String()),
-// 		opentracinglog.String("namespace", i.nsMetadata.ID().String()),
-// 		opentracinglog.Int("docsLimit", opts.DocsLimit),
-// 		xopentracing.Time("queryStart", opts.StartInclusive),
-// 		xopentracing.Time("queryEnd", opts.EndExclusive),
-// 	}
-
-// 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxIndexHashQuery)
-// 	sp.LogFields(logFields...)
-// 	defer sp.Finish()
-
-// 	// Get results and set the namespace ID and size limit.
-// 	results := i.resultsPool.Get()
-// 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
-// 		SizeLimit:     opts.SeriesLimit,
-// 		FilterID:      i.shardsFilterID(),
-// 		OnlySeriesIDs: true,
-// 	})
-// 	ctx.RegisterFinalizer(results)
-// 	_, err := i.query(ctx, query, results, opts, i.execIndexHashFn, logFields)
-// 	if err != nil {
-// 		sp.LogFields(opentracinglog.Error(err))
-// 		return nil, err
-// 	}
-
-// 	// ARNIKOLA: reverseIndex.Query is this.
-// 	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields)
-// 	if err != nil {
-// 		sp.LogFields(opentracinglog.Error(err))
-// 		return index.QueryResult{}, err
-// 	}
-// 	return index.QueryResult{
-// 		Results:    results,
-// 		Exhaustive: exhaustive,
-// 	}, nil
-// 	// this needs to transform results into []fs.IndexHashBlock.
-// 	return nil, nil
-// }
 
 func (i *nsIndex) query(
 	ctx context.Context,
@@ -1537,8 +1491,6 @@ func (i *nsIndex) queryWithSpan(
 	cancellable := resource.NewCancellableLifetime()
 	defer cancellable.Cancel()
 
-	// THIS GETS CALLED AS A QUERY.
-	// will need to make a similar version of this for my index query.
 	for _, block := range blocks {
 		// Capture block for async query execution below.
 		block := block

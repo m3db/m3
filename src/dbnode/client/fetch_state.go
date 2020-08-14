@@ -175,7 +175,7 @@ func (f *fetchState) completionFn(
 	}
 
 	if done {
-		f.markDoneWithLock(err) // was here
+		f.markDoneWithLock(err)
 	}
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,14 @@ type QueryOptions struct {
 	RequireExhaustive bool
 	IterationOptions  IterationOptions
 	IndexHashQuery    bool
+}
+
+// ToIndexHashQueryOptions converts these options into index hash query options.
+func (o QueryOptions) ToIndexHashQueryOptions() QueryOptions {
+	o.SeriesLimit = 0
+	o.DocsLimit = 0
+	o.IndexHashQuery = true
+	return o
 }
 
 // SeriesLimitExceeded returns whether a given size exceeds the

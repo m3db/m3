@@ -810,7 +810,6 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 			TagName: entry.Key().String(),
 		}
 		tagValues := entry.Value()
-		// agg map here.
 		tagValuesMap := tagValues.Map()
 		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, tagValuesMap.Len())
 		for _, entry := range tagValuesMap.Iter() {
@@ -905,11 +904,7 @@ func (s *service) indexHash(ctx context.Context, db storage.Database, req *rpc.F
 		return nil, tterrors.NewBadRequestError(err)
 	}
 
-	// NB: explicitly nil these out.
-	opts.SeriesLimit = 0
-	opts.DocsLimit = 0
-	opts.IndexHashQuery = true
-
+	opts = opts.ToIndexHashQueryOptions()
 	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
 	if err != nil {
 		s.metrics.indexHash.ReportError(s.nowFn().Sub(callStart))
