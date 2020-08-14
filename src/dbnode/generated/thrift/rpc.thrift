@@ -55,6 +55,7 @@ service Node {
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBatchRawResult fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
+	IndexHashResult indexHash(1: FetchTaggedRequest req) throws (1: Error err)
 
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
@@ -428,6 +429,20 @@ struct AggregateQueryResultTagNameElement {
 
 struct AggregateQueryResultTagValueElement {
 	1: required string tagValue
+}
+
+struct IndexHashResult {
+	1: optional list<IndexHashListForBlock> blocks
+}
+
+struct IndexHashListForBlock {
+	1: required i64 blockStart
+	2: optional list<IndexHashResultElement> results
+}
+
+struct IndexHashResultElement {
+	1: required i64 indexHash
+	2: required i64 dataChecksum
 }
 
 // Query wrapper types for simple non-optimized query use

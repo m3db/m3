@@ -46,6 +46,9 @@ const (
 	// FetchReadSegment is the operation name for the tchannelthrift FetchReadSegment path.
 	FetchReadSegment = "tchannelthrift/node.service.FetchReadSegment"
 
+	// IndexHash is the operation name for the tchannelthrift IndexHash path.
+	IndexHash = "tchannelthrift/node.service.IndexHash"
+
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
 
@@ -64,6 +67,9 @@ const (
 	// DBWriteBatch is the operation name for the db WriteBatch path.
 	DBWriteBatch = "storage.db.WriteBatch"
 
+	// DBIndexHash is the operation name for the tchannelthrift IndexHash path.
+	DBIndexHash = "storage.db.IndexHash"
+
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
 
@@ -72,6 +78,9 @@ const (
 
 	// NSBootstrap is the operation name for the dbNamespace Bootstrap path.
 	NSBootstrap = "storage.dbNamespace.Bootstrap"
+
+	// NSIndexHash is the operation name for the tchannelthrift IndexHash path.
+	NSIndexHash = "storage.dbNamespace.IndexHash"
 
 	// ShardPrepareBootstrap is the operation name for the dbShard PrepareBootstrap path.
 	ShardPrepareBootstrap = "storage.dbShard.PrepareBootstrap"
@@ -94,11 +103,20 @@ const (
 	// NSIdxBlockAggregateQuery is the operation name for the nsIndex block aggregate query path.
 	NSIdxBlockAggregateQuery = "storage.nsIndex.blockAggregateQuery"
 
+	// NSIdxIndexHash is the operation name for the tchannelthrift IndexHash path.
+	NSIdxIndexHash = "storage.nsIndex.IndexHash"
+
+	// NSIdxIndexHash is the operation name for the tchannelthrift IndexHash path.
+	NSIdxIndexHashQuery = "storage.nsIndex.IndexHashQuery"
+
 	// BlockQuery is the operation name for the index block query path.
 	BlockQuery = "storage/index.block.Query"
 
 	// BlockAggregate is the operation name for the index block aggregate path.
 	BlockAggregate = "storage/index.block.Aggregate"
+
+	// IndexHashQuery is the operation name for the index hash query path.
+	IndexHashQuery = "storage/index.block.IndexHash"
 
 	// BootstrapProcessRun is the operation name for the bootstrap process Run path.
 	BootstrapProcessRun = "bootstrap.bootstrapProcess.Run"

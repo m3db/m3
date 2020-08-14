@@ -93,7 +93,13 @@ type IndexEntry struct {
 	EncodedTags  checked.Bytes
 }
 
-// IndexHash is an entry from the index file describing a hash of the ID
+// IndexHashBlock is a list of index hash entries for a block at a given time.
+type IndexHashBlock struct {
+	StartTime   time.Time
+	IndexHashes []IndexHash
+}
+
+// IndexHash is an entry from the index file describing a hash of the ID.
 type IndexHash struct {
 	IDHash       uint64
 	DataChecksum uint32

@@ -371,6 +371,7 @@ func (s *dbShard) Stream(
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
+	// ARTEM streams here. From retriever.
 	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve, nsCtx)
 }
 

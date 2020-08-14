@@ -813,7 +813,7 @@ func (d *db) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBQueryIDs)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(opts.DBTracepoint())
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("query", query.String()),
@@ -887,6 +887,7 @@ func (d *db) ReadEncoded(
 		return nil, err
 	}
 
+	// ARTEM ns read encoded.
 	return n.ReadEncoded(ctx, id, start, end)
 }
 

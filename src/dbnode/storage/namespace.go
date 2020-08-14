@@ -162,6 +162,7 @@ type databaseNamespaceMetrics struct {
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
 	queryIDs            instrument.MethodMetrics
+	indexHash           instrument.MethodMetrics
 	aggregateQuery      instrument.MethodMetrics
 	unfulfilled         tally.Counter
 	bootstrapStart      tally.Counter
@@ -244,6 +245,7 @@ func newDatabaseNamespaceMetrics(
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
 		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", opts),
+		indexHash:           instrument.NewMethodMetrics(scope, "indexHash", opts),
 		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
 		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart:      scope.Counter("bootstrap.start"),
@@ -747,7 +749,7 @@ func (n *dbNamespace) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.NSQueryIDs)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(opts.NSTracepoint())
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("query", query.String()),
@@ -857,6 +859,7 @@ func (n *dbNamespace) ReadEncoded(
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
+	// ARTEM shard read encoded.
 	res, err := shard.ReadEncoded(ctx, id, start, end, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err

@@ -286,12 +286,13 @@ func (r *blockRetriever) processIndexHashRequest(
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
 ) {
-	// FIXME: implement
-	// entry, err := seeker.SeekIndexEntryToIndexHash(req.id, seekerResources)
-	// if err != nil && err != errSeekIDNotFound {
-	// 	req.onError(err)
-	// 	return
-	// }
+	entry, err := seeker.SeekIndexEntryToIndexHash(req.id, seekerResources)
+	if err != nil && err != errSeekIDNotFound {
+		req.onError(err)
+		return
+	}
+
+	req.onIndexHashCompleted(entry)
 }
 
 func (r *blockRetriever) fetchBatch(
@@ -523,30 +524,31 @@ func (r *blockRetriever) StreamIndexHash(
 		return xio.EmptyBlockReader, err
 	}
 
-	// FIXME: update below.
-	// // If the ID is not in the seeker's bloom filter, then it's definitely not on
-	// // disk and we can return immediately.
-	// if !idExists {
-	// 	// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
-	// 	req.onRetrieved(ts.Segment{}, namespace.Context{})
-	// 	return req.toBlock(), nil
-	// }
-	// reqs, err := r.shardRequests(shard)
-	// if err != nil {
-	// 	return xio.EmptyBlockReader, err
-	// }
+	// If the ID is not in the seeker's bloom filter, then it's definitely not on
+	// disk and we can return immediately.
+	if !idExists {
+		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data.
+		req.onRetrieved(ts.Segment{}, namespace.Context{})
+		return req.toBlock(), nil
+	}
 
-	// reqs.Lock()
-	// reqs.queued = append(reqs.queued, req)
-	// reqs.Unlock()
+	reqs, err := r.shardRequests(shard)
+	if err != nil {
+		return xio.EmptyBlockReader, err
+	}
 
-	// // Notify fetch loop
-	// select {
-	// case r.notifyFetch <- struct{}{}:
-	// default:
-	// 	// Loop busy, already ready to consume notification
-	// }
+	reqs.Lock()
+	reqs.queued = append(reqs.queued, req)
+	reqs.Unlock()
 
+	// Notify fetch loop
+	select {
+	case r.notifyFetch <- struct{}{}:
+	default:
+		// Loop busy, already ready to consume notification
+	}
+
+	return xio.EmptyBlockReader, nil
 	// // The request may not have completed yet, but it has an internal
 	// // waitgroup which the caller will have to wait for before retrieving
 	// // the data. This means that even though we're returning nil for error
@@ -679,6 +681,14 @@ type retrieveRequest struct {
 	shard     uint32
 
 	notFound bool
+}
+
+func (req *retrieveRequest) onIndexHashCompleted(indexHash IndexHash) {
+	if req.err == nil {
+		req.indexHash = indexHash
+		// If there was an error, we've already called done.
+		req.resultWg.Done()
+	}
 }
 
 func (req *retrieveRequest) onError(err error) {

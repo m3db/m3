@@ -104,6 +104,7 @@ var (
 type serviceMetrics struct {
 	fetch                   instrument.MethodMetrics
 	fetchTagged             instrument.MethodMetrics
+	indexHash               instrument.MethodMetrics
 	aggregate               instrument.MethodMetrics
 	write                   instrument.MethodMetrics
 	writeTagged             instrument.MethodMetrics
@@ -124,6 +125,7 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 	return serviceMetrics{
 		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
 		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
+		indexHash:               instrument.NewMethodMetrics(scope, "indexHash", opts),
 		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", opts),
 		write:                   instrument.NewMethodMetrics(scope, "write", opts),
 		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", opts),
@@ -713,6 +715,8 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	defer sp.Finish()
 
 	i := 0
+	// ARTEM Unroll query map here. OK THIS THING DOES ONE BY ONE, I THINK
+	// I WANT TO DO STREAMING, SO RESULT MAP WILL BE A CHANNEL.
 	for _, entry := range results.Map().Iter() {
 		idx := i
 		i++
@@ -737,6 +741,7 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 			continue
 		}
 
+		// ARTEM id is used here for the fetch.
 		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
 			opts.StartInclusive, opts.EndExclusive)
 		if err != nil {
@@ -808,6 +813,7 @@ func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest)
 			TagName: entry.Key().String(),
 		}
 		tagValues := entry.Value()
+		// agg map here.
 		tagValuesMap := tagValues.Map()
 		responseElem.TagValues = make([]*rpc.AggregateQueryResultTagValueElement, 0, tagValuesMap.Len())
 		for _, entry := range tagValuesMap.Iter() {
@@ -865,6 +871,131 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	}
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
+}
+
+func (s *service) IndexHash(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.IndexHashResult_, error) {
+	db, err := s.startReadRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.readRPCCompleted()
+
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.IndexHash)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", string(req.Query)),
+			opentracinglog.String("namespace", string(req.NameSpace)),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+		)
+	}
+
+	result, err := s.indexHash(ctx, db, req)
+	if sampled && err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
+func (s *service) indexHash(ctx context.Context, db storage.Database, req *rpc.FetchTaggedRequest) (*rpc.IndexHashResult_, error) {
+	callStart := s.nowFn()
+
+	ns, query, opts, _, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
+	if err != nil {
+		s.metrics.indexHash.ReportError(s.nowFn().Sub(callStart))
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	// NB: explicitly nil these out.
+	opts.SeriesLimit = 0
+	opts.DocsLimit = 0
+	opts.IndexHashQuery = true
+
+	results, err := db.QueryIDs(ctx, ns, query, opts)
+	if err != nil {
+		s.metrics.indexHash.ReportError(s.nowFn().Sub(callStart))
+		return nil, convert.ToRPCError(err)
+	}
+
+	blocks := make([]*rpc.IndexHashListForBlock, 0, len(results))
+	for _, bl := range results {
+		hashList := make([]*rpc.IndexHashResultElement, 0, len(bl.IndexHashes))
+		for _, hash := range bl.IndexHashes {
+			hashList = append(hashList, &rpc.IndexHashResultElement{
+				IndexHash:    int64(hash.IDHash),
+				DataChecksum: int64(hash.DataChecksum),
+			})
+		}
+
+		blocks = append(blocks, &rpc.IndexHashListForBlock{
+			BlockStart: bl.StartTime.UnixNano(),
+			Results:    hashList,
+		})
+	}
+
+	s.metrics.indexHash.ReportSuccess(s.nowFn().Sub(callStart))
+	return &rpc.IndexHashResult_{
+		Blocks: blocks,
+	}, nil
+}
+
+func (s *service) indexHashEncoded(ctx context.Context,
+	db storage.Database,
+	response *rpc.FetchTaggedResult_,
+	results index.QueryResults,
+	nsID ident.ID,
+	nsIDBytes []byte,
+	callStart time.Time,
+	opts index.QueryOptions,
+	fetchData bool,
+	encodedDataResults [][][]xio.BlockReader,
+) error {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexHash)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+			xopentracing.Time("callStart", callStart),
+		)
+	}
+	defer sp.Finish()
+
+	i := 0
+	for _, entry := range results.Map().Iter() {
+		idx := i
+		i++
+
+		tsID := entry.Key()
+		tags := entry.Value()
+		enc := s.pools.tagEncoder.Get()
+		ctx.RegisterFinalizer(enc)
+		encodedTags, err := s.encodeTags(enc, tags)
+		if err != nil { // This is an invariant, should never happen
+			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
+			return tterrors.NewInternalError(err)
+		}
+
+		elem := &rpc.FetchTaggedIDResult_{
+			NameSpace:   nsIDBytes,
+			ID:          tsID.Bytes(),
+			EncodedTags: encodedTags.Bytes(),
+		}
+		response.Elements = append(response.Elements, elem)
+		if !fetchData {
+			continue
+		}
+
+		// ARTEM id is used here for the fetch.
+		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
+			opts.StartInclusive, opts.EndExclusive)
+		if err != nil {
+			elem.Err = convert.ToRPCError(err)
+		} else {
+			encodedDataResults[idx] = encoded
+		}
+	}
+	return nil
 }
 
 func (s *service) encodeTags(
@@ -1080,6 +1211,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 			blockStarts = append(blockStarts, xtime.FromNanoseconds(start))
 		}
 
+		// ARTEM here it's done per element?
 		tsID := s.newID(ctx, request.ID)
 		fetched, err := db.FetchBlocks(
 			ctx, nsID, uint32(req.Shard), tsID, blockStarts)

@@ -71,6 +71,8 @@ func NewReaderUsingRetriever(
 }
 
 // ReadEncoded reads encoded blocks using just a block retriever.
+// ARTEM: PLAN HERE IS TO MAKE ONE OF THESE THAT WILL:
+// READ FR
 func (r Reader) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
@@ -172,6 +174,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 					return nil, err
 				}
 				if isRetrievable {
+					// ARTEM streams here.
 					streamedBlock, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve, nsCtx)
 					if err != nil {
 						return nil, err
@@ -287,6 +290,7 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 				}
 
 				if isRetrievable {
+					// ARTEM streams here.
 					streamedBlock, err := r.retriever.Stream(ctx, r.id, start, onRetrieve, nsCtx)
 					if err != nil {
 						// Short-circuit this entire blockstart if an error was encountered.

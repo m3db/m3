@@ -63,6 +63,7 @@ type TChanNode interface {
 	GetWriteNewSeriesBackoffDuration(ctx thrift.Context) (*NodeWriteNewSeriesBackoffDurationResult_, error)
 	GetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error)
 	Health(ctx thrift.Context) (*NodeHealthResult_, error)
+	IndexHash(ctx thrift.Context, req *FetchTaggedRequest) (*IndexHashResult_, error)
 	Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error)
 	Repair(ctx thrift.Context) error
 	SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error)
@@ -792,6 +793,24 @@ func (c *tchanNodeClient) Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) IndexHash(ctx thrift.Context, req *FetchTaggedRequest) (*IndexHashResult_, error) {
+	var resp NodeIndexHashResult
+	args := NodeIndexHashArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "indexHash", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for indexHash")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error) {
 	var resp NodeQueryResult
 	args := NodeQueryArgs{
@@ -1060,6 +1079,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"getWriteNewSeriesBackoffDuration",
 		"getWriteNewSeriesLimitPerShardPerSecond",
 		"health",
+		"indexHash",
 		"query",
 		"repair",
 		"setPersistRateLimit",
@@ -1114,6 +1134,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleGetWriteNewSeriesLimitPerShardPerSecond(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
+	case "indexHash":
+		return s.handleIndexHash(ctx, protocol)
 	case "query":
 		return s.handleQuery(ctx, protocol)
 	case "repair":
@@ -1632,6 +1654,34 @@ func (s *tchanNodeServer) handleHealth(ctx thrift.Context, protocol athrift.TPro
 
 	r, err :=
 		s.handler.Health(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleIndexHash(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeIndexHashArgs
+	var res NodeIndexHashResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.IndexHash(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {

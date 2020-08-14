@@ -32,6 +32,10 @@ import (
 
 var (
 	errUnableToAddResultMissingID = errors.New("no id for result")
+	resultMapNoFinalizeOpts       = ResultsMapSetUnsafeOptions{
+		NoCopyKey:     true,
+		NoFinalizeKey: true,
+	}
 )
 
 type results struct {
@@ -69,8 +73,6 @@ func NewQueryResults(
 func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	r.Lock()
 
-	r.opts = opts
-
 	// Finalize existing held nsID.
 	if r.nsID != nil {
 		r.nsID.Finalize()
@@ -81,10 +83,13 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 	}
 	r.nsID = nsID
 
-	// Reset all values from map first
-	for _, entry := range r.resultsMap.Iter() {
-		tags := entry.Value()
-		tags.Close()
+	if !r.opts.OnlySeriesIDs {
+		// Reset all values from map first if they are present; if OnlySeriesID is
+		// set, this map will have no entries.
+		for _, entry := range r.resultsMap.Iter() {
+			tags := entry.Value()
+			tags.Close()
+		}
 	}
 
 	// Reset all keys in the map next, this will finalize the keys.
@@ -93,6 +98,8 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
+
+	r.opts = opts
 
 	r.Unlock()
 }
@@ -142,16 +149,17 @@ func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
 		return false, r.resultsMap.Len(), nil
 	}
 
-	// i.e. it doesn't exist in the map, so we create the tags wrapping
-	// fields provided by the document.
-	tags := convert.ToSeriesTags(d, convert.Opts{NoClone: true})
+	// i.e. it doesn't exist in the map
+
+	var tags ident.TagIterator
+	if !r.opts.OnlySeriesIDs {
+		// create the tags wrapping fields provided by the document if expected.
+		tags = convert.ToSeriesTags(d, convert.Opts{NoClone: true})
+	}
 
 	// It is assumed that the document is valid for the lifetime of the index
 	// results.
-	r.resultsMap.SetUnsafe(tsID, tags, ResultsMapSetUnsafeOptions{
-		NoCopyKey:     true,
-		NoFinalizeKey: true,
-	})
+	r.resultsMap.SetUnsafe(tsID, tags, resultMapNoFinalizeOpts)
 
 	return true, r.resultsMap.Len(), nil
 }

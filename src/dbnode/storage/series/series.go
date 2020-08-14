@@ -397,6 +397,7 @@ func (s *dbSeries) ReadEncoded(
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
+	// ARTEM THIS IS USED
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer, nsCtx)
 	s.RUnlock()
 	return r, err
@@ -429,6 +430,7 @@ func (s *dbSeries) FetchBlocks(
 		retriever:  s.blockRetriever,
 		onRetrieve: s.onRetrieveBlock,
 	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer, nsCtx)
+	// ARTEM Maybe this is worth looking at.
 	s.RUnlock()
 	return r, err
 }

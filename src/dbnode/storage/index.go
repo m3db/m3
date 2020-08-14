@@ -1302,17 +1302,19 @@ func (i *nsIndex) Query(
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
 
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQuery)
+	ctx, sp := ctx.StartTraceSpan(opts.NSIdxTracepoint())
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
 	// Get results and set the namespace ID and size limit.
 	results := i.resultsPool.Get()
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
-		SizeLimit: opts.SeriesLimit,
-		FilterID:  i.shardsFilterID(),
+		SizeLimit:     opts.SeriesLimit,
+		FilterID:      i.shardsFilterID(),
+		OnlySeriesIDs: opts.IndexHashQuery,
 	})
 	ctx.RegisterFinalizer(results)
+	// ARNIKOLA: reverseIndex.Query is this.
 	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))
@@ -1491,6 +1493,8 @@ func (i *nsIndex) queryWithSpan(
 	cancellable := resource.NewCancellableLifetime()
 	defer cancellable.Cancel()
 
+	// THIS GETS CALLED AS A QUERY.
+	// will need to make a similar version of this for my index query.
 	for _, block := range blocks {
 		// Capture block for async query execution below.
 		block := block
@@ -1504,7 +1508,7 @@ func (i *nsIndex) queryWithSpan(
 		// the loop.
 		seriesCount := results.Size()
 		docsCount := results.TotalDocsCount()
-		alreadyExceededLimit := opts.SeriesLimitExceeded(seriesCount) || opts.DocsLimitExceeded(docsCount)
+		alreadyExceededLimit := opts.limitsExceeded(seriesCount, docsCount)
 		if alreadyExceededLimit {
 			state.Lock()
 			state.exhaustive = false
@@ -1676,6 +1680,44 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 		state.multiErr = state.multiErr.Add(err)
 	}
 	state.exhaustive = state.exhaustive && blockExhaustive
+}
+
+// ARTEM THIS IS THE ONE USED FOR QUERY. TODO: make a copy of this that calls .IndexHash.
+func (i *nsIndex) execIndexHashFn(
+	ctx context.Context,
+	cancellable *resource.CancellableLifetime,
+	block index.Block,
+	query index.Query,
+	opts index.QueryOptions,
+	state *asyncQueryExecState,
+	results index.BaseResults,
+	logFields []opentracinglog.Field,
+) {
+	logFields = append(logFields,
+		xopentracing.Time("blockStart", block.StartTime()),
+		xopentracing.Time("blockEnd", block.EndTime()),
+	)
+
+	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxIndexHash)
+	sp.LogFields(logFields...)
+	defer sp.Finish()
+
+	err := block.IndexHash(ctx, cancellable, query, opts, results, logFields)
+	if err == index.ErrUnableToQueryBlockClosed {
+		// NB(r): Because we query this block outside of the results lock, it's
+		// possible this block may get closed if it slides out of retention, in
+		// that case those results are no longer considered valid and outside of
+		// retention regardless, so this is a non-issue.
+		err = nil
+	}
+
+	state.Lock()
+	defer state.Unlock()
+
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+		state.multiErr = state.multiErr.Add(err)
+	}
 }
 
 func (i *nsIndex) timeoutForQueryWithRLock(
