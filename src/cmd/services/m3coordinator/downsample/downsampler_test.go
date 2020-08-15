@@ -456,7 +456,6 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesAggregationType(t *tes
 		tags: map[string]string{
 			"__g0__":               "nginx_edge",
 			"__g1__":               "health",
-			"__m3_type__":          "gauge",
 			"__option_id_scheme__": "graphite",
 		},
 		timedSamples: []testGaugeMetricTimedSample{
@@ -510,9 +509,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesAggregationType(t *tes
 func TestDownsamplerAggregationWithRulesConfigMappingRulesMultipleAggregationType(t *testing.T) {
 	gaugeMetric := testGaugeMetric{
 		tags: map[string]string{
-			"__g0__":      "nginx_edge",
-			"__g1__":      "health",
-			"__m3_type__": "gauge",
+			"__g0__": "nginx_edge",
+			"__g1__": "health",
 		},
 		timedSamples: []testGaugeMetricTimedSample{
 			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
@@ -589,9 +587,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesMultipleAggregationTyp
 func TestDownsamplerAggregationWithRulesConfigMappingRulesGraphitePrefixAndAggregationTags(t *testing.T) {
 	gaugeMetric := testGaugeMetric{
 		tags: map[string]string{
-			"__g0__":      "nginx_edge",
-			"__g1__":      "health",
-			"__m3_type__": "gauge",
+			"__g0__": "nginx_edge",
+			"__g1__": "health",
 		},
 		timedSamples: []testGaugeMetricTimedSample{
 			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
@@ -649,9 +646,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesGraphitePrefixAndAggre
 func TestDownsamplerAggregationWithRulesConfigMappingRulesGraphitePrefixTag(t *testing.T) {
 	gaugeMetric := testGaugeMetric{
 		tags: map[string]string{
-			"__g0__":      "nginx_edge",
-			"__g1__":      "health",
-			"__m3_type__": "gauge",
+			"__g0__": "nginx_edge",
+			"__g1__": "health",
 		},
 		timedSamples: []testGaugeMetricTimedSample{
 			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
