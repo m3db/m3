@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
@@ -189,6 +190,7 @@ type agg struct {
 	clockOpts                    clock.Options
 	matcher                      matcher.Matcher
 	pools                        aggPools
+	m3PrefixTags                 bool
 }
 
 // Configuration configurates a downsampler.
@@ -611,6 +613,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		logger                       = instrumentOpts.Logger()
 		openTimeout                  = defaultOpenTimeout
 		defaultStagedMetadatasProtos []metricpb.StagedMetadatas
+		m3PrefixTags                 = false
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
@@ -678,6 +681,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		rs := rules.NewEmptyRuleSet(defaultConfigInMemoryNamespace,
 			updateMetadata)
 		for _, mappingRule := range cfg.Rules.MappingRules {
+			if strings.Contains(mappingRule.Filter, m3MetricsPrefixString) {
+				m3PrefixTags = true
+			}
 			rule, err := mappingRule.Rule()
 			if err != nil {
 				return agg{}, err
@@ -747,6 +753,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
 			matcher:                      matcher,
 			pools:                        pools,
+			m3PrefixTags:                 m3PrefixTags,
 		}, nil
 	}
 
@@ -912,6 +919,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
 		matcher:                      matcher,
 		pools:                        pools,
+		m3PrefixTags:                 m3PrefixTags,
 	}, nil
 }
 

@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -46,7 +47,13 @@ import (
 )
 
 var (
+	m3TypeTag      = []byte("__m3_type__")
+	m3CounterValue = []byte("counter")
+	m3GaugeValue   = []byte("gauge")
+	m3TimerValue   = []byte("timer")
+
 	m3MetricsPrefix              = []byte("__m3")
+	m3MetricsPrefixString        = string(m3MetricsPrefix)
 	m3MetricsGraphiteAggregation = []byte("__m3_graphite_aggregation__")
 )
 
@@ -94,6 +101,7 @@ type metricsAppenderOptions struct {
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
 	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
+	requireM3Tags                bool
 
 	clockOpts    clock.Options
 	debugLogging bool
@@ -133,6 +141,21 @@ func (a *metricsAppender) AddTag(name, value []byte) {
 }
 
 func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppenderResult, error) {
+	// Augment tags if necessary.
+	if a.requireM3Tags {
+		// NB (@shreyas): Add the metric type tag. The tag has the prefix
+		// __m3_. All tags with that prefix are only used for the purpose of
+		// filter matchiand then stripped off before we actually send to the aggregator.
+		switch opts.MetricType {
+		case ts.MetricTypeCounter:
+			a.tags.append(m3TypeTag, m3CounterValue)
+		case ts.MetricTypeGauge:
+			a.tags.append(m3TypeTag, m3GaugeValue)
+		case ts.MetricTypeTimer:
+			a.tags.append(m3TypeTag, m3TimerValue)
+		}
+	}
+
 	// Sort tags
 	sort.Sort(a.tags)
 
@@ -160,8 +183,11 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
-	// Filter out the m3 custom tags once the ForwardMatch is complete.
-	a.tags.filterPrefix(m3MetricsPrefix)
+	// If we augment metrics tags before running the forward match filter
+	// them out.
+	if a.requireM3Tags {
+		a.tags.filterPrefix(m3MetricsPrefix)
+	}
 
 	var dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
 	if opts.Override {
@@ -182,7 +208,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				append(a.curr.Pipelines, pipelines.Pipelines...)
 		}
 
-		appenders, err := a.newSamplesAppenders(a.curr)
+		appenders, err := a.newSamplesAppenders(a.curr, unownedID)
 		if err != nil {
 			return SamplesAppenderResult{}, err
 		}
@@ -313,7 +339,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 			a.debugLogMatch("downsampler using built mapping staged metadatas",
 				debugLogMatchOptions{Meta: []metadata.StagedMetadata{a.curr}})
 
-			appenders, err := a.newSamplesAppenders(a.curr)
+			appenders, err := a.newSamplesAppenders(a.curr, unownedID)
 			if err != nil {
 				return SamplesAppenderResult{}, err
 			}
@@ -380,7 +406,21 @@ func (a *metricsAppender) Finalize() {
 
 func (a *metricsAppender) newSamplesAppenders(
 	stagedMetadata metadata.StagedMetadata,
+	unownedID []byte,
 ) ([]samplesAppender, error) {
+	// If none of the applied rules operated on M3 prefix tags, then we can
+	// just return the samplesAppender for the ID provided.
+	if !a.requireM3Tags {
+		return []samplesAppender{
+			{
+				agg:             a.agg,
+				clientRemote:    a.clientRemote,
+				unownedID:       unownedID,
+				stagedMetadatas: []metadata.StagedMetadata{stagedMetadata},
+			},
+		}, nil
+	}
+
 	var (
 		pipelines []metadata.PipelineMetadata
 		appenders []samplesAppender

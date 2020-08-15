@@ -43,11 +43,6 @@ var (
 	unaggregatedStoragePolicies = []policy.StoragePolicy{
 		unaggregatedStoragePolicy,
 	}
-
-	m3TypeTag      = []byte("__m3_type__")
-	m3CounterValue = []byte("counter")
-	m3GaugeValue   = []byte("gauge")
-	m3TimerValue   = []byte("timer")
 )
 
 // IterValue is the value returned by the iterator.
@@ -440,18 +435,6 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		value := iter.Current()
 		for _, tag := range value.Tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
-		}
-
-		// NB (@shreyas): Add the metric type tag. The tag has the prefix
-		// __m3_. All tags with that prefix are only used by the downsampler
-		// and then stripped off before we actually send to the aggregator.
-		switch value.Attributes.Type {
-		case ts.MetricTypeCounter:
-			appender.AddTag(m3TypeTag, m3CounterValue)
-		case ts.MetricTypeGauge:
-			appender.AddTag(m3TypeTag, m3GaugeValue)
-		case ts.MetricTypeTimer:
-			appender.AddTag(m3TypeTag, m3TimerValue)
 		}
 
 		if value.Tags.Opts.IDSchemeType() == models.TypeGraphite {

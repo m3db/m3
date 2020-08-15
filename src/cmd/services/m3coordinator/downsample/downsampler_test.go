@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/ts"
+
 	"github.com/m3db/m3/src/aggregator/client"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv/mem"
@@ -357,9 +359,8 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesNoNameTag(t *testing.T
 func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilter(t *testing.T) {
 	gaugeMetric := testGaugeMetric{
 		tags: map[string]string{
-			"app":         "nginx_edge",
-			"endpoint":    "health",
-			"__m3_type__": "gauge",
+			"app":      "nginx_edge",
+			"endpoint": "health",
 		},
 		timedSamples: []testGaugeMetricTimedSample{
 			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
@@ -370,7 +371,7 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilter(t *testing.
 		rulesConfig: &RulesConfiguration{
 			MappingRules: []MappingRuleConfiguration{
 				{
-					Filter:       "app:nginx*",
+					Filter:       "__m3_type__:counter",
 					Aggregations: []aggregation.Type{aggregation.Max},
 					StoragePolicies: []StoragePolicyConfiguration{
 						{
@@ -380,6 +381,9 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilter(t *testing.
 					},
 				},
 			},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			MetricType: ts.MetricTypeCounter,
 		},
 		ingest: &testDownsamplerOptionsIngest{
 			gaugeMetrics: []testGaugeMetric{gaugeMetric},
@@ -399,6 +403,47 @@ func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilter(t *testing.
 					},
 				},
 			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesConfigMappingRulesTypeFilterNoMatch(t *testing.T) {
+	gaugeMetric := testGaugeMetric{
+		tags: map[string]string{
+			"app":      "nginx_edge",
+			"endpoint": "health",
+		},
+		timedSamples: []testGaugeMetricTimedSample{
+			{value: 15}, {value: 10}, {value: 30}, {value: 5}, {value: 0},
+		},
+	}
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		identTag: "endpoint",
+		rulesConfig: &RulesConfiguration{
+			MappingRules: []MappingRuleConfiguration{
+				{
+					Filter:       "__m3_type__:counter",
+					Aggregations: []aggregation.Type{aggregation.Max},
+					StoragePolicies: []StoragePolicyConfiguration{
+						{
+							Resolution: 5 * time.Second,
+							Retention:  30 * 24 * time.Hour,
+						},
+					},
+				},
+			},
+		},
+		sampleAppenderOpts: &SampleAppenderOptions{
+			MetricType: ts.MetricTypeGauge,
+		},
+		ingest: &testDownsamplerOptionsIngest{
+			gaugeMetrics: []testGaugeMetric{gaugeMetric},
+		},
+		expect: &testDownsamplerOptionsExpect{
+			writes: []testExpectedWrite{},
 		},
 	})
 
