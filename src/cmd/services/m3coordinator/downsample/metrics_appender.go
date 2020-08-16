@@ -121,6 +121,7 @@ func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
 func (a *metricsAppender) reset(opts metricsAppenderOptions) {
 	a.metricsAppenderOptions = opts
 	a.cachedEncoders = append(a.cachedEncoders, a.usedEncoders...)
+	a.usedEncoders = a.usedEncoders[:0]
 	if len(a.cachedEncoders) == 0 {
 		a.cachedEncoders = append(a.cachedEncoders, opts.tagEncoderPool.Get())
 	}
