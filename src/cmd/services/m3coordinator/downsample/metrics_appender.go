@@ -89,7 +89,8 @@ type metricsAppender struct {
 	curr                         metadata.StagedMetadata
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
-	tagEncoder                   serialize.TagEncoder
+	cachedEncoders               []serialize.TagEncoder
+	usedEncoders                 []serialize.TagEncoder
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -119,8 +120,9 @@ func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
 // reset is called when pulled from the pool.
 func (a *metricsAppender) reset(opts metricsAppenderOptions) {
 	a.metricsAppenderOptions = opts
-	if a.tagEncoder == nil {
-		a.tagEncoder = opts.tagEncoderPool.Get()
+	a.cachedEncoders = append(a.cachedEncoders, a.usedEncoders...)
+	if len(a.cachedEncoders) == 0 {
+		a.cachedEncoders = append(a.cachedEncoders, opts.tagEncoderPool.Get())
 	}
 
 	// Make sure a.defaultStagedMetadatasCopies is right length.
@@ -160,11 +162,11 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	sort.Sort(a.tags)
 
 	// Encode tags and compute a temporary (unowned) ID
-	a.tagEncoder.Reset()
-	if err := a.tagEncoder.Encode(a.tags); err != nil {
+	tagEncoder := a.getTagEncoder()
+	if err := tagEncoder.Encode(a.tags); err != nil {
 		return SamplesAppenderResult{}, err
 	}
-	data, ok := a.tagEncoder.Data()
+	data, ok := tagEncoder.Data()
 	if !ok {
 		return SamplesAppenderResult{}, fmt.Errorf("unable to encode tags: names=%v, values=%v",
 			a.tags.names, a.tags.values)
@@ -404,13 +406,36 @@ func (a *metricsAppender) Finalize() {
 	a.pool.Put(a)
 }
 
+func (a *metricsAppender) getTagEncoder() serialize.TagEncoder {
+	// Tag an encoder from the cached encoder list, if not present get one from
+	// the pool. Add the returned encoder to the used list.
+	var tagEncoder serialize.TagEncoder
+	if len(a.cachedEncoders) == 0 {
+		tagEncoder = a.tagEncoderPool.Get()
+	} else {
+		tagEncoder = a.cachedEncoders[0]
+		a.cachedEncoders = a.cachedEncoders[1:]
+	}
+	a.usedEncoders = append(a.usedEncoders, tagEncoder)
+	tagEncoder.Reset()
+	return tagEncoder
+}
+
 func (a *metricsAppender) newSamplesAppenders(
 	stagedMetadata metadata.StagedMetadata,
 	unownedID []byte,
 ) ([]samplesAppender, error) {
-	// If none of the applied rules operated on M3 prefix tags, then we can
-	// just return the samplesAppender for the ID provided.
-	if !a.requireM3Tags {
+	// Check if any of the pipelines have tags of graphite prefix to set.
+	var tagsExist bool
+	for _, pipeline := range stagedMetadata.Pipelines {
+		if len(pipeline.Tags) != 0 || len(pipeline.GraphitePrefix) > 0 {
+			tagsExist = true
+			break
+		}
+	}
+
+	// If we do not need to do any tag augmentation then just return.
+	if !a.requireM3Tags && !tagsExist {
 		return []samplesAppender{
 			{
 				agg:             a.agg,
@@ -439,7 +464,7 @@ func (a *metricsAppender) newSamplesAppenders(
 		sm := stagedMetadata
 		sm.Pipelines = []metadata.PipelineMetadata{pipeline}
 
-		appender, err := a.newSamplesAppender(tags, sm, true)
+		appender, err := a.newSamplesAppender(tags, sm)
 		if err != nil {
 			return []samplesAppender{}, err
 		}
@@ -453,10 +478,7 @@ func (a *metricsAppender) newSamplesAppenders(
 	sm := stagedMetadata
 	sm.Pipelines = pipelines
 
-	// NB(@shreyas): Passing in copyID as false assumes that this is the last
-	// call to newSamplesAppender. Any further calls will overwrite the ID.
-	// So adding any new calls to newSamplesAppender will need to change this.
-	appender, err := a.newSamplesAppender(a.tags, sm, false)
+	appender, err := a.newSamplesAppender(a.tags, sm)
 	if err != nil {
 		return []samplesAppender{}, err
 	}
@@ -466,29 +488,20 @@ func (a *metricsAppender) newSamplesAppenders(
 func (a *metricsAppender) newSamplesAppender(
 	tags *tags,
 	sm metadata.StagedMetadata,
-	copyID bool,
 ) (samplesAppender, error) {
-	a.tagEncoder.Reset()
-	if err := a.tagEncoder.Encode(tags); err != nil {
+	// Get a new tag encoder from the unused list if not present create a new one.
+	tagEncoder := a.getTagEncoder()
+	if err := tagEncoder.Encode(tags); err != nil {
 		return samplesAppender{}, err
 	}
-	data, ok := a.tagEncoder.Data()
+	data, ok := tagEncoder.Data()
 	if !ok {
 		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
-	}
-	// NB (@shreyas): if this is the last use of the tagEncoder we do not need
-	// this copy. The caller tells us what to do here.
-	var id []byte
-	if copyID {
-		id = make([]byte, data.Len())
-		copy(id, data.Bytes())
-	} else {
-		id = data.Bytes()
 	}
 	return samplesAppender{
 		agg:             a.agg,
 		clientRemote:    a.clientRemote,
-		unownedID:       id,
+		unownedID:       data.Bytes(),
 		stagedMetadatas: []metadata.StagedMetadata{sm},
 	}, nil
 }
