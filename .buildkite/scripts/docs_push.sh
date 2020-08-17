@@ -17,7 +17,7 @@ rm -rf site
 # NB(schallert): if updating this build step or the one below be sure to update
 # the docs-build make target (see note there as to why we can't share code
 # between the two).
-mkdocs build -e docs/theme -t material
+mkdocs build -t material
 mkdocs gh-deploy --force --dirty
 
 # We do two builds to ensure any behavior of gh-deploy doesn't impact the second
@@ -48,7 +48,7 @@ git clone git@github.com:m3db/m3db-operator.git
 
 (
   cd m3db-operator
-  mkdocs build -e docs/theme -t material
+  mkdocs build -t material
 )
 
 if diff -qr m3db-operator/site m3db.io; then
