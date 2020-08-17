@@ -54,7 +54,7 @@ func (r *SliceReader) Len() int {
 
 // Read returns a document from the docs slice reader.
 func (r *SliceReader) Read(id postings.ID) (doc.Document, error) {
-	idx := int(id - r.offset)
+	idx := int(id)
 	if idx < 0 || idx >= len(r.docs) {
 		return doc.Document{}, errDocNotFound
 	}
@@ -67,9 +67,8 @@ func (r *SliceReader) Doc(id postings.ID) (doc.Document, error) {
 	return r.Read(id)
 }
 
-// AllDocs returns a docs iterator.
+// Iter returns a docs iterator.
 func (r *SliceReader) Iter() index.IDDocIterator {
-	postingsIter := postings.NewRangeIterator(r.offset,
-		r.offset+postings.ID(r.Len()))
+	postingsIter := postings.NewRangeIterator(0, postings.ID(r.Len()))
 	return index.NewIDDocIterator(r, postingsIter)
 }

@@ -28,7 +28,10 @@ import (
 
 // Reader is a document reader from an encoded source.
 type Reader interface {
+	// Len is the number of documents contained by the reader.
 	Len() int
+	// Read reads a document with the given postings ID.
 	Read(id postings.ID) (doc.Document, error)
+	// Iter returns a document iterator.
 	Iter() index.IDDocIterator
 }
