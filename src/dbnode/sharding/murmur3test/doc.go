@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,19 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package hash is a temporary measure used as in between while m3aggregator
-// is upgraded to use native source generated maps now accessible in m3x,
-// these types are missing from m3x when native source generated maps
-// were added.
-package hash
-
-import "github.com/twmb/murmur3"
-
-// Hash128 is a 128-bit hash of an ID consisting of two unsigned 64-bit ints.
-type Hash128 [2]uint64
-
-// Murmur3Hash128 computes the 128-bit hash of an id.
-func Murmur3Hash128(data []byte) Hash128 {
-	h0, h1 := murmur3.Sum128(data)
-	return Hash128{h0, h1}
-}
+// Package murmur3test contains some tests for converting github.com/spaolacci/murmur3 to
+// github.com/twmb/murmur3.
+package murmur3test

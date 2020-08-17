@@ -62,7 +62,7 @@ require (
 	github.com/m3db/prometheus_common v0.0.0-20180517030744-25aaa3dff79b
 	github.com/m3db/prometheus_procfs v0.8.1
 	github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f
-	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e // indirect
+	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v0.0.0-20200602205121-7f389745e9ab
 	github.com/m3dbx/vellum v0.0.0-20200602203954-e10aaedbd934
@@ -103,6 +103,7 @@ require (
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
 	github.com/stretchr/testify v1.4.0
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
+	github.com/twmb/murmur3 v1.1.3
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/atomic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/uber-go/tally v3.3.13+incompatible
