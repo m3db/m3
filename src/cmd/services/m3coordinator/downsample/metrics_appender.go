@@ -90,7 +90,7 @@ type metricsAppender struct {
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
 	cachedEncoders               []serialize.TagEncoder
-	inUseEncoders                []serialize.TagEncoder
+	inuseEncoders                []serialize.TagEncoder
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -120,8 +120,11 @@ func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
 // reset is called when pulled from the pool.
 func (a *metricsAppender) reset(opts metricsAppenderOptions) {
 	a.metricsAppenderOptions = opts
-	a.cachedEncoders = append(a.cachedEncoders, a.inUseEncoders...)
-	a.inUseEncoders = a.inUseEncoders[:0]
+
+	// Copy over any previous inuse encoders to the cached encoders list. If
+	// there are no cached encoders then create one.
+	a.cachedEncoders = append(a.cachedEncoders, a.inuseEncoders...)
+	a.inuseEncoders = a.inuseEncoders[:0]
 	if len(a.cachedEncoders) == 0 {
 		a.cachedEncoders = append(a.cachedEncoders, opts.tagEncoderPool.Get())
 	}
@@ -163,7 +166,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	sort.Sort(a.tags)
 
 	// Encode tags and compute a temporary (unowned) ID
-	tagEncoder := a.getTagEncoder()
+	tagEncoder := a.tagEncoder()
 	if err := tagEncoder.Encode(a.tags); err != nil {
 		return SamplesAppenderResult{}, err
 	}
@@ -186,8 +189,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
-	// If we augment metrics tags before running the forward match filter
-	// them out.
+	// If we augmented metrics tags before running the forward match, then
+	// filter them out.
 	if a.augmentM3Tags {
 		a.tags.filterPrefix(m3MetricsPrefix)
 	}
@@ -400,6 +403,10 @@ func (a *metricsAppender) debugLogMatch(str string, opts debugLogMatchOptions) {
 func (a *metricsAppender) NextMetric() {
 	a.tags.names = a.tags.names[:0]
 	a.tags.values = a.tags.values[:0]
+
+	// Move the inuse encoders to cached as we should be done with using them.
+	a.cachedEncoders = append(a.cachedEncoders, a.inuseEncoders...)
+	a.inuseEncoders = a.inuseEncoders[:0]
 }
 
 func (a *metricsAppender) Finalize() {
@@ -407,9 +414,9 @@ func (a *metricsAppender) Finalize() {
 	a.pool.Put(a)
 }
 
-func (a *metricsAppender) getTagEncoder() serialize.TagEncoder {
-	// Tag an encoder from the cached encoder list, if not present get one from
-	// the pool. Add the returned encoder to the used list.
+func (a *metricsAppender) tagEncoder() serialize.TagEncoder {
+	// Take an encoder from the cached encoder list, if not present get one
+	// from the pool. Add the returned encoder to the used list.
 	var tagEncoder serialize.TagEncoder
 	if len(a.cachedEncoders) == 0 {
 		tagEncoder = a.tagEncoderPool.Get()
@@ -417,7 +424,7 @@ func (a *metricsAppender) getTagEncoder() serialize.TagEncoder {
 		tagEncoder = a.cachedEncoders[0]
 		a.cachedEncoders = a.cachedEncoders[1:]
 	}
-	a.inUseEncoders = append(a.inUseEncoders, tagEncoder)
+	a.inuseEncoders = append(a.inuseEncoders, tagEncoder)
 	tagEncoder.Reset()
 	return tagEncoder
 }
@@ -426,7 +433,7 @@ func (a *metricsAppender) newSamplesAppenders(
 	stagedMetadata metadata.StagedMetadata,
 	unownedID []byte,
 ) ([]samplesAppender, error) {
-	// Check if any of the pipelines have tags of graphite prefix to set.
+	// Check if any of the pipelines have tags or a graphite prefix to set.
 	var tagsExist bool
 	for _, pipeline := range stagedMetadata.Pipelines {
 		if len(pipeline.Tags) != 0 || len(pipeline.GraphitePrefix) > 0 {
@@ -491,7 +498,7 @@ func (a *metricsAppender) newSamplesAppender(
 	sm metadata.StagedMetadata,
 ) (samplesAppender, error) {
 	// Get a new tag encoder from the unused list if not present create a new one.
-	tagEncoder := a.getTagEncoder()
+	tagEncoder := a.tagEncoder()
 	if err := tagEncoder.Encode(tags); err != nil {
 		return samplesAppender{}, err
 	}

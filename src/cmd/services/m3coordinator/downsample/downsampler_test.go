@@ -28,8 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/ts"
-
 	"github.com/m3db/m3/src/aggregator/client"
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv/mem"
@@ -48,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/storage/mock"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
 	xio "github.com/m3db/m3/src/x/io"
