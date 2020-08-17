@@ -90,15 +90,10 @@ func (o QueryOptions) NSTracepoint() string {
 
 // DBTracepoint yields the appropriate tracepoint for database tchannelthrift path.
 func (o QueryOptions) DBTracepoint() string {
-	return o.tracepoint(tracepoint.DBIndexHash, tracepoint.DBQueryIDs)
+	return o.tracepoint(tracepoint.DBQueryIDsIndexHash, tracepoint.DBQueryIDs)
 }
 
 // NSIdxTracepoint yields the appropriate tracepoint for index namespace tchannelthrift path.
 func (o QueryOptions) NSIdxTracepoint() string {
-	return o.tracepoint(tracepoint.NSIdxIndexHash, tracepoint.NSIdxQuery)
-}
-
-// ServiceTracepoint yields the appropriate tracepoint for service tchannelthrift path.
-func (o QueryOptions) ServiceTracepoint() string {
-	return o.tracepoint(tracepoint.NSIdxIndexHash, tracepoint.NSIdxQuery)
+	return o.tracepoint(tracepoint.NSIndexHashQuery, tracepoint.NSIdxQuery)
 }

@@ -130,6 +130,44 @@ func TestResultsFirstInsertWins(t *testing.T) {
 	require.Equal(t, 0, tags.Remaining())
 }
 
+func TestResultsOnlySeriesIDsFirstInsertWins(t *testing.T) {
+	res := NewQueryResults(nil, QueryResultsOptions{OnlySeriesIDs: true}, testOpts)
+
+	d1 := doc.Document{ID: []byte("abc")}
+	d2 := doc.Document{ID: []byte("def")}
+	size, docsCount, err := res.AddDocuments([]doc.Document{d1, d2})
+	require.NoError(t, err)
+	require.Equal(t, 2, size)
+	require.Equal(t, 2, docsCount)
+
+	require.Equal(t, 2, res.Size())
+	require.Equal(t, 2, res.TotalDocsCount())
+
+	tags, ok := res.Map().Get(ident.StringID("abc"))
+	require.True(t, ok)
+	require.Nil(t, tags)
+
+	tags, ok = res.Map().Get(ident.StringID("def"))
+	require.True(t, ok)
+	require.Nil(t, tags)
+
+	d3 := doc.Document{ID: []byte("abc"),
+		Fields: doc.Fields{
+			doc.Field{Name: []byte("foo"), Value: []byte("bar")},
+		}}
+	size, docsCount, err = res.AddDocuments([]doc.Document{d3})
+	require.NoError(t, err)
+	require.Equal(t, 2, size)
+	require.Equal(t, 3, docsCount)
+
+	require.Equal(t, 2, res.Size())
+	require.Equal(t, 3, res.TotalDocsCount())
+
+	tags, ok = res.Map().Get(ident.StringID("abc"))
+	require.True(t, ok)
+	require.Nil(t, tags)
+}
+
 func TestResultsInsertContains(t *testing.T) {
 	res := NewQueryResults(nil, QueryResultsOptions{}, testOpts)
 	dValid := doc.Document{ID: []byte("abc")}

@@ -933,7 +933,7 @@ func (s *service) indexHashSingle(ctx context.Context,
 	nsID ident.ID,
 	opts index.QueryOptions,
 ) error {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexHash)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexHashSingleResult)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("id", nsID.String()),
@@ -946,11 +946,9 @@ func (s *service) indexHashSingle(ctx context.Context,
 		i++
 
 		tsID := entry.Key()
-		elem := &rpc.IndexHashListForBlock{}
-		response.Blocks = append(response.Blocks, elem)
-
 		idxHash, err := db.IndexHashes(ctx, nsID, tsID,
 			opts.StartInclusive, opts.EndExclusive)
+
 		if err != nil {
 			response.Blocks = append(response.Blocks, &rpc.IndexHashListForBlock{
 				Err: convert.ToRPCError(err),

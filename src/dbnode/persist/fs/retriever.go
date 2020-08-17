@@ -292,6 +292,7 @@ func (r *blockRetriever) processIndexHashRequest(
 		return
 	}
 
+	entry.BlockStart = req.start
 	req.onIndexHashCompleted(entry)
 }
 
@@ -330,6 +331,7 @@ func (r *blockRetriever) fetchBatch(
 		if err == errSeekIDNotFound {
 			req.notFound = true
 		}
+
 		req.indexEntry = entry
 	}
 
@@ -549,7 +551,12 @@ func (r *blockRetriever) StreamIndexHash(
 	// the data. This means that even though we're returning nil for error
 	// here, the caller may still encounter an error when they attempt to
 	// read the data.
-	return req.indexHash, true, nil
+	hash, err := req.waitForIndexHash()
+	if err != nil {
+		return ident.IndexHash{}, false, err
+	}
+
+	return hash, true, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -683,6 +690,14 @@ func (req *retrieveRequest) onIndexHashCompleted(indexHash ident.IndexHash) {
 		// If there was an error, we've already called done.
 		req.resultWg.Done()
 	}
+}
+
+func (req *retrieveRequest) waitForIndexHash() (ident.IndexHash, error) {
+	req.resultWg.Wait()
+	if req.err != nil {
+		return ident.IndexHash{}, req.err
+	}
+	return req.indexHash, nil
 }
 
 func (req *retrieveRequest) onError(err error) {

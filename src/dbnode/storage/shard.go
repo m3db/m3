@@ -1128,6 +1128,9 @@ func (s *dbShard) IndexHashes(
 	nsCtx namespace.Context,
 ) (ident.IndexHashBlock, error) {
 	s.RLock()
+	// NB: safe to lookup the entry in the cache, but not to add it, since
+	// this path represents operations that are likely to affect the entire
+	// set of series within this shard.
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do

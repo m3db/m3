@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -47,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -155,7 +155,7 @@ func (s seekerTrackCloses) Close() error {
 }
 
 func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Minute)()
 
@@ -642,7 +642,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, err = retriever.Stream(ctx, shard,
+	_, err := retriever.Stream(ctx, shard,
 		ident.StringID("no-tags"), blockStart, block.OnRetrieveBlockFn(func(
 			id ident.ID,
 			tagsIter ident.TagIterator,
@@ -678,7 +678,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 // on the retriever in the case where the SeekIndexEntry function returns an
 // error.
 func TestBlockRetrieverHandlesSeekIndexEntryErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockSeeker := NewMockConcurrentDataFileSetSeeker(ctrl)
@@ -691,7 +691,7 @@ func TestBlockRetrieverHandlesSeekIndexEntryErrors(t *testing.T) {
 // on the retriever in the case where the SeekByIndexEntry function returns an
 // error.
 func TestBlockRetrieverHandlesSeekByIndexEntryErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mockSeeker := NewMockConcurrentDataFileSetSeeker(ctrl)
@@ -774,4 +774,88 @@ func stripVolumeTag(tags ident.Tags) ident.Tags {
 	tagsSlice := tags.Values()
 	tagsSlice = tagsSlice[:len(tagsSlice)-1]
 	return ident.NewTags(tagsSlice...)
+}
+
+func TestBlockRetrieverIndexHashReturns(t *testing.T) {
+	// Make sure reader/writer are looking at the same test directory.
+	dir, err := ioutil.TempDir("", "testdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+	filePathPrefix := filepath.Join(dir, "")
+
+	// Setup constants and config.
+	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
+	rOpts := testNs1Metadata(t).Options().RetentionOptions()
+	nsCtx := namespace.NewContextFrom(testNs1Metadata(t))
+	shard := uint32(0)
+	blockStart := time.Now().Truncate(rOpts.BlockSize())
+
+	// Setup the reader.
+	opts := testBlockRetrieverOptions{
+		retrieverOpts: defaultTestBlockRetrieverOptions,
+		fsOpts:        fsOpts,
+		shards:        []uint32{shard},
+	}
+	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	defer cleanup()
+
+	// Write out a test file.
+	var (
+		w, closer = newOpenTestWriter(t, fsOpts, shard, blockStart, 0)
+		tag       = ident.Tag{
+			Name:  ident.StringID("name"),
+			Value: ident.StringID("value"),
+		}
+		tags = ident.NewTags(tag)
+	)
+	for _, write := range []struct {
+		id   string
+		tags ident.Tags
+		data string
+	}{
+		{
+			id:   "no-tags",
+			tags: ident.Tags{},
+			data: "Hello world!",
+		},
+		{
+			id:   "tags",
+			tags: tags,
+			data: "foobar",
+		},
+	} {
+		data := checked.NewBytes([]byte(write.data), nil)
+		data.IncRef()
+		defer data.DecRef()
+
+		metadata := persist.NewMetadataFromIDAndTags(ident.StringID(write.id), write.tags,
+			persist.MetadataOptions{})
+		checksum := digest.Checksum(data.Bytes())
+		err = w.Write(metadata, data, checksum)
+		require.NoError(t, err)
+	}
+	closer()
+
+	// Make sure we return the correct error if the ID does not exist
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	indexHash, found, err := retriever.StreamIndexHash(ctx, shard,
+		ident.StringID("no-tags"), blockStart, nsCtx)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, blockStart, indexHash.BlockStart)
+	assert.Equal(t, digest.Checksum([]byte("Hello world!")), indexHash.DataChecksum)
+
+	indexHash, found, err = retriever.StreamIndexHash(ctx, shard,
+		ident.StringID("tags"), blockStart, nsCtx)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, blockStart, indexHash.BlockStart)
+	assert.Equal(t, digest.Checksum([]byte("foobar")), indexHash.DataChecksum)
+
+	indexHash, found, err = retriever.StreamIndexHash(ctx, shard,
+		ident.StringID("not-present"), blockStart, nsCtx)
+	require.NoError(t, err)
+	require.False(t, found)
 }

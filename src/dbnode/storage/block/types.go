@@ -283,7 +283,9 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexHash will stream block index hashes for a given id and start.
+	// StreamIndexHash will stream block index hashes for a given id and start,
+	// yielding an index hash if available, a boolean indicating if the index hash
+	// was found, and any errors encountered.
 	StreamIndexHash(
 		ctx context.Context,
 		shard uint32,
@@ -306,7 +308,9 @@ type DatabaseShardBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
-	// StreamIndexHash will stream block index hashes for a given id and start.
+	// StreamIndexHash will stream block index hashes for a given id and start,
+	// yielding an index hash if available, a boolean indicating if the index hash
+	// was found, and any errors encountered.
 	StreamIndexHash(
 		ctx context.Context,
 		id ident.ID,

@@ -55,6 +55,9 @@ const (
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
 
+	// DBQueryIDsIndexHash is the operation name for the db QueryIDs IndexHash path.
+	DBQueryIDsIndexHash = "storage.db.QueryIDsIndexHash"
+
 	// DBAggregateQuery is the operation name for the db AggregateQuery path.
 	DBAggregateQuery = "storage.db.AggregateQuery"
 
@@ -75,6 +78,9 @@ const (
 
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
+
+	// NSIndexHashQuery is the operation name for the dbNamespace QueryIDs path when fetching index hashes.
+	NSIndexHashQuery = "storage.nsIndex.IndexHash"
 
 	// NSPrepareBootstrap is the operation name for the dbNamespace PrepareBootstrap path.
 	NSPrepareBootstrap = "storage.dbNamespace.PrepareBootstrap"
@@ -105,12 +111,6 @@ const (
 
 	// NSIdxBlockAggregateQuery is the operation name for the nsIndex block aggregate query path.
 	NSIdxBlockAggregateQuery = "storage.nsIndex.blockAggregateQuery"
-
-	// NSIdxIndexHash is the operation name for the tchannelthrift IndexHash path.
-	NSIdxIndexHash = "storage.nsIndex.IndexHash"
-
-	// NSIdxIndexHash is the operation name for the tchannelthrift IndexHash path.
-	NSIdxIndexHashQuery = "storage.nsIndex.IndexHashQuery"
 
 	// BlockQuery is the operation name for the index block query path.
 	BlockQuery = "storage/index.block.Query"

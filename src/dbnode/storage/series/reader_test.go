@@ -30,8 +30,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +41,7 @@ import (
 )
 
 func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
@@ -85,6 +87,49 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 		require.Equal(t, 1, len(readers))
 		assert.Equal(t, blockReaders[i], readers[0])
 	}
+}
+
+func TestReaderUsingRetrieverIndexHashes(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ropts := opts.RetentionOptions()
+
+	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	start := end.Add(-2 * ropts.BlockSize())
+
+	retriever := NewMockQueryableBlockRetriever(ctrl)
+	retriever.EXPECT().IsBlockRetrievable(start).Return(true, nil)
+	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true, nil)
+
+	indexHashes := []ident.IndexHash{
+		ident.IndexHash{DataChecksum: 1, BlockStart: start},
+		ident.IndexHash{DataChecksum: 2, BlockStart: start.Add(ropts.BlockSize())},
+	}
+
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	retriever.EXPECT().
+		StreamIndexHash(ctx, ident.NewIDMatcher("foo"),
+			start, gomock.Any()).
+		Return(indexHashes[0], true, nil)
+	retriever.EXPECT().
+		StreamIndexHash(ctx, ident.NewIDMatcher("foo"),
+			start.Add(ropts.BlockSize()), gomock.Any()).
+		Return(indexHashes[1], true, nil)
+
+	reader := NewReaderUsingRetriever(
+		ident.StringID("foo"), retriever, nil, nil, opts)
+
+	// Check reads as expected
+	r, err := reader.IndexHashes(ctx, start, end, namespace.Context{})
+	require.NoError(t, err)
+
+	assert.Equal(t, xxhash.Sum64([]byte("foo")), r.IDHash)
+	require.Equal(t, 2, len(r.IndexHashes))
+	assert.Equal(t, indexHashes, r.IndexHashes)
 }
 
 type readTestCase struct {
@@ -443,7 +488,7 @@ var robustReaderTestCases = []readTestCase{
 func TestReaderFetchBlocksRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		t.Run(tc.title, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
+			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
 			var (
@@ -535,7 +580,7 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 func TestReaderReadEncodedRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		t.Run(tc.title, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
+			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
 			var (
