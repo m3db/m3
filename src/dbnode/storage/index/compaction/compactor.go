@@ -114,7 +114,7 @@ func (c *Compactor) Compact(
 		return nil, errCompactorClosed
 	}
 
-	c.builder.Reset(0)
+	c.builder.Reset()
 	if err := c.builder.AddSegments(segs); err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		// Release resources regardless of result,
 		// otherwise old compacted segments are held onto
 		// strongly
-		builder.Reset(0)
+		builder.Reset()
 	}()
 
 	// Since this builder is likely reused between compaction

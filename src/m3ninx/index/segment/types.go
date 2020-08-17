@@ -155,9 +155,6 @@ type MutableSegment interface {
 	// builder by inserting more documents.
 	Fields() (FieldsIterator, error)
 
-	// Offset returns the postings offset.
-	Offset() postings.ID
-
 	// Seal marks the Mutable Segment immutable.
 	Seal() error
 
@@ -178,7 +175,7 @@ type Builder interface {
 	TermsIterable
 
 	// Reset resets the builder for reuse.
-	Reset(offset postings.ID)
+	Reset()
 
 	// Docs returns the current docs slice, this is not safe to modify
 	// and is invalidated on a call to reset.
