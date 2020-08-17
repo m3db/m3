@@ -51,16 +51,17 @@ func NewLargeTilesWriter(opts LargeTilesWriterOptions) (LargeTilesWriter, error)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: opts.BlockSize,
 		Identifier: FileSetFileIdentifier{
-			Namespace:  opts.NamespaceID,
-			Shard:      opts.ShardID,
-			BlockStart: opts.BlockStart,
+			Namespace:   opts.NamespaceID,
+			Shard:       opts.ShardID,
+			BlockStart:  opts.BlockStart,
+			VolumeIndex: 1, // FIXME: a valid volume index is required here
 		},
 		FileSetType: persist.FileSetFlushType,
 	}
 
 	// Write the index entries and calculate the bloom filter
-	// FIXME: "1000" below should be the number of series we plan to write.
-	m, k := bloom.EstimateFalsePositiveRate(1000, opts.Options.IndexBloomFilterFalsePositivePercent())
+	// FIXME: "10" below should be the number of series we plan to write.
+	m, k := bloom.EstimateFalsePositiveRate(10, opts.Options.IndexBloomFilterFalsePositivePercent())
 	bloomFilter := bloom.NewBloomFilter(m, k)
 
 	return &largeTilesWriter{
@@ -165,7 +166,7 @@ func (w *largeTilesWriter) writeIndexRelated(
 	// time window
 	w.bloomFilter.Add(idb)
 
-	if w.currIdx%w.summaryEvery == 0 {
+	if entry.index%w.summaryEvery == 0 || entry.index == 0 {
 		// Capture the offset for when we write this summary back, only capture
 		// for every summary we'll actually write to avoid a few memcopies
 		entry.indexFileOffset = w.indexOffset
@@ -178,7 +179,7 @@ func (w *largeTilesWriter) writeIndexRelated(
 	w.indexOffset = indexOffset
 	w.prevID = idb
 
-	if w.currIdx%w.summaryEvery == 0 {
+	if entry.index%w.summaryEvery == 0 || entry.index == 0 {
 		entry.metadata = persist.NewMetadataFromIDAndTagIterator(id, nil, persist.MetadataOptions{})
 		err = w.writer.writeSummariesEntry(*entry)
 		if err != nil {

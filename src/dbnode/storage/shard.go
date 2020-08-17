@@ -2710,6 +2710,16 @@ func (s *dbShard) AggregateTiles(
 
 	if err := writer.Close(); err != nil {
 		multiErr = multiErr.Add(err)
+	} else {
+		// Notify all block leasers that a new volume for the namespace/shard/blockstart
+		// has been created. This will block until all leasers have relinquished their
+		// leases.
+		// TODO: should we call it async?
+		_, err = s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
+			Namespace:  s.namespace.ID(),
+			Shard:      s.ID(),
+			BlockStart: opts.Start,
+		}, block.LeaseState{Volume: 1}) // FIXME: a valid volume no should be provided.
 	}
 
 	if err := readerIter.Err(); err != nil {

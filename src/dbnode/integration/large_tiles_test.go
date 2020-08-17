@@ -121,7 +121,10 @@ func TestReadAggregateWrite(t *testing.T) {
 	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSize), time.Hour)
 	require.NoError(t, err)
 
+	log.Info("Starting aggregation")
+	start = time.Now()
 	processedBlockCount, err := testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
+	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), processedBlockCount)
 
