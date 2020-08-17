@@ -27,6 +27,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/m3db/bloom"
@@ -431,7 +432,7 @@ func (w *writer) writeIndexRelatedFiles() error {
 		return err
 	}
 
-	return w.writeInfoFileContents(bloomFilter, summaries)
+	return w.writeInfoFileContents(bloomFilter, summaries, w.currIdx)
 }
 
 func (w *writer) writeIndexFileContents(
@@ -584,6 +585,7 @@ func (w *writer) writeBloomFilterFileContents(
 func (w *writer) writeInfoFileContents(
 	bloomFilter *bloom.BloomFilter,
 	summaries int,
+	entries int64,
 ) error {
 	snapshotBytes, err := w.snapshotID.MarshalBinary()
 	if err != nil {
@@ -596,7 +598,7 @@ func (w *writer) writeInfoFileContents(
 		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
 		SnapshotID:   snapshotBytes,
 		BlockSize:    int64(w.blockSize),
-		Entries:      w.currIdx,
+		Entries:      entries,
 		MajorVersion: schema.MajorVersion,
 		MinorVersion: schema.MinorVersion,
 		Summaries: schema.IndexSummariesInfo{

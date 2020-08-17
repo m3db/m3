@@ -155,7 +155,7 @@ func (w *largeTilesWriter) writeIndexRelated(
 ) error {
 	idb := id.Bytes()
 	// Need to check if i > 0 or we can never write an empty string ID
-	if w.currIdx > 0 && bytes.Equal(idb, w.prevID) {
+	if entry.index > 0 && bytes.Equal(idb, w.prevID) {
 		// Should never happen, Write() should only be called once per ID
 		return fmt.Errorf("encountered duplicate ID: %s", id)
 	}
@@ -198,9 +198,27 @@ func (w *largeTilesWriter) Close() error {
 		return err
 	}
 
-	if err := w.writer.writeInfoFileContents(w.bloomFilter, w.summaries); err != nil {
+	if err := w.writer.writeInfoFileContents(w.bloomFilter, w.summaries, w.currIdx); err != nil {
 		return err
 	}
 
-	return w.writer.closeWOIndex()
+	err := w.writer.closeWOIndex()
+	if err != nil {
+		w.writer.err = err
+		return err
+	}
+
+	// NB(xichen): only write out the checkpoint file if there are no errors
+	// encountered between calling writer.Open() and writer.Close().
+	if err := writeCheckpointFile(
+		w.writer.checkpointFilePath,
+		w.writer.digestFdWithDigestContents.Digest().Sum32(),
+		w.writer.digestBuf,
+		w.writer.newFileMode,
+	); err != nil {
+		w.writer.err = err
+		return err
+	}
+
+	return nil
 }

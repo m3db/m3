@@ -135,7 +135,6 @@ type options struct {
 	newDecoderFn                    encoding.NewDecoderFn
 	bootstrapProcessProvider        bootstrap.ProcessProvider
 	persistManager                  persist.Manager
-	largeTilesPersistManager        persist.Manager
 	blockRetrieverManager           block.DatabaseBlockRetrieverManager
 	poolOpts                        pool.ObjectPoolOptions
 	contextPool                     context.Pool
