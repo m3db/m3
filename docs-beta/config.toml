@@ -4,6 +4,7 @@ theme = "docs-theme"
 baseURL = "/"
 languageCode = "en-US"
 defaultContentLanguage = "en"
+staticDir = ["static"]
 
 title = "M3DB Documentation"
 metaDataFormat = "yaml"
