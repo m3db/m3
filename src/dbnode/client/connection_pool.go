@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclose "github.com/m3db/m3/src/x/close"
 
-	"github.com/spaolacci/murmur3"
+	"github.com/twmb/murmur3"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
