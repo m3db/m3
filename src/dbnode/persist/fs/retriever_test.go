@@ -642,7 +642,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	_, err := retriever.Stream(ctx, shard,
+	_, err = retriever.Stream(ctx, shard,
 		ident.StringID("no-tags"), blockStart, block.OnRetrieveBlockFn(func(
 			id ident.ID,
 			tagsIter ident.TagIterator,
