@@ -90,7 +90,7 @@ type metricsAppender struct {
 	defaultStagedMetadatasCopies []metadata.StagedMetadatas
 	mappingRuleStoragePolicies   []policy.StoragePolicy
 	cachedEncoders               []serialize.TagEncoder
-	usedEncoders                 []serialize.TagEncoder
+	inUseEncoders                []serialize.TagEncoder
 }
 
 // metricsAppenderOptions will have one of agg or clientRemote set.
@@ -102,7 +102,7 @@ type metricsAppenderOptions struct {
 	matcher                      matcher.Matcher
 	tagEncoderPool               serialize.TagEncoderPool
 	metricTagsIteratorPool       serialize.MetricTagsIteratorPool
-	requireM3Tags                bool
+	augmentM3Tags                bool
 
 	clockOpts    clock.Options
 	debugLogging bool
@@ -120,8 +120,8 @@ func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
 // reset is called when pulled from the pool.
 func (a *metricsAppender) reset(opts metricsAppenderOptions) {
 	a.metricsAppenderOptions = opts
-	a.cachedEncoders = append(a.cachedEncoders, a.usedEncoders...)
-	a.usedEncoders = a.usedEncoders[:0]
+	a.cachedEncoders = append(a.cachedEncoders, a.inUseEncoders...)
+	a.inUseEncoders = a.inUseEncoders[:0]
 	if len(a.cachedEncoders) == 0 {
 		a.cachedEncoders = append(a.cachedEncoders, opts.tagEncoderPool.Get())
 	}
@@ -145,7 +145,7 @@ func (a *metricsAppender) AddTag(name, value []byte) {
 
 func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppenderResult, error) {
 	// Augment tags if necessary.
-	if a.requireM3Tags {
+	if a.augmentM3Tags {
 		// NB (@shreyas): Add the metric type tag. The tag has the prefix
 		// __m3_. All tags with that prefix are only used for the purpose of
 		// filter matchiand then stripped off before we actually send to the aggregator.
@@ -188,7 +188,7 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 	// If we augment metrics tags before running the forward match filter
 	// them out.
-	if a.requireM3Tags {
+	if a.augmentM3Tags {
 		a.tags.filterPrefix(m3MetricsPrefix)
 	}
 
@@ -417,7 +417,7 @@ func (a *metricsAppender) getTagEncoder() serialize.TagEncoder {
 		tagEncoder = a.cachedEncoders[0]
 		a.cachedEncoders = a.cachedEncoders[1:]
 	}
-	a.usedEncoders = append(a.usedEncoders, tagEncoder)
+	a.inUseEncoders = append(a.inUseEncoders, tagEncoder)
 	tagEncoder.Reset()
 	return tagEncoder
 }
@@ -436,7 +436,7 @@ func (a *metricsAppender) newSamplesAppenders(
 	}
 
 	// If we do not need to do any tag augmentation then just return.
-	if !a.requireM3Tags && !tagsExist {
+	if !a.augmentM3Tags && !tagsExist {
 		return []samplesAppender{
 			{
 				agg:             a.agg,

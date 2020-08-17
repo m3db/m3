@@ -190,7 +190,7 @@ type agg struct {
 	clockOpts                    clock.Options
 	matcher                      matcher.Matcher
 	pools                        aggPools
-	m3PrefixTags                 bool
+	m3PrefixFilter               bool
 }
 
 // Configuration configurates a downsampler.
@@ -613,7 +613,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		logger                       = instrumentOpts.Logger()
 		openTimeout                  = defaultOpenTimeout
 		defaultStagedMetadatasProtos []metricpb.StagedMetadatas
-		m3PrefixTags                 = false
+		m3PrefixFilter               = false
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
@@ -682,7 +682,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			updateMetadata)
 		for _, mappingRule := range cfg.Rules.MappingRules {
 			if strings.Contains(mappingRule.Filter, m3MetricsPrefixString) {
-				m3PrefixTags = true
+				m3PrefixFilter = true
 			}
 			rule, err := mappingRule.Rule()
 			if err != nil {
@@ -753,7 +753,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 			defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
 			matcher:                      matcher,
 			pools:                        pools,
-			m3PrefixTags:                 m3PrefixTags,
+			m3PrefixFilter:               m3PrefixFilter,
 		}, nil
 	}
 
@@ -919,7 +919,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		defaultStagedMetadatasProtos: defaultStagedMetadatasProtos,
 		matcher:                      matcher,
 		pools:                        pools,
-		m3PrefixTags:                 m3PrefixTags,
+		m3PrefixFilter:               m3PrefixFilter,
 	}, nil
 }
 

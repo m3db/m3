@@ -110,7 +110,7 @@ func newDownsampler(opts downsamplerOptions) (*downsampler, error) {
 		metricTagsIteratorPool:       opts.agg.pools.metricTagsIteratorPool,
 		debugLogging:                 debugLogging,
 		logger:                       logger,
-		requireM3Tags:                opts.agg.m3PrefixTags,
+		augmentM3Tags:                opts.agg.m3PrefixFilter,
 	}
 
 	return &downsampler{
