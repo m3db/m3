@@ -3,6 +3,7 @@ package fs
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/m3db/bloom"
@@ -21,11 +22,13 @@ type LargeTilesWriter interface {
 }
 
 type LargeTilesWriterOptions struct {
-	Options     Options
-	NamespaceID ident.ID
-	ShardID     uint32
-	BlockStart  time.Time
-	BlockSize   time.Duration
+	Options             Options
+	NamespaceID         ident.ID
+	ShardID             uint32
+	BlockStart          time.Time
+	BlockSize           time.Duration
+	VolumeIndex         int
+	PlannedRecordsCount uint
 }
 
 type largeTilesWriter struct {
@@ -54,21 +57,28 @@ func NewLargeTilesWriter(opts LargeTilesWriterOptions) (LargeTilesWriter, error)
 			Namespace:   opts.NamespaceID,
 			Shard:       opts.ShardID,
 			BlockStart:  opts.BlockStart,
-			VolumeIndex: 1, // FIXME: a valid volume index is required here
+			VolumeIndex: opts.VolumeIndex,
 		},
 		FileSetType: persist.FileSetFlushType,
 	}
 
-	// Write the index entries and calculate the bloom filter
-	// FIXME: "10" below should be the number of series we plan to write.
-	m, k := bloom.EstimateFalsePositiveRate(10, opts.Options.IndexBloomFilterFalsePositivePercent())
+	m, k := bloom.EstimateFalsePositiveRate(
+		opts.PlannedRecordsCount,
+		opts.Options.IndexBloomFilterFalsePositivePercent(),
+	)
 	bloomFilter := bloom.NewBloomFilter(m, k)
+
+	summariesApprox := float64(opts.PlannedRecordsCount) * opts.Options.IndexSummariesPercent()
+	summaryEvery := 0
+	if summariesApprox > 0 {
+		summaryEvery = int(math.Floor(float64(opts.PlannedRecordsCount) / summariesApprox))
+	}
 
 	return &largeTilesWriter{
 		opts:         opts,
 		writer:       w.(*writer),
 		writerOpts:   writerOpts,
-		summaryEvery: int64(1.0 / opts.Options.IndexSummariesPercent()),
+		summaryEvery: int64(summaryEvery),
 		data:         make([]checked.Bytes, 2),
 		bloomFilter:  bloomFilter,
 	}, nil
@@ -166,7 +176,7 @@ func (w *largeTilesWriter) writeIndexRelated(
 	// time window
 	w.bloomFilter.Add(idb)
 
-	if entry.index%w.summaryEvery == 0 || entry.index == 0 {
+	if entry.index%w.summaryEvery == 0 {
 		// Capture the offset for when we write this summary back, only capture
 		// for every summary we'll actually write to avoid a few memcopies
 		entry.indexFileOffset = w.indexOffset
@@ -179,7 +189,7 @@ func (w *largeTilesWriter) writeIndexRelated(
 	w.indexOffset = indexOffset
 	w.prevID = idb
 
-	if entry.index%w.summaryEvery == 0 || entry.index == 0 {
+	if entry.index%w.summaryEvery == 0 {
 		entry.metadata = persist.NewMetadataFromIDAndTagIterator(id, nil, persist.MetadataOptions{})
 		err = w.writer.writeSummariesEntry(*entry)
 		if err != nil {

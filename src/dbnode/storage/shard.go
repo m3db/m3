@@ -2600,6 +2600,7 @@ func (s *dbShard) AggregateTiles(
 		return 0, err
 	}
 	defer reader.Close()
+	totalEntries := reader.Entries()
 
 	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
 
@@ -2632,13 +2633,21 @@ func (s *dbShard) AggregateTiles(
 	encoder := s.opts.EncoderPool().Get()
 	encoder.SetSchema(targetSchemaDesc)
 
+	latestTargetVolume, err := s.latestVolume(opts.Start)
+	nextVersion := latestTargetVolume + 1
+	if err != nil {
+		nextVersion = 0
+	}
+
 	writer, err := fs.NewLargeTilesWriter(
 		fs.LargeTilesWriterOptions{
-			NamespaceID: s.namespace.ID(),
-			ShardID:     s.ID(),
-			Options:     s.opts.CommitLogOptions().FilesystemOptions(),
-			BlockStart:  opts.Start,
-			BlockSize:   s.namespace.Options().RetentionOptions().BlockSize(),
+			NamespaceID:         s.namespace.ID(),
+			ShardID:             s.ID(),
+			Options:             s.opts.CommitLogOptions().FilesystemOptions(),
+			BlockStart:          opts.Start,
+			BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
+			VolumeIndex:         nextVersion,
+			PlannedRecordsCount: uint(totalEntries),
 		},
 	)
 	if err != nil {
@@ -2719,7 +2728,7 @@ func (s *dbShard) AggregateTiles(
 			Namespace:  s.namespace.ID(),
 			Shard:      s.ID(),
 			BlockStart: opts.Start,
-		}, block.LeaseState{Volume: 1}) // FIXME: a valid volume no should be provided.
+		}, block.LeaseState{Volume: nextVersion})
 	}
 
 	if err := readerIter.Err(); err != nil {
