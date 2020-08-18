@@ -281,14 +281,13 @@ type SeriesIteratorStats struct {
 	ApproximateSizeInBytes int
 }
 
-// SeriesIteratorConsolidator optionally defines methods to consolidate newly
-// reset series iterators.
-type SeriesIteratorConsolidator interface {
+// SeriesIteratorProcessor optionally defines methods to process series iterators.
+type SeriesIteratorProcessor interface {
 	// ConsolidateReplicas consolidates MultiReaderIterator slices.
 	ConsolidateReplicas([]MultiReaderIterator) ([]MultiReaderIterator, error)
 
-	// ConsolidateSeries consolidates SeriesIterator slices.
-	ConsolidateSeries(context.Context, []SeriesIterator) error
+	// InspectSeries inspects SeriesIterator slices.
+	InspectSeries(context.Context, []SeriesIterator) error
 }
 
 // SeriesIteratorOptions is a set of options for using a series iterator.
@@ -300,7 +299,7 @@ type SeriesIteratorOptions struct {
 	StartInclusive                xtime.UnixNano
 	EndExclusive                  xtime.UnixNano
 	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
-	SeriesIteratorConsolidator    SeriesIteratorConsolidator
+	SeriesIteratorProcessor       SeriesIteratorProcessor
 }
 
 // SeriesIterators is a collection of SeriesIterator that can

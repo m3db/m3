@@ -1633,13 +1633,14 @@ func (s *session) fetchIDsAttempt(
 				// due to a pending request in queue.
 				seriesID := s.pools.id.Clone(tsID)
 				namespaceID := s.pools.id.Clone(namespace)
+				processor := s.opts.IterationOptions().SeriesIteratorProcessor
 				iter.Reset(encoding.SeriesIteratorOptions{
-					ID:                         seriesID,
-					Namespace:                  namespaceID,
-					StartInclusive:             xtime.ToUnixNano(startInclusive),
-					EndExclusive:               xtime.ToUnixNano(endExclusive),
-					Replicas:                   itersToInclude,
-					SeriesIteratorConsolidator: s.opts.IterationOptions().SeriesIteratorConsolidator,
+					ID:                      seriesID,
+					Namespace:               namespaceID,
+					StartInclusive:          xtime.ToUnixNano(startInclusive),
+					EndExclusive:            xtime.ToUnixNano(endExclusive),
+					Replicas:                itersToInclude,
+					SeriesIteratorProcessor: processor,
 				})
 				iters.SetAt(idx, iter)
 			}
