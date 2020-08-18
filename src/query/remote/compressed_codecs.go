@@ -75,38 +75,34 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 
 func compressedSegmentsFromReaders(
 	readers xio.ReaderSliceOfSlicesIterator,
-) (*rpc.M3Segments, []xio.BlockReader, error) {
+) (*rpc.M3Segments, error) {
 	segments := &rpc.M3Segments{}
 	l, _, _ := readers.CurrentReaders()
-	blocks := make([]xio.BlockReader, 0, l)
 	// NB(arnikola) If there's only a single reader, the segment has been merged
 	// otherwise, multiple unmerged segments exist.
 	if l == 1 {
 		br := readers.CurrentReaderAt(0)
 		segment, err := compressedSegmentFromBlockReader(br)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		segments.Merged = segment
-
-		blocks = append(blocks, br)
 	} else {
 		unmerged := make([]*rpc.M3Segment, 0, l)
 		for i := 0; i < l; i++ {
 			br := readers.CurrentReaderAt(i)
 			segment, err := compressedSegmentFromBlockReader(br)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			unmerged = append(unmerged, segment)
-			blocks = append(blocks, br)
 		}
 
 		segments.Unmerged = unmerged
 	}
 
-	return segments, blocks, nil
+	return segments, nil
 }
 
 func compressedTagsFromTagIterator(
@@ -171,28 +167,25 @@ func CompressedSeriesFromSeriesIterator(
 	compressedReplicas := make([]*rpc.M3CompressedValuesReplica, 0, len(replicas))
 	for _, replica := range replicas {
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
-		replicaBlocks := make([][]xio.BlockReader, 0, len(replicas))
 		readers := replica.Readers()
 		for next := true; next; next = readers.Next() {
-			segments, blocks, err := compressedSegmentsFromReaders(readers)
+			segments, err := compressedSegmentsFromReaders(readers)
 			if err != nil {
 				return nil, err
 			}
-
 			replicaSegments = append(replicaSegments, segments)
-			replicaBlocks = append(replicaBlocks, blocks)
+		}
+
+		if reset {
+			if err := readers.Rewind(); err != nil {
+				return nil, err
+			}
 		}
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
 		}
 		compressedReplicas = append(compressedReplicas, r)
-
-		if reset {
-			schema := replica.Schema()
-			readerBlock := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(replicaBlocks)
-			replica.ResetSliceOfSlices(readerBlock, schema)
-		}
 	}
 
 	start := xtime.ToNanoseconds(it.Start())

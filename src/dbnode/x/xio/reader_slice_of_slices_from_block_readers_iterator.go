@@ -104,3 +104,8 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 	}
 	return size, nil
 }
+
+func (it *readerSliceOfSlicesIterator) Rewind() error {
+	it.idx = -1
+	return nil
+}
