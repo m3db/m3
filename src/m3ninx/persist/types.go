@@ -26,6 +26,7 @@ import (
 	"regexp"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/x/mmap"
 )
 
@@ -61,6 +62,14 @@ type MutableSegmentFileSetWriter interface {
 
 	// Reset resets the writer to write the provided mutable segment.
 	Reset(segment.Builder) error
+}
+
+// FSTSegmentDataFileSetWriter is a new IndexSegmentFileSetWriter for writing
+// out fst.SegmentData.
+type FSTSegmentDataFileSetWriter interface {
+	IndexSegmentFileSetWriter
+
+	Reset(fst.SegmentData) error
 }
 
 // IndexFileSetReader is an index file set reader, it can read many segments.

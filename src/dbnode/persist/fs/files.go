@@ -54,10 +54,11 @@ var (
 )
 
 const (
-	dataDirName       = "data"
-	indexDirName      = "index"
-	snapshotDirName   = "snapshots"
-	commitLogsDirName = "commitlogs"
+	dataDirName          = "data"
+	indexDirName         = "index"
+	snapshotDirName      = "snapshots"
+	snapshotIndexDirName = "snapshots_index"
+	commitLogsDirName    = "commitlogs"
 
 	// The maximum number of delimeters ('-' or '.') that is expected in a
 	// (base) filename.
@@ -1421,7 +1422,7 @@ func NamespaceIndexDataDirPath(prefix string, namespace ident.ID) string {
 
 // NamespaceIndexSnapshotDirPath returns the path to the data directory for a given namespace.
 func NamespaceIndexSnapshotDirPath(prefix string, namespace ident.ID) string {
-	return path.Join(prefix, indexDirName, snapshotDirName, namespace.String())
+	return path.Join(prefix, snapshotIndexDirName, namespace.String())
 }
 
 // SnapshotsDirPath returns the path to the snapshots directory.

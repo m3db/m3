@@ -239,6 +239,21 @@ func (mr *MockSnapshotPreparerMockRecorder) PrepareData(opts interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareData", reflect.TypeOf((*MockSnapshotPreparer)(nil).PrepareData), opts)
 }
 
+// PrepareIndexSnapshot mocks base method
+func (m *MockSnapshotPreparer) PrepareIndexSnapshot(opts IndexPrepareOptions) (PreparedIndexSnapshotPersist, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PrepareIndexSnapshot", opts)
+	ret0, _ := ret[0].(PreparedIndexSnapshotPersist)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PrepareIndexSnapshot indicates an expected call of PrepareIndexSnapshot
+func (mr *MockSnapshotPreparerMockRecorder) PrepareIndexSnapshot(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareIndexSnapshot", reflect.TypeOf((*MockSnapshotPreparer)(nil).PrepareIndexSnapshot), opts)
+}
+
 // DoneSnapshot mocks base method
 func (m *MockSnapshotPreparer) DoneSnapshot(snapshotUUID uuid.UUID, commitLogIdentifier CommitLogFile) error {
 	m.ctrl.T.Helper()
@@ -276,19 +291,19 @@ func (m *MockIndexFlush) EXPECT() *MockIndexFlushMockRecorder {
 	return m.recorder
 }
 
-// PrepareIndex mocks base method
-func (m *MockIndexFlush) PrepareIndex(opts IndexPrepareOptions) (PreparedIndexPersist, error) {
+// PrepareIndexFlush mocks base method
+func (m *MockIndexFlush) PrepareIndexFlush(opts IndexPrepareOptions) (PreparedIndexFlushPersist, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PrepareIndex", opts)
-	ret0, _ := ret[0].(PreparedIndexPersist)
+	ret := m.ctrl.Call(m, "PrepareIndexFlush", opts)
+	ret0, _ := ret[0].(PreparedIndexFlushPersist)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PrepareIndex indicates an expected call of PrepareIndex
-func (mr *MockIndexFlushMockRecorder) PrepareIndex(opts interface{}) *gomock.Call {
+// PrepareIndexFlush indicates an expected call of PrepareIndexFlush
+func (mr *MockIndexFlushMockRecorder) PrepareIndexFlush(opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareIndex", reflect.TypeOf((*MockIndexFlush)(nil).PrepareIndex), opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareIndexFlush", reflect.TypeOf((*MockIndexFlush)(nil).PrepareIndexFlush), opts)
 }
 
 // DoneIndex mocks base method

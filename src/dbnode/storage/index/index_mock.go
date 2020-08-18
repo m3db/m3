@@ -874,20 +874,6 @@ func (mr *MockBlockMockRecorder) IsSealed() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSealed", reflect.TypeOf((*MockBlock)(nil).IsSealed))
 }
 
-// NeedsMutableSegmentsEvicted mocks base method
-func (m *MockBlock) NeedsMutableSegmentsEvicted() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NeedsMutableSegmentsEvicted")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// NeedsMutableSegmentsEvicted indicates an expected call of NeedsMutableSegmentsEvicted
-func (mr *MockBlockMockRecorder) NeedsMutableSegmentsEvicted() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsMutableSegmentsEvicted", reflect.TypeOf((*MockBlock)(nil).NeedsMutableSegmentsEvicted))
-}
-
 // EvictMutableSegments mocks base method
 func (m *MockBlock) EvictMutableSegments() error {
 	m.ctrl.T.Helper()

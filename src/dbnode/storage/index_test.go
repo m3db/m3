@@ -448,11 +448,11 @@ func verifyFlushForShards(
 			actualDocs = append(actualDocs, b.Docs()...)
 			return nil
 		}
-		preparedPersist := persist.PreparedIndexPersist{
+		preparedPersist := persist.PreparedIndexFlushPersist{
 			Close:   closer,
 			Persist: persistFn,
 		}
-		mockFlush.EXPECT().PrepareIndex(xtest.CmpMatcher(persist.IndexPrepareOptions{
+		mockFlush.EXPECT().PrepareIndexFlush(xtest.CmpMatcher(persist.IndexPrepareOptions{
 			NamespaceMetadata: idx.nsMetadata,
 			BlockStart:        blockStart,
 			FileSetType:       persist.FileSetFlushType,

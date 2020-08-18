@@ -108,20 +108,13 @@ func (w *writer) WriteFile(fileType IndexSegmentFileType, iow io.Writer) error {
 
 // NewFSTSegmentDataFileSetWriter creates a new file set writer for
 // fst segment data.
-func NewFSTSegmentDataFileSetWriter(
-	data fst.SegmentData,
-) (IndexSegmentFileSetWriter, error) {
-	if err := data.Validate(); err != nil {
-		return nil, err
-	}
-
+func NewFSTSegmentDataFileSetWriter() (FSTSegmentDataFileSetWriter, error) {
 	docsWriter, err := fst.NewDocumentsWriter()
 	if err != nil {
 		return nil, err
 	}
 
 	return &fstSegmentDataWriter{
-		data:       data,
 		docsWriter: docsWriter,
 	}, nil
 }
@@ -130,6 +123,14 @@ type fstSegmentDataWriter struct {
 	data                fst.SegmentData
 	docsWriter          *fst.DocumentsWriter
 	docsDataFileWritten bool
+}
+
+func (w *fstSegmentDataWriter) Reset(data fst.SegmentData) error {
+	if err := data.Validate(); err != nil {
+		return err
+	}
+	w.data = data
+	return nil
 }
 
 func (w *fstSegmentDataWriter) SegmentType() IndexSegmentType {

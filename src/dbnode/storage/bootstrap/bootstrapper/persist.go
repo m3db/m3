@@ -160,7 +160,7 @@ func persistBootstrapIndexSegment(
 		}
 	}()
 
-	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
+	preparedPersist, err := flush.PrepareIndexFlush(persist.IndexPrepareOptions{
 		NamespaceMetadata: ns,
 		BlockStart:        blockStart,
 		FileSetType:       persist.FileSetFlushType,

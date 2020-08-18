@@ -167,7 +167,7 @@ func writeTSDBPersistedIndexBlock(
 	flush, err := pm.StartIndexPersist()
 	require.NoError(t, err)
 
-	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
+	preparedPersist, err := flush.PrepareIndexFlush(persist.IndexPrepareOptions{
 		NamespaceMetadata: namespace,
 		BlockStart:        start,
 		FileSetType:       persist.FileSetFlushType,

@@ -386,19 +386,13 @@ type Block interface {
 	// IsSealed returns whether this block was sealed.
 	IsSealed() bool
 
-	// NeedsMutableSegmentsEvicted returns whether this block has any mutable segments
-	// that are not-empty and sealed.
-	// A sealed non-empty mutable segment needs to get evicted from memory as
-	// soon as it can be to reduce memory footprint.
-	NeedsMutableSegmentsEvicted() bool
-
 	// EvictMutableSegments closes any mutable segments, this is only applicable
 	// valid to be called once the block and hence mutable segments are sealed.
 	// It is expected that results have been added to the block that covers any
 	// data the mutable segments should have held at this time.
 	EvictMutableSegments() error
 
-	// NeedsMutableSegmentsEvicted returns whether this block has any cold mutable segments
+	// NeedsColdMutableSegmentsEvicted returns whether this block has any cold mutable segments
 	// that are not-empty and sealed.
 	NeedsColdMutableSegmentsEvicted() bool
 

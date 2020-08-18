@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -180,17 +181,26 @@ type CommitLogFile struct {
 	Index    int64
 }
 
-// IndexFn is a function that persists a m3ninx MutableSegment.
-type IndexFn func(segment.Builder) error
+// IndexFlushFn is a function that persists a m3ninx MutableSegment.
+type IndexFlushFn func(segment.Builder) error
+
+// IndexSnapshotFn is a function that persists fst SegmentData.
+type IndexSnapshotFn func(fst.SegmentData) error
 
 // IndexCloser is a function that performs cleanup after persisting the index data
 // block for a (namespace, blockStart) combination and returns the corresponding
 // immutable Segment.
 type IndexCloser func() ([]segment.Segment, error)
 
-// PreparedIndexPersist is an object that wraps holds a persist function and a closer.
-type PreparedIndexPersist struct {
-	Persist IndexFn
+// PreparedIndexFlushPersist is an object that wraps holds a persist function and a closer.
+type PreparedIndexFlushPersist struct {
+	Persist IndexFlushFn
+	Close   IndexCloser
+}
+
+// PreparedIndexSnapshotPersist is an object that wraps holds a persist function and a closer.
+type PreparedIndexSnapshotPersist struct {
+	Persist IndexSnapshotFn
 	Close   IndexCloser
 }
 
@@ -231,6 +241,11 @@ type FlushPreparer interface {
 type SnapshotPreparer interface {
 	Preparer
 
+	// PrepareIndexSnapshot prepares snapshotting index data for a given ns/blockStart, returning a
+	// PreparedIndexSnapshotPersist object and any error encountered during
+	// preparation if any.
+	PrepareIndexSnapshot(opts IndexPrepareOptions) (PreparedIndexSnapshotPersist, error)
+
 	// DoneSnapshot marks the snapshot as complete.
 	DoneSnapshot(snapshotUUID uuid.UUID, commitLogIdentifier CommitLogFile) error
 }
@@ -238,10 +253,10 @@ type SnapshotPreparer interface {
 // IndexFlush is a persist flush cycle, each namespace, block combination needs
 // to explicitly be prepared.
 type IndexFlush interface {
-	// Prepare prepares writing data for a given ns/blockStart, returning a
-	// PreparedIndexPersist object and any error encountered during
+	// PrepareIndexFlush prepares flushing index data for a given ns/blockStart, returning a
+	// PreparedIndexFlushPersist object and any error encountered during
 	// preparation if any.
-	PrepareIndex(opts IndexPrepareOptions) (PreparedIndexPersist, error)
+	PrepareIndexFlush(opts IndexPrepareOptions) (PreparedIndexFlushPersist, error)
 
 	// DoneIndex marks the index flush as complete.
 	DoneIndex() error

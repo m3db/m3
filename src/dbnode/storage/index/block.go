@@ -1020,24 +1020,6 @@ func (b *block) IsSealed() bool {
 	return b.IsSealedWithRLock()
 }
 
-func (b *block) NeedsMutableSegmentsEvicted() bool {
-	b.RLock()
-	defer b.RUnlock()
-
-	// Check any mutable segments that can be evicted after a flush.
-	anyMutableSegmentNeedsEviction := b.mutableSegments.NeedsEviction()
-
-	// Check boostrapped segments and to see if any of them need an eviction.
-	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
-		if mutableSeg, ok := seg.(segment.MutableSegment); ok {
-			anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || mutableSeg.Size() > 0
-		}
-		return nil
-	})
-
-	return anyMutableSegmentNeedsEviction
-}
-
 func (b *block) EvictMutableSegments() error {
 	b.Lock()
 	defer b.Unlock()
@@ -1047,7 +1029,7 @@ func (b *block) EvictMutableSegments() error {
 
 	b.mutableSegments.Close()
 
-	// Close any other mutable segments that was added.
+	// Close any other mutable segments that were added.
 	multiErr := xerrors.NewMultiError()
 	for _, shardRangesSegments := range b.shardRangesSegmentsByVolumeType {
 		for idx := range shardRangesSegments {

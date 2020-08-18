@@ -362,7 +362,7 @@ func TestPersistenceManagerPrepareIndexFileExists(t *testing.T) {
 			},
 		}, m3test.IdentTransformer),
 	).Return(nil)
-	prepared, err := flush.PrepareIndex(prepareOpts)
+	prepared, err := flush.PrepareIndexFlush(prepareOpts)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
@@ -401,7 +401,7 @@ func TestPersistenceManagerPrepareIndexOpenError(t *testing.T) {
 		NamespaceMetadata: ns1Md,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.PrepareIndex(prepareOpts)
+	prepared, err := flush.PrepareIndexFlush(prepareOpts)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -437,7 +437,7 @@ func TestPersistenceManagerPrepareIndexSuccess(t *testing.T) {
 		NamespaceMetadata: testNs1Metadata(t),
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.PrepareIndex(prepareOpts)
+	prepared, err := flush.PrepareIndexFlush(prepareOpts)
 	require.NoError(t, err)
 
 	seg := segment.NewMockMutableSegment(ctrl)
