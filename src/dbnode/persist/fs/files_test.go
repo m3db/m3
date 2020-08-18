@@ -505,6 +505,38 @@ func TestFileSetAt(t *testing.T) {
 	}
 }
 
+func TestFileSetAtNonLegacy(t *testing.T) {
+	shard := uint32(0)
+	numIters := 20
+	dir := createDataFiles(t, dataDirName, testNs1ID, shard, numIters, true, checkpointFileSuffix)
+	defer os.RemoveAll(dir)
+
+	for i := 0; i < numIters; i++ {
+		timestamp := time.Unix(0, int64(i))
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, 0)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, timestamp, res.ID.BlockStart)
+	}
+}
+
+func TestFileSetAtNotFirstVolumeIndex(t *testing.T) {
+	shard := uint32(0)
+	numIters := 20
+	volumeIndex := 1
+	dir := createDataFilesWithVolumeIndex(t, dataDirName, testNs1ID, shard, numIters, true,
+		checkpointFileSuffix, volumeIndex)
+	defer os.RemoveAll(dir)
+
+	for i := 0; i < numIters; i++ {
+		timestamp := time.Unix(0, int64(i))
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp, volumeIndex)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, timestamp, res.ID.BlockStart)
+	}
+}
+
 func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
 	shard := uint32(0)
 	numIters := 20
@@ -1165,8 +1197,8 @@ func createDataCheckpointFiles(t *testing.T, subDirName string, namespace ident.
 	return createDataFiles(t, subDirName, namespace, shard, iter, isSnapshot, checkpointFileSuffix)
 }
 
-func createDataFiles(t *testing.T,
-	subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool, fileSuffix string,
+func createDataFilesWithVolumeIndex(t *testing.T,
+	subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool, fileSuffix string, volumeIndex int,
 ) string {
 	dir := createTempDir(t)
 	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
@@ -1175,7 +1207,7 @@ func createDataFiles(t *testing.T,
 		ts := time.Unix(0, int64(i))
 		var infoFilePath string
 		if isSnapshot {
-			infoFilePath = filesetPathFromTimeAndIndex(shardDir, ts, 0, fileSuffix)
+			infoFilePath = filesetPathFromTimeAndIndex(shardDir, ts, volumeIndex, fileSuffix)
 		} else {
 			infoFilePath = filesetPathFromTimeLegacy(shardDir, ts, fileSuffix)
 		}
@@ -1191,6 +1223,12 @@ func createDataFiles(t *testing.T,
 		createFile(t, infoFilePath, contents)
 	}
 	return dir
+}
+
+func createDataFiles(t *testing.T,
+	subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool, fileSuffix string,
+) string {
+	return createDataFilesWithVolumeIndex(t, subDirName, namespace, shard, iter, isSnapshot, fileSuffix, 0)
 }
 
 type indexFileSetFileIdentifier struct {

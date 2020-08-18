@@ -109,7 +109,7 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 // Make sure the V5 decoding code can handle the V1 file format.
 func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV1}
+		opts = LegacyEncodingOptions{EncodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionV1}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -149,7 +149,7 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 // Make sure the V1 decoder code can handle the V5 file format.
 func TestIndexInfoRoundTripForwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV1}
+		opts = LegacyEncodingOptions{DecodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionV1}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -191,7 +191,7 @@ func TestIndexInfoRoundTripForwardsCompatibilityV1(t *testing.T) {
 // Make sure the V5 decoding code can handle the V2 file format.
 func TestIndexInfoRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV2}
+		opts = LegacyEncodingOptions{EncodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionV2}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -230,7 +230,7 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV2(t *testing.T) {
 // Make sure the V2 decoder code can handle the V5 file format.
 func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV2}
+		opts = LegacyEncodingOptions{DecodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionV2}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -264,7 +264,7 @@ func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 // Make sure the V5 decoding code can handle the V3 file format.
 func TestIndexInfoRoundTripBackwardsCompatibilityV3(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV3}
+		opts = LegacyEncodingOptions{EncodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionV3}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -294,7 +294,7 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV3(t *testing.T) {
 // Make sure the V3 decoder code can handle the V5 file format.
 func TestIndexInfoRoundTripForwardsCompatibilityV3(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV3}
+		opts = LegacyEncodingOptions{DecodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionV3}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -325,7 +325,7 @@ func TestIndexInfoRoundTripForwardsCompatibilityV3(t *testing.T) {
 // Make sure the V5 decoding code can handle the V4 file format.
 func TestIndexInfoRoundTripBackwardsCompatibilityV4(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV4}
+		opts = LegacyEncodingOptions{EncodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionV4}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -351,7 +351,7 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV4(t *testing.T) {
 // Make sure the V4 decoder code can handle the V5 file format.
 func TestIndexInfoRoundTripForwardsCompatibilityV4(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV4}
+		opts = LegacyEncodingOptions{DecodeLegacyIndexInfoVersion: LegacyEncodingIndexVersionV4}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -425,8 +425,8 @@ func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
 // Make sure the V3 decoding code can handle the V1 file format.
 func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV1,
-			decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent}
+		opts = LegacyEncodingOptions{EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1,
+			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent}
 		enc = newEncoder(opts)
 		dec = newDecoder(opts, nil)
 	)
@@ -458,7 +458,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 // Make sure the V1 decoder code can handle the V3 file format.
 func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV1}
+		opts = LegacyEncodingOptions{DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -491,8 +491,8 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 // Make sure the V3 decoding code can handle the V2 file format.
 func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV2,
-			decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionCurrent}
+		opts = LegacyEncodingOptions{EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV2,
+			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent}
 		enc = newEncoder(opts)
 		dec = newDecoder(opts, nil)
 	)
@@ -516,7 +516,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 // Make sure the V2 decoder code can handle the V3 file format.
 func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{decodeLegacyIndexEntryVersion: legacyEncodingIndexEntryVersionV2}
+		opts = LegacyEncodingOptions{DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV2}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)

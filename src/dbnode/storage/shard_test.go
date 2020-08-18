@@ -726,14 +726,15 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 }
 
 func newMergerTestFn(
-	reader fs.DataFileSetReader,
-	blockAllocSize int,
-	srPool xio.SegmentReaderPool,
-	multiIterPool encoding.MultiReaderIteratorPool,
-	identPool ident.Pool,
-	encoderPool encoding.EncoderPool,
-	contextPool context.Pool,
-	nsOpts namespace.Options,
+	_ fs.DataFileSetReader,
+	_ int,
+	_ xio.SegmentReaderPool,
+	_ encoding.MultiReaderIteratorPool,
+	_ ident.Pool,
+	_ encoding.EncoderPool,
+	_ context.Pool,
+	_ string,
+	_ namespace.Options,
 ) fs.Merger {
 	return &noopMerger{}
 }
@@ -741,44 +742,36 @@ func newMergerTestFn(
 type noopMerger struct{}
 
 func (m *noopMerger) Merge(
-	fileID fs.FileSetFileIdentifier,
-	mergeWith fs.MergeWith,
-	nextVersion int,
-	flushPreparer persist.FlushPreparer,
-	nsCtx namespace.Context,
-	onFlush persist.OnFlushSeries,
+	_ fs.FileSetFileIdentifier,
+	_ fs.MergeWith,
+	_ int,
+	_ persist.FlushPreparer,
+	_ namespace.Context,
+	_ persist.OnFlushSeries,
 ) (persist.DataCloser, error) {
 	closer := func() error { return nil }
 	return closer, nil
 }
 
-func newFSMergeWithMemTestFn(
-	shard databaseShard,
-	retriever series.QueryableBlockRetriever,
-	dirtySeries *dirtySeriesMap,
-	dirtySeriesToWrite map[xtime.UnixNano]*idList,
-) fs.MergeWith {
-	return &noopMergeWith{}
-}
-
-type noopMergeWith struct{}
-
-func (m *noopMergeWith) Read(
-	ctx context.Context,
-	seriesID ident.ID,
-	blockStart xtime.UnixNano,
-	nsCtx namespace.Context,
-) ([]xio.BlockReader, bool, error) {
-	return nil, false, nil
-}
-
-func (m *noopMergeWith) ForEachRemaining(
-	ctx context.Context,
-	blockStart xtime.UnixNano,
-	fn fs.ForEachRemainingFn,
-	nsCtx namespace.Context,
+func (m *noopMerger) MergeAndCleanup(
+	_ fs.FileSetFileIdentifier,
+	_ fs.MergeWith,
+	_ int,
+	_ persist.FlushPreparer,
+	_ namespace.Context,
+	_ persist.OnFlushSeries,
+	_ bool,
 ) error {
 	return nil
+}
+
+func newFSMergeWithMemTestFn(
+	_ databaseShard,
+	_ series.QueryableBlockRetriever,
+	_ *dirtySeriesMap,
+	_ map[xtime.UnixNano]*idList,
+) fs.MergeWith {
+	return fs.NewNoopMergeWith()
 }
 
 func TestShardSnapshotShardNotBootstrapped(t *testing.T) {

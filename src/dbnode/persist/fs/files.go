@@ -1012,13 +1012,36 @@ func IndexSnapshotFiles(filePathPrefix string, namespace ident.ID) (FileSetFiles
 
 // FileSetAt returns a FileSetFile for the given namespace/shard/blockStart/volume combination if it exists.
 func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time, volume int) (FileSetFile, bool, error) {
+	var pattern string
+	// If this is the initial volume, then we need to check if files were written with the legacy file naming (i.e.
+	// without the volume index) so that we can properly locate the fileset.
+	if volume == 0 {
+		dir := ShardDataDirPath(filePathPrefix, namespace, shard)
+		isLegacy, err := isFirstVolumeLegacy(dir, blockStart, checkpointFileSuffix)
+		// NB(nate): don't propagate ErrCheckpointFileNotFound here as expectation is to simply return an
+		// empty FileSetFile if files do not exist.
+		if err == ErrCheckpointFileNotFound {
+			return FileSetFile{}, false, nil
+		} else if err != nil && err != ErrCheckpointFileNotFound {
+			return FileSetFile{}, false, err
+		}
+
+		if isLegacy {
+			pattern = filesetFileForTime(blockStart, anyLowerCaseCharsPattern)
+		}
+	}
+
+	if len(pattern) == 0 {
+		pattern = filesetFileForTimeAndVolumeIndex(blockStart, volume, anyLowerCaseCharsPattern)
+	}
+
 	matched, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetFlushType,
 		contentType:    persist.FileSetDataContentType,
 		filePathPrefix: filePathPrefix,
 		namespace:      namespace,
 		shard:          shard,
-		pattern:        filesetFileForTime(blockStart, anyLowerCaseCharsPattern),
+		pattern:        pattern,
 	})
 	if err != nil {
 		return FileSetFile{}, false, err
@@ -1615,13 +1638,17 @@ func filesetFileForTime(t time.Time, suffix string) string {
 	return fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix)
 }
 
+func filesetFileForTimeAndVolumeIndex(t time.Time, index int, suffix string) string {
+	newSuffix := fmt.Sprintf("%d%s%s", index, separator, suffix)
+	return filesetFileForTime(t, newSuffix)
+}
+
 func filesetPathFromTimeLegacy(prefix string, t time.Time, suffix string) string {
 	return path.Join(prefix, filesetFileForTime(t, suffix))
 }
 
 func filesetPathFromTimeAndIndex(prefix string, t time.Time, index int, suffix string) string {
-	newSuffix := fmt.Sprintf("%d%s%s", index, separator, suffix)
-	return path.Join(prefix, filesetFileForTime(t, newSuffix))
+	return path.Join(prefix, filesetFileForTimeAndVolumeIndex(t, index, suffix))
 }
 
 // isFirstVolumeLegacy returns whether the first volume of the provided type is
