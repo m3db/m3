@@ -2572,27 +2572,29 @@ func (s *dbShard) Repair(
 func (s *dbShard) AggregateTiles(
 	ctx context.Context,
 	sourceNsID ident.ID,
-	sourceBlockSize time.Duration,
-	sourceShard databaseShard,
+	sourceShardID uint32,
 	blockReaders []fs.DataFileSetReader,
+	sourceBlockVolumes []shardBlockVolume,
 	opts AggregateTilesOptions,
 	wOpts series.WriteOptions,
 ) (int64, error) {
+	blockReadersToClose := make([]fs.DataFileSetReader, 0, len(blockReaders))
+	defer func() {
+		for _, reader := range blockReadersToClose {
+			reader.Close()
+		}
+	}()
+
 	for sourceBlockPos, blockReader := range blockReaders {
 
-		sourceBlockStart := opts.Start.Add(time.Duration(sourceBlockPos) * sourceBlockSize)
-
-		latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
-		if err != nil {
-			return 0, err
-		}
+		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
 
 		openOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
 				Namespace:   sourceNsID,
-				Shard:       sourceShard.ID(),
-				BlockStart:  sourceBlockStart,
-				VolumeIndex: latestSourceVolume,
+				Shard:       sourceShardID,
+				BlockStart:  sourceBlockVolume.blockStart,
+				VolumeIndex: sourceBlockVolume.latestVolume,
 			},
 			FileSetType:    persist.FileSetFlushType,
 			OrderedByIndex: true,
@@ -2602,7 +2604,7 @@ func (s *dbShard) AggregateTiles(
 			return 0, err
 		}
 
-		defer blockReader.Close()
+		blockReadersToClose = append(blockReadersToClose, blockReader)
 	}
 
 	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders, s.opts.InstrumentOptions())
@@ -2735,7 +2737,7 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 	return emptyDoc, false, err
 }
 
-func (s *dbShard) latestVolume(blockStart time.Time) (int, error) {
+func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
@@ -2820,4 +2822,9 @@ func (r *dbShardFlushResult) update(u series.FlushOutcome) {
 	if u == series.FlushOutcomeBlockDoesNotExist {
 		r.numBlockDoesNotExist++
 	}
+}
+
+type shardBlockVolume struct {
+	blockStart   time.Time
+	latestVolume int
 }

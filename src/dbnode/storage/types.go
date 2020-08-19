@@ -417,7 +417,8 @@ type databaseNamespace interface {
 		pm persist.Manager,
 	) (int64, error)
 
-	readableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
+	// ReadableShardAt returns a shard of this namespace by shardID.
+	ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error)
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -599,14 +600,15 @@ type databaseShard interface {
 	AggregateTiles(
 		ctx context.Context,
 		sourceNsID ident.ID,
-		sourceBlockSize time.Duration,
-		sourceShard databaseShard,
+		sourceShardID uint32,
 		blockReaders []fs.DataFileSetReader,
+		sourceBlockVolumes []shardBlockVolume,
 		opts AggregateTilesOptions,
 		wOpts series.WriteOptions,
 	) (int64, error)
 
-	latestVolume(blockStart time.Time) (int, error)
+	// LatestVolume returns the latest volume for the combination of shard+blockStart.
+	LatestVolume(blockStart time.Time) (int, error)
 }
 
 // ShardColdFlush exposes a done method to finalize shard cold flush

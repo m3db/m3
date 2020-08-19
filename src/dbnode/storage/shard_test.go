@@ -1791,7 +1791,7 @@ func TestAggregateTiles(t *testing.T) {
 	reverseIndex.EXPECT().WriteBatch(gomock.Any()).Return(nil).Times(2)
 	targetShard.reverseIndex = reverseIndex
 
-	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
+	latestSourceVolume, err := sourceShard.LatestVolume(opts.Start)
 	require.NoError(t, err)
 
 	sourceNsID := sourceShard.namespace.ID()
@@ -1832,8 +1832,9 @@ func TestAggregateTiles(t *testing.T) {
 
 	//TODO: include more than one block reader here once iteration and processing across multiple blocks is implemented
 	blockReaders := []fs.DataFileSetReader{reader}
+	sourceBlockVolumes := []shardBlockVolume{{start, latestSourceVolume}}
 
-	processedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNsID, time.Hour, sourceShard, blockReaders, opts, series.WriteOptions{})
+	processedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, series.WriteOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), processedBlockCount)
 }
