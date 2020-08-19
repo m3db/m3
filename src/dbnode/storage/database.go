@@ -1175,7 +1175,11 @@ func (m metadatas) String() (string, error) {
 	return buf.String(), nil
 }
 
-func NewAggregateTilesOptions(start, end time.Time, step time.Duration) (AggregateTilesOptions, error) {
+func NewAggregateTilesOptions(
+	start, end time.Time,
+	step time.Duration,
+	handleCounterResets bool,
+) (AggregateTilesOptions, error) {
 	if !end.After(start) {
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
 	}
@@ -1184,5 +1188,5 @@ func NewAggregateTilesOptions(start, end time.Time, step time.Duration) (Aggrega
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
-	return AggregateTilesOptions{Start: start, End: end, Step: step}, nil
+	return AggregateTilesOptions{Start: start, End: end, Step: step, HandleCounterResets: handleCounterResets}, nil
 }

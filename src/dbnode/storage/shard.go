@@ -26,12 +26,10 @@ import (
 	"fmt"
 	"io"
 	"math"
-	osruntime "runtime"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -2575,48 +2573,64 @@ func (s *dbShard) Repair(
 
 func (s *dbShard) AggregateTiles(
 	ctx context.Context,
-	reader fs.DataFileSetReader,
 	sourceNsID ident.ID,
+	sourceBlockSize time.Duration,
 	sourceShard databaseShard,
+	blockReaders []fs.DataFileSetReader,
 	opts AggregateTilesOptions,
 	targetSchemaDesc namespace.SchemaDescr,
 ) (int64, error) {
-	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
+	maxEntries := 0
+	for sourceBlockPos, blockReader := range blockReaders {
+
+		sourceBlockStart := opts.Start.Add(time.Duration(sourceBlockPos) * sourceBlockSize)
+
+		latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
+		if err != nil {
+			s.logger.Error("sourceShard.latestVolume", zap.Error(err))
+			return 0, err
+		}
+
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   sourceNsID,
+				Shard:       sourceShard.ID(),
+				BlockStart:  sourceBlockStart,
+				VolumeIndex: latestSourceVolume,
+			},
+			FileSetType:    persist.FileSetFlushType,
+			OrderedByIndex: true,
+		}
+
+		if err := blockReader.Open(openOpts); err != nil {
+			s.logger.Error("blockReader.Open", zap.Error(err))
+			return 0, err
+		}
+		if blockReader.Entries() > maxEntries {
+			maxEntries = blockReader.Entries()
+		}
+
+		defer blockReader.Close()
+	}
+
+	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders, s.opts.InstrumentOptions())
 	if err != nil {
+		s.logger.Error("NewCrossBlockReader", zap.Error(err))
 		return 0, err
 	}
+	defer crossBlockReader.Close()
 
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   sourceNsID,
-			Shard:       sourceShard.ID(),
-			BlockStart:  opts.Start,
-			VolumeIndex: latestSourceVolume,
-		},
-		FileSetType:    persist.FileSetFlushType,
-		OrderedByIndex: true,
-	}
-	if err := reader.Open(openOpts); err != nil {
-		return 0, err
-	}
-	defer reader.Close()
-	totalEntries := reader.Entries()
-
-	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
-
-	concurrency := osruntime.NumCPU()
-	// TODO: fix it. concurrency currently raises panics
-	concurrency = 1
 	tileOpts := tile.Options{
-		FrameSize:    xtime.UnixNano(opts.Step.Nanoseconds()),
-		Start:        xtime.ToUnixNano(opts.Start),
-		Concurrency:  concurrency,
-		UseArrow:     false,
-		EncodingOpts: encodingOpts,
+		FrameSize:          xtime.UnixNano(opts.Step.Nanoseconds()),
+		Start:              xtime.ToUnixNano(opts.Start),
+		UseArrow:           false,
+		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
 	}
 
-	readerIter, err := tile.NewSeriesBlockIterator(reader, tileOpts)
+	// TODO: these should probably be pooled
+	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
 	if err != nil {
+		s.logger.Error("error when creating new series block iterator", zap.Error(err))
 		return 0, err
 	}
 
@@ -2636,8 +2650,10 @@ func (s *dbShard) AggregateTiles(
 	latestTargetVolume, err := s.latestVolume(opts.Start)
 	nextVersion := latestTargetVolume + 1
 	if err != nil {
+		s.logger.Error("latestTargetVolume", zap.Error(err))
 		nextVersion = 0
 	}
+	fmt.Println("Next version", nextVersion)
 
 	writer, err := fs.NewLargeTilesWriter(
 		fs.LargeTilesWriterOptions{
@@ -2647,7 +2663,7 @@ func (s *dbShard) AggregateTiles(
 			BlockStart:          opts.Start,
 			BlockSize:           s.namespace.Options().RetentionOptions().BlockSize(),
 			VolumeIndex:         nextVersion,
-			PlannedRecordsCount: uint(totalEntries),
+			PlannedRecordsCount: uint(maxEntries),
 		},
 	)
 	if err != nil {
@@ -2662,59 +2678,98 @@ func (s *dbShard) AggregateTiles(
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
 		dp                  ts.Datapoint
-		id                  ident.ID
+		id, prevID          ident.ID
+		downsampledValues   = make([]tile.DownsampledValue, 0, 4)
 		tags                ident.TagIterator
+		justStarted         = true
+		lastError           error
 	)
 
 	for readerIter.Next() {
-		seriesIters := readerIter.Current()
-		for _, seriesIter := range seriesIters {
-			seriesIter := seriesIter
-			encoder.Reset(opts.Start, 0, targetSchemaDesc)
-			for seriesIter.Next() {
-				frame := seriesIter.Current()
-				id = frame.ID()
-				tags = frame.Tags()
-				unit, singleUnit := frame.Units().SingleValue()
-				annotation, singleAnnotation := frame.Annotations().SingleValue()
-				if vals := frame.Values(); len(vals) > 0 {
-					lastIdx := len(vals) - 1
-					lastValue := vals[lastIdx]
-					lastTimestamp := frame.Timestamps()[lastIdx]
+		seriesIter := readerIter.Current()
+		prevFrameLastValue := math.NaN()
+		for seriesIter.Next() {
+			frame := seriesIter.Current()
+
+			id = frame.ID()
+			if justStarted {
+				prevID = id
+				justStarted = false
+				encoder.Reset(opts.Start, 0, targetSchemaDesc)
+			} else if !id.Equal(prevID) {
+				if err := writer.Write(ctx, encoder, prevID, tags); err != nil {
+					s.metrics.largeTilesWriteErrors.Inc(1)
+					lastError = err
+				} else {
+					s.metrics.largeTilesWrites.Inc(1)
+				}
+
+				encoder.Reset(opts.Start, 0, targetSchemaDesc)
+				prevID = id
+			}
+
+			tags = frame.Tags()
+			unit, singleUnit := frame.Units().SingleValue()
+			annotation, singleAnnotation := frame.Annotations().SingleValue()
+
+			if frameValues := frame.Values(); len(frameValues) > 0 {
+
+				downsampledValues = downsampledValues[:0]
+				lastIdx := len(frameValues) - 1
+
+				if opts.HandleCounterResets {
+					// last value plus possible few more datapoints to preserve counter semantics
+					tile.DownsampleCounterResets(prevFrameLastValue, frameValues, &downsampledValues)
+				} else {
+					// plain last value
+					downsampledValue := tile.DownsampledValue{FrameIndex: lastIdx, Value: frameValues[lastIdx]}
+					downsampledValues = append(downsampledValues, downsampledValue)
+				}
+
+				for _, downsampledValue := range downsampledValues {
+
+					value := downsampledValue.Value
+					timestamp := frame.Timestamps()[downsampledValue.FrameIndex]
+
 					if !singleUnit {
 						// TODO: what happens if unit has changed mid-tile?
 						// Write early and then do the remaining values separately?
-						if len(frame.Units().Values()) > lastIdx {
-							unit = frame.Units().Values()[lastIdx]
-						}
+						unit = frame.Units().Values()[downsampledValue.FrameIndex]
 					}
+
 					if !singleAnnotation {
 						// TODO: what happens if annotation has changed mid-tile?
 						// Write early and then do the remaining values separately?
-						if len(frame.Annotations().Values()) > lastIdx {
-							annotation = frame.Annotations().Values()[lastIdx]
-						}
+						annotation = frame.Annotations().Values()[downsampledValue.FrameIndex]
 					}
 
-					dp.Timestamp = lastTimestamp
-					dp.Value = lastValue
+					dp.Timestamp = timestamp
+					dp.Value = value
 					err = encoder.Encode(dp, unit, annotation)
 					if err != nil {
 						s.metrics.largeTilesWriteErrors.Inc(1)
-						// FIXME: log only the last error to do not flood the log
-						multiErr = multiErr.Add(err)
+						lastError = err
 					}
-					processedBlockCount.Inc()
 				}
-			}
-			// TODO: What if the for loop above will get an error?
-			if err := writer.Write(ctx, encoder, id, tags); err != nil {
-				s.metrics.largeTilesWriteErrors.Inc(1)
-				multiErr = multiErr.Add(err)
-			} else {
-				s.metrics.largeTilesWrites.Inc(1)
+
+				prevFrameLastValue = frameValues[lastIdx]
+				processedBlockCount.Inc()
 			}
 		}
+	}
+
+	// If there was at least one series then the last one wasn't written. Write it.
+	if !justStarted {
+		if err := writer.Write(ctx, encoder, id, tags); err != nil {
+			s.metrics.largeTilesWriteErrors.Inc(1)
+			lastError = err
+		} else {
+			s.metrics.largeTilesWrites.Inc(1)
+		}
+	}
+
+	if lastError != nil {
+		multiErr = multiErr.Add(lastError)
 	}
 
 	if err := writer.Close(); err != nil {

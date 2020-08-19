@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -43,19 +44,27 @@ import (
 
 func TestReadAggregateWrite(t *testing.T) {
 	var (
-		blockSize      = 2 * time.Hour
-		indexBlockSize = 2 * blockSize
-		rOpts          = retention.NewOptions().SetRetentionPeriod(24 * blockSize).SetBlockSize(blockSize)
-		idxOpts        = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
-		nsOpts         = namespace.NewOptions().
+		blockSize       = 2 * time.Hour
+		blockSizeT      = 6 * time.Hour
+		indexBlockSize  = 2 * blockSize
+		indexBlockSizeT = 2 * blockSizeT
+		rOpts           = retention.NewOptions().SetRetentionPeriod(24 * blockSize).SetBlockSize(blockSize)
+		rOptsT          = retention.NewOptions().SetRetentionPeriod(24 * blockSize).SetBlockSize(blockSizeT)
+		idxOpts         = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
+		idxOptsT        = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
+		nsOpts          = namespace.NewOptions().
 				SetRetentionOptions(rOpts).
 				SetIndexOptions(idxOpts).
 				SetColdWritesEnabled(true)
+		nsOptsT = namespace.NewOptions().
+			SetRetentionOptions(rOptsT).
+			SetIndexOptions(idxOptsT).
+			SetColdWritesEnabled(true)
 	)
 
 	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
-	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
+	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOptsT)
 	require.NoError(t, err)
 
 	testOpts := NewTestOptions(t).
@@ -99,7 +108,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	dpTime := dpTimeStart
 
 	// Write test data.
-	for a := 0.0; a < 20.0; a++ {
+	for a := 0.0; a < 60.0; a++ {
 		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 42.1+a, xtime.Second, nil)
 		require.NoError(t, err)
 		dpTime = dpTime.Add(10 * time.Minute)
@@ -118,7 +127,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 
-	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSize), time.Hour)
+	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), time.Hour, false)
 	require.NoError(t, err)
 
 	log.Info("Starting aggregation")
@@ -126,7 +135,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	processedBlockCount, err := testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), processedBlockCount)
+	assert.Equal(t, int64(6), processedBlockCount)
 
 	counters := reporter.Counters()
 	writeErrorsCount, _ := counters["database.writeAggData.errors"]
@@ -141,11 +150,16 @@ func TestReadAggregateWrite(t *testing.T) {
 	expectedDps := map[int64]float64{
 		dpTimeStart.Add(50 * time.Minute).Unix():  47.1,
 		dpTimeStart.Add(110 * time.Minute).Unix(): 53.1,
+		dpTimeStart.Add(170 * time.Minute).Unix(): 59.1,
+		dpTimeStart.Add(230 * time.Minute).Unix(): 65.1,
+		dpTimeStart.Add(290 * time.Minute).Unix(): 71.1,
+		dpTimeStart.Add(350 * time.Minute).Unix(): 77.1,
 	}
 
 	count := 0
 	for series.Next() {
 		dp, _, _ := series.Current()
+		fmt.Println(dp)
 		value, ok := expectedDps[dp.Timestamp.Unix()]
 		require.True(t, ok,
 			"didn't expect to find timestamp %v in aggregated result",

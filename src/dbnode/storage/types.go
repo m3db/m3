@@ -597,9 +597,10 @@ type databaseShard interface {
 	// AggregateTiles does large tile aggregation from source shards into this shard.
 	AggregateTiles(
 		ctx context.Context,
-		reader fs.DataFileSetReader,
 		sourceNsID ident.ID,
+		sourceBlockSize time.Duration,
 		sourceShard databaseShard,
+		blockReaders []fs.DataFileSetReader,
 		opts AggregateTilesOptions,
 		targetSchemaDesc namespace.SchemaDescr,
 	) (int64, error)
@@ -1237,6 +1238,9 @@ type newFSMergeWithMemFn func(
 ) fs.MergeWith
 
 type AggregateTilesOptions struct {
-	Start, End time.Time
-	Step       time.Duration
+	Start, End          time.Time
+	Step                time.Duration
+	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
+	// TODO: remove once we have metrics type stored in the metadata.
+	HandleCounterResets bool
 }

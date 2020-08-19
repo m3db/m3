@@ -3047,7 +3047,7 @@ func TestServiceAggregateTiles(t *testing.T) {
 		ctx,
 		ident.NewIDMatcher(sourceNsID),
 		ident.NewIDMatcher(targetNsID),
-		storage.AggregateTilesOptions{Start: start, End: end, Step: stepDuration},
+		storage.AggregateTilesOptions{Start: start, End: end, Step: stepDuration, HandleCounterResets: true},
 	).Return(int64(4), nil)
 
 	result, err := service.AggregateTiles(tctx, &rpc.AggregateTilesRequest{

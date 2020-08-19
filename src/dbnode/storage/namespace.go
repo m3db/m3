@@ -1629,10 +1629,14 @@ func (n *dbNamespace) aggregateTiles(
 
 	targetShards := n.OwnedShards()
 
-	sourceNsOpts := sourceNs.StorageOptions()
-	reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
-	if err != nil {
-		return 0, err
+	var blockReaders []fs.DataFileSetReader
+	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
+	for sourceBlockStart := opts.Start; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+		reader, err := fs.NewReader(sourceNs.StorageOptions().BytesPool(), sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
+		if err != nil {
+			return 0, err
+		}
+		blockReaders = append(blockReaders, reader)
 	}
 
 	multiErr := xerrors.NewMultiError()
@@ -1644,7 +1648,7 @@ func (n *dbNamespace) aggregateTiles(
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceShard, opts, nsCtx.Schema)
+		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceBlockSize, sourceShard, blockReaders, opts, nsCtx.Schema)
 		processedBlockCount += shardProcessedBlockCount
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)

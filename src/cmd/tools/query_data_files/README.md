@@ -8,18 +8,22 @@ $ git clone git@github.com:m3db/m3.git
 $ make query_data_files
 $ ./bin/query_data_files
 Usage: query_data_files [-b value] [-t value] [-p value] [-s value] [parameters ...]
+ -a                 Use arrow
  -b, --block-start=value
-       Block Start Time [in nsec]
- -t, --tile-size=value
-       Tile size [in min]
+                    Block Start Time [in nsec]
+ -f, --fileset-type=value
+                    flush|snapshot
+ -i, --iterations=value
+                    Concurrent iteration count
  -n, --namespace=value
-       Namespace [e.g. metrics]
+                    Namespace [e.g. metrics]
  -p, --path-prefix=value
-       Path prefix [e.g. /var/lib/m3db]
- -s, --shard=value
-       Shard [expected format uint32]; will read from all shards if omitted.
- -c, --concurrency=value
-       Concurrency [Concurrent iteration count, minimum 1, default is numCPUs]
+                    Path prefix [e.g. /var/lib/m3db]
+ -s, --shard=value  Shard [expected format uint32]
+ -t, --tile-size=value
+                    Block Start Time [in min]
+ -v, --volume=value
+                    Volume number
 
 # example usage
 # query_data_files -b1480960800000000000 -n metrics -p /var/lib/m3db -s 451 -t 5 -c 3 > /tmp/sample-data.out
