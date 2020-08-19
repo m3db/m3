@@ -1083,6 +1083,41 @@ func (d *db) OwnedNamespaces() ([]databaseNamespace, error) {
 	return d.ownedNamespacesWithLock(), nil
 }
 
+func (d *db) AggregateTiles(
+	ctx context.Context,
+	sourceNsID,
+	targetNsID ident.ID,
+	opts AggregateTilesOptions,
+) (int64, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("sourceNameSpace", sourceNsID.String()),
+			opentracinglog.String("targetNameSpace", targetNsID.String()),
+			xopentracing.Time("start", opts.Start),
+			xopentracing.Time("end", opts.End),
+			xopentracing.Duration("step", opts.Step),
+		)
+	}
+	defer sp.Finish()
+
+	sourceNs, err := d.namespaceFor(sourceNsID)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return 0, err
+	}
+
+	targetNs, err := d.namespaceFor(targetNsID)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return 0, err
+	}
+
+	// TODO: Create and use a dedicated persist manager
+	pm := d.opts.PersistManager()
+	return targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+}
+
 func (d *db) nextIndex() uint64 {
 	// Start with index at "1" so that a default "uniqueIndex"
 	// with "0" is invalid (AddUint64 will return the new value).
@@ -1125,4 +1160,20 @@ func (m metadatas) String() (string, error) {
 	}
 	buf.WriteRune(']')
 	return buf.String(), nil
+}
+
+func NewAggregateTilesOptions(
+	start, end time.Time,
+	step time.Duration,
+	handleCounterResets bool,
+) (AggregateTilesOptions, error) {
+	if !end.After(start) {
+		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
+	}
+
+	if step <= 0 {
+		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
+	}
+
+	return AggregateTilesOptions{Start: start, End: end, Step: step, HandleCounterResets: handleCounterResets}, nil
 }

@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -190,8 +191,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -268,8 +269,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -326,8 +327,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -1764,4 +1765,46 @@ func TestShardIterateBatchSize(t *testing.T) {
 	require.Equal(t, shardIterateBatchMinSize, iterateBatchSize(shardIterateBatchMinSize+1))
 
 	require.True(t, shardIterateBatchMinSize < iterateBatchSize(2000))
+}
+
+func TestAggregateTiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		ctx   = context.NewContext()
+		start = time.Now().Truncate(time.Hour)
+		opts  = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
+		bytes = checked.NewBytes([]byte{}, checked.NewBytesOptions())
+	)
+
+	sourceShard := testDatabaseShard(t, DefaultTestOptions())
+	defer sourceShard.Close()
+
+	targetShard := testDatabaseShard(t, DefaultTestOptions())
+	defer targetShard.Close()
+
+	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
+	require.NoError(t, err)
+
+	sourceNsID := sourceShard.namespace.ID()
+	readerOpenOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   sourceNsID,
+			Shard:       sourceShard.ID(),
+			BlockStart:  opts.Start,
+			VolumeIndex: latestSourceVolume,
+		},
+		FileSetType: persist.FileSetFlushType,
+	}
+
+	reader := fs.NewMockDataFileSetReader(ctrl)
+	reader.EXPECT().Open(readerOpenOpts).Return(nil)
+	reader.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, bytes, uint32(11), nil)
+	reader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
+	reader.EXPECT().Close()
+
+	processedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNsID, start, sourceShard, opts, series.WriteOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), processedBlockCount)
 }
