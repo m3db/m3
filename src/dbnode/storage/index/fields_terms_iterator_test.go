@@ -217,7 +217,7 @@ func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
 		},
 	}
 
-	seg, err := mem.NewSegment(0, mem.NewOptions())
+	seg, err := mem.NewSegment(mem.NewOptions())
 	require.NoError(t, err)
 
 	require.NoError(t, seg.InsertBatch(m3ninxindex.Batch{

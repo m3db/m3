@@ -526,7 +526,9 @@ func TestSeekerManagerAssignShardSet(t *testing.T) {
 
 	mockSeekerStatsLock.Lock()
 	for _, numMockSeekerClosesByBlockStart := range numMockSeekerClosesByShardAndBlockStart {
-		require.Equal(t, defaultTestingFetchConcurrency, numMockSeekerClosesByBlockStart[blockStart])
+		require.Equal(t,
+			defaultTestingFetchConcurrency,
+			numMockSeekerClosesByBlockStart[xtime.ToUnixNano(blockStart)])
 	}
 	mockSeekerStatsLock.Unlock()
 

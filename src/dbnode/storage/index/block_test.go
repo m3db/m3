@@ -2081,7 +2081,7 @@ func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string,
 }
 
 func testSegment(t *testing.T, docs ...doc.Document) segment.Segment {
-	seg, err := mem.NewSegment(0, testOpts.MemSegmentOptions())
+	seg, err := mem.NewSegment(testOpts.MemSegmentOptions())
 	require.NoError(t, err)
 
 	for _, d := range docs {
