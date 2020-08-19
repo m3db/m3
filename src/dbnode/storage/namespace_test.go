@@ -1384,8 +1384,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard1.EXPECT().ID().Return(uint32(1))
 
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceBlockSize, sourceShard0, gomock.Len(2), opts, wOpts).Return(int64(3), nil)
-	targetShard1.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceBlockSize, sourceShard1, gomock.Len(2), opts, wOpts).Return(int64(2), nil)
+	targetShard0.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard0, opts, wOpts).Return(int64(3), nil)
+	targetShard1.EXPECT().AggregateTiles(ctx, gomock.Any(), sourceNsIDMatcher, start, sourceShard1, opts, wOpts).Return(int64(2), nil)
 
 	shardColdFlush0 := NewMockShardColdFlush(ctrl)
 	shardColdFlush0.EXPECT().Done().Return(nil)
