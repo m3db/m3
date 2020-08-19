@@ -38,13 +38,12 @@ var _ index.DocRetriever = (*SliceReader)(nil)
 // SliceReader is a docs slice reader for use with documents
 // stored in memory.
 type SliceReader struct {
-	offset postings.ID
-	docs   []doc.Document
+	docs []doc.Document
 }
 
 // NewSliceReader returns a new docs slice reader.
-func NewSliceReader(offset postings.ID, docs []doc.Document) *SliceReader {
-	return &SliceReader{offset: offset, docs: docs}
+func NewSliceReader(docs []doc.Document) *SliceReader {
+	return &SliceReader{docs: docs}
 }
 
 // Len returns the number of documents in the slice reader.

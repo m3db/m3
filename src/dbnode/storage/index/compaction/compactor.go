@@ -275,7 +275,7 @@ func (c *Compactor) compactFromBuilderWithLock(
 		// rather than encoding them and mmap'ing the encoded documents.
 		allDocsCopy := make([]doc.Document, len(allDocs))
 		copy(allDocsCopy, allDocs)
-		fstData.DocsReader = docs.NewSliceReader(0, allDocsCopy)
+		fstData.DocsReader = docs.NewSliceReader(allDocsCopy)
 	} else {
 		// Otherwise encode and reference the encoded bytes as mmap'd bytes.
 		c.buff.Reset()
