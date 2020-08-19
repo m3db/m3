@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 )
 
 type seriesFrameIter struct {
@@ -38,7 +38,7 @@ type seriesFrameIter struct {
 	curr      SeriesBlockFrame
 
 	recorder recorder
-	iter     encoding.ReaderIterator
+	iter     fs.CrossBlockIterator
 
 	frameStep  xtime.UnixNano
 	frameStart xtime.UnixNano
@@ -57,7 +57,7 @@ func newSeriesFrameIterator(recorder recorder) SeriesFrameIterator {
 func (b *seriesFrameIter) Reset(
 	start xtime.UnixNano,
 	frameStep xtime.UnixNano,
-	iter encoding.ReaderIterator,
+	iter fs.CrossBlockIterator,
 	id ident.ID,
 	tags ident.TagIterator,
 ) error {
@@ -69,11 +69,12 @@ func (b *seriesFrameIter) Reset(
 	id.NoFinalize()
 	b.err = nil
 	b.iter = iter
-	b.started = false
 	b.exhausted = false
+	b.started = false
 	b.frameStart = start
 	b.frameStep = frameStep
 	b.curr.reset(start, start+frameStep, id, tags)
+
 	return nil
 }
 

@@ -22,6 +22,7 @@ package tile
 
 import (
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -69,7 +70,7 @@ type SeriesFrameIterator interface {
 	Reset(
 		start xtime.UnixNano,
 		step xtime.UnixNano,
-		it encoding.ReaderIterator,
+		it fs.CrossBlockIterator,
 		id ident.ID,
 		tags ident.TagIterator,
 	) error
@@ -85,7 +86,7 @@ type SeriesBlockIterator interface {
 	// Close closes the iterator.
 	Close() error
 	// Current returns the next set of series frame iterators.
-	Current() []SeriesFrameIterator
+	Current() SeriesFrameIterator
 }
 
 type recorder interface {
@@ -100,10 +101,8 @@ type Options struct {
 	FrameSize xtime.UnixNano
 	// Start is the start time for the iterator in nanos from epoch.
 	Start xtime.UnixNano
-	// Concurrency is the concurrency to run with.
-	Concurrency int
 	// UseArrow determines if arrow buffers shoudld be used vs flat slices.
 	UseArrow bool
-	// EncodingOpts are options for the encoder.
-	EncodingOpts encoding.Options
+	// ReaderIteratorPool yields ReaderIterators.
+	ReaderIteratorPool encoding.ReaderIteratorPool
 }

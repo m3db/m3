@@ -120,8 +120,8 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
-	Identifier     FileSetFileIdentifier
-	FileSetType    persist.FileSetType
+	Identifier  FileSetFileIdentifier
+	FileSetType persist.FileSetType
 	// OrderedByIndex enforces reading of series in the order of index (which is by series Id).
 	OrderedByIndex bool
 }
@@ -607,7 +607,7 @@ type Segments interface {
 
 // BlockRecord wraps together M3TSZ data bytes with their checksum.
 type BlockRecord struct {
-	Data checked.Bytes
+	Data         checked.Bytes
 	DataChecksum uint32
 }
 
@@ -628,4 +628,12 @@ type CrossBlockReader interface {
 	// them so they can be returned to their respective pools. Also, []BlockRecord slice and underlying data
 	// is being invalidated on each call to Next().
 	Current() (ident.ID, ident.TagIterator, []BlockRecord)
+}
+
+// CrossBlockIterator iterates accross BlockRecords.
+type CrossBlockIterator interface {
+	encoding.Iterator
+
+	// Reset resets the iterator to the given block records.
+	Reset(records []BlockRecord)
 }

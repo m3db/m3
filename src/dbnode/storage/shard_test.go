@@ -195,8 +195,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -273,8 +273,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -331,8 +331,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-				CommitLogOptions().
-				SetFilesystemOptions(fsOpts)
+			CommitLogOptions().
+			SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -1802,7 +1802,8 @@ func TestAggregateTiles(t *testing.T) {
 			BlockStart:  opts.Start,
 			VolumeIndex: latestSourceVolume,
 		},
-		FileSetType: persist.FileSetFlushType,
+		FileSetType:    persist.FileSetFlushType,
+		OrderedByIndex: true,
 	}
 
 	buildBytes := func() checked.Bytes {
@@ -1822,12 +1823,17 @@ func TestAggregateTiles(t *testing.T) {
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(readerOpenOpts).Return(nil)
+	reader.EXPECT().OrderedByIndex().Return(true)
+	reader.EXPECT().Range().Return(xtime.Range{Start: start})
 	reader.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, buildBytes(), uint32(11), nil)
 	reader.EXPECT().Read().Return(ident.StringID("id2"), ident.MustNewTagStringsIterator("foo", "bar"), buildBytes(), uint32(22), nil)
 	reader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
 	reader.EXPECT().Close()
 
-	processedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, opts, series.WriteOptions{})
+	//TODO: include more than one block reader here once iteration and processing across multiple blocks is implemented
+	blockReaders := []fs.DataFileSetReader{reader}
+
+	processedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNsID, time.Hour, sourceShard, blockReaders, opts, series.WriteOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), processedBlockCount)
 }

@@ -24,15 +24,12 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
-	"go.uber.org/atomic"
 	"io"
 	"math"
-	osruntime "runtime"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -63,6 +60,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -2573,45 +2571,55 @@ func (s *dbShard) Repair(
 
 func (s *dbShard) AggregateTiles(
 	ctx context.Context,
-	reader fs.DataFileSetReader,
 	sourceNsID ident.ID,
+	sourceBlockSize time.Duration,
 	sourceShard databaseShard,
+	blockReaders []fs.DataFileSetReader,
 	opts AggregateTilesOptions,
 	wOpts series.WriteOptions,
 ) (int64, error) {
-	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
+	for sourceBlockPos, blockReader := range blockReaders {
+
+		sourceBlockStart := opts.Start.Add(time.Duration(sourceBlockPos) * sourceBlockSize)
+
+		latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
+		if err != nil {
+			return 0, err
+		}
+
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   sourceNsID,
+				Shard:       sourceShard.ID(),
+				BlockStart:  sourceBlockStart,
+				VolumeIndex: latestSourceVolume,
+			},
+			FileSetType:    persist.FileSetFlushType,
+			OrderedByIndex: true,
+		}
+
+		if err := blockReader.Open(openOpts); err != nil {
+			return 0, err
+		}
+
+		defer blockReader.Close()
+	}
+
+	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders, s.opts.InstrumentOptions())
 	if err != nil {
 		return 0, err
 	}
+	defer crossBlockReader.Close()
 
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   sourceNsID,
-			Shard:       sourceShard.ID(),
-			BlockStart:  opts.Start,
-			VolumeIndex: latestSourceVolume,
-		},
-		FileSetType: persist.FileSetFlushType,
-	}
-	if err := reader.Open(openOpts); err != nil {
-		return 0, err
-	}
-	defer reader.Close()
-
-	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
-
-	concurrency := osruntime.NumCPU()
-	// TODO: fix it. concurrency currently raises panics
-	concurrency = 1
 	tileOpts := tile.Options{
-		FrameSize:    xtime.UnixNano(opts.Step.Nanoseconds()),
-		Start:        xtime.ToUnixNano(opts.Start),
-		Concurrency:  concurrency,
-		UseArrow:     false,
-		EncodingOpts: encodingOpts,
+		FrameSize:          xtime.UnixNano(opts.Step.Nanoseconds()),
+		Start:              xtime.ToUnixNano(opts.Start),
+		UseArrow:           false,
+		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
 	}
 
-	readerIter, err := tile.NewSeriesBlockIterator(reader, tileOpts)
+	// TODO: these should probably be pooled
+	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
 	if err != nil {
 		return 0, err
 	}
@@ -2629,52 +2637,64 @@ func (s *dbShard) AggregateTiles(
 	var (
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
-		wg                  sync.WaitGroup
-		mu                  sync.Mutex
+		downsampledValues   = make([]tile.DownsampledValue, 0, 4)
 	)
 
 	for readerIter.Next() {
-		seriesIters := readerIter.Current()
-		for _, seriesIter := range seriesIters {
-			wg.Add(1)
-			seriesIter := seriesIter
-			go func() {
-				for seriesIter.Next() {
-					frame := seriesIter.Current()
-					id := frame.ID()
-					tags := frame.Tags()
-					unit, singleUnit := frame.Units().SingleValue()
-					annotation, singleAnnotation := frame.Annotations().SingleValue()
-					if vals := frame.Values(); len(vals) > 0 {
-						lastIdx := len(vals) - 1
-						lastValue := vals[lastIdx]
-						lastTimestamp := frame.Timestamps()[lastIdx]
-						if !singleUnit {
-							// TODO: what happens if unit has changed mid-tile?
-							// Write early and then do the remaining values separately?
-							unit = frame.Units().Values()[lastIdx]
-						}
-						if !singleAnnotation {
-							// TODO: what happens if annotation has changed mid-tile?
-							// Write early and then do the remaining values separately?
-							annotation = frame.Annotations().Values()[lastIdx]
-						}
+		seriesIter := readerIter.Current()
+		prevFrameLastValue := math.NaN()
+		for seriesIter.Next() {
+			frame := seriesIter.Current()
+			id := frame.ID()
+			tags := frame.Tags()
+			unit, singleUnit := frame.Units().SingleValue()
+			annotation, singleAnnotation := frame.Annotations().SingleValue()
 
-						_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, annotation, wOpts, true)
-						if err != nil {
-							mu.Lock()
-							s.metrics.largeTilesWriteErrors.Inc(1)
-							multiErr = multiErr.Add(err)
-							mu.Unlock()
-						}
-						processedBlockCount.Inc()
+			if frameValues := frame.Values(); len(frameValues) > 0 {
+
+				downsampledValues = downsampledValues[:0]
+				lastIdx := len(frameValues) - 1
+
+				if opts.HandleCounterResets {
+					// last value plus possible few more datapoints to preserve counter semantics
+					tile.DownsampleCounterResets(prevFrameLastValue, frameValues, &downsampledValues)
+				} else {
+					// plain last value
+					downsampledValue := tile.DownsampledValue{FrameIndex: lastIdx, Value: frameValues[lastIdx]}
+					downsampledValues = append(downsampledValues, downsampledValue)
+				}
+
+				for _, downsampledValue := range downsampledValues {
+
+					value := downsampledValue.Value
+					timestamp := frame.Timestamps()[downsampledValue.FrameIndex]
+
+					if !singleUnit {
+						// TODO: what happens if unit has changed mid-tile?
+						// Write early and then do the remaining values separately?
+						unit = frame.Units().Values()[downsampledValue.FrameIndex]
+					}
+
+					if !singleAnnotation {
+						// TODO: what happens if annotation has changed mid-tile?
+						// Write early and then do the remaining values separately?
+						annotation = frame.Annotations().Values()[downsampledValue.FrameIndex]
+					}
+
+					_, err = s.writeAndIndex(ctx, id, tags, timestamp, value, unit, annotation, wOpts, true)
+					if err != nil {
+						s.metrics.largeTilesWriteErrors.Inc(1)
+						multiErr = multiErr.Add(err)
 					}
 				}
 
-				wg.Done()
-			}()
+				prevFrameLastValue = frameValues[lastIdx]
+				processedBlockCount.Inc()
+			}
+		}
 
-			wg.Wait()
+		if err := seriesIter.Err(); err != nil {
+			multiErr = multiErr.Add(err)
 		}
 	}
 

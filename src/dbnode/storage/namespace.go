@@ -1636,12 +1636,6 @@ func (n *dbNamespace) aggregateTiles(
 		return 0, errColdWritesDisabled
 	}
 
-	sourceNsOpts := sourceNs.StorageOptions()
-	reader, err := fs.NewReader(sourceNsOpts.BytesPool(), sourceNsOpts.CommitLogOptions().FilesystemOptions())
-	if err != nil {
-		return 0, err
-	}
-
 	wOpts := series.WriteOptions{
 		TruncateType: n.opts.TruncateType(),
 		SchemaDesc:   nsCtx.Schema,
@@ -1650,6 +1644,16 @@ func (n *dbNamespace) aggregateTiles(
 	resources, err := newColdFlushReuseableResources(n.opts)
 	if err != nil {
 		return 0, err
+	}
+
+	var blockReaders []fs.DataFileSetReader
+	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
+	for sourceBlockStart := opts.Start; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+		reader, err := fs.NewReader(sourceNs.StorageOptions().BytesPool(), sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
+		if err != nil {
+			return 0, err
+		}
+		blockReaders = append(blockReaders, reader)
 	}
 
 	// NB(bodu): Deferred targetShard cold flushes so that we can ensure that cold flush index data is
@@ -1663,7 +1667,7 @@ func (n *dbNamespace) aggregateTiles(
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNs.ID(), sourceShard, opts, wOpts)
+		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceBlockSize, sourceShard, blockReaders, opts, wOpts)
 		processedBlockCount += shardProcessedBlockCount
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
