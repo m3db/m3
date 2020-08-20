@@ -125,7 +125,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	var processedBlockCount int64
 	for retries := 0; retries < 10; retries++ {
 		processedBlockCount, err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
-		if err == nil {
+		if err == nil && processedBlockCount > 0 {
 			break
 		}
 		time.Sleep(time.Second)
