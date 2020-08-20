@@ -218,6 +218,7 @@ func (pm *persistManager) reset() {
 	pm.worked = 0
 	pm.slept = 0
 	pm.indexPM.segmentWriter.Reset(nil)
+	pm.indexPM.segmentDataWriter.Reset(fst.SegmentData{})
 	pm.indexPM.writeErr = nil
 	pm.indexPM.initialized = false
 	pm.dataPM.snapshotID = nil
@@ -676,7 +677,7 @@ func (pm *persistManager) DoneSnapshot(
 	pm.Lock()
 	defer pm.Unlock()
 
-	if pm.status != persistManagerPersistingData {
+	if pm.status != persistManagerPersistingSnapshot {
 		return errPersistManagerNotPersisting
 	}
 
