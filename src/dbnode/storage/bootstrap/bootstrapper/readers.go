@@ -117,12 +117,28 @@ func enqueueReadersGroupedByBlockSize(
 	groupFn := NewShardTimeRangesTimeWindowGroups
 	groupedByBlockSize := groupFn(shardTimeRanges, blockSize)
 
+	// Cache info files by shard.
+	readInfoFilesResultsByShard := make(map[uint32][]fs.ReadInfoFileResult)
+
 	// Now enqueue across all shards by block size.
 	for _, group := range groupedByBlockSize {
 		readers := make(map[ShardID]ShardReaders, group.Ranges.Len())
 		for shard, tr := range group.Ranges.Iter() {
+			readInfoFilesResults, ok := readInfoFilesResultsByShard[shard]
+			if !ok {
+				start := nowFn()
+				logger.Debug("enqueue readers read info files start",
+					zap.Uint32("shard", shard))
+				readInfoFilesResults = fs.ReadInfoFiles(fsOpts.FilePathPrefix(),
+					ns.ID(), shard, fsOpts.InfoReaderBufferSize(),
+					fsOpts.DecodingOptions(), persist.FileSetFlushType)
+				logger.Debug("enqueue readers read info files done",
+					zap.Uint32("shard", shard),
+					zap.Duration("took", nowFn().Sub(start)))
+				readInfoFilesResultsByShard[shard] = readInfoFilesResults
+			}
 			shardReaders := newShardReaders(ns, fsOpts, readerPool, shard, tr,
-				optimizedReadMetadataOnly, logger, span, nowFn)
+				optimizedReadMetadataOnly, logger, span, nowFn, readInfoFilesResults)
 			readers[ShardID(shard)] = shardReaders
 		}
 		readersCh <- newTimeWindowReaders(group.Ranges, readers)
@@ -139,6 +155,7 @@ func newShardReaders(
 	logger *zap.Logger,
 	span opentracing.Span,
 	nowFn clock.NowFn,
+	readInfoFilesResults []fs.ReadInfoFileResult,
 ) ShardReaders {
 	logSpan := func(event string) {
 		span.LogFields(
@@ -151,22 +168,12 @@ func newShardReaders(
 		zap.Uint32("shard", shard),
 		zap.String("tr", tr.String()),
 	}
-
-	start := nowFn()
-	logger.Debug("enqueue readers read info files start", logFields...)
-	logSpan("enqueue_readers_read_info_files_start")
-	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(),
-		ns.ID(), shard, fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
-	logger.Debug("enqueue readers read info files done",
-		append(logFields, zap.Duration("took", nowFn().Sub(start)))...)
-	logSpan("enqueue_readers_read_info_files_done")
-
 	if len(readInfoFilesResults) == 0 {
 		// No readers.
 		return ShardReaders{}
 	}
 
-	start = nowFn()
+	start := nowFn()
 	logger.Debug("enqueue readers open data readers start", logFields...)
 	logSpan("enqueue_readers_open_data_readers_start")
 	readers := make([]fs.DataFileSetReader, 0, len(readInfoFilesResults))
