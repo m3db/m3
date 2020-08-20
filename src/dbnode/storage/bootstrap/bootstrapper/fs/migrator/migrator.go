@@ -42,6 +42,7 @@ type worker struct {
 	inputCh        chan migrationCandidate
 	outputCh       chan completedMigration
 	persistManager persist.Manager
+	taskOptions    migration.TaskOptions
 }
 
 // Migrator is an object responsible for migrating data filesets based on version information in
@@ -130,6 +131,9 @@ func (m *Migrator) Run(ctx context.Context) error {
 			inputCh:        make(chan migrationCandidate, workerChannelSize),
 			outputCh:       outputCh,
 			persistManager: pm,
+			taskOptions: migration.NewTaskOptions().
+				SetFilesystemOptions(m.fsOpts).
+				SetStorageOptions(m.storageOpts),
 		}
 		workers = append(workers, worker)
 	}
@@ -214,13 +218,11 @@ func (m *Migrator) findMigrationCandidates() []migrationCandidate {
 
 func (m *Migrator) startWorker(worker *worker) {
 	for input := range worker.inputCh {
-		task, err := input.newTaskFn(migration.NewTaskOptions().
+		task, err := input.newTaskFn(worker.taskOptions.
 			SetInfoFileResult(input.infoFileResult).
 			SetShard(input.shard).
 			SetNamespaceMetadata(input.metadata).
-			SetPersistManager(worker.persistManager).
-			SetFilesystemOptions(m.fsOpts).
-			SetStorageOptions(m.storageOpts))
+			SetPersistManager(worker.persistManager))
 		if err != nil {
 			m.log.Error("error creating migration task", zap.Error(err))
 		}
