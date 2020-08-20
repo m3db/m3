@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/metric"
+
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/client"
@@ -681,7 +683,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		rs := rules.NewEmptyRuleSet(defaultConfigInMemoryNamespace,
 			updateMetadata)
 		for _, mappingRule := range cfg.Rules.MappingRules {
-			if strings.Contains(mappingRule.Filter, m3MetricsPrefixString) {
+			if strings.Contains(mappingRule.Filter, metric.M3MetricsPrefixString) {
 				m3PrefixFilter = true
 			}
 			rule, err := mappingRule.Rule()
@@ -696,7 +698,7 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		for _, rollupRule := range cfg.Rules.RollupRules {
-			if strings.Contains(rollupRule.Filter, m3MetricsPrefixString) {
+			if strings.Contains(rollupRule.Filter, metric.M3MetricsPrefixString) {
 				m3PrefixFilter = true
 			}
 			rule, err := rollupRule.Rule()

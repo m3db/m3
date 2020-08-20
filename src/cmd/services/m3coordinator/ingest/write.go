@@ -452,7 +452,9 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 				downsample.GraphiteIDSchemeTagValue)
 		}
 
-		var opts downsample.SampleAppenderOptions
+		opts := downsample.SampleAppenderOptions{
+			MetricType: value.Attributes.Type,
+		}
 		if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
 			opts = downsample.SampleAppenderOptions{
 				Override: true,
@@ -461,7 +463,6 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 				},
 			}
 		}
-		opts.MetricType = value.Attributes.Type
 
 		result, err := appender.SamplesAppender(opts)
 		if err != nil {

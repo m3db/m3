@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/query/models"
@@ -51,8 +52,7 @@ var (
 	errNilMappingRuleSnapshotProto                         = errors.New("nil mapping rule snapshot proto")
 	errNilMappingRuleProto                                 = errors.New("nil mapping rule proto")
 
-	m3MetricsGraphitePrefix = []byte("__m3_graphite_prefix__")
-	pathSeparator           = []byte(".")
+	pathSeparator = []byte(".")
 )
 
 // mappingRuleSnapshot defines a rule snapshot such that if a metric matches the
@@ -191,7 +191,7 @@ func newMappingRuleSnapshotFromFieldsInternal(
 	// can be used later.
 	var graphitePrefix [][]byte
 	for _, tag := range tags {
-		if bytes.Equal(tag.Name, m3MetricsGraphitePrefix) {
+		if bytes.Equal(tag.Name, metric.M3MetricsGraphitePrefix) {
 			graphitePrefix = bytes.Split(tag.Value, pathSeparator)
 		}
 	}
