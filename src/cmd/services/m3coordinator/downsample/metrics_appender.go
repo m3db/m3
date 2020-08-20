@@ -47,14 +47,15 @@ import (
 )
 
 var (
-	m3TypeTag      = []byte("__m3_type__")
 	m3CounterValue = []byte("counter")
 	m3GaugeValue   = []byte("gauge")
 	m3TimerValue   = []byte("timer")
 
-	m3MetricsPrefix              = []byte("__m3")
-	m3MetricsPrefixString        = string(m3MetricsPrefix)
-	m3MetricsGraphiteAggregation = []byte("__m3_graphite_aggregation__")
+	m3MetricsPrefix       = []byte("__m3")
+	m3MetricsPrefixString = string(m3MetricsPrefix)
+
+	m3TypeTag                    = []byte(m3MetricsPrefixString + "_type__")
+	m3MetricsGraphiteAggregation = []byte(m3MetricsPrefixString + "_graphite_aggregation__")
 )
 
 type metricsAppenderPool struct {
@@ -121,13 +122,8 @@ func newMetricsAppender(pool *metricsAppenderPool) *metricsAppender {
 func (a *metricsAppender) reset(opts metricsAppenderOptions) {
 	a.metricsAppenderOptions = opts
 
-	// Copy over any previous inuse encoders to the cached encoders list. If
-	// there are no cached encoders then create one.
-	a.cachedEncoders = append(a.cachedEncoders, a.inuseEncoders...)
-	a.inuseEncoders = a.inuseEncoders[:0]
-	if len(a.cachedEncoders) == 0 {
-		a.cachedEncoders = append(a.cachedEncoders, opts.tagEncoderPool.Get())
-	}
+	// Copy over any previous inuse encoders to the cached encoders list.
+	a.moveInuseEncoders()
 
 	// Make sure a.defaultStagedMetadatasCopies is right length.
 	capRequired := len(opts.defaultStagedMetadatasProtos)
@@ -405,13 +401,20 @@ func (a *metricsAppender) NextMetric() {
 	a.tags.values = a.tags.values[:0]
 
 	// Move the inuse encoders to cached as we should be done with using them.
-	a.cachedEncoders = append(a.cachedEncoders, a.inuseEncoders...)
-	a.inuseEncoders = a.inuseEncoders[:0]
+	a.moveInuseEncoders()
 }
 
 func (a *metricsAppender) Finalize() {
 	// Return to pool.
 	a.pool.Put(a)
+}
+
+func (a *metricsAppender) moveInuseEncoders() {
+	a.cachedEncoders = append(a.cachedEncoders, a.inuseEncoders...)
+	for i := range a.inuseEncoders {
+		a.inuseEncoders[i] = nil
+	}
+	a.inuseEncoders = a.inuseEncoders[:0]
 }
 
 func (a *metricsAppender) tagEncoder() serialize.TagEncoder {
@@ -497,7 +500,6 @@ func (a *metricsAppender) newSamplesAppender(
 	tags *tags,
 	sm metadata.StagedMetadata,
 ) (samplesAppender, error) {
-	// Get a new tag encoder from the unused list if not present create a new one.
 	tagEncoder := a.tagEncoder()
 	if err := tagEncoder.Encode(tags); err != nil {
 		return samplesAppender{}, err
@@ -549,7 +551,7 @@ func augmentTags(
 
 	// Add any additional tags we need to.
 	for _, tag := range t {
-		// If these are simply random tags to be added, then just add them.
+		// If the tag is not special tag, then just add it.
 		if !bytes.HasPrefix(tag.Name, m3MetricsPrefix) {
 			if len(tag.Name) > 0 && len(tag.Value) > 0 {
 				tags.append(tag.Name, tag.Value)

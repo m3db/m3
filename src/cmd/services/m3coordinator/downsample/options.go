@@ -319,10 +319,10 @@ type Tag struct {
 
 // Rule returns the mapping rule for the mapping rule configuration.
 func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
-	ruleID := uuid.New()
+	id := uuid.New()
 	name := r.Name
 	if name == "" {
-		name = ruleID
+		name = id
 	}
 	filter := r.Filter
 
@@ -350,7 +350,7 @@ func (r MappingRuleConfiguration) Rule() (view.MappingRule, error) {
 	}
 
 	return view.MappingRule{
-		ID:              ruleID,
+		ID:              id,
 		Name:            name,
 		Filter:          filter,
 		AggregationID:   aggID,
@@ -696,6 +696,9 @@ func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 		}
 
 		for _, rollupRule := range cfg.Rules.RollupRules {
+			if strings.Contains(rollupRule.Filter, m3MetricsPrefixString) {
+				m3PrefixFilter = true
+			}
 			rule, err := rollupRule.Rule()
 			if err != nil {
 				return agg{}, err
