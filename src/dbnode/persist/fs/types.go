@@ -120,10 +120,14 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
-	Identifier     FileSetFileIdentifier
-	FileSetType    persist.FileSetType
+	Identifier  FileSetFileIdentifier
+	FileSetType persist.FileSetType
 	// OrderedByIndex enforces reading of series in the order of index (which is by series Id).
 	OrderedByIndex bool
+	// NB(bodu): This option can inform the reader to optimize for reading
+	// only metadata by not sorting index entries. Setting this option will
+	// throw an error if a regular `Read()` is attempted.
+	OptimizedReadMetadataOnly bool
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
@@ -508,6 +512,12 @@ type Options interface {
 	// IndexReaderAutovalidateIndexSegments returns the index reader to
 	// autovalidate index segments data integrity on file open.
 	IndexReaderAutovalidateIndexSegments() bool
+
+	// SetEncodingOptions sets the encoder options used by the encoder.
+	SetEncodingOptions(value msgpack.LegacyEncodingOptions) Options
+
+	// EncodingOptions returns the encoder options used by the encoder.
+	EncodingOptions() msgpack.LegacyEncodingOptions
 }
 
 // BlockRetrieverOptions represents the options for block retrieval
@@ -582,6 +592,19 @@ type Merger interface {
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
 	) (persist.DataCloser, error)
+
+	// MergeAndCleanup merges the specified fileset file with a merge target and removes the previous version of the
+	// fileset. This should only be called within the bootstrapper. Any other file deletions outside of the bootstrapper
+	// should be handled by the CleanupManager.
+	MergeAndCleanup(
+		fileID FileSetFileIdentifier,
+		mergeWith MergeWith,
+		nextVolumeIndex int,
+		flushPreparer persist.FlushPreparer,
+		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
+		isBootstrapped bool,
+	) error
 }
 
 // NewMergerFn is the function to call to get a new Merger.
@@ -593,6 +616,7 @@ type NewMergerFn func(
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
+	filePathPrefix string,
 	nsOpts namespace.Options,
 ) Merger
 
@@ -607,7 +631,7 @@ type Segments interface {
 
 // BlockRecord wraps together M3TSZ data bytes with their checksum.
 type BlockRecord struct {
-	Data checked.Bytes
+	Data         checked.Bytes
 	DataChecksum uint32
 }
 
