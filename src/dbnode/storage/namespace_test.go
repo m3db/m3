@@ -667,13 +667,13 @@ func TestNamespaceShardAt(t *testing.T) {
 	s1.EXPECT().IsBootstrapped().Return(false)
 	ns.shards[1] = s1
 
-	_, _, err := ns.readableShardAt(0)
+	_, _, err := ns.ReadableShardAt(0)
 	require.NoError(t, err)
-	_, _, err = ns.readableShardAt(1)
+	_, _, err = ns.ReadableShardAt(1)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, errShardNotBootstrappedToRead.Error(), err.Error())
-	_, _, err = ns.readableShardAt(2)
+	_, _, err = ns.ReadableShardAt(2)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 2", err.Error())
@@ -1343,13 +1343,17 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		sourceNsID      = ident.StringID("source")
-		targetNsID      = ident.StringID("target")
-		ctx             = context.NewContext()
-		pm, _           = fs.NewPersistManager(fs.NewOptions())
-		sourceBlockSize = time.Hour
-		start           = time.Now().Truncate(2 * time.Hour)
-		opts            = AggregateTilesOptions{Start: start, End: start.Add(2 * time.Hour)}
+		sourceNsID             = ident.StringID("source")
+		targetNsID             = ident.StringID("target")
+		ctx                    = context.NewContext()
+		pm, _                  = fs.NewPersistManager(fs.NewOptions())
+		sourceBlockSize        = time.Hour
+		targetBlockSize        = 2 * time.Hour
+		start                  = time.Now().Truncate(targetBlockSize)
+		opts                   = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
+		secondSourceBlockStart = start.Add(sourceBlockSize)
+		sourceShard0ID uint32  = 10
+		sourceShard1ID uint32  = 20
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1360,7 +1364,8 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetNs, targetCloser := newTestNamespaceWithIDOpts(t, targetNsID, namespace.NewOptions())
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapped
-	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true)
+	targetRetentionOpts := targetNs.nopts.RetentionOptions().SetBlockSize(targetBlockSize)
+	targetNs.nopts = targetNs.nopts.SetColdWritesEnabled(true).SetRetentionOptions(targetRetentionOpts)
 
 	wOpts := series.WriteOptions{
 		TruncateType: targetNs.opts.TruncateType(),
@@ -1372,8 +1377,15 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	sourceNs.shards[0] = sourceShard0
 	sourceNs.shards[1] = sourceShard1
 
+	sourceShard0.EXPECT().ID().Return(sourceShard0ID)
 	sourceShard0.EXPECT().IsBootstrapped().Return(true)
+	sourceShard0.EXPECT().LatestVolume(start).Return(5, nil)
+	sourceShard0.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(15, nil)
+
+	sourceShard1.EXPECT().ID().Return(sourceShard1ID)
 	sourceShard1.EXPECT().IsBootstrapped().Return(true)
+	sourceShard1.EXPECT().LatestVolume(start).Return(7, nil)
+	sourceShard1.EXPECT().LatestVolume(start.Add(sourceBlockSize)).Return(17, nil)
 
 	targetShard0 := NewMockdatabaseShard(ctrl)
 	targetShard1 := NewMockdatabaseShard(ctrl)
@@ -1383,9 +1395,12 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard0.EXPECT().ID().Return(uint32(0))
 	targetShard1.EXPECT().ID().Return(uint32(1))
 
+	sourceBlockVolumes0 := []shardBlockVolume{{start, 5}, {secondSourceBlockStart, 15}}
+	sourceBlockVolumes1 := []shardBlockVolume{{start, 7}, {secondSourceBlockStart, 17}}
+
 	sourceNsIDMatcher := ident.NewIDMatcher(sourceNsID.String())
-	targetShard0.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceBlockSize, sourceShard0, gomock.Len(2), opts, wOpts).Return(int64(3), nil)
-	targetShard1.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceBlockSize, sourceShard1, gomock.Len(2), opts, wOpts).Return(int64(2), nil)
+	targetShard0.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard0ID, gomock.Any(), sourceBlockVolumes0, opts, wOpts).Return(int64(3), nil)
+	targetShard1.EXPECT().AggregateTiles(ctx, sourceNsIDMatcher, sourceShard1ID, gomock.Any(), sourceBlockVolumes1, opts, wOpts).Return(int64(2), nil)
 
 	shardColdFlush0 := NewMockShardColdFlush(ctrl)
 	shardColdFlush0.EXPECT().Done().Return(nil)

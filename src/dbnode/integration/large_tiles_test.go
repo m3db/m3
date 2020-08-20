@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -53,9 +52,9 @@ func TestReadAggregateWrite(t *testing.T) {
 		idxOpts         = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
 		idxOptsT        = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
 		nsOpts          = namespace.NewOptions().
-				SetRetentionOptions(rOpts).
-				SetIndexOptions(idxOpts).
-				SetColdWritesEnabled(true)
+			SetRetentionOptions(rOpts).
+			SetIndexOptions(idxOpts).
+			SetColdWritesEnabled(true)
 		nsOptsT = namespace.NewOptions().
 			SetRetentionOptions(rOptsT).
 			SetIndexOptions(idxOptsT).
@@ -159,7 +158,6 @@ func TestReadAggregateWrite(t *testing.T) {
 	count := 0
 	for series.Next() {
 		dp, _, _ := series.Current()
-		fmt.Println(dp)
 		value, ok := expectedDps[dp.Timestamp.Unix()]
 		require.True(t, ok,
 			"didn't expect to find timestamp %v in aggregated result",

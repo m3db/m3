@@ -871,7 +871,7 @@ func (n *dbNamespace) FetchBlocks(
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := n.nowFn()
-	shard, nsCtx, err := n.readableShardAt(shardID)
+	shard, nsCtx, err := n.ReadableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocks.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
@@ -891,7 +891,7 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
 	callStart := n.nowFn()
-	shard, _, err := n.readableShardAt(shardID)
+	shard, _, err := n.ReadableShardAt(shardID)
 	if err != nil {
 		n.metrics.fetchBlocksMetadata.ReportError(n.nowFn().Sub(callStart))
 		return nil, nil, err
@@ -1507,7 +1507,7 @@ func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, namespace.Co
 	return shard, nsCtx, err
 }
 
-func (n *dbNamespace) readableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
+func (n *dbNamespace) ReadableShardAt(shardID uint32) (databaseShard, namespace.Context, error) {
 	n.RLock()
 	nsCtx := n.nsContextWithRLock()
 	shard, err := n.readableShardAtWithRLock(shardID)
@@ -1630,31 +1630,49 @@ func (n *dbNamespace) aggregateTiles(
 	targetShards := n.OwnedShards()
 
 	var blockReaders []fs.DataFileSetReader
+	var sourceBlockStarts []time.Time
 	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
-	for sourceBlockStart := opts.Start; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
+	for sourceBlockStart := blockStart; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
 		reader, err := fs.NewReader(sourceNs.StorageOptions().BytesPool(), sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
 		if err != nil {
 			return 0, err
 		}
+		sourceBlockStarts = append(sourceBlockStarts, sourceBlockStart)
 		blockReaders = append(blockReaders, reader)
 	}
 
 	multiErr := xerrors.NewMultiError()
 	var processedBlockCount int64
 	for _, targetShard := range targetShards {
-		sourceShard, _, err := sourceNs.readableShardAt(targetShard.ID())
+		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
 		if err != nil {
 			detailedErr := fmt.Errorf("no matching shard in source namespace %s: %v", sourceNs.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
-		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceBlockSize, sourceShard, blockReaders, opts, nsCtx.Schema)
+
+		sourceBlockVolumes := make([]shardBlockVolume, 0, len(sourceBlockStarts))
+		for _, sourceBlockStart := range sourceBlockStarts {
+			latestVolume, err := sourceShard.LatestVolume(sourceBlockStart)
+			if err != nil {
+				n.log.Error("error getting shards latest volume", zap.Error(err), zap.Uint32("shard", sourceShard.ID()), zap.Time("blockStart", sourceBlockStart))
+				return 0, err
+			}
+			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
+		}
+
+		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nsCtx.Schema)
 		processedBlockCount += shardProcessedBlockCount
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 			continue
 		}
+	}
+
+	err := multiErr.FinalError()
+	if err != nil {
+		n.log.Error("errors when aggregating large tiles", zap.Error(err))
 	}
 
 	return processedBlockCount, multiErr.FinalError()

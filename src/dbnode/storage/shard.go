@@ -2574,29 +2574,28 @@ func (s *dbShard) Repair(
 func (s *dbShard) AggregateTiles(
 	ctx context.Context,
 	sourceNsID ident.ID,
-	sourceBlockSize time.Duration,
-	sourceShard databaseShard,
+	sourceShardID uint32,
 	blockReaders []fs.DataFileSetReader,
+	sourceBlockVolumes []shardBlockVolume,
 	opts AggregateTilesOptions,
 	targetSchemaDesc namespace.SchemaDescr,
 ) (int64, error) {
+	blockReadersToClose := make([]fs.DataFileSetReader, 0, len(blockReaders))
+	defer func() {
+		for _, reader := range blockReadersToClose {
+			reader.Close()
+		}
+	}()
+
 	maxEntries := 0
 	for sourceBlockPos, blockReader := range blockReaders {
-
-		sourceBlockStart := opts.Start.Add(time.Duration(sourceBlockPos) * sourceBlockSize)
-
-		latestSourceVolume, err := sourceShard.latestVolume(sourceBlockStart)
-		if err != nil {
-			s.logger.Error("sourceShard.latestVolume", zap.Error(err))
-			return 0, err
-		}
-
+		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
 		openOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
 				Namespace:   sourceNsID,
-				Shard:       sourceShard.ID(),
-				BlockStart:  sourceBlockStart,
-				VolumeIndex: latestSourceVolume,
+				Shard:       sourceShardID,
+				BlockStart:  sourceBlockVolume.blockStart,
+				VolumeIndex: sourceBlockVolume.latestVolume,
 			},
 			FileSetType:    persist.FileSetFlushType,
 			OrderedByIndex: true,
@@ -2610,7 +2609,7 @@ func (s *dbShard) AggregateTiles(
 			maxEntries = blockReader.Entries()
 		}
 
-		defer blockReader.Close()
+		blockReadersToClose = append(blockReadersToClose, blockReader)
 	}
 
 	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders, s.opts.InstrumentOptions())
@@ -2647,13 +2646,12 @@ func (s *dbShard) AggregateTiles(
 	encoder := s.opts.EncoderPool().Get()
 	encoder.SetSchema(targetSchemaDesc)
 
-	latestTargetVolume, err := s.latestVolume(opts.Start)
+	latestTargetVolume, err := s.LatestVolume(opts.Start)
 	nextVersion := latestTargetVolume + 1
 	if err != nil {
 		s.logger.Error("latestTargetVolume", zap.Error(err))
 		nextVersion = 0
 	}
-	fmt.Println("Next version", nextVersion)
 
 	writer, err := fs.NewLargeTilesWriter(
 		fs.LargeTilesWriterOptions{
@@ -2734,13 +2732,17 @@ func (s *dbShard) AggregateTiles(
 					if !singleUnit {
 						// TODO: what happens if unit has changed mid-tile?
 						// Write early and then do the remaining values separately?
-						unit = frame.Units().Values()[downsampledValue.FrameIndex]
+						if downsampledValue.FrameIndex < len(frame.Units().Values()) {
+							unit = frame.Units().Values()[downsampledValue.FrameIndex]
+						}
 					}
 
 					if !singleAnnotation {
 						// TODO: what happens if annotation has changed mid-tile?
 						// Write early and then do the remaining values separately?
-						annotation = frame.Annotations().Values()[downsampledValue.FrameIndex]
+						if downsampledValue.FrameIndex < len(frame.Annotations().Values()) {
+							annotation = frame.Annotations().Values()[downsampledValue.FrameIndex]
+						}
 					}
 
 					dp.Timestamp = timestamp
@@ -2799,7 +2801,7 @@ func (s *dbShard) AggregateTiles(
 	writeErr := multiErr.FinalError()
 	if writeErr != nil {
 		s.logger.Error("error writing large tiles",
-			zap.Uint32("shardID", sourceShard.ID()),
+			zap.Uint32("shardID", sourceShardID),
 			zap.String("sourceNs", sourceNsID.String()),
 			zap.String("targetNs", s.namespace.ID().String()),
 			zap.Error(writeErr),
@@ -2834,7 +2836,7 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 	return emptyDoc, false, err
 }
 
-func (s *dbShard) latestVolume(blockStart time.Time) (int, error) {
+func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
@@ -2919,4 +2921,9 @@ func (r *dbShardFlushResult) update(u series.FlushOutcome) {
 	if u == series.FlushOutcomeBlockDoesNotExist {
 		r.numBlockDoesNotExist++
 	}
+}
+
+type shardBlockVolume struct {
+	blockStart   time.Time
+	latestVolume int
 }
