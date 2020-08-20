@@ -23,6 +23,7 @@ package downsample
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -46,6 +47,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+var errNoTags = errors.New("no tags provided")
 
 type metricsAppenderPool struct {
 	pool pool.ObjectPool
@@ -138,8 +141,12 @@ func (a *metricsAppender) AddTag(name, value []byte) {
 }
 
 func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAppenderResult, error) {
-	// Augment tags if necessary.
+	if a.originalTags == nil {
+		return SamplesAppenderResult{}, errNoTags
+	}
 	tags := a.originalTags
+
+	// Augment tags if necessary.
 	if a.augmentM3Tags {
 		// NB (@shreyas): Add the metric type tag. The tag has the prefix
 		// __m3_. All tags with that prefix are only used for the purpose of
