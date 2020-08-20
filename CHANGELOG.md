@@ -1,5 +1,19 @@
 # Changelog
 
+# 0.15.10
+
+## Features
+
+- **M3DB**: Add migration task for filesets from v1.0 to v1.1 ([#2520](https://github.com/m3db/m3/pull/2520))
+
+## Bug Fixes
+
+- **M3DB**: Fix enqueue readers info file reading ([#2546](https://github.com/m3db/m3/pull/2546))
+
+## Documentation
+
+- **All** - Fix buildkite mkdocs script ([#2538](https://github.com/m3db/m3/pull/2538))
+
 # 0.15.9
 
 ## Performance
