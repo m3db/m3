@@ -387,7 +387,7 @@ func TestInfoReadWrite(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries, persist.FileSetFlushType)
 
-	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
+	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil, persist.FileSetFlushType)
 	require.Equal(t, 1, len(readInfoFileResults))
 	for _, result := range readInfoFileResults {
 		require.NoError(t, result.Err.Error())
@@ -412,7 +412,7 @@ func TestInfoReadWriteVolumeIndex(t *testing.T) {
 
 	writeTestDataWithVolume(t, w, 0, testWriterStart, volume, entries, persist.FileSetFlushType)
 
-	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
+	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil, persist.FileSetFlushType)
 	require.Equal(t, 1, len(readInfoFileResults))
 	for _, result := range readInfoFileResults {
 		require.NoError(t, result.Err.Error())
