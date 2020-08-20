@@ -21,14 +21,13 @@
 package migrator
 
 import (
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
-// MigrationTaskFn decides if a fileset needs to be migrated and if so, returns a function to instantiate that task.
+// MigrationTaskFn returns a fileset migration function and a boolean indicating if migration is necessary.
 type MigrationTaskFn func(result fs.ReadInfoFileResult) (migration.NewTaskFn, bool)
 
 // Options represents the options for the migrator.
@@ -43,10 +42,10 @@ type Options interface {
 	MigrationTaskFn() MigrationTaskFn
 
 	// SetInfoFilesByNamespaces sets the info file results to operate on keyed by namespace.
-	SetInfoFilesByNamespace(value map[namespace.Metadata]fs.InfoFileResultsPerShard) Options
+	SetInfoFilesByNamespace(value fs.InfoFilesByNamespace) Options
 
 	// InfoFilesByNamespaces returns the info file results to operate on keyed by namespace.
-	InfoFilesByNamespace() map[namespace.Metadata]fs.InfoFileResultsPerShard
+	InfoFilesByNamespace() fs.InfoFilesByNamespace
 
 	// SetMigrationOptions sets the migration options.
 	SetMigrationOptions(value migration.Options) Options

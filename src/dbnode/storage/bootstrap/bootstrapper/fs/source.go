@@ -160,7 +160,7 @@ func (s *fileSystemSource) Read(
 	// Perform any necessary migrations but don't block bootstrap process on failure. Will update info file
 	// in-memory structures in place if migrations have written new files to disk. This saves us the need from
 	// having to re-read migrated info files.
-	s.runMigrations(infoFilesByNamespace)
+	s.runMigrations(ctx, infoFilesByNamespace)
 
 	// NB(r): Perform all data bootstrapping first then index bootstrapping
 	// to more clearly deliniate which process is slower than the other.
@@ -229,7 +229,7 @@ func (s *fileSystemSource) Read(
 	return results, nil
 }
 
-func (s *fileSystemSource) runMigrations(infoFilesByNamespace map[namespace.Metadata]fs.InfoFileResultsPerShard) {
+func (s *fileSystemSource) runMigrations(ctx context.Context, infoFilesByNamespace fs.InfoFilesByNamespace) {
 	// Only one migration for now, so just short circuit entirely if not enabled
 	if s.opts.MigrationOptions().TargetMigrationVersion() != migration.MigrationVersion_1_1 {
 		return
@@ -246,7 +246,7 @@ func (s *fileSystemSource) runMigrations(infoFilesByNamespace map[namespace.Meta
 		s.log.Error("error creating migrator. continuing bootstrap", zap.Error(err))
 	}
 
-	if err = migrator.Run(); err != nil {
+	if err = migrator.Run(ctx); err != nil {
 		s.log.Error("error performing migrations. continuing bootstrap", zap.Error(err))
 	}
 }
@@ -726,7 +726,7 @@ func (s *fileSystemSource) read(
 	runOpts bootstrap.RunOptions,
 	builder *result.IndexBuilder,
 	span opentracing.Span,
-	infoFilesByNamespace map[namespace.Metadata]fs.InfoFileResultsPerShard,
+	infoFilesByNamespace fs.InfoFilesByNamespace,
 ) (*runResult, error) {
 	var (
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
@@ -829,7 +829,7 @@ func (s *fileSystemSource) newReader() (fs.DataFileSetReader, error) {
 func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	md namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
-	infoFilesByNamespace map[namespace.Metadata]fs.InfoFileResultsPerShard,
+	infoFilesByNamespace fs.InfoFilesByNamespace,
 ) *runResult {
 	runResult := newRunResult()
 	unfulfilled := runResult.data.Unfulfilled()
@@ -960,8 +960,8 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 
 func (s *fileSystemSource) loadInfoFiles(
 	namespaces bootstrap.Namespaces,
-) map[namespace.Metadata]fs.InfoFileResultsPerShard {
-	infoFilesByNamespace := make(map[namespace.Metadata]fs.InfoFileResultsPerShard)
+) fs.InfoFilesByNamespace {
+	infoFilesByNamespace := make(fs.InfoFilesByNamespace)
 
 	for _, elem := range namespaces.Namespaces.Iter() {
 		namespace := elem.Value()

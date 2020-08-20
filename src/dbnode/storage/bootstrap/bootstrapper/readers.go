@@ -212,12 +212,7 @@ func newShardReaders(
 		}
 
 		openOpts := fs.DataReaderOpenOptions{
-			Identifier: fs.FileSetFileIdentifier{
-				Namespace:   ns.ID(),
-				Shard:       shard,
-				BlockStart:  blockStart,
-				VolumeIndex: info.VolumeIndex,
-			},
+			Identifier:                fs.NewFileSetFileIdentifier(ns.ID(), blockStart, shard, info.VolumeIndex),
 			OptimizedReadMetadataOnly: optimizedReadMetadataOnly,
 		}
 		if err := r.Open(openOpts); err != nil {
