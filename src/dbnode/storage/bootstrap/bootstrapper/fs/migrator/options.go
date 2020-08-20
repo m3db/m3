@@ -23,7 +23,6 @@ package migrator
 import (
 	"errors"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/storage"
@@ -41,7 +40,7 @@ var (
 
 type options struct {
 	migrationTaskFn      MigrationTaskFn
-	infoFilesByNamespace map[namespace.Metadata]fs.InfoFileResultsPerShard
+	infoFilesByNamespace fs.InfoFilesByNamespace
 	migrationOpts        migration.Options
 	fsOpts               fs.Options
 	instrumentOpts       instrument.Options
@@ -52,9 +51,7 @@ type options struct {
 func NewOptions() Options {
 	return &options{
 		migrationOpts:  migration.NewOptions(),
-		fsOpts:         fs.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
-		storageOpts:    storage.NewOptions(),
 	}
 }
 
@@ -96,13 +93,13 @@ func (o *options) MigrationTaskFn() MigrationTaskFn {
 	return o.migrationTaskFn
 }
 
-func (o *options) SetInfoFilesByNamespace(value map[namespace.Metadata]fs.InfoFileResultsPerShard) Options {
+func (o *options) SetInfoFilesByNamespace(value fs.InfoFilesByNamespace) Options {
 	opts := *o
 	opts.infoFilesByNamespace = value
 	return &opts
 }
 
-func (o *options) InfoFilesByNamespace() map[namespace.Metadata]fs.InfoFileResultsPerShard {
+func (o *options) InfoFilesByNamespace() fs.InfoFilesByNamespace {
 	return o.infoFilesByNamespace
 }
 

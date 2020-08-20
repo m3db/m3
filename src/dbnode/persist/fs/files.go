@@ -310,6 +310,21 @@ type SnapshotMetadataIdentifier struct {
 	UUID  uuid.UUID
 }
 
+// NewFileSetFileIdentifier creates a new FileSetFileIdentifier.
+func NewFileSetFileIdentifier(
+	namespace ident.ID,
+	blockStart time.Time,
+	shard uint32,
+	volumeIndex int,
+) FileSetFileIdentifier {
+	return FileSetFileIdentifier{
+		Namespace:   namespace,
+		Shard:       shard,
+		BlockStart:  blockStart,
+		VolumeIndex: volumeIndex,
+	}
+}
+
 // NewFileSetFile creates a new FileSet file
 func NewFileSetFile(id FileSetFileIdentifier, filePathPrefix string) FileSetFile {
 	return FileSetFile{

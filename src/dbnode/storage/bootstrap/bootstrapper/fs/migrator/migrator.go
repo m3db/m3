@@ -28,11 +28,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/uber-go/atomic"
 	"go.uber.org/zap"
 )
+
+const workerChannelSize = 256
 
 type worker struct {
 	inputCh        chan migrationCandidate
@@ -40,13 +44,11 @@ type worker struct {
 	persistManager persist.Manager
 }
 
-const workerChannelSize = 256
-
 // Migrator is an object responsible for migrating data filesets based on version information in
 // the info files.
 type Migrator struct {
 	migrationTaskFn      MigrationTaskFn
-	infoFilesByNamespace map[namespace.Metadata]fs.InfoFileResultsPerShard
+	infoFilesByNamespace fs.InfoFilesByNamespace
 	migrationOpts        migration.Options
 	fsOpts               fs.Options
 	instrumentOpts       instrument.Options
@@ -95,7 +97,10 @@ type completedMigration struct {
 }
 
 // Run runs the migrator
-func (m *Migrator) Run() error {
+func (m *Migrator) Run(ctx context.Context) error {
+	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceMigrator)
+	defer span.Finish()
+
 	// Find candidates
 	candidates := m.findMigrationCandidates()
 	if len(candidates) == 0 {
@@ -104,6 +109,9 @@ func (m *Migrator) Run() error {
 	}
 
 	m.log.Info(fmt.Sprintf("found %d filesets to migrate. fileset migration start", len(candidates)))
+
+	nowFn := m.fsOpts.ClockOptions().NowFn()
+	begin := nowFn()
 
 	// Setup workers to perform migrations
 	var (
@@ -178,7 +186,7 @@ func (m *Migrator) Run() error {
 
 	m.mergeUpdatedInfoFiles(migrationResults)
 
-	m.log.Info("fileset migration finished")
+	m.log.Info("fileset migration finished", zap.Duration("took", nowFn().Sub(begin)))
 
 	return nil
 }

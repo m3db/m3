@@ -23,16 +23,17 @@ package migrator
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/storage"
+	xtest "github.com/m3db/m3/src/x/test"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOptionsValidateStorageOptions(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestOptions(ctrl)
@@ -46,7 +47,7 @@ func TestOptionsValidateStorageOptions(t *testing.T) {
 }
 
 func TestOptionsValidateMigrationTaskFn(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestOptions(ctrl)
@@ -57,7 +58,7 @@ func TestOptionsValidateMigrationTaskFn(t *testing.T) {
 }
 
 func TestOptionsValidateInfoFilesByNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestOptions(ctrl)
@@ -68,7 +69,7 @@ func TestOptionsValidateInfoFilesByNamespace(t *testing.T) {
 }
 
 func TestOptionsValidateMigrationOpts(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestOptions(ctrl)
@@ -79,7 +80,7 @@ func TestOptionsValidateMigrationOpts(t *testing.T) {
 }
 
 func TestOptionsValidateInstrumentOpts(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestOptions(ctrl)
@@ -90,7 +91,7 @@ func TestOptionsValidateInstrumentOpts(t *testing.T) {
 }
 
 func TestOptionsValidateFilesystemOpts(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newTestOptions(ctrl)
@@ -108,7 +109,7 @@ func newTestOptions(ctrl *gomock.Controller) Options {
 		SetMigrationTaskFn(func(result fs.ReadInfoFileResult) (migration.NewTaskFn, bool) {
 			return nil, false
 		}).
-		SetInfoFilesByNamespace(make(map[namespace.Metadata]fs.InfoFileResultsPerShard)).
-		SetStorageOptions(mockOpts)
-
+		SetInfoFilesByNamespace(make(fs.InfoFilesByNamespace)).
+		SetStorageOptions(mockOpts).
+		SetFilesystemOptions(fs.NewOptions())
 }

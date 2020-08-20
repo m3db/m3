@@ -623,5 +623,8 @@ type Segments interface {
 	BlockStart() time.Time
 }
 
-// InfoFileResultsPerShard is a map mapping shards to info files.
+// InfoFileResultsPerShard maps shards to info files.
 type InfoFileResultsPerShard map[uint32][]ReadInfoFileResult
+
+// InfoFilesByNamespace maps a namespace to info files grouped by shard.
+type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard
