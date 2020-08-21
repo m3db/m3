@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
+	"github.com/m3db/m3/src/m3ninx/index"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -39,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
+	"github.com/m3db/m3/src/x/resource"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -219,18 +221,52 @@ func (m *mutableSegments) Len() int {
 	return len(m.foregroundSegments) + len(m.backgroundSegments)
 }
 
-func (m *mutableSegments) AddSegments(segments []segment.Segment) []segment.Segment {
+func (m *mutableSegments) AddSegments(ctx context.Context, segments []segment.Segment) ([]segment.Segment, error) {
 	m.RLock()
 	defer m.RUnlock()
 
 	// Add foreground & background segments.
 	for _, seg := range m.foregroundSegments {
-		segments = append(segments, seg.Segment())
+		segment := seg.Segment()
+
+		// NB(r): We have to create a reader to extend the lifetime of the
+		// segment or else the segment could be compacted and closed before
+		// it is finished with.
+		reader, err := segment.Reader()
+		if err != nil {
+			return nil, err
+		}
+		ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+			m.closeReaderAsync(reader)
+		}))
+
+		segments = append(segments, segment)
 	}
 	for _, seg := range m.backgroundSegments {
-		segments = append(segments, seg.Segment())
+		segment := seg.Segment()
+
+		// NB(r): We have to create a reader to extend the lifetime of the
+		// segment or else the segment could be compacted and closed before
+		// it is finished with.
+		reader, err := segment.Reader()
+		if err != nil {
+			return nil, err
+		}
+		ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+			m.closeReaderAsync(reader)
+		}))
+
+		segments = append(segments, segment)
 	}
-	return segments
+
+	return segments, nil
+}
+
+func (m *mutableSegments) closeReaderAsync(reader index.Reader) {
+	if err := reader.Close(); err != nil {
+		// Note: This only happens if closing the readers isn't clean.
+		m.logger.Error("could not close reader", zap.Error(err))
+	}
 }
 
 func (m *mutableSegments) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {

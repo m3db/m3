@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -372,10 +373,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	return executor.NewExecutor(readers), nil
 }
 
-func (b *block) segmentsWithRLock() []segment.Segment {
-	// TODO: Also keep the lifetimes of the segments alive, i.e.
-	// don't let the segments taken ref to here be operated on since
-	// they could be closed by mutable segments container, etc.
+func (b *block) segmentsWithRLock(ctx context.Context) ([]segment.Segment, error) {
 	numSegments := b.mutableSegments.Len()
 	for _, coldSeg := range b.coldMutableSegments {
 		numSegments += coldSeg.Len()
@@ -386,9 +384,18 @@ func (b *block) segmentsWithRLock() []segment.Segment {
 	})
 
 	segments := make([]segment.Segment, 0, numSegments)
-	segments = b.mutableSegments.AddSegments(segments)
+
+	var err error
+	segments, err = b.mutableSegments.AddSegments(ctx, segments)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, coldSeg := range b.coldMutableSegments {
-		segments = coldSeg.AddSegments(segments)
+		segments, err = coldSeg.AddSegments(ctx, segments)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Loop over the segments associated to shard time ranges.
@@ -397,7 +404,7 @@ func (b *block) segmentsWithRLock() []segment.Segment {
 		return nil
 	})
 
-	return segments
+	return segments, nil
 }
 
 // Query acquires a read lock on the block so that the segments
@@ -539,6 +546,13 @@ func (b *block) closeExecutorAsync(exec search.Executor) {
 	}
 }
 
+func (b *block) closeReaderAsync(reader index.Reader) {
+	if err := reader.Close(); err != nil {
+		// Note: This only happens if closing the readers isn't clean.
+		b.logger.Error("could not close reader", zap.Error(err))
+	}
+}
+
 func (b *block) addQueryResults(
 	cancellable *resource.CancellableLifetime,
 	results BaseResults,
@@ -665,7 +679,11 @@ func (b *block) aggregateWithSpan(
 		}
 	}()
 
-	segs := b.segmentsWithRLock()
+	segs, err := b.segmentsWithRLock(ctx)
+	if err != nil {
+		return false, err
+	}
+
 	for _, s := range segs {
 		if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
 			break
@@ -755,12 +773,15 @@ func (b *block) appendFieldAndTermToBatch(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
-		entry.Field = b.pooledID(field) // allocate id because this is the first time we've seen it
+		// Can wrap directly since mmap'd bytes are valid until end of query
+		// as we extend the lifetime of the segments by ctx w/ .AddSegments(ctx, ...).
+		entry.Field = ident.BytesID(field)
 	}
 
 	if includeTerms {
-		// terms are always new (as far we know without checking the map for duplicates), so we allocate
-		entry.Terms = append(entry.Terms, b.pooledID(term))
+		// Can wrap directly since mmap'd bytes are valid until end of query
+		// as we extend the lifetime of the segments by ctx w/ .AddSegments(ctx, ...).
+		entry.Terms = append(entry.Terms, ident.BytesID(term))
 	}
 
 	if reuseLastEntry {
@@ -769,14 +790,6 @@ func (b *block) appendFieldAndTermToBatch(
 		batch = append(batch, entry)
 	}
 	return batch
-}
-
-func (b *block) pooledID(id []byte) ident.ID {
-	data := b.opts.CheckedBytesPool().Get(len(id))
-	data.IncRef()
-	data.AppendAll(id)
-	data.DecRef()
-	return b.opts.IdentifierPool().BinaryID(data)
 }
 
 func (b *block) addAggregateResults(
@@ -861,12 +874,12 @@ func (b *block) addResults(
 	)
 	readThroughSegments := make([]segment.Segment, 0, len(segments))
 	for _, seg := range segments {
-		readThroughSeg := seg
-		if immSeg, ok := seg.(segment.ImmutableSegment); ok {
+		elem := seg.Segment()
+		if immSeg, ok := elem.(segment.ImmutableSegment); ok {
 			// only wrap the immutable segments with a read through cache.
-			readThroughSeg = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+			elem = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
 		}
-		readThroughSegments = append(readThroughSegments, readThroughSeg)
+		readThroughSegments = append(readThroughSegments, elem)
 	}
 
 	entry := blockShardRangesSegments{
@@ -921,6 +934,7 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		numDocs += coldNumDocs
 	}
 	result.NumSegments += numSegments
+	result.NumSegmentsMutable += numSegments
 	result.NumDocs += numDocs
 
 	multiErr := xerrors.NewMultiError()
@@ -928,6 +942,7 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 	// Any segments covering persisted shard ranges.
 	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
 		result.NumSegments++
+		result.NumSegmentsBootstrapped++
 		result.NumDocs += seg.Size()
 
 		immSeg, ok := seg.(segment.ImmutableSegment)
@@ -942,6 +957,8 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 			b.metrics.segmentFreeMmapError.Inc(1)
 			return nil
 		}
+
+		result.FreeMmap++
 		b.metrics.segmentFreeMmapSuccess.Inc(1)
 		return nil
 	})

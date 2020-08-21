@@ -473,8 +473,11 @@ type WriteBatchResult struct {
 
 // BlockTickResult returns statistics about tick.
 type BlockTickResult struct {
-	NumSegments int64
-	NumDocs     int64
+	NumSegments             int64
+	NumSegmentsBootstrapped int64
+	NumSegmentsMutable      int64
+	NumDocs                 int64
+	FreeMmap                int64
 }
 
 // WriteBatch is a batch type that allows for building of a slice of documents

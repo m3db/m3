@@ -34,7 +34,7 @@ var postingsIterRoaringPoolingConfig = roaring.ContainerPoolingConfiguration{
 	MaxArraySize:                    0,
 	MaxRunsSize:                     0,
 	AllocateBitmap:                  false,
-	MaxCapacity:                     128,
+	MaxCapacity:                     0,
 	MaxKeysAndContainersSliceLength: 128 * 10,
 }
 
