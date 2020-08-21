@@ -121,7 +121,7 @@ require (
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20200302150141-5c8b2ff67527
 	golang.org/x/tools v0.0.0-20200601175630-2caf76543d99 // indirect
-	google.golang.org/grpc v1.27.1
+	google.golang.org/grpc v1.28.0
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.7.0
@@ -150,7 +150,7 @@ replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.2016
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.23.1
 
-replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
+replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200518003842-9bad82fee544
 
 replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 
