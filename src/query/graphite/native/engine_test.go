@@ -24,25 +24,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	xgomock "github.com/m3db/m3/src/x/test"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// nolint
 type queryTestResult struct {
 	series   string
 	expected string
 	max      float64
 }
 
-// nolint
 type queryTest struct {
 	query   string
 	ordered bool
@@ -81,7 +79,6 @@ var (
 		"chicago.cake":       5,
 		"los_angeles.cake":   6,
 	}
-	testStorage storage.Storage //= nil
 )
 
 func newTestStorage(ctrl *gomock.Controller) storage.Storage {
