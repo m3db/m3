@@ -320,7 +320,7 @@ func TestBootstrapIndex(t *testing.T) {
 		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		for _, seg := range indexBlock.Segments() {
-			reader, err := seg.Reader()
+			reader, err := seg.Segment().Reader()
 			require.NoError(t, err)
 
 			docs, err := reader.AllDocs()
