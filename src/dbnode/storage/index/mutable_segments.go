@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
-	"github.com/m3db/m3/src/m3ninx/index"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -40,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
-	"github.com/m3db/m3/src/x/resource"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -195,23 +193,33 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 	return insertResultErr
 }
 
-func (m *mutableSegments) AddReaders(readers []m3ninxindex.Reader) ([]m3ninxindex.Reader, error) {
+func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader, error) {
 	m.RLock()
 	defer m.RUnlock()
 
-	for _, segs := range [][]*readableSeg{
-		m.foregroundSegments,
-		m.backgroundSegments,
-	} {
-		for _, seg := range segs {
-			reader, err := seg.Segment().Reader()
-			if err != nil {
-				return nil, err
-			}
-			readers = append(readers, reader)
-		}
+	var err error
+	readers, err = m.addReadersWithLock(m.foregroundSegments, readers)
+	if err != nil {
+		return nil, err
 	}
+
+	readers, err = m.addReadersWithLock(m.backgroundSegments, readers)
+	if err != nil {
+		return nil, err
+	}
+
 	return readers, nil
+}
+
+func (m *mutableSegments) addReadersWithLock(src []*readableSeg, dst []segment.Reader) ([]segment.Reader, error) {
+	for _, seg := range src {
+		reader, err := seg.Segment().Reader()
+		if err != nil {
+			return nil, err
+		}
+		dst = append(dst, reader)
+	}
+	return dst, nil
 }
 
 func (m *mutableSegments) Len() int {
@@ -219,54 +227,6 @@ func (m *mutableSegments) Len() int {
 	defer m.RUnlock()
 
 	return len(m.foregroundSegments) + len(m.backgroundSegments)
-}
-
-func (m *mutableSegments) AddSegments(ctx context.Context, segments []segment.Segment) ([]segment.Segment, error) {
-	m.RLock()
-	defer m.RUnlock()
-
-	// Add foreground & background segments.
-	for _, seg := range m.foregroundSegments {
-		segment := seg.Segment()
-
-		// NB(r): We have to create a reader to extend the lifetime of the
-		// segment or else the segment could be compacted and closed before
-		// it is finished with.
-		reader, err := segment.Reader()
-		if err != nil {
-			return nil, err
-		}
-		ctx.RegisterFinalizer(resource.FinalizerFn(func() {
-			m.closeReaderAsync(reader)
-		}))
-
-		segments = append(segments, segment)
-	}
-	for _, seg := range m.backgroundSegments {
-		segment := seg.Segment()
-
-		// NB(r): We have to create a reader to extend the lifetime of the
-		// segment or else the segment could be compacted and closed before
-		// it is finished with.
-		reader, err := segment.Reader()
-		if err != nil {
-			return nil, err
-		}
-		ctx.RegisterFinalizer(resource.FinalizerFn(func() {
-			m.closeReaderAsync(reader)
-		}))
-
-		segments = append(segments, segment)
-	}
-
-	return segments, nil
-}
-
-func (m *mutableSegments) closeReaderAsync(reader index.Reader) {
-	if err := reader.Close(); err != nil {
-		// Note: This only happens if closing the readers isn't clean.
-		m.logger.Error("could not close reader", zap.Error(err))
-	}
 }
 
 func (m *mutableSegments) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {

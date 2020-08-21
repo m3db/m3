@@ -834,7 +834,7 @@ type fieldsAndTermsIterator interface {
 	Close() error
 
 	// Reset resets the iterator to the start iterating the given segment.
-	Reset(seg segment.Segment, opts fieldsAndTermsIteratorOpts) error
+	Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
 }
 
 // Options control the Indexing knobs.

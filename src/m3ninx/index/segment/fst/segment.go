@@ -255,7 +255,7 @@ func (r *fsSegment) ContainsField(field []byte) (bool, error) {
 	return r.fieldsFST.Contains(field)
 }
 
-func (r *fsSegment) Reader() (index.Reader, error) {
+func (r *fsSegment) Reader() (sgmt.Reader, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -310,6 +310,7 @@ func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 
 	iter := newFSTTermsIter()
 	iter.reset(fstTermsIterOpts{
+		seg:         r,
 		fst:         r.fieldsFST,
 		finalizeFST: false,
 	})
@@ -361,11 +362,30 @@ type termsIterable struct {
 	postingsIter *fstTermsPostingsIter
 }
 
+func newTermsIterable(r *fsSegment) *termsIterable {
+	return &termsIterable{
+		r:            r,
+		fieldsIter:   newFSTTermsIter(),
+		postingsIter: newFSTTermsPostingsIter(),
+	}
+}
+
 func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
 	i.r.RLock()
 	defer i.r.RUnlock()
 	if i.r.closed {
 		return nil, errReaderClosed
+	}
+	return i.termsNotClosedMaybeFinalizedWithRLock(field)
+}
+
+func (i *termsIterable) termsNotClosedMaybeFinalizedWithRLock(
+	field []byte,
+) (sgmt.TermsIterator, error) {
+	// NB(r): Not closed, but could be finalized (i.e. closed segment reader)
+	// calling match field after this segment is finalized.
+	if i.r.finalized {
+		return nil, errReaderFinalized
 	}
 
 	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
@@ -378,6 +398,7 @@ func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
 	}
 
 	i.fieldsIter.reset(fstTermsIterOpts{
+		seg:         i.r,
 		fst:         termsFST,
 		finalizeFST: true,
 	})
@@ -390,6 +411,14 @@ func (r *fsSegment) UnmarshalPostingsListBitmap(b *pilosaroaring.Bitmap, offset 
 	defer r.RUnlock()
 	if r.closed {
 		return errReaderClosed
+	}
+
+	return r.unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b, offset)
+}
+
+func (r *fsSegment) unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(b *pilosaroaring.Bitmap, offset uint64) error {
+	if r.finalized {
+		return errReaderFinalized
 	}
 
 	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData.Bytes, offset)
@@ -839,14 +868,15 @@ func (r *fsSegment) retrieveBytesWithRLock(base []byte, offset uint64) ([]byte, 
 	return base[payloadStart:payloadEnd], nil
 }
 
-var _ index.Reader = (*fsSegmentReader)(nil)
+var _ sgmt.Reader = (*fsSegmentReader)(nil)
 
 // fsSegmentReader is not thread safe for use and relies on the underlying
 // segment for synchronization.
 type fsSegmentReader struct {
-	closed    bool
-	ctx       context.Context
-	fsSegment *fsSegment
+	closed        bool
+	ctx           context.Context
+	fsSegment     *fsSegment
+	termsIterable *termsIterable
 }
 
 func newReader(
@@ -857,6 +887,44 @@ func newReader(
 		ctx:       opts.ContextPool().Get(),
 		fsSegment: fsSegment,
 	}
+}
+
+func (sr *fsSegmentReader) Fields() (sgmt.FieldsIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+
+	iter := newFSTTermsIter()
+	iter.reset(fstTermsIterOpts{
+		seg:         sr.fsSegment,
+		fst:         sr.fsSegment.fieldsFST,
+		finalizeFST: false,
+	})
+	return iter, nil
+}
+
+func (sr *fsSegmentReader) ContainsField(field []byte) (bool, error) {
+	if sr.closed {
+		return false, errReaderClosed
+	}
+
+	sr.fsSegment.RLock()
+	defer sr.fsSegment.RUnlock()
+	if sr.fsSegment.finalized {
+		return false, errReaderFinalized
+	}
+
+	return sr.fsSegment.fieldsFST.Contains(field)
+}
+
+func (sr *fsSegmentReader) Terms(field []byte) (sgmt.TermsIterator, error) {
+	if sr.closed {
+		return nil, errReaderClosed
+	}
+	if sr.termsIterable == nil {
+		sr.termsIterable = newTermsIterable(sr.fsSegment)
+	}
+	return sr.termsIterable.termsNotClosedMaybeFinalizedWithRLock(field)
 }
 
 func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {

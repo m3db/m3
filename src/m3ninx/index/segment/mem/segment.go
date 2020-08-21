@@ -363,7 +363,7 @@ func (s *segment) storeDocWithStateLock(id postings.ID, d doc.Document) {
 	}
 }
 
-func (s *segment) Reader() (index.Reader, error) {
+func (s *segment) Reader() (sgmt.Reader, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
 	if s.state.closed {

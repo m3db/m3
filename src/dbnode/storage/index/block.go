@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -320,6 +321,20 @@ func (b *block) writesAcceptedWithRLock() bool {
 }
 
 func (b *block) executorWithRLock() (search.Executor, error) {
+	readers, err := b.segmentReadersWithRLock()
+	if err != nil {
+		return nil, err
+	}
+
+	indexReaders := make([]m3ninxindex.Reader, 0, len(readers))
+	for _, r := range readers {
+		indexReaders = append(indexReaders, r)
+	}
+
+	return executor.NewExecutor(indexReaders), nil
+}
+
+func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 	expectedReaders := b.mutableSegments.Len()
 	for _, coldSeg := range b.coldMutableSegments {
 		expectedReaders += coldSeg.Len()
@@ -330,7 +345,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	})
 
 	var (
-		readers = make([]m3ninxindex.Reader, 0, expectedReaders)
+		readers = make([]segment.Reader, 0, expectedReaders)
 		success = false
 		err     error
 	)
@@ -348,6 +363,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// Add cold mutable segments.
 	for _, coldSeg := range b.coldMutableSegments {
 		readers, err = coldSeg.AddReaders(readers)
@@ -368,42 +384,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 		return nil, err
 	}
 
-	success = true
-	return executor.NewExecutor(readers), nil
-}
-
-func (b *block) segmentsWithRLock(ctx context.Context) ([]segment.Segment, error) {
-	numSegments := b.mutableSegments.Len()
-	for _, coldSeg := range b.coldMutableSegments {
-		numSegments += coldSeg.Len()
-	}
-	b.shardRangesSegmentsByVolumeType.forEachSegmentGroup(func(group blockShardRangesSegments) error {
-		numSegments += len(group.segments)
-		return nil
-	})
-
-	segments := make([]segment.Segment, 0, numSegments)
-
-	var err error
-	segments, err = b.mutableSegments.AddSegments(ctx, segments)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, coldSeg := range b.coldMutableSegments {
-		segments, err = coldSeg.AddSegments(ctx, segments)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Loop over the segments associated to shard time ranges.
-	b.shardRangesSegmentsByVolumeType.forEachSegment(func(seg segment.Segment) error {
-		segments = append(segments, seg)
-		return nil
-	})
-
-	return segments, nil
+	return readers, nil
 }
 
 // Query acquires a read lock on the block so that the segments
@@ -459,7 +440,7 @@ func (b *block) queryWithSpan(
 	execCloseRegistered := false
 	defer func() {
 		if !execCloseRegistered {
-			b.closeExecutorAsync(exec)
+			b.closeAsync(exec)
 		}
 	}()
 
@@ -481,7 +462,7 @@ func (b *block) queryWithSpan(
 	}
 	execCloseRegistered = true // Make sure to not locally close it.
 	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
-		b.closeExecutorAsync(exec)
+		b.closeAsync(exec)
 	}))
 	cancellable.ReleaseCheckout()
 
@@ -538,10 +519,10 @@ func (b *block) queryWithSpan(
 	return exhaustive, nil
 }
 
-func (b *block) closeExecutorAsync(exec search.Executor) {
-	if err := exec.Close(); err != nil {
+func (b *block) closeAsync(closer io.Closer) {
+	if err := closer.Close(); err != nil {
 		// Note: This only happens if closing the readers isn't clean.
-		b.logger.Error("could not close search exec", zap.Error(err))
+		b.logger.Error("could not close query index block resource", zap.Error(err))
 	}
 }
 
@@ -629,7 +610,7 @@ func (b *block) aggregateWithSpan(
 			}
 			return aggOpts.FieldFilter.Allow(field)
 		},
-		fieldIterFn: func(s segment.Segment) (segment.FieldsIterator, error) {
+		fieldIterFn: func(r segment.Reader) (segment.FieldsIterator, error) {
 			// NB(prateek): we default to using the regular (FST) fields iterator
 			// unless we have a predefined list of fields we know we need to restrict
 			// our search to, in which case we iterate that list and check if known values
@@ -641,9 +622,9 @@ func (b *block) aggregateWithSpan(
 			// to this function is expected to have (FieldsFilter) pretty small. If that changes
 			// in the future, we can revisit this.
 			if len(aggOpts.FieldFilter) == 0 {
-				return s.FieldsIterable().Fields()
+				return r.Fields()
 			}
-			return newFilterFieldsIterator(s, aggOpts.FieldFilter)
+			return newFilterFieldsIterator(r, aggOpts.FieldFilter)
 		},
 	}
 
@@ -671,17 +652,27 @@ func (b *block) aggregateWithSpan(
 		}
 	}()
 
-	segs, err := b.segmentsWithRLock(ctx)
+	readers, err := b.segmentReadersWithRLock()
 	if err != nil {
 		return false, err
 	}
 
-	for _, s := range segs {
+	// Make sure to close readers at end of query since results can
+	// include references to the underlying bytes from the index segment
+	// read by the readers.
+	for _, reader := range readers {
+		reader := reader // Capture for inline function.
+		ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+			b.closeAsync(reader)
+		}))
+	}
+
+	for _, reader := range readers {
 		if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
 			break
 		}
 
-		err = iter.Reset(s, iterateOpts)
+		err = iter.Reset(reader, iterateOpts)
 		if err != nil {
 			return false, err
 		}
@@ -765,12 +756,15 @@ func (b *block) appendFieldAndTermToBatch(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
-		entry.Field = b.pooledID(field) // allocate id because this is the first time we've seen it
+		// Can wrap directly since mmap'd bytes are valid until end of query
+		// as we don't close segment readers until end using RegisterFinalizer.
+		entry.Field = ident.BytesID(field)
 	}
 
 	if includeTerms {
-		// terms are always new (as far we know without checking the map for duplicates), so we allocate
-		entry.Terms = append(entry.Terms, b.pooledID(term))
+		// Can wrap directly since mmap'd bytes are valid until end of query
+		// as we don't close segment readers until end using RegisterFinalizer.
+		entry.Terms = append(entry.Terms, ident.BytesID(term))
 	}
 
 	if reuseLastEntry {
@@ -779,14 +773,6 @@ func (b *block) appendFieldAndTermToBatch(
 		batch = append(batch, entry)
 	}
 	return batch
-}
-
-func (b *block) pooledID(id []byte) ident.ID {
-	data := b.opts.CheckedBytesPool().Get(len(id))
-	data.IncRef()
-	data.AppendAll(id)
-	data.DecRef()
-	return b.opts.IdentifierPool().BinaryID(data)
 }
 
 func (b *block) addAggregateResults(
