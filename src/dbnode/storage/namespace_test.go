@@ -606,6 +606,8 @@ func testSnapshotWithShardSnapshotErrs(
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
 		namespace.NewOptions().SetSnapshotEnabled(true))
 	defer closer()
+	idx := NewMockNamespaceIndex(ctrl)
+	ns.reverseIndex = idx
 	ns.bootstrapState = Bootstrapped
 	now := time.Now()
 	ns.nowFn = func() time.Time {
@@ -616,6 +618,7 @@ func testSnapshotWithShardSnapshotErrs(
 		shardBootstrapStates = ShardBootstrapStates{}
 		blockSize            = ns.Options().RetentionOptions().BlockSize()
 		blockStart           = now.Truncate(blockSize)
+		shardIDs             = make(map[uint32]struct{})
 	)
 
 	for i, tc := range shardMethodResults {
@@ -629,7 +632,9 @@ func testSnapshotWithShardSnapshotErrs(
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
+		shardIDs[shardID] = struct{}{}
 	}
+	idx.EXPECT().Snapshot(shardIDs, blockStart, now, gomock.Any()).Return(nil)
 
 	return ns.Snapshot(blockStart, now, nil)
 }
