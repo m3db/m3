@@ -783,6 +783,14 @@ type NamespaceIndex interface {
 	// DebugMemorySegments allows for debugging memory segments.
 	DebugMemorySegments(opts DebugMemorySegmentsOptions) error
 
+	// Snapshot in-memory state to disk for faster bootstrapping.
+	Snapshot(
+		shards map[uint32]struct{},
+		blockStart,
+		snapshotTime time.Time,
+		snapshotPersist persist.SnapshotPreparer,
+	) error
+
 	// Close will release the index resources and close the index.
 	Close() error
 }

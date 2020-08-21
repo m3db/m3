@@ -2629,6 +2629,20 @@ func (mr *MockNamespaceIndexMockRecorder) DebugMemorySegments(opts interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugMemorySegments", reflect.TypeOf((*MockNamespaceIndex)(nil).DebugMemorySegments), opts)
 }
 
+// Snapshot mocks base method
+func (m *MockNamespaceIndex) Snapshot(shards map[uint32]struct{}, blockStart, snapshotTime time.Time, snapshotPersist persist.SnapshotPreparer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Snapshot", shards, blockStart, snapshotTime, snapshotPersist)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Snapshot indicates an expected call of Snapshot
+func (mr *MockNamespaceIndexMockRecorder) Snapshot(shards, blockStart, snapshotTime, snapshotPersist interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockNamespaceIndex)(nil).Snapshot), shards, blockStart, snapshotTime, snapshotPersist)
+}
+
 // Close mocks base method
 func (m *MockNamespaceIndex) Close() error {
 	m.ctrl.T.Helper()

@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -394,6 +395,58 @@ func TestNamespaceIndexSetExtendedRetentionPeriod(t *testing.T) {
 	shorterRetention := longerRetention - time.Second
 	idx.SetExtendedRetentionPeriod(shorterRetention)
 	assert.Equal(t, longerRetention, idx.effectiveRetentionPeriodWithLock())
+}
+
+func TestNamespaceIndexSnapshot(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
+	defer ctrl.Finish()
+
+	test := newTestIndex(t, ctrl)
+
+	now := time.Now().Truncate(test.indexBlockSize)
+	idx := test.index.(*nsIndex)
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
+
+	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().MemorySegmentsData(gomock.Any()).Return([]fst.SegmentData{fst.SegmentData{}}, nil)
+	mockBlock.EXPECT().Close().Return(nil)
+	blockTime := now.Add(-test.indexBlockSize)
+	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+
+	var closed bool
+	snapshotPreparer := persist.NewMockSnapshotPreparer(ctrl)
+	prepared := persist.PreparedIndexSnapshotPersist{
+		Persist: func(fst.SegmentData) error { return nil },
+		Close:   func() ([]segment.Segment, error) { closed = true; return nil, nil },
+	}
+
+	shards := make(map[uint32]struct{})
+	for _, shard := range testShardSet.AllIDs() {
+		shards[shard] = struct{}{}
+	}
+
+	prepareOpts := xtest.CmpMatcher(persist.IndexPrepareSnapshotOptions{
+		IndexPrepareOptions: persist.IndexPrepareOptions{
+			NamespaceMetadata: idx.nsMetadata,
+			Shards:            shards,
+			BlockStart:        blockTime,
+			FileSetType:       persist.FileSetSnapshotType,
+			IndexVolumeType:   idxpersist.DefaultIndexVolumeType,
+		},
+		SnapshotTime: now,
+	})
+	snapshotPreparer.EXPECT().PrepareIndexSnapshot(prepareOpts).Return(prepared, nil)
+
+	require.NoError(t, idx.Snapshot(
+		shards,
+		blockTime,
+		now,
+		snapshotPreparer,
+	))
+	require.True(t, closed)
 }
 
 func verifyFlushForShards(

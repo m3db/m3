@@ -333,12 +333,13 @@ func (pm *persistManager) persistIndex(builder segment.Builder) error {
 }
 
 // PrepareIndexSnapshot returns a prepared persist object which can be used to persist index snapshot data.
-func (pm *persistManager) PrepareIndexSnapshot(opts persist.IndexPrepareOptions) (persist.PreparedIndexSnapshotPersist, error) {
+func (pm *persistManager) PrepareIndexSnapshot(opts persist.IndexPrepareSnapshotOptions) (persist.PreparedIndexSnapshotPersist, error) {
 	var (
-		nsMetadata = opts.NamespaceMetadata
-		blockStart = opts.BlockStart
-		nsID       = opts.NamespaceMetadata.ID()
-		prepared   persist.PreparedIndexSnapshotPersist
+		nsMetadata   = opts.NamespaceMetadata
+		blockStart   = opts.BlockStart
+		snapshotTime = opts.SnapshotTime
+		nsID         = opts.NamespaceMetadata.ID()
+		prepared     persist.PreparedIndexSnapshotPersist
 	)
 
 	if opts.FileSetType != persist.FileSetSnapshotType {
@@ -380,6 +381,9 @@ func (pm *persistManager) PrepareIndexSnapshot(opts persist.IndexPrepareOptions)
 		Identifier:      fileSetID,
 		Shards:          opts.Shards,
 		IndexVolumeType: opts.IndexVolumeType,
+		Snapshot: IndexWriterSnapshotOptions{
+			SnapshotTime: snapshotTime,
+		},
 	}
 
 	// create writer for required fileset file.

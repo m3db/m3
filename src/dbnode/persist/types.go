@@ -244,7 +244,7 @@ type SnapshotPreparer interface {
 	// PrepareIndexSnapshot prepares snapshotting index data for a given ns/blockStart, returning a
 	// PreparedIndexSnapshotPersist object and any error encountered during
 	// preparation if any.
-	PrepareIndexSnapshot(opts IndexPrepareOptions) (PreparedIndexSnapshotPersist, error)
+	PrepareIndexSnapshot(opts IndexPrepareSnapshotOptions) (PreparedIndexSnapshotPersist, error)
 
 	// DoneSnapshot marks the snapshot as complete.
 	DoneSnapshot(snapshotUUID uuid.UUID, commitLogIdentifier CommitLogFile) error
@@ -286,6 +286,14 @@ type IndexPrepareOptions struct {
 	FileSetType       FileSetType
 	Shards            map[uint32]struct{}
 	IndexVolumeType   idxpersist.IndexVolumeType
+	SnapshotTime      time.Time
+}
+
+// IndexPrepareSnapshotOptions is the options struct for preparing index snapshots.
+type IndexPrepareSnapshotOptions struct {
+	IndexPrepareOptions
+
+	SnapshotTime time.Time
 }
 
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains

@@ -240,7 +240,7 @@ func (mr *MockSnapshotPreparerMockRecorder) PrepareData(opts interface{}) *gomoc
 }
 
 // PrepareIndexSnapshot mocks base method
-func (m *MockSnapshotPreparer) PrepareIndexSnapshot(opts IndexPrepareOptions) (PreparedIndexSnapshotPersist, error) {
+func (m *MockSnapshotPreparer) PrepareIndexSnapshot(opts IndexPrepareSnapshotOptions) (PreparedIndexSnapshotPersist, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PrepareIndexSnapshot", opts)
 	ret0, _ := ret[0].(PreparedIndexSnapshotPersist)

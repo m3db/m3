@@ -1263,6 +1263,61 @@ func (i *nsIndex) flushBlockSegment(
 	return preparedPersist.Persist(builder)
 }
 
+func (i *nsIndex) Snapshot(
+	shards map[uint32]struct{},
+	blockStart,
+	snapshotTime time.Time,
+	snapshotPersist persist.SnapshotPreparer,
+) error {
+	i.state.RLock()
+	if i.state.closed {
+		i.state.RUnlock()
+		return errDbIndexAlreadyClosed
+	}
+	// Blocks are removed during ticks once they are out of retention, this means
+	// that we may snapshot data that's out of retention which is fine.
+	blocks := make([]index.Block, 0, len(i.state.blocksByTime))
+	for _, block := range i.state.blocksByTime {
+		blocks = append(blocks, block)
+	}
+	i.state.RUnlock()
+
+	prepareOpts := persist.IndexPrepareSnapshotOptions{
+		IndexPrepareOptions: persist.IndexPrepareOptions{
+			NamespaceMetadata: i.nsMetadata,
+			BlockStart:        blockStart,
+			FileSetType:       persist.FileSetSnapshotType,
+			Shards:            shards,
+			// NB(bodu): All index snapshots are of the default volume type for now.
+			IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+		},
+		SnapshotTime: snapshotTime,
+	}
+	prepared, err := snapshotPersist.PrepareIndexSnapshot(prepareOpts)
+	if err != nil {
+		return err
+	}
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	multiErr := xerrors.NewMultiError()
+	for _, block := range blocks {
+		segmentsData, err := block.MemorySegmentsData(ctx)
+		if err != nil {
+			return err
+		}
+
+		for _, segmentData := range segmentsData {
+			multiErr = multiErr.Add(prepared.Persist(segmentData))
+		}
+	}
+
+	_, err = prepared.Close()
+	multiErr = multiErr.Add(err)
+	return multiErr.FinalError()
+}
+
 func (i *nsIndex) sanitizeAllowDuplicatesWriteError(err error) error {
 	if err == nil {
 		return nil

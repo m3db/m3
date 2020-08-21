@@ -509,10 +509,12 @@ func TestPersistenceManagerPrepareIndexSnapshotSuccess(t *testing.T) {
 		assert.NoError(t, flush.DoneSnapshot(nil, persist.CommitLogFile{}))
 	}()
 
-	prepareOpts := persist.IndexPrepareOptions{
-		NamespaceMetadata: testNs1Metadata(t),
-		BlockStart:        blockStart,
-		FileSetType:       persist.FileSetSnapshotType,
+	prepareOpts := persist.IndexPrepareSnapshotOptions{
+		IndexPrepareOptions: persist.IndexPrepareOptions{
+			NamespaceMetadata: testNs1Metadata(t),
+			BlockStart:        blockStart,
+			FileSetType:       persist.FileSetSnapshotType,
+		},
 	}
 	prepared, err := flush.PrepareIndexSnapshot(prepareOpts)
 	require.NoError(t, err)
