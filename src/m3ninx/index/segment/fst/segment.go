@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -199,6 +200,7 @@ func (r *fsSegment) SegmentData(ctx context.Context) (SegmentData, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
+		log.Println("on SegmentData()")
 		return SegmentData{}, errReaderClosed
 	}
 
@@ -221,6 +223,7 @@ func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
+		log.Println("on ContainsID()")
 		return false, errReaderClosed
 	}
 
@@ -246,6 +249,7 @@ func (r *fsSegment) ContainsField(field []byte) (bool, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
+		log.Println("on ContainsField()")
 		return false, errReaderClosed
 	}
 	return r.fieldsFST.Contains(field)
@@ -255,6 +259,7 @@ func (r *fsSegment) Reader() (index.Reader, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
+		log.Println("on Reader()")
 		return nil, errReaderClosed
 	}
 
@@ -271,6 +276,7 @@ func (r *fsSegment) Close() error {
 	r.Lock()
 	if r.closed {
 		r.Unlock()
+		log.Println("on Close()")
 		return errReaderClosed
 	}
 	r.closed = true
@@ -855,6 +861,7 @@ func newReader(
 
 func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
 	if sr.closed {
+		log.Println("on reader MatchField()")
 		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
@@ -867,6 +874,7 @@ func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
 
 func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, error) {
 	if sr.closed {
+		log.Println("on reader MatchTerm()")
 		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
@@ -882,6 +890,7 @@ func (sr *fsSegmentReader) MatchRegexp(
 	compiled index.CompiledRegex,
 ) (postings.List, error) {
 	if sr.closed {
+		log.Println("on reader MatchRegexp()")
 		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
@@ -894,6 +903,7 @@ func (sr *fsSegmentReader) MatchRegexp(
 
 func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
 	if sr.closed {
+		log.Println("on reader MatchAll()")
 		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
@@ -906,6 +916,7 @@ func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
 
 func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 	if sr.closed {
+		log.Println("on reader Doc()")
 		return doc.Document{}, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
@@ -918,6 +929,7 @@ func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 
 func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	if sr.closed {
+		log.Println("on reader Docs()")
 		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
@@ -932,6 +944,7 @@ func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 
 func (sr *fsSegmentReader) AllDocs() (index.IDDocIterator, error) {
 	if sr.closed {
+		log.Println("on reader AllDocs()")
 		return nil, errReaderClosed
 	}
 	// NB(r): We are allowed to call match field after Close called on
@@ -946,6 +959,7 @@ func (sr *fsSegmentReader) AllDocs() (index.IDDocIterator, error) {
 
 func (sr *fsSegmentReader) Close() error {
 	if sr.closed {
+		log.Println("on reader Close()")
 		return errReaderClosed
 	}
 	sr.closed = true
