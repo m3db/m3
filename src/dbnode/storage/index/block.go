@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -543,13 +542,6 @@ func (b *block) closeExecutorAsync(exec search.Executor) {
 	if err := exec.Close(); err != nil {
 		// Note: This only happens if closing the readers isn't clean.
 		b.logger.Error("could not close search exec", zap.Error(err))
-	}
-}
-
-func (b *block) closeReaderAsync(reader index.Reader) {
-	if err := reader.Close(); err != nil {
-		// Note: This only happens if closing the readers isn't clean.
-		b.logger.Error("could not close reader", zap.Error(err))
 	}
 }
 
