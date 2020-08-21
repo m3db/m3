@@ -773,15 +773,12 @@ func (b *block) appendFieldAndTermToBatch(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
-		// Can wrap directly since mmap'd bytes are valid until end of query
-		// as we extend the lifetime of the segments by ctx w/ .AddSegments(ctx, ...).
-		entry.Field = ident.BytesID(field)
+		entry.Field = b.pooledID(field) // allocate id because this is the first time we've seen it
 	}
 
 	if includeTerms {
-		// Can wrap directly since mmap'd bytes are valid until end of query
-		// as we extend the lifetime of the segments by ctx w/ .AddSegments(ctx, ...).
-		entry.Terms = append(entry.Terms, ident.BytesID(term))
+		// terms are always new (as far we know without checking the map for duplicates), so we allocate
+		entry.Terms = append(entry.Terms, b.pooledID(term))
 	}
 
 	if reuseLastEntry {
@@ -790,6 +787,14 @@ func (b *block) appendFieldAndTermToBatch(
 		batch = append(batch, entry)
 	}
 	return batch
+}
+
+func (b *block) pooledID(id []byte) ident.ID {
+	data := b.opts.CheckedBytesPool().Get(len(id))
+	data.IncRef()
+	data.AppendAll(id)
+	data.DecRef()
+	return b.opts.IdentifierPool().BinaryID(data)
 }
 
 func (b *block) addAggregateResults(
