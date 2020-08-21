@@ -471,8 +471,12 @@ func TestDownsampleAndWriteBatchDifferentTypes(t *testing.T) {
 
 	mockMetricsAppender.
 		EXPECT().
-		SamplesAppender(zeroDownsamplerAppenderOpts).
-		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(2)
+		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.MetricTypeCounter}).
+		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
+	mockMetricsAppender.
+		EXPECT().
+		SamplesAppender(downsample.SampleAppenderOptions{MetricType: ts.MetricTypeTimer}).
+		Return(downsample.SamplesAppenderResult{SamplesAppender: mockSamplesAppender}, nil).Times(1)
 	for _, tag := range testTags1.Tags {
 		mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 	}
@@ -609,6 +613,7 @@ func TestDownsampleAndWriteBatchOverrideDownsampleRules(t *testing.T) {
 		for _, tag := range entry.tags.Tags {
 			mockMetricsAppender.EXPECT().AddTag(tag.Name, tag.Value)
 		}
+		// We will also get the common gauge tag.
 		for _, dp := range entry.datapoints {
 			mockSamplesAppender.EXPECT().AppendGaugeTimedSample(dp.Timestamp, dp.Value)
 		}

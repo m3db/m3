@@ -27,6 +27,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+
 	"github.com/cespare/xxhash/v2"
 )
 
@@ -279,8 +281,8 @@ func (t Tags) Validate() error {
 
 			prev := tags.Tags[i-1]
 			if bytes.Compare(prev.Name, tag.Name) == 0 {
-				return fmt.Errorf("tags duplicate: '%s' appears more than once in '%s'",
-					tags.Tags[i-1].Name, t)
+				return fmt.Errorf("tags duplicate: '%s' appears more than once",
+					tags.Tags[i-1].Name)
 			}
 		}
 	} else {
@@ -369,6 +371,26 @@ func (t Tags) String() string {
 		sb.WriteString(tt.String())
 	}
 	return sb.String()
+}
+
+// TagsFromProto converts proto tags to models.Tags.
+func TagsFromProto(pbTags []*metricpb.Tag) []Tag {
+	tags := make([]Tag, 0, len(pbTags))
+	for _, tag := range pbTags {
+		tags = append(tags, Tag{
+			Name:  tag.Name,
+			Value: tag.Value,
+		})
+	}
+	return tags
+}
+
+// ToProto converts the models.Tags to proto tags.
+func (t Tag) ToProto() *metricpb.Tag {
+	return &metricpb.Tag{
+		Name:  t.Name,
+		Value: t.Value,
+	}
 }
 
 // String returns the string representation of the tag.
