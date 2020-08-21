@@ -1578,6 +1578,7 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 	if err != nil {
 		return nil, err
 	}
+
 	if interval <= 0 {
 		return nil, common.ErrInvalidIntervalFormat
 	}
@@ -1614,7 +1615,16 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			for i := 0; i < numSteps; i++ {
 				for j := i + offset - windowPoints; j < i+offset; j++ {
-					window[j-i-offset+windowPoints] = bootstrap.ValueAt(j)
+					if j < 0 || j >= bootstrap.Len()-1 {
+						continue
+					}
+
+					idx := j - i - offset + windowPoints
+					if idx < 0 || idx >= len(window)-1 {
+						continue
+					}
+
+					window[idx] = bootstrap.ValueAt(j)
 				}
 				nans := common.SafeSort(window)
 				if nans < windowPoints {
