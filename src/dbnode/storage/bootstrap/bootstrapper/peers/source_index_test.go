@@ -22,7 +22,6 @@ package peers
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"sort"
 	"testing"
@@ -285,7 +284,6 @@ func TestBootstrapIndex(t *testing.T) {
 		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		if len(indexBlock.Segments()) != 0 {
-			log.Printf("result block start: %s", indexBlockByVolumeType.BlockStart())
 			numBlocksWithData++
 		}
 	}

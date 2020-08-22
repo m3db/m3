@@ -38,10 +38,6 @@ var postingsIterRoaringPoolingConfig = roaring.ContainerPoolingConfiguration{
 	MaxKeysAndContainersSliceLength: 128 * 10,
 }
 
-// type postingsListRetriever interface {
-// 	UnmarshalPostingsListBitmap(b *roaring.Bitmap, offset uint64) error
-// }
-
 type fstTermsPostingsIter struct {
 	bitmap   *roaring.Bitmap
 	postings postings.List
