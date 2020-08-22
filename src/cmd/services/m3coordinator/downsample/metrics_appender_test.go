@@ -145,14 +145,12 @@ func TestSamplesAppenderPoolResetsss(t *testing.T) {
 
 	appender := appenderPool.Get()
 	appender.AddTag([]byte("foo"), []byte("bar"))
+	assert.Equal(t, 1, len(appender.originalTags.names))
+	assert.Equal(t, 1, len(appender.originalTags.values))
 	appender.Finalize()
+
+	// NB: getting a new appender from the pool yields a clean appender.
 	appender = appenderPool.Get()
-	fmt.Println("tags string?", appender.tags().String())
-	fmt.Println("orig string?", appender.originalTags.String())
-
-	appender.AddTag([]byte("baz"), []byte("qux"))
-	fmt.Println("tags string!", appender.tags().String())
-	fmt.Println("orig string!", appender.originalTags.String())
-
-	// fmt.Printf("\nAPPENDER\n%+v\n", appender.)
+	assert.Nil(t, appender.originalTags)
+	appender.Finalize()
 }
