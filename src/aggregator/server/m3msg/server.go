@@ -53,6 +53,7 @@ func NewServer(
 		aggregator: aggregator,
 		logger:     opts.InstrumentOptions().Logger(),
 	}
+
 	handler := consumer.NewConsumerHandler(s.Consume, opts.ConsumerOptions())
 	return xserver.NewServer(address, handler, opts.ServerOptions()), nil
 }

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -46,8 +47,8 @@ func BenchmarkBlockWrite(b *testing.B) {
 	now := time.Now()
 	blockStart := now.Truncate(blockSize)
 
-	bl, err := NewBlock(blockStart, testMD,
-		BlockOptions{}, testOpts)
+	bl, err := NewBlock(blockStart, testMD, BlockOptions{},
+		namespace.NewRuntimeOptionsManager("foo"), testOpts)
 	require.NoError(b, err)
 	defer func() {
 		require.NoError(b, bl.Close())

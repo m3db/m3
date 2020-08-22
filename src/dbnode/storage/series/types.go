@@ -109,8 +109,12 @@ type DatabaseSeries interface {
 		opts FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResult, error)
 
-	// IsEmpty returns whether series is empty.
+	// IsEmpty returns whether series is empty (includes both cached blocks and in-mem buffer data).
 	IsEmpty() bool
+
+	// IsBufferEmptyAtBlockStart returns whether the series buffer is empty at block start
+	// (only checks for in-mem buffer data).
+	IsBufferEmptyAtBlockStart(time.Time) bool
 
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
@@ -140,6 +144,10 @@ type DatabaseSeries interface {
 
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
 	ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes
+
+	// Bootstrap will moved any bootstrapped data to buffer so series
+	// is ready for reading.
+	Bootstrap(nsCtx namespace.Context) error
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()
@@ -408,14 +416,6 @@ type WriteOptions struct {
 	TruncateType TruncateType
 	// TransformOptions describes transformation options for incoming writes.
 	TransformOptions WriteTransformOptions
-	// MatchUniqueIndex specifies whether the series unique index
-	// must match the unique index value specified (to ensure the series
-	// being written is the same series as previously referenced).
-	MatchUniqueIndex bool
-	// MatchUniqueIndexValue is the series unique index value that
-	// must match the current series unique index value (to ensure series
-	// being written is the same series as previously referenced).
-	MatchUniqueIndexValue uint64
 	// BootstrapWrite allows a warm write outside the time window as long as the
 	// block hasn't already been flushed to disk. This is useful for
 	// bootstrappers filling data that they know has not yet been flushed to

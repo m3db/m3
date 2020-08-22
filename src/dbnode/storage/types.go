@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -515,7 +516,7 @@ type databaseShard interface {
 
 	// Bootstrap bootstraps the shard after all provided data
 	// has been loaded using LoadBootstrapBlocks.
-	Bootstrap(ctx context.Context) error
+	Bootstrap(ctx context.Context, nsCtx namespace.Context) error
 
 	// UpdateFlushStates updates all the flush states for the current shard
 	// by checking the file volumes that exist on disk at a point in time.
@@ -577,6 +578,9 @@ type databaseShard interface {
 		tags ident.TagIterator,
 		opts ShardSeriesReadWriteRefOptions,
 	) (SeriesReadWriteRef, error)
+
+	// DocRef returns the doc if already present in a shard series.
+	DocRef(id ident.ID) (doc.Document, bool, error)
 }
 
 // ShardColdFlush exposes a done method to finalize shard cold flush
@@ -749,9 +753,14 @@ type databaseFlushManager interface {
 }
 
 // databaseCleanupManager manages cleaning up persistent storage space.
+// NB(bodu): We have to separate flush methods since we separated out flushing into warm/cold flush
+// and cleaning up certain types of data concurrently w/ either can be problematic.
 type databaseCleanupManager interface {
-	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time, isBootstrapped bool) error
+	// WarmFlushCleanup cleans up data not needed in the persistent storage before a warm flush.
+	WarmFlushCleanup(t time.Time, isBootstrapped bool) error
+
+	// ColdFlushCleanup cleans up data not needed in the persistent storage before a cold flush.
+	ColdFlushCleanup(t time.Time, isBootstrapped bool) error
 
 	// Report reports runtime information.
 	Report()
@@ -759,9 +768,6 @@ type databaseCleanupManager interface {
 
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
-	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time, isBootstrapped bool) error
-
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
 
@@ -789,6 +795,25 @@ type databaseFileSystemManager interface {
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
+}
+
+// databaseColdFlushManager manages the database related cold flush activities.
+type databaseColdFlushManager interface {
+	databaseCleanupManager
+
+	// Disable disables the cold flush manager and prevents it from
+	// performing file operations, returns the current file operation status.
+	Disable() fileOpStatus
+
+	// Enable enables the cold flush manager to perform file operations.
+	Enable() fileOpStatus
+
+	// Status returns the file operation status.
+	Status() fileOpStatus
+
+	// Run attempts to perform all cold flush related operations,
+	// returning true if those operations are performed, and false otherwise.
+	Run(t time.Time) bool
 }
 
 // databaseShardRepairer repairs in-memory data for a shard.
@@ -844,17 +869,14 @@ type databaseMediator interface {
 	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() (BootstrapResult, error)
 
-	// DisableFileOps disables file operations.
-	DisableFileOps()
+	// DisableFileOpsAndWait disables file operations.
+	DisableFileOpsAndWait()
 
 	// EnableFileOps enables file operations.
 	EnableFileOps()
 
 	// Tick performs a tick.
 	Tick(forceType forceType, startTime time.Time) error
-
-	// WaitForFileSystemProcesses waits for any ongoing fs processes to finish.
-	WaitForFileSystemProcesses()
 
 	// Repair repairs the database.
 	Repair() error
@@ -1143,6 +1165,18 @@ type Options interface {
 	// DoNotIndexWithFieldsMap returns a map which if fields match it
 	// will not index those metrics.
 	DoNotIndexWithFieldsMap() map[string]string
+
+	// SetNamespaceRuntimeOptionsManagerRegistry sets the namespace runtime options manager.
+	SetNamespaceRuntimeOptionsManagerRegistry(value namespace.RuntimeOptionsManagerRegistry) Options
+
+	// NamespaceRuntimeOptionsManagerRegistry returns the namespace runtime options manager.
+	NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry
+
+	// SetMediatorTickInterval sets the ticking interval for the medidator.
+	SetMediatorTickInterval(value time.Duration) Options
+
+	// MediatorTickInterval returns the ticking interval for the mediator.
+	MediatorTickInterval() time.Duration
 }
 
 // MemoryTracker tracks memory.

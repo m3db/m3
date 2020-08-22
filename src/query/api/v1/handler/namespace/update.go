@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -52,11 +51,16 @@ var (
 
 	fieldNameRetentionOptions = "RetentionOptions"
 	fieldNameRetetionPeriod   = "RetentionPeriodNanos"
+	fieldNameRuntimeOptions   = "RuntimeOptions"
 
 	errEmptyNamespaceName      = errors.New("must specify namespace name")
 	errEmptyNamespaceOptions   = errors.New("update options cannot be empty")
-	errEmptyRetentionOptions   = errors.New("retention options must be set")
 	errNamespaceFieldImmutable = errors.New("namespace option field is immutable")
+
+	allowedUpdateOptionsFields = map[string]struct{}{
+		fieldNameRetentionOptions: struct{}{},
+		fieldNameRuntimeOptions:   struct{}{},
+	}
 )
 
 // UpdateHandler is the handler for namespace updates.
@@ -83,13 +87,18 @@ func (h *UpdateHandler) ServeHTTP(
 
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Error(rErr))
+		logger.Warn("unable to parse request", zap.Error(rErr))
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	opts := handleroptions.NewServiceOptions(svc, r.Header, nil)
-	nsRegistry, err := h.Update(md, opts)
+	nsRegistry, parseErr, err := h.Update(md, opts)
+	if parseErr != nil {
+		logger.Warn("update namespace bad request", zap.Error(parseErr))
+		xhttp.Error(w, parseErr.Inner(), parseErr.Code())
+		return
+	}
 	if err != nil {
 		logger.Error("unable to update namespace", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -135,26 +144,35 @@ func validateUpdateRequest(req *admin.NamespaceUpdateRequest) error {
 		return errEmptyNamespaceOptions
 	}
 
-	if req.Options.RetentionOptions == nil {
-		return errEmptyRetentionOptions
-	}
-
 	optsVal := reflect.ValueOf(*req.Options)
-
+	allNonZeroFields := true
 	for i := 0; i < optsVal.NumField(); i++ {
 		field := optsVal.Field(i)
 		fieldName := optsVal.Type().Field(i).Name
-		if !field.IsZero() && fieldName != fieldNameRetentionOptions {
+		if field.IsZero() {
+			continue
+		}
+
+		allNonZeroFields = false
+
+		_, ok := allowedUpdateOptionsFields[fieldName]
+		if !ok {
 			return fmt.Errorf("%s: %w", fieldName, errNamespaceFieldImmutable)
 		}
 	}
 
-	optsVal = reflect.ValueOf(*req.Options.RetentionOptions)
-	for i := 0; i < optsVal.NumField(); i++ {
-		field := optsVal.Field(i)
-		fieldName := optsVal.Type().Field(i).Name
-		if !field.IsZero() && fieldName != fieldNameRetetionPeriod {
-			return fmt.Errorf("%s.%s: %w", fieldNameRetentionOptions, fieldName, errNamespaceFieldImmutable)
+	if allNonZeroFields {
+		return errEmptyNamespaceOptions
+	}
+
+	if opts := req.Options.RetentionOptions; opts != nil {
+		optsVal := reflect.ValueOf(*opts)
+		for i := 0; i < optsVal.NumField(); i++ {
+			field := optsVal.Field(i)
+			fieldName := optsVal.Type().Field(i).Name
+			if !field.IsZero() && fieldName != fieldNameRetetionPeriod {
+				return fmt.Errorf("%s.%s: %w", fieldNameRetentionOptions, fieldName, errNamespaceFieldImmutable)
+			}
 		}
 	}
 
@@ -165,55 +183,82 @@ func validateUpdateRequest(req *admin.NamespaceUpdateRequest) error {
 func (h *UpdateHandler) Update(
 	updateReq *admin.NamespaceUpdateRequest,
 	opts handleroptions.ServiceOptions,
-) (nsproto.Registry, error) {
+) (nsproto.Registry, *xhttp.ParseError, error) {
 	var emptyReg = nsproto.Registry{}
 
 	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
-		return emptyReg, err
+		return emptyReg, nil, err
 	}
 
 	currentMetadata, version, err := Metadata(store)
 	if err != nil {
-		return emptyReg, err
+		return emptyReg, nil, err
 	}
 
-	updateID := ident.StringID(updateReq.Name)
-	newMDs := make([]namespace.Metadata, 0, len(currentMetadata))
+	newMetadata := make(map[string]namespace.Metadata)
 	for _, ns := range currentMetadata {
-		// Don't modify any other namespaces.
-		if !ns.ID().Equal(updateID) {
-			newMDs = append(newMDs, ns)
-			continue
-		}
+		newMetadata[ns.ID().String()] = ns
+	}
 
-		// Replace targeted namespace with modified retention.
-		if newNanos := updateReq.Options.RetentionOptions.RetentionPeriodNanos; newNanos != 0 {
+	ns, ok := newMetadata[updateReq.Name]
+	if !ok {
+		parseErr := xhttp.NewParseError(
+			fmt.Errorf("namespace not found: err=%s", updateReq.Name),
+			http.StatusNotFound)
+		return emptyReg, parseErr, nil
+	}
+
+	// Replace targeted namespace with modified retention.
+	if newRetentionOpts := updateReq.Options.RetentionOptions; newRetentionOpts != nil {
+		if newNanos := newRetentionOpts.RetentionPeriodNanos; newNanos != 0 {
 			dur := namespace.FromNanos(newNanos)
-			opts := ns.Options().SetRetentionOptions(
-				ns.Options().RetentionOptions().SetRetentionPeriod(dur),
-			)
-			newMD, err := namespace.NewMetadata(ns.ID(), opts)
+			retentionOpts := ns.Options().RetentionOptions().
+				SetRetentionPeriod(dur)
+			opts := ns.Options().
+				SetRetentionOptions(retentionOpts)
+			ns, err = namespace.NewMetadata(ns.ID(), opts)
 			if err != nil {
-				return emptyReg, fmt.Errorf("error constructing new metadata: %w", err)
+				return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
 			}
-			newMDs = append(newMDs, newMD)
-		} else {
-			// If not modifying, keep the original NS.
-			newMDs = append(newMDs, ns)
 		}
 	}
 
+	// Update runtime options.
+	if newRuntimeOpts := updateReq.Options.RuntimeOptions; newRuntimeOpts != nil {
+		runtimeOpts := ns.Options().RuntimeOptions()
+		if v := newRuntimeOpts.WriteIndexingPerCPUConcurrency; v != nil {
+			runtimeOpts = runtimeOpts.SetWriteIndexingPerCPUConcurrency(&v.Value)
+		}
+		if v := newRuntimeOpts.FlushIndexingPerCPUConcurrency; v != nil {
+			runtimeOpts = runtimeOpts.SetFlushIndexingPerCPUConcurrency(&v.Value)
+		}
+		opts := ns.Options().
+			SetRuntimeOptions(runtimeOpts)
+		ns, err = namespace.NewMetadata(ns.ID(), opts)
+		if err != nil {
+			return emptyReg, nil, fmt.Errorf("error constructing new metadata: %w", err)
+		}
+	}
+
+	// Update the namespace in case an update occurred.
+	newMetadata[updateReq.Name] = ns
+
+	// Set the new slice and update.
+	newMDs := make([]namespace.Metadata, 0, len(newMetadata))
+	for _, elem := range newMetadata {
+		newMDs = append(newMDs, elem)
+	}
 	nsMap, err := namespace.NewMap(newMDs)
 	if err != nil {
-		return emptyReg, err
+		return emptyReg, nil, err
 	}
 
 	protoRegistry := namespace.ToProto(nsMap)
 	_, err = store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
 	if err != nil {
-		return emptyReg, fmt.Errorf("failed to update namespace: %w", err)
+		return emptyReg, nil, fmt.Errorf("failed to update namespace: %w", err)
 	}
 
-	return *protoRegistry, nil
+	return *protoRegistry, nil, nil
 }

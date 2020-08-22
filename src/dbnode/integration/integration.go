@@ -417,7 +417,13 @@ func newCompactor(
 	t *testing.T,
 	opts index.Options,
 ) *compaction.Compactor {
-	compactor, err := compaction.NewCompactor(opts.DocumentArrayPool(),
+	compactor, err := newCompactorWithErr(opts)
+	require.NoError(t, err)
+	return compactor
+}
+
+func newCompactorWithErr(opts index.Options) (*compaction.Compactor, error) {
+	return compaction.NewCompactor(opts.DocumentArrayPool(),
 		index.DocumentArrayPoolCapacity,
 		opts.SegmentBuilderOptions(),
 		opts.FSTSegmentOptions(),
@@ -429,9 +435,6 @@ func newCompactor(
 				DisableRegistry: true,
 			},
 		})
-	require.NoError(t, err)
-	return compactor
-
 }
 
 func writeTestIndexDataToDisk(
@@ -448,7 +451,7 @@ func writeTestIndexDataToDisk(
 	if err != nil {
 		return err
 	}
-	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter()
+	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter(fst.WriterOptions{})
 	if err != nil {
 		return err
 	}

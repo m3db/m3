@@ -145,13 +145,16 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		require.Equal(t, now.Truncate(blockSize), ts)
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	index, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	index, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -186,12 +189,15 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		return nil, fmt.Errorf("randomerr")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	_, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	_, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.Error(t, err)
 }
 
@@ -213,13 +219,16 @@ func TestNamespaceIndexWrite(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		require.Equal(t, now.Truncate(blockSize), ts)
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -281,6 +290,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -292,7 +302,9 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -358,6 +370,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -369,7 +382,9 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	seg1 := segment.NewMockSegment(ctrl)
@@ -415,6 +430,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -423,7 +439,9 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retentionPeriod)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	nowLock.Lock()
@@ -464,6 +482,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -472,7 +491,9 @@ func TestNamespaceIndexTick(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retentionPeriod)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -560,6 +581,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -571,7 +593,9 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -685,6 +709,7 @@ func TestLimits(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -693,7 +718,9 @@ func TestLimits(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -854,6 +881,7 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -871,7 +899,9 @@ func TestNamespaceIndexBlockQueryReleasingContext(t *testing.T) {
 	stubResult := index.NewQueryResults(ident.StringID("ns"), index.QueryResultsOptions{}, iopts)
 
 	md := testNamespaceMetadata(blockSize, retention)
-	idxIface, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idxIface, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	idx, ok := idxIface.(*nsIndex)
@@ -952,6 +982,7 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -963,7 +994,9 @@ func TestNamespaceIndexBlockAggregateQuery(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {
@@ -1092,6 +1125,7 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -1106,10 +1140,13 @@ func TestNamespaceIndexBlockAggregateQueryReleasingContext(t *testing.T) {
 	iopts := opts.IndexOptions()
 	mockPool := index.NewMockAggregateResultsPool(ctrl)
 	iopts = iopts.SetAggregateResultsPool(mockPool)
-	stubResult := index.NewAggregateResults(ident.StringID("ns"), index.AggregateResultsOptions{}, iopts)
+	stubResult := index.NewAggregateResults(ident.StringID("ns"),
+		index.AggregateResultsOptions{}, iopts)
 
 	md := testNamespaceMetadata(blockSize, retention)
-	idxIface, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idxIface, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	idx, ok := idxIface.(*nsIndex)
@@ -1195,6 +1232,7 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 		ts time.Time,
 		md namespace.Metadata,
 		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
 		io index.Options,
 	) (index.Block, error) {
 		if ts.Equal(t0) {
@@ -1206,7 +1244,9 @@ func TestNamespaceIndexBlockAggregateQueryAggPath(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, testShardSet, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
 	require.NoError(t, err)
 
 	defer func() {

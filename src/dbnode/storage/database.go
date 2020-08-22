@@ -94,8 +94,9 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
-	nsWatch    namespace.NamespaceWatch
-	namespaces *databaseNamespacesMap
+	nsWatch                namespace.NamespaceWatch
+	namespaces             *databaseNamespacesMap
+	runtimeOptionsRegistry namespace.RuntimeOptionsManagerRegistry
 
 	commitLog commitlog.CommitLog
 
@@ -127,6 +128,7 @@ type databaseMetrics struct {
 	unknownNamespaceQueryIDs            tally.Counter
 	errQueryIDsIndexDisabled            tally.Counter
 	errWriteTaggedIndexDisabled         tally.Counter
+	pendingNamespaceChange              tally.Gauge
 }
 
 func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
@@ -144,6 +146,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		unknownNamespaceQueryIDs:            unknownNamespaceScope.Counter("query-ids"),
 		errQueryIDsIndexDisabled:            indexDisabledScope.Counter("err-query-ids"),
 		errWriteTaggedIndexDisabled:         indexDisabledScope.Counter("err-write-tagged"),
+		pendingNamespaceChange:              scope.Gauge("pending-namespace-change"),
 	}
 }
 
@@ -172,16 +175,17 @@ func NewDatabase(
 	)
 
 	d := &db{
-		opts:                  opts,
-		nowFn:                 nowFn,
-		shardSet:              shardSet,
-		lastReceivedNewShards: nowFn(),
-		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:             commitLog,
-		scope:                 scope,
-		metrics:               newDatabaseMetrics(scope),
-		log:                   logger,
-		writeBatchPool:        opts.WriteBatchPool(),
+		opts:                   opts,
+		nowFn:                  nowFn,
+		shardSet:               shardSet,
+		lastReceivedNewShards:  nowFn(),
+		namespaces:             newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		runtimeOptionsRegistry: opts.NamespaceRuntimeOptionsManagerRegistry(),
+		commitLog:              commitLog,
+		scope:                  scope,
+		metrics:                newDatabaseMetrics(scope),
+		log:                    logger,
+		writeBatchPool:         opts.WriteBatchPool(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -243,6 +247,19 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		d.log.Error("failed to update schema registry", zap.Error(err))
 	}
 
+	// Always update the runtime options if they were set so that correct
+	// runtime options are set in the runtime options registry before namespaces
+	// are actually created.
+	for _, namespaceMetadata := range newNamespaces.Metadatas() {
+		id := namespaceMetadata.ID().String()
+		runtimeOptsMgr := d.runtimeOptionsRegistry.RuntimeOptionsManager(id)
+		currRuntimeOpts := runtimeOptsMgr.Get()
+		setRuntimeOpts := namespaceMetadata.Options().RuntimeOptions()
+		if !currRuntimeOpts.Equal(setRuntimeOpts) {
+			runtimeOptsMgr.Update(setRuntimeOpts)
+		}
+	}
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -262,7 +279,10 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
-		d.log.Warn("skipping namespace removals and updates (except schema updates), restart process if you want changes to take effect.")
+		d.metrics.pendingNamespaceChange.Update(1)
+		d.log.Warn("skipping namespace removals and updates " +
+			"(except schema updates and runtime options), " +
+			"restart the process if you want changes to take effect")
 	}
 
 	// enqueue bootstraps if new namespaces
@@ -375,7 +395,10 @@ func (d *db) newDatabaseNamespaceWithLock(
 			return nil, err
 		}
 	}
-	return newDatabaseNamespace(md, d.shardSet, retriever, d, d.commitLog, d.opts)
+	nsID := md.ID().String()
+	runtimeOptsMgr := d.runtimeOptionsRegistry.RuntimeOptionsManager(nsID)
+	return newDatabaseNamespace(md, runtimeOptsMgr,
+		d.shardSet, retriever, d, d.commitLog, d.opts)
 }
 
 func (d *db) Options() Options {
@@ -538,8 +561,9 @@ func (d *db) terminateWithLock() error {
 }
 
 func (d *db) Terminate() error {
-	// NB(bodu): Wait for fs processes to finish.
-	d.mediator.WaitForFileSystemProcesses()
+	// NB(bodu): Disable file ops waits for current fs processes to
+	// finish before disabling.
+	d.mediator.DisableFileOpsAndWait()
 
 	d.Lock()
 	defer d.Unlock()
@@ -548,8 +572,9 @@ func (d *db) Terminate() error {
 }
 
 func (d *db) Close() error {
-	// NB(bodu): Wait for fs processes to finish.
-	d.mediator.WaitForFileSystemProcesses()
+	// NB(bodu): Disable file ops waits for current fs processes to
+	// finish before disabling.
+	d.mediator.DisableFileOpsAndWait()
 
 	d.Lock()
 	defer d.Unlock()

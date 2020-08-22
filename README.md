@@ -10,12 +10,14 @@ More information:
 - [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
 - [Slack](http://bit.ly/m3slack)
 - [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
-- [Twitter](https://twitter.com/m3db_io)
+- [Twitter](https://twitter.com/m3metrics)
 
 ## Community meetings
 
 M3 contributors and maintainers have monthly (every four weeks) meetings. Join our M3 meetup group to receive notifications on upcoming meetings: 
 [https://www.meetup.com/M3-Community/](https://www.meetup.com/M3-Community/).
+
+Recordings of past meetups can be found here: [https://vimeo.com/user/120001164/folder/2290331](https://vimeo.com/user/120001164/folder/2290331).
 
 ## Office Hours
 

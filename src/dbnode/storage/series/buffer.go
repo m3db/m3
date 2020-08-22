@@ -54,7 +54,6 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
-	logger, _          = zap.NewProduction()
 )
 
 const (
@@ -75,6 +74,11 @@ const (
 )
 
 type databaseBuffer interface {
+	MoveTo(
+		buffer databaseBuffer,
+		nsCtx namespace.Context,
+	) error
+
 	Write(
 		ctx context.Context,
 		id ident.ID,
@@ -127,6 +131,8 @@ type databaseBuffer interface {
 	) (block.FetchBlockMetadataResults, error)
 
 	IsEmpty() bool
+
+	IsEmptyAtBlockStart(time.Time) bool
 
 	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
@@ -245,6 +251,39 @@ func (b *dbBuffer) Reset(opts databaseBufferResetOptions) {
 	b.bucketPool = opts.Options.BufferBucketPool()
 	b.bucketVersionsPool = opts.Options.BufferBucketVersionsPool()
 	b.blockRetriever = opts.BlockRetriever
+}
+
+func (b *dbBuffer) MoveTo(
+	buffer databaseBuffer,
+	nsCtx namespace.Context,
+) error {
+	blockSize := b.opts.RetentionOptions().BlockSize()
+	for _, buckets := range b.bucketsMap {
+		for _, bucket := range buckets.buckets {
+			// Load any existing blocks.
+			for _, block := range bucket.loadedBlocks {
+				// Load block.
+				buffer.Load(block, bucket.writeType)
+			}
+
+			// Load encoders.
+			for _, elem := range bucket.encoders {
+				if elem.encoder.Len() == 0 {
+					// No data.
+					continue
+				}
+				// Take ownership of the encoder.
+				segment := elem.encoder.Discard()
+				// Create block and load into new buffer.
+				block := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+				block.Reset(bucket.start, blockSize, segment, nsCtx)
+				// Load block.
+				buffer.Load(block, bucket.writeType)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (b *dbBuffer) Write(
@@ -377,6 +416,14 @@ func (b *dbBuffer) IsEmpty() bool {
 	// buckets are only created when a write for a new block start is done, and
 	// buckets are removed from the map when they are evicted from memory.
 	return len(b.bucketsMap) == 0
+}
+
+func (b *dbBuffer) IsEmptyAtBlockStart(start time.Time) bool {
+	bv, exists := b.bucketVersionsAt(start)
+	if !exists {
+		return true
+	}
+	return bv.streamsLen() == 0
 }
 
 func (b *dbBuffer) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {
@@ -556,6 +603,7 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	checksum := segment.CalculateChecksum()
+
 	return persistFn(metadata, segment, checksum)
 }
 

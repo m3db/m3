@@ -122,6 +122,10 @@ type DataFileSetReaderStatus struct {
 type DataReaderOpenOptions struct {
 	Identifier  FileSetFileIdentifier
 	FileSetType persist.FileSetType
+	// NB(bodu): This option can inform the reader to optimize for reading
+	// only metadata by not sorting index entries. Setting this option will
+	// throw an error if a regular `Read()` is attempted.
+	OptimizedReadMetadataOnly bool
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
@@ -477,17 +481,37 @@ type Options interface {
 	// TagDecoderPool returns the tag decoder pool.
 	TagDecoderPool() serialize.TagDecoderPool
 
-	// SetFStOptions sets the fst options.
+	// SetFSTOptions sets the fst options.
 	SetFSTOptions(value fst.Options) Options
 
 	// FSTOptions returns the fst options.
 	FSTOptions() fst.Options
 
+	// SetFStWriterOptions sets the fst writer options.
+	SetFSTWriterOptions(value fst.WriterOptions) Options
+
+	// FSTWriterOptions returns the fst writer options.
+	FSTWriterOptions() fst.WriterOptions
+
 	// SetMmapReporter sets the mmap reporter.
-	SetMmapReporter(mmapReporter mmap.Reporter) Options
+	SetMmapReporter(value mmap.Reporter) Options
 
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
+
+	// SetIndexReaderAutovalidateIndexSegments sets the index reader to
+	// autovalidate index segments data integrity on file open.
+	SetIndexReaderAutovalidateIndexSegments(value bool) Options
+
+	// IndexReaderAutovalidateIndexSegments returns the index reader to
+	// autovalidate index segments data integrity on file open.
+	IndexReaderAutovalidateIndexSegments() bool
+
+	// SetEncodingOptions sets the encoder options used by the encoder.
+	SetEncodingOptions(value msgpack.LegacyEncodingOptions) Options
+
+	// EncodingOptions returns the encoder options used by the encoder.
+	EncodingOptions() msgpack.LegacyEncodingOptions
 }
 
 // BlockRetrieverOptions represents the options for block retrieval
@@ -562,6 +586,19 @@ type Merger interface {
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
 	) (persist.DataCloser, error)
+
+	// MergeAndCleanup merges the specified fileset file with a merge target and removes the previous version of the
+	// fileset. This should only be called within the bootstrapper. Any other file deletions outside of the bootstrapper
+	// should be handled by the CleanupManager.
+	MergeAndCleanup(
+		fileID FileSetFileIdentifier,
+		mergeWith MergeWith,
+		nextVolumeIndex int,
+		flushPreparer persist.FlushPreparer,
+		nsCtx namespace.Context,
+		onFlush persist.OnFlushSeries,
+		isBootstrapped bool,
+	) error
 }
 
 // NewMergerFn is the function to call to get a new Merger.
@@ -573,6 +610,7 @@ type NewMergerFn func(
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
+	filePathPrefix string,
 	nsOpts namespace.Options,
 ) Merger
 

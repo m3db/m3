@@ -62,6 +62,20 @@ func (m *MockdatabaseBuffer) EXPECT() *MockdatabaseBufferMockRecorder {
 	return m.recorder
 }
 
+// MoveTo mocks base method
+func (m *MockdatabaseBuffer) MoveTo(buffer databaseBuffer, nsCtx namespace.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MoveTo", buffer, nsCtx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MoveTo indicates an expected call of MoveTo
+func (mr *MockdatabaseBufferMockRecorder) MoveTo(buffer, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MoveTo", reflect.TypeOf((*MockdatabaseBuffer)(nil).MoveTo), buffer, nsCtx)
+}
+
 // Write mocks base method
 func (m *MockdatabaseBuffer) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte, wOpts WriteOptions) (bool, WriteType, error) {
 	m.ctrl.T.Helper()
@@ -178,6 +192,20 @@ func (m *MockdatabaseBuffer) IsEmpty() bool {
 func (mr *MockdatabaseBufferMockRecorder) IsEmpty() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockdatabaseBuffer)(nil).IsEmpty))
+}
+
+// IsEmptyAtBlockStart mocks base method
+func (m *MockdatabaseBuffer) IsEmptyAtBlockStart(arg0 time.Time) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsEmptyAtBlockStart", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsEmptyAtBlockStart indicates an expected call of IsEmptyAtBlockStart
+func (mr *MockdatabaseBufferMockRecorder) IsEmptyAtBlockStart(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmptyAtBlockStart", reflect.TypeOf((*MockdatabaseBuffer)(nil).IsEmptyAtBlockStart), arg0)
 }
 
 // ColdFlushBlockStarts mocks base method

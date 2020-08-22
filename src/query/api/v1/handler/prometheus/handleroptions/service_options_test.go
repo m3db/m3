@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/x/headers"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,8 +41,8 @@ func TestNewServiceOptions(t *testing.T) {
 			service: "foo",
 			exp: ServiceOptions{
 				ServiceName:        "foo",
-				ServiceEnvironment: DefaultServiceEnvironment,
-				ServiceZone:        DefaultServiceZone,
+				ServiceEnvironment: headers.DefaultServiceEnvironment,
+				ServiceZone:        headers.DefaultServiceZone,
 				M3Agg: &M3AggServiceOptions{
 					MaxAggregationWindowSize: time.Minute,
 				},
@@ -49,9 +51,9 @@ func TestNewServiceOptions(t *testing.T) {
 		{
 			service: "foo",
 			headers: map[string]string{
-				HeaderClusterEnvironmentName: "bar",
-				HeaderClusterZoneName:        "baz",
-				HeaderDryRun:                 "true",
+				headers.HeaderClusterEnvironmentName: "bar",
+				headers.HeaderClusterZoneName:        "baz",
+				headers.HeaderDryRun:                 "true",
 			},
 			aggOpts: &M3AggServiceOptions{
 				MaxAggregationWindowSize: 2 * time.Minute,
