@@ -524,7 +524,6 @@ func (call *functionCall) Evaluate(ctx *common.Context) (reflect.Value, error) {
 		return reflect.Value{}, err
 	}
 	transformerFn := contextShifter.Field(1)
-	// fmt.Printf("\nGooD luck\n%+v\n", values)
 	var ret []reflect.Value
 	if call.f.out == unaryContextShifterPtrType {
 		// unary function

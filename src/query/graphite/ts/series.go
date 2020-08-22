@@ -22,7 +22,6 @@ package ts
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"time"
 
@@ -234,18 +233,6 @@ func (b *Series) SafeValues() []float64 {
 		}
 	}
 	return vals
-}
-
-// String prints the series in a readable fashion.
-func (b *Series) String() string {
-	numPoints := b.Len()
-	vals := make([]float64, 0, numPoints)
-	for i := 0; i < numPoints; i++ {
-		v := b.ValueAt(i)
-		vals = append(vals, v)
-	}
-
-	return fmt.Sprintf("[%v - %v]: %v", b.startTime, b.EndTime(), vals)
 }
 
 // ConsolidationFunc returns the consolidation function for the series,
