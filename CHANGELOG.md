@@ -4,8 +4,8 @@
 
 ## Bug Fixes
 
-- **M3Aggregator**: Fix a bug in aggregated tag life cycle that could cause duplicate tags ([#2549](https://github.com/m3db/m3/pull/2549))
-- **M3Query**: Fix to movingMedian and movingAverage graphite queries that could cause panics or missing data ([#2549](https://github.com/m3db/m3/pull/2549))
+- **M3Query**: Fix to Graphite movingMedian and movingAverage functions that could skip data in certain cases or cause an out of bounds error after recovery ([#2549](https://github.com/m3db/m3/pull/2549))
+- **M3Coordinator**: Fix a Graphite carbon ingest tag lifecycle bug that could cause duplicate tags ([#2549](https://github.com/m3db/m3/pull/2549))
 
 # 0.15.11
 
