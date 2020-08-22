@@ -33,9 +33,9 @@ import (
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	"go.uber.org/zap"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
