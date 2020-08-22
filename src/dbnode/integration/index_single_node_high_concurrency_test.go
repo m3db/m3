@@ -250,11 +250,13 @@ func testIndexSingleNodeHighConcurrency(
 	queryConcDuringWritesCloseCh := make(chan struct{}, 1)
 	numTotalQueryMatches := atomic.NewUint32(0)
 	numTotalQueryErrors := atomic.NewUint32(0)
+	checkNumTotalQueryMatches := false
 	if opts.concurrencyQueryDuringWrites == 0 {
 		log.Info("no concurrent queries during writes configured")
 	} else {
 		log.Info("starting concurrent queries during writes",
 			zap.Int("concurrency", opts.concurrencyQueryDuringWrites))
+		checkNumTotalQueryMatches = true
 		for i := 0; i < opts.concurrencyQueryDuringWrites; i++ {
 			go func() {
 				src := rand.NewSource(int64(i))
@@ -325,8 +327,10 @@ func testIndexSingleNodeHighConcurrency(
 	// Check no write errors.
 	require.Equal(t, int(0), int(numTotalErrors.Load()))
 
-	// Check matches.
-	require.True(t, numTotalQueryMatches.Load() > 0, "no query matches")
+	if checkNumTotalQueryMatches {
+		// Check matches.
+		require.True(t, numTotalQueryMatches.Load() > 0, "no query matches")
+	}
 
 	log.Info("test data written",
 		zap.Duration("took", time.Since(start)),
