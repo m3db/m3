@@ -22,7 +22,7 @@
 
 ## Documentation
 
-- **All** - Fix buildkite mkdocs script ([#2538](https://github.com/m3db/m3/pull/2538))
+- **All**: Fix buildkite mkdocs script ([#2538](https://github.com/m3db/m3/pull/2538))
 
 # 0.15.9
 
