@@ -384,6 +384,7 @@ func (b *block) segmentReadersWithRLock() ([]segment.Reader, error) {
 		return nil, err
 	}
 
+	success = true
 	return readers, nil
 }
 
@@ -756,15 +757,19 @@ func (b *block) appendFieldAndTermToBatch(
 		reuseLastEntry = true
 		entry = batch[len(batch)-1] // avoid alloc cause we already have the field
 	} else {
-		// Can wrap directly since mmap'd bytes are valid until end of query
-		// as we don't close segment readers until end using RegisterFinalizer.
-		entry.Field = ident.BytesID(field)
+		// allocate id because this is the first time we've seen it
+		// NB(r): Iterating fields FST, this byte slice is only temporarily available
+		// since we are pushing/popping characters from the stack as we iterate
+		// the fields FST and reusing the same byte slice.
+		entry.Field = b.pooledID(field)
 	}
 
 	if includeTerms {
-		// Can wrap directly since mmap'd bytes are valid until end of query
-		// as we don't close segment readers until end using RegisterFinalizer.
-		entry.Terms = append(entry.Terms, ident.BytesID(term))
+		// terms are always new (as far we know without checking the map for duplicates), so we allocate
+		// NB(r): Iterating terms FST, this byte slice is only temporarily available
+		// since we are pushing/popping characters from the stack as we iterate
+		// the terms FST and reusing the same byte slice.
+		entry.Terms = append(entry.Terms, b.pooledID(term))
 	}
 
 	if reuseLastEntry {
@@ -773,6 +778,14 @@ func (b *block) appendFieldAndTermToBatch(
 		batch = append(batch, entry)
 	}
 	return batch
+}
+
+func (b *block) pooledID(id []byte) ident.ID {
+	data := b.opts.CheckedBytesPool().Get(len(id))
+	data.IncRef()
+	data.AppendAll(id)
+	data.DecRef()
+	return b.opts.IdentifierPool().BinaryID(data)
 }
 
 func (b *block) addAggregateResults(

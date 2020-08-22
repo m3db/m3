@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
@@ -458,11 +457,11 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 		},
 	}
 
-	r1 := index.NewMockReader(ctrl)
+	r1 := segment.NewMockReader(ctrl)
 	seg1.EXPECT().Reader().Return(r1, nil)
 	r1.EXPECT().Close().Return(nil)
 
-	r2 := index.NewMockReader(ctrl)
+	r2 := segment.NewMockReader(ctrl)
 	seg2.EXPECT().Reader().Return(r2, nil)
 	r2.EXPECT().Close().Return(nil)
 
@@ -1802,14 +1801,14 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	reader := index.NewMockReader(ctrl)
+	reader := segment.NewMockReader(ctrl)
 	reader.EXPECT().Close().Return(nil)
 	seg1.EXPECT().Reader().Return(reader, nil)
 
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1819,7 +1818,7 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	}, testOpts)
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
+		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(false),
@@ -1848,14 +1847,14 @@ func TestBlockAggregate(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	reader := index.NewMockReader(ctrl)
+	reader := segment.NewMockReader(ctrl)
 	reader.EXPECT().Close().Return(nil)
 	seg1.EXPECT().Reader().Return(reader, nil)
 
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1873,7 +1872,7 @@ func TestBlockAggregate(t *testing.T) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
+		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(true),
@@ -1925,14 +1924,14 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	reader := index.NewMockReader(ctrl)
+	reader := segment.NewMockReader(ctrl)
 	reader.EXPECT().Close().Return(nil)
 	seg1.EXPECT().Reader().Return(reader, nil)
 
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1950,7 +1949,7 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
+		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(true),
