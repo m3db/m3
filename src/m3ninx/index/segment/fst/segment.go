@@ -918,7 +918,10 @@ func (sr *fsSegmentReader) Terms(field []byte) (sgmt.TermsIterator, error) {
 	if sr.termsIterable == nil {
 		sr.termsIterable = newTermsIterable(sr.fsSegment)
 	}
-	return sr.termsIterable.termsNotClosedMaybeFinalizedWithRLock(field)
+	sr.fsSegment.RLock()
+	iter, err := sr.termsIterable.termsNotClosedMaybeFinalizedWithRLock(field)
+	sr.fsSegment.RUnlock()
+	return iter, err
 }
 
 func (sr *fsSegmentReader) MatchField(field []byte) (postings.List, error) {
