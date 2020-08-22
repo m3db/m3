@@ -95,7 +95,7 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 
 	// Inspect the write
 	writes := store.Writes()
-	require.Equal(t, 200, len(writes))
+	require.Equal(t, 1, len(writes))
 
 	// Ensure tag pointers _DO_NOT_ match but equal to same content
 	tags := writes[0].Tags().Tags
