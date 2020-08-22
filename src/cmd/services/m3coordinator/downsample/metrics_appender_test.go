@@ -41,7 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSamplesAppenderPoolResets(t *testing.T) {
+func TestSamplesAppenderPoolResetsTagsAcrossSamples(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -136,7 +136,7 @@ func TestSamplesAppenderPoolResets(t *testing.T) {
 	}
 }
 
-func TestSamplesAppenderPoolResetsss(t *testing.T) {
+func TestSamplesAppenderPoolResetsTagSimple(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 

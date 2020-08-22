@@ -643,9 +643,6 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 			for i := 0; i < numSteps; i++ {
 				// NB: skip if the number of points received is less than the number
 				// of points in the lookback window.
-				if i < 0 {
-					continue
-				}
 				if !firstPoint {
 					firstPoint = true
 					for j := offset - windowPoints; j < offset; j++ {
@@ -1628,9 +1625,6 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 			offset := bootstrap.Len() - numSteps
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			for i := 0; i < numSteps; i++ {
-				if i < 0 {
-					continue
-				}
 				for j := i + offset - windowPoints; j < i+offset; j++ {
 					if j < 0 || j >= bootstrap.Len() {
 						continue

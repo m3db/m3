@@ -108,20 +108,21 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tagValue, tag.Value))
 }
 
-func mustEncodedTags(first string, encPool serialize.TagEncoderPool) []byte {
+func graphiteTags(
+	t *testing.T, first string, encPool serialize.TagEncoderPool) []byte {
 	enc := encPool.Get()
 	defer enc.Finalize()
 
-	if err := enc.Encode(ident.MustNewTagStringsIterator(
+	err := enc.Encode(ident.MustNewTagStringsIterator(
 		"__g0__", first,
 		"__g1__", "y",
 		"__g2__", "z",
 		string(MetricsOptionIDSchemeTagName), string(GraphiteIDSchemeTagValue),
-	)); err != nil {
-		panic(err.Error())
-	}
+	))
 
-	data, _ := enc.Data()
+	require.NoError(t, err)
+	data, ok := enc.Data()
+	require.True(t, ok)
 	return append(make([]byte, 0, data.Len()), data.Bytes()...)
 }
 
@@ -157,8 +158,8 @@ func TestDownsamplerFlushHandlerHighConcurrencyNoTagMixing(t *testing.T) {
 	encPool := serialize.NewTagEncoderPool(encodeOpts, poolOpts)
 	encPool.Init()
 
-	xBytes := mustEncodedTags("x", encPool)
-	fooBytes := mustEncodedTags("foo", encPool)
+	xBytes := graphiteTags(t, "x", encPool)
+	fooBytes := graphiteTags(t, "foo", encPool)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
