@@ -2546,26 +2546,32 @@ func TestMovingMedianInvalidLimits(t *testing.T) {
 		[]common.TestSeries{expected}, res.Values)
 }
 
-func TestMovingAverageInvalidLimits(t *testing.T) {
-	for i := time.Duration(0); i <= time.Second*5; i += time.Second {
-		testMovingAverageInvalidLimits(t, i)
+func TestMovingMismatchedLimits(t *testing.T) {
+	// NB: this tests the behavior when query limits do not snap exactly to data
+	// points. When limits do not match, the first point is expected to be omitted
+	for _, fn := range []string{"movingAverage"} { //, "movingMedian"} {
+		for i := time.Duration(time.Second); i < time.Minute; i += time.Second {
+			// t.Run(fmt.Sprintf("%s_%v", fn, i), func(t *testing.T) {
+			testMovingAverageInvalidLimits(t, fn, i)
+			// })
+		}
 	}
 }
 
-func testMovingAverageInvalidLimits(t *testing.T, offset time.Duration) {
+func testMovingAverageInvalidLimits(t *testing.T, fn string, offset time.Duration) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
 
 	store := storage.NewMockStorage(ctrl)
-	now := time.Now().Truncate(time.Hour)
+	now := time.Now().Truncate(time.Hour).Add(offset)
 	engine := NewEngine(store)
-	startTime := now.Add(-3 * time.Minute).Add(offset)
+	startTime := now.Add(-3 * time.Minute)
 	endTime := now.Add(-time.Minute)
 	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
 	defer ctx.Close()
 
 	stepSize := 60000
-	target := `movingAverage(timeShift(foo.bar.*.zed, '-1d'), '1min')`
+	target := fmt.Sprintf(`%s(timeShift(foo.bar.*.zed, '-1d'), '1min')`, fn)
 	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		buildTestSeriesFn(stepSize, "foo.bar.g.zed", "foo.bar.x.zed"),
 	).Times(2)
@@ -2573,27 +2579,41 @@ func testMovingAverageInvalidLimits(t *testing.T, offset time.Duration) {
 	require.NoError(t, err)
 	res, err := expr.Execute(ctx)
 	require.NoError(t, err)
-	// expected := []common.TestSeries{
-	// 	{
-	// 		Name: `movingAverage(timeShift(foo.bar.g.zed, -1d),"1min")`,
-	// 		Data: []float64{1, 1},
-	// 	},
-	// 	{
-	// 		Name: `movingAverage(timeShift(foo.bar.x.zed, -1d),"1min")`,
-	// 		Data: []float64{2, 2},
-	// 	},
-	// }
 
-	// fmt.Println("RESULTS")
-	// fmt.Println("")
-	// fmt.Println("query start", startTime)
-	fmt.Println()
-	for _, v := range res.Values {
-		fmt.Print(v.String(), " ")
+	expectedStart := startTime
+	expectedDataG := []float64{1, 1}
+	expectedDataX := []float64{2, 2}
+
+	if true {
+		fmt.Println("RESULTS")
+		fmt.Println("query start", startTime)
+		for _, v := range res.Values {
+			fmt.Print(v.String(), " ")
+		}
+		fmt.Println("")
+		return
 	}
 
-	fmt.Println()
-	// common.CompareOutputsAndExpected(t, stepSize, startTime, expected, res.Values)
+	// If the offset is greater than 0, the first point in the returned series is
+	// before query limit, and should not be included in output.
+	if offset > 0 {
+		expectedStart = expectedStart.Add(time.Minute)
+		expectedDataG[0] = math.NaN()
+		expectedDataX[0] = math.NaN()
+	}
+
+	expected := []common.TestSeries{
+		{
+			Name: fmt.Sprintf(`%s(timeShift(foo.bar.g.zed, -1d),"1min")`, fn),
+			Data: expectedDataG,
+		},
+		{
+			Name: fmt.Sprintf(`%s(timeShift(foo.bar.x.zed, -1d),"1min")`, fn),
+			Data: expectedDataX,
+		},
+	}
+
+	common.CompareOutputsAndExpected(t, stepSize, expectedStart, expected, res.Values)
 }
 
 func TestLegendValue(t *testing.T) {

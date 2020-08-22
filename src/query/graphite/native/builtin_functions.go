@@ -229,9 +229,7 @@ func timeShift(
 		output := make([]*ts.Series, input.Len())
 		for i, in := range input.Values {
 			// NB(jayp): opposite direction
-			fmt.Println("INPUT AT", i, "IS", in.String())
 			output[i] = in.Shift(-1 * shift).RenamedTo(fmt.Sprintf("timeShift(%s, %s)", in.Name(), timeShiftS))
-			fmt.Println("OUTPUT AT", i, "IS", output[i].String())
 		}
 		input.Values = output
 		return input, nil
@@ -581,7 +579,6 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 		}
 		wf = func(stepSize int) int {
 			i := int(int64(delta/time.Millisecond) / int64(stepSize))
-			fmt.Println("DELTA", delta, "STEP", stepSize, "wf", i)
 			return i
 		}
 		ws = fmt.Sprintf("%q", windowSizeValue)
@@ -649,12 +646,12 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 			sum := 0.0
 			num := 0
 			firstPoint := false
-			for i := windowPoints - offset; i < numSteps; i++ {
+			for i := 0; i < numSteps; i++ {
 				// skip if the number of points received is less than the number of points
 				// in the lookback window.
-				// if offset+i < windowPoints {
-				// 	continue
-				// }
+				if i < 0 {
+					continue
+				}
 				if !firstPoint {
 					firstPoint = true
 					for j := offset - windowPoints; j < offset; j++ {
@@ -669,12 +666,19 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 						}
 					}
 				} else {
-					prev := bootstrap.ValueAt(i + offset - windowPoints - 1)
-					next := bootstrap.ValueAt(i + offset - 1)
-					if !math.IsNaN(prev) {
-						sum -= prev
-						num--
+					if i+offset-windowPoints > 0 {
+						prev := bootstrap.ValueAt(i + offset - windowPoints - 1)
+						if !math.IsNaN(prev) {
+							sum -= prev
+							num--
+						}
 					}
+					// fmt.Println("i", i)
+					// fmt.Println("i + offset", i+offset)
+					// fmt.Println("i + offset - windowPoints", i+offset-windowPoints)
+					// fmt.Println("i + offset - windowPoints - 1", i+offset-windowPoints-1)
+					// fmt.Println("i", i, "offset", offset, "windowPoints", windowPoints)
+					next := bootstrap.ValueAt(i + offset - 1)
 					if !math.IsNaN(next) {
 						sum += next
 						num++
