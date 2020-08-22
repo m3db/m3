@@ -275,8 +275,8 @@ func (t Tags) Validate() error {
 			}
 
 			if !tags.Less(i-1, i) {
-				return fmt.Errorf("tags out of order: '%s' appears after '%s', %v",
-					tags.Tags[i-1].Name, tags.Tags[i].Name, tags.Tags)
+				return fmt.Errorf("graphite tags out of order: '%s' appears after"+
+					" '%s', tags: %v", tags.Tags[i-1].Name, tags.Tags[i].Name, tags.Tags)
 			}
 
 			prev := tags.Tags[i-1]
@@ -303,7 +303,7 @@ func (t Tags) Validate() error {
 			prev := t.Tags[i-1]
 			cmp := bytes.Compare(prev.Name, t.Tags[i].Name)
 			if cmp > 0 {
-				return fmt.Errorf("tags out of order: '%s' appears after '%s', tags2: %v",
+				return fmt.Errorf("tags out of order: '%s' appears after '%s', tags: %v",
 					prev.Name, tag.Name, t.Tags)
 			}
 			if cmp == 0 {

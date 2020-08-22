@@ -31,6 +31,7 @@ import (
 // NaN vals will be returned for the period of startTime to EndTime
 func bootstrapWithIDs(ctx *Context, seriesList ts.SeriesList, startTime, endTime time.Time) (ts.SeriesList, error) {
 	bootstrapList := make([]*ts.Series, seriesList.Len())
+
 	dur := int(endTime.Sub(startTime))
 	for i, series := range seriesList.Values {
 		numSteps := dur / (series.MillisPerStep() * 1000 * 1000) // convert to ns for step calculation

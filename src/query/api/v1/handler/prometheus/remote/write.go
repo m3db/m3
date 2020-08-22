@@ -358,14 +358,14 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.metrics.writeErrorsServer.Inc(1)
 		}
 
-		// logger := logging.WithContext(r.Context(), h.instrumentOpts)
-		// logger.Error("write error",
-		// 	zap.String("remoteAddr", r.RemoteAddr),
-		// 	zap.Int("httpResponseStatusCode", status),
-		// 	zap.Int("numRegularErrors", numRegular),
-		// 	zap.Int("numBadRequestErrors", numBadRequest),
-		// 	zap.String("lastRegularError", lastRegularErr),
-		// 	zap.String("lastBadRequestErr", lastBadRequestErr))
+		logger := logging.WithContext(r.Context(), h.instrumentOpts)
+		logger.Error("write error",
+			zap.String("remoteAddr", r.RemoteAddr),
+			zap.Int("httpResponseStatusCode", status),
+			zap.Int("numRegularErrors", numRegular),
+			zap.Int("numBadRequestErrors", numBadRequest),
+			zap.String("lastRegularError", lastRegularErr),
+			zap.String("lastBadRequestErr", lastBadRequestErr))
 
 		var resultErr string
 		if lastRegularErr != "" {

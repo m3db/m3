@@ -1995,15 +1995,12 @@ func TestHoltWintersForecast(t *testing.T) {
 	}
 
 	for _, input := range tests {
-		fmt.Println("start", input.startTime, "ctx", ctx.StartTime)
 		series := ts.NewSeries(
 			ctx,
 			input.name,
 			input.startTime.Add(-1*input.duration),
 			common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
 		)
-
-		fmt.Println("SERIES IS", series.String())
 
 		results, err := holtWintersForecastInternal(ctx, singlePathSpec{
 			Values: []*ts.Series{series},

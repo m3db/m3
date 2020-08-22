@@ -1632,12 +1632,10 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 					continue
 				}
 				for j := i + offset - windowPoints; j < i+offset; j++ {
-					// fmt.Println(j, "blen", bootstrap.Len())
 					if j < 0 || j >= bootstrap.Len() {
 						continue
 					}
 
-					// fmt.Println(j-i-offset+windowPoints, "aaaa", len(window))
 					idx := j - i - offset + windowPoints
 					if idx < 0 || idx > len(window)-1 {
 						continue
