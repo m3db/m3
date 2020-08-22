@@ -38,7 +38,7 @@ var (
 type reader struct {
 	sync.RWMutex
 
-	segment *segment
+	segment ReadableSegment
 	limits  readerDocRange
 	plPool  postings.Pool
 
@@ -50,7 +50,7 @@ type readerDocRange struct {
 	endExclusive   postings.ID
 }
 
-func newReader(s *segment, l readerDocRange, p postings.Pool) sgmt.Reader {
+func newReader(s ReadableSegment, l readerDocRange, p postings.Pool) sgmt.Reader {
 	return &reader{
 		segment: s,
 		limits:  l,
