@@ -723,6 +723,7 @@ func newDownsampler(
 			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("tag-decoder-pool")))
 	metricsAppenderPoolOptions := pool.NewObjectPoolOptions().
+		SetSize(16). // FIXME: revert prior to commit
 		SetInstrumentOptions(instrumentOpts.
 			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("metrics-appender-pool")))

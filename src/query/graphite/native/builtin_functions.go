@@ -229,7 +229,9 @@ func timeShift(
 		output := make([]*ts.Series, input.Len())
 		for i, in := range input.Values {
 			// NB(jayp): opposite direction
+			fmt.Println("INPUT AT", i, "IS", in.String())
 			output[i] = in.Shift(-1 * shift).RenamedTo(fmt.Sprintf("timeShift(%s, %s)", in.Name(), timeShiftS))
+			fmt.Println("OUTPUT AT", i, "IS", output[i].String())
 		}
 		input.Values = output
 		return input, nil
@@ -577,7 +579,11 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 				interval))
 			return nil, err
 		}
-		wf = func(stepSize int) int { return int(int64(delta/time.Millisecond) / int64(stepSize)) }
+		wf = func(stepSize int) int {
+			i := int(int64(delta/time.Millisecond) / int64(stepSize))
+			fmt.Println("DELTA", delta, "STEP", stepSize, "wf", i)
+			return i
+		}
 		ws = fmt.Sprintf("%q", windowSizeValue)
 		delta = interval
 	case float64:
@@ -611,6 +617,10 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 
 	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-delta), ctx.StartTime
 	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
+		// fmt.Println("")
+		// fmt.Println("")
+		// debug.PrintStack()
+		// fmt.Println("")
 		bootstrapList, err := combineBootstrapWithOriginal(ctx,
 			bootstrapStartTime, bootstrapEndTime,
 			bootstrapped, singlePathSpec(original))
@@ -632,17 +642,26 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 
 			numSteps := series.Len()
 			offset := bootstrap.Len() - numSteps
+			// fmt.Println("bootstrap", bootstrap.String())
+			// fmt.Println("series   ", series.String())
+			// fmt.Println("offset", offset, "numSteps", numSteps, "window", windowPoints)
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			sum := 0.0
 			num := 0
-			for i := 0; i < numSteps; i++ {
+			firstPoint := false
+			for i := windowPoints - offset; i < numSteps; i++ {
 				// skip if the number of points received is less than the number of points
 				// in the lookback window.
-				if offset < windowPoints {
-					continue
-				}
-				if i == 0 {
+				// if offset+i < windowPoints {
+				// 	continue
+				// }
+				if !firstPoint {
+					firstPoint = true
 					for j := offset - windowPoints; j < offset; j++ {
+						if j < 0 {
+							continue
+						}
+
 						v := bootstrap.ValueAt(j)
 						if !math.IsNaN(v) {
 							sum += v
@@ -661,6 +680,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 						num++
 					}
 				}
+
 				if num > 0 {
 					vals.SetValueAt(i, sum/float64(num))
 				}

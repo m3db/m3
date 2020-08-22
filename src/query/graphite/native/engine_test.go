@@ -47,11 +47,21 @@ type queryTest struct {
 	results []queryTestResult
 }
 
+func snapStartToStepSize(t time.Time, stepSize int) time.Time {
+	step := time.Duration(stepSize) * time.Millisecond
+	if truncated := t.Truncate(step); truncated.Before(t) {
+		return t.Add(step)
+	}
+
+	return t
+}
+
 func testSeries(name string, stepSize int, val float64, opts storage.FetchOptions) *ts.Series {
 	ctx := context.New()
 	numSteps := int(opts.EndTime.Sub(opts.StartTime)/time.Millisecond) / stepSize
 	vals := ts.NewConstantValues(ctx, val, numSteps, stepSize)
-	return ts.NewSeries(ctx, name, opts.StartTime, vals)
+	firstPoint := snapStartToStepSize(opts.StartTime, stepSize)
+	return ts.NewSeries(ctx, name, firstPoint, vals)
 }
 
 func buildTestSeriesFn(

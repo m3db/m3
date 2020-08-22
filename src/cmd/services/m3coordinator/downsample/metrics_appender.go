@@ -65,7 +65,10 @@ func newMetricsAppenderPool(opts pool.ObjectPoolOptions) *metricsAppenderPool {
 }
 
 func (p *metricsAppenderPool) Get() *metricsAppender {
-	return p.pool.Get().(*metricsAppender)
+	appender := p.pool.Get().(*metricsAppender)
+	// Ensure reset.
+	appender.NextMetric()
+	return appender
 }
 
 func (p *metricsAppenderPool) Put(v *metricsAppender) {
@@ -90,9 +93,11 @@ type metricsAppender struct {
 	inuseTags    []*tags
 }
 
+// CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE *CLIENT REMOTE *CLIENT REMOTE *
 // metricsAppenderOptions will have one of agg or clientRemote set.
 type metricsAppenderOptions struct {
-	agg          aggregator.Aggregator
+	agg aggregator.Aggregator
+	// CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE *CLIENT REMOTE *CLIENT REMOTE *
 	clientRemote client.Client
 
 	defaultStagedMetadatasProtos []metricpb.StagedMetadatas
@@ -355,7 +360,8 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 				debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
 
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-				agg:             a.agg,
+				agg: a.agg,
+				// CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE *CLIENT REMOTE *CLIENT REMOTE *
 				clientRemote:    a.clientRemote,
 				unownedID:       rollup.ID,
 				stagedMetadatas: rollup.Metadatas,
@@ -403,6 +409,7 @@ func (a *metricsAppender) NextMetric() {
 
 func (a *metricsAppender) Finalize() {
 	// Return to pool.
+	// NB: this needs to reset.
 	a.pool.Put(a)
 }
 
@@ -474,7 +481,8 @@ func (a *metricsAppender) addSamplesAppenders(
 	// If we do not need to do any tag augmentation then just return.
 	if !a.augmentM3Tags && !tagsExist {
 		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:             a.agg,
+			agg: a.agg,
+			// CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE *CLIENT REMOTE *CLIENT REMOTE *
 			clientRemote:    a.clientRemote,
 			unownedID:       unownedID,
 			stagedMetadatas: []metadata.StagedMetadata{stagedMetadata},
@@ -534,7 +542,8 @@ func (a *metricsAppender) newSamplesAppender(
 		return samplesAppender{}, fmt.Errorf("unable to encode tags: names=%v, values=%v", tags.names, tags.values)
 	}
 	return samplesAppender{
-		agg:             a.agg,
+		agg: a.agg,
+		// CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE * CLIENT REMOTE *CLIENT REMOTE *CLIENT REMOTE *
 		clientRemote:    a.clientRemote,
 		unownedID:       data.Bytes(),
 		stagedMetadatas: []metadata.StagedMetadata{sm},
