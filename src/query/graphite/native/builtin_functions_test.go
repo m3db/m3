@@ -2548,12 +2548,10 @@ func TestMovingMedianInvalidLimits(t *testing.T) {
 
 func TestMovingMismatchedLimits(t *testing.T) {
 	// NB: this tests the behavior when query limits do not snap exactly to data
-	// points. When limits do not match, the first point is expected to be omitted
-	for _, fn := range []string{"movingAverage"} { //, "movingMedian"} {
-		for i := time.Duration(time.Second); i < time.Minute; i += time.Second {
-			// t.Run(fmt.Sprintf("%s_%v", fn, i), func(t *testing.T) {
+	// points. When limits do not snap exactly, the first point should be omitted.
+	for _, fn := range []string{"movingAverage", "movingMedian"} {
+		for i := time.Duration(0); i < time.Minute; i += time.Second {
 			testMovingAverageInvalidLimits(t, fn, i)
-			// })
 		}
 	}
 }
@@ -2584,18 +2582,6 @@ func testMovingAverageInvalidLimits(t *testing.T, fn string, offset time.Duratio
 	expectedDataG := []float64{1, 1}
 	expectedDataX := []float64{2, 2}
 
-	if true {
-		fmt.Println("RESULTS")
-		fmt.Println("query start", startTime)
-		for _, v := range res.Values {
-			fmt.Print(v.String(), " ")
-		}
-		fmt.Println("")
-		return
-	}
-
-	// If the offset is greater than 0, the first point in the returned series is
-	// before query limit, and should not be included in output.
 	if offset > 0 {
 		expectedStart = expectedStart.Add(time.Minute)
 		expectedDataG[0] = math.NaN()

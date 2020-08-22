@@ -31,14 +31,8 @@ import (
 // NaN vals will be returned for the period of startTime to EndTime
 func bootstrapWithIDs(ctx *Context, seriesList ts.SeriesList, startTime, endTime time.Time) (ts.SeriesList, error) {
 	bootstrapList := make([]*ts.Series, seriesList.Len())
+	dur := int(endTime.Sub(startTime))
 	for i, series := range seriesList.Values {
-		resolution := time.Duration(seriesList.Metadata.Resolutions[i])
-		// NB: if modified start time drops a point, modify again here.
-		if startTime.Truncate(resolution).Before(startTime) {
-			startTime = startTime.Add(resolution)
-		}
-
-		dur := int(endTime.Sub(startTime))
 		numSteps := dur / (series.MillisPerStep() * 1000 * 1000) // convert to ns for step calculation
 		vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 		bootstrapList[i] = ts.NewSeries(ctx, series.Name(), startTime, vals)
@@ -52,7 +46,6 @@ func bootstrapWithIDs(ctx *Context, seriesList ts.SeriesList, startTime, endTime
 func FetchWithBootstrap(ctx *Context, seriesList ts.SeriesList, duration time.Duration) (ts.SeriesList, error) {
 	// Fetch bootstrapped series list between startTime and endTime
 	startTime := ctx.StartTime.Add(-duration)
-	// seriesList.Metadata.Resolutions
 	endTime := ctx.StartTime
 	bootstrapList, err := bootstrapWithIDs(ctx, seriesList, startTime, endTime)
 	if err != nil {
