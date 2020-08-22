@@ -1,5 +1,15 @@
 # Changelog
 
+# 0.15.11
+
+## Features
+
+- **M3Coordinator**: Support for remapping rules and provide tags that are auto-appended to metrics when aggregations are applied ([#2414](https://github.com/m3db/m3/pull/2414))
+
+## Bug Fixes
+
+- **M3DB**: Extend lifetime of compactable index segments for aggregate queries ([#2550](https://github.com/m3db/m3/pull/2550))
+
 # 0.15.10
 
 ## Features
