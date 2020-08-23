@@ -105,11 +105,11 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 		for step := 0; step < a.Len(); step++ {
 			v := a.ValueAt(step)
 			if math.IsNaN(e[step]) {
-				assert.True(t, math.IsNaN(v), fmt.Sprintf("%s: invalid value for step %d/%d, should be NaN but is %v", a.Name(), step, a.Len(), v))
+				assert.True(t, math.IsNaN(v), fmt.Sprintf("%s: invalid value for step %d/%d, should be NaN but is %v", a.Name(), 1+step, a.Len(), v))
 			} else if math.IsNaN(v) {
-				assert.Fail(t, fmt.Sprintf("%s: invalid value for step %d/%d, should be %v but is NaN ", a.Name(), step, a.Len(), e[step]))
+				assert.Fail(t, fmt.Sprintf("%s: invalid value for step %d/%d, should be %v but is NaN ", a.Name(), 1+step, a.Len(), e[step]))
 			} else {
-				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, a.Name()+": invalid value for %d/%d", step, a.Len())
+				xtest.InDeltaWithNaNs(t, e[step], v, 0.0001, a.Name()+": invalid value for %d/%d", 1+step, a.Len())
 			}
 		}
 	}
