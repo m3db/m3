@@ -579,8 +579,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 			return nil, err
 		}
 		wf = func(stepSize int) int {
-			i := int(int64(delta/time.Millisecond) / int64(stepSize))
-			return i
+			return int(int64(delta/time.Millisecond) / int64(stepSize))
 		}
 		ws = fmt.Sprintf("%q", windowSizeValue)
 		delta = interval

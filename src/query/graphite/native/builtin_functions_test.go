@@ -1986,11 +1986,11 @@ func TestHoltWintersForecast(t *testing.T) {
 			"foo",
 			now,
 			1000,
-			[]float64{4.0, 5.0, 6.0},
+			[]float64{4, 5.0, 6.0},
 			3 * time.Second,
 			now,
 			1000,
-			[]float64{4.0, 4.0, 4.10035},
+			[]float64{math.NaN(), 4.0, 4.10035},
 		},
 	}
 
@@ -1998,7 +1998,7 @@ func TestHoltWintersForecast(t *testing.T) {
 		series := ts.NewSeries(
 			ctx,
 			input.name,
-			input.startTime.Add(-1*input.duration),
+			input.startTime,
 			common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
 		)
 
@@ -2010,6 +2010,7 @@ func TestHoltWintersForecast(t *testing.T) {
 			Data: input.output,
 		}
 		require.Nil(t, err)
+
 		common.CompareOutputsAndExpected(t, input.newStep, input.newStartTime,
 			[]common.TestSeries{expected}, results.Values)
 	}
@@ -2044,10 +2045,10 @@ func TestHoltWintersConfidenceBands(t *testing.T) {
 			3 * time.Second,
 			now,
 			1000,
-			[]float64{4, 3.7, 3.5305},
+			[]float64{math.NaN(), 3.7, 3.5305},
 			now,
 			1000,
-			[]float64{4, 4.3, 4.6702},
+			[]float64{math.NaN(), 4.3, 4.6702},
 		},
 	}
 
@@ -2537,7 +2538,7 @@ func TestMovingMedianInvalidLimits(t *testing.T) {
 	require.NoError(t, err)
 	expected := common.TestSeries{
 		Name: "movingMedian(foo.bar.q.zed,\"1min\")",
-		Data: []float64{0.0, 0.0},
+		Data: []float64{math.NaN(), 0.0},
 	}
 	common.CompareOutputsAndExpected(t, stepSize, endTime,
 		[]common.TestSeries{expected}, res.Values)
