@@ -1,5 +1,12 @@
 # Changelog
 
+# 0.15.12
+
+## Bug Fixes
+
+- **M3Query**: Fix to Graphite movingMedian and movingAverage functions that could skip data in certain cases or cause an out of bounds error after recovery ([#2549](https://github.com/m3db/m3/pull/2549))
+- **M3Coordinator**: Fix a Graphite carbon ingest tag lifecycle bug that could cause duplicate tags ([#2549](https://github.com/m3db/m3/pull/2549))
+
 # 0.15.11
 
 ## Features
