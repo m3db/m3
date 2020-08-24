@@ -897,7 +897,8 @@ func TestReadRunMigrations(t *testing.T) {
 
 	src, err := newFileSystemSource(opts.
 		SetMigrationOptions(migration.NewOptions().
-			SetTargetMigrationVersion(migration.MigrationVersion_1_1)).
+			SetTargetMigrationVersion(migration.MigrationVersion_1_1).
+			SetConcurrency(2)). // Lower concurrency to ensure workers process more than 1 migration.
 		SetStorageOptions(sOpts))
 	require.NoError(t, err)
 
