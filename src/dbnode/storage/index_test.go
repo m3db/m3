@@ -140,6 +140,7 @@ func TestNamespaceIndexCleanupDuplicateFilesets(t *testing.T) {
 		filePathPrefix string,
 		namespace ident.ID,
 		readerBufferSize int,
+		fileSetType persist.FileSetType,
 	) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}
@@ -206,6 +207,7 @@ func TestNamespaceIndexCleanupDuplicateFilesetsNoop(t *testing.T) {
 		filePathPrefix string,
 		namespace ident.ID,
 		readerBufferSize int,
+		fileSetType persist.FileSetType,
 	) []fs.ReadIndexInfoFileResult {
 		return infoFiles
 	}

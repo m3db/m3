@@ -71,20 +71,29 @@ type newDataFileSetReaderFn func(
 	opts fs.Options,
 ) (fs.DataFileSetReader, error)
 
+type readIndexInfoFilesFn func(
+	filePathPrefix string,
+	namespace ident.ID,
+	readerBufferSize int,
+	fileSetType persist.FileSetType,
+) []fs.ReadIndexInfoFileResult
+
 type fileSystemSource struct {
-	opts              Options
-	fsopts            fs.Options
-	log               *zap.Logger
-	nowFn             clock.NowFn
-	idPool            ident.Pool
-	newReaderFn       newDataFileSetReaderFn
-	newReaderPoolOpts bootstrapper.NewReaderPoolOptions
-	metrics           fileSystemSourceMetrics
+	opts                 Options
+	fsopts               fs.Options
+	log                  *zap.Logger
+	nowFn                clock.NowFn
+	idPool               ident.Pool
+	newReaderFn          newDataFileSetReaderFn
+	newReaderPoolOpts    bootstrapper.NewReaderPoolOptions
+	metrics              fileSystemSourceMetrics
+	readIndexInfoFilesFn readIndexInfoFilesFn
 }
 
 type fileSystemSourceMetrics struct {
-	persistedIndexBlocksRead  tally.Counter
-	persistedIndexBlocksWrite tally.Counter
+	persistedIndexBlocksRead    tally.Counter
+	persistedIndexBlocksWrite   tally.Counter
+	persistedIndexSnapshotsRead tally.Counter
 }
 
 func newFileSystemSource(opts Options) (bootstrap.Source, error) {
@@ -105,9 +114,11 @@ func newFileSystemSource(opts Options) (bootstrap.Source, error) {
 		idPool:      opts.IdentifierPool(),
 		newReaderFn: fs.NewReader,
 		metrics: fileSystemSourceMetrics{
-			persistedIndexBlocksRead:  scope.Counter("persist-index-blocks-read"),
-			persistedIndexBlocksWrite: scope.Counter("persist-index-blocks-write"),
+			persistedIndexBlocksRead:    scope.Counter("persist-index-blocks-read"),
+			persistedIndexBlocksWrite:   scope.Counter("persist-index-blocks-write"),
+			persistedIndexSnapshotsRead: scope.Counter("persist-index-snapshots-read"),
 		},
+		readIndexInfoFilesFn: fs.ReadIndexInfoFiles,
 	}
 	s.newReaderPoolOpts.Alloc = s.newReader
 
@@ -797,6 +808,23 @@ func (s *fileSystemSource) read(
 			setOrMergeResult(r.result)
 		}
 		logSpan("bootstrap_from_index_persisted_blocks_done")
+
+		logSpan("bootstrap_from_index_snapshots_start")
+		// NB(bodu): We don't actually bootstrap snapshot data in the fs bootstrapper
+		// (we do this in the commitlog bootstrapper) but we do want to subtract the shard time
+		// ranges fulfilled by index snapshots.
+		r, err = s.bootstrapFromIndexSnapshots(md,
+			shardTimeRanges)
+		if err != nil {
+			s.log.Warn("filesystem bootstrapped failed to read index snapshots")
+		} else {
+			// We may have less we need to read
+			shardTimeRanges = shardTimeRanges.Copy()
+			shardTimeRanges.Subtract(r.fulfilled)
+			// Set or merge result.
+			setOrMergeResult(r.result)
+		}
+		logSpan("bootstrap_from_index_snapshots_done")
 	}
 
 	// Create a reader pool once per bootstrap as we don't really want to
@@ -921,7 +949,8 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	return runResult, nil
 }
 
-type bootstrapFromIndexPersistedBlocksResult struct {
+// Either from persisted blocks or snapshots.
+type bootstrapFromIndexResult struct {
 	fulfilled result.ShardTimeRanges
 	result    *runResult
 }
@@ -929,14 +958,14 @@ type bootstrapFromIndexPersistedBlocksResult struct {
 func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	ns namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
-) (bootstrapFromIndexPersistedBlocksResult, error) {
-	res := bootstrapFromIndexPersistedBlocksResult{
+) (bootstrapFromIndexResult, error) {
+	res := bootstrapFromIndexResult{
 		fulfilled: result.NewShardTimeRanges(),
 	}
 
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
-	infoFiles := fs.ReadIndexInfoFiles(s.fsopts.FilePathPrefix(), ns.ID(),
-		s.fsopts.InfoReaderBufferSize())
+	infoFiles := s.readIndexInfoFilesFn(s.fsopts.FilePathPrefix(), ns.ID(),
+		s.fsopts.InfoReaderBufferSize(), persist.FileSetFlushType)
 
 	for _, infoFile := range infoFiles {
 		if err := infoFile.Err.Error(); err != nil {
@@ -1023,6 +1052,80 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		// we place in the IndexResuts with the call to Add(...).
 		res.result.index.Add(indexBlockByVolumeType, nil)
 		res.fulfilled.AddRanges(segmentsFulfilled)
+	}
+
+	return res, nil
+}
+
+func (s *fileSystemSource) bootstrapFromIndexSnapshots(
+	ns namespace.Metadata,
+	shardTimeRanges result.ShardTimeRanges,
+) (bootstrapFromIndexResult, error) {
+	res := bootstrapFromIndexResult{
+		fulfilled: result.NewShardTimeRanges(),
+		result:    newRunResult(),
+	}
+
+	indexBlockSize := ns.Options().IndexOptions().BlockSize()
+	infoFiles := s.readIndexInfoFilesFn(s.fsopts.FilePathPrefix(), ns.ID(),
+		s.fsopts.InfoReaderBufferSize(), persist.FileSetSnapshotType)
+
+	for _, infoFile := range infoFiles {
+		if err := infoFile.Err.Error(); err != nil {
+			s.log.Error("unable to read index snapshot info file",
+				zap.Stringer("namespace", ns.ID()),
+				zap.Error(err),
+				zap.Stringer("shardTimeRanges", shardTimeRanges),
+				zap.String("filepath", infoFile.Err.Filepath()),
+			)
+			continue
+		}
+
+		info := infoFile.Info
+		indexBlockStart := xtime.UnixNano(info.BlockStart).ToTime()
+		indexBlockRange := xtime.Range{
+			Start: indexBlockStart,
+			End:   indexBlockStart.Add(indexBlockSize),
+		}
+		willFulfill := result.NewShardTimeRanges()
+		for _, shard := range info.Shards {
+			tr, ok := shardTimeRanges.Get(shard)
+			if !ok {
+				// No ranges match for this shard.
+				continue
+			}
+			if _, ok := willFulfill.Get(shard); !ok {
+				willFulfill.Set(shard, xtime.NewRanges())
+			}
+
+			iter := tr.Iter()
+			for iter.Next() {
+				curr := iter.Value()
+				intersection, intersects := curr.Intersect(indexBlockRange)
+				if !intersects {
+					continue
+				}
+				willFulfill.GetOrAdd(shard).AddRange(intersection)
+			}
+		}
+
+		if willFulfill.IsEmpty() {
+			// No matching shard/time ranges with this block.
+			continue
+		}
+
+		// Mark ranges as fulfilled since we are going to bootstrap these shard time ranges later
+		// in the commitlog bootstrapper from snapshots.
+		err := res.result.index.IndexResults().MarkFulfilled(indexBlockStart, willFulfill,
+			// NB(bodu): By default, we always load bootstrapped data into the default index volume.
+			idxpersist.DefaultIndexVolumeType, ns.Options().IndexOptions())
+		if err != nil {
+			return res, err
+		}
+		res.fulfilled.AddRanges(willFulfill)
+
+		// Track success.
+		s.metrics.persistedIndexSnapshotsRead.Inc(1)
 	}
 
 	return res, nil

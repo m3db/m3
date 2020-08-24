@@ -154,7 +154,7 @@ func readNamespaceSegments(
 ) {
 	var (
 		infoFiles = fs.ReadIndexInfoFiles(fsOpts.FilePathPrefix(), nsID,
-			fsOpts.InfoReaderBufferSize())
+			fsOpts.InfoReaderBufferSize(), persist.FileSetFlushType)
 		wg sync.WaitGroup
 	)
 

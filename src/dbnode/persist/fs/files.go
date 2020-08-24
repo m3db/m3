@@ -886,11 +886,12 @@ func ReadIndexInfoFiles(
 	filePathPrefix string,
 	namespace ident.ID,
 	readerBufferSize int,
+	fileSetType persist.FileSetType,
 ) []ReadIndexInfoFileResult {
 	var infoFileResults []ReadIndexInfoFileResult
 	forEachInfoFile(
 		forEachInfoFileSelector{
-			fileSetType:    persist.FileSetFlushType,
+			fileSetType:    fileSetType,
 			contentType:    persist.FileSetIndexContentType,
 			filePathPrefix: filePathPrefix,
 			namespace:      namespace,

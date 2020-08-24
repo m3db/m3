@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -339,7 +340,7 @@ func TestBootstrapIndex(t *testing.T) {
 
 	// Check that single persisted segment got written out
 	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
-		src.fsopts.InfoReaderBufferSize())
+		src.fsopts.InfoReaderBufferSize(), persist.FileSetFlushType)
 	require.Equal(t, 1, len(infoFiles))
 
 	for _, infoFile := range infoFiles {
@@ -382,6 +383,88 @@ func TestBootstrapIndex(t *testing.T) {
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
 }
 
+type readInfoFileResultNoError struct{}
+
+func (r readInfoFileResultNoError) Error() error {
+	return nil
+}
+
+func (r readInfoFileResultNoError) Filepath() string {
+	return ""
+}
+
+func TestBootstrapIndexIgnoresSnapshotRanges(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	timesOpts := testTimesOptions{
+		numBlocks: 2,
+	}
+	times := newTestBootstrapIndexTimes(timesOpts)
+
+	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
+
+	opts := newTestOptionsWithPersistManager(t, dir)
+	scope := tally.NewTestScope("", nil)
+	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+
+	// Should always be run with persist enabled.
+	runOpts := testDefaultRunOpts.
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
+
+	fsSrc, err := newFileSystemSource(opts)
+	require.NoError(t, err)
+
+	src, ok := fsSrc.(*fileSystemSource)
+	require.True(t, ok)
+	src.readIndexInfoFilesFn = func(
+		filePathPrefix string,
+		namespace ident.ID,
+		readerBufferSize int,
+		fileSetType persist.FileSetType,
+	) []fs.ReadIndexInfoFileResult {
+		// Return snapshots that fulfill the time range we would have
+		// normally persisted to disk.
+		if fileSetType == persist.FileSetSnapshotType {
+			return []fs.ReadIndexInfoFileResult{
+				{
+					// fs bootstrapper only needs info
+					Info: index.IndexVolumeInfo{
+						BlockStart: xtime.ToNanoseconds(times.start),
+						Shards:     []uint32{testShard},
+					},
+					Err: readInfoFileResultNoError{},
+				},
+			}
+		}
+		return fs.ReadIndexInfoFiles(
+			filePathPrefix,
+			namespace,
+			readerBufferSize,
+			fileSetType,
+		)
+	}
+
+	nsMD := testNsMetadata(t)
+	tester := bootstrap.BuildNamespacesTester(t, runOpts,
+		times.shardTimeRanges, nsMD)
+	defer tester.Finish()
+
+	tester.TestReadWith(src)
+
+	// Check that no index data was written to disk.
+	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
+		src.fsopts.InfoReaderBufferSize(), persist.FileSetFlushType)
+	require.Equal(t, 0, len(infoFiles))
+
+	// Validate that wrote the block out (and no index blocks
+	// were read as existing index blocks on disk)
+	counters := scope.Snapshot().Counters()
+	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
+	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-snapshots-read+"].Value())
+	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+}
+
 func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
@@ -419,7 +502,7 @@ func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 
 	// Check that not segments were written out
 	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
-		src.fsopts.InfoReaderBufferSize())
+		src.fsopts.InfoReaderBufferSize(), persist.FileSetFlushType)
 	require.Equal(t, 0, len(infoFiles))
 
 	// Check that both segments are mutable
@@ -597,7 +680,7 @@ func TestBootstrapIndexWithPersistForIndexBlockAtRetentionEdge(t *testing.T) {
 
 	// Check that single persisted segment got written out
 	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
-		src.fsopts.InfoReaderBufferSize())
+		src.fsopts.InfoReaderBufferSize(), persist.FileSetFlushType)
 	require.Equal(t, 2, len(infoFiles))
 
 	for _, infoFile := range infoFiles {
