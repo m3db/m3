@@ -107,6 +107,10 @@ func (v *toVersion1_1Task) Run() (fs.ReadInfoFileResult, error) {
 		return infoFileResult, err
 	}
 
+	if err = flushPersist.DoneFlush(); err != nil {
+		return infoFileResult, err
+	}
+
 	infoFileResult.Info.VolumeIndex = newIndex
 	infoFileResult.Info.MinorVersion = 1
 
