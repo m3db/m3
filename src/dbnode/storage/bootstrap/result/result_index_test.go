@@ -40,13 +40,13 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 
 	start := time.Now().Truncate(testBlockSize)
 
-	segments := []segment.Segment{
-		segment.NewMockSegment(ctrl),
-		segment.NewMockSegment(ctrl),
-		segment.NewMockSegment(ctrl),
-		segment.NewMockSegment(ctrl),
-		segment.NewMockSegment(ctrl),
-		segment.NewMockSegment(ctrl),
+	segments := []Segment{
+		NewSegment(segment.NewMockSegment(ctrl), false),
+		NewSegment(segment.NewMockSegment(ctrl), false),
+		NewSegment(segment.NewMockSegment(ctrl), false),
+		NewSegment(segment.NewMockSegment(ctrl), false),
+		NewSegment(segment.NewMockSegment(ctrl), false),
+		NewSegment(segment.NewMockSegment(ctrl), false),
 	}
 
 	times := []time.Time{start, start.Add(testBlockSize), start.Add(2 * testBlockSize)}
@@ -55,31 +55,31 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 
 	first := NewIndexBootstrapResult()
 	blk1 := NewIndexBlockByVolumeType(times[0])
-	blk1.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[0]}, tr0))
+	blk1.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]Segment{segments[0]}, tr0))
 	first.Add(blk1, nil)
 	blk2 := NewIndexBlockByVolumeType(times[0])
-	blk2.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[1]}, tr0))
+	blk2.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]Segment{segments[1]}, tr0))
 	first.Add(blk2, nil)
 	blk3 := NewIndexBlockByVolumeType(times[1])
-	blk3.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[2], segments[3]}, tr1))
+	blk3.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]Segment{segments[2], segments[3]}, tr1))
 	first.Add(blk3, nil)
 
 	second := NewIndexBootstrapResult()
 	blk4 := NewIndexBlockByVolumeType(times[0])
-	blk4.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[4]}, tr0))
+	blk4.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]Segment{segments[4]}, tr0))
 	second.Add(blk4, nil)
 	blk5 := NewIndexBlockByVolumeType(times[1])
-	blk5.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[5]}, tr1))
+	blk5.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]Segment{segments[5]}, tr1))
 	second.Add(blk5, nil)
 
 	merged := MergedIndexBootstrapResult(first, second)
 
 	expected := NewIndexBootstrapResult()
 	blk6 := NewIndexBlockByVolumeType(times[0])
-	blk6.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[0], segments[1], segments[4]}, tr0))
+	blk6.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]Segment{segments[0], segments[1], segments[4]}, tr0))
 	expected.Add(blk6, nil)
 	blk7 := NewIndexBlockByVolumeType(times[1])
-	blk7.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]segment.Segment{segments[2], segments[3], segments[5]}, tr1))
+	blk7.SetBlock(idxpersist.DefaultIndexVolumeType, NewIndexBlock([]Segment{segments[2], segments[3], segments[5]}, tr1))
 	expected.Add(blk7, nil)
 
 	assert.True(t, segmentsInResultsSame(expected.IndexResults(), merged.IndexResults()))

@@ -54,9 +54,10 @@ func TestFieldsTermsIteratorSimple(t *testing.T) {
 		pair{"i", "j"},
 		pair{"k", "l"},
 	)
-	seg := s.asSegment(t)
+	reader, err := s.asSegment(t).Reader()
+	require.NoError(t, err)
 
-	iter, err := newFieldsAndTermsIterator(seg, fieldsAndTermsIteratorOpts{iterateTerms: true})
+	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
 	s.requireEquals(t, iter)
 }
@@ -74,12 +75,14 @@ func TestFieldsTermsIteratorReuse(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newFieldsTermsIterSetup(pairs...)
-	seg := s.asSegment(t)
-	err = iter.Reset(seg, fieldsAndTermsIteratorOpts{iterateTerms: true})
+	reader, err := s.asSegment(t).Reader()
+	require.NoError(t, err)
+
+	err = iter.Reset(reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
 	s.requireEquals(t, iter)
 
-	err = iter.Reset(seg, fieldsAndTermsIteratorOpts{
+	err = iter.Reset(reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
 		allowFn: func(f []byte) bool {
 			return !bytes.Equal([]byte("a"), f) && !bytes.Equal([]byte("k"), f)
@@ -93,7 +96,7 @@ func TestFieldsTermsIteratorReuse(t *testing.T) {
 		pair{"i", "j"},
 	}, slice)
 
-	err = iter.Reset(seg, fieldsAndTermsIteratorOpts{
+	err = iter.Reset(reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
 		allowFn: func(f []byte) bool {
 			return bytes.Equal([]byte("k"), f) || bytes.Equal([]byte("a"), f)
@@ -116,9 +119,10 @@ func TestFieldsTermsIteratorSimpleSkip(t *testing.T) {
 		pair{"k", "l"},
 	}
 	s := newFieldsTermsIterSetup(input...)
-	seg := s.asSegment(t)
+	reader, err := s.asSegment(t).Reader()
+	require.NoError(t, err)
 
-	iter, err := newFieldsAndTermsIterator(seg, fieldsAndTermsIteratorOpts{
+	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
 		allowFn: func(f []byte) bool {
 			return !bytes.Equal([]byte("a"), f) && !bytes.Equal([]byte("k"), f)
@@ -141,9 +145,10 @@ func TestFieldsTermsIteratorTermsOnly(t *testing.T) {
 		pair{"i", "j"},
 		pair{"k", "l"},
 	)
-	seg := s.asSegment(t)
+	reader, err := s.asSegment(t).Reader()
+	require.NoError(t, err)
 
-	iter, err := newFieldsAndTermsIterator(seg, fieldsAndTermsIteratorOpts{})
+	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{})
 	require.NoError(t, err)
 	slice := toSlice(t, iter)
 	requireSlicesEqual(t, []pair{
@@ -155,10 +160,10 @@ func TestFieldsTermsIteratorEmptyTerm(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	seg := newMockSegment(ctrl, map[string][]string{
+	reader := newMockSegmentReader(ctrl, map[string][]string{
 		"a": nil,
 	})
-	iter, err := newFieldsAndTermsIterator(seg, fieldsAndTermsIteratorOpts{iterateTerms: false})
+	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: false})
 	require.NoError(t, err)
 	slice := toSlice(t, iter)
 	requireSlicesEqual(t, []pair{pair{"a", ""}}, slice)
@@ -168,10 +173,10 @@ func TestFieldsTermsIteratorEmptyTermInclude(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
-	seg := newMockSegment(ctrl, map[string][]string{
+	reader := newMockSegmentReader(ctrl, map[string][]string{
 		"a": nil,
 	})
-	iter, err := newFieldsAndTermsIterator(seg, fieldsAndTermsIteratorOpts{iterateTerms: true})
+	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{iterateTerms: true})
 	require.NoError(t, err)
 	slice := toSlice(t, iter)
 	requireSlicesEqual(t, []pair{}, slice)
@@ -233,7 +238,10 @@ func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
 	colorRegexp, err := idx.NewRegexpQuery([]byte("color"), []byte("^(red|yellow)$"))
 	require.NoError(t, err)
 
-	iter, err := newFieldsAndTermsIterator(seg, fieldsAndTermsIteratorOpts{
+	reader, err := seg.Reader()
+	require.NoError(t, err)
+
+	iter, err := newFieldsAndTermsIterator(reader, fieldsAndTermsIteratorOpts{
 		iterateTerms: true,
 		restrictByQuery: &Query{
 			Query: idx.NewConjunctionQuery(fruitRegexp, colorRegexp),
@@ -249,7 +257,7 @@ func TestFieldsTermsIteratorIterateTermsAndRestrictByQuery(t *testing.T) {
 	}, slice)
 }
 
-func newMockSegment(ctrl *gomock.Controller, tagValues map[string][]string) segment.Segment {
+func newMockSegmentReader(ctrl *gomock.Controller, tagValues map[string][]string) segment.Reader {
 	fields := make([]iterpoint, 0, len(tagValues))
 	for k := range tagValues {
 		fields = append(fields, iterpoint{
@@ -260,14 +268,10 @@ func newMockSegment(ctrl *gomock.Controller, tagValues map[string][]string) segm
 		return strings.Compare(fields[i].value, fields[j].value) < 0
 	})
 
-	s := segment.NewMockSegment(ctrl)
-	fieldIterable := segment.NewMockFieldsIterable(ctrl)
+	r := segment.NewMockReader(ctrl)
 	fieldIterator := &stubFieldIterator{points: fields}
-	termsIterable := segment.NewMockTermsIterable(ctrl)
 
-	s.EXPECT().FieldsIterable().Return(fieldIterable).AnyTimes()
-	s.EXPECT().TermsIterable().Return(termsIterable).AnyTimes()
-	fieldIterable.EXPECT().Fields().Return(fieldIterator, nil).AnyTimes()
+	r.EXPECT().Fields().Return(fieldIterator, nil).AnyTimes()
 
 	for _, f := range fields {
 		termValues := tagValues[f.value]
@@ -279,10 +283,10 @@ func newMockSegment(ctrl *gomock.Controller, tagValues map[string][]string) segm
 			})
 		}
 		termIterator := &stubTermIterator{points: terms}
-		termsIterable.EXPECT().Terms([]byte(f.value)).Return(termIterator, nil).AnyTimes()
+		r.EXPECT().Terms([]byte(f.value)).Return(termIterator, nil).AnyTimes()
 	}
 
-	return s
+	return r
 }
 
 type stubTermIterator struct {
