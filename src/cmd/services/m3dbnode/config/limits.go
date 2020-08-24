@@ -39,4 +39,10 @@ type Limits struct {
 	// process would pause until some of the repaired bytes had been persisted to disk (and subsequently
 	// evicted from memory) at which point it would resume.
 	MaxOutstandingRepairedBytes int64 `yaml:"maxOutstandingRepairedBytes" validate:"min=0"`
+
+	// MaxEncodersPerBlock is the maximum number of encoders permitted in a block.
+	// When there are too many encoders, merging them (during a tick) puts a high
+	// load on the CPU, which can prevent other DB operations.
+	// A setting of 0 means there is no maximum.
+	MaxEncodersPerBlock int `yaml:"maxEncodersPerBlock" validate:"min=0"`
 }

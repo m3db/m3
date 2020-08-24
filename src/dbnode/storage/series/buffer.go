@@ -55,6 +55,7 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
+	errTooManyEncoders = xerrors.NewInvalidParamsError(errors.New("too many encoders per block"))
 )
 
 const (
@@ -444,6 +445,8 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 				}
 			}
 		}
+
+		buckets.recordActiveEncoders()
 
 		// Once we've evicted all eligible buckets, we merge duplicate encoders
 		// in the remaining ones to try and reclaim memory.
@@ -1063,6 +1066,16 @@ func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsO
 	return res, nil
 }
 
+func (b *BufferBucketVersions) recordActiveEncoders() {
+	var numActiveEncoders int
+	for _, bucket := range b.buckets {
+		if bucket.version == writableBucketVersion {
+			numActiveEncoders += len(bucket.encoders)
+		}
+	}
+	b.opts.Stats().RecordEncodersPerBlock(numActiveEncoders)
+}
+
 type streamsOptions struct {
 	filterWriteType bool
 	writeType       WriteType
@@ -1157,7 +1170,13 @@ func (b *BufferBucket) write(
 		return err == nil, err
 	}
 
-	// Need a new encoder, we didn't find an encoder to write to
+	// Need a new encoder, we didn't find an encoder to write to.
+	maxEncoders := b.opts.RuntimeOptionsManager().Get().EncodersPerBlockLimit()
+	if maxEncoders != 0 && len(b.encoders) >= int(maxEncoders) {
+		b.opts.Stats().IncEncoderLimitWriteRejected()
+		return false, errTooManyEncoders
+	}
+
 	b.opts.Stats().IncCreatedEncoders()
 	bopts := b.opts.DatabaseBlockOptions()
 	blockSize := b.opts.RetentionOptions().BlockSize()

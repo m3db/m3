@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -64,7 +65,8 @@ func newBufferTestOptions() Options {
 		SetEncoderPool(encoderPool).
 		SetMultiReaderIteratorPool(multiReaderIteratorPool).
 		SetBufferBucketPool(bufferBucketPool).
-		SetBufferBucketVersionsPool(bufferBucketVersionsPool)
+		SetBufferBucketVersionsPool(bufferBucketVersionsPool).
+		SetRuntimeOptionsManager(m3dbruntime.NewOptionsManager())
 	opts = opts.
 		SetRetentionOptions(opts.RetentionOptions().
 			SetBlockSize(2 * time.Minute).
@@ -1730,4 +1732,366 @@ func TestBufferLoadColdWrite(t *testing.T) {
 	// Ensure bootstrapped blocks are loaded as cold writes.
 	coldFlushBlockStarts := buffer.ColdFlushBlockStarts(nil)
 	require.Equal(t, 1, coldFlushBlockStarts.Len())
+}
+
+func TestUpsertProto(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	var nsCtx namespace.Context
+
+	tests := []struct {
+		desc         string
+		writes       []writeAttempt
+		expectedData []DecodedTestValue
+	}{
+		{
+			desc: "Upsert proto",
+			writes: []writeAttempt{
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("two")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+			},
+			expectedData: []DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("two")},
+			},
+		},
+		{
+			desc: "Duplicate proto",
+			writes: []writeAttempt{
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+				{
+					data: DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					// Writes with the same value and the same annotation should
+					// not be written.
+					expectWritten: false,
+					expectErr:     false,
+				},
+			},
+			expectedData: []DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+			},
+		},
+		{
+			desc: "Two datapoints different proto",
+			writes: []writeAttempt{
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+				{
+					data:          DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+			},
+			expectedData: []DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
+			},
+		},
+		{
+			desc: "Two datapoints same proto",
+			writes: []writeAttempt{
+				{
+					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+				{
+					data:          DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("one")},
+					expectWritten: true,
+					expectErr:     false,
+				},
+			},
+			expectedData: []DecodedTestValue{
+				{curr, 0, xtime.Second, []byte("one")},
+				// This is special cased in the proto encoder. It has logic
+				// handling the case where two values are the same and writes
+				// that nothing has changed instead of re-encoding the blob
+				// again.
+				{curr.Add(time.Second), 0, xtime.Second, nil},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			buffer := newDatabaseBuffer().(*dbBuffer)
+			buffer.Reset(databaseBufferResetOptions{
+				Options: opts,
+			})
+
+			for _, write := range test.writes {
+				verifyWriteToBuffer(t, testID, buffer, write.data, nsCtx.Schema,
+					write.expectWritten, write.expectErr)
+			}
+
+			ctx := context.NewContext()
+			defer ctx.Close()
+
+			results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
+			assert.NoError(t, err)
+			assert.NotNil(t, results)
+
+			requireReaderValuesEqual(t, test.expectedData, results, opts, nsCtx)
+		})
+	}
+}
+
+type writeAttempt struct {
+	data          DecodedTestValue
+	expectWritten bool
+	expectErr     bool
+}
+
+func TestEncoderLimit(t *testing.T) {
+	type writeTimeOffset struct {
+		timeOffset               int
+		expectTooManyEncodersErr bool
+	}
+
+	tests := []struct {
+		desc                  string
+		encodersPerBlockLimit int
+		writes                []writeTimeOffset
+	}{
+		{
+			desc:                  "one encoder, no limit",
+			encodersPerBlockLimit: 0, // 0 means no limit.
+			writes: []writeTimeOffset{
+				// Writes are in order, so just one encoder.
+				{
+					timeOffset:               1,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               2,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               3,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               4,
+					expectTooManyEncodersErr: false,
+				},
+			},
+		},
+		{
+			desc:                  "many encoders, no limit",
+			encodersPerBlockLimit: 0, // 0 means no limit.
+			writes: []writeTimeOffset{
+				// Writes are in reverse chronological order, so every write
+				// requires a new encoder.
+				{
+					timeOffset:               9,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               8,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               7,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               6,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               5,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               4,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               3,
+					expectTooManyEncodersErr: false,
+				},
+				{
+					timeOffset:               2,
+					expectTooManyEncodersErr: false,
+				},
+			},
+		},
+		{
+			desc:                  "within limit",
+			encodersPerBlockLimit: 3,
+			writes: []writeTimeOffset{
+				// First encoder created.
+				{
+					timeOffset:               3,
+					expectTooManyEncodersErr: false,
+				},
+				// Second encoder created.
+				{
+					timeOffset:               2,
+					expectTooManyEncodersErr: false,
+				},
+				// Third encoder created.
+				{
+					timeOffset:               1,
+					expectTooManyEncodersErr: false,
+				},
+			},
+		},
+		{
+			desc:                  "within limit, many writes",
+			encodersPerBlockLimit: 2,
+			writes: []writeTimeOffset{
+				// First encoder created.
+				{
+					timeOffset:               10,
+					expectTooManyEncodersErr: false,
+				},
+				// Goes in first encoder.
+				{
+					timeOffset:               11,
+					expectTooManyEncodersErr: false,
+				},
+				// Goes in first encoder.
+				{
+					timeOffset:               12,
+					expectTooManyEncodersErr: false,
+				},
+				// Second encoder created.
+				{
+					timeOffset:               1,
+					expectTooManyEncodersErr: false,
+				},
+				// Goes in second encoder.
+				{
+					timeOffset:               2,
+					expectTooManyEncodersErr: false,
+				},
+				// Goes in first encoder.
+				{
+					timeOffset:               13,
+					expectTooManyEncodersErr: false,
+				},
+				// Goes in second encoder.
+				{
+					timeOffset:               3,
+					expectTooManyEncodersErr: false,
+				},
+			},
+		},
+		{
+			desc:                  "too many encoders",
+			encodersPerBlockLimit: 3,
+			writes: []writeTimeOffset{
+				// First encoder created.
+				{
+					timeOffset:               5,
+					expectTooManyEncodersErr: false,
+				},
+				// Second encoder created.
+				{
+					timeOffset:               4,
+					expectTooManyEncodersErr: false,
+				},
+				// Third encoder created.
+				{
+					timeOffset:               3,
+					expectTooManyEncodersErr: false,
+				},
+				// Requires fourth encoder, which is past the limit.
+				{
+					timeOffset:               2,
+					expectTooManyEncodersErr: true,
+				},
+			},
+		},
+		{
+			desc:                  "too many encoders, more writes",
+			encodersPerBlockLimit: 2,
+			writes: []writeTimeOffset{
+				// First encoder created.
+				{
+					timeOffset:               10,
+					expectTooManyEncodersErr: false,
+				},
+				// Second encoder created.
+				{
+					timeOffset:               2,
+					expectTooManyEncodersErr: false,
+				},
+				// Goes in second encoder.
+				{
+					timeOffset:               3,
+					expectTooManyEncodersErr: false,
+				},
+				// Goes in first encoder.
+				{
+					timeOffset:               11,
+					expectTooManyEncodersErr: false,
+				},
+				// Requires third encoder, which is past the limit.
+				{
+					timeOffset:               1,
+					expectTooManyEncodersErr: true,
+				},
+				// Goes in second encoder.
+				{
+					timeOffset:               4,
+					expectTooManyEncodersErr: false,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			opts := newBufferTestOptions()
+			rops := opts.RetentionOptions()
+			curr := time.Now().Truncate(rops.BlockSize())
+			opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+				return curr
+			}))
+			runtimeOptsMgr := opts.RuntimeOptionsManager()
+			newRuntimeOpts := runtimeOptsMgr.Get().
+				SetEncodersPerBlockLimit(test.encodersPerBlockLimit)
+			runtimeOptsMgr.Update(newRuntimeOpts)
+			buffer := newDatabaseBuffer().(*dbBuffer)
+			buffer.Reset(databaseBufferResetOptions{Options: opts})
+			ctx := context.NewContext()
+			defer ctx.Close()
+
+			for i, write := range test.writes {
+				wasWritten, writeType, err := buffer.Write(ctx, testID,
+					curr.Add(time.Duration(write.timeOffset)*time.Millisecond),
+					float64(i), xtime.Millisecond, nil, WriteOptions{})
+
+				if write.expectTooManyEncodersErr {
+					assert.Error(t, err)
+					assert.True(t, xerrors.IsInvalidParams(err))
+					assert.Equal(t, errTooManyEncoders, err)
+				} else {
+					assert.NoError(t, err)
+					assert.True(t, wasWritten)
+					assert.Equal(t, WarmWrite, writeType)
+				}
+			}
+		})
+	}
 }
