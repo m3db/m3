@@ -148,8 +148,6 @@ replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3
 
 replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.20160305165446-6fe211e49392
 
-replace google.golang.org/grpc => google.golang.org/grpc v1.23.1
-
 replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
 
 replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
