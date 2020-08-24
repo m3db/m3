@@ -112,7 +112,7 @@ func TestEncoderLimit(t *testing.T) {
 		)
 
 		// Now there's no encoder limit, so no error even though each of these
-		// additional writes create a new encoder.
+		// additional writes creates a new encoder.
 		require.NoError(t, err)
 	}
 }

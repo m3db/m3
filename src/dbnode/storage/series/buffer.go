@@ -55,7 +55,6 @@ var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
 	errTooManyEncoders = xerrors.NewInvalidParamsError(errors.New("too many encoders per block"))
-	logger, _          = zap.NewProduction()
 )
 
 const (
