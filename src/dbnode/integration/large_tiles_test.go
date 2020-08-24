@@ -47,8 +47,8 @@ func TestReadAggregateWrite(t *testing.T) {
 		blockSizeT      = 6 * time.Hour
 		indexBlockSize  = 2 * blockSize
 		indexBlockSizeT = 2 * blockSizeT
-		rOpts           = retention.NewOptions().SetRetentionPeriod(24 * blockSize).SetBlockSize(blockSize)
-		rOptsT          = retention.NewOptions().SetRetentionPeriod(24 * blockSize).SetBlockSize(blockSizeT)
+		rOpts           = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSize)
+		rOptsT          = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSizeT)
 		idxOpts         = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
 		idxOptsT        = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
 		nsOpts          = namespace.NewOptions().
@@ -103,11 +103,12 @@ func TestReadAggregateWrite(t *testing.T) {
 		ident.StringTag("job", "job1"),
 	}
 
-	dpTimeStart := nowFn().Truncate(indexBlockSize).Add(-3 * indexBlockSize)
+	dpTimeStart := nowFn().Truncate(indexBlockSize).Add(-6 * indexBlockSize)
 	dpTime := dpTimeStart
 
 	// Write test data.
-	for a := 0.0; a < 60.0; a++ {
+	testDataPointsCount := 60.0
+	for a := 0.0; a < testDataPointsCount; a++ {
 		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 42.1+a, xtime.Second, nil)
 		require.NoError(t, err)
 		dpTime = dpTime.Add(10 * time.Minute)
@@ -116,7 +117,7 @@ func TestReadAggregateWrite(t *testing.T) {
 
 	log.Info("waiting till data is cold flushed")
 	start = time.Now()
-	expectedNumWrites := int64(20)
+	expectedNumWrites := int64(testDataPointsCount)
 	flushed := xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
 		flushes, _ := counters["database.flushIndex.success"]
