@@ -74,6 +74,7 @@ func (b *seriesFrameIter) Reset(
 	b.frameStart = start
 	b.frameStep = frameStep
 	b.curr.reset(start, start+frameStep, id, tags)
+	b.recorder.release()
 
 	return nil
 }

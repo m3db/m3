@@ -23,9 +23,11 @@
 package integration
 
 import (
+	"io"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
@@ -41,56 +43,24 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	blockSize       = 2 * time.Hour
+	blockSizeT      = 6 * time.Hour
+	indexBlockSize  = 2 * blockSize
+	indexBlockSizeT = 2 * blockSizeT
+)
+
 func TestReadAggregateWrite(t *testing.T) {
-	var (
-		blockSize       = 2 * time.Hour
-		blockSizeT      = 6 * time.Hour
-		indexBlockSize  = 2 * blockSize
-		indexBlockSizeT = 2 * blockSizeT
-		rOpts           = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSize)
-		rOptsT          = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSizeT)
-		idxOpts         = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
-		idxOptsT        = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
-		nsOpts          = namespace.NewOptions().
-			SetRetentionOptions(rOpts).
-			SetIndexOptions(idxOpts).
-			SetColdWritesEnabled(true)
-		nsOptsT = namespace.NewOptions().
-			SetRetentionOptions(rOptsT).
-			SetIndexOptions(idxOptsT).
-			SetColdWritesEnabled(true)
-	)
-
-	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
-	require.NoError(t, err)
-	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOptsT)
-	require.NoError(t, err)
-
-	testOpts := NewTestOptions(t).
-		SetNamespaces([]namespace.Metadata{srcNs, trgNs}).
-		SetWriteNewSeriesAsync(true)
-
-	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
-	defer testSetup.Close()
-
-	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
-	scope, closer := tally.NewRootScope(
-		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
-	defer closer.Close()
-	testSetup.SetStorageOpts(testSetup.StorageOpts().SetInstrumentOptions(
-		instrument.NewOptions().SetMetricsScope(scope)))
-
+	testSetup, srcNs, trgNs, reporter, closer := setupServer(t)
 	storageOpts := testSetup.StorageOpts()
-	testSetup.SetStorageOpts(storageOpts)
-
-	// Start the server.
 	log := storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server.
 	defer func() {
 		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
+		testSetup.Close()
+		closer.Close()
 	}()
 
 	start := time.Now()
@@ -103,12 +73,17 @@ func TestReadAggregateWrite(t *testing.T) {
 		ident.StringTag("job", "job1"),
 	}
 
-	dpTimeStart := nowFn().Truncate(indexBlockSize).Add(-6 * indexBlockSize)
-	dpTime := dpTimeStart
-
 	// Write test data.
+	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
+	dpTime := dpTimeStart
+	err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 15, xtime.Second, nil)
+
 	testDataPointsCount := 60.0
 	for a := 0.0; a < testDataPointsCount; a++ {
+		if a < 10 {
+			dpTime = dpTime.Add(10 * time.Minute)
+			continue
+		}
 		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 42.1+a, xtime.Second, nil)
 		require.NoError(t, err)
 		dpTime = dpTime.Add(10 * time.Minute)
@@ -117,12 +92,12 @@ func TestReadAggregateWrite(t *testing.T) {
 
 	log.Info("waiting till data is cold flushed")
 	start = time.Now()
-	expectedNumWrites := int64(testDataPointsCount)
+	//expectedNumWrites := int64(testDataPointsCount)
 	flushed := xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
 		flushes, _ := counters["database.flushIndex.success"]
 		writes, _ := counters["database.series.cold-writes"]
-		return flushes >= 1 && writes >= expectedNumWrites
+		return flushes >= 1 && writes >= 30
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
@@ -141,20 +116,34 @@ func TestReadAggregateWrite(t *testing.T) {
 	writeErrorsCount, _ := counters["database.writeAggData.errors"]
 	require.Equal(t, int64(0), writeErrorsCount)
 	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
-	require.Equal(t, int64(1), seriesWritesCount)
+	require.Equal(t, int64(2), seriesWritesCount)
 
-	log.Info("fetching aggregated data")
-	series, err := session.Fetch(trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn())
-	require.NoError(t, err)
-
+	log.Info("validating aggregated data")
 	expectedDps := map[int64]float64{
-		dpTimeStart.Add(50 * time.Minute).Unix():  47.1,
 		dpTimeStart.Add(110 * time.Minute).Unix(): 53.1,
 		dpTimeStart.Add(170 * time.Minute).Unix(): 59.1,
 		dpTimeStart.Add(230 * time.Minute).Unix(): 65.1,
 		dpTimeStart.Add(290 * time.Minute).Unix(): 71.1,
 		dpTimeStart.Add(350 * time.Minute).Unix(): 77.1,
 	}
+	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn(), expectedDps)
+
+	expectedDps = map[int64]float64{
+		dpTimeStart.Unix(): 15,
+	}
+	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("aab"), dpTimeStart, nowFn(), expectedDps)
+}
+
+func fetchAndValidate(
+	t *testing.T,
+	session client.Session,
+	nsID ident.ID,
+	id ident.ID,
+	startInclusive, endExclusive time.Time,
+	expectedDps map[int64]float64,
+) {
+	series, err := session.Fetch(nsID, id, startInclusive, endExclusive)
+	require.NoError(t, err)
 
 	count := 0
 	for series.Next() {
@@ -169,4 +158,45 @@ func TestReadAggregateWrite(t *testing.T) {
 		count++
 	}
 	require.Equal(t, len(expectedDps), count)
+}
+
+func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
+	var (
+		rOpts    = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSize)
+		rOptsT   = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSizeT)
+		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
+		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
+		nsOpts   = namespace.NewOptions().
+				SetRetentionOptions(rOpts).
+				SetIndexOptions(idxOpts).
+				SetColdWritesEnabled(true)
+		nsOptsT = namespace.NewOptions().
+			SetRetentionOptions(rOptsT).
+			SetIndexOptions(idxOptsT).
+			SetColdWritesEnabled(true)
+	)
+
+	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
+	require.NoError(t, err)
+	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOptsT)
+	require.NoError(t, err)
+
+	testOpts := NewTestOptions(t).
+		SetNamespaces([]namespace.Metadata{srcNs, trgNs}).
+		SetWriteNewSeriesAsync(true)
+
+	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(
+		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
+	testSetup.SetStorageOpts(testSetup.StorageOpts().SetInstrumentOptions(
+		instrument.NewOptions().SetMetricsScope(scope)))
+
+	storageOpts := testSetup.StorageOpts()
+	testSetup.SetStorageOpts(storageOpts)
+
+	// Start the server.
+	require.NoError(t, testSetup.StartServer())
+
+	return testSetup, srcNs, trgNs, reporter, closer
 }
