@@ -23,6 +23,7 @@ package remote
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"sync"
 	"time"
 
@@ -168,6 +169,7 @@ func CompressedSeriesFromSeriesIterator(
 	for _, replica := range replicas {
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
+		fmt.Println("COMPRESSED READER", reflect.TypeOf(readers))
 		for next := true; next; next = readers.Next() {
 			segments, err := compressedSegmentsFromReaders(readers)
 			if err != nil {

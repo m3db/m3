@@ -224,6 +224,7 @@ func read(
 	stepIndex := 0
 	fmt.Println("ITER", reflect.TypeOf(it), it.Err())
 	for it.Next() {
+		fmt.Println("ITER NEXT", it.Err())
 		step := it.Current()
 		for seriesIndex, v := range step.Values() {
 			mutableValuesForSeries := data[seriesIndex]
