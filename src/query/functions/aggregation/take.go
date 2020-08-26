@@ -121,7 +121,6 @@ func (n *takeNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 }
 
 func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
-	fmt.Println("PROCESS BLOCK")
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return nil, err
@@ -148,7 +147,6 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	}
 
 	for index := 0; stepIter.Next(); index++ {
-		fmt.Println("PROCESS ITER", index)
 		step := stepIter.Current()
 		values := step.Values()
 		aggregatedValues := n.op.takeFunc(values, buckets)
@@ -158,11 +156,9 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 	}
 
 	if err = stepIter.Err(); err != nil {
-		fmt.Println("PROCESS ITER ERR", err)
 		return nil, err
 	}
 
-	fmt.Println("PROCESS BLOCK COMPLETE")
 	return builder.Build(), nil
 }
 

@@ -221,6 +221,7 @@ func read(
 	}
 
 	stepIndex := 0
+	fmt.Println("ITER")
 	for it.Next() {
 		step := it.Current()
 		for seriesIndex, v := range step.Values() {
@@ -232,9 +233,11 @@ func read(
 	}
 
 	if err := it.Err(); err != nil {
+		fmt.Println("ITER ERR", err)
 		return emptyResult, err
 	}
 
+	fmt.Println("ITER SERIES")
 	seriesList := make([]*ts.Series, 0, len(data))
 	for i, values := range data {
 		var (
@@ -249,6 +252,8 @@ func read(
 	if err := bl.Close(); err != nil {
 		return emptyResult, err
 	}
+
+	fmt.Println("ITER CLOSE")
 
 	seriesList = prometheus.FilterSeriesByOptions(seriesList, fetchOpts)
 
