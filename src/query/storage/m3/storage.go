@@ -207,7 +207,7 @@ func (s *m3storage) FetchCompressed(
 		return result, noop, err
 	}
 
-	if processor := queryOptions.IterationOptions.SeriesIteratorProcessor; processor != nil {
+	if processor := s.adminOpts.IterationOptions().SeriesIteratorProcessor; processor != nil {
 		if err := processor.InspectSeries(ctx, result.SeriesIterators()); err != nil {
 			accumulator.Close()
 			return result, noop, err

@@ -85,7 +85,6 @@ type QueryOptions struct {
 	SeriesLimit       int
 	DocsLimit         int
 	RequireExhaustive bool
-	IterationOptions  IterationOptions
 }
 
 // IterationOptions enables users to specify iteration preferences.
