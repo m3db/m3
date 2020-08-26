@@ -121,6 +121,7 @@ func (n *takeNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b bl
 }
 
 func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) (block.Block, error) {
+	fmt.Println("PROCESS BLOCK")
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return nil, err
@@ -159,6 +160,7 @@ func (n *takeNode) ProcessBlock(queryCtx *models.QueryContext, ID parser.NodeID,
 		return nil, err
 	}
 
+	fmt.Println("PROCESS BLOCK COMPLETE")
 	return builder.Build(), nil
 }
 
