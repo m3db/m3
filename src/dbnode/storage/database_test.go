@@ -1305,7 +1305,7 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 		start      = time.Now().Truncate(time.Hour)
 	)
 
-	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, true)
+	opts, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, true, 1)
 	require.NotNil(t, err)
 
 	sourceNs := dbAddNewMockNamespace(ctrl, d, sourceNsID.String())
@@ -1320,18 +1320,18 @@ func TestDatabaseAggregateTiles(t *testing.T) {
 func TestNewAggregateTilesOptions(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
 
-	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, false)
+	_, err := NewAggregateTilesOptions(start, start.Add(-time.Second), time.Minute, false, 1)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start, time.Minute, false)
+	_, err = NewAggregateTilesOptions(start, start, time.Minute, false, 1)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, false)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), -time.Minute, false, 1)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, false)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), 0, false, 1)
 	assert.Error(t, err)
 
-	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, false)
+	_, err = NewAggregateTilesOptions(start, start.Add(time.Second), time.Minute, false, 1)
 	assert.NoError(t, err)
 }

@@ -1350,7 +1350,7 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 		sourceBlockSize        = time.Hour
 		targetBlockSize        = 2 * time.Hour
 		start                  = time.Now().Truncate(targetBlockSize)
-		opts                   = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
+		opts                   = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Concurrency: 2}
 		secondSourceBlockStart = start.Add(sourceBlockSize)
 		sourceShard0ID uint32  = 10
 		sourceShard1ID uint32  = 20

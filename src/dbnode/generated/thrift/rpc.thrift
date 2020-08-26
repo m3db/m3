@@ -499,8 +499,9 @@ struct AggregateTilesRequest {
 	3: required i64 rangeStart
 	4: required i64 rangeEnd
 	5: required string step
-	6: bool removeResets
+	6: bool removeResets // TODO: remove when metrics type is available from series metadata
 	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	8: i32 concurrency // TODO: remove, should go to config
 }
 
 struct AggregateTilesResult {

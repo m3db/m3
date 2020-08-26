@@ -53,6 +53,7 @@ import (
 
 	opentracinglog "github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -1629,8 +1630,6 @@ func (n *dbNamespace) aggregateTiles(
 	nsCtx := n.nsContextWithRLock()
 	n.RUnlock()
 
-	targetShards := n.OwnedShards()
-
 	// Note: Cold writes must be enabled for Large Tiles to work.
 	if !n.nopts.ColdWritesEnabled() {
 		return 0, errColdWritesDisabled
@@ -1641,57 +1640,99 @@ func (n *dbNamespace) aggregateTiles(
 		SchemaDesc:   nsCtx.Schema,
 	}
 
-	resources, err := newColdFlushReuseableResources(n.opts)
-	if err != nil {
-		return 0, err
-	}
-
-	var blockReaders []fs.DataFileSetReader
 	var sourceBlockStarts []time.Time
 	sourceBlockSize := sourceNs.Options().RetentionOptions().BlockSize()
 	for sourceBlockStart := blockStart; sourceBlockStart.Before(opts.End); sourceBlockStart = sourceBlockStart.Add(sourceBlockSize) {
-		reader, err := fs.NewReader(sourceNs.StorageOptions().BytesPool(), sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
-		if err != nil {
-			return 0, err
-		}
 		sourceBlockStarts = append(sourceBlockStarts, sourceBlockStart)
-		blockReaders = append(blockReaders, reader)
 	}
+
+	targetShards := n.OwnedShards()
+	targetShardIndexQueue := make(chan int, len(targetShards))
+	for i := range targetShards {
+		targetShardIndexQueue <- i
+	}
+	close(targetShardIndexQueue)
 
 	// NB(bodu): Deferred targetShard cold flushes so that we can ensure that cold flush index data is
 	// persisted before persisting TSDB data to ensure crash consistency.
-	multiErr := xerrors.NewMultiError()
-	var processedBlockCount int64
-	for _, targetShard := range targetShards {
-
-		sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
-		if err != nil {
-			detailedErr := fmt.Errorf("no matching shard in source namespace %s: %v", sourceNs.ID(), err)
-			multiErr = multiErr.Add(detailedErr)
-			continue
+	var (
+		processedBlockCount atomic.Int64
+		wg                  sync.WaitGroup
+		multiErr            xerrors.MultiError
+		errLock             sync.Mutex
+		addError            = func(err error) {
+			errLock.Lock()
+			multiErr = multiErr.Add(err)
+			errLock.Unlock()
 		}
+	)
 
-		sourceBlockVolumes := make([]shardBlockVolume, 0, len(sourceBlockStarts))
-		for _, sourceBlockStart := range sourceBlockStarts {
-			latestVolume, err := sourceShard.LatestVolume(sourceBlockStart)
-			if err != nil {
-				return 0, err
-			}
-			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
-		}
-
-		shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, wOpts)
-		processedBlockCount += shardProcessedBlockCount
-		if err != nil {
-			detailedErr := fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err)
-			multiErr = multiErr.Add(detailedErr)
-			continue
-		}
-
-		multiErr = n.coldFlushSingleShard(nsCtx, targetShard, pm, resources, multiErr)
+	concurrency := opts.Concurrency
+	if concurrency < 1 {
+		concurrency = 1
+	} else if concurrency > len(targetShards) {
+		concurrency = len(targetShards)
 	}
 
-	return processedBlockCount, multiErr.FinalError()
+	for i := 0; i < concurrency; i++ {
+
+		resources, err := newColdFlushReuseableResources(n.opts)
+		if err != nil {
+			addError(err)
+			continue
+		}
+
+		var blockReaders []fs.DataFileSetReader
+		for range sourceBlockStarts {
+			reader, err := fs.NewReader(
+				sourceNs.StorageOptions().BytesPool(),
+				sourceNs.StorageOptions().CommitLogOptions().FilesystemOptions())
+			if err != nil {
+				addError(err)
+				continue
+			}
+			blockReaders = append(blockReaders, reader)
+		}
+
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			for targetShardIndex := range targetShardIndexQueue {
+				targetShard := targetShards[targetShardIndex]
+
+				sourceShard, _, err := sourceNs.ReadableShardAt(targetShard.ID())
+				if err != nil {
+					addError(fmt.Errorf("no matching shard %d in source namespace %s: %v", targetShard.ID(), sourceNs.ID(), err))
+					continue
+				}
+
+				sourceBlockVolumes := make([]shardBlockVolume, 0, len(sourceBlockStarts))
+				for _, sourceBlockStart := range sourceBlockStarts {
+					latestVolume, err := sourceShard.LatestVolume(sourceBlockStart)
+					if err != nil {
+						addError(fmt.Errorf("error getting latest volume of shard %d of source namespace %s: %v", sourceShard.ID(), sourceNs.ID(), err))
+						continue
+					}
+					sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
+				}
+
+				shardProcessedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNs.ID(), sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, wOpts)
+				processedBlockCount.Add(shardProcessedBlockCount)
+				if err != nil {
+					addError(fmt.Errorf("shard %d aggregation failed: %v", targetShard.ID(), err))
+					continue
+				}
+
+				multiErr = n.coldFlushSingleShard(nsCtx, targetShard, pm, resources, multiErr)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	return processedBlockCount.Load(), multiErr.FinalError()
 }
 
 func (n *dbNamespace) coldFlushSingleShard(

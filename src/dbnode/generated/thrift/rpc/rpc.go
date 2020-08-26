@@ -12914,6 +12914,7 @@ func (p *Query) String() string {
 //  - Step
 //  - RemoveResets
 //  - RangeType
+//  - Concurrency
 type AggregateTilesRequest struct {
 	SourceNameSpace string   `thrift:"sourceNameSpace,1,required" db:"sourceNameSpace" json:"sourceNameSpace"`
 	TargetNameSpace string   `thrift:"targetNameSpace,2,required" db:"targetNameSpace" json:"targetNameSpace"`
@@ -12922,6 +12923,7 @@ type AggregateTilesRequest struct {
 	Step            string   `thrift:"step,5,required" db:"step" json:"step"`
 	RemoveResets    bool     `thrift:"removeResets,6" db:"removeResets" json:"removeResets"`
 	RangeType       TimeType `thrift:"rangeType,7" db:"rangeType" json:"rangeType,omitempty"`
+	Concurrency     int32    `thrift:"concurrency,8" db:"concurrency" json:"concurrency"`
 }
 
 func NewAggregateTilesRequest() *AggregateTilesRequest {
@@ -12958,6 +12960,10 @@ var AggregateTilesRequest_RangeType_DEFAULT TimeType = 0
 
 func (p *AggregateTilesRequest) GetRangeType() TimeType {
 	return p.RangeType
+}
+
+func (p *AggregateTilesRequest) GetConcurrency() int32 {
+	return p.Concurrency
 }
 func (p *AggregateTilesRequest) IsSetRangeType() bool {
 	return p.RangeType != AggregateTilesRequest_RangeType_DEFAULT
@@ -13014,6 +13020,10 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 7:
 			if err := p.ReadField7(iprot); err != nil {
+				return err
+			}
+		case 8:
+			if err := p.ReadField8(iprot); err != nil {
 				return err
 			}
 		default:
@@ -13110,6 +13120,15 @@ func (p *AggregateTilesRequest) ReadField7(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *AggregateTilesRequest) ReadField8(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 8: ", err)
+	} else {
+		p.Concurrency = v
+	}
+	return nil
+}
+
 func (p *AggregateTilesRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("AggregateTilesRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -13134,6 +13153,9 @@ func (p *AggregateTilesRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField7(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField8(oprot); err != nil {
 			return err
 		}
 	}
@@ -13235,6 +13257,19 @@ func (p *AggregateTilesRequest) writeField7(oprot thrift.TProtocol) (err error) 
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 7:rangeType: ", p), err)
 		}
+	}
+	return err
+}
+
+func (p *AggregateTilesRequest) writeField8(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("concurrency", thrift.I32, 8); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 8:concurrency: ", p), err)
+	}
+	if err := oprot.WriteI32(int32(p.Concurrency)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.concurrency (8) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 8:concurrency: ", p), err)
 	}
 	return err
 }
