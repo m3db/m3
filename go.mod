@@ -112,7 +112,12 @@ require (
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
-	go.etcd.io/etcd v3.4.3+incompatible
+
+	// This is 3.4.10. Note: we need to specify the version this way due to the issue
+	// described in https://github.com/etcd-io/etcd/issues/11154 .
+	// Version string was obtained by the method described in
+	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
+	go.etcd.io/etcd v0.5.0-alpha.5.0.20200716221620-18dfb9cca345
 	go.uber.org/atomic v1.5.1
 	go.uber.org/config v1.4.0
 	go.uber.org/zap v1.13.0
@@ -147,10 +152,6 @@ replace github.com/apache/thrift => github.com/m3db/thrift v0.0.0-20190820191926
 replace gopkg.in/vmihailenco/msgpack.v2 => github.com/vmihailenco/msgpack v2.8.3+incompatible
 
 replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.20160305165446-6fe211e49392
-
-replace google.golang.org/grpc => google.golang.org/grpc v1.23.1
-
-replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
 
 replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 
