@@ -94,13 +94,16 @@ func ConvertM3DBSeriesIterators(
 	opts Options,
 ) ([]block.Block, error) {
 	if err := opts.Validate(); err != nil {
+		fmt.Println("INVALID")
 		return nil, err
 	}
 
 	if opts.SplittingSeriesByBlock() {
+		fmt.Println("SPLIT")
 		return convertM3DBSegmentedBlockIterators(result, bounds, opts)
 	}
 
+	fmt.Println("NONSPLIT")
 	return seriesIteratorsToEncodedBlockIterators(result, bounds, opts)
 }
 
