@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"reflect"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -221,7 +222,7 @@ func read(
 	}
 
 	stepIndex := 0
-	fmt.Println("ITER")
+	fmt.Println("ITER", reflect.TypeOf(it), it.Err())
 	for it.Next() {
 		step := it.Current()
 		for seriesIndex, v := range step.Values() {
