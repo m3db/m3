@@ -248,5 +248,6 @@ func (it *singleSlicesOfSlicesIterator) Size() (int, error) {
 }
 
 func (it *singleSlicesOfSlicesIterator) Rewind() error {
+	it.firstNext = true
 	return nil
 }
