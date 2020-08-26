@@ -201,6 +201,7 @@ func read(
 	if err != nil {
 		return emptyResult, err
 	}
+	fmt.Println("EXECUTED EXPR")
 
 	resultMeta := bl.Meta().ResultMetadata
 	it, err := bl.StepIter()

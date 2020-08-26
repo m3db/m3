@@ -195,6 +195,7 @@ func CompressedSeriesFromSeriesIterator(
 	if err != nil {
 		return nil, err
 	}
+	it.Tags().Rewind()
 
 	return &rpc.Series{
 		Meta: &rpc.SeriesMetadata{
