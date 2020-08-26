@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"reflect"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -202,7 +201,6 @@ func read(
 	if err != nil {
 		return emptyResult, err
 	}
-	fmt.Println("EXECUTED EXPR")
 
 	resultMeta := bl.Meta().ResultMetadata
 	it, err := bl.StepIter()
@@ -222,9 +220,7 @@ func read(
 	}
 
 	stepIndex := 0
-	fmt.Println("ITER", reflect.TypeOf(it), it.Err())
 	for it.Next() {
-		fmt.Println("ITER NEXT", it.Err())
 		step := it.Current()
 		for seriesIndex, v := range step.Values() {
 			mutableValuesForSeries := data[seriesIndex]
@@ -235,11 +231,9 @@ func read(
 	}
 
 	if err := it.Err(); err != nil {
-		fmt.Println("ITER ERR", err)
 		return emptyResult, err
 	}
 
-	fmt.Println("ITER SERIES")
 	seriesList := make([]*ts.Series, 0, len(data))
 	for i, values := range data {
 		var (
@@ -254,8 +248,6 @@ func read(
 	if err := bl.Close(); err != nil {
 		return emptyResult, err
 	}
-
-	fmt.Println("ITER CLOSE")
 
 	seriesList = prometheus.FilterSeriesByOptions(seriesList, fetchOpts)
 

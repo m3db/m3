@@ -21,7 +21,6 @@
 package client
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -51,7 +50,6 @@ func newReaderSliceOfSlicesIterator(
 }
 
 func (it *readerSliceOfSlicesIterator) Next() bool {
-	fmt.Println("NEXT B", it.idx)
 	if !(it.idx+1 < len(it.segments)) {
 		return false
 	}

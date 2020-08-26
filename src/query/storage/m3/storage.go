@@ -213,7 +213,6 @@ func (s *m3storage) FetchCompressed(
 			return result, noop, err
 		}
 	}
-	fmt.Println("INSPECTED")
 
 	if options.IncludeResolution {
 		resolutions := make([]int64, 0, len(attrs))
