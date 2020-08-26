@@ -454,7 +454,7 @@ func testItMergesSnapshotsAndCommitLogs(t *testing.T, opts Options,
 	)
 	mockReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
 
-	src.newReaderFn = func(
+	src.newDataReaderFn = func(
 		bytesPool pool.CheckedBytesPool,
 		opts fs.Options,
 	) (fs.DataFileSetReader, error) {
