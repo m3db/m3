@@ -33,6 +33,7 @@ import (
 
 func TestMessagePool(t *testing.T) {
 	p := newMessagePool(pool.NewObjectPoolOptions().SetSize(1))
+	defer p.Close()
 	p.Init()
 
 	ctrl := xtest.NewController(t)

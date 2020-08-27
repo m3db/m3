@@ -111,7 +111,9 @@ func TestMessageWriterWithPooling(t *testing.T) {
 		wg.Done()
 	}()
 
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	pool := testMessagePool(opts)
+	defer pool.Close()
+	w := newMessageWriter(200, pool, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 	require.Equal(t, 200, int(w.ReplicatedShardID()))
 	w.Init()
 
@@ -327,7 +329,9 @@ func TestMessageWriterRetryWithPooling(t *testing.T) {
 
 	addr := lis.Addr().String()
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	pool := testMessagePool(opts)
+	defer pool.Close()
+	w := newMessageWriter(200, pool, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 	w.Init()
 	defer w.Close()
 
@@ -387,7 +391,9 @@ func TestMessageWriterCleanupDroppedMessage(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics())
+	pool := testMessagePool(opts)
+	defer pool.Close()
+	w := newMessageWriter(200, pool, opts, testMessageWriterMetrics())
 
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -429,7 +435,9 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	pool := testMessagePool(opts)
+	defer pool.Close()
+	w := newMessageWriter(200, pool, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 	w.Init()
 	defer w.Close()
 
@@ -512,7 +520,9 @@ func TestMessageWriterKeepNewWritesInOrderInFrontOfTheQueue(t *testing.T) {
 	opts := testOptions().SetMessageRetryOptions(
 		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
 	)
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	pool := testMessagePool(opts)
+	defer pool.Close()
+	w := newMessageWriter(200, pool, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
@@ -556,7 +566,9 @@ func TestMessageWriterRetryIterateBatchFullScan(t *testing.T) {
 	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryOptions(
 		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
 	)
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	pool := testMessagePool(opts)
+	defer pool.Close()
+	w := newMessageWriter(200, pool, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
@@ -620,7 +632,9 @@ func TestMessageWriterRetryIterateBatchFullScanWithMessageTTL(t *testing.T) {
 	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryOptions(
 		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
 	)
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	pool := testMessagePool(opts)
+	defer pool.Close()
+	w := newMessageWriter(200, pool, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
@@ -681,7 +695,9 @@ func TestMessageWriterRetryIterateBatchNotFullScan(t *testing.T) {
 	opts := testOptions().SetMessageQueueScanBatchSize(retryBatchSize).SetMessageRetryOptions(
 		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
 	)
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	pool := testMessagePool(opts)
+	defer pool.Close()
+	w := newMessageWriter(200, pool, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }

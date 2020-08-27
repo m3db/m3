@@ -68,6 +68,11 @@ func (l *listener) Accept() (Consumer, error) {
 	return newConsumer(conn, l.msgPool, l.opts, l.m), nil
 }
 
+func (l *listener) Close() error {
+	l.msgPool.Close()
+	return l.Listener.Close()
+}
+
 type metrics struct {
 	messageReceived    tally.Counter
 	messageDecodeError tally.Counter

@@ -60,7 +60,9 @@ func TestConsumerWithMessagePool(t *testing.T) {
 	opts := testOptions()
 	l, err := NewListener("127.0.0.1:0", opts)
 	require.NoError(t, err)
-	defer l.Close()
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
@@ -105,9 +107,9 @@ func TestConsumerAckReusedMessage(t *testing.T) {
 
 	opts := testOptions().SetAckBufferSize(100)
 	l, err := NewListener("127.0.0.1:0", opts)
-	require.NoError(t, err)
-	defer l.Close()
-
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
 
@@ -146,9 +148,9 @@ func TestConsumerAckError(t *testing.T) {
 
 	opts := testOptions()
 	l, err := NewListener("127.0.0.1:0", opts)
-	require.NoError(t, err)
-	defer l.Close()
-
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -181,9 +183,9 @@ func TestConsumerMessageError(t *testing.T) {
 
 	opts := testOptions()
 	l, err := NewListener("127.0.0.1:0", opts)
-	require.NoError(t, err)
-	defer l.Close()
-
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -211,9 +213,9 @@ func TestConsumerAckBuffer(t *testing.T) {
 
 	opts := testOptions().SetAckBufferSize(2)
 	l, err := NewListener("127.0.0.1:0", opts)
-	require.NoError(t, err)
-	defer l.Close()
-
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -255,9 +257,9 @@ func TestConsumerAckAfterClosed(t *testing.T) {
 
 	opts := testOptions().SetAckBufferSize(1)
 	l, err := NewListener("127.0.0.1:0", opts)
-	require.NoError(t, err)
-	defer l.Close()
-
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -299,9 +301,9 @@ func TestConsumerTimeBasedFlush(t *testing.T) {
 
 	opts := testOptions().SetAckBufferSize(2)
 	l, err := NewListener("127.0.0.1:0", opts)
-	require.NoError(t, err)
-	defer l.Close()
-
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -339,9 +341,9 @@ func TestConsumerFlushAcksOnClose(t *testing.T) {
 
 	opts := testOptions().SetAckBufferSize(2)
 	l, err := NewListener("127.0.0.1:0", opts)
-	require.NoError(t, err)
-	defer l.Close()
-
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -380,8 +382,9 @@ func TestListenerMultipleConnection(t *testing.T) {
 	opts := testOptions()
 	l, err := NewListener("127.0.0.1:0", opts)
 	require.NoError(t, err)
-	defer l.Close()
-
+	defer func() {
+		require.NoError(t, l.Close())
+	}()
 	require.Equal(t, "tcp", l.Addr().Network())
 	testProduceAndReceiveAck(t, testMsg1, l, opts)
 	testProduceAndReceiveAck(t, testMsg2, l, opts)

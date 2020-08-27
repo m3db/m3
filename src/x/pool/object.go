@@ -100,6 +100,9 @@ func (p *objectPool) Init(alloc Allocator) {
 		p.values <- p.alloc()
 	}
 
+	// TODO:remove
+	// debug.PrintStack()
+
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -178,8 +181,6 @@ func (p *objectPool) tryFill() {
 }
 
 // Close shuts down background routines
-// TODO: if we ever need to shut down gracefully (or start using goleak in tests),
-// implement this in other pools that are backed by objectPool.
 func (p *objectPool) Close() {
 	close(p.done)
 	p.wg.Wait()

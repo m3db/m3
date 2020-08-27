@@ -54,7 +54,9 @@ func (h *consumerHandler) Handle(conn net.Conn) {
 	h.consumeFn(c)
 }
 
-func (h *consumerHandler) Close() {}
+func (h *consumerHandler) Close() {
+	h.mPool.Close()
+}
 
 type messageHandler struct {
 	opts  Options
@@ -95,4 +97,7 @@ func (h *messageHandler) Handle(conn net.Conn) {
 	c.Close()
 }
 
-func (h *messageHandler) Close() { h.mp.Close() }
+func (h *messageHandler) Close() {
+	h.mp.Close()
+	h.mPool.Close()
+}

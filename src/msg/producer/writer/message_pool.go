@@ -32,6 +32,9 @@ type messagePool interface {
 
 	// Put puts a message to the pool.
 	Put(m *message)
+
+	// Close cleans up message pool resources.
+	Close()
 }
 
 type msgPool struct {
@@ -63,4 +66,8 @@ func (p *msgPool) Get() *message {
 
 func (p *msgPool) Put(m *message) {
 	p.ObjectPool.Put(m)
+}
+
+func (p *msgPool) Close() {
+	p.ObjectPool.Close()
 }

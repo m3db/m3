@@ -500,9 +500,14 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	opts := testOptions().SetServiceDiscovery(sd)
 	csw, err := newConsumerServiceWriter(cs, 3, opts)
 	require.NoError(t, err)
+	defer csw.Close()
+
+	require.NoError(t, csw.Init(allowInitValueError))
 
 	sw0 := NewMockshardWriter(ctrl)
+	sw0.EXPECT().Close().Times(1)
 	sw1 := NewMockshardWriter(ctrl)
+	sw1.EXPECT().Close().Times(1)
 	csw.(*consumerServiceWriterImpl).shardWriters[0] = sw0
 	csw.(*consumerServiceWriterImpl).shardWriters[1] = sw1
 

@@ -105,6 +105,7 @@ type consumerServiceWriterImpl struct {
 	shardWriters []shardWriter
 	opts         Options
 	logger       *zap.Logger
+	pool         messagePool
 
 	value           watch.Value
 	dataFilter      producer.FilterFunc
@@ -134,10 +135,17 @@ func newConsumerServiceWriter(
 		return nil, errUnknownConsumptionType
 	}
 	router := newAckRouter(int(numShards))
+
+	var mPool messagePool
+	if opts.MessagePoolOptions() != nil {
+		mPool = newMessagePool(opts.MessagePoolOptions())
+		mPool.Init()
+	}
 	w := &consumerServiceWriterImpl{
+		pool:            mPool,
 		cs:              cs,
 		ps:              ps,
-		shardWriters:    initShardWriters(router, ct, numShards, opts),
+		shardWriters:    initShardWriters(router, ct, numShards, mPool, opts),
 		opts:            opts,
 		logger:          opts.InstrumentOptions().Logger(),
 		dataFilter:      acceptAllFilter,
@@ -156,6 +164,7 @@ func initShardWriters(
 	router ackRouter,
 	ct topic.ConsumptionType,
 	numberOfShards uint32,
+	pool messagePool,
 	opts Options,
 ) []shardWriter {
 	var (
@@ -164,18 +173,13 @@ func initShardWriters(
 			opts.InstrumentOptions().MetricsScope(),
 			opts.InstrumentOptions().TimerOptions(),
 		)
-		mPool messagePool
 	)
-	if opts.MessagePoolOptions() != nil {
-		mPool = newMessagePool(opts.MessagePoolOptions())
-		mPool.Init()
-	}
 	for i := range sws {
 		switch ct {
 		case topic.Shared:
-			sws[i] = newSharedShardWriter(uint32(i), router, mPool, opts, m)
+			sws[i] = newSharedShardWriter(uint32(i), router, pool, opts, m)
 		case topic.Replicated:
-			sws[i] = newReplicatedShardWriter(uint32(i), numberOfShards, router, mPool, opts, m)
+			sws[i] = newReplicatedShardWriter(uint32(i), numberOfShards, router, pool, opts, m)
 		}
 	}
 	return sws
@@ -318,6 +322,9 @@ func (w *consumerServiceWriterImpl) Close() {
 	w.value.Unwatch()
 	for _, cw := range w.consumerWriters {
 		cw.Close()
+	}
+	if w.pool != nil {
+		w.pool.Close()
 	}
 	w.wg.Wait()
 	w.logger.Info("closed consumer service writer", zap.String("writer", w.cs.String()))
