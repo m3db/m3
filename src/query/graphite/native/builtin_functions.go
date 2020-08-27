@@ -1636,12 +1636,7 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 
 					window[idx] = bootstrap.ValueAt(j)
 				}
-				nans := common.SafeSort(window)
-				if nans < windowPoints {
-					index := (windowPoints - nans) / 2
-					median := window[nans+index]
-					vals.SetValueAt(i, median)
-				}
+				vals.SetValueAt(i, common.SafeSum(window))
 			}
 			name := fmt.Sprintf("movingMedian(%s,%q)", series.Name(), windowSize)
 			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
