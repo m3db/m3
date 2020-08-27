@@ -91,7 +91,6 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/sergi/go-diff v1.1.0
 	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
-	github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72
 	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -100,6 +99,7 @@ require (
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
 	github.com/stretchr/testify v1.4.0
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
+	github.com/twmb/murmur3 v1.1.3
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/atomic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/uber-go/tally v3.3.13+incompatible
