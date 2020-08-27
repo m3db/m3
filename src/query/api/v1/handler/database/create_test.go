@@ -882,7 +882,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
-	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
 		testDBCfg, svcDefaultOptions, instrument.NewOptions())

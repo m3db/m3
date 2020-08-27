@@ -10,8 +10,7 @@ EXPOSE 8000
 # mkdocs needs git-fast-import which was stripped from the default git package
 # by default to reduce size
 RUN pip install \
-    mkdocs==0.17.3 \
-    pymdown-extensions==6.0 \
-    mkdocs-material==2.7.3
+    nltk==3.4.5 \
+    mkdocs-material==5.5.3
 RUN apk add --no-cache git-fast-import openssh-client
 ENTRYPOINT [ "/bin/ash", "-c" ]

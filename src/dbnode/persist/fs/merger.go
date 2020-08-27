@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"io"
 	"time"
 
@@ -37,6 +38,8 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
+var errMergeAndCleanupNotSupported = errors.New("function MergeAndCleanup not supported outside of bootstrapping")
+
 type merger struct {
 	reader         DataFileSetReader
 	blockAllocSize int
@@ -46,6 +49,7 @@ type merger struct {
 	encoderPool    encoding.EncoderPool
 	contextPool    context.Pool
 	nsOpts         namespace.Options
+	filePathPrefix string
 }
 
 // NewMerger returns a new Merger. This implementation is in charge of merging
@@ -65,6 +69,7 @@ func NewMerger(
 	identPool ident.Pool,
 	encoderPool encoding.EncoderPool,
 	contextPool context.Pool,
+	filePathPrefix string,
 	nsOpts namespace.Options,
 ) Merger {
 	return &merger{
@@ -76,6 +81,7 @@ func NewMerger(
 		encoderPool:    encoderPool,
 		contextPool:    contextPool,
 		nsOpts:         nsOpts,
+		filePathPrefix: filePathPrefix,
 	}
 }
 
@@ -264,6 +270,31 @@ func (m *merger) Merge(
 
 	// NB(bodu): Return a deferred closer so that we can guarantee that cold index writes are persisted first.
 	return prepared.DeferClose()
+}
+
+func (m *merger) MergeAndCleanup(
+	fileID FileSetFileIdentifier,
+	mergeWith MergeWith,
+	nextVolumeIndex int,
+	flushPreparer persist.FlushPreparer,
+	nsCtx namespace.Context,
+	onFlush persist.OnFlushSeries,
+	isBootstrapped bool,
+) error {
+	if isBootstrapped {
+		return errMergeAndCleanupNotSupported
+	}
+
+	close, err := m.Merge(fileID, mergeWith, nextVolumeIndex, flushPreparer, nsCtx, onFlush)
+	if err != nil {
+		return err
+	}
+
+	if err = close(); err != nil {
+		return err
+	}
+
+	return DeleteFileSetAt(m.filePathPrefix, fileID.Namespace, fileID.Shard, fileID.BlockStart, fileID.VolumeIndex)
 }
 
 func appendBlockReadersToSegmentReaders(segReaders []xio.SegmentReader, brs []xio.BlockReader) []xio.SegmentReader {
