@@ -1638,6 +1638,33 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 	}, nil
 }
 
+func movingMin(ctx *common.Context, _ singlePathSpec, windowSize string) (*binaryContextShifter, error) {
+	interval, err := common.ParseInterval(windowSize)
+	if err != nil {
+		return nil, err
+	}
+	if interval <= 0 {
+		return nil, common.ErrInvalidIntervalFormat
+	}
+
+	contextShiftingFn := func(c *common.Context) *common.Context {
+		opts := common.NewChildContextOptions()
+		opts.AdjustTimeRange(0, 0, interval, 0)
+		childCtx := c.NewChildContext(opts)
+		return childCtx
+	}
+
+	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-interval), ctx.StartTime
+	
+
+
+
+	return &binaryContextShifter{
+		ContextShiftFunc:  contextShiftingFn,
+		BinaryTransformer: transformerFn,
+	}, nil
+}
+
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
 // Appends a value to the metric name in the legend.  Currently one or several of:
 // "last", "avg", "total", "min", "max".
