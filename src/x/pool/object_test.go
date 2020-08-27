@@ -99,7 +99,7 @@ func TestObjectPoolGetBeforeInitError(t *testing.T) {
 	})
 
 	assert.Error(t, accessErr)
-	assert.Equal(t, errPoolGetBeforeInitialized, accessErr)
+	assert.Equal(t, errPoolAccessBeforeInitialized, accessErr)
 }
 
 func TestObjectPoolPutBeforeInitError(t *testing.T) {
@@ -115,7 +115,7 @@ func TestObjectPoolPutBeforeInitError(t *testing.T) {
 	pool.Put(1)
 
 	assert.Error(t, accessErr)
-	assert.Equal(t, errPoolPutBeforeInitialized, accessErr)
+	assert.Equal(t, errPoolAccessBeforeInitialized, accessErr)
 }
 
 func BenchmarkObjectPoolGetPut(b *testing.B) {
