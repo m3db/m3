@@ -23,15 +23,19 @@ package index
 import (
 	"errors"
 	"fmt"
+	"math"
+	"runtime"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/mmap"
@@ -59,17 +63,18 @@ const (
 type mutableSegments struct {
 	sync.RWMutex
 
-	state              mutableSegmentsState
-	hasEvictedAnyTimes bool
+	state mutableSegmentsState
 
 	foregroundSegments []*readableSeg
 	backgroundSegments []*readableSeg
 
-	compact    mutableSegmentsCompact
-	blockStart time.Time
-	blockOpts  BlockOptions
-	opts       Options
-	iopts      instrument.Options
+	compact                  mutableSegmentsCompact
+	blockStart               time.Time
+	blockOpts                BlockOptions
+	opts                     Options
+	iopts                    instrument.Options
+	optsListener             xclose.SimpleCloser
+	writeIndexingConcurrency int
 
 	metrics mutableSegmentsMetrics
 	logger  *zap.Logger
@@ -99,6 +104,7 @@ func newMutableSegments(
 	blockStart time.Time,
 	opts Options,
 	blockOpts BlockOptions,
+	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager,
 	iopts instrument.Options,
 ) *mutableSegments {
 	m := &mutableSegments{
@@ -109,7 +115,30 @@ func newMutableSegments(
 		metrics:    newMutableSegmentsMetrics(iopts.MetricsScope()),
 		logger:     iopts.Logger(),
 	}
+	m.optsListener = namespaceRuntimeOptsMgr.RegisterListener(m)
 	return m
+}
+
+func (m *mutableSegments) SetNamespaceRuntimeOptions(opts namespace.RuntimeOptions) {
+	m.Lock()
+	// Update current runtime opts for segment builders created in future.
+	perCPUFraction := opts.WriteIndexingPerCPUConcurrencyOrDefault()
+	cpus := math.Ceil(perCPUFraction * float64(runtime.NumCPU()))
+	m.writeIndexingConcurrency = int(math.Max(1, cpus))
+	segmentBuilder := m.compact.segmentBuilder
+	m.Unlock()
+
+	// Reset any existing segment builder to new concurrency, do this
+	// out of the lock since builder can be used for foreground compaction
+	// outside the lock and does it's own locking.
+	if segmentBuilder != nil {
+		segmentBuilder.SetIndexConcurrency(m.writeIndexingConcurrency)
+	}
+
+	// Set the global concurrency control we have (we may need to fork
+	// github.com/twotwotwo/sorts to control this on a per segment builder
+	// basis).
+	builder.SetSortConcurrency(m.writeIndexingConcurrency)
 }
 
 func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
@@ -122,8 +151,10 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 		m.Unlock()
 		return errUnableToWriteBlockConcurrent
 	}
-	// Lazily allocate the segment builder and compactors
-	err := m.compact.allocLazyBuilderAndCompactors(m.blockOpts, m.opts)
+
+	// Lazily allocate the segment builder and compactors.
+	err := m.compact.allocLazyBuilderAndCompactorsWithLock(m.writeIndexingConcurrency,
+		m.blockOpts, m.opts)
 	if err != nil {
 		m.Unlock()
 		return err
@@ -162,23 +193,33 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 	return insertResultErr
 }
 
-func (m *mutableSegments) AddReaders(readers []m3ninxindex.Reader) ([]m3ninxindex.Reader, error) {
+func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader, error) {
 	m.RLock()
 	defer m.RUnlock()
 
-	for _, segs := range [][]*readableSeg{
-		m.foregroundSegments,
-		m.backgroundSegments,
-	} {
-		for _, seg := range segs {
-			reader, err := seg.Segment().Reader()
-			if err != nil {
-				return nil, err
-			}
-			readers = append(readers, reader)
-		}
+	var err error
+	readers, err = m.addReadersWithLock(m.foregroundSegments, readers)
+	if err != nil {
+		return nil, err
 	}
+
+	readers, err = m.addReadersWithLock(m.backgroundSegments, readers)
+	if err != nil {
+		return nil, err
+	}
+
 	return readers, nil
+}
+
+func (m *mutableSegments) addReadersWithLock(src []*readableSeg, dst []segment.Reader) ([]segment.Reader, error) {
+	for _, seg := range src {
+		reader, err := seg.Segment().Reader()
+		if err != nil {
+			return nil, err
+		}
+		dst = append(dst, reader)
+	}
+	return dst, nil
 }
 
 func (m *mutableSegments) Len() int {
@@ -186,20 +227,6 @@ func (m *mutableSegments) Len() int {
 	defer m.RUnlock()
 
 	return len(m.foregroundSegments) + len(m.backgroundSegments)
-}
-
-func (m *mutableSegments) AddSegments(segments []segment.Segment) []segment.Segment {
-	m.RLock()
-	defer m.RUnlock()
-
-	// Add foreground & background segments.
-	for _, seg := range m.foregroundSegments {
-		segments = append(segments, seg.Segment())
-	}
-	for _, seg := range m.backgroundSegments {
-		segments = append(segments, seg.Segment())
-	}
-	return segments
 }
 
 func (m *mutableSegments) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
@@ -243,14 +270,10 @@ func (m *mutableSegments) NeedsEviction() bool {
 	return needsEviction
 }
 
-func (m *mutableSegments) Evict() {
-	m.Lock()
-	defer m.Unlock()
-	m.hasEvictedAnyTimes = true
-	m.cleanupCompactWithLock()
-}
-
 func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
+	m.RLock()
+	defer m.RUnlock()
+
 	var (
 		numSegments, numDocs int64
 	)
@@ -266,6 +289,9 @@ func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 }
 
 func (m *mutableSegments) Stats(reporter BlockStatsReporter) {
+	m.RLock()
+	defer m.RUnlock()
+
 	for _, seg := range m.foregroundSegments {
 		_, mutable := seg.Segment().(segment.MutableSegment)
 		reporter.ReportSegmentStats(BlockSegmentStats{
@@ -284,6 +310,10 @@ func (m *mutableSegments) Stats(reporter BlockStatsReporter) {
 			Size:    seg.Segment().Size(),
 		})
 	}
+
+	reporter.ReportIndexingStats(BlockIndexingStats{
+		IndexConcurrency: m.writeIndexingConcurrency,
+	})
 }
 
 func (m *mutableSegments) Close() {
@@ -291,6 +321,7 @@ func (m *mutableSegments) Close() {
 	defer m.Unlock()
 	m.state = mutableSegmentsStateClosed
 	m.cleanupCompactWithLock()
+	m.optsListener.Close()
 }
 
 func (m *mutableSegments) maybeBackgroundCompactWithLock() {
@@ -334,12 +365,7 @@ func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 }
 
 func (m *mutableSegments) shouldEvictCompactedSegmentsWithLock() bool {
-	// NB(r): The frozen/compacted segments are derived segments of the
-	// active mutable segment, if we ever evict that segment then
-	// we don't need the frozen/compacted segments either and should
-	// shed them from memory.
-	return m.state == mutableSegmentsStateClosed ||
-		m.hasEvictedAnyTimes
+	return m.state == mutableSegmentsStateClosed
 }
 
 func (m *mutableSegments) cleanupBackgroundCompactWithLock() {
@@ -350,13 +376,13 @@ func (m *mutableSegments) cleanupBackgroundCompactWithLock() {
 	}
 
 	// Check if need to close all the compacted segments due to
-	// having evicted mutable segments or the block being closed.
+	// mutableSegments being closed.
 	if !m.shouldEvictCompactedSegmentsWithLock() {
 		return
 	}
 
-	// Evict compacted segments.
-	m.closeCompactedSegments(m.backgroundSegments)
+	// Close compacted segments.
+	m.closeCompactedSegmentsWithLock(m.backgroundSegments)
 	m.backgroundSegments = nil
 
 	// Free compactor resources.
@@ -372,7 +398,7 @@ func (m *mutableSegments) cleanupBackgroundCompactWithLock() {
 	m.compact.backgroundCompactor = nil
 }
 
-func (m *mutableSegments) closeCompactedSegments(segments []*readableSeg) {
+func (m *mutableSegments) closeCompactedSegmentsWithLock(segments []*readableSeg) {
 	for _, seg := range segments {
 		err := seg.Segment().Close()
 		if err != nil {
@@ -452,18 +478,29 @@ func (m *mutableSegments) backgroundCompactWithTask(
 		return err
 	}
 
+	// Add a read through cache for repeated expensive queries against
+	// background compacted segments since they can live for quite some
+	// time and accrue a large set of documents.
+	if immSeg, ok := compacted.(segment.ImmutableSegment); ok {
+		var (
+			plCache         = m.opts.PostingsListCache()
+			readThroughOpts = m.opts.ReadThroughSegmentOptions()
+		)
+		compacted = NewReadThroughSegment(immSeg, plCache, readThroughOpts)
+	}
+
 	// Rotate out the replaced frozen segments and add the compacted one.
 	m.Lock()
 	defer m.Unlock()
 
-	result := m.addCompactedSegmentFromSegments(m.backgroundSegments,
+	result := m.addCompactedSegmentFromSegmentsWithLock(m.backgroundSegments,
 		segments, compacted)
 	m.backgroundSegments = result
 
 	return nil
 }
 
-func (m *mutableSegments) addCompactedSegmentFromSegments(
+func (m *mutableSegments) addCompactedSegmentFromSegmentsWithLock(
 	current []*readableSeg,
 	segmentsJustCompacted []segment.Segment,
 	compacted segment.Segment,
@@ -677,7 +714,7 @@ func (m *mutableSegments) foregroundCompactWithTask(
 	m.Lock()
 	defer m.Unlock()
 
-	result := m.addCompactedSegmentFromSegments(m.foregroundSegments,
+	result := m.addCompactedSegmentFromSegmentsWithLock(m.foregroundSegments,
 		segments, compacted)
 	m.foregroundSegments = result
 
@@ -685,14 +722,14 @@ func (m *mutableSegments) foregroundCompactWithTask(
 }
 
 func (m *mutableSegments) cleanupForegroundCompactWithLock() {
-	// Check if we need to close all the compacted segments due to
-	// having evicted mutable segments or the block being closed.
+	// Check if need to close all the compacted segments due to
+	// mutableSegments being closed.
 	if !m.shouldEvictCompactedSegmentsWithLock() {
 		return
 	}
 
-	// Evict compacted segments.
-	m.closeCompactedSegments(m.foregroundSegments)
+	// Close compacted segments.
+	m.closeCompactedSegmentsWithLock(m.foregroundSegments)
 	m.foregroundSegments = nil
 
 	// Free compactor resources.
@@ -738,7 +775,8 @@ type mutableSegmentsCompact struct {
 	numBackground        int
 }
 
-func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactors(
+func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactorsWithLock(
+	concurrency int,
 	blockOpts BlockOptions,
 	opts Options,
 ) error {
@@ -747,7 +785,10 @@ func (m *mutableSegmentsCompact) allocLazyBuilderAndCompactors(
 		docsPool = opts.DocumentArrayPool()
 	)
 	if m.segmentBuilder == nil {
-		m.segmentBuilder, err = builder.NewBuilderFromDocuments(opts.SegmentBuilderOptions())
+		builderOpts := opts.SegmentBuilderOptions().
+			SetConcurrency(concurrency)
+
+		m.segmentBuilder, err = builder.NewBuilderFromDocuments(builderOpts)
 		if err != nil {
 			return err
 		}

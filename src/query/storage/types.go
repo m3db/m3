@@ -31,6 +31,8 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -111,8 +113,12 @@ type FetchQuery struct {
 type FetchOptions struct {
 	// Remote is set when this fetch is originated by a remote grpc call.
 	Remote bool
-	// Limit is the maximum number of series to return.
-	Limit int
+	// SeriesLimit is the maximum number of series to return.
+	SeriesLimit int
+	// DocsLimit is the maximum number of docs to return.
+	DocsLimit int
+	// RequireExhaustive results in an error if the query exceeds the series limit.
+	RequireExhaustive bool
 	// BlockType is the block type that the fetch function returns.
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.
@@ -165,7 +171,7 @@ const (
 // RestrictByType are specific restrictions to stick to a single data type.
 type RestrictByType struct {
 	// MetricsType restricts the type of metrics being returned.
-	MetricsType MetricsType
+	MetricsType storagemetadata.MetricsType
 	// StoragePolicy is required if metrics type is not unaggregated
 	// to specify which storage policy metrics should be returned from.
 	StoragePolicy policy.StoragePolicy
@@ -225,7 +231,7 @@ type Querier interface {
 		ctx context.Context,
 		query *CompleteTagsQuery,
 		options *FetchOptions,
-	) (*CompleteTagsResult, error)
+	) (*consolidators.CompleteTagsResult, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the database.
@@ -244,7 +250,7 @@ type WriteQueryOptions struct {
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
 	Annotation []byte
-	Attributes Attributes
+	Attributes storagemetadata.Attributes
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
@@ -283,36 +289,6 @@ func (q *CompleteTagsQuery) String() string {
 	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
 }
 
-// CompletedTag represents a tag retrieved by a complete tags query.
-type CompletedTag struct {
-	// Name the name of the tag.
-	Name []byte
-	// Values is a set of possible values for the tag.
-	// NB: if the parent CompleteTagsResult is set to CompleteNameOnly, this is
-	// expected to be empty.
-	Values [][]byte
-}
-
-// CompleteTagsResult represents a set of autocompleted tag names and values
-type CompleteTagsResult struct {
-	// CompleteNameOnly indicates if the tags in this result are expected to have
-	// both names and values, or only names.
-	CompleteNameOnly bool
-	// CompletedTag is a list of completed tags.
-	CompletedTags []CompletedTag
-	// Metadata describes any metadata for the operation.
-	Metadata block.ResultMetadata
-}
-
-// CompleteTagsResultBuilder is a builder that accumulates and deduplicates
-// incoming CompleteTagsResult values.
-type CompleteTagsResultBuilder interface {
-	// Add appends an incoming CompleteTagsResult.
-	Add(*CompleteTagsResult) error
-	// Build builds a completed tag result.
-	Build() CompleteTagsResult
-}
-
 // Appender provides batched appends against a storage.
 type Appender interface {
 	// Write writes a batched set of datapoints to storage based on the provided
@@ -343,36 +319,4 @@ type PromResult struct {
 	PromResult *prompb.QueryResult
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
-}
-
-// MetricsType is a type of stored metrics.
-type MetricsType uint
-
-const (
-	// UnknownMetricsType is the unknown metrics type and is invalid.
-	UnknownMetricsType MetricsType = iota
-	// UnaggregatedMetricsType is an unaggregated metrics type.
-	UnaggregatedMetricsType
-	// AggregatedMetricsType is an aggregated metrics type.
-	AggregatedMetricsType
-
-	// DefaultMetricsType is the default metrics type value.
-	DefaultMetricsType = UnaggregatedMetricsType
-)
-
-// Attributes is a set of stored metrics attributes.
-type Attributes struct {
-	// MetricsType indicates the type of namespace this metric originated from.
-	MetricsType MetricsType
-	// Retention indicates the retention of the namespace this metric originated
-	// from.
-	Retention time.Duration
-	// Resolution indicates the retention of the namespace this metric originated
-	// from.
-	Resolution time.Duration
-}
-
-// Validate validates a storage attributes.
-func (a Attributes) Validate() error {
-	return ValidateMetricsType(a.MetricsType)
 }

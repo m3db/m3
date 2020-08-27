@@ -36,15 +36,19 @@ var (
 
 // NewMutableSegmentFileSetWriter returns a new IndexSegmentFileSetWriter for writing
 // out the provided Mutable Segment.
-func NewMutableSegmentFileSetWriter() (MutableSegmentFileSetWriter, error) {
-	w, err := fst.NewWriter(fst.WriterOptions{})
+func NewMutableSegmentFileSetWriter(
+	fstOpts fst.WriterOptions,
+) (MutableSegmentFileSetWriter, error) {
+	w, err := fst.NewWriter(fstOpts)
 	if err != nil {
 		return nil, err
 	}
 	return newMutableSegmentFileSetWriter(w)
 }
 
-func newMutableSegmentFileSetWriter(fsWriter fst.Writer) (MutableSegmentFileSetWriter, error) {
+func newMutableSegmentFileSetWriter(
+	fsWriter fst.Writer,
+) (MutableSegmentFileSetWriter, error) {
 	return &writer{
 		fsWriter: fsWriter,
 	}, nil

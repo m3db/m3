@@ -59,3 +59,8 @@ message ForwardedMetric {
   int64 time_nanos = 3;
   repeated double values = 4;
 }
+
+message Tag {
+  bytes name = 1;
+  bytes value = 2;
+}

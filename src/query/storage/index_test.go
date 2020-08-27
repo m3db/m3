@@ -72,15 +72,6 @@ func TestFromM3IdentToMetric(t *testing.T) {
 	assert.Equal(t, name, metric.Tags.Opts.MetricName())
 }
 
-func TestFromIdentTagIteratorToTags(t *testing.T) {
-	tagIters := makeTagIter()
-	tags, err := FromIdentTagIteratorToTags(tagIters, nil)
-	require.NoError(t, err)
-	require.Equal(t, len(testTags), tags.Len())
-	assert.Equal(t, testTags, tags.Tags)
-	assert.Equal(t, []byte("__name__"), tags.Opts.MetricName())
-}
-
 func TestFetchQueryToM3Query(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -121,13 +112,24 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			},
 		},
 		{
-			name:     "regexp match -> field",
-			expected: "field(t1)",
+			name:     "regexp match dot star -> all",
+			expected: "all()",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchRegexp,
 					Name:  []byte("t1"),
 					Value: []byte(".*"),
+				},
+			},
+		},
+		{
+			name:     "regexp match dot plus -> field",
+			expected: "field(t1)",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".+"),
 				},
 			},
 		},
@@ -144,7 +146,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 		},
 		{
 			name:     "regexp match negated",
-			expected: "negation(field(t1))",
+			expected: "negation(all())",
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchNotRegexp,
@@ -189,6 +191,50 @@ func TestFetchQueryToM3Query(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "regexp match dot star with trailing characters -> regex",
+			expected: "regexp(t1, .*foo)",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".*foo"),
+				},
+			},
+		},
+		{
+			name:     "regexp match dot plus with trailing characters -> regex",
+			expected: "regexp(t1, .+foo)",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".+foo"),
+				},
+			},
+		},
+		{
+			name:     "not regexp match dot star with trailing characters -> regex",
+			expected: "negation(regexp(t1, .*foo))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".*foo"),
+				},
+			},
+		},
+		{
+			name:     "not regexp match dot plus with trailing characters -> regex",
+			expected: "negation(regexp(t1, .+foo))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotRegexp,
+					Name:  []byte("t1"),
+					Value: []byte(".+foo"),
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -210,7 +256,7 @@ func TestFetchQueryToM3Query(t *testing.T) {
 
 func TestFetchOptionsToAggregateOptions(t *testing.T) {
 	fetchOptions := &FetchOptions{
-		Limit: 7,
+		SeriesLimit: 7,
 	}
 
 	end := time.Now()

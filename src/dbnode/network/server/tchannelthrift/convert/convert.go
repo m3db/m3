@@ -219,11 +219,15 @@ func FromRPCFetchTaggedRequest(
 	}
 
 	opts := index.QueryOptions{
-		StartInclusive: start,
-		EndExclusive:   end,
+		StartInclusive:    start,
+		EndExclusive:      end,
+		RequireExhaustive: req.RequireExhaustive,
 	}
 	if l := req.Limit; l != nil {
-		opts.Limit = int(*l)
+		opts.SeriesLimit = int(*l)
+	}
+	if l := req.DocsLimit; l != nil {
+		opts.DocsLimit = int(*l)
 	}
 
 	q, err := idx.Unmarshal(req.Query)
@@ -264,16 +268,22 @@ func ToRPCFetchTaggedRequest(
 	}
 
 	request := rpc.FetchTaggedRequest{
-		NameSpace:  ns.Bytes(),
-		RangeStart: rangeStart,
-		RangeEnd:   rangeEnd,
-		FetchData:  fetchData,
-		Query:      query,
+		NameSpace:         ns.Bytes(),
+		RangeStart:        rangeStart,
+		RangeEnd:          rangeEnd,
+		FetchData:         fetchData,
+		Query:             query,
+		RequireExhaustive: opts.RequireExhaustive,
 	}
 
-	if opts.Limit > 0 {
-		l := int64(opts.Limit)
+	if opts.SeriesLimit > 0 {
+		l := int64(opts.SeriesLimit)
 		request.Limit = &l
+	}
+
+	if opts.DocsLimit > 0 {
+		l := int64(opts.DocsLimit)
+		request.DocsLimit = &l
 	}
 
 	return request, nil
@@ -300,7 +310,7 @@ func FromRPCAggregateQueryRequest(
 		},
 	}
 	if l := req.Limit; l != nil {
-		opts.Limit = int(*l)
+		opts.SeriesLimit = int(*l)
 	}
 
 	query, err := FromRPCQuery(req.Query)
@@ -345,7 +355,7 @@ func FromRPCAggregateQueryRawRequest(
 		},
 	}
 	if l := req.Limit; l != nil {
-		opts.Limit = int(*l)
+		opts.SeriesLimit = int(*l)
 	}
 
 	query, err := idx.Unmarshal(req.Query)
@@ -392,8 +402,8 @@ func ToRPCAggregateQueryRawRequest(
 		RangeEnd:   rangeEnd,
 	}
 
-	if opts.Limit > 0 {
-		l := int64(opts.Limit)
+	if opts.SeriesLimit > 0 {
+		l := int64(opts.SeriesLimit)
 		request.Limit = &l
 	}
 
@@ -498,6 +508,11 @@ func (w *writeTaggedIter) Duplicate() ident.TagIterator {
 		rawRequest: w.rawRequest,
 		currentIdx: -1,
 	}
+}
+
+func (w *writeTaggedIter) Rewind() {
+	w.release()
+	w.currentIdx = -1
 }
 
 // FromRPCQuery will create a m3ninx index query from an RPC query.

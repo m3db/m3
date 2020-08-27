@@ -101,7 +101,7 @@ func generateSeriesMaps(numBlocks int, updateConfig generate.UpdateBlockConfig, 
 
 func writeCommitLogData(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -112,7 +112,7 @@ func writeCommitLogData(
 
 func writeCommitLogDataSpecifiedTS(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -124,7 +124,7 @@ func writeCommitLogDataSpecifiedTS(
 
 func writeCommitLogDataWithPredicate(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -135,7 +135,7 @@ func writeCommitLogDataWithPredicate(
 
 func writeCommitLogDataBase(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace namespace.Metadata,
@@ -151,16 +151,18 @@ func writeCommitLogDataBase(
 		t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
 
 	var (
-		seriesLookup = newCommitLogSeriesStates(data)
-		shardSet     = s.shardSet
+		seriesLookup   = newCommitLogSeriesStates(data)
+		shardSet       = s.ShardSet()
+		tagEncoderPool = opts.FilesystemOptions().TagEncoderPool()
+		tagSliceIter   = ident.NewTagsIterator(ident.Tags{})
 	)
 
 	// Write out commit log data.
 	for currTs, blk := range data {
 		if specifiedTS != nil {
-			s.setNowFn(*specifiedTS)
+			s.SetNowFn(*specifiedTS)
 		} else {
-			s.setNowFn(currTs.ToTime())
+			s.SetNowFn(currTs.ToTime())
 		}
 		ctx := context.NewContext()
 		defer ctx.Close()
@@ -182,11 +184,21 @@ func writeCommitLogDataBase(
 		for _, point := range points {
 			series, ok := seriesLookup[point.ID.String()]
 			require.True(t, ok)
+
+			tagSliceIter.Reset(series.tags)
+
+			tagEncoder := tagEncoderPool.Get()
+			err := tagEncoder.Encode(tagSliceIter)
+			require.NoError(t, err)
+
+			encodedTagsChecked, ok := tagEncoder.Data()
+			require.True(t, ok)
+
 			cID := ts.Series{
 				Namespace:   namespace.ID(),
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,
-				Tags:        series.tags,
+				EncodedTags: ts.EncodedTags(encodedTagsChecked.Bytes()),
 				UniqueIndex: series.uniqueIndex,
 			}
 			if pred(point.Value) {
@@ -201,7 +213,7 @@ func writeCommitLogDataBase(
 
 func writeSnapshotsWithPredicate(
 	t *testing.T,
-	s *testSetup,
+	s TestSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	volume int,

@@ -178,7 +178,8 @@ func TestPostingsListCacheDoesNotAffectBlockQueryResults(t *testing.T) {
 }
 
 func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metadata, opts Options) (Block, error) {
-	blk, err := NewBlock(blockStart, nsMeta, BlockOptions{}, opts)
+	blk, err := NewBlock(blockStart, nsMeta, BlockOptions{},
+		namespace.NewRuntimeOptionsManager(nsMeta.ID().String()), opts)
 	require.NoError(t, err)
 
 	var (
@@ -188,7 +189,7 @@ func newPropTestBlock(t *testing.T, blockStart time.Time, nsMeta namespace.Metad
 		fulfilled              = result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(testBlockSize), uint32(1))
 		indexBlockByVolumeType = result.NewIndexBlockByVolumeType(blockStart)
 	)
-	indexBlockByVolumeType.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{fstSeg}, fulfilled))
+	indexBlockByVolumeType.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]result.Segment{result.NewSegment(fstSeg, false)}, fulfilled))
 
 	// Use the AddResults API because thats the only scenario in which we'll wrap a segment
 	// in a ReadThroughSegment to use the postings list cache.

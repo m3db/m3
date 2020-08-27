@@ -29,6 +29,7 @@ import (
 	"reflect"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 
 	"github.com/golang/mock/gomock"
 )
@@ -71,10 +72,10 @@ func (mr *MockStorageMockRecorder) Close() *gomock.Call {
 }
 
 // CompleteTags mocks base method
-func (m *MockStorage) CompleteTags(arg0 context.Context, arg1 *CompleteTagsQuery, arg2 *FetchOptions) (*CompleteTagsResult, error) {
+func (m *MockStorage) CompleteTags(arg0 context.Context, arg1 *CompleteTagsQuery, arg2 *FetchOptions) (*consolidators.CompleteTagsResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CompleteTags", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*CompleteTagsResult)
+	ret0, _ := ret[0].(*consolidators.CompleteTagsResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

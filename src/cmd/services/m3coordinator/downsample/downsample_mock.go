@@ -116,23 +116,23 @@ func (mr *MockMetricsAppenderMockRecorder) Finalize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockMetricsAppender)(nil).Finalize))
 }
 
-// Reset mocks base method
-func (m *MockMetricsAppender) Reset() {
+// NextMetric mocks base method
+func (m *MockMetricsAppender) NextMetric() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset")
+	m.ctrl.Call(m, "NextMetric")
 }
 
-// Reset indicates an expected call of Reset
-func (mr *MockMetricsAppenderMockRecorder) Reset() *gomock.Call {
+// NextMetric indicates an expected call of NextMetric
+func (mr *MockMetricsAppenderMockRecorder) NextMetric() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMetricsAppender)(nil).Reset))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NextMetric", reflect.TypeOf((*MockMetricsAppender)(nil).NextMetric))
 }
 
 // SamplesAppender mocks base method
-func (m *MockMetricsAppender) SamplesAppender(arg0 SampleAppenderOptions) (SamplesAppender, error) {
+func (m *MockMetricsAppender) SamplesAppender(arg0 SampleAppenderOptions) (SamplesAppenderResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SamplesAppender", arg0)
-	ret0, _ := ret[0].(SamplesAppender)
+	ret0, _ := ret[0].(SamplesAppenderResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -220,4 +220,18 @@ func (m *MockSamplesAppender) AppendGaugeTimedSample(arg0 time.Time, arg1 float6
 func (mr *MockSamplesAppenderMockRecorder) AppendGaugeTimedSample(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendGaugeTimedSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendGaugeTimedSample), arg0, arg1)
+}
+
+// AppendTimerTimedSample mocks base method
+func (m *MockSamplesAppender) AppendTimerTimedSample(arg0 time.Time, arg1 float64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppendTimerTimedSample", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AppendTimerTimedSample indicates an expected call of AppendTimerTimedSample
+func (mr *MockSamplesAppenderMockRecorder) AppendTimerTimedSample(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendTimerTimedSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendTimerTimedSample), arg0, arg1)
 }

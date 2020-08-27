@@ -65,8 +65,9 @@ type seeker struct {
 
 	// Data read from the indexInfo file. Note that we use xtime.UnixNano
 	// instead of time.Time to avoid keeping an extra pointer around.
-	start     xtime.UnixNano
-	blockSize time.Duration
+	start          xtime.UnixNano
+	blockSize      time.Duration
+	versionChecker schema.VersionChecker
 
 	dataFd        *os.File
 	indexFd       *os.File
@@ -85,10 +86,10 @@ type seeker struct {
 // IndexEntry is an entry from the index file which can be passed to
 // SeekUsingIndexEntry to seek to the data for that entry
 type IndexEntry struct {
-	Size        uint32
-	Checksum    uint32
-	Offset      int64
-	EncodedTags checked.Bytes
+	Size         uint32
+	DataChecksum uint32
+	Offset       int64
+	EncodedTags  checked.Bytes
 }
 
 // NewSeeker returns a new seeker.
@@ -224,6 +225,7 @@ func (s *seeker) Open(
 	}
 	s.start = xtime.UnixNano(info.BlockStart)
 	s.blockSize = time.Duration(info.BlockSize)
+	s.versionChecker = schema.NewVersionChecker(int(info.MajorVersion), int(info.MinorVersion))
 
 	err = s.validateIndexFileDigest(
 		indexFdWithDigest, expectedDigests.indexDigest)
@@ -363,7 +365,7 @@ func (s *seeker) SeekByIndexEntry(
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if entry.Checksum != digest.Checksum(underlyingBuf) {
+	if entry.DataChecksum != digest.Checksum(underlyingBuf) {
 		return nil, errSeekChecksumMismatch
 	}
 
@@ -403,8 +405,7 @@ func (s *seeker) SeekIndexEntry(
 		// this is a tight loop (scanning linearly through the index file) we want to use a
 		// very cheap pool until we find what we're looking for, and then we can perform a single
 		// copy into checked.Bytes from the more expensive pool.
-		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(
-			resources.decodeIndexEntryBytesPool)
+		entry, err := resources.xmsgpackDecoder.DecodeIndexEntry(resources.decodeIndexEntryBytesPool)
 		if err == io.EOF {
 			// We reached the end of the file without finding it.
 			return IndexEntry{}, errSeekIDNotFound
@@ -434,10 +435,10 @@ func (s *seeker) SeekIndexEntry(
 			}
 
 			indexEntry := IndexEntry{
-				Size:        uint32(entry.Size),
-				Checksum:    uint32(entry.Checksum),
-				Offset:      entry.Offset,
-				EncodedTags: checkedEncodedTags,
+				Size:         uint32(entry.Size),
+				DataChecksum: uint32(entry.DataChecksum),
+				Offset:       entry.Offset,
+				EncodedTags:  checkedEncodedTags,
 			}
 
 			// Safe to return resources to the pool because ID will not be
@@ -510,6 +511,8 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		// they are concurrency safe and can be shared among clones.
 		indexFd: s.indexFd,
 		dataFd:  s.dataFd,
+
+		versionChecker: s.versionChecker,
 	}
 
 	return seeker, nil
@@ -519,6 +522,12 @@ func (s *seeker) validateIndexFileDigest(
 	indexFdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
 ) error {
+	// If piecemeal checksumming validation enabled for index entries, do not attempt to validate the
+	// checksum of the entire file
+	if s.versionChecker.IndexEntryValidationEnabled() {
+		return nil
+	}
+
 	buf := make([]byte, s.opts.dataBufferSize)
 	for {
 		n, err := indexFdWithDigest.Read(buf)

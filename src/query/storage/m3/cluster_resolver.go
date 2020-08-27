@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 )
 
 type unaggregatedNamespaceType uint8
@@ -77,7 +79,7 @@ func resolveClusterNamespacesForQuery(
 	clusters Clusters,
 	opts *storage.FanoutOptions,
 	restrict *storage.RestrictQueryOptions,
-) (queryFanoutType, ClusterNamespaces, error) {
+) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
 	if typeRestrict := restrict.GetRestrictByType(); typeRestrict != nil {
 		// If a specific restriction is set, then attempt to satisfy.
 		return resolveClusterNamespacesForQueryWithRestrictQueryOptions(now,
@@ -90,18 +92,18 @@ func resolveClusterNamespacesForQuery(
 	unaggregated := resolveUnaggregatedNamespaceForQuery(now, start,
 		clusters.UnaggregatedClusterNamespace(), opts)
 	if unaggregated.satisfies == fullySatisfiesRange {
-		return namespaceCoversAllQueryRange,
+		return consolidators.NamespaceCoversAllQueryRange,
 			ClusterNamespaces{unaggregated.clusterNamespace},
 			nil
 	}
 
 	if opts.FanoutAggregated == storage.FanoutForceDisable {
 		if unaggregated.satisfies == partiallySatisfiesRange {
-			return namespaceCoversPartialQueryRange,
+			return consolidators.NamespaceCoversPartialQueryRange,
 				ClusterNamespaces{unaggregated.clusterNamespace}, nil
 		}
 
-		return namespaceInvalid, nil, errUnaggregatedAndAggregatedDisabled
+		return consolidators.NamespaceInvalid, nil, errUnaggregatedAndAggregatedDisabled
 	}
 
 	// The filter function will drop namespaces which do not cover the entire
@@ -135,7 +137,7 @@ func resolveClusterNamespacesForQuery(
 			}
 		}
 
-		return namespaceCoversAllQueryRange, result, nil
+		return consolidators.NamespaceCoversAllQueryRange, result, nil
 	}
 
 	// No complete aggregated namespaces can definitely fulfill the query,
@@ -159,12 +161,12 @@ func resolveClusterNamespacesForQuery(
 		// range, set query fanout type to namespaceCoversPartialQueryRange.
 		for _, n := range result {
 			if !coversRangeFilter(n) {
-				return namespaceCoversPartialQueryRange, result, nil
+				return consolidators.NamespaceCoversPartialQueryRange, result, nil
 			}
 		}
 
 		// Otherwise, all namespaces cover the query range.
-		return namespaceCoversAllQueryRange, result, nil
+		return consolidators.NamespaceCoversAllQueryRange, result, nil
 	}
 
 	// Return the longest retention aggregated namespace and
@@ -200,7 +202,7 @@ func resolveClusterNamespacesForQuery(
 		}
 	}
 
-	return namespaceCoversPartialQueryRange, result, nil
+	return consolidators.NamespaceCoversPartialQueryRange, result, nil
 }
 
 type reusedAggregatedNamespaceSlices struct {
@@ -255,7 +257,7 @@ func aggregatedNamespaces(
 	// have all the data).
 	for _, namespace := range all {
 		nsOpts := namespace.Options()
-		if nsOpts.Attributes().MetricsType != storage.AggregatedMetricsType {
+		if nsOpts.Attributes().MetricsType != storagemetadata.AggregatedMetricsType {
 			// Not an aggregated cluster.
 			continue
 		}
@@ -302,7 +304,7 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 	now, start time.Time,
 	clusters Clusters,
 	restrict storage.RestrictByType,
-) (queryFanoutType, ClusterNamespaces, error) {
+) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
 	coversRangeFilter := newCoversRangeFilter(coversRangeFilterOptions{
 		now:        now,
 		queryStart: start,
@@ -311,24 +313,24 @@ func resolveClusterNamespacesForQueryWithRestrictQueryOptions(
 	result := func(
 		namespace ClusterNamespace,
 		err error,
-	) (queryFanoutType, ClusterNamespaces, error) {
+	) (consolidators.QueryFanoutType, ClusterNamespaces, error) {
 		if err != nil {
 			return 0, nil, err
 		}
 
 		if coversRangeFilter(namespace) {
-			return namespaceCoversAllQueryRange,
+			return consolidators.NamespaceCoversAllQueryRange,
 				ClusterNamespaces{namespace}, nil
 		}
 
-		return namespaceCoversPartialQueryRange,
+		return consolidators.NamespaceCoversPartialQueryRange,
 			ClusterNamespaces{namespace}, nil
 	}
 
 	switch restrict.MetricsType {
-	case storage.UnaggregatedMetricsType:
+	case storagemetadata.UnaggregatedMetricsType:
 		return result(clusters.UnaggregatedClusterNamespace(), nil)
-	case storage.AggregatedMetricsType:
+	case storagemetadata.AggregatedMetricsType:
 		ns, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
 			Retention:  restrict.StoragePolicy.Retention().Duration(),
 			Resolution: restrict.StoragePolicy.Resolution().Window,

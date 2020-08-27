@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -93,7 +94,7 @@ func (mr *MockCommitLogMockRecorder) Write(ctx, series, datapoint, unit, annotat
 }
 
 // WriteBatch mocks base method
-func (m *MockCommitLog) WriteBatch(ctx context.Context, writes ts.WriteBatch) error {
+func (m *MockCommitLog) WriteBatch(ctx context.Context, writes writes.WriteBatch) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, writes)
 	ret0, _ := ret[0].(error)

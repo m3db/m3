@@ -66,6 +66,37 @@ func PromLabelsToM3Tags(
 	return tags.AddTags(tagList)
 }
 
+// PromTimeSeriesToSeriesAttributes extracts the series info from a prometheus
+// timeseries.
+func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
+	var (
+		sourceType ts.SourceType
+		metricType ts.MetricType
+	)
+	switch series.Source {
+	case prompb.Source_PROMETHEUS:
+		sourceType = ts.SourceTypePrometheus
+	case prompb.Source_GRAPHITE:
+		sourceType = ts.SourceTypeGraphite
+	default:
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid source type %v", series.Source)
+	}
+	switch series.Type {
+	case prompb.Type_COUNTER:
+		metricType = ts.MetricTypeCounter
+	case prompb.Type_GAUGE:
+		metricType = ts.MetricTypeGauge
+	case prompb.Type_TIMER:
+		metricType = ts.MetricTypeTimer
+	default:
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type %v", series.Type)
+	}
+	return ts.SeriesAttributes{
+		Type:   metricType,
+		Source: sourceType,
+	}, nil
+}
+
 // PromSamplesToM3Datapoints converts Prometheus samples to M3 datapoints
 func PromSamplesToM3Datapoints(samples []prompb.Sample) ts.Datapoints {
 	datapoints := make(ts.Datapoints, 0, len(samples))
@@ -84,10 +115,17 @@ func PromReadQueryToM3(query *prompb.Query) (*FetchQuery, error) {
 		return nil, err
 	}
 
+	start := PromTimestampToTime(query.StartTimestampMs)
+	end := PromTimestampToTime(query.EndTimestampMs)
+	if start.After(end) {
+		start = time.Time{}
+		end = time.Now()
+	}
+
 	return &FetchQuery{
 		TagMatchers: tagMatchers,
-		Start:       PromTimestampToTime(query.StartTimestampMs),
-		End:         PromTimestampToTime(query.EndTimestampMs),
+		Start:       start,
+		End:         end,
 	}, nil
 }
 

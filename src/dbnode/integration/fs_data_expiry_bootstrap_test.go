@@ -28,12 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
-	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 
 	"github.com/stretchr/testify/require"
 )
@@ -51,48 +46,27 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 			SetBufferFuture(2 * time.Minute).
 			SetBlockDataExpiry(true)
 		blockSize = ropts.BlockSize()
-		setup     *testSetup
+		setup     TestSetup
 		err       error
 	)
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
 
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
-	setup, err = newTestSetup(t, opts, nil)
+	setup, err = NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	log := setup.logger
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 
-	persistMgr, err := fs.NewPersistManager(fsOpts)
-	require.NoError(t, err)
-
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := result.NewOptions().
-		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
-	storageIdxOpts := setup.storageOpts.IndexOptions()
-	bfsOpts := bfs.NewOptions().
-		SetResultOptions(bsOpts).
-		SetIndexOptions(storageIdxOpts).
-		SetFilesystemOptions(fsOpts).
-		SetPersistManager(persistMgr).
-		SetCompactor(newCompactor(t, storageIdxOpts))
-	bs, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
-	require.NoError(t, err)
-	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(setup).
-		SetOrigin(setup.origin)
-	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
-	require.NoError(t, err)
-
-	setup.storageOpts = setup.storageOpts.
-		SetBootstrapProcessProvider(processProvider)
+	require.NoError(t, setup.InitializeBootstrappers(InitializeBootstrappersOptions{
+		WithFileSystem: true,
+	}))
 
 	// Write test data
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
 	})
@@ -100,12 +74,12 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 
 	// Start the server with filesystem bootstrapper
 	log.Debug("filesystem data expiry bootstrap test")
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 

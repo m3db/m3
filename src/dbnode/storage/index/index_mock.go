@@ -100,13 +100,28 @@ func (mr *MockBaseResultsMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockBaseResults)(nil).Size))
 }
 
+// TotalDocsCount mocks base method
+func (m *MockBaseResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockBaseResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockBaseResults)(nil).TotalDocsCount))
+}
+
 // AddDocuments mocks base method
-func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, error) {
+func (m *MockBaseResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // AddDocuments indicates an expected call of AddDocuments
@@ -178,13 +193,28 @@ func (mr *MockQueryResultsMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockQueryResults)(nil).Size))
 }
 
+// TotalDocsCount mocks base method
+func (m *MockQueryResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockQueryResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockQueryResults)(nil).TotalDocsCount))
+}
+
 // AddDocuments mocks base method
-func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, error) {
+func (m *MockQueryResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // AddDocuments indicates an expected call of AddDocuments
@@ -343,13 +373,28 @@ func (mr *MockAggregateResultsMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockAggregateResults)(nil).Size))
 }
 
+// TotalDocsCount mocks base method
+func (m *MockAggregateResults) TotalDocsCount() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TotalDocsCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TotalDocsCount indicates an expected call of TotalDocsCount
+func (mr *MockAggregateResultsMockRecorder) TotalDocsCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TotalDocsCount", reflect.TypeOf((*MockAggregateResults)(nil).TotalDocsCount))
+}
+
 // AddDocuments mocks base method
-func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, error) {
+func (m *MockAggregateResults) AddDocuments(batch []doc.Document) (int, int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocuments", batch)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // AddDocuments indicates an expected call of AddDocuments
@@ -397,11 +442,12 @@ func (mr *MockAggregateResultsMockRecorder) AggregateResultsOptions() *gomock.Ca
 }
 
 // AddFields mocks base method
-func (m *MockAggregateResults) AddFields(batch []AggregateResultsEntry) int {
+func (m *MockAggregateResults) AddFields(batch []AggregateResultsEntry) (int, int) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddFields", batch)
 	ret0, _ := ret[0].(int)
-	return ret0
+	ret1, _ := ret[1].(int)
+	return ret0, ret1
 }
 
 // AddFields indicates an expected call of AddFields
@@ -918,6 +964,18 @@ func (mr *MockBlockStatsReporterMockRecorder) ReportSegmentStats(stats interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportSegmentStats", reflect.TypeOf((*MockBlockStatsReporter)(nil).ReportSegmentStats), stats)
 }
 
+// ReportIndexingStats mocks base method
+func (m *MockBlockStatsReporter) ReportIndexingStats(stats BlockIndexingStats) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ReportIndexingStats", stats)
+}
+
+// ReportIndexingStats indicates an expected call of ReportIndexingStats
+func (mr *MockBlockStatsReporterMockRecorder) ReportIndexingStats(stats interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportIndexingStats", reflect.TypeOf((*MockBlockStatsReporter)(nil).ReportIndexingStats), stats)
+}
+
 // MockfieldsAndTermsIterator is a mock of fieldsAndTermsIterator interface
 type MockfieldsAndTermsIterator struct {
 	ctrl     *gomock.Controller
@@ -999,17 +1057,17 @@ func (mr *MockfieldsAndTermsIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockfieldsAndTermsIterator) Reset(seg segment.Segment, opts fieldsAndTermsIteratorOpts) error {
+func (m *MockfieldsAndTermsIterator) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Reset", seg, opts)
+	ret := m.ctrl.Call(m, "Reset", reader, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(seg, opts interface{}) *gomock.Call {
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(reader, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), seg, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), reader, opts)
 }
 
 // MockOptions is a mock of Options interface

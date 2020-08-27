@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
+	queryconsolidator "github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -50,18 +51,19 @@ var (
 )
 
 type encodedBlockOptions struct {
-	splitSeries      bool
-	lookbackDuration time.Duration
-	consolidationFn  consolidators.ConsolidationFunc
-	tagOptions       models.TagOptions
-	iterAlloc        encoding.ReaderIteratorAllocate
-	pools            encoding.IteratorPools
-	checkedPools     pool.CheckedBytesPool
-	readWorkerPools  xsync.PooledWorkerPool
-	writeWorkerPools xsync.PooledWorkerPool
-	batchingFn       IteratorBatchingFn
-	adminOptions     []client.CustomAdminOption
-	instrumented     bool
+	splitSeries                   bool
+	lookbackDuration              time.Duration
+	consolidationFn               consolidators.ConsolidationFunc
+	tagOptions                    models.TagOptions
+	iterAlloc                     encoding.ReaderIteratorAllocate
+	pools                         encoding.IteratorPools
+	checkedPools                  pool.CheckedBytesPool
+	readWorkerPools               xsync.PooledWorkerPool
+	writeWorkerPools              xsync.PooledWorkerPool
+	queryConsolidatorMatchOptions queryconsolidator.MatchOptions
+	batchingFn                    IteratorBatchingFn
+	adminOptions                  []client.CustomAdminOption
+	instrumented                  bool
 }
 
 type nextDetails struct {
@@ -98,6 +100,9 @@ func newOptions(
 		checkedPools:     bytesPool,
 		batchingFn:       defaultIteratorBatchingFn,
 		instrumented:     defaultInstrumented,
+		queryConsolidatorMatchOptions: queryconsolidator.MatchOptions{
+			MatchType: queryconsolidator.MatchIDs,
+		},
 	}
 }
 
@@ -189,6 +194,17 @@ func (o *encodedBlockOptions) SetWriteWorkerPool(p xsync.PooledWorkerPool) Optio
 
 func (o *encodedBlockOptions) WriteWorkerPool() xsync.PooledWorkerPool {
 	return o.writeWorkerPools
+}
+
+func (o *encodedBlockOptions) SetSeriesConsolidationMatchOptions(
+	value queryconsolidator.MatchOptions) Options {
+	opts := *o
+	opts.queryConsolidatorMatchOptions = value
+	return &opts
+}
+
+func (o *encodedBlockOptions) SeriesConsolidationMatchOptions() queryconsolidator.MatchOptions {
+	return o.queryConsolidatorMatchOptions
 }
 
 func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Options {

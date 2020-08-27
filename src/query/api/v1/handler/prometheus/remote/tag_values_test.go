@@ -34,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
@@ -101,8 +103,8 @@ func TestTagValues(t *testing.T) {
 		return now
 	}
 
-	fb := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetNowFn(nowFn).
@@ -131,9 +133,9 @@ func TestTagValues(t *testing.T) {
 			filterTag: tt.name,
 		}
 
-		storeResult := &storage.CompleteTagsResult{
+		storeResult := &consolidators.CompleteTagsResult{
 			CompleteNameOnly: false,
-			CompletedTags: []storage.CompletedTag{
+			CompletedTags: []consolidators.CompletedTag{
 				{
 					Name:   b(tt.name),
 					Values: bs("a", "b", "c", tt.name),
@@ -157,9 +159,8 @@ func TestTagValues(t *testing.T) {
 		ex := fmt.Sprintf(`{"status":"success","data":["a","b","c","%s"]}`, tt.name)
 		assert.Equal(t, ex, string(read))
 
-		warning := rr.Header().Get(handleroptions.LimitHeader)
-		exWarn := fmt.Sprintf("%s,foo_bar",
-			handleroptions.LimitHeaderSeriesLimitApplied)
+		warning := rr.Header().Get(headers.LimitHeader)
+		exWarn := fmt.Sprintf("%s,foo_bar", headers.LimitHeaderSeriesLimitApplied)
 		assert.Equal(t, exWarn, warning)
 	}
 }
@@ -175,8 +176,8 @@ func TestTagValueErrors(t *testing.T) {
 		return now
 	}
 
-	fb := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetNowFn(nowFn).

@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
-	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xidx "github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/context"
@@ -91,7 +90,9 @@ func newTestNamespaceWithIDOpts(
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
 	dopts := DefaultTestOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	closer := dopts.RuntimeOptionsManager().Close
 	return ns.(*dbNamespace), closer
@@ -106,7 +107,9 @@ func newTestNamespaceWithOpts(
 	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	closer := dopts.RuntimeOptionsManager().Close
 	return ns.(*dbNamespace), closer
@@ -192,11 +195,11 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 		ns.shards[i] = nil
 	}
 	now := time.Now()
-	_, wasWritten, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil)
+	seriesWrite, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
-	require.False(t, wasWritten)
+	require.False(t, seriesWrite.WasWritten)
 }
 
 func TestNamespaceWriteShardOwned(t *testing.T) {
@@ -221,19 +224,19 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 			TruncateType: truncateType,
 		}
 		shard.EXPECT().Write(ctx, id, now, val, unit, ant, opts).
-			Return(ts.Series{}, true, nil).Times(1)
+			Return(SeriesWrite{WasWritten: true}, nil).Times(1)
 		shard.EXPECT().Write(ctx, id, now, val, unit, ant, opts).
-			Return(ts.Series{}, false, nil).Times(1)
+			Return(SeriesWrite{WasWritten: false}, nil).Times(1)
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
-		_, wasWritten, err := ns.Write(ctx, id, now, val, unit, ant)
+		seriesWrite, err := ns.Write(ctx, id, now, val, unit, ant)
 		require.NoError(t, err)
-		require.True(t, wasWritten)
+		require.True(t, seriesWrite.WasWritten)
 
-		_, wasWritten, err = ns.Write(ctx, id, now, val, unit, ant)
+		seriesWrite, err = ns.Write(ctx, id, now, val, unit, ant)
 		require.NoError(t, err)
-		require.False(t, wasWritten)
+		require.False(t, seriesWrite.WasWritten)
 	}
 }
 
@@ -359,7 +362,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(shardID)
-		shard.EXPECT().Bootstrap(gomock.Any()).Return(errs[i])
+		shard.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardIDs = append(shardIDs, shardID)
 	}
@@ -404,7 +407,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(testShard.ID())
-		shard.EXPECT().Bootstrap(gomock.Any()).Return(nil)
+		shard.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
 		ns.shards[testShard.ID()] = shard
 		shardIDs = append(shardIDs, testShard.ID())
 	}
@@ -699,7 +702,9 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 
 	dopts = dopts.SetInstrumentOptions(dopts.InstrumentOptions().
 		SetMetricsScope(scope))
-	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 
@@ -772,7 +777,9 @@ func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 		return at
 	}))
 
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	return ns.(*dbNamespace)
 }
@@ -917,7 +924,9 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(metadata,
+		namespace.NewRuntimeOptionsManager(metadata.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 
@@ -958,7 +967,9 @@ func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(testNs,
+		namespace.NewRuntimeOptionsManager(testNs.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 	for _, s := range shards {
@@ -1010,7 +1021,9 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(testNs,
+		namespace.NewRuntimeOptionsManager(testNs.ID().String()),
+		shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 	for _, s := range shards {
@@ -1109,22 +1122,26 @@ func TestNamespaceIndexInsert(t *testing.T) {
 		opts := series.WriteOptions{
 			TruncateType: truncateType,
 		}
-		shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-			now, 1.0, xtime.Second, nil, opts).Return(ts.Series{}, true, nil)
-		shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-			now, 1.0, xtime.Second, nil, opts).Return(ts.Series{}, false, nil)
+		shard.EXPECT().
+			WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+				now, 1.0, xtime.Second, nil, opts).
+			Return(SeriesWrite{WasWritten: true}, nil)
+		shard.EXPECT().
+			WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+				now, 1.0, xtime.Second, nil, opts).
+			Return(SeriesWrite{WasWritten: false}, nil)
 
 		ns.shards[testShardIDs[0].ID()] = shard
 
-		_, wasWritten, err := ns.WriteTagged(ctx, ident.StringID("a"),
+		seriesWrite, err := ns.WriteTagged(ctx, ident.StringID("a"),
 			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
-		require.True(t, wasWritten)
+		require.True(t, seriesWrite.WasWritten)
 
-		_, wasWritten, err = ns.WriteTagged(ctx, ident.StringID("a"),
+		seriesWrite, err = ns.WriteTagged(ctx, ident.StringID("a"),
 			ident.EmptyTagIterator, now, 1.0, xtime.Second, nil)
 		require.NoError(t, err)
-		require.False(t, wasWritten)
+		require.False(t, seriesWrite.WasWritten)
 
 		shard.EXPECT().Close()
 		idx.EXPECT().Close().Return(nil)
@@ -1198,12 +1215,16 @@ func TestNamespaceTicksIndex(t *testing.T) {
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
+	ns.RLock()
+	nsCtx := ns.nsContextWithRLock()
+	ns.RUnlock()
+
 	ctx := context.NewContext()
 	defer ctx.Close()
 
 	for _, s := range ns.shards {
 		if s != nil {
-			s.Bootstrap(ctx)
+			s.Bootstrap(ctx, nsCtx)
 		}
 	}
 

@@ -21,6 +21,7 @@
 package stats
 
 import (
+	"fmt"
 	"time"
 
 	"go.uber.org/atomic"
@@ -37,6 +38,11 @@ type queryStats struct {
 type noOpQueryStats struct {
 }
 
+var (
+	_ QueryStats = (*queryStats)(nil)
+	_ QueryStats = (*noOpQueryStats)(nil)
+)
+
 // QueryStats provides an interface for updating query stats.
 type QueryStats interface {
 	Update(newDocs int) error
@@ -44,10 +50,30 @@ type QueryStats interface {
 	Stop()
 }
 
+// QueryStatsOptions holds options for how a tracker should handle query stats.
+type QueryStatsOptions struct {
+	// MaxDocs limits how many recently queried max
+	// documents are allowed before queries are abandoned.
+	MaxDocs int64
+	// Lookback specifies the lookback period over which stats are aggregated.
+	Lookback time.Duration
+}
+
+// QueryStatsValues stores values of query stats.
+type QueryStatsValues struct {
+	RecentDocs int64
+	NewDocs    int64
+}
+
+var zeros = QueryStatsValues{
+	RecentDocs: 0,
+	NewDocs:    0,
+}
+
 // QueryStatsTracker provides an interface for tracking current query stats.
 type QueryStatsTracker interface {
 	Lookback() time.Duration
-	TrackDocs(recentDocs int) error
+	TrackStats(stats QueryStatsValues) error
 }
 
 // NewQueryStats enables query stats to be tracked within a recency lookback duration.
@@ -73,11 +99,18 @@ func (q *queryStats) Update(newDocs int) error {
 		return nil
 	}
 
+	newDocsI64 := int64(newDocs)
+
 	// Add the new stats to the global state.
-	recentDocs := q.recentDocs.Add(int64(newDocs))
+	recentDocs := q.recentDocs.Add(newDocsI64)
+
+	values := QueryStatsValues{
+		RecentDocs: recentDocs,
+		NewDocs:    newDocsI64,
+	}
 
 	// Invoke the custom tracker based on the new stats values.
-	return q.tracker.TrackDocs(int(recentDocs))
+	return q.tracker.TrackStats(values)
 }
 
 // Start initializes background processing for handling query stats.
@@ -95,7 +128,7 @@ func (q *queryStats) Start() {
 				q.recentDocs.Store(0)
 
 				// Also invoke the track func for having zero value.
-				q.tracker.TrackDocs(0)
+				_ = q.tracker.TrackStats(zeros)
 			case <-q.stopCh:
 				return
 			}
@@ -110,7 +143,7 @@ func (q *queryStats) Stop() {
 	close(q.stopCh)
 }
 
-func (q *noOpQueryStats) Update(newDocs int) error {
+func (q *noOpQueryStats) Update(int) error {
 	return nil
 }
 
@@ -118,4 +151,15 @@ func (q *noOpQueryStats) Stop() {
 }
 
 func (q *noOpQueryStats) Start() {
+}
+
+// Validate returns an error if the query stats options are invalid.
+func (opts QueryStatsOptions) Validate() error {
+	if opts.MaxDocs < 0 {
+		return fmt.Errorf("query stats tracker requires max docs >= 0 (%d)", opts.MaxDocs)
+	}
+	if opts.Lookback <= 0 {
+		return fmt.Errorf("query stats tracker requires lookback > 0 (%d)", opts.Lookback)
+	}
+	return nil
 }

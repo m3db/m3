@@ -108,9 +108,34 @@ func (h *SearchHandler) parseURLParams(r *http.Request) (*storage.FetchOptions, 
 		return nil, parseErr
 	}
 
+	// Parse for series and docs limits as query params.
+	// For backwards compat, allow "limit" and "seriesLimit"
+	// for the series limit name.
 	if str := r.URL.Query().Get("limit"); str != "" {
 		var err error
-		fetchOpts.Limit, err = strconv.Atoi(str)
+		fetchOpts.SeriesLimit, err = strconv.Atoi(str)
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+	} else if str := r.URL.Query().Get("seriesLimit"); str != "" {
+		var err error
+		fetchOpts.SeriesLimit, err = strconv.Atoi(str)
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+	}
+
+	if str := r.URL.Query().Get("docsLimit"); str != "" {
+		var err error
+		fetchOpts.DocsLimit, err = strconv.Atoi(str)
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+	}
+
+	if str := r.URL.Query().Get("requireExhaustive"); str != "" {
+		var err error
+		fetchOpts.RequireExhaustive, err = strconv.ParseBool(str)
 		if err != nil {
 			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 		}

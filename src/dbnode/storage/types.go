@@ -41,8 +41,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -122,17 +124,17 @@ type Database interface {
 	// Note that when using the BatchWriter the caller owns the lifecycle of the series
 	// IDs if they're being pooled its the callers responsibility to return them to the
 	// appropriate pool, but the encoded tags and annotations are owned by the
-	// ts.WriteBatch itself and will be finalized when the entire ts.WriteBatch is finalized
+	// writes.WriteBatch itself and will be finalized when the entire writes.WriteBatch is finalized
 	// due to their lifecycle being more complicated.
 	// Callers can still control the pooling of the encoded tags and annotations by using
 	// the SetFinalizeEncodedTagsFn and SetFinalizeAnnotationFn on the WriteBatch itself.
-	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
+	BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error)
 
 	// WriteBatch is the same as Write, but in batch.
 	WriteBatch(
 		ctx context.Context,
 		namespace ident.ID,
-		writes ts.BatchWriter,
+		writes writes.BatchWriter,
 		errHandler IndexedErrorHandler,
 	) error
 
@@ -140,7 +142,7 @@ type Database interface {
 	WriteTaggedBatch(
 		ctx context.Context,
 		namespace ident.ID,
-		writes ts.BatchWriter,
+		writes writes.BatchWriter,
 		errHandler IndexedErrorHandler,
 	) error
 
@@ -266,6 +268,14 @@ func (n NamespacesByID) Less(i, j int) bool {
 	return bytes.Compare(n[i].ID().Bytes(), n[j].ID().Bytes()) < 0
 }
 
+// SeriesWrite is a result of a series write.
+type SeriesWrite struct {
+	Series             ts.Series
+	WasWritten         bool
+	NeedsIndex         bool
+	PendingIndexInsert writes.PendingIndexInsert
+}
+
 type databaseNamespace interface {
 	Namespace
 
@@ -289,7 +299,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) (ts.Series, bool, error)
+	) (SeriesWrite, error)
 
 	// WriteTagged values to the namespace for an ID.
 	WriteTagged(
@@ -300,7 +310,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) (ts.Series, bool, error)
+	) (SeriesWrite, error)
 
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(
@@ -392,6 +402,9 @@ type databaseNamespace interface {
 		id ident.ID,
 		tags ident.TagIterator,
 	) (result SeriesReadWriteRef, owned bool, err error)
+
+	// WritePendingIndexInserts will write any pending index inserts.
+	WritePendingIndexInserts(pending []writes.PendingIndexInsert) error
 }
 
 // SeriesReadWriteRef is a read/write reference for a series,
@@ -447,7 +460,7 @@ type databaseShard interface {
 		unit xtime.Unit,
 		annotation []byte,
 		wOpts series.WriteOptions,
-	) (ts.Series, bool, error)
+	) (SeriesWrite, error)
 
 	// WriteTagged writes a value to the shard for an ID with tags.
 	WriteTagged(
@@ -459,7 +472,7 @@ type databaseShard interface {
 		unit xtime.Unit,
 		annotation []byte,
 		wOpts series.WriteOptions,
-	) (ts.Series, bool, error)
+	) (SeriesWrite, error)
 
 	ReadEncoded(
 		ctx context.Context,
@@ -503,7 +516,7 @@ type databaseShard interface {
 
 	// Bootstrap bootstraps the shard after all provided data
 	// has been loaded using LoadBootstrapBlocks.
-	Bootstrap(ctx context.Context) error
+	Bootstrap(ctx context.Context, nsCtx namespace.Context) error
 
 	// UpdateFlushStates updates all the flush states for the current shard
 	// by checking the file volumes that exist on disk at a point in time.
@@ -527,7 +540,7 @@ type databaseShard interface {
 		resources coldFlushReuseableResources,
 		nsCtx namespace.Context,
 		onFlush persist.OnFlushSeries,
-	) error
+	) (ShardColdFlush, error)
 
 	// Snapshot snapshot's the unflushed WarmWrites in this shard.
 	Snapshot(
@@ -557,11 +570,6 @@ type databaseShard interface {
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
 
-	// TagsFromSeriesID returns the series tags from a series ID.
-	// TODO(r): Seems like this is a work around that shouldn't be
-	// necessary given the callsites that current exist?
-	TagsFromSeriesID(seriesID ident.ID) (ident.Tags, bool, error)
-
 	// SeriesReadWriteRef returns a read/write ref to a series, callers
 	// must make sure to call the release callback once finished
 	// with the reference.
@@ -570,6 +578,15 @@ type databaseShard interface {
 		tags ident.TagIterator,
 		opts ShardSeriesReadWriteRefOptions,
 	) (SeriesReadWriteRef, error)
+
+	// DocRef returns the doc if already present in a shard series.
+	DocRef(id ident.ID) (doc.Document, bool, error)
+}
+
+// ShardColdFlush exposes a done method to finalize shard cold flush
+// by persisting data and updating shard state/block leases.
+type ShardColdFlush interface {
+	Done() error
 }
 
 // ShardSeriesReadWriteRefOptions are options for SeriesReadWriteRef
@@ -597,6 +614,11 @@ type NamespaceIndex interface {
 	// WriteBatch indexes the provided entries.
 	WriteBatch(
 		batch *index.WriteBatch,
+	) error
+
+	// WritePending indexes the provided pending entries.
+	WritePending(
+		pending []writes.PendingIndexInsert,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -662,11 +684,14 @@ type DebugMemorySegmentsOptions struct {
 // namespaceIndexTickResult are details about the work performed by the namespaceIndex
 // during a Tick().
 type namespaceIndexTickResult struct {
-	NumBlocks        int64
-	NumBlocksSealed  int64
-	NumBlocksEvicted int64
-	NumSegments      int64
-	NumTotalDocs     int64
+	NumBlocks               int64
+	NumBlocksSealed         int64
+	NumBlocksEvicted        int64
+	NumSegments             int64
+	NumSegmentsBootstrapped int64
+	NumSegmentsMutable      int64
+	NumTotalDocs            int64
+	FreeMmap                int64
 }
 
 // namespaceIndexInsertQueue is a queue used in-front of the indexing component
@@ -682,7 +707,17 @@ type namespaceIndexInsertQueue interface {
 	// inserts to the index asynchronously. It executes the provided callbacks
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
-	InsertBatch(batch *index.WriteBatch) (*sync.WaitGroup, error)
+	InsertBatch(
+		batch *index.WriteBatch,
+	) (*sync.WaitGroup, error)
+
+	// InsertPending inserts the provided documents to the index queue which processes
+	// inserts to the index asynchronously. It executes the provided callbacks
+	// based on the result of the execution. The returned wait group can be used
+	// if the insert is required to be synchronous.
+	InsertPending(
+		pending []writes.PendingIndexInsert,
+	) (*sync.WaitGroup, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.
@@ -721,9 +756,14 @@ type databaseFlushManager interface {
 }
 
 // databaseCleanupManager manages cleaning up persistent storage space.
+// NB(bodu): We have to separate flush methods since we separated out flushing into warm/cold flush
+// and cleaning up certain types of data concurrently w/ either can be problematic.
 type databaseCleanupManager interface {
-	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time, isBootstrapped bool) error
+	// WarmFlushCleanup cleans up data not needed in the persistent storage before a warm flush.
+	WarmFlushCleanup(t time.Time, isBootstrapped bool) error
+
+	// ColdFlushCleanup cleans up data not needed in the persistent storage before a cold flush.
+	ColdFlushCleanup(t time.Time, isBootstrapped bool) error
 
 	// Report reports runtime information.
 	Report()
@@ -731,9 +771,6 @@ type databaseCleanupManager interface {
 
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
-	// Cleanup cleans up data not needed in the persistent storage.
-	Cleanup(t time.Time, isBootstrapped bool) error
-
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
 
@@ -761,6 +798,25 @@ type databaseFileSystemManager interface {
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
 	LastSuccessfulSnapshotStartTime() (time.Time, bool)
+}
+
+// databaseColdFlushManager manages the database related cold flush activities.
+type databaseColdFlushManager interface {
+	databaseCleanupManager
+
+	// Disable disables the cold flush manager and prevents it from
+	// performing file operations, returns the current file operation status.
+	Disable() fileOpStatus
+
+	// Enable enables the cold flush manager to perform file operations.
+	Enable() fileOpStatus
+
+	// Status returns the file operation status.
+	Status() fileOpStatus
+
+	// Run attempts to perform all cold flush related operations,
+	// returning true if those operations are performed, and false otherwise.
+	Run(t time.Time) bool
 }
 
 // databaseShardRepairer repairs in-memory data for a shard.
@@ -816,17 +872,14 @@ type databaseMediator interface {
 	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() (BootstrapResult, error)
 
-	// DisableFileOps disables file operations.
-	DisableFileOps()
+	// DisableFileOpsAndWait disables file operations.
+	DisableFileOpsAndWait()
 
 	// EnableFileOps enables file operations.
 	EnableFileOps()
 
 	// Tick performs a tick.
 	Tick(forceType forceType, startTime time.Time) error
-
-	// WaitForFileSystemProcesses waits for any ongoing fs processes to finish.
-	WaitForFileSystemProcesses()
 
 	// Repair repairs the database.
 	Repair() error
@@ -1049,10 +1102,10 @@ type Options interface {
 	QueryIDsWorkerPool() xsync.WorkerPool
 
 	// SetWriteBatchPool sets the WriteBatch pool.
-	SetWriteBatchPool(value *ts.WriteBatchPool) Options
+	SetWriteBatchPool(value *writes.WriteBatchPool) Options
 
 	// WriteBatchPool returns the WriteBatch pool.
-	WriteBatchPool() *ts.WriteBatchPool
+	WriteBatchPool() *writes.WriteBatchPool
 
 	// SetBufferBucketPool sets the BufferBucket pool.
 	SetBufferBucketPool(value *series.BufferBucketPool) Options
@@ -1115,6 +1168,18 @@ type Options interface {
 	// DoNotIndexWithFieldsMap returns a map which if fields match it
 	// will not index those metrics.
 	DoNotIndexWithFieldsMap() map[string]string
+
+	// SetNamespaceRuntimeOptionsManagerRegistry sets the namespace runtime options manager.
+	SetNamespaceRuntimeOptionsManagerRegistry(value namespace.RuntimeOptionsManagerRegistry) Options
+
+	// NamespaceRuntimeOptionsManagerRegistry returns the namespace runtime options manager.
+	NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry
+
+	// SetMediatorTickInterval sets the ticking interval for the medidator.
+	SetMediatorTickInterval(value time.Duration) Options
+
+	// MediatorTickInterval returns the ticking interval for the mediator.
+	MediatorTickInterval() time.Duration
 }
 
 // MemoryTracker tracks memory.

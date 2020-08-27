@@ -24,20 +24,25 @@ package integration
 
 import (
 	"fmt"
+	"math/rand"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/atomic"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -81,14 +86,67 @@ func TestIndexSingleNodeHighConcurrencyFewTagsHighCardinalitySkipWrites(t *testi
 	})
 }
 
+func TestIndexSingleNodeHighConcurrencyFewTagsHighCardinalityQueryDuringWrites(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
+	testIndexSingleNodeHighConcurrency(t, testIndexHighConcurrencyOptions{
+		concurrencyEnqueueWorker:         8,
+		concurrencyWrites:                5000,
+		enqueuePerWorker:                 100000,
+		numTags:                          2,
+		concurrencyQueryDuringWrites:     16,
+		concurrencyQueryDuringWritesType: indexQuery,
+		skipVerify:                       true,
+	})
+}
+
+func TestIndexSingleNodeHighConcurrencyFewTagsHighCardinalityAggregateQueryDuringWrites(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
+	testIndexSingleNodeHighConcurrency(t, testIndexHighConcurrencyOptions{
+		concurrencyEnqueueWorker:         8,
+		concurrencyWrites:                5000,
+		enqueuePerWorker:                 100000,
+		numTags:                          2,
+		concurrencyQueryDuringWrites:     1,
+		concurrencyQueryDuringWritesType: indexAggregateQuery,
+		skipVerify:                       true,
+	})
+}
+
+type queryType uint
+
+const (
+	indexQuery queryType = iota
+	indexAggregateQuery
+)
+
 type testIndexHighConcurrencyOptions struct {
 	concurrencyEnqueueWorker int
 	concurrencyWrites        int
 	enqueuePerWorker         int
 	numTags                  int
+
 	// skipWrites will mix in skipped to make sure
 	// it doesn't interrupt the regular real-time ingestion pipeline.
 	skipWrites bool
+
+	// concurrencyQueryDuringWrites will issue queries while we
+	// are performing writes.
+	concurrencyQueryDuringWrites int
+
+	// concurrencyQueryDuringWritesType determines the type of queries
+	// to issue performing writes.
+	concurrencyQueryDuringWritesType queryType
+
+	// skipVerify will skip verifying the actual series were indexed
+	// which is useful if just sanity checking can write/read concurrently
+	// without issue/errors and the stats look good.
+	skipVerify bool
 }
 
 func testIndexSingleNodeHighConcurrency(
@@ -106,12 +164,12 @@ func testIndexSingleNodeHighConcurrency(
 			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)))
 	require.NoError(t, err)
 
-	testOpts := newTestOptions(t).
+	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
 		SetWriteNewSeriesAsync(true).
 		// Use default time functions (server time not frozen).
 		SetNowFn(time.Now)
-	testSetup, err := newTestSetup(t, testOpts, nil,
+	testSetup, err := NewTestSetup(t, testOpts, nil,
 		func(s storage.Options) storage.Options {
 			if opts.skipWrites {
 				return s.SetDoNotIndexWithFieldsMap(map[string]string{"skip": "true"})
@@ -119,19 +177,19 @@ func testIndexSingleNodeHighConcurrency(
 			return s
 		})
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	require.NoError(t, testSetup.startServer())
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Debug("server is now down")
 	}()
 
-	client := testSetup.m3dbClient
+	client := testSetup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 
@@ -140,7 +198,7 @@ func testIndexSingleNodeHighConcurrency(
 		numTotalErrors  = atomic.NewUint32(0)
 		numTotalSuccess = atomic.NewUint32(0)
 	)
-	nowFn := testSetup.db.Options().ClockOptions().NowFn()
+	nowFn := testSetup.DB().Options().ClockOptions().NowFn()
 	start := time.Now()
 	log.Info("starting data write",
 		zap.Time("serverTime", nowFn()))
@@ -188,14 +246,97 @@ func testIndexSingleNodeHighConcurrency(
 		}()
 	}
 
+	// If concurrent query load enabled while writing also hit with queries.
+	queryConcDuringWritesCloseCh := make(chan struct{}, 1)
+	numTotalQueryMatches := atomic.NewUint32(0)
+	numTotalQueryErrors := atomic.NewUint32(0)
+	checkNumTotalQueryMatches := false
+	if opts.concurrencyQueryDuringWrites == 0 {
+		log.Info("no concurrent queries during writes configured")
+	} else {
+		log.Info("starting concurrent queries during writes",
+			zap.Int("concurrency", opts.concurrencyQueryDuringWrites))
+		checkNumTotalQueryMatches = true
+		for i := 0; i < opts.concurrencyQueryDuringWrites; i++ {
+			go func() {
+				src := rand.NewSource(int64(i))
+				rng := rand.New(src)
+				for {
+					select {
+					case <-queryConcDuringWritesCloseCh:
+						return
+					default:
+					}
+
+					switch opts.concurrencyQueryDuringWritesType {
+					case indexQuery:
+						randI := rng.Intn(opts.concurrencyEnqueueWorker)
+						randJ := rng.Intn(opts.enqueuePerWorker)
+						id, tags := genIDTags(randI, randJ, opts.numTags)
+						ok, err := isIndexedChecked(t, session, md.ID(), id, tags)
+						if err != nil {
+							if n := numTotalQueryErrors.Inc(); n < 10 {
+								// Log the first 10 errors for visibility but not flood.
+								log.Error("sampled query error", zap.Error(err))
+							}
+						}
+						if ok {
+							numTotalQueryMatches.Inc()
+						}
+					case indexAggregateQuery:
+						randI := rng.Intn(opts.concurrencyEnqueueWorker)
+						match := idx.NewTermQuery([]byte("common_i"), []byte(strconv.Itoa(randI)))
+						q := index.Query{Query: match}
+
+						now := time.Now()
+						qOpts := index.AggregationOptions{
+							QueryOptions: index.QueryOptions{
+								StartInclusive: now.Add(-md.Options().RetentionOptions().RetentionPeriod()),
+								EndExclusive:   now,
+								DocsLimit:      1000,
+							},
+						}
+
+						ctx := context.NewContext()
+						r, err := testSetup.DB().AggregateQuery(ctx, md.ID(), q, qOpts)
+						if err != nil {
+							panic(err)
+						}
+
+						tagValues := 0
+						for _, entry := range r.Results.Map().Iter() {
+							values := entry.Value()
+							tagValues += values.Size()
+						}
+
+						// Done with resources, return to pool.
+						ctx.Close()
+
+						numTotalQueryMatches.Add(uint32(tagValues))
+					default:
+						panic("unknown query type")
+					}
+				}
+			}()
+		}
+	}
+
+	// Wait for writes to at least be enqueued.
 	wg.Wait()
 
+	// Check no write errors.
 	require.Equal(t, int(0), int(numTotalErrors.Load()))
+
+	if checkNumTotalQueryMatches {
+		// Check matches.
+		require.True(t, numTotalQueryMatches.Load() > 0, "no query matches")
+	}
 
 	log.Info("test data written",
 		zap.Duration("took", time.Since(start)),
 		zap.Int("written", int(numTotalSuccess.Load())),
-		zap.Time("serverTime", nowFn()))
+		zap.Time("serverTime", nowFn()),
+		zap.Uint32("queryMatches", numTotalQueryMatches.Load()))
 
 	log.Info("data indexing verify start")
 
@@ -206,7 +347,7 @@ func testIndexSingleNodeHighConcurrency(
 	multiplyByConcurrency := multiplyBy(opts.concurrencyEnqueueWorker)
 	expectNumIndex := multiplyByConcurrency(numIndexTotal)
 	indexProcess := xclock.WaitUntil(func() bool {
-		counters := testSetup.scope.Snapshot().Counters()
+		counters := testSetup.Scope().Snapshot().Counters()
 		counter, ok := counters[expectStatProcess]
 		if !ok {
 			return false
@@ -214,7 +355,7 @@ func testIndexSingleNodeHighConcurrency(
 		return int(counter.Value()) == expectNumIndex
 	}, time.Minute)
 
-	counters := testSetup.scope.Snapshot().Counters()
+	counters := testSetup.Scope().Snapshot().Counters()
 	counter, ok := counters[expectStatProcess]
 
 	var value int
@@ -224,52 +365,61 @@ func testIndexSingleNodeHighConcurrency(
 	assert.True(t, indexProcess,
 		fmt.Sprintf("expected to index %d but processed %d", expectNumIndex, value))
 
-	// Now check all of them are individually indexed.
-	var (
-		fetchWg        sync.WaitGroup
-		notIndexedErrs []error
-		notIndexedLock sync.Mutex
-	)
-	for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
-		fetchWg.Add(1)
-		i := i
-		go func() {
-			defer fetchWg.Done()
+	// Allow concurrent query during writes to finish.
+	close(queryConcDuringWritesCloseCh)
 
-			for j := 0; j < opts.enqueuePerWorker; j++ {
-				if opts.skipWrites && j%2 == 0 {
-					continue // not meant to be indexed.
-				}
+	// Check no query errors.
+	require.Equal(t, int(0), int(numTotalErrors.Load()))
 
-				j := j
-				fetchWg.Add(1)
-				workerPool.Go(func() {
-					defer fetchWg.Done()
+	if !opts.skipVerify {
+		log.Info("data indexing each series visible start")
+		// Now check all of them are individually indexed.
+		var (
+			fetchWg        sync.WaitGroup
+			notIndexedErrs []error
+			notIndexedLock sync.Mutex
+		)
+		for i := 0; i < opts.concurrencyEnqueueWorker; i++ {
+			fetchWg.Add(1)
+			i := i
+			go func() {
+				defer fetchWg.Done()
 
-					id, tags := genIDTags(i, j, opts.numTags)
-					indexed := xclock.WaitUntil(func() bool {
-						found := isIndexed(t, session, md.ID(), id, tags)
-						return found
-					}, 30*time.Second)
-					if !indexed {
-						err := fmt.Errorf("not indexed series: i=%d, j=%d", i, j)
-						notIndexedLock.Lock()
-						notIndexedErrs = append(notIndexedErrs, err)
-						notIndexedLock.Unlock()
+				for j := 0; j < opts.enqueuePerWorker; j++ {
+					if opts.skipWrites && j%2 == 0 {
+						continue // not meant to be indexed.
 					}
-				})
-			}
-		}()
+
+					j := j
+					fetchWg.Add(1)
+					workerPool.Go(func() {
+						defer fetchWg.Done()
+
+						id, tags := genIDTags(i, j, opts.numTags)
+						indexed := xclock.WaitUntil(func() bool {
+							found := isIndexed(t, session, md.ID(), id, tags)
+							return found
+						}, 30*time.Second)
+						if !indexed {
+							err := fmt.Errorf("not indexed series: i=%d, j=%d", i, j)
+							notIndexedLock.Lock()
+							notIndexedErrs = append(notIndexedErrs, err)
+							notIndexedLock.Unlock()
+						}
+					})
+				}
+			}()
+		}
+		fetchWg.Wait()
+
+		require.Equal(t, 0, len(notIndexedErrs),
+			fmt.Sprintf("not indexed errors: %v", notIndexedErrs[:min(5, len(notIndexedErrs))]))
 	}
-	fetchWg.Wait()
-	log.Info("data indexing verify done",
-		zap.Int("notIndexed", len(notIndexedErrs)),
-		zap.Duration("took", time.Since(start)))
-	require.Equal(t, 0, len(notIndexedErrs),
-		fmt.Sprintf("not indexed errors: %v", notIndexedErrs[:min(5, len(notIndexedErrs))]))
+
+	log.Info("data indexing verify done", zap.Duration("took", time.Since(start)))
 
 	// Make sure attempted total indexing = skipped + written.
-	counters = testSetup.scope.Snapshot().Counters()
+	counters = testSetup.Scope().Snapshot().Counters()
 	totalSkippedWritten := 0
 	for _, expectID := range []string{
 		expectStatPrefix + "stage=skip",

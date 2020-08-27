@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/query/models"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/google/go-cmp/cmp"
@@ -495,7 +496,15 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 					CutoverNanos: 20000,
 					Tombstoned:   false,
 					Metadata: metadata.Metadata{
-						Pipelines: metadata.DropPipelineMetadatas,
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								},
+							},
+							metadata.DropPipelineMetadata,
+						},
 					},
 				},
 			},
@@ -510,7 +519,7 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 					CutoverNanos: 20000,
 					Tombstoned:   false,
 					Metadata: metadata.Metadata{
-						Pipelines: metadata.DropPipelineMetadatas,
+						Pipelines: metadata.DropIfOnlyMatchPipelineMetadatas,
 					},
 				},
 			},
@@ -532,6 +541,7 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 									policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 								},
 							},
+							metadata.DropIfOnlyMatchPipelineMetadata,
 						},
 					},
 				},
@@ -2385,7 +2395,36 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 					CutoverNanos: 35000,
 					Tombstoned:   false,
 					Metadata: metadata.Metadata{
-						Pipelines: metadata.DropPipelineMetadatas,
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								},
+							},
+							metadata.DropPipelineMetadata,
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								},
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
+									{
+										Type: pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{
+											Type: transformation.PerSecond,
+										},
+									},
+									{
+										Type: pipeline.RollupOpType,
+										Rollup: applied.RollupOp{
+											ID:            b("rName1|rtagName1=rtagValue1,rtagName2=rtagValue2"),
+											AggregationID: aggregation.DefaultID,
+										},
+									},
+								}),
+							},
+						},
 					},
 				},
 			},
@@ -2854,46 +2893,12 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 			},
 		},
 		{
-			id:            "shouldDropTagName1=shouldDropTagValue1",
-			matchFrom:     25000,
-			matchTo:       25001,
+			id:              "shouldDropTagName1=shouldDropTagValue1",
+			matchFrom:       25000,
+			matchTo:         25001,
 			metricType:      metric.CounterType,
 			aggregationType: aggregation.Sum,
-			expireAtNanos: 30000,
-			forExistingIDResult: metadata.StagedMetadatas{
-				metadata.StagedMetadata{
-					CutoverNanos: 20000,
-					Tombstoned:   false,
-					Metadata: metadata.Metadata{
-						Pipelines: metadata.DropPipelineMetadatas,
-					},
-				},
-			},
-		},
-		{
-			id:            "shouldDrop2TagName1=shouldDrop2TagValue1",
-			matchFrom:     25000,
-			matchTo:       25001,
-			metricType:      metric.CounterType,
-			aggregationType: aggregation.Sum,
-			expireAtNanos: 30000,
-			forExistingIDResult: metadata.StagedMetadatas{
-				metadata.StagedMetadata{
-					CutoverNanos: 20000,
-					Tombstoned:   false,
-					Metadata: metadata.Metadata{
-						Pipelines: metadata.DropPipelineMetadatas,
-					},
-				},
-			},
-		},
-		{
-			id:            "shouldNotDropTagName1=shouldNotDropTagValue1",
-			matchFrom:     25000,
-			matchTo:       25001,
-			metricType:      metric.CounterType,
-			aggregationType: aggregation.Sum,
-			expireAtNanos: 30000,
+			expireAtNanos:   30000,
 			forExistingIDResult: metadata.StagedMetadatas{
 				metadata.StagedMetadata{
 					CutoverNanos: 20000,
@@ -2906,6 +2911,49 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 									policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 								},
 							},
+							metadata.DropPipelineMetadata,
+						},
+					},
+				},
+			},
+		},
+		{
+			id:              "shouldDrop2TagName1=shouldDrop2TagValue1",
+			matchFrom:       25000,
+			matchTo:         25001,
+			metricType:      metric.CounterType,
+			aggregationType: aggregation.Sum,
+			expireAtNanos:   30000,
+			forExistingIDResult: metadata.StagedMetadatas{
+				metadata.StagedMetadata{
+					CutoverNanos: 20000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: metadata.DropIfOnlyMatchPipelineMetadatas,
+					},
+				},
+			},
+		},
+		{
+			id:              "shouldNotDropTagName1=shouldNotDropTagValue1",
+			matchFrom:       25000,
+			matchTo:         25001,
+			metricType:      metric.CounterType,
+			aggregationType: aggregation.Sum,
+			expireAtNanos:   30000,
+			forExistingIDResult: metadata.StagedMetadatas{
+				metadata.StagedMetadata{
+					CutoverNanos: 20000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								},
+							},
+							metadata.DropIfOnlyMatchPipelineMetadata,
 						},
 					},
 				},
@@ -2926,7 +2974,7 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 	for i, input := range inputs {
 		t.Run(fmt.Sprintf("input %d", i), func(t *testing.T) {
 			res := as.ReverseMatch(b(input.id), input.matchFrom, input.matchTo,
-			input.metricType, input.aggregationType, isMultiAggregationTypesAllowed, aggTypesOpts)
+				input.metricType, input.aggregationType, isMultiAggregationTypesAllowed, aggTypesOpts)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 		})
@@ -3179,6 +3227,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 	)
 	require.NoError(t, err)
 
+	tags := []models.Tag{{Name: []byte("service")}}
 	mappingRule1 := &mappingRule{
 		uuid: "mappingRule1",
 		snapshots: []*mappingRuleSnapshot{
@@ -3191,6 +3240,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				storagePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 				},
+				tags: tags,
 			},
 			&mappingRuleSnapshot{
 				name:          "mappingRule1.snapshot1",
@@ -3201,6 +3251,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				storagePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
 				},
+				tags: tags,
 			},
 			&mappingRuleSnapshot{
 				name:          "mappingRule1.snapshot2",
@@ -3213,6 +3264,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 					policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
 				},
+				tags: tags,
 			},
 			&mappingRuleSnapshot{
 				name:          "mappingRule1.snapshot3",
@@ -3223,6 +3275,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				storagePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
 				},
+				tags: tags,
 			},
 		},
 	}
@@ -3352,8 +3405,9 @@ func testMappingRules(t *testing.T) []*mappingRule {
 		},
 	}
 
-	// Mapping rule 7 and 8 should combine to effectively be a drop when combined as
-	// mapping rule 8 explicitly says must be dropped
+	// Mapping rule 7 and 8 should combine to have the the aggregation as per
+	// mapping rule 7 to occur with the metrics being dropped for the default
+	// aggregation as per mapping rule 8 which explicitly says must be dropped
 	mappingRule7 := &mappingRule{
 		uuid: "mappingRule7",
 		snapshots: []*mappingRuleSnapshot{
@@ -3402,8 +3456,10 @@ func testMappingRules(t *testing.T) []*mappingRule {
 		},
 	}
 
-	// Mapping rule 10 and 11 should combine to effectively be a no-drop when combined as
-	// mapping rule 10 explicitly says drop only if no other drops
+	// Mapping rule 10 and 11 should combine to have the the aggregation as per
+	// mapping rule 10 to occur with the metrics being dropped for the default
+	// aggregation as per mapping rule 11 which says it must be dropped on
+	// match
 	mappingRule10 := &mappingRule{
 		uuid: "mappingRule10",
 		snapshots: []*mappingRuleSnapshot{

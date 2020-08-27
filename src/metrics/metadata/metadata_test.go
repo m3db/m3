@@ -1087,8 +1087,8 @@ func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
 		`{"version":12,` +
 			`"stagedMetadatas":` +
 			`[{"metadata":{"pipelines":[` +
-			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"]},` +
-			`{"aggregation":null,"storagePolicies":["10s:1h"]}]},` +
+			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"],"tags":null,"graphitePrefix":null},` +
+			`{"aggregation":null,"storagePolicies":["10s:1h"],"tags":null,"graphitePrefix":null}]},` +
 			`"cutoverNanos":4567,` +
 			`"tombstoned":true}]}`
 	require.Equal(t, expected, string(res))
@@ -1249,90 +1249,8 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchNone(t *testing.T) {
 		},
 	}
 	output, result := input.ApplyOrRemoveDropPolicies()
-	require.Equal(t, RemovedIneffectiveDropPoliciesResult, result)
+	require.Equal(t, NoDropPolicyPresentResult, result)
 	require.True(t, output.Equal(input))
-}
-
-func TestStagedMetadatasApplyOrRemoveDropPoliciesRemovingAnyDropStagedMetadata(t *testing.T) {
-	validStagedMetadatas := StagedMetadatas{
-		StagedMetadata{
-			Metadata: Metadata{Pipelines: PipelineMetadatas{
-				{
-					AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-					StoragePolicies: []policy.StoragePolicy{
-						policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
-						policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
-					},
-					DropPolicy: policy.DropNone,
-				},
-			}},
-		},
-		StagedMetadata{
-			Metadata: Metadata{Pipelines: PipelineMetadatas{
-				{
-					AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-					StoragePolicies: []policy.StoragePolicy{
-						policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
-						policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 24*time.Hour),
-					},
-					DropPolicy: policy.DropNone,
-				},
-			}},
-		},
-	}
-
-	// Run test for every single insertion point
-	for i := 0; i < len(validStagedMetadatas)+1; i++ {
-		t.Run(fmt.Sprintf("test insert drop if only rule at %d", i),
-			func(t *testing.T) {
-				var (
-					copy  = append(StagedMetadatas(nil), validStagedMetadatas...)
-					input StagedMetadatas
-				)
-				for j := 0; j < len(validStagedMetadatas)+1; j++ {
-					if j == i {
-						// Insert the drop if only match rule at this position
-						input = append(input, DropStagedMetadata)
-					} else {
-						input = append(input, copy[0])
-						copy = copy[1:]
-					}
-				}
-
-				output, result := input.ApplyOrRemoveDropPolicies()
-				require.Equal(t, RemovedIneffectiveDropPoliciesResult, result)
-				require.True(t, output.Equal(validStagedMetadatas))
-			})
-	}
-}
-
-func TestStagedMetadatasApplyOrRemoveDropPoliciesApplyingDropStagedMetadata(t *testing.T) {
-	// Check compacts together and chooses earliest staged metadata
-	metadatas, result := StagedMetadatas{
-		StagedMetadata{Metadata: DropMetadata, CutoverNanos: 456},
-		StagedMetadata{Metadata: DropMetadata, CutoverNanos: 123},
-	}.ApplyOrRemoveDropPolicies()
-
-	require.True(t, metadatas.Equal(StagedMetadatas{StagedMetadata{
-		Metadata: DropMetadata, CutoverNanos: 123},
-	}))
-	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
-
-	// Check single also returns as expected
-	metadatas, result = StagedMetadatas{
-		StagedMetadata{Metadata: DropMetadata, CutoverNanos: 123},
-	}.ApplyOrRemoveDropPolicies()
-
-	require.True(t, metadatas.Equal(StagedMetadatas{StagedMetadata{
-		Metadata: DropMetadata, CutoverNanos: 123},
-	}))
-	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
-}
-
-func TestStagedMetadatasApplyOrRemoveDropPoliciesWithNoStagedMetadatasIsNoOp(t *testing.T) {
-	metadatas, result := StagedMetadatas{}.ApplyOrRemoveDropPolicies()
-	require.Equal(t, 0, len(metadatas))
-	require.Equal(t, RemovedIneffectiveDropPoliciesResult, result)
 }
 
 func TestStagedMetadatasDropReturnsIsDropPolicyAppliedTrue(t *testing.T) {

@@ -54,7 +54,7 @@ const (
 var (
 	timeZero           time.Time
 	errIncompleteMerge = errors.New("bucket merge did not result in only one encoder")
-	logger, _          = zap.NewProduction()
+	errTooManyEncoders = xerrors.NewInvalidParamsError(errors.New("too many encoders per block"))
 )
 
 const (
@@ -75,8 +75,14 @@ const (
 )
 
 type databaseBuffer interface {
+	MoveTo(
+		buffer databaseBuffer,
+		nsCtx namespace.Context,
+	) error
+
 	Write(
 		ctx context.Context,
+		id ident.ID,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -87,8 +93,7 @@ type databaseBuffer interface {
 	Snapshot(
 		ctx context.Context,
 		blockStart time.Time,
-		id ident.ID,
-		tags ident.Tags,
+		metadata persist.Metadata,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
 	) error
@@ -96,8 +101,7 @@ type databaseBuffer interface {
 	WarmFlush(
 		ctx context.Context,
 		blockStart time.Time,
-		id ident.ID,
-		tags ident.Tags,
+		metadata persist.Metadata,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
 	) (FlushOutcome, error)
@@ -129,6 +133,8 @@ type databaseBuffer interface {
 
 	IsEmpty() bool
 
+	IsEmptyAtBlockStart(time.Time) bool
+
 	ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes
 
 	Stats() bufferStats
@@ -141,7 +147,6 @@ type databaseBuffer interface {
 }
 
 type databaseBufferResetOptions struct {
-	ID             ident.ID
 	BlockRetriever QueryableBlockRetriever
 	Options        Options
 }
@@ -214,7 +219,6 @@ func (t *OptimizedTimes) ForEach(fn func(t xtime.UnixNano)) {
 }
 
 type dbBuffer struct {
-	id    ident.ID
 	opts  Options
 	nowFn clock.NowFn
 
@@ -243,7 +247,6 @@ func newDatabaseBuffer() databaseBuffer {
 }
 
 func (b *dbBuffer) Reset(opts databaseBufferResetOptions) {
-	b.id = opts.ID
 	b.opts = opts.Options
 	b.nowFn = opts.Options.ClockOptions().NowFn()
 	b.bucketPool = opts.Options.BufferBucketPool()
@@ -251,8 +254,42 @@ func (b *dbBuffer) Reset(opts databaseBufferResetOptions) {
 	b.blockRetriever = opts.BlockRetriever
 }
 
+func (b *dbBuffer) MoveTo(
+	buffer databaseBuffer,
+	nsCtx namespace.Context,
+) error {
+	blockSize := b.opts.RetentionOptions().BlockSize()
+	for _, buckets := range b.bucketsMap {
+		for _, bucket := range buckets.buckets {
+			// Load any existing blocks.
+			for _, block := range bucket.loadedBlocks {
+				// Load block.
+				buffer.Load(block, bucket.writeType)
+			}
+
+			// Load encoders.
+			for _, elem := range bucket.encoders {
+				if elem.encoder.Len() == 0 {
+					// No data.
+					continue
+				}
+				// Take ownership of the encoder.
+				segment := elem.encoder.Discard()
+				// Create block and load into new buffer.
+				block := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+				block.Reset(bucket.start, blockSize, segment, nsCtx)
+				// Load block.
+				buffer.Load(block, bucket.writeType)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (b *dbBuffer) Write(
 	ctx context.Context,
+	id ident.ID,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -293,7 +330,7 @@ func (b *dbBuffer) Write(
 				fmt.Errorf("datapoint too far in past: "+
 					"id=%s, off_by=%s, timestamp=%s, past_limit=%s, "+
 					"timestamp_unix_nanos=%d, past_limit_unix_nanos=%d",
-					b.id.Bytes(), pastLimit.Sub(timestamp).String(),
+					id.Bytes(), pastLimit.Sub(timestamp).String(),
 					timestamp.Format(errTimestampFormat),
 					pastLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), pastLimit.UnixNano()))
@@ -306,7 +343,7 @@ func (b *dbBuffer) Write(
 				fmt.Errorf("datapoint too far in future: "+
 					"id=%s, off_by=%s, timestamp=%s, future_limit=%s, "+
 					"timestamp_unix_nanos=%d, future_limit_unix_nanos=%d",
-					b.id.Bytes(), timestamp.Sub(futureLimit).String(),
+					id.Bytes(), timestamp.Sub(futureLimit).String(),
 					timestamp.Format(errTimestampFormat),
 					futureLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), futureLimit.UnixNano()))
@@ -334,7 +371,7 @@ func (b *dbBuffer) Write(
 				fmt.Errorf("datapoint too far in past and out of retention: "+
 					"id=%s, off_by=%s, timestamp=%s, retention_past_limit=%s, "+
 					"timestamp_unix_nanos=%d, retention_past_limit_unix_nanos=%d",
-					b.id.Bytes(), retentionLimit.Sub(timestamp).String(),
+					id.Bytes(), retentionLimit.Sub(timestamp).String(),
 					timestamp.Format(errTimestampFormat),
 					retentionLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), retentionLimit.UnixNano()))
@@ -351,7 +388,7 @@ func (b *dbBuffer) Write(
 				fmt.Errorf("datapoint too far in future and out of retention: "+
 					"id=%s, off_by=%s, timestamp=%s, retention_future_limit=%s, "+
 					"timestamp_unix_nanos=%d, retention_future_limit_unix_nanos=%d",
-					b.id.Bytes(), timestamp.Sub(futureRetentionLimit).String(),
+					id.Bytes(), timestamp.Sub(futureRetentionLimit).String(),
 					timestamp.Format(errTimestampFormat),
 					futureRetentionLimit.Format(errTimestampFormat),
 					timestamp.UnixNano(), futureRetentionLimit.UnixNano()))
@@ -380,6 +417,14 @@ func (b *dbBuffer) IsEmpty() bool {
 	// buckets are only created when a write for a new block start is done, and
 	// buckets are removed from the map when they are evicted from memory.
 	return len(b.bucketsMap) == 0
+}
+
+func (b *dbBuffer) IsEmptyAtBlockStart(start time.Time) bool {
+	bv, exists := b.bucketVersionsAt(start)
+	if !exists {
+		return true
+	}
+	return bv.streamsLen() == 0
 }
 
 func (b *dbBuffer) ColdFlushBlockStarts(blockStates map[xtime.UnixNano]BlockState) OptimizedTimes {
@@ -462,6 +507,8 @@ func (b *dbBuffer) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 			}
 		}
 
+		buckets.recordActiveEncoders()
+
 		// Once we've evicted all eligible buckets, we merge duplicate encoders
 		// in the remaining ones to try and reclaim memory.
 		merges, err := buckets.merge(WarmWrite, nsCtx)
@@ -491,8 +538,7 @@ func (b *dbBuffer) Load(bl block.DatabaseBlock, writeType WriteType) {
 func (b *dbBuffer) Snapshot(
 	ctx context.Context,
 	blockStart time.Time,
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
 ) error {
@@ -560,14 +606,14 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	checksum := segment.CalculateChecksum()
-	return persistFn(id, tags, segment, checksum)
+
+	return persistFn(metadata, segment, checksum)
 }
 
 func (b *dbBuffer) WarmFlush(
 	ctx context.Context,
 	blockStart time.Time,
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
 ) (FlushOutcome, error) {
@@ -621,7 +667,7 @@ func (b *dbBuffer) WarmFlush(
 	}
 
 	checksum := segment.CalculateChecksum()
-	err = persistFn(id, tags, segment, checksum)
+	err = persistFn(metadata, segment, checksum)
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
@@ -1113,6 +1159,16 @@ func (b *BufferBucketVersions) mergeToStreams(ctx context.Context, opts streamsO
 	return res, nil
 }
 
+func (b *BufferBucketVersions) recordActiveEncoders() {
+	var numActiveEncoders int
+	for _, bucket := range b.buckets {
+		if bucket.version == writableBucketVersion {
+			numActiveEncoders += len(bucket.encoders)
+		}
+	}
+	b.opts.Stats().RecordEncodersPerBlock(numActiveEncoders)
+}
+
 type streamsOptions struct {
 	filterWriteType bool
 	writeType       WriteType
@@ -1223,7 +1279,13 @@ func (b *BufferBucket) write(
 		return err == nil, err
 	}
 
-	// Need a new encoder, we didn't find an encoder to write to
+	// Need a new encoder, we didn't find an encoder to write to.
+	maxEncoders := b.opts.RuntimeOptionsManager().Get().EncodersPerBlockLimit()
+	if maxEncoders != 0 && len(b.encoders) >= int(maxEncoders) {
+		b.opts.Stats().IncEncoderLimitWriteRejected()
+		return false, errTooManyEncoders
+	}
+
 	b.opts.Stats().IncCreatedEncoders()
 	bopts := b.opts.DatabaseBlockOptions()
 	blockSize := b.opts.RetentionOptions().BlockSize()

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	time0 "github.com/m3db/m3/src/x/time"
@@ -61,6 +62,20 @@ func NewMockDatabaseSeries(ctrl *gomock.Controller) *MockDatabaseSeries {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockDatabaseSeries) EXPECT() *MockDatabaseSeriesMockRecorder {
 	return m.recorder
+}
+
+// Bootstrap mocks base method
+func (m *MockDatabaseSeries) Bootstrap(arg0 namespace.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Bootstrap", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Bootstrap indicates an expected call of Bootstrap
+func (mr *MockDatabaseSeriesMockRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockDatabaseSeries)(nil).Bootstrap), arg0)
 }
 
 // Close mocks base method
@@ -148,6 +163,20 @@ func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockDatabaseSeries)(nil).ID))
 }
 
+// IsBufferEmptyAtBlockStart mocks base method
+func (m *MockDatabaseSeries) IsBufferEmptyAtBlockStart(arg0 time.Time) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBufferEmptyAtBlockStart", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsBufferEmptyAtBlockStart indicates an expected call of IsBufferEmptyAtBlockStart
+func (mr *MockDatabaseSeriesMockRecorder) IsBufferEmptyAtBlockStart(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBufferEmptyAtBlockStart", reflect.TypeOf((*MockDatabaseSeries)(nil).IsBufferEmptyAtBlockStart), arg0)
+}
+
 // IsEmpty mocks base method
 func (m *MockDatabaseSeries) IsEmpty() bool {
 	m.ctrl.T.Helper()
@@ -174,6 +203,20 @@ func (m *MockDatabaseSeries) LoadBlock(arg0 block.DatabaseBlock, arg1 WriteType)
 func (mr *MockDatabaseSeriesMockRecorder) LoadBlock(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).LoadBlock), arg0, arg1)
+}
+
+// Metadata mocks base method
+func (m *MockDatabaseSeries) Metadata() doc.Document {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Metadata")
+	ret0, _ := ret[0].(doc.Document)
+	return ret0
+}
+
+// Metadata indicates an expected call of Metadata
+func (mr *MockDatabaseSeriesMockRecorder) Metadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockDatabaseSeries)(nil).Metadata))
 }
 
 // NumActiveBlocks mocks base method
@@ -253,20 +296,6 @@ func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2
 func (mr *MockDatabaseSeriesMockRecorder) Snapshot(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockDatabaseSeries)(nil).Snapshot), arg0, arg1, arg2, arg3)
-}
-
-// Tags mocks base method
-func (m *MockDatabaseSeries) Tags() ident.Tags {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Tags")
-	ret0, _ := ret[0].(ident.Tags)
-	return ret0
-}
-
-// Tags indicates an expected call of Tags
-func (mr *MockDatabaseSeriesMockRecorder) Tags() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tags", reflect.TypeOf((*MockDatabaseSeries)(nil).Tags))
 }
 
 // Tick mocks base method

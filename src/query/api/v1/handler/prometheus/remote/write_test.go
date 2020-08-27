@@ -38,9 +38,10 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xclock "github.com/m3db/m3/src/x/clock"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -238,8 +239,8 @@ func TestPromWriteUnaggregatedMetricsWithHeader(t *testing.T) {
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
-	req.Header.Add(handleroptions.MetricsTypeHeader,
-		storage.UnaggregatedMetricsType.String())
+	req.Header.Add(headers.MetricsTypeHeader,
+		storagemetadata.UnaggregatedMetricsType.String())
 
 	writer := httptest.NewRecorder()
 	handler.ServeHTTP(writer, req)
@@ -272,9 +273,9 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
-	req.Header.Add(handleroptions.MetricsTypeHeader,
-		storage.AggregatedMetricsType.String())
-	req.Header.Add(handleroptions.MetricsStoragePolicyHeader,
+	req.Header.Add(headers.MetricsTypeHeader,
+		storagemetadata.AggregatedMetricsType.String())
+	req.Header.Add(headers.MetricsStoragePolicyHeader,
 		"1m:21d")
 
 	writer := httptest.NewRecorder()

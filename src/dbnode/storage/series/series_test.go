@@ -30,8 +30,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
+	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
@@ -65,7 +68,8 @@ func newSeriesTestOptions() Options {
 		SetEncoderPool(encoderPool).
 		SetMultiReaderIteratorPool(multiReaderIteratorPool).
 		SetBufferBucketPool(bufferBucketPool).
-		SetBufferBucketVersionsPool(bufferBucketVersionsPool)
+		SetBufferBucketVersionsPool(bufferBucketVersionsPool).
+		SetRuntimeOptionsManager(m3dbruntime.NewOptionsManager())
 	opts = opts.
 		SetRetentionOptions(opts.
 			RetentionOptions().
@@ -514,7 +518,6 @@ func TestSeriesFlush(t *testing.T) {
 		AnyTimes()
 
 	series := NewDatabaseSeries(DatabaseSeriesOptions{
-		ID:             ident.StringID("foo"),
 		BlockRetriever: blockRetriever,
 		Options:        opts,
 	}).(*dbSeries)
@@ -523,12 +526,12 @@ func TestSeriesFlush(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
-	series.buffer.Write(ctx, curr, 1234, xtime.Second, nil, WriteOptions{})
+	series.buffer.Write(ctx, testID, curr, 1234, xtime.Second, nil, WriteOptions{})
 	ctx.BlockingClose()
 
 	inputs := []error{errors.New("some error"), nil}
 	for _, input := range inputs {
-		persistFn := func(_ ident.ID, _ ident.Tags, _ ts.Segment, _ uint32) error {
+		persistFn := func(_ persist.Metadata, _ ts.Segment, _ uint32) error {
 			return input
 		}
 		ctx := context.NewContext()
@@ -1148,10 +1151,13 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		expected   []ts.Datapoint
 	)
 
+	metadata, err := convert.FromSeriesIDAndTags(id, tags)
+	require.NoError(t, err)
+
 	series := NewDatabaseSeries(DatabaseSeriesOptions{
-		ID:      id,
-		Tags:    tags,
-		Options: opts,
+		ID:       id,
+		Metadata: metadata,
+		Options:  opts,
 	}).(*dbSeries)
 
 	for iter := 0; iter < numBlocks; iter++ {

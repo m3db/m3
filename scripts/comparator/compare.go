@@ -53,7 +53,7 @@ func main() {
 
 		pQueryFile    = flag.String("input", "", "the query file")
 		pPromAddress  = flag.String("promAdress", "0.0.0.0:9090", "prom address")
-		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201", "query address")
+		pQueryAddress = flag.String("queryAddress", "0.0.0.0:7201/m3query", "M3 query address")
 
 		pComparatorAddress = flag.String("comparator", "", "comparator address")
 		pRegressionDir     = flag.String("regressionDir", "", "optional directory for regression tests")
@@ -121,26 +121,24 @@ func main() {
 				log,
 			); err != nil {
 				multiErr = multiErr.Add(err)
+				log.Error("query group encountered failure",
+					zap.String("group", queryGroup.QueryGroup),
+					zap.Int("run", i+1),
+					zap.Error(err))
 			}
 		}
 	}
 
-	if multiErr.LastError() != nil {
-		log.Error("mismatched queries detected in base queries")
-		if len(regressionDir) == 0 {
-			log.Info("no regression directory supplied.")
-			os.Exit(1)
-		}
+	if !multiErr.Empty() {
+		log.Fatal("mismatched queries detected in base queries")
 	}
+	log.Info("base queries success")
 
 	if err := runRegressionSuite(regressionDir, comparatorAddress,
 		promAddress, queryAddress, log); err != nil {
-		log.Error("failure or mismatched queries detected in regression suite",
-			zap.Error(err))
-		os.Exit(1)
-	} else {
-		log.Info("regression success")
+		log.Fatal("failure or mismatched queries detected in regression suite", zap.Error(err))
 	}
+	log.Info("regression success")
 }
 
 func runRegressionSuite(
@@ -272,13 +270,13 @@ func runComparison(
 	queryURL string,
 	log *zap.Logger,
 ) error {
-	promResult, err := parseResult(promURL, log)
+	promResult, err := parseResult(promURL)
 	if err != nil {
 		log.Error("failed to parse Prometheus result", zap.Error(err))
 		return err
 	}
 
-	queryResult, err := parseResult(queryURL, log)
+	queryResult, err := parseResult(queryURL)
 	if err != nil {
 		log.Error("failed to parse M3Query result", zap.Error(err))
 		return err
@@ -286,17 +284,14 @@ func runComparison(
 
 	_, err = promResult.Matches(queryResult)
 	if err != nil {
-		log.Error("mismatch", zap.Error((err)))
+		log.Error("mismatch", zap.Error(err))
 		return err
 	}
 
 	return nil
 }
 
-func parseResult(
-	endpoint string,
-	log *zap.Logger,
-) (prometheus.Response, error) {
+func parseResult(endpoint string) (prometheus.Response, error) {
 	var result prometheus.Response
 	response, err := http.Get(endpoint)
 	if err != nil {

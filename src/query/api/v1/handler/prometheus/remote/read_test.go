@@ -45,11 +45,13 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	xpromql "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/m3"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -89,8 +91,8 @@ func TestParseExpr(t *testing.T) {
 
 	start := time.Now().Truncate(time.Hour)
 	req := httptest.NewRequest(http.MethodPost, "/", buildBody(query, start))
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	readReq, err := ParseExpr(req)
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeFormURLEncoded)
+	readReq, err := ParseExpr(req, xpromql.NewParseOptions())
 	require.NoError(t, err)
 
 	q := func(start, end time.Time, matchers []*prompb.LabelMatcher) *prompb.Query {
@@ -144,11 +146,13 @@ func newEngine(
 
 func setupServer(t *testing.T) *httptest.Server {
 	ctrl := xtest.NewController(t)
-	// No calls expected on session object
+	defer ctrl.Finish()
+
 	lstore, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().
 		FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, client.FetchResponseMetadata{Exhaustive: false}, fmt.Errorf("not initialized"))
+		Return(nil, client.FetchResponseMetadata{Exhaustive: false},
+			fmt.Errorf("not initialized")).MaxTimes(1)
 	storage := test.NewSlowStorage(lstore, 10*time.Millisecond)
 	promRead := readHandler(storage, timeoutOpts)
 	server := httptest.NewServer(test.NewSlowHandler(promRead, 10*time.Millisecond))
@@ -157,7 +161,11 @@ func setupServer(t *testing.T) *httptest.Server {
 
 func readHandler(store storage.Storage,
 	timeoutOpts *prometheus.TimeoutOpts) http.Handler {
-	fetchOpts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
+	fetchOpts := handleroptions.FetchOptionsBuilderOptions{
+		Limits: handleroptions.FetchOptionsBuilderLimitsOptions{
+			SeriesLimit: 100,
+		},
+	}
 	iOpts := instrument.NewOptions()
 	engine := newEngine(store, defaultLookbackDuration, nil, iOpts)
 	opts := options.EmptyHandlerOptions().
@@ -172,7 +180,11 @@ func readHandler(store storage.Storage,
 func TestPromReadParsing(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	builderOpts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
+	builderOpts := handleroptions.FetchOptionsBuilderOptions{
+		Limits: handleroptions.FetchOptionsBuilderLimitsOptions{
+			SeriesLimit: 100,
+		},
+	}
 	engine := newEngine(storage, defaultLookbackDuration, nil,
 		instrument.NewOptions())
 
@@ -248,7 +260,7 @@ func TestQueryKillOnClientDisconnect(t *testing.T) {
 		Timeout: 1 * time.Millisecond,
 	}
 
-	_, err := c.Post(server.URL, "application/x-protobuf", test.GeneratePromReadBody(t))
+	_, err := c.Post(server.URL, xhttp.ContentTypeProtobuf, test.GeneratePromReadBody(t))
 	assert.Error(t, err)
 }
 
@@ -257,7 +269,7 @@ func TestQueryKillOnTimeout(t *testing.T) {
 	defer server.Close()
 
 	req, _ := http.NewRequest("POST", server.URL, test.GeneratePromReadBody(t))
-	req.Header.Add("Content-Type", "application/x-protobuf")
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeProtobuf)
 	req.Header.Add("timeout", "1ms")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -268,6 +280,8 @@ func TestQueryKillOnTimeout(t *testing.T) {
 
 func TestReadErrorMetricsCount(t *testing.T) {
 	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
 	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, client.FetchResponseMetadata{Exhaustive: true}, fmt.Errorf("unable to get data"))
@@ -278,7 +292,11 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
-	buildOpts := handleroptions.FetchOptionsBuilderOptions{Limit: 100}
+	buildOpts := handleroptions.FetchOptionsBuilderOptions{
+		Limits: handleroptions.FetchOptionsBuilderLimitsOptions{
+			SeriesLimit: 100,
+		},
+	}
 	engine := newEngine(storage, defaultLookbackDuration, nil,
 		instrument.NewOptions())
 	opts := options.EmptyHandlerOptions().
@@ -340,8 +358,8 @@ func TestMultipleRead(t *testing.T) {
 
 	req := &prompb.ReadRequest{
 		Queries: []*prompb.Query{
-			{StartTimestampMs: 10},
-			{StartTimestampMs: 20},
+			{StartTimestampMs: 10, EndTimestampMs: 100},
+			{StartTimestampMs: 20, EndTimestampMs: 200},
 		},
 	}
 
@@ -418,7 +436,7 @@ func TestReadWithOptions(t *testing.T) {
 	}
 
 	req := &prompb.ReadRequest{
-		Queries: []*prompb.Query{{StartTimestampMs: 10}},
+		Queries: []*prompb.Query{{StartTimestampMs: 10, EndTimestampMs: 100}},
 	}
 
 	q, err := storage.PromReadQueryToM3(req.Queries[0])

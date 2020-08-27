@@ -75,7 +75,7 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 	return false
 }
 
-func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
+func newMultiAddrTestOptions(opts TestOptions, instance int) TestOptions {
 	bind := "127.0.0.1"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
 	return opts.
@@ -137,12 +137,12 @@ func newDefaulTestResultOptions(
 
 func newDefaultBootstrappableTestSetups(
 	t *testing.T,
-	opts testOptions,
+	opts TestOptions,
 	setupOpts []bootstrappableTestSetupOptions,
 ) (testSetups, closeFn) {
 	var (
 		replicas        = len(setupOpts)
-		setups          []*testSetup
+		setups          []TestSetup
 		cleanupFns      []func()
 		cleanupFnsMutex sync.RWMutex
 
@@ -206,11 +206,11 @@ func newDefaultBootstrappableTestSetups(
 			SetClusterDatabaseTopologyInitializer(topologyInitializer).
 			SetUseTChannelClientForWriting(useTChannelClientForWriting)
 
-		setup, err := newTestSetup(t, instanceOpts, nil)
+		setup, err := NewTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
-		topologyInitializer = setup.topoInit
+		topologyInitializer = setup.TopologyInitializer()
 
-		instrumentOpts := setup.storageOpts.InstrumentOptions()
+		instrumentOpts := setup.StorageOpts().InstrumentOptions()
 		logger := instrumentOpts.Logger()
 		logger = logger.With(zap.Int("instance", instance))
 		instrumentOpts = instrumentOpts.SetLogger(logger)
@@ -218,10 +218,10 @@ func newDefaultBootstrappableTestSetups(
 			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
 			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
 		}
-		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
+		setup.SetStorageOpts(setup.StorageOpts().SetInstrumentOptions(instrumentOpts))
 
 		var (
-			bsOpts            = newDefaulTestResultOptions(setup.storageOpts)
+			bsOpts            = newDefaulTestResultOptions(setup.StorageOpts())
 			finalBootstrapper bootstrap.BootstrapperProvider
 
 			adminOpts = client.NewAdminOptions().
@@ -257,11 +257,11 @@ func newDefaultBootstrappableTestSetups(
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 		adminClient := newMultiAddrAdminClient(
 			t, adminOpts, topologyInitializer, origin, instrumentOpts)
-		storageIdxOpts := setup.storageOpts.IndexOptions()
-		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+		storageIdxOpts := setup.StorageOpts().IndexOptions()
+		fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 		if usingPeersBootstrapper {
 			var (
-				runtimeOptsMgr = setup.storageOpts.RuntimeOptionsManager()
+				runtimeOptsMgr = setup.StorageOpts().RuntimeOptionsManager()
 				runtimeOpts    = runtimeOptsMgr.Get().
 						SetClientBootstrapConsistencyLevel(bootstrapConsistencyLevel)
 			)
@@ -274,10 +274,10 @@ func newDefaultBootstrappableTestSetups(
 				SetFilesystemOptions(fsOpts).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
-				SetPersistManager(setup.storageOpts.PersistManager()).
+				SetPersistManager(setup.StorageOpts().PersistManager()).
 				SetCompactor(newCompactor(t, storageIdxOpts)).
 				SetRuntimeOptionsManager(runtimeOptsMgr).
-				SetContextPool(setup.storageOpts.ContextPool())
+				SetContextPool(setup.StorageOpts().ContextPool())
 
 			finalBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, finalBootstrapper)
 			require.NoError(t, err)
@@ -298,28 +298,28 @@ func newDefaultBootstrappableTestSetups(
 
 		processOpts := bootstrap.NewProcessOptions().
 			SetTopologyMapProvider(setup).
-			SetOrigin(setup.origin)
+			SetOrigin(setup.Origin())
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)
 
-		setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(provider)
+		setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(provider))
 
 		if enableRepairs {
-			setup.storageOpts = setup.storageOpts.
+			setup.SetStorageOpts(setup.StorageOpts().
 				SetRepairEnabled(true).
 				SetRepairOptions(
-					setup.storageOpts.RepairOptions().
+					setup.StorageOpts().RepairOptions().
 						SetRepairThrottle(time.Millisecond).
 						SetRepairCheckInterval(time.Millisecond).
 						SetAdminClients([]client.AdminClient{adminClient}).
 						SetDebugShadowComparisonsPercentage(1.0).
 						// Avoid log spam.
-						SetDebugShadowComparisonsEnabled(false))
+						SetDebugShadowComparisonsEnabled(false)))
 		}
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {
-			setup.close()
+			setup.Close()
 		})
 	}
 
@@ -334,27 +334,27 @@ func newDefaultBootstrappableTestSetups(
 
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
-	setup *testSetup,
+	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume)
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
+	return writer.WriteData(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume)
 }
 
 func writeTestSnapshotsToDiskWithPredicate(
 	metadata namespace.Metadata,
-	setup *testSetup,
+	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
 	pred generate.WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume, pred, snapshotInterval)
+		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {
@@ -417,7 +417,13 @@ func newCompactor(
 	t *testing.T,
 	opts index.Options,
 ) *compaction.Compactor {
-	compactor, err := compaction.NewCompactor(opts.DocumentArrayPool(),
+	compactor, err := newCompactorWithErr(opts)
+	require.NoError(t, err)
+	return compactor
+}
+
+func newCompactorWithErr(opts index.Options) (*compaction.Compactor, error) {
+	return compaction.NewCompactor(opts.DocumentArrayPool(),
 		index.DocumentArrayPoolCapacity,
 		opts.SegmentBuilderOptions(),
 		opts.FSTSegmentOptions(),
@@ -429,9 +435,6 @@ func newCompactor(
 				DisableRegistry: true,
 			},
 		})
-	require.NoError(t, err)
-	return compactor
-
 }
 
 func writeTestIndexDataToDisk(
@@ -448,7 +451,7 @@ func writeTestIndexDataToDisk(
 	if err != nil {
 		return err
 	}
-	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter()
+	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter(fst.WriterOptions{})
 	if err != nil {
 		return err
 	}

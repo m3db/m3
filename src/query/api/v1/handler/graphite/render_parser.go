@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/util/json"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 )
 
 const (
@@ -54,12 +55,12 @@ func WriteRenderResponse(
 	format string,
 ) error {
 	if format == pickleFormat {
-		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeOctetStream)
 		return renderResultsPickle(w, series.Values)
 	}
 
 	// NB: return json unless requesting specifically `pickleFormat`
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	return renderResultsJSON(w, series.Values)
 }
 

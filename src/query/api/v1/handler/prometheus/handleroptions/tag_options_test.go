@@ -132,7 +132,14 @@ func TestParse(t *testing.T) {
 		err := json.Unmarshal([]byte(tt.json), &opts)
 		require.NoError(t, err)
 
-		a, err := opts.toOptions()
+		validateErr := opts.Validate()
+		if tt.expectedError {
+			require.Error(t, validateErr)
+		} else {
+			require.NoError(t, validateErr)
+		}
+
+		a, err := opts.StorageOptions()
 		if tt.expectedError {
 			require.Error(t, err)
 			require.Nil(t, a)

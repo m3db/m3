@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
@@ -178,8 +180,8 @@ func newWriteQuery(t *testing.T) *storage.WriteQuery {
 				Value:     2.0,
 			},
 		},
-		Attributes: storage.Attributes{
-			MetricsType: storage.UnaggregatedMetricsType,
+		Attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.UnaggregatedMetricsType,
 		},
 	})
 	require.NoError(t, err)
@@ -221,8 +223,8 @@ func TestLocalWriteAggregatedNoClusterNamespaceError(t *testing.T) {
 	opts := newWriteQuery(t).Options()
 
 	// Use unsupported retention/resolution
-	opts.Attributes = storage.Attributes{
-		MetricsType: storage.AggregatedMetricsType,
+	opts.Attributes = storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
 		Retention:   1234,
 		Resolution:  5678,
 	}
@@ -244,8 +246,8 @@ func TestLocalWriteAggregatedInvalidMetricsTypeError(t *testing.T) {
 	opts := newWriteQuery(t).Options()
 
 	// Use unsupported retention/resolution
-	opts.Attributes = storage.Attributes{
-		MetricsType: storage.MetricsType(math.MaxUint64),
+	opts.Attributes = storagemetadata.Attributes{
+		MetricsType: storagemetadata.MetricsType(math.MaxUint64),
 		Retention:   30 * 24 * time.Hour,
 	}
 
@@ -266,8 +268,8 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 	opts := newWriteQuery(t).Options()
 
 	// Use unsupported retention/resolution
-	opts.Attributes = storage.Attributes{
-		MetricsType: storage.AggregatedMetricsType,
+	opts.Attributes = storagemetadata.Attributes{
+		MetricsType: storagemetadata.AggregatedMetricsType,
 		Retention:   30 * 24 * time.Hour,
 		Resolution:  time.Minute,
 	}
@@ -287,6 +289,7 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 func TestLocalRead(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
+
 	store, sessions := setup(t, ctrl)
 	testTags := seriesiter.GenerateTag()
 
@@ -313,7 +316,8 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2),
 			testFetchResponseMetadata, nil)
-	session.EXPECT().IteratorPools().Return(nil, nil).AnyTimes()
+	session.EXPECT().IteratorPools().
+		Return(newTestIteratorPools(ctrl), nil).AnyTimes()
 
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * testLongestRetention)
@@ -325,7 +329,7 @@ func TestLocalReadExceedsRetention(t *testing.T) {
 
 func buildFetchOpts() *storage.FetchOptions {
 	opts := storage.NewFetchOptions()
-	opts.Limit = 100
+	opts.SeriesLimit = 100
 	return opts
 }
 
@@ -706,7 +710,7 @@ func TestLocalCompleteTagsSuccess(t *testing.T) {
 	require.False(t, result.CompleteNameOnly)
 	require.Equal(t, 3, len(result.CompletedTags))
 	// NB: expected will be sorted alphabetically
-	expected := []storage.CompletedTag{
+	expected := []consolidators.CompletedTag{
 		{
 			Name:   []byte("aba"),
 			Values: [][]byte{[]byte("quz")},
@@ -765,7 +769,7 @@ func TestLocalCompleteTagsSuccessFinalize(t *testing.T) {
 	require.False(t, result.CompleteNameOnly)
 	require.Equal(t, 1, len(result.CompletedTags))
 	// NB: expected will be sorted alphabetically
-	expected := []storage.CompletedTag{
+	expected := []consolidators.CompletedTag{
 		{
 			Name:   []byte("name"),
 			Values: [][]byte{[]byte("value")},

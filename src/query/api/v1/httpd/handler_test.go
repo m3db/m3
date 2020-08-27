@@ -89,7 +89,7 @@ func setupHandler(
 	customHandlers ...options.CustomHandler,
 ) (*Handler, error) {
 	instrumentOpts := instrument.NewOptions()
-	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, instrument.NewOptions())
 	engine := newEngine(store, time.Minute, nil, instrumentOpts)
 	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter,
@@ -107,6 +107,8 @@ func setupHandler(
 		defaultCPUProfileduration,
 		defaultPlacementServices,
 		svcDefaultOptions,
+		NewQueryRouter(),
+		NewQueryRouter(),
 	)
 
 	if err != nil {
@@ -119,7 +121,7 @@ func setupHandler(
 func TestHandlerFetchTimeout(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(storage, nil, testWorkerPool, instrument.NewOptions())
 
 	fourMin := 4 * time.Minute
 	dbconfig := &dbconfig.DBConfiguration{Client: client.Configuration{FetchTimeout: &fourMin}}
@@ -140,7 +142,10 @@ func TestHandlerFetchTimeout(t *testing.T) {
 		instrument.NewOptions(),
 		defaultCPUProfileduration,
 		defaultPlacementServices,
-		svcDefaultOptions)
+		svcDefaultOptions,
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 
 	h := NewHandler(opts)
@@ -393,14 +398,14 @@ func TestCustomRoutes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, _ := m3.NewStorageAndSession(t, ctrl)
 	instrumentOpts := instrument.NewOptions()
-	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool)
+	downsamplerAndWriter := ingest.NewDownsamplerAndWriter(store, nil, testWorkerPool, instrument.NewOptions())
 	engine := newEngine(store, time.Minute, nil, instrumentOpts)
 	opts, err := options.NewHandlerOptions(
 		downsamplerAndWriter, makeTagOptions().SetMetricName([]byte("z")), engine, nil, nil, nil,
 		config.Configuration{LookbackDuration: &defaultLookbackDuration}, nil, nil,
 		handleroptions.NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{}),
 		models.QueryContextOptions{}, instrumentOpts, defaultCPUProfileduration,
-		defaultPlacementServices, svcDefaultOptions,
+		defaultPlacementServices, svcDefaultOptions, NewQueryRouter(), NewQueryRouter(),
 	)
 
 	require.NoError(t, err)

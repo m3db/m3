@@ -22,7 +22,6 @@ package peers
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"sort"
 	"testing"
@@ -31,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -122,8 +122,11 @@ func writeTSDBFiles(
 	for _, v := range series {
 		bytes := checked.NewBytes(v.data, nil)
 		bytes.IncRef()
-		require.NoError(t, w.Write(ident.StringID(v.id),
-			sortedTagsFromTagsMap(v.tags), bytes, digest.Checksum(bytes.Bytes())))
+		metadata := persist.NewMetadataFromIDAndTags(ident.StringID(v.id),
+			sortedTagsFromTagsMap(v.tags),
+			persist.MetadataOptions{})
+		require.NoError(t, w.Write(metadata, bytes,
+			digest.Checksum(bytes.Bytes())))
 		bytes.DecRef()
 	}
 
@@ -281,7 +284,6 @@ func TestBootstrapIndex(t *testing.T) {
 		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		if len(indexBlock.Segments()) != 0 {
-			log.Printf("result block start: %s", indexBlockByVolumeType.BlockStart())
 			numBlocksWithData++
 		}
 	}
@@ -316,7 +318,7 @@ func TestBootstrapIndex(t *testing.T) {
 		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 		require.True(t, ok)
 		for _, seg := range indexBlock.Segments() {
-			reader, err := seg.Reader()
+			reader, err := seg.Segment().Reader()
 			require.NoError(t, err)
 
 			docs, err := reader.AllDocs()

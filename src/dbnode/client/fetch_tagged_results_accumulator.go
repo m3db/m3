@@ -63,7 +63,7 @@ type fetchTaggedResultAccumulator struct {
 	numHostsPending         int32
 	numShardsPending        int32
 
-	errors         xerrors.Errors
+	errors         []error
 	fetchResponses fetchTaggedIDResults
 	aggResponses   aggregateResults
 	exhaustive     bool
@@ -203,9 +203,18 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 	// all shards, so we need to fail
 	if accum.numHostsPending == 0 && accum.numShardsPending != 0 {
 		doneAccumulating := true
-		return doneAccumulating, fmt.Errorf(
-			"unable to satisfy consistency requirements for %d shards [ err = %s ]",
-			accum.numShardsPending, accum.errors.Error())
+		// NB(r): Use new renamed error to keep the underlying error
+		// (invalid/retryable) type.
+		err := fmt.Errorf("unable to satisfy consistency requirements: shards=%d, err=%v",
+			accum.numShardsPending, accum.errors)
+		for i := range accum.errors {
+			if IsBadRequestError(accum.errors[i]) {
+				err = xerrors.NewInvalidParamsError(err)
+				err = xerrors.NewNonRetryableError(err)
+				break
+			}
+		}
+		return doneAccumulating, err
 	}
 
 	doneAccumulating := false

@@ -22,10 +22,13 @@ package fs
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -33,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -52,6 +56,7 @@ var (
 	identPool     ident.Pool
 	encoderPool   encoding.EncoderPool
 	contextPool   context.Pool
+	bytesPool     pool.CheckedBytesPool
 
 	startTime = time.Now().Truncate(blockSize)
 
@@ -85,6 +90,10 @@ func init() {
 	contextPool = context.NewPool(context.NewOptions().
 		SetContextPoolOptions(poolOpts).
 		SetFinalizerPoolOptions(poolOpts))
+	bytesPool = pool.NewCheckedBytesPool(nil, poolOpts, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, poolOpts)
+	})
+	bytesPool.Init()
 }
 
 func TestMergeWithIntersection(t *testing.T) {
@@ -426,6 +435,99 @@ func TestMergeWithNoData(t *testing.T) {
 	testMergeWith(t, diskData, mergeTargetData, expected)
 }
 
+func TestCleanup(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	// Write fileset to disk
+	fsOpts := NewOptions().
+		SetFilePathPrefix(filePathPrefix)
+
+	md, err := namespace.NewMetadata(ident.StringID("foo"), namespace.NewOptions())
+	require.NoError(t, err)
+
+	blockStart := time.Now()
+	var shard uint32 = 1
+	fsId := FileSetFileIdentifier{
+		Namespace:   md.ID(),
+		Shard:       shard,
+		BlockStart:  blockStart,
+		VolumeIndex: 0,
+	}
+	writeFilesetToDisk(t, fsId, fsOpts)
+
+	// Verify fileset exists
+	exists, err := DataFileSetExists(filePathPrefix, md.ID(), shard, blockStart, 0)
+	require.NoError(t, err)
+	require.True(t, exists)
+
+	// Initialize merger
+	reader, err := NewReader(bytesPool, fsOpts)
+	require.NoError(t, err)
+
+	merger := NewMerger(reader, 0, srPool, multiIterPool, identPool, encoderPool, contextPool,
+		filePathPrefix, namespace.NewOptions())
+
+	// Run merger
+	pm, err := NewPersistManager(fsOpts)
+	require.NoError(t, err)
+
+	preparer, err := pm.StartFlushPersist()
+	require.NoError(t, err)
+
+	err = merger.MergeAndCleanup(fsId, NewNoopMergeWith(), fsId.VolumeIndex+1, preparer,
+		namespace.NewContextFrom(md), &persist.NoOpColdFlushNamespace{}, false)
+	require.NoError(t, err)
+
+	// Verify old fileset gone and new one present
+	exists, err = DataFileSetExists(filePathPrefix, md.ID(), shard, blockStart, 0)
+	require.NoError(t, err)
+	require.False(t, exists)
+
+	exists, err = DataFileSetExists(filePathPrefix, md.ID(), shard, blockStart, 1)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
+func TestCleanupOnceBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	preparer := persist.NewMockFlushPreparer(ctrl)
+	md, err := namespace.NewMetadata(ident.StringID("foo"), namespace.NewOptions())
+	require.NoError(t, err)
+
+	merger := merger{}
+	err = merger.MergeAndCleanup(FileSetFileIdentifier{}, NewNoopMergeWith(), 1, preparer,
+		namespace.NewContextFrom(md), &persist.NoOpColdFlushNamespace{}, true)
+	require.Error(t, err)
+}
+
+func writeFilesetToDisk(t *testing.T, fsId FileSetFileIdentifier, fsOpts Options) {
+	w, err := NewWriter(fsOpts)
+	require.NoError(t, err)
+
+	writerOpts := DataWriterOpenOptions{
+		Identifier: fsId,
+		BlockSize:  2 * time.Hour,
+	}
+	err = w.Open(writerOpts)
+	require.NoError(t, err)
+
+	entry := []byte{1, 2, 3}
+
+	chkdBytes := checked.NewBytes(entry, nil)
+	chkdBytes.IncRef()
+	metadata := persist.NewMetadataFromIDAndTags(ident.StringID("foo"),
+		ident.Tags{}, persist.MetadataOptions{})
+	err = w.Write(metadata, chkdBytes, digest.Checksum(entry))
+	require.NoError(t, err)
+
+	err = w.Close()
+	require.NoError(t, err)
+}
+
 func testMergeWith(
 	t *testing.T,
 	diskData *checkedBytesMap,
@@ -437,12 +539,13 @@ func testMergeWith(
 	reader := mockReaderFromData(ctrl, diskData)
 
 	var persisted []persistedData
+	var deferClosed bool
 	preparer := persist.NewMockFlushPreparer(ctrl)
 	preparer.EXPECT().PrepareData(gomock.Any()).Return(
 		persist.PreparedDataPersist{
-			Persist: func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint32) error {
+			Persist: func(metadata persist.Metadata, segment ts.Segment, checksum uint32) error {
 				persisted = append(persisted, persistedData{
-					id: id,
+					metadata: metadata,
 					// NB(bodu): Once data is persisted the `ts.Segment` gets finalized
 					// so we can't read from it anymore or that violates the read after
 					// free invariant. So we `Clone` the segment here.
@@ -450,21 +553,30 @@ func testMergeWith(
 				})
 				return nil
 			},
-			Close: func() error { return nil },
+			DeferClose: func() (persist.DataCloser, error) {
+				return func() error {
+					require.False(t, deferClosed)
+					deferClosed = true
+					return nil
+				}, nil
+			},
 		}, nil)
 	nsCtx := namespace.Context{}
 
 	nsOpts := namespace.NewOptions()
 	merger := NewMerger(reader, 0, srPool, multiIterPool,
-		identPool, encoderPool, contextPool, nsOpts)
+		identPool, encoderPool, contextPool, NewOptions().FilePathPrefix(), nsOpts)
 	fsID := FileSetFileIdentifier{
 		Namespace:  ident.StringID("test-ns"),
 		Shard:      uint32(8),
 		BlockStart: startTime,
 	}
 	mergeWith := mockMergeWithFromData(t, ctrl, diskData, mergeTargetData)
-	err := merger.Merge(fsID, mergeWith, 1, preparer, nsCtx, &persist.NoOpColdFlushNamespace{})
+	close, err := merger.Merge(fsID, mergeWith, 1, preparer, nsCtx, &persist.NoOpColdFlushNamespace{})
 	require.NoError(t, err)
+	require.False(t, deferClosed)
+	require.NoError(t, close())
+	require.True(t, deferClosed)
 
 	assertPersistedAsExpected(t, persisted, expectedData)
 }
@@ -478,8 +590,8 @@ func assertPersistedAsExpected(
 	require.Equal(t, expectedData.Len(), len(persisted))
 
 	for _, actualData := range persisted {
-		id := actualData.id
-		data, exists := expectedData.Get(id)
+		id := actualData.metadata.BytesID()
+		data, exists := expectedData.Get(ident.StringID(string(id)))
 		require.True(t, exists)
 		seg := ts.NewSegment(data, nil, 0, ts.FinalizeHead)
 
@@ -521,7 +633,6 @@ func mockReaderFromData(
 ) *MockDataFileSetReader {
 	reader := NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(gomock.Any()).Return(nil)
-	reader.EXPECT().Entries().Return(diskData.Len()).Times(2)
 	reader.EXPECT().Close().Return(nil)
 	tagIter := ident.NewTagsIterator(ident.NewTags(ident.StringTag("tag-key0", "tag-val0")))
 	fakeChecksum := uint32(42)
@@ -592,7 +703,7 @@ func mockMergeWithFromData(
 						Start:  startTime,
 						Blocks: []xio.BlockReader{blockReaderFromData(data, segReader, startTime, blockSize)},
 					}
-					fn(id, ident.Tags{}, br)
+					fn(doc.Document{ID: id.Bytes()}, br)
 				}
 			}
 		})
@@ -601,8 +712,8 @@ func mockMergeWithFromData(
 }
 
 type persistedData struct {
-	id      ident.ID
-	segment ts.Segment
+	metadata persist.Metadata
+	segment  ts.Segment
 }
 
 func datapointsFromSegment(t *testing.T, seg ts.Segment) []ts.Datapoint {

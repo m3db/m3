@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -40,7 +41,8 @@ type testSeriesLoadHandler struct {
 	iters encoding.SeriesIterators
 }
 
-func (h *testSeriesLoadHandler) getSeriesIterators(name string) (encoding.SeriesIterators, error) {
+func (h *testSeriesLoadHandler) getSeriesIterators(
+	name string) (encoding.SeriesIterators, error) {
 	return h.iters, nil
 }
 
@@ -49,69 +51,77 @@ var _ seriesLoadHandler = (*testSeriesLoadHandler)(nil)
 type tagMap map[string]string
 
 var (
-	iteratorOpts = iteratorOptions{
-		encoderPool:   encoderPool,
-		iteratorPools: iterPools,
-		tagOptions:    tagOptions,
-		iOpts:         iOpts,
+	iteratorOpts = parser.Options{
+		EncoderPool:       encoderPool,
+		IteratorPools:     iterPools,
+		TagOptions:        tagOptions,
+		InstrumentOptions: iOpts,
 	}
-	metricNameTag = string(iteratorOpts.tagOptions.MetricName())
+	metricNameTag = string(iteratorOpts.TagOptions.MetricName())
 )
 
 const (
-	blockSize         = time.Hour * 12
-	defaultResolution = time.Second * 30
+	blockSize             = time.Hour * 12
+	defaultResolution     = time.Second * 30
+	metricsName           = "preloaded"
+	predefinedSeriesCount = 10
+	histogramBucketCount  = 4
 )
 
-func TestFetchCompressedReturnsPreloadedData(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	const (
-		metricsName           = "preloaded"
-		predefinedSeriesCount = 10
-	)
-
-	query := matcherQuery(t, metricNameTag, metricsName)
-
-	metricsTag := ident.NewTags(ident.Tag{
-		Name:  ident.BytesID(tagOptions.MetricName()),
-		Value: ident.BytesID(metricsName),
-	})
-
-	iters := make([]encoding.SeriesIterator, 0, predefinedSeriesCount)
-	for i := 0; i < predefinedSeriesCount; i++ {
-		iters = append(iters, encoding.NewSeriesIterator(
-			encoding.SeriesIteratorOptions{
-				Namespace:      ident.StringID("ns"),
-				Tags:           ident.NewTagsIterator(metricsTag),
-				StartInclusive: xtime.ToUnixNano(query.Start),
-				EndExclusive:   xtime.ToUnixNano(query.End),
-			}, nil))
+func TestFetchCompressed(t *testing.T) {
+	tests := []struct {
+		name          string
+		queryTagName  string
+		queryTagValue string
+		expectedCount int
+	}{
+		{
+			name:          "querying by metric name returns preloaded data",
+			queryTagName:  metricNameTag,
+			queryTagValue: metricsName,
+			expectedCount: predefinedSeriesCount,
+		},
+		{
+			name:          "querying without metric name just by other tag returns preloaded data",
+			queryTagName:  "tag1",
+			queryTagValue: "test2",
+			expectedCount: 4,
+		},
 	}
 
-	seriesIterators := encoding.NewMockSeriesIterators(ctrl)
-	seriesIterators.EXPECT().Len().Return(predefinedSeriesCount).MinTimes(1)
-	seriesIterators.EXPECT().Iters().Return(iters).Times(1)
-	seriesIterators.EXPECT().Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := xtest.NewController(t)
+			defer ctrl.Finish()
 
-	seriesLoader := &testSeriesLoadHandler{seriesIterators}
+			query := matcherQuery(t, tt.queryTagName, tt.queryTagValue)
+			querier := setupQuerier(ctrl, query)
 
-	querier, _ := newQuerier(iteratorOpts, seriesLoader, blockSize, defaultResolution)
+			result, cleanup, err := querier.FetchCompressed(nil, query, nil)
+			assert.NoError(t, err)
+			defer cleanup()
 
-	result, cleanup, err := querier.FetchCompressed(nil, query, nil)
-	assert.NoError(t, err)
-	defer cleanup()
-
-	assert.Equal(t, predefinedSeriesCount, result.SeriesIterators.Len())
+			assert.Equal(t, tt.expectedCount, len(result.SeriesIterators()))
+		})
+	}
 }
 
-func TestFetchCompressedGeneratesRandomData(t *testing.T) {
+func TestGenerateRandomSeries(t *testing.T) {
 	tests := []struct {
 		name       string
 		givenQuery *storage.FetchQuery
 		wantSeries []tagMap
 	}{
+		{
+			name:       "querying nonexistent_metric returns empty",
+			givenQuery: matcherQuery(t, metricNameTag, "nonexistent_metric"),
+			wantSeries: []tagMap{},
+		},
+		{
+			name:       "querying nonexistant returns empty",
+			givenQuery: matcherQuery(t, metricNameTag, "nonexistant"),
+			wantSeries: []tagMap{},
+		},
 		{
 			name:       "random data for known metrics",
 			givenQuery: matcherQuery(t, metricNameTag, "quail"),
@@ -191,6 +201,69 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 			},
 		},
 		{
+			name:       "histogram metrics",
+			givenQuery: matcherQuery(t, metricNameTag, "histogram_2_bucket"),
+			wantSeries: []tagMap{
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "0",
+					"parity":      "0",
+					"le":          "1",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "0",
+					"parity":      "0",
+					"le":          "10",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "0",
+					"parity":      "0",
+					"le":          "100",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "0",
+					"parity":      "0",
+					"le":          "+Inf",
+				},
+
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "1",
+					"parity":      "1",
+					"le":          "1",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "1",
+					"parity":      "1",
+					"le":          "10",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "1",
+					"parity":      "1",
+					"le":          "100",
+				},
+				{
+					metricNameTag: "histogram_2_bucket",
+					"const":       "x",
+					"id":          "1",
+					"parity":      "1",
+					"le":          "+Inf",
+				},
+			},
+		},
+		{
 			name: "apply tag filter",
 			givenQuery: and(
 				matcherQuery(t, metricNameTag, "multi_5"),
@@ -217,19 +290,55 @@ func TestFetchCompressedGeneratesRandomData(t *testing.T) {
 			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
-			querier, _ := newQuerier(iteratorOpts, emptySeriesLoader(ctrl), blockSize, defaultResolution)
+			querier, err := setupRandomGenQuerier(ctrl)
+			assert.NoError(t, err)
 
 			result, cleanup, err := querier.FetchCompressed(nil, tt.givenQuery, nil)
 			assert.NoError(t, err)
 			defer cleanup()
 
-			require.Equal(t, len(tt.wantSeries), result.SeriesIterators.Len())
+			iters := result.SeriesIterators()
+			require.Equal(t, len(tt.wantSeries), len(iters))
 			for i, expectedTags := range tt.wantSeries {
-				iter := result.SeriesIterators.Iters()[i]
+				iter := iters[i]
 				assert.Equal(t, expectedTags, extractTags(iter))
 				assert.True(t, iter.Next(), "Must have some datapoints generated.")
 			}
 		})
+	}
+}
+
+func TestHistogramBucketsAddUp(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	querier, err := setupRandomGenQuerier(ctrl)
+	assert.NoError(t, err)
+
+	histogramQuery := matcherQuery(t, metricNameTag, "histogram_1_bucket")
+	result, cleanup, err := querier.FetchCompressed(nil, histogramQuery, nil)
+	assert.NoError(t, err)
+	defer cleanup()
+
+	iters := result.SeriesIterators()
+	require.Equal(t, histogramBucketCount,
+		len(iters), "number of histogram buckets")
+
+	iter0 := iters[0]
+	for iter0.Next() {
+		v0, t1, _ := iter0.Current()
+		for i := 1; i < histogramBucketCount; i++ {
+			iter := iters[i]
+			require.True(t, iter.Next(), "all buckets must have the same length")
+			vi, ti, _ := iter.Current()
+			assert.True(t, vi.Value >= v0.Value, "bucket values must be non decreasing")
+			assert.Equal(t, v0.Timestamp, vi.Timestamp, "bucket values timestamps must match")
+			assert.Equal(t, t1, ti)
+		}
+	}
+
+	for _, iter := range iters {
+		require.False(t, iter.Next(), "all buckets must have the same length")
 	}
 }
 
@@ -254,13 +363,6 @@ func and(query1, query2 *storage.FetchQuery) *storage.FetchQuery {
 	}
 }
 
-func emptySeriesLoader(ctrl *gomock.Controller) seriesLoadHandler {
-	iters := encoding.NewMockSeriesIterators(ctrl)
-	iters.EXPECT().Len().Return(0).AnyTimes()
-
-	return &testSeriesLoadHandler{iters}
-}
-
 func extractTags(seriesIter encoding.SeriesIterator) tagMap {
 	tagsIter := seriesIter.Tags().Duplicate()
 	defer tagsIter.Close()
@@ -272,4 +374,58 @@ func extractTags(seriesIter encoding.SeriesIterator) tagMap {
 	}
 
 	return tags
+}
+
+func setupQuerier(ctrl *gomock.Controller, query *storage.FetchQuery) *querier {
+	metricsTag := ident.NewTags(ident.Tag{
+		Name:  ident.BytesID(tagOptions.MetricName()),
+		Value: ident.BytesID(metricsName),
+	},
+		ident.Tag{
+			Name:  ident.BytesID("tag1"),
+			Value: ident.BytesID("test"),
+		},
+	)
+	metricsTag2 := ident.NewTags(ident.Tag{
+		Name:  ident.BytesID(tagOptions.MetricName()),
+		Value: ident.BytesID(metricsName),
+	},
+		ident.Tag{
+			Name:  ident.BytesID("tag1"),
+			Value: ident.BytesID("test2"),
+		},
+	)
+
+	iters := make([]encoding.SeriesIterator, 0, predefinedSeriesCount)
+	for i := 0; i < predefinedSeriesCount; i++ {
+		m := metricsTag
+		if i > 5 {
+			m = metricsTag2
+		}
+		iters = append(iters, encoding.NewSeriesIterator(
+			encoding.SeriesIteratorOptions{
+				Namespace:      ident.StringID("ns"),
+				Tags:           ident.NewTagsIterator(m),
+				StartInclusive: xtime.ToUnixNano(query.Start),
+				EndExclusive:   xtime.ToUnixNano(query.End),
+			}, nil))
+	}
+
+	seriesIterators := encoding.NewMockSeriesIterators(ctrl)
+	seriesIterators.EXPECT().Len().Return(predefinedSeriesCount).MinTimes(1)
+	seriesIterators.EXPECT().Iters().Return(iters).Times(1)
+	seriesIterators.EXPECT().Close()
+
+	seriesLoader := &testSeriesLoadHandler{seriesIterators}
+
+	return &querier{iteratorOpts: iteratorOpts, handler: seriesLoader}
+}
+
+func setupRandomGenQuerier(ctrl *gomock.Controller) (*querier, error) {
+	iters := encoding.NewMockSeriesIterators(ctrl)
+	iters.EXPECT().Len().Return(0).AnyTimes()
+
+	emptySeriesLoader := &testSeriesLoadHandler{iters}
+
+	return newQuerier(iteratorOpts, emptySeriesLoader, blockSize, defaultResolution, histogramBucketCount)
 }

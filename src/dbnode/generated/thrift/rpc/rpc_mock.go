@@ -255,6 +255,36 @@ func (mr *MockTChanNodeMockRecorder) DebugIndexMemorySegments(ctx, req interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugIndexMemorySegments", reflect.TypeOf((*MockTChanNode)(nil).DebugIndexMemorySegments), ctx, req)
 }
 
+// DebugProfileStart mocks base method
+func (m *MockTChanNode) DebugProfileStart(ctx thrift.Context, req *DebugProfileStartRequest) (*DebugProfileStartResult_, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DebugProfileStart", ctx, req)
+	ret0, _ := ret[0].(*DebugProfileStartResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DebugProfileStart indicates an expected call of DebugProfileStart
+func (mr *MockTChanNodeMockRecorder) DebugProfileStart(ctx, req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugProfileStart", reflect.TypeOf((*MockTChanNode)(nil).DebugProfileStart), ctx, req)
+}
+
+// DebugProfileStop mocks base method
+func (m *MockTChanNode) DebugProfileStop(ctx thrift.Context, req *DebugProfileStopRequest) (*DebugProfileStopResult_, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DebugProfileStop", ctx, req)
+	ret0, _ := ret[0].(*DebugProfileStopResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DebugProfileStop indicates an expected call of DebugProfileStop
+func (mr *MockTChanNodeMockRecorder) DebugProfileStop(ctx, req interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugProfileStop", reflect.TypeOf((*MockTChanNode)(nil).DebugProfileStop), ctx, req)
+}
+
 // Fetch mocks base method
 func (m *MockTChanNode) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error) {
 	m.ctrl.T.Helper()

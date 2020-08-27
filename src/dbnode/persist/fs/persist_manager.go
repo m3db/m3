@@ -36,7 +36,6 @@ import (
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	xclose "github.com/m3db/m3/src/x/close"
-	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
@@ -168,7 +167,9 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter()
+
+	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter(
+		opts.FSTWriterOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +201,7 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 
 func (pm *persistManager) reset() {
 	pm.status = persistManagerIdle
-	pm.start = timeZero 
+	pm.start = timeZero
 	pm.count = 0
 	pm.bytesWritten = 0
 	pm.worked = 0
@@ -490,13 +491,13 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 
 	prepared.Persist = pm.persist
 	prepared.Close = pm.closeData
+	prepared.DeferClose = pm.deferCloseData
 
 	return prepared, nil
 }
 
 func (pm *persistManager) persist(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	segment ts.Segment,
 	checksum uint32,
 ) error {
@@ -528,7 +529,7 @@ func (pm *persistManager) persist(
 
 	pm.dataPM.segmentHolder[0] = segment.Head
 	pm.dataPM.segmentHolder[1] = segment.Tail
-	err := pm.dataPM.writer.WriteAll(id, tags, pm.dataPM.segmentHolder, checksum)
+	err := pm.dataPM.writer.WriteAll(metadata, pm.dataPM.segmentHolder, checksum)
 	pm.count++
 	pm.bytesWritten += int64(segment.Len())
 
@@ -542,6 +543,10 @@ func (pm *persistManager) persist(
 
 func (pm *persistManager) closeData() error {
 	return pm.dataPM.writer.Close()
+}
+
+func (pm *persistManager) deferCloseData() (persist.DataCloser, error) {
+	return pm.dataPM.writer.DeferClose()
 }
 
 // DoneFlush is called by the databaseFlushManager to finish the data persist process.

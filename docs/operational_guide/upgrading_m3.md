@@ -14,8 +14,44 @@ This includes upgrading:
 
 ### Graphs to monitor
 
-While upgrading M3DB nodes, it's important to monitor the status of bootstrapping the individual nodes. This can be monitored using the [M3DB Node Details](https://grafana.com/grafana/dashboards/8126) graph.
+While upgrading M3DB nodes, it's important to monitor the status of bootstrapping the individual nodes. This can be monitored using the [M3DB Node Details](https://github.com/m3db/m3/blob/master/integrations/grafana/m3db_dashboard.json) dashboard.
 Typically, the `Bootstrapped` graph under `Background Tasks` and the graphs within the `CPU and Memory Utilization` give a good understanding of how well bootstrapping is going.
+
+### Kubernetes
+
+If running `M3DB` on Kubernetes, upgrade by completing the following steps. 
+
+1. Identify the version of m3dbnode to upgrade to [on Quay](https://quay.io/repository/m3db/m3dbnode?tab=tags).
+
+2. Replace the Docker image in the `StatefulSet` manifest (or `m3db-operator` manifest) to be the new version of m3dbnode.
+
+```yaml
+spec:
+  image: quay.io/m3db/m3dbnode:$VERSION
+```
+
+3. Once updated, apply the updated manifest and a rolling restart will be performed. You must wait until the `StatefulSet` is entirely upgraded and bootstrapped (as per the M3DB Node Details dashboard) before proceeding to the next `StatefulSet` otherwise multiple replicas will be unavailable at once.
+
+```bash
+kubectl apply -f <m3dbnode_manifest>
+```
+
+### Downgrading
+
+The `upgrading` steps above can also be used to downgrade M3DB. However, it is important to refer to the release notes to make sure that versions are
+backwards compatible.
+
+## m3coordinator
+
+`m3coordinator` can be upgraded using similar steps as `m3dbnode`, however, the images can be [found here](https://quay.io/repository/m3db/m3coordinator) instead.
+
+## m3query
+
+`m3query` can be upgraded using similar steps as `m3dbnode`, however, the images can be [found here](https://quay.io/repository/m3db/m3query) instead.
+
+## m3aggregator
+
+`m3aggregator` can be upgraded using similar steps as `m3dbnode`, however, the images can be [found here](https://quay.io/repository/m3db/m3aggregator) instead.
 
 ### Non-Kubernetes
 
@@ -63,39 +99,3 @@ pkill m3dbnode
 ```
 
 4) Repeat steps 2 and 3 until all nodes have been upgraded.
-
-### Kubernetes
-
-If running `M3DB` on Kubernetes, upgrade by completing the following steps. 
-
-1. Identify the version of m3dbnode to upgrade to [on Quay](https://quay.io/repository/m3db/m3dbnode?tab=tags).
-
-2. Replace the Docker image in the `StatefulSet` manifest (or `m3db-operator` manifest) to be the new version of m3dbnode.
-
-```yaml
-spec:
-  image: quay.io/m3db/m3dbnode:$VERSION
-```
-
-3. Once updated, apply the updated manifest and a rolling restart will be performed.
-
-```bash
-kubectl apply -f <m3dbnode_manifest>
-```
-
-### Downgrading
-
-The `upgrading` steps above can also be used to downgrade M3DB. However, it is important to refer to the release notes to make sure that versions are
-backwards compatible.
-
-## m3coordinator
-
-`m3coordinator` can be upgraded using similar steps as `m3dbnode`, however, the images can be [found here](https://quay.io/repository/m3db/m3coordinator) instead.
-
-## m3query
-
-`m3query` can be upgraded using similar steps as `m3dbnode`, however, the images can be [found here](https://quay.io/repository/m3db/m3query) instead.
-
-## m3aggregator
-
-`m3aggregator` can be upgraded using similar steps as `m3dbnode`, however, the images can be [found here](https://quay.io/repository/m3db/m3aggregator) instead.

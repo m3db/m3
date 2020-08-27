@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 )
 
@@ -33,7 +34,15 @@ type ContextKey string
 const (
 	// FetchOptionsContextKey is the context key for fetch options.
 	FetchOptionsContextKey ContextKey = "fetch-options"
+
+	// BlockResultMetadataKey is the context key for block meta result.
+	BlockResultMetadataKey ContextKey = "block-meta-result"
 )
+
+// RemoteReadFlags is a set of flags for storage remote read requests.
+type RemoteReadFlags struct {
+	Limited bool
+}
 
 func fetchOptions(ctx context.Context) (*storage.FetchOptions, error) {
 	fetchOptions := ctx.Value(FetchOptionsContextKey)
@@ -41,4 +50,12 @@ func fetchOptions(ctx context.Context) (*storage.FetchOptions, error) {
 		return f, nil
 	}
 	return nil, errors.New("fetch options not available")
+}
+
+func resultMetadata(ctx context.Context) (*block.ResultMetadata, error) {
+	value := ctx.Value(BlockResultMetadataKey)
+	if v, ok := value.(*block.ResultMetadata); ok {
+		return v, nil
+	}
+	return nil, errors.New("block result metadata not available")
 }

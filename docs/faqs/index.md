@@ -1,7 +1,7 @@
 # FAQs
 
 - **Is there a way to disable M3DB embedded `etcd` and just use an external `etcd` cluster?**
-Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. See [these docs](https://m3db.github.io/m3/operational_guide/etcd/#configuring-an-external-etcd-cluster) for more information.
+Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. See [these docs](../operational_guide/etcd.md#external-etcd) for more information on configuring an external `etcd` cluster.
 
 - **Is there a client that lets me send metrics to m3coordinator without going through Prometheus?**
 Yes, you can use the [Prometheus remote write client](https://github.com/m3db/prometheus_remote_client_golang/).
@@ -20,7 +20,7 @@ Yes it stores the data (i.e. the timeseries datapoints) as well as the tags sinc
 
 - **How are writes handled and how is the data kept consistent within M3DB?**
 M3 uses quorum/majority consistency to ensure data is written to replicas in a way that can be read back consistently. 
-For example, if you have a replication factor of 3 and your set your write and read consistencies to quorum, then all writes will only succeed if they make it to at least 2 of the 3 replicas, and reads will only succeed if they get results back from at least 2 of the 3 replicas
+For example, if you have a replication factor of 3 and you set your write and read consistencies to quorum, then all writes will only succeed if they make it to at least 2 of the 3 replicas, and reads will only succeed if they get results back from at least 2 of the 3 replicas
 
 - **Do I need to restart M3DB if I add a namespace?**
 If you’re adding namespaces, the m3dbnode process will pickup the new namespace without a restart.
@@ -41,10 +41,10 @@ Not yet, but that functionality is currently being worked on.
 You can check if your nodes are snapshotting by looking at the `Background tasks` tab in the [M3DB Grafana dashboard](https://grafana.com/dashboards/8126).
 
 - **How do you list all available API endpoints?**
-See [M3DB openhttps://m3db.io/openapi
+See [M3DB OpenAPI](https://m3db.io/openapi).
 
 - **What is the recommended way to upgrade my M3 stack?**
-TBA
+See the [Upgrading M3](../operational_guide/upgrading_m3.md) guide.
 
 - **When graphing my Prometheus data in Grafana, I see gaps. How do I resolve this?**
 This is due to M3 having a concept of `null` datapoints whereas Prometheus does not. To resolve this, change `Stacking & Null value` to `Connected` under the `Visualization` tab of your graph.

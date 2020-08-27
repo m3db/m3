@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/util/writer"
 	xtest "github.com/m3db/m3/src/x/test"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +51,7 @@ func testLongTagIDOutOfOrder(t *testing.T, scheme IDSchemeType) Tags {
 func TestLongTagNewIDOutOfOrderLegacy(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypeLegacy)
 	actual := tags.ID()
-	assert.Equal(t, tags.idLen(), len(actual))
+	assert.Equal(t, idLen(tags), len(actual))
 	assert.Equal(t, []byte("t1=v1,t2=v2,t3=v3,t4=v4,"), actual)
 }
 
@@ -120,7 +120,7 @@ func TestLongTagNewIDOutOfOrderPrefixed(t *testing.T) {
 	tags := testLongTagIDOutOfOrder(t, TypePrependMeta).
 		AddTag(Tag{Name: []byte("t9"), Value: []byte(`"v1"t2"v2"`)})
 	actual := tags.ID()
-	expectedLength, _ := tags.prependMetaLen()
+	expectedLength, _ := prependMetaLen(tags)
 	require.Equal(t, expectedLength, len(actual))
 	assert.Equal(t, []byte(`2,2,2,2,2,2,2,2,2,10!t1v1t2v2t3v3t4v4t9"v1"t2"v2"`), actual)
 }
@@ -630,25 +630,25 @@ func BenchmarkIDs(b *testing.B) {
 
 func TestSerializedLength(t *testing.T) {
 	tag := Tag{Name: []byte("foo"), Value: []byte("bar")}
-	len, escaping := tag.serializedLength()
+	len, escaping := serializedLength(tag)
 	assert.Equal(t, 8, len)
 	assert.False(t, escaping.escapeName)
 	assert.False(t, escaping.escapeValue)
 
 	tag.Name = []byte("f\ao")
-	len, escaping = tag.serializedLength()
+	len, escaping = serializedLength(tag)
 	assert.Equal(t, 9, len)
 	assert.True(t, escaping.escapeName)
 	assert.False(t, escaping.escapeValue)
 
 	tag.Value = []byte(`b"ar`)
-	len, escaping = tag.serializedLength()
+	len, escaping = serializedLength(tag)
 	assert.Equal(t, 11, len)
 	assert.True(t, escaping.escapeName)
 	assert.True(t, escaping.escapeValue)
 
 	tag.Name = []byte("baz")
-	len, escaping = tag.serializedLength()
+	len, escaping = serializedLength(tag)
 	assert.Equal(t, 10, len)
 	assert.False(t, escaping.escapeName)
 	assert.True(t, escaping.escapeValue)

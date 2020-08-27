@@ -1,5 +1,15 @@
 [
   {
+    "queryGroup":"scalar",
+    "queries":[
+      "42",
+      "time()"
+    ],
+    "steps" : [
+      "1m"
+    ]
+  },
+  {
     "queryGroup":"fetch",
     "queries":[
       "quail",
@@ -7,23 +17,24 @@
     ],
     "steps" : [
       "15s",
-      "30s", 
+      "30s",
       "1m"
     ]
   },
   {
     "queryGroup":"temporal",
     "queries":[
-      "rate(quail[1m])",
-      "irate(quail[5m])",
-      "delta(quail[123s])",
-      "idelta(quail[1m] offset 5m)",
-      "deriv(quail[5m])"
+      "rate(multi_1[1m])",
+      "irate(multi_1[5m])",
+      "delta(multi_1[123s])",
+      "idelta(multi_1[1m] offset 1h)",
+      "deriv(multi_1[3m])"
     ],
     "steps" : [
       "15s",
       "30s", 
-      "1m"
+      "1m",
+      "5m"
     ]
   },
   {

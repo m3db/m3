@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -93,8 +94,9 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
-	nsWatch    namespace.NamespaceWatch
-	namespaces *databaseNamespacesMap
+	nsWatch                namespace.NamespaceWatch
+	namespaces             *databaseNamespacesMap
+	runtimeOptionsRegistry namespace.RuntimeOptionsManagerRegistry
 
 	commitLog commitlog.CommitLog
 
@@ -111,7 +113,7 @@ type db struct {
 	metrics databaseMetrics
 	log     *zap.Logger
 
-	writeBatchPool *ts.WriteBatchPool
+	writeBatchPool *writes.WriteBatchPool
 }
 
 type databaseMetrics struct {
@@ -126,6 +128,7 @@ type databaseMetrics struct {
 	unknownNamespaceQueryIDs            tally.Counter
 	errQueryIDsIndexDisabled            tally.Counter
 	errWriteTaggedIndexDisabled         tally.Counter
+	pendingNamespaceChange              tally.Gauge
 }
 
 func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
@@ -143,6 +146,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		unknownNamespaceQueryIDs:            unknownNamespaceScope.Counter("query-ids"),
 		errQueryIDsIndexDisabled:            indexDisabledScope.Counter("err-query-ids"),
 		errWriteTaggedIndexDisabled:         indexDisabledScope.Counter("err-write-tagged"),
+		pendingNamespaceChange:              scope.Gauge("pending-namespace-change"),
 	}
 }
 
@@ -171,16 +175,17 @@ func NewDatabase(
 	)
 
 	d := &db{
-		opts:                  opts,
-		nowFn:                 nowFn,
-		shardSet:              shardSet,
-		lastReceivedNewShards: nowFn(),
-		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:             commitLog,
-		scope:                 scope,
-		metrics:               newDatabaseMetrics(scope),
-		log:                   logger,
-		writeBatchPool:        opts.WriteBatchPool(),
+		opts:                   opts,
+		nowFn:                  nowFn,
+		shardSet:               shardSet,
+		lastReceivedNewShards:  nowFn(),
+		namespaces:             newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		runtimeOptionsRegistry: opts.NamespaceRuntimeOptionsManagerRegistry(),
+		commitLog:              commitLog,
+		scope:                  scope,
+		metrics:                newDatabaseMetrics(scope),
+		log:                    logger,
+		writeBatchPool:         opts.WriteBatchPool(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -242,6 +247,19 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		d.log.Error("failed to update schema registry", zap.Error(err))
 	}
 
+	// Always update the runtime options if they were set so that correct
+	// runtime options are set in the runtime options registry before namespaces
+	// are actually created.
+	for _, namespaceMetadata := range newNamespaces.Metadatas() {
+		id := namespaceMetadata.ID().String()
+		runtimeOptsMgr := d.runtimeOptionsRegistry.RuntimeOptionsManager(id)
+		currRuntimeOpts := runtimeOptsMgr.Get()
+		setRuntimeOpts := namespaceMetadata.Options().RuntimeOptions()
+		if !currRuntimeOpts.Equal(setRuntimeOpts) {
+			runtimeOptsMgr.Update(setRuntimeOpts)
+		}
+	}
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -261,7 +279,10 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
-		d.log.Warn("skipping namespace removals and updates (except schema updates), restart process if you want changes to take effect.")
+		d.metrics.pendingNamespaceChange.Update(1)
+		d.log.Warn("skipping namespace removals and updates " +
+			"(except schema updates and runtime options), " +
+			"restart the process if you want changes to take effect")
 	}
 
 	// enqueue bootstraps if new namespaces
@@ -374,7 +395,10 @@ func (d *db) newDatabaseNamespaceWithLock(
 			return nil, err
 		}
 	}
-	return newDatabaseNamespace(md, d.shardSet, retriever, d, d.commitLog, d.opts)
+	nsID := md.ID().String()
+	runtimeOptsMgr := d.runtimeOptionsRegistry.RuntimeOptionsManager(nsID)
+	return newDatabaseNamespace(md, runtimeOptsMgr,
+		d.shardSet, retriever, d, d.commitLog, d.opts)
 }
 
 func (d *db) Options() Options {
@@ -537,8 +561,9 @@ func (d *db) terminateWithLock() error {
 }
 
 func (d *db) Terminate() error {
-	// NB(bodu): Wait for fs processes to finish.
-	d.mediator.WaitForFileSystemProcesses()
+	// NB(bodu): Disable file ops waits for current fs processes to
+	// finish before disabling.
+	d.mediator.DisableFileOpsAndWait()
 
 	d.Lock()
 	defer d.Unlock()
@@ -547,8 +572,9 @@ func (d *db) Terminate() error {
 }
 
 func (d *db) Close() error {
-	// NB(bodu): Wait for fs processes to finish.
-	d.mediator.WaitForFileSystemProcesses()
+	// NB(bodu): Disable file ops waits for current fs processes to
+	// finish before disabling.
+	d.mediator.DisableFileOpsAndWait()
 
 	d.Lock()
 	defer d.Unlock()
@@ -584,12 +610,12 @@ func (d *db) Write(
 		return err
 	}
 
-	series, wasWritten, err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	seriesWrite, err := n.Write(ctx, id, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() || !wasWritten {
+	if !n.Options().WritesToCommitLog() || !seriesWrite.WasWritten {
 		return nil
 	}
 
@@ -599,7 +625,7 @@ func (d *db) Write(
 		Value:          value,
 	}
 
-	return d.commitLog.Write(ctx, series, dp, unit, annotation)
+	return d.commitLog.Write(ctx, seriesWrite.Series, dp, unit, annotation)
 }
 
 func (d *db) WriteTagged(
@@ -618,12 +644,12 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	series, wasWritten, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	seriesWrite, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	if !n.Options().WritesToCommitLog() || !wasWritten {
+	if !n.Options().WritesToCommitLog() || !seriesWrite.WasWritten {
 		return nil
 	}
 
@@ -633,10 +659,10 @@ func (d *db) WriteTagged(
 		Value:          value,
 	}
 
-	return d.commitLog.Write(ctx, series, dp, unit, annotation)
+	return d.commitLog.Write(ctx, seriesWrite.Series, dp, unit, annotation)
 }
 
-func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+func (d *db) BatchWriter(namespace ident.ID, batchSize int) (writes.BatchWriter, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceBatchWriter.Inc(1)
@@ -654,7 +680,7 @@ func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, err
 func (d *db) WriteBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writer ts.BatchWriter,
+	writer writes.BatchWriter,
 	errHandler IndexedErrorHandler,
 ) error {
 	return d.writeBatch(ctx, namespace, writer, errHandler, false)
@@ -663,7 +689,7 @@ func (d *db) WriteBatch(
 func (d *db) WriteTaggedBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writer ts.BatchWriter,
+	writer writes.BatchWriter,
 	errHandler IndexedErrorHandler,
 ) error {
 	return d.writeBatch(ctx, namespace, writer, errHandler, true)
@@ -672,7 +698,7 @@ func (d *db) WriteTaggedBatch(
 func (d *db) writeBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writer ts.BatchWriter,
+	writer writes.BatchWriter,
 	errHandler IndexedErrorHandler,
 	tagged bool,
 ) error {
@@ -685,7 +711,7 @@ func (d *db) writeBatch(
 	}
 	defer sp.Finish()
 
-	writes, ok := writer.(ts.WriteBatch)
+	writes, ok := writer.(writes.WriteBatch)
 	if !ok {
 		return errWriterDoesNotImplementWriteBatch
 	}
@@ -703,13 +729,12 @@ func (d *db) writeBatch(
 	iter := writes.Iter()
 	for i, write := range iter {
 		var (
-			series     ts.Series
-			wasWritten bool
-			err        error
+			seriesWrite SeriesWrite
+			err         error
 		)
 
 		if tagged {
-			series, wasWritten, err = n.WriteTagged(
+			seriesWrite, err = n.WriteTagged(
 				ctx,
 				write.Write.Series.ID,
 				write.TagIter,
@@ -719,7 +744,7 @@ func (d *db) writeBatch(
 				write.Write.Annotation,
 			)
 		} else {
-			series, wasWritten, err = n.Write(
+			seriesWrite, err = n.Write(
 				ctx,
 				write.Write.Series.ID,
 				write.Write.Datapoint.Timestamp,
@@ -732,6 +757,8 @@ func (d *db) writeBatch(
 			// Return errors with the original index provided by the caller so they
 			// can associate the error with the write that caused it.
 			errHandler.HandleError(write.OriginalIndex, err)
+			writes.SetError(i, err)
+			continue
 		}
 
 		// Need to set the outcome in the success case so the commitlog gets the
@@ -739,13 +766,37 @@ func (d *db) writeBatch(
 		// whose lifecycle lives longer than the span of this request, making them
 		// safe for use by the async commitlog. Need to set the outcome in the
 		// error case so that the commitlog knows to skip this entry.
-		writes.SetOutcome(i, series, err)
-		if !wasWritten || err != nil {
+		writes.SetSeries(i, seriesWrite.Series)
+
+		if !seriesWrite.WasWritten {
 			// This series has no additional information that needs to be written to
 			// the commit log; set this series to skip writing to the commit log.
 			writes.SetSkipWrite(i)
 		}
+
+		if seriesWrite.NeedsIndex {
+			writes.SetPendingIndex(i, seriesWrite.PendingIndexInsert)
+		}
 	}
+
+	// Now insert all pending index inserts together in one go
+	// to limit lock contention.
+	if pending := writes.PendingIndex(); len(pending) > 0 {
+		err := n.WritePendingIndexInserts(pending)
+		if err != nil {
+			// Mark those as pending index with an error.
+			// Note: this is an invariant error, queueing should never fail
+			// when so it's fine to fail all these entries if we can't
+			// write pending index inserts.
+			for i, write := range iter {
+				if write.PendingIndex {
+					errHandler.HandleError(write.OriginalIndex, err)
+					writes.SetError(i, err)
+				}
+			}
+		}
+	}
+
 	if !n.Options().WritesToCommitLog() {
 		// Finalize here because we can't rely on the commitlog to do it since
 		// we're not using it.
@@ -767,7 +818,8 @@ func (d *db) QueryIDs(
 		sp.LogFields(
 			opentracinglog.String("query", query.String()),
 			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Int("limit", opts.Limit),
+			opentracinglog.Int("seriesLimit", opts.SeriesLimit),
+			opentracinglog.Int("docsLimit", opts.DocsLimit),
 			xopentracing.Time("start", opts.StartInclusive),
 			xopentracing.Time("end", opts.EndExclusive),
 		)
@@ -795,7 +847,8 @@ func (d *db) AggregateQuery(
 		sp.LogFields(
 			opentracinglog.String("query", query.String()),
 			opentracinglog.String("namespace", namespace.String()),
-			opentracinglog.Int("limit", aggResultOpts.QueryOptions.Limit),
+			opentracinglog.Int("seriesLimit", aggResultOpts.QueryOptions.SeriesLimit),
+			opentracinglog.Int("docsLimit", aggResultOpts.QueryOptions.DocsLimit),
 			xopentracing.Time("start", aggResultOpts.QueryOptions.StartInclusive),
 			xopentracing.Time("end", aggResultOpts.QueryOptions.EndExclusive),
 		)

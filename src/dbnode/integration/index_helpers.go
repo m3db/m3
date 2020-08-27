@@ -38,10 +38,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testIndexWrites []testIndexWrite
+// TestIndexWrites holds index writes for testing.
+type TestIndexWrites []testIndexWrite
 
-func (w testIndexWrites) matchesSeriesIters(t *testing.T, seriesIters encoding.SeriesIterators) {
-	writesByID := make(map[string]testIndexWrites)
+// MatchesSeriesIters matches index writes with expected series.
+func (w TestIndexWrites) MatchesSeriesIters(t *testing.T, seriesIters encoding.SeriesIterators) {
+	writesByID := make(map[string]TestIndexWrites)
 	for _, wi := range w {
 		writesByID[wi.id.String()] = append(writesByID[wi.id.String()], wi)
 	}
@@ -55,7 +57,7 @@ func (w testIndexWrites) matchesSeriesIters(t *testing.T, seriesIters encoding.S
 	}
 }
 
-func (w testIndexWrites) matchesSeriesIter(t *testing.T, iter encoding.SeriesIterator) {
+func (w TestIndexWrites) matchesSeriesIter(t *testing.T, iter encoding.SeriesIterator) {
 	found := make([]bool, len(w))
 	count := 0
 	for iter.Next() {
@@ -82,14 +84,16 @@ func (w testIndexWrites) matchesSeriesIter(t *testing.T, iter encoding.SeriesIte
 	}
 }
 
-func (w testIndexWrites) write(t *testing.T, ns ident.ID, s client.Session) {
+// Write test data.
+func (w TestIndexWrites) Write(t *testing.T, ns ident.ID, s client.Session) {
 	for i := 0; i < len(w); i++ {
 		wi := w[i]
 		require.NoError(t, s.WriteTagged(ns, wi.id, wi.tags.Duplicate(), wi.ts, wi.value, xtime.Second, nil), "%v", wi)
 	}
 }
 
-func (w testIndexWrites) numIndexed(t *testing.T, ns ident.ID, s client.Session) int {
+// NumIndexed gets number of indexed series.
+func (w TestIndexWrites) NumIndexed(t *testing.T, ns ident.ID, s client.Session) int {
 	numFound := 0
 	for i := 0; i < len(w); i++ {
 		wi := w[i]
@@ -97,7 +101,7 @@ func (w testIndexWrites) numIndexed(t *testing.T, ns ident.ID, s client.Session)
 		iter, _, err := s.FetchTaggedIDs(ns, index.Query{Query: q}, index.QueryOptions{
 			StartInclusive: wi.ts.Add(-1 * time.Second),
 			EndExclusive:   wi.ts.Add(1 * time.Second),
-			Limit:          10})
+			SeriesLimit:    10})
 		if err != nil {
 			continue
 		}
@@ -126,7 +130,8 @@ type testIndexWrite struct {
 	value float64
 }
 
-func generateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime time.Time) testIndexWrites {
+// GenerateTestIndexWrite generates test index writes.
+func GenerateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime time.Time) TestIndexWrites {
 	writes := make([]testIndexWrite, 0, numWrites)
 	step := endTime.Sub(startTime) / time.Duration(numWrites+1)
 	for i := 0; i < numWrites; i++ {
@@ -166,25 +171,45 @@ func genIDTags(i int, j int, numTags int, opts ...genIDTagsOption) (ident.ID, id
 }
 
 func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) bool {
+	result, err := isIndexedChecked(t, s, ns, id, tags)
+	if err != nil {
+		return false
+	}
+	return result
+}
+
+func isIndexedChecked(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) (bool, error) {
 	q := newQuery(t, tags)
 	iter, _, err := s.FetchTaggedIDs(ns, index.Query{Query: q}, index.QueryOptions{
 		StartInclusive: time.Now(),
 		EndExclusive:   time.Now(),
-		Limit:          10})
+		SeriesLimit:    10})
 	if err != nil {
-		return false
+		return false, err
 	}
+
+	defer iter.Finalize()
+
 	if !iter.Next() {
-		return false
+		return false, nil
 	}
+
 	cuNs, cuID, cuTag := iter.Current()
+	if err := iter.Err(); err != nil {
+		return false, fmt.Errorf("iter err: %v", err)
+	}
+
 	if ns.String() != cuNs.String() {
-		return false
+		return false, fmt.Errorf("namespace not matched")
 	}
 	if id.String() != cuID.String() {
-		return false
+		return false, fmt.Errorf("id not matched")
 	}
-	return ident.NewTagIterMatcher(tags).Matches(cuTag)
+	if !ident.NewTagIterMatcher(tags).Matches(cuTag) {
+		return false, fmt.Errorf("tags did not match")
+	}
+
+	return true, nil
 }
 
 func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {

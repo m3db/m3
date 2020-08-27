@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/instrument"
@@ -109,7 +110,7 @@ func (c *grpcClient) FetchProm(
 	}
 
 	return storage.SeriesIteratorsToPromResult(
-		result.SeriesIterators, c.opts.ReadWorkerPool(), result.Metadata,
+		result, c.opts.ReadWorkerPool(),
 		options.Enforcer, c.opts.TagOptions())
 }
 
@@ -117,8 +118,8 @@ func (c *grpcClient) fetchRaw(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (m3.SeriesFetchResult, error) {
-	fetchResult := m3.SeriesFetchResult{
+) (consolidators.SeriesFetchResult, error) {
+	fetchResult := consolidators.SeriesFetchResult{
 		Metadata: block.NewResultMetadata(),
 	}
 
@@ -177,13 +178,14 @@ func (c *grpcClient) fetchRaw(
 		seriesIterators = append(seriesIterators, iters.Iters()...)
 	}
 
-	fetchResult.Metadata = meta
-	fetchResult.SeriesIterators = encoding.NewSeriesIterators(
-		seriesIterators,
-		pools.MutableSeriesIterators(),
+	return consolidators.NewSeriesFetchResult(
+		encoding.NewSeriesIterators(
+			seriesIterators,
+			pools.MutableSeriesIterators(),
+		),
+		nil,
+		meta,
 	)
-
-	return fetchResult, nil
 }
 
 func (c *grpcClient) FetchBlocks(
@@ -270,7 +272,7 @@ func (c *grpcClient) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	request, err := encodeCompleteTagsRequest(query, options)
 	if err != nil {
 		return nil, err
@@ -286,7 +288,7 @@ func (c *grpcClient) CompleteTags(
 		return nil, err
 	}
 
-	tags := make([]storage.CompletedTag, 0, initResultSize)
+	tags := make([]consolidators.CompletedTag, 0, initResultSize)
 	meta := block.NewResultMetadata()
 	defer completeTagsClient.CloseSend()
 	for {
@@ -314,7 +316,7 @@ func (c *grpcClient) CompleteTags(
 		tags = append(tags, result...)
 	}
 
-	return &storage.CompleteTagsResult{
+	return &consolidators.CompleteTagsResult{
 		CompleteNameOnly: query.CompleteNameOnly,
 		CompletedTags:    tags,
 		Metadata:         meta,

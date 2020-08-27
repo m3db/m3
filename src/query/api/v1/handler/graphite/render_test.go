@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/graphite"
@@ -36,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/headers"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -335,7 +335,7 @@ func TestParseQueryResultsMultiTargetWithLimits(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			handler.ServeHTTP(recorder, req)
 
-			actual := recorder.Header().Get(handleroptions.LimitHeader)
+			actual := recorder.Header().Get(headers.LimitHeader)
 			assert.Equal(t, tt.header, actual)
 		})
 	}

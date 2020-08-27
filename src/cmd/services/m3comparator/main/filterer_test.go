@@ -21,9 +21,10 @@
 package main
 
 import (
-	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 	"testing"
 	"time"
+
+	"github.com/m3db/m3/src/cmd/services/m3comparator/main/parser"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
@@ -50,7 +51,7 @@ func TestFilter(t *testing.T) {
 	testCases := []struct {
 		name          string
 		givenMatchers models.Matchers
-		wantedSeries  []series
+		wantedSeries  []parser.IngestSeries
 	}{
 		{
 			name:          "No matchers",
@@ -236,22 +237,22 @@ func tagMatcher(tag string, matchType models.MatchType, value string) models.Mat
 	}
 }
 
-func list(tagsList ...parser.Tags) []series {
-	list := make([]series, 0, len(tagsList))
+func list(tagsList ...parser.Tags) []parser.IngestSeries {
+	list := make([]parser.IngestSeries, 0, len(tagsList))
 
 	for _, tags := range tagsList {
-		list = append(list, series{tags: tags})
+		list = append(list, parser.IngestSeries{Tags: tags})
 	}
 
 	return list
 }
 
-func toSeriesIterators(series []series) (encoding.SeriesIterators, error) {
-	return buildSeriesIterators(series, time.Now(), time.Hour, iteratorOpts)
+func toSeriesIterators(series []parser.IngestSeries) (encoding.SeriesIterators, error) {
+	return parser.BuildSeriesIterators(series, time.Now(), time.Hour, iteratorOpts)
 }
 
-func fromSeriesIterators(seriesIters encoding.SeriesIterators) []series {
-	result := make([]series, 0, seriesIters.Len())
+func fromSeriesIterators(seriesIters encoding.SeriesIterators) []parser.IngestSeries {
+	result := make([]parser.IngestSeries, 0, seriesIters.Len())
 	for _, iter := range seriesIters.Iters() {
 		tagsIter := iter.Tags()
 		tags := make(parser.Tags, 0, tagsIter.Len())
@@ -259,7 +260,7 @@ func fromSeriesIterators(seriesIters encoding.SeriesIterators) []series {
 			tag := tagsIter.Current()
 			tags = append(tags, parser.NewTag(tag.Name.String(), tag.Value.String()))
 		}
-		result = append(result, series{tags: tags})
+		result = append(result, parser.IngestSeries{Tags: tags})
 	}
 
 	return result

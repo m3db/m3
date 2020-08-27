@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 
 	"github.com/uber-go/tally"
 )
@@ -32,8 +33,9 @@ import (
 // NewFetchOptions creates a new fetch options.
 func NewFetchOptions() *FetchOptions {
 	return &FetchOptions{
-		Limit:     0,
-		BlockType: models.TypeSingleBlock,
+		SeriesLimit: 0,
+		DocsLimit:   0,
+		BlockType:   models.TypeSingleBlock,
 		FanoutOptions: &FanoutOptions{
 			FanoutUnaggregated:        FanoutDefault,
 			FanoutAggregated:          FanoutDefault,
@@ -61,8 +63,11 @@ func (o *FetchOptions) QueryFetchOptions(
 	blockType models.FetchedBlockType,
 ) (*FetchOptions, error) {
 	r := o.Clone()
-	if r.Limit <= 0 {
-		r.Limit = queryCtx.Options.LimitMaxTimeseries
+	if r.SeriesLimit <= 0 {
+		r.SeriesLimit = queryCtx.Options.LimitMaxTimeseries
+	}
+	if r.DocsLimit <= 0 {
+		r.DocsLimit = queryCtx.Options.LimitMaxDocs
 	}
 
 	// Use inbuilt options for type restriction if none found.
@@ -70,7 +75,7 @@ func (o *FetchOptions) QueryFetchOptions(
 		queryCtx.Options.RestrictFetchType != nil {
 		v := queryCtx.Options.RestrictFetchType
 		restrict := &RestrictByType{
-			MetricsType:   MetricsType(v.MetricsType),
+			MetricsType:   storagemetadata.MetricsType(v.MetricsType),
 			StoragePolicy: v.StoragePolicy,
 		}
 

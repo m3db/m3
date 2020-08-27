@@ -1,10 +1,10 @@
 ## Metrics
 
-TODO: document how to retrieve metrics for M3DB components.
+It is best to use Prometheus to monitor M3DB, M3 Coordinator and M3 Query using the [Grafana dashboards](https://github.com/m3db/m3/blob/master/integrations/grafana/).
 
 ## Logs
 
-TODO: document how to retrieve logs for M3DB components.
+Logs are printed to process output in JSON by default for semi-structured log processing.
 
 ## Tracing
 
@@ -65,8 +65,8 @@ If you'd like additional backends, we'd love to support them!
 File an issue against M3 and we can work with you on how best to add
 the backend. The first time's going to be a little rough--opentracing
 unfortunately doesn't support Go plugins (yet--see
-https://github.com/opentracing/opentracing-go/issues/133), and `glide`'s
-update model means that adding dependencies directly will update
+https://github.com/opentracing/opentracing-go/issues/133), and Go's dependency
+model means that adding dependencies directly will update
 *everything*, which isn't ideal for an isolated dependency change.
 These problems are all solvable though,
 and we'll work with you to make it happen!

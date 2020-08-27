@@ -34,8 +34,8 @@ func TestNewFilterFieldsIteratorError(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
-	s := segment.NewMockSegment(ctrl)
-	_, err := newFilterFieldsIterator(s, nil)
+	r := segment.NewMockReader(ctrl)
+	_, err := newFilterFieldsIterator(r, nil)
 	require.Error(t, err)
 }
 
@@ -44,11 +44,11 @@ func TestNewFilterFieldsIteratorNoMatchesInSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b")}
-	s := segment.NewMockSegment(ctrl)
-	iter, err := newFilterFieldsIterator(s, filters)
+	r := segment.NewMockReader(ctrl)
+	iter, err := newFilterFieldsIterator(r, filters)
 	require.NoError(t, err)
 
-	s.EXPECT().ContainsField(gomock.Any()).Return(false, nil).AnyTimes()
+	r.EXPECT().ContainsField(gomock.Any()).Return(false, nil).AnyTimes()
 	require.False(t, iter.Next())
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
@@ -59,14 +59,14 @@ func TestNewFilterFieldsIteratorFirstMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	s := segment.NewMockSegment(ctrl)
-	iter, err := newFilterFieldsIterator(s, filters)
+	r := segment.NewMockReader(ctrl)
+	iter, err := newFilterFieldsIterator(r, filters)
 	require.NoError(t, err)
 
 	gomock.InOrder(
-		s.EXPECT().ContainsField([]byte("a")).Return(true, nil),
-		s.EXPECT().ContainsField([]byte("b")).Return(false, nil),
-		s.EXPECT().ContainsField([]byte("c")).Return(false, nil),
+		r.EXPECT().ContainsField([]byte("a")).Return(true, nil),
+		r.EXPECT().ContainsField([]byte("b")).Return(false, nil),
+		r.EXPECT().ContainsField([]byte("c")).Return(false, nil),
 	)
 	require.True(t, iter.Next())
 	require.Equal(t, "a", string(iter.Current()))
@@ -80,14 +80,14 @@ func TestNewFilterFieldsIteratorMiddleMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	s := segment.NewMockSegment(ctrl)
-	iter, err := newFilterFieldsIterator(s, filters)
+	r := segment.NewMockReader(ctrl)
+	iter, err := newFilterFieldsIterator(r, filters)
 	require.NoError(t, err)
 
 	gomock.InOrder(
-		s.EXPECT().ContainsField([]byte("a")).Return(false, nil),
-		s.EXPECT().ContainsField([]byte("b")).Return(true, nil),
-		s.EXPECT().ContainsField([]byte("c")).Return(false, nil),
+		r.EXPECT().ContainsField([]byte("a")).Return(false, nil),
+		r.EXPECT().ContainsField([]byte("b")).Return(true, nil),
+		r.EXPECT().ContainsField([]byte("c")).Return(false, nil),
 	)
 	require.True(t, iter.Next())
 	require.Equal(t, "b", string(iter.Current()))
@@ -101,14 +101,14 @@ func TestNewFilterFieldsIteratorEndMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	s := segment.NewMockSegment(ctrl)
-	iter, err := newFilterFieldsIterator(s, filters)
+	r := segment.NewMockReader(ctrl)
+	iter, err := newFilterFieldsIterator(r, filters)
 	require.NoError(t, err)
 
 	gomock.InOrder(
-		s.EXPECT().ContainsField([]byte("a")).Return(false, nil),
-		s.EXPECT().ContainsField([]byte("b")).Return(false, nil),
-		s.EXPECT().ContainsField([]byte("c")).Return(true, nil),
+		r.EXPECT().ContainsField([]byte("a")).Return(false, nil),
+		r.EXPECT().ContainsField([]byte("b")).Return(false, nil),
+		r.EXPECT().ContainsField([]byte("c")).Return(true, nil),
 	)
 	require.True(t, iter.Next())
 	require.Equal(t, "c", string(iter.Current()))
@@ -122,14 +122,14 @@ func TestNewFilterFieldsIteratorAllMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	s := segment.NewMockSegment(ctrl)
-	iter, err := newFilterFieldsIterator(s, filters)
+	r := segment.NewMockReader(ctrl)
+	iter, err := newFilterFieldsIterator(r, filters)
 	require.NoError(t, err)
 
 	gomock.InOrder(
-		s.EXPECT().ContainsField([]byte("a")).Return(true, nil),
-		s.EXPECT().ContainsField([]byte("b")).Return(true, nil),
-		s.EXPECT().ContainsField([]byte("c")).Return(true, nil),
+		r.EXPECT().ContainsField([]byte("a")).Return(true, nil),
+		r.EXPECT().ContainsField([]byte("b")).Return(true, nil),
+		r.EXPECT().ContainsField([]byte("c")).Return(true, nil),
 	)
 	require.True(t, iter.Next())
 	require.Equal(t, "a", string(iter.Current()))
@@ -147,14 +147,14 @@ func TestNewFilterFieldsIteratorRandomMatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	filters := AggregateFieldFilter{[]byte("a"), []byte("b"), []byte("c")}
-	s := segment.NewMockSegment(ctrl)
-	iter, err := newFilterFieldsIterator(s, filters)
+	r := segment.NewMockReader(ctrl)
+	iter, err := newFilterFieldsIterator(r, filters)
 	require.NoError(t, err)
 
 	gomock.InOrder(
-		s.EXPECT().ContainsField([]byte("a")).Return(true, nil),
-		s.EXPECT().ContainsField([]byte("b")).Return(false, nil),
-		s.EXPECT().ContainsField([]byte("c")).Return(true, nil),
+		r.EXPECT().ContainsField([]byte("a")).Return(true, nil),
+		r.EXPECT().ContainsField([]byte("b")).Return(false, nil),
+		r.EXPECT().ContainsField([]byte("c")).Return(true, nil),
 	)
 	require.True(t, iter.Next())
 	require.Equal(t, "a", string(iter.Current()))

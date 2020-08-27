@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	xtime "github.com/m3db/m3/src/x/time"
 	imodels "github.com/influxdata/influxdb/models"
+	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,10 +35,10 @@ import (
 // they are easiest for human to handle
 func (self *ingestIterator) pop(t *testing.T) string {
 	if self.Next() {
-		tags, dp, _, _ := self.Current()
-		assert.Equal(t, 1, len(dp))
+		value := self.Current()
+		assert.Equal(t, 1, len(value.Datapoints))
 
-		return fmt.Sprintf("%s %v %s", tags.String(), dp[0].Value, dp[0].Timestamp)
+		return fmt.Sprintf("%s %v %s", value.Tags.String(), value.Datapoints[0].Value, value.Datapoints[0].Timestamp)
 	}
 	return ""
 }
@@ -108,14 +108,14 @@ func TestIngestIteratorIssue2125(t *testing.T) {
 	require.NoError(t, iter.Error())
 
 	assert.True(t, iter.Next())
-	t1, _, _, _ := iter.Current()
+	value1 := iter.Current()
 
 	assert.True(t, iter.Next())
-	t2, _, _, _ := iter.Current()
+	value2 := iter.Current()
 	require.NoError(t, iter.Error())
 
-	assert.Equal(t, t1.String(), "__name__: measure_k1, lab: foo")
-	assert.Equal(t, t2.String(), "__name__: measure_k2, lab: foo")
+	assert.Equal(t, value1.Tags.String(), "__name__: measure_k1, lab: foo")
+	assert.Equal(t, value2.Tags.String(), "__name__: measure_k2, lab: foo")
 }
 
 func TestDetermineTimeUnit(t *testing.T) {

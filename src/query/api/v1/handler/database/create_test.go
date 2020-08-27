@@ -170,6 +170,7 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -332,6 +333,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -446,6 +448,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "10800000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -566,6 +569,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "%d"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -816,6 +820,7 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}
@@ -877,7 +882,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
-	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil).AnyTimes()
 
 	createHandler, err := NewCreateHandler(mockClient, config.Configuration{},
 		testDBCfg, svcDefaultOptions, instrument.NewOptions())
@@ -959,6 +964,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
 						},
+						"runtimeOptions": null,
 						"schemaOptions": null,
 						"coldWritesEnabled": false
 					}

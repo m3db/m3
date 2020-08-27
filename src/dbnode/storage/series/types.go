@@ -28,8 +28,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -41,7 +43,7 @@ import (
 // DatabaseSeriesOptions is a set of options for creating a database series.
 type DatabaseSeriesOptions struct {
 	ID                     ident.ID
-	Tags                   ident.Tags
+	Metadata               doc.Document
 	UniqueIndex            uint64
 	BlockRetriever         QueryableBlockRetriever
 	OnRetrieveBlock        block.OnRetrieveBlock
@@ -57,8 +59,8 @@ type DatabaseSeries interface {
 	// ID returns the ID of the series.
 	ID() ident.ID
 
-	// Tags return the tags of the series.
-	Tags() ident.Tags
+	// Metadata returns the metadata of the series.
+	Metadata() doc.Document
 
 	// UniqueIndex is the unique index for the series (for this current
 	// process, unless the time series expires).
@@ -108,8 +110,12 @@ type DatabaseSeries interface {
 		opts FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResult, error)
 
-	// IsEmpty returns whether series is empty.
+	// IsEmpty returns whether series is empty (includes both cached blocks and in-mem buffer data).
 	IsEmpty() bool
+
+	// IsBufferEmptyAtBlockStart returns whether the series buffer is empty at block start
+	// (only checks for in-mem buffer data).
+	IsBufferEmptyAtBlockStart(time.Time) bool
 
 	// NumActiveBlocks returns the number of active blocks the series currently holds.
 	NumActiveBlocks() int
@@ -139,6 +145,10 @@ type DatabaseSeries interface {
 
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
 	ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes
+
+	// Bootstrap will moved any bootstrapped data to buffer so series
+	// is ready for reading.
+	Bootstrap(nsCtx namespace.Context) error
 
 	// Close will close the series and if pooled returned to the pool.
 	Close()
@@ -352,20 +362,33 @@ type Options interface {
 
 	// BufferBucketPool returns the BufferBucketPool.
 	BufferBucketPool() *BufferBucketPool
+
+	// SetRuntimeOptionsManager sets the runtime options manager.
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManager returns the runtime options manager.
+	RuntimeOptionsManager() runtime.OptionsManager
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
 type Stats struct {
-	encoderCreated tally.Counter
-	coldWrites     tally.Counter
+	encoderCreated            tally.Counter
+	coldWrites                tally.Counter
+	encodersPerBlock          tally.Histogram
+	encoderLimitWriteRejected tally.Counter
 }
 
 // NewStats returns a new Stats for the provided scope.
 func NewStats(scope tally.Scope) Stats {
 	subScope := scope.SubScope("series")
+
+	buckets := append(tally.ValueBuckets{0},
+		tally.MustMakeExponentialValueBuckets(1, 2, 20)...)
 	return Stats{
-		encoderCreated: subScope.Counter("encoder-created"),
-		coldWrites:     subScope.Counter("cold-writes"),
+		encoderCreated:            subScope.Counter("encoder-created"),
+		coldWrites:                subScope.Counter("cold-writes"),
+		encodersPerBlock:          subScope.Histogram("encoders-per-block", buckets),
+		encoderLimitWriteRejected: subScope.Counter("encoder-limit-write-rejected"),
 	}
 }
 
@@ -377,6 +400,16 @@ func (s Stats) IncCreatedEncoders() {
 // IncColdWrites incs the ColdWrites stat.
 func (s Stats) IncColdWrites() {
 	s.coldWrites.Inc(1)
+}
+
+// RecordEncodersPerBlock records the number of encoders histogram.
+func (s Stats) RecordEncodersPerBlock(num int) {
+	s.encodersPerBlock.RecordValue(float64(num))
+}
+
+// IncEncoderLimitWriteRejected incs the encoderLimitWriteRejected stat.
+func (s Stats) IncEncoderLimitWriteRejected() {
+	s.encoderLimitWriteRejected.Inc(1)
 }
 
 // WriteType is an enum for warm/cold write types.
@@ -407,14 +440,6 @@ type WriteOptions struct {
 	TruncateType TruncateType
 	// TransformOptions describes transformation options for incoming writes.
 	TransformOptions WriteTransformOptions
-	// MatchUniqueIndex specifies whether the series unique index
-	// must match the unique index value specified (to ensure the series
-	// being written is the same series as previously referenced).
-	MatchUniqueIndex bool
-	// MatchUniqueIndexValue is the series unique index value that
-	// must match the current series unique index value (to ensure series
-	// being written is the same series as previously referenced).
-	MatchUniqueIndexValue uint64
 	// BootstrapWrite allows a warm write outside the time window as long as the
 	// block hasn't already been flushed to disk. This is useful for
 	// bootstrappers filling data that they know has not yet been flushed to

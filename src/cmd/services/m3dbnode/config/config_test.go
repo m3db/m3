@@ -419,6 +419,7 @@ func TestConfiguration(t *testing.T) {
     - noop-all
     fs:
       numProcessorsPerCPU: 0.42
+      migration: null
     commitlog:
       returnUnfulfilledForCorruptCommitLogFiles: false
     peers: null
@@ -714,9 +715,11 @@ func TestConfiguration(t *testing.T) {
       reconnect_period: 0s
       meta_event_reporting_enabled: false
   limits:
+    maxRecentlyQueriedSeriesBlocks: null
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
+    maxEncodersPerBlock: 0
   tchannel: null
 coordinator: null
 `

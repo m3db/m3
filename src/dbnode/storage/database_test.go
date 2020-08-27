@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
@@ -789,14 +790,16 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	require.NoError(t, d.Open())
 
 	var (
-		namespace = ident.StringID("testns")
-		ctx       = context.NewContext()
-		id        = ident.StringID("foo")
-		tagsIter  = ident.EmptyTagIterator
-		s         = ts.Series{
-			ID:        id,
-			Tags:      ident.Tags{},
-			Namespace: namespace,
+		namespace   = ident.StringID("testns")
+		ctx         = context.NewContext()
+		id          = ident.StringID("foo")
+		tagsIter    = ident.EmptyTagIterator
+		seriesWrite = SeriesWrite{
+			Series: ts.Series{
+				ID:        id,
+				Namespace: namespace,
+			},
+			WasWritten: true,
 		}
 	)
 
@@ -806,13 +809,13 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(s, true, nil)
+		time.Time{}, 1.0, xtime.Second, nil).Return(seriesWrite, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
 		id, tagsIter, time.Time{},
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(gomock.Any(), ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(s, false, fmt.Errorf("random err"))
+		time.Time{}, 1.0, xtime.Second, nil).Return(SeriesWrite{}, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
 		1.0, xtime.Second, nil))
@@ -994,7 +997,7 @@ func testDatabaseWriteBatch(t *testing.T,
 	encodedTags, ok := encoder.Data()
 	require.True(t, ok)
 
-	writes := []struct {
+	testWrites := []struct {
 		series string
 		t      time.Time
 		v      float64
@@ -1047,7 +1050,7 @@ func testDatabaseWriteBatch(t *testing.T,
 	require.NoError(t, err)
 
 	var i int
-	for _, write := range writes {
+	for _, write := range testWrites {
 		// Write with the provided index as i*2 so we can assert later that the
 		// ErrorHandler is called with the provided index, not the actual position
 		// in the WriteBatch slice.
@@ -1055,34 +1058,39 @@ func testDatabaseWriteBatch(t *testing.T,
 			batchWriter.AddTagged(i*2, ident.StringID(write.series),
 				tagsIter.Duplicate(), encodedTags.Bytes(), write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
-			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
-				write.t, write.v, xtime.Second, nil).Return(
-				ts.Series{
-					ID:        ident.StringID(write.series + "-updated"),
-					Namespace: namespace,
-					Tags:      ident.Tags{},
-				}, wasWritten, write.err)
+			ns.EXPECT().
+				WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
+					write.t, write.v, xtime.Second, nil).
+				Return(SeriesWrite{
+					Series: ts.Series{
+						ID:        ident.StringID(write.series + "-updated"),
+						Namespace: namespace,
+					}, WasWritten: wasWritten,
+				}, write.err)
 		} else {
 			batchWriter.Add(i*2, ident.StringID(write.series),
 				write.t, write.v, xtime.Second, nil)
 			wasWritten := write.err == nil
-			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
-				write.t, write.v, xtime.Second, nil).Return(
-				ts.Series{
-					ID:        ident.StringID(write.series + "-updated"),
-					Namespace: namespace,
-					Tags:      ident.Tags{},
-				}, wasWritten, write.err)
+			ns.EXPECT().
+				Write(ctx, ident.NewIDMatcher(write.series),
+					write.t, write.v, xtime.Second, nil).
+				Return(SeriesWrite{
+					Series: ts.Series{
+						ID:        ident.StringID(write.series + "-updated"),
+						Namespace: namespace,
+					},
+					WasWritten: wasWritten,
+				}, write.err)
 		}
 		i++
 	}
 
 	errHandler := &fakeIndexedErrorHandler{}
 	if tagged {
-		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(writes.WriteBatch),
 			errHandler)
 	} else {
-		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+		err = d.WriteBatch(ctx, namespace, batchWriter.(writes.WriteBatch),
 			errHandler)
 	}
 
@@ -1197,45 +1205,56 @@ func TestUpdateBatchWriterBasedOnShardResults(t *testing.T) {
 	require.NoError(t, d.Open())
 
 	var (
-		namespace = ident.StringID("testns")
-		ctx       = context.NewContext()
-		series1   = ts.Series{UniqueIndex: 0}
-		series2   = ts.Series{UniqueIndex: 1}
-		series3   = ts.Series{UniqueIndex: 2}
-		series4   = ts.Series{UniqueIndex: 3}
-		err       = fmt.Errorf("err")
+		namespace    = ident.StringID("testns")
+		ctx          = context.NewContext()
+		seriesWrite1 = SeriesWrite{Series: ts.Series{UniqueIndex: 0}, WasWritten: true}
+		seriesWrite2 = SeriesWrite{Series: ts.Series{UniqueIndex: 1}, WasWritten: true}
+		seriesWrite3 = SeriesWrite{Series: ts.Series{UniqueIndex: 2}, WasWritten: false}
+		seriesWrite4 = SeriesWrite{Series: ts.Series{UniqueIndex: 3}, WasWritten: false}
+		err          = fmt.Errorf("err")
 	)
 
-	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series1, true, nil)
-	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series2, true, err)
-	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series3, false, err)
-	ns.EXPECT().Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
-		gomock.Any(), gomock.Any()).Return(series4, false, nil)
+	gomock.InOrder(
+		ns.EXPECT().
+			Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any()).
+			Return(seriesWrite1, nil),
+		ns.EXPECT().
+			Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any()).
+			Return(seriesWrite2, err),
+		ns.EXPECT().
+			Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any()).
+			Return(seriesWrite3, err),
+		ns.EXPECT().
+			Write(ctx, gomock.Any(), gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any()).
+			Return(seriesWrite4, nil),
+	)
 
-	write := ts.Write{
+	write := writes.Write{
 		Series: ts.Series{ID: ident.StringID("foo")},
 	}
 
-	iters := []ts.BatchWrite{
+	iters := []writes.BatchWrite{
 		{Write: write},
 		{Write: write},
 		{Write: write},
 		{Write: write},
 	}
 
-	batchWriter := ts.NewMockWriteBatch(ctrl)
-	batchWriter.EXPECT().Iter().Return(iters)
-	batchWriter.EXPECT().Finalize().Times(1)
-	batchWriter.EXPECT().SetOutcome(0, series1, nil)
-	batchWriter.EXPECT().SetOutcome(1, series2, err)
-	batchWriter.EXPECT().SetSkipWrite(1)
-	batchWriter.EXPECT().SetOutcome(2, series3, err)
-	batchWriter.EXPECT().SetSkipWrite(2)
-	batchWriter.EXPECT().SetOutcome(3, series4, nil)
-	batchWriter.EXPECT().SetSkipWrite(3)
+	batchWriter := writes.NewMockWriteBatch(ctrl)
+	gomock.InOrder(
+		batchWriter.EXPECT().Iter().Return(iters),
+		batchWriter.EXPECT().SetSeries(0, seriesWrite1.Series),
+		batchWriter.EXPECT().SetError(1, err),
+		batchWriter.EXPECT().SetError(2, err),
+		batchWriter.EXPECT().SetSeries(3, seriesWrite4.Series),
+		batchWriter.EXPECT().SetSkipWrite(3),
+		batchWriter.EXPECT().PendingIndex().Return(nil),
+		batchWriter.EXPECT().Finalize(),
+	)
 
 	errHandler := &fakeIndexedErrorHandler{}
 	d.WriteBatch(ctx, namespace, batchWriter, errHandler)

@@ -36,6 +36,8 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -133,9 +135,9 @@ func setupStorage(ctrl *gomock.Controller, ex, ex2 bool) storage.Storage {
 		},
 	}
 
-	noChildrenResult := &storage.CompleteTagsResult{
+	noChildrenResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("__g1__"), Values: bs("bug", "bar", "baz")},
 		},
 		Metadata: block.ResultMetadata{
@@ -156,9 +158,9 @@ func setupStorage(ctrl *gomock.Controller, ex, ex2 bool) storage.Storage {
 		},
 	}
 
-	childrenResult := &storage.CompleteTagsResult{
+	childrenResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: false,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("__g1__"), Values: bs("baz", "bix", "bug")},
 		},
 		Metadata: block.ResultMetadata{
@@ -225,8 +227,8 @@ func testFind(t *testing.T, httpMethod string, ex bool, ex2 bool, header string)
 	// setup storage and handler
 	store := setupStorage(ctrl, ex, ex2)
 
-	builder := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	builder := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
 	opts := options.EmptyHandlerOptions().
 		SetFetchOptionsBuilder(builder).
 		SetStorage(store)
@@ -280,7 +282,7 @@ func testFind(t *testing.T, httpMethod string, ex bool, ex2 bool, header string)
 	}
 
 	require.Equal(t, expected, r)
-	actual := w.Header().Get(handleroptions.LimitHeader)
+	actual := w.Header().Get(headers.LimitHeader)
 	assert.Equal(t, header, actual)
 }
 
@@ -290,10 +292,10 @@ var limitTests = []struct {
 	header  string
 }{
 	{"both incomplete", false, false, fmt.Sprintf(
-		"%s,%s_%s", handleroptions.LimitHeaderSeriesLimitApplied, "foo", "bar")},
+		"%s,%s_%s", headers.LimitHeaderSeriesLimitApplied, "foo", "bar")},
 	{"with terminator incomplete", true, false, "foo_bar"},
 	{"with children incomplete", false, true,
-		handleroptions.LimitHeaderSeriesLimitApplied},
+		headers.LimitHeaderSeriesLimitApplied},
 	{"both complete", true, true, ""},
 }
 

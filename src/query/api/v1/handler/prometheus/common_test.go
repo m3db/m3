@@ -33,6 +33,7 @@ import (
 
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,7 +94,7 @@ func TestTimeoutParseWithPostRequestParam(t *testing.T) {
 	require.NoError(t, form.Close())
 
 	req := httptest.NewRequest("POST", "/dummy", buff)
-	req.Header.Set("Content-Type", form.FormDataContentType())
+	req.Header.Set(xhttp.HeaderContentType, form.FormDataContentType())
 
 	timeout, err := ParseRequestTimeout(req, time.Second)
 	assert.NoError(t, err)

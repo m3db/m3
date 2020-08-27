@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/convert"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -58,13 +59,19 @@ type Options struct {
 }
 
 type ingestMetrics struct {
-	ingestError   tally.Counter
-	ingestSuccess tally.Counter
+	ingestInternalError     tally.Counter
+	ingestNonRetryableError tally.Counter
+	ingestSuccess           tally.Counter
 }
 
 func newIngestMetrics(scope tally.Scope) ingestMetrics {
 	return ingestMetrics{
-		ingestError:   scope.Counter("ingest-error"),
+		ingestInternalError: scope.Tagged(map[string]string{
+			"error_type": "internal_error",
+		}).Counter("ingest-error"),
+		ingestNonRetryableError: scope.Tagged(map[string]string{
+			"error_type": "non_retryable_error",
+		}).Counter("ingest-error"),
 		ingestSuccess: scope.Counter("ingest-success"),
 	}
 }
@@ -163,7 +170,7 @@ func (op *ingestOp) sample() bool {
 
 func (op *ingestOp) ingest() {
 	if err := op.resetWriteQuery(); err != nil {
-		op.m.ingestError.Inc(1)
+		op.m.ingestInternalError.Inc(1)
 		op.callback.Callback(m3msg.OnRetriableError)
 		op.p.Put(op)
 		if op.sample() {
@@ -172,16 +179,25 @@ func (op *ingestOp) ingest() {
 		return
 	}
 	if err := op.r.Attempt(op.attemptFn); err != nil {
-		if xerrors.IsNonRetryableError(err) {
+		nonRetryableErr := xerrors.IsNonRetryableError(err)
+		if nonRetryableErr {
 			op.callback.Callback(m3msg.OnNonRetriableError)
+			op.m.ingestNonRetryableError.Inc(1)
 		} else {
 			op.callback.Callback(m3msg.OnRetriableError)
+			op.m.ingestInternalError.Inc(1)
 		}
-		op.m.ingestError.Inc(1)
+
+		// NB(r): Always log non-retriable errors since they are usually
+		// a very small minority and when they go missing it can be frustrating
+		// not being able to find them (usually bad request errors).
+		if nonRetryableErr || op.sample() {
+			op.logger.Error("could not write ingest op",
+				zap.Error(err),
+				zap.Bool("retryableError", !nonRetryableErr))
+		}
+
 		op.p.Put(op)
-		if op.sample() {
-			op.logger.Error("could not write ingest op", zap.Error(err))
-		}
 		return
 	}
 	op.m.ingestSuccess.Inc(1)
@@ -202,8 +218,8 @@ func (op *ingestOp) resetWriteQuery() error {
 		Tags:       op.tags,
 		Datapoints: op.datapoints,
 		Unit:       convert.UnitForM3DB(op.sp.Resolution().Precision),
-		Attributes: storage.Attributes{
-			MetricsType: storage.AggregatedMetricsType,
+		Attributes: storagemetadata.Attributes{
+			MetricsType: storagemetadata.AggregatedMetricsType,
 			Resolution:  op.sp.Resolution().Window,
 			Retention:   op.sp.Retention().Duration(),
 		},

@@ -77,7 +77,8 @@ function prometheus_remote_write {
     fi
   done
 
-  network=$(docker network ls --format '{{.ID}}' | tail -n 1)
+  network_name="prometheus"
+  network=$(docker network ls | fgrep $network_name | tr -s ' ' | cut -f 1 -d ' ' | tail -n 1)
   out=$((docker run -it --rm --network $network           \
     $PROMREMOTECLI_IMAGE                                  \
     -u http://coordinator01:7201/api/v1/prom/remote/write \
@@ -179,15 +180,46 @@ function test_prometheus_remote_write_map_tags {
 function test_query_limits_applied {
   # Test the default series limit applied when directly querying
   # coordinator (limit set to 100 in m3coordinator.yml)
+  # NB: ensure that the limit is not exceeded (it may be below limit).
   echo "Test query limit with coordinator defaults"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 100 ]]'
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
 
-  # Test the default series limit applied when directly querying
-  # coordinator (limit set by header)
-  echo "Test query limit with coordinator limit header"
+  # Test the series limit applied when directly querying
+  # coordinator (series limit set by header)
+  echo "Test query series limit with coordinator limit header"
   ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
-    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{__name__!=\"\"\\} | jq -r ".data.result | length") -eq 10 ]]'
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 10" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -eq 10 ]]'
+  
+  echo "Test query series limit with require-exhaustive headers false"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 2" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 2 ]]'
+
+  echo "Test query series limit with require-exhaustive headers true (below limit therefore no error)"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Series: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'  
+  
+  echo "Test query series limit with require-exhaustive headers true (above limit therefore error)"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ -n $(curl -s -H "M3-Limit-Max-Series: 3" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq ."error" | grep "query exceeded limit") ]]'
+
+  # Test the default docs limit applied when directly querying
+  # coordinator (docs limit set by header)
+  echo "Test query docs limit with coordinator limit header"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" 0.0.0.0:7201/api/v1/query?query=\\{metrics_storage=\"m3db_remote\"\\} | jq -r ".data.result | length") -lt 101 ]]'
+
+  echo "Test query docs limit with require-exhaustive headers false"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: false" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'
+
+  echo "Test query docs limit with require-exhaustive headers true (below limit therefore no error)"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Limit-Max-Docs: 4" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq -r ".data.result | length") -eq 3 ]]'  
+  
+  echo "Test query docs limit with require-exhaustive headers true (above limit therefore error)"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ -n $(curl -s -H "M3-Limit-Max-Docs: 1" -H "M3-Limit-Require-Exhaustive: true" 0.0.0.0:7201/api/v1/query?query=database_write_tagged_success | jq ."error" | grep "query exceeded limit") ]]'
 }
 
 function prometheus_query_native {
@@ -207,7 +239,7 @@ function prometheus_query_native {
   result=$(curl -s                                    \
     -H "M3-Metrics-Type: ${metrics_type}"             \
     -H "M3-Storage-Policy: ${metrics_storage_policy}" \
-    "0.0.0.0:7201/m3query/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}")
+    "0.0.0.0:7201/m3query/api/v1/${endpoint}?query=${query}${params_prefixed}" | jq -r "${jq_path}" | head -1)
   test "$result" = "$expected_value"
   return $?
 }
@@ -246,6 +278,56 @@ function test_query_restrict_metrics_type {
     retry_with_backoff prometheus_query_native
 }
 
+function test_query_restrict_tags {
+  # Test the default restrict tags is applied when directly querying
+  # coordinator (restrict tags set to hide any restricted_metrics_type="hidden"
+  # in m3coordinator.yml)
+
+  # First write some hidden metrics.
+  echo "Test write with unaggregated metrics type works as expected"
+  TAG_NAME_0="restricted_metrics_type" TAG_VALUE_0="hidden" \
+    TAG_NAME_1="foo_tag" TAG_VALUE_1="foo_tag_value" \
+    prometheus_remote_write \
+    some_hidden_metric now 42.42 \
+    true "Expected request to succeed" \
+    200 "Expected request to return status code 200"
+
+  # Check that we can see them with zero restrictions applied as an 
+  # override (we do this check first so that when we test that they 
+  # don't appear by default we know that the metrics are already visible).
+  echo "Test restrict by tags with header override to remove restrict works"
+  ATTEMPTS=50 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s -H "M3-Restrict-By-Tags-JSON: {}" 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 1 ]]'
+
+  # Now test that the defaults will hide the metrics altogether.
+  echo "Test restrict by tags with coordinator defaults"
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s 0.0.0.0:7201/api/v1/query?query=\\{restricted_metrics_type=\"hidden\"\\} | jq -r ".data.result | length") -eq 0 ]]'
+}
+
+function test_series {
+  # Test series search with start/end specified
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_succeeded_samples_total&start=0&end=9999999999999.99999" | jq -r ".data | length") -eq 1 ]]'
+
+  # Test series search with no start/end specified
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_succeeded_samples_total" | jq -r ".data | length") -eq 1 ]]'
+
+  # Test series search with min/max start time using the Prometheus Go
+  # min/max formatted timestamps, which is sent as part of a Prometheus
+  # remote query.
+  # minTime = time.Unix(math.MinInt64/1000+62135596801, 0).UTC()
+  # maxTime = time.Unix(math.MaxInt64/1000-62135596801, 999999999).UTC()
+  # minTimeFormatted = minTime.Format(time.RFC3339Nano)
+  # maxTimeFormatted = maxTime.Format(time.RFC3339Nano)
+  # Which:
+  # minTimeFormatted="-292273086-05-16T16:47:06Z"
+  # maxTimeFormatted="292277025-08-18T07:12:54.999999999Z"
+  ATTEMPTS=5 TIMEOUT=2 MAX_TIMEOUT=4 retry_with_backoff  \
+    '[[ $(curl -s "0.0.0.0:7201/api/v1/series?match[]=prometheus_remote_storage_succeeded_samples_total&start=-292273086-05-16T16:47:06Z&end=292277025-08-18T07:12:54.999999999Z" | jq -r ".data | length") -eq 1 ]]'
+}
+
 echo "Running prometheus tests"
 test_prometheus_remote_read
 test_prometheus_remote_write_multi_namespaces
@@ -256,7 +338,9 @@ test_prometheus_remote_write_too_old_returns_400_status_code
 test_prometheus_remote_write_restrict_metrics_type
 test_query_limits_applied
 test_query_restrict_metrics_type
+test_query_restrict_tags
 test_prometheus_remote_write_map_tags
+test_series
 
 echo "Running function correctness tests"
 test_correctness
