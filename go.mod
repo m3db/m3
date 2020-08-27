@@ -65,7 +65,7 @@ require (
 	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e // indirect
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v0.0.0-20200602205121-7f389745e9ab
-	github.com/m3dbx/vellum v0.0.0-20200602203954-e10aaedbd934
+	github.com/m3dbx/vellum v0.0.0-20200826162549-f94c029903de
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
 	github.com/opencontainers/image-spec v1.0.1 // indirect
