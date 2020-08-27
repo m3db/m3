@@ -62,7 +62,7 @@ require (
 	github.com/m3db/prometheus_common v0.0.0-20180517030744-25aaa3dff79b
 	github.com/m3db/prometheus_procfs v0.8.1
 	github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f
-	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e
+	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e // indirect
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v0.0.0-20200602205121-7f389745e9ab
 	github.com/m3dbx/vellum v0.0.0-20200602203954-e10aaedbd934
@@ -94,7 +94,6 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/sergi/go-diff v1.1.0
 	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
-	github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72
 	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
