@@ -385,13 +385,11 @@ func (r *reader) readInIndexedOrder() (ident.ID, ident.TagIterator, checked.Byte
 	var data checked.Bytes
 	if r.bytesPool != nil {
 		data = r.bytesPool.Get(int(entry.Size))
-		data.IncRef()
-		defer data.DecRef()
 	} else {
 		data = checked.NewBytes(make([]byte, 0, entry.Size), nil)
-		data.IncRef()
-		defer data.DecRef()
 	}
+	data.IncRef()
+	defer data.DecRef()
 
 	data.AppendAll(r.dataMmap.Bytes[entry.Offset : entry.Offset+entry.Size])
 

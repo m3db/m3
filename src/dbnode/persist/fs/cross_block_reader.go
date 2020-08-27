@@ -140,6 +140,9 @@ func (r *crossBlockReader) Next() bool {
 }
 
 func (r *crossBlockReader) Current() (ident.ID, ident.TagIterator, []BlockRecord) {
+	for _, record := range r.records {
+		record.Data.DecRef()
+	}
 	return r.id, r.tags, r.records
 }
 
@@ -156,7 +159,7 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 			r.dataFileSetReaders[entry.dataFileSetReaderIndex] = nil
 		} else if err != nil {
 			return nil, err
-		} else if bytes.Equal(nextEntry.id.Bytes(), entry.id.Bytes()) {
+		} else if nextEntry.id.Equal(entry.id) {
 			err := fmt.Errorf("duplicate id %s on block starting at %s",
 				entry.id, r.dataFileSetReaders[entry.dataFileSetReaderIndex].Range().Start)
 
@@ -206,6 +209,8 @@ func (r *crossBlockReader) readFromDataFileSet(index int) (*minHeapEntry, error)
 			Add(r.Close())
 		return nil, multiErr.FinalError()
 	}
+
+	data.IncRef()
 
 	return &minHeapEntry{
 		dataFileSetReaderIndex: index,

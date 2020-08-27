@@ -160,6 +160,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 		for j, id := range ids {
 			tags := ident.NewTags(ident.StringTag("foo", strconv.Itoa(j)))
 			data := checkedBytes([]byte{byte(j)})
+			data.DecRef() // start with 0 ref
 			checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
 			if id == "error" {
 				dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), expectedError)
@@ -199,7 +200,6 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 			assert.True(t, blockIndex > previousBlockIndex, "same id blocks must be read in temporal order")
 			previousBlockIndex = blockIndex
 			assert.NotNil(t, record.Data)
-			record.Data.DecRef()
 			record.Data.Finalize()
 		}
 
