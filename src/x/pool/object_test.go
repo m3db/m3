@@ -29,8 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var neverGonnaOptimizeYouAway interface{}
-
 func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 	opts := NewObjectPoolOptions().
 		SetSize(100).
@@ -124,96 +122,32 @@ func BenchmarkObjectPoolGetPut(b *testing.B) {
 	opts := NewObjectPoolOptions().SetSize(1)
 	pool := NewObjectPool(opts)
 	pool.Init(func() interface{} {
-		return make([]byte, 0, 16)
+		b := make([]byte, 0, 16)
+		return &b
 	})
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		o := pool.Get()
-		neverGonnaOptimizeYouAway = o
+		o := pool.Get().(*[]byte)
+		_ = *o
 		pool.Put(o)
 	}
 }
 
-func BenchmarkObjectPoolGetMultiPutContended(b *testing.B) {
-	opts := NewObjectPoolOptions().
-		SetSize(256)
-	p := NewObjectPool(opts)
-	p.Init(func() interface{} {
-		return make([]byte, 0, 32)
-	})
-	objs := make([]interface{}, 16)
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			for i := 0; i < len(objs); i++ {
-				o := p.Get()
-				objs[i] = o
-			}
-
-			for _, obj := range objs {
-				o, ok := obj.([]byte)
-				if !ok {
-					b.Fail()
-				}
-				o = strconv.AppendInt(o[:0], 12344321, 10)
-				p.Put(o)
-			}
-		}
-	})
-}
-
-func BenchmarkObjectPoolGetMultiPutContendedWithRefill(b *testing.B) {
-	opts := NewObjectPoolOptions().
-		SetSize(32).
-		SetRefillLowWatermark(0.05).
-		SetRefillHighWatermark(0.25)
-
-	p := NewObjectPool(opts)
-	p.Init(func() interface{} {
-		return make([]byte, 0, 32)
-	})
-	objs := make([]interface{}, 16)
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			for i := 0; i < len(objs); i++ {
-				o := p.Get()
-				objs[i] = o
-			}
-
-			for _, obj := range objs {
-				o, ok := obj.([]byte)
-				if !ok {
-					b.Fail()
-				}
-				o = strconv.AppendInt(o[:0], 12344321, 10)
-				neverGonnaOptimizeYouAway = o
-				p.Put(o)
-			}
-		}
-	})
-}
-
 // go test -benchmem -run=^$ github.com/m3db/m3/src/x/pool -bench '^(BenchmarkObjectPoolParallel)$' -cpu 1,2,4,6,8,12
-func BenchmarkObjectPoolParallel(b *testing.B) {
+func BenchmarkObjectPoolParallelGetPut(b *testing.B) {
 	type poolObj struct {
-		arr  []byte
 		a, b int
-		c    *bool
+		c    *int64
 		ts   int64
 	}
 
 	p := NewObjectPool(NewObjectPoolOptions().SetSize(1024))
 	p.Init(func() interface{} {
-		return &poolObj{
-			arr: make([]byte, 0, 16),
-		}
+		return &poolObj{}
 	})
 
-	now := time.Now()
+	ts := time.Now().UnixNano()
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -223,12 +157,76 @@ func BenchmarkObjectPoolParallel(b *testing.B) {
 			if !ok {
 				b.Fail()
 			}
-			// do something with object:
+			// do something with object, so there's something going on between gets/puts:
 			obj.a = b.N
-			obj.b = len(obj.arr)
-			obj.ts = now.Unix() + int64(b.N)
-			neverGonnaOptimizeYouAway = obj
-			p.Put(op)
+			obj.c = &ts
+			obj.ts = ts + int64(b.N)
+			p.Put(obj)
+		}
+	})
+}
+
+func BenchmarkObjectPoolParallelGetMultiPutContended(b *testing.B) {
+	opts := NewObjectPoolOptions().
+		SetSize(256)
+
+	p := NewObjectPool(opts)
+	p.Init(func() interface{} {
+		b := make([]byte, 0, 64)
+		return &b
+	})
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			bufs := make([]*[]byte, 16)
+			for i := 0; i < len(bufs); i++ {
+				o, ok := p.Get().(*[]byte)
+				if !ok {
+					b.Fail()
+				}
+				bufs[i] = o
+			}
+			for i := 0; i < len(bufs); i++ {
+				o := bufs[i]
+				buf := *o
+				buf = strconv.AppendInt(buf[:0], 12344321, 10)
+				p.Put(o)
+			}
+		}
+	})
+}
+
+func BenchmarkObjectPoolParallelGetMultiPutContendedWithRefill(b *testing.B) {
+	opts := NewObjectPoolOptions().
+		SetSize(32).
+		SetRefillLowWatermark(0.05).
+		SetRefillHighWatermark(0.25)
+
+	p := NewObjectPool(opts)
+	p.Init(func() interface{} {
+		b := make([]byte, 0, 32)
+		return &b
+	})
+	objs := make([]interface{}, 16)
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := 0; i < len(objs); i++ {
+				o := p.Get()
+				objs[i] = o
+			}
+
+			for _, obj := range objs {
+				o, ok := obj.(*[]byte)
+				if !ok {
+					b.Fail()
+				}
+				buf := *o
+				buf = strconv.AppendInt(buf[:0], 12344321, 10)
+				p.Put(o)
+			}
 		}
 	})
 }
