@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/query/util"
 )
 
 const (
@@ -577,7 +578,9 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 				interval))
 			return nil, err
 		}
-		wf = func(stepSize int) int { return int(int64(delta/time.Millisecond) / int64(stepSize)) }
+		wf = func(stepSize int) int {
+			return int(int64(delta/time.Millisecond) / int64(stepSize))
+		}
 		ws = fmt.Sprintf("%q", windowSizeValue)
 		delta = interval
 	case float64:
@@ -635,14 +638,17 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			sum := 0.0
 			num := 0
+			firstPoint := false
 			for i := 0; i < numSteps; i++ {
-				// skip if the number of points received is less than the number of points
-				// in the lookback window.
-				if offset < windowPoints {
-					continue
-				}
-				if i == 0 {
+				// NB: skip if the number of points received is less than the number
+				// of points in the lookback window.
+				if !firstPoint {
+					firstPoint = true
 					for j := offset - windowPoints; j < offset; j++ {
+						if j < 0 {
+							continue
+						}
+
 						v := bootstrap.ValueAt(j)
 						if !math.IsNaN(v) {
 							sum += v
@@ -650,17 +656,20 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 						}
 					}
 				} else {
-					prev := bootstrap.ValueAt(i + offset - windowPoints - 1)
-					next := bootstrap.ValueAt(i + offset - 1)
-					if !math.IsNaN(prev) {
-						sum -= prev
-						num--
+					if i+offset-windowPoints > 0 {
+						prev := bootstrap.ValueAt(i + offset - windowPoints - 1)
+						if !math.IsNaN(prev) {
+							sum -= prev
+							num--
+						}
 					}
+					next := bootstrap.ValueAt(i + offset - 1)
 					if !math.IsNaN(next) {
 						sum += next
 						num++
 					}
 				}
+
 				if num > 0 {
 					vals.SetValueAt(i, sum/float64(num))
 				}
@@ -1578,6 +1587,7 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 	if err != nil {
 		return nil, err
 	}
+
 	if interval <= 0 {
 		return nil, common.ErrInvalidIntervalFormat
 	}
@@ -1609,12 +1619,22 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 				return ts.NewSeriesList(), err
 			}
 			window := make([]float64, windowPoints)
+			util.Memset(window, math.NaN())
 			numSteps := series.Len()
 			offset := bootstrap.Len() - numSteps
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			for i := 0; i < numSteps; i++ {
 				for j := i + offset - windowPoints; j < i+offset; j++ {
-					window[j-i-offset+windowPoints] = bootstrap.ValueAt(j)
+					if j < 0 || j >= bootstrap.Len() {
+						continue
+					}
+
+					idx := j - i - offset + windowPoints
+					if idx < 0 || idx > len(window)-1 {
+						continue
+					}
+
+					window[idx] = bootstrap.ValueAt(j)
 				}
 				nans := common.SafeSort(window)
 				if nans < windowPoints {
