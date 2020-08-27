@@ -2474,6 +2474,24 @@ func testMovingMedian(t *testing.T) {
 		[]common.TestSeries{expected}, res.Values)
 }
 
+func TestMovingMin(t *testing.T) {
+	// create test context
+	now := time.Now()
+	engine := NewEngine(
+		testStorage,
+	)
+	startTime := now.Add(-3 * time.Minute)
+	endTime := now.Add(-time.Minute)
+	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+	defer ctx.Close()
+
+
+	vals := []float64{1.0, 2.0, 3.0, 4.0, math.NaN()}
+	expected := common.TestSeries{Name: "foo (avg: 2.500)", Data: vals}
+
+	common.CompareOutputsAndExpected(t, 10000, testMovingAverageStart, expected, res.Values)
+}
+
 func TestLegendValue(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
