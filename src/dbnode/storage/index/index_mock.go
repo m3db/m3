@@ -1057,17 +1057,17 @@ func (mr *MockfieldsAndTermsIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockfieldsAndTermsIterator) Reset(seg segment.Segment, opts fieldsAndTermsIteratorOpts) error {
+func (m *MockfieldsAndTermsIterator) Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Reset", seg, opts)
+	ret := m.ctrl.Call(m, "Reset", reader, opts)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(seg, opts interface{}) *gomock.Call {
+func (mr *MockfieldsAndTermsIteratorMockRecorder) Reset(reader, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), seg, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockfieldsAndTermsIterator)(nil).Reset), reader, opts)
 }
 
 // MockOptions is a mock of Options interface

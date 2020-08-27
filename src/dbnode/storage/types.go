@@ -684,11 +684,14 @@ type DebugMemorySegmentsOptions struct {
 // namespaceIndexTickResult are details about the work performed by the namespaceIndex
 // during a Tick().
 type namespaceIndexTickResult struct {
-	NumBlocks        int64
-	NumBlocksSealed  int64
-	NumBlocksEvicted int64
-	NumSegments      int64
-	NumTotalDocs     int64
+	NumBlocks               int64
+	NumBlocksSealed         int64
+	NumBlocksEvicted        int64
+	NumSegments             int64
+	NumSegmentsBootstrapped int64
+	NumSegmentsMutable      int64
+	NumTotalDocs            int64
+	FreeMmap                int64
 }
 
 // namespaceIndexInsertQueue is a queue used in-front of the indexing component
