@@ -88,6 +88,7 @@ func TestObjectPoolGetBeforeInitError(t *testing.T) {
 	var accessErr error
 	opts := NewObjectPoolOptions().SetOnPoolAccessErrorFn(func(err error) {
 		accessErr = err
+		panic(err)
 	})
 
 	pool := NewObjectPool(opts)
