@@ -115,8 +115,8 @@ func CompareOutputsAndExpected(t *testing.T, step int, start time.Time, expected
 	}
 }
 
-// MovingAverageStorage is a special test construct for the moving average function
-type MovingAverageStorage struct {
+// MovingFunctionStorage is a special test construct for all moving functions
+type MovingFunctionStorage struct {
 	StepMillis     int
 	Bootstrap      []float64
 	Values         []float64
@@ -124,7 +124,7 @@ type MovingAverageStorage struct {
 }
 
 // FetchByPath builds a new series from the input path
-func (s *MovingAverageStorage) FetchByPath(
+func (s *MovingFunctionStorage) FetchByPath(
 	ctx context.Context,
 	path string,
 	opts storage.FetchOptions,
@@ -133,7 +133,7 @@ func (s *MovingAverageStorage) FetchByPath(
 }
 
 // FetchByQuery builds a new series from the input query
-func (s *MovingAverageStorage) FetchByQuery(
+func (s *MovingFunctionStorage) FetchByQuery(
 	ctx context.Context,
 	query string,
 	opts storage.FetchOptions,
@@ -142,7 +142,7 @@ func (s *MovingAverageStorage) FetchByQuery(
 }
 
 // FetchByIDs builds a new series from the input query
-func (s *MovingAverageStorage) fetchByIDs(
+func (s *MovingFunctionStorage) fetchByIDs(
 	ctx context.Context,
 	ids []string,
 	opts storage.FetchOptions,
