@@ -68,8 +68,7 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 	m := opts.InstrumentOptions().MetricsScope()
 
 	p := &objectPool{
-		values: make(chan interface{}, opts.Size()),
-		size:   opts.Size(),
+		size: opts.Size(),
 		refillLowWatermark: int(math.Ceil(
 			opts.RefillLowWatermark() * float64(opts.Size()))),
 		refillHighWatermark: int(math.Ceil(
@@ -99,6 +98,7 @@ func (p *objectPool) Init(alloc Allocator) {
 		return
 	}
 
+	p.values = make(chan interface{}, p.size)
 	for i := 0; i < cap(p.values); i++ {
 		p.values <- alloc()
 	}
@@ -134,6 +134,10 @@ func (p *objectPool) Get() interface{} {
 }
 
 func (p *objectPool) Put(obj interface{}) {
+	if p.values == nil {
+		p.onPoolAccessErrorFn(errPoolAccessBeforeInitialized)
+		return
+	}
 	select {
 	case p.values <- obj:
 	default:
