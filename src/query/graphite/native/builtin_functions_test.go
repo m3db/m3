@@ -2456,8 +2456,6 @@ func TestChanged(t *testing.T) {
 		expected, results.Values)
 }
 
-
-
 func TestMovingMedian(t *testing.T) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()

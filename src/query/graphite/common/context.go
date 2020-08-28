@@ -68,7 +68,6 @@ type Context struct {
 	contextBase
 }
 
-
 // ContextOptions provides the options to create the context with
 type ContextOptions struct {
 	Start   time.Time

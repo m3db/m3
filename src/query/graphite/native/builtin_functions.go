@@ -1609,7 +1609,6 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 		}
 
 		results := make([]*ts.Series, 0, original.Len())
-
 		for i, bootstrap := range bootstrapList.Values {
 			series := original.Values[i]
 			windowPoints := int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
