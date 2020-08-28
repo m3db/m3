@@ -89,7 +89,7 @@ func benchmarkMatchTermSegment(docs []doc.Document, b *testing.B) {
 	if err != nil {
 		b.Fatalf("unable to construct new segment: %v", err)
 	}
-	s := sgmt.(*segment)
+	s := sgmt.(*memSegment)
 	for _, d := range docs {
 		s.Insert(d)
 	}
@@ -111,7 +111,7 @@ func benchmarkMatchRegexSegment(docs []doc.Document, b *testing.B) {
 	if err != nil {
 		b.Fatalf("unable to construct new segment: %v", err)
 	}
-	s := sgmt.(*segment)
+	s := sgmt.(*memSegment)
 	for _, d := range docs {
 		s.Insert(d)
 	}

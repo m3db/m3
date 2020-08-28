@@ -945,6 +945,8 @@ func Run(runOpts RunOptions) {
 		// Only set the write new series limit after bootstrapping
 		kvWatchNewSeriesLimitPerShard(syncCfg.KVStore, logger, topo,
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
+		kvWatchEncodersPerBlockLimit(syncCfg.KVStore, logger,
+			runtimeOptsMgr, cfg.Limits.MaxEncodersPerBlock)
 	}()
 
 	// Wait for process interrupt.
@@ -1055,6 +1057,62 @@ func kvWatchNewSeriesLimitPerShard(
 			err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
 			if err != nil {
 				logger.Warn("unable to set cluster new series insert limit", zap.Error(err))
+				continue
+			}
+		}
+	}()
+}
+
+func kvWatchEncodersPerBlockLimit(
+	store kv.Store,
+	logger *zap.Logger,
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	defaultEncodersPerBlockLimit int,
+) {
+	var initEncoderLimit int
+
+	value, err := store.Get(kvconfig.EncodersPerBlockLimitKey)
+	if err == nil {
+		protoValue := &commonpb.Int64Proto{}
+		err = value.Unmarshal(protoValue)
+		if err == nil {
+			initEncoderLimit = int(protoValue.Value)
+		}
+	}
+
+	if err != nil {
+		if err != kv.ErrNotFound {
+			logger.Warn("error resolving encoder per block limit", zap.Error(err))
+		}
+		initEncoderLimit = defaultEncodersPerBlockLimit
+	}
+
+	err = setEncodersPerBlockLimitOnChange(runtimeOptsMgr, initEncoderLimit)
+	if err != nil {
+		logger.Warn("unable to set encoder per block limit", zap.Error(err))
+	}
+
+	watch, err := store.Watch(kvconfig.EncodersPerBlockLimitKey)
+	if err != nil {
+		logger.Error("could not watch encoder per block limit", zap.Error(err))
+		return
+	}
+
+	go func() {
+		protoValue := &commonpb.Int64Proto{}
+		for range watch.C() {
+			value := defaultEncodersPerBlockLimit
+			if newValue := watch.Get(); newValue != nil {
+				if err := newValue.Unmarshal(protoValue); err != nil {
+					logger.Warn("unable to parse new encoder per block limit", zap.Error(err))
+					continue
+				}
+				value = int(protoValue.Value)
+			}
+
+			err = setEncodersPerBlockLimitOnChange(runtimeOptsMgr, value)
+			if err != nil {
+				logger.Warn("unable to set encoder per block limit", zap.Error(err))
 				continue
 			}
 		}
@@ -1218,6 +1276,21 @@ func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) in
 	nodeLimit := int(math.Ceil(
 		float64(clusterLimit) / float64(numPlacedShards)))
 	return nodeLimit
+}
+
+func setEncodersPerBlockLimitOnChange(
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	encoderLimit int,
+) error {
+	runtimeOpts := runtimeOptsMgr.Get()
+	if runtimeOpts.EncodersPerBlockLimit() == encoderLimit {
+		// Not changed, no need to set the value and trigger a runtime options update
+		return nil
+	}
+
+	newRuntimeOpts := runtimeOpts.
+		SetEncodersPerBlockLimit(encoderLimit)
+	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
 // this function will block for at most waitTimeout to try to get an initial value

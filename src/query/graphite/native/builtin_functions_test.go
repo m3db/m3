@@ -28,11 +28,14 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/graphite/common"
+	"github.com/m3db/m3/src/query/graphite/context"
 	xctx "github.com/m3db/m3/src/query/graphite/context"
 	"github.com/m3db/m3/src/query/graphite/storage"
 	xtest "github.com/m3db/m3/src/query/graphite/testing"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	xgomock "github.com/m3db/m3/src/x/test"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1983,11 +1986,11 @@ func TestHoltWintersForecast(t *testing.T) {
 			"foo",
 			now,
 			1000,
-			[]float64{4.0, 5.0, 6.0},
+			[]float64{4, 5.0, 6.0},
 			3 * time.Second,
 			now,
 			1000,
-			[]float64{4.0, 4.0, 4.10035},
+			[]float64{math.NaN(), 4.0, 4.10035},
 		},
 	}
 
@@ -1998,6 +2001,7 @@ func TestHoltWintersForecast(t *testing.T) {
 			input.startTime,
 			common.NewTestSeriesValues(ctx, input.stepInMilli, input.values),
 		)
+
 		results, err := holtWintersForecastInternal(ctx, singlePathSpec{
 			Values: []*ts.Series{series},
 		}, input.duration)
@@ -2006,6 +2010,7 @@ func TestHoltWintersForecast(t *testing.T) {
 			Data: input.output,
 		}
 		require.Nil(t, err)
+
 		common.CompareOutputsAndExpected(t, input.newStep, input.newStartTime,
 			[]common.TestSeries{expected}, results.Values)
 	}
@@ -2040,10 +2045,10 @@ func TestHoltWintersConfidenceBands(t *testing.T) {
 			3 * time.Second,
 			now,
 			1000,
-			[]float64{0.4787, 3.7, 3.5305},
+			[]float64{math.NaN(), 3.7, 3.5305},
 			now,
 			1000,
-			[]float64{2.1039, 4.3, 4.6702},
+			[]float64{math.NaN(), 4.3, 4.6702},
 		},
 	}
 
@@ -2448,13 +2453,13 @@ func TestChanged(t *testing.T) {
 		expected, results.Values)
 }
 
-// TODO: re-enable
-// nolint
-func testMovingMedian(t *testing.T) {
-	now := time.Now()
-	engine := NewEngine(
-		testStorage,
-	)
+func TestMovingMedian(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	now := time.Now().Truncate(time.Hour)
+	engine := NewEngine(store)
 	startTime := now.Add(-3 * time.Minute)
 	endTime := now.Add(-time.Minute)
 	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
@@ -2462,6 +2467,8 @@ func testMovingMedian(t *testing.T) {
 
 	stepSize := 60000
 	target := "movingMedian(foo.bar.q.zed, '1min')"
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed")).Times(2)
 	expr, err := engine.Compile(target)
 	require.NoError(t, err)
 	res, err := expr.Execute(ctx)
@@ -2472,6 +2479,125 @@ func testMovingMedian(t *testing.T) {
 	}
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
 		[]common.TestSeries{expected}, res.Values)
+}
+
+func TestMovingAverage(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	now := time.Now().Truncate(time.Hour)
+	engine := NewEngine(store)
+	startTime := now.Add(-3 * time.Minute)
+	endTime := now.Add(-1 * time.Minute)
+	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+	defer ctx.Close()
+
+	stepSize := 60000
+	target := `movingAverage(timeShift(foo.bar.g.zed, '-1d'), '1min')`
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.g.zed")).Times(2)
+	expr, err := engine.Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(ctx)
+	require.NoError(t, err)
+	expected := common.TestSeries{
+		Name: `movingAverage(timeShift(foo.bar.g.zed, -1d),"1min")`,
+		Data: []float64{1, 1},
+	}
+	common.CompareOutputsAndExpected(t, stepSize, startTime,
+		[]common.TestSeries{expected}, res.Values)
+}
+
+func TestMovingMedianInvalidLimits(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	now := time.Now().Truncate(time.Hour)
+	engine := NewEngine(store)
+	startTime := now.Add(-3 * time.Minute)
+	endTime := now.Add(-time.Minute)
+	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+	defer ctx.Close()
+
+	stepSize := 60000
+	target := "movingMedian(foo.bar.q.zed, '1min')"
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, q string, opts storage.FetchOptions) (*storage.FetchResult, error) {
+			startTime := opts.StartTime
+			ctx := context.New()
+			numSteps := int(opts.EndTime.Sub(startTime)/time.Millisecond) / stepSize
+			vals := ts.NewConstantValues(ctx, 0, numSteps, stepSize)
+			series := ts.NewSeries(ctx, "foo.bar.q.zed", opts.EndTime, vals)
+			return &storage.FetchResult{SeriesList: []*ts.Series{series}}, nil
+		}).Times(2)
+	expr, err := engine.Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(ctx)
+	require.NoError(t, err)
+	expected := common.TestSeries{
+		Name: "movingMedian(foo.bar.q.zed,\"1min\")",
+		Data: []float64{math.NaN(), 0.0},
+	}
+	common.CompareOutputsAndExpected(t, stepSize, endTime,
+		[]common.TestSeries{expected}, res.Values)
+}
+
+func TestMovingMismatchedLimits(t *testing.T) {
+	// NB: this tests the behavior when query limits do not snap exactly to data
+	// points. When limits do not snap exactly, the first point should be omitted.
+	for _, fn := range []string{"movingAverage", "movingMedian"} {
+		for i := time.Duration(0); i < time.Minute; i += time.Second {
+			testMovingAverageInvalidLimits(t, fn, i)
+		}
+	}
+}
+
+func testMovingAverageInvalidLimits(t *testing.T, fn string, offset time.Duration) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	now := time.Now().Truncate(time.Hour).Add(offset)
+	engine := NewEngine(store)
+	startTime := now.Add(-3 * time.Minute)
+	endTime := now.Add(-time.Minute)
+	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
+	defer ctx.Close()
+
+	stepSize := 60000
+	target := fmt.Sprintf(`%s(timeShift(foo.bar.*.zed, '-1d'), '1min')`, fn)
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.g.zed", "foo.bar.x.zed"),
+	).Times(2)
+	expr, err := engine.Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(ctx)
+	require.NoError(t, err)
+
+	expectedStart := startTime
+	expectedDataG := []float64{1, 1}
+	expectedDataX := []float64{2, 2}
+
+	if offset > 0 {
+		expectedStart = expectedStart.Add(time.Minute)
+		expectedDataG[0] = math.NaN()
+		expectedDataX[0] = math.NaN()
+	}
+
+	expected := []common.TestSeries{
+		{
+			Name: fmt.Sprintf(`%s(timeShift(foo.bar.g.zed, -1d),"1min")`, fn),
+			Data: expectedDataG,
+		},
+		{
+			Name: fmt.Sprintf(`%s(timeShift(foo.bar.x.zed, -1d),"1min")`, fn),
+			Data: expectedDataX,
+		},
+	}
+
+	common.CompareOutputsAndExpected(t, stepSize, expectedStart, expected, res.Values)
 }
 
 func TestLegendValue(t *testing.T) {
@@ -2680,13 +2806,13 @@ func TestTimeFunction(t *testing.T) {
 		[]common.TestSeries{expected}, results.Values)
 }
 
-// TODO arnikola reenable
-// nolint
-func testTimeShift(t *testing.T) {
-	now := time.Now()
-	engine := NewEngine(
-		testStorage,
-	)
+func TestTimeShift(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+	now := time.Now().Truncate(time.Hour)
+	engine := NewEngine(store)
 	startTime := now.Add(-3 * time.Minute)
 	endTime := now.Add(-time.Minute)
 	ctx := common.NewContext(common.ContextOptions{
@@ -2698,6 +2824,10 @@ func testTimeShift(t *testing.T) {
 
 	stepSize := 60000
 	target := "timeShift(foo.bar.q.zed, '1min', false)"
+
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildTestSeriesFn(stepSize, "foo.bar.q.zed"))
+
 	expr, err := engine.Compile(target)
 	require.NoError(t, err)
 	res, err := expr.Execute(ctx)
