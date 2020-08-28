@@ -652,7 +652,7 @@ func TestMovingAverageSuccess(t *testing.T) {
 	testMovingFunction(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", values, bootstrapEntireSeries, expected)
 }
 
-func testMovingAverageError(t *testing.T, target string) {
+func testMovingFunctionError(t *testing.T, target string) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
 
@@ -678,8 +678,8 @@ func testMovingAverageError(t *testing.T, target string) {
 }
 
 func TestMovingAverageError(t *testing.T) {
-	testMovingAverageError(t, "movingAverage(foo.bar.baz, '-30s')")
-	testMovingAverageError(t, "movingAverage(foo.bar.baz, 0)")
+	testMovingFunctionError(t, "movingAverage(foo.bar.baz, '-30s')")
+	testMovingFunctionError(t, "movingAverage(foo.bar.baz, 0)")
 }
 
 func TestIsNonNull(t *testing.T) {
