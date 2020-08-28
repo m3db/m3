@@ -680,7 +680,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 					vals.SetValueAt(i, sum/float64(num))
 				}
 			}
-			name := fmt.Sprintf("movingAverage(%s,%s)", series.Name(), ws)
+			name := fmt.Sprintf("movingAverage(%s,%s)", series.Name(), widowSize.stringValue)
 			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
 			results = append(results, newSeries)
 		}
