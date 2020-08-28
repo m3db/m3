@@ -23,10 +23,9 @@ There are three ‘role types’ for a m3db deployment -
 **Seed Node:** First and foremost, these hosts are storage nodes themselves. In addition to that responsibility, they run an embedded ETCD server. This is to allow the various M3DB processes running across the cluster to reason about the topology/configuration of the cluster in a consistent manner.
 Note: In very large deployments, you’d use a dedicated ETCD cluster, and only use M3DB Storage and Coordinator Nodes
 
-#### Provisioning
+## Provisioning
 Enough background, lets get you going with a real cluster! Provision your host (be it VMs from AWS/GCP/etc) or bare-metal servers in your DC with the latest and greatest flavour of Linux you favor. M3DB works on all popular distributions - Ubuntu/RHEL/CentOS, let us know if you run into issues on another platform and we’ll be happy to assist.
-
-#### Network
+## Network
 If you’re using AWS or GCP it is highly advised to use static IPs so that if you need to replace a host, you don’t have to update your configuration files on all the hosts, you simply decomission the old seed node and provision a new seed node with the same host ID and static IP that the old seed node had. For AWS you can use a Elastic Network Interface on a VPC and for GCP you can simply use an internal static IP address.
 
 In this example you will be creating three static IP addresses for the three seed nodes.
@@ -37,23 +36,35 @@ In GCP the name of your instance when you create it will automatically be it's h
 In AWS it might be simpler to just use whatever the hostname you get for the provisioned VM as your host ID when specifying M3DB placement. Either that or use the environment host ID resolver and pass your host ID when launching the database process with an environment variable. You can set to the host ID and specify the environment variable name in config as envVarName: M3DB_HOST_ID if you are using an environment variable named M3DB_HOST_ID.
 
 Relevant config snippet:
+
+```yaml
 hostID:
   resolver: environment
   envVarName: M3DB_HOST_ID
+```
 
 Then start your process with:
-M3DB_HOST_ID=m3db001 m3dbnode -f config.yml
 
-#### Kernel
+```shell
+M3DB_HOST_ID=m3db001 m3dbnode -f config.yml
+```
+
+## Kernel
 Ensure you review our recommended kernel configuration before running M3DB in production as M3DB may exceed the default limits for some default kernel values.
 
-#### Config files
+## Config files
 We wouldn’t feel right to call this guide, “The Hard Way” and not require you to change some configs by hand.
 Note: the steps that follow assume you have the following 3 seed nodes - make necessary adjustment if you have more or are using a dedicated ETCD cluster. Example seed nodes:
+
+```text
 m3db001 (Region=us-east1, Zone=us-east1-a, Static IP=10.142.0.1)
 m3db002 (Region=us-east1, Zone=us-east1-b, Static IP=10.142.0.2)
 m3db003 (Region=us-east1, Zone=us-east1-c, Static IP=10.142.0.3)
+```
+
 We’re going to start with the M3DB config template and modify it to work for your cluster. Start by downloading the config. Update the config ‘service’ and 'seedNodes' sections to read as follows:
+
+```yaml
 config:
   service:
     env: default_env
@@ -74,10 +85,15 @@ config:
         endpoint: http://10.142.0.2:2380
       - hostID: m3db003
         endpoint: http://10.142.0.3:2380
+```
 
 Start the seed nodes
+
 Transfer the config you just crafted to each host in the cluster. And then starting with the seed nodes, start up the m3dbnode process:
+
+```shell
 m3dbnode -f <config-name.yml>
+```
 
 Note, remember to daemon-ize this using your favourite utility: systemd/init.d/supervisor/etc
 Create Namespace and Initialize Topology

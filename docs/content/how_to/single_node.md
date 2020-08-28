@@ -24,9 +24,11 @@ docker pull quay.io/m3db/m3dbnode:latest
 docker run -p 7201:7201 -p 7203:7203 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3db/m3dbnode:latest
 ```
 
-**Note:** For the single node case, we use this [sample config file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml). If you inspect the file, you'll see that all the configuration is namespaced by `coordinator` or `db`. That's because this setup runs `M3DB` and `M3Coordinator` as one application. While this is convenient for testing and development, you'll want to run clustered `M3DB` with a separate `M3Coordinator` in production. You can read more about that [here.](cluster_hard_way.md).
+**Note:** For the single node case, we use this [sample config file](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-local-etcd.yml). If you inspect the file, you'll see that all the configuration is grouped by `coordinator` or `db`. That's because this setup runs `M3DB` and `M3Coordinator` as one application. While this is convenient for testing and development, you'll want to run clustered `M3DB` with a separate `M3Coordinator` in production. You can read more about that [here.](cluster_hard_way.md).
 
 Next, create an initial namespace for your metrics in the database using the cURL below. Keep in mind that the provided `namespaceName` must match the namespace in the `local` section of the `M3Coordinator` YAML configuration, and if you choose to [add any additional namespaces](../operational_guide/namespace_configuration.md) you'll need to add them to the `local` section of `M3Coordinator`'s YAML config as well.
+
+<!-- TODO: Retention actually different -->
 
 ```json
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
