@@ -6,12 +6,12 @@ M3DB, inspired by [Gorilla][gorilla] and [Cassandra][cassandra], is a distribute
 
 Here are some attributes of the project:
 
-* Distributed time series storage, single nodes use a WAL commit log and persists time windows per shard independently
-* Cluster management built on top of [etcd][etcd]
-* Built-in synchronous replication with configurable durability and read consistency (one, majority, all, etc)
-* M3TSZ float64 compression inspired by Gorilla TSZ compression, configurable as lossless or lossy
-* Arbitrary time precision configurable from seconds to nanoseconds precision, able to switch precision with any write
-* Configurable out of order writes, currently limited to the size of the configured time window's block size
+-   Distributed time series storage, single nodes use a WAL commit log and persists time windows per shard independently
+-   Cluster management built on top of [etcd][etcd]
+-   Built-in synchronous replication with configurable durability and read consistency (one, majority, all, etc)
+-   M3TSZ float64 compression inspired by Gorilla TSZ compression, configurable as lossless or lossy
+-   Arbitrary time precision configurable from seconds to nanoseconds precision, able to switch precision with any write
+-   Configurable out of order writes, currently limited to the size of the configured time window's block size
 
 ## Current Limitations
 
@@ -22,6 +22,9 @@ The project has aimed to avoid compactions when at all possible, currently the o
 The project has also optimized the storage and retrieval of float64 values, as such there is no way to use it as a general time series database of arbitrary data structures just yet.
 
 [gorilla]: http://www.vldb.org/pvldb/vol8/p1816-teller.pdf
+
 [cassandra]: http://cassandra.apache.org/
+
 [etcd]: https://github.com/etcd-io/etcd
+
 [ubeross]: http://uber.github.io

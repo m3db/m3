@@ -22,9 +22,7 @@ None.
 
 #### Optional
 
---8<--
-docs/common/headers_optional_read_write.md
---8<--
+{{% codeinclude file="/common/headers_optional_read_write.md" language="shell" %}}
 
 ### Data Params
 

@@ -6,9 +6,9 @@ Timeseries keys are hashed to a fixed set of virtual shards. Virtual shards are 
 
 Shards provide a variety of benefits throughout the M3DB stack:
 
-1. They make horizontal scaling easier and adding / removing nodes without downtime trivial at the cluster level.
-2. They provide more fine grained lock granularity at the memory level.
-3. They inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the same file.
+1.  They make horizontal scaling easier and adding / removing nodes without downtime trivial at the cluster level.
+2.  They provide more fine grained lock granularity at the memory level.
+3.  They inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the same file.
 
 ## Replication
 
@@ -22,7 +22,7 @@ Each replica has its own assignment of a single logical shard per virtual shard.
 
 Conceptually it can be defined as:
 
-```
+```golang
 Replica {
   id uint32
   shards []Shard
@@ -33,7 +33,7 @@ Replica {
 
 Each shard can be conceptually defined as:
 
-```
+```golang
 Shard {
   id uint32
   assignments []ShardAssignment
@@ -55,17 +55,17 @@ enum ShardState {
 
 The assignment of shards is stored in etcd. When adding, removing or replacing a node shard goal states are assigned for each shard assigned.
 
-For a write to appear as successful for a given replica it must succeed against all assigned hosts for that shard.  That means if there is a given shard with a host assigned as *LEAVING* and another host assigned as *INITIALIZING* for a given replica writes to both these hosts must appear as successful to return success for a write to that given replica.  Currently however only *AVAILABLE* shards count towards consistency, the work to group the *LEAVING* and *INITIALIZING* shards together when calculating a write success/error is not complete, see [issue 417](https://github.com/m3db/m3/issues/417).
+For a write to appear as successful for a given replica it must succeed against all assigned hosts for that shard.  That means if there is a given shard with a host assigned as _LEAVING_ and another host assigned as _INITIALIZING_ for a given replica writes to both these hosts must appear as successful to return success for a write to that given replica.  Currently however only _AVAILABLE_ shards count towards consistency, the work to group the _LEAVING_ and _INITIALIZING_ shards together when calculating a write success/error is not complete, see [issue 417](https://github.com/m3db/m3/issues/417).
 
-It is up to the nodes themselves to bootstrap shards when the assignment of new shards to it are discovered in the *INITIALIZING* state and to transition the state to *AVAILABLE* once bootstrapped by calling the cluster management APIs when done.  Using a compare and set this atomically removes the *LEAVING* shard still assigned to the node that previously owned it and transitions the shard state on the new node from *INITIALIZING* state to *AVAILABLE*.
+It is up to the nodes themselves to bootstrap shards when the assignment of new shards to it are discovered in the _INITIALIZING_ state and to transition the state to _AVAILABLE_ once bootstrapped by calling the cluster management APIs when done.  Using a compare and set this atomically removes the _LEAVING_ shard still assigned to the node that previously owned it and transitions the shard state on the new node from _INITIALIZING_ state to _AVAILABLE_.
 
-Nodes will not start serving reads for the new shard until it is *AVAILABLE*, meaning not until they have bootstrapped data for those shards.
+Nodes will not start serving reads for the new shard until it is _AVAILABLE_, meaning not until they have bootstrapped data for those shards.
 
 ## Cluster operations
 
 ### Node add
 
-When a node is added to the cluster it is assigned shards that relieves load fairly from the existing nodes.  The shards assigned to the new node will become *INITIALIZING*, the nodes then discover they need to be bootstrapped and will begin bootstrapping the data using all replicas available.  The shards that will be removed from the existing nodes are marked as *LEAVING*.
+When a node is added to the cluster it is assigned shards that relieves load fairly from the existing nodes.  The shards assigned to the new node will become _INITIALIZING_, the nodes then discover they need to be bootstrapped and will begin bootstrapping the data using all replicas available.  The shards that will be removed from the existing nodes are marked as _LEAVING_.
 
 ### Node down
 
@@ -73,4 +73,4 @@ A node needs to be explicitly taken out of the cluster.  If a node goes down and
 
 ### Node remove
 
-When a node is removed the shards it owns are assigned to existing nodes in the cluster.  Remaining servers discover they are now in possession of shards that are *INITIALIZING* and need to be bootstrapped and will begin bootstrapping the data using all replicas available.
+When a node is removed the shards it owns are assigned to existing nodes in the cluster.  Remaining servers discover they are now in possession of shards that are _INITIALIZING_ and need to be bootstrapped and will begin bootstrapping the data using all replicas available.

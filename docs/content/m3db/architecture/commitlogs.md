@@ -8,8 +8,8 @@ M3DB has a commit log that is equivalent to the commit log or write-ahead-log in
 
 There are two integrity levels available for commit logs:
 
-- **Synchronous:** write operations must wait until it has finished writing an entry in the commit log to complete.
-- **Behind:** write operations must finish enqueueing an entry to the commit log write queue to complete.
+-   **Synchronous:** write operations must wait until it has finished writing an entry in the commit log to complete.
+-   **Behind:** write operations must finish enqueueing an entry to the commit log write queue to complete.
 
 Depending on the data loss requirements users can choose either integrity level.
 
@@ -23,7 +23,7 @@ Commit logs for a given time window are kept in a single file. An info structure
 
 The structures can be conceptually described as:
 
-```
+```golang
 CommitLogInfo {
   start int64
   duration int64
@@ -55,4 +55,4 @@ In addition, since the snapshot files are already compressed, bootstrapping from
 
 ### Cleanup
 
-Commit log files are automatically deleted once all the data they contain has been flushed to disk as immutable compressed filesets *or* all the data they contain has been captured by a compressed snapshot file. Similarly, snapshot files are deleted once all the data they contain has been flushed to disk as filesets.
+Commit log files are automatically deleted once all the data they contain has been flushed to disk as immutable compressed filesets _or_ all the data they contain has been captured by a compressed snapshot file. Similarly, snapshot files are deleted once all the data they contain has been flushed to disk as filesets.
