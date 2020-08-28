@@ -27,14 +27,12 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/fortytw2/leaktest v1.2.1-0.20180901000122-b433bbd6d743
 	github.com/fossas/fossa-cli v1.0.30
-	github.com/fsnotify/fsnotify v1.4.8-0.20190312181446-1485a34d5d57 // indirect
 	github.com/garethr/kubeval v0.0.0-20180821130434-c44f5193dc94
 	github.com/ghodss/yaml v1.0.0
 	github.com/gnewton/jargo v0.0.0-20150417131352-41f5f186a805 // indirect
 	github.com/go-kit/kit v0.10.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
-	github.com/go-playground/locales v0.12.2-0.20190430153329-630ebbb60284 // indirect
-	github.com/go-playground/universal-translator v0.16.1-0.20170327191703-71201497bace // indirect
+	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.3.3
@@ -65,7 +63,7 @@ require (
 	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e // indirect
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v0.0.0-20200602205121-7f389745e9ab
-	github.com/m3dbx/vellum v0.0.0-20200602203954-e10aaedbd934
+	github.com/m3dbx/vellum v0.0.0-20200826162549-f94c029903de
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
 	github.com/opencontainers/image-spec v1.0.1 // indirect
@@ -89,12 +87,10 @@ require (
 	github.com/remeh/sizedwaitgroup v1.0.0 // indirect
 	github.com/rhysd/go-github-selfupdate v1.2.2 // indirect
 	github.com/robskillington/gorename v0.0.0-20180424020013-52c7307cddd2
-	github.com/russross/blackfriday v2.0.0+incompatible
 	github.com/rveen/ogdl v0.0.0-20200522080342-eeeda1a978e7 // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/sergi/go-diff v1.1.0
 	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
-	github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72
 	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -103,6 +99,7 @@ require (
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
 	github.com/stretchr/testify v1.4.0
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
+	github.com/twmb/murmur3 v1.1.3
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/atomic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/uber-go/tally v3.3.13+incompatible
@@ -131,6 +128,7 @@ require (
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/validator.v9 v9.7.0
 	gopkg.in/ini.v1 v1.51.1 // indirect
+	gopkg.in/russross/blackfriday.v2 v2.0.0
 	gopkg.in/src-d/go-git.v4 v4.13.1 // indirect
 	gopkg.in/validator.v2 v2.0.0-20160201165114-3e4f037f12a1
 	gopkg.in/vmihailenco/msgpack.v2 v2.8.3
