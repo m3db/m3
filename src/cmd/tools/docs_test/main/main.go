@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/x/docs"
 
 	"github.com/pborman/getopt"
-	"github.com/russross/blackfriday"
+	"gopkg.in/russross/blackfriday.v2"
 )
 
 func main() {
