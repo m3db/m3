@@ -198,7 +198,6 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 	return r, nil
 }
 
-// timeShift draws the selected metrics shifted in time. If no sign is given, a minus sign ( - ) is
 // implied which will shift the metric back in time. If a plus sign ( + ) is given, the metric will
 // be shifted forward in time
 func timeShift(
@@ -242,6 +241,43 @@ func timeShift(
 	}, nil
 }
 
+// implied which will shift the metric back in time. If a plus sign ( + ) is given, the metric will
+// be shifted forward in time
+func delay(
+	ctx *common.Context,
+	_ singlePathSpec,
+	steps int,
+) (*unaryContextShifter, error) {
+
+	contextShiftingFn := func(c *common.Context) *common.Context {
+		opts := common.NewChildContextOptions()
+		opts.AdjustTimeRange(0, 0, 0, 0)
+		childCtx := c.NewChildContext(opts)
+		return childCtx
+	}
+
+	transformerFn := func(input ts.SeriesList) (ts.SeriesList, error) {
+		output := make([]*ts.Series, input.Len())
+
+		for i, series := range input.Values {
+
+			delayedVals := delayValues(series, steps)
+			delayedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), delayedVals)
+			output[i] = delayedSeries
+		}
+		input.Values = output
+		return input, nil
+	}
+
+	return &unaryContextShifter{
+		ContextShiftFunc: contextShiftingFn,
+		UnaryTransformer: transformerFn,
+	}, nil
+}
+
+func delayValues(vals ts.Values, steps int ) (ts.Values) {
+
+}
 // absolute returns the absolute value of each element in the series.
 func absolute(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
 	return transform(ctx, input,
@@ -1853,6 +1889,7 @@ func init() {
 	MustRegisterFunction(dashed).WithDefaultParams(map[uint8]interface{}{
 		2: 5.0, // dashLength
 	})
+	MustRegisterFunction(delay)
 	MustRegisterFunction(derivative)
 	MustRegisterFunction(diffSeries)
 	MustRegisterFunction(divideSeries)
