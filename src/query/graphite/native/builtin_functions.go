@@ -261,9 +261,11 @@ func delay(
 
 		for i, series := range input.Values {
 
-			delayedVals := delayValues(series, steps)
+			delayedVals := delayValues(ctx, *series, steps)
 			delayedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), delayedVals)
-			output[i] = delayedSeries
+			renamedSeries := delayedSeries.RenamedTo(fmt.Sprintf("delay(%s, %s)", delayedSeries.Name(), steps))
+			output[i] = renamedSeries
+
 		}
 		input.Values = output
 		return input, nil
@@ -275,9 +277,14 @@ func delay(
 	}, nil
 }
 
-func delayValues(vals ts.Values, steps int ) (ts.Values) {
-
+func delayValues(ctx *common.Context, series ts.Series, steps int ) (ts.Values) {
+	output := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+	for i := steps; i < series.Len(); i++ {
+		output.SetValueAt(i, series.ValueAt(i - steps))
+	}
+	return output
 }
+
 // absolute returns the absolute value of each element in the series.
 func absolute(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
 	return transform(ctx, input,

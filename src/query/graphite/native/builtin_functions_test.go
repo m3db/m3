@@ -662,8 +662,6 @@ func testMovingAverageError(t *testing.T, target string) {
 			Bootstrap:      []float64{1.0},
 			BootstrapStart: testMovingAverageBootstrap,
 			Values:         []float64{1.0},
-			Type: 						Type:			common.MovingFunctionStorageType,
-
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -2760,6 +2758,7 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 	res, err := expr.Execute(phonyContext)
 	require.NoError(t, err)
 	var expected []common.TestSeries
+
 	if output != nil {
 		expectedSeries := common.TestSeries{
 			Name: expectedName,
