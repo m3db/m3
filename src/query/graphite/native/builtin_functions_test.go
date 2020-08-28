@@ -646,7 +646,10 @@ func TestMovingAverageSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
 	expected := []float64{4.0, 7.0, 12.0, 7.0, 4.5}
+	expectedMovingSum := []float64{4.0, 7.0, 12.0, 7.0, 4.5}
+
 	testMovingAverage(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
+	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,\"30s\")", values, bootstrap, expectedMovingSum)
 	testMovingAverage(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", values, bootstrap, expected)
 	testMovingAverage(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
 
@@ -2452,6 +2455,8 @@ func TestChanged(t *testing.T) {
 	common.CompareOutputsAndExpected(t, stepSize, startTime,
 		expected, results.Values)
 }
+
+
 
 func TestMovingMedian(t *testing.T) {
 	ctrl := xgomock.NewController(t)
