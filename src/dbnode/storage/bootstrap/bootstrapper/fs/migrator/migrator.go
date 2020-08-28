@@ -21,8 +21,6 @@
 package migrator
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -39,13 +37,11 @@ import (
 const workerChannelSize = 256
 
 type worker struct {
-	inputCh        chan migrationCandidate
-	outputCh       chan completedMigration
 	persistManager persist.Manager
 	taskOptions    migration.TaskOptions
 }
 
-// Migrator is an object responsible for migrating data filesets based on version information in
+// Migrator is responsible for migrating data filesets based on version information in
 // the info files.
 type Migrator struct {
 	migrationTaskFn      MigrationTaskFn
@@ -97,7 +93,7 @@ type completedMigration struct {
 	updatedInfoFileResult fs.ReadInfoFileResult
 }
 
-// Run runs the migrator
+// Run runs the migrator.
 func (m *Migrator) Run(ctx context.Context) error {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperFilesystemSourceMigrator)
 	defer span.Finish()
@@ -109,7 +105,7 @@ func (m *Migrator) Run(ctx context.Context) error {
 		return nil
 	}
 
-	m.log.Info(fmt.Sprintf("found %d filesets to migrate. fileset migration start", len(candidates)))
+	m.log.Info("starting fileset migration", zap.Int("migrations", len(candidates)))
 
 	nowFn := m.fsOpts.ClockOptions().NowFn()
 	begin := nowFn()
@@ -118,9 +114,11 @@ func (m *Migrator) Run(ctx context.Context) error {
 	var (
 		numWorkers = m.migrationOpts.Concurrency()
 		workers    = make([]*worker, 0, numWorkers)
-		outputCh   = make(chan completedMigration, len(candidates))
 	)
 
+	baseOpts := migration.NewTaskOptions().
+		SetFilesystemOptions(m.fsOpts).
+		SetStorageOptions(m.storageOpts)
 	for i := 0; i < numWorkers; i++ {
 		// Give each worker their own persist manager so that we can write files concurrently.
 		pm, err := fs.NewPersistManager(m.fsOpts)
@@ -128,65 +126,43 @@ func (m *Migrator) Run(ctx context.Context) error {
 			return err
 		}
 		worker := &worker{
-			inputCh:        make(chan migrationCandidate, workerChannelSize),
-			outputCh:       outputCh,
 			persistManager: pm,
-			taskOptions: migration.NewTaskOptions().
-				SetFilesystemOptions(m.fsOpts).
-				SetStorageOptions(m.storageOpts),
+			taskOptions:    baseOpts,
 		}
 		workers = append(workers, worker)
 	}
-	closedWorkerChannels := false
-	closeWorkerChannels := func() {
-		if closedWorkerChannels {
-			return
-		}
-		closedWorkerChannels = true
-		for _, worker := range workers {
-			close(worker.inputCh)
-		}
-	}
-	// NB(nate): Ensure that channels always get closed.
-	defer closeWorkerChannels()
 
 	// Start up workers. Intentionally not using sync.WaitGroup so we can know when the last worker
 	// is finishing so that we can close the output channel.
-	activeWorkers := atomic.NewUint32(0)
-	for _, worker := range workers {
+	var (
+		activeWorkers       = atomic.NewUint32(uint32(len(workers)))
+		outputCh            = make(chan completedMigration, len(candidates))
+		candidatesPerWorker = len(candidates) / numWorkers
+		candidateIdx        = 0
+	)
+	for i, worker := range workers {
+		endIdx := candidateIdx + candidatesPerWorker
+		if i == len(workers)-1 {
+			endIdx = len(candidates)
+		}
+
 		worker := worker
-		activeWorkers.Inc()
+		startIdx := candidateIdx // Capture current candidateIdx value for goroutine
 		go func() {
-			m.startWorker(worker)
+			m.startWorker(worker, candidates[startIdx:endIdx], outputCh)
 			if activeWorkers.Dec() == 0 {
-				close(worker.outputCh)
+				close(outputCh)
 			}
 		}()
+
+		candidateIdx = endIdx
 	}
-
-	// Start up goroutine consuming worker output
-	var (
-		migrationResults = make(map[mergeKey]fs.ReadInfoFileResult, len(candidates))
-		resultsConsumed  = make(chan bool, 1)
-	)
-	go func() {
-		for result := range outputCh {
-			migrationResults[result.key] = result.updatedInfoFileResult
-		}
-		close(resultsConsumed)
-	}()
-
-	// Enqueue work for workers
-	for i, candidate := range candidates {
-		worker := workers[i%numWorkers]
-		worker.inputCh <- candidate
-	}
-
-	// Close channels now that work is enqueued
-	closeWorkerChannels()
 
 	// Wait until all workers have finished and migration results have been consumed
-	<-resultsConsumed
+	migrationResults := make(map[mergeKey]fs.ReadInfoFileResult, len(candidates))
+	for result := range outputCh {
+		migrationResults[result.key] = result.updatedInfoFileResult
+	}
 
 	m.mergeUpdatedInfoFiles(migrationResults)
 
@@ -216,12 +192,12 @@ func (m *Migrator) findMigrationCandidates() []migrationCandidate {
 	return candidates
 }
 
-func (m *Migrator) startWorker(worker *worker) {
-	for input := range worker.inputCh {
-		task, err := input.newTaskFn(worker.taskOptions.
-			SetInfoFileResult(input.infoFileResult).
-			SetShard(input.shard).
-			SetNamespaceMetadata(input.metadata).
+func (m *Migrator) startWorker(worker *worker, candidates []migrationCandidate, outputCh chan<- completedMigration) {
+	for _, candidate := range candidates {
+		task, err := candidate.newTaskFn(worker.taskOptions.
+			SetInfoFileResult(candidate.infoFileResult).
+			SetShard(candidate.shard).
+			SetNamespaceMetadata(candidate.metadata).
 			SetPersistManager(worker.persistManager))
 		if err != nil {
 			m.log.Error("error creating migration task", zap.Error(err))
@@ -230,11 +206,11 @@ func (m *Migrator) startWorker(worker *worker) {
 		if err != nil {
 			m.log.Error("error running migration task", zap.Error(err))
 		}
-		worker.outputCh <- completedMigration{
+		outputCh <- completedMigration{
 			key: mergeKey{
-				metadata:   input.metadata,
-				shard:      input.shard,
-				blockStart: input.infoFileResult.Info.BlockStart,
+				metadata:   candidate.metadata,
+				shard:      candidate.shard,
+				blockStart: candidate.infoFileResult.Info.BlockStart,
 			},
 			updatedInfoFileResult: infoFileResult,
 		}

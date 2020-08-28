@@ -60,7 +60,7 @@ func TestToVersion1_1Run(t *testing.T) {
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 	require.Equal(t, 1, len(results))
 	infoFileResult := results[0]
-	indexFd, err := openFile(t, fsOpts, nsId, shard, infoFileResult, "index")
+	indexFd := openFile(t, fsOpts, nsId, shard, infoFileResult, "index")
 	oldBytes, err := ioutil.ReadAll(indexFd)
 	require.NoError(t, err)
 
@@ -99,8 +99,7 @@ func TestToVersion1_1Run(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read new info file and make sure it matches results returned by task
-	newInfoFd, err := openFile(t, fsOpts, nsId, shard, updatedInfoFile, "info")
-	require.NoError(t, err)
+	newInfoFd := openFile(t, fsOpts, nsId, shard, updatedInfoFile, "info")
 
 	newInfoBytes, err := ioutil.ReadAll(newInfoFd)
 	require.NoError(t, err)
@@ -112,8 +111,7 @@ func TestToVersion1_1Run(t *testing.T) {
 	require.Equal(t, updatedInfoFile.Info, info)
 
 	// Read the index entries of new volume set
-	indexFd, err = openFile(t, fsOpts, nsId, shard, updatedInfoFile, "index")
-	require.NoError(t, err)
+	indexFd = openFile(t, fsOpts, nsId, shard, updatedInfoFile, "index")
 	newBytes, err := ioutil.ReadAll(indexFd)
 	require.NoError(t, err)
 
@@ -135,11 +133,11 @@ func openFile(
 	shard uint32,
 	infoFileResult fs.ReadInfoFileResult,
 	fileType string,
-) (*os.File, error) {
+) *os.File {
 	indexFd, err := os.Open(path.Join(fsOpts.FilePathPrefix(), fmt.Sprintf("data/%s/%d/fileset-%d-%d-%s.db",
 		nsId.String(), shard, infoFileResult.Info.BlockStart, infoFileResult.Info.VolumeIndex, fileType)))
 	require.NoError(t, err)
-	return indexFd, err
+	return indexFd
 }
 
 func writeUnmigratedData(t *testing.T, filePathPrefix string, nsId ident.ID, shard uint32) fs.Options {
