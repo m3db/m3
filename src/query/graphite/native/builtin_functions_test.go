@@ -646,7 +646,7 @@ func TestMovingAverageSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
 	expected := []float64{4.0, 7.0, 12.0, 7.0, 4.5}
-	expectedMovingSum := []float64{4.0, 7.0, 12.0, 7.0, 4.5}
+	expectedMovingSum := []float64{12.0, 21.0, 36.0, 21.0, 9.0}
 
 	testMovingAverage(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
 	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,\"30s\")", values, bootstrap, expectedMovingSum)
@@ -2550,7 +2550,7 @@ func TestMovingMedianInvalidLimits(t *testing.T) {
 func TestMovingMismatchedLimits(t *testing.T) {
 	// NB: this tests the behavior when query limits do not snap exactly to data
 	// points. When limits do not snap exactly, the first point should be omitted.
-	for _, fn := range []string{"movingAverage", "movingMedian"} {
+	for _, fn := range []string{"movingAverage", "movingMedian", "movingSum"} {
 		for i := time.Duration(0); i < time.Minute; i += time.Second {
 			testMovingAverageInvalidLimits(t, fn, i)
 		}
@@ -2963,6 +2963,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"mostDeviant",
 		"movingAverage",
 		"movingMedian",
+		"movingSum",
 		"multiplySeries",
 		"nonNegativeDerivative",
 		"nPercentile",

@@ -1719,7 +1719,7 @@ func movingSum(ctx *common.Context, _ singlePathSpec, windowSize string) (*binar
 				}
 				vals.SetValueAt(i, common.SafeSum(window))
 			}
-			name := fmt.Sprintf("movingMedian(%s,%q)", series.Name(), windowSize)
+			name := fmt.Sprintf("movingSum(%s,%q)", series.Name(), windowSize)
 			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
 			results = append(results, newSeries)
 		}
@@ -1983,6 +1983,7 @@ func init() {
 	MustRegisterFunction(mostDeviant)
 	MustRegisterFunction(movingAverage)
 	MustRegisterFunction(movingMedian)
+	MustRegisterFunction(movingSum)
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
