@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -361,20 +362,33 @@ type Options interface {
 
 	// BufferBucketPool returns the BufferBucketPool.
 	BufferBucketPool() *BufferBucketPool
+
+	// SetRuntimeOptionsManager sets the runtime options manager.
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManager returns the runtime options manager.
+	RuntimeOptionsManager() runtime.OptionsManager
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
 type Stats struct {
-	encoderCreated tally.Counter
-	coldWrites     tally.Counter
+	encoderCreated            tally.Counter
+	coldWrites                tally.Counter
+	encodersPerBlock          tally.Histogram
+	encoderLimitWriteRejected tally.Counter
 }
 
 // NewStats returns a new Stats for the provided scope.
 func NewStats(scope tally.Scope) Stats {
 	subScope := scope.SubScope("series")
+
+	buckets := append(tally.ValueBuckets{0},
+		tally.MustMakeExponentialValueBuckets(1, 2, 20)...)
 	return Stats{
-		encoderCreated: subScope.Counter("encoder-created"),
-		coldWrites:     subScope.Counter("cold-writes"),
+		encoderCreated:            subScope.Counter("encoder-created"),
+		coldWrites:                subScope.Counter("cold-writes"),
+		encodersPerBlock:          subScope.Histogram("encoders-per-block", buckets),
+		encoderLimitWriteRejected: subScope.Counter("encoder-limit-write-rejected"),
 	}
 }
 
@@ -386,6 +400,16 @@ func (s Stats) IncCreatedEncoders() {
 // IncColdWrites incs the ColdWrites stat.
 func (s Stats) IncColdWrites() {
 	s.coldWrites.Inc(1)
+}
+
+// RecordEncodersPerBlock records the number of encoders histogram.
+func (s Stats) RecordEncodersPerBlock(num int) {
+	s.encodersPerBlock.RecordValue(float64(num))
+}
+
+// IncEncoderLimitWriteRejected incs the encoderLimitWriteRejected stat.
+func (s Stats) IncEncoderLimitWriteRejected() {
+	s.encoderLimitWriteRejected.Inc(1)
 }
 
 // WriteType is an enum for warm/cold write types.
