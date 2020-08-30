@@ -77,6 +77,9 @@ type Configuration struct {
 	// FetchRetry is the fetch retry config.
 	FetchRetry *retry.Configuration `yaml:"fetchRetry"`
 
+	// HostQueueShards is the number of shards for the host queue to use.
+	HostQueueShards *int `yaml:"hostQueueShards"`
+
 	// LogErrorSampleRate is the log error sample rate.
 	LogErrorSampleRate sampler.Rate `yaml:"logErrorSampleRate"`
 
@@ -379,6 +382,9 @@ func (c Configuration) NewAdminClient(
 		retrierOpts := v.FetchRetrier().Options().
 			SetMetricsScope(fetchRequestScope)
 		v = v.SetFetchRetrier(retry.NewRetrier(retrierOpts))
+	}
+	if c.HostQueueShards != nil {
+		v = v.SetHostQueueShards(*c.HostQueueShards)
 	}
 	if syncClientOverrides.TargetHostQueueFlushSize != nil {
 		v = v.SetHostQueueOpsFlushSize(*syncClientOverrides.TargetHostQueueFlushSize)

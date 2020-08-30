@@ -240,6 +240,7 @@ type hostQueueOpts struct {
 	writeTaggedBatchRawV2RequestElementArrayPool writeTaggedBatchRawV2RequestElementArrayPool
 	fetchBatchRawV2RequestPool                   fetchBatchRawV2RequestPool
 	fetchBatchRawV2RequestElementArrayPool       fetchBatchRawV2RequestElementArrayPool
+	numShards                                    int
 	opts                                         Options
 }
 
@@ -279,7 +280,7 @@ func newSession(opts Options) (clientSession, error) {
 		log:                  opts.InstrumentOptions().Logger(),
 		logWriteErrorSampler: logWriteErrorSampler,
 		logFetchErrorSampler: logFetchErrorSampler,
-		newHostQueueFn:       newHostQueue,
+		newHostQueueFn:       newShardedHostQueue,
 		fetchBatchSize:       opts.FetchBatchSize(),
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		writeRetrier:         opts.WriteRetrier(),
@@ -673,6 +674,7 @@ func (s *session) hostQueues(
 			queues = append(queues, existingQueue)
 			continue
 		}
+
 		newQueue, err := s.newHostQueue(host, topoMap)
 		if err != nil {
 			return nil, 0, 0, err

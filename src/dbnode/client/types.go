@@ -411,6 +411,14 @@ type Options interface {
 	// a fetch operation. Only retryable errors are retried.
 	FetchRetrier() xretry.Retrier
 
+	// SetHostQueueShards sets the number of shards to use for sharding
+	// operations queued for a given DB node host.
+	SetHostQueueShards(value int) Options
+
+	// HostQueueShards sets the number of shards to use for sharding
+	// operations queued for a given DB node host.
+	HostQueueShards() int
+
 	// SetTagEncoderOptions sets the TagEncoderOptions.
 	SetTagEncoderOptions(value serialize.TagEncoderOptions) Options
 

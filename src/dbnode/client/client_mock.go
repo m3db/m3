@@ -1776,6 +1776,34 @@ func (mr *MockOptionsMockRecorder) FetchRetrier() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRetrier", reflect.TypeOf((*MockOptions)(nil).FetchRetrier))
 }
 
+// SetHostQueueShards mocks base method
+func (m *MockOptions) SetHostQueueShards(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueShards", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueShards indicates an expected call of SetHostQueueShards
+func (mr *MockOptionsMockRecorder) SetHostQueueShards(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueShards", reflect.TypeOf((*MockOptions)(nil).SetHostQueueShards), value)
+}
+
+// HostQueueShards mocks base method
+func (m *MockOptions) HostQueueShards() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueShards")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueShards indicates an expected call of HostQueueShards
+func (mr *MockOptionsMockRecorder) HostQueueShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueShards", reflect.TypeOf((*MockOptions)(nil).HostQueueShards))
+}
+
 // SetTagEncoderOptions mocks base method
 func (m *MockOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
 	m.ctrl.T.Helper()
@@ -3253,6 +3281,34 @@ func (m *MockAdminOptions) FetchRetrier() retry.Retrier {
 func (mr *MockAdminOptionsMockRecorder) FetchRetrier() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRetrier", reflect.TypeOf((*MockAdminOptions)(nil).FetchRetrier))
+}
+
+// SetHostQueueShards mocks base method
+func (m *MockAdminOptions) SetHostQueueShards(value int) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHostQueueShards", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueShards indicates an expected call of SetHostQueueShards
+func (mr *MockAdminOptionsMockRecorder) SetHostQueueShards(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostQueueShards", reflect.TypeOf((*MockAdminOptions)(nil).SetHostQueueShards), value)
+}
+
+// HostQueueShards mocks base method
+func (m *MockAdminOptions) HostQueueShards() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HostQueueShards")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueShards indicates an expected call of HostQueueShards
+func (mr *MockAdminOptionsMockRecorder) HostQueueShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HostQueueShards", reflect.TypeOf((*MockAdminOptions)(nil).HostQueueShards))
 }
 
 // SetTagEncoderOptions mocks base method
