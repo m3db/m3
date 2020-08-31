@@ -18,25 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
+package migration
 
-import "github.com/m3db/m3/src/m3ninx/index/segment"
+import (
+	"fmt"
+	"runtime"
+)
 
-// Segment wraps an index segment so we can easily determine whether or not the segment is persisted to disk.
-type Segment struct {
-	persisted bool
-	segment.Segment
+// defaultMigrationConcurrency is the default number of concurrent workers to perform migrations.
+var defaultMigrationConcurrency = runtime.NumCPU()
+
+type options struct {
+	targetMigrationVersion MigrationVersion
+	concurrency            int
 }
 
-// NewSegment returns an index segment w/ persistence metadata.
-func NewSegment(segment segment.Segment, persisted bool) *Segment {
-	return &Segment{
-		persisted: persisted,
-		Segment:   segment,
+// NewOptions creates new migration options.
+func NewOptions() Options {
+	return &options{
+		concurrency: defaultMigrationConcurrency,
 	}
 }
 
-// IsPersisted returns whether or not the underlying segment was persisted to disk.
-func (s *Segment) IsPersisted() bool {
-	return s.persisted
+func (o *options) Validate() error {
+	if err := ValidateMigrationVersion(o.targetMigrationVersion); err != nil {
+		return err
+	}
+	if o.concurrency < 1 {
+		return fmt.Errorf("concurrency value %d must be >= 1", o.concurrency)
+	}
+	return nil
+}
+
+func (o *options) SetTargetMigrationVersion(value MigrationVersion) Options {
+	opts := *o
+	opts.targetMigrationVersion = value
+	return &opts
+}
+
+func (o *options) TargetMigrationVersion() MigrationVersion {
+	return o.targetMigrationVersion
+}
+
+func (o *options) SetConcurrency(value int) Options {
+	opts := *o
+	opts.concurrency = value
+	return &opts
+}
+
+func (o *options) Concurrency() int {
+	return o.concurrency
 }

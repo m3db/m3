@@ -6,7 +6,19 @@
 
 - [Building a Query Engine for High Cardinality Time Series Data](https://eng.uber.com/billion-data-point-challenge) By Nikunj Aggarwal and Ben Raskin - Dec 10, 2018.
 
+## M3 Community Meetups
+
+Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings folder](https://vimeo.com/user/120001164/folder/2290331).
+
+- [June 2020 Meetup](https://vimeo.com/440390957).
+
+- [July 2020 Meetup and LinkedIn presentation](https://vimeo.com/440449118).
+
+- [August 2020 Meetup and Walmart presentation](https://vimeo.com/449883279).
+
 ## Recorded Talks
+
+- [CNCF Webinar: Maximizing M3 – Pushing performance boundaries in a distributed metrics engine](https://www.cncf.io/webinars/cncf-member-webinar-maximizing-m3-pushing-performance-boundaries-in-a-distributed-metrics-engine-at-global-scale/) By Ryan Allen - Aug 6, 2020.
 
 - [OSCON 2019: Large-Scale Automated Storage on Kubernetes](https://youtu.be/N9A7xSE9n-c) By Matt Schallert - Jul 18, 2019. [Slides](https://schallert.io/OSCON%20Large-Scale%20Automated%20Storage%20on%20Kubernetes.pdf)
 
@@ -31,3 +43,4 @@
 - [PromCon 2018 Panel Discussion: Prometheus Long-Term Storage Approaches](https://youtube.com/watch?v=3pTG_N8yGSU) including highlights of the M3 stack by Nikunj Aggarwal - Aug 9, 2018.
 
 - [Putting billions of time series to work at Uber with autonomous monitoring](https://vimeo.com/274821002) By Prateek Rungta - Jun 6, 2018. [Slides](http://bit.ly/m3db-monitorama2018)
+
