@@ -93,6 +93,7 @@ TOOLS :=               \
 	dtest                \
 	verify_data_files    \
 	verify_index_files   \
+	verify_computed_namespace \
 	carbon_load          \
 	docs_test            \
 	m3ctl                \
