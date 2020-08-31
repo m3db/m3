@@ -22,9 +22,11 @@ package pool
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"sync/atomic"
 
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/uber-go/tally"
 )
 
@@ -119,6 +121,11 @@ func (p *objectPool) Get() interface{} {
 		p.metrics.getOnEmpty.Inc(1)
 	}
 
+	switch v := v.(type) {
+	case checked.Bytes:
+		v.SetFinalized(false)
+	}
+
 	p.trySetGauges()
 
 	if p.refillLowWatermark > 0 && len(p.values) <= p.refillLowWatermark {
@@ -129,6 +136,15 @@ func (p *objectPool) Get() interface{} {
 }
 
 func (p *objectPool) Put(obj interface{}) {
+
+	switch obj := obj.(type) {
+	case checked.Bytes:
+		if obj.Finalized() {
+			panic(fmt.Errorf("double finalize, %v", obj))
+		}
+		obj.SetFinalized(true)
+	}
+
 	if atomic.LoadInt32(&p.initialized) != 1 {
 		fn := p.opts.OnPoolAccessErrorFn()
 		fn(errPoolPutBeforeInitialized)
