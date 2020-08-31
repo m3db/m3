@@ -236,17 +236,17 @@ func TestSeriesIteratorSetIterateEqualTimestampStrategy(t *testing.T) {
 		DefaultIterateEqualTimestampStrategy)
 }
 
-type testConsolidator struct {
+type testSeriesProcessor struct {
 	iters []MultiReaderIterator
 }
 
-func (c *testConsolidator) ConsolidateReplicas(
+func (c *testSeriesProcessor) ConsolidateReplicas(
 	_ []MultiReaderIterator,
 ) ([]MultiReaderIterator, error) {
 	return c.iters, nil
 }
 
-func (c *testConsolidator) ConsolidateSeries(
+func (c *testSeriesProcessor) InspectSeries(
 	_ context.Context,
 	_ []SeriesIterator,
 ) error {
@@ -268,14 +268,14 @@ func TestSeriesIteratorSetSeriesIteratorConsolidator(t *testing.T) {
 	newIter.EXPECT().Current().Return(ts.Datapoint{}, xtime.Second, nil).Times(2)
 
 	iter.iters.setFilter(0, 1)
-	consolidator := &testConsolidator{iters: []MultiReaderIterator{newIter}}
+	processor := &testSeriesProcessor{iters: []MultiReaderIterator{newIter}}
 	oldIter := NewMockMultiReaderIterator(ctrl)
 	oldIters := []MultiReaderIterator{oldIter}
 	iter.multiReaderIters = oldIters
 	assert.Equal(t, oldIter, iter.multiReaderIters[0])
 	iter.Reset(SeriesIteratorOptions{
-		Replicas:                   oldIters,
-		SeriesIteratorConsolidator: consolidator,
+		Replicas:                oldIters,
+		SeriesIteratorProcessor: processor,
 	})
 	assert.Equal(t, newIter, iter.multiReaderIters[0])
 }
