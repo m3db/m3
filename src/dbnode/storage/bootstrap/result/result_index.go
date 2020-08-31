@@ -76,7 +76,7 @@ func (r *indexBootstrapResult) NumSeries() int {
 	for _, blockByVolumeType := range r.results {
 		for _, b := range blockByVolumeType.data {
 			for _, s := range b.segments {
-				size += s.Size()
+				size += s.Segment().Size()
 			}
 		}
 	}
@@ -251,7 +251,7 @@ func MergedIndexBootstrapResult(i, j IndexBootstrapResult) IndexBootstrapResult 
 
 // NewIndexBlock returns a new bootstrap index block result.
 func NewIndexBlock(
-	segments []segment.Segment,
+	segments []Segment,
 	fulfilled ShardTimeRanges,
 ) IndexBlock {
 	if fulfilled == nil {
@@ -264,7 +264,7 @@ func NewIndexBlock(
 }
 
 // Segments returns the segments.
-func (b IndexBlock) Segments() []segment.Segment {
+func (b IndexBlock) Segments() []Segment {
 	return b.segments
 }
 

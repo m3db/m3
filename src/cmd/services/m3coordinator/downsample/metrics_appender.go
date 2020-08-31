@@ -65,7 +65,10 @@ func newMetricsAppenderPool(opts pool.ObjectPoolOptions) *metricsAppenderPool {
 }
 
 func (p *metricsAppenderPool) Get() *metricsAppender {
-	return p.pool.Get().(*metricsAppender)
+	appender := p.pool.Get().(*metricsAppender)
+	// NB: reset appender.
+	appender.NextMetric()
+	return appender
 }
 
 func (p *metricsAppenderPool) Put(v *metricsAppender) {
@@ -177,7 +180,6 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 	a.multiSamplesAppender.reset()
 	unownedID := data.Bytes()
-
 	// Match policies and rollups and build samples appender
 	id := a.metricTagsIteratorPool.Get()
 	id.Reset(unownedID)
@@ -353,7 +355,6 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 
 			a.debugLogMatch("downsampler applying matched rollup rule",
 				debugLogMatchOptions{Meta: rollup.Metadatas, RollupID: rollup.ID})
-
 			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
 				agg:             a.agg,
 				clientRemote:    a.clientRemote,

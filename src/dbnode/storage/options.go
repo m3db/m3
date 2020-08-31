@@ -115,7 +115,8 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool()).
 		SetIdentifierPool(opts.IdentifierPool()).
 		SetBufferBucketPool(opts.BufferBucketPool()).
-		SetBufferBucketVersionsPool(opts.BufferBucketVersionsPool())
+		SetBufferBucketVersionsPool(opts.BufferBucketVersionsPool()).
+		SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
 }
 
 type options struct {
