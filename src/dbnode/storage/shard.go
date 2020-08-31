@@ -210,6 +210,7 @@ type dbShardMetrics struct {
 	insertAsyncWriteInternalErrors      tally.Counter
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
+	seriesSnapshotLatencyHistogram      tally.Histogram
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
@@ -238,6 +239,8 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"error_type":    "reverse-index",
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
+		// Current buckets give us 1ms - ~10mins resolution.
+		seriesSnapshotLatencyHistogram: histogramWithDurationBuckets(scope, "series-snapshot.latency"),
 	}
 }
 
@@ -2422,8 +2425,12 @@ func (s *dbShard) Snapshot(
 		return err
 	}
 
-	snapshotCtx := s.contextPool.Get()
+	var (
+		start       time.Time
+		snapshotCtx = s.contextPool.Get()
+	)
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		start := s.nowFn()
 		series := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
@@ -2438,6 +2445,7 @@ func (s *dbShard) Snapshot(
 			return false
 		}
 
+		s.metrics.seriesSnapshotLatencyHistogram.RecordDuration(s.nowFn().Sub(start))
 		return true
 	})
 
@@ -2708,4 +2716,25 @@ func (r *dbShardFlushResult) update(u series.FlushOutcome) {
 	if u == series.FlushOutcomeBlockDoesNotExist {
 		r.numBlockDoesNotExist++
 	}
+}
+
+const (
+	// histogramDurationBucketsVersion must be bumped if histogramDurationBuckets is changed
+	// to namespace the different buckets from each other so they don't overlap and cause the
+	// histogram function to error out due to overlapping buckets in the same query.
+	histogramDurationBucketsVersion = "v1"
+	// histogramDurationBucketsVersionTag is the tag for the version of the buckets in use.
+	histogramDurationBucketsVersionTag = "schema"
+)
+
+func histogramDurationBuckets() tally.DurationBuckets {
+	return append(tally.DurationBuckets{0},
+		tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.25, 60)...)
+}
+
+func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogram {
+	sub := scope.Tagged(map[string]string{
+		histogramDurationBucketsVersionTag: histogramDurationBucketsVersion,
+	})
+	return sub.Histogram(name, histogramDurationBuckets())
 }
