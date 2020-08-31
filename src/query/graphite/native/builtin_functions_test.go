@@ -690,16 +690,16 @@ func TestMovingSumSuccess(t *testing.T) {
 	bootstrap := []float64{3.0, 4.0, 5.0}
 	expected := []float64{12.0, 21.0, 36.0, 21.0, 9.0} // (3+4+5), (4+5+12), (5+12+19), (12+19-10), (19-10+Nan)
 
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
+	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
+	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
 
 	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
+	testMovingFunction(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
 }
 
 func TestMovingSumError(t *testing.T) {
-	testMovingAverageError(t, "movingSum(foo.bar.baz, '-30s')")
-	testMovingAverageError(t, "movingSum(foo.bar.baz, 0)")
+	testMovingFunctionError(t, "movingSum(foo.bar.baz, '-30s')")
+	testMovingFunctionError(t, "movingSum(foo.bar.baz, 0)")
 }
 
 func TestIsNonNull(t *testing.T) {
@@ -2566,12 +2566,12 @@ func TestMovingMismatchedLimits(t *testing.T) {
 	// points. When limits do not snap exactly, the first point should be omitted.
 	for _, fn := range []string{"movingAverage", "movingMedian", "movingSum"} {
 		for i := time.Duration(0); i < time.Minute; i += time.Second {
-			testMovingAverageInvalidLimits(t, fn, i)
+			testMovingFunctionInvalidLimits(t, fn, i)
 		}
 	}
 }
 
-func testMovingAverageInvalidLimits(t *testing.T, fn string, offset time.Duration) {
+func testMovingFunctionInvalidLimits(t *testing.T, fn string, offset time.Duration) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
 
