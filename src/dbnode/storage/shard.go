@@ -2732,7 +2732,6 @@ func (s *dbShard) AggregateTiles(
 		prevFrameLastValue := math.NaN()
 		for seriesIter.Next() {
 			frame := seriesIter.Current()
-
 			id = frame.ID()
 			if justStarted {
 				prevID = id
