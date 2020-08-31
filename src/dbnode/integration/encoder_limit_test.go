@@ -40,29 +40,29 @@ func TestEncoderLimit(t *testing.T) {
 
 	// We don't want a tick to happen during this test, since that will
 	// interfere with testing encoders due to the tick merging them.
-	testOpts := NewTestOptions(t).SetTickMinimumInterval(time.Minute)
-	testSetup, err := NewTestSetup(t, testOpts, nil)
+	testOpts := newTestOptions(t).SetTickMinimumInterval(time.Minute)
+	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.Close()
+	defer testSetup.close()
 
-	log := testSetup.StorageOpts().InstrumentOptions().Logger()
-	require.NoError(t, testSetup.StartServer())
+	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	require.NoError(t, testSetup.startServer())
 	log.Info("server is now up")
 
 	defer func() {
-		require.NoError(t, testSetup.StopServer())
+		require.NoError(t, testSetup.stopServer())
 		log.Info("server is now down")
 	}()
 
-	now := testSetup.NowFn()()
+	now := testSetup.getNowFn()
 
-	db := testSetup.DB()
+	db := testSetup.db
 	mgr := db.Options().RuntimeOptionsManager()
 	encoderLimit := 5
 	newRuntimeOpts := mgr.Get().SetEncodersPerBlockLimit(encoderLimit)
 	mgr.Update(newRuntimeOpts)
 
-	session, err := testSetup.M3DBClient().DefaultSession()
+	session, err := testSetup.m3dbClient.DefaultSession()
 	require.NoError(t, err)
 	nsID := testNamespaces[0]
 	seriesID := ident.StringID("foo")

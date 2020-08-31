@@ -1734,126 +1734,6 @@ func TestBufferLoadColdWrite(t *testing.T) {
 	require.Equal(t, 1, coldFlushBlockStarts.Len())
 }
 
-func TestUpsertProto(t *testing.T) {
-	opts := newBufferTestOptions()
-	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
-	}))
-	var nsCtx namespace.Context
-
-	tests := []struct {
-		desc         string
-		writes       []writeAttempt
-		expectedData []DecodedTestValue
-	}{
-		{
-			desc: "Upsert proto",
-			writes: []writeAttempt{
-				{
-					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
-					expectWritten: true,
-					expectErr:     false,
-				},
-				{
-					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("two")},
-					expectWritten: true,
-					expectErr:     false,
-				},
-			},
-			expectedData: []DecodedTestValue{
-				{curr, 0, xtime.Second, []byte("two")},
-			},
-		},
-		{
-			desc: "Duplicate proto",
-			writes: []writeAttempt{
-				{
-					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
-					expectWritten: true,
-					expectErr:     false,
-				},
-				{
-					data: DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
-					// Writes with the same value and the same annotation should
-					// not be written.
-					expectWritten: false,
-					expectErr:     false,
-				},
-			},
-			expectedData: []DecodedTestValue{
-				{curr, 0, xtime.Second, []byte("one")},
-			},
-		},
-		{
-			desc: "Two datapoints different proto",
-			writes: []writeAttempt{
-				{
-					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
-					expectWritten: true,
-					expectErr:     false,
-				},
-				{
-					data:          DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
-					expectWritten: true,
-					expectErr:     false,
-				},
-			},
-			expectedData: []DecodedTestValue{
-				{curr, 0, xtime.Second, []byte("one")},
-				{curr.Add(time.Second), 0, xtime.Second, []byte("two")},
-			},
-		},
-		{
-			desc: "Two datapoints same proto",
-			writes: []writeAttempt{
-				{
-					data:          DecodedTestValue{curr, 0, xtime.Second, []byte("one")},
-					expectWritten: true,
-					expectErr:     false,
-				},
-				{
-					data:          DecodedTestValue{curr.Add(time.Second), 0, xtime.Second, []byte("one")},
-					expectWritten: true,
-					expectErr:     false,
-				},
-			},
-			expectedData: []DecodedTestValue{
-				{curr, 0, xtime.Second, []byte("one")},
-				// This is special cased in the proto encoder. It has logic
-				// handling the case where two values are the same and writes
-				// that nothing has changed instead of re-encoding the blob
-				// again.
-				{curr.Add(time.Second), 0, xtime.Second, nil},
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			buffer := newDatabaseBuffer().(*dbBuffer)
-			buffer.Reset(databaseBufferResetOptions{
-				Options: opts,
-			})
-
-			for _, write := range test.writes {
-				verifyWriteToBuffer(t, testID, buffer, write.data, nsCtx.Schema,
-					write.expectWritten, write.expectErr)
-			}
-
-			ctx := context.NewContext()
-			defer ctx.Close()
-
-			results, err := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture, nsCtx)
-			assert.NoError(t, err)
-			assert.NotNil(t, results)
-
-			requireReaderValuesEqual(t, test.expectedData, results, opts, nsCtx)
-		})
-	}
-}
-
 type writeAttempt struct {
 	data          DecodedTestValue
 	expectWritten bool
@@ -2078,7 +1958,7 @@ func TestEncoderLimit(t *testing.T) {
 			defer ctx.Close()
 
 			for i, write := range test.writes {
-				wasWritten, writeType, err := buffer.Write(ctx, testID,
+				wasWritten, err := buffer.Write(ctx,
 					curr.Add(time.Duration(write.timeOffset)*time.Millisecond),
 					float64(i), xtime.Millisecond, nil, WriteOptions{})
 
@@ -2089,7 +1969,6 @@ func TestEncoderLimit(t *testing.T) {
 				} else {
 					assert.NoError(t, err)
 					assert.True(t, wasWritten)
-					assert.Equal(t, WarmWrite, writeType)
 				}
 			}
 		})
