@@ -179,14 +179,14 @@ func verifyCompressedSeries(t *testing.T, s *rpc.Series) {
 
 func TestConversionToCompressedData(t *testing.T) {
 	it := buildTestSeriesIterator(t)
-	series, err := compressedSeriesFromSeriesIterator(it, nil)
+	series, err := CompressedSeriesFromSeriesIterator(it, nil)
 	require.Error(t, err)
 	require.Nil(t, series)
 }
 
 func TestSeriesConversionFromCompressedData(t *testing.T) {
 	it := buildTestSeriesIterator(t)
-	series, err := compressedSeriesFromSeriesIterator(it, nil)
+	series, err := CompressedSeriesFromSeriesIterator(it, nil)
 	require.Error(t, err)
 	require.Nil(t, series)
 }
@@ -194,7 +194,7 @@ func TestSeriesConversionFromCompressedData(t *testing.T) {
 func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	it := buildTestSeriesIterator(t)
 	ip := test.MakeMockIteratorPool()
-	series, err := compressedSeriesFromSeriesIterator(it, ip)
+	series, err := CompressedSeriesFromSeriesIterator(it, ip)
 
 	require.NoError(t, err)
 	verifyCompressedSeries(t, series)
@@ -291,7 +291,7 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 		Series: compressed,
 	}
 
-	revertedIters, err := decodeCompressedFetchResponse(fetchResult, ip)
+	revertedIters, err := DecodeCompressedFetchResponse(fetchResult, ip)
 	require.NoError(t, err)
 	revertedIterList := revertedIters.Iters()
 	require.Len(t, revertedIterList, 2)
@@ -299,7 +299,7 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 		validateSeries(t, seriesIterator)
 	}
 
-	revertedIters, err = decodeCompressedFetchResponse(fetchResult, ip)
+	revertedIters, err = DecodeCompressedFetchResponse(fetchResult, ip)
 	require.NoError(t, err)
 	revertedIterList = revertedIters.Iters()
 	require.Len(t, revertedIterList, 2)
@@ -329,5 +329,5 @@ func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	mockIter.EXPECT().Namespace().Return(ident.StringID("")).Times(1)
 	mockIter.EXPECT().ID().Return(ident.StringID("")).Times(1)
 
-	compressedSeriesFromSeriesIterator(mockIter, nil)
+	CompressedSeriesFromSeriesIterator(mockIter, nil)
 }
