@@ -199,7 +199,6 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 	return r, nil
 }
 
-// timeShift draws the selected metrics shifted in time. If no sign is given, a minus sign ( - ) is
 // implied which will shift the metric back in time. If a plus sign ( + ) is given, the metric will
 // be shifted forward in time
 func timeShift(
@@ -215,6 +214,7 @@ func timeShift(
 	}
 
 	shift, err := common.ParseInterval(timeShiftS)
+
 	if err != nil {
 		return nil, errors.NewInvalidParamsError(fmt.Errorf("invalid timeShift parameter %s: %v", timeShiftS, err))
 	}
@@ -240,6 +240,50 @@ func timeShift(
 		ContextShiftFunc: contextShiftingFn,
 		UnaryTransformer: transformerFn,
 	}, nil
+}
+
+// implied which will shift the metric back in time. If a plus sign ( + ) is given, the metric will
+// be shifted forward in time
+func delay(
+	ctx *common.Context,
+	_ singlePathSpec,
+	steps int,
+) (*unaryContextShifter, error) {
+
+	contextShiftingFn := func(c *common.Context) *common.Context {
+		opts := common.NewChildContextOptions()
+		opts.AdjustTimeRange(0, 0, 0, 0)
+		childCtx := c.NewChildContext(opts)
+		return childCtx
+	}
+
+	transformerFn := func(input ts.SeriesList) (ts.SeriesList, error) {
+		output := make([]*ts.Series, input.Len())
+
+		for i, series := range input.Values {
+
+			delayedVals := delayValues(ctx, *series, steps)
+			delayedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), delayedVals)
+			renamedSeries := delayedSeries.RenamedTo(fmt.Sprintf("delay(%s, %s)", delayedSeries.Name(), steps))
+			output[i] = renamedSeries
+
+		}
+		input.Values = output
+		return input, nil
+	}
+
+	return &unaryContextShifter{
+		ContextShiftFunc: contextShiftingFn,
+		UnaryTransformer: transformerFn,
+	}, nil
+}
+
+func delayValues(ctx *common.Context, series ts.Series, steps int ) (ts.Values) {
+	output := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+	for i := steps; i < series.Len(); i++ {
+		output.SetValueAt(i, series.ValueAt(i - steps))
+	}
+	return output
 }
 
 // absolute returns the absolute value of each element in the series.
@@ -1949,6 +1993,7 @@ func init() {
 	MustRegisterFunction(dashed).WithDefaultParams(map[uint8]interface{}{
 		2: 5.0, // dashLength
 	})
+	MustRegisterFunction(delay)
 	MustRegisterFunction(derivative)
 	MustRegisterFunction(diffSeries)
 	MustRegisterFunction(divideSeries)
