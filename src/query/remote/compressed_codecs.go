@@ -157,7 +157,6 @@ be iterated again. If false, the SeriesIterator will no longer be useable.
 func CompressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
 	iterPools encoding.IteratorPools,
-	reset bool,
 ) (*rpc.Series, error) {
 	replicas, err := it.Replicas()
 	if err != nil {
@@ -176,11 +175,7 @@ func CompressedSeriesFromSeriesIterator(
 			replicaSegments = append(replicaSegments, segments)
 		}
 
-		if reset {
-			if err := readers.Rewind(); err != nil {
-				return nil, err
-			}
-		}
+		readers.Rewind()
 
 		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
@@ -220,7 +215,7 @@ func encodeToCompressedSeries(
 	iters := results.SeriesIterators()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
-		series, err := CompressedSeriesFromSeriesIterator(iter, iterPools, false)
+		series, err := CompressedSeriesFromSeriesIterator(iter, iterPools)
 		if err != nil {
 			return nil, err
 		}

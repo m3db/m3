@@ -130,7 +130,6 @@ func (n *FetchNode) Execute(queryCtx *models.QueryContext) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("FETCHED")
 
 	for _, block := range blockResult.Blocks {
 		if n.debug {
