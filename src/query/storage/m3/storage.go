@@ -207,10 +207,21 @@ func (s *m3storage) FetchCompressed(
 		return result, noop, err
 	}
 
+	cleanupFn := accumulator.Close
 	if processor := s.adminOpts.IterationOptions().SeriesIteratorProcessor; processor != nil {
-		if err := processor.InspectSeries(ctx, result.SeriesIterators()); err != nil {
-			s.logger.Error("error inspecting series", zap.Error(err))
+		// Async inspect the series to not block query execution. Modify cleanup
+		// to ensure we close the results only after inspection completes.
+		var inspected sync.WaitGroup
+		cleanupFn = func() error {
+			inspected.Wait()
+			return accumulator.Close()
 		}
+		go func() {
+			if err := processor.InspectSeries(ctx, result.SeriesIterators()); err != nil {
+				s.logger.Error("error inspecting series", zap.Error(err))
+			}
+			inspected.Add(1)
+		}()
 	}
 
 	if options.IncludeResolution {
@@ -222,7 +233,7 @@ func (s *m3storage) FetchCompressed(
 		result.Metadata.Resolutions = resolutions
 	}
 
-	return result, accumulator.Close, nil
+	return result, cleanupFn, nil
 }
 
 // fetches compressed series, returning a MultiFetchResult accumulator
