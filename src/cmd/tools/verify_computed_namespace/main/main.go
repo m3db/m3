@@ -96,13 +96,13 @@ func main() {
 	for _, shard := range shards {
 		missingInSource = 0
 		missingInTarget = 0
-		fmt.Printf("Reading shard %d target ids...\n", shard)
+		fmt.Printf("Reading shard %d target ids...", shard)
 		targetIds, targetBlockSize := readIds(*optPathPrefix, trgID, shard, *optBlockstart)
-		fmt.Printf("Read from target %d ids.\n", len(targetIds))
+		fmt.Printf("Read %d ids.\n", len(targetIds))
 
 		blockStart := *optBlockstart
 		for blockStart < *optBlockstart+targetBlockSize {
-			fmt.Printf("Reading from source namespace block %d\n", blockStart)
+			fmt.Printf("Reading from source namespace block %d...", blockStart)
 			srcIds, srcBlockSize := readIds(*optPathPrefix, srcID, shard, blockStart)
 			fmt.Printf("Read %d ids.\n", len(srcIds))
 
