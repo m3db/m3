@@ -199,6 +199,7 @@ func limit(_ *common.Context, series singlePathSpec, n int) (ts.SeriesList, erro
 	return r, nil
 }
 
+// timeShift draws the selected metrics shifted in time. If no sign is given, a minus sign ( - ) is
 // implied which will shift the metric back in time. If a plus sign ( + ) is given, the metric will
 // be shifted forward in time
 func timeShift(
@@ -241,8 +242,6 @@ func timeShift(
 	}, nil
 }
 
-// implied which will shift the metric back in time. If a plus sign ( + ) is given, the metric will
-// be shifted forward in time
 func delay(
 	ctx *common.Context,
 	_ singlePathSpec,
