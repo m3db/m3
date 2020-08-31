@@ -214,7 +214,6 @@ func timeShift(
 	}
 
 	shift, err := common.ParseInterval(timeShiftS)
-
 	if err != nil {
 		return nil, errors.NewInvalidParamsError(fmt.Errorf("invalid timeShift parameter %s: %v", timeShiftS, err))
 	}
