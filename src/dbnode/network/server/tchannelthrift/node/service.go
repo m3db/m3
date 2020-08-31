@@ -576,7 +576,7 @@ func (s *service) aggregateTiles(
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
 	step, stepErr := time.ParseDuration(req.Step)
-	opts, optsErr := storage.NewAggregateTilesOptions(start, end, step)
+	opts, optsErr := storage.NewAggregateTilesOptions(start, end, step, req.RemoveResets)
 	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil || optsErr != nil {
 		multiErr := xerrors.NewMultiError().Add(rangeStartErr).Add(rangeEndErr).Add(stepErr).Add(optsErr)
 		return 0, tterrors.NewBadRequestError(multiErr.FinalError())

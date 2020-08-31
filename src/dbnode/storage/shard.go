@@ -24,15 +24,12 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
-	"go.uber.org/atomic"
 	"io"
 	"math"
-	osruntime "runtime"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/arrow/tile"
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -63,6 +60,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -262,11 +260,16 @@ type shardFlushState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]fileOpState
 	initialized  bool
+
+	// NB(bodu): Cache state on whether we snapshotted last or not to avoid
+	// going to disk to see if filesets are empty.
+	emptySnapshotOnDiskByTime map[xtime.UnixNano]bool
 }
 
 func newShardFlushState() shardFlushState {
 	return shardFlushState{
-		statesByTime: make(map[xtime.UnixNano]fileOpState),
+		statesByTime:              make(map[xtime.UnixNano]fileOpState),
+		emptySnapshotOnDiskByTime: make(map[xtime.UnixNano]bool),
 	}
 }
 
@@ -1948,7 +1951,7 @@ func (s *dbShard) initializeFlushStates() {
 func (s *dbShard) UpdateFlushStates() {
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
 	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
-		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 
 	for _, result := range readInfoFilesResults {
 		if err := result.Err.Error(); err != nil {
@@ -2334,7 +2337,8 @@ func (s *dbShard) ColdFlush(
 	}
 	merger := s.newMergerFn(resources.fsReader, s.opts.DatabaseBlockOptions().DatabaseBlockAllocSize(),
 		s.opts.SegmentReaderPool(), s.opts.MultiReaderIteratorPool(),
-		s.opts.IdentifierPool(), s.opts.EncoderPool(), s.opts.ContextPool(), s.namespace.Options())
+		s.opts.IdentifierPool(), s.opts.EncoderPool(), s.opts.ContextPool(),
+		s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix(), s.namespace.Options())
 	mergeWithMem := s.newFSMergeWithMemFn(s, s, dirtySeries, dirtySeriesToWrite)
 	// Loop through each block that we know has ColdWrites. Since each block
 	// has its own fileset, if we encounter an error while trying to persist
@@ -2381,7 +2385,28 @@ func (s *dbShard) Snapshot(
 		s.RUnlock()
 		return errShardNotBootstrappedToSnapshot
 	}
+
 	s.RUnlock()
+
+	var needsSnapshot bool
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
+			needsSnapshot = true
+			return false
+		}
+		return true
+	})
+	// Only terminate early when we would be over-writing an empty snapshot fileset on disk.
+	// TODO(bodu): We could bootstrap empty snapshot state in the bs path to avoid doing extra
+	// snapshotting work after a bootstrap since this cached state gets cleared.
+	s.flushState.RLock()
+	// NB(bodu): This always defaults to false if the record does not exist.
+	emptySnapshotOnDisk := s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)]
+	s.flushState.RUnlock()
+
+	if !needsSnapshot && emptySnapshotOnDisk {
+		return nil
+	}
 
 	var multiErr xerrors.MultiError
 
@@ -2429,7 +2454,24 @@ func (s *dbShard) Snapshot(
 		multiErr = multiErr.Add(err)
 	}
 
-	return multiErr.FinalError()
+	if err := multiErr.FinalError(); err != nil {
+		return err
+	}
+
+	// Only update cached snapshot state if we successfully flushed data to disk.
+	s.flushState.Lock()
+	if needsSnapshot {
+		s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = false
+	} else {
+		// NB(bodu): If we flushed an empty snapshot to disk, it means that the previous
+		// snapshot on disk was not empty (or we just bootstrapped and cached state was lost).
+		// The snapshot we just flushed may or may not have data, although whatever data we flushed
+		// would be recoverable from the rotate commit log as well.
+		s.flushState.emptySnapshotOnDiskByTime[xtime.ToUnixNano(blockStart)] = true
+	}
+	s.flushState.Unlock()
+
+	return nil
 }
 
 func (s *dbShard) FlushState(blockStart time.Time) (fileOpState, error) {
@@ -2575,46 +2617,57 @@ func (s *dbShard) Repair(
 
 func (s *dbShard) AggregateTiles(
 	ctx context.Context,
-	reader fs.DataFileSetReader,
 	sourceNsID ident.ID,
-	sourceShard databaseShard,
+	sourceShardID uint32,
+	blockReaders []fs.DataFileSetReader,
+	sourceBlockVolumes []shardBlockVolume,
 	opts AggregateTilesOptions,
 	wOpts series.WriteOptions,
 ) (int64, error) {
-	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
+	blockReadersToClose := make([]fs.DataFileSetReader, 0, len(blockReaders))
+	defer func() {
+		for _, reader := range blockReadersToClose {
+			reader.Close()
+		}
+	}()
+
+	for sourceBlockPos, blockReader := range blockReaders {
+
+		sourceBlockVolume := sourceBlockVolumes[sourceBlockPos]
+
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:   sourceNsID,
+				Shard:       sourceShardID,
+				BlockStart:  sourceBlockVolume.blockStart,
+				VolumeIndex: sourceBlockVolume.latestVolume,
+			},
+			FileSetType:    persist.FileSetFlushType,
+			OrderedByIndex: true,
+		}
+
+		if err := blockReader.Open(openOpts); err != nil {
+			return 0, err
+		}
+
+		blockReadersToClose = append(blockReadersToClose, blockReader)
+	}
+
+	crossBlockReader, err := fs.NewCrossBlockReader(blockReaders, s.opts.InstrumentOptions())
 	if err != nil {
 		return 0, err
 	}
+	defer crossBlockReader.Close()
 
-	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   sourceNsID,
-			Shard:       sourceShard.ID(),
-			BlockStart:  opts.Start,
-			VolumeIndex: latestSourceVolume,
-		},
-		FileSetType:    persist.FileSetFlushType,
-		OrderedByIndex: true,
-	}
-	if err := reader.Open(openOpts); err != nil {
-		return 0, err
-	}
-	defer reader.Close()
-
-	encodingOpts := encoding.NewOptions().SetBytesPool(s.opts.BytesPool())
-
-	concurrency := osruntime.NumCPU()
-	// TODO: fix it. concurrency currently raises panics
-	concurrency = 1
 	tileOpts := tile.Options{
-		FrameSize:    xtime.UnixNano(opts.Step.Nanoseconds()),
-		Start:        xtime.ToUnixNano(opts.Start),
-		Concurrency:  concurrency,
-		UseArrow:     false,
-		EncodingOpts: encodingOpts,
+		FrameSize:          xtime.UnixNano(opts.Step.Nanoseconds()),
+		Start:              xtime.ToUnixNano(opts.Start),
+		UseArrow:           false,
+		ReaderIteratorPool: s.opts.ReaderIteratorPool(),
 	}
 
-	readerIter, err := tile.NewSeriesBlockIterator(reader, tileOpts)
+	// TODO: these should probably be pooled
+	readerIter, err := tile.NewSeriesBlockIterator(crossBlockReader, tileOpts)
 	if err != nil {
 		return 0, err
 	}
@@ -2632,56 +2685,64 @@ func (s *dbShard) AggregateTiles(
 	var (
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
-		wg                  sync.WaitGroup
-		mu                  sync.Mutex
+		downsampledValues   = make([]tile.DownsampledValue, 0, 4)
 	)
 
 	for readerIter.Next() {
-		seriesIters := readerIter.Current()
-		for _, seriesIter := range seriesIters {
-			wg.Add(1)
-			seriesIter := seriesIter
-			go func() {
-				for seriesIter.Next() {
-					frame := seriesIter.Current()
-					id := frame.ID()
-					tags := frame.Tags()
-					unit, singleUnit := frame.Units().SingleValue()
-					annotation, singleAnnotation := frame.Annotations().SingleValue()
-					if vals := frame.Values(); len(vals) > 0 {
-						lastIdx := len(vals) - 1
-						lastValue := vals[lastIdx]
-						lastTimestamp := frame.Timestamps()[lastIdx]
-						if !singleUnit {
-							// TODO: what happens if unit has changed mid-tile?
-							// Write early and then do the remaining values separately?
-							if len(frame.Units().Values()) > lastIdx {
-								unit = frame.Units().Values()[lastIdx]
-							}
-						}
-						if !singleAnnotation {
-							// TODO: what happens if annotation has changed mid-tile?
-							// Write early and then do the remaining values separately?
-							if len(frame.Annotations().Values()) > lastIdx {
-								annotation = frame.Annotations().Values()[lastIdx]
-							}
-						}
+		seriesIter := readerIter.Current()
+		prevFrameLastValue := math.NaN()
+		for seriesIter.Next() {
+			frame := seriesIter.Current()
+			id := frame.ID()
+			tags := frame.Tags()
+			unit, singleUnit := frame.Units().SingleValue()
+			annotation, singleAnnotation := frame.Annotations().SingleValue()
 
-						_, err = s.writeAndIndex(ctx, id, tags, lastTimestamp, lastValue, unit, annotation, wOpts, true)
-						if err != nil {
-							mu.Lock()
-							s.metrics.largeTilesWriteErrors.Inc(1)
-							multiErr = multiErr.Add(err)
-							mu.Unlock()
-						}
-						processedBlockCount.Inc()
+			if frameValues := frame.Values(); len(frameValues) > 0 {
+
+				downsampledValues = downsampledValues[:0]
+				lastIdx := len(frameValues) - 1
+
+				if opts.HandleCounterResets {
+					// last value plus possible few more datapoints to preserve counter semantics
+					tile.DownsampleCounterResets(prevFrameLastValue, frameValues, &downsampledValues)
+				} else {
+					// plain last value
+					downsampledValue := tile.DownsampledValue{FrameIndex: lastIdx, Value: frameValues[lastIdx]}
+					downsampledValues = append(downsampledValues, downsampledValue)
+				}
+
+				for _, downsampledValue := range downsampledValues {
+
+					value := downsampledValue.Value
+					timestamp := frame.Timestamps()[downsampledValue.FrameIndex]
+
+					if !singleUnit {
+						// TODO: what happens if unit has changed mid-tile?
+						// Write early and then do the remaining values separately?
+						unit = frame.Units().Values()[downsampledValue.FrameIndex]
+					}
+
+					if !singleAnnotation {
+						// TODO: what happens if annotation has changed mid-tile?
+						// Write early and then do the remaining values separately?
+						annotation = frame.Annotations().Values()[downsampledValue.FrameIndex]
+					}
+
+					_, err = s.writeAndIndex(ctx, id, tags, timestamp, value, unit, annotation, wOpts, true)
+					if err != nil {
+						s.metrics.largeTilesWriteErrors.Inc(1)
+						multiErr = multiErr.Add(err)
 					}
 				}
 
-				wg.Done()
-			}()
+				prevFrameLastValue = frameValues[lastIdx]
+				processedBlockCount.Inc()
+			}
+		}
 
-			wg.Wait()
+		if err := seriesIter.Err(); err != nil {
+			multiErr = multiErr.Add(err)
 		}
 	}
 
@@ -2698,7 +2759,7 @@ func (s *dbShard) AggregateTiles(
 	writeErr := multiErr.FinalError()
 	if writeErr != nil {
 		s.logger.Error("error writing large tiles",
-			zap.Uint32("shardID", sourceShard.ID()),
+			zap.Uint32("shardID", sourceShardID),
 			zap.String("sourceNs", sourceNsID.String()),
 			zap.String("targetNs", s.namespace.ID().String()),
 			zap.Error(writeErr),
@@ -2733,7 +2794,7 @@ func (s *dbShard) DocRef(id ident.ID) (doc.Document, bool, error) {
 	return emptyDoc, false, err
 }
 
-func (s *dbShard) latestVolume(blockStart time.Time) (int, error) {
+func (s *dbShard) LatestVolume(blockStart time.Time) (int, error) {
 	return s.namespaceReaderMgr.latestVolume(s.shard, blockStart)
 }
 
@@ -2818,4 +2879,9 @@ func (r *dbShardFlushResult) update(u series.FlushOutcome) {
 	if u == series.FlushOutcomeBlockDoesNotExist {
 		r.numBlockDoesNotExist++
 	}
+}
+
+type shardBlockVolume struct {
+	blockStart   time.Time
+	latestVolume int
 }

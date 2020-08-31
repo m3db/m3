@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -41,6 +42,7 @@ var (
 	errCompactorNotSet         = errors.New("compactor not set")
 	errIndexOptionsNotSet      = errors.New("index options not set")
 	errFilesystemOptionsNotSet = errors.New("filesystem options not set")
+	errMigrationOptionsNotSet  = errors.New("migration options not set")
 
 	// NB(r): Bootstrapping data doesn't use large amounts of memory
 	// that won't be released, so its fine to do this as fast as possible.
@@ -66,6 +68,7 @@ type options struct {
 	bootstrapIndexNumProcessors int
 	runtimeOptsMgr              runtime.OptionsManager
 	identifierPool              ident.Pool
+	migrationOpts               migration.Options
 }
 
 // NewOptions creates new bootstrap options
@@ -83,6 +86,7 @@ func NewOptions() Options {
 		bootstrapIndexNumProcessors: defaultBootstrapIndexNumProcessors,
 		runtimeOptsMgr:              runtime.NewOptionsManager(),
 		identifierPool:              idPool,
+		migrationOpts:               migration.NewOptions(),
 	}
 }
 
@@ -98,6 +102,12 @@ func (o *options) Validate() error {
 	}
 	if o.fsOpts == nil {
 		return errFilesystemOptionsNotSet
+	}
+	if o.migrationOpts == nil {
+		return errMigrationOptionsNotSet
+	}
+	if err := o.migrationOpts.Validate(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -200,4 +210,14 @@ func (o *options) SetIdentifierPool(value ident.Pool) Options {
 
 func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
+}
+
+func (o *options) SetMigrationOptions(value migration.Options) Options {
+	opts := *o
+	opts.migrationOpts = value
+	return &opts
+}
+
+func (o *options) MigrationOptions() migration.Options {
+	return o.migrationOpts
 }

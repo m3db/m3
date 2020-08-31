@@ -730,14 +730,15 @@ func TestShardColdFlushNoMergeIfNothingDirty(t *testing.T) {
 }
 
 func newMergerTestFn(
-	reader fs.DataFileSetReader,
-	blockAllocSize int,
-	srPool xio.SegmentReaderPool,
-	multiIterPool encoding.MultiReaderIteratorPool,
-	identPool ident.Pool,
-	encoderPool encoding.EncoderPool,
-	contextPool context.Pool,
-	nsOpts namespace.Options,
+	_ fs.DataFileSetReader,
+	_ int,
+	_ xio.SegmentReaderPool,
+	_ encoding.MultiReaderIteratorPool,
+	_ ident.Pool,
+	_ encoding.EncoderPool,
+	_ context.Pool,
+	_ string,
+	_ namespace.Options,
 ) fs.Merger {
 	return &noopMerger{}
 }
@@ -745,44 +746,36 @@ func newMergerTestFn(
 type noopMerger struct{}
 
 func (m *noopMerger) Merge(
-	fileID fs.FileSetFileIdentifier,
-	mergeWith fs.MergeWith,
-	nextVersion int,
-	flushPreparer persist.FlushPreparer,
-	nsCtx namespace.Context,
-	onFlush persist.OnFlushSeries,
+	_ fs.FileSetFileIdentifier,
+	_ fs.MergeWith,
+	_ int,
+	_ persist.FlushPreparer,
+	_ namespace.Context,
+	_ persist.OnFlushSeries,
 ) (persist.DataCloser, error) {
 	closer := func() error { return nil }
 	return closer, nil
 }
 
-func newFSMergeWithMemTestFn(
-	shard databaseShard,
-	retriever series.QueryableBlockRetriever,
-	dirtySeries *dirtySeriesMap,
-	dirtySeriesToWrite map[xtime.UnixNano]*idList,
-) fs.MergeWith {
-	return &noopMergeWith{}
-}
-
-type noopMergeWith struct{}
-
-func (m *noopMergeWith) Read(
-	ctx context.Context,
-	seriesID ident.ID,
-	blockStart xtime.UnixNano,
-	nsCtx namespace.Context,
-) ([]xio.BlockReader, bool, error) {
-	return nil, false, nil
-}
-
-func (m *noopMergeWith) ForEachRemaining(
-	ctx context.Context,
-	blockStart xtime.UnixNano,
-	fn fs.ForEachRemainingFn,
-	nsCtx namespace.Context,
+func (m *noopMerger) MergeAndCleanup(
+	_ fs.FileSetFileIdentifier,
+	_ fs.MergeWith,
+	_ int,
+	_ persist.FlushPreparer,
+	_ namespace.Context,
+	_ persist.OnFlushSeries,
+	_ bool,
 ) error {
 	return nil
+}
+
+func newFSMergeWithMemTestFn(
+	_ databaseShard,
+	_ series.QueryableBlockRetriever,
+	_ *dirtySeriesMap,
+	_ map[xtime.UnixNano]*idList,
+) fs.MergeWith {
+	return fs.NewNoopMergeWith()
 }
 
 func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
@@ -834,6 +827,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		series := series.NewMockDatabaseSeries(ctrl)
 		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		series.EXPECT().IsEmpty().Return(false).AnyTimes()
+		series.EXPECT().IsBufferEmptyAtBlockStart(blockStart).Return(false).AnyTimes()
 		series.EXPECT().
 			Snapshot(gomock.Any(), blockStart, gomock.Any(), gomock.Any()).
 			Do(func(context.Context, time.Time, persist.DataFn, namespace.Context) {
@@ -1771,14 +1765,16 @@ func TestShardIterateBatchSize(t *testing.T) {
 	require.True(t, shardIterateBatchMinSize < iterateBatchSize(2000))
 }
 
-func TestAggregateTiles(t *testing.T) {
+func TestShardAggregateTiles(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		ctx   = context.NewContext()
-		start = time.Now().Truncate(time.Hour)
-		opts  = AggregateTilesOptions{Start: start, End: start.Add(time.Hour), Step: time.Minute}
+		ctx             = context.NewContext()
+		sourceBlockSize = time.Hour
+		targetBlockSize = 2 * time.Hour
+		start           = time.Now().Truncate(targetBlockSize)
+		opts            = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize), Step: time.Minute}
 	)
 
 	sourceShard := testDatabaseShard(t, DefaultTestOptions())
@@ -1788,29 +1784,16 @@ func TestAggregateTiles(t *testing.T) {
 	defer targetShard.Close()
 
 	reverseIndex := NewMockNamespaceIndex(ctrl)
-	reverseIndex.EXPECT().WriteBatch(gomock.Any()).Return(nil).Times(2)
+	reverseIndex.EXPECT().WriteBatch(gomock.Any()).Return(nil).Times(3)
 	targetShard.reverseIndex = reverseIndex
 
-	latestSourceVolume, err := sourceShard.latestVolume(opts.Start)
-	require.NoError(t, err)
-
 	sourceNsID := sourceShard.namespace.ID()
-	readerOpenOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
-			Namespace:   sourceNsID,
-			Shard:       sourceShard.ID(),
-			BlockStart:  opts.Start,
-			VolumeIndex: latestSourceVolume,
-		},
-		FileSetType:    persist.FileSetFlushType,
-		OrderedByIndex: true,
-	}
 
 	buildBytes := func() checked.Bytes {
 		encoder := m3tsz.NewEncoder(opts.Start, nil, false, encoding.NewOptions())
-		datapointTimestamp := opts.Start.Add(10 * time.Second)
+		datapointTimestamp := start.Add(10 * time.Second)
 		datapoint := ts.Datapoint{Timestamp: datapointTimestamp, TimestampNanos: xtime.ToUnixNano(datapointTimestamp), Value: 5}
-		err = encoder.Encode(datapoint, xtime.Nanosecond, ts.Annotation{1, 2})
+		err := encoder.Encode(datapoint, xtime.Nanosecond, ts.Annotation{1, 2})
 		require.NoError(t, err)
 		m3tszSegment := encoder.Discard()
 		m3tszBytes := checked.NewBytes(m3tszSegment.Head.Bytes(), checked.NewBytesOptions())
@@ -1821,14 +1804,52 @@ func TestAggregateTiles(t *testing.T) {
 		return m3tszBytes
 	}
 
+	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start)
+	reader0.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, buildBytes(), uint32(11), nil)
+	reader0.EXPECT().Read().Return(ident.StringID("id2"), ident.MustNewTagStringsIterator("foo", "bar"), buildBytes(), uint32(22), nil)
+	reader0.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
+
+	secondSourceBlockStart := start.Add(sourceBlockSize)
+	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart)
+	reader1.EXPECT().Read().Return(ident.StringID("id3"), ident.EmptyTagIterator, buildBytes(), uint32(33), nil)
+	reader1.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
+
+	blockReaders := []fs.DataFileSetReader{reader0, reader1}
+	sourceBlockVolumes := []shardBlockVolume{
+		{start, volume0},
+		{secondSourceBlockStart, volume1},
+	}
+
+	processedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, series.WriteOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), processedBlockCount)
+}
+
+func getMockReader(
+	ctrl *gomock.Controller,
+	t *testing.T,
+	shard *dbShard,
+	blockStart time.Time,
+) (*fs.MockDataFileSetReader, int) {
+	latestSourceVolume, err := shard.LatestVolume(blockStart)
+	require.NoError(t, err)
+
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   shard.namespace.ID(),
+			Shard:       shard.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: latestSourceVolume,
+		},
+		FileSetType:    persist.FileSetFlushType,
+		OrderedByIndex: true,
+	}
+
 	reader := fs.NewMockDataFileSetReader(ctrl)
-	reader.EXPECT().Open(readerOpenOpts).Return(nil)
-	reader.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, buildBytes(), uint32(11), nil)
-	reader.EXPECT().Read().Return(ident.StringID("id2"), ident.MustNewTagStringsIterator("foo", "bar"), buildBytes(), uint32(22), nil)
-	reader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
+	reader.EXPECT().Open(openOpts).Return(nil)
+	reader.EXPECT().OrderedByIndex().Return(true)
+	reader.EXPECT().Range().Return(xtime.Range{Start: blockStart})
 	reader.EXPECT().Close()
 
-	processedBlockCount, err := targetShard.AggregateTiles(ctx, reader, sourceNsID, sourceShard, opts, series.WriteOptions{})
-	require.NoError(t, err)
-	assert.Equal(t, int64(2), processedBlockCount)
+	return reader, latestSourceVolume
 }

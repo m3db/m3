@@ -562,8 +562,9 @@ func (d *db) terminateWithLock() error {
 }
 
 func (d *db) Terminate() error {
-	// NB(bodu): Wait for fs processes to finish.
-	d.mediator.WaitForFileSystemProcesses()
+	// NB(bodu): Disable file ops waits for current fs processes to
+	// finish before disabling.
+	d.mediator.DisableFileOpsAndWait()
 
 	d.Lock()
 	defer d.Unlock()
@@ -572,8 +573,9 @@ func (d *db) Terminate() error {
 }
 
 func (d *db) Close() error {
-	// NB(bodu): Wait for fs processes to finish.
-	d.mediator.WaitForFileSystemProcesses()
+	// NB(bodu): Disable file ops waits for current fs processes to
+	// finish before disabling.
+	d.mediator.DisableFileOpsAndWait()
 
 	d.Lock()
 	defer d.Unlock()
@@ -1176,7 +1178,11 @@ func (m metadatas) String() (string, error) {
 	return buf.String(), nil
 }
 
-func NewAggregateTilesOptions(start, end time.Time, step time.Duration) (AggregateTilesOptions, error) {
+func NewAggregateTilesOptions(
+	start, end time.Time,
+	step time.Duration,
+	handleCounterResets bool,
+) (AggregateTilesOptions, error) {
 	if !end.After(start) {
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.End must be after Start, got %s - %s", start, end)
 	}
@@ -1185,5 +1191,5 @@ func NewAggregateTilesOptions(start, end time.Time, step time.Duration) (Aggrega
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
-	return AggregateTilesOptions{Start: start, End: end, Step: step}, nil
+	return AggregateTilesOptions{Start: start, End: end, Step: step, HandleCounterResets: handleCounterResets}, nil
 }

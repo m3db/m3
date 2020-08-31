@@ -41,11 +41,16 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
+	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -164,6 +169,8 @@ type TestSetup interface {
 	Close()
 	WriteBatch(ident.ID, generate.SeriesBlock) error
 	ShouldBeEqual() bool
+	// *NOTE*: This method is deprecated and should not be used in future tests.
+	// Also, we should migrate existing tests when we touch them away from using this.
 	SleepFor10xTickMinimumInterval()
 	BlockLeaseManager() block.LeaseManager
 	ShardSet() sharding.ShardSet
@@ -177,6 +184,7 @@ type TestSetup interface {
 	WaitUntilServerIsUp() error
 	WaitUntilServerIsDown() error
 	Truncate(*rpc.TruncateRequest) (int64, error)
+	InitializeBootstrappers(opts InitializeBootstrappersOptions) error
 }
 
 type storageOption func(storage.Options) storage.Options
@@ -890,6 +898,76 @@ func (ts *testSetup) SchemaRegistry() namespace.SchemaRegistry {
 	return ts.schemaReg
 }
 
+// InitializeBootstrappersOptions supplies options for bootstrapper initialization.
+type InitializeBootstrappersOptions struct {
+	CommitLogOptions commitlog.Options
+	WithCommitLog    bool
+	WithFileSystem   bool
+}
+
+func (o InitializeBootstrappersOptions) validate() error {
+	if o.WithCommitLog && o.CommitLogOptions == nil {
+		return errors.New("commit log options required when initializing a commit log bootstrapper")
+	}
+	return nil
+}
+
+func (ts *testSetup) InitializeBootstrappers(opts InitializeBootstrappersOptions) error {
+	var err error
+	if err := opts.validate(); err != nil {
+		return err
+	}
+
+	bs := bootstrapper.NewNoOpAllBootstrapperProvider()
+	storageOpts := ts.StorageOpts()
+	bsOpts := newDefaulTestResultOptions(storageOpts)
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	if opts.WithCommitLog {
+		bclOpts := bcl.NewOptions().
+			SetResultOptions(bsOpts).
+			SetCommitLogOptions(opts.CommitLogOptions).
+			SetRuntimeOptionsManager(runtime.NewOptionsManager())
+		bs, err = bcl.NewCommitLogBootstrapperProvider(
+			bclOpts, mustInspectFilesystem(fsOpts), bs)
+		if err != nil {
+			return err
+		}
+	}
+
+	if opts.WithFileSystem {
+		persistMgr, err := fs.NewPersistManager(fsOpts)
+		if err != nil {
+			return err
+		}
+		storageIdxOpts := storageOpts.IndexOptions()
+		compactor, err := newCompactorWithErr(storageIdxOpts)
+		if err != nil {
+			return err
+		}
+		bfsOpts := bfs.NewOptions().
+			SetResultOptions(bsOpts).
+			SetFilesystemOptions(fsOpts).
+			SetIndexOptions(storageIdxOpts).
+			SetPersistManager(persistMgr).
+			SetCompactor(compactor)
+		bs, err = bfs.NewFileSystemBootstrapperProvider(bfsOpts, bs)
+		if err != nil {
+			return err
+		}
+	}
+
+	processOpts := bootstrap.NewProcessOptions().
+		SetTopologyMapProvider(ts).
+		SetOrigin(ts.Origin())
+	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
+	if err != nil {
+		return err
+	}
+	ts.SetStorageOpts(storageOpts.SetBootstrapProcessProvider(process))
+
+	return nil
+}
+
 // Implements topology.MapProvider, and makes sure that the topology
 // map provided always comes from the most recent database in the testSetup
 // since they get\ recreated everytime StartServer/StopServer is called and
@@ -1027,4 +1105,13 @@ func newNodes(
 	}
 
 	return nodes, topoInit, nodeClose
+}
+
+func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {
+	inspection, err := fs.InspectFilesystem(fsOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	return inspection
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -56,6 +57,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
 	getHandler := NewGetHandler(mockClient, instrument.NewOptions())
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Test no namespace
 	w := httptest.NewRecorder()
@@ -63,8 +65,10 @@ func TestNamespaceGetHandler(t *testing.T) {
 	req := httptest.NewRequest("GET", "/namespace/get", nil)
 	require.NotNil(t, req)
 
+	matcher := newStoreOptionsMatcher("", "", "test_env")
+	mockClient.EXPECT().Store(matcher).Return(mockKV, nil)
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	getHandler.ServeHTTP(w, req)
+	getHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -75,11 +79,12 @@ func TestNamespaceGetHandler(t *testing.T) {
 	w = httptest.NewRecorder()
 
 	req = httptest.NewRequest("GET", "/namespace/get", nil)
+	req.Header.Set(headers.HeaderClusterEnvironmentName, "test_env")
 	require.NotNil(t, req)
 
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
-			"test": &nsproto.NamespaceOptions{
+			"test": {
 				BootstrapEnabled:  true,
 				FlushEnabled:      true,
 				SnapshotEnabled:   true,
@@ -102,7 +107,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
-	getHandler.ServeHTTP(w, req)
+	getHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
@@ -149,6 +154,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 
 	mockClient, mockKV := setupNamespaceTest(t, ctrl)
 	getHandler := NewGetHandler(mockClient, instrument.NewOptions())
+	mockClient.EXPECT().Store(gomock.Any()).Return(mockKV, nil)
 
 	// Test namespace present
 	w := httptest.NewRecorder()
@@ -158,7 +164,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
-			"test": &nsproto.NamespaceOptions{
+			"test": {
 				BootstrapEnabled:  true,
 				FlushEnabled:      true,
 				SnapshotEnabled:   true,
@@ -181,7 +187,7 @@ func TestNamespaceGetHandlerWithDebug(t *testing.T) {
 	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
-	getHandler.ServeHTTP(w, req)
+	getHandler.ServeHTTP(svcDefaults, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)

@@ -52,6 +52,9 @@ var (
 	errReadNotExpectedSize = errors.New("next read not expected size")
 
 	errUnexpectedSortByOffset = errors.New("should not sort index by offsets when doing reads sorted by Id")
+
+	// errReadMetadataOptimizedForRead returned when we optimized for only reading metadata but are attempting a regular read
+	errReadMetadataOptimizedForRead = errors.New("read metadata optimized for regular read")
 )
 
 const (
@@ -101,8 +104,11 @@ type reader struct {
 	shard                     uint32
 	volume                    int
 	open                      bool
-
-	orderedByIndex bool
+	orderedByIndex            bool
+	// NB(bodu): Informs whether or not we optimize for only reading
+	// metadata. We don't need to sort for reading metadata but sorting is
+	// required if we are performing regulars reads.
+	optimizedReadMetadataOnly bool
 }
 
 // NewReader returns a new reader and expects all files to exist. Will read the
@@ -271,16 +277,15 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	}
 	if opts.OrderedByIndex {
 		r.decoder.Reset(r.indexDecoderStream)
-	} else {
-		if err := r.readIndexAndSortByOffsetAsc(); err != nil {
-			r.Close()
-			return err
-		}
+	} else if err := r.readIndexAndSortByOffsetAsc(); err != nil {
+		r.Close()
+		return err
 	}
 
 	r.open = true
 	r.namespace = namespace
 	r.shard = shard
+	r.optimizedReadMetadataOnly = opts.OptimizedReadMetadataOnly
 
 	return nil
 }
@@ -351,9 +356,12 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 		}
 		r.indexEntriesByOffsetAsc = append(r.indexEntriesByOffsetAsc, entry)
 	}
-	// NB(r): As we decode each block we need access to each index entry
-	// in the order we decode the data
-	sort.Sort(indexEntriesByOffsetAsc(r.indexEntriesByOffsetAsc))
+	// This is false by default so we always sort unless otherwise specified.
+	if !r.optimizedReadMetadataOnly {
+		// NB(r): As we decode each block we need access to each index entry
+		// in the order we decode the data. This is only required for regular reads.
+		sort.Sort(indexEntriesByOffsetAsc(r.indexEntriesByOffsetAsc))
+	}
 	return nil
 }
 
@@ -402,6 +410,10 @@ func (r *reader) readInIndexedOrder() (ident.ID, ident.TagIterator, checked.Byte
 }
 
 func (r *reader) readInStoredOrder() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
+	// NB(bodu): We cannot perform regular reads if we're optimizing for only reading metadata.
+	if r.optimizedReadMetadataOnly {
+		return nil, nil, nil, 0, errReadMetadataOptimizedForRead
+	}
 	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
 		// Have not read the index yet, this is required when reading
 		// data as we need each index entry in order by by the offset ascending
@@ -568,6 +580,10 @@ func (r *reader) EntriesRead() int {
 
 func (r *reader) MetadataRead() int {
 	return r.metadataRead
+}
+
+func (r *reader) OrderedByIndex() bool {
+	return r.orderedByIndex
 }
 
 func (r *reader) Close() error {
