@@ -1270,31 +1270,31 @@ func (mr *MockSeriesIteratorMockRecorder) Tags() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tags", reflect.TypeOf((*MockSeriesIterator)(nil).Tags))
 }
 
-// MockSeriesIteratorConsolidator is a mock of SeriesIteratorConsolidator interface
-type MockSeriesIteratorConsolidator struct {
+// MockSeriesIteratorProcessor is a mock of SeriesIteratorProcessor interface
+type MockSeriesIteratorProcessor struct {
 	ctrl     *gomock.Controller
-	recorder *MockSeriesIteratorConsolidatorMockRecorder
+	recorder *MockSeriesIteratorProcessorMockRecorder
 }
 
-// MockSeriesIteratorConsolidatorMockRecorder is the mock recorder for MockSeriesIteratorConsolidator
-type MockSeriesIteratorConsolidatorMockRecorder struct {
-	mock *MockSeriesIteratorConsolidator
+// MockSeriesIteratorProcessorMockRecorder is the mock recorder for MockSeriesIteratorProcessor
+type MockSeriesIteratorProcessorMockRecorder struct {
+	mock *MockSeriesIteratorProcessor
 }
 
-// NewMockSeriesIteratorConsolidator creates a new mock instance
-func NewMockSeriesIteratorConsolidator(ctrl *gomock.Controller) *MockSeriesIteratorConsolidator {
-	mock := &MockSeriesIteratorConsolidator{ctrl: ctrl}
-	mock.recorder = &MockSeriesIteratorConsolidatorMockRecorder{mock}
+// NewMockSeriesIteratorProcessor creates a new mock instance
+func NewMockSeriesIteratorProcessor(ctrl *gomock.Controller) *MockSeriesIteratorProcessor {
+	mock := &MockSeriesIteratorProcessor{ctrl: ctrl}
+	mock.recorder = &MockSeriesIteratorProcessorMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockSeriesIteratorConsolidator) EXPECT() *MockSeriesIteratorConsolidatorMockRecorder {
+func (m *MockSeriesIteratorProcessor) EXPECT() *MockSeriesIteratorProcessorMockRecorder {
 	return m.recorder
 }
 
 // ConsolidateReplicas mocks base method
-func (m *MockSeriesIteratorConsolidator) ConsolidateReplicas(arg0 []MultiReaderIterator) ([]MultiReaderIterator, error) {
+func (m *MockSeriesIteratorProcessor) ConsolidateReplicas(arg0 []MultiReaderIterator) ([]MultiReaderIterator, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConsolidateReplicas", arg0)
 	ret0, _ := ret[0].([]MultiReaderIterator)
@@ -1303,23 +1303,23 @@ func (m *MockSeriesIteratorConsolidator) ConsolidateReplicas(arg0 []MultiReaderI
 }
 
 // ConsolidateReplicas indicates an expected call of ConsolidateReplicas
-func (mr *MockSeriesIteratorConsolidatorMockRecorder) ConsolidateReplicas(arg0 interface{}) *gomock.Call {
+func (mr *MockSeriesIteratorProcessorMockRecorder) ConsolidateReplicas(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateReplicas", reflect.TypeOf((*MockSeriesIteratorConsolidator)(nil).ConsolidateReplicas), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateReplicas", reflect.TypeOf((*MockSeriesIteratorProcessor)(nil).ConsolidateReplicas), arg0)
 }
 
-// ConsolidateSeries mocks base method
-func (m *MockSeriesIteratorConsolidator) ConsolidateSeries(arg0 context.Context, arg1 []SeriesIterator) error {
+// InspectSeries mocks base method
+func (m *MockSeriesIteratorProcessor) InspectSeries(arg0 context.Context, arg1 []SeriesIterator) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ConsolidateSeries", arg0, arg1)
+	ret := m.ctrl.Call(m, "InspectSeries", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ConsolidateSeries indicates an expected call of ConsolidateSeries
-func (mr *MockSeriesIteratorConsolidatorMockRecorder) ConsolidateSeries(arg0, arg1 interface{}) *gomock.Call {
+// InspectSeries indicates an expected call of InspectSeries
+func (mr *MockSeriesIteratorProcessorMockRecorder) InspectSeries(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateSeries", reflect.TypeOf((*MockSeriesIteratorConsolidator)(nil).ConsolidateSeries), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InspectSeries", reflect.TypeOf((*MockSeriesIteratorProcessor)(nil).InspectSeries), arg0, arg1)
 }
 
 // MockSeriesIterators is a mock of SeriesIterators interface
