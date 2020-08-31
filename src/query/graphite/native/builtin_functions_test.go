@@ -603,26 +603,26 @@ func TestTransformNull(t *testing.T) {
 }
 
 var (
-	testMovingAverageBootstrap = testMovingAverageStart.Add(-30 * time.Second)
-	testMovingAverageStart     = time.Now().Truncate(time.Minute)
-	testMovingAverageEnd       = testMovingAverageStart.Add(time.Minute)
+	testMovingFunctionBootstrap = testMovingFunctionStart.Add(-30 * time.Second)
+	testMovingFunctionStart     = time.Now().Truncate(time.Minute)
+	testMovingFunctionEnd       = testMovingFunctionStart.Add(time.Minute)
 )
 
-func testMovingAverage(t *testing.T, target, expectedName string, values, bootstrap, output []float64) {
+func testMovingFunction(t *testing.T, target, expectedName string, values, bootstrap, output []float64) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
 
 	engine := NewEngine(
-		&common.MovingAverageStorage{
+		&common.MovingFunctionStorage{
 			StepMillis:     10000,
 			Bootstrap:      bootstrap,
-			BootstrapStart: testMovingAverageBootstrap,
+			BootstrapStart: testMovingFunctionBootstrap,
 			Values:         values,
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
-		Start:  testMovingAverageStart,
-		End:    testMovingAverageEnd,
+		Start:  testMovingFunctionStart,
+		End:    testMovingFunctionEnd,
 		Engine: engine,
 	})
 
@@ -638,7 +638,7 @@ func testMovingAverage(t *testing.T, target, expectedName string, values, bootst
 		}
 		expected = append(expected, expectedSeries)
 	}
-	common.CompareOutputsAndExpected(t, 10000, testMovingAverageStart,
+	common.CompareOutputsAndExpected(t, 10000, testMovingFunctionStart,
 		expected, res.Values)
 }
 
@@ -646,33 +646,30 @@ func TestMovingAverageSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
 	expected := []float64{4.0, 7.0, 12.0, 7.0, 4.5}
-	expectedMovingSum := []float64{12.0, 21.0, 36.0, 21.0, 9.0}
-
-	testMovingAverage(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingSum(foo.bar.baz,\"30s\")", values, bootstrap, expectedMovingSum)
-	testMovingAverage(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", values, bootstrap, expected)
-	testMovingAverage(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
+	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
+	testMovingFunction(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", values, bootstrap, expected)
+	testMovingFunction(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
 
 	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingAverage(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
-	testMovingAverage(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", values, bootstrapEntireSeries, expected)
+	testMovingFunction(t, "movingAverage(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
+	testMovingFunction(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", values, bootstrapEntireSeries, expected)
 }
 
-func testMovingAverageError(t *testing.T, target string) {
+func testMovingFunctionError(t *testing.T, target string) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
 
 	engine := NewEngine(
-		&common.MovingAverageStorage{
+		&common.MovingFunctionStorage{
 			StepMillis:     10000,
 			Bootstrap:      []float64{1.0},
-			BootstrapStart: testMovingAverageBootstrap,
+			BootstrapStart: testMovingFunctionBootstrap,
 			Values:         []float64{1.0},
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
-		Start:  testMovingAverageStart,
-		End:    testMovingAverageEnd,
+		Start:  testMovingFunctionStart,
+		End:    testMovingFunctionEnd,
 		Engine: engine,
 	})
 
@@ -684,8 +681,8 @@ func testMovingAverageError(t *testing.T, target string) {
 }
 
 func TestMovingAverageError(t *testing.T) {
-	testMovingAverageError(t, "movingAverage(foo.bar.baz, '-30s')")
-	testMovingAverageError(t, "movingAverage(foo.bar.baz, 0)")
+	testMovingFunctionError(t, "movingAverage(foo.bar.baz, '-30s')")
+	testMovingFunctionError(t, "movingAverage(foo.bar.baz, 0)")
 }
 
 func TestMovingSumSuccess(t *testing.T) {
