@@ -433,7 +433,7 @@ func (c Configuration) NewAdminClient(
 		opts = opts.SetFetchSeriesBlocksBatchSize(*c.FetchSeriesBlocksBatchSize)
 	}
 
-	// Apply programtic custom options last.
+	// Apply programmatic custom options last.
 	for _, opt := range custom {
 		opts = opt(opts)
 	}
