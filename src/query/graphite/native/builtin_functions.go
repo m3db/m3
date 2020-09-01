@@ -1591,13 +1591,14 @@ func changed(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, err
 	})
 }
 
-// ported windowPointsLength to a dedicated function
+// windowPointsLength calculates the number of window points in a interval
 func windowPointsLength(series *ts.Series, interval time.Duration) int {
 	return int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
 }
 
 type movingImplementationFn func(window []float64, values *ts.MutableValues, windowPoints int, i int)
 
+// movingMedianHelper given a slice of floats, calculates the median and assigns it into vals as index i
 func movingMedianHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
 	nans := common.SafeSort(window)
 
@@ -1608,6 +1609,7 @@ func movingMedianHelper(window []float64, vals *ts.MutableValues, windowPoints i
 	}
 }
 
+// movingSumHelper given a slice of floats, calculates the sum and assigns it into vals as index i
 func movingSumHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
 	sum, nans := common.SafeSum(window)
 
@@ -1616,6 +1618,7 @@ func movingSumHelper(window []float64, vals *ts.MutableValues, windowPoints int,
 	}
 }
 
+// movingMaxHelper given a slice of floats, finds the max and assigns it into vals as index i
 func movingMaxHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
 	max, nans := common.SafeMax(window)
 
@@ -1624,6 +1627,7 @@ func movingMaxHelper(window []float64, vals *ts.MutableValues, windowPoints int,
 	}
 }
 
+// movingMinHelper given a slice of floats, finds the min and assigns it into vals as index i
 func movingMinHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
 	min, nans := common.SafeMin(window)
 
