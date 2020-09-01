@@ -1598,16 +1598,41 @@ func windowPointsLength(series *ts.Series, interval time.Duration) int {
 
 type movingImplementationFn func(window []float64, values *ts.MutableValues, windowPoints int, i int)
 
-func findMedian(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
+func movingMedianHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
 	nans := common.SafeSort(window)
-	values := *vals
 
 	if nans < windowPoints {
 		index := (windowPoints - nans) / 2
 		median := window[nans+index]
-		values.SetValueAt(i, median)
+		(*vals).SetValueAt(i, median)
 	}
 }
+
+func movingSumHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
+	sum, nans := common.SafeSum(window)
+
+	if nans < windowPoints {
+		(*vals).SetValueAt(i, sum)
+	}
+}
+
+func movingMaxHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
+	max, nans := common.SafeMax(window)
+
+	if nans < windowPoints {
+		(*vals).SetValueAt(i, max)
+	}
+}
+
+func movingMinHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
+	min, nans := common.SafeMin(window)
+
+	if nans < windowPoints {
+		(*vals).SetValueAt(i, min)
+	}
+}
+
+
 
 func newMovingBinaryTransform(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface, movingFunctionName string, impl movingImplementationFn) (*binaryContextShifter, error) {
 	if len(input.Values) == 0 {
@@ -1694,89 +1719,24 @@ func newMovingBinaryTransform(ctx *common.Context, input singlePathSpec, windowS
 	}, nil
 }
 
-// movingMedian takes one metric or a wildcard seriesList followed by a a quoted string
-// with a length of time like '1hour' or '5min'. Graphs the median of the preceding
-// datapoints for each point on the graph. All previous datapoints are set to None at
-// the beginning of the graph.
-func movingMedian(ctx *common.Context, input singlePathSpec, windowSize string) (*binaryContextShifter, error) {
-	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", findMedian)
+// movingMedian calculates the moving median of a metric (or metrics) over a time interval.
+func movingMedian(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMedian", movingMedianHelper)
 }
 
+// movingSum calculates the moving sum of a metric (or metrics) over a time interval.
+func movingSum(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingSum", movingSumHelper)
+}
 
-// movingSum takes one metric or a wildcard seriesList followed by a a quoted string
-// with a length of time like '1hour' or '5min'. Graphs the sum of the preceding
-// datapoints for each point on the graph. All previous datapoints are set to None at
-// the beginning of the graph.
-func movingSum(ctx *common.Context, _ singlePathSpec, windowSize string) (*binaryContextShifter, error) {
-	interval, err := common.ParseInterval(windowSize)
-	if err != nil {
-		return nil, err
-	}
+// movingMax calculates the moving maximum of a metric (or metrics) over a time interval.
+func movingMax(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMax", movingMaxHelper)
+}
 
-	if interval <= 0 {
-		return nil, common.ErrInvalidIntervalFormat
-	}
-
-	contextShiftingFn := func(c *common.Context) *common.Context {
-		opts := common.NewChildContextOptions()
-		opts.AdjustTimeRange(0, 0, interval, 0)
-		childCtx := c.NewChildContext(opts)
-		return childCtx
-	}
-
-	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-interval), ctx.StartTime
-	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
-		bootstrapList, err := combineBootstrapWithOriginal(ctx,
-			bootstrapStartTime, bootstrapEndTime,
-			bootstrapped, singlePathSpec(original))
-		if err != nil {
-			return ts.NewSeriesList(), err
-		}
-
-		results := make([]*ts.Series, 0, original.Len())
-
-		for i, bootstrap := range bootstrapList.Values {
-			series := original.Values[i]
-			windowPoints := int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
-			if windowPoints <= 0 {
-				err := errors.NewInvalidParamsError(fmt.Errorf(
-					"non positive window points, windowSize=%s, stepSize=%d",
-					windowSize, series.MillisPerStep()))
-				return ts.NewSeriesList(), err
-			}
-			window := make([]float64, windowPoints)
-			util.Memset(window, math.NaN())
-			numSteps := series.Len()
-			offset := bootstrap.Len() - numSteps
-			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
-			for i := 0; i < numSteps; i++ {
-				for j := i + offset - windowPoints; j < i+offset; j++ {
-					if j < 0 || j >= bootstrap.Len() {
-						continue
-					}
-
-					idx := j - i - offset + windowPoints
-					if idx < 0 || idx > len(window)-1 {
-						continue
-					}
-
-					window[idx] = bootstrap.ValueAt(j)
-				}
-				vals.SetValueAt(i, common.SafeSum(window))
-			}
-			name := fmt.Sprintf("movingSum(%s,%q)", series.Name(), windowSize)
-			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
-			results = append(results, newSeries)
-		}
-
-		original.Values = results
-		return original, nil
-	}
-
-	return &binaryContextShifter{
-		ContextShiftFunc:  contextShiftingFn,
-		BinaryTransformer: transformerFn,
-	}, nil
+// movingMin calculates the moving minimum of a metric (or metrics) over a time interval.
+func movingMin(ctx *common.Context, input singlePathSpec, windowSize genericInterface) (*binaryContextShifter, error) {
+	return newMovingBinaryTransform(ctx, input, windowSize, "movingMin", movingMinHelper)
 }
 
 
@@ -2029,6 +1989,8 @@ func init() {
 	MustRegisterFunction(movingAverage)
 	MustRegisterFunction(movingMedian)
 	MustRegisterFunction(movingSum)
+	MustRegisterFunction(movingMax)
+	MustRegisterFunction(movingMin)
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
