@@ -2425,10 +2425,7 @@ func (s *dbShard) Snapshot(
 		return err
 	}
 
-	var (
-		start       time.Time
-		snapshotCtx = s.contextPool.Get()
-	)
+	snapshotCtx := s.contextPool.Get()
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		start := s.nowFn()
 		series := entry.Series
