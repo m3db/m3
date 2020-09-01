@@ -2859,9 +2859,9 @@ func TestDelay(t *testing.T) {
 }
 
 var (
-	testDelayBootstrap = testMovingAverageStart.Add(-30 * time.Second)
+	testDelayBootstrap = testMovingFunctionStart.Add(-30 * time.Second)
 	testDelayStart     = time.Now().Truncate(time.Minute)
-	testDelayEnd       = testMovingAverageStart.Add(time.Minute)
+	testDelayEnd       = testMovingFunctionEnd.Add(time.Minute)
 )
 
 func testDelay(t *testing.T, target, expectedName string, values, output []float64) {
@@ -2870,7 +2870,7 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 
 	emptyBootstrap := []float64{}
 	engine := NewEngine(
-		&common.MovingAverageStorage{
+		&common.MovingFunctionStorage{
 			StepMillis:     10000,
 			Values:         values,
 			Bootstrap:      emptyBootstrap,
