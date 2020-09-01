@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/metrics/metric/id"
 
-	"github.com/twmb/murmur3"
+	murmur3 "github.com/m3db/stackmurmur3/v2"
 )
 
 const (
