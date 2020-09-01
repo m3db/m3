@@ -48,11 +48,11 @@ require (
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
 	github.com/json-iterator/go v1.1.9
-	github.com/leanovate/gopter v0.2.3-0.20181005062252-e2604588f4db
+	github.com/leanovate/gopter v0.2.8
 	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
-	github.com/m3db/bloom v3.0.0+incompatible
+	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
 	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
 	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd // indirect
 	github.com/m3db/prometheus_client_golang v0.8.1
@@ -60,7 +60,7 @@ require (
 	github.com/m3db/prometheus_common v0.0.0-20180517030744-25aaa3dff79b
 	github.com/m3db/prometheus_procfs v0.8.1
 	github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f
-	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e // indirect
+	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v0.0.0-20200602205121-7f389745e9ab
 	github.com/m3dbx/vellum v0.0.0-20200826162549-f94c029903de
@@ -97,9 +97,8 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.1
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.6.1
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
-	github.com/twmb/murmur3 v1.1.3
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/atomic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/uber-go/tally v3.3.13+incompatible
