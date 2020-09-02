@@ -284,10 +284,10 @@ type SeriesIteratorStats struct {
 // SeriesIteratorProcessor optionally defines methods to process series iterators.
 type SeriesIteratorProcessor interface {
 	// ConsolidateReplicas consolidates MultiReaderIterator slices.
-	ConsolidateReplicas([]MultiReaderIterator) ([]MultiReaderIterator, error)
+	ConsolidateReplicas(replicas []MultiReaderIterator) ([]MultiReaderIterator, error)
 
 	// InspectSeries inspects SeriesIterator slices.
-	InspectSeries(context.Context, []SeriesIterator) error
+	InspectSeries(ctx context.Context, seriesIterators []SeriesIterator) error
 }
 
 // SeriesIteratorOptions is a set of options for using a series iterator.

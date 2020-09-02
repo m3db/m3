@@ -199,6 +199,7 @@ func (it *testReaderSliceOfSlicesIterator) Size() (int, error) {
 }
 
 func (it *testReaderSliceOfSlicesIterator) Rewind() {
+	it.idx = -1
 }
 
 func (it *testReaderSliceOfSlicesIterator) arrayIdx() int {

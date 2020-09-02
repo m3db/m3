@@ -192,11 +192,11 @@ func CompressedSeriesFromSeriesIterator(
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
+	defer it.Tags().Rewind()
 	tags, err := buildTags(it.Tags(), iterPools)
 	if err != nil {
 		return nil, err
 	}
-	it.Tags().Rewind()
 
 	return &rpc.Series{
 		Meta: &rpc.SeriesMetadata{
