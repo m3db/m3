@@ -235,7 +235,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
 	require.Equal(t, int64(10000), seriesWritesCount)
 
-	series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
+	_, err = session.Fetch(srcNs.ID(), ident.StringID("foo"+string(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
 	require.NoError(t, err)
 }
 
