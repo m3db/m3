@@ -190,8 +190,9 @@ func CompressedSeriesFromSeriesIterator(
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
-	defer it.Tags().Rewind()
-	tags, err := buildTags(it.Tags(), iterPools)
+	itTags := it.Tags()
+	defer itTags.Rewind()
+	tags, err := buildTags(itTags, iterPools)
 	if err != nil {
 		return nil, err
 	}
