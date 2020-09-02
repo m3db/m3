@@ -22,11 +22,12 @@ package migration
 
 import (
 	"fmt"
+	"math"
 	"runtime"
 )
 
 // defaultMigrationConcurrency is the default number of concurrent workers to perform migrations.
-var defaultMigrationConcurrency = runtime.NumCPU()
+var defaultMigrationConcurrency = int(math.Ceil(float64(runtime.NumCPU()) / 2))
 
 type options struct {
 	targetMigrationVersion MigrationVersion
