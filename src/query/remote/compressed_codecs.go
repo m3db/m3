@@ -138,24 +138,24 @@ func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]b
 	return nil, errors.ErrCannotEncodeCompressedTags
 }
 
-// CompressedSeriesFromSeriesIterator Builds compressed rpc series from a SeriesIterator
+// CompressedSeriesFromSeriesIterator builds compressed rpc series from a SeriesIterator
 // SeriesIterator is the top level iterator returned by m3db
-// This SeriesIterator contains MultiReaderIterators, each representing a single
-// replica. Each MultiReaderIterator has a ReaderSliceOfSlicesIterator where each
-// step through the iterator exposes a slice of underlying BlockReaders. Each
-// BlockReader contains the run time encoded bytes that represent the series.
-//
-// SeriesIterator also has a TagIterator representing the tags associated with it.
-//
-// This function transforms a SeriesIterator into a protobuf representation to be
-// able to send it across the wire without needing to expand the series.
-//
-// If reset argument is true, the SeriesIterator readers will be reset so it can
-// be iterated again. If false, the SeriesIterator will no longer be useable.
 func CompressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
 	iterPools encoding.IteratorPools,
 ) (*rpc.Series, error) {
+	// This SeriesIterator contains MultiReaderIterators, each representing a single
+	// replica. Each MultiReaderIterator has a ReaderSliceOfSlicesIterator where each
+	// step through the iterator exposes a slice of underlying BlockReaders. Each
+	// BlockReader contains the run time encoded bytes that represent the series.
+	//
+	// SeriesIterator also has a TagIterator representing the tags associated with it.
+	//
+	// This function transforms a SeriesIterator into a protobuf representation to be
+	// able to send it across the wire without needing to expand the series.
+	//
+	// If reset argument is true, the SeriesIterator readers will be reset so it can
+	// be iterated again. If false, the SeriesIterator will no longer be useable.
 	replicas, err := it.Replicas()
 	if err != nil {
 		return nil, err
