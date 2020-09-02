@@ -133,14 +133,11 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 	}
 
 	multiReader := encoding.NewMultiReaderIterator(testIterAlloc, nil)
-	fmt.Println("A")
 	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator([][]xio.BlockReader{
 		{mergedReader},
 		unmergedReaders,
 	})
-	fmt.Println("B")
 	multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
-	fmt.Println("C")
 	return multiReader, nil
 }
 
