@@ -247,7 +247,9 @@ func (m *flushManager) dataSnapshot(
 
 	finalErr := multiErr.FinalError()
 	if finalErr == nil {
+		m.Lock()
 		m.lastSuccessfulSnapshotStartTime = startTime
+		m.Unlock()
 	}
 	m.metrics.dataSnapshotDuration.Record(m.nowFn().Sub(start))
 	return finalErr
@@ -379,5 +381,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 }
 
 func (m *flushManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+	m.Lock()
+	defer m.Unlock()
 	return m.lastSuccessfulSnapshotStartTime, !m.lastSuccessfulSnapshotStartTime.IsZero()
 }

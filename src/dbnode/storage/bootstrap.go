@@ -121,6 +121,8 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 }
 
 func (m *bootstrapManager) LastBootstrapCompletionTime() (time.Time, bool) {
+	m.Lock()
+	defer m.Unlock()
 	return m.lastBootstrapCompletionTime, !m.lastBootstrapCompletionTime.IsZero()
 }
 
@@ -195,7 +197,10 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	// on its own course so that the load of ticking and flushing is more spread out
 	// across the cluster.
 
+	m.Lock()
 	m.lastBootstrapCompletionTime = m.nowFn()
+	m.Unlock()
+
 	return result, nil
 }
 
