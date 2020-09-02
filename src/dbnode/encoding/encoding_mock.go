@@ -1294,32 +1294,32 @@ func (m *MockSeriesIteratorProcessor) EXPECT() *MockSeriesIteratorProcessorMockR
 }
 
 // ConsolidateReplicas mocks base method
-func (m *MockSeriesIteratorProcessor) ConsolidateReplicas(arg0 []MultiReaderIterator) ([]MultiReaderIterator, error) {
+func (m *MockSeriesIteratorProcessor) ConsolidateReplicas(replicas []MultiReaderIterator) ([]MultiReaderIterator, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ConsolidateReplicas", arg0)
+	ret := m.ctrl.Call(m, "ConsolidateReplicas", replicas)
 	ret0, _ := ret[0].([]MultiReaderIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ConsolidateReplicas indicates an expected call of ConsolidateReplicas
-func (mr *MockSeriesIteratorProcessorMockRecorder) ConsolidateReplicas(arg0 interface{}) *gomock.Call {
+func (mr *MockSeriesIteratorProcessorMockRecorder) ConsolidateReplicas(replicas interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateReplicas", reflect.TypeOf((*MockSeriesIteratorProcessor)(nil).ConsolidateReplicas), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsolidateReplicas", reflect.TypeOf((*MockSeriesIteratorProcessor)(nil).ConsolidateReplicas), replicas)
 }
 
 // InspectSeries mocks base method
-func (m *MockSeriesIteratorProcessor) InspectSeries(arg0 context.Context, arg1 []SeriesIterator) error {
+func (m *MockSeriesIteratorProcessor) InspectSeries(ctx context.Context, seriesIterators []SeriesIterator) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InspectSeries", arg0, arg1)
+	ret := m.ctrl.Call(m, "InspectSeries", ctx, seriesIterators)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InspectSeries indicates an expected call of InspectSeries
-func (mr *MockSeriesIteratorProcessorMockRecorder) InspectSeries(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockSeriesIteratorProcessorMockRecorder) InspectSeries(ctx, seriesIterators interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InspectSeries", reflect.TypeOf((*MockSeriesIteratorProcessor)(nil).InspectSeries), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InspectSeries", reflect.TypeOf((*MockSeriesIteratorProcessor)(nil).InspectSeries), ctx, seriesIterators)
 }
 
 // MockSeriesIterators is a mock of SeriesIterators interface
