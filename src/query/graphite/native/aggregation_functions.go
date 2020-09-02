@@ -266,7 +266,7 @@ func groupByNodes(ctx *common.Context, series singlePathSpec, fname string, node
 
 	nodeLen := len(nodes)
 	if nodeLen == 0 {
-		key := "all" // put into single group
+		key := "*" // put into single group, not ideal, but more graphite-ish.
 		for _, s := range series.Values {
 			metaSeries[key] = append(metaSeries[key], s)
 		}
