@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclose "github.com/m3db/m3/src/x/close"
+	"github.com/m3db/stackmurmur3/v2"
 
-	"github.com/twmb/murmur3"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 )
@@ -80,7 +80,7 @@ type healthCheckFn func(client rpc.TChanNode, opts Options) error
 type sleepFn func(t time.Duration)
 
 func newConnectionPool(host topology.Host, opts Options) connectionPool {
-	seed := int64(murmur3.Sum32([]byte(host.Address())))
+	seed := int64(murmur3.StringSum32(host.Address()))
 
 	p := &connPool{
 		opts:               opts,
