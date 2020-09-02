@@ -109,11 +109,11 @@ require (
 	github.com/willf/bitset v1.1.10
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 
-	// This is 3.4.10. Note: we need to specify the version this way due to the issue
+	// This is 3.4.13. Note: we need to specify the version this way due to the issue
 	// described in https://github.com/etcd-io/etcd/issues/11154 .
 	// Version string was obtained by the method described in
 	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20200716221620-18dfb9cca345
+	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
 	go.uber.org/atomic v1.5.1
 	go.uber.org/config v1.4.0
 	go.uber.org/zap v1.13.0
@@ -153,3 +153,9 @@ replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.2016
 replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 
 replace github.com/uber-go/atomic => go.uber.org/atomic v1.6.0
+
+// Pull in https://github.com/etcd-io/bbolt/pull/220, required for go 1.14 compatibility
+//
+// etcd 3.14.13 depends on v1.3.3, but everything before v1.3.5 has unsafe misuses, and fails hard on go 1.14
+// TODO: remove after etcd pulls in the change to a new release on 3.4 branch
+replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
