@@ -1312,6 +1312,10 @@ func (i *nsIndex) Query(
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
 
+	if err := i.opts.IndexOptions().QueryStats().Update(0); err != nil {
+		return index.QueryResult{}, err
+	}
+
 	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQuery)
 	sp.LogFields(logFields...)
 	defer sp.Finish()
