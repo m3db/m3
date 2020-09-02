@@ -457,7 +457,7 @@ func TestGroupByNodes(t *testing.T) {
 			{"pod2.500", 8 * 12},
 		}},
 		{"sum", []int{}, []result{ // test empty slice handing.
-			{"all", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40)  * 12},
+			{"*", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40)  * 12},
 		}},
 	}
 
