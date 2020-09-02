@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -417,4 +418,35 @@ type Source interface {
 	// entirely cancel the bootstrapping of the node, i.e. non-recoverable
 	// situation like not being able to read from the filesystem.
 	Read(ctx context.Context, namespaces Namespaces) (NamespaceResults, error)
+}
+
+// InfoFileResultsPerShard maps shards to info files.
+type InfoFileResultsPerShard map[uint32][]fs.ReadInfoFileResult
+
+// InfoFilesByNamespace maps a namespace to info files grouped by shard.
+type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard
+
+type BootstrapContext struct {
+	sync.Mutex
+
+	options              ContextOptions
+	ctx                  context.Context
+	InfoFilesByNamespace InfoFilesByNamespace
+}
+
+type ContextOptions interface {
+	// Validate will validate the options and return an error if not valid.
+	Validate() error
+
+	// SetFilesystemOptions sets the filesystem options.
+	SetFilesystemOptions(value fs.Options) ContextOptions
+
+	// FilesystemOptions returns the filesystem options.
+	FilesystemOptions() fs.Options
+
+	// SetNamespaces set the namespaces that this bootstrap applies to.
+	SetNamespaces(value Namespaces) ContextOptions
+
+	// Namespaces returns the namespaces that this bootstrap applies to.
+	Namespaces() Namespaces
 }

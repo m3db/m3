@@ -23,18 +23,21 @@ package uninitialized
 import (
 	"errors"
 
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/x/instrument"
 )
 
 var (
-	errNoResultOptions     = errors.New("result options not set")
-	errNoInstrumentOptions = errors.New("instrument options not set")
+	errNoResultOptions         = errors.New("result options not set")
+	errNoInstrumentOptions     = errors.New("instrument options not set")
+	errFilesystemOptionsNotSet = errors.New("filesystem options not set")
 )
 
 type options struct {
 	resultOpts result.Options
 	iOpts      instrument.Options
+	fsOpts     fs.Options
 }
 
 // NewOptions creates a new Options.
@@ -51,6 +54,9 @@ func (o *options) Validate() error {
 	}
 	if o.iOpts == nil {
 		return errNoInstrumentOptions
+	}
+	if o.fsOpts == nil {
+		return errFilesystemOptionsNotSet
 	}
 	return nil
 }
@@ -73,4 +79,14 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.iOpts
+}
+
+func (o *options) SetFilesystemOptions(value fs.Options) Options {
+	opts := *o
+	opts.fsOpts = value
+	return &opts
+}
+
+func (o *options) FilesystemOptions() fs.Options {
+	return o.fsOpts
 }

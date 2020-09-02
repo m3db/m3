@@ -63,7 +63,7 @@ func (p uninitializedTopologyBootstrapperProvider) Provide() (bootstrap.Bootstra
 	}
 
 	return bootstrapper.NewBaseBootstrapper(
-		b.String(), src, p.opts.ResultOptions(), next)
+		b.String(), src, p.opts.ResultOptions(), p.opts.FilesystemOptions(), next)
 }
 
 func (p uninitializedTopologyBootstrapperProvider) String() string {

@@ -958,27 +958,6 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	return res, nil
 }
 
-func (s *fileSystemSource) loadInfoFiles(
-	namespaces bootstrap.Namespaces,
-) fs.InfoFilesByNamespace {
-	infoFilesByNamespace := make(fs.InfoFilesByNamespace)
-
-	for _, elem := range namespaces.Namespaces.Iter() {
-		namespace := elem.Value()
-		shardTimeRanges := namespace.DataRunOptions.ShardTimeRanges
-		result := make(fs.InfoFileResultsPerShard, shardTimeRanges.Len())
-		for shard := range shardTimeRanges.Iter() {
-			result[shard] = fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
-				namespace.Metadata.ID(), shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions(),
-				persist.FileSetFlushType)
-		}
-
-		infoFilesByNamespace[namespace.Metadata] = result
-	}
-
-	return infoFilesByNamespace
-}
-
 type runResult struct {
 	sync.RWMutex
 	data  result.DataBootstrapResult

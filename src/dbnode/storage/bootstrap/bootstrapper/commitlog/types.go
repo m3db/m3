@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -42,6 +43,12 @@ type Options interface {
 
 	// CommitLogOptions returns the commit log options.
 	CommitLogOptions() commitlog.Options
+
+	// SetFilesystemOptions sets the filesystem options.
+	SetFilesystemOptions(value fs.Options) Options
+
+	// FilesystemOptions returns the filesystem options.
+	FilesystemOptions() fs.Options
 
 	// SetAccumulateConcurrency sets the concurrency for accumulating.
 	SetAccumulateConcurrency(value int) Options

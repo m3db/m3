@@ -231,6 +231,7 @@ func (bsc BootstrapConfiguration) New(
 			cOpts := commitlog.NewOptions().
 				SetResultOptions(rsOpts).
 				SetCommitLogOptions(opts.CommitLogOptions()).
+				SetFilesystemOptions(fsOpts).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetReturnUnfulfilledForCorruptCommitLogFiles(cCfg.ReturnUnfulfilledForCorruptCommitLogFiles)
 			if err := validator.ValidateCommitLogBootstrapperOptions(cOpts); err != nil {
@@ -267,7 +268,8 @@ func (bsc BootstrapConfiguration) New(
 		case uninitialized.UninitializedTopologyBootstrapperName:
 			uOpts := uninitialized.NewOptions().
 				SetResultOptions(rsOpts).
-				SetInstrumentOptions(opts.InstrumentOptions())
+				SetInstrumentOptions(opts.InstrumentOptions()).
+				SetFilesystemOptions(fsOpts)
 			if err := validator.ValidateUninitializedBootstrapperOptions(uOpts); err != nil {
 				return nil, err
 			}

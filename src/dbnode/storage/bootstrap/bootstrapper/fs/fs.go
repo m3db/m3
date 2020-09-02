@@ -68,7 +68,7 @@ func (p fileSystemBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error
 		}
 	}
 	return bootstrapper.NewBaseBootstrapper(b.String(),
-		src, p.opts.ResultOptions(), next)
+		src, p.opts.ResultOptions(), p.opts.FilesystemOptions(), next)
 }
 
 func (p fileSystemBootstrapperProvider) String() string {

@@ -21,6 +21,7 @@
 package uninitialized
 
 import (
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/x/instrument"
 )
@@ -41,4 +42,10 @@ type Options interface {
 
 	// Return the instrument options.
 	InstrumentOptions() instrument.Options
+
+	// SetFilesystemOptions sets the filesystem options.
+	SetFilesystemOptions(value fs.Options) Options
+
+	// FilesystemOptions returns the filesystem options.
+	FilesystemOptions() fs.Options
 }

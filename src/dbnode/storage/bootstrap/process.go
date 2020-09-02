@@ -218,6 +218,9 @@ func (b bootstrapProcess) Run(
 		namespacesRunFirst,
 		namespacesRunSecond,
 	} {
+		// TODO: bootstrap context created here?
+		// - BootstrapContext w/ options: namespaces, fs options
+		// - ReadInfoFiles returns InfoFilesByNamespace
 		res, err := b.runPass(ctx, namespaces)
 		if err != nil {
 			return NamespaceResults{}, err

@@ -25,6 +25,7 @@ import (
 	"math"
 	goruntime "runtime"
 
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -40,6 +41,7 @@ const (
 var (
 	errAccumulateConcurrencyPositive = errors.New("accumulate concurrency must be positive")
 	errRuntimeOptsMgrNotSet          = errors.New("runtime options manager is not set")
+	errFilesystemOptionsNotSet       = errors.New("filesystem options not set")
 
 	// defaultAccumulateConcurrency determines how fast to accumulate results.
 	defaultAccumulateConcurrency = int(math.Max(float64(goruntime.NumCPU())*0.75, 1))
@@ -48,6 +50,7 @@ var (
 type options struct {
 	resultOpts                                result.Options
 	commitLogOpts                             commitlog.Options
+	fsOpts                                    fs.Options
 	accumulateConcurrency                     int
 	runtimeOptsMgr                            runtime.OptionsManager
 	returnUnfulfilledForCorruptCommitLogFiles bool
@@ -70,6 +73,10 @@ func (o *options) Validate() error {
 	if o.runtimeOptsMgr == nil {
 		return errRuntimeOptsMgrNotSet
 	}
+	if o.fsOpts == nil {
+		return errFilesystemOptionsNotSet
+	}
+
 	return o.commitLogOpts.Validate()
 }
 
@@ -91,6 +98,16 @@ func (o *options) SetCommitLogOptions(value commitlog.Options) Options {
 
 func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
+}
+
+func (o *options) SetFilesystemOptions(value fs.Options) Options {
+	opts := *o
+	opts.fsOpts = value
+	return &opts
+}
+
+func (o *options) FilesystemOptions() fs.Options {
+	return o.fsOpts
 }
 
 func (o *options) SetAccumulateConcurrency(value int) Options {

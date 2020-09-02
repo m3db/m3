@@ -23,6 +23,8 @@ package bootstrapper
 import (
 	"fmt"
 
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/x/context"
@@ -37,11 +39,12 @@ const (
 
 // baseBootstrapper provides a skeleton for the interface methods.
 type baseBootstrapper struct {
-	opts result.Options
-	log  *zap.Logger
-	name string
-	src  bootstrap.Source
-	next bootstrap.Bootstrapper
+	opts   result.Options
+	fsOpts fs.Options
+	log    *zap.Logger
+	name   string
+	src    bootstrap.Source
+	next   bootstrap.Bootstrapper
 }
 
 // NewBaseBootstrapper creates a new base bootstrapper.
@@ -49,6 +52,7 @@ func NewBaseBootstrapper(
 	name string,
 	src bootstrap.Source,
 	opts result.Options,
+	fsOpts fs.Options,
 	next bootstrap.Bootstrapper,
 ) (bootstrap.Bootstrapper, error) {
 	var (
@@ -62,11 +66,12 @@ func NewBaseBootstrapper(
 		}
 	}
 	return baseBootstrapper{
-		opts: opts,
-		log:  opts.InstrumentOptions().Logger(),
-		name: name,
-		src:  src,
-		next: bs,
+		opts:   opts,
+		fsOpts: fsOpts,
+		log:    opts.InstrumentOptions().Logger(),
+		name:   name,
+		src:    src,
+		next:   bs,
 	}, nil
 }
 
@@ -82,6 +87,8 @@ func (b baseBootstrapper) Bootstrap(
 	logFields := []zapcore.Field{
 		zap.String("bootstrapper", b.name),
 	}
+
+	infoFilesByNamespace := b.loadInfoFiles(namespaces)
 
 	curr := bootstrap.Namespaces{
 		Namespaces: bootstrap.NewNamespacesMap(bootstrap.NamespacesMapOptions{}),
@@ -196,6 +203,27 @@ func (b baseBootstrapper) Bootstrap(
 	}
 
 	return finalResults, nil
+}
+
+func (b baseBootstrapper) loadInfoFiles(
+	namespaces bootstrap.Namespaces,
+) bootstrap.InfoFilesByNamespace {
+	infoFilesByNamespace := make(bootstrap.InfoFilesByNamespace)
+
+	for _, elem := range namespaces.Namespaces.Iter() {
+		namespace := elem.Value()
+		shardTimeRanges := namespace.DataRunOptions.ShardTimeRanges
+		result := make(bootstrap.InfoFileResultsPerShard, shardTimeRanges.Len())
+		for shard := range shardTimeRanges.Iter() {
+			result[shard] = fs.ReadInfoFiles(b.fsOpts.FilePathPrefix(),
+				namespace.Metadata.ID(), shard, b.fsOpts.InfoReaderBufferSize(), b.fsOpts.DecodingOptions(),
+				persist.FileSetFlushType)
+		}
+
+		infoFilesByNamespace[namespace.Metadata] = result
+	}
+
+	return infoFilesByNamespace
 }
 
 func (b baseBootstrapper) logSuccessAndDetermineCurrResultsUnfulfilledAndNextBootstrapRanges(
