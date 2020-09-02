@@ -158,6 +158,7 @@ func CompressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
 	iterPools encoding.IteratorPools,
 ) (*rpc.Series, error) {
+	fmt.Println("NEXT 1")
 	replicas, err := it.Replicas()
 	if err != nil {
 		return nil, err
@@ -167,6 +168,7 @@ func CompressedSeriesFromSeriesIterator(
 	for _, replica := range replicas {
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
+		fmt.Println("NEXT")
 		for next := true; next; next = readers.Next() {
 			segments, err := compressedSegmentsFromReaders(readers)
 			if err != nil {

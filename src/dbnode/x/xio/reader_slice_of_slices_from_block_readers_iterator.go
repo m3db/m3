@@ -21,6 +21,7 @@
 package xio
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -41,7 +42,8 @@ func NewReaderSliceOfSlicesFromBlockReadersIterator(
 }
 
 func (it *readerSliceOfSlicesIterator) Next() bool {
-	if !(it.idx+1 < it.len) {
+	fmt.Println(it.idx, it.len)
+	if it.idx >= it.len-1 {
 		return false
 	}
 	it.idx++
@@ -106,5 +108,6 @@ func (it *readerSliceOfSlicesIterator) Size() (int, error) {
 }
 
 func (it *readerSliceOfSlicesIterator) Rewind() {
-	it.idx = 0
+	it.idx = -1
+	it.closed = false
 }

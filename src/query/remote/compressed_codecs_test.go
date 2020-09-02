@@ -102,6 +102,7 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 	for i, expectedValue := range expectedValues() {
 		require.True(t, it.Next())
 		dp, unit, annotation := it.Current()
+		//fmt.Println(dp)
 		require.Equal(t, expectedValue, dp.Value)
 		require.Equal(t, seriesStart.Add(time.Duration(i)*time.Minute), dp.Timestamp)
 		uv, err := unit.Value()
@@ -330,4 +331,14 @@ func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	mockIter.EXPECT().ID().Return(ident.StringID("")).Times(1)
 
 	CompressedSeriesFromSeriesIterator(mockIter, nil)
+}
+
+func TestIterablePostCompression(t *testing.T) {
+	it := buildTestSeriesIterator(t)
+	ip := test.MakeMockIteratorPool()
+	series, err := CompressedSeriesFromSeriesIterator(it, ip)
+	require.NoError(t, err)
+	require.NotNil(t, series)
+
+	validateSeries(t, it)
 }
