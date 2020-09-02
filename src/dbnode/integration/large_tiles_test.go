@@ -45,6 +45,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -132,7 +133,7 @@ func TestReadAggregateWrite(t *testing.T) {
 		dpTimeStart.Add(290 * time.Minute).Unix(): 71.1,
 		dpTimeStart.Add(350 * time.Minute).Unix(): 77.1,
 	}
-	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn(), expectedDps)
+	fetchAndValidate(t, session, srcNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn(), expectedDps)
 
 	expectedDps = map[int64]float64{
 		dpTimeStart.Unix(): 15,
@@ -180,13 +181,14 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	log.Info("Starting aggregation loop")
 	start = time.Now()
 
-	inProgress := true
+	inProgress := atomic.NewBool(true)
 	var wg sync.WaitGroup
 	for b := 0; b < 2; b++ {
+		b := b
 		go func() {
 			wg.Add(1)
 			defer wg.Done()
-			for inProgress {
+			for inProgress.Load() {
 				fmt.Printf("Fetch...")
 				series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(b)), dpTimeStart, dpTimeStart.Add(blockSizeT))
 				count := 0
@@ -221,7 +223,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 			break
 		}
 	}
-	inProgress = false
+	inProgress.Toggle()
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	wg.Wait()
 	require.NoError(t, err)
