@@ -246,6 +246,15 @@ func (s *fileSystemSource) runMigrations(ctx context.Context, infoFilesByNamespa
 		s.log.Error("error creating migrator. continuing bootstrap", zap.Error(err))
 	}
 
+	// NB(nate): Handling of errors should be re-evaluated as migrations are added. Current migrations
+	// do not mutate state in such a way that data can be left in an invalid state in the case of failures. Additionally,
+	// we want to ensure that the bootstrap process is always able to continue. If either of these conditions change,
+	// error handling at this level AND the individual migration task level should be reconsidered.
+	//
+	// One final note, as more migrations are introduced and the complexity is increased, we may want to consider adding
+	// 1) a recovery mechanism to ensure that repeatable panics don't create a crash loop and
+	// 2) state tracking to abort migration attempts after a certain number of consecutive failures.
+	// For now, simply setting the target migration to "None" in config is enough to mitigate both of these cases.
 	if err = migrator.Run(ctx); err != nil {
 		s.log.Error("error performing migrations. continuing bootstrap", zap.Error(err))
 	}

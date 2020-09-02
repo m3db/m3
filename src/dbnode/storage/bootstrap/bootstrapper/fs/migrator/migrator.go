@@ -202,6 +202,10 @@ func (m *Migrator) startWorker(worker *worker, candidates []migrationCandidate, 
 		if err != nil {
 			m.log.Error("error creating migration task", zap.Error(err))
 		}
+		// NB(nate): Handling of errors should be re-evaluated as migrations are added. Current migrations
+		// do not mutate state in such a way that data can be left in an invalid state in the case of failures. Additionally,
+		// we want to ensure that the bootstrap process is always able to continue. If either of these conditions change,
+		// error handling at this level AND the migrator level should be reconsidered.
 		infoFileResult, err := task.Run()
 		if err != nil {
 			m.log.Error("error running migration task", zap.Error(err))
