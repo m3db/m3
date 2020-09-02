@@ -23,7 +23,9 @@
 package integration
 
 import (
+	"fmt"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,6 +135,115 @@ func TestReadAggregateWrite(t *testing.T) {
 		dpTimeStart.Unix(): 15,
 	}
 	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("aab"), dpTimeStart, nowFn(), expectedDps)
+}
+
+func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
+	testSetup, srcNs, trgNs, reporter, closer := setupServer(t)
+	storageOpts := testSetup.StorageOpts()
+	log := storageOpts.InstrumentOptions().Logger()
+
+	// Stop the server.
+	defer func() {
+		require.NoError(t, testSetup.StopServer())
+		log.Debug("server is now down")
+		testSetup.Close()
+		closer.Close()
+	}()
+
+	start := time.Now()
+	session, err := testSetup.M3DBClient().DefaultSession()
+	require.NoError(t, err)
+	nowFn := testSetup.NowFn()
+
+	tags := []ident.Tag{
+		ident.StringTag("__name__", "cpu"),
+		ident.StringTag("job", "job1"),
+	}
+
+	// Write test data.
+	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
+	dpTime := dpTimeStart
+
+	testDataPointsCount := 600.0
+	for a := 0.0; a < testDataPointsCount; a++ {
+		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 42.1+a, xtime.Second, nil)
+		err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 42.1+a, xtime.Second, nil)
+		require.NoError(t, err)
+		dpTime = dpTime.Add(time.Minute)
+	}
+	log.Info("test data written", zap.Duration("took", time.Since(start)))
+
+	log.Info("waiting till data is cold flushed")
+	start = time.Now()
+	//expectedNumWrites := int64(testDataPointsCount)
+	flushed := xclock.WaitUntil(func() bool {
+		counters := reporter.Counters()
+		flushes, _ := counters["database.flushIndex.success"]
+		writes, _ := counters["database.series.cold-writes"]
+		successFlushes, _ := counters["database.flushColdData.success"]
+		return flushes >= 1 && writes >= 300 && successFlushes >= 4
+	}, time.Minute)
+	require.True(t, flushed)
+	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
+
+	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), 10*time.Minute, false)
+	require.NoError(t, err)
+
+	log.Info("Starting aggregation loop")
+	start = time.Now()
+
+	inProgress := true
+	var wg sync.WaitGroup
+	for b := 0; b < 2; b++ {
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
+			for inProgress {
+				fmt.Printf("Fetch...")
+				series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"), dpTimeStart, dpTimeStart.Add(blockSizeT))
+				count := 0
+				if err == nil {
+					for series.Next() {
+						_, _, _ = series.Current()
+						count++
+					}
+				}
+
+				fmt.Println(count, "Done")
+				if err != nil {
+					fmt.Println(time.Now(), "FETCH ERR", err)
+					return
+				}
+				time.Sleep(time.Millisecond)
+			}
+		}()
+	}
+
+	var (
+		processedBlockCount int64
+	)
+	for a := 0; a < 100; a++ {
+		fmt.Println(time.Now(), "Aggregation", a)
+		processedBlockCount, err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
+		if err != nil {
+			fmt.Println(time.Now(), "AGG ERR", err)
+		}
+		fmt.Println("Aggregation-Done")
+		if err != nil || processedBlockCount != 72 {
+			break
+		}
+	}
+	inProgress = false
+	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
+	wg.Wait()
+	require.NoError(t, err)
+	require.Equal(t, int64(72), processedBlockCount)
+
+	counters := reporter.Counters()
+	writeErrorsCount, _ := counters["database.writeAggData.errors"]
+	require.Equal(t, int64(0), writeErrorsCount)
+	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
+	require.Equal(t, int64(200), seriesWritesCount)
 }
 
 func fetchAndValidate(
