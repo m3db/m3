@@ -1960,6 +1960,7 @@ func init() {
 	})
 	MustRegisterFunction(sumSeries)
 	MustRegisterFunction(sumSeriesWithWildcards)
+	MustRegisterFunction(aggregateWithWildcards)
 	MustRegisterFunction(sustainedAbove)
 	MustRegisterFunction(sustainedBelow)
 	MustRegisterFunction(threshold).WithDefaultParams(map[uint8]interface{}{
