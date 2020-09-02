@@ -35,8 +35,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -155,33 +158,18 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	require.NoError(t, err)
 	nowFn := testSetup.NowFn()
 
-	tags := []ident.Tag{
-		ident.StringTag("__name__", "cpu"),
-		ident.StringTag("job", "job1"),
-	}
-
-	// Write test data.
 	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
-	dpTime := dpTimeStart
-
-	testDataPointsCount := 600.0
-	for a := 0.0; a < testDataPointsCount; a++ {
-		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 42.1+a, xtime.Second, nil)
-		err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 42.1+a, xtime.Second, nil)
-		require.NoError(t, err)
-		dpTime = dpTime.Add(time.Minute)
-	}
+	writeTestData(t, testSetup, dpTimeStart, srcNs.ID())
 	log.Info("test data written", zap.Duration("took", time.Since(start)))
 
 	log.Info("waiting till data is cold flushed")
 	start = time.Now()
-	//expectedNumWrites := int64(testDataPointsCount)
 	flushed := xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
 		flushes, _ := counters["database.flushIndex.success"]
 		writes, _ := counters["database.series.cold-writes"]
 		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 && writes >= 300 && successFlushes >= 4
+		return flushes >= 1 && writes >= 600000 && successFlushes >= 4
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
@@ -200,7 +188,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 			defer wg.Done()
 			for inProgress {
 				fmt.Printf("Fetch...")
-				series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"), dpTimeStart, dpTimeStart.Add(blockSizeT))
+				series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(b)), dpTimeStart, dpTimeStart.Add(blockSizeT))
 				count := 0
 				if err == nil {
 					for series.Next() {
@@ -222,14 +210,14 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	var (
 		processedBlockCount int64
 	)
-	for a := 0; a < 100; a++ {
+	for a := 0; a < 10; a++ {
 		fmt.Println(time.Now(), "Aggregation", a)
 		processedBlockCount, err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
 		if err != nil {
 			fmt.Println(time.Now(), "AGG ERR", err)
 		}
-		fmt.Println("Aggregation-Done")
-		if err != nil || processedBlockCount != 72 {
+		fmt.Println("Aggregation-Done", processedBlockCount)
+		if err != nil || processedBlockCount != 36000 {
 			break
 		}
 	}
@@ -237,13 +225,16 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	wg.Wait()
 	require.NoError(t, err)
-	require.Equal(t, int64(72), processedBlockCount)
+	require.Equal(t, int64(36000), processedBlockCount)
 
 	counters := reporter.Counters()
 	writeErrorsCount, _ := counters["database.writeAggData.errors"]
 	require.Equal(t, int64(0), writeErrorsCount)
 	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
-	require.Equal(t, int64(200), seriesWritesCount)
+	require.Equal(t, int64(10000), seriesWritesCount)
+
+	series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
+	require.NoError(t, err)
 }
 
 func fetchAndValidate(
@@ -295,7 +286,8 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 
 	testOpts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{srcNs, trgNs}).
-		SetWriteNewSeriesAsync(true)
+		SetWriteNewSeriesAsync(true).
+		SetNumShards(1)
 
 	testSetup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, testOpts)
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
@@ -311,4 +303,45 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	require.NoError(t, testSetup.StartServer())
 
 	return testSetup, srcNs, trgNs, reporter, closer
+}
+
+func writeTestData(t *testing.T, testSetup TestSetup, dpTimeStart time.Time, ns ident.ID) {
+	tags := []ident.Tag{
+		ident.StringTag("__name__", "cpu"),
+		ident.StringTag("job", "job1"),
+	}
+
+	dpTime := dpTimeStart
+
+	testDataPointsCount := 600.0
+	testSeriesCount := 1000
+
+	testTagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+		pool.NewObjectPoolOptions().SetSize(1))
+	testTagEncodingPool.Init()
+	encoder := testTagEncodingPool.Get()
+	tagsIter := ident.NewTagsIterator(ident.NewTags(tags...))
+	err := encoder.Encode(tagsIter)
+	require.NoError(t, err)
+
+	encodedTags, ok := encoder.Data()
+	require.True(t, ok)
+	encodedTagsBytes := encodedTags.Bytes()
+
+	i := 0
+	for a := 0.0; a < testDataPointsCount; a++ {
+		batchWriter, err := testSetup.DB().BatchWriter(ns, int(testDataPointsCount))
+		require.NoError(t, err)
+
+		for b := 0; b < testSeriesCount; b++ {
+			tagsIter.Rewind()
+			err := batchWriter.AddTagged(i, ident.StringID("foo"+string(b)), tagsIter, encodedTagsBytes, dpTime, 42.1+a, xtime.Second, nil)
+			require.NoError(t, err)
+			i++
+		}
+		err = testSetup.DB().WriteTaggedBatch(context.NewContext(), ns, batchWriter, nil)
+		require.NoError(t, err)
+
+		dpTime = dpTime.Add(time.Minute)
+	}
 }
