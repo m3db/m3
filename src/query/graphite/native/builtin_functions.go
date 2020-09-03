@@ -1893,6 +1893,7 @@ func init() {
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
+	MustRegisterFunction(groupByNodes)
 	MustRegisterFunction(highestAverage)
 	MustRegisterFunction(highestCurrent)
 	MustRegisterFunction(highestMax)
