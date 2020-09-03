@@ -133,11 +133,11 @@ func (m *Migrator) Run(ctx context.Context) error {
 
 	// Start up workers.
 	var (
-		wg                  = &sync.WaitGroup{}
+		wg                  sync.WaitGroup
 		candidatesPerWorker = len(candidates) / numWorkers
 		candidateIdx        = 0
 
-		completedMigrationsLock = &sync.Mutex{}
+		completedMigrationsLock sync.Mutex
 		completedMigrations     = make([]completedMigration, 0, len(candidates))
 	)
 	for i, worker := range workers {
@@ -178,7 +178,14 @@ func (m *Migrator) Run(ctx context.Context) error {
 }
 
 func (m *Migrator) findMigrationCandidates() []migrationCandidate {
-	var candidates []migrationCandidate
+	maxCapacity := 0
+	for _, resultsByShard := range m.infoFilesByNamespace {
+		for _, results := range resultsByShard {
+			maxCapacity += len(results)
+		}
+	}
+
+	candidates := make([]migrationCandidate, 0, maxCapacity)
 	for md, resultsByShard := range m.infoFilesByNamespace {
 		for shard, results := range resultsByShard {
 			for _, info := range results {
