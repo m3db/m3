@@ -2042,7 +2042,6 @@ func init() {
 	MustRegisterFunction(mostDeviant)
 	MustRegisterFunction(movingAverage)
 	MustRegisterFunction(movingMedian)
-	MustRegisterFunction(movingSum)
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue
