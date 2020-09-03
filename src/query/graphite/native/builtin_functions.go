@@ -250,16 +250,10 @@ func timeShift(
 // delay is indifferent about the step intervals being shifted.
 func delay(
 	ctx *common.Context,
-	_ singlePathSpec,
+	singlePath singlePathSpec,
 	steps int,
-) (*unaryContextShifter, error) {
-
-	contextShiftingFn := func(c *common.Context) *common.Context {
-		// no need to shift the context here
-		return c;
-	}
-
-	transformerFn := func(input ts.SeriesList) (ts.SeriesList, error) {
+) (ts.SeriesList, error) {
+		input := ts.SeriesList(singlePath)
 		output := make([]*ts.Series, input.Len())
 
 		for i, series := range input.Values {
@@ -270,12 +264,6 @@ func delay(
 		}
 		input.Values = output
 		return input, nil
-	}
-
-	return &unaryContextShifter{
-		ContextShiftFunc: contextShiftingFn,
-		UnaryTransformer: transformerFn,
-	}, nil
 }
 
 // delayValuesHelper takes a series and returns a copy of the values after
