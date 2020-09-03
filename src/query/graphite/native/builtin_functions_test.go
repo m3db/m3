@@ -605,7 +605,7 @@ func TestTransformNull(t *testing.T) {
 var (
 	testMovingFunctionBootstrap = testMovingFunctionStart.Add(-30 * time.Second)
 	testMovingFunctionStart     = time.Now().Truncate(time.Minute)
-	testMovingFunctionEnd       = testMovingFunctionStart.Add(time.Minute * 120)
+	testMovingFunctionEnd       = testMovingFunctionStart.Add(time.Minute)
 )
 
 func testMovingFunction(t *testing.T, target, expectedName string, values, bootstrap, output []float64) {
