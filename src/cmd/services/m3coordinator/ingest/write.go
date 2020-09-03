@@ -229,6 +229,10 @@ func (d *downsamplerAndWriter) writeToDownsampler(
 	unit xtime.Unit,
 	overrides WriteOptions,
 ) (bool, error) {
+	if err := tags.Validate(); err != nil {
+		return false, err
+	}
+
 	appender, err := d.downsampler.NewMetricsAppender()
 	if err != nil {
 		return false, err
@@ -433,6 +437,11 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		appender.NextMetric()
 
 		value := iter.Current()
+		if err := value.Tags.Validate(); err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+
 		for _, tag := range value.Tags.Tags {
 			appender.AddTag(tag.Name, tag.Value)
 		}
