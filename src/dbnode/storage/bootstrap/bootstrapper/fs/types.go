@@ -25,6 +25,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -108,4 +109,10 @@ type Options interface {
 
 	// MigrationOptions gets the migration options.
 	MigrationOptions() migration.Options
+
+	// SetStorageOptions sets storage options.
+	SetStorageOptions(value storage.Options) Options
+
+	// StorageOptions gets the storage options.
+	StorageOptions() storage.Options
 }
