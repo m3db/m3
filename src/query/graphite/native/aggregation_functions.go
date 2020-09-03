@@ -22,6 +22,7 @@ package native
 
 import (
 	"fmt"
+	"github.com/m3db/m3/src/query/block"
 	"math"
 	"strings"
 
@@ -89,7 +90,33 @@ func maxSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, er
 	return combineSeries(ctx, series, wrapPathExpr("maxSeries", ts.SeriesList(series)), ts.Max)
 }
 
-// divideSeries divides one series list by another series
+func divideSeriesHelper(ctx *common.Context, dividendSeries, divisorSeries ts.Series, metadata block.ResultMetadata) (*ts.Series, error) {
+	normalized, minBegin, _, lcmMillisPerStep, err := common.Normalize(ctx, ts.SeriesList{
+		Values:   []*ts.Series{&dividendSeries, &divisorSeries},
+		Metadata: metadata,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// NB(bl): Normalized must give back exactly two series of the same length.
+	dividend, divisor := normalized.Values[0], normalized.Values[1]
+	numSteps := dividend.Len()
+	vals := ts.NewValues(ctx, lcmMillisPerStep, numSteps)
+	for i := 0; i < numSteps; i++ {
+		dividendVal := dividend.ValueAt(i)
+		divisorVal := divisor.ValueAt(i)
+		if !math.IsNaN(dividendVal) && !math.IsNaN(divisorVal) && divisorVal != 0 {
+			value := dividendVal / divisorVal
+			vals.SetValueAt(i, value)
+		}
+	}
+	name := fmt.Sprintf("divideSeries(%s,%s)", dividend.Name(), divisor.Name())
+	quotientSeries := ts.NewSeries(ctx, name, minBegin, vals)
+	return quotientSeries, nil
+}
+
+// divideSeries divides one series list by another single series
 func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList singlePathSpec) (ts.SeriesList, error) {
 	if len(divisorSeriesList.Values) != 1 {
 		err := errors.NewInvalidParamsError(fmt.Errorf(
@@ -106,27 +133,35 @@ func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList sin
 	divisorSeries := divisorSeriesList.Values[0]
 	results := make([]*ts.Series, len(dividendSeriesList.Values))
 	for idx, dividendSeries := range dividendSeriesList.Values {
-		normalized, minBegin, _, lcmMillisPerStep, err := common.Normalize(ctx, ts.SeriesList{
-			Values:   []*ts.Series{dividendSeries, divisorSeries},
-			Metadata: divisorSeriesList.Metadata.CombineMetadata(dividendSeriesList.Metadata),
-		})
+		metadata :=  divisorSeriesList.Metadata.CombineMetadata(dividendSeriesList.Metadata)
+		quotientSeries, err := divideSeriesHelper(ctx, *dividendSeries, *divisorSeries, metadata)
 		if err != nil {
 			return ts.NewSeriesList(), err
 		}
-		// NB(bl): Normalized must give back exactly two series of the same length.
-		dividend, divisor := normalized.Values[0], normalized.Values[1]
-		numSteps := dividend.Len()
-		vals := ts.NewValues(ctx, lcmMillisPerStep, numSteps)
-		for i := 0; i < numSteps; i++ {
-			dividendVal := dividend.ValueAt(i)
-			divisorVal := divisor.ValueAt(i)
-			if !math.IsNaN(dividendVal) && !math.IsNaN(divisorVal) && divisorVal != 0 {
-				value := dividendVal / divisorVal
-				vals.SetValueAt(i, value)
-			}
+		results[idx] = quotientSeries
+	}
+
+	r := ts.SeriesList(dividendSeriesList)
+	r.Values = results
+	return r, nil
+}
+
+
+// divideSeriesLists divides one series list by another series list
+func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesList singlePathSpec) (ts.SeriesList, error) {
+	if len(dividendSeriesList.Values) != len(divisorSeriesList.Values) {
+		err := errors.NewInvalidParamsError(fmt.Errorf(
+			"divideSeriesLists both SeriesLists must have exactly the same length"))
+		return ts.NewSeriesList(), err
+	}
+	results := make([]*ts.Series, len(dividendSeriesList.Values))
+	for idx, dividendSeries := range dividendSeriesList.Values {
+		divisorSeries := divisorSeriesList.Values[idx]
+		metadata :=  divisorSeriesList.Metadata.CombineMetadata(dividendSeriesList.Metadata)
+		quotientSeries, err := divideSeriesHelper(ctx, *dividendSeries, *divisorSeries, metadata)
+		if err != nil {
+			return ts.NewSeriesList(), err
 		}
-		name := fmt.Sprintf("divideSeries(%s,%s)", dividend.Name(), divisor.Name())
-		quotientSeries := ts.NewSeries(ctx, name, minBegin, vals)
 		results[idx] = quotientSeries
 	}
 
