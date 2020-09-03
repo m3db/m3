@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/util"
 )
@@ -241,6 +242,56 @@ func timeShift(
 		UnaryTransformer: transformerFn,
 	}, nil
 }
+
+
+func timeSlice(ctx *common.Context, input singlePathSpec, start string, end string) (*unaryContextShifter, error) {
+
+	contextShiftingFn := func(c *common.Context) *common.Context {
+		// no need to shift the context here
+		return c;
+	}
+
+	tzOffsetForAbsoluteTime := time.Duration(0)
+	startTime, err := graphite.ParseTime(start, time.Now(), tzOffsetForAbsoluteTime)
+	endTime, err := graphite.ParseTime(end, time.Now(), tzOffsetForAbsoluteTime)
+
+	if (err != nil) {
+		return nil, err
+	}
+
+	transformerFn := func(input ts.SeriesList) (ts.SeriesList, error) {
+		output := make([]*ts.Series, input.Len())
+
+		for i, series := range input.Values {
+			nanoSecondsPerStep := series.MillisPerStep() * 1000000
+			stepDuration := time.Duration(nanoSecondsPerStep)
+			truncatedValues := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+
+			currentTime := series.StartTime()
+			for i := 0; i < series.Len(); i++ {
+				ctString := currentTime.String()
+				fmt.Println(ctString)
+				if ( currentTime.After(startTime) && currentTime.Before(endTime)) {
+					truncatedValues.SetValueAt(i, series.ValueAtTime(currentTime))
+				}
+				currentTime = currentTime.Add(stepDuration)
+			}
+
+			slicedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), truncatedValues)
+			renamedSlicedSeries := slicedSeries.RenamedTo(fmt.Sprintf("timeSlice(%s,%s, %s)", slicedSeries.Name(), start, end))
+			output[i] = renamedSlicedSeries
+		}
+		input.Values = output
+		return input, nil
+	}
+
+	return &unaryContextShifter{
+		ContextShiftFunc: contextShiftingFn,
+		UnaryTransformer: transformerFn,
+	}, nil
+}
+
+
 
 // absolute returns the absolute value of each element in the series.
 func absolute(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
@@ -2036,6 +2087,9 @@ func init() {
 	})
 	MustRegisterFunction(timeShift).WithDefaultParams(map[uint8]interface{}{
 		3: true, // resetEnd
+	})
+	MustRegisterFunction(timeSlice).WithDefaultParams(map[uint8]interface{}{
+		3: "now", // endTime
 	})
 	MustRegisterFunction(transformNull).WithDefaultParams(map[uint8]interface{}{
 		2: 0.0, // defaultValue
