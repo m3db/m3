@@ -702,6 +702,13 @@ const (
 	statusClosed
 )
 
+type healthStatus int
+
+const (
+	healthStatusCheckFailed healthStatus = iota
+	healthStatusOK
+)
+
 type op interface {
 	// Size returns the effective size of inner operations.
 	Size() int

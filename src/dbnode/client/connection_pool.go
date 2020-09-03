@@ -32,8 +32,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xclose "github.com/m3db/m3/src/x/close"
-	"github.com/m3db/stackmurmur3/v2"
+	murmur3 "github.com/m3db/stackmurmur3/v2"
 
+	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 )
@@ -63,6 +64,7 @@ type connPool struct {
 	sleepHealth        sleepFn
 	sleepHealthRetry   sleepFn
 	status             status
+	healthStatus       tally.Gauge
 }
 
 type conn struct {
@@ -94,6 +96,7 @@ func newConnectionPool(host topology.Host, opts Options) connectionPool {
 		sleepConnect:       time.Sleep,
 		sleepHealth:        time.Sleep,
 		sleepHealthRetry:   time.Sleep,
+		healthStatus:       opts.InstrumentOptions().MetricsScope().Gauge("health-status"),
 	}
 
 	return p
@@ -186,11 +189,13 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 
 				// Health check the connection
 				if err := p.healthCheckNewConn(client, p.opts); err != nil {
+					p.healthStatus.Update(float64(healthStatusCheckFailed))
 					log.Debug("could not connect, failed health check", zap.String("host", address), zap.Error(err))
 					channel.Close()
 					return
 				}
 
+				p.healthStatus.Update(float64(healthStatusOK))
 				p.Lock()
 				if p.status == statusOpen {
 					p.pool = append(p.pool, conn{channel, client})
