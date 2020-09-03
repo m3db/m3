@@ -269,8 +269,6 @@ func timeSlice(ctx *common.Context, input singlePathSpec, start string, end stri
 
 			currentTime := series.StartTime()
 			for i := 0; i < series.Len(); i++ {
-				ctString := currentTime.String()
-				fmt.Println(ctString)
 				if ( currentTime.After(startTime) && currentTime.Before(endTime)) {
 					truncatedValues.SetValueAt(i, series.ValueAtTime(currentTime))
 				}
