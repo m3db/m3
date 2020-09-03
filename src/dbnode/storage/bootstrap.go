@@ -195,8 +195,9 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	// load to the cluster. It turns out to be better to let ticking happen naturally
 	// on its own course so that the load of ticking and flushing is more spread out
 	// across the cluster.
-
+	m.Lock()
 	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
+	m.Unlock()
 	return result, nil
 }
 
