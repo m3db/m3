@@ -261,55 +261,6 @@ func TestScale(t *testing.T) {
 	}
 }
 
-/*
-mockIndex.EXPECT().Get(gomock.Any()).DoAndReturn(
-// signature of anonymous function must have the same number of input and output arguments as the mocked method.
-func(arg string) string {
-	time.Sleep(1 * time.Millisecond)
-	return "I'm sleepy"
-},
-)
-*/
-
-
-func TestUseSeriesAboveOld(t *testing.T) {
-	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
-	expectedValues := []float64{4.0, 7.0, 12.0, 7.0, 4.5}
-	// useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
-	target := "useSeriesAbove(foo.bar.baz, 15, 'baz', 'bar')"
-	expectedName := "useSeriesAbove(foo.bar.baz,\"30s\")"
-
-	ctx := common.NewTestContext()
-	defer ctx.Close()
-
-	engine := NewEngine(
-		&common.MovingFunctionStorage{
-			StepMillis:     10000,
-			Values:         values,
-		},
-	)
-	phonyContext := common.NewContext(common.ContextOptions{
-		Start:  testMovingFunctionStart,
-		End:    testMovingFunctionEnd,
-		Engine: engine,
-	})
-
-	expr, err := phonyContext.Engine.(*Engine).Compile(target)
-	require.NoError(t, err)
-	res, err := expr.Execute(phonyContext)
-	require.NoError(t, err)
-	var expected []common.TestSeries
-	if expectedValues != nil {
-		expectedSeries := common.TestSeries{
-			Name: expectedName,
-			Data: expectedValues,
-		}
-		expected = append(expected, expectedSeries)
-	}
-	common.CompareOutputsAndExpected(t, 10000, testMovingFunctionStart,
-		expected, res.Values)
-
-}
 
 func TestUseSeriesAbove(t *testing.T) {
 	ctrl := xgomock.NewController(t)
