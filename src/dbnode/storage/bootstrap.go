@@ -34,7 +34,6 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -87,7 +86,7 @@ type bootstrapManager struct {
 	status                      tally.Gauge
 	bootstrapDuration           tally.Timer
 	durableStatus               tally.Gauge
-	lastBootstrapCompletionTime atomic.Int64 // == xtime.UnixNano
+	lastBootstrapCompletionTime xtime.UnixNano
 }
 
 func newBootstrapManager(
@@ -120,7 +119,9 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 }
 
 func (m *bootstrapManager) LastBootstrapCompletionTime() (xtime.UnixNano, bool) {
-	bsTime := xtime.UnixNano(m.lastBootstrapCompletionTime.Load())
+	m.RLock()
+	bsTime := m.lastBootstrapCompletionTime
+	m.RUnlock()
 	return bsTime, bsTime > 0
 }
 
@@ -195,7 +196,7 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	// on its own course so that the load of ticking and flushing is more spread out
 	// across the cluster.
 
-	m.lastBootstrapCompletionTime.Store(int64(xtime.ToUnixNano(m.nowFn())))
+	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
 	return result, nil
 }
 
