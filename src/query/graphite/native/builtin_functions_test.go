@@ -2985,6 +2985,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"fallbackSeries",
 		"group",
 		"groupByNode",
+		"groupByNodes",
 		"highestAverage",
 		"highestCurrent",
 		"highestMax",
