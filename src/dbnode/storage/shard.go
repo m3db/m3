@@ -2727,9 +2727,9 @@ func (s *dbShard) AggregateTiles(
 	for readerIter.Next() {
 		seriesIter, id, tags := readerIter.Current()
 		prevFrameLastValue := math.NaN()
+		encoder.Reset(opts.Start, 0, targetSchemaDesc)
 		for seriesIter.Next() {
 			frame := seriesIter.Current()
-			encoder.Reset(opts.Start, 0, targetSchemaDesc)
 			unit, singleUnit := frame.Units().SingleValue()
 			annotation, singleAnnotation := frame.Annotations().SingleValue()
 
@@ -2778,25 +2778,15 @@ func (s *dbShard) AggregateTiles(
 				prevFrameLastValue = frameValues[lastIdx]
 				processedBlockCount.Inc()
 			}
+		}
 
-			if err := writer.Write(ctx, encoder, id, tags); err != nil {
-				s.metrics.largeTilesWriteErrors.Inc(1)
-				multiErr = multiErr.Add(err)
-			} else {
-				s.metrics.largeTilesWrites.Inc(1)
-			}
+		if err := writer.Write(ctx, encoder, id, tags); err != nil {
+			s.metrics.largeTilesWriteErrors.Inc(1)
+			multiErr = multiErr.Add(err)
+		} else {
+			s.metrics.largeTilesWrites.Inc(1)
 		}
 	}
-
-	// If there was at least one series then the last one wasn't written. Write it.
-	// if !justStarted {
-	// 	if err := writer.Write(ctx, encoder, id, tags); err != nil {
-	// 		s.metrics.largeTilesWriteErrors.Inc(1)
-	// 		lastError = err
-	// 	} else {
-	// 		s.metrics.largeTilesWrites.Inc(1)
-	// 	}
-	// }
 
 	if err := writer.Close(); err != nil {
 		multiErr = multiErr.Add(err)
