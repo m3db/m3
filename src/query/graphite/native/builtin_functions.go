@@ -557,8 +557,8 @@ func lowestCurrent(_ *common.Context, input singlePathSpec, n int) (ts.SeriesLis
 type windowSizeFunc func(stepSize int) int
 
 type windowSizeParsed struct {
-	deltaValue time.Duration
-	stringValue string
+	deltaValue     time.Duration
+	stringValue    string
 	windowSizeFunc windowSizeFunc
 }
 
@@ -1892,6 +1892,7 @@ func init() {
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
+	MustRegisterFunction(groupByNodes)
 	MustRegisterFunction(highestAverage)
 	MustRegisterFunction(highestCurrent)
 	MustRegisterFunction(highestMax)

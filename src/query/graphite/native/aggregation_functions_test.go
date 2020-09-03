@@ -401,6 +401,91 @@ func TestGroupByNode(t *testing.T) {
 	}
 }
 
+func TestGroupByNodes(t *testing.T) {
+	var (
+		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _   = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx      = common.NewContext(common.ContextOptions{Start: start, End: end})
+		inputs   = []*ts.Series{
+			ts.NewSeries(ctx, "servers.foo-1.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 2, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 4, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 6, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-1.pod2.status.500", start,
+				ts.NewConstantValues(ctx, 8, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod2.status.500", start,
+				ts.NewConstantValues(ctx, 10, 12, 10000)),
+
+			ts.NewSeries(ctx, "servers.foo-1.pod1.status.400", start,
+				ts.NewConstantValues(ctx, 20, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod1.status.400", start,
+				ts.NewConstantValues(ctx, 30, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-3.pod2.status.400", start,
+				ts.NewConstantValues(ctx, 40, 12, 10000)),
+		}
+	)
+	defer ctx.Close()
+
+	type result struct {
+		name      string
+		sumOfVals float64
+	}
+
+	tests := []struct {
+		fname           string
+		nodes           []int
+		expectedResults []result
+	}{
+		{"sum", []int{4}, []result{
+			{"400", (20 + 30 + 40) * 12},
+			{"500", (2 + 4 + 6 + 8 + 10) * 12},
+		}},
+		{"sum", []int{1, 2}, []result{
+			{"foo-1.pod1", (2 + 20) * 12},
+			{"foo-1.pod2", 8 * 12},
+			{"foo-2.pod1", (4 + 30) * 12},
+			{"foo-2.pod2", 10 * 12},
+			{"foo-3.pod1", 6 * 12},
+			{"foo-3.pod2", 40 * 12},
+		}},
+		{"sum", []int{1, 2, 3}, []result{
+			{"foo-1.pod1.status", (2 + 20) * 12},
+			{"foo-1.pod2.status", 8 * 12},
+			{"foo-2.pod1.status", (4 + 30) * 12},
+			{"foo-2.pod2.status", 10 * 12},
+			{"foo-3.pod1.status", 6 * 12},
+			{"foo-3.pod2.status", 40 * 12},
+		}},
+		{"avg", []int{1, 2}, []result{
+			{"foo-1.pod1", ((2 + 20) / 2) * 12},
+			{"foo-1.pod2", 8 * 12},
+			{"foo-2.pod1", ((4 + 30) / 2) * 12},
+			{"foo-2.pod2", 10 * 12},
+			{"foo-3.pod1", 6 * 12},
+			{"foo-3.pod2", 40 * 12},
+		}},
+	}
+
+	for _, test := range tests {
+		outSeries, err := groupByNodes(ctx, singlePathSpec{
+			Values: inputs,
+		}, test.fname, test.nodes...)
+		require.NoError(t, err)
+		require.Equal(t, len(test.expectedResults), len(outSeries.Values))
+
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+		for i, expected := range test.expectedResults {
+			series := outSeries.Values[i]
+			assert.Equal(t, expected.name, series.Name(),
+				"wrong name for %d %s (%d)", test.nodes, test.fname, i)
+			assert.Equal(t, expected.sumOfVals, series.SafeSum(),
+				"wrong result for %d %s (%d)", test.nodes, test.fname, i)
+		}
+	}
+}
+
 func TestWeightedAverage(t *testing.T) {
 	ctx, _ := newConsolidationTestSeries()
 	defer ctx.Close()

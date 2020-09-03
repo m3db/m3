@@ -281,6 +281,68 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 	return r, nil
 }
 
+func groupByNodes(ctx *common.Context, series singlePathSpec, fname string, nodes ...int) (ts.SeriesList, error) {
+
+	if len(nodes) == 1 {
+		return groupByNode(ctx, series, nodes[0], fname)
+	}
+
+	metaSeries := make(map[string][]*ts.Series)
+	for _, s := range series.Values {
+		parts := strings.Split(s.Name(), ".")
+
+		var keys []string
+
+		for i := 0; i < len(nodes); i++ {
+			n := nodes[i]
+			if n < 0 {
+				n = len(parts) + n
+			}
+
+			if n >= len(parts) || n < 0 {
+				err := errors.NewInvalidParamsError(fmt.Errorf("could not group %s by node %d; not enough parts", s.Name(), nodes[0]))
+				return ts.NewSeriesList(), err
+			}
+			keys = append(keys, parts[n])
+		}
+		key := strings.Join(keys, ".")
+		metaSeries[key] = append(metaSeries[key], s)
+	}
+
+	if fname == "" {
+		fname = "sum"
+	}
+
+	f, fexists := summarizeFuncs[fname]
+	if !fexists {
+		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
+	}
+
+	newSeries := make([]*ts.Series, 0, len(metaSeries))
+	for key, metaSeries := range metaSeries {
+		seriesList := ts.SeriesList{
+			Values:   metaSeries,
+			Metadata: series.Metadata,
+		}
+		output, err := combineSeries(ctx, multiplePathSpecs(seriesList), key, f.consolidationFunc)
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+		output.Values[0].Specification = f.specificationFunc(seriesList)
+		newSeries = append(newSeries, output.Values...)
+	}
+
+	r := ts.SeriesList(series)
+
+	r.Values = newSeries
+
+	// Ranging over hash map to create results destroys
+	// any sort order on the incoming series list
+	r.SortApplied = false
+
+	return r, nil
+}
+
 // combineSeries combines multiple series into a single series using a
 // consolidation func.  If the series use different time intervals, the
 // coarsest time will apply.
