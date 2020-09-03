@@ -137,22 +137,22 @@ func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList sin
 
 // aggregate takes a list of series and returns a new series containing the
 // value aggregated across the series at each datapoint using the specified function.
-func aggregate(ctx *common.Context, series multiplePathSpecs, fname string) (ts.SeriesList, error) {
+func aggregate(ctx *common.Context, series singlePathSpec, fname string) (ts.SeriesList, error) {
 	switch fname {
 	case Empty, Sum, SumSeries, Total:
-		return sumSeries(ctx, series)
+		return sumSeries(ctx, multiplePathSpecs(series))
 	case Min, MinSeries:
-		return minSeries(ctx, series)
+		return minSeries(ctx, multiplePathSpecs(series))
 	case Max, MaxSeries:
-		return maxSeries(ctx, series)
+		return maxSeries(ctx, multiplePathSpecs(series))
 	case Avg, Average, AverageSeries:
-		return averageSeries(ctx,series)
+		return averageSeries(ctx,multiplePathSpecs(series))
 	case Multiply, MultiplySeries:
-		return multiplySeries(ctx, series)
+		return multiplySeries(ctx, multiplePathSpecs(series))
 	case Diff, DiffSeries:
-		return diffSeries(ctx, series)
+		return diffSeries(ctx, multiplePathSpecs(series))
 	case Count, CountSeries:
-		return countSeries(ctx, series)
+		return countSeries(ctx, multiplePathSpecs(series))
 	default:
 		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
 	}

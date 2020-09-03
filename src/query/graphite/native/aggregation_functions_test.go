@@ -136,11 +136,11 @@ func TestSumSeries(t *testing.T) {
 
 func TestAggregate(t *testing.T) {
 	testAggregatedSeries(t, func(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
-		return aggregate(ctx, series, "sum")
+		return aggregate(ctx, singlePathSpec(series), "sum")
 	}, 15.0, 28.0, 30.0, 17.0, "invalid sum value for step %d")
 
 	testAggregatedSeries(t, func(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
-		return aggregate(ctx, series, "maxSeries")
+		return aggregate(ctx, singlePathSpec(series), "maxSeries")
 	}, 15.0, 15.0, 17.0, 17.0, "invalid max value for step %d")
 }
 
