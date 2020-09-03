@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/query/graphite/storage"
 	"github.com/m3db/m3/src/query/util"
 )
 
@@ -104,38 +105,30 @@ corresponding request/s metric is > 10
 
 &target=useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
 */
-func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , value float64, search, replace string) (ts.SeriesList, error) {
+func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
 	results := make([]*ts.Series, len(seriesList.Values))
 	for idx, series := range seriesList.Values {
-		vals := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
-
-
-		name := fmt.Sprintf("offsetToZero(%s)", series.Name())
-		series := ts.NewSeries(ctx, name, series.StartTime(), vals)
-		results[idx] = series
+		if series.SafeMax() > maxAllowedValue {
+			end := time.Now()
+			start := end.Add(time.Hour * -2)
+			opts := storage.FetchOptions{
+				StartTime: start,
+				EndTime:   end,
+				DataOptions: storage.DataOptions{
+					Timeout: time.Minute,
+				},
+			}
+			seriesName := strings.Replace(series.Name(), search, replace, 1)
+			result, _ := ctx.Engine.FetchByQuery(ctx, seriesName, opts)
+			results[idx] = result.SeriesList[0]
+		} else {
+			results[idx] = series
+		}
 	}
 
 	r := ts.SeriesList(seriesList)
 	r.Values = results
 	return r, nil
-	/*
-	newNames = []
-
-	for series in seriesList:
-	newname = re.sub(search, replace, series.name)
-	if max(series) > value:
-	newNames.append(newname)
-
-	if not newNames:
-	return []
-
-	newContext = requestContext.copy()
-	newContext['prefetched'] = {}
-	newSeries = evaluateTarget(newContext, 'group(%s)' % ','.join(newNames))
-
-	return [n for n in newSeries if n is not None and len(n) > 0]
-	*/
-
 }
 
 type valueComparator func(v, threshold float64) bool
