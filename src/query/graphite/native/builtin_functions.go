@@ -244,49 +244,37 @@ func timeShift(
 }
 
 
-func timeSlice(ctx *common.Context, input singlePathSpec, start string, end string) (*unaryContextShifter, error) {
-
-	contextShiftingFn := func(c *common.Context) *common.Context {
-		// no need to shift the context here
-		return c;
-	}
-
+func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end string) (ts.SeriesList, error) {
 	tzOffsetForAbsoluteTime := time.Duration(0)
 	startTime, err := graphite.ParseTime(start, time.Now(), tzOffsetForAbsoluteTime)
 	endTime, err := graphite.ParseTime(end, time.Now(), tzOffsetForAbsoluteTime)
 
 	if (err != nil) {
-		return nil, err
+		return ts.NewSeriesList(), err
 	}
 
-	transformerFn := func(input ts.SeriesList) (ts.SeriesList, error) {
-		output := make([]*ts.Series, input.Len())
+	input := ts.SeriesList(inputPath)
+	output := make([]*ts.Series, input.Len())
 
-		for i, series := range input.Values {
-			nanoSecondsPerStep := series.MillisPerStep() * 1000000
-			stepDuration := time.Duration(nanoSecondsPerStep)
-			truncatedValues := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+	for i, series := range input.Values {
+		nanoSecondsPerStep := series.MillisPerStep() * 1000000
+		stepDuration := time.Duration(nanoSecondsPerStep)
+		truncatedValues := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
 
-			currentTime := series.StartTime()
-			for i := 0; i < series.Len(); i++ {
-				if ( currentTime.After(startTime) && currentTime.Before(endTime)) {
-					truncatedValues.SetValueAt(i, series.ValueAtTime(currentTime))
-				}
-				currentTime = currentTime.Add(stepDuration)
+		currentTime := series.StartTime()
+		for i := 0; i < series.Len(); i++ {
+			if ( currentTime.After(startTime) && currentTime.Before(endTime)) {
+				truncatedValues.SetValueAt(i, series.ValueAtTime(currentTime))
 			}
-
-			slicedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), truncatedValues)
-			renamedSlicedSeries := slicedSeries.RenamedTo(fmt.Sprintf("timeSlice(%s,%s, %s)", slicedSeries.Name(), start, end))
-			output[i] = renamedSlicedSeries
+			currentTime = currentTime.Add(stepDuration)
 		}
-		input.Values = output
-		return input, nil
-	}
 
-	return &unaryContextShifter{
-		ContextShiftFunc: contextShiftingFn,
-		UnaryTransformer: transformerFn,
-	}, nil
+		slicedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), truncatedValues)
+		renamedSlicedSeries := slicedSeries.RenamedTo(fmt.Sprintf("timeSlice(%s, %s, %s)", slicedSeries.Name(), start, end))
+		output[i] = renamedSlicedSeries
+	}
+	input.Values = output
+	return input, nil
 }
 
 
