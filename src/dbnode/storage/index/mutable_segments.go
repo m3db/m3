@@ -171,7 +171,7 @@ func (m *mutableSegments) WriteBatch(inserts *WriteBatch) error {
 		m.Unlock()
 	}()
 
-	builder.Reset(0)
+	builder.Reset()
 	insertResultErr := builder.InsertBatch(m3ninxindex.Batch{
 		Docs:                inserts.PendingDocs(),
 		AllowPartialUpdates: true,
@@ -621,7 +621,7 @@ func (m *mutableSegments) foregroundCompactWithBuilder(builder segment.Documents
 			return errForegroundCompactorBadPlanSecondaryTask
 		}
 		// Now use the builder after resetting it.
-		builder.Reset(0)
+		builder.Reset()
 		if err := m.foregroundCompactWithTask(
 			builder, task,
 			log, logger.With(zap.Int("task", i)),
