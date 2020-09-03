@@ -642,43 +642,6 @@ func testMovingFunction(t *testing.T, target, expectedName string, values, boots
 		expected, res.Values)
 }
 
-var (
-	testGeneralFunctionStart     = time.Now().Add(time.Minute * -11).Truncate(time.Minute)
-	testGeneralFunctionEnd       = time.Now().Add(time.Minute * -3).Truncate(time.Minute)
-)
-
-// testGeneralFunction is a copy of testMovingFunction but without any logic for bootstrapping values
-func testGeneralFunction(t *testing.T, target, expectedName string, values, output []float64) {
-	ctx := common.NewTestContext()
-	defer ctx.Close()
-
-	engine := NewEngine(
-		&common.MovingFunctionStorage{
-			StepMillis:     60000,
-			Values:         values,
-		},
-	)
-	phonyContext := common.NewContext(common.ContextOptions{
-		Start:  testGeneralFunctionStart,
-		End:    testGeneralFunctionEnd,
-		Engine: engine,
-	})
-
-	expr, err := phonyContext.Engine.(*Engine).Compile(target)
-	require.NoError(t, err)
-	res, err := expr.Execute(phonyContext)
-	require.NoError(t, err)
-	var expected []common.TestSeries
-	if output != nil {
-		expectedSeries := common.TestSeries{
-			Name: expectedName,
-			Data: output,
-		}
-		expected = append(expected, expectedSeries)
-	}
-	common.CompareOutputsAndExpected(t, 60000, testGeneralFunctionStart, expected, res.Values)
-}
-
 func TestMovingAverageSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
@@ -2586,12 +2549,12 @@ func TestMovingMismatchedLimits(t *testing.T) {
 	// points. When limits do not snap exactly, the first point should be omitted.
 	for _, fn := range []string{"movingAverage", "movingMedian"} {
 		for i := time.Duration(0); i < time.Minute; i += time.Second {
-			testMovingFunctionInvalidLimits(t, fn, i)
+			testMovingAverageInvalidLimits(t, fn, i)
 		}
 	}
 }
 
-func testMovingFunctionInvalidLimits(t *testing.T, fn string, offset time.Duration) {
+func testMovingAverageInvalidLimits(t *testing.T, fn string, offset time.Duration) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -3063,7 +3026,6 @@ func TestFunctionsRegistered(t *testing.T) {
 		"time",
 		"timeFunction",
 		"timeShift",
-		"timeSlice",
 		"transformNull",
 		"weightedAverage",
 	}
