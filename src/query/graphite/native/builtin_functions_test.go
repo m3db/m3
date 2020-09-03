@@ -2859,7 +2859,6 @@ func TestDelay(t *testing.T) {
 }
 
 var (
-	testDelayBootstrap = testMovingFunctionStart.Add(-30 * time.Second)
 	testDelayStart     = time.Now().Truncate(time.Minute)
 	testDelayEnd       = testMovingFunctionEnd.Add(time.Minute)
 )
@@ -2868,13 +2867,10 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 	ctx := common.NewTestContext()
 	defer ctx.Close()
 
-	emptyBootstrap := []float64{}
 	engine := NewEngine(
 		&common.MovingFunctionStorage{
 			StepMillis:     10000,
 			Values:         values,
-			Bootstrap:      emptyBootstrap,
-			BootstrapStart: testDelayBootstrap,
 		},
 	)
 	phonyContext := common.NewContext(common.ContextOptions{
@@ -2896,8 +2892,7 @@ func testDelay(t *testing.T, target, expectedName string, values, output []float
 		}
 		expected = append(expected, expectedSeries)
 	}
-	common.CompareOutputsAndExpected(t, 10000, testDelayStart,
-		expected, res.Values)
+	common.CompareOutputsAndExpected(t, 10000, testDelayStart, expected, res.Values)
 }
 
 func TestDashed(t *testing.T) {
