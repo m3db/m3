@@ -685,22 +685,6 @@ func TestMovingAverageError(t *testing.T) {
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, 0)")
 }
 
-func TestMovingSumSuccess(t *testing.T) {
-	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
-	bootstrap := []float64{3.0, 4.0, 5.0}
-	expected := []float64{12.0, 21.0, 36.0, 21.0, 9.0} // (3+4+5), (4+5+12), (5+12+19), (12+19-10), (19-10+Nan)
-
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
-
-	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
-}
-
-func TestMovingSumError(t *testing.T) {
-	testMovingAverageError(t, "movingSum(foo.bar.baz, '-30s')")
-	testMovingAverageError(t, "movingSum(foo.bar.baz, 0)")
-}
 
 func TestIsNonNull(t *testing.T) {
 	ctx := common.NewTestContext()
