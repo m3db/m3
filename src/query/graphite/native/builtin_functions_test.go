@@ -2586,12 +2586,12 @@ func TestMovingMismatchedLimits(t *testing.T) {
 	// points. When limits do not snap exactly, the first point should be omitted.
 	for _, fn := range []string{"movingAverage", "movingMedian"} {
 		for i := time.Duration(0); i < time.Minute; i += time.Second {
-			testMovingFunctionInvalidLimits(t, fn, i)
+			testMovingAverageInvalidLimits(t, fn, i)
 		}
 	}
 }
 
-func testMovingFunctionInvalidLimits(t *testing.T, fn string, offset time.Duration) {
+func testMovingAverageInvalidLimits(t *testing.T, fn string, offset time.Duration) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
 
