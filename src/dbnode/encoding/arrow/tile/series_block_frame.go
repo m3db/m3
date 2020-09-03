@@ -23,7 +23,6 @@ package tile
 import (
 	"time"
 
-	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
@@ -43,27 +42,23 @@ type SeriesBlockFrame struct {
 	FrameEnd xtime.UnixNano
 	// datapointRecord is the record.
 	record *record
-	// tags are the tags for the current series.
-	tags ident.TagIterator
-	// id is the id for this series.
-	id ident.ID
 }
 
 func (f *SeriesBlockFrame) release() {
 	f.record.release()
 }
 
-func (f *SeriesBlockFrame) reset(
+func (f *SeriesBlockFrame) reset() {
+	f.release()
+}
+
+func (f *SeriesBlockFrame) resetWithData(
 	start xtime.UnixNano,
 	end xtime.UnixNano,
-	id ident.ID,
-	tags ident.TagIterator,
 ) {
-	f.release()
+	f.reset()
 	f.FrameStart = start
 	f.FrameEnd = end
-	f.id = id
-	f.tags = tags
 }
 
 // Values returns values in this SeriesBlockFrame.
@@ -89,14 +84,4 @@ func (f *SeriesBlockFrame) Units() SeriesFrameUnits {
 // Annotations returns annotations for the SeriesBlockFrame.
 func (f *SeriesBlockFrame) Annotations() SeriesFrameAnnotations {
 	return f.record.annotations
-}
-
-// Tags returns the tags for this SeriesBlockFrame.
-func (f *SeriesBlockFrame) Tags() ident.TagIterator {
-	return f.tags
-}
-
-// ID returns the ID for this SeriesBlockFrame.
-func (f *SeriesBlockFrame) ID() ident.ID {
-	return f.id
 }

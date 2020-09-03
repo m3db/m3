@@ -75,12 +75,16 @@ func TestSeriesBlockIterator(t *testing.T) {
 	iter, err := NewSeriesBlockIterator(reader, opts)
 	require.NoError(t, err)
 	assert.True(t, iter.Next())
-	frameIter := iter.Current()
+	frameIter, id, iterTags := iter.Current()
 	assert.True(t, frameIter.Next())
 	frame := frameIter.Current()
-	assert.Equal(t, "foobar", frame.id.String())
 	assert.False(t, frameIter.Next())
 	assert.False(t, iter.Next())
-
 	assert.Equal(t, 1.0, frame.Sum())
+
+	assert.Equal(t, "foobar", id.String())
+	require.True(t, iterTags.Next())
+	assert.Equal(t, "foo", iterTags.Current().Name.String())
+	assert.Equal(t, "bar", iterTags.Current().Value.String())
+	assert.False(t, iterTags.Next())
 }

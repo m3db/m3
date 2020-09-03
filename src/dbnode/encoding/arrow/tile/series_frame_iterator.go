@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -58,22 +57,19 @@ func (b *seriesFrameIter) Reset(
 	start xtime.UnixNano,
 	frameStep xtime.UnixNano,
 	iter fs.CrossBlockIterator,
-	id ident.ID,
-	tags ident.TagIterator,
 ) error {
 	if frameStep <= 0 {
 		b.err = fmt.Errorf("frame step must be >= 0, is %d", frameStep)
 		return b.err
 	}
 
-	id.NoFinalize()
 	b.err = nil
 	b.iter = iter
 	b.exhausted = false
 	b.started = false
 	b.frameStart = start
 	b.frameStep = frameStep
-	b.curr.reset(start, start+frameStep, id, tags)
+	b.curr.resetWithData(start, start+frameStep)
 	b.recorder.release()
 
 	return nil
@@ -87,10 +83,6 @@ func (b *seriesFrameIter) Close() error {
 	if b.iter != nil {
 		b.iter.Close()
 		b.iter = nil
-	}
-
-	if b.curr.tags != nil {
-		b.curr.tags.Close()
 	}
 
 	return nil
@@ -123,7 +115,6 @@ func (b *seriesFrameIter) Next() bool {
 	if firstPoint.TimestampNanos >= cutover {
 		// NB: empty block.
 		b.recorder.updateRecord(b.curr.record)
-		b.curr.tags.Rewind()
 		return true
 	}
 
@@ -142,8 +133,6 @@ func (b *seriesFrameIter) Next() bool {
 	}
 
 	b.recorder.updateRecord(b.curr.record)
-	b.curr.tags.Rewind()
-
 	if !hasAny {
 		b.exhausted = true
 		return true

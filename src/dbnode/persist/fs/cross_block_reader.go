@@ -116,7 +116,7 @@ func (r *crossBlockReader) Next() bool {
 
 	for len(r.minHeap) > 0 && r.minHeap[0].id.Equal(firstEntry.id) {
 		nextEntry, err := r.readOne()
-		if err != nil {
+		if err != nil { // what do if err
 			// Close the resources that were already read but not returned to the consumer:
 			r.id.Finalize()
 			r.tags.Close()

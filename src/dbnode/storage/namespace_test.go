@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/namespace"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -1301,9 +1300,9 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
-		pm, _      = fs.NewPersistManager(fs.NewOptions())
-		start      = time.Now().Truncate(time.Hour)
-		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
+		// pm, _      = fs.NewPersistManager(fs.NewOptions())
+		start = time.Now().Truncate(time.Hour)
+		opts  = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1313,7 +1312,7 @@ func TestNamespaceAggregateTilesFailOnBootstrapping(t *testing.T) {
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapping
 
-	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 	require.Equal(t, errNamespaceNotBootstrapped, err)
 }
 
@@ -1322,9 +1321,9 @@ func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
 		sourceNsID = ident.StringID("source")
 		targetNsID = ident.StringID("target")
 		ctx        = context.NewContext()
-		pm, _      = fs.NewPersistManager(fs.NewOptions())
-		start      = time.Now().Truncate(time.Hour)
-		opts       = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
+		// pm, _      = fs.NewPersistManager(fs.NewOptions())
+		start = time.Now().Truncate(time.Hour)
+		opts  = AggregateTilesOptions{Start: start, End: start.Add(time.Hour)}
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1334,7 +1333,7 @@ func TestNamespaceAggregateTilesFailOnDisabledColdWrites(t *testing.T) {
 	defer targetCloser()
 	targetNs.bootstrapState = Bootstrapped
 
-	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	_, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 	require.Equal(t, errColdWritesDisabled, err)
 }
 
@@ -1343,17 +1342,17 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		sourceNsID             = ident.StringID("source")
-		targetNsID             = ident.StringID("target")
-		ctx                    = context.NewContext()
-		pm, _                  = fs.NewPersistManager(fs.NewOptions())
-		sourceBlockSize        = time.Hour
-		targetBlockSize        = 2 * time.Hour
-		start                  = time.Now().Truncate(targetBlockSize)
-		opts                   = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
-		secondSourceBlockStart = start.Add(sourceBlockSize)
-		sourceShard0ID uint32  = 10
-		sourceShard1ID uint32  = 20
+		sourceNsID = ident.StringID("source")
+		targetNsID = ident.StringID("target")
+		ctx        = context.NewContext()
+		// pm, _                         = fs.NewPersistManager(fs.NewOptions())
+		sourceBlockSize               = time.Hour
+		targetBlockSize               = 2 * time.Hour
+		start                         = time.Now().Truncate(targetBlockSize)
+		opts                          = AggregateTilesOptions{Start: start, End: start.Add(targetBlockSize)}
+		secondSourceBlockStart        = start.Add(sourceBlockSize)
+		sourceShard0ID         uint32 = 10
+		sourceShard1ID         uint32 = 20
 	)
 
 	sourceNs, sourceCloser := newTestNamespaceWithIDOpts(t, sourceNsID, namespace.NewOptions())
@@ -1413,7 +1412,7 @@ func TestNamespaceAggregateTiles(t *testing.T) {
 	targetShard0.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush0, nil)
 	targetShard1.EXPECT().ColdFlush(gomock.Any(), gomock.Any(), nsCtx, onColdFlushNs).Return(shardColdFlush1, nil)
 
-	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts, pm)
+	processedBlockCount, err := targetNs.AggregateTiles(ctx, sourceNs, opts)
 	require.NoError(t, err)
 	assert.Equal(t, int64(3+2), processedBlockCount)
 }
