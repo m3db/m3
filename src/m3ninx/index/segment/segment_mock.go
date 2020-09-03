@@ -997,15 +997,15 @@ func (mr *MockMutableSegmentMockRecorder) Terms(field interface{}) *gomock.Call 
 }
 
 // Reset mocks base method
-func (m *MockMutableSegment) Reset(offset postings.ID) {
+func (m *MockMutableSegment) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockMutableSegmentMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockMutableSegmentMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableSegment)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableSegment)(nil).Reset))
 }
 
 // Docs mocks base method
@@ -1105,20 +1105,6 @@ func (m *MockMutableSegment) Fields() (FieldsIterator, error) {
 func (mr *MockMutableSegmentMockRecorder) Fields() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockMutableSegment)(nil).Fields))
-}
-
-// Offset mocks base method
-func (m *MockMutableSegment) Offset() postings.ID {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Offset")
-	ret0, _ := ret[0].(postings.ID)
-	return ret0
-}
-
-// Offset indicates an expected call of Offset
-func (mr *MockMutableSegmentMockRecorder) Offset() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Offset", reflect.TypeOf((*MockMutableSegment)(nil).Offset))
 }
 
 // Seal mocks base method
@@ -1341,15 +1327,15 @@ func (mr *MockBuilderMockRecorder) Terms(field interface{}) *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockBuilder) Reset(offset postings.ID) {
+func (m *MockBuilder) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockBuilderMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockBuilderMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockBuilder)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockBuilder)(nil).Reset))
 }
 
 // Docs mocks base method
@@ -1435,15 +1421,15 @@ func (mr *MockDocumentsBuilderMockRecorder) Terms(field interface{}) *gomock.Cal
 }
 
 // Reset mocks base method
-func (m *MockDocumentsBuilder) Reset(offset postings.ID) {
+func (m *MockDocumentsBuilder) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockDocumentsBuilderMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockDocumentsBuilderMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDocumentsBuilder)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDocumentsBuilder)(nil).Reset))
 }
 
 // Docs mocks base method
@@ -1584,15 +1570,15 @@ func (mr *MockCloseableDocumentsBuilderMockRecorder) Terms(field interface{}) *g
 }
 
 // Reset mocks base method
-func (m *MockCloseableDocumentsBuilder) Reset(offset postings.ID) {
+func (m *MockCloseableDocumentsBuilder) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockCloseableDocumentsBuilderMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockCloseableDocumentsBuilderMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockCloseableDocumentsBuilder)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockCloseableDocumentsBuilder)(nil).Reset))
 }
 
 // Docs mocks base method
@@ -1747,15 +1733,15 @@ func (mr *MockSegmentsBuilderMockRecorder) Terms(field interface{}) *gomock.Call
 }
 
 // Reset mocks base method
-func (m *MockSegmentsBuilder) Reset(offset postings.ID) {
+func (m *MockSegmentsBuilder) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockSegmentsBuilderMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockSegmentsBuilderMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSegmentsBuilder)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSegmentsBuilder)(nil).Reset))
 }
 
 // Docs mocks base method

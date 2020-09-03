@@ -18,55 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package migration
+package docs
 
 import (
-	"fmt"
-	"math"
-	"runtime"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-// defaultMigrationConcurrency is the default number of concurrent workers to perform migrations.
-var defaultMigrationConcurrency = int(math.Ceil(float64(runtime.NumCPU()) / 2))
-
-type options struct {
-	targetMigrationVersion MigrationVersion
-	concurrency            int
-}
-
-// NewOptions creates new migration options.
-func NewOptions() Options {
-	return &options{
-		concurrency: defaultMigrationConcurrency,
-	}
-}
-
-func (o *options) Validate() error {
-	if err := ValidateMigrationVersion(o.targetMigrationVersion); err != nil {
-		return err
-	}
-	if o.concurrency < 1 {
-		return fmt.Errorf("concurrency value %d must be >= 1", o.concurrency)
-	}
-	return nil
-}
-
-func (o *options) SetTargetMigrationVersion(value MigrationVersion) Options {
-	opts := *o
-	opts.targetMigrationVersion = value
-	return &opts
-}
-
-func (o *options) TargetMigrationVersion() MigrationVersion {
-	return o.targetMigrationVersion
-}
-
-func (o *options) SetConcurrency(value int) Options {
-	opts := *o
-	opts.concurrency = value
-	return &opts
-}
-
-func (o *options) Concurrency() int {
-	return o.concurrency
+// Reader is a document reader from an encoded source.
+type Reader interface {
+	// Len is the number of documents contained by the reader.
+	Len() int
+	// Read reads a document with the given postings ID.
+	Read(id postings.ID) (doc.Document, error)
+	// Iter returns a document iterator.
+	Iter() index.IDDocIterator
 }
