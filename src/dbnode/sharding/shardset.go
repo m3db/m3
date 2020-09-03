@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/x/ident"
-	twmbmurmur3 "github.com/twmb/murmur3"
+	"github.com/m3db/stackmurmur3/v2"
 )
 
 var (
@@ -160,6 +160,6 @@ func NewHashGenWithSeed(seed uint32) HashGen {
 // NewHashFn generates a HashFN based on murmur32 with a given seed
 func NewHashFn(length int, seed uint32) HashFn {
 	return func(id ident.ID) uint32 {
-		return twmbmurmur3.SeedSum32(seed, id.Bytes()) % uint32(length)
+		return murmur3.SeedSum32(seed, id.Bytes()) % uint32(length)
 	}
 }
