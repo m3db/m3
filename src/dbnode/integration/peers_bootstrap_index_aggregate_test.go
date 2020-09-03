@@ -58,7 +58,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 		SetIndexOptions(idxOpts)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1}).
 		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
 		// and not write/read all nodes in the cluster.
@@ -74,7 +74,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 
 	// Write test data for first node
 	// Write test data
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 
 	fooSeries := generate.Series{
 		ID:   ident.StringID("foo"),
@@ -120,18 +120,18 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	// Start the remaining servers with peers and filesystem bootstrappers
-	setups[1:].parallel(func(s *testSetup) {
-		require.NoError(t, s.startServer())
+	setups[1:].parallel(func(s TestSetup) {
+		require.NoError(t, s.StartServer())
 	})
 	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+		setups.parallel(func(s TestSetup) {
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()
@@ -142,7 +142,7 @@ func TestPeersBootstrapIndexAggregateQuery(t *testing.T) {
 	}
 
 	// Issue aggregate index queries to the second node which bootstrapped the metadata
-	session, err := setups[1].m3dbClient.DefaultSession()
+	session, err := setups[1].M3DBClient().DefaultSession()
 	require.NoError(t, err)
 
 	start := now.Add(-rOpts.RetentionPeriod())

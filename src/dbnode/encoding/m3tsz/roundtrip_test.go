@@ -198,7 +198,7 @@ func generateDataPoints(numPoints int, timeUnit time.Duration, numDig, numDec in
 	currentTime := time.Unix(startTime, 0)
 	endTime := testStartTime.Add(2 * time.Hour)
 	currentValue := 1.0
-	res := []ts.Datapoint{{currentTime, currentValue}}
+	res := []ts.Datapoint{{currentTime, xtime.ToUnixNano(currentTime), currentValue}}
 	for i := 1; i < numPoints; i++ {
 		currentTime = currentTime.Add(time.Second * time.Duration(rand.Intn(1200)))
 		currentValue = testgen.GenerateFloatVal(r, numDig, numDec)
@@ -216,7 +216,7 @@ func generateMixedDatapoints(numPoints int, timeUnit time.Duration) []ts.Datapoi
 	currentTime := time.Unix(startTime, 0)
 	endTime := testStartTime.Add(2 * time.Hour)
 	currentValue := testgen.GenerateFloatVal(r, 3, 16)
-	res := []ts.Datapoint{{currentTime, currentValue}}
+	res := []ts.Datapoint{{currentTime, xtime.ToUnixNano(currentTime), currentValue}}
 
 	for i := 1; i < numPoints; i++ {
 		currentTime = currentTime.Add(time.Second * time.Duration(r.Intn(7200)))

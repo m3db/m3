@@ -21,6 +21,7 @@
 package proto
 
 import (
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 )
 
@@ -32,12 +33,14 @@ var (
 func NewOptions() Options {
 	return &options{
 		maxMessageSize: defaultMaxMessageSize,
+		rwOpts:         xio.NewOptions(),
 	}
 }
 
 type options struct {
 	maxMessageSize int
 	bytesPool      pool.BytesPool
+	rwOpts         xio.Options
 }
 
 func (opts *options) MaxMessageSize() int {
@@ -58,4 +61,14 @@ func (opts *options) SetBytesPool(value pool.BytesPool) Options {
 	o := *opts
 	o.bytesPool = value
 	return &o
+}
+
+func (opts *options) SetRWOptions(value xio.Options) Options {
+	o := *opts
+	o.rwOpts = value
+	return &o
+}
+
+func (opts *options) RWOptions() xio.Options {
+	return opts.rwOpts
 }

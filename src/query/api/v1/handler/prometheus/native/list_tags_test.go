@@ -34,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/x/headers"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -93,9 +95,9 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 
 	// setup storage and handler
 	store := storage.NewMockStorage(ctrl)
-	storeResult := &storage.CompleteTagsResult{
+	storeResult := &consolidators.CompleteTagsResult{
 		CompleteNameOnly: true,
-		CompletedTags: []storage.CompletedTag{
+		CompletedTags: []consolidators.CompletedTag{
 			{Name: b("bar")},
 			{Name: b("baz")},
 			{Name: b("foo")},
@@ -109,8 +111,8 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 		return now
 	}
 
-	fb := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb).
@@ -137,7 +139,7 @@ func testListTags(t *testing.T, meta block.ResultMetadata, header string) {
 		ex := `{"status":"success","data":["bar","baz","foo"]}`
 		require.Equal(t, ex, string(r))
 
-		actual := w.Header().Get(handleroptions.LimitHeader)
+		actual := w.Header().Get(headers.LimitHeader)
 		assert.Equal(t, header, actual)
 	}
 }
@@ -153,8 +155,8 @@ func TestListErrorTags(t *testing.T) {
 		return now
 	}
 
-	fb := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	fb := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
 	opts := options.EmptyHandlerOptions().
 		SetStorage(store).
 		SetFetchOptionsBuilder(fb).

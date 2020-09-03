@@ -105,7 +105,7 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 	opts := index.QueryOptions{
 		StartInclusive: time.Now().Add(-900 * time.Hour),
 		EndExclusive:   time.Now(),
-		Limit:          10,
+		SeriesLimit:    10,
 	}
 	fetchData := true
 	var limit int64 = 10
@@ -171,7 +171,7 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 		QueryOptions: index.QueryOptions{
 			StartInclusive: time.Now().Add(-900 * time.Hour),
 			EndExclusive:   time.Now(),
-			Limit:          10,
+			SeriesLimit:    10,
 		},
 		Type: index.AggregateTagNamesAndValues,
 		FieldFilter: index.AggregateFieldFilter{

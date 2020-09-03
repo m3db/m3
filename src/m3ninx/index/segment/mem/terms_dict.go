@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,11 +27,14 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 )
 
 // termsDict is an in-memory terms dictionary. It maps fields to postings lists.
 type termsDict struct {
 	opts Options
+
+	currFieldsPostingsLists []postings.List
 
 	fields struct {
 		sync.RWMutex
@@ -82,6 +85,29 @@ func (d *termsDict) Fields() sgmt.FieldsIterator {
 		fields = append(fields, entry.Key())
 	}
 	return newBytesSliceIter(fields, d.opts)
+}
+
+func (d *termsDict) FieldsPostingsList() sgmt.FieldsPostingsListIterator {
+	d.fields.RLock()
+	defer d.fields.RUnlock()
+	// NB(bodu): This is probably fine since the terms dict/mem segment is only used in tests.
+	fields := make([]uniqueField, 0, d.fields.Len())
+	for _, entry := range d.fields.Iter() {
+		d.currFieldsPostingsLists = d.currFieldsPostingsLists[:0]
+		field := entry.Key()
+		pl := roaring.NewPostingsList()
+		if postingsMap, ok := d.fields.Get(field); ok {
+			for _, entry := range postingsMap.Iter() {
+				d.currFieldsPostingsLists = append(d.currFieldsPostingsLists, entry.value)
+			}
+		}
+		pl.UnionMany(d.currFieldsPostingsLists)
+		fields = append(fields, uniqueField{
+			field:        field,
+			postingsList: pl,
+		})
+	}
+	return newUniqueFieldsIter(fields, d.opts)
 }
 
 func (d *termsDict) Terms(field []byte) sgmt.TermsIterator {

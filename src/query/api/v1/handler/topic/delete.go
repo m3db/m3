@@ -46,12 +46,12 @@ const (
 // DeleteHandler is the handler for topic adds.
 type DeleteHandler Handler
 
-// NewDeleteHandler returns a new instance of DeleteHandler.
-func NewDeleteHandler(
+// newDeleteHandler returns a new instance of DeleteHandler.
+func newDeleteHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) *DeleteHandler {
+) http.Handler {
 	return &DeleteHandler{
 		client:         client,
 		cfg:            cfg,

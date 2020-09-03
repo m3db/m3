@@ -40,6 +40,8 @@ import (
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/x/ident"
+	xhttp "github.com/m3db/m3/src/x/net/http"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -84,14 +86,14 @@ func generateTagIters(ctrl *gomock.Controller) *client.MockTaggedIDsIterator {
 	mockTaggedIDsIter.EXPECT().Next().Return(false)
 	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID("ns"),
 		ident.StringID(testID), seriesiter.GenerateSingleSampleTagIterator(ctrl, seriesiter.GenerateTag()))
-	mockTaggedIDsIter.EXPECT().Err().Return(nil)
+	mockTaggedIDsIter.EXPECT().Err().Return(nil).MinTimes(1)
 	mockTaggedIDsIter.EXPECT().Finalize()
 
 	return mockTaggedIDsIter
 }
 
 func searchServer(t *testing.T) *SearchHandler {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 
 	mockTaggedIDsIter := generateTagIters(ctrl)
 
@@ -99,8 +101,8 @@ func searchServer(t *testing.T) *SearchHandler {
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(mockTaggedIDsIter, client.FetchResponseMetadata{Exhaustive: false}, nil).AnyTimes()
 
-	builder := handleroptions.
-		NewFetchOptionsBuilder(handleroptions.FetchOptionsBuilderOptions{})
+	builder := handleroptions.NewFetchOptionsBuilder(
+		handleroptions.FetchOptionsBuilderOptions{})
 	opts := options.EmptyHandlerOptions().
 		SetStorage(storage).SetFetchOptionsBuilder(builder)
 	search := NewSearchHandler(opts)
@@ -113,7 +115,7 @@ func TestSearchResponse(t *testing.T) {
 	searchHandler := searchServer(t)
 
 	opts := storage.NewFetchOptions()
-	opts.Limit = 100
+	opts.SeriesLimit = 100
 	results, err := searchHandler.search(context.TODO(), generateSearchReq(), opts)
 	require.NoError(t, err)
 
@@ -129,7 +131,7 @@ func TestSearchEndpoint(t *testing.T) {
 
 	urlWithLimit := fmt.Sprintf("%s%s", server.URL, "?limit=90")
 	req, _ := http.NewRequest("POST", urlWithLimit, generateSearchBody(t))
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()

@@ -160,10 +160,7 @@ var (
 		testMatchForNewRollupIDs)
 
 	testMatchDropPolicyNotYetEffectiveResult = rules.NewMatchResult(0, math.MaxInt64,
-		append(testMatchForExistingID, metadata.StagedMetadata{
-			Metadata:     metadata.DropMetadata,
-			CutoverNanos: testNow.Add(-1 * (testNegativeSkew / 2)).UnixNano(),
-		}),
+		testMatchForExistingID,
 		testMatchForNewRollupIDs)
 )
 

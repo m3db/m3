@@ -37,6 +37,7 @@ var (
 )
 
 type retrier struct {
+	opts           Options
 	initialBackoff time.Duration
 	backoffFactor  float64
 	maxBackoff     time.Duration
@@ -49,6 +50,8 @@ type retrier struct {
 }
 
 type retrierMetrics struct {
+	calls              tally.Counter
+	attempts           tally.Counter
 	success            tally.Counter
 	successLatency     tally.Histogram
 	errors             tally.Counter
@@ -74,6 +77,7 @@ func NewRetrier(opts Options) Retrier {
 	}
 
 	return &retrier{
+		opts:           opts,
 		initialBackoff: opts.InitialBackoff(),
 		backoffFactor:  opts.BackoffFactor(),
 		maxBackoff:     opts.MaxBackoff(),
@@ -83,6 +87,8 @@ func NewRetrier(opts Options) Retrier {
 		rngFn:          opts.RngFn(),
 		sleepFn:        time.Sleep,
 		metrics: retrierMetrics{
+			calls:              scope.Counter("calls"),
+			attempts:           scope.Counter("attempts"),
 			success:            scope.Counter("success"),
 			successLatency:     histogramWithDurationBuckets(scope, "success-latency"),
 			errors:             scope.Tagged(errorTags.retryable).Counter("errors"),
@@ -94,6 +100,10 @@ func NewRetrier(opts Options) Retrier {
 	}
 }
 
+func (r *retrier) Options() Options {
+	return r.opts
+}
+
 func (r *retrier) Attempt(fn Fn) error {
 	return r.attempt(nil, fn)
 }
@@ -103,6 +113,9 @@ func (r *retrier) AttemptWhile(continueFn ContinueFn, fn Fn) error {
 }
 
 func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
+	// Always track a call, useful for counting number of total operations.
+	r.metrics.calls.Inc(1)
+
 	attempt := 0
 
 	if continueFn != nil && !continueFn(attempt) {
@@ -112,6 +125,7 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 	start := time.Now()
 	err := fn()
 	duration := time.Since(start)
+	r.metrics.attempts.Inc(1)
 	attempt++
 	if err == nil {
 		r.metrics.successLatency.RecordDuration(duration)
@@ -143,6 +157,7 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 		start := time.Now()
 		err = fn()
 		duration := time.Since(start)
+		r.metrics.attempts.Inc(1)
 		attempt++
 		if err == nil {
 			r.metrics.successLatency.RecordDuration(duration)
@@ -197,7 +212,7 @@ func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogra
 		// in the same query causing errors.
 		"schema": "v1",
 	})
-	buckets := append(tally.DurationBuckets{0, time.Millisecond}, 
+	buckets := append(tally.DurationBuckets{0, time.Millisecond},
 		tally.MustMakeExponentialDurationBuckets(2*time.Millisecond, 1.5, 30)...)
 	return sub.Histogram(name, buckets)
 }

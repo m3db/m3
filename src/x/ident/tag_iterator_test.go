@@ -195,3 +195,22 @@ func TestTagIteratorDuplicateFromPool(t *testing.T) {
 	require.Empty(t, expected)
 	require.Equal(t, expectedLen, clone.Remaining())
 }
+
+func TestTagSliceIteratorHas(t *testing.T) {
+	iter := NewTagsIterator(NewTags(
+		StringTag("foo", "bar"),
+		StringTag("qux", "qaz"),
+	))
+	testTagIteratorValues(t, map[string]string{
+		"foo": "bar",
+		"qux": "qaz",
+	}, iter)
+	iter.Reset(NewTags(
+		StringTag("foo", "bar"),
+		StringTag("baz", "qux"),
+	))
+	testTagIteratorValues(t, map[string]string{
+		"foo": "bar",
+		"baz": "qux",
+	}, iter)
+}

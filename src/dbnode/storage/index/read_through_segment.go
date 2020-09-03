@@ -85,7 +85,7 @@ func NewReadThroughSegment(
 }
 
 // Reader returns a read through reader for the read through segment.
-func (r *ReadThroughSegment) Reader() (index.Reader, error) {
+func (r *ReadThroughSegment) Reader() (segment.Reader, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -159,18 +159,18 @@ type readThroughSegmentReader struct {
 	// reader is explicitly not embedded at the top level
 	// of the struct to force new methods added to index.Reader
 	// to be explicitly supported by the read through cache.
-	reader            index.Reader
+	reader            segment.Reader
 	opts              ReadThroughSegmentOptions
 	uuid              uuid.UUID
 	postingsListCache *PostingsListCache
 }
 
 func newReadThroughSegmentReader(
-	reader index.Reader,
+	reader segment.Reader,
 	uuid uuid.UUID,
 	cache *PostingsListCache,
 	opts ReadThroughSegmentOptions,
-) index.Reader {
+) segment.Reader {
 	return &readThroughSegmentReader{
 		reader:            reader,
 		opts:              opts,
@@ -270,6 +270,21 @@ func (s *readThroughSegmentReader) Doc(id postings.ID) (doc.Document, error) {
 // Docs is a pass through call, since there's no postings list to cache.
 func (s *readThroughSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	return s.reader.Docs(pl)
+}
+
+// Fields is a pass through call.
+func (s *readThroughSegmentReader) Fields() (segment.FieldsIterator, error) {
+	return s.reader.Fields()
+}
+
+// ContainsField is a pass through call.
+func (s *readThroughSegmentReader) ContainsField(field []byte) (bool, error) {
+	return s.reader.ContainsField(field)
+}
+
+// Terms is a pass through call.
+func (s *readThroughSegmentReader) Terms(field []byte) (segment.TermsIterator, error) {
+	return s.reader.Terms(field)
 }
 
 // Close is a pass through call.

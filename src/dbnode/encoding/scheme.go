@@ -125,6 +125,21 @@ type timeEncodingScheme struct {
 	defaultBucket TimeBucket
 }
 
+// newTimeEncodingSchemes converts the unit-to-scheme mapping
+// to the underlying TimeEncodingSchemes used for lookups.
+func newTimeEncodingSchemes(schemes map[xtime.Unit]TimeEncodingScheme) TimeEncodingSchemes {
+	encodingSchemes := make(TimeEncodingSchemes, xtime.UnitCount())
+	for k, v := range schemes {
+		if !k.IsValid() {
+			continue
+		}
+
+		encodingSchemes[k] = v
+	}
+
+	return encodingSchemes
+}
+
 // newTimeEncodingScheme creates a new time encoding scheme.
 // NB(xichen): numValueBitsForBbuckets should be ordered by value in ascending order (smallest value first).
 func newTimeEncodingScheme(numValueBitsForBuckets []int, numValueBitsForDefault int) TimeEncodingScheme {
@@ -153,7 +168,22 @@ func (tes *timeEncodingScheme) Buckets() []TimeBucket     { return tes.buckets }
 func (tes *timeEncodingScheme) DefaultBucket() TimeBucket { return tes.defaultBucket }
 
 // TimeEncodingSchemes defines the time encoding schemes for different time units.
-type TimeEncodingSchemes map[xtime.Unit]TimeEncodingScheme
+type TimeEncodingSchemes []TimeEncodingScheme
+
+// SchemeForUnit returns the corresponding TimeEncodingScheme for the provided unit.
+// Returns false if the unit does not match a scheme or is invalid.
+func (s TimeEncodingSchemes) SchemeForUnit(u xtime.Unit) (TimeEncodingScheme, bool) {
+	if !u.IsValid() || int(u) >= len(s) {
+		return nil, false
+	}
+
+	scheme := s[u]
+	if scheme == nil {
+		return nil, false
+	}
+
+	return s[u], true
+}
 
 // Marker represents the markers.
 type Marker byte
@@ -219,7 +249,7 @@ func newMarkerEncodingScheme(
 			tmp := NewOStream(checked.NewBytes(nil, nil), false, nil)
 			tmp.WriteBits(uint64(i)>>uint(8-pos), pos)
 			WriteSpecialMarker(tmp, scheme, endOfStream)
-			rawBytes, _ := tmp.Rawbytes()
+			rawBytes, _ := tmp.RawBytes()
 			tail := checked.NewBytes(rawBytes, nil)
 			scheme.tails[i][j] = tail
 		}

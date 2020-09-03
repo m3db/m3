@@ -22,9 +22,33 @@ package transformation
 
 import "math"
 
+var (
+	// allows to use a single transform fn ref (instead of
+	// taking reference to it each time when converting to iface).
+	transformAbsoluteFn = UnaryTransformFn(absolute)
+)
+
+func transformAbsolute() UnaryTransform {
+	return transformAbsoluteFn
+}
+
 func absolute(dp Datapoint) Datapoint {
 	var res Datapoint
 	res.TimeNanos = dp.TimeNanos
 	res.Value = math.Abs(dp.Value)
 	return res
+}
+
+// add will add add a datapoint to a running count and return the result, useful
+// for computing a running sum of values (like a monotonic increasing counter).
+// Note:
+// * It treats NaN as zero value, i.e. 42 + NaN = 42.
+func transformAdd() UnaryTransform {
+	var curr float64
+	return UnaryTransformFn(func(dp Datapoint) Datapoint {
+		if !math.IsNaN(dp.Value) {
+			curr += dp.Value
+		}
+		return Datapoint{TimeNanos: dp.TimeNanos, Value: curr}
+	})
 }

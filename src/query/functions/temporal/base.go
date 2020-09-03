@@ -50,11 +50,7 @@ type iterationBounds struct {
 // makeProcessor is a way to create a transform.
 type makeProcessor interface {
 	// initialize initializes the processor.
-	initialize(
-		duration time.Duration,
-		controller *transform.Controller,
-		opts transform.Options,
-	) processor
+	initialize(duration time.Duration, opts transform.Options) processor
 }
 
 // processor is implemented by the underlying transforms.
@@ -97,7 +93,7 @@ func (o baseOp) Node(
 	return &baseNode{
 		controller:    controller,
 		op:            o,
-		processor:     o.processorFn.initialize(o.duration, controller, opts),
+		makeProcessor: o.processorFn,
 		transformOpts: opts,
 	}
 }
@@ -109,7 +105,7 @@ type baseNode struct {
 	// https://github.com/m3db/m3/issues/1430
 	controller    controller
 	op            baseOp
-	processor     processor
+	makeProcessor makeProcessor
 	transformOpts transform.Options
 }
 
@@ -127,47 +123,27 @@ func (c *baseNode) Process(
 		return fmt.Errorf("bound duration cannot be 0, bounds: %v", bounds)
 	}
 
-	seriesIter, err := b.SeriesIter()
-	if err != nil {
-		return err
-	}
-
-	// rename series to exclude their __name__ tag as part of function processing.
-	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesIter.SeriesMeta()))
-	for _, m := range seriesIter.SeriesMeta() {
-		tags := m.Tags.WithoutName()
-		resultSeriesMeta = append(resultSeriesMeta, block.SeriesMeta{
-			Name: tags.ID(),
-			Tags: tags,
-		})
-	}
-
-	builder, err := c.controller.BlockBuilder(queryCtx, meta, resultSeriesMeta)
-	if err != nil {
-		return err
-	}
-
-	steps := bounds.Steps()
-	if err := builder.AddCols(steps); err != nil {
-		return err
-	}
-
 	m := blockMeta{
 		end:         xtime.ToUnixNano(bounds.Start),
-		seriesMeta:  resultSeriesMeta,
+		queryCtx:    queryCtx,
 		aggDuration: xtime.UnixNano(c.op.duration),
 		stepSize:    xtime.UnixNano(bounds.StepSize),
-		steps:       steps,
+		steps:       bounds.Steps(),
 	}
 
 	concurrency := runtime.NumCPU()
+	var builder block.Builder
 	batches, err := b.MultiSeriesIter(concurrency)
 	if err != nil {
 		// NB: If the unconsolidated block does not support multi series iteration,
 		// fallback to processing series one by one.
-		singleProcess(ctx, seriesIter, builder, m, c.processor)
+		builder, err = c.singleProcess(ctx, b, m)
 	} else {
-		batchProcess(ctx, batches, builder, m, c.processor)
+		builder, err = c.batchProcess(ctx, b, batches, m)
+	}
+
+	if err != nil {
+		return err
 	}
 
 	// NB: safe to close the block here.
@@ -184,33 +160,47 @@ type blockMeta struct {
 	end         xtime.UnixNano
 	aggDuration xtime.UnixNano
 	stepSize    xtime.UnixNano
+	queryCtx    *models.QueryContext
 	steps       int
-	seriesMeta  []block.SeriesMeta
 }
 
-func batchProcess(
+func (c *baseNode) batchProcess(
 	ctx context.Context,
+	b block.Block,
 	iterBatches []block.SeriesIterBatch,
-	builder block.Builder,
 	m blockMeta,
-	p processor,
-) error {
+) (block.Builder, error) {
 	var (
-		metas = m.seriesMeta
-
 		mu       sync.Mutex
 		wg       sync.WaitGroup
 		multiErr xerrors.MultiError
 		idx      int
 	)
 
-	builder.PopulateColumns(len(metas))
+	meta := b.Meta()
+	builder, err := c.controller.BlockBuilder(m.queryCtx, meta, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	err = builder.AddCols(m.steps)
+	if err != nil {
+		return nil, err
+	}
+
+	numSeries := 0
+	for _, b := range iterBatches {
+		numSeries += b.Size
+	}
+
+	builder.PopulateColumns(numSeries)
 	for _, batch := range iterBatches {
 		wg.Add(1)
 		// capture loop variables
 		loopIndex := idx
 		batch := batch
 		idx = idx + batch.Size
+		p := c.makeProcessor.initialize(c.op.duration, c.transformOpts)
 		go func() {
 			err := parallelProcess(ctx, loopIndex, batch.Iter, builder, m, p, &mu)
 			if err != nil {
@@ -225,7 +215,7 @@ func batchProcess(
 	}
 
 	wg.Wait()
-	return multiErr.FinalError()
+	return builder, multiErr.FinalError()
 }
 
 func parallelProcess(
@@ -248,14 +238,20 @@ func parallelProcess(
 
 		// Simulate as if we did all the decoding up front so we can visualize
 		// how much decoding takes relative to the entire processing of the function.
-		_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeParallel, opentracing.StartTime(start))
+		_, sp, _ := xcontext.StartSampledTraceSpan(ctx,
+			tracepoint.TemporalDecodeParallel, opentracing.StartTime(start))
 		sp.FinishWithOptions(opentracing.FinishOptions{
 			FinishTime: start.Add(decodeDuration),
 		})
 	}()
 
 	values := make([]float64, 0, blockMeta.steps)
-	for iter.Next() {
+	metas := iter.SeriesMeta()
+	for i := 0; iter.Next(); i++ {
+		if i >= len(metas) {
+			return fmt.Errorf("invalid series meta index: %d, max %d", i, len(metas))
+		}
+
 		var (
 			newVal float64
 			init   = 0
@@ -266,12 +262,17 @@ func parallelProcess(
 			series     = iter.Current()
 			datapoints = series.Datapoints()
 			stats      = series.Stats()
+			seriesMeta = metas[i]
 		)
 
 		if stats.Enabled {
 			decodeDuration += stats.DecodeDuration
 		}
 
+		// rename series to exclude their __name__ tag as
+		// part of function processing.
+		seriesMeta.Tags = seriesMeta.Tags.WithoutName()
+		seriesMeta.Name = seriesMeta.Tags.ID()
 		values = values[:0]
 		for i := 0; i < blockMeta.steps; i++ {
 			iterBounds := iterationBounds{
@@ -293,9 +294,10 @@ func parallelProcess(
 		}
 
 		mu.Lock()
+
 		// NB: this sets the values internally, so no need to worry about keeping
 		// a reference to underlying `values`.
-		err := builder.SetRow(idx, values, blockMeta.seriesMeta[idx])
+		err := builder.SetRow(idx, values, seriesMeta)
 		mu.Unlock()
 		idx++
 		if err != nil {
@@ -306,29 +308,56 @@ func parallelProcess(
 	return iter.Err()
 }
 
-func singleProcess(
+func (c *baseNode) singleProcess(
 	ctx context.Context,
-	seriesIter block.SeriesIter,
-	builder block.Builder,
+	b block.Block,
 	m blockMeta,
-	p processor,
-) error {
+) (block.Builder, error) {
 	var (
 		start          = time.Now()
 		decodeDuration time.Duration
 	)
+
 	defer func() {
 		if decodeDuration == 0 {
 			return // Do not record this span if instrumentation is not turned on.
 		}
 		// Simulate as if we did all the decoding up front so we can visualize
 		// how much decoding takes relative to the entire processing of the function.
-		_, sp, _ := xcontext.StartSampledTraceSpan(ctx, tracepoint.TemporalDecodeSingle, opentracing.StartTime(start))
+		_, sp, _ := xcontext.StartSampledTraceSpan(ctx,
+			tracepoint.TemporalDecodeSingle, opentracing.StartTime(start))
 		sp.FinishWithOptions(opentracing.FinishOptions{
 			FinishTime: start.Add(decodeDuration),
 		})
 	}()
 
+	seriesIter, err := b.SeriesIter()
+	if err != nil {
+		return nil, err
+	}
+
+	// rename series to exclude their __name__ tag as part of function processing.
+	resultSeriesMeta := make([]block.SeriesMeta, 0, len(seriesIter.SeriesMeta()))
+	for _, m := range seriesIter.SeriesMeta() {
+		tags := m.Tags.WithoutName()
+		resultSeriesMeta = append(resultSeriesMeta, block.SeriesMeta{
+			Name: tags.ID(),
+			Tags: tags,
+		})
+	}
+
+	meta := b.Meta()
+	builder, err := c.controller.BlockBuilder(m.queryCtx, meta, resultSeriesMeta)
+	if err != nil {
+		return nil, err
+	}
+
+	err = builder.AddCols(m.steps)
+	if err != nil {
+		return nil, err
+	}
+
+	p := c.makeProcessor.initialize(c.op.duration, c.transformOpts)
 	for seriesIter.Next() {
 		var (
 			newVal float64
@@ -361,7 +390,7 @@ func singleProcess(
 			}
 
 			if err := builder.AppendValue(i, newVal); err != nil {
-				return err
+				return nil, err
 			}
 
 			start += step
@@ -369,7 +398,7 @@ func singleProcess(
 		}
 	}
 
-	return seriesIter.Err()
+	return builder, seriesIter.Err()
 }
 
 // getIndices returns the index of the points on the left and the right of the

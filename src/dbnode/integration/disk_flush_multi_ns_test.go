@@ -53,29 +53,29 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
-	testSetup, err := newTestSetup(t, opts, nil)
+	testSetup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
+	defer testSetup.Close()
 
-	clOpts := testSetup.storageOpts.CommitLogOptions()
+	clOpts := testSetup.StorageOpts().CommitLogOptions()
 	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
 
 	// it's aligned to lcm of ns block sizes
-	now := testSetup.getNowFn()
+	now := testSetup.NowFn()()
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("disk flush multiple namespaces test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 	log.Info("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, testSetup.stopServer())
+		require.NoError(t, testSetup.StopServer())
 		log.Info("server is now down")
 	}()
 
@@ -95,10 +95,10 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 
 	for _, ns1Input := range ns1InputData {
 		// write the data for ns1, always
-		testSetup.setNowFn(ns1Input.Start)
+		testSetup.SetNowFn(ns1Input.Start)
 		testData := generate.Block(ns1Input)
 		ns1SeriesMaps[xtime.ToUnixNano(ns1Input.Start)] = testData
-		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
+		require.NoError(t, testSetup.WriteBatch(testNamespaces[0], testData))
 		log.Info("wrote ns1 for time", zap.Time("start", ns1Input.Start))
 
 		// when applicable, write the data for ns2, too
@@ -109,7 +109,7 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 			testData = generate.Block(ns2Input)
 			ns2SeriesMaps[xtime.ToUnixNano(ns2Input.Start)] = testData
 			log.Info("wrote ns2 for time", zap.Time("start", ns2Input.Start))
-			require.NoError(t, testSetup.writeBatch(testNamespaces[1], testData))
+			require.NoError(t, testSetup.WriteBatch(testNamespaces[1], testData))
 		}
 	}
 	log.Info("test data written successfully")
@@ -119,14 +119,14 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	// when data are written.
 	maxWaitTime := time.Minute
 	log.Info("waiting until data is flushed")
-	testSetup.setNowFn(testSetup.getNowFn().Add(3 * ns1BlockSize))
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], ns1SeriesMaps, maxWaitTime))
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[1], ns2SeriesMaps, maxWaitTime))
+	testSetup.SetNowFn(testSetup.NowFn()().Add(3 * ns1BlockSize))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.ShardSet(), testNamespaces[0], ns1SeriesMaps, maxWaitTime))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.ShardSet(), testNamespaces[1], ns2SeriesMaps, maxWaitTime))
 	log.Info("data has been flushed")
 
 	// Verify on-disk data match what we expect
 	log.Info("verifying flushed data")
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], ns1SeriesMaps)
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[1], ns2SeriesMaps)
+	verifyFlushedDataFiles(t, testSetup.ShardSet(), testSetup.StorageOpts(), testNamespaces[0], ns1SeriesMaps)
+	verifyFlushedDataFiles(t, testSetup.ShardSet(), testSetup.StorageOpts(), testNamespaces[1], ns2SeriesMaps)
 	log.Info("flushed data verified")
 }

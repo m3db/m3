@@ -39,7 +39,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/checked"
@@ -78,9 +80,11 @@ const (
 type blockRetriever struct {
 	sync.RWMutex
 
-	opts   BlockRetrieverOptions
-	fsOpts Options
-	logger *zap.Logger
+	opts           BlockRetrieverOptions
+	fsOpts         Options
+	logger         *zap.Logger
+	queryLimits    limits.QueryLimits
+	bytesReadLimit limits.LookbackLimit
 
 	newSeekerMgrFn newSeekerMgrFn
 
@@ -112,6 +116,8 @@ func NewBlockRetriever(
 		opts:           opts,
 		fsOpts:         fsOpts,
 		logger:         fsOpts.InstrumentOptions().Logger(),
+		queryLimits:    opts.QueryLimits(),
+		bytesReadLimit: opts.QueryLimits().BytesReadLimit(),
 		newSeekerMgrFn: NewSeekerManager,
 		reqPool:        opts.RetrieveRequestPool(),
 		bytesPool:      opts.BytesPool(),
@@ -125,7 +131,10 @@ func NewBlockRetriever(
 	}, nil
 }
 
-func (r *blockRetriever) Open(ns namespace.Metadata) error {
+func (r *blockRetriever) Open(
+	ns namespace.Metadata,
+	shardSet sharding.ShardSet,
+) error {
 	r.Lock()
 	defer r.Unlock()
 
@@ -134,7 +143,7 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 	}
 
 	seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts, r.opts)
-	if err := seekerMgr.Open(ns); err != nil {
+	if err := seekerMgr.Open(ns, shardSet); err != nil {
 		return err
 	}
 
@@ -166,6 +175,17 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 	// this is fine, it just means that the Retriever could be closed while a
 	// call to CacheShardIndices is still outstanding.
 	return seekerMgr.CacheShardIndices(shards)
+}
+
+func (r *blockRetriever) AssignShardSet(shardSet sharding.ShardSet) {
+	// NB(bodu): Block retriever will always be open before calling this method.
+	// But have this check anyways to be safe.
+	r.RLock()
+	defer r.RUnlock()
+	if r.status != blockRetrieverOpen {
+		return
+	}
+	r.seekerMgr.AssignShardSet(shardSet)
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
@@ -273,6 +293,13 @@ func (r *blockRetriever) fetchBatch(
 	reqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
 ) {
+	if err := r.queryLimits.AnyExceeded(); err != nil {
+		for _, req := range reqs {
+			req.onError(err)
+		}
+		return
+	}
+
 	// Resolve the seeker from the seeker mgr
 	seeker, err := seekerMgr.Borrow(shard, blockStart)
 	if err != nil {
@@ -284,10 +311,22 @@ func (r *blockRetriever) fetchBatch(
 
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
+	var limitErr error
 	for _, req := range reqs {
+		if limitErr != nil {
+			req.onError(limitErr)
+			continue
+		}
+
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
+			continue
+		}
+
+		if err := r.bytesReadLimit.Inc(int(entry.Size)); err != nil {
+			req.onError(err)
+			limitErr = err
 			continue
 		}
 
@@ -320,9 +359,10 @@ func (r *blockRetriever) fetchBatch(
 
 		var (
 			seg, onRetrieveSeg ts.Segment
+			checksum           = req.indexEntry.DataChecksum
 		)
 		if data != nil {
-			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
+			seg = ts.NewSegment(data, nil, checksum, ts.FinalizeHead)
 		}
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
@@ -333,7 +373,7 @@ func (r *blockRetriever) fetchBatch(
 			// consequent fetches.
 			if data != nil {
 				dataCopy := r.bytesPool.Get(data.Len())
-				onRetrieveSeg = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
+				onRetrieveSeg = ts.NewSegment(dataCopy, nil, checksum, ts.FinalizeHead)
 				dataCopy.AppendAll(data.Bytes())
 			}
 			if tags := req.indexEntry.EncodedTags; tags != nil && tags.Len() > 0 {

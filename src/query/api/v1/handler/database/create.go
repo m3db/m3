@@ -203,7 +203,9 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nsRegistry, err := h.namespaceGetHandler.Get()
+	opts := handleroptions.NewServiceOptions(h.serviceNameAndDefaults(),
+		r.Header, nil)
+	nsRegistry, err := h.namespaceGetHandler.Get(opts)
 	if err != nil {
 		logger.Error("unable to retrieve existing namespaces", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
@@ -221,8 +223,6 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := handleroptions.NewServiceOptions(h.serviceNameAndDefaults(),
-		r.Header, nil)
 	nsRegistry, err = h.namespaceAddHandler.Add(namespaceRequest, opts)
 	if err != nil {
 		logger.Error("unable to add namespace", zap.Error(err))

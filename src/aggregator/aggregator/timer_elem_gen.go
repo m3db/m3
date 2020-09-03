@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -63,10 +63,10 @@ type TimerElem struct {
 	elemBase
 	timerElemBase
 
-	values              []timedTimer // metric aggregations sorted by time in ascending order
-	toConsume           []timedTimer // small buffer to avoid memory allocations during consumption
-	lastConsumedAtNanos int64        // last consumed at in Unix nanoseconds
-	lastConsumedValues  []float64    // last consumed values
+	values              []timedTimer               // metric aggregations sorted by time in ascending order
+	toConsume           []timedTimer               // small buffer to avoid memory allocations during consumption
+	lastConsumedAtNanos int64                      // last consumed at in Unix nanoseconds
+	lastConsumedValues  []transformation.Datapoint // last consumed values
 }
 
 // NewTimerElem creates a new element for the given metric type.
@@ -132,11 +132,11 @@ func (e *TimerElem) ResetSetData(
 	}
 	numAggTypes := len(e.aggTypes)
 	if cap(e.lastConsumedValues) < numAggTypes {
-		e.lastConsumedValues = make([]float64, numAggTypes)
+		e.lastConsumedValues = make([]transformation.Datapoint, numAggTypes)
 	}
 	e.lastConsumedValues = e.lastConsumedValues[:numAggTypes]
 	for i := 0; i < len(e.lastConsumedValues); i++ {
-		e.lastConsumedValues[i] = nan
+		e.lastConsumedValues[i] = transformation.Datapoint{Value: nan}
 	}
 	return nil
 }
@@ -153,7 +153,7 @@ func (e *TimerElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) e
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.AddUnion(mu)
+	lockedAgg.aggregation.AddUnion(timestamp, mu)
 	lockedAgg.Unlock()
 	return nil
 }
@@ -170,7 +170,7 @@ func (e *TimerElem) AddValue(timestamp time.Time, value float64) error {
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	lockedAgg.aggregation.Add(value)
+	lockedAgg.aggregation.Add(timestamp, value)
 	lockedAgg.Unlock()
 	return nil
 }
@@ -196,7 +196,7 @@ func (e *TimerElem) AddUnique(timestamp time.Time, values []float64, sourceID ui
 	}
 	lockedAgg.sourcesSeen.Set(source)
 	for _, v := range values {
-		lockedAgg.aggregation.Add(v)
+		lockedAgg.aggregation.Add(timestamp, v)
 	}
 	lockedAgg.Unlock()
 	return nil
@@ -412,28 +412,52 @@ func (e *TimerElem) processValueWithAggregationLock(
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
 		value := lockedAgg.aggregation.ValueOf(aggType)
-		for i := 0; i < transformations.Len(); i++ {
-			transformType := transformations.At(i).Transformation.Type
-			if transformType.IsUnaryTransform() {
-				fn := transformType.MustUnaryTransform()
-				res := fn(transformation.Datapoint{TimeNanos: timeNanos, Value: value})
+		for _, transformOp := range transformations {
+			unaryOp, isUnaryOp := transformOp.UnaryTransform()
+			binaryOp, isBinaryOp := transformOp.BinaryTransform()
+			switch {
+			case isUnaryOp:
+				curr := transformation.Datapoint{
+					TimeNanos: timeNanos,
+					Value:     value,
+				}
+
+				res := unaryOp.Evaluate(curr)
+
 				value = res.Value
-			} else {
-				fn := transformType.MustBinaryTransform()
-				prev := transformation.Datapoint{TimeNanos: e.lastConsumedAtNanos, Value: e.lastConsumedValues[aggTypeIdx]}
-				curr := transformation.Datapoint{TimeNanos: timeNanos, Value: value}
-				res := fn(prev, curr)
+
+			case isBinaryOp:
+				lastTimeNanos := e.lastConsumedAtNanos
+				prev := transformation.Datapoint{
+					TimeNanos: lastTimeNanos,
+					Value:     e.lastConsumedValues[aggTypeIdx].Value,
+				}
+
+				currTimeNanos := timeNanos
+				curr := transformation.Datapoint{
+					TimeNanos: currTimeNanos,
+					Value:     value,
+				}
+
+				res := binaryOp.Evaluate(prev, curr)
+
 				// NB: we only need to record the value needed for derivative transformations.
 				// We currently only support first-order derivative transformations so we only
 				// need to keep one value. In the future if we need to support higher-order
 				// derivative transformations, we need to store an array of values here.
-				e.lastConsumedValues[aggTypeIdx] = value
+				if !math.IsNaN(curr.Value) {
+					e.lastConsumedValues[aggTypeIdx] = curr
+				}
+
 				value = res.Value
+
 			}
 		}
+
 		if discardNaNValues && math.IsNaN(value) {
 			continue
 		}
+
 		if !e.parsedPipeline.HasRollup {
 			switch e.idPrefixSuffixType {
 			case NoPrefixNoSuffix:

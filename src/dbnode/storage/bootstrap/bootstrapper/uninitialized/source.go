@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/tracepoint"
+	"github.com/m3db/m3/src/x/context"
 )
 
 // The purpose of the unitializedSource is to succeed bootstraps for any
@@ -73,10 +75,10 @@ func (s *uninitializedTopologySource) availability(
 ) (result.ShardTimeRanges, error) {
 	var (
 		topoState                = runOpts.InitialTopologyState()
-		availableShardTimeRanges = result.ShardTimeRanges{}
+		availableShardTimeRanges = result.NewShardTimeRanges()
 	)
 
-	for shardIDUint := range shardsTimeRanges {
+	for shardIDUint := range shardsTimeRanges.Iter() {
 		shardID := topology.ShardID(shardIDUint)
 		hostShardStates, ok := topoState.ShardStates[shardID]
 		if !ok {
@@ -126,7 +128,9 @@ func (s *uninitializedTopologySource) availability(
 		// factor to actually increase correctly.
 		shardHasNeverBeenCompletelyInitialized := numInitializing-numLeaving > 0
 		if shardHasNeverBeenCompletelyInitialized {
-			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
+			if tr, ok := shardsTimeRanges.Get(shardIDUint); ok {
+				availableShardTimeRanges.Set(shardIDUint, tr)
+			}
 		}
 	}
 
@@ -134,8 +138,12 @@ func (s *uninitializedTopologySource) availability(
 }
 
 func (s *uninitializedTopologySource) Read(
+	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
+	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperUninitializedSourceRead)
+	defer span.Finish()
+
 	results := bootstrap.NamespaceResults{
 		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
 	}

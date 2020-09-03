@@ -52,15 +52,17 @@ var (
 	// M3AggSetURL is the url for the m3aggregator replace handler (method
 	// POST).
 	M3AggSetURL = path.Join(handler.RoutePrefixV1,
-		handleroptions.M3AggregatorServiceName, setPathName)
+		M3AggServicePlacementPathName, setPathName)
 
 	// M3CoordinatorSetURL is the url for the m3coordinator replace handler
 	// (method POST).
 	M3CoordinatorSetURL = path.Join(handler.RoutePrefixV1,
-		handleroptions.M3CoordinatorServiceName, setPathName)
+		M3CoordinatorServicePlacementPathName, setPathName)
 )
 
-// SetHandler is the type for placement replaces.
+// SetHandler is the type for manually setting a placement value. If none
+// currently exists, this will set the initial placement. Otherwise it will
+// override the existing placement.
 type SetHandler Handler
 
 // NewSetHandler returns a new SetHandler.
@@ -78,7 +80,8 @@ func (h *SetHandler) ServeHTTP(
 
 	req, pErr := h.parseRequest(r)
 	if pErr != nil {
-		xhttp.Error(w, pErr.Inner(), pErr.Code())
+		logger.Error("unable to parse request", zap.Error(pErr))
+		xhttp.Error(w, pErr, http.StatusBadRequest)
 		return
 	}
 
@@ -92,22 +95,19 @@ func (h *SetHandler) ServeHTTP(
 		return
 	}
 
+	var isNewPlacement bool
 	curPlacement, err := service.Placement()
-	if err == kv.ErrNotFound {
-		logger.Error("placement not found", zap.Any("req", req), zap.Error(err))
-		xhttp.Error(w, err, http.StatusNotFound)
-		return
-	}
 	if err != nil {
-		logger.Error("unable to get current placement", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
-		return
+		if err != kv.ErrNotFound {
+			logger.Error("unable to get current placement", zap.Error(err))
+			xhttp.Error(w, err, http.StatusInternalServerError)
+			return
+		}
+
+		isNewPlacement = true
+		logger.Info("no placement found, creating new placement")
 	}
 
-	var (
-		placementProto   = req.Placement
-		placementVersion int
-	)
 	newPlacement, err := placement.NewPlacementFromProto(req.Placement)
 	if err != nil {
 		logger.Error("unable to create new placement from proto", zap.Error(err))
@@ -115,18 +115,35 @@ func (h *SetHandler) ServeHTTP(
 		return
 	}
 
-	dryRun := !req.Confirm
+	var (
+		placementProto = req.Placement
+		dryRun         = !req.Confirm
+
+		updatedPlacement placement.Placement
+		placementVersion int
+	)
+
 	if dryRun {
 		logger.Info("performing dry run for set placement, not confirmed")
-		placementVersion = curPlacement.Version() + 1
+		if isNewPlacement {
+			placementVersion = 0
+		} else {
+			placementVersion = curPlacement.Version() + 1
+		}
 	} else {
 		logger.Info("performing live run for set placement, confirmed")
-		// Ensure the placement we're updating is still the one on which we validated
-		// all shards are available.
-		updatedPlacement, err := service.CheckAndSet(newPlacement,
-			curPlacement.Version())
+
+		if isNewPlacement {
+			updatedPlacement, err = service.SetIfNotExist(newPlacement)
+		} else {
+			// Ensure the placement we're updating is still the one on which we validated
+			// all shards are available.
+			updatedPlacement, err = service.CheckAndSet(newPlacement,
+				curPlacement.Version())
+		}
+
 		if err != nil {
-			logger.Error("unable to update placement", zap.Error(err))
+			logger.Error("unable to update placement", zap.Error(err), zap.Bool("isNewPlacement", isNewPlacement))
 			xhttp.Error(w, err, http.StatusInternalServerError)
 			return
 		}
@@ -143,12 +160,12 @@ func (h *SetHandler) ServeHTTP(
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *SetHandler) parseRequest(r *http.Request) (*admin.PlacementSetRequest, *xhttp.ParseError) {
+func (h *SetHandler) parseRequest(r *http.Request) (*admin.PlacementSetRequest, error) {
 	defer r.Body.Close()
 
 	req := &admin.PlacementSetRequest{}
 	if err := jsonpb.Unmarshal(r.Body, req); err != nil {
-		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, err
 	}
 
 	return req, nil

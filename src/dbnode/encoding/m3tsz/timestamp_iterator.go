@@ -33,7 +33,7 @@ import (
 // TimestampIterator encapsulates all the state required for iterating over
 // delta-of-delta compresed timestamps.
 type TimestampIterator struct {
-	PrevTime      time.Time
+	PrevTime      xtime.UnixNano
 	PrevTimeDelta time.Duration
 	PrevAnt       ts.Annotation
 
@@ -48,13 +48,21 @@ type TimestampIterator struct {
 	// schemes. Setting SkipMarkers to true disables the look ahead behavior
 	// for situations where looking ahead is not safe.
 	SkipMarkers bool
+
+	numValueBits         uint
+	numBits              uint
+	markerEncodingScheme encoding.MarkerEncodingScheme
 }
 
 // NewTimestampIterator creates a new TimestampIterator.
 func NewTimestampIterator(opts encoding.Options, skipMarkers bool) TimestampIterator {
+	mes := opts.MarkerEncodingScheme()
 	return TimestampIterator{
-		Opts:        opts,
-		SkipMarkers: skipMarkers,
+		Opts:                 opts,
+		SkipMarkers:          skipMarkers,
+		numValueBits:         uint(mes.NumValueBits()),
+		numBits:              uint(mes.NumOpcodeBits() + mes.NumValueBits()),
+		markerEncodingScheme: mes,
 	}
 }
 
@@ -66,7 +74,7 @@ func (it *TimestampIterator) ReadTimestamp(stream encoding.IStream) (bool, bool,
 		first = false
 		err   error
 	)
-	if it.PrevTime.IsZero() {
+	if it.PrevTime == 0 {
 		first = true
 		err = it.readFirstTimestamp(stream)
 	} else {
@@ -110,11 +118,10 @@ func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 		return err
 	}
 
-	nt := int64(ntBits)
 	// NB(xichen): first time stamp is always normalized to nanoseconds.
-	st := xtime.FromNormalizedTime(nt, time.Nanosecond)
+	nt := xtime.UnixNano(ntBits)
 	if it.TimeUnit == xtime.None {
-		it.TimeUnit = initialTimeUnit(st, it.Opts.DefaultTimeUnit())
+		it.TimeUnit = initialTimeUnit(nt, it.Opts.DefaultTimeUnit())
 	}
 
 	err = it.readNextTimestamp(stream)
@@ -122,7 +129,7 @@ func (it *TimestampIterator) readFirstTimestamp(stream encoding.IStream) error {
 		return err
 	}
 
-	it.PrevTime = st.Add(it.PrevTimeDelta)
+	it.PrevTime = nt + xtime.UnixNano(it.PrevTimeDelta)
 	return nil
 }
 
@@ -133,37 +140,35 @@ func (it *TimestampIterator) readNextTimestamp(stream encoding.IStream) error {
 	}
 
 	it.PrevTimeDelta += dod
-	it.PrevTime = it.PrevTime.Add(it.PrevTimeDelta)
+	it.PrevTime = it.PrevTime + xtime.UnixNano(it.PrevTimeDelta)
 	return nil
 }
 
 func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (time.Duration, bool, error) {
-	mes := it.Opts.MarkerEncodingScheme()
-	numBits := mes.NumOpcodeBits() + mes.NumValueBits()
-	opcodeAndValue, success := it.tryPeekBits(stream, numBits)
+	opcodeAndValue, success := it.tryPeekBits(stream, it.numBits)
 	if !success {
 		return 0, false, nil
 	}
 
-	opcode := opcodeAndValue >> uint(mes.NumValueBits())
-	if opcode != mes.Opcode() {
+	opcode := opcodeAndValue >> it.numValueBits
+	if opcode != it.markerEncodingScheme.Opcode() {
 		return 0, false, nil
 	}
 
 	var (
-		valueMask   = (1 << uint(mes.NumValueBits())) - 1
+		valueMask   = (1 << it.numValueBits) - 1
 		markerValue = int64(opcodeAndValue & uint64(valueMask))
 	)
 	switch encoding.Marker(markerValue) {
-	case mes.EndOfStream():
-		_, err := stream.ReadBits(numBits)
+	case it.markerEncodingScheme.EndOfStream():
+		_, err := stream.ReadBits(it.numBits)
 		if err != nil {
 			return 0, false, err
 		}
 		it.Done = true
 		return 0, true, nil
-	case mes.Annotation():
-		_, err := stream.ReadBits(numBits)
+	case it.markerEncodingScheme.Annotation():
+		_, err := stream.ReadBits(it.numBits)
 		if err != nil {
 			return 0, false, err
 		}
@@ -176,8 +181,8 @@ func (it *TimestampIterator) tryReadMarker(stream encoding.IStream) (time.Durati
 			return 0, false, err
 		}
 		return markerOrDOD, true, nil
-	case mes.TimeUnit():
-		_, err := stream.ReadBits(numBits)
+	case it.markerEncodingScheme.TimeUnit():
+		_, err := stream.ReadBits(it.numBits)
 		if err != nil {
 			return 0, false, err
 		}
@@ -210,7 +215,7 @@ func (it *TimestampIterator) readMarkerOrDeltaOfDelta(stream encoding.IStream) (
 		}
 	}
 
-	tes, exists := it.Opts.TimeEncodingSchemes()[it.TimeUnit]
+	tes, exists := it.Opts.TimeEncodingSchemes().SchemeForUnit(it.TimeUnit)
 	if !exists {
 		return 0, fmt.Errorf("time encoding scheme for time unit %v doesn't exist", it.TimeUnit)
 	}
@@ -249,12 +254,12 @@ func (it *TimestampIterator) readDeltaOfDelta(
 
 		cb = (cb << 1) | nextCB
 		if cb == buckets[i].Opcode() {
-			dodBits, err := stream.ReadBits(buckets[i].NumValueBits())
+			dodBits, err := stream.ReadBits(uint(buckets[i].NumValueBits()))
 			if err != nil {
 				return 0, err
 			}
 
-			dod := encoding.SignExtend(dodBits, buckets[i].NumValueBits())
+			dod := encoding.SignExtend(dodBits, uint(buckets[i].NumValueBits()))
 			timeUnit, err := it.TimeUnit.Value()
 			if err != nil {
 				return 0, nil
@@ -264,12 +269,11 @@ func (it *TimestampIterator) readDeltaOfDelta(
 		}
 	}
 
-	numValueBits := tes.DefaultBucket().NumValueBits()
+	numValueBits := uint(tes.DefaultBucket().NumValueBits())
 	dodBits, err := stream.ReadBits(numValueBits)
 	if err != nil {
 		return 0, err
 	}
-
 	dod := encoding.SignExtend(dodBits, numValueBits)
 	timeUnit, err := it.TimeUnit.Value()
 	if err != nil {
@@ -312,7 +316,7 @@ func (it *TimestampIterator) readVarint(stream encoding.IStream) (int, error) {
 	return int(res), err
 }
 
-func (it *TimestampIterator) tryPeekBits(stream encoding.IStream, numBits int) (uint64, bool) {
+func (it *TimestampIterator) tryPeekBits(stream encoding.IStream, numBits uint) (uint64, bool) {
 	res, err := stream.PeekBits(numBits)
 	if err != nil {
 		return 0, false

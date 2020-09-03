@@ -266,7 +266,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 				unit xtime.Unit,
 				annotation []byte,
 				_ series.WriteOptions,
-			) (bool, error) {
+			) (bool, series.WriteType, error) {
 				a.Lock()
 				a.writeMap[stringID] = append(
 					a.writeMap[stringID], series.DecodedTestValue{
@@ -276,7 +276,7 @@ func (a *TestDataAccumulator) checkoutSeriesWithLock(
 						Annotation: annotation,
 					})
 				a.Unlock()
-				return true, nil
+				return true, series.WarmWrite, nil
 			}).AnyTimes()
 
 	result := CheckoutSeriesResult{
@@ -347,8 +347,8 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 	iterPool encoding.MultiReaderIteratorPool,
 	mds ...namespace.Metadata,
 ) NamespacesTester {
-	shards := make([]uint32, 0, len(ranges))
-	for shard := range ranges {
+	shards := make([]uint32, 0, ranges.Len())
+	for shard := range ranges.Iter() {
 		shards = append(shards, shard)
 	}
 
@@ -378,12 +378,14 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 			Shards:          shards,
 			DataAccumulator: acc,
 			DataRunOptions: NamespaceRunOptions{
-				ShardTimeRanges: ranges.Copy(),
-				RunOptions:      runOpts,
+				ShardTimeRanges:       ranges.Copy(),
+				TargetShardTimeRanges: ranges.Copy(),
+				RunOptions:            runOpts,
 			},
 			IndexRunOptions: NamespaceRunOptions{
-				ShardTimeRanges: ranges.Copy(),
-				RunOptions:      runOpts,
+				ShardTimeRanges:       ranges.Copy(),
+				TargetShardTimeRanges: ranges.Copy(),
+				RunOptions:            runOpts,
 			},
 		})
 	}
@@ -536,7 +538,9 @@ func (nt *NamespacesTester) ResultForNamespace(id ident.ID) NamespaceResult {
 // TestBootstrapWith bootstraps the current Namespaces with the
 // provided bootstrapper.
 func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
-	res, err := b.Bootstrap(nt.Namespaces)
+	ctx := context.NewContext()
+	defer ctx.Close()
+	res, err := b.Bootstrap(ctx, nt.Namespaces)
 	assert.NoError(nt.t, err)
 	nt.Results = res
 }
@@ -544,21 +548,25 @@ func (nt *NamespacesTester) TestBootstrapWith(b Bootstrapper) {
 // TestReadWith reads the current Namespaces with the
 // provided bootstrap source.
 func (nt *NamespacesTester) TestReadWith(s Source) {
-	res, err := s.Read(nt.Namespaces)
+	ctx := context.NewContext()
+	defer ctx.Close()
+	res, err := s.Read(ctx, nt.Namespaces)
 	require.NoError(nt.t, err)
 	nt.Results = res
 }
 
 func validateRanges(ac xtime.Ranges, ex xtime.Ranges) error {
 	// Make range eclipses expected.
-	removedRange := ex.RemoveRanges(ac)
+	removedRange := ex.Clone()
+	removedRange.RemoveRanges(ac)
 	if !removedRange.IsEmpty() {
 		return fmt.Errorf("actual range %v does not match expected range %v "+
 			"diff: %v", ac, ex, removedRange)
 	}
 
 	// Now make sure no ranges outside of expected.
-	expectedWithAddedRanges := ex.AddRanges(ac)
+	expectedWithAddedRanges := ex.Clone()
+	expectedWithAddedRanges.AddRanges(ac)
 	if ex.Len() != expectedWithAddedRanges.Len() {
 		return fmt.Errorf("expected with re-added ranges not equal")
 	}
@@ -579,14 +587,14 @@ func validateShardTimeRanges(
 	r result.ShardTimeRanges,
 	ex result.ShardTimeRanges,
 ) error {
-	if len(ex) != len(r) {
+	if ex.Len() != r.Len() {
 		return fmt.Errorf("expected %v and actual %v size mismatch", ex, r)
 	}
 
-	seen := make(map[uint32]struct{}, len(r))
-	for k, val := range r {
-		expectedVal, found := ex[k]
-		if !found {
+	seen := make(map[uint32]struct{}, r.Len())
+	for k, val := range r.Iter() {
+		expectedVal, ok := ex.Get(k)
+		if !ok {
 			return fmt.Errorf("expected shard map %v does not have shard %d; "+
 				"actual: %v", ex, k, r)
 		}
@@ -598,7 +606,7 @@ func validateShardTimeRanges(
 		seen[k] = struct{}{}
 	}
 
-	for k := range ex {
+	for k := range ex.Iter() {
 		if _, beenFound := seen[k]; !beenFound {
 			return fmt.Errorf("shard %d in actual not found in expected %v", k, ex)
 		}
@@ -704,7 +712,7 @@ var _ gomock.Matcher = (*NamespaceMatcher)(nil)
 // ShardTimeRangesMatcher is a matcher for ShardTimeRanges.
 type ShardTimeRangesMatcher struct {
 	// Ranges are the expected ranges.
-	Ranges map[uint32]xtime.Ranges
+	Ranges result.ShardTimeRanges
 }
 
 // Matches returns whether x is a match.

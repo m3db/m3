@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
-	pql "github.com/prometheus/prometheus/promql"
+	pql "github.com/prometheus/prometheus/promql/parser"
 
 	"github.com/stretchr/testify/require"
 )
@@ -200,8 +200,8 @@ func TestParseThreshold(t *testing.T) {
 		r, err := ioutil.ReadAll(body)
 		require.NoError(t, err)
 
-		ex := xtest.MustPrettyJSON(t, tt.ex)
-		actual := xtest.MustPrettyJSON(t, string(r))
+		ex := xtest.MustPrettyJSONString(t, tt.ex)
+		actual := xtest.MustPrettyJSONString(t, string(r))
 		require.Equal(t, ex, actual,
 			fmt.Sprintf("Run %d:\n%s", i, xtest.Diff(ex, actual)))
 	}

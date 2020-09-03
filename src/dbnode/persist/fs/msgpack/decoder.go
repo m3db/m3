@@ -46,6 +46,7 @@ var (
 
 	errorUnableToDetermineNumFieldsToSkip          = errors.New("unable to determine num fields to skip")
 	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes with out byte stream decoder")
+	errorIndexEntryChecksumMismatch                = errors.New("decode index entry encountered checksum mismatch")
 )
 
 // Decoder decodes persisted msgpack-encoded data
@@ -53,20 +54,23 @@ type Decoder struct {
 	reader DecoderStream
 	// Will only be set if the Decoder is Reset() with a DecoderStream
 	// that also implements ByteStream.
-	byteReader        ByteStream
+	byteReader ByteStream
+	// Wraps original reader with reader that can calculate digest. Digest calculation must be enabled,
+	// otherwise it defaults to off.
+	readerWithDigest  *decoderStreamWithDigest
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
 
-	legacy legacyEncodingOptions
+	legacy LegacyEncodingOptions
 }
 
 // NewDecoder creates a new decoder
 func NewDecoder(opts DecodingOptions) *Decoder {
-	return newDecoder(defaultlegacyEncodingOptions, opts)
+	return newDecoder(DefaultLegacyEncodingOptions, opts)
 }
 
-func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
+func newDecoder(legacy LegacyEncodingOptions, opts DecodingOptions) *Decoder {
 	if opts == nil {
 		opts = NewDecodingOptions()
 	}
@@ -76,6 +80,7 @@ func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
 		legacy:            legacy,
+		readerWithDigest:  newDecoderStreamWithDigest(nil),
 	}
 }
 
@@ -91,7 +96,8 @@ func (dec *Decoder) Reset(stream DecoderStream) {
 		dec.byteReader = nil
 	}
 
-	dec.dec.Reset(dec.reader)
+	dec.readerWithDigest.reset(dec.reader)
+	dec.dec.Reset(dec.readerWithDigest)
 	dec.err = nil
 }
 
@@ -115,8 +121,10 @@ func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntr
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
 	}
+	dec.readerWithDigest.setDigestReaderEnabled(true)
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
 	indexEntry := dec.decodeIndexEntry(bytesPool)
+	dec.readerWithDigest.setDigestReaderEnabled(false)
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
@@ -242,22 +250,27 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	var opts checkNumFieldsOptions
 
 	// Overrides only used to test forwards compatibility.
-	switch dec.legacy.decodeLegacyIndexInfoVersion {
-	case legacyEncodingIndexVersionV1:
+	switch dec.legacy.DecodeLegacyIndexInfoVersion {
+	case LegacyEncodingIndexVersionV1:
 		// V1 had 6 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 6
-	case legacyEncodingIndexVersionV2:
+	case LegacyEncodingIndexVersionV2:
 		// V2 had 8 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 8
-	case legacyEncodingIndexVersionV3:
+	case LegacyEncodingIndexVersionV3:
 		// V3 had 9 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 9
+	case LegacyEncodingIndexVersionV4:
+		// V4 had 10 fields.
+		opts.override = true
+		opts.numExpectedMinFields = 6
+		opts.numExpectedCurrFields = 10
 	}
 
 	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexInfoType, opts)
@@ -274,7 +287,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
 	// At this point if its a V1 file we've decoded all the available fields.
-	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 || actual < 8 {
+	if dec.legacy.DecodeLegacyIndexInfoVersion == LegacyEncodingIndexVersionV1 || actual < 8 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
@@ -284,7 +297,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.FileType = persist.FileSetType(dec.decodeVarint())
 
 	// At this point if its a V2 file we've decoded all the available fields.
-	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 || actual < 9 {
+	if dec.legacy.DecodeLegacyIndexInfoVersion == LegacyEncodingIndexVersionV2 || actual < 9 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
@@ -293,13 +306,22 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.SnapshotID, _, _ = dec.decodeBytes()
 
 	// At this point if its a V3 file we've decoded all the available fields.
-	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV3 || actual < 10 {
+	if dec.legacy.DecodeLegacyIndexInfoVersion == LegacyEncodingIndexVersionV3 || actual < 10 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
 
 	// Decode fields added in V4.
 	indexInfo.VolumeIndex = int(dec.decodeVarint())
+
+	// At this point if its a V4 file we've decoded all the available fields.
+	if dec.legacy.DecodeLegacyIndexInfoVersion == LegacyEncodingIndexVersionV4 || actual < 11 {
+		dec.skip(numFieldsToSkip)
+		return indexInfo
+	}
+
+	// Decode fields added in V5.
+	indexInfo.MinorVersion = dec.decodeVarint()
 
 	dec.skip(numFieldsToSkip)
 	return indexInfo
@@ -336,12 +358,25 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 
 func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
 	var opts checkNumFieldsOptions
-	if dec.legacy.decodeLegacyV1IndexEntry {
+	switch dec.legacy.DecodeLegacyIndexEntryVersion {
+	case LegacyEncodingIndexEntryVersionV1:
 		// V1 had 5 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 5
 		opts.numExpectedCurrFields = 5
+	case LegacyEncodingIndexEntryVersionV2:
+		// V2 had 6 fields.
+		opts.override = true
+		opts.numExpectedMinFields = 5
+		opts.numExpectedCurrFields = 6
+	case LegacyEncodingIndexEntryVersionCurrent:
+		// V3 is current version, no overrides needed
+		break
+	default:
+		dec.err = fmt.Errorf("invalid legacyEncodingIndexEntryVersion provided: %v", dec.legacy.DecodeLegacyIndexEntryVersion)
+		return emptyIndexEntry
 	}
+
 	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexEntryType, opts)
 	if !ok {
 		return emptyIndexEntry
@@ -358,20 +393,44 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
-	indexEntry.Checksum = dec.decodeVarint()
+	indexEntry.DataChecksum = dec.decodeVarint()
 
-	if dec.legacy.decodeLegacyV1IndexEntry || actual < 6 {
+	// At this point, if its a V1 file, we've decoded all the available fields.
+	if dec.legacy.DecodeLegacyIndexEntryVersion == LegacyEncodingIndexEntryVersionV1 || actual < 6 {
 		dec.skip(numFieldsToSkip)
 		return indexEntry
 	}
 
+	// Decode fields added in V2
 	if bytesPool == nil {
 		indexEntry.EncodedTags, _, _ = dec.decodeBytes()
 	} else {
 		indexEntry.EncodedTags = dec.decodeBytesWithPool(bytesPool)
 	}
 
+	// At this point, if its a V2 file, we've decoded all the available fields.
+	if dec.legacy.DecodeLegacyIndexEntryVersion == LegacyEncodingIndexEntryVersionV2 || actual < 7 {
+		dec.skip(numFieldsToSkip)
+		return indexEntry
+	}
+
+	// NB(nate): Any new fields should be parsed here.
+
+	// Intentionally skip any extra fields here as we've stipulated that from V3 onward, IndexEntryChecksum will be the
+	// final field on index entries
 	dec.skip(numFieldsToSkip)
+
+	// Retrieve actual checksum value here. Attempting to retrieve after decoding the upcoming expected checksum field
+	// would include value in actual checksum calculation which would cause a mismatch
+	actualChecksum := dec.readerWithDigest.digest().Sum32()
+
+	// Decode checksum field originally added in V3
+	expectedChecksum := uint32(dec.decodeVarint())
+
+	if expectedChecksum != actualChecksum {
+		dec.err = errorIndexEntryChecksumMismatch
+	}
+
 	return indexEntry
 }
 
@@ -621,6 +680,11 @@ func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 		return nil, -1, -1
 	}
 	value = backingBytes[currPos:targetPos]
+	if err := dec.readerWithDigest.capture(value); err != nil {
+		dec.err = err
+		return nil, -1, -1
+	}
+
 	return value, currPos, bytesLen
 }
 
@@ -638,7 +702,7 @@ func (dec *Decoder) decodeBytesWithPool(bytesPool pool.BytesPool) []byte {
 	}
 
 	bytes := bytesPool.Get(bytesLen)[:bytesLen]
-	n, err := io.ReadFull(dec.reader, bytes)
+	n, err := io.ReadFull(dec.readerWithDigest, bytes)
 	if err != nil {
 		dec.err = err
 		bytesPool.Put(bytes)

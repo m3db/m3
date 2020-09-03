@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3/src/dbnode/namespace"
 )
 
 type Series struct {
@@ -86,8 +86,8 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 	orig := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 		ID:             ident.StringID("foo"),
 		Namespace:      ident.StringID("namespace"),
-		StartInclusive: start,
-		EndExclusive:   end,
+		StartInclusive: xtime.ToUnixNano(start),
+		EndExclusive:   xtime.ToUnixNano(end),
 		Replicas:       []encoding.MultiReaderIterator{multiReader},
 	}, nil)
 
@@ -96,8 +96,10 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 		ID: orig.ID(),
 	}
 
+	replicas, err := orig.Replicas()
+	require.NoError(t, err)
 	// Collect all the replica per-block readers
-	for _, replica := range orig.Replicas() {
+	for _, replica := range replicas {
 		perBlockSliceReaders := replica.Readers()
 		next := true
 		for next {
@@ -160,8 +162,8 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 			ID:             orig.ID(),
 			Namespace:      orig.Namespace(),
 			Tags:           orig.Tags(),
-			StartInclusive: filterValuesStart,
-			EndExclusive:   filterValuesEnd,
+			StartInclusive: xtime.ToUnixNano(filterValuesStart),
+			EndExclusive:   xtime.ToUnixNano(filterValuesEnd),
 			Replicas:       block.Replicas,
 		}, nil)
 

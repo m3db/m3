@@ -53,7 +53,7 @@ type indexReader struct {
 	volumeIndex  int
 
 	currIdx                int
-	info                   index.IndexInfo
+	info                   index.IndexVolumeInfo
 	expectedDigest         index.IndexDigests
 	expectedDigestOfDigest uint32
 	readDigests            indexReaderReadDigests
@@ -207,7 +207,7 @@ func (r *indexReader) ReadSegmentFileSet() (
 	)
 	success := false
 	defer func() {
-		// Do not close opened files if read finishes sucessfully.
+		// Do not close opened files if read finishes successfully.
 		if success {
 			return
 		}
@@ -259,12 +259,18 @@ func (r *indexReader) ReadSegmentFileSet() (
 
 		file := newReadableIndexSegmentFileMmap(segFileType, fd, desc)
 		result.files = append(result.files, file)
-		digests.files = append(digests.files, indexReaderReadSegmentFileDigest{
-			segmentFileType: segFileType,
-			digest:          digest.Checksum(desc.Bytes),
-		})
 
-		// NB(bodu): Free mmaped bytes after we take the checksum so we don't get memory spikes at bootstrap time.
+		if r.opts.IndexReaderAutovalidateIndexSegments() {
+			// Only checksum the file if we are autovalidating the index
+			// segments on open.
+			digests.files = append(digests.files, indexReaderReadSegmentFileDigest{
+				segmentFileType: segFileType,
+				digest:          digest.Checksum(desc.Bytes),
+			})
+		}
+
+		// NB(bodu): Free mmaped bytes after we take the checksum so we don't
+		// get memory spikes at bootstrap time.
 		if err := mmap.MadviseDontNeed(desc); err != nil {
 			return nil, err
 		}
@@ -282,6 +288,10 @@ func (r *indexReader) Validate() error {
 	}
 	if err := r.validateInfoFileDigest(); err != nil {
 		return err
+	}
+	if !r.opts.IndexReaderAutovalidateIndexSegments() {
+		// Do not validate on segment open.
+		return nil
 	}
 	for i, segment := range r.info.Segments {
 		for j := range segment.Files {
@@ -343,6 +353,13 @@ func (r *indexReader) validateSegmentFileDigest(segmentIdx, fileIdx int) error {
 			segmentIdx, fileIdx, expected, actual)
 	}
 	return nil
+}
+
+func (r *indexReader) IndexVolumeType() idxpersist.IndexVolumeType {
+	if r.info.IndexVolumeType == nil {
+		return idxpersist.DefaultIndexVolumeType
+	}
+	return idxpersist.IndexVolumeType(r.info.IndexVolumeType.Value)
 }
 
 func (r *indexReader) Close() error {

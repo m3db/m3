@@ -40,7 +40,8 @@ type results struct {
 	nsID ident.ID
 	opts QueryResultsOptions
 
-	resultsMap *ResultsMap
+	resultsMap     *ResultsMap
+	totalDocsCount int
 
 	idPool    ident.Pool
 	bytesPool pool.CheckedBytesPool
@@ -88,6 +89,7 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 
 	// Reset all keys in the map next, this will finalize the keys.
 	r.resultsMap.Reset()
+	r.totalDocsCount = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.
@@ -97,12 +99,14 @@ func (r *results) Reset(nsID ident.ID, opts QueryResultsOptions) {
 
 // NB: If documents with duplicate IDs are added, they are simply ignored and
 // the first document added with an ID is returned.
-func (r *results) AddDocuments(batch []doc.Document) (int, error) {
+func (r *results) AddDocuments(batch []doc.Document) (int, int, error) {
 	r.Lock()
 	err := r.addDocumentsBatchWithLock(batch)
 	size := r.resultsMap.Len()
+	docsCount := r.totalDocsCount + len(batch)
+	r.totalDocsCount = docsCount
 	r.Unlock()
-	return size, err
+	return size, docsCount, err
 }
 
 func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
@@ -119,9 +123,7 @@ func (r *results) addDocumentsBatchWithLock(batch []doc.Document) error {
 	return nil
 }
 
-func (r *results) addDocumentWithLock(
-	d doc.Document,
-) (bool, int, error) {
+func (r *results) addDocumentWithLock(d doc.Document) (bool, int, error) {
 	if len(d.ID) == 0 {
 		return false, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}
@@ -141,8 +143,8 @@ func (r *results) addDocumentWithLock(
 	}
 
 	// i.e. it doesn't exist in the map, so we create the tags wrapping
-	// fields prodided by the document.
-	tags := convert.ToMetricTags(d, convert.Opts{NoClone: true})
+	// fields provided by the document.
+	tags := convert.ToSeriesTags(d, convert.Opts{NoClone: true})
 
 	// It is assumed that the document is valid for the lifetime of the index
 	// results.
@@ -173,6 +175,13 @@ func (r *results) Size() int {
 	v := r.resultsMap.Len()
 	r.RUnlock()
 	return v
+}
+
+func (r *results) TotalDocsCount() int {
+	r.RLock()
+	count := r.totalDocsCount
+	r.RUnlock()
+	return count
 }
 
 func (r *results) Finalize() {

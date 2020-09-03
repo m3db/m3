@@ -187,6 +187,20 @@ func (c *client) writeForwardedMetricWithMetadata(
 	return c.writeUnaggregatedMessage(msg)
 }
 
+func (c *client) writePassthroughMetricWithMetadata(
+	metric aggregated.Metric,
+	storagePolicy policy.StoragePolicy,
+) error {
+	msg := encoding.UnaggregatedMessageUnion{
+		Type: encoding.PassthroughMetricWithMetadataType,
+		PassthroughMetricWithMetadata: aggregated.PassthroughMetricWithMetadata{
+			Metric:        metric,
+			StoragePolicy: storagePolicy,
+		},
+	}
+	return c.writeUnaggregatedMessage(msg)
+}
+
 func (c *client) writeUnaggregatedMessage(
 	msg encoding.UnaggregatedMessageUnion,
 ) error {

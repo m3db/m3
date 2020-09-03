@@ -56,7 +56,7 @@ func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateIn
 		SetBufferFuture(2 * time.Minute)
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
 		// and not write/read all nodes in the cluster.
@@ -75,7 +75,7 @@ func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateIn
 	defer closeFn()
 
 	// Write test data for first node
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 	blockSize := retentionOpts.BlockSize()
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process
@@ -93,16 +93,16 @@ func testPeersBootstrapSimple(t *testing.T, setTestOpts setTestOptions, updateIn
 	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps, 0))
 
 	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	// Start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[1].startServer())
+	require.NoError(t, setups[1].StartServer())
 	log.Debug("servers are now up")
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+		setups.parallel(func(s TestSetup) {
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

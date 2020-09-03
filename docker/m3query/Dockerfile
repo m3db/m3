@@ -1,9 +1,9 @@
 # stage 1: build
-FROM golang:1.12-alpine3.9 AS builder
+FROM golang:1.13-alpine3.11 AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
-# Install Glide
-RUN apk add --update glide git make bash
+# Install deps
+RUN apk add --update git make bash
 
 # Add source code
 RUN mkdir -p /go/src/github.com/m3db/m3
@@ -15,7 +15,7 @@ RUN cd /go/src/github.com/m3db/m3/ && \
     make m3query-linux-amd64
 
 # stage 2: lightweight "release"
-FROM alpine:latest
+FROM alpine:3.11
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 EXPOSE 7201/tcp 7203/tcp

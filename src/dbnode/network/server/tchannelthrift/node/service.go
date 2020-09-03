@@ -23,6 +23,7 @@ package node
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -37,11 +38,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
-	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
+	xdebug "github.com/m3db/m3/src/x/debug"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -118,23 +120,23 @@ type serviceMetrics struct {
 	overloadRejected        tally.Counter
 }
 
-func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
+func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceMetrics {
 	return serviceMetrics{
-		fetch:                   instrument.NewMethodMetrics(scope, "fetch", samplingRate),
-		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", samplingRate),
-		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", samplingRate),
-		write:                   instrument.NewMethodMetrics(scope, "write", samplingRate),
-		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", samplingRate),
-		fetchBlocks:             instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata:     instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		repair:                  instrument.NewMethodMetrics(scope, "repair", samplingRate),
-		truncate:                instrument.NewMethodMetrics(scope, "truncate", samplingRate),
+		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
+		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
+		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", opts),
+		write:                   instrument.NewMethodMetrics(scope, "write", opts),
+		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", opts),
+		fetchBlocks:             instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
+		fetchBlocksMetadata:     instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
+		repair:                  instrument.NewMethodMetrics(scope, "repair", opts),
+		truncate:                instrument.NewMethodMetrics(scope, "truncate", opts),
 		fetchBatchRawRPCS:       scope.Counter("fetchBatchRaw-rpcs"),
-		fetchBatchRaw:           instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
+		fetchBatchRaw:           instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", opts),
 		writeBatchRawRPCs:       scope.Counter("writeBatchRaw-rpcs"),
-		writeBatchRaw:           instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
+		writeBatchRaw:           instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", opts),
 		writeTaggedBatchRawRPCs: scope.Counter("writeTaggedBatchRaw-rpcs"),
-		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", samplingRate),
+		writeTaggedBatchRaw:     instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", opts),
 		overloadRejected:        scope.Counter("overload-rejected"),
 	}
 }
@@ -161,6 +163,8 @@ type serviceState struct {
 
 	numOutstandingReadRPCs int
 	maxOutstandingReadRPCs int
+
+	profiles map[string]*xdebug.ContinuousFileProfile
 }
 
 func (s *serviceState) DB() (storage.Database, bool) {
@@ -246,6 +250,13 @@ type Service interface {
 
 	// Only safe to be called one time once the service has started.
 	SetDatabase(db storage.Database) error
+
+	// SetMetadata sets a metadata key to the given value.
+	SetMetadata(key, value string)
+
+	// GetMetadata returns the metadata for the given key and a bool indicating
+	// if it is present.
+	GetMetadata(key string) (string, bool)
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -296,11 +307,12 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			},
 			maxOutstandingWriteRPCs: opts.MaxOutstandingWriteRequests(),
 			maxOutstandingReadRPCs:  opts.MaxOutstandingReadRequests(),
+			profiles:                make(map[string]*xdebug.ContinuousFileProfile),
 		},
 		logger:  iopts.Logger(),
 		opts:    opts,
 		nowFn:   opts.ClockOptions().NowFn(),
-		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
+		metrics: newServiceMetrics(scope, iopts.TimerOptions()),
 		pools: pools{
 			id:                      opts.IdentifierPool(),
 			checkedBytesWrapper:     opts.CheckedBytesWrapperPool(),
@@ -312,6 +324,34 @@ func NewService(db storage.Database, opts tchannelthrift.Options) Service {
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
 		},
 	}
+}
+
+func (s *service) SetMetadata(key, value string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// Copy health state and update single value since in flight
+	// requests might hold ref to current health result.
+	newHealth := &rpc.NodeHealthResult_{}
+	*newHealth = *s.state.health
+	var meta map[string]string
+	if curr := newHealth.Metadata; curr != nil {
+		meta = make(map[string]string, len(curr)+1)
+		for k, v := range curr {
+			meta[k] = v
+		}
+	} else {
+		meta = make(map[string]string, 8)
+	}
+	meta[key] = value
+	newHealth.Metadata = meta
+	s.state.health = newHealth
+}
+
+func (s *service) GetMetadata(key string) (string, bool) {
+	s.state.RLock()
+	md, found := s.state.health.Metadata[key]
+	s.state.RUnlock()
+	return md, found
 }
 
 func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
@@ -450,7 +490,7 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 		EndExclusive:   end,
 	}
 	if l := req.Limit; l != nil {
-		opts.Limit = int(*l)
+		opts.SeriesLimit = int(*l)
 	}
 	queryResult, err := db.QueryIDs(ctx, nsID, index.Query{Query: q}, opts)
 	if err != nil {
@@ -496,6 +536,69 @@ func (s *service) query(ctx context.Context, db storage.Database, req *rpc.Query
 	}
 
 	return result, nil
+}
+
+func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesRequest) (*rpc.AggregateTilesResult_, error) {
+	db, err := s.startWriteRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.writeRPCCompleted()
+
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.AggregateTiles)
+	defer sp.Finish()
+
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("sourceNamespace", req.SourceNamespace),
+			opentracinglog.String("targetNamespace", req.TargetNamespace),
+			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
+			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+			opentracinglog.String("step", req.Step),
+		)
+	}
+
+	processedBlockCount, err := s.aggregateTiles(ctx, db, req)
+	if err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+
+	return &rpc.AggregateTilesResult_{
+		ProcessedBlockCount: processedBlockCount,
+	}, err
+}
+
+func (s *service) aggregateTiles(
+	ctx context.Context,
+	db storage.Database,
+	req *rpc.AggregateTilesRequest,
+) (int64, error) {
+	start, err := convert.ToTime(req.RangeStart, req.RangeType)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	end, err := convert.ToTime(req.RangeEnd, req.RangeType)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	step, err := time.ParseDuration(req.Step)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	opts, err := storage.NewAggregateTilesOptions(start, end, step, req.RemoveResets)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+
+	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNamespace)
+	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNamespace)
+
+	processedBlockCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
+	if err != nil {
+		return processedBlockCount, convert.ToRPCError(err)
+	}
+
+	return processedBlockCount, nil
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
@@ -640,12 +743,16 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		encodedDataResults = make([][][]xio.BlockReader, results.Size())
 	}
 	if err := s.fetchReadEncoded(ctx, db, response, results, nsID, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
+		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
 
-	// Step 2: If fetching data read the results of the asynchronuous block readers.
+	// Step 2: If fetching data read the results of the asynchronous block readers.
 	if fetchData {
-		s.fetchReadResults(ctx, response, nsID, encodedDataResults)
+		if err := s.fetchReadResults(ctx, response, nsID, encodedDataResults); err != nil {
+			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
+			return nil, err
+		}
 	}
 
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
@@ -683,7 +790,6 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 		ctx.RegisterFinalizer(enc)
 		encodedTags, err := s.encodeTags(enc, tags)
 		if err != nil { // This is an invariant, should never happen
-			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return tterrors.NewInternalError(err)
 		}
 
@@ -700,7 +806,7 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
 			opts.StartInclusive, opts.EndExclusive)
 		if err != nil {
-			elem.Err = convert.ToRPCError(err)
+			return convert.ToRPCError(err)
 		} else {
 			encodedDataResults[idx] = encoded
 		}
@@ -708,11 +814,12 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	return nil
 }
 
-func (s *service) fetchReadResults(ctx context.Context,
+func (s *service) fetchReadResults(
+	ctx context.Context,
 	response *rpc.FetchTaggedResult_,
 	nsID ident.ID,
 	encodedDataResults [][][]xio.BlockReader,
-) {
+) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadResults)
 	if sampled {
 		sp.LogFields(
@@ -722,19 +829,15 @@ func (s *service) fetchReadResults(ctx context.Context,
 	}
 	defer sp.Finish()
 
-	for idx, elem := range response.Elements {
-		if elem.Err != nil {
-			continue
-		}
-
+	for idx := range response.Elements {
 		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedDataResults[idx])
 		if rpcErr != nil {
-			elem.Err = rpcErr
-			continue
+			return rpcErr
 		}
 
 		response.Elements[idx].Segments = segments
 	}
+	return nil
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
@@ -812,12 +915,14 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 			TagName: entry.Key().Bytes(),
 		}
 		tagValues := entry.Value()
-		tagValuesMap := tagValues.Map()
-		responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
-		for _, entry := range tagValuesMap.Iter() {
-			responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
-				TagValue: entry.Key().Bytes(),
-			})
+		if tagValues.HasValues() {
+			tagValuesMap := tagValues.Map()
+			responseElem.TagValues = make([]*rpc.AggregateQueryRawResultTagValueElement, 0, tagValuesMap.Len())
+			for _, entry := range tagValuesMap.Iter() {
+				responseElem.TagValues = append(responseElem.TagValues, &rpc.AggregateQueryRawResultTagValueElement{
+					TagValue: entry.Key().Bytes(),
+				})
+			}
 		}
 		response.Results = append(response.Results, responseElem)
 	}
@@ -1377,7 +1482,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		)
 	}
 
-	err = db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch),
+	err = db.WriteBatch(ctx, nsID, batchWriter.(writes.WriteBatch),
 		pooledReq)
 	if err != nil {
 		return convert.ToRPCError(err)
@@ -1437,7 +1542,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 	var (
 		nsID        ident.ID
 		nsIdx       int64
-		batchWriter ts.BatchWriter
+		batchWriter writes.BatchWriter
 
 		retryableErrors    int
 		nonRetryableErrors int
@@ -1445,7 +1550,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 	for i, elem := range req.Elements {
 		if nsID == nil || elem.NameSpace != nsIdx {
 			if batchWriter != nil {
-				err = db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+				err = db.WriteBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
 				if err != nil {
 					return convert.ToRPCError(err)
 				}
@@ -1492,7 +1597,7 @@ func (s *service) WriteBatchRawV2(tctx thrift.Context, req *rpc.WriteBatchRawV2R
 
 	if batchWriter != nil {
 		// Write the last batch.
-		err = db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+		err = db.WriteBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
 		if err != nil {
 			return convert.ToRPCError(err)
 		}
@@ -1647,7 +1752,7 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 	var (
 		nsID        ident.ID
 		nsIdx       int64
-		batchWriter ts.BatchWriter
+		batchWriter writes.BatchWriter
 
 		retryableErrors    int
 		nonRetryableErrors int
@@ -1655,7 +1760,7 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 	for i, elem := range req.Elements {
 		if nsID == nil || elem.NameSpace != nsIdx {
 			if batchWriter != nil {
-				err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+				err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
 				if err != nil {
 					return convert.ToRPCError(err)
 				}
@@ -1712,7 +1817,7 @@ func (s *service) WriteTaggedBatchRawV2(tctx thrift.Context, req *rpc.WriteTagge
 
 	if batchWriter != nil {
 		// Write the last batch.
-		err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+		err = db.WriteTaggedBatch(ctx, nsID, batchWriter.(writes.WriteBatch), pooledReq)
 		if err != nil {
 			return convert.ToRPCError(err)
 		}
@@ -1938,6 +2043,139 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 		return nil, tterrors.NewBadRequestError(err)
 	}
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
+}
+
+func (s *service) DebugProfileStart(
+	ctx thrift.Context,
+	req *rpc.DebugProfileStartRequest,
+) (*rpc.DebugProfileStartResult_, error) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, ok := s.state.profiles[req.Name]
+	if ok {
+		err := fmt.Errorf("profile already exists: %s", req.Name)
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	var (
+		interval time.Duration
+		duration time.Duration
+		debug    int
+		err      error
+	)
+	if v := req.Interval; v != nil {
+		interval, err = time.ParseDuration(*v)
+		if err != nil {
+			return nil, tterrors.NewBadRequestError(err)
+		}
+	}
+	if v := req.Duration; v != nil {
+		duration, err = time.ParseDuration(*v)
+		if err != nil {
+			return nil, tterrors.NewBadRequestError(err)
+		}
+	}
+	if v := req.Debug; v != nil {
+		debug = int(*v)
+	}
+
+	conditional := func() bool {
+		if v := req.ConditionalNumGoroutinesGreaterThan; v != nil {
+			if runtime.NumGoroutine() <= int(*v) {
+				return false
+			}
+		}
+		if v := req.ConditionalNumGoroutinesLessThan; v != nil {
+			if runtime.NumGoroutine() >= int(*v) {
+				return false
+			}
+		}
+		if v := req.ConditionalIsOverloaded; v != nil {
+			overloaded := s.state.db != nil && s.state.db.IsOverloaded()
+			if *v != overloaded {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	p, err := xdebug.NewContinuousFileProfile(xdebug.ContinuousFileProfileOptions{
+		FilePathTemplate:  req.FilePathTemplate,
+		ProfileName:       req.Name,
+		ProfileDuration:   duration,
+		ProfileDebug:      debug,
+		Conditional:       conditional,
+		Interval:          interval,
+		InstrumentOptions: s.opts.InstrumentOptions(),
+	})
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	if err := p.Start(); err != nil {
+		return nil, err
+	}
+
+	s.state.profiles[req.Name] = p
+
+	return &rpc.DebugProfileStartResult_{}, nil
+}
+
+func (s *service) DebugProfileStop(
+	ctx thrift.Context,
+	req *rpc.DebugProfileStopRequest,
+) (*rpc.DebugProfileStopResult_, error) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	existing, ok := s.state.profiles[req.Name]
+	if !ok {
+		err := fmt.Errorf("profile does not exist: %s", req.Name)
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	if err := existing.Stop(); err != nil {
+		return nil, err
+	}
+
+	delete(s.state.profiles, req.Name)
+
+	return &rpc.DebugProfileStopResult_{}, nil
+}
+
+func (s *service) DebugIndexMemorySegments(
+	ctx thrift.Context,
+	req *rpc.DebugIndexMemorySegmentsRequest,
+) (
+	*rpc.DebugIndexMemorySegmentsResult_,
+	error,
+) {
+	db, err := s.startRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var multiErr xerrors.MultiError
+	for _, ns := range db.Namespaces() {
+		idx, err := ns.Index()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := idx.DebugMemorySegments(storage.DebugMemorySegmentsOptions{
+			OutputDirectory: req.Directory,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := multiErr.FinalError(); err != nil {
+		return nil, err
+	}
+
+	return &rpc.DebugIndexMemorySegmentsResult_{}, nil
 }
 
 func (s *service) SetDatabase(db storage.Database) error {

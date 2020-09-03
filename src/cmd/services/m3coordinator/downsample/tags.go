@@ -33,11 +33,13 @@ const (
 )
 
 type tags struct {
-	names    [][]byte
-	values   [][]byte
-	idx      int
-	nameBuf  []byte
-	valueBuf []byte
+	names             [][]byte
+	values            [][]byte
+	idx               int
+	nameBuf           []byte
+	valueBuf          []byte
+	reuseableTagName  *ident.ReuseableBytesID
+	reuseableTagValue *ident.ReuseableBytesID
 }
 
 // Ensure tags implements TagIterator and sort Interface
@@ -48,15 +50,54 @@ var (
 
 func newTags() *tags {
 	return &tags{
-		names:  make([][]byte, 0, initAllocTagsSliceCapacity),
-		values: make([][]byte, 0, initAllocTagsSliceCapacity),
-		idx:    -1,
+		names:             make([][]byte, 0, initAllocTagsSliceCapacity),
+		values:            make([][]byte, 0, initAllocTagsSliceCapacity),
+		idx:               -1,
+		reuseableTagName:  ident.NewReuseableBytesID(),
+		reuseableTagValue: ident.NewReuseableBytesID(),
 	}
 }
 
 func (t *tags) append(name, value []byte) {
 	t.names = append(t.names, name)
 	t.values = append(t.values, value)
+}
+
+func (t *tags) filterPrefix(prefix []byte) bool {
+	var (
+		modified bool
+		i        = 0
+	)
+	for i < len(t.names) {
+		name := t.names[i]
+		// If the tag name has the prefix swap with last element and continue
+		// looping over all the tags.
+		if bytes.HasPrefix(name, prefix) {
+			t.Swap(i, len(t.names)-1)
+			t.names = t.names[:len(t.names)-1]
+			t.values = t.values[:len(t.values)-1]
+			modified = true
+		} else {
+			i++
+		}
+	}
+	// Reset the iterator index.
+	t.reset()
+	return modified
+}
+
+func (t *tags) countPrefix(prefix []byte) int {
+	count := 0
+	for _, name := range t.names {
+		if bytes.HasPrefix(name, prefix) {
+			count++
+		}
+	}
+	return count
+}
+
+func (t *tags) reset() {
+	t.idx = -1
 }
 
 func (t *tags) Len() int {
@@ -90,9 +131,11 @@ func (t *tags) CurrentIndex() int {
 func (t *tags) Current() ident.Tag {
 	t.nameBuf = append(t.nameBuf[:0], t.names[t.idx]...)
 	t.valueBuf = append(t.valueBuf[:0], t.values[t.idx]...)
+	t.reuseableTagName.Reset(t.nameBuf)
+	t.reuseableTagValue.Reset(t.valueBuf)
 	return ident.Tag{
-		Name:  ident.BytesID(t.nameBuf),
-		Value: ident.BytesID(t.valueBuf),
+		Name:  t.reuseableTagName,
+		Value: t.reuseableTagValue,
 	}
 }
 
@@ -100,9 +143,7 @@ func (t *tags) Err() error {
 	return nil
 }
 
-func (t *tags) Close() {
-	// No-op
-}
+func (t *tags) Close() {}
 
 func (t *tags) Remaining() int {
 	if t.idx < 0 {
@@ -113,6 +154,10 @@ func (t *tags) Remaining() int {
 
 func (t *tags) Duplicate() ident.TagIterator {
 	return &tags{idx: -1, names: t.names, values: t.values}
+}
+
+func (t *tags) Rewind() {
+	t.idx = -1
 }
 
 func (t *tags) String() string {

@@ -64,7 +64,7 @@ func testWriteBits(t *testing.T, o OStream) {
 	for _, input := range inputs {
 		os.WriteBits(input.value, input.numBits)
 		require.Equal(t, input.expectedBytes, os.rawBuffer)
-		b, _ := os.Rawbytes()
+		b, _ := os.RawBytes()
 		require.Equal(t, input.expectedBytes, b)
 		require.Equal(t, input.expectedPos, os.pos)
 	}
@@ -86,7 +86,7 @@ func testWriteBytes(t *testing.T, o OStream) {
 
 	require.Equal(t, rawBytes, os.rawBuffer)
 
-	b, pos := os.Rawbytes()
+	b, pos := os.RawBytes()
 	require.Equal(t, rawBytes, b)
 	require.Equal(t, 8, pos)
 	require.Equal(t, 8, os.pos)
@@ -109,7 +109,7 @@ func testResetOStream(t *testing.T, o OStream) {
 	require.Equal(t, 0, os.Len())
 	require.Equal(t, 0, os.pos)
 
-	b, _ := os.Rawbytes()
+	b, _ := os.RawBytes()
 	require.Equal(t, nilBytes, b)
 }
 

@@ -22,6 +22,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -30,10 +31,16 @@ import (
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
+)
+
+var (
+	errWriteQueryNoDatapoints = errors.New("write query with no datapoints")
 )
 
 // Type describes the type of storage.
@@ -106,8 +113,12 @@ type FetchQuery struct {
 type FetchOptions struct {
 	// Remote is set when this fetch is originated by a remote grpc call.
 	Remote bool
-	// Limit is the maximum number of series to return.
-	Limit int
+	// SeriesLimit is the maximum number of series to return.
+	SeriesLimit int
+	// DocsLimit is the maximum number of docs to return.
+	DocsLimit int
+	// RequireExhaustive results in an error if the query exceeds the series limit.
+	RequireExhaustive bool
 	// BlockType is the block type that the fetch function returns.
 	BlockType models.FetchedBlockType
 	// FanoutOptions are the options for the fetch namespace fanout.
@@ -127,6 +138,8 @@ type FetchOptions struct {
 	// IncludeResolution if set, appends resolution information to fetch results.
 	// Currently only used for graphite queries.
 	IncludeResolution bool
+	// Timeout is the timeout for the request.
+	Timeout time.Duration
 }
 
 // FanoutOptions describes which namespaces should be fanned out to for
@@ -155,75 +168,10 @@ const (
 	FanoutForceEnable
 )
 
-// NewFetchOptions creates a new fetch options.
-func NewFetchOptions() *FetchOptions {
-	return &FetchOptions{
-		Limit:     0,
-		BlockType: models.TypeSingleBlock,
-		FanoutOptions: &FanoutOptions{
-			FanoutUnaggregated:        FanoutDefault,
-			FanoutAggregated:          FanoutDefault,
-			FanoutAggregatedOptimized: FanoutDefault,
-		},
-		Enforcer: cost.NoopChainedEnforcer(),
-		Scope:    tally.NoopScope,
-	}
-}
-
-// LookbackDurationOrDefault returns either the default lookback duration or
-// overridden lookback duration if set.
-func (o *FetchOptions) LookbackDurationOrDefault(
-	defaultValue time.Duration,
-) time.Duration {
-	if o.LookbackDuration == nil {
-		return defaultValue
-	}
-	return *o.LookbackDuration
-}
-
-// QueryFetchOptions returns fetch options for a given query.
-func (o *FetchOptions) QueryFetchOptions(
-	queryCtx *models.QueryContext,
-	blockType models.FetchedBlockType,
-) (*FetchOptions, error) {
-	r := o.Clone()
-	if r.Limit <= 0 {
-		r.Limit = queryCtx.Options.LimitMaxTimeseries
-	}
-
-	// Use inbuilt options for type restriction if none found.
-	if r.RestrictQueryOptions.GetRestrictByType() == nil &&
-		queryCtx.Options.RestrictFetchType != nil {
-		v := queryCtx.Options.RestrictFetchType
-		restrict := &RestrictByType{
-			MetricsType:   MetricsType(v.MetricsType),
-			StoragePolicy: v.StoragePolicy,
-		}
-
-		if err := restrict.Validate(); err != nil {
-			return nil, err
-		}
-
-		if r.RestrictQueryOptions == nil {
-			r.RestrictQueryOptions = &RestrictQueryOptions{}
-		}
-
-		r.RestrictQueryOptions.RestrictByType = restrict
-	}
-
-	return r, nil
-}
-
-// Clone will clone and return the fetch options.
-func (o *FetchOptions) Clone() *FetchOptions {
-	result := *o
-	return &result
-}
-
 // RestrictByType are specific restrictions to stick to a single data type.
 type RestrictByType struct {
 	// MetricsType restricts the type of metrics being returned.
-	MetricsType MetricsType
+	MetricsType storagemetadata.MetricsType
 	// StoragePolicy is required if metrics type is not unaggregated
 	// to specify which storage policy metrics should be returned from.
 	StoragePolicy policy.StoragePolicy
@@ -283,21 +231,26 @@ type Querier interface {
 		ctx context.Context,
 		query *CompleteTagsQuery,
 		options *FetchOptions,
-	) (*CompleteTagsResult, error)
+	) (*consolidators.CompleteTagsResult, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the database.
 // TODO: rename WriteQuery to WriteRequest or something similar.
 type WriteQuery struct {
+	// opts as a field allows the options to be unexported
+	// and the Validate method on WriteQueryOptions to be reused.
+	opts WriteQueryOptions
+}
+
+// WriteQueryOptions is a set of options to use to construct a write query.
+// These are passed by options so that they can be validated when creating
+// a write query, which helps knowing a constructed write query is valid.
+type WriteQueryOptions struct {
 	Tags       models.Tags
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
 	Annotation []byte
-	Attributes Attributes
-}
-
-func (q *WriteQuery) String() string {
-	return string(q.Tags.ID())
+	Attributes storagemetadata.Attributes
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
@@ -336,36 +289,6 @@ func (q *CompleteTagsQuery) String() string {
 	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
 }
 
-// CompletedTag represents a tag retrieved by a complete tags query.
-type CompletedTag struct {
-	// Name the name of the tag.
-	Name []byte
-	// Values is a set of possible values for the tag.
-	// NB: if the parent CompleteTagsResult is set to CompleteNameOnly, this is
-	// expected to be empty.
-	Values [][]byte
-}
-
-// CompleteTagsResult represents a set of autocompleted tag names and values
-type CompleteTagsResult struct {
-	// CompleteNameOnly indicates if the tags in this result are expected to have
-	// both names and values, or only names.
-	CompleteNameOnly bool
-	// CompletedTag is a list of completed tags.
-	CompletedTags []CompletedTag
-	// Metadata describes any metadata for the operation.
-	Metadata block.ResultMetadata
-}
-
-// CompleteTagsResultBuilder is a builder that accumulates and deduplicates
-// incoming CompleteTagsResult values.
-type CompleteTagsResultBuilder interface {
-	// Add appends an incoming CompleteTagsResult.
-	Add(*CompleteTagsResult) error
-	// Build builds a completed tag result.
-	Build() CompleteTagsResult
-}
-
 // Appender provides batched appends against a storage.
 type Appender interface {
 	// Write writes a batched set of datapoints to storage based on the provided
@@ -396,31 +319,4 @@ type PromResult struct {
 	PromResult *prompb.QueryResult
 	// ResultMetadata is the metadata for the result.
 	Metadata block.ResultMetadata
-}
-
-// MetricsType is a type of stored metrics.
-type MetricsType uint
-
-const (
-	// UnknownMetricsType is the unknown metrics type and is invalid.
-	UnknownMetricsType MetricsType = iota
-	// UnaggregatedMetricsType is an unaggregated metrics type.
-	UnaggregatedMetricsType
-	// AggregatedMetricsType is an aggregated metrics type.
-	AggregatedMetricsType
-
-	// DefaultMetricsType is the default metrics type value.
-	DefaultMetricsType = UnaggregatedMetricsType
-)
-
-// Attributes is a set of stored metrics attributes.
-type Attributes struct {
-	// MetricsType indicates the type of namespace this metric originated from.
-	MetricsType MetricsType
-	// Retention indicates the retention of the namespace this metric originated
-	// from.
-	Retention time.Duration
-	// Resolution indicates the retention of the namespace this metric originated
-	// from.
-	Resolution time.Duration
 }

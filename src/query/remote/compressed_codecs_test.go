@@ -26,8 +26,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/block"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/x/ident"
 
@@ -61,7 +62,8 @@ func buildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
 func validateSeriesInternals(t *testing.T, it encoding.SeriesIterator) {
 	defer it.Close()
 
-	replicas := it.Replicas()
+	replicas, err := it.Replicas()
+	require.NoError(t, err)
 	expectedReaders := []int{1, 2}
 	expectedStarts := []time.Time{start.Truncate(blockSize), middle.Truncate(blockSize)}
 	for _, replica := range replicas {
@@ -177,14 +179,14 @@ func verifyCompressedSeries(t *testing.T, s *rpc.Series) {
 
 func TestConversionToCompressedData(t *testing.T) {
 	it := buildTestSeriesIterator(t)
-	series, err := compressedSeriesFromSeriesIterator(it, nil)
+	series, err := CompressedSeriesFromSeriesIterator(it, nil)
 	require.Error(t, err)
 	require.Nil(t, series)
 }
 
 func TestSeriesConversionFromCompressedData(t *testing.T) {
 	it := buildTestSeriesIterator(t)
-	series, err := compressedSeriesFromSeriesIterator(it, nil)
+	series, err := CompressedSeriesFromSeriesIterator(it, nil)
 	require.Error(t, err)
 	require.Nil(t, series)
 }
@@ -192,7 +194,7 @@ func TestSeriesConversionFromCompressedData(t *testing.T) {
 func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	it := buildTestSeriesIterator(t)
 	ip := test.MakeMockIteratorPool()
-	series, err := compressedSeriesFromSeriesIterator(it, ip)
+	series, err := CompressedSeriesFromSeriesIterator(it, ip)
 
 	require.NoError(t, err)
 	verifyCompressedSeries(t, series)
@@ -224,10 +226,13 @@ func TestEncodeToCompressedFetchResult(t *testing.T) {
 		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
 			buildTestSeriesIterator(t)}, nil)
 	ip := test.MakeMockIteratorPool()
-	result := m3.SeriesFetchResult{
-		SeriesIterators: iters,
-	}
+	result, err := consolidators.NewSeriesFetchResult(
+		iters,
+		nil,
+		block.NewResultMetadata(),
+	)
 
+	require.NoError(t, err)
 	fetchResult, err := encodeToCompressedSeries(result, ip)
 	require.NoError(t, err)
 
@@ -250,10 +255,13 @@ func TestDecodeCompressedFetchResult(t *testing.T) {
 	iters := encoding.NewSeriesIterators(
 		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
 			buildTestSeriesIterator(t)}, nil)
-	result := m3.SeriesFetchResult{
-		SeriesIterators: iters,
-	}
+	result, err := consolidators.NewSeriesFetchResult(
+		iters,
+		nil,
+		block.NewResultMetadata(),
+	)
 
+	require.NoError(t, err)
 	compressed, err := encodeToCompressedSeries(result, nil)
 	require.Error(t, err)
 	require.Nil(t, compressed)
@@ -265,10 +273,13 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 		[]encoding.SeriesIterator{buildTestSeriesIterator(t),
 			buildTestSeriesIterator(t)}, nil)
 
-	result := m3.SeriesFetchResult{
-		SeriesIterators: iters,
-	}
+	result, err := consolidators.NewSeriesFetchResult(
+		iters,
+		nil,
+		block.NewResultMetadata(),
+	)
 
+	require.NoError(t, err)
 	compressed, err := encodeToCompressedSeries(result, ip)
 	require.NoError(t, err)
 	require.Len(t, compressed, 2)
@@ -280,7 +291,7 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 		Series: compressed,
 	}
 
-	revertedIters, err := decodeCompressedFetchResponse(fetchResult, ip)
+	revertedIters, err := DecodeCompressedFetchResponse(fetchResult, ip)
 	require.NoError(t, err)
 	revertedIterList := revertedIters.Iters()
 	require.Len(t, revertedIterList, 2)
@@ -288,7 +299,7 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 		validateSeries(t, seriesIterator)
 	}
 
-	revertedIters, err = decodeCompressedFetchResponse(fetchResult, ip)
+	revertedIters, err = DecodeCompressedFetchResponse(fetchResult, ip)
 	require.NoError(t, err)
 	revertedIterList = revertedIters.Iters()
 	require.Len(t, revertedIterList, 2)
@@ -311,12 +322,22 @@ func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockIter := encoding.NewMockSeriesIterator(ctrl)
 	mockIter.EXPECT().Close().Times(0)
-	mockIter.EXPECT().Replicas().Return([]encoding.MultiReaderIterator{}).Times(1)
+	mockIter.EXPECT().Replicas().Return([]encoding.MultiReaderIterator{}, nil).Times(1)
 	mockIter.EXPECT().Start().Return(time.Now()).Times(1)
 	mockIter.EXPECT().End().Return(time.Now()).Times(1)
 	mockIter.EXPECT().Tags().Return(ident.NewTagsIterator(ident.NewTags())).Times(1)
 	mockIter.EXPECT().Namespace().Return(ident.StringID("")).Times(1)
 	mockIter.EXPECT().ID().Return(ident.StringID("")).Times(1)
 
-	compressedSeriesFromSeriesIterator(mockIter, nil)
+	CompressedSeriesFromSeriesIterator(mockIter, nil)
+}
+
+func TestIterablePostCompression(t *testing.T) {
+	it := buildTestSeriesIterator(t)
+	ip := test.MakeMockIteratorPool()
+	series, err := CompressedSeriesFromSeriesIterator(it, ip)
+	require.NoError(t, err)
+	require.NotNil(t, series)
+
+	validateSeries(t, it)
 }

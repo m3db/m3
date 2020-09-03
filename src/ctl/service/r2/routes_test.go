@@ -300,7 +300,7 @@ func newTestService(store store.Store) *service {
 	}
 	iOpts := instrument.NewOptions()
 	return &service{
-		metrics:     newServiceMetrics(iOpts.MetricsScope(), iOpts.MetricsSamplingRate()),
+		metrics:     newServiceMetrics(iOpts.MetricsScope(), iOpts.TimerOptions()),
 		nowFn:       clock.NewOptions().NowFn(),
 		store:       store,
 		authService: auth.NewNoopAuth(),
@@ -329,7 +329,7 @@ func newTestDeleteRequest() *http.Request {
 }
 
 func newTestInstrumentMethodMetrics() instrument.MethodMetrics {
-	return instrument.NewMethodMetrics(tally.NoopScope, "testRoute", 1.0)
+	return instrument.NewMethodMetrics(tally.NoopScope, "testRoute", instrument.TimerOptions{})
 }
 
 func newTestBulkReqBody() updateRuleSetRequest {

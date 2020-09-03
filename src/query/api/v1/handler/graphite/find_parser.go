@@ -57,8 +57,7 @@ func parseFindParamsToQueries(r *http.Request) (
 	_rawQueryString string,
 	_err *xhttp.ParseError,
 ) {
-	values := r.URL.Query()
-	query := values.Get("query")
+	query := r.FormValue("query")
 	if query == "" {
 		return nil, nil, "",
 			xhttp.NewParseError(errors.ErrNoQueryFound, http.StatusBadRequest)

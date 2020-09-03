@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -272,6 +273,12 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
+	// SetLogErrorSampleRate sets the log error sample rate between [0,1.0].
+	SetLogErrorSampleRate(value sampler.Rate) Options
+
+	// LogErrorSampleRate returns the log error sample rate between [0,1.0].
+	LogErrorSampleRate() sampler.Rate
+
 	// SetTopologyInitializer sets the TopologyInitializer.
 	SetTopologyInitializer(value topology.Initializer) Options
 
@@ -404,6 +411,14 @@ type Options interface {
 	// a fetch operation. Only retryable errors are retried.
 	FetchRetrier() xretry.Retrier
 
+	// SetWriteShardsInitializing sets whether to write to shards that are
+	// initializing or not.
+	SetWriteShardsInitializing(value bool) Options
+
+	// WriteShardsInitializing returns whether to write to shards that are
+	// initializing or not.
+	WriteShardsInitializing() bool
+
 	// SetTagEncoderOptions sets the TagEncoderOptions.
 	SetTagEncoderOptions(value serialize.TagEncoderOptions) Options
 
@@ -500,6 +515,12 @@ type Options interface {
 	// HostQueueOpsArrayPoolSize returns the hostQueueOpsArrayPoolSize.
 	HostQueueOpsArrayPoolSize() int
 
+	// SetHostQueueEmitsHealthStatus sets the hostQueueEmitHealthStatus.
+	SetHostQueueEmitsHealthStatus(value bool) Options
+
+	// HostQueueEmitsHealthStatus returns the hostQueueEmitHealthStatus.
+	HostQueueEmitsHealthStatus() bool
+
 	// SetSeriesIteratorPoolSize sets the seriesIteratorPoolSize.
 	SetSeriesIteratorPoolSize(value int) Options
 
@@ -547,6 +568,24 @@ type Options interface {
 
 	// UseV2BatchAPIs returns whether the V2 batch APIs should be used.
 	UseV2BatchAPIs() bool
+
+	// SetIterationOptions sets experimental iteration options.
+	SetIterationOptions(index.IterationOptions) Options
+
+	// IterationOptions returns experimental iteration options.
+	IterationOptions() index.IterationOptions
+
+	// SetWriteTimestampOffset sets the write timestamp offset.
+	SetWriteTimestampOffset(value time.Duration) AdminOptions
+
+	// WriteTimestampOffset returns the write timestamp offset.
+	WriteTimestampOffset() time.Duration
+
+	// SetNewConnectionFn sets a new connection generator function.
+	SetNewConnectionFn(value NewConnectionFn) AdminOptions
+
+	// NewConnectionFn returns the new connection generator function.
+	NewConnectionFn() NewConnectionFn
 }
 
 // AdminOptions is a set of administration client options.
@@ -675,6 +714,13 @@ const (
 	statusNotOpen status = iota
 	statusOpen
 	statusClosed
+)
+
+type healthStatus int
+
+const (
+	healthStatusCheckFailed healthStatus = iota
+	healthStatusOK
 )
 
 type op interface {

@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -41,12 +42,6 @@ type engine struct {
 // QueryOptions can be used to pass custom flags to engine.
 type QueryOptions struct {
 	QueryContextOptions models.QueryContextOptions
-}
-
-// Query is the result after execution.
-type Query struct {
-	Err    error
-	Result Result
 }
 
 // NewEngine returns a new instance of QueryExecutor.
@@ -124,7 +119,7 @@ func (e *engine) ExecuteExpr(
 	opts *QueryOptions,
 	fetchOpts *storage.FetchOptions,
 	params models.RequestParams,
-) (Result, error) {
+) (block.Block, error) {
 	perQueryEnforcer := e.opts.GlobalEnforcer().Child(qcost.QueryLevel)
 	defer perQueryEnforcer.Close()
 	req := newRequest(e, params, fetchOpts, e.opts.InstrumentOptions())
@@ -147,20 +142,16 @@ func (e *engine) ExecuteExpr(
 	sp, ctx := opentracing.StartSpanFromContext(ctx, "executing")
 	defer sp.Finish()
 
-	result := state.resultNode
 	scope := e.opts.InstrumentOptions().MetricsScope()
 	queryCtx := models.NewQueryContext(ctx, scope, perQueryEnforcer,
 		opts.QueryContextOptions)
 
-	go func() {
-		if err := state.Execute(queryCtx); err != nil {
-			result.abort(err)
-		} else {
-			result.done()
-		}
-	}()
+	if err := state.Execute(queryCtx); err != nil {
+		state.sink.closeWithError(err)
+		return nil, err
+	}
 
-	return result, nil
+	return state.sink.getValue()
 }
 
 func (e *engine) Options() EngineOptions {

@@ -43,8 +43,8 @@ func TestPlacementInitHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewInitHandler(nil, config.Configuration{}, instrument.NewOptions())
-	handler.serviceFn = testServiceFn(mockService)
+	handler := newInitHandler(nil, config.Configuration{}, instrument.NewOptions())
+	handler.(*InitHandler).serviceFn = testServiceFn(mockService)
 
 	// Test topic init success
 	initProto := admin.TopicInitRequest{

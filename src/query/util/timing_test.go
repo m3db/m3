@@ -35,3 +35,38 @@ func TestParseTimeString(t *testing.T) {
 	equalTimes := parsedTime.Equal(time.Unix(703354793, 0))
 	assert.True(t, equalTimes)
 }
+
+func TestParseTimeStringWithMinMaxGoTime(t *testing.T) {
+	parsedTime, err := ParseTimeString(minTimeFormatted)
+	require.NoError(t, err)
+	require.True(t, parsedTime.Equal(time.Unix(0, 0)))
+
+	parsedTime, err = ParseTimeString(maxTimeFormatted)
+	require.NoError(t, err)
+	require.True(t, time.Now().Sub(parsedTime) < time.Minute)
+}
+
+func TestParseTimeStringLargeFloat(t *testing.T) {
+	_, err := ParseTimeString("9999999999999.99999")
+	require.NoError(t, err)
+}
+
+func TestParseTimeStringWithDefault(t *testing.T) {
+	defaultTime := time.Now().Add(-1 * time.Minute)
+	parsedTime, err := ParseTimeStringWithDefault("", defaultTime)
+	require.NoError(t, err)
+	require.True(t, defaultTime.Equal(parsedTime))
+}
+
+func TestParseDurationStringFloat(t *testing.T) {
+	d, err := ParseDurationString("1595545968.4985256")
+	require.NoError(t, err)
+	v := time.Duration(1595545968.4985256 * float64(time.Second))
+	require.Equal(t, v, d)
+}
+
+func TestParseDurationStringExtendedDurationString(t *testing.T) {
+	d, err := ParseDurationString("2d")
+	require.NoError(t, err)
+	require.Equal(t, 2*24*time.Hour, d)
+}

@@ -47,12 +47,12 @@ const (
 // AddHandler is the handler for topic adds.
 type AddHandler Handler
 
-// NewAddHandler returns a new instance of AddHandler.
-func NewAddHandler(
+// newAddHandler returns a new instance of AddHandler.
+func newAddHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) *AddHandler {
+) http.Handler {
 	return &AddHandler{
 		client:         client,
 		cfg:            cfg,

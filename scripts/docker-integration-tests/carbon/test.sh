@@ -27,7 +27,7 @@ function read_carbon {
   end=$(date +%s)
   start=$(($end-1000))
   RESPONSE=$(curl -sSfg "http://localhost:7201/api/v1/graphite/render?target=$target&from=$start&until=$end")
-  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null)" | tail -n 1)" = "$expected_val"
+  test "$(echo "$RESPONSE" | jq ".[0].datapoints | .[][0] | select(. != null)" | jq -s last)" = "$expected_val"
   return $?
 }
 
@@ -78,6 +78,11 @@ ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon foo.min.catch
 t=$(date +%s)
 echo "foo.bar:baz.qux 42 $t" | nc 0.0.0.0 7204
 ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'foo.bar:*.*' 42
+
+# Test writing and reading IDs with a single element.
+t=$(date +%s)
+echo "quail 42 $t" | nc 0.0.0.0 7204
+ATTEMPTS=20 MAX_TIMEOUT=4 TIMEOUT=1 retry_with_backoff read_carbon 'quail' 42
 
 t=$(date +%s)
 echo "a 0 $t"             | nc 0.0.0.0 7204

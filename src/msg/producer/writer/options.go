@@ -23,6 +23,7 @@ package writer
 import (
 	"time"
 
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/msg/topic"
@@ -40,18 +41,25 @@ const (
 	defaultMessageQueueScanBatchSize         = 16
 	defaultInitialAckMapSize                 = 1024
 
-	defaultConnectionDialTimeout     = 10 * time.Second
-	defaultConnectionWriteTimeout    = time.Second
-	defaultConnectionKeepAlivePeriod = time.Minute
+	defaultNumConnections            = 4
+	defaultConnectionDialTimeout     = 5 * time.Second
+	defaultConnectionWriteTimeout    = time.Duration(0)
+	defaultConnectionKeepAlivePeriod = 5 * time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
 	defaultConnectionFlushInterval   = time.Second
-	// Using 16K which provides much better performance comparing
+	// Using 65k which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
-	defaultConnectionBufferSize = 16384
+	defaultConnectionBufferSize = 2 << 15 // ~65kb
 )
 
 // ConnectionOptions configs the connections.
 type ConnectionOptions interface {
+	// NumConnections returns the number of connections.
+	NumConnections() int
+
+	// SetNumConnections sets the number of connections.
+	SetNumConnections(value int) ConnectionOptions
+
 	// DialTimeout returns the dial timeout.
 	DialTimeout() time.Duration
 
@@ -108,6 +116,7 @@ type ConnectionOptions interface {
 }
 
 type connectionOptions struct {
+	numConnections  int
 	dialTimeout     time.Duration
 	writeTimeout    time.Duration
 	keepAlivePeriod time.Duration
@@ -122,6 +131,7 @@ type connectionOptions struct {
 // NewConnectionOptions creates ConnectionOptions.
 func NewConnectionOptions() ConnectionOptions {
 	return &connectionOptions{
+		numConnections:  defaultNumConnections,
 		dialTimeout:     defaultConnectionDialTimeout,
 		writeTimeout:    defaultConnectionWriteTimeout,
 		keepAlivePeriod: defaultConnectionKeepAlivePeriod,
@@ -132,6 +142,16 @@ func NewConnectionOptions() ConnectionOptions {
 		readBufferSize:  defaultConnectionBufferSize,
 		iOpts:           instrument.NewOptions(),
 	}
+}
+
+func (opts *connectionOptions) NumConnections() int {
+	return opts.numConnections
+}
+
+func (opts *connectionOptions) SetNumConnections(value int) ConnectionOptions {
+	o := *opts
+	o.numConnections = value
+	return &o
 }
 
 func (opts *connectionOptions) DialTimeout() time.Duration {
@@ -250,6 +270,12 @@ type Options interface {
 	// SetServiceDiscovery sets the client to service discovery services.
 	SetServiceDiscovery(value services.Services) Options
 
+	// PlacementOptions returns the placement options.
+	PlacementOptions() placement.Options
+
+	// SetPlacementOptions sets the placement options.
+	SetPlacementOptions(value placement.Options) Options
+
 	// PlacementWatchInitTimeout returns the timeout for placement watch initialization.
 	PlacementWatchInitTimeout() time.Duration
 
@@ -338,6 +364,7 @@ type writerOptions struct {
 	topicService                      topic.Service
 	topicWatchInitTimeout             time.Duration
 	services                          services.Services
+	placementOpts                     placement.Options
 	placementWatchInitTimeout         time.Duration
 	messagePoolOptions                pool.ObjectPoolOptions
 	messageRetryOpts                  retry.Options
@@ -357,6 +384,7 @@ type writerOptions struct {
 func NewOptions() Options {
 	return &writerOptions{
 		topicWatchInitTimeout:             defaultTopicWatchInitTimeout,
+		placementOpts:                     placement.NewOptions(),
 		placementWatchInitTimeout:         defaultPlacementWatchInitTimeout,
 		messageRetryOpts:                  retry.NewOptions(),
 		messageQueueNewWritesScanInterval: defaultMessageQueueNewWritesScanInterval,
@@ -409,6 +437,16 @@ func (opts *writerOptions) ServiceDiscovery() services.Services {
 func (opts *writerOptions) SetServiceDiscovery(value services.Services) Options {
 	o := *opts
 	o.services = value
+	return &o
+}
+
+func (opts *writerOptions) PlacementOptions() placement.Options {
+	return opts.placementOpts
+}
+
+func (opts *writerOptions) SetPlacementOptions(value placement.Options) Options {
+	o := *opts
+	o.placementOpts = value
 	return &o
 }
 

@@ -61,7 +61,14 @@ func (m StringMatch) toMatcher() (models.Matcher, error) {
 	return models.NewMatcher(t, []byte(m.Name), []byte(m.Value))
 }
 
-func (o *StringTagOptions) toOptions() (*storage.RestrictByTag, error) {
+// Validate validates the string tag options.
+func (o *StringTagOptions) Validate() error {
+	_, err := o.StorageOptions()
+	return err
+}
+
+// StorageOptions returns the corresponding storage.RestrictByTag options.
+func (o *StringTagOptions) StorageOptions() (*storage.RestrictByTag, error) {
 	if len(o.Restrict) == 0 && len(o.Strip) == 0 {
 		return nil, nil
 	}
@@ -110,4 +117,97 @@ type StringMatch struct {
 type StringTagOptions struct {
 	Restrict []StringMatch `json:"match"`
 	Strip    []string      `json:"strip"`
+}
+
+// MapTagsOptions representations mutations to be applied to all timeseries in a
+// write request.
+type MapTagsOptions struct {
+	TagMappers []TagMapper `json:"tagMappers"`
+}
+
+// TagMapper represents one of a variety of tag mapping operations.
+type TagMapper struct {
+	Write         WriteOp         `json:"write,omitEmpty"`
+	Drop          DropOp          `json:"drop,omitEmpty"`
+	DropWithValue DropWithValueOp `json:"dropWithValue,omitEmpty"`
+	Replace       ReplaceOp       `json:"replace,omitEmpty"`
+}
+
+// Validate ensures the mapper is valid.
+func (t TagMapper) Validate() error {
+	numOps := 0
+	if !t.Write.IsEmpty() {
+		numOps++
+	}
+
+	if !t.Drop.IsEmpty() {
+		numOps++
+	}
+
+	if !t.DropWithValue.IsEmpty() {
+		numOps++
+	}
+
+	if !t.Replace.IsEmpty() {
+		numOps++
+	}
+
+	if numOps == 1 {
+		return nil
+	}
+
+	return fmt.Errorf("must specify one operation per tag mapper (got %d)", numOps)
+}
+
+// WriteOp with value tag="foo" and value="bar" will unconditionally add
+// tag-value pair "foo":"bar" to all timeseries included in the write request.
+// Any timeseries with a non-empty "foo" tag will have its value for that tag
+// replaced.
+type WriteOp struct {
+	Tag   string `json:"tag"`
+	Value string `json:"value"`
+}
+
+// IsEmpty returns true if the operation is empty.
+func (op WriteOp) IsEmpty() bool {
+	return op.Tag == "" && op.Value == ""
+}
+
+// DropOp with tag="foo" and an empty value will remove all tag-value pairs in
+// all timeseries in the write request where the tag was "foo".
+type DropOp struct {
+	Tag string `json:"tag"`
+}
+
+// IsEmpty returns true if the operation is empty.
+func (op DropOp) IsEmpty() bool {
+	return op.Tag == ""
+}
+
+// DropWithValueOp will remove all tag-value pairs in all timeseries in the
+// writer equest if and only if the tag AND value in the timeseries is equal to
+// those on the operation.
+type DropWithValueOp struct {
+	Tag   string `json:"tag"`
+	Value string `json:"value"`
+}
+
+// IsEmpty returns true if the operation is empty.
+func (op DropWithValueOp) IsEmpty() bool {
+	return op.Tag == "" && op.Value == ""
+}
+
+// ReplaceOp with tag="foo", an empty old field, and a non-empty new field will
+// unconditionally replace the value of any tag-value pair of any timeseries in
+// the write request where the tag is "foo" with the value of new. If old is
+// non-empty, a value will only be replaced if the value was equal to old.
+type ReplaceOp struct {
+	Tag      string `json:"tag"`
+	OldValue string `json:"old"`
+	NewValue string `json:"new"`
+}
+
+// IsEmpty returns true if the operation is empty.
+func (op ReplaceOp) IsEmpty() bool {
+	return op.Tag == "" && op.OldValue == "" && op.NewValue == ""
 }

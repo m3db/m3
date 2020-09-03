@@ -26,28 +26,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/sharding"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestDiskCleansupInactiveDirectories(t *testing.T) {
-	var resetSetup *testSetup
+	var resetSetup TestSetup
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testOpts := newTestOptions(t)
-	testSetup, err := newTestSetup(t, testOpts, nil)
+	testOpts := NewTestOptions(t)
+	testSetup, err := NewTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 
-	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
+	md := testSetup.NamespaceMetadataOrFail(testNamespaces[0])
 
 	// Start tte server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log := testSetup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("disk cleanup directories test")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testSetup.StartServer())
 
 	// Stop the server at the end of the test
 
@@ -60,7 +60,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 		nsWaitTimeout = 10 * time.Second
 
 		namespaces = []namespace.Metadata{md}
-		shardSet   = testSetup.db.ShardSet()
+		shardSet   = testSetup.DB().ShardSet()
 		shards     = shardSet.All()
 		extraShard = shards[0]
 	)
@@ -68,13 +68,13 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	// Now create some fileset files and commit logs
 	shardSet, err = sharding.NewShardSet(shards[1:], shardSet.HashFn())
 	require.NoError(t, err)
-	testSetup.db.AssignShardSet(shardSet)
+	testSetup.DB().AssignShardSet(shardSet)
 
-	clOpts := testSetup.storageOpts.CommitLogOptions()
+	clOpts := testSetup.StorageOpts().CommitLogOptions()
 	// Check filesets are good to go
 	go func() {
 		fsCleanupErr <- waitUntilDataFileSetsCleanedUp(clOpts,
-			testSetup.db.Namespaces(), extraShard.ID(), fsWaitTimeout)
+			testSetup.DB().Namespaces(), extraShard.ID(), fsWaitTimeout)
 	}()
 	log.Info("blocking until file cleanup is received")
 	require.NoError(t, <-fsCleanupErr)
@@ -86,7 +86,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 		nsResetErr <- resetErr
 	}()
 	defer func() {
-		require.NoError(t, resetSetup.stopServer())
+		require.NoError(t, resetSetup.StopServer())
 	}()
 	nsToDelete := testNamespaces[1]
 	log.Info("blocking until namespaces have reset and deleted")
@@ -95,7 +95,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	}()
 	require.NoError(t, <-nsResetErr)
 
-	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	filePathPrefix := testSetup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	go func() {
 		nsCleanupErr <- waitUntilNamespacesCleanedUp(filePathPrefix, nsToDelete, nsWaitTimeout)
 	}()

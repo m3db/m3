@@ -1,0 +1,98 @@
+listenAddress:
+  value: "0.0.0.0:7202"
+
+logging:
+  level: info
+
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
+  sanitization: prometheus
+  samplingRate: 1.0
+  extended: none
+
+tagOptions:
+  idScheme: quoted
+
+carbon:
+  ingester:
+    listenAddress: "0.0.0.0:7204"
+    rules:
+      - pattern: .*
+        aggregation:
+          type: mean
+        policies:
+          - resolution: 10s
+            retention: 6h
+
+clusters:
+  - namespaces:
+      - namespace: agg
+        type: aggregated
+        resolution: 10s
+        retention: 6h
+      - namespace: unagg
+        type: unaggregated
+        retention: 1s
+    client:
+      config:
+        service:
+          env: default_env
+          zone: embedded
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+            - zone: embedded
+              endpoints:
+                - dbnode01:2379
+      writeConsistencyLevel: majority
+      readConsistencyLevel: unstrict_majority
+
+downsample:
+  remoteAggregator:
+    client:
+      placementKV:
+        namespace: /placement
+        environment: override_test_env
+      placementWatcher:
+        key: m3aggregator
+        initWatchTimeout: 10s
+      hashType: murmur32
+      shardCutoffLingerDuration: 1m
+      flushSize: 1440
+      maxTimerBatchSize: 1120
+      queueSize: 10000
+      queueDropType: oldest
+      encoder:
+        initBufferSize: 2048
+        maxMessageSize: 10485760
+        bytesPool:
+          buckets:
+            - capacity: 2048
+              count: 4096
+            - capacity: 4096
+              count: 4096
+          watermark:
+            low: 0.7
+            high: 1.0
+      connection:
+        writeTimeout: 250ms
+
+ingest:
+  ingester:
+    workerPoolSize: 10000
+    opPool:
+      size: 10000
+    retry:
+      maxRetries: 3
+      jitter: true
+    logSampleRate: 0.01
+  m3msg:
+    server:
+      listenAddress: "0.0.0.0:7507"
+      retry:
+        maxBackoff: 10s
+        jitter: true

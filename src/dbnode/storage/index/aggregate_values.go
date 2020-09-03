@@ -22,22 +22,21 @@ package index
 
 import (
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/pool"
 )
 
 // AggregateValues is a collection of unique identity values backed by a pool.
 // NB: there are no synchronization guarantees provided by default.
 type AggregateValues struct {
+	hasValues bool
 	valuesMap *AggregateValuesMap
-	bytesPool pool.CheckedBytesPool
 	pool      AggregateValuesPool
 }
 
 // NewAggregateValues returns a new AggregateValues object.
 func NewAggregateValues(opts Options) AggregateValues {
 	return AggregateValues{
+		hasValues: true,
 		valuesMap: NewAggregateValuesMap(opts.IdentifierPool()),
-		bytesPool: opts.CheckedBytesPool(),
 		pool:      opts.AggregateValuesPool(),
 	}
 }
@@ -54,6 +53,11 @@ func MustNewAggregateValues(opts Options, ids ...ident.ID) AggregateValues {
 	return m
 }
 
+// HasValues returns true if this has an aggregate values map.
+func (v *AggregateValues) HasValues() bool {
+	return v.hasValues
+}
+
 // Map returns a map from an ID -> empty struct to signify existence of the
 // ID in the set this structure represents.
 func (v *AggregateValues) Map() *AggregateValuesMap {
@@ -62,10 +66,19 @@ func (v *AggregateValues) Map() *AggregateValuesMap {
 
 // Size returns the number of IDs tracked.
 func (v *AggregateValues) Size() int {
+	if !v.hasValues {
+		return 0
+	}
+
 	return v.valuesMap.Len()
 }
 
 func (v *AggregateValues) finalize() {
+	// NB: if this aggregate values has no values, no need to finalize.
+	if !v.hasValues {
+		return
+	}
+
 	// NB: resetting the value map will already finalize all copies of the keys.
 	v.valuesMap.Reset()
 

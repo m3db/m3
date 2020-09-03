@@ -24,12 +24,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -46,11 +46,9 @@ func TestConfigSetBootstrappersHandler(t *testing.T) {
 		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"values": ["filesystem", "commitlog", "peers", "uninitialized_topology"]
-		}
-	`
+	jsonInput := xjson.Map{
+		"values": xjson.Array{"filesystem", "commitlog", "peers", "uninitialized_topology"},
+	}
 
 	mockStore.EXPECT().
 		Set(kvconfig.BootstrapperKey, gomock.Any()).
@@ -61,7 +59,8 @@ func TestConfigSetBootstrappersHandler(t *testing.T) {
 			}, value.Values)
 		})
 
-	req := httptest.NewRequest("POST", "/database/config/bootstrappers", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/config/bootstrappers",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	handler.ServeHTTP(w, req)
@@ -71,13 +70,14 @@ func TestConfigSetBootstrappersHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	expectedResponse := `
-	{
-		"values": ["filesystem", "commitlog", "peers", "uninitialized_topology"]
+	expectedResp := xjson.Map{
+		"values": xjson.Array{"filesystem", "commitlog", "peers", "uninitialized_topology"},
 	}
-	`
-	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
-		xtest.Diff(xtest.MustPrettyJSON(t, expectedResponse), xtest.MustPrettyJSON(t, string(body))))
+
+	expected := xtest.MustPrettyJSONMap(t, expectedResp)
+	actual := xtest.MustPrettyJSONString(t, string(body))
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
 func TestConfigSetBootstrappersHandlerNoValues(t *testing.T) {
@@ -89,13 +89,12 @@ func TestConfigSetBootstrappersHandlerNoValues(t *testing.T) {
 		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"values": []
-		}
-	`
+	jsonInput := xjson.Map{
+		"values": xjson.Array{},
+	}
 
-	req := httptest.NewRequest("POST", "/database/config/bootstrappers", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/config/bootstrappers",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	handler.ServeHTTP(w, req)
@@ -113,13 +112,12 @@ func TestConfigSetBootstrappersHandlerInvalidValue(t *testing.T) {
 		instrument.NewOptions())
 	w := httptest.NewRecorder()
 
-	jsonInput := `
-		{
-			"values": ["filesystem", "foo"]
-		}
-	`
+	jsonInput := xjson.Map{
+		"values": xjson.Array{"filesystem", "foo"},
+	}
 
-	req := httptest.NewRequest("POST", "/database/config/bootstrappers", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/database/config/bootstrappers",
+		xjson.MustNewTestReader(t, jsonInput))
 	require.NotNil(t, req)
 
 	handler.ServeHTTP(w, req)

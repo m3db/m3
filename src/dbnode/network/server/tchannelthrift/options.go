@@ -62,11 +62,13 @@ func NewOptions() Options {
 	})
 
 	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(), poolOptions)
+		serialize.NewTagEncoderOptions(),
+		poolOptions)
 	tagEncoderPool.Init()
 
 	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(), poolOptions)
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		poolOptions)
 	tagDecoderPool.Init()
 
 	bytesWrapperPool := xpool.NewCheckedBytesWrapperPool(poolOptions)

@@ -1,0 +1,27 @@
+---
+operation: init
+request:
+  num_shards: 64
+  replication_factor: 1
+  instances:
+    - id: nodeid1
+      isolation_group: isogroup1
+      zone: etcd1
+      weight: 100
+      endpoint: node1:9000
+      hostname: node1
+      port: 9000
+    - id: nodeid2
+      isolation_group: isogroup2
+      zone: etcd1
+      weight: 100
+      endpoint: node2:9000
+      hostname: node2
+      port: 9000
+    - id: nodeid3
+      isolation_group: isogroup3
+      zone: etcd1
+      weight: 100
+      endpoint: node3:9000
+      hostname: node3
+      port: 9000

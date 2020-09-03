@@ -532,8 +532,9 @@ func fulfillFetchBatchOps(
 				}
 				for _, value := range f.values {
 					dp := ts.Datapoint{
-						Timestamp: value.t,
-						Value:     value.value,
+						Timestamp:      value.t,
+						TimestampNanos: xtime.ToUnixNano(value.t),
+						Value:          value.value,
 					}
 					encoder.Encode(dp, value.unit, value.annotation)
 				}

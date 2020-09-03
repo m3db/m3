@@ -15,3 +15,10 @@ message TopicInitRequest {
 message TopicAddRequest {
   topicpb.ConsumerService consumer_service = 1;
 }
+
+// Request to update a topic and set its consumer services to a new value.
+// CheckAndSet is used based on the version passed.
+message TopicUpdateRequest {
+  repeated topicpb.ConsumerService consumer_services = 1;
+  uint32 version = 2;
+}

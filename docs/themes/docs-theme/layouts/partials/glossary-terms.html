@@ -1,0 +1,7 @@
+{{ $glossaryBundle := site.GetPage "page" "glossary" }}
+{{- if $glossaryBundle -}}
+  {{ $pages := $glossaryBundle.Resources.ByType "page" }}
+  {{- $.Scratch.Set "glossary_items"  $pages -}}
+{{- else -}}
+{{- errorf "[%s] Glossary Bundle not found for language. Create at least an index.md file inside glossary" site.Language.Lang -}}
+{{- end -}}

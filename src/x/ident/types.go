@@ -24,6 +24,7 @@ package ident
 import (
 	"fmt"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 )
@@ -216,8 +217,11 @@ type TagIterator interface {
 	// Remaining returns the number of elements remaining to be iterated over.
 	Remaining() int
 
-	// Dupe returns an independent duplicate of the iterator.
+	// Duplicate returns an independent duplicate of the iterator.
 	Duplicate() TagIterator
+
+	// Rewind resets the tag iterator to the initial position.
+	Rewind()
 }
 
 // TagsIterator represents a TagIterator that can be reset with a Tags
@@ -227,6 +231,9 @@ type TagsIterator interface {
 
 	// Reset allows the tag iterator to be reused with a new set of tags.
 	Reset(tags Tags)
+
+	// ResetFields allows tag iterator to be reused from a set of fields.
+	ResetFields(fields []doc.Field)
 }
 
 // Tags is a collection of Tag instances that can be pooled.

@@ -36,10 +36,10 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 
+	imodels "github.com/influxdata/influxdb/models"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3/src/x/time"
-	imodels "github.com/influxdata/influxdb/models"
 	"go.uber.org/zap"
 )
 
@@ -50,6 +50,12 @@ const (
 	// InfluxWriteHTTPMethod is the HTTP method used with this resource
 	InfluxWriteHTTPMethod = http.MethodPost
 )
+
+var defaultValue = ingest.IterValue{
+	Tags:       models.EmptyTags(),
+	Attributes: ts.DefaultSeriesAttributes(),
+	Metadata:   ts.Metadata{},
+}
 
 type ingestWriteHandler struct {
 	handlerOpts  options.HandlerOptions
@@ -71,6 +77,7 @@ type ingestIterator struct {
 	// internal
 	pointIndex int
 	err        xerrors.MultiError
+	metadatas  []ts.Metadata
 
 	// following entries are within current point, and initialized
 	// when we go to the first entry in the current point
@@ -218,7 +225,7 @@ func determineTimeUnit(t time.Time) xtime.Unit {
 	return xtime.Nanosecond
 }
 
-func (ii *ingestIterator) Current() (models.Tags, ts.Datapoints, xtime.Unit, []byte) {
+func (ii *ingestIterator) Current() ingest.IterValue {
 	if ii.pointIndex < len(ii.points) && ii.nextFieldIndex > 0 && len(ii.fields) > (ii.nextFieldIndex-1) {
 		point := ii.points[ii.pointIndex]
 		field := ii.fields[ii.nextFieldIndex-1]
@@ -226,10 +233,18 @@ func (ii *ingestIterator) Current() (models.Tags, ts.Datapoints, xtime.Unit, []b
 
 		t := point.Time()
 
-		return tags, []ts.Datapoint{ts.Datapoint{Timestamp: t,
-			Value: field.value}}, determineTimeUnit(t), nil
+		value := ingest.IterValue{
+			Tags:       tags,
+			Datapoints: []ts.Datapoint{ts.Datapoint{Timestamp: t, Value: field.value}},
+			Attributes: ts.DefaultSeriesAttributes(),
+			Unit:       determineTimeUnit(t),
+		}
+		if ii.pointIndex < len(ii.metadatas) {
+			value.Metadata = ii.metadatas[ii.pointIndex]
+		}
+		return value
 	}
-	return models.EmptyTags(), nil, 0, nil
+	return defaultValue
 }
 
 func (ii *ingestIterator) Reset() error {
@@ -243,6 +258,23 @@ func (ii *ingestIterator) Error() error {
 	return ii.err.FinalError()
 }
 
+func (ii *ingestIterator) SetCurrentMetadata(metadata ts.Metadata) {
+	if len(ii.metadatas) == 0 {
+		ii.metadatas = make([]ts.Metadata, len(ii.points))
+	}
+	if ii.pointIndex < len(ii.points) {
+		ii.metadatas[ii.pointIndex] = metadata
+	}
+}
+
+func (ii *ingestIterator) CurrentMetadata() ts.Metadata {
+	if len(ii.metadatas) == 0 || ii.pointIndex >= len(ii.metadatas) {
+		return ts.Metadata{}
+	}
+	return ii.metadatas[ii.pointIndex]
+}
+
+// NewInfluxWriterHandler returns a new influx write handler.
 func NewInfluxWriterHandler(options options.HandlerOptions) http.Handler {
 	return &ingestWriteHandler{handlerOpts: options,
 		tagOpts:      options.TagOptions(),

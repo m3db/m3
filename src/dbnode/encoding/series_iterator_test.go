@@ -39,6 +39,7 @@ import (
 type testSeries struct {
 	id          string
 	nsID        string
+	retainTag   bool
 	start       time.Time
 	end         time.Time
 	input       []inputReplica
@@ -84,13 +85,21 @@ func TestMultiReaderMergesReplicas(t *testing.T) {
 		},
 	}
 
+	expected := []testValue{
+		{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+		{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+		{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+		{4.0, start.Add(4 * time.Second), xtime.Second, nil},
+		{5.0, start.Add(5 * time.Second), xtime.Second, nil},
+	}
+
 	test := testSeries{
 		id:       "foo",
 		nsID:     "bar",
 		start:    start,
 		end:      end,
 		input:    values,
-		expected: append(values[0].values, values[2].values[1:]...),
+		expected: expected,
 	}
 
 	assertTestSeriesIterator(t, test)
@@ -226,6 +235,43 @@ func TestSeriesIteratorSetIterateEqualTimestampStrategy(t *testing.T) {
 		DefaultIterateEqualTimestampStrategy)
 }
 
+type testSeriesConsolidator struct {
+	iters []MultiReaderIterator
+}
+
+func (c *testSeriesConsolidator) ConsolidateReplicas(
+	_ []MultiReaderIterator,
+) ([]MultiReaderIterator, error) {
+	return c.iters, nil
+}
+
+func TestSeriesIteratorSetSeriesIteratorConsolidator(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	test := testSeries{
+		id:   "foo",
+		nsID: "bar",
+	}
+
+	iter := newTestSeriesIterator(t, test).iter
+	newIter := NewMockMultiReaderIterator(ctrl)
+	newIter.EXPECT().Next().Return(true)
+	newIter.EXPECT().Current().Return(ts.Datapoint{}, xtime.Second, nil).Times(2)
+
+	iter.iters.setFilter(0, 1)
+	consolidator := &testSeriesConsolidator{iters: []MultiReaderIterator{newIter}}
+	oldIter := NewMockMultiReaderIterator(ctrl)
+	oldIters := []MultiReaderIterator{oldIter}
+	iter.multiReaderIters = oldIters
+	assert.Equal(t, oldIter, iter.multiReaderIters[0])
+	iter.Reset(SeriesIteratorOptions{
+		Replicas:                   oldIters,
+		SeriesIteratorConsolidator: consolidator,
+	})
+	assert.Equal(t, newIter, iter.multiReaderIters[0])
+}
+
 type newTestSeriesIteratorResult struct {
 	iter                 *seriesIterator
 	multiReaderIterators []MultiReaderIterator
@@ -248,8 +294,8 @@ func newTestSeriesIterator(
 		ID:             ident.StringID(series.id),
 		Namespace:      ident.StringID(series.nsID),
 		Tags:           ident.EmptyTagIterator,
-		StartInclusive: series.start,
-		EndExclusive:   series.end,
+		StartInclusive: xtime.ToUnixNano(series.start),
+		EndExclusive:   xtime.ToUnixNano(series.end),
 		Replicas:       iters,
 	}, nil)
 

@@ -61,7 +61,7 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 				time.Sleep(time.Millisecond)
 				err := commitLog.Write(
 					context.NewContext(),
-					testSeries(0, "foo.bar", testTags1, 127),
+					testSeries(t, opts, 0, "foo.bar", testTags1, 127),
 					ts.Datapoint{},
 					xtime.Second,
 					nil)
@@ -152,7 +152,7 @@ func TestCommitLogRotateLogsConcurrency(t *testing.T) {
 				time.Sleep(time.Millisecond)
 				err := commitLog.Write(
 					context.NewContext(),
-					testSeries(0, "foo.bar", testTags1, 127),
+					testSeries(t, opts, 0, "foo.bar", testTags1, 127),
 					ts.Datapoint{},
 					xtime.Second,
 					nil)

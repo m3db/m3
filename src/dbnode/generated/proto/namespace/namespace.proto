@@ -1,6 +1,8 @@
 syntax = "proto3";
+
 package namespace;
 
+import "google/protobuf/wrappers.proto";
 import "github.com/m3db/m3/src/dbnode/generated/proto/namespace/schema.proto";
 
 message RetentionOptions {
@@ -19,18 +21,24 @@ message IndexOptions {
 }
 
 message NamespaceOptions {
-    bool bootstrapEnabled             = 1;
-    bool flushEnabled                 = 2;
-    bool writesToCommitLog            = 3;
-    bool cleanupEnabled               = 4;
-    bool repairEnabled                = 5;
-    RetentionOptions retentionOptions = 6;
-    bool snapshotEnabled              = 7;
-    IndexOptions indexOptions         = 8;
-    SchemaOptions schemaOptions       = 9;
-    bool coldWritesEnabled            = 10;
+    bool bootstrapEnabled                  = 1;
+    bool flushEnabled                      = 2;
+    bool writesToCommitLog                 = 3;
+    bool cleanupEnabled                    = 4;
+    bool repairEnabled                     = 5;
+    RetentionOptions retentionOptions      = 6;
+    bool snapshotEnabled                   = 7;
+    IndexOptions indexOptions              = 8;
+    SchemaOptions schemaOptions            = 9;
+    bool coldWritesEnabled                 = 10;
+    NamespaceRuntimeOptions runtimeOptions = 11;
 }
 
 message Registry {
     map<string, NamespaceOptions> namespaces = 1;
+}
+
+message NamespaceRuntimeOptions {
+    google.protobuf.DoubleValue writeIndexingPerCPUConcurrency = 1;
+    google.protobuf.DoubleValue flushIndexingPerCPUConcurrency = 2;
 }

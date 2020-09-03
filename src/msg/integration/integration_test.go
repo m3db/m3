@@ -1,5 +1,3 @@
-// +build integration
-
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -131,9 +129,9 @@ func TestSharedConsumerWithDeadInstance(t *testing.T) {
 		s.Run(t, ctrl)
 		s.VerifyConsumers(t)
 		testConsumers := s.consumerServices[0].testConsumers
-		require.True(t, testConsumers[len(testConsumers)-1].consumed <= s.TotalMessages()*10/100)
+		require.True(t, testConsumers[len(testConsumers)-1].numConsumed() <= s.TotalMessages()*10/100)
 		testConsumers = s.consumerServices[1].testConsumers
-		require.True(t, testConsumers[len(testConsumers)-1].consumed <= s.TotalMessages()*20/100)
+		require.True(t, testConsumers[len(testConsumers)-1].numConsumed() <= s.TotalMessages()*20/100)
 	}
 }
 
@@ -548,8 +546,8 @@ func TestRemoveConsumerService(t *testing.T) {
 		)
 		s.Run(t, ctrl)
 		s.VerifyConsumers(t)
-		require.Equal(t, msgPerShard*numberOfShards, len(s.consumerServices[0].consumed))
-		require.Equal(t, msgPerShard*numberOfShards, len(s.consumerServices[1].consumed))
+		require.Equal(t, msgPerShard*numberOfShards, s.consumerServices[0].numConsumed())
+		require.Equal(t, msgPerShard*numberOfShards, s.consumerServices[1].numConsumed())
 	}
 }
 
@@ -576,8 +574,8 @@ func TestAddConsumerService(t *testing.T) {
 			},
 		)
 		s.Run(t, ctrl)
-		require.Equal(t, s.ExpectedNumMessages(), len(s.consumerServices[0].consumed))
-		require.Equal(t, s.ExpectedNumMessages(), len(s.consumerServices[1].consumed))
-		require.True(t, len(s.consumerServices[2].consumed) <= s.ExpectedNumMessages()*80/100)
+		require.Equal(t, s.ExpectedNumMessages(), s.consumerServices[0].numConsumed())
+		require.Equal(t, s.ExpectedNumMessages(), s.consumerServices[1].numConsumed())
+		require.True(t, s.consumerServices[2].numConsumed() <= s.ExpectedNumMessages()*80/100)
 	}
 }

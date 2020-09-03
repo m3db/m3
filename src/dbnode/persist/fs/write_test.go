@@ -43,7 +43,6 @@ func TestWriteReuseAfterError(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	seriesID := ident.StringID("series1")
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		Identifier: FileSetFileIdentifier{
@@ -58,8 +57,20 @@ func TestWriteReuseAfterError(t *testing.T) {
 	data := checkedBytes([]byte{1, 2, 3})
 
 	require.NoError(t, w.Open(writerOpts))
-	require.NoError(t, w.Write(seriesID, ident.Tags{}, data, 0))
-	require.NoError(t, w.Write(seriesID, ident.Tags{}, data, 0))
+	require.NoError(t, w.Write(
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("series1"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
+		data,
+		0))
+	require.NoError(t, w.Write(
+		persist.NewMetadataFromIDAndTags(
+			ident.StringID("series1"),
+			ident.Tags{},
+			persist.MetadataOptions{}),
+		data,
+		0))
 	require.Error(t, w.Close())
 
 	require.NoError(t, w.Open(writerOpts))

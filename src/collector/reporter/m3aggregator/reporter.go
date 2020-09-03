@@ -55,7 +55,7 @@ type reporterMetrics struct {
 
 func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
 	scope := instrumentOpts.MetricsScope()
-	samplingRate := instrumentOpts.MetricsSamplingRate()
+	timerOpts := instrumentOpts.TimerOptions()
 	hostName := "unknown"
 	if name, err := os.Hostname(); err == nil {
 		hostName = name
@@ -64,10 +64,10 @@ func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
 	}
 	hostScope := scope.Tagged(map[string]string{"host": hostName})
 	return reporterMetrics{
-		reportCounter:    instrument.NewMethodMetrics(scope, "report-counter", samplingRate),
-		reportBatchTimer: instrument.NewMethodMetrics(scope, "report-batch-timer", samplingRate),
-		reportGauge:      instrument.NewMethodMetrics(scope, "report-gauge", samplingRate),
-		flush:            instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		reportCounter:    instrument.NewMethodMetrics(scope, "report-counter", timerOpts),
+		reportBatchTimer: instrument.NewMethodMetrics(scope, "report-batch-timer", timerOpts),
+		reportGauge:      instrument.NewMethodMetrics(scope, "report-gauge", timerOpts),
+		flush:            instrument.NewMethodMetrics(scope, "flush", timerOpts),
 		reportPending:    hostScope.Gauge("report-pending"),
 	}
 }
@@ -122,9 +122,9 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 	counter := unaggregated.Counter{ID: id.Bytes(), Value: value}
 	matchResult := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 
-	matchExisting, _ := matchResult.ForExistingIDAt(fromNanos).ApplyOrRemoveDropPolicies()
-	if !matchExisting.IsDropPolicyApplied() {
-		err := r.client.WriteUntimedCounter(counter, matchExisting)
+	stagedMetadatas := matchResult.ForExistingIDAt(fromNanos)
+	if !stagedMetadatas.IsDropPolicyApplied() {
+		err := r.client.WriteUntimedCounter(counter, stagedMetadatas)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -162,9 +162,9 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 	batchTimer := unaggregated.BatchTimer{ID: id.Bytes(), Values: value}
 	matchResult := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 
-	matchExisting, _ := matchResult.ForExistingIDAt(fromNanos).ApplyOrRemoveDropPolicies()
-	if !matchExisting.IsDropPolicyApplied() {
-		err := r.client.WriteUntimedBatchTimer(batchTimer, matchExisting)
+	stagedMetadatas := matchResult.ForExistingIDAt(fromNanos)
+	if !stagedMetadatas.IsDropPolicyApplied() {
+		err := r.client.WriteUntimedBatchTimer(batchTimer, stagedMetadatas)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -201,9 +201,9 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 	gauge := unaggregated.Gauge{ID: id.Bytes(), Value: value}
 	matchResult := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 
-	matchExisting, _ := matchResult.ForExistingIDAt(fromNanos).ApplyOrRemoveDropPolicies()
-	if !matchExisting.IsDropPolicyApplied() {
-		err := r.client.WriteUntimedGauge(gauge, matchExisting)
+	stagedMetadatas := matchResult.ForExistingIDAt(fromNanos)
+	if !stagedMetadatas.IsDropPolicyApplied() {
+		err := r.client.WriteUntimedGauge(gauge, stagedMetadatas)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}

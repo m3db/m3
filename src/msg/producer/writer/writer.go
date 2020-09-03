@@ -53,7 +53,7 @@ func newWriterMetrics(scope tally.Scope) writerMetrics {
 		topicUpdateError:   scope.Counter("topic-update-error"),
 		invalidTopicUpdate: scope.Counter("invalid-topic"),
 		invalidShard: scope.Tagged(map[string]string{"reason": "invalid-shard"}).
-			Counter("invalid-write"),
+			Counter("invalid-shard-write"),
 		numConsumerServices: scope.Gauge("num-consumer-services"),
 	}
 }

@@ -29,10 +29,10 @@ const (
 	// DropNone specifies not to drop any of the matched metrics.
 	DropNone DropPolicy = iota
 	// DropMust specifies to always drop matched metrics, irregardless of
-	// other rules.
+	// other rules. Metrics are not dropped from the rollup rules.
 	DropMust
 	// DropIfOnlyMatch specifies to drop matched metrics, but only if no
-	// other rules match.
+	// other rules match. Metrics are not dropped from the rollup rules.
 	DropIfOnlyMatch
 
 	// DefaultDropPolicy is to drop none.

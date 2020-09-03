@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts/writes"
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -65,8 +66,8 @@ type commitLogFailFn func(err error)
 // we can handle both cases without having to allocate as slice of size
 // 1 to handle a single write.
 type writeOrWriteBatch struct {
-	write      ts.Write
-	writeBatch ts.WriteBatch
+	write      writes.Write
+	writeBatch writes.WriteBatch
 }
 
 type commitLog struct {
@@ -449,8 +450,8 @@ func (l *commitLog) write() {
 	// We use these to make the batch and non-batched write paths the same
 	// by turning non-batched writes into a batch of size one while avoiding
 	// any allocations.
-	var singleBatch = make([]ts.BatchWrite, 1)
-	var batch []ts.BatchWrite
+	var singleBatch = make([]writes.BatchWrite, 1)
+	var batch []writes.BatchWrite
 
 	for write := range l.writes {
 		if write.eventType == flushEventType {
@@ -720,7 +721,7 @@ func (l *commitLog) Write(
 	annotation ts.Annotation,
 ) error {
 	return l.writeFn(ctx, writeOrWriteBatch{
-		write: ts.Write{
+		write: writes.Write{
 			Series:     series,
 			Datapoint:  datapoint,
 			Unit:       unit,
@@ -731,7 +732,7 @@ func (l *commitLog) Write(
 
 func (l *commitLog) WriteBatch(
 	ctx context.Context,
-	writes ts.WriteBatch,
+	writes writes.WriteBatch,
 ) error {
 	return l.writeFn(ctx, writeOrWriteBatch{
 		writeBatch: writes,

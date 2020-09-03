@@ -197,9 +197,7 @@ func (p *rollupIDProvider) Err() error {
 	return nil
 }
 
-func (p *rollupIDProvider) Close() {
-	// No-op
-}
+func (p *rollupIDProvider) Close() {}
 
 func (p *rollupIDProvider) Len() int {
 	return len(p.tagPairs) + 2
@@ -213,6 +211,10 @@ func (p *rollupIDProvider) Duplicate() ident.TagIterator {
 	duplicate := p.pool.Get()
 	duplicate.reset(p.newName, p.tagPairs)
 	return duplicate
+}
+
+func (p *rollupIDProvider) Rewind() {
+	p.index = -1
 }
 
 type rollupIDProviderPool struct {

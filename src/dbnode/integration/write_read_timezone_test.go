@@ -76,19 +76,19 @@ func TestWriteReadTimezone(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup / start server
-	opts := newTestOptions(t)
-	setup, err := newTestSetup(t, opts, nil)
+	opts := NewTestOptions(t)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
-	require.NoError(t, setup.startServer())
-	require.NoError(t, setup.waitUntilServerIsBootstrapped())
+	defer setup.Close()
+	require.NoError(t, setup.StartServer())
+	require.NoError(t, setup.WaitUntilServerIsBootstrapped())
 
 	// Make sure that the server's internal clock function returns pacific timezone
-	start := setup.getNowFn()
-	setup.setNowFn(start.In(pacificLocation))
+	start := setup.NowFn()()
+	setup.SetNowFn(start.In(pacificLocation))
 
 	// Instantiate a client
-	client := setup.m3dbClient
+	client := setup.M3DBClient()
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 	defer session.Close()

@@ -23,6 +23,7 @@ package scalar
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -56,6 +57,7 @@ func TestScalar(t *testing.T) {
 	err = node.Execute(models.NoopQueryContext())
 	require.NoError(t, err)
 	require.Equal(t, 1, len(sink.Values))
+	require.Equal(t, block.BlockScalar, sink.Info.BaseType())
 
 	vals := sink.Values[0]
 	assert.Equal(t, bounds.Steps(), len(vals))

@@ -29,6 +29,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -164,7 +166,7 @@ var testCases = []struct {
 	queryLength          time.Duration
 	opts                 *storage.FanoutOptions
 	restrict             *storage.RestrictQueryOptions
-	expectedType         queryFanoutType
+	expectedType         consolidators.QueryFanoutType
 	expectedClusterNames []string
 	expectedErr          error
 	expectedErrContains  string
@@ -176,7 +178,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceDisable,
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
-		expectedType: namespaceInvalid,
+		expectedType: consolidators.NamespaceInvalid,
 		expectedErr:  errUnaggregatedAndAggregatedDisabled,
 	},
 	{
@@ -186,7 +188,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceDisable,
 			FanoutAggregatedOptimized: storage.FanoutForceEnable,
 		},
-		expectedType: namespaceInvalid,
+		expectedType: consolidators.NamespaceInvalid,
 		expectedErr:  errUnaggregatedAndAggregatedDisabled,
 	},
 	{
@@ -196,7 +198,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceDisable,
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
-		expectedType:         namespaceCoversPartialQueryRange,
+		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
 	{
@@ -207,7 +209,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceDisable,
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
-		expectedType:         namespaceCoversAllQueryRange,
+		expectedType:         consolidators.NamespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
 	{
@@ -217,7 +219,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceDisable,
 			FanoutAggregatedOptimized: storage.FanoutForceEnable,
 		},
-		expectedType:         namespaceCoversPartialQueryRange,
+		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
 	{
@@ -228,7 +230,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceDisable,
 			FanoutAggregatedOptimized: storage.FanoutForceEnable,
 		},
-		expectedType:         namespaceCoversAllQueryRange,
+		expectedType:         consolidators.NamespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
 	{
@@ -238,7 +240,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceEnable,
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
-		expectedType: namespaceCoversPartialQueryRange,
+		expectedType: consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"AGG_FILTERED", "AGG_NO_FILTER",
 			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
 	},
@@ -250,7 +252,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceEnable,
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
-		expectedType: namespaceCoversAllQueryRange,
+		expectedType: consolidators.NamespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"AGG_FILTERED", "AGG_NO_FILTER",
 			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
 	},
@@ -261,7 +263,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceEnable,
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
-		expectedType: namespaceCoversPartialQueryRange,
+		expectedType: consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"UNAGG", "AGG_FILTERED", "AGG_NO_FILTER",
 			"AGG_FILTERED_COMPLETE", "AGG_NO_FILTER_COMPLETE"},
 	},
@@ -273,7 +275,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceEnable,
 			FanoutAggregatedOptimized: storage.FanoutForceDisable,
 		},
-		expectedType:         namespaceCoversAllQueryRange,
+		expectedType:         consolidators.NamespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
 	{
@@ -283,7 +285,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceEnable,
 			FanoutAggregatedOptimized: storage.FanoutForceEnable,
 		},
-		expectedType:         namespaceCoversAllQueryRange,
+		expectedType:         consolidators.NamespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"AGG_NO_FILTER", "AGG_NO_FILTER_COMPLETE"},
 	},
 	{
@@ -294,7 +296,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceEnable,
 			FanoutAggregatedOptimized: storage.FanoutForceEnable,
 		},
-		expectedType:         namespaceCoversAllQueryRange,
+		expectedType:         consolidators.NamespaceCoversAllQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
 	{
@@ -305,7 +307,7 @@ var testCases = []struct {
 			FanoutAggregated:          storage.FanoutForceEnable,
 			FanoutAggregatedOptimized: storage.FanoutForceEnable,
 		},
-		expectedType:         namespaceCoversPartialQueryRange,
+		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"AGG_NO_FILTER", "AGG_NO_FILTER_COMPLETE"},
 	},
 	{
@@ -313,10 +315,10 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: storage.UnaggregatedMetricsType,
+				MetricsType: storagemetadata.UnaggregatedMetricsType,
 			},
 		},
-		expectedType:         namespaceCoversPartialQueryRange,
+		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"UNAGG"},
 	},
 	{
@@ -324,12 +326,12 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: storage.AggregatedMetricsType,
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy(
 					genResolution.String() + ":" + genRetentionFiltered.String()),
 			},
 		},
-		expectedType:         namespaceCoversPartialQueryRange,
+		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"AGG_FILTERED"},
 	},
 	{
@@ -337,12 +339,12 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: storage.AggregatedMetricsType,
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy(
 					genResolution.String() + ":" + genRetentionUnfiltered.String()),
 			},
 		},
-		expectedType:         namespaceCoversPartialQueryRange,
+		expectedType:         consolidators.NamespaceCoversPartialQueryRange,
 		expectedClusterNames: []string{"AGG_NO_FILTER"},
 	},
 	{
@@ -350,7 +352,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType: storage.UnknownMetricsType,
+				MetricsType: storagemetadata.UnknownMetricsType,
 			},
 		},
 		expectedErrContains: "unrecognized metrics type:",
@@ -360,7 +362,7 @@ var testCases = []struct {
 		queryLength: time.Hour * 1000,
 		restrict: &storage.RestrictQueryOptions{
 			RestrictByType: &storage.RestrictByType{
-				MetricsType:   storage.AggregatedMetricsType,
+				MetricsType:   storagemetadata.AggregatedMetricsType,
 				StoragePolicy: policy.MustParseStoragePolicy("1s:100d"),
 			},
 		},
@@ -477,7 +479,7 @@ func TestLongUnaggregatedRetention(t *testing.T) {
 	sort.Sort(sort.StringSlice(actualNames))
 	sort.Sort(sort.StringSlice(expected))
 	assert.Equal(t, expected, actualNames)
-	assert.Equal(t, namespaceCoversPartialQueryRange, fanoutType)
+	assert.Equal(t, consolidators.NamespaceCoversPartialQueryRange, fanoutType)
 }
 
 func TestExampleCase(t *testing.T) {
@@ -524,6 +526,6 @@ func TestExampleCase(t *testing.T) {
 		sort.Sort(sort.StringSlice(actualNames))
 		assert.Equal(t, []string{"metrics_10s_24h",
 			"metrics_180s_360h", "metrics_600s_17520h"}, actualNames)
-		assert.Equal(t, namespaceCoversPartialQueryRange, fanoutType)
+		assert.Equal(t, consolidators.NamespaceCoversPartialQueryRange, fanoutType)
 	}
 }

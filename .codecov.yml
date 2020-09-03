@@ -5,31 +5,57 @@ coverage:
 
   status:
     project:
-      default: on
+      default:
+        target: auto
+        threshold: 5%
       x:
+        target: auto
+        threshold: 5%
         flags: x
       cluster:
+        target: auto
+        threshold: 5%
         flags: cluster
       msg:
+        target: auto
+        threshold: 5%
         flags: msg
       metrics:
+        target: auto
+        threshold: 5%
         flags: metrics
       aggregator:
+        target: auto
+        threshold: 5%
         flags: aggregator
       collector:
+        target: auto
+        threshold: 5%
         flags: collector
       query:
+        target: auto
+        threshold: 5%
         flags: query
       dbnode:
+        target: auto
+        threshold: 5%
         flags: dbnode
       m3ninx:
+        target: auto
+        threshold: 5%
         flags: m3ninx
       m3nsch:
+        target: auto
+        threshold: 5%
         flags: m3nsch
       m3em:
+        target: auto
+        threshold: 5%
         flags: m3em
     patch:
-      default: on
+      default:
+        target: auto
+        threshold: 5%
     changes:
       default: off
 

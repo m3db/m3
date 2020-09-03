@@ -178,6 +178,24 @@ func (m *metricMap) AddTimed(
 	return err
 }
 
+func (m *metricMap) AddTimedWithStagedMetadatas(
+	metric aggregated.Metric,
+	metas metadata.StagedMetadatas,
+) error {
+	key := entryKey{
+		metricCategory: timedMetric,
+		metricType:     metric.Type,
+		idHash:         hash.Murmur3Hash128(metric.ID),
+	}
+	entry, err := m.findOrCreate(key)
+	if err != nil {
+		return err
+	}
+	err = entry.AddTimedWithStagedMetadatas(metric, metas)
+	entry.DecWriter()
+	return err
+}
+
 func (m *metricMap) AddForwarded(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,

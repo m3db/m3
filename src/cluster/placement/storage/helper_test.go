@@ -41,6 +41,9 @@ func TestPlacementHelper(t *testing.T) {
 				Weight:         1,
 				Shards:         protoShards,
 				ShardSetId:     0,
+				Metadata: &placementpb.InstanceMetadata{
+					DebugPort: 1,
+				},
 			},
 			"i2": &placementpb.Instance{
 				Id:             "i2",
@@ -50,6 +53,9 @@ func TestPlacementHelper(t *testing.T) {
 				Weight:         1,
 				Shards:         protoShards,
 				ShardSetId:     1,
+				Metadata: &placementpb.InstanceMetadata{
+					DebugPort: 2,
+				},
 			},
 		},
 		ReplicaFactor: 2,
@@ -105,6 +111,9 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 				Weight:         1,
 				Shards:         protoShards,
 				ShardSetId:     0,
+				Metadata: &placementpb.InstanceMetadata{
+					DebugPort: 1,
+				},
 			},
 			"i2": &placementpb.Instance{
 				Id:             "i2",
@@ -114,6 +123,9 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 				Weight:         1,
 				Shards:         protoShards,
 				ShardSetId:     1,
+				Metadata: &placementpb.InstanceMetadata{
+					DebugPort: 2,
+				},
 			},
 		},
 		ReplicaFactor: 2,
@@ -131,6 +143,9 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 				Weight:         1,
 				Shards:         protoShards,
 				ShardSetId:     0,
+				Metadata: &placementpb.InstanceMetadata{
+					DebugPort: 1,
+				},
 			},
 		},
 		ReplicaFactor: 1,
@@ -183,6 +198,9 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 							Weight:         1,
 							Shards:         protoShards,
 							ShardSetId:     0,
+							Metadata: &placementpb.InstanceMetadata{
+								DebugPort: 1,
+							},
 						},
 					},
 					ReplicaFactor: 1,

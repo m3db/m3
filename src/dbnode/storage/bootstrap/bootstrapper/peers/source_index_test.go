@@ -22,7 +22,6 @@ package peers
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"sort"
 	"testing"
@@ -31,12 +30,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/ts"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -121,8 +122,11 @@ func writeTSDBFiles(
 	for _, v := range series {
 		bytes := checked.NewBytes(v.data, nil)
 		bytes.IncRef()
-		require.NoError(t, w.Write(ident.StringID(v.id),
-			sortedTagsFromTagsMap(v.tags), bytes, digest.Checksum(bytes.Bytes())))
+		metadata := persist.NewMetadataFromIDAndTags(ident.StringID(v.id),
+			sortedTagsFromTagsMap(v.tags),
+			persist.MetadataOptions{})
+		require.NoError(t, w.Write(metadata, bytes,
+			digest.Checksum(bytes.Bytes())))
 		bytes.DecRef()
 	}
 
@@ -233,12 +237,13 @@ func TestBootstrapIndex(t *testing.T) {
 
 	end := start.Add(ropts.RetentionPeriod())
 
-	shardTimeRanges := map[uint32]xtime.Ranges{
-		0: xtime.NewRanges(xtime.Range{
+	shardTimeRanges := result.NewShardTimeRanges().Set(
+		0,
+		xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   end,
 		}),
-	}
+	)
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
@@ -275,9 +280,10 @@ func TestBootstrapIndex(t *testing.T) {
 	results := tester.ResultForNamespace(nsMetadata.ID())
 	indexResults := results.IndexResult.IndexResults()
 	numBlocksWithData := 0
-	for _, b := range indexResults {
-		if len(b.Segments()) != 0 {
-			log.Printf("result block start: %s", b.BlockStart())
+	for _, indexBlockByVolumeType := range indexResults {
+		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+		require.True(t, ok)
+		if len(indexBlock.Segments()) != 0 {
 			numBlocksWithData++
 		}
 	}
@@ -307,11 +313,12 @@ func TestBootstrapIndex(t *testing.T) {
 		},
 	} {
 		expectedAt := xtime.ToUnixNano(expected.indexBlockStart)
-		indexBlock, ok := indexResults[expectedAt]
+		indexBlockByVolumeType, ok := indexResults[expectedAt]
 		require.True(t, ok)
-		require.Equal(t, 1, len(indexBlock.Segments()))
+		indexBlock, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+		require.True(t, ok)
 		for _, seg := range indexBlock.Segments() {
-			reader, err := seg.Reader()
+			reader, err := seg.Segment().Reader()
 			require.NoError(t, err)
 
 			docs, err := reader.AllDocs()
@@ -352,23 +359,29 @@ func TestBootstrapIndex(t *testing.T) {
 	t2 := indexStart.Add(indexBlockSize)
 	t3 := t2.Add(indexBlockSize)
 
-	blk1, ok := indexResults[xtime.ToUnixNano(t1)]
+	indexBlockByVolumeType, ok := indexResults[xtime.ToUnixNano(t1)]
 	require.True(t, ok)
-	assertShardRangesEqual(t, result.NewShardTimeRanges(t1, t2, 0), blk1.Fulfilled())
-
-	blk2, ok := indexResults[xtime.ToUnixNano(t2)]
+	blk1, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
 	require.True(t, ok)
-	assertShardRangesEqual(t, result.NewShardTimeRanges(t2, t3, 0), blk2.Fulfilled())
+	assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t1, t2, 0), blk1.Fulfilled())
 
-	for _, blk := range indexResults {
-		if blk.BlockStart().Equal(t1) || blk.BlockStart().Equal(t2) {
+	indexBlockByVolumeType, ok = indexResults[xtime.ToUnixNano(t2)]
+	require.True(t, ok)
+	blk2, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+	require.True(t, ok)
+	assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(t2, t3, 0), blk2.Fulfilled())
+
+	for _, indexBlockByVolumeType := range indexResults {
+		if indexBlockByVolumeType.BlockStart().Equal(t1) || indexBlockByVolumeType.BlockStart().Equal(t2) {
 			continue // already checked above
 		}
 		// rest should all be marked fulfilled despite no data, because we didn't see
 		// any errors in the response.
-		start := blk.BlockStart()
+		start := indexBlockByVolumeType.BlockStart()
 		end := start.Add(indexBlockSize)
-		assertShardRangesEqual(t, result.NewShardTimeRanges(start, end, 0), blk.Fulfilled())
+		blk, ok := indexBlockByVolumeType.GetBlock(idxpersist.DefaultIndexVolumeType)
+		require.True(t, ok)
+		assertShardRangesEqual(t, result.NewShardTimeRangesFromRange(start, end, 0), blk.Fulfilled())
 	}
 
 	tester.EnsureNoWrites()

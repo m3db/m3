@@ -55,6 +55,8 @@ builds:
       - darwin
       # Issue #692 tracks Windows support.
       # - windows
+    goarch:
+      - amd64
   - id: m3aggregator
     main: ./src/cmd/services/m3aggregator/main/main.go
     binary: m3aggregator
@@ -74,14 +76,15 @@ builds:
       # - windows
     goarch:
       - amd64
-archive:
-  wrap_in_directory: true
-  format_overrides:
-    - goos: windows
-      format: zip
-  files:
-    - LICENSE
-    - README.md
+archives:
+  - format: tar.gz
+    wrap_in_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
 release:
   github:
     owner: m3db

@@ -1,8 +1,8 @@
 global:
   external_labels:
     role: "remote"
-  scrape_interval:     15s
-  evaluation_interval: 15s
+  scrape_interval:     10s
+  evaluation_interval: 10s
 
 # Alertmanager configuration
 alerting:
@@ -20,24 +20,42 @@ rule_files:
 # Here it's Prometheus itself.
 scrape_configs:
   # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
-  - job_name: 'prometheus'
+  - job_name: 'prometheus01'
 
     # metrics_path defaults to '/metrics'
     # scheme defaults to 'http'.
 
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ['prometheus01:9090']
 
   - job_name: 'coordinator'
     static_configs:
-      - targets: ['m3coordinator01:7203']
+      - targets:
+          - m3coordinator01:7210
+          - m3coordinator01:7211
+          - m3coordinator01:7212
+          - m3coordinator01:7213
 
   - job_name: 'dbnode'
     static_configs:
       - targets: ['m3db_seed:9004', 'm3db_data01:9004', 'm3db_data02:9004']
 
+  - job_name: 'aggregator'
+    static_configs:
+      - targets: ['m3aggregator01:6002', 'm3aggregator01:6002']
+
 remote_read:
   - url: http://m3coordinator01:7201/api/v1/prom/remote/read
+    read_recent: true
 
 remote_write:
   - url: http://m3coordinator01:7201/api/v1/prom/remote/write
+    remote_timeout: 30s
+    queue_config:
+      capacity: 10000
+      max_shards: 10
+      min_shards: 3
+      max_samples_per_send: 5000
+      batch_send_deadline: 1m
+      min_backoff: 50ms
+      max_backoff: 1s

@@ -35,6 +35,8 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/config/listenaddress"
 	"github.com/m3db/m3/src/x/cost"
@@ -52,11 +54,20 @@ const (
 	GRPCStorageType BackendStorageType = "grpc"
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
+	// NoopEtcdStorageType is for a noop backend which returns empty results for
+	// any query and blackholes any writes, but requires that a valid etcd cluster
+	// is defined and can be connected to. Primarily used for standalone
+	// coordinators used only to serve m3admin APIs.
+	NoopEtcdStorageType BackendStorageType = "noop-etcd"
 
 	defaultCarbonIngesterListenAddress = "0.0.0.0:7204"
 	errNoIDGenerationScheme            = "error: a recent breaking change means that an ID " +
 		"generation scheme is required in coordinator configuration settings. " +
 		"More information is available here: %s"
+
+	defaultQueryTimeout = 30 * time.Second
+
+	defaultPrometheusMaxSamplesPerQuery = 100000000
 )
 
 var (
@@ -65,7 +76,8 @@ var (
 
 	defaultCarbonIngesterAggregationType = aggregation.Mean
 
-	defaultStorageQueryLimit = 10000
+	defaultStorageQuerySeriesLimit = 10000
+	defaultStorageQueryDocsLimit   = 0 // Default OFF.
 )
 
 // Configuration is the configuration for the query service.
@@ -124,6 +136,9 @@ type Configuration struct {
 	// Carbon is the carbon configuration.
 	Carbon *CarbonConfiguration `yaml:"carbon"`
 
+	// Query is the query configuration.
+	Query QueryConfiguration `yaml:"query"`
+
 	// Limits specifies limits on per-query resource usage.
 	Limits LimitsConfiguration `yaml:"limits"`
 
@@ -144,6 +159,9 @@ type Configuration struct {
 	// stanza not able to startup the binary since we parse YAML in strict mode
 	// by default).
 	DeprecatedCache CacheConfiguration `yaml:"cache"`
+
+	// MultiProcess is the multi-process configuration.
+	MultiProcess MultiProcessConfiguration `yaml:"multiProcess"`
 }
 
 // WriteForwardingConfiguration is the write forwarding configuration.
@@ -190,18 +208,102 @@ type ResultOptions struct {
 	KeepNans bool `yaml:"keepNans"`
 }
 
+// QueryConfiguration is the query configuration.
+type QueryConfiguration struct {
+	// Timeout is the query timeout.
+	Timeout *time.Duration `yaml:"timeout"`
+	// DefaultEngine is the default query engine.
+	DefaultEngine string `yaml:"defaultEngine"`
+	// ConsolidationConfiguration are configs for consolidating fetched queries.
+	ConsolidationConfiguration ConsolidationConfiguration `yaml:"consolidation"`
+	// Prometheus is prometheus client configuration.
+	Prometheus PrometheusQueryConfiguration `yaml:"prometheus"`
+	// RestrictTags is an optional configuration that can be set to restrict
+	// all queries with certain tags by.
+	RestrictTags *RestrictTagsConfiguration `yaml:"restrictTags"`
+}
+
+// TimeoutOrDefault returns the configured timeout or default value.
+func (c QueryConfiguration) TimeoutOrDefault() time.Duration {
+	if v := c.Timeout; v != nil {
+		return *v
+	}
+	return defaultQueryTimeout
+}
+
+// RestrictTagsAsStorageRestrictByTag returns restrict tags as
+// storage options to restrict all queries by default.
+func (c QueryConfiguration) RestrictTagsAsStorageRestrictByTag() (*storage.RestrictByTag, bool, error) {
+	if c.RestrictTags == nil {
+		return nil, false, nil
+	}
+
+	var (
+		cfg    = *c.RestrictTags
+		result = handleroptions.StringTagOptions{
+			Restrict: make([]handleroptions.StringMatch, 0, len(cfg.Restrict)),
+			Strip:    cfg.Strip,
+		}
+	)
+	for _, elem := range cfg.Restrict {
+		value := handleroptions.StringMatch(elem)
+		result.Restrict = append(result.Restrict, value)
+	}
+
+	opts, err := result.StorageOptions()
+	if err != nil {
+		return nil, false, err
+	}
+
+	return opts, true, nil
+}
+
+// RestrictTagsConfiguration applies tag restriction to all queries.
+type RestrictTagsConfiguration struct {
+	Restrict []StringMatch `yaml:"match"`
+	Strip    []string      `yaml:"strip"`
+}
+
+// StringMatch is an easy to use representation of models.Matcher.
+type StringMatch struct {
+	Name  string `yaml:"name"`
+	Type  string `yaml:"type"`
+	Value string `yaml:"value"`
+}
+
+// ConsolidationConfiguration are configs for consolidating fetched queries.
+type ConsolidationConfiguration struct {
+	// MatchType determines the options by which series should match.
+	MatchType consolidators.MatchType `yaml:"matchType"`
+}
+
+// PrometheusQueryConfiguration is the prometheus query engine configuration.
+type PrometheusQueryConfiguration struct {
+	// MaxSamplesPerQuery is the limit on fetched samples per query.
+	MaxSamplesPerQuery *int `yaml:"maxSamplesPerQuery"`
+}
+
+// MaxSamplesPerQueryOrDefault returns the max samples per query or default.
+func (c PrometheusQueryConfiguration) MaxSamplesPerQueryOrDefault() int {
+	if v := c.MaxSamplesPerQuery; v != nil {
+		return *v
+	}
+
+	return defaultPrometheusMaxSamplesPerQuery
+}
+
 // LimitsConfiguration represents limitations on resource usage in the query
 // instance. Limits are split between per-query and global limits.
 type LimitsConfiguration struct {
-	// deprecated: use PerQuery.MaxComputedDatapoints instead.
-	DeprecatedMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+	// PerQuery configures limits which apply to each query individually.
+	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
 
 	// Global configures limits which apply across all queries running on this
 	// instance.
 	Global GlobalLimitsConfiguration `yaml:"global"`
 
-	// PerQuery configures limits which apply to each query individually.
-	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
+	// deprecated: use PerQuery.MaxComputedDatapoints instead.
+	DeprecatedMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
 }
 
 // MaxComputedDatapoints is a getter providing backwards compatibility between
@@ -209,7 +311,7 @@ type LimitsConfiguration struct {
 // LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints. See
 // LimitsConfiguration.PerQuery.PrivateMaxComputedDatapoints for a comment on
 // the semantics.
-func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
+func (lc LimitsConfiguration) MaxComputedDatapoints() int {
 	if lc.PerQuery.PrivateMaxComputedDatapoints != 0 {
 		return lc.PerQuery.PrivateMaxComputedDatapoints
 	}
@@ -220,9 +322,10 @@ func (lc *LimitsConfiguration) MaxComputedDatapoints() int64 {
 // GlobalLimitsConfiguration represents limits on resource usage across a query
 // instance. Zero or negative values imply no limit.
 type GlobalLimitsConfiguration struct {
-	// MaxFetchedDatapoints limits the total number of datapoints actually
-	// fetched by all queries at any given time.
-	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
+	// used by all queries at any point in time, this is applied at the query
+	// service after the result has been returned by a storage node.
+	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
 }
 
 // AsLimitManagerOptions converts this configuration to
@@ -234,6 +337,24 @@ func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOpt
 // PerQueryLimitsConfiguration represents limits on resource usage within a
 // single query. Zero or negative values imply no limit.
 type PerQueryLimitsConfiguration struct {
+	// MaxFetchedSeries limits the number of time series returned for any given
+	// individual storage node per query, before returning result to query
+	// service.
+	MaxFetchedSeries int `yaml:"maxFetchedSeries"`
+
+	// MaxFetchedDocs limits the number of index documents matched for any given
+	// individual storage node per query, before returning result to query
+	// service.
+	MaxFetchedDocs int `yaml:"maxFetchedDocs"`
+
+	// RequireExhaustive results in an error if the query exceeds any limit.
+	RequireExhaustive bool `yaml:"requireExhaustive"`
+
+	// MaxFetchedDatapoints limits the max number of datapoints allowed to be
+	// used by a given query, this is applied at the query service after the
+	// result has been returned by a storage node.
+	MaxFetchedDatapoints int `yaml:"maxFetchedDatapoints"`
+
 	// PrivateMaxComputedDatapoints limits the number of datapoints that can be
 	// returned by a query. It's determined purely
 	// from the size of the time range and the step size (end - start / step).
@@ -241,14 +362,7 @@ type PerQueryLimitsConfiguration struct {
 	// N.B.: the hacky "Private" prefix is to indicate that callers should use
 	// LimitsConfiguration.MaxComputedDatapoints() instead of accessing
 	// this field directly.
-	PrivateMaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
-
-	// MaxFetchedDatapoints limits the number of datapoints actually used by a
-	// given query.
-	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
-
-	// MaxFetchedSeries limits the number of time series returned by a storage node.
-	MaxFetchedSeries int64 `yaml:"maxFetchedSeries"`
+	PrivateMaxComputedDatapoints int `yaml:"maxComputedDatapoints"`
 }
 
 // AsLimitManagerOptions converts this configuration to
@@ -257,21 +371,27 @@ func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerO
 	return toLimitManagerOptions(l.MaxFetchedDatapoints)
 }
 
-// AsFetchOptionsBuilderOptions converts this configuration to
-// handler.FetchOptionsBuilderOptions.
-func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderOptions() handleroptions.FetchOptionsBuilderOptions {
-	if l.MaxFetchedSeries <= 0 {
-		return handleroptions.FetchOptionsBuilderOptions{
-			Limit: defaultStorageQueryLimit,
-		}
+// AsFetchOptionsBuilderLimitsOptions converts this configuration to
+// handleroptions.FetchOptionsBuilderLimitsOptions.
+func (l *PerQueryLimitsConfiguration) AsFetchOptionsBuilderLimitsOptions() handleroptions.FetchOptionsBuilderLimitsOptions {
+	seriesLimit := defaultStorageQuerySeriesLimit
+	if v := l.MaxFetchedSeries; v > 0 {
+		seriesLimit = v
 	}
 
-	return handleroptions.FetchOptionsBuilderOptions{
-		Limit: int(l.MaxFetchedSeries),
+	docsLimit := defaultStorageQueryDocsLimit
+	if v := l.MaxFetchedDocs; v > 0 {
+		docsLimit = v
+	}
+
+	return handleroptions.FetchOptionsBuilderLimitsOptions{
+		SeriesLimit:       int(seriesLimit),
+		DocsLimit:         int(docsLimit),
+		RequireExhaustive: l.RequireExhaustive,
 	}
 }
 
-func toLimitManagerOptions(limit int64) cost.LimitManagerOptions {
+func toLimitManagerOptions(limit int) cost.LimitManagerOptions {
 	return cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
 		Threshold: cost.Cost(limit),
 		Enabled:   limit > 0,
@@ -340,7 +460,7 @@ func (c *CarbonIngesterConfiguration) RulesOrDefault(namespaces m3.ClusterNamesp
 	// Default to fanning out writes for all metrics to all aggregated namespaces if any exists.
 	policies := []CarbonIngesterStoragePolicyConfiguration{}
 	for _, ns := range namespaces {
-		if ns.Options().Attributes().MetricsType == storage.AggregatedMetricsType {
+		if ns.Options().Attributes().MetricsType == storagemetadata.AggregatedMetricsType {
 			policies = append(policies, CarbonIngesterStoragePolicyConfiguration{
 				Resolution: ns.Options().Attributes().Resolution,
 				Retention:  ns.Options().Attributes().Retention,
@@ -487,6 +607,21 @@ type TagOptionsConfiguration struct {
 
 	// Scheme determines the default ID generation scheme. Defaults to TypeLegacy.
 	Scheme models.IDSchemeType `yaml:"idScheme"`
+
+	// Filters are optional tag filters, removing all series with tags
+	// matching the filter from computations.
+	Filters []TagFilter `yaml:"filters"`
+}
+
+// TagFilter is a tag filter.
+type TagFilter struct {
+	// Values are the values to filter.
+	//
+	// NB:If this is unset, all series containing
+	// a tag with given `Name` are filtered.
+	Values []string `yaml:"values"`
+	// Name is the tag name.
+	Name string `yaml:"name"`
 }
 
 // TagOptionsFromConfig translates tag option configuration into tag options.
@@ -513,10 +648,44 @@ func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error
 		return nil, err
 	}
 
+	if cfg.Filters != nil {
+		filters := make([]models.Filter, 0, len(cfg.Filters))
+		for _, filter := range cfg.Filters {
+			values := make([][]byte, 0, len(filter.Values))
+			for _, strVal := range filter.Values {
+				values = append(values, []byte(strVal))
+			}
+
+			filters = append(filters, models.Filter{
+				Name:   []byte(filter.Name),
+				Values: values,
+			})
+		}
+
+		opts = opts.SetFilters(filters)
+	}
+
 	return opts, nil
 }
 
 // ExperimentalAPIConfiguration is the configuration for the experimental API group.
 type ExperimentalAPIConfiguration struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+// MultiProcessConfiguration is the multi-process configuration which
+// allows running multiple sub-processes of an instance reusing the
+// same listen ports.
+type MultiProcessConfiguration struct {
+	// Enabled is whether to enable multi-process execution.
+	Enabled bool `yaml:"enabled"`
+	// Count is the number of sub-processes to run, leave zero
+	// to auto-detect based on number of CPUs.
+	Count int `yaml:"count" validate:"min=0"`
+	// PerCPU is the factor of processes to run per CPU, leave
+	// zero to use the default of 0.5 per CPU (i.e. one process for
+	// every two CPUs).
+	PerCPU float64 `yaml:"perCPU" validate:"min=0.0, max=0.0"`
+	// GoMaxProcs if set will explicitly set the child GOMAXPROCs env var.
+	GoMaxProcs int `yaml:"goMaxProcs"`
 }

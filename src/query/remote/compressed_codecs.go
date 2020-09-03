@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
@@ -69,6 +69,7 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error
 		Tail:      segment.Tail.Bytes(),
 		StartTime: xtime.ToNanoseconds(br.Start),
 		BlockSize: int64(br.BlockSize),
+		Checksum:  segment.CalculateChecksum(),
 	}, nil
 }
 
@@ -137,24 +138,29 @@ func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]b
 	return nil, errors.ErrCannotEncodeCompressedTags
 }
 
-/*
-Builds compressed rpc series from a SeriesIterator
-SeriesIterator is the top level iterator returned by m3db
-This SeriesIterator contains MultiReaderIterators, each representing a single
-replica. Each MultiReaderIterator has a ReaderSliceOfSlicesIterator where each
-step through the iterator exposes a slice of underlying BlockReaders. Each
-BlockReader contains the run time encoded bytes that represent the series.
-
-SeriesIterator also has a TagIterator representing the tags associated with it.
-
-This function transforms a SeriesIterator into a protobuf representation to be
-able to send it across the wire without needing to expand the series.
-*/
-func compressedSeriesFromSeriesIterator(
+// CompressedSeriesFromSeriesIterator builds compressed rpc series from a SeriesIterator
+// SeriesIterator is the top level iterator returned by m3db
+func CompressedSeriesFromSeriesIterator(
 	it encoding.SeriesIterator,
 	iterPools encoding.IteratorPools,
 ) (*rpc.Series, error) {
-	replicas := it.Replicas()
+	// This SeriesIterator contains MultiReaderIterators, each representing a single
+	// replica. Each MultiReaderIterator has a ReaderSliceOfSlicesIterator where each
+	// step through the iterator exposes a slice of underlying BlockReaders. Each
+	// BlockReader contains the run time encoded bytes that represent the series.
+	//
+	// SeriesIterator also has a TagIterator representing the tags associated with it.
+	//
+	// This function transforms a SeriesIterator into a protobuf representation to be
+	// able to send it across the wire without needing to expand the series.
+	//
+	// If reset argument is true, the SeriesIterator readers will be reset so it can
+	// be iterated again. If false, the SeriesIterator will no longer be useable.
+	replicas, err := it.Replicas()
+	if err != nil {
+		return nil, err
+	}
+
 	compressedReplicas := make([]*rpc.M3CompressedValuesReplica, 0, len(replicas))
 	for _, replica := range replicas {
 		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
@@ -164,19 +170,29 @@ func compressedSeriesFromSeriesIterator(
 			if err != nil {
 				return nil, err
 			}
-
 			replicaSegments = append(replicaSegments, segments)
 		}
 
-		compressedReplicas = append(compressedReplicas, &rpc.M3CompressedValuesReplica{
+		// Rewind the reader state back to beginning to the it can be re-iterated by caller.
+		// These multi-readers are queued up via ResetSliceOfSlices so that the first Current
+		// index is set, and therefore we must also call an initial Next here to match that state.
+		// This behavior is not obvious so we should later change ResetSliceOfSlices to not do this
+		// initial Next move and assert that all iters start w/ Current as nil.
+		readers.Rewind()
+		readers.Next()
+
+		r := &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
-		})
+		}
+		compressedReplicas = append(compressedReplicas, r)
 	}
 
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
-	tags, err := buildTags(it.Tags(), iterPools)
+	itTags := it.Tags()
+	defer itTags.Rewind()
+	tags, err := buildTags(itTags, iterPools)
 	if err != nil {
 		return nil, err
 	}
@@ -198,13 +214,13 @@ func compressedSeriesFromSeriesIterator(
 
 // encodeToCompressedSeries encodes SeriesIterators to compressed series.
 func encodeToCompressedSeries(
-	results m3.SeriesFetchResult,
+	results consolidators.SeriesFetchResult,
 	iterPools encoding.IteratorPools,
 ) ([]*rpc.Series, error) {
-	iters := results.SeriesIterators.Iters()
+	iters := results.SeriesIterators()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
-		series, err := compressedSeriesFromSeriesIterator(iter, iterPools)
+		series, err := CompressedSeriesFromSeriesIterator(iter, iterPools)
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +254,7 @@ func blockReaderFromCompressedSegment(
 	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool,
 ) xio.BlockReader {
 	head, tail := segmentBytesFromCompressedSegment(seg.GetHead(), seg.GetTail(), opts, checkedBytesWrapperPool)
-	segment := ts.NewSegment(head, tail, ts.FinalizeNone)
+	segment := ts.NewSegment(head, tail, seg.GetChecksum(), ts.FinalizeNone)
 	segmentReader := xio.NewSegmentReader(segment)
 
 	return xio.BlockReader{
@@ -371,8 +387,8 @@ func seriesIteratorFromCompressedSeries(
 		id = ident.StringID(idString)
 	}
 
-	start := xtime.FromNanoseconds(meta.GetStartTime())
-	end := xtime.FromNanoseconds(meta.GetEndTime())
+	start := xtime.UnixNano(meta.GetStartTime())
+	end := xtime.UnixNano(meta.GetEndTime())
 
 	var seriesIter encoding.SeriesIterator
 	if seriesIterPool != nil {
@@ -392,9 +408,9 @@ func seriesIteratorFromCompressedSeries(
 	return seriesIter, nil
 }
 
-// decodeCompressedFetchResponse decodes compressed fetch
+// DecodeCompressedFetchResponse decodes compressed fetch
 // response to seriesIterators.
-func decodeCompressedFetchResponse(
+func DecodeCompressedFetchResponse(
 	fetchResult *rpc.FetchResponse,
 	iteratorPools encoding.IteratorPools,
 ) (encoding.SeriesIterators, error) {

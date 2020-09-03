@@ -39,13 +39,44 @@ type decodeOpts struct {
 	limits      TagSerializationLimits
 }
 
+// TagDecoderOptionsConfig allows for defaults to be set at initialization.
+type TagDecoderOptionsConfig struct {
+	CheckBytesWrapperPoolSize          *int     `yaml:"checkBytesWrapperPoolSize"`
+	CheckBytesWrapperPoolLowWatermark  *float64 `yaml:"checkBytesWrapperPoolLowWatermark"`
+	CheckBytesWrapperPoolHighWatermark *float64 `yaml:"checkBytesWrapperPoolHighWatermark"`
+}
+
+// CheckBytesWrapperPoolSizeOrDefault returns config value or default.
+func (c TagDecoderOptionsConfig) CheckBytesWrapperPoolSizeOrDefault() int {
+	if c.CheckBytesWrapperPoolSize == nil {
+		return defaultCheckBytesWrapperPoolSize
+	}
+	return *c.CheckBytesWrapperPoolSize
+}
+
+// CheckBytesWrapperPoolLowWatermarkOrDefault returns config value or default.
+func (c TagDecoderOptionsConfig) CheckBytesWrapperPoolLowWatermarkOrDefault() float64 {
+	if c.CheckBytesWrapperPoolLowWatermark == nil {
+		return defaultCheckBytesWrapperPoolLowWatermark
+	}
+	return *c.CheckBytesWrapperPoolLowWatermark
+}
+
+// CheckBytesWrapperPoolHighWatermarkOrDefault returns config value or default.
+func (c TagDecoderOptionsConfig) CheckBytesWrapperPoolHighWatermarkOrDefault() float64 {
+	if c.CheckBytesWrapperPoolHighWatermark == nil {
+		return defaultCheckBytesWrapperPoolHighWatermark
+	}
+	return *c.CheckBytesWrapperPoolHighWatermark
+}
+
 // NewTagDecoderOptions returns a new TagDecoderOptions.
-func NewTagDecoderOptions() TagDecoderOptions {
+func NewTagDecoderOptions(cfg TagDecoderOptionsConfig) TagDecoderOptions {
 	pool := xpool.NewCheckedBytesWrapperPool(
 		pool.NewObjectPoolOptions().
-			SetSize(defaultCheckBytesWrapperPoolSize).
-			SetRefillLowWatermark(defaultCheckBytesWrapperPoolLowWatermark).
-			SetRefillHighWatermark(defaultCheckBytesWrapperPoolHighWatermark))
+			SetSize(cfg.CheckBytesWrapperPoolSizeOrDefault()).
+			SetRefillLowWatermark(cfg.CheckBytesWrapperPoolLowWatermarkOrDefault()).
+			SetRefillHighWatermark(cfg.CheckBytesWrapperPoolHighWatermarkOrDefault()))
 	pool.Init()
 	return &decodeOpts{
 		wrapperPool: pool,

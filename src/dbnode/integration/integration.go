@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -43,7 +44,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/instrument"
 	xretry "github.com/m3db/m3/src/x/retry"
 
@@ -71,7 +75,7 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 	return false
 }
 
-func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
+func newMultiAddrTestOptions(opts TestOptions, instance int) TestOptions {
 	bind := "127.0.0.1"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
 	return opts.
@@ -133,12 +137,12 @@ func newDefaulTestResultOptions(
 
 func newDefaultBootstrappableTestSetups(
 	t *testing.T,
-	opts testOptions,
+	opts TestOptions,
 	setupOpts []bootstrappableTestSetupOptions,
 ) (testSetups, closeFn) {
 	var (
 		replicas        = len(setupOpts)
-		setups          []*testSetup
+		setups          []TestSetup
 		cleanupFns      []func()
 		cleanupFnsMutex sync.RWMutex
 
@@ -202,11 +206,11 @@ func newDefaultBootstrappableTestSetups(
 			SetClusterDatabaseTopologyInitializer(topologyInitializer).
 			SetUseTChannelClientForWriting(useTChannelClientForWriting)
 
-		setup, err := newTestSetup(t, instanceOpts, nil)
+		setup, err := NewTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
-		topologyInitializer = setup.topoInit
+		topologyInitializer = setup.TopologyInitializer()
 
-		instrumentOpts := setup.storageOpts.InstrumentOptions()
+		instrumentOpts := setup.StorageOpts().InstrumentOptions()
 		logger := instrumentOpts.Logger()
 		logger = logger.With(zap.Int("instance", instance))
 		instrumentOpts = instrumentOpts.SetLogger(logger)
@@ -214,10 +218,10 @@ func newDefaultBootstrappableTestSetups(
 			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
 			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
 		}
-		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
+		setup.SetStorageOpts(setup.StorageOpts().SetInstrumentOptions(instrumentOpts))
 
 		var (
-			bsOpts            = newDefaulTestResultOptions(setup.storageOpts)
+			bsOpts            = newDefaulTestResultOptions(setup.StorageOpts())
 			finalBootstrapper bootstrap.BootstrapperProvider
 
 			adminOpts = client.NewAdminOptions().
@@ -253,11 +257,11 @@ func newDefaultBootstrappableTestSetups(
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 		adminClient := newMultiAddrAdminClient(
 			t, adminOpts, topologyInitializer, origin, instrumentOpts)
-		storageIdxOpts := setup.storageOpts.IndexOptions()
-		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+		storageIdxOpts := setup.StorageOpts().IndexOptions()
+		fsOpts := setup.StorageOpts().CommitLogOptions().FilesystemOptions()
 		if usingPeersBootstrapper {
 			var (
-				runtimeOptsMgr = setup.storageOpts.RuntimeOptionsManager()
+				runtimeOptsMgr = setup.StorageOpts().RuntimeOptionsManager()
 				runtimeOpts    = runtimeOptsMgr.Get().
 						SetClientBootstrapConsistencyLevel(bootstrapConsistencyLevel)
 			)
@@ -270,11 +274,10 @@ func newDefaultBootstrappableTestSetups(
 				SetFilesystemOptions(fsOpts).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the persist bootstrapping path
-				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
-				SetPersistManager(setup.storageOpts.PersistManager()).
+				SetPersistManager(setup.StorageOpts().PersistManager()).
 				SetCompactor(newCompactor(t, storageIdxOpts)).
 				SetRuntimeOptionsManager(runtimeOptsMgr).
-				SetContextPool(setup.storageOpts.ContextPool())
+				SetContextPool(setup.StorageOpts().ContextPool())
 
 			finalBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, finalBootstrapper)
 			require.NoError(t, err)
@@ -287,7 +290,6 @@ func newDefaultBootstrappableTestSetups(
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).
 			SetIndexOptions(storageIdxOpts).
-			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 			SetCompactor(newCompactor(t, storageIdxOpts)).
 			SetPersistManager(persistMgr)
 
@@ -296,28 +298,28 @@ func newDefaultBootstrappableTestSetups(
 
 		processOpts := bootstrap.NewProcessOptions().
 			SetTopologyMapProvider(setup).
-			SetOrigin(setup.origin)
+			SetOrigin(setup.Origin())
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)
 
-		setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(provider)
+		setup.SetStorageOpts(setup.StorageOpts().SetBootstrapProcessProvider(provider))
 
 		if enableRepairs {
-			setup.storageOpts = setup.storageOpts.
+			setup.SetStorageOpts(setup.StorageOpts().
 				SetRepairEnabled(true).
 				SetRepairOptions(
-					setup.storageOpts.RepairOptions().
+					setup.StorageOpts().RepairOptions().
 						SetRepairThrottle(time.Millisecond).
 						SetRepairCheckInterval(time.Millisecond).
 						SetAdminClients([]client.AdminClient{adminClient}).
 						SetDebugShadowComparisonsPercentage(1.0).
 						// Avoid log spam.
-						SetDebugShadowComparisonsEnabled(false))
+						SetDebugShadowComparisonsEnabled(false)))
 		}
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {
-			setup.close()
+			setup.Close()
 		})
 	}
 
@@ -332,27 +334,27 @@ func newDefaultBootstrappableTestSetups(
 
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
-	setup *testSetup,
+	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteData(namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume)
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
+	return writer.WriteData(namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume)
 }
 
 func writeTestSnapshotsToDiskWithPredicate(
 	metadata namespace.Metadata,
-	setup *testSetup,
+	setup TestSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	volume int,
 	pred generate.WriteDatapointPredicate,
 	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
+	writer := generate.NewWriter(setup.GeneratorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		namespace.NewContextFrom(metadata), setup.shardSet, seriesMaps, volume, pred, snapshotInterval)
+		namespace.NewContextFrom(metadata), setup.ShardSet(), seriesMaps, volume, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {
@@ -415,7 +417,13 @@ func newCompactor(
 	t *testing.T,
 	opts index.Options,
 ) *compaction.Compactor {
-	compactor, err := compaction.NewCompactor(opts.DocumentArrayPool(),
+	compactor, err := newCompactorWithErr(opts)
+	require.NoError(t, err)
+	return compactor
+}
+
+func newCompactorWithErr(opts index.Options) (*compaction.Compactor, error) {
+	return compaction.NewCompactor(opts.DocumentArrayPool(),
 		index.DocumentArrayPoolCapacity,
 		opts.SegmentBuilderOptions(),
 		opts.FSTSegmentOptions(),
@@ -427,7 +435,69 @@ func newCompactor(
 				DisableRegistry: true,
 			},
 		})
-	require.NoError(t, err)
-	return compactor
+}
 
+func writeTestIndexDataToDisk(
+	md namespace.Metadata,
+	storageOpts storage.Options,
+	indexVolumeType idxpersist.IndexVolumeType,
+	blockStart time.Time,
+	shards []uint32,
+	docs []doc.Document,
+) error {
+	blockSize := md.Options().IndexOptions().BlockSize()
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	writer, err := fs.NewIndexWriter(fsOpts)
+	if err != nil {
+		return err
+	}
+	segmentWriter, err := idxpersist.NewMutableSegmentFileSetWriter(fst.WriterOptions{})
+	if err != nil {
+		return err
+	}
+
+	shardsMap := make(map[uint32]struct{})
+	for _, shard := range shards {
+		shardsMap[shard] = struct{}{}
+	}
+	volumeIndex, err := fs.NextIndexFileSetVolumeIndex(
+		fsOpts.FilePathPrefix(),
+		md.ID(),
+		blockStart,
+	)
+	if err != nil {
+		return err
+	}
+	writerOpts := fs.IndexWriterOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   md.ID(),
+			BlockStart:  blockStart,
+			VolumeIndex: volumeIndex,
+		},
+		BlockSize:       blockSize,
+		Shards:          shardsMap,
+		IndexVolumeType: indexVolumeType,
+	}
+	if err := writer.Open(writerOpts); err != nil {
+		return err
+	}
+
+	builder, err := builder.NewBuilderFromDocuments(builder.NewOptions())
+	for _, doc := range docs {
+		_, err = builder.Insert(doc)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := segmentWriter.Reset(builder); err != nil {
+		return err
+	}
+	if err := writer.WriteSegmentFileSet(segmentWriter); err != nil {
+		return err
+	}
+	if err := builder.Close(); err != nil {
+		return err
+	}
+	return writer.Close()
 }

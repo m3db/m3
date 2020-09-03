@@ -23,8 +23,9 @@ package fs
 import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/migration"
 	"github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -85,23 +86,6 @@ type Options interface {
 	// work for bootstrapping data file sets.
 	BoostrapIndexNumProcessors() int
 
-	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
-	// use when bootstrapping retrievable blocks instead of blocks
-	// containing data.
-	// If you don't wish to bootstrap retrievable blocks instead of
-	// blocks containing data then do not set this manager.
-	// You can opt into which namespace you wish to have this enabled for
-	// by returning nil instead of a result when creating a new block retriever
-	// for a namespace from the manager.
-	SetDatabaseBlockRetrieverManager(
-		value block.DatabaseBlockRetrieverManager,
-	) Options
-
-	// NewBlockRetrieverFn returns the new block retriever constructor to
-	// use when bootstrapping retrievable blocks instead of blocks
-	// containing data.
-	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
-
 	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
@@ -119,4 +103,16 @@ type Options interface {
 
 	// IndexOptions returns the indexing options.
 	IndexOptions() index.Options
+
+	// SetMigrationOptions sets the migration options.
+	SetMigrationOptions(value migration.Options) Options
+
+	// MigrationOptions gets the migration options.
+	MigrationOptions() migration.Options
+
+	// SetStorageOptions sets storage options.
+	SetStorageOptions(value storage.Options) Options
+
+	// StorageOptions gets the storage options.
+	StorageOptions() storage.Options
 }

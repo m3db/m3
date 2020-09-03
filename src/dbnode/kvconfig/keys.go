@@ -33,6 +33,11 @@ const (
 	// configuration specifying a hard limit for a cluster new series insertions.
 	ClusterNewSeriesInsertLimitKey = "m3db.node.cluster-new-series-insert-limit"
 
+	// EncodersPerBlockLimitKey is the KV config key for the runtime
+	// configuration specifying a hard limit on the number of active encoders
+	// per block.
+	EncodersPerBlockLimitKey = "m3db.node.encoders-per-block-limit"
+
 	// ClientBootstrapConsistencyLevel is the KV config key for the runtime
 	// configuration specifying the client bootstrap consistency level
 	ClientBootstrapConsistencyLevel = "m3db.client.bootstrap-consistency-level"

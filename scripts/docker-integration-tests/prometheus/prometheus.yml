@@ -43,3 +43,6 @@ remote_read:
 
 remote_write:
   - url: http://coordinator01:7201/api/v1/prom/remote/write
+    write_relabel_configs:
+      - target_label: metrics_storage
+        replacement: m3db_remote

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/opentracing/opentracing-go"
@@ -51,7 +52,7 @@ func TestProcessSimpleBlock(t *testing.T) {
 	}
 
 	setup := func(t *testing.T) (*testContext, func()) {
-		ctrl := gomock.NewController(t)
+		ctrl := xtest.NewController(t)
 
 		controller := &Controller{
 			ID: parser.NodeID("foo"),

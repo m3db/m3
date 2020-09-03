@@ -107,7 +107,9 @@ func (ip *MockIteratorPool) ID() ident.Pool {
 // TagDecoder exposes the session's tag decoder pool
 func (ip *MockIteratorPool) TagDecoder() serialize.TagDecoderPool {
 	ip.DecodePoolUsed = true
-	decoderPool := serialize.NewTagDecoderPool(serialize.NewTagDecoderOptions(), poolOpts)
+	decoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
+		poolOpts)
 	decoderPool.Init()
 	return decoderPool
 }

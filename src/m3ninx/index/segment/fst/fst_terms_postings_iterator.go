@@ -24,7 +24,7 @@ import (
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	postingsroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
-	"github.com/m3db/pilosa/roaring"
+	"github.com/m3dbx/pilosa/roaring"
 )
 
 // postingsIterRoaringPoolingConfig uses a configuration that avoids allocating
@@ -34,19 +34,15 @@ var postingsIterRoaringPoolingConfig = roaring.ContainerPoolingConfiguration{
 	MaxArraySize:                    0,
 	MaxRunsSize:                     0,
 	AllocateBitmap:                  false,
-	MaxCapacity:                     128,
+	MaxCapacity:                     0,
 	MaxKeysAndContainersSliceLength: 128 * 10,
-}
-
-type postingsListRetriever interface {
-	UnmarshalPostingsListBitmap(b *roaring.Bitmap, offset uint64) error
 }
 
 type fstTermsPostingsIter struct {
 	bitmap   *roaring.Bitmap
 	postings postings.List
 
-	retriever postingsListRetriever
+	seg       *fsSegment
 	termsIter *fstTermsIter
 	currTerm  []byte
 	err       error
@@ -66,19 +62,19 @@ var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
 
 func (f *fstTermsPostingsIter) clear() {
 	f.bitmap.Reset()
-	f.retriever = nil
+	f.seg = nil
 	f.termsIter = nil
 	f.currTerm = nil
 	f.err = nil
 }
 
 func (f *fstTermsPostingsIter) reset(
-	retriever postingsListRetriever,
+	seg *fsSegment,
 	termsIter *fstTermsIter,
 ) {
 	f.clear()
 
-	f.retriever = retriever
+	f.seg = seg
 	f.termsIter = termsIter
 }
 
@@ -93,8 +89,12 @@ func (f *fstTermsPostingsIter) Next() bool {
 	}
 
 	f.currTerm = f.termsIter.Current()
-	f.err = f.retriever.UnmarshalPostingsListBitmap(f.bitmap,
-		f.termsIter.CurrentOffset())
+	currOffset := f.termsIter.CurrentOffset()
+
+	f.seg.RLock()
+	f.err = f.seg.unmarshalPostingsListBitmapNotClosedMaybeFinalizedWithLock(f.bitmap,
+		currOffset)
+	f.seg.RUnlock()
 
 	return f.err == nil
 }

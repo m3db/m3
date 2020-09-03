@@ -32,12 +32,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3/src/x/serialize"
-	xm3test "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/serialize"
+	xm3test "github.com/m3db/m3/src/x/test"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -618,3 +618,4 @@ func (e *erroredTagIter) Close()                       {}
 func (e *erroredTagIter) Len() int                     { return 0 }
 func (e *erroredTagIter) Remaining() int               { return 0 }
 func (e *erroredTagIter) Duplicate() ident.TagIterator { return e }
+func (e *erroredTagIter) Rewind()                      {}

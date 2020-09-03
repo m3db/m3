@@ -44,10 +44,8 @@ exception WriteBatchRawErrors {
 service Node {
 	// Friendly not highly performant read/write endpoints
 	QueryResult query(1: QueryRequest req) throws (1: Error err)
-	AggregateQueryRawResult aggregateRaw(1: AggregateQueryRawRequest req) throws (1: Error err)
 	AggregateQueryResult aggregate(1: AggregateQueryRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
-	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
 	void writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
 
@@ -55,7 +53,8 @@ service Node {
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBatchRawResult fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
-
+	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
+	AggregateQueryRawResult aggregateRaw(1: AggregateQueryRawRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
@@ -63,6 +62,8 @@ service Node {
 	void writeTaggedBatchRawV2(1: WriteTaggedBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
+
+	AggregateTilesResult aggregateTiles(1: AggregateTilesRequest req) throws (1: Error err)
 
 	// Management endpoints
 	NodeHealthResult health() throws (1: Error err)
@@ -78,6 +79,11 @@ service Node {
 	NodeWriteNewSeriesBackoffDurationResult setWriteNewSeriesBackoffDuration(1: NodeSetWriteNewSeriesBackoffDurationRequest req) throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult getWriteNewSeriesLimitPerShardPerSecond() throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult setWriteNewSeriesLimitPerShardPerSecond(1: NodeSetWriteNewSeriesLimitPerShardPerSecondRequest req) throws (1: Error err)
+
+	// Debug endpoints
+	DebugProfileStartResult debugProfileStart(1: DebugProfileStartRequest req) throws (1: Error err)
+	DebugProfileStopResult debugProfileStop(1: DebugProfileStopRequest req) throws (1: Error err)
+	DebugIndexMemorySegmentsResult debugIndexMemorySegments(1: DebugIndexMemorySegmentsRequest req) throws (1: Error err)
 }
 
 struct FetchRequest {
@@ -154,6 +160,7 @@ struct Segment {
 	2: required binary tail
 	3: optional i64 startTime
 	4: optional i64 blockSize
+	5: optional i64 checksum
 }
 
 struct FetchTaggedRequest {
@@ -164,6 +171,8 @@ struct FetchTaggedRequest {
 	5: required bool fetchData
 	6: optional i64 limit
 	7: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+	8: optional bool requireExhaustive = false
+	9: optional i64 docsLimit
 }
 
 struct FetchTaggedResult {
@@ -176,6 +185,8 @@ struct FetchTaggedIDResult {
 	2: required binary nameSpace
 	3: required binary encodedTags
 	4: optional list<Segments> segments
+
+	// Deprecated -- do not use.
 	5: optional Error err
 }
 
@@ -207,8 +218,8 @@ struct Block {
 }
 
 struct Tag {
-  1: required string name
-  2: required string value
+	1: required string name
+	2: required string value
 }
 
 struct FetchBlocksMetadataRawV2Request {
@@ -300,6 +311,7 @@ struct NodeHealthResult {
 	1: required bool ok
 	2: required string status
 	3: required bool bootstrapped
+	4: optional map<string,string> metadata
 }
 
 struct NodeBootstrappedResult {}
@@ -445,39 +457,81 @@ struct QueryResultElement {
 }
 
 struct TermQuery {
-  1: required string field
-  2: required string term
+	1: required string field
+	2: required string term
 }
 
 struct RegexpQuery {
-  1: required string field
-  2: required string regexp
+	1: required string field
+	2: required string regexp
 }
 
 struct NegationQuery {
-  1: required Query query
+	1: required Query query
 }
 
 struct ConjunctionQuery {
-  1: required list<Query> queries
+	1: required list<Query> queries
 }
 
 struct DisjunctionQuery {
-  1: required list<Query> queries
+	1: required list<Query> queries
 }
 
 struct AllQuery {}
 
 struct FieldQuery {
-  1: required string field
+	1: required string field
 }
 
 struct Query {
-  1: optional TermQuery        term
-  2: optional RegexpQuery      regexp
-  3: optional NegationQuery    negation
-  4: optional ConjunctionQuery conjunction
-  5: optional DisjunctionQuery disjunction
-  6: optional AllQuery         all
-  7: optional FieldQuery       field
+	1: optional TermQuery        term
+	2: optional RegexpQuery      regexp
+	3: optional NegationQuery    negation
+	4: optional ConjunctionQuery conjunction
+	5: optional DisjunctionQuery disjunction
+	6: optional AllQuery         all
+	7: optional FieldQuery       field
+}
+
+struct AggregateTilesRequest {
+	1: required string sourceNamespace
+	2: required string targetNamespace
+	3: required i64 rangeStart
+	4: required i64 rangeEnd
+	5: required string step
+	6: bool removeResets // FIXME: temporary, remove after metrics type metadata is available.
+	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
+}
+
+struct AggregateTilesResult {
+	1: required i64 processedBlockCount
+}
+
+struct DebugProfileStartRequest {
+	1: required string name
+	2: required string filePathTemplate
+	3: optional string interval
+	4: optional string duration
+	5: optional i64 debug
+	6: optional i64 conditionalNumGoroutinesGreaterThan
+	7: optional i64 conditionalNumGoroutinesLessThan
+	8: optional bool conditionalIsOverloaded
+}
+
+struct DebugProfileStartResult {
+}
+
+struct DebugProfileStopRequest {
+	1: required string name
+}
+
+struct DebugProfileStopResult {
+}
+
+struct DebugIndexMemorySegmentsRequest {
+	1: required string directory
+}
+
+struct DebugIndexMemorySegmentsResult {
 }

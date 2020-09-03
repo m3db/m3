@@ -1,6 +1,6 @@
 [Unit]
 Description="M3DB Timeseries Database"
-Documentation=http://m3db.github.io/m3/
+Documentation=https://docs.m3db.io/
 After=network.target
 
 [Service]

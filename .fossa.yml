@@ -42,10 +42,10 @@ analyze:
     path: src/cmd/services/m3coordinator/main
     options:
       allow-unresolved: true
-  - name: github.com/m3db/m3/src/cmd/services/m3ctl/main
+  - name: github.com/m3db/m3/src/cmd/services/r2ctl/main
     type: go
-    target: github.com/m3db/m3/src/cmd/services/m3ctl/main
-    path: src/cmd/services/m3ctl/main
+    target: github.com/m3db/m3/src/cmd/services/r2ctl/main
+    path: src/cmd/services/r2ctl/main
     options:
       allow-unresolved: true
   - name: github.com/m3db/m3/src/cmd/services/m3dbnode/main

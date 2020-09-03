@@ -30,7 +30,9 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
@@ -66,7 +68,7 @@ func NewCompleteTagsHandler(opts options.HandlerOptions) http.Handler {
 func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx, h.instrumentOpts)
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeJSON)
 
 	tagCompletionQueries, rErr := prometheus.ParseTagCompletionParamsToQueries(r)
 	if rErr != nil {
@@ -86,8 +88,9 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		multiErr xerrors.MultiError
 
 		nameOnly      = tagCompletionQueries.NameOnly
-		resultBuilder = storage.NewCompleteTagsResultBuilder(nameOnly)
 		meta          = block.NewResultMetadata()
+		resultBuilder = consolidators.NewCompleteTagsResultBuilder(
+			nameOnly, models.NewTagOptions())
 	)
 
 	for _, query := range tagCompletionQueries.Queries {

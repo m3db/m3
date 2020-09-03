@@ -63,9 +63,11 @@ var (
 	nsRetentionOpts = retention.NewOptions().
 			SetBlockSize(blockSize).
 			SetRetentionPeriod(48 * blockSize)
-	testTagDecodingPool = serialize.NewTagDecoderPool(serialize.NewTagDecoderOptions(),
+	testTagDecodingPool = serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		pool.NewObjectPoolOptions().SetSize(1))
-	testTagEncodingPool = serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+	testTagEncodingPool = serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(),
 		pool.NewObjectPoolOptions().SetSize(1))
 	testIDPool     = newSessionTestOptions().IdentifierPool()
 	fooID          = ident.StringID("foo")
@@ -120,9 +122,7 @@ func newSessionTestAdminOptions() AdminOptions {
 func newResultTestOptions() result.Options {
 	opts := result.NewOptions()
 	encoderPool := encoding.NewEncoderPool(nil)
-	encoderPool.Init(func() encoding.Encoder {
-		return &testEncoder{}
-	})
+	encoderPool.Init(encoding.NewNullEncoder)
 	return opts.SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
 		SetEncoderPool(encoderPool))
 }
@@ -2530,60 +2530,4 @@ func assertEnqueueChannel(
 	}
 
 	close(enqueueCh.peersMetadataCh)
-}
-
-type testEncoder struct {
-	start  time.Time
-	data   ts.Segment
-	sealed bool
-	closed bool
-}
-
-func (e *testEncoder) SetSchema(descr namespace.SchemaDescr) {}
-
-func (e *testEncoder) Encode(dp ts.Datapoint, timeUnit xtime.Unit, annotation ts.Annotation) error {
-	return fmt.Errorf("not implemented")
-}
-
-func (e *testEncoder) Stream(ctx context.Context) (xio.SegmentReader, bool) {
-	return xio.NewSegmentReader(e.data), true
-}
-
-func (e *testEncoder) NumEncoded() int {
-	return 0
-}
-
-func (e *testEncoder) LastEncoded() (ts.Datapoint, error) {
-	return ts.Datapoint{}, fmt.Errorf("not implemented")
-}
-
-func (e *testEncoder) Len() int {
-	return e.data.Len()
-}
-
-func (e *testEncoder) Seal() {
-	e.sealed = true
-}
-
-func (e *testEncoder) Reset(t time.Time, capacity int, descr namespace.SchemaDescr) {
-	e.start = t
-	e.data = ts.Segment{}
-}
-
-func (e *testEncoder) Close() {
-	e.closed = true
-}
-
-func (e *testEncoder) Discard() ts.Segment {
-	data := e.data
-	e.closed = true
-	e.data = ts.Segment{}
-	return data
-}
-
-func (e *testEncoder) DiscardReset(t time.Time, capacity int, descr namespace.SchemaDescr) ts.Segment {
-	curr := e.data
-	e.start = t
-	e.data = ts.Segment{}
-	return curr
 }

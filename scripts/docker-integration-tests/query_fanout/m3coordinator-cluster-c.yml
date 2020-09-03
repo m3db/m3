@@ -58,3 +58,7 @@ carbon:
 
 tagOptions:
   idScheme: quoted
+
+query:
+  consolidation:
+    matchType: tags

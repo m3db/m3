@@ -56,3 +56,17 @@ func TestRangeIter(t *testing.T) {
 	require.False(t, it.Next())
 
 }
+
+func TestRangeIterEOF(t *testing.T) {
+	it := newRangeIter(nil)
+	require.False(t, it.Next())
+
+	it = newRangeIter(getTestList())
+	var i int
+	for it.Next() {
+		require.Equal(t, testTimeRanges[i], it.Value())
+		i++
+	}
+	// Next() always returns falsy after hitting eof.
+	require.False(t, it.Next())
+}

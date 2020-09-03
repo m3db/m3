@@ -155,11 +155,11 @@ func TestIter(t *testing.T) {
 func testOutput(t *testing.T, iter *iter, want iterOutput) {
 	require.True(t, iter.Next())
 
-	tags, datapoints, unit, annotation := iter.Current()
-	assert.Equal(t, want.tags, tags)
-	assert.Equal(t, want.datapoints, datapoints)
-	assert.Equal(t, want.unit, unit)
-	assert.Equal(t, want.annotation, annotation)
+	value := iter.Current()
+	assert.Equal(t, want.tags, value.Tags)
+	assert.Equal(t, want.datapoints, value.Datapoints)
+	assert.Equal(t, want.unit, value.Unit)
+	assert.Equal(t, want.annotation, value.Annotation)
 }
 
 type iterOutput struct {

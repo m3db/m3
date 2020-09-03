@@ -327,6 +327,34 @@ func (mr *MockInstanceMockRecorder) SetPort(value interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPort", reflect.TypeOf((*MockInstance)(nil).SetPort), value)
 }
 
+// Metadata mocks base method
+func (m *MockInstance) Metadata() InstanceMetadata {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Metadata")
+	ret0, _ := ret[0].(InstanceMetadata)
+	return ret0
+}
+
+// Metadata indicates an expected call of Metadata
+func (mr *MockInstanceMockRecorder) Metadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockInstance)(nil).Metadata))
+}
+
+// SetMetadata mocks base method
+func (m *MockInstance) SetMetadata(value InstanceMetadata) Instance {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetMetadata", value)
+	ret0, _ := ret[0].(Instance)
+	return ret0
+}
+
+// SetMetadata indicates an expected call of SetMetadata
+func (mr *MockInstanceMockRecorder) SetMetadata(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMetadata", reflect.TypeOf((*MockInstance)(nil).SetMetadata), value)
+}
+
 // Proto mocks base method
 func (m *MockInstance) Proto() (*placementpb.Instance, error) {
 	m.ctrl.T.Helper()
@@ -2361,6 +2389,320 @@ func (m *MockService) MarkAllShardsAvailable() (Placement, error) {
 func (mr *MockServiceMockRecorder) MarkAllShardsAvailable() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllShardsAvailable", reflect.TypeOf((*MockService)(nil).MarkAllShardsAvailable))
+}
+
+// MockOperator is a mock of Operator interface
+type MockOperator struct {
+	ctrl     *gomock.Controller
+	recorder *MockOperatorMockRecorder
+}
+
+// MockOperatorMockRecorder is the mock recorder for MockOperator
+type MockOperatorMockRecorder struct {
+	mock *MockOperator
+}
+
+// NewMockOperator creates a new mock instance
+func NewMockOperator(ctrl *gomock.Controller) *MockOperator {
+	mock := &MockOperator{ctrl: ctrl}
+	mock.recorder = &MockOperatorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockOperator) EXPECT() *MockOperatorMockRecorder {
+	return m.recorder
+}
+
+// BuildInitialPlacement mocks base method
+func (m *MockOperator) BuildInitialPlacement(instances []Instance, numShards, rf int) (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BuildInitialPlacement", instances, numShards, rf)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BuildInitialPlacement indicates an expected call of BuildInitialPlacement
+func (mr *MockOperatorMockRecorder) BuildInitialPlacement(instances, numShards, rf interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildInitialPlacement", reflect.TypeOf((*MockOperator)(nil).BuildInitialPlacement), instances, numShards, rf)
+}
+
+// AddReplica mocks base method
+func (m *MockOperator) AddReplica() (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddReplica")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddReplica indicates an expected call of AddReplica
+func (mr *MockOperatorMockRecorder) AddReplica() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddReplica", reflect.TypeOf((*MockOperator)(nil).AddReplica))
+}
+
+// AddInstances mocks base method
+func (m *MockOperator) AddInstances(candidates []Instance) (Placement, []Instance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddInstances", candidates)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].([]Instance)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddInstances indicates an expected call of AddInstances
+func (mr *MockOperatorMockRecorder) AddInstances(candidates interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddInstances", reflect.TypeOf((*MockOperator)(nil).AddInstances), candidates)
+}
+
+// RemoveInstances mocks base method
+func (m *MockOperator) RemoveInstances(leavingInstanceIDs []string) (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveInstances", leavingInstanceIDs)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveInstances indicates an expected call of RemoveInstances
+func (mr *MockOperatorMockRecorder) RemoveInstances(leavingInstanceIDs interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveInstances", reflect.TypeOf((*MockOperator)(nil).RemoveInstances), leavingInstanceIDs)
+}
+
+// ReplaceInstances mocks base method
+func (m *MockOperator) ReplaceInstances(leavingInstanceIDs []string, candidates []Instance) (Placement, []Instance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplaceInstances", leavingInstanceIDs, candidates)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].([]Instance)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ReplaceInstances indicates an expected call of ReplaceInstances
+func (mr *MockOperatorMockRecorder) ReplaceInstances(leavingInstanceIDs, candidates interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceInstances", reflect.TypeOf((*MockOperator)(nil).ReplaceInstances), leavingInstanceIDs, candidates)
+}
+
+// MarkShardsAvailable mocks base method
+func (m *MockOperator) MarkShardsAvailable(instanceID string, shardIDs ...uint32) (Placement, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{instanceID}
+	for _, a := range shardIDs {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "MarkShardsAvailable", varargs...)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkShardsAvailable indicates an expected call of MarkShardsAvailable
+func (mr *MockOperatorMockRecorder) MarkShardsAvailable(instanceID interface{}, shardIDs ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{instanceID}, shardIDs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkShardsAvailable", reflect.TypeOf((*MockOperator)(nil).MarkShardsAvailable), varargs...)
+}
+
+// MarkInstanceAvailable mocks base method
+func (m *MockOperator) MarkInstanceAvailable(instanceID string) (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkInstanceAvailable", instanceID)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkInstanceAvailable indicates an expected call of MarkInstanceAvailable
+func (mr *MockOperatorMockRecorder) MarkInstanceAvailable(instanceID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkInstanceAvailable", reflect.TypeOf((*MockOperator)(nil).MarkInstanceAvailable), instanceID)
+}
+
+// MarkAllShardsAvailable mocks base method
+func (m *MockOperator) MarkAllShardsAvailable() (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkAllShardsAvailable")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkAllShardsAvailable indicates an expected call of MarkAllShardsAvailable
+func (mr *MockOperatorMockRecorder) MarkAllShardsAvailable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllShardsAvailable", reflect.TypeOf((*MockOperator)(nil).MarkAllShardsAvailable))
+}
+
+// Placement mocks base method
+func (m *MockOperator) Placement() Placement {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Placement")
+	ret0, _ := ret[0].(Placement)
+	return ret0
+}
+
+// Placement indicates an expected call of Placement
+func (mr *MockOperatorMockRecorder) Placement() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Placement", reflect.TypeOf((*MockOperator)(nil).Placement))
+}
+
+// Mockoperations is a mock of operations interface
+type Mockoperations struct {
+	ctrl     *gomock.Controller
+	recorder *MockoperationsMockRecorder
+}
+
+// MockoperationsMockRecorder is the mock recorder for Mockoperations
+type MockoperationsMockRecorder struct {
+	mock *Mockoperations
+}
+
+// NewMockoperations creates a new mock instance
+func NewMockoperations(ctrl *gomock.Controller) *Mockoperations {
+	mock := &Mockoperations{ctrl: ctrl}
+	mock.recorder = &MockoperationsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *Mockoperations) EXPECT() *MockoperationsMockRecorder {
+	return m.recorder
+}
+
+// BuildInitialPlacement mocks base method
+func (m *Mockoperations) BuildInitialPlacement(instances []Instance, numShards, rf int) (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BuildInitialPlacement", instances, numShards, rf)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BuildInitialPlacement indicates an expected call of BuildInitialPlacement
+func (mr *MockoperationsMockRecorder) BuildInitialPlacement(instances, numShards, rf interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildInitialPlacement", reflect.TypeOf((*Mockoperations)(nil).BuildInitialPlacement), instances, numShards, rf)
+}
+
+// AddReplica mocks base method
+func (m *Mockoperations) AddReplica() (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddReplica")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddReplica indicates an expected call of AddReplica
+func (mr *MockoperationsMockRecorder) AddReplica() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddReplica", reflect.TypeOf((*Mockoperations)(nil).AddReplica))
+}
+
+// AddInstances mocks base method
+func (m *Mockoperations) AddInstances(candidates []Instance) (Placement, []Instance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddInstances", candidates)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].([]Instance)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddInstances indicates an expected call of AddInstances
+func (mr *MockoperationsMockRecorder) AddInstances(candidates interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddInstances", reflect.TypeOf((*Mockoperations)(nil).AddInstances), candidates)
+}
+
+// RemoveInstances mocks base method
+func (m *Mockoperations) RemoveInstances(leavingInstanceIDs []string) (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveInstances", leavingInstanceIDs)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveInstances indicates an expected call of RemoveInstances
+func (mr *MockoperationsMockRecorder) RemoveInstances(leavingInstanceIDs interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveInstances", reflect.TypeOf((*Mockoperations)(nil).RemoveInstances), leavingInstanceIDs)
+}
+
+// ReplaceInstances mocks base method
+func (m *Mockoperations) ReplaceInstances(leavingInstanceIDs []string, candidates []Instance) (Placement, []Instance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplaceInstances", leavingInstanceIDs, candidates)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].([]Instance)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ReplaceInstances indicates an expected call of ReplaceInstances
+func (mr *MockoperationsMockRecorder) ReplaceInstances(leavingInstanceIDs, candidates interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceInstances", reflect.TypeOf((*Mockoperations)(nil).ReplaceInstances), leavingInstanceIDs, candidates)
+}
+
+// MarkShardsAvailable mocks base method
+func (m *Mockoperations) MarkShardsAvailable(instanceID string, shardIDs ...uint32) (Placement, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{instanceID}
+	for _, a := range shardIDs {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "MarkShardsAvailable", varargs...)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkShardsAvailable indicates an expected call of MarkShardsAvailable
+func (mr *MockoperationsMockRecorder) MarkShardsAvailable(instanceID interface{}, shardIDs ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{instanceID}, shardIDs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkShardsAvailable", reflect.TypeOf((*Mockoperations)(nil).MarkShardsAvailable), varargs...)
+}
+
+// MarkInstanceAvailable mocks base method
+func (m *Mockoperations) MarkInstanceAvailable(instanceID string) (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkInstanceAvailable", instanceID)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkInstanceAvailable indicates an expected call of MarkInstanceAvailable
+func (mr *MockoperationsMockRecorder) MarkInstanceAvailable(instanceID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkInstanceAvailable", reflect.TypeOf((*Mockoperations)(nil).MarkInstanceAvailable), instanceID)
+}
+
+// MarkAllShardsAvailable mocks base method
+func (m *Mockoperations) MarkAllShardsAvailable() (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkAllShardsAvailable")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkAllShardsAvailable indicates an expected call of MarkAllShardsAvailable
+func (mr *MockoperationsMockRecorder) MarkAllShardsAvailable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllShardsAvailable", reflect.TypeOf((*Mockoperations)(nil).MarkAllShardsAvailable))
 }
 
 // MockAlgorithm is a mock of Algorithm interface

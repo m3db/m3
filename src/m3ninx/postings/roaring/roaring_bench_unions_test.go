@@ -24,7 +24,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/m3db/pilosa/roaring"
+	"github.com/m3dbx/pilosa/roaring"
 )
 
 const (

@@ -103,6 +103,9 @@ type Token struct {
 	value     string
 }
 
+// MustMakeToken is a test function for creating a Token.MustMakeToken.
+func MustMakeToken(value string) *Token { return &Token{value: value} }
+
 // TokenType returns the type of token consumed.
 func (t Token) TokenType() TokenType {
 	return t.tokenType

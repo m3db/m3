@@ -51,6 +51,9 @@ func (e *nullEncoder) NumEncoded() int { return 0 }
 func (e *nullEncoder) LastEncoded() (ts.Datapoint, error) {
 	return ts.Datapoint{}, fmt.Errorf("not implemented")
 }
+func (e *nullEncoder) LastAnnotation() (ts.Annotation, error) {
+	return nil, fmt.Errorf("not implemented")
+}
 func (e *nullEncoder) Len() int                                                     { return 0 }
 func (e *nullEncoder) Seal()                                                        { e.sealed = true }
 func (e *nullEncoder) Reset(t time.Time, capacity int, descr namespace.SchemaDescr) {}

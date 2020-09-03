@@ -21,8 +21,9 @@
 package options
 
 import (
-	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -36,11 +37,30 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/prometheus/prometheus/promql"
 )
 
-const defaultTimeout = 30 * time.Second
+// QueryEngine is a type of query engine.
+type QueryEngine string
+
+const (
+	// PrometheusEngine is the prometheus query engine type.
+	PrometheusEngine QueryEngine = "prometheus"
+	// M3QueryEngine is M3 query engine type.
+	M3QueryEngine QueryEngine = "m3query"
+)
+
+// OptionTransformFn transforms given handler options.
+type OptionTransformFn func(opts HandlerOptions) HandlerOptions
+
+// CustomHandlerOptions is a list of custom handler options.
+type CustomHandlerOptions struct {
+	CustomHandlers    []CustomHandler
+	OptionTransformFn OptionTransformFn
+}
 
 // CustomHandler allows for custom third party http handlers.
 type CustomHandler interface {
@@ -51,6 +71,23 @@ type CustomHandler interface {
 	// Handler is the custom handler itself.
 	Handler(handlerOptions HandlerOptions) (http.Handler, error)
 }
+
+// QueryRouter is responsible for routing queries between promql and m3query.
+type QueryRouter interface {
+	Setup(opts QueryRouterOptions)
+	ServeHTTP(w http.ResponseWriter, req *http.Request)
+}
+
+// QueryRouterOptions defines options for QueryRouter
+type QueryRouterOptions struct {
+	DefaultQueryEngine QueryEngine
+	PromqlHandler      func(http.ResponseWriter, *http.Request)
+	M3QueryHandler     func(http.ResponseWriter, *http.Request)
+}
+
+// RemoteReadRenderer renders remote read output.
+type RemoteReadRenderer func(io.Writer, []*ts.Series,
+	models.RequestParams, bool)
 
 // HandlerOptions represents handler options.
 type HandlerOptions interface {
@@ -71,6 +108,11 @@ type HandlerOptions interface {
 	Engine() executor.Engine
 	// SetEngine sets the engine.
 	SetEngine(e executor.Engine) HandlerOptions
+
+	// PrometheusEngine returns the prometheus engine.
+	PrometheusEngine() *promql.Engine
+	// SetPrometheusEngine sets the prometheus engine.
+	SetPrometheusEngine(e *promql.Engine) HandlerOptions
 
 	// Clusters returns the clusters.
 	Clusters() m3.Clusters
@@ -137,10 +179,27 @@ type HandlerOptions interface {
 	// SetNowFn sets the now function.
 	SetNowFn(f clock.NowFn) HandlerOptions
 
-	// InstrumentOpts returns the instrumentation optoins.
+	// InstrumentOpts returns the instrumentation options.
 	InstrumentOpts() instrument.Options
 	// SetInstrumentOpts sets instrumentation options.
 	SetInstrumentOpts(opts instrument.Options) HandlerOptions
+
+	// DefaultQueryEngine returns the default query engine.
+	DefaultQueryEngine() QueryEngine
+	// SetDefaultQueryEngine returns the default query engine.
+	SetDefaultQueryEngine(value QueryEngine) HandlerOptions
+
+	// QueryRouter is a reference to the router which is responsible for routing
+	// queries between PromQL and M3Query.
+	QueryRouter() QueryRouter
+	// SetQueryRouter sets query router.
+	SetQueryRouter(value QueryRouter) HandlerOptions
+
+	// InstantQueryRouter is a reference to the router which is responsible for
+	// routing instant queries between PromQL and M3Query.
+	InstantQueryRouter() QueryRouter
+	// SetInstantQueryRouter sets query router for instant queries.
+	SetInstantQueryRouter(value QueryRouter) HandlerOptions
 }
 
 // HandlerOptions represents handler options.
@@ -148,6 +207,8 @@ type handlerOptions struct {
 	storage               storage.Storage
 	downsamplerAndWriter  ingest.DownsamplerAndWriter
 	engine                executor.Engine
+	prometheusEngine      *promql.Engine
+	defaultEngine         QueryEngine
 	clusters              m3.Clusters
 	clusterClient         clusterclient.Client
 	config                config.Configuration
@@ -163,6 +224,8 @@ type handlerOptions struct {
 	placementServiceNames []string
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault
 	nowFn                 clock.NowFn
+	queryRouter           QueryRouter
+	instantQueryRouter    QueryRouter
 }
 
 // EmptyHandlerOptions returns  default handler options.
@@ -178,6 +241,7 @@ func NewHandlerOptions(
 	downsamplerAndWriter ingest.DownsamplerAndWriter,
 	tagOptions models.TagOptions,
 	engine executor.Engine,
+	prometheusEngine *promql.Engine,
 	m3dbClusters m3.Clusters,
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
@@ -189,31 +253,28 @@ func NewHandlerOptions(
 	cpuProfileDuration time.Duration,
 	placementServiceNames []string,
 	serviceOptionDefaults []handleroptions.ServiceOptionsDefault,
+	queryRouter QueryRouter,
+	instantQueryRouter QueryRouter,
 ) (HandlerOptions, error) {
-	var timeoutOpts = &prometheus.TimeoutOpts{}
-	if embeddedDbCfg == nil || embeddedDbCfg.Client.FetchTimeout == nil {
-		timeoutOpts.FetchTimeout = defaultTimeout
-	} else {
-		timeout := *embeddedDbCfg.Client.FetchTimeout
-		if timeout <= 0 {
-			return nil,
-				fmt.Errorf("m3db client fetch timeout should be > 0, is %d", timeout)
-		}
-
-		timeoutOpts.FetchTimeout = timeout
+	timeout := cfg.Query.TimeoutOrDefault()
+	if embeddedDbCfg != nil &&
+		embeddedDbCfg.Client.FetchTimeout != nil &&
+		*embeddedDbCfg.Client.FetchTimeout > timeout {
+		timeout = *embeddedDbCfg.Client.FetchTimeout
 	}
 
 	return &handlerOptions{
 		storage:               downsamplerAndWriter.Storage(),
 		downsamplerAndWriter:  downsamplerAndWriter,
 		engine:                engine,
+		prometheusEngine:      prometheusEngine,
+		defaultEngine:         getDefaultQueryEngine(cfg.Query.DefaultEngine),
 		clusters:              m3dbClusters,
 		clusterClient:         clusterClient,
 		config:                cfg,
 		embeddedDbCfg:         embeddedDbCfg,
 		createdAt:             time.Now(),
 		tagOptions:            tagOptions,
-		timeoutOpts:           timeoutOpts,
 		enforcer:              enforcer,
 		fetchOptionsBuilder:   fetchOptionsBuilder,
 		queryContextOptions:   queryContextOptions,
@@ -222,6 +283,11 @@ func NewHandlerOptions(
 		placementServiceNames: placementServiceNames,
 		serviceOptionDefaults: serviceOptionDefaults,
 		nowFn:                 time.Now,
+		timeoutOpts: &prometheus.TimeoutOpts{
+			FetchTimeout: timeout,
+		},
+		queryRouter:        queryRouter,
+		instantQueryRouter: instantQueryRouter,
 	}, nil
 }
 
@@ -257,6 +323,16 @@ func (o *handlerOptions) Engine() executor.Engine {
 func (o *handlerOptions) SetEngine(e executor.Engine) HandlerOptions {
 	opts := *o
 	opts.engine = e
+	return &opts
+}
+
+func (o *handlerOptions) PrometheusEngine() *promql.Engine {
+	return o.prometheusEngine
+}
+
+func (o *handlerOptions) SetPrometheusEngine(e *promql.Engine) HandlerOptions {
+	opts := *o
+	opts.prometheusEngine = e
 	return &opts
 }
 
@@ -405,4 +481,51 @@ func (o *handlerOptions) SetNowFn(n clock.NowFn) HandlerOptions {
 	options := *o
 	options.nowFn = n
 	return &options
+}
+
+func (o *handlerOptions) DefaultQueryEngine() QueryEngine {
+	return o.defaultEngine
+}
+
+func (o *handlerOptions) SetDefaultQueryEngine(value QueryEngine) HandlerOptions {
+	options := *o
+	options.defaultEngine = value
+	return &options
+}
+
+func getDefaultQueryEngine(cfgEngine string) QueryEngine {
+	engine := PrometheusEngine
+	if strings.ToLower(cfgEngine) == string(M3QueryEngine) {
+		engine = M3QueryEngine
+	}
+	return engine
+}
+
+// IsQueryEngineSet returns true if value contains query engine value. Otherwise returns false.
+func IsQueryEngineSet(v string) bool {
+	if strings.ToLower(v) == string(PrometheusEngine) ||
+		strings.ToLower(v) == string(M3QueryEngine) {
+		return true
+	}
+	return false
+}
+
+func (o *handlerOptions) QueryRouter() QueryRouter {
+	return o.queryRouter
+}
+
+func (o *handlerOptions) SetQueryRouter(value QueryRouter) HandlerOptions {
+	opts := *o
+	opts.queryRouter = value
+	return &opts
+}
+
+func (o *handlerOptions) InstantQueryRouter() QueryRouter {
+	return o.instantQueryRouter
+}
+
+func (o *handlerOptions) SetInstantQueryRouter(value QueryRouter) HandlerOptions {
+	opts := *o
+	opts.instantQueryRouter = value
+	return &opts
 }

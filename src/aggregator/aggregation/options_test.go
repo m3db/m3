@@ -24,12 +24,13 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestOptions(t *testing.T) {
-	o := NewOptions()
+	o := NewOptions(instrument.NewOptions())
 	require.False(t, o.HasExpensiveAggregations)
 
 	o.ResetSetData(nil)

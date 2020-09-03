@@ -93,8 +93,12 @@ func NewPlacementAndNamespaceZipWriterWithDefaultSources(
 	}
 
 	if clusterClient != nil {
-		err = zw.RegisterSource("namespace.json",
-			NewNamespaceInfoSource(clusterClient, instrumentOpts))
+		nsSource, err := NewNamespaceInfoSource(clusterClient, services, instrumentOpts)
+		if err != nil {
+			return nil, fmt.Errorf("could not create namespace info source: %w", err)
+		}
+
+		err = zw.RegisterSource("namespace.json", nsSource)
 		if err != nil {
 			return nil, fmt.Errorf("unable to register namespaceSource: %s", err)
 		}

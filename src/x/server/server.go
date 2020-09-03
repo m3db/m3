@@ -83,13 +83,14 @@ type server struct {
 	tcpConnectionKeepAlive       bool
 	tcpConnectionKeepAlivePeriod time.Duration
 
-	closed     bool
-	closedChan chan struct{}
-	numConns   int32
-	conns      []net.Conn
-	wgConns    sync.WaitGroup
-	metrics    serverMetrics
-	handler    Handler
+	closed       bool
+	closedChan   chan struct{}
+	numConns     int32
+	conns        []net.Conn
+	wgConns      sync.WaitGroup
+	metrics      serverMetrics
+	handler      Handler
+	listenerOpts xnet.ListenerOptions
 
 	addConnectionFn    addConnectionFn
 	removeConnectionFn removeConnectionFn
@@ -110,6 +111,7 @@ func NewServer(address string, handler Handler, opts Options) Server {
 		closedChan:                   make(chan struct{}),
 		metrics:                      newServerMetrics(scope),
 		handler:                      handler,
+		listenerOpts:                 opts.ListenerOptions(),
 	}
 
 	// Set up the connection functions.
@@ -123,7 +125,7 @@ func NewServer(address string, handler Handler, opts Options) Server {
 }
 
 func (s *server) ListenAndServe() error {
-	listener, err := net.Listen("tcp", s.address)
+	listener, err := s.listenerOpts.Listen("tcp", s.address)
 	if err != nil {
 		return err
 	}

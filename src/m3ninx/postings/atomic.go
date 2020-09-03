@@ -21,7 +21,7 @@
 package postings
 
 import (
-	"github.com/uber-go/atomic"
+	"go.uber.org/atomic"
 )
 
 // AtomicID is an atomic ID.

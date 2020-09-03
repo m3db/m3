@@ -35,7 +35,7 @@ import (
 	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
-	"github.com/m3db/m3/src/x/ident"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/pborman/uuid"
@@ -92,6 +92,8 @@ type persistManager struct {
 	slept        time.Duration
 
 	metrics persistManagerMetrics
+
+	runtimeOptsListener xclose.SimpleCloser
 }
 
 type dataPersistManager struct {
@@ -165,7 +167,9 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter()
+
+	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter(
+		opts.FSTWriterOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +194,8 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 	}
 	pm.indexPM.newReaderFn = NewIndexReader
 	pm.indexPM.newPersistentSegmentFn = m3ninxpersist.NewSegment
-	opts.RuntimeOptionsManager().RegisterListener(pm)
+	pm.runtimeOptsListener = opts.RuntimeOptionsManager().RegisterListener(pm)
+
 	return pm, nil
 }
 
@@ -269,10 +274,11 @@ func (pm *persistManager) PrepareIndex(opts persist.IndexPrepareOptions) (persis
 	}
 	blockSize := nsMetadata.Options().IndexOptions().BlockSize()
 	idxWriterOpts := IndexWriterOpenOptions{
-		BlockSize:   blockSize,
-		FileSetType: opts.FileSetType,
-		Identifier:  fileSetID,
-		Shards:      opts.Shards,
+		BlockSize:       blockSize,
+		FileSetType:     opts.FileSetType,
+		Identifier:      fileSetID,
+		Shards:          opts.Shards,
+		IndexVolumeType: opts.IndexVolumeType,
 	}
 
 	// create writer for required fileset file.
@@ -485,13 +491,13 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 
 	prepared.Persist = pm.persist
 	prepared.Close = pm.closeData
+	prepared.DeferClose = pm.deferCloseData
 
 	return prepared, nil
 }
 
 func (pm *persistManager) persist(
-	id ident.ID,
-	tags ident.Tags,
+	metadata persist.Metadata,
 	segment ts.Segment,
 	checksum uint32,
 ) error {
@@ -523,7 +529,7 @@ func (pm *persistManager) persist(
 
 	pm.dataPM.segmentHolder[0] = segment.Head
 	pm.dataPM.segmentHolder[1] = segment.Tail
-	err := pm.dataPM.writer.WriteAll(id, tags, pm.dataPM.segmentHolder, checksum)
+	err := pm.dataPM.writer.WriteAll(metadata, pm.dataPM.segmentHolder, checksum)
 	pm.count++
 	pm.bytesWritten += int64(segment.Len())
 
@@ -537,6 +543,10 @@ func (pm *persistManager) persist(
 
 func (pm *persistManager) closeData() error {
 	return pm.dataPM.writer.Close()
+}
+
+func (pm *persistManager) deferCloseData() (persist.DataCloser, error) {
+	return pm.dataPM.writer.DeferClose()
 }
 
 // DoneFlush is called by the databaseFlushManager to finish the data persist process.
@@ -590,6 +600,11 @@ func (pm *persistManager) DoneSnapshot(
 	}
 
 	return pm.doneShared()
+}
+
+// Close all resources.
+func (pm *persistManager) Close() {
+	pm.runtimeOptsListener.Close()
 }
 
 func (pm *persistManager) doneShared() error {

@@ -27,6 +27,48 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 )
 
+// Configuration is configuration for placement options.
+type Configuration struct {
+	AllowPartialReplace *bool           `yaml:"allowPartialReplace"`
+	AllowAllZones       *bool           `yaml:"allowAllZones"`
+	AddAllCandidates    *bool           `yaml:"addAllCandidates"`
+	IsSharded           *bool           `yaml:"isSharded"`
+	ShardStateMode      *ShardStateMode `yaml:"shardStateMode"`
+	IsMirrored          *bool           `yaml:"isMirrored"`
+	IsStaged            *bool           `yaml:"isStaged"`
+	ValidZone           *string         `yaml:"validZone"`
+}
+
+// NewOptions creates a placement options.
+func (c *Configuration) NewOptions() Options {
+	opts := NewOptions()
+	if value := c.AllowPartialReplace; value != nil {
+		opts = opts.SetAllowPartialReplace(*value)
+	}
+	if value := c.AllowAllZones; value != nil {
+		opts = opts.SetAllowAllZones(*value)
+	}
+	if value := c.AddAllCandidates; value != nil {
+		opts = opts.SetAddAllCandidates(*value)
+	}
+	if value := c.IsSharded; value != nil {
+		opts = opts.SetIsSharded(*value)
+	}
+	if value := c.ShardStateMode; value != nil {
+		opts = opts.SetShardStateMode(*value)
+	}
+	if value := c.IsMirrored; value != nil {
+		opts = opts.SetIsMirrored(*value)
+	}
+	if value := c.IsStaged; value != nil {
+		opts = opts.SetIsStaged(*value)
+	}
+	if value := c.ValidZone; value != nil {
+		opts = opts.SetValidZone(*value)
+	}
+	return opts
+}
+
 // WatcherConfiguration contains placement watcher configuration.
 type WatcherConfiguration struct {
 	// Placement key.

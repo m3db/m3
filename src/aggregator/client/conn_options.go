@@ -26,13 +26,14 @@ import (
 
 	"github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/retry"
 )
 
 const (
 	defaultConnectionTimeout            = 2 * time.Second
 	defaultConnectionKeepAlive          = true
-	defaultWriteTimeout                 = 100 * time.Millisecond
+	defaultWriteTimeout                 = time.Duration(0)
 	defaultInitReconnectThreshold       = 2
 	defaultMaxReconnectThreshold        = 5000
 	defaultReconnectThresholdMultiplier = 2
@@ -105,6 +106,12 @@ type ConnectionOptions interface {
 
 	// WriteRetryOptions returns the retry options for retrying failed writes.
 	WriteRetryOptions() retry.Options
+
+	// SetRWOptions sets RW options.
+	SetRWOptions(value xio.Options) ConnectionOptions
+
+	// RWOptions returns the RW options.
+	RWOptions() xio.Options
 }
 
 type connectionOptions struct {
@@ -118,6 +125,7 @@ type connectionOptions struct {
 	multiplier     int
 	maxDuration    time.Duration
 	writeRetryOpts retry.Options
+	rwOpts         xio.Options
 }
 
 // NewConnectionOptions create a new set of connection options.
@@ -139,6 +147,7 @@ func NewConnectionOptions() ConnectionOptions {
 		multiplier:     defaultReconnectThresholdMultiplier,
 		maxDuration:    defaultMaxReconnectDuration,
 		writeRetryOpts: defaultWriteRetryOpts,
+		rwOpts:         xio.NewOptions(),
 	}
 }
 
@@ -240,4 +249,14 @@ func (o *connectionOptions) SetWriteRetryOptions(value retry.Options) Connection
 
 func (o *connectionOptions) WriteRetryOptions() retry.Options {
 	return o.writeRetryOpts
+}
+
+func (o *connectionOptions) SetRWOptions(value xio.Options) ConnectionOptions {
+	opts := *o
+	opts.rwOpts = value
+	return &opts
+}
+
+func (o *connectionOptions) RWOptions() xio.Options {
+	return o.rwOpts
 }

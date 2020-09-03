@@ -30,9 +30,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
+	xtime "github.com/m3db/m3/src/x/time"
 )
 
 type fetchTaggedResultAccumulatorOpts struct {
@@ -61,7 +63,7 @@ type fetchTaggedResultAccumulator struct {
 	numHostsPending         int32
 	numShardsPending        int32
 
-	errors         xerrors.Errors
+	errors         []error
 	fetchResponses fetchTaggedIDResults
 	aggResponses   aggregateResults
 	exhaustive     bool
@@ -201,9 +203,18 @@ func (accum *fetchTaggedResultAccumulator) accumulatedResult(
 	// all shards, so we need to fail
 	if accum.numHostsPending == 0 && accum.numShardsPending != 0 {
 		doneAccumulating := true
-		return doneAccumulating, fmt.Errorf(
-			"unable to satisfy consistency requirements for %d shards [ err = %s ]",
-			accum.numShardsPending, accum.errors.Error())
+		// NB(r): Use new renamed error to keep the underlying error
+		// (invalid/retryable) type.
+		err := fmt.Errorf("unable to satisfy consistency requirements: shards=%d, err=%v",
+			accum.numShardsPending, accum.errors)
+		for i := range accum.errors {
+			if IsBadRequestError(accum.errors[i]) {
+				err = xerrors.NewInvalidParamsError(err)
+				err = xerrors.NewNonRetryableError(err)
+				break
+			}
+		}
+		return doneAccumulating, err
 	}
 
 	doneAccumulating := false
@@ -267,6 +278,7 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	pools fetchTaggedPools,
 	elems fetchTaggedIDResults,
 	descr namespace.SchemaDescr,
+	opts index.IterationOptions,
 ) encoding.SeriesIterator {
 	numElems := len(elems)
 	iters := pools.MultiReaderIteratorArray().Get(numElems)[:numElems]
@@ -291,19 +303,21 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	nsID := pools.CheckedBytesWrapper().Get(elem.NameSpace)
 	seriesIter := pools.SeriesIterator().Get()
 	seriesIter.Reset(encoding.SeriesIteratorOptions{
-		ID:             pools.ID().BinaryID(tsID),
-		Namespace:      pools.ID().BinaryID(nsID),
-		Tags:           decoder,
-		StartInclusive: accum.startTime,
-		EndExclusive:   accum.endTime,
-		Replicas:       iters,
+		ID:                         pools.ID().BinaryID(tsID),
+		Namespace:                  pools.ID().BinaryID(nsID),
+		Tags:                       decoder,
+		StartInclusive:             xtime.ToUnixNano(accum.startTime),
+		EndExclusive:               xtime.ToUnixNano(accum.endTime),
+		Replicas:                   iters,
+		SeriesIteratorConsolidator: opts.SeriesIteratorConsolidator,
 	})
 
 	return seriesIter
 }
 
 func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
-	limit int, pools fetchTaggedPools, descr namespace.SchemaDescr,
+	limit int, pools fetchTaggedPools,
+	descr namespace.SchemaDescr, opts index.IterationOptions,
 ) (encoding.SeriesIterators, FetchResponseMetadata, error) {
 	results := fetchTaggedIDResultsSortedByID(accum.fetchResponses)
 	sort.Sort(results)
@@ -320,7 +334,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	count := 0
 	moreElems := false
 	accum.fetchResponses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
-		seriesIter := accum.sliceResponsesAsSeriesIter(pools, elems, descr)
+		seriesIter := accum.sliceResponsesAsSeriesIter(pools, elems, descr, opts)
 		result.SetAt(count, seriesIter)
 		count++
 		moreElems = hasMore

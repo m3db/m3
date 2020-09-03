@@ -1,0 +1,28 @@
+---
+operation: create
+request:
+  type: cluster
+  namespace_name: 1week_namespace
+  retention_time: 168h
+  num_shards: 1024
+  replication_factor: 3
+  hosts:
+  - id: m3db001
+    isolationGroup: us-east1-a
+    zone: embedded
+    weight: 100
+    address: 10.142.0.1
+    port: 9000
+  - id: m3db002
+    isolationGroup: us-east1-b
+    zone: embedded
+    weight: 100
+    address: 10.142.0.2
+    port: 9000
+  - id: m3db003
+    isolationGroup: us-east1-c
+    zone: embedded
+    weight: 100
+    address: 10.142.0.3
+    port: 9000
+

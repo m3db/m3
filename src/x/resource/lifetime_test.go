@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/atomic"
+	"go.uber.org/atomic"
 )
 
 func TestCancellableLifetime(t *testing.T) {

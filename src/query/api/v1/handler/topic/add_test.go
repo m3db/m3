@@ -43,8 +43,8 @@ func TestTopicAddHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewAddHandler(nil, config.Configuration{}, instrument.NewOptions())
-	handler.serviceFn = testServiceFn(mockService)
+	handler := newAddHandler(nil, config.Configuration{}, instrument.NewOptions())
+	handler.(*AddHandler).serviceFn = testServiceFn(mockService)
 
 	t1 := topic.NewTopic().SetName(DefaultTopicName).SetNumberOfShards(256)
 

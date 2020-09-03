@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 )
 
 func TestShardInsertQueueBatchBackoff(t *testing.T) {
@@ -57,6 +58,10 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 		insertProgressWgs[i].Add(1)
 	}
 	q := newDatabaseShardInsertQueue(func(value []dbShardInsert) error {
+		if len(inserts) == len(insertWgs) {
+			return nil // Overflow.
+		}
+
 		inserts = append(inserts, value)
 		insertWgs[len(inserts)-1].Done()
 		insertProgressWgs[len(inserts)-1].Wait()
@@ -65,7 +70,7 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 		timeLock.Lock()
 		defer timeLock.Unlock()
 		return currTime
-	}, tally.NoopScope)
+	}, tally.NoopScope, zap.NewNop())
 
 	q.insertBatchBackoff = backoff
 
@@ -143,9 +148,9 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 		timeLock.Lock()
 		defer timeLock.Unlock()
 		return currTime
-	}, tally.NoopScope)
+	}, tally.NoopScope, zap.NewNop())
 
-	q.insertPerSecondLimit = 2
+	q.insertPerSecondLimit.Store(2)
 
 	require.NoError(t, q.Start())
 	defer func() {
@@ -186,9 +191,9 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	q.Lock()
-	expectedCurrWindow := currTime.Truncate(time.Second).UnixNano()
-	assert.Equal(t, expectedCurrWindow, q.insertPerSecondLimitWindowNanos)
-	assert.Equal(t, 1, q.insertPerSecondLimitWindowValues)
+	expectedCurrWindow := uint64(currTime.Truncate(time.Second).UnixNano())
+	assert.Equal(t, expectedCurrWindow, q.insertPerSecondLimitWindowNanos.Load())
+	assert.Equal(t, uint64(1), q.insertPerSecondLimitWindowValues.Load())
 	q.Unlock()
 }
 
@@ -204,7 +209,7 @@ func TestShardInsertQueueFlushedOnClose(t *testing.T) {
 	q := newDatabaseShardInsertQueue(func(value []dbShardInsert) error {
 		atomic.AddInt64(&numInsertObserved, int64(len(value)))
 		return nil
-	}, func() time.Time { return currTime }, tally.NoopScope)
+	}, func() time.Time { return currTime }, tally.NoopScope, zap.NewNop())
 
 	require.NoError(t, q.Start())
 

@@ -41,7 +41,7 @@ const (
 
 // Path returns the url to the given section of documentation.
 func Path(section string) string {
-	return fmt.Sprintf("https://m3db.github.io/m3/%s", section)
+	return fmt.Sprintf("https://docs.m3db.io/%s", section)
 }
 
 // RepoPathURL is a URL that points to a path in the repository, helpful

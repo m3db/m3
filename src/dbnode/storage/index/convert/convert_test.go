@@ -49,39 +49,30 @@ func init() {
 	testOpts.IdentPool = idPool
 }
 
-func TestFromMetricInvalid(t *testing.T) {
+func TestFromSeriesIDAndTagsInvalid(t *testing.T) {
 	id := ident.StringID("foo")
 	tags := ident.NewTags(
 		ident.StringTag(string(convert.ReservedFieldNameID), "value"),
 	)
-	_, err := convert.FromMetric(id, tags)
+	_, err := convert.FromSeriesIDAndTags(id, tags)
 	assert.Error(t, err)
 }
 
-func TestFromMetricNoCloneInvalid(t *testing.T) {
+func TestFromSeriesIDAndTagIteratorInvalid(t *testing.T) {
 	id := ident.StringID("foo")
 	tags := ident.NewTags(
 		ident.StringTag(string(convert.ReservedFieldNameID), "value"),
 	)
-	_, err := convert.FromMetricNoClone(id, tags)
+	_, err := convert.FromSeriesIDAndTagIter(id, ident.NewTagsIterator(tags))
 	assert.Error(t, err)
 }
 
-func TestFromMetricIteratorInvalid(t *testing.T) {
-	id := ident.StringID("foo")
-	tags := ident.NewTags(
-		ident.StringTag(string(convert.ReservedFieldNameID), "value"),
-	)
-	_, err := convert.FromMetricIter(id, ident.NewTagsIterator(tags))
-	assert.Error(t, err)
-}
-
-func TestFromMetricValid(t *testing.T) {
+func TestFromSeriesIDAndTagsValid(t *testing.T) {
 	id := ident.StringID("foo")
 	tags := ident.NewTags(
 		ident.StringTag("bar", "baz"),
 	)
-	d, err := convert.FromMetric(id, tags)
+	d, err := convert.FromSeriesIDAndTags(id, tags)
 	assert.NoError(t, err)
 	assert.Equal(t, "foo", string(d.ID))
 	assert.Len(t, d.Fields, 1)
@@ -89,12 +80,12 @@ func TestFromMetricValid(t *testing.T) {
 	assert.Equal(t, "baz", string(d.Fields[0].Value))
 }
 
-func TestFromMetricNoCloneValid(t *testing.T) {
+func TestFromSeriesIDAndTagIterValid(t *testing.T) {
 	id := ident.StringID("foo")
 	tags := ident.NewTags(
 		ident.StringTag("bar", "baz"),
 	)
-	d, err := convert.FromMetricNoClone(id, tags)
+	d, err := convert.FromSeriesIDAndTagIter(id, ident.NewTagsIterator(tags))
 	assert.NoError(t, err)
 	assert.Equal(t, "foo", string(d.ID))
 	assert.Len(t, d.Fields, 1)
@@ -102,20 +93,7 @@ func TestFromMetricNoCloneValid(t *testing.T) {
 	assert.Equal(t, "baz", string(d.Fields[0].Value))
 }
 
-func TestFromMetricIterValid(t *testing.T) {
-	id := ident.StringID("foo")
-	tags := ident.NewTags(
-		ident.StringTag("bar", "baz"),
-	)
-	d, err := convert.FromMetricIter(id, ident.NewTagsIterator(tags))
-	assert.NoError(t, err)
-	assert.Equal(t, "foo", string(d.ID))
-	assert.Len(t, d.Fields, 1)
-	assert.Equal(t, "bar", string(d.Fields[0].Name))
-	assert.Equal(t, "baz", string(d.Fields[0].Value))
-}
-
-func TestToMetricValid(t *testing.T) {
+func TestToSeriesValid(t *testing.T) {
 	d := doc.Document{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
@@ -123,7 +101,7 @@ func TestToMetricValid(t *testing.T) {
 			doc.Field{Name: []byte("some"), Value: []byte("others")},
 		},
 	}
-	id, tags, err := convert.ToMetric(d, testOpts)
+	id, tags, err := convert.ToSeries(d, testOpts)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, tags.Remaining())
 	assert.Equal(t, "foo", id.String())
@@ -161,24 +139,24 @@ func TestTagsFromTagsIterNoPool(t *testing.T) {
 	require.True(t, true, expectedTags.Equal(tags))
 }
 
-func TestToMetricInvalidID(t *testing.T) {
+func TestToSeriesInvalidID(t *testing.T) {
 	d := doc.Document{
 		Fields: []doc.Field{
 			doc.Field{Name: []byte("bar"), Value: []byte("baz")},
 		},
 	}
-	_, _, err := convert.ToMetric(d, testOpts)
+	_, _, err := convert.ToSeries(d, testOpts)
 	assert.Error(t, err)
 }
 
-func TestToMetricInvalidTag(t *testing.T) {
+func TestToSeriesInvalidTag(t *testing.T) {
 	d := doc.Document{
 		ID: []byte("foo"),
 		Fields: []doc.Field{
 			doc.Field{Name: convert.ReservedFieldNameID, Value: []byte("baz")},
 		},
 	}
-	_, tags, err := convert.ToMetric(d, testOpts)
+	_, tags, err := convert.ToSeries(d, testOpts)
 	assert.NoError(t, err)
 	assert.False(t, tags.Next())
 	assert.Error(t, tags.Err())
@@ -201,7 +179,7 @@ func TestValidateSeries(t *testing.T) {
 				Value: ident.StringID("baz"),
 			}))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid ID")
+		assert.Contains(t, err.Error(), "invalid non-UTF8 ID")
 	})
 
 	t.Run("tag name reserved", func(t *testing.T) {
@@ -222,7 +200,7 @@ func TestValidateSeries(t *testing.T) {
 				Value: ident.StringID("bar"),
 			}))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid field name")
+		assert.Contains(t, err.Error(), "invalid non-UTF8 field name")
 	})
 
 	t.Run("tag value non-utf8", func(t *testing.T) {
@@ -232,7 +210,7 @@ func TestValidateSeries(t *testing.T) {
 				Value: ident.BinaryID(invalidBytes),
 			}))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid field value")
+		assert.Contains(t, err.Error(), "invalid non-UTF8 field value")
 	})
 }
 

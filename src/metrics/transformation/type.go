@@ -1,3 +1,4 @@
+// go:generate stringer -type=Type
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,6 +35,8 @@ const (
 	UnknownType Type = iota
 	Absolute
 	PerSecond
+	Increase
+	Add
 )
 
 // IsValid checks if the transformation type is valid.
@@ -53,6 +56,32 @@ func (t Type) IsBinaryTransform() bool {
 	return exists
 }
 
+// NewOp returns a constructed operation that is allocated once and can be
+// reused.
+func (t Type) NewOp() (Op, error) {
+	var (
+		err    error
+		unary  UnaryTransform
+		binary BinaryTransform
+	)
+	switch {
+	case t.IsUnaryTransform():
+		unary, err = t.UnaryTransform()
+	case t.IsBinaryTransform():
+		binary, err = t.BinaryTransform()
+	default:
+		err = fmt.Errorf("unknown transformation type: %v", t)
+	}
+	if err != nil {
+		return Op{}, err
+	}
+	return Op{
+		opType: t,
+		unary:  unary,
+		binary: binary,
+	}, nil
+}
+
 // UnaryTransform returns the unary transformation function associated with
 // the transformation type if applicable, or an error otherwise.
 func (t Type) UnaryTransform() (UnaryTransform, error) {
@@ -60,7 +89,7 @@ func (t Type) UnaryTransform() (UnaryTransform, error) {
 	if !exists {
 		return nil, fmt.Errorf("%v is not a unary transfomration", t)
 	}
-	return tf, nil
+	return tf(), nil
 }
 
 // MustUnaryTransform returns the unary transformation function associated with
@@ -80,7 +109,7 @@ func (t Type) BinaryTransform() (BinaryTransform, error) {
 	if !exists {
 		return nil, fmt.Errorf("%v is not a binary transfomration", t)
 	}
-	return tf, nil
+	return tf(), nil
 }
 
 // MustBinaryTransform returns the binary transformation function associated with
@@ -100,6 +129,10 @@ func (t Type) ToProto(pb *transformationpb.TransformationType) error {
 		*pb = transformationpb.TransformationType_ABSOLUTE
 	case PerSecond:
 		*pb = transformationpb.TransformationType_PERSECOND
+	case Increase:
+		*pb = transformationpb.TransformationType_INCREASE
+	case Add:
+		*pb = transformationpb.TransformationType_ADD
 	default:
 		return fmt.Errorf("unknown transformation type: %v", t)
 	}
@@ -113,6 +146,10 @@ func (t *Type) FromProto(pb transformationpb.TransformationType) error {
 		*t = Absolute
 	case transformationpb.TransformationType_PERSECOND:
 		*t = PerSecond
+	case transformationpb.TransformationType_INCREASE:
+		*t = Increase
+	case transformationpb.TransformationType_ADD:
+		*t = Add
 	default:
 		return fmt.Errorf("unknown transformation type in proto: %v", pb)
 	}
@@ -160,12 +197,44 @@ func ParseType(str string) (Type, error) {
 	return t, nil
 }
 
-var (
-	unaryTransforms = map[Type]UnaryTransform{
-		Absolute: absolute,
+// Op represents a transform operation.
+type Op struct {
+	opType Type
+
+	// might have either unary or binary
+	unary  UnaryTransform
+	binary BinaryTransform
+}
+
+// Type returns the op type.
+func (o Op) Type() Type {
+	return o.opType
+}
+
+// UnaryTransform returns the active unary transform if op is unary transform.
+func (o Op) UnaryTransform() (UnaryTransform, bool) {
+	if !o.Type().IsUnaryTransform() {
+		return nil, false
 	}
-	binaryTransforms = map[Type]BinaryTransform{
-		PerSecond: perSecond,
+	return o.unary, true
+}
+
+// BinaryTransform returns the active binary transform if op is binary transform.
+func (o Op) BinaryTransform() (BinaryTransform, bool) {
+	if !o.Type().IsBinaryTransform() {
+		return nil, false
+	}
+	return o.binary, true
+}
+
+var (
+	unaryTransforms = map[Type]func() UnaryTransform{
+		Absolute: transformAbsolute,
+		Add:      transformAdd,
+	}
+	binaryTransforms = map[Type]func() BinaryTransform{
+		PerSecond: transformPerSecond,
+		Increase:  transformIncrease,
 	}
 	typeStringMap map[string]Type
 )

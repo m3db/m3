@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/x/instrument"
 
 	"go.uber.org/zap"
 )
@@ -153,11 +154,21 @@ func (m *fileSystemManager) Run(
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
-		if err := m.Cleanup(t); err != nil {
-			m.log.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
+		// NB(r): Use invariant here since flush errors were introduced
+		// and not caught in CI or integration tests.
+		// When an invariant occurs in CI tests it panics so as to fail
+		// the build.
+		if err := m.WarmFlushCleanup(t, m.database.IsBootstrapped()); err != nil {
+			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("error when cleaning up data", zap.Time("time", t), zap.Error(err))
+				})
 		}
 		if err := m.Flush(t); err != nil {
-			m.log.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
+			instrument.EmitAndLogInvariantViolation(m.opts.InstrumentOptions(),
+				func(l *zap.Logger) {
+					l.Error("error when flushing data", zap.Time("time", t), zap.Error(err))
+				})
 		}
 		m.Lock()
 		m.status = fileOpNotStarted

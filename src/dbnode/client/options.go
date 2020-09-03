@@ -32,18 +32,24 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/encoding/proto"
 	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	nchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 	xretry "github.com/m3db/m3/src/x/retry"
+	"github.com/m3db/m3/src/x/sampler"
 	"github.com/m3db/m3/src/x/serialize"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
@@ -83,6 +89,9 @@ const (
 	// defaultTruncateRequestTimeout is the default truncate request timeout
 	defaultTruncateRequestTimeout = 60 * time.Second
 
+	// defaultWriteShardsInitializing is the default write to shards intializing value
+	defaultWriteShardsInitializing = true
+
 	// defaultIdentifierPoolSize is the default identifier pool size
 	defaultIdentifierPoolSize = 8192
 
@@ -109,6 +118,9 @@ const (
 
 	// defaultHostQueueOpsArrayPoolSize is the default host queue ops array pool size
 	defaultHostQueueOpsArrayPoolSize = 8
+
+	// defaultHostQueueEmitsHealthStatus is false
+	defaultHostQueueEmitsHealthStatus = false
 
 	// defaultBackgroundConnectInterval is the default background connect interval
 	defaultBackgroundConnectInterval = 4 * time.Second
@@ -213,6 +225,7 @@ type options struct {
 	runtimeOptsMgr                          m3dbruntime.OptionsManager
 	clockOpts                               clock.Options
 	instrumentOpts                          instrument.Options
+	logErrorSampleRate                      sampler.Rate
 	topologyInitializer                     topology.Initializer
 	readConsistencyLevel                    topology.ReadConsistencyLevel
 	writeConsistencyLevel                   topology.ConsistencyLevel
@@ -239,6 +252,8 @@ type options struct {
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
+	writeShardsInitializing                 bool
+	newConnectionFn                         NewConnectionFn
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                  int
 	writeTaggedOperationPoolSize            int
@@ -249,6 +264,7 @@ type options struct {
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
 	hostQueueOpsArrayPoolSize               int
+	hostQueueEmitsHealthStatus              bool
 	seriesIteratorPoolSize                  int
 	seriesIteratorArrayPoolBuckets          []pool.Bucket
 	checkedBytesWrapperPoolSize             int
@@ -265,6 +281,8 @@ type options struct {
 	asyncWriteWorkerPool                    xsync.PooledWorkerPool
 	asyncWriteMaxConcurrency                int
 	useV2BatchAPIs                          bool
+	iterationOptions                        index.IterationOptions
+	writeTimestampOffset                    time.Duration
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -292,6 +310,19 @@ func NewOptionsForAsyncClusters(opts Options, topoInits []topology.Initializer, 
 		result = append(result, options)
 	}
 	return result
+}
+
+func defaultNewConnectionFn(
+	channelName string, address string, opts Options,
+) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	channel, err := tchannel.NewChannel(channelName, opts.ChannelOptions())
+	if err != nil {
+		return nil, nil, err
+	}
+	endpoint := &thrift.ClientOptions{HostPort: address}
+	thriftClient := thrift.NewClient(channel, nchannel.ChannelName, endpoint)
+	client := rpc.NewTChanNodeClient(thriftClient)
+	return channel, client, nil
 }
 
 func newOptions() *options {
@@ -338,11 +369,13 @@ func newOptions() *options {
 		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
 		writeRetrier:                            defaultWriteRetrier,
 		fetchRetrier:                            defaultFetchRetrier,
+		writeShardsInitializing:                 defaultWriteShardsInitializing,
 		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
 		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
 		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
-		tagDecoderOpts:                          serialize.NewTagDecoderOptions(),
+		tagDecoderOpts:                          serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{}),
 		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
+		newConnectionFn:                         defaultNewConnectionFn,
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
 		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
@@ -352,6 +385,7 @@ func newOptions() *options {
 		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
 		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
+		hostQueueEmitsHealthStatus:              defaultHostQueueEmitsHealthStatus,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
 		checkedBytesWrapperPoolSize:             defaultCheckedBytesWrapperPoolSize,
@@ -391,9 +425,12 @@ func validate(opts *options) error {
 	); err != nil {
 		return err
 	}
-	return topology.ValidateConnectConsistencyLevel(
+	if err := topology.ValidateConnectConsistencyLevel(
 		opts.clusterConnectConsistencyLevel,
-	)
+	); err != nil {
+		return err
+	}
+	return opts.logErrorSampleRate.Validate()
 }
 
 func (o *options) Validate() error {
@@ -450,6 +487,16 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
+}
+
+func (o *options) SetLogErrorSampleRate(value sampler.Rate) Options {
+	opts := *o
+	opts.logErrorSampleRate = value
+	return &opts
+}
+
+func (o *options) LogErrorSampleRate() sampler.Rate {
+	return o.logErrorSampleRate
 }
 
 func (o *options) SetTopologyInitializer(value topology.Initializer) Options {
@@ -662,6 +709,16 @@ func (o *options) FetchRetrier() xretry.Retrier {
 	return o.fetchRetrier
 }
 
+func (o *options) SetWriteShardsInitializing(value bool) Options {
+	opts := *o
+	opts.writeShardsInitializing = value
+	return &opts
+}
+
+func (o *options) WriteShardsInitializing() bool {
+	return o.writeShardsInitializing
+}
+
 func (o *options) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
 	opts := *o
 	opts.tagEncoderOpts = value
@@ -710,6 +767,16 @@ func (o *options) SetStreamBlocksRetrier(value xretry.Retrier) AdminOptions {
 
 func (o *options) StreamBlocksRetrier() xretry.Retrier {
 	return o.streamBlocksRetrier
+}
+
+func (o *options) SetNewConnectionFn(value NewConnectionFn) AdminOptions {
+	opts := *o
+	opts.newConnectionFn = value
+	return &opts
+}
+
+func (o *options) NewConnectionFn() NewConnectionFn {
+	return o.newConnectionFn
 }
 
 func (o *options) SetWriteOpPoolSize(value int) Options {
@@ -820,6 +887,16 @@ func (o *options) SetHostQueueOpsArrayPoolSize(value int) Options {
 
 func (o *options) HostQueueOpsArrayPoolSize() int {
 	return o.hostQueueOpsArrayPoolSize
+}
+
+func (o *options) SetHostQueueEmitsHealthStatus(value bool) Options {
+	opts := *o
+	opts.hostQueueEmitsHealthStatus = value
+	return &opts
+}
+
+func (o *options) HostQueueEmitsHealthStatus() bool {
+	return o.hostQueueEmitsHealthStatus
 }
 
 func (o *options) SetSeriesIteratorPoolSize(value int) Options {
@@ -960,4 +1037,24 @@ func (o *options) SetUseV2BatchAPIs(value bool) Options {
 
 func (o *options) UseV2BatchAPIs() bool {
 	return o.useV2BatchAPIs
+}
+
+func (o *options) SetIterationOptions(value index.IterationOptions) Options {
+	opts := *o
+	opts.iterationOptions = value
+	return &opts
+}
+
+func (o *options) IterationOptions() index.IterationOptions {
+	return o.iterationOptions
+}
+
+func (o *options) SetWriteTimestampOffset(value time.Duration) AdminOptions {
+	opts := *o
+	opts.writeTimestampOffset = value
+	return &opts
+}
+
+func (o *options) WriteTimestampOffset() time.Duration {
+	return o.writeTimestampOffset
 }

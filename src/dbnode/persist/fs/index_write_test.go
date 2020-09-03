@@ -130,7 +130,8 @@ func TestSnapshotIndexWriter(t *testing.T) {
 	}, actualFiles)
 
 	// Verify can read them
-	reader := newTestIndexReader(t, test.filePathPrefix)
+	reader := newTestIndexReader(t, test.filePathPrefix,
+		testIndexReaderOptions{})
 	for _, snapshot := range testSnapshotSegments {
 		// Add the snapshot index to the file set ID
 		fileSetID := test.fileSetID

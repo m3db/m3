@@ -108,4 +108,5 @@ func (s *server) Close() {
 	if s.listener != nil {
 		s.listener.Close()
 	}
+	s.listener = nil
 }

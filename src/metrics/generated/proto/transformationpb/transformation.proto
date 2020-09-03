@@ -28,4 +28,6 @@ enum TransformationType {
   UNKNOWN = 0;
   ABSOLUTE = 1;
   PERSECOND = 2;
+  INCREASE = 3;
+  ADD = 4;
 }

@@ -82,14 +82,19 @@ func TestConnectionPoolConnectsAndRetriesConnects(t *testing.T) {
 
 	opts := newConnectionPoolTestOptions()
 	opts = opts.SetMaxConnectionCount(4)
-	conns := newConnectionPool(h, opts).(*connPool)
-	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
+
+	fn := func(
+		ch string, addr string, opts Options,
+	) (xclose.SimpleCloser, rpc.TChanNode, error) {
 		attempt := int(atomic.AddInt32(&attempts, 1))
 		if attempt == 1 {
 			return nil, nil, fmt.Errorf("a connect error")
 		}
 		return channelNone, nil, nil
 	}
+
+	opts = opts.SetNewConnectionFn(fn)
+	conns := newConnectionPool(h, opts).(*connPool)
 	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) error {
 		if atomic.LoadInt32(&rounds) == 1 {
 			// If second round then fail health check
@@ -230,8 +235,9 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		failsDoneWg[i].Add(1)
 	}
 
-	conns := newConnectionPool(h, opts).(*connPool)
-	conns.newConn = func(ch string, addr string, opts Options) (xclose.SimpleCloser, rpc.TChanNode, error) {
+	fn := func(
+		ch string, addr string, opts Options,
+	) (xclose.SimpleCloser, rpc.TChanNode, error) {
 		attempt := atomic.AddInt32(&newConnAttempt, 1)
 		if attempt == 1 {
 			return channelNone, client1, nil
@@ -240,6 +246,9 @@ func TestConnectionPoolHealthChecks(t *testing.T) {
 		}
 		return nil, nil, fmt.Errorf("spawning only 2 connections")
 	}
+	opts = opts.SetNewConnectionFn(fn)
+
+	conns := newConnectionPool(h, opts).(*connPool)
 	conns.healthCheckNewConn = func(client rpc.TChanNode, opts Options) error {
 		return nil
 	}

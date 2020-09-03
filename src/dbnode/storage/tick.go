@@ -152,7 +152,7 @@ func (mgr *tickManager) Tick(forceType forceType, startTime time.Time) error {
 
 	// Now we acquired the token, reset the cancellable
 	mgr.c.Reset()
-	namespaces, err := mgr.database.GetOwnedNamespaces()
+	namespaces, err := mgr.database.OwnedNamespaces()
 	if err != nil {
 		return err
 	}

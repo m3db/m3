@@ -25,7 +25,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
@@ -92,18 +91,6 @@ type Options interface {
 
 	// Compactor returns the compactor used to compact segment builders into segments.
 	Compactor() *compaction.Compactor
-
-	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
-	// pass to newly flushed blocks when performing a bootstrap run with
-	// persistence enabled.
-	SetDatabaseBlockRetrieverManager(
-		value block.DatabaseBlockRetrieverManager,
-	) Options
-
-	// NewBlockRetrieverFn returns the block retriever manager to
-	// pass to newly flushed blocks when performing a bootstrap run with
-	// persistence enabled.
-	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 
 	// SetRuntimeOptionsManagers sets the RuntimeOptionsManager.
 	SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options

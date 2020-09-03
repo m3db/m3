@@ -32,12 +32,14 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/instrument"
+	xjson "github.com/m3db/m3/src/x/json"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	xtest "github.com/m3db/m3/src/x/test"
 
@@ -90,7 +92,7 @@ func TestParamParsing(t *testing.T) {
 func TestParamParsing_POST(t *testing.T) {
 	params := defaultParams().Encode()
 	req := httptest.NewRequest("POST", PromReadURL, strings.NewReader(params))
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add(xhttp.HeaderContentType, xhttp.ContentTypeFormURLEncoded)
 
 	r, err := testParseParams(req)
 	require.NoError(t, err, "unable to parse request")
@@ -169,86 +171,94 @@ func TestRenderResultsJSON(t *testing.T) {
 	series := []*ts.Series{
 		ts.NewSeries([]byte("foo"),
 			valsWithNaN, test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+				{Name: []byte("bar"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
 			})),
 		ts.NewSeries([]byte("foobar"),
-			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("biz"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			ts.NewFixedStepValues(10*time.Second, 2, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("biz"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 	}
 
-	renderResultsJSON(buffer, series, params, true)
+	readResult := ReadResult{Series: series}
+	RenderResultsJSON(buffer, readResult, RenderResultsOptions{
+		Start:    params.Start,
+		End:      params.End,
+		KeepNaNs: true,
+	})
 
-	expected := xtest.MustPrettyJSON(t, `
-	{
+	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
 		"status": "success",
-		"data": {
+		"warnings": xjson.Array{
+			"m3db exceeded query limit: results not exhaustive",
+		},
+		"data": xjson.Map{
 			"resultType": "matrix",
-			"result": [
-				{
-					"metric": {
+			"result": xjson.Array{
+				xjson.Map{
+					"metric": xjson.Map{
 						"bar": "baz",
-						"qux": "qaz"
+						"qux": "qaz",
 					},
-					"values": [
-						[
+					"values": xjson.Array{
+						xjson.Array{
 							1535948880,
-							"1"
-						],
-						[
+							"1",
+						},
+						xjson.Array{
 							1535948890,
-							"NaN"
-						]
-					],
-					"step_size_ms": 10000
+							"NaN",
+						},
+					},
+					"step_size_ms": 10000,
 				},
-				{
-					"metric": {
+				xjson.Map{
+					"metric": xjson.Map{
 						"baz": "bar",
-						"qaz": "qux"
+						"qaz": "qux",
 					},
-					"values": [
-						[
+					"values": xjson.Array{
+						xjson.Array{
 							1535948880,
-							"2"
-						],
-						[
+							"2",
+						},
+						xjson.Array{
 							1535948890,
-							"2"
-						]
-					],
-					"step_size_ms": 10000
+							"2",
+						},
+					},
+					"step_size_ms": 10000,
 				},
-				{
-					"metric": {
+				xjson.Map{
+					"metric": xjson.Map{
 						"biz": "baz",
-						"qux": "qaz"
+						"qux": "qaz",
 					},
-					"values": [
-						[
+					"values": xjson.Array{
+						xjson.Array{
 							1535948880,
-							"NaN"
-						],
-						[
+							"NaN",
+						},
+						xjson.Array{
 							1535948890,
-							"NaN"
-						]
-					],
-					"step_size_ms": 10000
-				}
-			]
-		}
-	}
-	`)
+							"NaN",
+						},
+					},
+					"step_size_ms": 10000,
+				},
+			},
+		},
+	})
 
-	actual := xtest.MustPrettyJSON(t, buffer.String())
+	actual := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
@@ -268,117 +278,265 @@ func TestRenderResultsJSONWithDroppedNaNs(t *testing.T) {
 	series := []*ts.Series{
 		ts.NewSeries([]byte("foo"),
 			valsWithNaN, test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+				{Name: []byte("bar"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(step, 2, 2, start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			ts.NewFixedStepValues(step, 2, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
 			})),
 		ts.NewSeries([]byte("foobar"),
-			ts.NewFixedStepValues(step, 2, math.NaN(), start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("biz"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			ts.NewFixedStepValues(step, 2, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("biz"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
 			})),
 	}
 
-	renderResultsJSON(buffer, series, params, false)
-
-	expected := xtest.MustPrettyJSON(t, `
-	{
-		"status": "success",
-		"data": {
-			"resultType": "matrix",
-			"result": [
-				{
-					"metric": {
-						"bar": "baz",
-						"qux": "qaz"
-					},
-					"values": [
-						[
-							1535948880,
-							"1"
-						]
-					],
-					"step_size_ms": 10000
-				},
-				{
-					"metric": {
-						"baz": "bar",
-						"qaz": "qux"
-					},
-					"values": [
-						[
-							1535948880,
-							"2"
-						],
-						[
-							1535948890,
-							"2"
-						]
-					],
-					"step_size_ms": 10000
-				}
-			]
-		}
+	meta := block.NewResultMetadata()
+	meta.AddWarning("foo", "bar")
+	meta.AddWarning("baz", "qux")
+	readResult := ReadResult{
+		Series: series,
+		Meta:   meta,
 	}
-	`)
 
-	actual := xtest.MustPrettyJSON(t, buffer.String())
+	RenderResultsJSON(buffer, readResult, RenderResultsOptions{
+		Start:    params.Start,
+		End:      params.End,
+		KeepNaNs: false,
+	})
+
+	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
+		"status": "success",
+		"warnings": xjson.Array{
+			"foo_bar",
+			"baz_qux",
+		},
+		"data": xjson.Map{
+			"resultType": "matrix",
+			"result": xjson.Array{
+				xjson.Map{
+					"metric": xjson.Map{
+						"bar": "baz",
+						"qux": "qaz",
+					},
+					"values": xjson.Array{
+						xjson.Array{
+							1535948880,
+							"1",
+						},
+					},
+					"step_size_ms": 10000,
+				},
+				xjson.Map{
+					"metric": xjson.Map{
+						"baz": "bar",
+						"qaz": "qux",
+					},
+					"values": xjson.Array{
+						xjson.Array{
+							1535948880,
+							"2",
+						},
+						xjson.Array{
+							1535948890,
+							"2",
+						},
+					},
+					"step_size_ms": 10000,
+				},
+			},
+		},
+	})
+
+	actual := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 
-func TestRenderInstantaneousResultsJSON(t *testing.T) {
+func TestRenderInstantaneousResultsJSONVector(t *testing.T) {
 	start := time.Unix(1535948880, 0)
-	buffer := bytes.NewBuffer(nil)
+
 	series := []*ts.Series{
 		ts.NewSeries([]byte("foo"),
-			ts.NewFixedStepValues(10*time.Second, 1, 1, start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			ts.NewFixedStepValues(10*time.Second, 1, 1, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("bar"), Value: []byte("baz")},
+				{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("nan"),
+			ts.NewFixedStepValues(10*time.Second, 1, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
 			})),
 		ts.NewSeries([]byte("bar"),
-			ts.NewFixedStepValues(10*time.Second, 1, 2, start), test.TagSliceToTags([]models.Tag{
-				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			ts.NewFixedStepValues(10*time.Second, 1, 2, start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+				{Name: []byte("qaz"), Value: []byte("qux")},
 			})),
 	}
 
-	renderResultsInstantaneousJSON(buffer, series)
-
-	expected := xtest.MustPrettyJSON(t, `
-	{
-		"status": "success",
-		"data": {
-			"resultType": "vector",
-			"result": [
-				{
-					"metric": {
-						"bar": "baz",
-						"qux": "qaz"
-					},
-					"value": [
-						1535948880,
-						"1"
-					]
-				},
-				{
-					"metric": {
-						"baz": "bar",
-						"qaz": "qux"
-					},
-					"value": [
-						1535948880,
-						"2"
-					]
- 				}
-			]
-		}
+	readResult := ReadResult{
+		Series: series,
+		Meta:   block.NewResultMetadata(),
 	}
-	`)
-	actual := xtest.MustPrettyJSON(t, buffer.String())
+
+	foo := xjson.Map{
+		"metric": xjson.Map{
+			"bar": "baz",
+			"qux": "qaz",
+		},
+		"value": xjson.Array{
+			1535948880,
+			"1",
+		},
+	}
+
+	bar := xjson.Map{
+		"metric": xjson.Map{
+			"baz": "bar",
+			"qaz": "qux",
+		},
+		"value": xjson.Array{
+			1535948880,
+			"2",
+		},
+	}
+
+	nan := xjson.Map{
+		"metric": xjson.Map{
+			"baz": "bar",
+		},
+		"value": xjson.Array{
+			1535948880,
+			"NaN",
+		},
+	}
+
+	buffer := bytes.NewBuffer(nil)
+	renderResultsInstantaneousJSON(buffer, readResult, true)
+	expectedWithNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
+		"status": "success",
+		"data": xjson.Map{
+			"resultType": "vector",
+			"result": xjson.Array{foo, nan, bar},
+		},
+	})
+	actualWithNaN := xtest.MustPrettyJSONString(t, buffer.String())
+	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
+
+	buffer = bytes.NewBuffer(nil)
+	renderResultsInstantaneousJSON(buffer, readResult, false)
+	expectedWithoutNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
+		"status": "success",
+		"data": xjson.Map{
+			"resultType": "vector",
+			"result": xjson.Array{foo, bar},
+		},
+	})
+	actualWithoutNaN := xtest.MustPrettyJSONString(t, buffer.String())
+	assert.Equal(t, expectedWithoutNaN, actualWithoutNaN, xtest.Diff(expectedWithoutNaN, actualWithoutNaN))
+}
+
+func TestRenderInstantaneousResultsNansOnlyJSON(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+
+	series := []*ts.Series{
+		ts.NewSeries([]byte("nan"),
+			ts.NewFixedStepValues(10*time.Second, 1, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("nan"),
+			ts.NewFixedStepValues(10*time.Second, 1, math.NaN(), start),
+			test.TagSliceToTags([]models.Tag{
+				{Name: []byte("baz"), Value: []byte("bar")},
+			})),
+	}
+
+	readResult := ReadResult{
+		Series: series,
+		Meta:   block.NewResultMetadata(),
+	}
+
+	nan1 := xjson.Map{
+		"metric": xjson.Map{
+			"qux": "qaz",
+		},
+		"value": xjson.Array{
+			1535948880,
+			"NaN",
+		},
+	}
+
+	nan2 := xjson.Map{
+		"metric": xjson.Map{
+			"baz": "bar",
+		},
+		"value": xjson.Array{
+			1535948880,
+			"NaN",
+		},
+	}
+
+	buffer := bytes.NewBuffer(nil)
+	renderResultsInstantaneousJSON(buffer, readResult, true)
+	expectedWithNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
+		"status": "success",
+		"data": xjson.Map{
+			"resultType": "vector",
+			"result": xjson.Array{nan1, nan2},
+		},
+	})
+	actualWithNaN := xtest.MustPrettyJSONString(t, buffer.String())
+	assert.Equal(t, expectedWithNaN, actualWithNaN, xtest.Diff(expectedWithNaN, actualWithNaN))
+
+	buffer = bytes.NewBuffer(nil)
+	renderResultsInstantaneousJSON(buffer, readResult, false)
+	expectedWithoutNaN := xtest.MustPrettyJSONMap(t, xjson.Map{
+		"status": "success",
+		"data": xjson.Map{
+			"resultType": "vector",
+			"result": xjson.Array{},
+		},
+	})
+	actualWithoutNaN := xtest.MustPrettyJSONString(t, buffer.String())
+	assert.Equal(t, expectedWithoutNaN, actualWithoutNaN, xtest.Diff(expectedWithoutNaN, actualWithoutNaN))
+}
+
+func TestRenderInstantaneousResultsJSONScalar(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+
+	series := []*ts.Series{
+		ts.NewSeries(
+			[]byte("foo"),
+			ts.NewFixedStepValues(10*time.Second, 1, 5, start),
+			test.TagSliceToTags([]models.Tag{})),
+	}
+
+	readResult := ReadResult{
+		Series:    series,
+		Meta:      block.NewResultMetadata(),
+		BlockType: block.BlockScalar,
+	}
+
+	buffer := bytes.NewBuffer(nil)
+	renderResultsInstantaneousJSON(buffer, readResult, false)
+	expected := xtest.MustPrettyJSONMap(t, xjson.Map{
+		"status": "success",
+		"data": xjson.Map{
+			"resultType": "scalar",
+			"result": xjson.Array{
+				1535948880,
+				"5",
+			},
+		},
+	})
+
+	actual := xtest.MustPrettyJSONString(t, buffer.String())
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 

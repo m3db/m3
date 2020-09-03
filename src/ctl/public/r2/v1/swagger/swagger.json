@@ -6,7 +6,7 @@
         "title": "R2 API",
         "license": {
             "name": "MIT",
-            "url": "https://github.com/m3db/m3ctl/blob/master/LICENSE.md"
+            "url": "https://github.com/m3db/m3/blob/master/LICENSE.md"
         }
     },
     "host": "localhost:9000",

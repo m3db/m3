@@ -40,15 +40,20 @@ message Placement {
 }
 
 message Instance {
-  string id = 1;
-  string isolation_group = 2;
-  string zone = 3;
-  uint32 weight = 4;
-  string endpoint = 5;
-  repeated Shard shards = 6;
-  uint32 shard_set_id = 7;
-  string hostname = 8;
-  uint32 port = 9;
+  string id                 = 1;
+  string isolation_group    = 2;
+  string zone               = 3;
+  uint32 weight             = 4;
+  string endpoint           = 5;
+  repeated Shard shards     = 6;
+  uint32 shard_set_id       = 7;
+  string hostname           = 8;
+  uint32 port               = 9;
+  InstanceMetadata metadata = 10;
+}
+
+message InstanceMetadata {
+  uint32 debug_port = 1;
 }
 
 message Shard {

@@ -33,11 +33,17 @@ type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
+	// M3Msg server configuration.
+	// Optional.
+	M3Msg *M3MsgServerConfiguration `yaml:"m3msg"`
+
 	// Raw TCP server configuration.
-	RawTCP RawTCPServerConfiguration `yaml:"rawtcp"`
+	// Optional.
+	RawTCP *RawTCPServerConfiguration `yaml:"rawtcp"`
 
 	// HTTP server configuration.
-	HTTP HTTPServerConfiguration `yaml:"http"`
+	// Optional.
+	HTTP *HTTPServerConfiguration `yaml:"http"`
 
 	// Client configuration for key value store.
 	KVClient KVClientConfiguration `yaml:"kvClient" validate:"nonzero"`

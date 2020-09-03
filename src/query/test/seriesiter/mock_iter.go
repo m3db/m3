@@ -39,7 +39,8 @@ func GenerateSingleSampleTagIterator(ctrl *gomock.Controller, tag ident.Tag) ide
 	mockTagIterator.EXPECT().Next().Return(true).MaxTimes(1)
 	mockTagIterator.EXPECT().Current().Return(tag).MaxTimes(1)
 	mockTagIterator.EXPECT().Next().Return(false).MaxTimes(1)
-	mockTagIterator.EXPECT().Err().Return(nil).MaxTimes(1)
+	mockTagIterator.EXPECT().Err().Return(nil).AnyTimes()
+	mockTagIterator.EXPECT().Rewind().Return().MaxTimes(1)
 	mockTagIterator.EXPECT().Close().AnyTimes()
 
 	return mockTagIterator
@@ -87,7 +88,7 @@ func NewMockSeriesIteratorFromBase(mockIter *encoding.MockSeriesIterator, tagGen
 	tags := tagGenerator()
 	mockIter.EXPECT().Namespace().Return(ident.StringID("foo")).AnyTimes()
 	mockIter.EXPECT().ID().Return(ident.StringID("bar")).AnyTimes()
-	mockIter.EXPECT().Tags().Return(tags).MaxTimes(1)
+	mockIter.EXPECT().Tags().Return(tags).AnyTimes()
 	mockIter.EXPECT().Close().Do(func() {
 		// Make sure to close the tags generated when closing the iter
 		tags.Close()

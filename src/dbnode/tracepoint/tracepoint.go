@@ -46,6 +46,9 @@ const (
 	// FetchReadSegment is the operation name for the tchannelthrift FetchReadSegment path.
 	FetchReadSegment = "tchannelthrift/node.service.FetchReadSegment"
 
+	// AggregateTiles is the operation name for the tchannelthrift AggregateTiles path.
+	AggregateTiles = "tchannelthrift/node.service.AggregateTiles"
+
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
 
@@ -64,8 +67,23 @@ const (
 	// DBWriteBatch is the operation name for the db WriteBatch path.
 	DBWriteBatch = "storage.db.WriteBatch"
 
+	// DBAggregateTiles is the operation name for the db AggregateTiles path.
+	DBAggregateTiles = "storage.db.AggregateTiles"
+
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
+
+	// NSPrepareBootstrap is the operation name for the dbNamespace PrepareBootstrap path.
+	NSPrepareBootstrap = "storage.dbNamespace.PrepareBootstrap"
+
+	// NSBootstrap is the operation name for the dbNamespace Bootstrap path.
+	NSBootstrap = "storage.dbNamespace.Bootstrap"
+
+	// ShardPrepareBootstrap is the operation name for the dbShard PrepareBootstrap path.
+	ShardPrepareBootstrap = "storage.dbShard.PrepareBootstrap"
+
+	// ShardBootstrap is the operation name for the dbShard Bootstrap path.
+	ShardBootstrap = "storage.dbShard.Bootstrap"
 
 	// NSIdxQuery is the operation name for the nsIndex Query path.
 	NSIdxQuery = "storage.nsIndex.Query"
@@ -87,4 +105,22 @@ const (
 
 	// BlockAggregate is the operation name for the index block aggregate path.
 	BlockAggregate = "storage/index.block.Aggregate"
+
+	// BootstrapProcessRun is the operation name for the bootstrap process Run path.
+	BootstrapProcessRun = "bootstrap.bootstrapProcess.Run"
+
+	// BootstrapperUninitializedSourceRead is the operation for the uninitializedTopologySource Read path.
+	BootstrapperUninitializedSourceRead = "bootstrapper.uninitialized.uninitializedTopologySource.Read"
+
+	// BootstrapperCommitLogSourceRead is the operation for the commit log Read path.
+	BootstrapperCommitLogSourceRead = "bootstrapper.commitlog.commitLogSource.Read"
+
+	// BootstrapperPeersSourceRead is the operation for the peers Read path.
+	BootstrapperPeersSourceRead = "bootstrapper.peers.peersSource.Read"
+
+	// BootstrapperFilesystemSourceRead is the operation for the filesystem Read path.
+	BootstrapperFilesystemSourceRead = "bootstrapper.fs.filesystemSource.Read"
+
+	// BootstrapperFilesystemSourceMigrator is the operation for filesystem migrator path.
+	BootstrapperFilesystemSourceMigrator = "bootstrapper.fs.filesystemSource.Migrator"
 )

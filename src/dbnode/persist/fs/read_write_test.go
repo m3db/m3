@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/bloom"
+	"github.com/m3db/bloom/v4"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/x/checked"
@@ -73,6 +73,20 @@ func (e testEntry) Tags() ident.Tags {
 	}
 
 	return tags
+}
+
+type testEntries []testEntry
+
+func (e testEntries) Less(i, j int) bool {
+	return e[i].id < e[j].id
+}
+
+func (e testEntries) Len() int {
+	return len(e)
+}
+
+func (e testEntries) Swap(i, j int) {
+	e[i], e[j] = e[j], e[i]
 }
 
 func newTestWriter(t *testing.T, filePathPrefix string) DataFileSetWriter {
@@ -124,9 +138,10 @@ func writeTestDataWithVolume(
 	assert.NoError(t, err)
 
 	for i := range entries {
-		assert.NoError(t, w.Write(
-			entries[i].ID(),
+		metadata := persist.NewMetadataFromIDAndTags(entries[i].ID(),
 			entries[i].Tags(),
+			persist.MetadataOptions{})
+		assert.NoError(t, w.Write(metadata,
 			bytesRefd(entries[i].data),
 			digest.Checksum(entries[i].data)))
 	}
@@ -141,8 +156,7 @@ func writeTestDataWithVolume(
 
 	// Check every entry has ID and Tags nil
 	for _, elem := range slice {
-		assert.Nil(t, elem.id)
-		assert.Nil(t, elem.tags.Values())
+		assert.Equal(t, persist.Metadata{}, elem.metadata)
 	}
 }
 
@@ -158,20 +172,42 @@ var readTestTypes = []readTestType{
 	readTestTypeMetadata,
 }
 
-// readTestData will test reading back the data matches what was written,
+func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+	readTestDataWithStreamingOpt(t, r, shard, timestamp, entries, false)
+
+	sortedEntries := append(make(testEntries, 0, len(entries)), entries...)
+	sort.Sort(sortedEntries)
+
+	readTestDataWithStreamingOpt(t, r, shard, timestamp, sortedEntries, true)
+}
+
+// readTestDataWithStreamingOpt will test reading back the data matches what was written,
 // note that this test also tests reuse of the reader since it first reads
 // all the data then closes it, reopens and reads through again but just
 // reading the metadata the second time.
 // If it starts to fail during the pass that reads just the metadata it could
 // be a newly introduced reader reuse bug.
-func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+func readTestDataWithStreamingOpt(
+	t *testing.T,
+	r DataFileSetReader,
+	shard uint32,
+	timestamp time.Time,
+	entries []testEntry,
+	streamingEnabled bool,
+) {
 	for _, underTest := range readTestTypes {
+		if underTest == readTestTypeMetadata && streamingEnabled {
+			// ATM there is no streaming support for metadata.
+			continue
+		}
+
 		rOpenOpts := DataReaderOpenOptions{
 			Identifier: FileSetFileIdentifier{
 				Namespace:  testNs1ID,
-				Shard:      0,
+				Shard:      shard,
 				BlockStart: timestamp,
 			},
+			StreamingEnabled: streamingEnabled,
 		}
 		err := r.Open(rOpenOpts)
 		require.NoError(t, err)
@@ -195,7 +231,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 		for i := 0; i < r.Entries(); i++ {
 			switch underTest {
 			case readTestTypeData:
-				id, tags, data, checksum, err := r.Read()
+				id, tags, data, checksum, err := readData(t, r)
 				require.NoError(t, err)
 
 				data.IncRef()
@@ -220,6 +256,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				tags.Close()
 				data.DecRef()
 				data.Finalize()
+
 			case readTestTypeMetadata:
 				id, tags, length, checksum, err := r.ReadMetadata()
 				require.NoError(t, err)
@@ -301,9 +338,10 @@ func TestDuplicateWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := range entries {
-		require.NoError(t, w.Write(
-			entries[i].ID(),
+		metadata := persist.NewMetadataFromIDAndTags(entries[i].ID(),
 			entries[i].Tags(),
+			persist.MetadataOptions{})
+		require.NoError(t, w.Write(metadata,
 			bytesRefd(entries[i].data),
 			digest.Checksum(entries[i].data)))
 	}
@@ -354,7 +392,7 @@ func TestInfoReadWrite(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries, persist.FileSetFlushType)
 
-	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
+	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil, persist.FileSetFlushType)
 	require.Equal(t, 1, len(readInfoFileResults))
 	for _, result := range readInfoFileResults {
 		require.NoError(t, result.Err.Error())
@@ -379,7 +417,7 @@ func TestInfoReadWriteVolumeIndex(t *testing.T) {
 
 	writeTestDataWithVolume(t, w, 0, testWriterStart, volume, entries, persist.FileSetFlushType)
 
-	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
+	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil, persist.FileSetFlushType)
 	require.Equal(t, 1, len(readInfoFileResults))
 	for _, result := range readInfoFileResults {
 		require.NoError(t, result.Err.Error())
@@ -457,19 +495,21 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(entries[0].ID(),
+		entries[0].Tags(),
+		persist.MetadataOptions{})
 	require.NoError(t, w.Open(writerOpts))
 
-	require.NoError(t, w.Write(
-		entries[0].ID(),
-		entries[0].Tags(),
+	require.NoError(t, w.Write(metadata,
 		bytesRefd(entries[0].data),
 		digest.Checksum(entries[0].data)))
 
 	// Intentionally force a writer error.
 	w.(*writer).err = errors.New("foo")
-	require.Equal(t, "foo", w.Write(
-		entries[1].ID(),
+	metadata = persist.NewMetadataFromIDAndTags(entries[1].ID(),
 		entries[1].Tags(),
+		persist.MetadataOptions{})
+	require.Equal(t, "foo", w.Write(metadata,
 		bytesRefd(entries[1].data),
 		digest.Checksum(entries[1].data)).Error())
 	w.Close()
@@ -503,15 +543,20 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 			BlockStart: testWriterStart,
 		},
 	}
+	metadata := persist.NewMetadataFromIDAndTags(
+		ident.StringID("foo"),
+		ident.Tags{},
+		persist.MetadataOptions{})
 	require.NoError(t, w.Open(writerOpts))
 
-	w.WriteAll(ident.StringID("foo"), ident.Tags{},
+	err := w.WriteAll(metadata,
 		[]checked.Bytes{
 			checkedBytes([]byte{1, 2, 3}),
 			nil,
 			checkedBytes([]byte{4, 5, 6}),
 		},
 		digest.Checksum([]byte{1, 2, 3, 4, 5, 6}))
+	require.NoError(t, err)
 
 	assert.NoError(t, w.Close())
 
@@ -519,6 +564,23 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, []testEntry{
 		{"foo", nil, []byte{1, 2, 3, 4, 5, 6}},
 	})
+}
+
+func readData(t *testing.T, reader DataFileSetReader) (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error) {
+	if reader.StreamingEnabled() {
+		id, encodedTags, data, checksum, err := reader.StreamingRead()
+		var tags = ident.EmptyTagIterator
+		if len(encodedTags) > 0 {
+			tagsDecoder := testTagDecoderPool.Get()
+			tagsDecoder.Reset(checkedBytes(encodedTags))
+			require.NoError(t, tagsDecoder.Err())
+			tags = tagsDecoder
+		}
+
+		return id, tags, checked.NewBytes(data, nil), checksum, err
+	}
+
+	return reader.Read()
 }
 
 func checkedBytes(b []byte) checked.Bytes {

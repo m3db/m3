@@ -26,10 +26,10 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3/src/x/serialize"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 )
 
 // writeOp represents a generic write operation
@@ -115,6 +115,12 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	var wErr error
 
 	if err != nil {
+		if IsBadRequestError(err) {
+			// Wrap with invalid params and non-retryable so it is
+			// not retried.
+			err = xerrors.NewInvalidParamsError(err)
+			err = xerrors.NewNonRetryableError(err)
+		}
 		wErr = xerrors.NewRenamedError(err, fmt.Errorf("error writing to host %s: %v", hostID, err))
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
 		errStr := "missing host shard in writeState completionFn: %s"

@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/query/functions/binary"
 
-	pql "github.com/prometheus/prometheus/promql"
+	pql "github.com/prometheus/prometheus/promql/parser"
 )
 
 var (

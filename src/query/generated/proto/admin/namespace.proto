@@ -13,6 +13,11 @@ message NamespaceAddRequest {
   namespace.NamespaceOptions options = 2;
 }
 
+message NamespaceUpdateRequest {
+  string                        name = 1;
+  namespace.NamespaceOptions options = 2;
+}
+
 message NamespaceSchemaAddRequest {
   // Name is the namespace name.
   // Add schema to non-existent namespace will get 404.

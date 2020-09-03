@@ -37,10 +37,10 @@ import (
 
 // ExecutionState represents the execution hierarchy.
 type ExecutionState struct {
-	plan       plan.PhysicalPlan
-	sources    []parser.Source
-	resultNode Result
-	storage    storage.Storage
+	plan    plan.PhysicalPlan
+	sources []parser.Source
+	sink    sink
+	storage storage.Storage
 }
 
 // CreateSource creates a source node.
@@ -126,9 +126,9 @@ func GenerateExecutionState(
 		return nil, errors.New("empty sources for the execution state")
 	}
 
-	rNode := newResultNode()
-	state.resultNode = rNode
-	controller.AddTransform(rNode)
+	sink := newResultNode()
+	state.sink = sink
+	controller.AddTransform(sink)
 
 	return state, nil
 }
@@ -181,12 +181,12 @@ func (s *ExecutionState) createNode(
 
 // Execute the sources in parallel and return the first error.
 func (s *ExecutionState) Execute(queryCtx *models.QueryContext) error {
-	requests := make([]execution.Request, len(s.sources))
-	for idx, source := range s.sources {
-		requests[idx] = sourceRequest{
+	requests := make([]execution.Request, 0, len(s.sources))
+	for _, source := range s.sources {
+		requests = append(requests, sourceRequest{
 			source:   source,
 			queryCtx: queryCtx,
-		}
+		})
 	}
 
 	return execution.ExecuteParallel(queryCtx.Ctx, requests)
@@ -194,8 +194,7 @@ func (s *ExecutionState) Execute(queryCtx *models.QueryContext) error {
 
 // String representation of the state.
 func (s *ExecutionState) String() string {
-	return fmt.Sprintf("plan: %s\nsources: %s\nresult: %s",
-		s.plan, s.sources, s.resultNode)
+	return fmt.Sprintf("plan: %s\nsources: %s\n", s.plan, s.sources)
 }
 
 type sourceRequest struct {

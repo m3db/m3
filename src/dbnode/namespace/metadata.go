@@ -71,3 +71,15 @@ func (m *metadata) Options() Options {
 func (m *metadata) Equal(value Metadata) bool {
 	return m.id.Equal(value.ID()) && m.Options().Equal(value.Options())
 }
+
+// ForceColdWritesEnabledForMetadatas forces cold writes to be enabled for all ns.
+func ForceColdWritesEnabledForMetadatas(metadatas []Metadata) []Metadata {
+	mds := make([]Metadata, 0, len(metadatas))
+	for _, md := range metadatas {
+		mds = append(mds, &metadata{
+			id:   md.ID(),
+			opts: md.Options().SetColdWritesEnabled(true),
+		})
+	}
+	return mds
+}

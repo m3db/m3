@@ -75,7 +75,7 @@ var (
 			// concurrent query, so as long as there is no more than
 			// the number of concurrent index queries than the size
 			// specified here the maps should be recycled.
-			size:                512,
+			size:                256,
 			refillLowWaterMark:  0,
 			refillHighWaterMark: 0,
 		},
@@ -90,22 +90,22 @@ var (
 		},
 		"tagDecoder": defaultPoolPolicy,
 		"context": poolPolicyDefault{
-			size:                131072,
+			size:                32768,
 			refillLowWaterMark:  0,
 			refillHighWaterMark: 0,
 		},
 		"series": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"block": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"encoder": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
@@ -113,7 +113,7 @@ var (
 			// NB(r): Note this has to be bigger than context pool by
 			// big fraction (by factor of say 4) since each context
 			// usually uses a fair few closers.
-			size:                524288,
+			size:                262144,
 			refillLowWaterMark:  0,
 			refillHighWaterMark: 0,
 		},
@@ -138,7 +138,7 @@ var (
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},
 		"identifier": poolPolicyDefault{
-			size:                262144,
+			size:                65536,
 			refillLowWaterMark:  defaultRefillLowWaterMark,
 			refillHighWaterMark: defaultRefillHighWaterMark,
 		},

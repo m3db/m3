@@ -223,7 +223,7 @@ func (s *m3WrappedStore) FetchByQuery(
 	m3ctx, cancel := context.WithTimeout(ctx.RequestContext(), opts.Timeout)
 	defer cancel()
 	fetchOptions := storage.NewFetchOptions()
-	fetchOptions.Limit = opts.Limit
+	fetchOptions.SeriesLimit = opts.Limit
 	perQueryEnforcer := s.enforcer.Child(cost.QueryLevel)
 	defer perQueryEnforcer.Close()
 

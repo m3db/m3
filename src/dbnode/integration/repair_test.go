@@ -189,7 +189,7 @@ func testRepair(
 		SetRetentionOptions(retentionOpts)
 	namesp, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
 		// and not write/read all nodes in the cluster.
@@ -206,9 +206,9 @@ func testRepair(
 
 	// Ensure that the current time is set such that the previous block is flushable.
 	blockSize := retentionOpts.BlockSize()
-	now := setups[0].getNowFn().Truncate(blockSize).Add(retentionOpts.BufferPast()).Add(time.Second)
+	now := setups[0].NowFn()().Truncate(blockSize).Add(retentionOpts.BufferPast()).Add(time.Second)
 	for _, setup := range setups {
-		setup.setNowFn(now)
+		setup.SetNowFn(now)
 	}
 
 	node0Data, node1Data, node2Data, allData := genRepairData(now, blockSize)
@@ -223,8 +223,8 @@ func testRepair(
 	}
 
 	// Start the servers with filesystem bootstrappers.
-	setups.parallel(func(s *testSetup) {
-		if err := s.startServer(); err != nil {
+	setups.parallel(func(s TestSetup) {
+		if err := s.StartServer(); err != nil {
 			panic(err)
 		}
 	})
@@ -232,18 +232,18 @@ func testRepair(
 
 	// Stop the servers.
 	defer func() {
-		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+		setups.parallel(func(s TestSetup) {
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()
 
 	require.True(t, waitUntil(func() bool {
 		for _, setup := range setups {
-			if err := checkFlushedDataFiles(setup.shardSet, setup.storageOpts, namesp.ID(), allData); err != nil {
+			if err := checkFlushedDataFiles(setup.ShardSet(), setup.StorageOpts(), namesp.ID(), allData); err != nil {
 				// Increment the time each time it fails to make sure background processes are able to proceed.
 				for _, s := range setups {
-					s.setNowFn(s.getNowFn().Add(time.Millisecond))
+					s.SetNowFn(s.NowFn()().Add(time.Millisecond))
 				}
 				return false
 			}

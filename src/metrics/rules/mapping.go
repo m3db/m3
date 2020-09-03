@@ -21,6 +21,7 @@
 package rules
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"time"
@@ -28,10 +29,13 @@ import (
 	"github.com/m3db/m3/src/metrics/aggregation"
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules/view"
+	"github.com/m3db/m3/src/query/models"
 
 	"github.com/pborman/uuid"
 )
@@ -47,6 +51,8 @@ var (
 	errMappingRuleSnapshotIndexOutOfRange                  = errors.New("mapping rule snapshot index out of range")
 	errNilMappingRuleSnapshotProto                         = errors.New("nil mapping rule snapshot proto")
 	errNilMappingRuleProto                                 = errors.New("nil mapping rule proto")
+
+	pathSeparator = []byte(".")
 )
 
 // mappingRuleSnapshot defines a rule snapshot such that if a metric matches the
@@ -60,6 +66,8 @@ type mappingRuleSnapshot struct {
 	aggregationID      aggregation.ID
 	storagePolicies    policy.StoragePolicies
 	dropPolicy         policy.DropPolicy
+	tags               []models.Tag
+	graphitePrefix     [][]byte
 	lastUpdatedAtNanos int64
 	lastUpdatedBy      string
 }
@@ -128,6 +136,7 @@ func newMappingRuleSnapshotFromProto(
 		aggregationID,
 		storagePolicies,
 		policy.DropPolicy(r.DropPolicy),
+		models.TagsFromProto(r.Tags),
 		r.LastUpdatedAtNanos,
 		r.LastUpdatedBy,
 	), nil
@@ -141,6 +150,7 @@ func newMappingRuleSnapshotFromFields(
 	aggregationID aggregation.ID,
 	storagePolicies policy.StoragePolicies,
 	dropPolicy policy.DropPolicy,
+	tags []models.Tag,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
 ) (*mappingRuleSnapshot, error) {
@@ -156,6 +166,7 @@ func newMappingRuleSnapshotFromFields(
 		aggregationID,
 		storagePolicies,
 		dropPolicy,
+		tags,
 		lastUpdatedAtNanos,
 		lastUpdatedBy,
 	), nil
@@ -172,9 +183,19 @@ func newMappingRuleSnapshotFromFieldsInternal(
 	aggregationID aggregation.ID,
 	storagePolicies policy.StoragePolicies,
 	dropPolicy policy.DropPolicy,
+	tags []models.Tag,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
 ) *mappingRuleSnapshot {
+	// If we have a graphite prefix tag, then parse that out here so that it
+	// can be used later.
+	var graphitePrefix [][]byte
+	for _, tag := range tags {
+		if bytes.Equal(tag.Name, metric.M3MetricsGraphitePrefix) {
+			graphitePrefix = bytes.Split(tag.Value, pathSeparator)
+		}
+	}
+
 	return &mappingRuleSnapshot{
 		name:               name,
 		tombstoned:         tombstoned,
@@ -184,6 +205,8 @@ func newMappingRuleSnapshotFromFieldsInternal(
 		aggregationID:      aggregationID,
 		storagePolicies:    storagePolicies,
 		dropPolicy:         dropPolicy,
+		tags:               tags,
+		graphitePrefix:     graphitePrefix,
 		lastUpdatedAtNanos: lastUpdatedAtNanos,
 		lastUpdatedBy:      lastUpdatedBy,
 	}
@@ -194,6 +217,8 @@ func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
 	if mrs.filter != nil {
 		filter = mrs.filter.Clone()
 	}
+	tags := make([]models.Tag, len(mrs.tags))
+	copy(tags, mrs.tags)
 	return mappingRuleSnapshot{
 		name:               mrs.name,
 		tombstoned:         mrs.tombstoned,
@@ -203,6 +228,7 @@ func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
 		aggregationID:      mrs.aggregationID,
 		storagePolicies:    mrs.storagePolicies.Clone(),
 		dropPolicy:         mrs.dropPolicy,
+		tags:               mrs.tags,
 		lastUpdatedAtNanos: mrs.lastUpdatedAtNanos,
 		lastUpdatedBy:      mrs.lastUpdatedBy,
 	}
@@ -222,7 +248,10 @@ func (mrs *mappingRuleSnapshot) proto() (*rulepb.MappingRuleSnapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	tags := make([]*metricpb.Tag, 0, len(mrs.tags))
+	for _, tag := range mrs.tags {
+		tags = append(tags, tag.ToProto())
+	}
 	return &rulepb.MappingRuleSnapshot{
 		Name:               mrs.name,
 		Tombstoned:         mrs.tombstoned,
@@ -233,6 +262,7 @@ func (mrs *mappingRuleSnapshot) proto() (*rulepb.MappingRuleSnapshot, error) {
 		AggregationTypes:   pbAggTypes,
 		StoragePolicies:    storagePolicies,
 		DropPolicy:         policypb.DropPolicy(mrs.dropPolicy),
+		Tags:               tags,
 	}, nil
 }
 
@@ -343,6 +373,7 @@ func (mc *mappingRule) addSnapshot(
 	aggregationID aggregation.ID,
 	storagePolicies policy.StoragePolicies,
 	dropPolicy policy.DropPolicy,
+	tags []models.Tag,
 	meta UpdateMetadata,
 ) error {
 	snapshot, err := newMappingRuleSnapshotFromFields(
@@ -353,6 +384,7 @@ func (mc *mappingRule) addSnapshot(
 		aggregationID,
 		storagePolicies,
 		dropPolicy,
+		tags,
 		meta.updatedAtNanos,
 		meta.updatedBy,
 	)
@@ -393,6 +425,7 @@ func (mc *mappingRule) revive(
 	aggregationID aggregation.ID,
 	storagePolicies policy.StoragePolicies,
 	dropPolicy policy.DropPolicy,
+	tags []models.Tag,
 	meta UpdateMetadata,
 ) error {
 	n, err := mc.name()
@@ -403,7 +436,7 @@ func (mc *mappingRule) revive(
 		return merrors.NewInvalidInputError(fmt.Sprintf("%s is not tombstoned", n))
 	}
 	return mc.addSnapshot(name, rawFilter, aggregationID, storagePolicies,
-		dropPolicy, meta)
+		dropPolicy, tags, meta)
 }
 
 func (mc *mappingRule) activeIndex(timeNanos int64) int {

@@ -194,10 +194,11 @@ func (c ConfigureResults) SyncCluster() (ConfigureResult, error) {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InstrumentOpts   instrument.Options
-	HashingSeed      uint32
-	HostID           string
-	NewDirectoryMode os.FileMode
+	InstrumentOpts         instrument.Options
+	HashingSeed            uint32
+	HostID                 string
+	NewDirectoryMode       os.FileMode
+	ForceColdWritesEnabled bool
 }
 
 // UnmarshalYAML normalizes the config into a list of services.
@@ -295,7 +296,8 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		dynamicOpts := namespace.NewDynamicOptions().
 			SetInstrumentOptions(cfgParams.InstrumentOpts).
 			SetConfigServiceClient(configSvcClient).
-			SetNamespaceRegistryKey(kvconfig.NamespacesKey)
+			SetNamespaceRegistryKey(kvconfig.NamespacesKey).
+			SetForceColdWritesEnabled(cfgParams.ForceColdWritesEnabled)
 		nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
 		serviceID := services.NewServiceID().
@@ -348,6 +350,10 @@ func (c Configuration) configureStatic(cfgParams ConfigurationParameters) (Confi
 				return emptyConfig, err
 			}
 			nsList = append(nsList, md)
+		}
+		// NB(bodu): Force cold writes to be enabled for all ns if specified.
+		if cfgParams.ForceColdWritesEnabled {
+			nsList = namespace.ForceColdWritesEnabledForMetadatas(nsList)
 		}
 
 		nsInitStatic := namespace.NewStaticInitializer(nsList)

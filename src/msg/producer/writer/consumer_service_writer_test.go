@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/msg/topic"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -47,7 +48,7 @@ import (
 func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	sid := services.NewServiceID().SetName("foo")
@@ -171,7 +172,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testi
 func TestConsumerServiceWriterWithSharedConsumerWithShardedPlacement(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	sid := services.NewServiceID().SetName("foo")
@@ -309,7 +310,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithShardedPlacement(t *testing.
 func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	sid := services.NewServiceID().SetName("foo")
@@ -450,7 +451,7 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 				return
 			}
 			serverEncoder := proto.NewEncoder(opts.EncoderOptions())
-			serverDecoder := proto.NewDecoder(conn, opts.DecoderOptions())
+			serverDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
 
 			var msg msgpb.Message
 			err = serverDecoder.Decode(&msg)
@@ -487,7 +488,7 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 func TestConsumerServiceWriterFilter(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	sid := services.NewServiceID().SetName("foo")
@@ -531,7 +532,7 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 func TestConsumerServiceWriterAllowInitValueErrorWithCreateWatchError(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	sid := services.NewServiceID().SetName("foo")
@@ -554,7 +555,7 @@ func TestConsumerServiceWriterAllowInitValueErrorWithCreateWatchError(t *testing
 func TestConsumerServiceWriterAllowInitValueErrorWithInitValueError(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	sid := services.NewServiceID().SetName("foo")
@@ -575,7 +576,7 @@ func TestConsumerServiceWriterAllowInitValueErrorWithInitValueError(t *testing.T
 func TestConsumerServiceWriterInitError(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	sid := services.NewServiceID().SetName("foo")
@@ -600,7 +601,7 @@ func TestConsumerServiceWriterInitError(t *testing.T) {
 func TestConsumerServiceWriterUpdateNonShardedPlacementWithReplicatedConsumptionType(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	sid := services.NewServiceID().SetName("foo")
@@ -625,7 +626,7 @@ func TestConsumerServiceWriterUpdateNonShardedPlacementWithReplicatedConsumption
 func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	sid := services.NewServiceID().SetName("foo")

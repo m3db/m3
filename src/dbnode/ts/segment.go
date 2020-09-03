@@ -25,6 +25,8 @@ import (
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/pool"
+
+	"github.com/m3db/stackadler32"
 )
 
 // Segment represents a binary blob consisting of two byte slices and
@@ -32,12 +34,12 @@ import (
 type Segment struct {
 	// Head is the head of the segment.
 	Head checked.Bytes
-
 	// Tail is the tail of the segment.
 	Tail checked.Bytes
-
 	// SegmentFlags declares whether to finalize when finalizing the segment.
 	Flags SegmentFlags
+	// checksum is the checksum for the segment.
+	checksum uint32
 }
 
 // SegmentFlags describes the option to finalize or not finalize
@@ -53,11 +55,29 @@ const (
 	FinalizeTail SegmentFlags = 1 << 2
 )
 
+// CalculateChecksum calculates and sets the 32-bit checksum for
+// this segment avoiding any allocations.
+func (s *Segment) CalculateChecksum() uint32 {
+	if s.checksum != 0 {
+		return s.checksum
+	}
+	d := stackadler32.NewDigest()
+	if s.Head != nil {
+		d = d.Update(s.Head.Bytes())
+	}
+	if s.Tail != nil {
+		d = d.Update(s.Tail.Bytes())
+	}
+	s.checksum = d.Sum32()
+	return s.checksum
+}
+
 // NewSegment will create a new segment and increment the refs to
 // head and tail if they are non-nil. When finalized the segment will
 // also finalize the byte slices if FinalizeBytes is passed.
 func NewSegment(
 	head, tail checked.Bytes,
+	checksum uint32,
 	flags SegmentFlags,
 ) Segment {
 	if head != nil {
@@ -67,9 +87,10 @@ func NewSegment(
 		tail.IncRef()
 	}
 	return Segment{
-		Head:  head,
-		Tail:  tail,
-		Flags: flags,
+		Head:     head,
+		Tail:     tail,
+		Flags:    flags,
+		checksum: checksum,
 	}
 }
 
@@ -162,5 +183,6 @@ func (s *Segment) Clone(pool pool.CheckedBytesPool) Segment {
 	}
 
 	// NB: new segment is always finalizeable.
-	return NewSegment(checkedHead, checkedTail, FinalizeHead&FinalizeTail)
+	return NewSegment(checkedHead, checkedTail,
+		s.CalculateChecksum(), FinalizeHead&FinalizeTail)
 }

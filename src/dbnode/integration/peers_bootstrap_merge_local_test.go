@@ -61,7 +61,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	require.NoError(t, err)
 
 	var (
-		opts = newTestOptions(t).
+		opts = NewTestOptions(t).
 			SetNamespaces([]namespace.Metadata{namesp}).
 			// Use TChannel clients for writing / reading because we want to target individual nodes at a time
 			// and not write/read all nodes in the cluster.
@@ -95,7 +95,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	defer closeFn()
 
 	// Write test data for first node, ensure to overflow past
-	now := setups[0].getNowFn()
+	now := setups[0].NowFn()()
 	cutoverAt := now.Add(retentionOpts.BufferFuture())
 	completeAt := now.Add(180 * time.Second)
 	blockSize := retentionOpts.BlockSize()
@@ -168,7 +168,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
+	require.NoError(t, setups[0].StartServer())
 
 	secondNodeIsUp := make(chan struct{})
 	doneWriting := make(chan struct{})
@@ -181,10 +181,10 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 		<-secondNodeIsUp
 
 		// Progress time before writing data directly to second node
-		setups[1].setNowFn(completeAt)
+		setups[1].SetNowFn(completeAt)
 
 		// Write data that "arrives" at the second node directly
-		err := setups[1].writeBatch(namesp.ID(),
+		err := setups[1].WriteBatch(namesp.ID(),
 			directWritesSeriesMaps[xtime.ToUnixNano(now)])
 		if err != nil {
 			panic(err)
@@ -194,7 +194,7 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 	}()
 
 	// Start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[1].startServer())
+	require.NoError(t, setups[1].StartServer())
 	log.Debug("servers are now up")
 
 	secondNodeIsUp <- struct{}{}
@@ -202,8 +202,8 @@ func testPeersBootstrapMergeLocal(t *testing.T, setTestOpts setTestOptions, upda
 
 	// Stop the servers
 	defer func() {
-		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
+		setups.parallel(func(s TestSetup) {
+			require.NoError(t, s.StopServer())
 		})
 		log.Debug("servers are now down")
 	}()

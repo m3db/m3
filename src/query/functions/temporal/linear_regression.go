@@ -49,11 +49,9 @@ type linearRegressionProcessor struct {
 
 func (l linearRegressionProcessor) initialize(
 	_ time.Duration,
-	controller *transform.Controller,
 	opts transform.Options,
 ) processor {
 	return &linearRegressionNode{
-		controller: controller,
 		timeSpec:   opts.TimeSpec(),
 		fn:         l.fn,
 		isDeriv:    l.isDeriv,
@@ -121,7 +119,6 @@ func NewLinearRegressionOp(
 }
 
 type linearRegressionNode struct {
-	controller *transform.Controller
 	timeSpec   transform.TimeSpec
 	fn         linearRegFn
 	isDeriv    bool

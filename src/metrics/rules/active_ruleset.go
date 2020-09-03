@@ -235,11 +235,11 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 			AggregationID:   snapshot.aggregationID,
 			StoragePolicies: snapshot.storagePolicies.Clone(),
 			DropPolicy:      snapshot.dropPolicy,
+			Tags:            snapshot.tags,
+			GraphitePrefix:  snapshot.graphitePrefix,
 		}
 		pipelines = append(pipelines, pipeline)
 	}
-
-	pipelines, _ = metadata.PipelineMetadatas(pipelines).ApplyOrRemoveDropPolicies()
 
 	// NB: The pipeline list should never be empty as the resulting pipelines are
 	// used to determine how the *existing* ID is aggregated and retained. If there
@@ -746,16 +746,6 @@ func (res *ruleMatchResults) merge(other ruleMatchResults) *ruleMatchResults {
 // unique de-duplicates the pipelines.
 func (res *ruleMatchResults) unique() *ruleMatchResults {
 	if len(res.pipelines) == 0 {
-		return res
-	}
-
-	// First resolve if drop policies are in effect
-	var (
-		evaluate        = metadata.PipelineMetadatas(res.pipelines)
-		dropApplyResult metadata.ApplyOrRemoveDropPoliciesResult
-	)
-	res.pipelines, dropApplyResult = evaluate.ApplyOrRemoveDropPolicies()
-	if dropApplyResult == metadata.AppliedEffectiveDropPolicyResult {
 		return res
 	}
 

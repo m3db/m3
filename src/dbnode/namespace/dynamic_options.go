@@ -40,10 +40,11 @@ var (
 )
 
 type dynamicOpts struct {
-	iopts         instrument.Options
-	csClient      client.Client
-	nsRegistryKey string
-	initTimeout   time.Duration
+	iopts                  instrument.Options
+	csClient               client.Client
+	nsRegistryKey          string
+	initTimeout            time.Duration
+	forceColdWritesEnabled bool
 }
 
 // NewDynamicOptions creates a new DynamicOptions
@@ -96,4 +97,14 @@ func (o *dynamicOpts) SetNamespaceRegistryKey(k string) DynamicOptions {
 
 func (o *dynamicOpts) NamespaceRegistryKey() string {
 	return o.nsRegistryKey
+}
+
+func (o *dynamicOpts) SetForceColdWritesEnabled(enabled bool) DynamicOptions {
+	opts := *o
+	opts.forceColdWritesEnabled = enabled
+	return &opts
+}
+
+func (o *dynamicOpts) ForceColdWritesEnabled() bool {
+	return o.forceColdWritesEnabled
 }

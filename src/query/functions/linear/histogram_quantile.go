@@ -133,13 +133,30 @@ func (b indexedBuckets) Less(i, j int) bool {
 
 type bucketedSeries map[string]indexedBuckets
 
-func gatherSeriesToBuckets(metas []block.SeriesMeta) bucketedSeries {
+type validSeriesBuckets []indexedBuckets
+
+func (b validSeriesBuckets) Len() int      { return len(b) }
+func (b validSeriesBuckets) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b validSeriesBuckets) Less(i, j int) bool {
+	if len(b[i].buckets) == 0 {
+		return false
+	}
+
+	if len(b[j].buckets) == 0 {
+		return true
+	}
+
+	// An arbitrarily chosen sort that guarantees deterministic results.
+	return b[i].buckets[0].idx < b[j].buckets[0].idx
+}
+
+func gatherSeriesToBuckets(metas []block.SeriesMeta) validSeriesBuckets {
 	bucketsForID := make(bucketedSeries, initIndexBucketLength)
 	for i, meta := range metas {
 		tags := meta.Tags
 		value, found := tags.Bucket()
 		if !found {
-			// This series does not have a bucket tag; drop it from the output.
+			// this series does not have a bucket tag; drop it from the output.
 			continue
 		}
 
@@ -151,43 +168,49 @@ func gatherSeriesToBuckets(metas []block.SeriesMeta) bucketedSeries {
 
 		excludeTags := [][]byte{tags.Opts.MetricName(), tags.Opts.BucketName()}
 		tagsWithoutKeys := tags.TagsWithoutKeys(excludeTags)
-		id := tagsWithoutKeys.ID()
+		id := string(tagsWithoutKeys.ID())
 		newBucket := indexedBucket{
 			upperBound: bound,
 			idx:        i,
 		}
 
-		if buckets, found := bucketsForID[string(id)]; !found {
-			// Add a single indexed bucket for this ID with the current index only.
+		if buckets, found := bucketsForID[id]; !found {
+			// add a single indexed bucket for this ID with the current index only.
 			newBuckets := make([]indexedBucket, 0, initIndexBucketLength)
 			newBuckets = append(newBuckets, newBucket)
-			bucketsForID[string(id)] = indexedBuckets{
+			bucketsForID[id] = indexedBuckets{
 				buckets: newBuckets,
 				tags:    tagsWithoutKeys,
 			}
 		} else {
 			buckets.buckets = append(buckets.buckets, newBucket)
-			bucketsForID[string(id)] = buckets
+			bucketsForID[id] = buckets
 		}
 	}
 
-	return bucketsForID
+	return sanitizeBuckets(bucketsForID)
 }
 
 // sanitize sorts the bucket maps by upper bound, dropping any series which
 // have less than two buckets, or any that do not have an upper bound of +Inf
-func sanitizeBuckets(bucketMap bucketedSeries) {
-	for k, buckets := range bucketMap {
+func sanitizeBuckets(bucketMap bucketedSeries) validSeriesBuckets {
+	validSeriesBuckets := make(validSeriesBuckets, 0, len(bucketMap))
+	for _, buckets := range bucketMap {
 		if len(buckets.buckets) < 2 {
-			delete(bucketMap, k)
+			continue
 		}
 
 		sort.Sort(buckets)
 		maxBound := buckets.buckets[len(buckets.buckets)-1].upperBound
 		if !math.IsInf(maxBound, 1) {
-			delete(bucketMap, k)
+			continue
 		}
+
+		validSeriesBuckets = append(validSeriesBuckets, buckets)
 	}
+
+	sort.Sort(validSeriesBuckets)
+	return validSeriesBuckets
 }
 
 func bucketQuantile(q float64, buckets []bucketValue) float64 {
@@ -257,34 +280,30 @@ func (n *histogramQuantileNode) ProcessBlock(
 
 	meta := b.Meta()
 	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
-	bucketedSeries := gatherSeriesToBuckets(seriesMetas)
+	seriesBuckets := gatherSeriesToBuckets(seriesMetas)
 
 	q := n.op.q
 	if q < 0 || q > 1 {
-		return processInvalidQuantile(queryCtx, q, bucketedSeries, meta, stepIter, n.controller)
+		return processInvalidQuantile(queryCtx, q, seriesBuckets, meta, stepIter, n.controller)
 	}
 
-	return processValidQuantile(queryCtx, q, bucketedSeries, meta, stepIter, n.controller)
+	return processValidQuantile(queryCtx, q, seriesBuckets, meta, stepIter, n.controller)
 }
 
 func setupBuilder(
 	queryCtx *models.QueryContext,
-	bucketedSeries bucketedSeries,
+	seriesBuckets validSeriesBuckets,
 	meta block.Metadata,
 	stepIter block.StepIter,
 	controller *transform.Controller,
 ) (block.Builder, error) {
-	metas := make([]block.SeriesMeta, len(bucketedSeries))
-	idx := 0
-	for _, v := range bucketedSeries {
-		metas[idx] = block.SeriesMeta{
+	metas := make([]block.SeriesMeta, 0, len(seriesBuckets))
+	for _, v := range seriesBuckets {
+		metas = append(metas, block.SeriesMeta{
 			Tags: v.tags,
-		}
-
-		idx++
+		})
 	}
 
-	meta.Tags, metas = utils.DedupeMetadata(metas, meta.Tags.Opts)
 	builder, err := controller.BlockBuilder(queryCtx, meta, metas)
 	if err != nil {
 		return nil, err
@@ -297,17 +316,29 @@ func setupBuilder(
 	return builder, nil
 }
 
+// Enforce monotonicity for binary search to work.
+// See https://github.com/prometheus/prometheus/commit/896f951e6846ce252d9d19fd4707a4110ceda5ee
+func ensureMonotonic(bucketValues []bucketValue) {
+	max := math.Inf(-1)
+	for i := range bucketValues {
+		switch {
+		case bucketValues[i].value >= max:
+			max = bucketValues[i].value
+		case bucketValues[i].value < max:
+			bucketValues[i].value = max
+		}
+	}
+}
+
 func processValidQuantile(
 	queryCtx *models.QueryContext,
 	q float64,
-	bucketedSeries bucketedSeries,
+	seriesBuckets validSeriesBuckets,
 	meta block.Metadata,
 	stepIter block.StepIter,
 	controller *transform.Controller,
 ) (block.Block, error) {
-	sanitizeBuckets(bucketedSeries)
-
-	builder, err := setupBuilder(queryCtx, bucketedSeries, meta, stepIter, controller)
+	builder, err := setupBuilder(queryCtx, seriesBuckets, meta, stepIter, controller)
 	if err != nil {
 		return nil, err
 	}
@@ -317,9 +348,8 @@ func processValidQuantile(
 		values := step.Values()
 		bucketValues := make([]bucketValue, 0, initIndexBucketLength)
 
-		aggregatedValues := make([]float64, len(bucketedSeries))
-		idx := 0
-		for _, b := range bucketedSeries {
+		aggregatedValues := make([]float64, 0, len(seriesBuckets))
+		for _, b := range seriesBuckets {
 			buckets := b.buckets
 			// clear previous bucket values.
 			bucketValues = bucketValues[:0]
@@ -336,8 +366,9 @@ func processValidQuantile(
 				}
 			}
 
-			aggregatedValues[idx] = bucketQuantile(q, bucketValues)
-			idx++
+			ensureMonotonic(bucketValues)
+
+			aggregatedValues = append(aggregatedValues, bucketQuantile(q, bucketValues))
 		}
 
 		if err := builder.AppendValues(index, aggregatedValues); err != nil {
@@ -355,12 +386,12 @@ func processValidQuantile(
 func processInvalidQuantile(
 	queryCtx *models.QueryContext,
 	q float64,
-	bucketedSeries bucketedSeries,
+	seriesBuckets validSeriesBuckets,
 	meta block.Metadata,
 	stepIter block.StepIter,
 	controller *transform.Controller,
 ) (block.Block, error) {
-	builder, err := setupBuilder(queryCtx, bucketedSeries, meta, stepIter, controller)
+	builder, err := setupBuilder(queryCtx, seriesBuckets, meta, stepIter, controller)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +404,7 @@ func processInvalidQuantile(
 	}
 
 	setValue := math.Inf(sign)
-	outValues := make([]float64, len(bucketedSeries))
+	outValues := make([]float64, len(seriesBuckets))
 	util.Memset(outValues, setValue)
 	for index := 0; stepIter.Next(); index++ {
 		if err := builder.AppendValues(index, outValues); err != nil {

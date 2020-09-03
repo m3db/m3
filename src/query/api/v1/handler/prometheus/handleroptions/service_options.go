@@ -26,7 +26,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/x/headers"
 )
 
 const (
@@ -100,13 +102,13 @@ type ServiceNameAndDefaults struct {
 // values.
 func NewServiceOptions(
 	service ServiceNameAndDefaults,
-	headers http.Header,
+	header http.Header,
 	m3AggOpts *M3AggServiceOptions,
 ) ServiceOptions {
 	opts := ServiceOptions{
 		ServiceName:        service.ServiceName,
-		ServiceEnvironment: DefaultServiceEnvironment,
-		ServiceZone:        DefaultServiceZone,
+		ServiceEnvironment: headers.DefaultServiceEnvironment,
+		ServiceZone:        headers.DefaultServiceZone,
 
 		DryRun: false,
 		Force:  false,
@@ -120,16 +122,16 @@ func NewServiceOptions(
 		opts = applyDefault(opts)
 	}
 
-	if v := strings.TrimSpace(headers.Get(HeaderClusterEnvironmentName)); v != "" {
+	if v := strings.TrimSpace(header.Get(headers.HeaderClusterEnvironmentName)); v != "" {
 		opts.ServiceEnvironment = v
 	}
-	if v := strings.TrimSpace(headers.Get(HeaderClusterZoneName)); v != "" {
+	if v := strings.TrimSpace(header.Get(headers.HeaderClusterZoneName)); v != "" {
 		opts.ServiceZone = v
 	}
-	if v := strings.TrimSpace(headers.Get(HeaderDryRun)); v == "true" {
+	if v := strings.TrimSpace(header.Get(headers.HeaderDryRun)); v == "true" {
 		opts.DryRun = true
 	}
-	if v := strings.TrimSpace(headers.Get(HeaderForce)); v == "true" {
+	if v := strings.TrimSpace(header.Get(headers.HeaderForce)); v == "true" {
 		opts.Force = true
 	}
 
@@ -167,6 +169,13 @@ func (opts *ServiceOptions) Validate() error {
 func (opts *ServiceOptions) ServiceID() services.ServiceID {
 	return services.NewServiceID().
 		SetName(opts.ServiceName).
+		SetEnvironment(opts.ServiceEnvironment).
+		SetZone(opts.ServiceZone)
+}
+
+// KVOverrideOptions constructs KV overrides from the current service options.
+func (opts *ServiceOptions) KVOverrideOptions() kv.OverrideOptions {
+	return kv.NewOverrideOptions().
 		SetEnvironment(opts.ServiceEnvironment).
 		SetZone(opts.ServiceZone)
 }

@@ -74,6 +74,7 @@ func (h *DocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set(xhttp.HeaderContentType, xhttp.ContentTypeHTMLUTF8)
 	w.Write(doc)
 }
 

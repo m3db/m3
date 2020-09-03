@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
@@ -31,21 +32,18 @@ var (
 	errDocNotFound = errors.New("doc not found")
 )
 
+var _ Reader = (*SliceReader)(nil)
+var _ index.DocRetriever = (*SliceReader)(nil)
+
 // SliceReader is a docs slice reader for use with documents
 // stored in memory.
 type SliceReader struct {
-	offset postings.ID
-	docs   []doc.Document
+	docs []doc.Document
 }
 
 // NewSliceReader returns a new docs slice reader.
-func NewSliceReader(offset postings.ID, docs []doc.Document) *SliceReader {
-	return &SliceReader{offset: offset, docs: docs}
-}
-
-// Base returns the postings ID base offset of the slice reader.
-func (r *SliceReader) Base() postings.ID {
-	return r.offset
+func NewSliceReader(docs []doc.Document) *SliceReader {
+	return &SliceReader{docs: docs}
 }
 
 // Len returns the number of documents in the slice reader.
@@ -55,10 +53,21 @@ func (r *SliceReader) Len() int {
 
 // Read returns a document from the docs slice reader.
 func (r *SliceReader) Read(id postings.ID) (doc.Document, error) {
-	idx := int(id - r.offset)
+	idx := int(id)
 	if idx < 0 || idx >= len(r.docs) {
 		return doc.Document{}, errDocNotFound
 	}
 
 	return r.docs[idx], nil
+}
+
+// Doc implements DocRetriever and reads the document with postings ID.
+func (r *SliceReader) Doc(id postings.ID) (doc.Document, error) {
+	return r.Read(id)
+}
+
+// Iter returns a docs iterator.
+func (r *SliceReader) Iter() index.IDDocIterator {
+	postingsIter := postings.NewRangeIterator(0, postings.ID(r.Len()))
+	return index.NewIDDocIterator(r, postingsIter)
 }

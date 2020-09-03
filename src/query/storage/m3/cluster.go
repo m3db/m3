@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 )
@@ -78,12 +78,12 @@ type ClusterNamespace interface {
 type ClusterNamespaceOptions struct {
 	// Note: Don't allow direct access, as we want to provide defaults
 	// and/or error if call to access a field is not relevant/correct.
-	attributes storage.Attributes
+	attributes storagemetadata.Attributes
 	downsample *ClusterNamespaceDownsampleOptions
 }
 
 // Attributes returns the storage attributes of the cluster namespace.
-func (o ClusterNamespaceOptions) Attributes() storage.Attributes {
+func (o ClusterNamespaceOptions) Attributes() storagemetadata.Attributes {
 	return o.attributes
 }
 
@@ -93,7 +93,7 @@ func (o ClusterNamespaceOptions) DownsampleOptions() (
 	ClusterNamespaceDownsampleOptions,
 	error,
 ) {
-	if o.attributes.MetricsType != storage.AggregatedMetricsType {
+	if o.attributes.MetricsType != storagemetadata.AggregatedMetricsType {
 		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
 	}
 	if o.downsample == nil {
@@ -136,7 +136,7 @@ func (a ClusterNamespacesByRetentionAsc) Less(i, j int) bool {
 func (n ClusterNamespaces) NumAggregatedClusterNamespaces() int {
 	count := 0
 	for _, namespace := range n {
-		if namespace.Options().Attributes().MetricsType == storage.AggregatedMetricsType {
+		if namespace.Options().Attributes().MetricsType == storagemetadata.AggregatedMetricsType {
 			count++
 		}
 	}
@@ -317,8 +317,8 @@ func newUnaggregatedClusterNamespace(
 	return &clusterNamespace{
 		namespaceID: ns,
 		options: ClusterNamespaceOptions{
-			attributes: storage.Attributes{
-				MetricsType: storage.UnaggregatedMetricsType,
+			attributes: storagemetadata.Attributes{
+				MetricsType: storagemetadata.UnaggregatedMetricsType,
 				Retention:   def.Retention,
 			},
 		},
@@ -339,8 +339,8 @@ func newAggregatedClusterNamespace(
 	return &clusterNamespace{
 		namespaceID: ns,
 		options: ClusterNamespaceOptions{
-			attributes: storage.Attributes{
-				MetricsType: storage.AggregatedMetricsType,
+			attributes: storagemetadata.Attributes{
+				MetricsType: storagemetadata.AggregatedMetricsType,
 				Retention:   def.Retention,
 				Resolution:  def.Resolution,
 			},

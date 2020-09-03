@@ -368,7 +368,7 @@ func TestPerSecond(t *testing.T) {
 		TestSeries{Name: "foo | perSecond", Data: []float64{nan, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0}},
 		TestSeries{Name: "foo | perSecond", Data: []float64{nan, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0}},
 		TestSeries{Name: "foo | perSecond", Data: []float64{nan, 1.0, 1.0, 1.0, 1.0, nan, 1.0, 1.0, 1.0, 1.0}},
-		TestSeries{Name: "foo | perSecond", Data: []float64{nan, nan, nan, nan, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0}},
+		TestSeries{Name: "foo | perSecond", Data: []float64{nan, nan, nan, nan, 1.0, nan, 1.0, 1.0, 1.0, 1.0}},
 		TestSeries{Name: "foo | perSecond", Data: []float64{nan, 1.0, 1.0, nan, nan, nan, 1.0, 1.0, 1.0, 1.0}},
 	}
 	input := ts.SeriesList{Values: inputSeries}

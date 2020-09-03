@@ -7,67 +7,29 @@ metrics:
   prometheus:
     onError: none
     handlerPath: /metrics
+    listenAddress: 0.0.0.0:6002
+    timerType: histogram
   sanitization: prometheus
   samplingRate: 1.0
   extended: none
+
+m3msg:
+  server:
+    listenAddress: 0.0.0.0:6000
+    retry:
+      maxBackoff: 10s
+      jitter: true
+  consumer:
+    messagePool:
+      size: 16384
+      watermark:
+        low: 0.2
+        high: 0.5
 
 http:
   listenAddress: 0.0.0.0:6001
   readTimeout: 60s
   writeTimeout: 60s
-
-rawtcp:
-  listenAddress: 0.0.0.0:6000
-  keepAliveEnabled: true
-  keepAlivePeriod: 1m
-  retry:
-    initialBackoff: 5ms
-    backoffFactor: 2.0
-    maxBackoff: 1s
-    forever: true
-    jitter: true
-  readBufferSize: 1440
-  msgpackIterator:
-    ignoreHigherVersion: false
-    readerBufferSize: 1440
-    largeFloatsSize: 1024
-    largeFloatsPool:
-      buckets:
-        - count: 1024
-          capacity: 2048
-        - count: 512
-          capacity: 4096
-        - count: 256
-          capacity: 8192
-        - count: 128
-          capacity: 16384
-        - count: 64
-          capacity: 32768
-        - count: 32
-          capacity: 65536
-      watermark:
-        low: 0.001
-        high: 0.002
-  protobufIterator:
-    initBufferSize: 1440
-    maxMessageSize: 50000000  # max message size is 50MB
-    bytesPool:
-      buckets:
-        - count: 1024
-          capacity: 2048
-        - count: 512
-          capacity: 4096
-        - count: 256
-          capacity: 8192
-        - count: 128
-          capacity: 16384
-        - count: 64
-          capacity: 32768
-        - count: 32
-          capacity: 65536
-      watermark:
-        low: 0.001
-        high: 0.002
 
 kvClient:
   etcd:
@@ -96,6 +58,7 @@ aggregator:
     envVarName: M3AGGREGATOR_HOST_ID
   instanceID:
     type: host_id
+  verboseErrors: true
   metricPrefix: ""
   counterPrefix: ""
   timerPrefix: ""
@@ -128,39 +91,24 @@ aggregator:
         - count: 1024
           capacity: 64
   client:
-    placementKV:
-      namespace: /placement
-      zone: embedded
-      environment: override_test_env
-    placementWatcher:
-      key: m3aggregator
-      initWatchTimeout: 15s
-    hashType: murmur32
-    shardCutoffLingerDuration: 1m
-    encoder:
-      initBufferSize: 100
-      maxMessageSize: 50000000
-      bytesPool:
-        buckets:
-          - capacity: 16
-            count: 10
-          - capacity: 32
-            count: 20
-        watermark:
-          low: 0.001
-          high: 0.01
-    flushSize: 1440
-    maxTimerBatchSize: 140
-    queueSize: 1000
-    queueDropType: oldest
-    connection:
-      connectionTimeout: 1s
-      connectionKeepAlive: true
-      writeTimeout: 1s
-      initReconnectThreshold: 2
-      maxReconnectThreshold: 5000
-      reconnectThresholdMultiplier: 2
-      maxReconnectDuration: 1m
+    type: m3msg
+    m3msg:
+      producer:
+        writer:
+          topicName: aggregator_ingest
+          topicServiceOverride:
+            zone: embedded
+            environment: override_test_env
+          placement:
+            isStaged: true
+          placementServiceOverride:
+            namespaces:
+              placement: /placement
+          messagePool:
+            size: 16384
+            watermark:
+              low: 0.2
+              high: 0.5
   placementManager:
     kvConfig:
       namespace: /placement
@@ -172,6 +120,7 @@ aggregator:
   hashType: murmur32
   bufferDurationBeforeShardCutover: 10m
   bufferDurationAfterShardCutoff: 10m
+  bufferDurationForFutureTimedMetric: 10m # Allow test to write into future.
   resignTimeout: 1m
   flushTimesManager:
     kvConfig:
@@ -237,36 +186,23 @@ aggregator:
           name: m3msg
           hashType: murmur32
           producer:
-            buffer:
-              maxBufferSize: 1000000000 # max buffer before m3msg start dropping data.
             writer:
               topicName: aggregated_metrics
               topicServiceOverride:
                 zone: embedded
                 environment: override_test_env
-              messageRetry:
-                initialBackoff: 1m
-                maxBackoff: 2m
-              messageQueueNewWritesScanInterval: 1s
-              ackErrorRetry:
-                initialBackoff: 2s
-                maxBackoff: 10s
-              connection:
-                dialTimeout: 5s
-                writeTimeout: 5s
-                retry:
-                  initialBackoff: 1s
-                  maxBackoff: 10s
-                flushInterval: 1s
-                writeBufferSize: 16384
-                readBufferSize: 256
+              messagePool:
+                size: 16384
+                watermark:
+                  low: 0.2
+                  high: 0.5
+  passthrough:
+    enabled: true
   forwarding:
-    maxSingleDelay: 5s
-  entryTTL: 6h
+    maxConstDelay: 1m # Need to add some buffer window, since timed metrics by default are delayed by 1min.
+  entryTTL: 1h
   entryCheckInterval: 10m
   maxTimerBatchSizePerWrite: 140
-  defaultStoragePolicies:
-    - 10s:2d
   maxNumCachedSourceSets: 2
   discardNaNAggregatedValues: true
   entryPool:

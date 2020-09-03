@@ -31,9 +31,9 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/protocol/proto"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -79,7 +79,7 @@ func TestSharedShardWriter(t *testing.T) {
 		cws,
 	)
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
@@ -163,7 +163,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 	)
 	require.Equal(t, 2, len(sw.messageWriters))
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
@@ -272,7 +272,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	require.Equal(t, 0, mw1.queue.Len())
 	require.Equal(t, 0, mw2.queue.Len())
 
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
@@ -309,7 +309,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	defer conn.Close()
 
 	serverEncoder := proto.NewEncoder(opts.EncoderOptions())
-	serverDecoder := proto.NewDecoder(conn, opts.DecoderOptions())
+	serverDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
 
 	var msg msgpb.Message
 	require.NoError(t, serverDecoder.Decode(&msg))

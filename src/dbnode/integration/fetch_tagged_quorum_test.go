@@ -60,7 +60,7 @@ func TestFetchTaggedQuorumNormalOnlyOneUp(t *testing.T) {
 	defer closeFn()
 
 	// fetch succeeds from one node
-	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[0].StartServer())
 	writeTagged(t, nodes[0])
 
 	testFetch.assertContainsTaggedResult(t,
@@ -86,8 +86,8 @@ func TestFetchTaggedQuorumNormalOnlyTwoUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
+	require.NoError(t, nodes[0].StartServer())
+	require.NoError(t, nodes[1].StartServer())
 	writeTagged(t, nodes[0], nodes[1])
 
 	// succeed to two nodes
@@ -113,9 +113,9 @@ func TestFetchTaggedQuorumNormalAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
-	require.NoError(t, nodes[2].startServer())
+	require.NoError(t, nodes[0].StartServer())
+	require.NoError(t, nodes[1].StartServer())
+	require.NoError(t, nodes[2].StartServer())
 	writeTagged(t, nodes...)
 
 	// succeed to all nodes
@@ -142,8 +142,8 @@ func TestFetchTaggedQuorumAddNodeOnlyLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[0].StartServer())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	writeTagged(t, nodes[0], nodes[3])
 
 	// No fetches succeed to available nodes
@@ -170,9 +170,9 @@ func TestFetchTaggedQuorumAddNodeOnlyOneNormalAndLeavingInitializingUp(t *testin
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[0].StartServer())
+	require.NoError(t, nodes[1].StartServer())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	writeTagged(t, nodes[0], nodes[1], nodes[3])
 
 	// fetches succeed to one available node
@@ -202,10 +202,10 @@ func TestFetchTaggedQuorumAddNodeAllUp(t *testing.T) {
 	defer closeFn()
 
 	// fetches succeed to one available node
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
-	require.NoError(t, nodes[2].startServer())
-	require.NoError(t, nodes[3].startServerDontWaitBootstrap())
+	require.NoError(t, nodes[0].StartServer())
+	require.NoError(t, nodes[1].StartServer())
+	require.NoError(t, nodes[2].StartServer())
+	require.NoError(t, nodes[3].StartServerDontWaitBootstrap())
 	writeTagged(t, nodes...)
 
 	testFetch.assertContainsTaggedResult(t, topology.ReadConsistencyLevelOne,
@@ -260,7 +260,7 @@ func makeMultiNodeSetup(
 	nspaces := []namespace.Metadata{md1, md2}
 	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, asyncInserts)
 	for _, node := range nodes {
-		node.opts = node.opts.SetNumShards(numShards)
+		node.SetOpts(node.Opts().SetNumShards(numShards))
 	}
 
 	clientopts := client.NewOptions().
@@ -291,13 +291,13 @@ func makeTestFetchTagged(
 		q, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 		require.NoError(t, err)
 
-		startTime := nodes[0].getNowFn()
+		startTime := nodes[0].NowFn()()
 		series, metadata, err := s.FetchTagged(testNamespaces[0],
 			index.Query{Query: q},
 			index.QueryOptions{
 				StartInclusive: startTime.Add(-time.Minute),
 				EndExclusive:   startTime.Add(time.Minute),
-				Limit:          100,
+				SeriesLimit:    100,
 			})
 		return series, metadata.Exhaustive, err
 	}
@@ -307,13 +307,13 @@ func makeTestFetchTagged(
 
 func writeTagged(
 	t *testing.T,
-	nodes ...*testSetup,
+	nodes ...TestSetup,
 ) {
 	ctx := context.NewContext()
 	defer ctx.BlockingClose()
 	for _, n := range nodes {
-		require.NoError(t, n.db.WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),
+		require.NoError(t, n.DB().WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),
 			ident.NewTagsIterator(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
-			n.getNowFn(), 42, xtime.Second, nil))
+			n.NowFn()(), 42, xtime.Second, nil))
 	}
 }

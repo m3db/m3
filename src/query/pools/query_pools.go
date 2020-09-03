@@ -23,9 +23,9 @@ package pools
 import (
 	"io"
 
-	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	xconfig "github.com/m3db/m3/src/x/config"
 	"github.com/m3db/m3/src/x/ident"
@@ -39,11 +39,32 @@ import (
 
 const (
 	// TODO: add capabilities to get this from configs
-	replicas                    = 1
-	iteratorPoolSize            = 65536
-	checkedBytesWrapperPoolSize = 65536
-	defaultIdentifierPoolSize   = 8192
-	defaultBucketCapacity       = 256
+	defaultReplicas                    = 3
+	defaultSeriesIteratorPoolSize      = 2 << 12 // ~8k
+	defaultCheckedBytesWrapperPoolSize = 2 << 12 // ~8k
+	defaultBucketCapacity              = 256
+	defaultPoolableConcurrentQueries   = 64
+	defaultPoolableSeriesPerQuery      = 4096
+	defaultSeriesReplicaReaderPoolSize = defaultPoolableConcurrentQueries * defaultPoolableSeriesPerQuery * defaultReplicas
+)
+
+var (
+	defaultSeriesIteratorsPoolBuckets = []pool.Bucket{
+		{
+			Capacity: defaultPoolableSeriesPerQuery,
+			Count:    defaultPoolableConcurrentQueries,
+		},
+	}
+	defaultSeriesIDBytesPoolBuckets = []pool.Bucket{
+		{
+			Capacity: 256, // Can pool IDs up to 256 in size with this bucket.
+			Count:    defaultPoolableSeriesPerQuery,
+		},
+		{
+			Capacity: 1024, // Can pool IDs up to 1024 in size with this bucket.
+			Count:    defaultPoolableSeriesPerQuery,
+		},
+	}
 )
 
 // BuildWorkerPools builds a worker pool
@@ -116,75 +137,128 @@ func (s sessionPools) TagDecoder() serialize.TagDecoderPool {
 	return s.tagDecoder
 }
 
-func buildBuckets() []pool.Bucket {
-	return []pool.Bucket{
-		{Capacity: defaultBucketCapacity, Count: defaultIdentifierPoolSize},
+// BuildIteratorPoolsOptions is a set of build iterator pools.
+type BuildIteratorPoolsOptions struct {
+	Replicas                    int
+	SeriesIteratorPoolSize      int
+	SeriesIteratorsPoolBuckets  []pool.Bucket
+	SeriesIDBytesPoolBuckets    []pool.Bucket
+	CheckedBytesWrapperPoolSize int
+}
+
+// ReplicasOrDefault returns the replicas or default.
+func (o BuildIteratorPoolsOptions) ReplicasOrDefault() int {
+	if o.Replicas <= 0 {
+		return defaultReplicas
 	}
+	return o.Replicas
+}
+
+// SeriesIteratorPoolSizeOrDefault returns the replicas or default.
+func (o BuildIteratorPoolsOptions) SeriesIteratorPoolSizeOrDefault() int {
+	if o.SeriesIteratorPoolSize <= 0 {
+		return defaultSeriesIteratorPoolSize
+	}
+	return o.SeriesIteratorPoolSize
+}
+
+// CheckedBytesWrapperPoolSizeOrDefault returns the checked bytes
+// wrapper pool size or default.
+func (o BuildIteratorPoolsOptions) CheckedBytesWrapperPoolSizeOrDefault() int {
+	if o.CheckedBytesWrapperPoolSize <= 0 {
+		return defaultCheckedBytesWrapperPoolSize
+	}
+	return o.CheckedBytesWrapperPoolSize
+}
+
+// SeriesIteratorsPoolBucketsOrDefault returns the series iterator pool
+// buckets or defaults.
+func (o BuildIteratorPoolsOptions) SeriesIteratorsPoolBucketsOrDefault() []pool.Bucket {
+	if len(o.SeriesIteratorsPoolBuckets) == 0 {
+		return defaultSeriesIteratorsPoolBuckets
+	}
+	return o.SeriesIteratorsPoolBuckets
+}
+
+// SeriesIDBytesPoolBucketsOrDefault returns the bytes pool buckets or defaults.
+func (o BuildIteratorPoolsOptions) SeriesIDBytesPoolBucketsOrDefault() []pool.Bucket {
+	if len(o.SeriesIDBytesPoolBuckets) == 0 {
+		return defaultSeriesIDBytesPoolBuckets
+	}
+	return o.SeriesIDBytesPoolBuckets
 }
 
 // BuildIteratorPools build iterator pools if they are unavailable from
 // m3db (e.g. if running standalone query)
-func BuildIteratorPools() encoding.IteratorPools {
+func BuildIteratorPools(
+	opts BuildIteratorPoolsOptions,
+) encoding.IteratorPools {
 	// TODO: add instrumentation options to these pools
 	pools := sessionPools{}
-	pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
-		pool.Bucket{
-			Capacity: replicas,
-			Count:    iteratorPoolSize,
-		},
-	})
+
+	defaultPerSeriesIteratorsBuckets := opts.SeriesIteratorsPoolBucketsOrDefault()
+
+	pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool(defaultPerSeriesIteratorsBuckets)
 	pools.multiReaderIteratorArray.Init()
 
-	size := replicas * iteratorPoolSize
-	poolOpts := pool.NewObjectPoolOptions().
-		SetSize(size)
-	pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(poolOpts)
-	encodingOpts := encoding.NewOptions()
-	readerIterAlloc := func(r io.Reader, _ namespace.SchemaDescr) encoding.ReaderIterator {
-		intOptimized := m3tsz.DefaultIntOptimizationEnabled
-		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
-	}
+	defaultPerSeriesPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.SeriesIteratorPoolSizeOrDefault())
 
-	pools.multiReaderIterator.Init(readerIterAlloc)
+	readerIteratorPoolPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.SeriesIteratorPoolSizeOrDefault() * opts.ReplicasOrDefault())
 
-	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(iteratorPoolSize)
-	pools.seriesIterator = encoding.NewSeriesIteratorPool(seriesIteratorPoolOpts)
+	readerIteratorPool := encoding.NewReaderIteratorPool(readerIteratorPoolPoolOpts)
+
+	encodingOpts := encoding.NewOptions().
+		SetReaderIteratorPool(readerIteratorPool)
+
+	readerIteratorPool.Init(func(r io.Reader, descr namespace.SchemaDescr) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+	})
+
+	pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(defaultPerSeriesPoolOpts)
+	pools.multiReaderIterator.Init(func(r io.Reader, s namespace.SchemaDescr) encoding.ReaderIterator {
+		iter := readerIteratorPool.Get()
+		iter.Reset(r, s)
+		return iter
+	})
+
+	pools.seriesIterator = encoding.NewSeriesIteratorPool(defaultPerSeriesPoolOpts)
 	pools.seriesIterator.Init()
 
-	pools.seriesIterators = encoding.NewMutableSeriesIteratorsPool(buildBuckets())
+	pools.seriesIterators = encoding.NewMutableSeriesIteratorsPool(defaultPerSeriesIteratorsBuckets)
 	pools.seriesIterators.Init()
 
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(checkedBytesWrapperPoolSize)
+		SetSize(opts.CheckedBytesWrapperPoolSizeOrDefault())
 	pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
 	pools.checkedBytesWrapper.Init()
 
 	pools.tagEncoder = serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
-		pool.NewObjectPoolOptions(),
-	)
+		defaultPerSeriesPoolOpts)
 	pools.tagEncoder.Init()
 
-	pools.tagDecoder = serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(),
-		pool.NewObjectPoolOptions(),
-	)
+	tagDecoderCheckBytesWrapperPoolSize := 0
+	tagDecoderOpts := serialize.NewTagDecoderOptions(serialize.TagDecoderOptionsConfig{
+		// We pass in a preallocated pool so use a zero sized pool in options init.
+		CheckBytesWrapperPoolSize: &tagDecoderCheckBytesWrapperPoolSize,
+	})
+	tagDecoderOpts = tagDecoderOpts.SetCheckedBytesWrapperPool(pools.checkedBytesWrapper)
+
+	pools.tagDecoder = serialize.NewTagDecoderPool(tagDecoderOpts, defaultPerSeriesPoolOpts)
 	pools.tagDecoder.Init()
 
-	bytesPool := pool.NewCheckedBytesPool(buildBuckets(), nil,
-		func(sizes []pool.Bucket) pool.BytesPool {
+	bytesPool := pool.NewCheckedBytesPool(opts.SeriesIDBytesPoolBucketsOrDefault(),
+		nil, func(sizes []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(sizes, nil)
 		})
 	bytesPool.Init()
 
-	idPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(defaultIdentifierPoolSize)
-
 	pools.id = ident.NewPool(bytesPool, ident.PoolOptions{
-		IDPoolOptions:           idPoolOpts,
-		TagsPoolOptions:         idPoolOpts,
-		TagsIteratorPoolOptions: idPoolOpts,
+		IDPoolOptions:           defaultPerSeriesPoolOpts,
+		TagsPoolOptions:         defaultPerSeriesPoolOpts,
+		TagsIteratorPoolOptions: defaultPerSeriesPoolOpts,
 	})
 
 	return pools

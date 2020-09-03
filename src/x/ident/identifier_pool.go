@@ -81,7 +81,7 @@ func NewPool(
 	})
 	p.tagArrayPool.Init()
 	p.itersPool.Init(func() interface{} {
-		return newTagSliceIter(Tags{}, p)
+		return newTagSliceIter(Tags{}, nil, p)
 	})
 
 	return p

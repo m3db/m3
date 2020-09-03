@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -42,17 +43,14 @@ import (
 var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
-	// errSeriesMatchUniqueIndexFailed is returned when MatchUniqueIndex is
-	// specified for a write but the value does not match the current series
-	// unique index.
-	errSeriesMatchUniqueIndexFailed = errors.New("series write failed due to unique index not matched")
-	// errSeriesMatchUniqueIndexInvalid is returned when MatchUniqueIndex is
-	// specified for a write but the current series unique index is invalid.
-	errSeriesMatchUniqueIndexInvalid = errors.New("series write failed due to unique index being invalid")
 
 	errSeriesAlreadyBootstrapped         = errors.New("series is already bootstrapped")
 	errSeriesNotBootstrapped             = errors.New("series is not yet bootstrapped")
 	errBlockStateSnapshotNotBootstrapped = errors.New("block state snapshot is not bootstrapped")
+
+	// Placeholder for a timeseries being bootstrapped which does not
+	// have access to the TS ID.
+	bootstrapWriteID = ident.StringID("bootstrap_timeseries")
 )
 
 type dbSeries struct {
@@ -60,12 +58,18 @@ type dbSeries struct {
 	opts Options
 
 	// NB(r): One should audit all places that access the
-	// series ID before changing ownership semantics (e.g.
+	// series metadata before changing ownership semantics (e.g.
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
+	// Note: The bytes that back "id ident.ID" are the same bytes
+	// that are behind the ID in "metadata doc.Document", the whole
+	// reason we keep an ident.ID on the series is since there's a lot
+	// of existing callsites that require the ID as an ident.ID.
 	id          ident.ID
-	tags        ident.Tags
+	metadata    doc.Document
 	uniqueIndex uint64
+
+	bootstrap dbSeriesBootstrap
 
 	buffer                      databaseBuffer
 	cachedBlocks                block.DatabaseSeriesBlocks
@@ -73,6 +77,14 @@ type dbSeries struct {
 	onRetrieveBlock             block.OnRetrieveBlock
 	blockOnEvictedFromWiredList block.OnEvictedFromWiredList
 	pool                        DatabaseSeriesPool
+}
+
+type dbSeriesBootstrap struct {
+	sync.Mutex
+
+	// buffer should be nil unless this series
+	// has taken bootstrap writes.
+	buffer databaseBuffer
 }
 
 // NewDatabaseSeries creates a new database series.
@@ -111,11 +123,11 @@ func (s *dbSeries) ID() ident.ID {
 	return id
 }
 
-func (s *dbSeries) Tags() ident.Tags {
+func (s *dbSeries) Metadata() doc.Document {
 	s.RLock()
-	tags := s.tags
+	metadata := s.metadata
 	s.RUnlock()
-	return tags
+	return metadata
 }
 
 func (s *dbSeries) UniqueIndex() uint64 {
@@ -144,10 +156,21 @@ func (s *dbSeries) Tick(blockStates ShardBlockStateSnapshot, nsCtx namespace.Con
 
 	s.Unlock()
 
-	if update.ActiveBlocks == 0 {
-		return r, ErrSeriesAllDatapointsExpired
+	if update.ActiveBlocks > 0 {
+		return r, nil
 	}
-	return r, nil
+
+	// Check if any bootstrap writes that hasn't been merged yet.
+	s.bootstrap.Lock()
+	unmergedBootstrapDatapoints := s.bootstrap.buffer != nil
+	s.bootstrap.Unlock()
+
+	if unmergedBootstrapDatapoints {
+		return r, nil
+	}
+
+	// Everything expired.
+	return r, ErrSeriesAllDatapointsExpired
 }
 
 type updateBlocksResult struct {
@@ -274,6 +297,13 @@ func (s *dbSeries) IsEmpty() bool {
 	return false
 }
 
+func (s *dbSeries) IsBufferEmptyAtBlockStart(blockStart time.Time) bool {
+	s.RLock()
+	bufferEmpty := s.buffer.IsEmptyAtBlockStart(blockStart)
+	s.RUnlock()
+	return bufferEmpty
+}
+
 func (s *dbSeries) NumActiveBlocks() int {
 	s.RLock()
 	value := s.cachedBlocks.Len() + s.buffer.Stats().wiredBlocks
@@ -288,26 +318,76 @@ func (s *dbSeries) Write(
 	unit xtime.Unit,
 	annotation []byte,
 	wOpts WriteOptions,
-) (bool, error) {
+) (bool, WriteType, error) {
+	if wOpts.BootstrapWrite {
+		// NB(r): If this is a bootstrap write we store this in a
+		// side buffer so that we don't need to take the series lock
+		// and contend with normal writes that are flowing into the DB
+		// while bootstrapping which can significantly interrupt
+		// write latency and cause entire DB to stall/degrade in performance.
+		return s.bootstrapWrite(ctx, timestamp, value, unit, annotation, wOpts)
+	}
+
 	s.Lock()
-	matchUniqueIndex := wOpts.MatchUniqueIndex
-	if matchUniqueIndex {
-		if s.uniqueIndex == 0 {
-			return false, errSeriesMatchUniqueIndexInvalid
+	written, writeType, err := s.buffer.Write(ctx, s.id, timestamp, value,
+		unit, annotation, wOpts)
+	s.Unlock()
+
+	return written, writeType, err
+}
+
+func (s *dbSeries) bootstrapWrite(
+	ctx context.Context,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+	wOpts WriteOptions,
+) (bool, WriteType, error) {
+	s.bootstrap.Lock()
+	defer s.bootstrap.Unlock()
+
+	if s.bootstrap.buffer == nil {
+		// Temporarily release bootstrap lock.
+		s.bootstrap.Unlock()
+
+		// Get reset opts.
+		resetOpts, err := s.bufferResetOpts()
+
+		// Re-lock bootstrap lock.
+		s.bootstrap.Lock()
+
+		if err != nil {
+			// Abort if failed to get buffer opts.
+			var writeType WriteType
+			return false, writeType, err
 		}
-		if s.uniqueIndex != wOpts.MatchUniqueIndexValue {
-			// NB(r): Match unique index allows for a caller to
-			// reliably take a reference to a series and call Write(...)
-			// later while keeping a direct reference to the series
-			// while the shard and namespace continues to own and manage
-			// the lifecycle of the series.
-			return false, errSeriesMatchUniqueIndexFailed
+
+		// If buffer still nil then set it.
+		if s.bootstrap.buffer == nil {
+			s.bootstrap.buffer = newDatabaseBuffer()
+			s.bootstrap.buffer.Reset(resetOpts)
 		}
 	}
 
-	wasWritten, err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wOpts)
-	s.Unlock()
-	return wasWritten, err
+	return s.bootstrap.buffer.Write(ctx, bootstrapWriteID, timestamp,
+		value, unit, annotation, wOpts)
+}
+
+func (s *dbSeries) bufferResetOpts() (databaseBufferResetOptions, error) {
+	// Grab series lock.
+	s.RLock()
+	defer s.RUnlock()
+
+	if s.id == nil {
+		// Not active, expired series.
+		return databaseBufferResetOptions{}, ErrSeriesAllDatapointsExpired
+	}
+
+	return databaseBufferResetOptions{
+		BlockRetriever: s.blockRetriever,
+		Options:        s.opts,
+	}, nil
 }
 
 func (s *dbSeries) ReadEncoded(
@@ -327,14 +407,14 @@ func (s *dbSeries) FetchBlocksForColdFlush(
 	start time.Time,
 	version int,
 	nsCtx namespace.Context,
-) ([]xio.BlockReader, error) {
+) (block.FetchBlockResult, error) {
 	// This needs a write lock because the version on underlying buckets need
 	// to be modified.
 	s.Lock()
-	br, err := s.buffer.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
+	result, err := s.buffer.FetchBlocksForColdFlush(ctx, start, version, nsCtx)
 	s.Unlock()
 
-	return br, err
+	return result, err
 }
 
 func (s *dbSeries) FetchBlocks(
@@ -379,7 +459,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 	// NB(r): Since ID and Tags are garbage collected we can safely
 	// return refs.
 	tagsIter := s.opts.IdentifierPool().TagsIterator()
-	tagsIter.Reset(s.tags)
+	tagsIter.ResetFields(s.metadata.Fields)
 	return block.NewFetchBlocksMetadataResult(s.id, tagsIter, res), nil
 }
 
@@ -528,7 +608,8 @@ func (s *dbSeries) WarmFlush(
 	// Need a write lock because the buffer WarmFlush method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
-	outcome, err := s.buffer.WarmFlush(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	outcome, err := s.buffer.WarmFlush(ctx, blockStart,
+		persist.NewMetadata(s.metadata), persistFn, nsCtx)
 	s.Unlock()
 	return outcome, err
 }
@@ -538,13 +619,14 @@ func (s *dbSeries) Snapshot(
 	blockStart time.Time,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
-) error {
+) (SnapshotResult, error) {
 	// Need a write lock because the buffer Snapshot method mutates
 	// state (by performing a pro-active merge).
 	s.Lock()
-	defer s.Unlock()
-
-	return s.buffer.Snapshot(ctx, blockStart, s.id, s.tags, persistFn, nsCtx)
+	result, err := s.buffer.Snapshot(ctx, blockStart,
+		persist.NewMetadata(s.metadata), persistFn, nsCtx)
+	s.Unlock()
+	return result, err
 }
 
 func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes {
@@ -554,13 +636,43 @@ func (s *dbSeries) ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapsh
 	return s.buffer.ColdFlushBlockStarts(blockStates.Snapshot)
 }
 
+func (s *dbSeries) Bootstrap(nsCtx namespace.Context) error {
+	// NB(r): Need to hold the lock the whole time since
+	// this needs to be consistent view for a tick to see.
+	s.Lock()
+	defer s.Unlock()
+
+	s.bootstrap.Lock()
+	bootstrapBuffer := s.bootstrap.buffer
+	s.bootstrap.buffer = nil
+	s.bootstrap.Unlock()
+
+	if bootstrapBuffer == nil {
+		return nil
+	}
+
+	// NB(r): Now bootstrapped need to move bootstrap writes to the
+	// normal series buffer to make them visible to DB.
+	// We store these bootstrap writes in a side buffer so that we don't
+	// need to take the series lock and contend with normal writes
+	// that flow into the DB while bootstrapping which can significantly
+	// interrupt write latency and cause entire DB to stall/degrade in performance.
+	return bootstrapBuffer.MoveTo(s.buffer, nsCtx)
+}
+
 func (s *dbSeries) Close() {
+	s.bootstrap.Lock()
+	if s.bootstrap.buffer != nil {
+		s.bootstrap.buffer = nil
+	}
+	s.bootstrap.Unlock()
+
 	s.Lock()
 	defer s.Unlock()
 
 	// See Reset() for why these aren't finalized.
 	s.id = nil
-	s.tags = ident.Tags{}
+	s.metadata = doc.Document{}
 	s.uniqueIndex = 0
 
 	switch s.opts.CachePolicy() {
@@ -604,11 +716,10 @@ func (s *dbSeries) Reset(opts DatabaseSeriesOptions) {
 	// The same goes for the series tags.
 	s.Lock()
 	s.id = opts.ID
-	s.tags = opts.Tags
+	s.metadata = opts.Metadata
 	s.uniqueIndex = opts.UniqueIndex
 	s.cachedBlocks.Reset()
 	s.buffer.Reset(databaseBufferResetOptions{
-		ID:             opts.ID,
 		BlockRetriever: opts.BlockRetriever,
 		Options:        opts.Options,
 	})

@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 )
 
 // Storage implements storage.Storage and provides methods to help
@@ -40,7 +41,7 @@ type Storage interface {
 	SetFetchResult(*storage.FetchResult, error)
 	SetFetchResults(...*storage.FetchResult)
 	SetSearchSeriesResult(*storage.SearchResults, error)
-	SetCompleteTagsResult(*storage.CompleteTagsResult, error)
+	SetCompleteTagsResult(*consolidators.CompleteTagsResult, error)
 	SetWriteResult(error)
 	SetFetchBlocksResult(block.Result, error)
 	SetCloseResult(error)
@@ -71,7 +72,7 @@ type mockStorage struct {
 		err    error
 	}
 	completeTagsResult struct {
-		result *storage.CompleteTagsResult
+		result *consolidators.CompleteTagsResult
 		err    error
 	}
 	closeResult struct {
@@ -133,7 +134,7 @@ func (s *mockStorage) SetFetchBlocksResult(result block.Result, err error) {
 	s.fetchBlocksResult.err = err
 }
 
-func (s *mockStorage) SetCompleteTagsResult(result *storage.CompleteTagsResult, err error) {
+func (s *mockStorage) SetCompleteTagsResult(result *consolidators.CompleteTagsResult, err error) {
 	s.Lock()
 	defer s.Unlock()
 	s.completeTagsResult.result = result
@@ -209,7 +210,7 @@ func (s *mockStorage) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	opts *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	s.RLock()
 	defer s.RUnlock()
 	s.lastFetchOptions = opts

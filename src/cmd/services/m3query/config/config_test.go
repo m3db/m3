@@ -65,43 +65,57 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	cfg := TagOptionsConfiguration{
 		MetricName: name,
 		Scheme:     models.TypeLegacy,
+		Filters: []TagFilter{
+			{Name: "foo", Values: []string{".", "abc"}},
+			{Name: "bar", Values: []string{".*"}},
+		},
 	}
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, opts)
 	assert.Equal(t, []byte(name), opts.MetricName())
+	filters := opts.Filters()
+	exNames := [][]byte{[]byte("foo"), []byte("bar")}
+	exVals := [][]string{{".", "abc"}, {".*"}}
+	require.Equal(t, 2, len(filters))
+	for i, f := range filters {
+		assert.Equal(t, exNames[i], f.Name)
+		for j, v := range f.Values {
+			assert.Equal(t, []byte(exVals[i][j]), v)
+		}
+	}
 }
 
-func TestLimitsConfiguration_AsLimitManagerOptions(t *testing.T) {
+func TestLimitsConfigurationAsLimitManagerOptions(t *testing.T) {
 	cases := []struct {
-		Input interface {
+		input interface {
 			AsLimitManagerOptions() cost.LimitManagerOptions
 		}
-		ExpectedDefault int64
+		expectedDefault int
 	}{{
-		Input: &PerQueryLimitsConfiguration{
+		input: &PerQueryLimitsConfiguration{
 			MaxFetchedDatapoints: 5,
 		},
-		ExpectedDefault: 5,
+		expectedDefault: 5,
 	}, {
-		Input: &GlobalLimitsConfiguration{
+		input: &GlobalLimitsConfiguration{
 			MaxFetchedDatapoints: 6,
 		},
-		ExpectedDefault: 6,
+		expectedDefault: 6,
 	}}
 
 	for _, tc := range cases {
-		t.Run(fmt.Sprintf("type_%T", tc.Input), func(t *testing.T) {
-			res := tc.Input.AsLimitManagerOptions()
+		t.Run(fmt.Sprintf("type_%T", tc.input), func(t *testing.T) {
+			res := tc.input.AsLimitManagerOptions()
 			assert.Equal(t, cost.Limit{
-				Threshold: cost.Cost(tc.ExpectedDefault),
+				Threshold: cost.Cost(tc.expectedDefault),
 				Enabled:   true,
 			}, res.DefaultLimit())
 		})
 	}
 }
 
-func TestLimitsConfiguration_MaxComputedDatapoints(t *testing.T) {
+func TestLimitsConfigurationMaxComputedDatapoints(t *testing.T) {
 	t.Run("uses PerQuery value if provided", func(t *testing.T) {
 		lc := &LimitsConfiguration{
 			DeprecatedMaxComputedDatapoints: 6,
@@ -110,7 +124,7 @@ func TestLimitsConfiguration_MaxComputedDatapoints(t *testing.T) {
 			},
 		}
 
-		assert.Equal(t, int64(5), lc.MaxComputedDatapoints())
+		assert.Equal(t, 5, lc.MaxComputedDatapoints())
 	})
 
 	t.Run("uses deprecated value if PerQuery not provided", func(t *testing.T) {
@@ -118,41 +132,41 @@ func TestLimitsConfiguration_MaxComputedDatapoints(t *testing.T) {
 			DeprecatedMaxComputedDatapoints: 6,
 		}
 
-		assert.Equal(t, int64(6), lc.MaxComputedDatapoints())
+		assert.Equal(t, 6, lc.MaxComputedDatapoints())
 	})
 }
 
 func TestToLimitManagerOptions(t *testing.T) {
 	cases := []struct {
-		Name          string
-		Input         int64
-		ExpectedLimit cost.Limit
+		name          string
+		input         int
+		expectedLimit cost.Limit
 	}{{
-		Name:  "negative is disabled",
-		Input: -5,
-		ExpectedLimit: cost.Limit{
+		name:  "negative is disabled",
+		input: -5,
+		expectedLimit: cost.Limit{
 			Threshold: cost.Cost(-5),
 			Enabled:   false,
 		},
 	}, {
-		Name:  "zero is disabled",
-		Input: 0,
-		ExpectedLimit: cost.Limit{
+		name:  "zero is disabled",
+		input: 0,
+		expectedLimit: cost.Limit{
 			Threshold: cost.Cost(0),
 			Enabled:   false,
 		},
 	}, {
-		Name:  "positive is enabled",
-		Input: 5,
-		ExpectedLimit: cost.Limit{
+		name:  "positive is enabled",
+		input: 5,
+		expectedLimit: cost.Limit{
 			Threshold: cost.Cost(5),
 			Enabled:   true,
 		},
 	}}
 
 	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			assert.Equal(t, tc.ExpectedLimit, toLimitManagerOptions(tc.Input).DefaultLimit())
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expectedLimit, toLimitManagerOptions(tc.input).DefaultLimit())
 		})
 	}
 }
@@ -185,25 +199,25 @@ func TestConfigValidation(t *testing.T) {
 
 	// limits configuration
 	limitsCfgCases := []struct {
-		Name  string
-		Limit int64
+		name  string
+		limit int
 	}{{
-		Name:  "empty LimitsConfiguration is valid (implies disabled)",
-		Limit: 0,
+		name:  "empty LimitsConfiguration is valid (implies disabled)",
+		limit: 0,
 	}, {
-		Name:  "LimitsConfiguration with positive limit is valid",
-		Limit: 5,
+		name:  "LimitsConfiguration with positive limit is valid",
+		limit: 5,
 	}, {}, {
-		Name:  "LimitsConfiguration with negative limit is valid (implies disabled)",
-		Limit: -5,
+		name:  "LimitsConfiguration with negative limit is valid (implies disabled)",
+		limit: -5,
 	}}
 
 	for _, tc := range limitsCfgCases {
-		t.Run(tc.Name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			cfg := baseCfg(t)
 			cfg.Limits = LimitsConfiguration{
 				PerQuery: PerQueryLimitsConfiguration{
-					PrivateMaxComputedDatapoints: tc.Limit,
+					PrivateMaxComputedDatapoints: tc.limit,
 				}}
 
 			assert.NoError(t, validator.Validate(cfg))

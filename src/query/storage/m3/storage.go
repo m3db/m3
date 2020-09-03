@@ -28,11 +28,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
+	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	"github.com/m3db/m3/src/query/tracepoint"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
@@ -50,25 +53,6 @@ var (
 		" aggregated and unaggregated namespace lookup disabled")
 	errNoNamespacesConfigured = goerrors.New("no namespaces configured")
 )
-
-type queryFanoutType uint
-
-const (
-	namespaceInvalid queryFanoutType = iota
-	namespaceCoversAllQueryRange
-	namespaceCoversPartialQueryRange
-)
-
-func (t queryFanoutType) String() string {
-	switch t {
-	case namespaceCoversAllQueryRange:
-		return "coversAllQueryRange"
-	case namespaceCoversPartialQueryRange:
-		return "coversPartialQueryRange"
-	default:
-		return "unknown"
-	}
-}
 
 type m3storage struct {
 	clusters Clusters
@@ -108,7 +92,8 @@ func (s *m3storage) FetchProm(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (storage.PromResult, error) {
-	accumulator, err := s.fetchCompressed(ctx, query, options)
+	queryOptions := storage.FetchOptionsToM3Options(options, query)
+	accumulator, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
 		return storage.PromResult{}, err
 	}
@@ -120,9 +105,8 @@ func (s *m3storage) FetchProm(
 	}
 
 	fetchResult, err := storage.SeriesIteratorsToPromResult(
-		result.SeriesIterators,
+		result,
 		s.opts.ReadWorkerPool(),
-		result.Metadata,
 		options.Enforcer,
 		s.opts.TagOptions(),
 	)
@@ -137,7 +121,7 @@ func (s *m3storage) FetchProm(
 // FetchResultToBlockResult converts an encoded SeriesIterator fetch result
 // into blocks.
 func FetchResultToBlockResult(
-	result SeriesFetchResult,
+	result consolidators.SeriesFetchResult,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 	opts m3db.Options,
@@ -161,9 +145,8 @@ func FetchResultToBlockResult(
 	}
 
 	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		result.SeriesIterators,
+		result,
 		bounds,
-		result.Metadata,
 		opts,
 	)
 
@@ -202,10 +185,11 @@ func (s *m3storage) FetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (SeriesFetchResult, Cleanup, error) {
-	accumulator, err := s.fetchCompressed(ctx, query, options)
+) (consolidators.SeriesFetchResult, Cleanup, error) {
+	queryOptions := storage.FetchOptionsToM3Options(options, query)
+	accumulator, err := s.fetchCompressed(ctx, query, options, queryOptions)
 	if err != nil {
-		return SeriesFetchResult{
+		return consolidators.SeriesFetchResult{
 			Metadata: block.NewResultMetadata(),
 		}, noop, err
 	}
@@ -214,6 +198,24 @@ func (s *m3storage) FetchCompressed(
 	if err != nil {
 		accumulator.Close()
 		return result, noop, err
+	}
+
+	if processor := s.opts.SeriesIteratorProcessor(); processor != nil {
+		_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
+			tracepoint.FetchCompressedInspectSeries)
+		iters := result.SeriesIterators()
+		if err := processor.InspectSeries(ctx, iters); err != nil {
+			s.logger.Error("error inspecting series", zap.Error(err))
+		}
+		if sampled {
+			span.LogFields(
+				log.String("query", query.Raw),
+				log.String("start", query.Start.String()),
+				log.String("end", query.End.String()),
+				log.String("interval", query.Interval.String()),
+			)
+		}
+		span.Finish()
 	}
 
 	if options.IncludeResolution {
@@ -233,7 +235,8 @@ func (s *m3storage) fetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (MultiFetchResult, error) {
+	queryOptions index.QueryOptions,
+) (consolidators.MultiFetchResult, error) {
 	if err := options.BlockType.Validate(); err != nil {
 		// This is an invariant error; should not be able to get to here.
 		return nil, instrument.InvariantErrorf("invalid block type on "+
@@ -268,10 +271,17 @@ func (s *m3storage) fetchCompressed(
 		return nil, err
 	}
 
-	debugLog := s.logger.Check(zapcore.DebugLevel,
-		"query resolved cluster namespace, will use most granular per result")
-	if debugLog != nil {
+	if s.logger.Core().Enabled(zapcore.DebugLevel) {
 		for _, n := range namespaces {
+			// NB(r): Need to perform log on inner loop, cannot reuse a
+			// checked entry returned from logger.Check(...).
+			// Will see: "Unsafe CheckedEntry re-use near Entry ..." otherwise.
+			debugLog := s.logger.Check(zapcore.DebugLevel,
+				"query resolved cluster namespace, will use most granular per result")
+			if debugLog == nil {
+				continue
+			}
+
 			debugLog.Write(zap.String("query", query.Raw),
 				zap.String("m3query", m3query.String()),
 				zap.Time("start", query.Start),
@@ -281,15 +291,11 @@ func (s *m3storage) fetchCompressed(
 				zap.String("type", n.Options().Attributes().MetricsType.String()),
 				zap.String("retention", n.Options().Attributes().Retention.String()),
 				zap.String("resolution", n.Options().Attributes().Resolution.String()),
-				zap.Bool("remote", options.Remote),
-			)
+				zap.Bool("remote", options.Remote))
 		}
 	}
 
-	var (
-		opts = storage.FetchOptionsToM3Options(options, query)
-		wg   sync.WaitGroup
-	)
+	var wg sync.WaitGroup
 	if len(namespaces) == 0 {
 		return nil, errNoNamespacesConfigured
 	}
@@ -299,18 +305,21 @@ func (s *m3storage) fetchCompressed(
 		return nil, fmt.Errorf("unable to retrieve iterator pools: %v", err)
 	}
 
-	result := newMultiFetchResult(fanout, pools)
+	matchOpts := s.opts.SeriesConsolidationMatchOptions()
+	tagOpts := s.opts.TagOptions()
+	result := consolidators.NewMultiFetchResult(fanout, pools, matchOpts, tagOpts)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
 				tracepoint.FetchCompressedFetchTagged)
 			defer span.Finish()
 
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
-			iters, metadata, err := session.FetchTagged(namespaceID, m3query, opts)
+			iters, metadata, err := session.FetchTagged(namespaceID, m3query, queryOptions)
 			if err == nil && sampled {
 				span.LogFields(
 					log.String("namespace", namespaceID.String()),
@@ -323,15 +332,9 @@ func (s *m3storage) fetchCompressed(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
-			fetchResult := SeriesFetchResult{
-				SeriesIterators: iters,
-				Metadata:        blockMeta,
-			}
-
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
-			result.Add(fetchResult, namespace.Options().Attributes(), err)
-			wg.Done()
+			result.Add(iters, blockMeta, namespace.Options().Attributes(), err)
 		}()
 	}
 
@@ -380,7 +383,7 @@ func (s *m3storage) CompleteTagsCompressed(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	return s.CompleteTags(ctx, query, options)
 }
 
@@ -388,7 +391,7 @@ func (s *m3storage) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (*consolidators.CompleteTagsResult, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
@@ -409,7 +412,8 @@ func (s *m3storage) CompleteTags(
 	var (
 		nameOnly        = query.CompleteNameOnly
 		namespaces      = s.clusters.ClusterNamespaces()
-		accumulatedTags = storage.NewCompleteTagsResultBuilder(nameOnly)
+		tagOpts         = s.opts.TagOptions()
+		accumulatedTags = consolidators.NewCompleteTagsResultBuilder(nameOnly, tagOpts)
 		multiErr        syncMultiErrs
 		wg              sync.WaitGroup
 	)
@@ -480,7 +484,7 @@ func (s *m3storage) CompleteTags(
 			aggIterators = append(aggIterators, aggTagIter)
 			mu.Unlock()
 
-			completedTags := make([]storage.CompletedTag, 0, aggTagIter.Remaining())
+			completedTags := make([]consolidators.CompletedTag, 0, aggTagIter.Remaining())
 			for aggTagIter.Next() {
 				name, values := aggTagIter.Current()
 				tagValues := make([][]byte, 0, values.Remaining())
@@ -493,7 +497,7 @@ func (s *m3storage) CompleteTags(
 					return
 				}
 
-				completedTags = append(completedTags, storage.CompletedTag{
+				completedTags = append(completedTags, consolidators.CompletedTag{
 					Name:   name.Bytes(),
 					Values: tagValues,
 				})
@@ -506,7 +510,7 @@ func (s *m3storage) CompleteTags(
 
 			blockMeta := block.NewResultMetadata()
 			blockMeta.Exhaustive = metadata.Exhaustive
-			result := &storage.CompleteTagsResult{
+			result := &consolidators.CompleteTagsResult{
 				CompleteNameOnly: query.CompleteNameOnly,
 				CompletedTags:    completedTags,
 				Metadata:         blockMeta,
@@ -531,9 +535,9 @@ func (s *m3storage) SearchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (TagResult, Cleanup, error) {
+) (consolidators.TagResult, Cleanup, error) {
 	// Check if the query was interrupted.
-	tagResult := TagResult{
+	tagResult := consolidators.TagResult{
 		Metadata: block.NewResultMetadata(),
 	}
 
@@ -551,7 +555,7 @@ func (s *m3storage) SearchCompressed(
 	var (
 		namespaces = s.clusters.ClusterNamespaces()
 		m3opts     = storage.FetchOptionsToM3Options(options, query)
-		result     = NewMultiFetchTagsResult()
+		result     = consolidators.NewMultiFetchTagsResult(s.opts.TagOptions())
 		wg         sync.WaitGroup
 	)
 
@@ -622,19 +626,20 @@ func (s *m3storage) Write(
 	var (
 		// TODO: Pool this once an ident pool is setup. We will have
 		// to stop calling NoFinalize() below if we do that.
-		idBuf = query.Tags.ID()
-		id    = ident.BytesID(idBuf)
+		tags       = query.Tags()
+		datapoints = query.Datapoints()
+		idBuf      = tags.ID()
+		id         = ident.BytesID(idBuf)
 	)
 	// Set id to NoFinalize to avoid cloning it in write operations
 	id.NoFinalize()
-	tagIterator := storage.TagsToIdentTagIterator(query.Tags)
+	tagIterator := storage.TagsToIdentTagIterator(tags)
 
-	if len(query.Datapoints) == 1 {
+	if len(datapoints) == 1 {
 		// Special case single datapoint because it is common and we
 		// can avoid the overhead of a waitgroup, goroutine, multierr,
 		// iterator duplication etc.
-		return s.writeSingle(
-			ctx, query, query.Datapoints[0], id, tagIterator)
+		return s.writeSingle(ctx, query, datapoints[0], id, tagIterator)
 	}
 
 	var (
@@ -642,7 +647,7 @@ func (s *m3storage) Write(
 		multiErr syncMultiErrs
 	)
 
-	for _, datapoint := range query.Datapoints {
+	for _, datapoint := range datapoints {
 		tagIter := tagIterator.Duplicate()
 		// capture var
 		datapoint := datapoint
@@ -681,11 +686,11 @@ func (s *m3storage) writeSingle(
 		err       error
 	)
 
-	attributes := query.Attributes
+	attributes := query.Attributes()
 	switch attributes.MetricsType {
-	case storage.UnaggregatedMetricsType:
+	case storagemetadata.UnaggregatedMetricsType:
 		namespace = s.clusters.UnaggregatedClusterNamespace()
-	case storage.AggregatedMetricsType:
+	case storagemetadata.AggregatedMetricsType:
 		attrs := RetentionResolution{
 			Retention:  attributes.Retention,
 			Resolution: attributes.Resolution,
@@ -708,5 +713,5 @@ func (s *m3storage) writeSingle(
 	namespaceID := namespace.NamespaceID()
 	session := namespace.Session()
 	return session.WriteTagged(namespaceID, identID, iterator,
-		datapoint.Timestamp, datapoint.Value, query.Unit, query.Annotation)
+		datapoint.Timestamp, datapoint.Value, query.Unit(), query.Annotation())
 }

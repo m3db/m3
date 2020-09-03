@@ -47,12 +47,12 @@ const (
 // InitHandler is the handler for topic inits.
 type InitHandler Handler
 
-// NewInitHandler returns a new instance of InitHandler.
-func NewInitHandler(
+// newInitHandler returns a new instance of InitHandler.
+func newInitHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) *InitHandler {
+) http.Handler {
 	return &InitHandler{
 		client:         client,
 		cfg:            cfg,

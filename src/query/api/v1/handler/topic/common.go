@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -81,16 +81,19 @@ func RegisterRoutes(
 	}
 
 	r.HandleFunc(InitURL,
-		wrapped(NewInitHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		wrapped(newInitHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(InitHTTPMethod)
 	r.HandleFunc(GetURL,
-		wrapped(NewGetHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		wrapped(newGetHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(GetHTTPMethod)
 	r.HandleFunc(AddURL,
-		wrapped(NewAddHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		wrapped(newAddHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(AddHTTPMethod)
+	r.HandleFunc(UpdateURL,
+		wrapped(newUpdateHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		Methods(UpdateHTTPMethod)
 	r.HandleFunc(DeleteURL,
-		wrapped(NewDeleteHandler(client, cfg, instrumentOpts)).ServeHTTP).
+		wrapped(newDeleteHandler(client, cfg, instrumentOpts)).ServeHTTP).
 		Methods(DeleteHTTPMethod)
 }
 

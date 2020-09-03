@@ -1,16 +1,221 @@
 # Changelog
 
-# 0.15.0-rc.1
+# 0.15.14
 
 ## Features
 
+- **M3Query**: Add movingSum, movingMax, movingMin Graphite functions ([#2570](https://github.com/m3db/m3/pull/2570))
+- **M3Query**: Add aliasByTags Graphite function ([#2626](https://github.com/m3db/m3/pull/2626))
+- **M3Query**: Add exponentialMovingAverage Graphite function ([#2622](https://github.com/m3db/m3/pull/2622))
+- **M3Query**: Add timeSlice Graphite function ([#2581](https://github.com/m3db/m3/pull/2581))
+- **M3Query**: Add delay Graphite function ([#2567](https://github.com/m3db/m3/pull/2567))
+- **M3Query**: Add aggregateWithWildcards Graphite function ([#2582](https://github.com/m3db/m3/pull/2582))
+- **M3Query**: Add groupByNodes Graphite function ([#2579](https://github.com/m3db/m3/pull/2579))
+- **M3Coordinator**: Allow using the placement set API for creating new placements as well as upserting existing placements ([#2625](https://github.com/m3db/m3/pull/2625))
+- **M3DB**: Add bootstrap time migration config which supports seamless backwards and forwards compatible fileset upgrades ([#2521](https://github.com/m3db/m3/pull/2521))
+
+# 0.15.13
+
+## Bug Fixes
+
+- **M3DB**: Fix case insensitive regexp modifiers (?i) implementation for metrics selector ([#2564](https://github.com/m3db/m3/pull/2564))
+
+## Misc
+
+- **M3DB**: Expose stream batch client options to config ([#2576](https://github.com/m3db/m3/pull/2576))
+- **M3Query**: Metrics visibility and ability to limit number of encoders per block ([#2516](https://github.com/m3db/m3/pull/2516))
+
+# 0.15.12
+
+## Bug Fixes
+
+- **M3Query**: Fix to Graphite movingMedian and movingAverage functions that could skip data in certain cases or cause an out of bounds error after recovery ([#2549](https://github.com/m3db/m3/pull/2549))
+- **M3Coordinator**: Fix a Graphite carbon ingest tag lifecycle bug that could cause duplicate tags ([#2549](https://github.com/m3db/m3/pull/2549))
+
+# 0.15.11
+
+## Features
+
+- **M3Coordinator**: Support for remapping rules and provide tags that are auto-appended to metrics when aggregations are applied ([#2414](https://github.com/m3db/m3/pull/2414))
+
+## Bug Fixes
+
+- **M3DB**: Extend lifetime of compactable index segments for aggregate queries ([#2550](https://github.com/m3db/m3/pull/2550))
+
+# 0.15.10
+
+## Features
+
+- **M3DB**: Add migration task for filesets from v1.0 to v1.1 ([#2520](https://github.com/m3db/m3/pull/2520))
+
+## Bug Fixes
+
+- **M3DB**: Fix enqueue readers info file reading ([#2546](https://github.com/m3db/m3/pull/2546))
+
+## Documentation
+
+- **All**: Fix buildkite mkdocs script ([#2538](https://github.com/m3db/m3/pull/2538))
+
+# 0.15.9
+
+## Performance
+
+- **M3DB**: Background cold flush process to no longer block data snapshotting or commit log rotation ([#2508](https://github.com/m3db/m3/pull/2508))
+- **M3DB**: Avoid sorting index entries when reading data filesets during bootstrap when not required ([#2533](https://github.com/m3db/m3/pull/2533))
+
+## Bug Fixes
+
+- **M3Coordinator**: Respect M3Cluster headers in namespace GET ([#2518](https://github.com/m3db/m3/pull/#2518))
+
+## Documentation
+
+- **M3Aggregator**: Add M3Aggregator documentation ([#1741](https://github.com/m3db/m3/pull/1741), [#2529](https://github.com/m3db/m3/pull/2529))
+- **M3DB**: Bootstrapper documentation fixes ([#2510](https://github.com/m3db/m3/pull/2510))
+- **All**: Update mkdocs ([#2524](https://github.com/m3db/m3/pull/2524), [#2527](https://github.com/m3db/m3/pull/2527))
+- **All**: Add M3 meetup recordings ([#2495](https://github.com/m3db/m3/pull/2524), [#2527](https://github.com/m3db/m3/pull/2495))
+- **All**: Update Twitter link ([#2530](https://github.com/m3db/m3/pull/2530))
+- **All**: Fix spelling in FAQ ([#2448](https://github.com/m3db/m3/pull/2448))
+
+## Misc
+
+- **M3DB**: Add bootstrap migration config and options ([#2519](https://github.com/m3db/m3/pull/2519))
+
+# 0.15.8
+
+## Misc
+
+- **M3DB**: Pause rollout of background cold flush process by revert until further testing ([6830a8cb4](https://github.com/m3db/m3/commit/6830a8cb4))
+
+# 0.15.7
+
+## Performance
+
+- **M3DB**: Background cold flush process to no longer block data snapshotting or commit log rotation ([#2460](https://github.com/m3db/m3/pull/2460))
+- **M3DB**: Validate individual index entries on decode instead of entire file on open, to further improve bootstrap speed ([#2468](https://github.com/m3db/m3/pull/2468))
+
+## Bug Fixes
+
+- **M3DB**: Strict JSON unmarshal (disallow unknown fields) for raw HTTP/JSON DB node APIs ([#2490](https://github.com/m3db/m3/pull/2490))
+- **M3Query**: Fix to regex selectors with leading wildcard ([#2505](https://github.com/m3db/m3/pull/#2505))
+
+## Documentation
+
+- **All**: Links to M3 meetup recordings ([#2494](https://github.com/m3db/m3/pull/2494))
+
+# 0.15.6
+
+## Features
+
+- **M3DB**: Add per-namespace indexing runtime options to define concurrency weighted to indexing ([#2446](https://github.com/m3db/m3/pull/2446))
+
+## Performance
+
+- **M3DB**: Faster bootstrapping with deferred index checksum and significantly lower memory bump at block rotation ([#2446](https://github.com/m3db/m3/pull/2446))
+- **M3DB**: Faster series aggregate metadata queries by intersecting postings term results with resolved query postings list ([#2441](https://github.com/m3db/m3/pull/2441))
+
+## Bug Fixes
+
+- **M3Query**: Fix for label matching behavior not the same as regular Prometheus for when label value is ".+" or ".*" ([#2479](https://github.com/m3db/m3/pull/2479))
+- **M3Query**: Special case when request from Go process such as Prometheus Go client library for searching series metadata using Go min/max UTC values ([#2487](https://github.com/m3db/m3/pull/2487))
+- **M3Query**: Auto-detect querying for entire retention time range ([#2483](https://github.com/m3db/m3/pull/2483))
+- **M3Query**: Fix for Graphite query for metric with single identifier and no dot separated elements ([#2450](https://github.com/m3db/m3/pull/2450))
+
+## Documentation
+
+- **M3Coordinator**: Add rollup rules example documentation ([#2461](https://github.com/m3db/m3/pull/2461), [#2462](https://github.com/m3db/m3/pull/2462))
+
+## Misc
+
+- **M3DB**: Expose cluster total shards and replicas as metrics ([#2452](https://github.com/m3db/m3/pull/2452))
+
+# 0.15.5
+
+## Documentation
+
+- **All**: Minor documentation fixes ([#2438](https://github.com/m3db/m3/pull/2438))
+- **M3Query**: Add M3-Restrict-By-Tags-JSON example ([#2437](https://github.com/m3db/m3/pull/2437))
+
+## Misc
+
+- **M3DB**: Add continuous performance profiler that conditionally triggers with RPC endpoint ([#2416](https://github.com/m3db/m3/pull/2416))
+
+# 0.15.4
+
+## Features
+
+- **M3DB**: Performance increases for block rotation by streamlining indexing lock contention ([#2423](https://github.com/m3db/m3/pull/2423))
+- **M3DB**: Zero-copy of ID and fields on series index metadata re-indexing ([#2423](https://github.com/m3db/m3/pull/2423))
+- **M3Coordinator**: Add ability to restrict and block incoming series based on tag matchers ([#2430](https://github.com/m3db/m3/pull/2430))
+
+## Bug Fixes
+
+- **M3DB**: Fix an error where background compaction caused transient errors in queries ([#2432](https://github.com/m3db/m3/pull/2432))
+
+## Documentation
+
+- **M3Query**: Update config settings and cleaned up documentation for per query limits ([#2427](https://github.com/m3db/m3/pull/2427))
+
+# 0.15.3
+
+## Features
+
+- **M3DB**: Ability to set per-query block limit ([#2415](https://github.com/m3db/m3/pull/2415))
+- **M3DB**: Ability to set global per-second query limit ([#2405](https://github.com/m3db/m3/pull/2405))
+
+## Bug Fixes
+
+- **M3DB**: Fix duplicate ID insertions causing transient error when flushing index block ([#2411](https://github.com/m3db/m3/pull/2411))
+- **M3Coordinator**: Mapping rules with drop policies now correctly apply to unaggregated metrics ([#2262](https://github.com/m3db/m3/pull/2262))
+- **M3Query**: Fix incorrect starting boundaries on some temporal queries ([#2413](https://github.com/m3db/m3/pull/2413))
+- **M3Query**: Fix bug in one to one matching in binary functions ([#2417](https://github.com/m3db/m3/pull/2417))
+- **M3DB**: Fix to edge case index data consistency on flush ([#2399](https://github.com/m3db/m3/pull/2399))
+
+# 0.15.2
+
+## Bug Fixes
+
+- **M3DB**: Fix require exhaustive propagation of require exhaustive option through RPC ([#2409](https://github.com/m3db/m3/pull/2409))
+
+# 0.15.1
+
+## Features
+
+- **M3DB**: Add ability to return an error when max time series limit is hit instead of partial result and warning ([#2400](https://github.com/m3db/m3/pull/2400))
+- **M3Coordinator**: Add support for namespace retention updates by API ([#2383](https://github.com/m3db/m3/pull/2383))
+
+## Bug Fixes
+
+- **M3Coordinator**: Fix Content-Type for OpenAPI handler ([#2403](https://github.com/m3db/m3/pull/2403))
+- **Build**: Build release binaries with goreleaser using Go 1.13 to match Go 1.13 docker images ([#2397](https://github.com/m3db/m3/pull/2397))
+
+## Misc
+
+- **M3DB**: Report a histogram of series blocks fetched per query ([#2381](https://github.com/m3db/m3/pull/2381))
+
+# 0.15.0
+
+## Features
+
+- **M3Ctl**: Add M3 command line tool for calling APIs and using YAML files to apply commands ([#2097](https://github.com/m3db/m3/pull/2097))
 - **M3Coordinator**: Add public API to write annotations (i.e. arbitrary bytes), next to datapoints for things like storing exemplars ([#2022](https://github.com/m3db/m3/pull/2022), [#2029](https://github.com/m3db/m3/pull/2029), [#2031](https://github.com/m3db/m3/pull/2031))
 - **M3Coordinator**: Add support for mapping rules, allowing metrics to be stored at different resolutions based on their labels/tags ([#2036](https://github.com/m3db/m3/pull/2036))
 - **M3Coordinator**: Add Graphite mapping rule support ([#2060](https://github.com/m3db/m3/pull/2060)) ([#2063](https://github.com/m3db/m3/pull/2063))
 - **M3Coordinator**: Add community contributed InfluxDB write endpoint (at /api/v1/influxdb/write) ([#2083](https://github.com/m3db/m3/pull/2083))
+- **M3Coordinator**: Add headers to pass along with request to remote write forward targets ([#2249](https://github.com/m3db/m3/pull/2249))
+- **M3Coordinator**: Add retry to remote write forward targets ([#2299](https://github.com/m3db/m3/pull/2299))
+- **M3Coordinator**: Add in-place M3Msg topic consumer updates with a PUT request ([#2186](https://github.com/m3db/m3/pull/2186))
+- **M3Coordinator**: Add ability to rewrite tags for Prometheus remote write requests using header ([#2255](https://github.com/m3db/m3/pull/2255))
+- **M3Coordinator**: Add config for multi-process launcher and SO_REUSEPORT listen servers for non-container based multi-process scaling ([#2292](https://github.com/m3db/m3/pull/2292))
+- **M3Query**: Add Prometheus engine to compliment Prometheus Remote Read, improves performance by skipping serialization/deserialization/network overhead between Prometheus and M3Query ([#2343](https://github.com/m3db/m3/pull/2343), [#2369](https://github.com/m3db/m3/pull/2369))
 - **M3Query**: Add header to support enforcing all queries in request to implicitly always include a given label/tag matcher ([#2053](https://github.com/m3db/m3/pull/2053))
 - **M3Query**: Return headers indicating incomplete results for cross-regional fanout queries when remote fails or hits a limit ([#2053](https://github.com/m3db/m3/pull/2053))
 - **M3Query**: Refactor query server to allow for custom handlers ([#2073](https://github.com/m3db/m3/pull/2073))
+- **M3Query**: Add remote read debug parameters to look at raw data for a PromQL query and/or get results as JSON ([#2276](https://github.com/m3db/m3/pull/2276))
+- **M3Query**: Add warnings for Prometheus queries to Prometheus query JSON response ([#2265](https://github.com/m3db/m3/pull/2265))
+- **M3Query**: Add ability to set default query timeout by config ([#2226](https://github.com/m3db/m3/pull/2226))
+- **M3Aggregator**: Add M3Msg aggregator client for high throughput point to point clustered buffered delivery of metrics to aggregator ([#2171](https://github.com/m3db/m3/pull/2171))
+- **M3Aggregator**: Add rollup rule support for metrics aggregated with pre-existing timestamps, such as Prometheus metrics ([#2251](https://github.com/m3db/m3/pull/2251))
+- **M3Aggregator**: Add aggregator passthrough functionality for aggregation in a local region forwarding to a remote region for storage ([#2235](https://github.com/m3db/m3/pull/2235))
 
 ## Performance
 
@@ -18,89 +223,69 @@
 - **M3DB**: Improve bootstrapping performance by allowing bootstrapping to be performed in a single pass, now possible for a lot of bootstraps to take just minutes depending on retention ([#1989](https://github.com/m3db/m3/pull/1989))
 - **M3DB**: Use zero-copy references to index data instead of copy-on-read index data for each query, substantially improving query throughput and performance ([#1839](https://github.com/m3db/m3/pull/1839))
 - **M3DB**: Further improve peer bootstrapping performance by using a document builder rather than raw memory segments ([#2078](https://github.com/m3db/m3/pull/2078))
+- **M3DB**: Concurrent indexing when building segments for newly inserted metrics ([#2146](https://github.com/m3db/m3/pull/2146))
+- **M3DB**: Decode ReadBits decompression improvements ([#2197](https://github.com/m3db/m3/pull/2197))
+- **M3DB**: Remove implicit cloning of time ranges to reduce allocs ([#2178](https://github.com/m3db/m3/pull/2178))
 - **M3Query**: Substantially improve temporal function performance ([#2049](https://github.com/m3db/m3/pull/2049))
+- **M3Query**: Improve datapoint decompression speed ([#2176](https://github.com/m3db/m3/pull/2176), [#2185](https://github.com/m3db/m3/pull/2185), [#2190](https://github.com/m3db/m3/pull/2190))
+- **M3Query**: Read bits uses an optimized byte reader ([#2205](https://github.com/m3db/m3/pull/2205))
+- **M3Coordinator**: Ensure coordinator not grow M3Msg buffer if message over max size ([#2207](https://github.com/m3db/m3/pull/2207))
 
 ## Bug Fixes
 
-- **M3Query**: Fix edge cases with cross-zonal query fanout and add verify utility ([#1993](https://github.com/m3db/m3/pull/1993))
+- **M3Aggregator**: Take last value by wall clock timestamp not arrival time to avoid late arrivals overwriting actual later occuring values ([#2199](https://github.com/m3db/m3/pull/2199))
 - **M3DB**: Validate indexable metrics for valid utf-8 prior to insert, also includes a utility for earlier M3DB versions to remove non-utf8 index data ([#2046](https://github.com/m3db/m3/pull/2046))
 - **M3DB**: Remove incorrect error log message for missing schema with default non-protobuf namespaces ([#2013](https://github.com/m3db/m3/pull/2013))
 - **M3DB**: Fixed memory leak causing index blocks to remain in memory after flushing ([#2037](https://github.com/m3db/m3/pull/2037))
 - **M3DB**: Fix long standing possibility of double RLock acqusition ([#2128](https://github.com/m3db/m3/pull/2128))
 - **M3DB**: Remove loop in fileset writer when previous fileset encountered an error writing out index files ([#2058](https://github.com/m3db/m3/pull/2058))
 - **M3DB**: Instead of encountering an error skip entries for unowned shards in commit log bootstrapper ([#2145](https://github.com/m3db/m3/pull/2145))
+- **M3DB**: Fix to avoid returning error when missing writable bucket with a cold flush ([#2188](https://github.com/m3db/m3/pull/2188))
+- **M3DB**: Set defaults and expose configuration of TChannel timeouts, this avoids idle connection growth ([#2173](https://github.com/m3db/m3/pull/2173))
+- **M3DB**: Account for Neg/Pos Offsets when building per field roaring bitmap posting lists ([#2213](https://github.com/m3db/m3/pull/2213))
+- **M3DB**: Fix to build flush errors ([#2229](https://github.com/m3db/m3/pull/2229), [#2217](https://github.com/m3db/m3/pull/2217))
 - **M3Coordinator**: Respect env and zone headers for topic API endpoints ([#2159](https://github.com/m3db/m3/pull/2159))
+- **M3Coordinator**: Add support for Graphite Grafana plugin /find POST requests ([#2153](https://github.com/m3db/m3/pull/2153))
+- **M3Coordinator**: Use tag options specified in config with M3Msg ingester ([#2212](https://github.com/m3db/m3/pull/2212))
+- **M3Coordinator**: Only honor default aggregation policies if not matched by mapping rule ([#2203](https://github.com/m3db/m3/pull/2203))
+- **M3Query**: Fix namespace resolve debug log not being written with multiple namespaces ([#2211](https://github.com/m3db/m3/pull/2211))
+- **M3Query**: Fix to temporal function regression leading to inconsistent results ([#2231](https://github.com/m3db/m3/pull/2231))
+- **M3Query**: Fix edge cases with cross-zonal query fanout and add verify utility ([#1993](https://github.com/m3db/m3/pull/1993))
+- **M3Query**: Fix issue with histogram grouping ([#2247](https://github.com/m3db/m3/pull/2247))
 
-## Documentation 
+## Documentation
 
+- **M3Aggregator**: Add M3 aggregator Grafana dashboard ([#2064](https://github.com/m3db/m3/pull/2064))
+- **M3Coordinator**: Add documentation to write to multiple clusters from a single coordinator ([#2187](https://github.com/m3db/m3/pull/2187))
 - **M3DB**: Add documentation about estimating number of unique time series ([#2062](https://github.com/m3db/m3/pull/2062))
 - **M3DB**: Update namespace configuration documentation to use simpler duration specific keys ([#2045](https://github.com/m3db/m3/pull/2045))
-- **M3Aggregator**: Add M3 aggregator Grafana dashboard ([#2064](https://github.com/m3db/m3/pull/2064))
 
 ## Misc
 
+- **All**: Upgrade to Go 1.13 and switch dependency management to Go modules ([#2221](https://github.com/m3db/m3/pull/2221))
 - **All**: Add gauge metrics to measure the number of active routines for any worker pool ([#2061](https://github.com/m3db/m3/pull/2061))
 - **All**: Allow for ${ENV_VAR_NAME} expansion with YAML configuration files ([#2033](https://github.com/m3db/m3/pull/2033))
 - **All**: Add a utility for comparing performance and correctness across different versions of M3DB, enabling diffing the perf of different versions ([#2044](https://github.com/m3db/m3/pull/2044))
 - **All**: Upgrade etcd client library to 3.4.3 ([#2101](https://github.com/m3db/m3/pull/2101))
 - **All**: Include key name in watch errors ([#2138](https://github.com/m3db/m3/pull/2138))
+- **Development**: Add HA Prometheus lab setup for dev M3 docker compose deployment ([#2206](https://github.com/m3db/m3/pull/2206))
+- **Development**: Temporarily disable kubeval validation to allow builds on go 1.12 ([#2241](https://github.com/m3db/m3/pull/2241))
+- **Development**: Add comparator value ingester for replaying functions against given data sets ([#2224](https://github.com/m3db/m3/pull/2224))
+- **Development**: Logging improvements ([#2222](https://github.com/m3db/m3/pull/2222),[#2225](https://github.com/m3db/m3/pull/2225))
+- **M3Aggregator**: Add a datasource variable and reuse it in all the panels of the aggregator dashboard ([#2182](https://github.com/m3db/m3/pull/2182))
+- **M3DB**: Add client bad request/internal error distinction for metrics and sampled logs ([#2201](https://github.com/m3db/m3/pull/2201))
 - **M3DB**: Add latency metrics to remote reads ([#2027](https://github.com/m3db/m3/pull/2027))
 - **M3DB**: Add metrics for async replication worker pool utilization ([#2059](https://github.com/m3db/m3/pull/2059))
 - **M3DB**: Remove carbon debug flag and rely on log debug level for debugging Carbon/Graphite mapping rules ([#2024](https://github.com/m3db/m3/pull/2024))
-- **M3Query**: Allow both GET and POST for query APIs ([#2055](https://github.com/m3db/m3/pull/2055))
+- **M3DB**: Add metric for BootstrappedAndDurable ([#2210](https://github.com/m3db/m3/pull/2210))
+- **M3DB**: Use madvdontneed=1 in DB nodes to get a more accurate view of memory usage ([#2242](https://github.com/m3db/m3/pull/2242))
+- **M3DB**: Add trace spans for database bootstrap process helping to identify all remaining slow code paths ([#2216](https://github.com/m3db/m3/pull/2216))
 - **M3Coordinator**: Add power user API to custom set placement goal state for cluster membership and shards ([#2108](https://github.com/m3db/m3/pull/2108))
 - **M3Coordinator**: Delete M3 aggregator related etcd keys when aggregator placement deleted ([#2133](https://github.com/m3db/m3/pull/2133))
 - **M3Coordinator**: Add metrics for remote aggregator client and downsampler ([#2165](https://github.com/m3db/m3/pull/2165))
 - **M3Coordinator**: Add aggregator client maxBatchSize config for configuring buffer for data sent to aggregator ([#2166](https://github.com/m3db/m3/pull/2166))
-
-# 0.15.0-rc.0
-
-## Features
-
-- **M3Coordinator**: Add public API to write annotations (i.e. arbitrary bytes), next to datapoints for things like storing exemplars ([#2022](https://github.com/m3db/m3/pull/2022), [#2029](https://github.com/m3db/m3/pull/2029), [#2031](https://github.com/m3db/m3/pull/2031))
-- **M3Coordinator**: Add support for mapping rules, allowing metrics to be stored at different resolutions based on their labels/tags ([#2036](https://github.com/m3db/m3/pull/2036))
-- **M3Coordinator**: Add Graphite mapping rule support ([#2060](https://github.com/m3db/m3/pull/2060)) ([#2063](https://github.com/m3db/m3/pull/2063))
-- **M3Coordinator**: Add community contributed InfluxDB write endpoint (at /api/v1/influxdb/write) ([#2083](https://github.com/m3db/m3/pull/2083))
-- **M3Query**: Add header to support enforcing all queries in request to implicitly always include a given label/tag matcher ([#2053](https://github.com/m3db/m3/pull/2053))
-- **M3Query**: Return headers indicating incomplete results for cross-regional fanout queries when remote fails or hits a limit ([#2053](https://github.com/m3db/m3/pull/2053))
-- **M3Query**: Refactor query server to allow for custom handlers ([#2073](https://github.com/m3db/m3/pull/2073))
-
-## Performance
-
-- **M3DB**: Improve RSS memory management with madvise resulting in flat RSS usage with a steady workload as time passes block-over-block ([#2037](https://github.com/m3db/m3/pull/2037))
-- **M3DB**: Improve bootstrapping performance by allowing bootstrapping to be performed in a single pass, now possible for a lot of bootstraps to take just minutes depending on retention ([#1989](https://github.com/m3db/m3/pull/1989))
-- **M3DB**: Use zero-copy references to index data instead of copy-on-read index data for each query, substantially improving query throughput and performance ([#1839](https://github.com/m3db/m3/pull/1839))
-- **M3DB**: Further improve peer bootstrapping performance by using a document builder rather than raw memory segments ([#2078](https://github.com/m3db/m3/pull/2078))
-- **M3Query**: Substantially improve temporal function performance ([#2049](https://github.com/m3db/m3/pull/2049))
-
-## Bug Fixes
-
-- **M3Query**: Fix edge cases with cross-zonal query fanout and add verify utility ([#1993](https://github.com/m3db/m3/pull/1993))
-- **M3DB**: Validate indexable metrics for valid utf-8 prior to insert, also includes a utility for earlier M3DB versions to remove non-utf8 index data ([#2046](https://github.com/m3db/m3/pull/2046))
-- **M3DB**: Remove incorrect error log message for missing schema with default non-protobuf namespaces ([#2013](https://github.com/m3db/m3/pull/2013))
-- **M3DB**: Fixed memory leak causing index blocks to remain in memory after flushing ([#2037](https://github.com/m3db/m3/pull/2037))
-- **M3DB**: Fix long standing possibility of double RLock acqusition ([#2128](https://github.com/m3db/m3/pull/2128))
-- **M3DB**: Remove loop in fileset writer when previous fileset encountered an error writing out index files ([#2058](https://github.com/m3db/m3/pull/2058))
-
-## Documentation 
-
-- **M3DB**: Add documentation about estimating number of unique time series ([#2062](https://github.com/m3db/m3/pull/2062))
-- **M3DB**: Update namespace configuration documentation to use simpler duration specific keys ([#2045](https://github.com/m3db/m3/pull/2045))
-- **M3Aggregator**: Add M3 aggregator Grafana dashboard ([#2064](https://github.com/m3db/m3/pull/2064))
-
-## Misc
-
-- **All**: Add gauge metrics to measure the number of active routines for any worker pool ([#2061](https://github.com/m3db/m3/pull/2061))
-- **All**: Allow for ${ENV_VAR_NAME} expansion with YAML configuration files ([#2033](https://github.com/m3db/m3/pull/2033))
-- **All**: Add a utility for comparing performance and correctness across different versions of M3DB, enabling diffing the perf of different versions ([#2044](https://github.com/m3db/m3/pull/2044))
-- **All**: Upgrade etcd client library to 3.4.3 ([#2101](https://github.com/m3db/m3/pull/2101))
-- **All**: Include key name in watch errors ([#2138](https://github.com/m3db/m3/pull/2138))
-- **M3DB**: Add latency metrics to remote reads ([#2027](https://github.com/m3db/m3/pull/2027))
-- **M3DB**: Add metrics for async replication worker pool utilization ([#2059](https://github.com/m3db/m3/pull/2059))
-- **M3DB**: Remove carbon debug flag and rely on log debug level for debugging Carbon/Graphite mapping rules ([#2024](https://github.com/m3db/m3/pull/2024))
 - **M3Query**: Allow both GET and POST for query APIs ([#2055](https://github.com/m3db/m3/pull/2055))
-- **M3Coordinator**: Add power user API to custom set placement goal state for cluster membership and shards ([#2108](https://github.com/m3db/m3/pull/2108))
-- **M3Coordinator**: Delete M3 aggregator related etcd keys when aggregator placement deleted ([#2133](https://github.com/m3db/m3/pull/2133))
+- **M3Query**: Only build amd64 architecture for m3query releases ([#2202](https://github.com/m3db/m3/pull/2202))
 
 # 0.14.2
 
@@ -109,7 +294,7 @@
 - **M3DB**: Fix the persist cycle not cleaning up state for reuse when flush times cannot be calculated ([#2007](https://github.com/m3db/m3/pull/2007))
 - **M3Query**: Add specialized matchers for empty EQ/NEQ matchers ([#1986](https://github.com/m3db/m3/pull/1986))
 
-## Misc 
+## Misc
 
 - **M3Aggregator**: Do not require aggregator ID to be joined with port and add instance initialization debug logs ([#2012](https://github.com/m3db/m3/pull/2012))
 - **All**: Support env var expansion using [go.uber.org/config](go.uber.org/config) ([#2016](https://github.com/m3db/m3/pull/2016))
@@ -394,7 +579,7 @@ This changes also enables the ability to increase the fetch concurrency past the
 
 As a result of this change, M3DB will allocate significantly less mmaps, but will create a corresponding amount of file descriptors.
 
-Operators may need to tune their kernel configuration to allow a higher number of open file descriptors. Please follow our [Kernel Configuration Guide](http://m3db.github.io/m3/operational_guide/kernel_configuration/) for more details.
+Operators may need to tune their kernel configuration to allow a higher number of open file descriptors. Please follow our [Kernel Configuration Guide](https://docs.m3db.io/operational_guide/kernel_configuration/) for more details.
 
 ## New Features
 
@@ -487,7 +672,7 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 
 ## Breaking changes
 
-- **M3Coordinator**: ID generation scheme must be explicitly defined in configs ([Set "legacy" if unsure, further information on migrating to 0.6.0](http://m3db.github.io/m3/how_to/query/#migration)) ([#1381](https://github.com/m3db/m3/pull/1381))
+- **M3Coordinator**: ID generation scheme must be explicitly defined in configs ([Set "legacy" if unsure, further information on migrating to 0.6.0](https://docs.m3db.io/how_to/query/#migration)) ([#1381](https://github.com/m3db/m3/pull/1381))
 
 ## New Features
 
@@ -510,7 +695,7 @@ If you run into any issues with the upgrade or need to downgrade to a previous v
 
 ## New Features
 
-- **M3Coordinator**: Add [Graphite support](http://m3db.github.io/m3/integrations/grafana/) in the form of Carbon ingestion (with configurable aggregation and storage policies), as well as direct and Grafana based Graphite querying support ([#1309](https://github.com/m3db/m3/pull/1309), [#1310](https://github.com/m3db/m3/pull/1310), [#1308](https://github.com/m3db/m3/pull/1308), [#1319](https://github.com/m3db/m3/pull/1319), [#1318](https://github.com/m3db/m3/pull/1318), [#1327](https://github.com/m3db/m3/pull/1327), [#1328](https://github.com/m3db/m3/pull/1328))
+- **M3Coordinator**: Add [Graphite support](https://docs.m3db.io/integrations/grafana/) in the form of Carbon ingestion (with configurable aggregation and storage policies), as well as direct and Grafana based Graphite querying support ([#1309](https://github.com/m3db/m3/pull/1309), [#1310](https://github.com/m3db/m3/pull/1310), [#1308](https://github.com/m3db/m3/pull/1308), [#1319](https://github.com/m3db/m3/pull/1319), [#1318](https://github.com/m3db/m3/pull/1318), [#1327](https://github.com/m3db/m3/pull/1327), [#1328](https://github.com/m3db/m3/pull/1328))
 - **M3Coordinator**: Add tag completion API ([#1175](https://github.com/m3db/m3/pull/1175))
 - **M3Coordinator**: Add new opt-in ID generation function that will never collide ([#1286](https://github.com/m3db/m3/pull/1286))
 - **M3DB**: Add [endpoint](https://m3db.io/openapi/#operation/databaseConfigSetBootstrappers) for setting database bootstrapers dynamically([#1239](https://github.com/m3db/m3/pull/1239))

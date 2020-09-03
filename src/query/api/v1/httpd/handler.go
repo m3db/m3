@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
+	"github.com/m3db/m3/src/query/api/v1/handler/prom"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
@@ -43,18 +44,25 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/options"
 	"github.com/m3db/m3/src/query/util/logging"
 	xdebug "github.com/m3db/m3/src/x/debug"
+	"github.com/m3db/m3/src/x/headers"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/net/http/cors"
-	"github.com/prometheus/prometheus/util/httputil"
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/prometheus/prometheus/util/httputil"
 )
 
 const (
 	healthURL = "/health"
 	routesURL = "/routes"
+	// EngineHeaderName defines header name which is used to switch between
+	// prometheus and m3query engines.
+	EngineHeaderName = headers.M3HeaderPrefix + "Engine"
+	// EngineURLParam defines query url parameter which is used to switch between
+	// prometheus and m3query engines.
+	EngineURLParam = "engine"
 )
 
 var (
@@ -156,19 +164,55 @@ func (h *Handler) RegisterRoutes() error {
 			Tagged(v1APIGroup),
 		))
 
-	nativePromReadHandler := native.NewPromReadHandler(nativeSourceOpts)
+	// Register custom endpoints.
+	for _, custom := range h.customHandlers {
+		handler, err := custom.Handler(nativeSourceOpts)
+		if err != nil {
+			return err
+		}
+
+		h.router.HandleFunc(custom.Route(), handler.ServeHTTP).
+			Methods(custom.Methods()...)
+	}
+
+	opts := prom.Options{
+		PromQLEngine: h.options.PrometheusEngine(),
+	}
+	promqlQueryHandler := wrapped(prom.NewReadHandler(opts, nativeSourceOpts))
+	promqlInstantQueryHandler := wrapped(prom.NewReadInstantHandler(opts, nativeSourceOpts))
+	nativePromReadHandler := wrapped(native.NewPromReadHandler(nativeSourceOpts))
+	nativePromReadInstantHandler := wrapped(native.NewPromReadInstantHandler(nativeSourceOpts))
+
+	h.options.QueryRouter().Setup(options.QueryRouterOptions{
+		DefaultQueryEngine: h.options.DefaultQueryEngine(),
+		PromqlHandler:      promqlQueryHandler.ServeHTTP,
+		M3QueryHandler:     nativePromReadHandler.ServeHTTP,
+	})
+
+	h.options.InstantQueryRouter().Setup(options.QueryRouterOptions{
+		DefaultQueryEngine: h.options.DefaultQueryEngine(),
+		PromqlHandler:      promqlInstantQueryHandler.ServeHTTP,
+		M3QueryHandler:     nativePromReadInstantHandler.ServeHTTP,
+	})
+
+	h.router.
+		HandleFunc(native.PromReadURL, h.options.QueryRouter().ServeHTTP).
+		Methods(native.PromReadHTTPMethods...)
+	h.router.
+		HandleFunc(native.PromReadInstantURL, h.options.InstantQueryRouter().ServeHTTP).
+		Methods(native.PromReadInstantHTTPMethods...)
+
+	h.router.HandleFunc("/prometheus"+native.PromReadURL, promqlQueryHandler.ServeHTTP).Methods(native.PromReadHTTPMethods...)
+	h.router.HandleFunc("/prometheus"+native.PromReadInstantURL, promqlInstantQueryHandler.ServeHTTP).Methods(native.PromReadInstantHTTPMethods...)
+
 	h.router.HandleFunc(remote.PromReadURL,
 		wrapped(promRemoteReadHandler).ServeHTTP,
-	).Methods(remote.PromReadHTTPMethod)
+	).Methods(remote.PromReadHTTPMethods...)
 	h.router.HandleFunc(remote.PromWriteURL,
 		panicOnly(promRemoteWriteHandler).ServeHTTP,
 	).Methods(remote.PromWriteHTTPMethod)
-	h.router.HandleFunc(native.PromReadURL,
-		wrapped(nativePromReadHandler).ServeHTTP,
-	).Methods(native.PromReadHTTPMethods...)
-	h.router.HandleFunc(native.PromReadInstantURL,
-		wrapped(native.NewPromReadInstantHandler(h.options)).ServeHTTP,
-	).Methods(native.PromReadInstantHTTPMethods...)
+	h.router.HandleFunc("/m3query"+native.PromReadURL, nativePromReadHandler.ServeHTTP).Methods(native.PromReadHTTPMethods...)
+	h.router.HandleFunc("/m3query"+native.PromReadInstantURL, nativePromReadInstantHandler.ServeHTTP).Methods(native.PromReadInstantHTTPMethods...)
 
 	// InfluxDB write endpoint.
 	h.router.HandleFunc(influxdb.InfluxWriteURL,
@@ -278,17 +322,6 @@ func (h *Handler) RegisterRoutes() error {
 				wrapped(experimentalAnnotatedWriteHandler).ServeHTTP,
 			).Methods(annotated.WriteHTTPMethod)
 		}
-	}
-
-	// Register custom endpoints.
-	for _, custom := range h.customHandlers {
-		handler, err := custom.Handler(h.options)
-		if err != nil {
-			return err
-		}
-
-		h.router.HandleFunc(custom.Route(), handler.ServeHTTP).
-			Methods(custom.Methods()...)
 	}
 
 	h.registerHealthEndpoints()

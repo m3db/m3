@@ -302,7 +302,7 @@ genny-list-all:                              \
 genny-list-storage-id:
 	cd $(m3x_package_path) && make genny-pooled-elem-list-gen \
 		pkg=storage                                           \
-		value_type=ident.ID                                   \
+		value_type=doc.Document                               \
 		rename_type_prefix=id                                 \
 		rename_type_middle=ID                                 \
 		target_package=github.com/m3db/m3/src/dbnode/storage

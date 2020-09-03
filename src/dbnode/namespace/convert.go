@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	protobuftypes "github.com/gogo/protobuf/types"
 )
 
 var (
@@ -35,7 +37,8 @@ var (
 	errNamespaceNil = errors.New("namespace options must be set")
 )
 
-func fromNanos(n int64) time.Duration {
+// FromNanos converts nanoseconds to a namespace-compatible duration.
+func FromNanos(n int64) time.Duration {
 	return xtime.FromNormalizedDuration(n, time.Nanosecond)
 }
 
@@ -48,14 +51,14 @@ func ToRetention(
 	}
 
 	ropts := retention.NewOptions().
-		SetRetentionPeriod(fromNanos(ro.RetentionPeriodNanos)).
-		SetFutureRetentionPeriod(fromNanos(ro.FutureRetentionPeriodNanos)).
-		SetBlockSize(fromNanos(ro.BlockSizeNanos)).
-		SetBufferFuture(fromNanos(ro.BufferFutureNanos)).
-		SetBufferPast(fromNanos(ro.BufferPastNanos)).
+		SetRetentionPeriod(FromNanos(ro.RetentionPeriodNanos)).
+		SetFutureRetentionPeriod(FromNanos(ro.FutureRetentionPeriodNanos)).
+		SetBlockSize(FromNanos(ro.BlockSizeNanos)).
+		SetBufferFuture(FromNanos(ro.BufferFutureNanos)).
+		SetBufferPast(FromNanos(ro.BufferPastNanos)).
 		SetBlockDataExpiry(ro.BlockDataExpiry).
 		SetBlockDataExpiryAfterNotAccessedPeriod(
-			fromNanos(ro.BlockDataExpiryAfterNotAccessPeriodNanos))
+			FromNanos(ro.BlockDataExpiryAfterNotAccessPeriodNanos))
 
 	if err := ropts.Validate(); err != nil {
 		return nil, err
@@ -74,9 +77,28 @@ func ToIndexOptions(
 	}
 
 	iopts = iopts.SetEnabled(io.Enabled).
-		SetBlockSize(fromNanos(io.BlockSizeNanos))
+		SetBlockSize(FromNanos(io.BlockSizeNanos))
 
 	return iopts, nil
+}
+
+// ToRuntimeOptions converts nsproto.NamespaceRuntimeOptions to RuntimeOptions.
+func ToRuntimeOptions(
+	opts *nsproto.NamespaceRuntimeOptions,
+) (RuntimeOptions, error) {
+	runtimeOpts := NewRuntimeOptions()
+	if opts == nil {
+		return runtimeOpts, nil
+	}
+	if v := opts.WriteIndexingPerCPUConcurrency; v != nil {
+		newValue := v.Value
+		runtimeOpts = runtimeOpts.SetWriteIndexingPerCPUConcurrency(&newValue)
+	}
+	if v := opts.FlushIndexingPerCPUConcurrency; v != nil {
+		newValue := v.Value
+		runtimeOpts = runtimeOpts.SetFlushIndexingPerCPUConcurrency(&newValue)
+	}
+	return runtimeOpts, nil
 }
 
 // ToMetadata converts nsproto.Options to Metadata
@@ -103,6 +125,11 @@ func ToMetadata(
 		return nil, err
 	}
 
+	runtimeOpts, err := ToRuntimeOptions(opts.RuntimeOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	mopts := NewOptions().
 		SetBootstrapEnabled(opts.BootstrapEnabled).
 		SetFlushEnabled(opts.FlushEnabled).
@@ -113,7 +140,12 @@ func ToMetadata(
 		SetSchemaHistory(sr).
 		SetRetentionOptions(ropts).
 		SetIndexOptions(iopts).
-		SetColdWritesEnabled(opts.ColdWritesEnabled)
+		SetColdWritesEnabled(opts.ColdWritesEnabled).
+		SetRuntimeOptions(runtimeOpts)
+
+	if err := mopts.Validate(); err != nil {
+		return nil, err
+	}
 
 	return NewMetadata(ident.StringID(id), mopts)
 }
@@ -171,5 +203,31 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 			BlockSizeNanos: iopts.BlockSize().Nanoseconds(),
 		},
 		ColdWritesEnabled: opts.ColdWritesEnabled(),
+		RuntimeOptions:    toRuntimeOptions(opts.RuntimeOptions()),
+	}
+}
+
+// toRuntimeOptions returns the corresponding RuntimeOptions proto.
+func toRuntimeOptions(opts RuntimeOptions) *nsproto.NamespaceRuntimeOptions {
+	if opts == nil || opts.IsDefault() {
+		return nil
+	}
+	var (
+		writeIndexingPerCPUConcurrency *protobuftypes.DoubleValue
+		flushIndexingPerCPUConcurrency *protobuftypes.DoubleValue
+	)
+	if v := opts.WriteIndexingPerCPUConcurrency(); v != nil {
+		writeIndexingPerCPUConcurrency = &protobuftypes.DoubleValue{
+			Value: *v,
+		}
+	}
+	if v := opts.FlushIndexingPerCPUConcurrency(); v != nil {
+		flushIndexingPerCPUConcurrency = &protobuftypes.DoubleValue{
+			Value: *v,
+		}
+	}
+	return &nsproto.NamespaceRuntimeOptions{
+		WriteIndexingPerCPUConcurrency: writeIndexingPerCPUConcurrency,
+		FlushIndexingPerCPUConcurrency: flushIndexingPerCPUConcurrency,
 	}
 }

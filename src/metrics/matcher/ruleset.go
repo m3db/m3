@@ -61,9 +61,9 @@ type ruleSetMetrics struct {
 	updated    tally.Counter
 }
 
-func newRuleSetMetrics(scope tally.Scope, samplingRate float64) ruleSetMetrics {
+func newRuleSetMetrics(scope tally.Scope, opts instrument.TimerOptions) ruleSetMetrics {
 	return ruleSetMetrics{
-		match:      instrument.NewMethodMetrics(scope, "match", samplingRate),
+		match:      instrument.NewMethodMetrics(scope, "match", opts),
 		nilMatcher: scope.Counter("nil-matcher"),
 		updated:    scope.Counter("updated"),
 	}
@@ -108,7 +108,8 @@ func newRuleSet(
 		onRuleSetUpdatedFn: opts.OnRuleSetUpdatedFn(),
 		proto:              &rulepb.RuleSet{},
 		version:            kv.UninitializedVersion,
-		metrics:            newRuleSetMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
+		metrics: newRuleSetMetrics(instrumentOpts.MetricsScope(),
+			instrumentOpts.TimerOptions()),
 	}
 	valueOpts := runtime.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).

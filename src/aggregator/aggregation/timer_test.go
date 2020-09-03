@@ -23,9 +23,11 @@ package aggregation
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/stretchr/testify/require"
@@ -56,21 +58,21 @@ func TestCreateTimerResetStream(t *testing.T) {
 
 	// Add a value to the timer and close the timer, which returns the
 	// underlying stream to the pool.
-	timer := NewTimer(testQuantiles, streamOpts, NewOptions())
-	timer.Add(1.0)
+	timer := NewTimer(testQuantiles, streamOpts, NewOptions(instrument.NewOptions()))
+	timer.Add(time.Now(), 1.0)
 	require.Equal(t, 1.0, timer.Min())
 	timer.Close()
 
 	// Create a new timer and assert the underlying stream has been closed.
-	timer = NewTimer(testQuantiles, streamOpts, NewOptions())
-	timer.Add(1.0)
+	timer = NewTimer(testQuantiles, streamOpts, NewOptions(instrument.NewOptions()))
+	timer.Add(time.Now(), 1.0)
 	require.Equal(t, 1.0, timer.Min())
 	timer.Close()
 	require.Equal(t, 0.0, timer.stream.Min())
 }
 
 func TestTimerAggregations(t *testing.T) {
-	opts := NewOptions()
+	opts := NewOptions(instrument.NewOptions())
 	opts.ResetSetData(testAggTypes)
 
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
@@ -89,8 +91,9 @@ func TestTimerAggregations(t *testing.T) {
 	require.Equal(t, 0.0, timer.Quantile(0.99))
 
 	// Add values.
+	at := time.Now()
 	for i := 1; i <= 100; i++ {
-		timer.Add(float64(i))
+		timer.Add(at, float64(i))
 	}
 
 	// Validate the timer values match expectations.
@@ -143,7 +146,7 @@ func TestTimerAggregations(t *testing.T) {
 }
 
 func TestTimerAggregationsNotExpensive(t *testing.T) {
-	opts := NewOptions()
+	opts := NewOptions(instrument.NewOptions())
 	opts.ResetSetData(aggregation.Types{aggregation.Sum})
 
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
@@ -152,8 +155,9 @@ func TestTimerAggregationsNotExpensive(t *testing.T) {
 	require.False(t, timer.HasExpensiveAggregations)
 
 	// Add values.
+	at := time.Now()
 	for i := 1; i <= 100; i++ {
-		timer.Add(float64(i))
+		timer.Add(at, float64(i))
 	}
 
 	// All Non expensive calculations should be performed.

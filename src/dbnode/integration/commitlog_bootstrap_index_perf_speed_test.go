@@ -71,20 +71,20 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 			SetBlockSize(2 * blockSize))
 	ns, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
-	opts := newTestOptions(t).
+	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{ns}).
 		// Allow for wall clock timing
 		SetNowFn(time.Now)
 
-	setup, err := newTestSetup(t, opts, nil)
+	setup, err := NewTestSetup(t, opts, nil)
 	require.NoError(t, err)
-	defer setup.close()
+	defer setup.Close()
 
-	commitLogOpts := setup.storageOpts.CommitLogOptions().
+	commitLogOpts := setup.StorageOpts().CommitLogOptions().
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
-	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+	setup.SetStorageOpts(setup.StorageOpts().SetCommitLogOptions(commitLogOpts))
 
-	log := setup.storageOpts.InstrumentOptions().Logger()
+	log := setup.StorageOpts().InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")
 
 	// Write test data
@@ -137,7 +137,7 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 
 	log.Info("writing data")
 
-	now := setup.getNowFn()
+	now := setup.NowFn()()
 	blockStart := now.Add(-3 * blockSize)
 
 	// create new commit log
@@ -145,19 +145,21 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, commitLog.Open())
 
-	// NB(r): Write points using no up front series metadata or point
-	// generation so that the memory usage is constant during the write phase
 	ctx := context.NewContext()
 	defer ctx.Close()
-	shardSet := setup.shardSet
+
+	shardSet := setup.ShardSet()
 	idPrefix := "test.id.test.id.test.id.test.id.test.id.test.id.test.id.test.id"
 	idPrefixBytes := []byte(idPrefix)
-	checkedBytes := checked.NewBytes(nil, nil)
-	seriesID := ident.BinaryID(checkedBytes)
 	numBytes := make([]byte, 8)
 	numHexBytes := make([]byte, hex.EncodedLen(len(numBytes)))
+	tagEncoderPool := commitLogOpts.FilesystemOptions().TagEncoderPool()
+	tagSliceIter := ident.NewTagsIterator(ident.Tags{})
 	for i := 0; i < numPoints; i++ {
 		for j := 0; j < numSeries; j++ {
+			checkedBytes := checked.NewBytes(nil, nil)
+			seriesID := ident.BinaryID(checkedBytes)
+
 			// Write the ID prefix
 			checkedBytes.Resize(0)
 			checkedBytes.AppendAll(idPrefixBytes)
@@ -171,11 +173,19 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 			// Use the tag sets appropriate for this series number
 			seriesTags := tagSets[j%len(tagSets)]
 
+			tagSliceIter.Reset(seriesTags)
+			tagEncoder := tagEncoderPool.Get()
+			err := tagEncoder.Encode(tagSliceIter)
+			require.NoError(t, err)
+
+			encodedTagsChecked, ok := tagEncoder.Data()
+			require.True(t, ok)
+
 			series := ts.Series{
 				Namespace:   ns.ID(),
 				Shard:       shardSet.Lookup(seriesID),
 				ID:          seriesID,
-				Tags:        seriesTags,
+				EncodedTags: ts.EncodedTags(encodedTagsChecked.Bytes()),
 				UniqueIndex: uint64(j),
 			}
 			dp := ts.Datapoint{
@@ -207,15 +217,15 @@ func TestCommitLogIndexPerfSpeedBootstrap(t *testing.T) {
 	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
 	// restore now time so measurements take effect
-	setup.storageOpts = setup.storageOpts.SetClockOptions(clock.NewOptions())
+	setup.SetStorageOpts(setup.StorageOpts().SetClockOptions(clock.NewOptions()))
 
 	// Start the server with filesystem bootstrapper
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.StartServer())
 	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
-		require.NoError(t, setup.stopServer())
+		require.NoError(t, setup.StopServer())
 		log.Debug("server is now down")
 	}()
 }

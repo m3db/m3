@@ -21,19 +21,16 @@
 package encoding
 
 import (
+	"math"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
 var (
-	// time is stored as an int64 plus an int32 nanosecond value, but if you
-	// use max int64 for the seconds component only then integer overflow
-	// will occur when performing comparisons like time.Before() and they
-	// will not work correctly.
-	timeMax = time.Unix(1<<63-62135596801, 999999999)
+	// UnixNano is an int64, so the max time is the max of that type.
+	timeMaxNanos = xtime.UnixNano(math.MaxInt64)
 )
 
 // iterators is a collection of iterators, and allows for reading in order values
@@ -41,9 +38,9 @@ var (
 type iterators struct {
 	values             []Iterator
 	earliest           []Iterator
-	earliestAt         time.Time
-	filterStart        time.Time
-	filterEnd          time.Time
+	earliestAt         xtime.UnixNano
+	filterStart        xtime.UnixNano
+	filterEnd          xtime.UnixNano
 	filtering          bool
 	equalTimesStrategy IterateEqualTimestampStrategy
 
@@ -106,7 +103,7 @@ func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	return i.earliest[numIters-1].Current()
 }
 
-func (i *iterators) at() time.Time {
+func (i *iterators) at() xtime.UnixNano {
 	return i.earliestAt
 }
 
@@ -121,13 +118,13 @@ func (i *iterators) push(iter Iterator) bool {
 
 func (i *iterators) tryAddEarliest(iter Iterator) {
 	dp, _, _ := iter.Current()
-	if dp.Timestamp.Equal(i.earliestAt) {
+	if dp.TimestampNanos == i.earliestAt {
 		// Push equal earliest
 		i.earliest = append(i.earliest, iter)
-	} else if dp.Timestamp.Before(i.earliestAt) {
+	} else if dp.TimestampNanos < i.earliestAt {
 		// Reset earliest and push new iter
 		i.earliest = append(i.earliest[:0], iter)
-		i.earliestAt = dp.Timestamp
+		i.earliestAt = dp.TimestampNanos
 	}
 }
 
@@ -135,12 +132,12 @@ func (i *iterators) moveIteratorToFilterNext(iter Iterator) bool {
 	next := true
 	for next {
 		dp, _, _ := iter.Current()
-		if dp.Timestamp.Before(i.filterStart) {
+		if dp.TimestampNanos < i.filterStart {
 			// Filter out any before start
 			next = iter.Next()
 			continue
 		}
-		if !dp.Timestamp.Before(i.filterEnd) {
+		if dp.TimestampNanos >= i.filterEnd {
 			// Filter out completely if after end
 			next = false
 			break
@@ -201,15 +198,15 @@ func (i *iterators) moveToValidNext() (bool, error) {
 	}
 
 	// Force first to be new earliest, evaluate rest
-	i.earliestAt = timeMax
+	i.earliestAt = timeMaxNanos
 	for _, iter := range i.values {
 		i.tryAddEarliest(iter)
 	}
 
 	// Apply filter to new earliest if necessary
 	if i.filtering {
-		inFilter := i.earliestAt.Before(i.filterEnd) &&
-			!i.earliestAt.Before(i.filterStart)
+		inFilter := i.earliestAt < i.filterEnd &&
+			i.earliestAt >= i.filterStart
 		if !inFilter {
 			return i.moveToValidNext()
 		}
@@ -218,8 +215,8 @@ func (i *iterators) moveToValidNext() (bool, error) {
 	return i.validateNext(true, prevAt)
 }
 
-func (i *iterators) validateNext(next bool, prevAt time.Time) (bool, error) {
-	if i.earliestAt.Before(prevAt) {
+func (i *iterators) validateNext(next bool, prevAt xtime.UnixNano) (bool, error) {
+	if i.earliestAt < prevAt {
 		// Out of order datapoint
 		i.reset()
 		return false, errOutOfOrderIterator
@@ -237,10 +234,10 @@ func (i *iterators) reset() {
 		i.earliest[idx] = nil
 	}
 	i.earliest = i.earliest[:0]
-	i.earliestAt = timeMax
+	i.earliestAt = timeMaxNanos
 }
 
-func (i *iterators) setFilter(start, end time.Time) {
+func (i *iterators) setFilter(start, end xtime.UnixNano) {
 	i.filtering = true
 	i.filterStart = start
 	i.filterEnd = end

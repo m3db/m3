@@ -58,11 +58,13 @@ type Options interface {
 	// SetTracer sets the tracer.
 	SetTracer(tracer opentracing.Tracer) Options
 
-	// SetMetricsSamplingRate sets the metrics sampling rate.
-	SetMetricsSamplingRate(value float64) Options
+	// SetTimerOptions sets the metrics timer options to used
+	// when building timers from timer options.
+	SetTimerOptions(value TimerOptions) Options
 
-	// SetMetricsSamplingRate returns the metrics sampling rate.
-	MetricsSamplingRate() float64
+	// SetTimerOptions returns the metrics timer options to used
+	// when building timers from timer options.
+	TimerOptions() TimerOptions
 
 	// ReportInterval sets the time between reporting metrics within the system.
 	SetReportInterval(time.Duration) Options

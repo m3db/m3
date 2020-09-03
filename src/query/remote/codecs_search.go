@@ -27,12 +27,12 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/x/serialize"
 )
 
 func multiTagResultsToM3TagProperties(
-	results []m3.MultiTagResult,
+	results []consolidators.MultiTagResult,
 	encoderPool serialize.TagEncoderPool,
 ) (*rpc.M3TagProperties, error) {
 	props := make([]rpc.M3TagProperty, len(results))
@@ -61,7 +61,7 @@ func multiTagResultsToM3TagProperties(
 // encodeToCompressedSearchResult encodes SearchResults to a compressed
 // search result.
 func encodeToCompressedSearchResult(
-	results []m3.MultiTagResult,
+	results []consolidators.MultiTagResult,
 	metadata block.ResultMetadata,
 	pools encoding.IteratorPools,
 ) (*rpc.SearchResponse, error) {
@@ -98,7 +98,7 @@ func decodeDecompressedSearchResponse(
 func decodeCompressedSearchResponse(
 	response *rpc.M3TagProperties,
 	pools encoding.IteratorPools,
-) ([]m3.MultiTagResult, error) {
+) ([]consolidators.MultiTagResult, error) {
 	if pools == nil || pools.CheckedBytesWrapper() == nil || pools.TagDecoder() == nil {
 		return nil, errors.ErrCannotDecodeCompressedTags
 	}
@@ -108,7 +108,7 @@ func decodeCompressedSearchResponse(
 	idPool := pools.ID()
 
 	props := response.GetProperties()
-	decoded := make([]m3.MultiTagResult, len(props))
+	decoded := make([]consolidators.MultiTagResult, len(props))
 	for i, prop := range props {
 		checkedBytes := cbwPool.Get(prop.GetCompressedTags())
 		decoder := decoderPool.Get()
@@ -118,7 +118,7 @@ func decodeCompressedSearchResponse(
 		}
 
 		id := idPool.BinaryID(cbwPool.Get(prop.GetId()))
-		decoded[i] = m3.MultiTagResult{
+		decoded[i] = consolidators.MultiTagResult{
 			ID: id,
 			// Copy underlying TagIterator bytes before closing the decoder and returning it to the pool
 			Iter: decoder.Duplicate(),

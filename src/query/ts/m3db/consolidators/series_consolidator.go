@@ -47,12 +47,13 @@ func NewSeriesLookbackConsolidator(
 	startTime time.Time,
 	fn ConsolidationFunc,
 ) *SeriesLookbackConsolidator {
+	datapoints := make([]ts.Datapoint, 0, initLength)
 	return &SeriesLookbackConsolidator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		consolidated:     math.NaN(),
-		datapoints:       make([]ts.Datapoint, 0, initLength),
+		datapoints:       datapoints,
 		fn:               fn,
 	}
 }
@@ -76,6 +77,19 @@ func (c *SeriesLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
 	c.consolidated = c.fn(c.datapoints)
 	c.datapoints = removeStale(c.earliestLookback, c.datapoints)
+
+	// Remove any datapoints not relevant to the next step now.
+	datapointsRelevant := removeStale(c.earliestLookback, c.datapoints)
+	if len(datapointsRelevant) > 0 {
+		// Move them back to the start of the slice to reuse the slice
+		// as best as possible.
+		c.datapoints = c.datapoints[:len(datapointsRelevant)]
+		copy(c.datapoints, datapointsRelevant)
+	} else {
+		// No relevant datapoints, repoint to the start of the buffer.
+		c.datapoints = c.datapoints[:0]
+	}
+
 	return c.consolidated
 }
 

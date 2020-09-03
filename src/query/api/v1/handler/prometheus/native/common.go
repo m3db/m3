@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/functions/utils"
@@ -40,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/headers"
 	"github.com/m3db/m3/src/x/instrument"
 	xhttp "github.com/m3db/m3/src/x/net/http"
 
@@ -151,7 +153,7 @@ func parseParams(
 		params.IncludeEnd = !excludeEnd
 	}
 
-	if strings.ToLower(r.Header.Get("X-M3-Render-Format")) == "m3ql" {
+	if strings.ToLower(r.Header.Get(headers.RenderFormat)) == "m3ql" {
 		params.FormatType = models.FormatM3QL
 	}
 
@@ -289,15 +291,27 @@ func filterNaNSeries(
 	return filtered
 }
 
-func renderResultsJSON(
+// RenderResultsOptions is a set of options for rendering the result.
+type RenderResultsOptions struct {
+	KeepNaNs bool
+	Start    time.Time
+	End      time.Time
+}
+
+// RenderResultsJSON renders results in JSON for range queries.
+func RenderResultsJSON(
 	w io.Writer,
-	series []*ts.Series,
-	params models.RequestParams,
-	keepNans bool,
-) {
+	result ReadResult,
+	opts RenderResultsOptions,
+) error {
+	var (
+		series   = result.Series
+		warnings = result.Meta.WarningStrings()
+	)
+
 	// NB: if dropping NaNs, drop series with only NaNs from output entirely.
-	if !keepNans {
-		series = filterNaNSeries(series, params.Start, params.End)
+	if !opts.KeepNaNs {
+		series = filterNaNSeries(series, opts.Start, opts.End)
 	}
 
 	jw := json.NewWriter(w)
@@ -305,6 +319,16 @@ func renderResultsJSON(
 
 	jw.BeginObjectField("status")
 	jw.WriteString("success")
+
+	if len(warnings) > 0 {
+		jw.BeginObjectField("warnings")
+		jw.BeginArray()
+		for _, warn := range warnings {
+			jw.WriteString(warn)
+		}
+
+		jw.EndArray()
+	}
 
 	jw.BeginObjectField("data")
 	jw.BeginObject()
@@ -332,7 +356,7 @@ func renderResultsJSON(
 			dp := vals.DatapointAt(i)
 
 			// If keepNaNs is set to false and the value is NaN, drop it from the response.
-			if !keepNans && math.IsNaN(dp.Value) {
+			if !opts.KeepNaNs && math.IsNaN(dp.Value) {
 				continue
 			}
 
@@ -340,7 +364,7 @@ func renderResultsJSON(
 			// would be at the result node but that would make it inefficient since
 			// we would need to create another block just for the sake of restricting
 			// the bounds.
-			if dp.Timestamp.Before(params.Start) {
+			if dp.Timestamp.Before(opts.Start) {
 				continue
 			}
 
@@ -349,8 +373,8 @@ func renderResultsJSON(
 			jw.WriteString(utils.FormatFloat(dp.Value))
 			jw.EndArray()
 		}
-		jw.EndArray()
 
+		jw.EndArray()
 		fixedStep, ok := s.Values().(ts.FixedResolutionMutableValues)
 		if ok {
 			jw.BeginObjectField("step_size_ms")
@@ -359,32 +383,69 @@ func renderResultsJSON(
 		jw.EndObject()
 	}
 	jw.EndArray()
-
 	jw.EndObject()
 
 	jw.EndObject()
-	jw.Close()
+	return jw.Close()
 }
 
+// renderResultsInstantaneousJSON renders results in JSON for instant queries.
 func renderResultsInstantaneousJSON(
 	w io.Writer,
-	series []*ts.Series,
+	result ReadResult,
+	keepNaNs bool,
 ) {
+	var (
+		series   = result.Series
+		warnings = result.Meta.WarningStrings()
+		isScalar = result.BlockType == block.BlockScalar || result.BlockType == block.BlockTime
+	)
+
+	resultType := "vector"
+	if isScalar {
+		resultType = "scalar"
+	}
+
 	jw := json.NewWriter(w)
 	jw.BeginObject()
 
 	jw.BeginObjectField("status")
 	jw.WriteString("success")
 
+	if len(warnings) > 0 {
+		jw.BeginObjectField("warnings")
+		jw.BeginArray()
+		for _, warn := range warnings {
+			jw.WriteString(warn)
+		}
+
+		jw.EndArray()
+	}
+
 	jw.BeginObjectField("data")
 	jw.BeginObject()
 
 	jw.BeginObjectField("resultType")
-	jw.WriteString("vector")
+	jw.WriteString(resultType)
 
 	jw.BeginObjectField("result")
 	jw.BeginArray()
 	for _, s := range series {
+		vals := s.Values()
+		length := s.Len()
+		dp := vals.DatapointAt(length - 1)
+
+		if isScalar {
+			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.WriteString(utils.FormatFloat(dp.Value))
+			continue
+		}
+
+		// If keepNaNs is set to false and the value is NaN, drop it from the response.
+		if !keepNaNs && math.IsNaN(dp.Value) {
+			continue
+		}
+
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
@@ -395,9 +456,6 @@ func renderResultsInstantaneousJSON(
 		jw.EndObject()
 
 		jw.BeginObjectField("value")
-		vals := s.Values()
-		length := s.Len()
-		dp := vals.DatapointAt(length - 1)
 		jw.BeginArray()
 		jw.WriteInt(int(dp.Timestamp.Unix()))
 		jw.WriteString(utils.FormatFloat(dp.Value))

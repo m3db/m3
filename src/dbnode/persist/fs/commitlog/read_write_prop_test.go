@@ -23,6 +23,7 @@
 package commitlog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -120,7 +121,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 		write := seriesWrites.writes[seriesWrites.readPosition]
 
 		require.Equal(t, write.series.ID.String(), series.ID.String())
-		require.True(t, write.series.Tags.Equal(series.Tags))
+		require.True(t, bytes.Equal(write.series.EncodedTags, series.EncodedTags))
 		require.Equal(t, write.series.Namespace.String(), series.Namespace.String())
 		require.Equal(t, write.series.Shard, series.Shard)
 		require.Equal(t, write.datapoint.Value, datapoint.Value)
@@ -623,7 +624,6 @@ func genWrite() gopter.Gen {
 		return generatedWrite{
 			series: ts.Series{
 				ID:          ident.StringID(id),
-				Tags:        seriesTags,
 				EncodedTags: seriesEncodedTags,
 				Namespace:   ident.StringID(ns),
 				Shard:       shard,

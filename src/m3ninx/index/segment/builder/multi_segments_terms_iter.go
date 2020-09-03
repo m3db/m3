@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xerrors "github.com/m3db/m3/src/x/errors"
-	bitmap "github.com/m3db/pilosa/roaring"
+	bitmap "github.com/m3dbx/pilosa/roaring"
 )
 
 const (
@@ -174,7 +174,10 @@ func (i *termsIterFromSegments) Next() bool {
 				continue
 			}
 			value := curr + termsKeyIter.segment.offset - negativeOffset
-			_ = i.currPostingsList.Insert(value)
+			if err := i.currPostingsList.Insert(value); err != nil {
+				i.err = err
+				return false
+			}
 		}
 	}
 

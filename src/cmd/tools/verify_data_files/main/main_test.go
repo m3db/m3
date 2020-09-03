@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
-  
+
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -120,12 +120,16 @@ func TestFixFileSetInvalidID(t *testing.T) {
 	checksum := digest.Checksum(data.Bytes())
 
 	writer := testWriter.writer
-	err = writer.Write(id, ident.Tags{}, data, checksum)
+	metadata := persist.NewMetadataFromIDAndTags(id, ident.Tags{},
+		persist.MetadataOptions{})
+	err = writer.Write(metadata, data, checksum)
 	require.NoError(t, err)
 
 	// Write valid ID.
 	id = ident.StringID("foo")
-	err = writer.Write(id, ident.Tags{}, data, checksum)
+	metadata = persist.NewMetadataFromIDAndTags(id, ident.Tags{},
+		persist.MetadataOptions{})
+	err = writer.Write(metadata, data, checksum)
 	require.NoError(t, err)
 
 	// Close volume.
@@ -189,7 +193,9 @@ func TestFixFileSetInvalidTags(t *testing.T) {
 	data.IncRef()
 	checksum := digest.Checksum(data.Bytes())
 
-	err = writer.Write(id, tags, data, checksum)
+	metadata := persist.NewMetadataFromIDAndTags(id, tags,
+		persist.MetadataOptions{})
+	err = writer.Write(metadata, data, checksum)
 	require.NoError(t, err)
 
 	// Write valid tags.
@@ -208,7 +214,9 @@ func TestFixFileSetInvalidTags(t *testing.T) {
 	data.IncRef()
 	checksum = digest.Checksum(data.Bytes())
 
-	err = writer.Write(id, tags, data, checksum)
+	metadata = persist.NewMetadataFromIDAndTags(id, tags,
+		persist.MetadataOptions{})
+	err = writer.Write(metadata, data, checksum)
 	require.NoError(t, err)
 
 	// Close volume.
@@ -281,7 +289,9 @@ func TestFixFileSetInvalidChecksum(t *testing.T) {
 	data.IncRef()
 	checksum := digest.Checksum(data.Bytes()) + 1
 
-	err = writer.Write(id, tags, data, checksum)
+	metadata := persist.NewMetadataFromIDAndTags(id, tags,
+		persist.MetadataOptions{})
+	err = writer.Write(metadata, data, checksum)
 	require.NoError(t, err)
 
 	// Write valid checksum.
@@ -300,7 +310,9 @@ func TestFixFileSetInvalidChecksum(t *testing.T) {
 	data.IncRef()
 	checksum = digest.Checksum(data.Bytes())
 
-	err = writer.Write(id, tags, data, checksum)
+	metadata = persist.NewMetadataFromIDAndTags(id, tags,
+		persist.MetadataOptions{})
+	err = writer.Write(metadata, data, checksum)
 	require.NoError(t, err)
 
 	// Close volume.

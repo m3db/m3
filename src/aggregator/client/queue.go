@@ -131,12 +131,14 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 		instrumentOpts     = opts.InstrumentOptions()
 		scope              = instrumentOpts.MetricsScope()
 		connInstrumentOpts = instrumentOpts.SetMetricsScope(scope.SubScope("connection"))
-		connOpts           = opts.ConnectionOptions().SetInstrumentOptions(connInstrumentOpts)
-		conn               = newConnection(instance.Endpoint(), connOpts)
-		iOpts              = opts.InstrumentOptions()
-		queueSize          = opts.InstanceQueueSize()
-		maxBatchSize       = opts.MaxBatchSize()
-		writeInterval      = opts.BatchFlushDeadline()
+		connOpts           = opts.ConnectionOptions().
+					SetInstrumentOptions(connInstrumentOpts).
+					SetRWOptions(opts.RWOptions())
+		conn          = newConnection(instance.Endpoint(), connOpts)
+		iOpts         = opts.InstrumentOptions()
+		queueSize     = opts.InstanceQueueSize()
+		maxBatchSize  = opts.MaxBatchSize()
+		writeInterval = opts.BatchFlushDeadline()
 	)
 	q := &queue{
 		dropType:           opts.QueueDropType(),

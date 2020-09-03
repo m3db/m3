@@ -22,6 +22,7 @@ package promql
 
 import (
 	"bytes"
+	"regexp"
 	"testing"
 
 	"github.com/m3db/m3/src/query/models"
@@ -35,30 +36,30 @@ func TestLabelMatchesToModelMatcher(t *testing.T) {
 	opts := models.NewTagOptions()
 
 	labels := []*labels.Matcher{
-		&labels.Matcher{
+		{
 			Type: labels.MatchEqual,
 			Name: "foo",
 		},
-		&labels.Matcher{
+		{
 			Type:  labels.MatchEqual,
 			Name:  "foo",
 			Value: "bar",
 		},
-		&labels.Matcher{
+		{
 			Type: labels.MatchNotEqual,
 			Name: "foo",
 		},
-		&labels.Matcher{
+		{
 			Type:  labels.MatchNotEqual,
 			Name:  "foo",
 			Value: "bar",
 		},
-		&labels.Matcher{
+		{
 			Type:  labels.MatchRegexp,
 			Name:  "foo",
 			Value: ".*",
 		},
-		&labels.Matcher{
+		{
 			Type:  labels.MatchNotRegexp,
 			Name:  "foo",
 			Value: ".*",
@@ -110,5 +111,52 @@ func TestLabelMatchesToModelMatcher(t *testing.T) {
 
 	for i, ex := range expected {
 		assert.True(t, equalish(ex, matchers[i]))
+	}
+}
+
+func TestSanitizeRegex(t *testing.T) {
+	tests := []struct {
+		data, expected string
+	}{
+		{data: "", expected: ""},
+
+		{data: "bar", expected: "bar"},
+
+		{data: "^bar", expected: "bar"},
+		{data: "b^ar", expected: "ar"},
+		{data: "ba^r", expected: "r"},
+		{data: "bar^", expected: ""},
+
+		{data: "bar$", expected: "bar"},
+		{data: "ba$r", expected: "ba"},
+		{data: "b$ar", expected: "b"},
+		{data: "$bar", expected: ""},
+
+		{data: "b^a$r", expected: "a"},
+		{data: "^bar$", expected: "bar"},
+
+		{data: "b$^ar", expected: ""},
+		{data: "b$ar^", expected: ""},
+
+		{data: `ba\^r`, expected: `ba\^r`},
+		{data: `ba\$r`, expected: `ba\$r`},
+		{data: `b^a\$r`, expected: `a\$r`},
+		{data: `b$a\$r`, expected: `b`},
+
+		{data: "b[$^]ar", expected: "b[$^]ar"},
+		{data: "b[^$]ar", expected: "b[^$]ar"},
+
+		{data: `b[^\]$]ar`, expected: `b[^\]$]ar`},
+		{data: `b[^\]$]^ar`, expected: "ar"},
+		{data: `b[^\]$]$ar`, expected: `b[^\]$]`},
+
+		{data: `b\[^\]$]$ar`, expected: `\]$]`},
+	}
+
+	for _, tt := range tests {
+		ac := sanitizeRegex([]byte(tt.data))
+		assert.Equal(t, tt.expected, string(ac))
+		_, err := regexp.Compile("^(?:" + string(ac) + ")$")
+		assert.NoError(t, err)
 	}
 }

@@ -44,12 +44,13 @@ import (
 
 func main() {
 	var (
-		optPathPrefix      = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db", "Path prefix [e.g. /var/lib/m3db]")
-		optNamespace       = getopt.StringLong("namespace", 'n', "metrics", "Namespace [e.g. metrics]")
-		optBlockstart      = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
-		optVolumeIndex     = getopt.Int64Long("volume-index", 'v', 0, "Volume index")
-		optLargeFieldLimit = getopt.Int64Long("large-field-limit", 'l', 0, "Large Field Limit (non-zero to display fields with num terms > limit)")
-		optOutputIdsPrefix = getopt.StringLong("output-ids-prefix", 'o', "", "If set, it emits all terms for the _m3ninx_id field.")
+		optPathPrefix            = getopt.StringLong("path-prefix", 'p', "/var/lib/m3db", "Path prefix [e.g. /var/lib/m3db]")
+		optNamespace             = getopt.StringLong("namespace", 'n', "metrics", "Namespace [e.g. metrics]")
+		optBlockstart            = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
+		optVolumeIndex           = getopt.Int64Long("volume-index", 'v', 0, "Volume index")
+		optLargeFieldLimit       = getopt.Int64Long("large-field-limit", 'l', 0, "Large Field Limit (non-zero to display fields with num terms > limit)")
+		optOutputIdsPrefix       = getopt.StringLong("output-ids-prefix", 'o', "", "If set, it emits all terms for the _m3ninx_id field.")
+		optSkipValidateIntegrity = getopt.BoolLong("skip-validate-integrity", 's', "If set will skip integrity validation on segment open")
 	)
 	getopt.Parse()
 
@@ -66,7 +67,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
+	fsOpts := fs.NewOptions().
+		SetFilePathPrefix(*optPathPrefix).
+		SetIndexReaderAutovalidateIndexSegments(!*optSkipValidateIntegrity)
 	reader, err := fs.NewIndexReader(fsOpts)
 	if err != nil {
 		log.Fatalf("could not create new index reader: %v", err)
@@ -89,12 +92,18 @@ func main() {
 	i := 0
 	for {
 		i++
+		log.Info("opening index segment file set")
 		fileset, err := reader.ReadSegmentFileSet()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			log.Fatalf("unable to retrieve fileset: %v", err)
+		}
+
+		log.Info("validating index segment file set")
+		if err := reader.Validate(); err != nil {
+			log.Fatalf("error validating segment file set: %v", err)
 		}
 
 		seg, err := m3ninxpersist.NewSegment(fileset, fsOpts.FSTOptions())

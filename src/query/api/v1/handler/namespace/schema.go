@@ -119,11 +119,7 @@ func (h *SchemaHandler) Add(
 ) (admin.NamespaceSchemaAddResponse, error) {
 	var emptyRep = admin.NamespaceSchemaAddResponse{}
 
-	kvOpts := kv.NewOverrideOptions().
-		SetEnvironment(opts.ServiceEnvironment).
-		SetZone(opts.ServiceZone)
-
-	store, err := h.client.Store(kvOpts)
+	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
 		return emptyRep, err
 	}
@@ -207,11 +203,7 @@ func (h *SchemaResetHandler) Reset(
 		return &emptyRep, fmt.Errorf("CAUTION! Reset schema will prevent proto-enabled namespace from loading, proceed if you know what you are doing, please retry with force set to true")
 	}
 
-	kvOpts := kv.NewOverrideOptions().
-		SetEnvironment(opts.ServiceEnvironment).
-		SetZone(opts.ServiceZone)
-
-	store, err := h.client.Store(kvOpts)
+	store, err := h.client.Store(opts.KVOverrideOptions())
 	if err != nil {
 		return &emptyRep, err
 	}

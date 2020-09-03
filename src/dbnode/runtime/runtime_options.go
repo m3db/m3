@@ -48,7 +48,7 @@ const (
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = 10 * time.Second
-	defaultMaxWiredBlocks                       = uint(1 << 18) // 262,144
+	defaultMaxWiredBlocks                       = uint(1 << 16) // 65,536
 )
 
 var (
@@ -67,6 +67,7 @@ type options struct {
 	writeNewSeriesAsync                  bool
 	writeNewSeriesBackoffDuration        time.Duration
 	writeNewSeriesLimitPerShardPerSecond int
+	encodersPerBlockLimit                int
 	tickSeriesBatchSize                  int
 	tickPerSeriesSleepDuration           time.Duration
 	tickMinimumInterval                  time.Duration
@@ -158,6 +159,16 @@ func (o *options) SetWriteNewSeriesLimitPerShardPerSecond(value int) Options {
 
 func (o *options) WriteNewSeriesLimitPerShardPerSecond() int {
 	return o.writeNewSeriesLimitPerShardPerSecond
+}
+
+func (o *options) SetEncodersPerBlockLimit(value int) Options {
+	opts := *o
+	opts.encodersPerBlockLimit = value
+	return &opts
+}
+
+func (o *options) EncodersPerBlockLimit() int {
+	return o.encodersPerBlockLimit
 }
 
 func (o *options) SetTickSeriesBatchSize(value int) Options {

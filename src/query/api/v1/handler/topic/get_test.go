@@ -43,8 +43,8 @@ func TestTopicGetHandler(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockService := setupTest(t, ctrl)
-	handler := NewGetHandler(nil, config.Configuration{}, instrument.NewOptions())
-	handler.serviceFn = testServiceFn(mockService)
+	handler := newGetHandler(nil, config.Configuration{}, instrument.NewOptions())
+	handler.(*GetHandler).serviceFn = testServiceFn(mockService)
 
 	// Test successful get
 	w := httptest.NewRecorder()

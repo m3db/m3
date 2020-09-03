@@ -35,7 +35,9 @@ import (
 	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/transformation"
 	"github.com/m3db/m3/src/x/pool"
+	"go.uber.org/zap"
 
 	"github.com/willf/bitset"
 )
@@ -176,7 +178,7 @@ func newElemBase(opts Options) elemBase {
 	return elemBase{
 		opts:         opts,
 		aggTypesOpts: opts.AggregationTypesOptions(),
-		aggOpts:      raggregation.NewOptions(),
+		aggOpts:      raggregation.NewOptions(opts.InstrumentOptions()),
 	}
 }
 
@@ -192,6 +194,8 @@ func (e *elemBase) resetSetData(
 ) error {
 	parsed, err := newParsedPipeline(pipeline)
 	if err != nil {
+		l := e.opts.InstrumentOptions().Logger()
+		l.Error("error parsing pipeline", zap.Error(err))
 		return err
 	}
 	e.id = id
@@ -378,9 +382,9 @@ type parsedPipeline struct {
 	// Whether the source pipeline contains derivative transformations at its head.
 	HasDerivativeTransform bool
 
-	// Sub-pipline containing only transformation operations from the head
-	// of the source pipeline this parsed pipeline was derived from.
-	Transformations applied.Pipeline
+	// Transformation operations from the head of the source pipeline this
+	// parsed pipeline was derived from.
+	Transformations []transformation.Op
 
 	// Whether the source pipeline contains a rollup operation that is either at the
 	// head of the source pipeline or immediately following the transformation operations
@@ -417,7 +421,8 @@ func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 	for i := 0; i < numSteps; i++ {
 		pipelineOp := pipeline.At(i)
 		if pipelineOp.Type != mpipeline.TransformationOpType && pipelineOp.Type != mpipeline.RollupOpType {
-			return parsedPipeline{}, fmt.Errorf("pipeline %v step %d has invalid operation type %v", pipeline, i, pipelineOp.Type)
+			err := fmt.Errorf("pipeline %v step %d has invalid operation type %v", pipeline, i, pipelineOp.Type)
+			return parsedPipeline{}, err
 		}
 		if pipelineOp.Type == mpipeline.RollupOpType {
 			if firstRollupOpIdx == -1 {
@@ -433,9 +438,7 @@ func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 			}
 		}
 	}
-	if firstRollupOpIdx == -1 {
-		return parsedPipeline{}, fmt.Errorf("pipeline %v has no rollup operations", pipeline)
-	}
+
 	// Pipelines that compute higher order derivatives require keeping more states including
 	// the raw values and lower order derivatives. For example, a pipline such as `aggregate Last |
 	// perSecond | perSecond` requires storing both the raw value and the first-order derivatives.
@@ -445,11 +448,37 @@ func newParsedPipeline(pipeline applied.Pipeline) (parsedPipeline, error) {
 	if transformationDerivativeOrder > maxSupportedTransformationDerivativeOrder {
 		return parsedPipeline{}, fmt.Errorf("pipeline %v transformation derivative order is %d higher than supported %d", pipeline, transformationDerivativeOrder, maxSupportedTransformationDerivativeOrder)
 	}
+
+	var (
+		hasRollup              = firstRollupOpIdx != -1
+		hasDerivativeTransform = transformationDerivativeOrder > 0
+		transformPipeline      applied.Pipeline
+		remainder              applied.Pipeline
+		rollup                 applied.RollupOp
+	)
+	if hasRollup {
+		transformPipeline = pipeline.SubPipeline(0, firstRollupOpIdx)
+		remainder = pipeline.SubPipeline(firstRollupOpIdx+1, numSteps)
+		rollup = pipeline.At(firstRollupOpIdx).Rollup
+	} else {
+		transformPipeline = pipeline
+	}
+
+	transformations := make([]transformation.Op, 0, transformPipeline.Len())
+	for i := 0; i < transformPipeline.Len(); i++ {
+		op, err := transformPipeline.At(i).Transformation.Type.NewOp()
+		if err != nil {
+			err := fmt.Errorf("transform could not construct op: %v", err)
+			return parsedPipeline{}, err
+		}
+		transformations = append(transformations, op)
+	}
+
 	return parsedPipeline{
-		HasDerivativeTransform: transformationDerivativeOrder > 0,
-		Transformations:        pipeline.SubPipeline(0, firstRollupOpIdx),
-		HasRollup:              true,
-		Rollup:                 pipeline.At(firstRollupOpIdx).Rollup,
-		Remainder:              pipeline.SubPipeline(firstRollupOpIdx+1, numSteps),
+		HasDerivativeTransform: hasDerivativeTransform,
+		HasRollup:              hasRollup,
+		Transformations:        transformations,
+		Remainder:              remainder,
+		Rollup:                 rollup,
 	}, nil
 }

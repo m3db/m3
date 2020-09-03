@@ -165,10 +165,10 @@ func (it *readerIterator) readIntValDiff() {
 		sign = 1.0
 	}
 
-	it.intVal += sign * float64(it.readBits(int(it.sig)))
+	it.intVal += sign * float64(it.readBits(uint(it.sig)))
 }
 
-func (it *readerIterator) readBits(numBits int) uint64 {
+func (it *readerIterator) readBits(numBits uint) uint64 {
 	if !it.hasNext() {
 		return 0
 	}
@@ -183,14 +183,16 @@ func (it *readerIterator) readBits(numBits int) uint64 {
 func (it *readerIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
 	if !it.intOptimized || it.isFloat {
 		return ts.Datapoint{
-			Timestamp: it.tsIterator.PrevTime,
-			Value:     math.Float64frombits(it.floatIter.PrevFloatBits),
+			Timestamp:      it.tsIterator.PrevTime.ToTime(),
+			TimestampNanos: it.tsIterator.PrevTime,
+			Value:          math.Float64frombits(it.floatIter.PrevFloatBits),
 		}, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
 	}
 
 	return ts.Datapoint{
-		Timestamp: it.tsIterator.PrevTime,
-		Value:     convertFromIntFloat(it.intVal, it.mult),
+		Timestamp:      it.tsIterator.PrevTime.ToTime(),
+		TimestampNanos: it.tsIterator.PrevTime,
+		Value:          convertFromIntFloat(it.intVal, it.mult),
 	}, it.tsIterator.TimeUnit, it.tsIterator.PrevAnt
 }
 

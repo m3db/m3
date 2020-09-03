@@ -22,7 +22,6 @@ package json
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -31,6 +30,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test/m3"
 
 	"github.com/golang/mock/gomock"
@@ -79,22 +79,20 @@ func TestJSONWrite(t *testing.T) {
 	session.EXPECT().IteratorPools().
 		Return(nil, nil).AnyTimes()
 
-	opts := options.EmptyHandlerOptions().SetStorage(storage)
-	jsonWrite := NewWriteJSONHandler(opts).(*WriteJSONHandler)
+	opts := options.EmptyHandlerOptions().
+		SetTagOptions(models.NewTagOptions()).
+		SetStorage(storage)
+	handler := NewWriteJSONHandler(opts).(*WriteJSONHandler)
 
 	jsonReq := generateJSONWriteRequest()
 	req, err := http.NewRequest(JSONWriteHTTPMethod, WriteJSONURL,
 		strings.NewReader(jsonReq))
 	require.NoError(t, err)
 
-	r, rErr := parseRequest(req)
-	require.Nil(t, rErr, "unable to parse request")
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
 
-	writeQuery, err := newStorageWriteQuery(r)
-	require.NoError(t, err)
-
-	writeErr := jsonWrite.store.Write(context.TODO(), writeQuery)
-	require.NoError(t, writeErr)
+	require.Equal(t, http.StatusOK, resp.Code)
 }
 
 func TestJSONWriteError(t *testing.T) {

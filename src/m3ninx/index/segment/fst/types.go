@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/x/context"
 )
 
 const (
@@ -57,6 +58,11 @@ var (
 type Segment interface {
 	sgmt.ImmutableSegment
 	index.Readable
+
+	// SegmentData returns the segment data used to create the segment.
+	// Note: Must close context when done with the data
+	// so that can resources can be free'd safely.
+	SegmentData(ctx context.Context) (SegmentData, error)
 }
 
 // Writer writes out a FST segment from the provided elements.

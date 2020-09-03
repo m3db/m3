@@ -185,7 +185,7 @@ func (s idPoolTestSuite) TestPoolGetTagsIterator() {
 
 	ctx.BlockingClose()
 
-	s.Require().Nil(iter.(*tagSliceIter).backingSlice)
+	s.Require().Equal(tagsSlice{}, iter.(*tagSliceIter).backingSlice)
 	s.Require().Equal(-1, iter.(*tagSliceIter).currentIdx)
 }
 
@@ -206,7 +206,7 @@ func (s idPoolTestSuite) TestPoolTagsIterator() {
 
 	iter.Close()
 
-	s.Require().Nil(iter.(*tagSliceIter).backingSlice)
+	s.Require().Equal(tagsSlice{}, iter.(*tagSliceIter).backingSlice)
 	s.Require().Equal(-1, iter.(*tagSliceIter).currentIdx)
 }
 

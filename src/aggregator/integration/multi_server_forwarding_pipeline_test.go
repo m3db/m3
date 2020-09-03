@@ -158,7 +158,8 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 	connectionOpts := aggclient.NewConnectionOptions().
 		SetInitReconnectThreshold(1).
 		SetMaxReconnectThreshold(1).
-		SetMaxReconnectDuration(2 * time.Second)
+		SetMaxReconnectDuration(2 * time.Second).
+		SetWriteTimeout(time.Second)
 
 	// Create servers.
 	servers := make([]*testServerSetup, 0, len(multiServerSetup))
@@ -397,8 +398,9 @@ func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues 
 				continue
 			}
 			currTime := start.Add(time.Duration(i+1) * storagePolicy.Resolution().Window)
-			agg := aggregation.NewGauge(aggregation.NewOptions())
-			agg.Update(expectedValuesList[spIdx][i])
+			instrumentOpts := aggregatorOpts.InstrumentOptions()
+			agg := aggregation.NewGauge(aggregation.NewOptions(instrumentOpts))
+			agg.Update(time.Now(), expectedValuesList[spIdx][i])
 			expectedValuesByTimeList[spIdx][currTime.UnixNano()] = agg
 		}
 	}

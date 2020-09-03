@@ -26,11 +26,13 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
+	queryconsolidator "github.com/m3db/m3/src/query/storage/m3/consolidators"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3/src/x/pool"
 	xsync "github.com/m3db/m3/src/x/sync"
@@ -49,17 +51,20 @@ var (
 )
 
 type encodedBlockOptions struct {
-	splitSeries      bool
-	lookbackDuration time.Duration
-	consolidationFn  consolidators.ConsolidationFunc
-	tagOptions       models.TagOptions
-	iterAlloc        encoding.ReaderIteratorAllocate
-	pools            encoding.IteratorPools
-	checkedPools     pool.CheckedBytesPool
-	readWorkerPools  xsync.PooledWorkerPool
-	writeWorkerPools xsync.PooledWorkerPool
-	batchingFn       IteratorBatchingFn
-	instrumented     bool
+	splitSeries                   bool
+	lookbackDuration              time.Duration
+	consolidationFn               consolidators.ConsolidationFunc
+	tagOptions                    models.TagOptions
+	iterAlloc                     encoding.ReaderIteratorAllocate
+	pools                         encoding.IteratorPools
+	checkedPools                  pool.CheckedBytesPool
+	readWorkerPools               xsync.PooledWorkerPool
+	writeWorkerPools              xsync.PooledWorkerPool
+	queryConsolidatorMatchOptions queryconsolidator.MatchOptions
+	seriesIteratorProcessor       SeriesIteratorProcessor
+	batchingFn                    IteratorBatchingFn
+	adminOptions                  []client.CustomAdminOption
+	instrumented                  bool
 }
 
 type nextDetails struct {
@@ -79,21 +84,26 @@ func NewOptions() Options {
 	})
 	bytesPool.Init()
 
-	opts := pool.NewObjectPoolOptions().SetSize(1024)
-	batchPool := pool.NewObjectPool(opts)
-	batchPool.Init(func() interface{} {
-		return nextDetails{}
-	})
+	iteratorPools := pools.BuildIteratorPools(pools.BuildIteratorPoolsOptions{})
+	return newOptions(bytesPool, iteratorPools)
+}
 
+func newOptions(
+	bytesPool pool.CheckedBytesPool,
+	iteratorPools encoding.IteratorPools,
+) Options {
 	return &encodedBlockOptions{
 		lookbackDuration: defaultLookbackDuration,
 		consolidationFn:  defaultConsolidationFn,
 		tagOptions:       models.NewTagOptions(),
 		iterAlloc:        defaultIterAlloc,
-		pools:            pools.BuildIteratorPools(),
+		pools:            iteratorPools,
 		checkedPools:     bytesPool,
 		batchingFn:       defaultIteratorBatchingFn,
 		instrumented:     defaultInstrumented,
+		queryConsolidatorMatchOptions: queryconsolidator.MatchOptions{
+			MatchType: queryconsolidator.MatchIDs,
+		},
 	}
 }
 
@@ -187,6 +197,27 @@ func (o *encodedBlockOptions) WriteWorkerPool() xsync.PooledWorkerPool {
 	return o.writeWorkerPools
 }
 
+func (o *encodedBlockOptions) SetSeriesConsolidationMatchOptions(
+	value queryconsolidator.MatchOptions) Options {
+	opts := *o
+	opts.queryConsolidatorMatchOptions = value
+	return &opts
+}
+
+func (o *encodedBlockOptions) SeriesConsolidationMatchOptions() queryconsolidator.MatchOptions {
+	return o.queryConsolidatorMatchOptions
+}
+
+func (o *encodedBlockOptions) SetSeriesIteratorProcessor(p SeriesIteratorProcessor) Options {
+	opts := *o
+	opts.seriesIteratorProcessor = p
+	return &opts
+}
+
+func (o *encodedBlockOptions) SeriesIteratorProcessor() SeriesIteratorProcessor {
+	return o.seriesIteratorProcessor
+}
+
 func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Options {
 	opts := *o
 	opts.batchingFn = fn
@@ -195,6 +226,18 @@ func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Optio
 
 func (o *encodedBlockOptions) IteratorBatchingFn() IteratorBatchingFn {
 	return o.batchingFn
+}
+
+func (o *encodedBlockOptions) SetCustomAdminOptions(
+	val []client.CustomAdminOption) Options {
+	opts := *o
+	opts.adminOptions = val
+	return &opts
+
+}
+
+func (o *encodedBlockOptions) CustomAdminOptions() []client.CustomAdminOption {
+	return o.adminOptions
 }
 
 func (o *encodedBlockOptions) SetInstrumented(i bool) Options {

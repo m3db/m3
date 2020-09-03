@@ -47,12 +47,12 @@ const (
 // GetHandler is the handler for topic gets.
 type GetHandler Handler
 
-// NewGetHandler returns a new instance of GetHandler.
-func NewGetHandler(
+// newGetHandler returns a new instance of GetHandler.
+func newGetHandler(
 	client clusterclient.Client,
 	cfg config.Configuration,
 	instrumentOpts instrument.Options,
-) *GetHandler {
+) http.Handler {
 	return &GetHandler{
 		client:         client,
 		cfg:            cfg,

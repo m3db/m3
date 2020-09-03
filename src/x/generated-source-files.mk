@@ -2,7 +2,7 @@ gopath_prefix            := $(GOPATH)/src
 m3x_package              := github.com/m3db/m3/src/x
 m3x_package_path         := $(gopath_prefix)/$(m3x_package)
 temp_suffix              := _temp
-gorename_package         := github.com/prateek/gorename
+gorename_package         := github.com/robskillington/gorename
 gorename_package_version := 52c7307cddd221bb98f0a3215216789f3c821b10
 
 # Tests that all currently generated types match their contents if they were regenerated
@@ -75,7 +75,7 @@ hashmap-gen-rename-helper:
 key_type_alias   ?= $(key_type)
 value_type_alias ?= $(value_type)
 .PHONY: hashmap-gen-rename
-hashmap-gen-rename: install-gorename
+hashmap-gen-rename:
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
 	echo $(temp_outdir)
@@ -155,7 +155,7 @@ endif
 
 elem_type_alias ?= $(elem_type)
 .PHONY: arraypool-gen-rename
-arraypool-gen-rename: install-gorename
+arraypool-gen-rename:
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
 ifneq ($(rename_gen_types),)
 	# Allow users to short circuit the generation of types.go if they don't need it.
@@ -197,7 +197,7 @@ endif
 
 elem_type_alias ?= $(elem_type)
 .PHONY: list-gen-rename
-list-gen-rename: install-gorename
+list-gen-rename:
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
 ifneq ($(rename_gen_types),)
 	# Allow users to short circuit the generation of types.go if they don't need it.
@@ -213,14 +213,3 @@ endif
 ifneq ($(rename_gen_types),)
 	rm $(temp_outdir)/types.go
 endif
-
-install-gorename:
-	$(eval gorename_dir=$(gopath_prefix)/$(gorename_package))
-	@([ -d $(gorename_dir) ] && which gorename >/dev/null ) || \
-   (echo "Downloading specified gorename" &&      \
-		 go get -d $(gorename_package) &&             \
-		cd $(gopath_prefix)/$(gorename_package) &&    \
-		git checkout $(gorename_package_version) &&   \
-		glide install -v && go install &&             \
-		echo "Successfully installed gorename") 2>/dev/null
-	@which gorename > /dev/null || (echo "gorename install failed" && exit 1)

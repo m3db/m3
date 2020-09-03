@@ -29,8 +29,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/x/context"
 	xtime "github.com/m3db/m3/src/x/time"
 	"go.uber.org/zap"
@@ -125,19 +125,19 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 				if err != nil {
 					return false, err
 				}
-				opts := newTestOptions(t).
+				opts := NewTestOptions(t).
 					SetNamespaces([]namespace.Metadata{ns1})
 
 				// Test setup
 				setup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, opts)
-				defer setup.close()
+				defer setup.Close()
 
-				log := setup.storageOpts.InstrumentOptions().Logger()
+				log := setup.StorageOpts().InstrumentOptions().Logger()
 				log.Sugar().Info("blockSize: %s\n", ns1ROpts.BlockSize().String())
 				log.Sugar().Info("bufferPast: %s\n", ns1ROpts.BufferPast().String())
 				log.Sugar().Info("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
 
-				setup.setNowFn(fakeStart)
+				setup.SetNowFn(fakeStart)
 
 				var (
 					ids        = &idGen{longTestID}
@@ -148,7 +148,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					latestToCheck     = datapoints[len(datapoints)-1].time.Add(ns1BlockSize)
 					timesToRestart    = []time.Time{}
 					start             = earliestToCheck
-					filePathPrefix    = setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+					filePathPrefix    = setup.StorageOpts().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 				)
 
 				// Generate randomly selected times during which the node will restart
@@ -179,9 +179,9 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 							break
 						}
 
-						setup.setNowFn(ts)
+						setup.SetNowFn(ts)
 
-						err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, dp.ann)
+						err := setup.DB().Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, dp.ann)
 						if err != nil {
 							log.Warn("error writing series datapoint", zap.Error(err))
 							return false, err
@@ -203,7 +203,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					if input.waitForFlushFiles {
 						log.Info("waiting for data files to be flushed")
 						var (
-							now                       = setup.getNowFn()
+							now                       = setup.NowFn()()
 							endOfLatestFlushableBlock = retention.FlushTimeEnd(ns1ROpts, now).
 								// Add block size because FlushTimeEnd will return the beginning of the
 								// latest flushable block.
@@ -212,7 +212,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 								// be available on disk.
 							expectedFlushedData = datapoints.before(endOfLatestFlushableBlock).toSeriesMap(ns1BlockSize)
 							err                 = waitUntilDataFilesFlushed(
-								filePathPrefix, setup.shardSet, nsID, expectedFlushedData, maxFlushWaitTime)
+								filePathPrefix, setup.ShardSet(), nsID, expectedFlushedData, maxFlushWaitTime)
 						)
 						if err != nil {
 							return false, fmt.Errorf("error waiting for data files to flush: %s", err)
@@ -221,16 +221,16 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 					if input.waitForSnapshotFiles {
 						log.Info("waiting for snapshot files to be written")
-						now := setup.getNowFn()
+						now := setup.NowFn()()
 						var snapshotBlock time.Time
 						if now.Add(-bufferPast).Truncate(ns1BlockSize).Equal(now.Truncate(ns1BlockSize)) {
 							snapshotBlock = now.Truncate(ns1BlockSize)
 						} else {
 							snapshotBlock = now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
 						}
-						err := waitUntilSnapshotFilesFlushed(
+						_, err := waitUntilSnapshotFilesFlushed(
 							filePathPrefix,
-							setup.shardSet,
+							setup.ShardSet(),
 							nsID,
 							[]snapshotID{{blockStart: snapshotBlock}},
 							maxFlushWaitTime,
@@ -240,19 +240,19 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						}
 					}
 
-					require.NoError(t, setup.stopServer())
+					require.NoError(t, setup.StopServer())
 					// Create a new test setup because databases do not have a completely
 					// clean shutdown, so they can end up in a bad state where the persist
 					// manager is not idle and thus no more flushes can be done, even if
 					// there are no other in-progress flushes.
-					oldNow := setup.getNowFn()
+					oldNow := setup.NowFn()()
 					setup = newTestSetupWithCommitLogAndFilesystemBootstrapper(
 						// FilePathPrefix is randomly generated if not provided, so we need
 						// to make sure all our test setups have the same prefix so that
 						// they can find each others files.
 						t, opts.SetFilePathPrefix(filePathPrefix))
 					// Make sure the new setup has the same system time as the previous one.
-					setup.setNowFn(oldNow)
+					setup.SetNowFn(oldNow)
 				}
 
 				if lastDatapointsIdx != len(datapoints) {

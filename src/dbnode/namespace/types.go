@@ -25,9 +25,9 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/dbnode/retention"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
-	xclose "github.com/m3db/m3/src/x/close"
 )
 
 // Options controls namespace behavior
@@ -97,6 +97,12 @@ type Options interface {
 
 	// SchemaHistory returns the schema registry for this namespace.
 	SchemaHistory() SchemaHistory
+
+	// SetRuntimeOptions sets the RuntimeOptions.
+	SetRuntimeOptions(value RuntimeOptions) Options
+
+	// RuntimeOptions returns the RuntimeOptions.
+	RuntimeOptions() RuntimeOptions
 }
 
 // IndexOptions controls the indexing options for a namespace.
@@ -163,7 +169,7 @@ type SchemaRegistry interface {
 
 	// GetSchema gets the latest schema for the namespace.
 	// If proto is not enabled, nil, nil is returned
-	GetSchema(id ident.ID, schemaId string) (SchemaDescr, error)
+	GetSchema(id ident.ID, schemaID string) (SchemaDescr, error)
 
 	// SetSchemaHistory sets the schema history for the namespace.
 	// If proto is not enabled, nil is returned
@@ -255,6 +261,14 @@ type DynamicOptions interface {
 	// NamespaceRegistryKey returns the kv-store key used for the
 	// NamespaceRegistry
 	NamespaceRegistryKey() string
+
+	// SetForceColdWritesEnabled sets whether or not to force enable cold writes
+	// for all ns.
+	SetForceColdWritesEnabled(enabled bool) DynamicOptions
+
+	// ForceColdWritesEnabled returns whether or not to force enable cold writes
+	// for all ns.
+	ForceColdWritesEnabled() bool
 }
 
 // NamespaceWatch watches for namespace updates.
@@ -269,4 +283,5 @@ type NamespaceWatch interface {
 	Close() error
 }
 
+// NamespaceUpdater is a namespace updater function.
 type NamespaceUpdater func(Map) error
