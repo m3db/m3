@@ -256,13 +256,13 @@ func (s *peersSource) readData(
 	var (
 		resultLock              sync.Mutex
 		wg                      sync.WaitGroup
-		persistenceWorkerDoneCh = make(chan struct{})
 		persistenceMaxQueueSize = s.opts.PersistenceMaxQueueSize()
 		persistenceQueue        = make(chan persistenceFlush, persistenceMaxQueueSize)
 		resultOpts              = s.opts.ResultOptions()
 		count                   = shardTimeRanges.Len()
 		concurrency             = s.opts.DefaultShardConcurrency()
 		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
+		persistWg               = &sync.WaitGroup{}
 		persistClosers          []io.Closer
 	)
 	if shouldPersist {
@@ -277,7 +277,7 @@ func (s *peersSource) readData(
 		// Spin up persist workers.
 		for i := 0; i < s.opts.ShardPersistenceFlushConcurrency(); i++ {
 			closer, err := s.startPersistenceQueueWorkerLoop(opts,
-				persistenceWorkerDoneCh, persistenceQueue, result, &resultLock)
+				persistWg, persistenceQueue, result, &resultLock)
 			if err != nil {
 				return nil, err
 			}
@@ -302,14 +302,14 @@ func (s *peersSource) readData(
 	wg.Wait()
 	close(persistenceQueue)
 	if shouldPersist {
-		// Wait for the persistenceQueueWorker to finish flushing everything
-		<-persistenceWorkerDoneCh
-	}
+		// Wait for the persistenceQueue workers to finish flushing everything.
+		persistWg.Wait()
 
-	// Close any persist closers to finalize files written.
-	for _, closer := range persistClosers {
-		if err := closer.Close(); err != nil {
-			return nil, err
+		// Close any persist closers to finalize files written.
+		for _, closer := range persistClosers {
+			if err := closer.Close(); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -318,7 +318,7 @@ func (s *peersSource) readData(
 
 func (s *peersSource) startPersistenceQueueWorkerLoop(
 	opts bootstrap.RunOptions,
-	doneCh chan struct{},
+	persistWg *sync.WaitGroup,
 	persistenceQueue chan persistenceFlush,
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
@@ -333,8 +333,10 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 		return nil, err
 	}
 
+	persistWg.Add(1)
 	go func() {
-		s.runPersistenceQueueWorkerLoop(opts, doneCh, persistenceQueue,
+		defer persistWg.Done()
+		s.runPersistenceQueueWorkerLoop(opts, persistenceQueue,
 			persistFlush, bootstrapResult, lock)
 	}()
 
@@ -348,7 +350,6 @@ func (s *peersSource) startPersistenceQueueWorkerLoop(
 // provided doneCh so that callers can block until everything has been successfully flushed.
 func (s *peersSource) runPersistenceQueueWorkerLoop(
 	opts bootstrap.RunOptions,
-	doneCh chan struct{},
 	persistenceQueue chan persistenceFlush,
 	persistFlush persist.FlushPreparer,
 	bootstrapResult result.DataBootstrapResult,
@@ -377,7 +378,6 @@ func (s *peersSource) runPersistenceQueueWorkerLoop(
 		bootstrapResult.SetUnfulfilled(unfulfilled)
 		lock.Unlock()
 	}
-	close(doneCh)
 }
 
 // fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
