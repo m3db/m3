@@ -189,13 +189,13 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 
 				// Health check the connection
 				if err := p.healthCheckNewConn(client, p.opts); err != nil {
-					p.healthStatus.Update(float64(healthStatusCheckFailed))
+					p.maybeEmitHealthStatus(healthStatusCheckFailed)
 					log.Debug("could not connect, failed health check", zap.String("host", address), zap.Error(err))
 					channel.Close()
 					return
 				}
 
-				p.healthStatus.Update(float64(healthStatusOK))
+				p.maybeEmitHealthStatus(healthStatusOK)
 				p.Lock()
 				if p.status == statusOpen {
 					p.pool = append(p.pool, conn{channel, client})
@@ -208,6 +208,12 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 		wg.Wait()
 
 		p.sleepConnect(interval + randStutter(p.connectRand, stutter))
+	}
+}
+
+func (p *connPool) maybeEmitHealthStatus(hs healthStatus) {
+	if p.opts.HostQueueEmitsHealthStatus() {
+		p.healthStatus.Update(float64(hs))
 	}
 }
 

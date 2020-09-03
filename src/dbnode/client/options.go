@@ -116,6 +116,9 @@ const (
 	// defaultHostQueueOpsArrayPoolSize is the default host queue ops array pool size
 	defaultHostQueueOpsArrayPoolSize = 8
 
+	// defaultHostQueueEmitsHealthStatus is false
+	defaultHostQueueEmitsHealthStatus = false
+
 	// defaultBackgroundConnectInterval is the default background connect interval
 	defaultBackgroundConnectInterval = 4 * time.Second
 
@@ -257,6 +260,7 @@ type options struct {
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
 	hostQueueOpsArrayPoolSize               int
+	hostQueueEmitsHealthStatus              bool
 	seriesIteratorPoolSize                  int
 	seriesIteratorArrayPoolBuckets          []pool.Bucket
 	checkedBytesWrapperPoolSize             int
@@ -376,6 +380,7 @@ func newOptions() *options {
 		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
 		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
 		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
+		hostQueueEmitsHealthStatus:              defaultHostQueueEmitsHealthStatus,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
 		checkedBytesWrapperPoolSize:             defaultCheckedBytesWrapperPoolSize,
@@ -867,6 +872,16 @@ func (o *options) SetHostQueueOpsArrayPoolSize(value int) Options {
 
 func (o *options) HostQueueOpsArrayPoolSize() int {
 	return o.hostQueueOpsArrayPoolSize
+}
+
+func (o *options) SetHostQueueEmitsHealthStatus(value bool) Options {
+	opts := *o
+	opts.hostQueueEmitsHealthStatus = value
+	return &opts
+}
+
+func (o *options) HostQueueEmitsHealthStatus() bool {
+	return o.hostQueueEmitsHealthStatus
 }
 
 func (o *options) SetSeriesIteratorPoolSize(value int) Options {
