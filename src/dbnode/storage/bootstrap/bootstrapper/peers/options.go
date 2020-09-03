@@ -48,6 +48,11 @@ var (
 	// src/cmd/services/m3dbnode/config package if this is changed.
 	DefaultShardPersistenceConcurrency = int(math.Max(1, float64(runtime.NumCPU())/2))
 	defaultPersistenceMaxQueueSize     = 0
+	// DefaultShardPersistenceFlushConcurrency controls how many shards in parallel to flush
+	// for historical data being streamed between peers (historical blocks).
+	// Update BootstrapPeersConfiguration comment in
+	// src/cmd/services/m3dbnode/config package if this is changed.
+	DefaultShardPersistenceFlushConcurrency = 1
 )
 
 var (
@@ -60,26 +65,28 @@ var (
 )
 
 type options struct {
-	resultOpts                  result.Options
-	client                      client.AdminClient
-	defaultShardConcurrency     int
-	shardPersistenceConcurrency int
-	persistenceMaxQueueSize     int
-	persistManager              persist.Manager
-	runtimeOptionsManager       m3dbruntime.OptionsManager
-	contextPool                 context.Pool
-	fsOpts                      fs.Options
-	indexOpts                   index.Options
-	compactor                   *compaction.Compactor
+	resultOpts                       result.Options
+	client                           client.AdminClient
+	defaultShardConcurrency          int
+	shardPersistenceConcurrency      int
+	shardPersistenceFlushConcurrency int
+	persistenceMaxQueueSize          int
+	persistManager                   persist.Manager
+	runtimeOptionsManager            m3dbruntime.OptionsManager
+	contextPool                      context.Pool
+	fsOpts                           fs.Options
+	indexOpts                        index.Options
+	compactor                        *compaction.Compactor
 }
 
 // NewOptions creates new bootstrap options.
 func NewOptions() Options {
 	return &options{
-		resultOpts:                  result.NewOptions(),
-		defaultShardConcurrency:     DefaultShardConcurrency,
-		shardPersistenceConcurrency: DefaultShardPersistenceConcurrency,
-		persistenceMaxQueueSize:     defaultPersistenceMaxQueueSize,
+		resultOpts:                       result.NewOptions(),
+		defaultShardConcurrency:          DefaultShardConcurrency,
+		shardPersistenceConcurrency:      DefaultShardPersistenceConcurrency,
+		shardPersistenceFlushConcurrency: DefaultShardPersistenceFlushConcurrency,
+		persistenceMaxQueueSize:          defaultPersistenceMaxQueueSize,
 		// Use a zero pool, this should be overriden at config time.
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(pool.NewObjectPoolOptions().SetSize(0)).
@@ -147,6 +154,16 @@ func (o *options) SetShardPersistenceConcurrency(value int) Options {
 
 func (o *options) ShardPersistenceConcurrency() int {
 	return o.shardPersistenceConcurrency
+}
+
+func (o *options) SetShardPersistenceFlushConcurrency(value int) Options {
+	opts := *o
+	opts.shardPersistenceFlushConcurrency = value
+	return &opts
+}
+
+func (o *options) ShardPersistenceFlushConcurrency() int {
+	return o.shardPersistenceFlushConcurrency
 }
 
 func (o *options) SetPersistenceMaxQueueSize(value int) Options {

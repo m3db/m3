@@ -22,6 +22,7 @@ package peers
 
 import (
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -42,6 +43,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
+	xclose "github.com/m3db/m3/src/x/close"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
@@ -231,8 +233,6 @@ func (s *peersSource) readData(
 	}
 
 	var (
-		namespace     = nsMetadata.ID()
-		persistFlush  persist.FlushPreparer
 		shouldPersist = false
 		// TODO(bodu): We should migrate to series.CacheLRU only.
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
@@ -242,24 +242,7 @@ func (s *peersSource) readData(
 	if persistConfig.Enabled &&
 		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
-		persistManager := s.opts.PersistManager()
-
-		// Neither of these should ever happen
-		if seriesCachePolicy != series.CacheAll && persistManager == nil {
-			s.log.Fatal("tried to perform a bootstrap with persistence without persist manager")
-		}
-
-		s.log.Info("peers bootstrapper resolving block retriever", zap.Stringer("namespace", namespace))
-
-		persist, err := persistManager.StartFlushPersist()
-		if err != nil {
-			return nil, err
-		}
-
-		defer persist.DoneFlush()
-
 		shouldPersist = true
-		persistFlush = persist
 	}
 
 	result := result.NewDataBootstrapResult()
@@ -280,6 +263,7 @@ func (s *peersSource) readData(
 		count                   = shardTimeRanges.Len()
 		concurrency             = s.opts.DefaultShardConcurrency()
 		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
+		persistClosers          []io.Closer
 	)
 	if shouldPersist {
 		concurrency = s.opts.ShardPersistenceConcurrency()
@@ -290,8 +274,16 @@ func (s *peersSource) readData(
 		zap.Int("concurrency", concurrency),
 		zap.Bool("shouldPersist", shouldPersist))
 	if shouldPersist {
-		go s.startPersistenceQueueWorkerLoop(
-			opts, persistenceWorkerDoneCh, persistenceQueue, persistFlush, result, &resultLock)
+		// Spin up persist workers.
+		for i := 0; i < s.opts.ShardPersistenceFlushConcurrency(); i++ {
+			closer, err := s.startPersistenceQueueWorkerLoop(opts,
+				persistenceWorkerDoneCh, persistenceQueue, result, &resultLock)
+			if err != nil {
+				return nil, err
+			}
+
+			persistClosers = append(persistClosers, closer)
+		}
 	}
 
 	workers := xsync.NewWorkerPool(concurrency)
@@ -314,15 +306,47 @@ func (s *peersSource) readData(
 		<-persistenceWorkerDoneCh
 	}
 
+	// Close any persist closers to finalize files written.
+	for _, closer := range persistClosers {
+		if err := closer.Close(); err != nil {
+			return nil, err
+		}
+	}
+
 	return result, nil
 }
 
-// startPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
+func (s *peersSource) startPersistenceQueueWorkerLoop(
+	opts bootstrap.RunOptions,
+	doneCh chan struct{},
+	persistenceQueue chan persistenceFlush,
+	bootstrapResult result.DataBootstrapResult,
+	lock *sync.Mutex,
+) (io.Closer, error) {
+	persistMgr, err := fs.NewPersistManager(s.opts.FilesystemOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	persistFlush, err := persistMgr.StartFlushPersist()
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		s.runPersistenceQueueWorkerLoop(opts, doneCh, persistenceQueue,
+			persistFlush, bootstrapResult, lock)
+	}()
+
+	return xclose.CloserFn(persistFlush.DoneFlush), nil
+}
+
+// runPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
 // loops through the persistenceQueue and performs a flush for each entry, ensuring that
 // no more than one flush is ever happening at once. Once the persistenceQueue channel
 // is closed, and the worker has completed flushing all the remaining entries, it will close the
 // provided doneCh so that callers can block until everything has been successfully flushed.
-func (s *peersSource) startPersistenceQueueWorkerLoop(
+func (s *peersSource) runPersistenceQueueWorkerLoop(
 	opts bootstrap.RunOptions,
 	doneCh chan struct{},
 	persistenceQueue chan persistenceFlush,

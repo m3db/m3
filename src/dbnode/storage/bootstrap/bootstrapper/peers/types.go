@@ -68,6 +68,16 @@ type Options interface {
 	// persistence enabled.
 	ShardPersistenceConcurrency() int
 
+	// SetShardPersistenceFlushConcurrency sets the flush concurrency for
+	// bootstrapping shards when performing a bootstrap with
+	// persistence enabled.
+	SetShardPersistenceFlushConcurrency(value int) Options
+
+	// ShardPersistenceFlushConcurrency returns the flush concurrency for
+	// bootstrapping shards when performing a bootstrap with
+	// persistence enabled.
+	ShardPersistenceFlushConcurrency() int
+
 	// SetPersistenceMaxQueueSize sets the max queue for
 	// bootstrapping shards waiting in line to persist without blocking
 	// the concurrent shard fetchers.
