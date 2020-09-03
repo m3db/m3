@@ -234,15 +234,8 @@ func (r *crossBlockReader) Close() error {
 		entry.id.Finalize()
 		entry.tags.Close()
 
-		// FIXME: the following DecRef logic should be solved in a proper way
-		if entry.data.NumRef() == 1 {
-			entry.data.DecRef()
-		}
-		if entry.data.NumRef() == 0 {
-			entry.data.Finalize()
-		} else {
-			fmt.Println("ERROR with ref count (Close):", entry.data.NumRef())
-		}
+		entry.data.DecRef()
+		entry.data.Finalize()
 		r.minHeap[i] = nil
 	}
 
@@ -351,15 +344,8 @@ func (c *crossBlockIterator) Reset(records []BlockRecord) {
 	// NB: close any open records.
 	if len(c.records) > 0 && c.idx >= 0 {
 		for i := c.idx; i < len(c.records); i++ {
-			// FIXME: the following DecRef logic should be solved in a proper way
-			if c.records[i].Data.NumRef() == 1 {
-				c.records[i].Data.DecRef()
-			}
-			if c.records[i].Data.NumRef() == 0 {
-				c.records[i].Data.Finalize()
-			} else {
-				fmt.Println("ERROR with ref count (Reset):", c.records[i].Data.NumRef())
-			}
+			c.records[i].Data.DecRef()
+			c.records[i].Data.Finalize()
 		}
 	}
 
