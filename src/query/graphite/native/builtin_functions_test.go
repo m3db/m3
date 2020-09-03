@@ -2564,7 +2564,7 @@ func TestMovingMedianInvalidLimits(t *testing.T) {
 func TestMovingMismatchedLimits(t *testing.T) {
 	// NB: this tests the behavior when query limits do not snap exactly to data
 	// points. When limits do not snap exactly, the first point should be omitted.
-	for _, fn := range []string{"movingAverage", "movingMedian", "movingSum"} {
+	for _, fn := range []string{"movingAverage", "movingMedian"} {
 		for i := time.Duration(0); i < time.Minute; i += time.Second {
 			testMovingAverageInvalidLimits(t, fn, i)
 		}
@@ -2978,7 +2978,6 @@ func TestFunctionsRegistered(t *testing.T) {
 		"mostDeviant",
 		"movingAverage",
 		"movingMedian",
-		"movingSum",
 		"multiplySeries",
 		"nonNegativeDerivative",
 		"nPercentile",
