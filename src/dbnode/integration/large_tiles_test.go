@@ -190,13 +190,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 			for inProgress.Load() {
 				//fmt.Printf("Fetch...")
 				series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(b)), dpTimeStart, dpTimeStart.Add(blockSizeT))
-				count := 0
-				if err == nil {
-					for series.Next() {
-						_, _, _ = series.Current()
-						count++
-					}
-				}
+				series.Close()
 
 				//fmt.Println(count, "Done")
 				if err != nil {
