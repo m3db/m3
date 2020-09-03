@@ -2688,6 +2688,7 @@ func (s *dbShard) AggregateTiles(
 	}()
 
 	encoder := s.opts.EncoderPool().Get()
+	defer encoder.Close()
 	encoder.SetSchema(targetSchemaDesc)
 
 	latestTargetVolume, err := s.LatestVolume(opts.Start)

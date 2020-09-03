@@ -182,7 +182,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 
 	inProgress := atomic.NewBool(true)
 	var wg sync.WaitGroup
-	for b := 0; b < 2; b++ {
+	for b := 0; b < 4; b++ {
 		b := b
 		wg.Add(1)
 		go func() {
@@ -211,7 +211,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	var (
 		processedBlockCount int64
 	)
-	for a := 0; a < 10; a++ {
+	for a := 0; true; a++ {
 		fmt.Println(time.Now(), "Aggregation", a)
 		ctx := storageOpts.ContextPool().Get()
 		processedBlockCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
