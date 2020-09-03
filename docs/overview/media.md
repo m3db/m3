@@ -18,7 +18,7 @@ Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings fo
 
 ## Recorded Talks
 
-- [CNCF Webinar: Maximizing M3 – Pushing performance boundaries in a distributed metrics engine](https://www.cncf.io/webinars/cncf-member-webinar-maximizing-m3-pushing-performance-boundaries-in-a-distributed-metrics-engine-at-global-scale/) By Ryan Allen - Aug 6, 2020.
+- [CNCF Webinar: Maximizing M3 – Pushing performance boundaries in a distributed metrics engine](https://www.cncf.io/webinars/maximizing-m3-pushing-performance-boundaries-in-a-distributed-metrics-engine-at-global-scale/) By Ryan Allen - Aug 6, 2020.
 
 - [OSCON 2019: Large-Scale Automated Storage on Kubernetes](https://youtu.be/N9A7xSE9n-c) By Matt Schallert - Jul 18, 2019. [Slides](https://schallert.io/OSCON%20Large-Scale%20Automated%20Storage%20on%20Kubernetes.pdf)
 

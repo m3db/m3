@@ -607,63 +607,76 @@ func lowestCurrent(_ *common.Context, input singlePathSpec, n int) (ts.SeriesLis
 // windowSizeFunc calculates window size for moving average calculation
 type windowSizeFunc func(stepSize int) int
 
-// movingAverage calculates the moving average of a metric (or metrics) over a time interval.
-func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface) (*binaryContextShifter, error) {
-	if len(input.Values) == 0 {
-		return nil, nil
-	}
+type windowSizeParsed struct {
+	deltaValue time.Duration
+	stringValue string
+	windowSizeFunc windowSizeFunc
+}
 
-	var delta time.Duration
-	var wf windowSizeFunc
-	var ws string
+func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (windowSizeParsed, error) {
+	windowSize := windowSizeParsed{}
 
 	switch windowSizeValue := windowSizeValue.(type) {
 	case string:
 		interval, err := common.ParseInterval(windowSizeValue)
 		if err != nil {
-			return nil, err
+			return windowSize, err
 		}
 		if interval <= 0 {
 			err := errors.NewInvalidParamsError(fmt.Errorf(
 				"windowSize must be positive but instead is %v",
 				interval))
-			return nil, err
+			return windowSize, err
 		}
-		wf = func(stepSize int) int {
-			return int(int64(delta/time.Millisecond) / int64(stepSize))
+		windowSize.windowSizeFunc = func(stepSize int) int {
+			return int(int64(windowSize.deltaValue/time.Millisecond) / int64(stepSize))
 		}
-		ws = fmt.Sprintf("%q", windowSizeValue)
-		delta = interval
+		windowSize.stringValue = fmt.Sprintf("%q", windowSizeValue)
+		windowSize.deltaValue = interval
 	case float64:
 		windowSizeInt := int(windowSizeValue)
 		if windowSizeInt <= 0 {
 			err := errors.NewInvalidParamsError(fmt.Errorf(
 				"windowSize must be positive but instead is %d",
 				windowSizeInt))
-			return nil, err
+			return windowSize, err
 		}
-		wf = func(_ int) int { return windowSizeInt }
-		ws = fmt.Sprintf("%d", windowSizeInt)
+		windowSize.windowSizeFunc = func(_ int) int { return windowSizeInt }
+		windowSize.stringValue = fmt.Sprintf("%d", windowSizeInt)
 		maxStepSize := input.Values[0].MillisPerStep()
 		for i := 1; i < len(input.Values); i++ {
 			maxStepSize = int(math.Max(float64(maxStepSize), float64(input.Values[i].MillisPerStep())))
 		}
-		delta = time.Duration(maxStepSize*windowSizeInt) * time.Millisecond
+		windowSize.deltaValue = time.Duration(maxStepSize*windowSizeInt) * time.Millisecond
 	default:
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"windowSize must be either a string or an int but instead is a %T",
 			windowSizeValue))
+		return windowSize, err
+	}
+	return windowSize, nil
+}
+
+// movingAverage calculates the moving average of a metric (or metrics) over a time interval.
+func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface) (*binaryContextShifter, error) {
+	if len(input.Values) == 0 {
+		return nil, nil
+	}
+
+	widowSize, err := parseWindowSize(windowSizeValue, input)
+
+	if err != nil {
 		return nil, err
 	}
 
 	contextShiftingFn := func(c *common.Context) *common.Context {
 		opts := common.NewChildContextOptions()
-		opts.AdjustTimeRange(0, 0, delta, 0)
+		opts.AdjustTimeRange(0, 0, widowSize.deltaValue, 0)
 		childCtx := c.NewChildContext(opts)
 		return childCtx
 	}
 
-	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-delta), ctx.StartTime
+	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-widowSize.deltaValue), ctx.StartTime
 	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
 		bootstrapList, err := combineBootstrapWithOriginal(ctx,
 			bootstrapStartTime, bootstrapEndTime,
@@ -676,7 +689,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 		for i, bootstrap := range bootstrapList.Values {
 			series := original.Values[i]
 			stepSize := series.MillisPerStep()
-			windowPoints := wf(stepSize)
+			windowPoints := widowSize.windowSizeFunc(stepSize)
 			if windowPoints == 0 {
 				err := errors.NewInvalidParamsError(fmt.Errorf(
 					"windowSize should not be smaller than stepSize, windowSize=%v, stepSize=%d",
@@ -725,7 +738,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 					vals.SetValueAt(i, sum/float64(num))
 				}
 			}
-			name := fmt.Sprintf("movingAverage(%s,%s)", series.Name(), ws)
+			name := fmt.Sprintf("movingAverage(%s,%s)", series.Name(), widowSize.stringValue)
 			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
 			results = append(results, newSeries)
 		}
@@ -1709,83 +1722,6 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 	}, nil
 }
 
-// movingSum takes one metric or a wildcard seriesList followed by a a quoted string
-// with a length of time like '1hour' or '5min'. Graphs the sum of the preceding
-// datapoints for each point on the graph. All previous datapoints are set to None at
-// the beginning of the graph.
-func movingSum(ctx *common.Context, _ singlePathSpec, windowSize string) (*binaryContextShifter, error) {
-	interval, err := common.ParseInterval(windowSize)
-	if err != nil {
-		return nil, err
-	}
-
-	if interval <= 0 {
-		return nil, common.ErrInvalidIntervalFormat
-	}
-
-	contextShiftingFn := func(c *common.Context) *common.Context {
-		opts := common.NewChildContextOptions()
-		opts.AdjustTimeRange(0, 0, interval, 0)
-		childCtx := c.NewChildContext(opts)
-		return childCtx
-	}
-
-	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-interval), ctx.StartTime
-	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
-		bootstrapList, err := combineBootstrapWithOriginal(ctx,
-			bootstrapStartTime, bootstrapEndTime,
-			bootstrapped, singlePathSpec(original))
-		if err != nil {
-			return ts.NewSeriesList(), err
-		}
-
-		results := make([]*ts.Series, 0, original.Len())
-
-		for i, bootstrap := range bootstrapList.Values {
-			series := original.Values[i]
-			windowPoints := int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
-			if windowPoints <= 0 {
-				err := errors.NewInvalidParamsError(fmt.Errorf(
-					"non positive window points, windowSize=%s, stepSize=%d",
-					windowSize, series.MillisPerStep()))
-				return ts.NewSeriesList(), err
-			}
-			window := make([]float64, windowPoints)
-			util.Memset(window, math.NaN())
-			numSteps := series.Len()
-			offset := bootstrap.Len() - numSteps
-			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
-			for i := 0; i < numSteps; i++ {
-				for j := i + offset - windowPoints; j < i+offset; j++ {
-					if j < 0 || j >= bootstrap.Len() {
-						continue
-					}
-
-					idx := j - i - offset + windowPoints
-					if idx < 0 || idx > len(window)-1 {
-						continue
-					}
-
-					window[idx] = bootstrap.ValueAt(j)
-				}
-				vals.SetValueAt(i, common.SafeSum(window))
-			}
-			name := fmt.Sprintf("movingSum(%s,%q)", series.Name(), windowSize)
-			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
-			results = append(results, newSeries)
-		}
-
-		original.Values = results
-		return original, nil
-	}
-
-	return &binaryContextShifter{
-		ContextShiftFunc:  contextShiftingFn,
-		BinaryTransformer: transformerFn,
-	}, nil
-}
-
-
 // legendValue takes one metric or a wildcard seriesList and a string in quotes.
 // Appends a value to the metric name in the legend.  Currently one or several of:
 // "last", "avg", "total", "min", "max".
@@ -2034,7 +1970,6 @@ func init() {
 	MustRegisterFunction(mostDeviant)
 	MustRegisterFunction(movingAverage)
 	MustRegisterFunction(movingMedian)
-	MustRegisterFunction(movingSum)
 	MustRegisterFunction(multiplySeries)
 	MustRegisterFunction(nonNegativeDerivative).WithDefaultParams(map[uint8]interface{}{
 		2: math.NaN(), // maxValue

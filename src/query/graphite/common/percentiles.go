@@ -71,16 +71,6 @@ func SafeSort(input []float64) int {
 	return nans
 }
 
-func SafeSum(input []float64) float64 {
-	sum := 0.0
-	for _, v := range input {
-		if !math.IsNaN(v) {
-			sum += v
-		}
-	}
-	return sum
-}
-
 // GetPercentile computes the percentile cut off for an array of floats
 func GetPercentile(input []float64, percentile float64, interpolate bool) float64 {
 	nans := SafeSort(input)
