@@ -213,7 +213,9 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	)
 	for a := 0; a < 10; a++ {
 		fmt.Println(time.Now(), "Aggregation", a)
-		processedBlockCount, err = testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
+		ctx := storageOpts.ContextPool().Get()
+		processedBlockCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
+		ctx.Close()
 		if err != nil {
 			fmt.Println(time.Now(), "AGG ERR", err)
 		}
