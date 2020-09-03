@@ -642,6 +642,43 @@ func testMovingFunction(t *testing.T, target, expectedName string, values, boots
 		expected, res.Values)
 }
 
+var (
+	testGeneralFunctionStart     = time.Now().Add(time.Minute * -11).Truncate(time.Minute)
+	testGeneralFunctionEnd       = time.Now().Add(time.Minute * -3).Truncate(time.Minute)
+)
+
+// testGeneralFunction is a copy of testMovingFunction but without any logic for bootstrapping values
+func testGeneralFunction(t *testing.T, target, expectedName string, values, output []float64) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	engine := NewEngine(
+		&common.MovingFunctionStorage{
+			StepMillis:     60000,
+			Values:         values,
+		},
+	)
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  testGeneralFunctionStart,
+		End:    testGeneralFunctionEnd,
+		Engine: engine,
+	})
+
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	var expected []common.TestSeries
+	if output != nil {
+		expectedSeries := common.TestSeries{
+			Name: expectedName,
+			Data: output,
+		}
+		expected = append(expected, expectedSeries)
+	}
+	common.CompareOutputsAndExpected(t, 60000, testGeneralFunctionStart, expected, res.Values)
+}
+
 func TestMovingAverageSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
@@ -683,23 +720,6 @@ func testMovingFunctionError(t *testing.T, target string) {
 func TestMovingAverageError(t *testing.T) {
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, '-30s')")
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, 0)")
-}
-
-func TestMovingSumSuccess(t *testing.T) {
-	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
-	bootstrap := []float64{3.0, 4.0, 5.0}
-	expected := []float64{12.0, 21.0, 36.0, 21.0, 9.0} // (3+4+5), (4+5+12), (5+12+19), (12+19-10), (19-10+Nan)
-
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrap, expected)
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,3)", nil, nil, nil)
-
-	bootstrapEntireSeries := []float64{3.0, 4.0, 5.0, 12.0, 19.0, -10.0, math.NaN(), 10.0}
-	testMovingAverage(t, "movingSum(foo.bar.baz, '30s')", "movingAverage(foo.bar.baz,\"30s\")", values, bootstrapEntireSeries, expected)
-}
-
-func TestMovingSumError(t *testing.T) {
-	testMovingAverageError(t, "movingSum(foo.bar.baz, '-30s')")
-	testMovingAverageError(t, "movingSum(foo.bar.baz, 0)")
 }
 
 func TestIsNonNull(t *testing.T) {
@@ -2564,14 +2584,14 @@ func TestMovingMedianInvalidLimits(t *testing.T) {
 func TestMovingMismatchedLimits(t *testing.T) {
 	// NB: this tests the behavior when query limits do not snap exactly to data
 	// points. When limits do not snap exactly, the first point should be omitted.
-	for _, fn := range []string{"movingAverage", "movingMedian", "movingSum"} {
+	for _, fn := range []string{"movingAverage", "movingMedian"} {
 		for i := time.Duration(0); i < time.Minute; i += time.Second {
-			testMovingAverageInvalidLimits(t, fn, i)
+			testMovingFunctionInvalidLimits(t, fn, i)
 		}
 	}
 }
 
-func testMovingAverageInvalidLimits(t *testing.T, fn string, offset time.Duration) {
+func testMovingFunctionInvalidLimits(t *testing.T, fn string, offset time.Duration) {
 	ctrl := xgomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -2857,6 +2877,42 @@ func TestTimeShift(t *testing.T) {
 		[]common.TestSeries{expected}, res.Values)
 }
 
+/*
+
+   def test_timeSlice(self):
+       # series starts at 60 seconds past the epoch and continues for 600 seconds (ten minutes)
+       # steps are every 60 seconds
+       seriesList = self._gen_series_list_with_data(
+           key='test.value',
+           start=0,
+           end=600,
+           step=60,
+           data=[None,1,2,3,None,5,6,None,7,8,9]
+       )
+
+       # we're going to slice such that we only include minutes 3 to 8 (of 0 to 9)
+       expectedResult = [
+           TimeSeries('timeSlice(test.value, 180, 480)',0,600,60,[None,None,None,3,None,5,6,None,7,None,None])
+       ]
+
+       results = functions.timeSlice(
+           self._build_requestContext(
+               startTime=datetime(1970, 1, 1, 0, 0, 0, 0, pytz.timezone(settings.TIME_ZONE)),
+               endTime=datetime(1970, 1, 1, 0, 9, 0, 0, pytz.timezone(settings.TIME_ZONE))
+           ),
+           seriesList,
+           '00:03 19700101',
+           '00:08 19700101'
+       )
+       self.assertEqual(results, expectedResult)
+*/
+func TestTimeSlice(t *testing.T) {
+	values := []float64{math.NaN(),1.0,2.0,3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,8.0,9.0}
+	expected := []float64{math.NaN(),math.NaN(),math.NaN(),3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,math.NaN(),math.NaN()}
+
+	testGeneralFunction(t, "timeSlice(foo.bar.baz, '-9min','-3min')", "timeSlice(foo.bar.baz,-9min, -3min)", values, expected)
+}
+
 func TestDashed(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -2947,6 +3003,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"derivative",
 		"diffSeries",
 		"divideSeries",
+		"divideSeriesLists",
 		"exclude",
 		"fallbackSeries",
 		"group",
@@ -2977,7 +3034,6 @@ func TestFunctionsRegistered(t *testing.T) {
 		"mostDeviant",
 		"movingAverage",
 		"movingMedian",
-		"movingSum",
 		"multiplySeries",
 		"nonNegativeDerivative",
 		"nPercentile",
@@ -3007,6 +3063,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"time",
 		"timeFunction",
 		"timeShift",
+		"timeSlice",
 		"transformNull",
 		"weightedAverage",
 	}

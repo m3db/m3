@@ -255,6 +255,66 @@ func TestDivideSeries(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestDivideSeriesLists(t *testing.T) {
+	ctx, consolidationTestSeries := newConsolidationTestSeries()
+	defer ctx.Close()
+
+	// multiple series, different start/end times
+	nan := math.NaN()
+	series, err := divideSeriesLists(ctx, singlePathSpec{
+		Values: consolidationTestSeries[:2],
+	}, singlePathSpec{
+		Values: consolidationTestSeries[2:],
+	})
+	require.Nil(t, err)
+	expected := []common.TestSeries{
+		{
+			Name: "divideSeries(a,c)",
+			Data: []float64{nan, nan, nan, 0.5882, 0.5882, 0.5882, nan, nan, nan},
+		},
+		{
+			Name: "divideSeries(b,d)",
+			Data: []float64{nan, nan, nan, 5, 5, 5, nan, nan, nan},
+		},
+	}
+
+	common.CompareOutputsAndExpected(t, 10000, consolidationStartTime,
+		[]common.TestSeries{expected[0]}, []*ts.Series{series.Values[0]})
+	common.CompareOutputsAndExpected(t, 10000, consolidationStartTime.Add(-30*time.Second),
+		[]common.TestSeries{expected[1]}, []*ts.Series{series.Values[1]})
+
+	// different millisPerStep, same start/end times
+	consolidationTestSeries[0], consolidationTestSeries[2] = consolidationTestSeries[2], consolidationTestSeries[0]
+	consolidationTestSeries[1], consolidationTestSeries[3] = consolidationTestSeries[3], consolidationTestSeries[1]
+	series, err = divideSeriesLists(ctx, singlePathSpec{
+		Values: consolidationTestSeries[:2],
+	}, singlePathSpec{
+		Values: consolidationTestSeries[2:],
+	})
+	require.Nil(t, err)
+	expected = []common.TestSeries{
+		{
+			Name: "divideSeries(c,a)",
+			Data: []float64{nan, nan, nan, 1.7, 1.7, 1.7, nan, nan, nan},
+		},
+		{
+			Name: "divideSeries(d,b)",
+			Data: []float64{nan, nan, nan, 0.2, 0.2, 0.2, nan, nan, nan},
+		},
+	}
+	common.CompareOutputsAndExpected(t, 10000, consolidationStartTime,
+		[]common.TestSeries{expected[0]}, []*ts.Series{series.Values[0]})
+
+	// error - multiple divisor series
+	series, err = divideSeries(ctx, singlePathSpec{
+		Values: consolidationTestSeries,
+	}, singlePathSpec{
+		Values: consolidationTestSeries,
+	})
+	require.Error(t, err)
+}
+
+
 func TestAverageSeriesWithWildcards(t *testing.T) {
 	ctx, _ := newConsolidationTestSeries()
 	defer ctx.Close()
