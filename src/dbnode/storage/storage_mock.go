@@ -2414,10 +2414,10 @@ func (mr *MockdatabaseBootstrapManagerMockRecorder) IsBootstrapped() *gomock.Cal
 }
 
 // LastBootstrapCompletionTime mocks base method
-func (m *MockdatabaseBootstrapManager) LastBootstrapCompletionTime() (time.Time, bool) {
+func (m *MockdatabaseBootstrapManager) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -2493,10 +2493,10 @@ func (mr *MockdatabaseFlushManagerMockRecorder) Flush(startTime interface{}) *go
 }
 
 // LastSuccessfulSnapshotStartTime mocks base method
-func (m *MockdatabaseFlushManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+func (m *MockdatabaseFlushManager) LastSuccessfulSnapshotStartTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -2688,10 +2688,10 @@ func (mr *MockdatabaseFileSystemManagerMockRecorder) Report() *gomock.Call {
 }
 
 // LastSuccessfulSnapshotStartTime mocks base method
-func (m *MockdatabaseFileSystemManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+func (m *MockdatabaseFileSystemManager) LastSuccessfulSnapshotStartTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -3035,10 +3035,10 @@ func (mr *MockdatabaseMediatorMockRecorder) IsBootstrapped() *gomock.Call {
 }
 
 // LastBootstrapCompletionTime mocks base method
-func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time.Time, bool) {
+func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -3143,10 +3143,10 @@ func (mr *MockdatabaseMediatorMockRecorder) Report() *gomock.Call {
 }
 
 // LastSuccessfulSnapshotStartTime mocks base method
-func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time0.UnixNano, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
-	ret0, _ := ret[0].(time.Time)
+	ret0, _ := ret[0].(time0.UnixNano)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
