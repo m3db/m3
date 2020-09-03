@@ -1374,6 +1374,10 @@ called <code>http_request_bucket</code>:</p>
           <span class="nt">retention</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">720h</span>
 </code></pre></div>
 
+<p><strong>Note:</strong> only metrics that contain all of the <code>group_by</code> tags will be rolled up.
+For example, in the above config, only <code>http_request_bucket</code> metrics that 
+have all of the <code>group_by</code> labels present will be rolled up into the new
+metric <code>http_request_rollup_no_pod_bucket</code>.</p>
 <p>While the above example can be used to create a new rolled up metric, 
 often times the goal of rollup rules is to eliminate the underlaying, 
 raw metrics. In order to do this, a <code>mappingRule</code> will need to be 
@@ -1483,7 +1487,7 @@ is <code>unaggregated</code>, the following will need to be added to the coordin
     </div>
     
       <script src="../../assets/javascripts/vendor.c3dc8c49.min.js"></script>
-      <script src="../../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"search.result.other": "# matching documents", "clipboard.copy": "Copy to clipboard", "search.result.one": "1 matching document", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.separator": "[\\s\\-]+", "search.config.pipeline": "trimmer, stopWordFilter"}</script>
+      <script src="../../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.config.lang": "en", "clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.separator": "[\\s\\-]+", "search.config.pipeline": "trimmer, stopWordFilter", "search.result.other": "# matching documents", "search.result.one": "1 matching document"}</script>
       
       <script>
         app = initialize({
