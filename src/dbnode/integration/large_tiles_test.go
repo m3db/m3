@@ -184,8 +184,8 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	var wg sync.WaitGroup
 	for b := 0; b < 2; b++ {
 		b := b
+		wg.Add(1)
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
 			for inProgress.Load() {
 				//fmt.Printf("Fetch...")
