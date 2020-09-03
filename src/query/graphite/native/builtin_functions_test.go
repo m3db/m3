@@ -2877,35 +2877,6 @@ func TestTimeShift(t *testing.T) {
 		[]common.TestSeries{expected}, res.Values)
 }
 
-/*
-
-   def test_timeSlice(self):
-       # series starts at 60 seconds past the epoch and continues for 600 seconds (ten minutes)
-       # steps are every 60 seconds
-       seriesList = self._gen_series_list_with_data(
-           key='test.value',
-           start=0,
-           end=600,
-           step=60,
-           data=[None,1,2,3,None,5,6,None,7,8,9]
-       )
-
-       # we're going to slice such that we only include minutes 3 to 8 (of 0 to 9)
-       expectedResult = [
-           TimeSeries('timeSlice(test.value, 180, 480)',0,600,60,[None,None,None,3,None,5,6,None,7,None,None])
-       ]
-
-       results = functions.timeSlice(
-           self._build_requestContext(
-               startTime=datetime(1970, 1, 1, 0, 0, 0, 0, pytz.timezone(settings.TIME_ZONE)),
-               endTime=datetime(1970, 1, 1, 0, 9, 0, 0, pytz.timezone(settings.TIME_ZONE))
-           ),
-           seriesList,
-           '00:03 19700101',
-           '00:08 19700101'
-       )
-       self.assertEqual(results, expectedResult)
-*/
 func TestTimeSlice(t *testing.T) {
 	values := []float64{math.NaN(),1.0,2.0,3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,8.0,9.0}
 	expected := []float64{math.NaN(),math.NaN(),math.NaN(),3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,math.NaN(),math.NaN()}
