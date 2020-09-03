@@ -134,6 +134,16 @@ func TestSumSeries(t *testing.T) {
 	}, 15.0, 28.0, 30.0, 17.0, "invalid sum value for step %d")
 }
 
+func TestAggregate(t *testing.T) {
+	testAggregatedSeries(t, func(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
+		return aggregate(ctx, series, "sum")
+	}, 15.0, 28.0, 30.0, 17.0, "invalid sum value for step %d")
+
+	testAggregatedSeries(t, func(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
+		return aggregate(ctx, series, "maxSeries")
+	}, 15.0, 15.0, 17.0, 17.0, "invalid max value for step %d")
+}
+
 type mockEngine struct {
 	fn func(
 		ctx context.Context,

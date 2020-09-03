@@ -37,7 +37,7 @@ func wrapPathExpr(wrapper string, series ts.SeriesList) string {
 // sumSeries adds metrics together and returns the sum at each datapoint.
 // If the time series have different intervals, the coarsest interval will be used.
 func sumSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
-	return combineSeries(ctx, series, wrapPathExpr("sumSeries", ts.SeriesList(series)), ts.Sum)
+	return combineSeries(ctx, series, wrapPathExpr(SumSeries, ts.SeriesList(series)), ts.Sum)
 }
 
 // diffSeries subtracts all but the first series from the first series.
@@ -62,31 +62,31 @@ func diffSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, e
 		}
 	}
 
-	return combineSeries(ctx, transformedSeries, wrapPathExpr("diffSeries", ts.SeriesList(series)), ts.Sum)
+	return combineSeries(ctx, transformedSeries, wrapPathExpr(DiffSeries, ts.SeriesList(series)), ts.Sum)
 }
 
 // multiplySeries multiplies metrics together and returns the product at each datapoint.
 // If the time series have different intervals, the coarsest interval will be used.
 func multiplySeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
-	return combineSeries(ctx, series, wrapPathExpr("multiplySeries", ts.SeriesList(series)), ts.Mul)
+	return combineSeries(ctx, series, wrapPathExpr(MultiplySeries, ts.SeriesList(series)), ts.Mul)
 }
 
 // averageSeries takes a list of series and returns a new series containing the
 // average of all values at each datapoint.
 func averageSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
-	return combineSeries(ctx, series, wrapPathExpr("averageSeries", ts.SeriesList(series)), ts.Avg)
+	return combineSeries(ctx, series, wrapPathExpr(AverageSeries, ts.SeriesList(series)), ts.Avg)
 }
 
 // minSeries takes a list of series and returns a new series containing the
 // minimum value across the series at each datapoint
 func minSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
-	return combineSeries(ctx, series, wrapPathExpr("minSeries", ts.SeriesList(series)), ts.Min)
+	return combineSeries(ctx, series, wrapPathExpr(MinSeries, ts.SeriesList(series)), ts.Min)
 }
 
 // maxSeries takes a list of series and returns a new series containing the
 // maximum value across the series at each datapoint
 func maxSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, error) {
-	return combineSeries(ctx, series, wrapPathExpr("maxSeries", ts.SeriesList(series)), ts.Max)
+	return combineSeries(ctx, series, wrapPathExpr(MaxSeries, ts.SeriesList(series)), ts.Max)
 }
 
 // divideSeries divides one series list by another series
@@ -133,6 +133,29 @@ func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList sin
 	r := ts.SeriesList(dividendSeriesList)
 	r.Values = results
 	return r, nil
+}
+
+// aggregate takes a list of series and returns a new series containing the
+// value aggregated across the series at each datapoint using the specified function.
+func aggregate(ctx *common.Context, series multiplePathSpecs, fname string) (ts.SeriesList, error) {
+	switch fname {
+	case Empty, Sum, SumSeries, Total:
+		return sumSeries(ctx, series)
+	case Min, MinSeries:
+		return minSeries(ctx, series)
+	case Max, MaxSeries:
+		return maxSeries(ctx, series)
+	case Avg, Average, AverageSeries:
+		return averageSeries(ctx,series)
+	case Multiply, MultiplySeries:
+		return multiplySeries(ctx, series)
+	case Diff, DiffSeries:
+		return diffSeries(ctx, series)
+	case Count, CountSeries:
+		return countSeries(ctx, series)
+	default:
+		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
+	}
 }
 
 // averageSeriesWithWildcards splits the given set of series into sub-groupings
@@ -316,7 +339,7 @@ func groupByNodes(ctx *common.Context, series singlePathSpec, fname string, node
 
 func applyFnToMetaSeries(ctx *common.Context, series singlePathSpec, metaSeries map[string][]*ts.Series, fname string) (ts.SeriesList, error) {
 	if fname == "" {
-		fname = "sum"
+		fname = Sum
 	}
 
 	f, fexists := summarizeFuncs[fname]
@@ -485,7 +508,7 @@ func weightedAverage(
 // countSeries draws a horizontal line representing the number of nodes found in the seriesList.
 func countSeries(ctx *common.Context, seriesList multiplePathSpecs) (ts.SeriesList, error) {
 	count, err := common.Count(ctx, ts.SeriesList(seriesList), func(series ts.SeriesList) string {
-		return wrapPathExpr("countSeries", series)
+		return wrapPathExpr(CountSeries, series)
 	})
 	if err != nil {
 		return ts.NewSeriesList(), err

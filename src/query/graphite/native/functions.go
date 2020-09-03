@@ -39,6 +39,26 @@ var (
 	funcMut   sync.RWMutex
 	functions = map[string]*Function{}
 )
+// list of graphite function name strings. (not whole list, update on-demand)
+const (
+	Average        = "average"
+	AverageSeries  = "averageSeries"
+	Avg            = "avg"
+	Count          = "count"
+	CountSeries    = "countSeries"
+	Diff           = "diff"
+	DiffSeries     = "diffSeries"
+	Empty          = ""
+	Max            = "max"
+	MaxSeries      = "maxSeries"
+	Min            = "min"
+	MinSeries      = "minSeries"
+	Multiply       = "multiply"
+	MultiplySeries = "multiplySeries"
+	Sum            = "sum"
+	SumSeries      = "sumSeries"
+	Total          = "total"
+)
 
 // registerFunction is used to register a function under a specific name
 func registerFunction(f interface{}) (*Function, error) {
