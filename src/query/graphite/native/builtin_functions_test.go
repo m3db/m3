@@ -685,7 +685,6 @@ func TestMovingAverageError(t *testing.T) {
 	testMovingFunctionError(t, "movingAverage(foo.bar.baz, 0)")
 }
 
-
 func TestIsNonNull(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
