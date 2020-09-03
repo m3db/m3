@@ -2960,7 +2960,6 @@ func TestFunctionsRegistered(t *testing.T) {
 		"mostDeviant",
 		"movingAverage",
 		"movingMedian",
-		"movingSum",
 		"multiplySeries",
 		"nonNegativeDerivative",
 		"nPercentile",
