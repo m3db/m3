@@ -57,10 +57,21 @@ type Segment interface {
 	ContainsField(field []byte) (bool, error)
 
 	// Reader returns a point-in-time accessor to search the segment.
-	Reader() (index.Reader, error)
+	Reader() (Reader, error)
 
 	// Close closes the segment and releases any internal resources.
 	Close() error
+}
+
+// Reader extends index reader interface to allow for reading
+// of fields and terms.
+type Reader interface {
+	index.Reader
+	FieldsIterable
+	TermsIterable
+
+	// ContainsField returns a bool indicating if the Segment contains the provided field.
+	ContainsField(field []byte) (bool, error)
 }
 
 // FieldsIterable can iterate over segment fields, it is not by default

@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
 	"github.com/m3db/m3/src/query/graphite/ts"
+	"github.com/m3db/m3/src/query/util"
 )
 
 const (
@@ -555,61 +556,76 @@ func lowestCurrent(_ *common.Context, input singlePathSpec, n int) (ts.SeriesLis
 // windowSizeFunc calculates window size for moving average calculation
 type windowSizeFunc func(stepSize int) int
 
-// movingAverage calculates the moving average of a metric (or metrics) over a time interval.
-func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface) (*binaryContextShifter, error) {
-	if len(input.Values) == 0 {
-		return nil, nil
-	}
+type windowSizeParsed struct {
+	deltaValue time.Duration
+	stringValue string
+	windowSizeFunc windowSizeFunc
+}
 
-	var delta time.Duration
-	var wf windowSizeFunc
-	var ws string
+func parseWindowSize(windowSizeValue genericInterface, input singlePathSpec) (windowSizeParsed, error) {
+	windowSize := windowSizeParsed{}
 
 	switch windowSizeValue := windowSizeValue.(type) {
 	case string:
 		interval, err := common.ParseInterval(windowSizeValue)
 		if err != nil {
-			return nil, err
+			return windowSize, err
 		}
 		if interval <= 0 {
 			err := errors.NewInvalidParamsError(fmt.Errorf(
 				"windowSize must be positive but instead is %v",
 				interval))
-			return nil, err
+			return windowSize, err
 		}
-		wf = func(stepSize int) int { return int(int64(delta/time.Millisecond) / int64(stepSize)) }
-		ws = fmt.Sprintf("%q", windowSizeValue)
-		delta = interval
+		windowSize.windowSizeFunc = func(stepSize int) int {
+			return int(int64(windowSize.deltaValue/time.Millisecond) / int64(stepSize))
+		}
+		windowSize.stringValue = fmt.Sprintf("%q", windowSizeValue)
+		windowSize.deltaValue = interval
 	case float64:
 		windowSizeInt := int(windowSizeValue)
 		if windowSizeInt <= 0 {
 			err := errors.NewInvalidParamsError(fmt.Errorf(
 				"windowSize must be positive but instead is %d",
 				windowSizeInt))
-			return nil, err
+			return windowSize, err
 		}
-		wf = func(_ int) int { return windowSizeInt }
-		ws = fmt.Sprintf("%d", windowSizeInt)
+		windowSize.windowSizeFunc = func(_ int) int { return windowSizeInt }
+		windowSize.stringValue = fmt.Sprintf("%d", windowSizeInt)
 		maxStepSize := input.Values[0].MillisPerStep()
 		for i := 1; i < len(input.Values); i++ {
 			maxStepSize = int(math.Max(float64(maxStepSize), float64(input.Values[i].MillisPerStep())))
 		}
-		delta = time.Duration(maxStepSize*windowSizeInt) * time.Millisecond
+		windowSize.deltaValue = time.Duration(maxStepSize*windowSizeInt) * time.Millisecond
 	default:
 		err := errors.NewInvalidParamsError(fmt.Errorf(
 			"windowSize must be either a string or an int but instead is a %T",
 			windowSizeValue))
+		return windowSize, err
+	}
+	return windowSize, nil
+}
+
+// movingAverage calculates the moving average of a metric (or metrics) over a time interval.
+func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface) (*binaryContextShifter, error) {
+	if len(input.Values) == 0 {
+		return nil, nil
+	}
+
+	widowSize, err := parseWindowSize(windowSizeValue, input)
+
+	if err != nil {
 		return nil, err
 	}
 
 	contextShiftingFn := func(c *common.Context) *common.Context {
 		opts := common.NewChildContextOptions()
-		opts.AdjustTimeRange(0, 0, delta, 0)
+		opts.AdjustTimeRange(0, 0, widowSize.deltaValue, 0)
 		childCtx := c.NewChildContext(opts)
 		return childCtx
 	}
 
-	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-delta), ctx.StartTime
+	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-widowSize.deltaValue), ctx.StartTime
 	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
 		bootstrapList, err := combineBootstrapWithOriginal(ctx,
 			bootstrapStartTime, bootstrapEndTime,
@@ -622,7 +638,7 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 		for i, bootstrap := range bootstrapList.Values {
 			series := original.Values[i]
 			stepSize := series.MillisPerStep()
-			windowPoints := wf(stepSize)
+			windowPoints := widowSize.windowSizeFunc(stepSize)
 			if windowPoints == 0 {
 				err := errors.NewInvalidParamsError(fmt.Errorf(
 					"windowSize should not be smaller than stepSize, windowSize=%v, stepSize=%d",
@@ -635,14 +651,17 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			sum := 0.0
 			num := 0
+			firstPoint := false
 			for i := 0; i < numSteps; i++ {
-				// skip if the number of points received is less than the number of points
-				// in the lookback window.
-				if offset < windowPoints {
-					continue
-				}
-				if i == 0 {
+				// NB: skip if the number of points received is less than the number
+				// of points in the lookback window.
+				if !firstPoint {
+					firstPoint = true
 					for j := offset - windowPoints; j < offset; j++ {
+						if j < 0 {
+							continue
+						}
+
 						v := bootstrap.ValueAt(j)
 						if !math.IsNaN(v) {
 							sum += v
@@ -650,22 +669,25 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 						}
 					}
 				} else {
-					prev := bootstrap.ValueAt(i + offset - windowPoints - 1)
-					next := bootstrap.ValueAt(i + offset - 1)
-					if !math.IsNaN(prev) {
-						sum -= prev
-						num--
+					if i+offset-windowPoints > 0 {
+						prev := bootstrap.ValueAt(i + offset - windowPoints - 1)
+						if !math.IsNaN(prev) {
+							sum -= prev
+							num--
+						}
 					}
+					next := bootstrap.ValueAt(i + offset - 1)
 					if !math.IsNaN(next) {
 						sum += next
 						num++
 					}
 				}
+
 				if num > 0 {
 					vals.SetValueAt(i, sum/float64(num))
 				}
 			}
-			name := fmt.Sprintf("movingAverage(%s,%s)", series.Name(), ws)
+			name := fmt.Sprintf("movingAverage(%s,%s)", series.Name(), widowSize.stringValue)
 			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
 			results = append(results, newSeries)
 		}
@@ -1578,6 +1600,7 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 	if err != nil {
 		return nil, err
 	}
+
 	if interval <= 0 {
 		return nil, common.ErrInvalidIntervalFormat
 	}
@@ -1609,12 +1632,22 @@ func movingMedian(ctx *common.Context, _ singlePathSpec, windowSize string) (*bi
 				return ts.NewSeriesList(), err
 			}
 			window := make([]float64, windowPoints)
+			util.Memset(window, math.NaN())
 			numSteps := series.Len()
 			offset := bootstrap.Len() - numSteps
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			for i := 0; i < numSteps; i++ {
 				for j := i + offset - windowPoints; j < i+offset; j++ {
-					window[j-i-offset+windowPoints] = bootstrap.ValueAt(j)
+					if j < 0 || j >= bootstrap.Len() {
+						continue
+					}
+
+					idx := j - i - offset + windowPoints
+					if idx < 0 || idx > len(window)-1 {
+						continue
+					}
+
+					window[idx] = bootstrap.ValueAt(j)
 				}
 				nans := common.SafeSort(window)
 				if nans < windowPoints {
@@ -1859,6 +1892,7 @@ func init() {
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
+	MustRegisterFunction(groupByNodes)
 	MustRegisterFunction(highestAverage)
 	MustRegisterFunction(highestCurrent)
 	MustRegisterFunction(highestMax)

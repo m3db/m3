@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
@@ -485,19 +484,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 		remainingMin, remainingMax := remainingRanges.MinMax()
 		fulfilledMin, fulfilledMax := totalFulfilledRanges.MinMax()
-		buildIndexLogFields := []zapcore.Field{
-			zap.Stringer("namespace", ns.ID()),
-			zap.Bool("shouldBuildSegment", shouldBuildSegment),
-			zap.Bool("noneRemaining", noneRemaining),
-			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
-			zap.Int("totalEntries", totalEntries),
-			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
-			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
-			zap.String("remainingRanges", remainingRanges.SummaryString()),
-			zap.String("totalFulfilledRangesMinMax", fmt.Sprintf("%v - %v", fulfilledMin, fulfilledMax)),
-			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
-			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
-		}
 
 		// NB(bodu): Assume if we're bootstrapping data from disk that it is the "default" index volume type.
 		existingIndexBlock, ok := bootstrapper.GetDefaultIndexBlockForBlockStart(runResult.index.IndexResults(), blockStart)
@@ -516,8 +502,26 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		persistCfg := runOpts.PersistConfig()
 		shouldFlush := persistCfg.Enabled &&
 			persistCfg.FileSetType == persist.FileSetFlushType
+
 		// Determine all requested ranges were fulfilled or at edge of retention
 		satisifiedFlushRanges := noneRemaining || overlapsWithInitalIndexRange
+
+		buildIndexLogFields := []zapcore.Field{
+			zap.Stringer("namespace", ns.ID()),
+			zap.Bool("shouldBuildSegment", shouldBuildSegment),
+			zap.Bool("noneRemaining", noneRemaining),
+			zap.Bool("overlapsWithInitalIndexRange", overlapsWithInitalIndexRange),
+			zap.Int("totalEntries", totalEntries),
+			zap.String("requestedRangesMinMax", fmt.Sprintf("%v - %v", min, max)),
+			zap.String("remainingRangesMinMax", fmt.Sprintf("%v - %v", remainingMin, remainingMax)),
+			zap.String("remainingRanges", remainingRanges.SummaryString()),
+			zap.String("totalFulfilledRangesMinMax", fmt.Sprintf("%v - %v", fulfilledMin, fulfilledMax)),
+			zap.String("totalFulfilledRanges", totalFulfilledRanges.SummaryString()),
+			zap.String("initialIndexRange", fmt.Sprintf("%v - %v", initialIndexRange.Start, initialIndexRange.End)),
+			zap.Bool("shouldFlush", shouldFlush),
+			zap.Bool("satisifiedFlushRanges", satisifiedFlushRanges),
+		}
+
 		if shouldFlush && satisifiedFlushRanges {
 			s.log.Debug("building file set index segment", buildIndexLogFields...)
 			indexBlock, err = bootstrapper.PersistBootstrapIndexSegment(
@@ -891,9 +895,9 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		}
 		segmentsFulfilled := willFulfill
 		// NB(bodu): All segments read from disk are already persisted.
-		persistedSegments := make([]segment.Segment, 0, len(segments))
+		persistedSegments := make([]result.Segment, 0, len(segments))
 		for _, segment := range segments {
-			persistedSegments = append(persistedSegments, bootstrapper.NewSegment(segment, true))
+			persistedSegments = append(persistedSegments, result.NewSegment(segment, true))
 		}
 		volumeType := idxpersist.DefaultIndexVolumeType
 		if info.IndexVolumeType != nil {

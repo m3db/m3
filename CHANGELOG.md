@@ -1,5 +1,36 @@
 # Changelog
 
+# 0.15.12
+
+## Bug Fixes
+
+- **M3Query**: Fix to Graphite movingMedian and movingAverage functions that could skip data in certain cases or cause an out of bounds error after recovery ([#2549](https://github.com/m3db/m3/pull/2549))
+- **M3Coordinator**: Fix a Graphite carbon ingest tag lifecycle bug that could cause duplicate tags ([#2549](https://github.com/m3db/m3/pull/2549))
+
+# 0.15.11
+
+## Features
+
+- **M3Coordinator**: Support for remapping rules and provide tags that are auto-appended to metrics when aggregations are applied ([#2414](https://github.com/m3db/m3/pull/2414))
+
+## Bug Fixes
+
+- **M3DB**: Extend lifetime of compactable index segments for aggregate queries ([#2550](https://github.com/m3db/m3/pull/2550))
+
+# 0.15.10
+
+## Features
+
+- **M3DB**: Add migration task for filesets from v1.0 to v1.1 ([#2520](https://github.com/m3db/m3/pull/2520))
+
+## Bug Fixes
+
+- **M3DB**: Fix enqueue readers info file reading ([#2546](https://github.com/m3db/m3/pull/2546))
+
+## Documentation
+
+- **All**: Fix buildkite mkdocs script ([#2538](https://github.com/m3db/m3/pull/2538))
+
 # 0.15.9
 
 ## Performance

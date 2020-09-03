@@ -408,6 +408,8 @@ func TestConfiguration(t *testing.T) {
     asyncWriteMaxConcurrency: null
     useV2BatchAPIs: null
     writeTimestampOffset: null
+    fetchSeriesBlocksBatchConcurrency: null
+    fetchSeriesBlocksBatchSize: null
   gcPercentage: 100
   writeNewSeriesLimitPerSecond: 1048576
   writeNewSeriesBackoffDuration: 2ms
@@ -719,6 +721,7 @@ func TestConfiguration(t *testing.T) {
     maxOutstandingWriteRequests: 0
     maxOutstandingReadRequests: 0
     maxOutstandingRepairedBytes: 0
+    maxEncodersPerBlock: 0
   tchannel: null
 coordinator: null
 `

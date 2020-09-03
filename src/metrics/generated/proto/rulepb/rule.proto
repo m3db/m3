@@ -27,6 +27,7 @@ package rulepb;
 import "github.com/m3db/m3/src/metrics/generated/proto/aggregationpb/aggregation.proto";
 import "github.com/m3db/m3/src/metrics/generated/proto/pipelinepb/pipeline.proto";
 import "github.com/m3db/m3/src/metrics/generated/proto/policypb/policy.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/metricpb/metric.proto";
 
 message MappingRuleSnapshot {
   string name = 1;
@@ -40,6 +41,7 @@ message MappingRuleSnapshot {
   repeated aggregationpb.AggregationType aggregation_types = 8;
   repeated policypb.StoragePolicy storage_policies = 9;
   policypb.DropPolicy drop_policy = 10;
+  repeated metricpb.Tag tags = 11;
 }
 
 message MappingRule {
