@@ -93,6 +93,51 @@ func sortByMaxima(ctx *common.Context, series singlePathSpec) (ts.SeriesList, er
 	return highestMax(ctx, series, len(series.Values))
 }
 
+/*
+Compares the maximum of each series against the given `value`. If the series
+maximum is greater than `value`, the regular expression search and replace is
+applied against the series name to plot a related metric
+
+e.g. given useSeriesAbove(ganglia.metric1.reqs,10,'reqs','time'),
+the response time metric will be plotted only when the maximum value of the
+corresponding request/s metric is > 10
+
+&target=useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
+*/
+func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , value float64, search, replace string) (ts.SeriesList, error) {
+	results := make([]*ts.Series, len(seriesList.Values))
+	for idx, series := range seriesList.Values {
+		vals := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+
+
+		name := fmt.Sprintf("offsetToZero(%s)", series.Name())
+		series := ts.NewSeries(ctx, name, series.StartTime(), vals)
+		results[idx] = series
+	}
+
+	r := ts.SeriesList(seriesList)
+	r.Values = results
+	return r, nil
+	/*
+	newNames = []
+
+	for series in seriesList:
+	newname = re.sub(search, replace, series.name)
+	if max(series) > value:
+	newNames.append(newname)
+
+	if not newNames:
+	return []
+
+	newContext = requestContext.copy()
+	newContext['prefetched'] = {}
+	newSeries = evaluateTarget(newContext, 'group(%s)' % ','.join(newNames))
+
+	return [n for n in newSeries if n is not None and len(n) > 0]
+	*/
+
+}
+
 type valueComparator func(v, threshold float64) bool
 
 func compareByFunction(
@@ -2040,8 +2085,8 @@ func init() {
 	MustRegisterFunction(transformNull).WithDefaultParams(map[uint8]interface{}{
 		2: 0.0, // defaultValue
 	})
+	MustRegisterFunction(useSeriesAbove)
 	MustRegisterFunction(weightedAverage)
-
 	// alias functions - in alpha ordering
 	MustRegisterAliasedFunction("abs", absolute)
 	MustRegisterAliasedFunction("avg", averageSeries)
