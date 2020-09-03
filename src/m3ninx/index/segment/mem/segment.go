@@ -91,7 +91,7 @@ func (s *memSegment) IndexConcurrency() int {
 	return 1
 }
 
-func (s *memSegment) Reset(offset postings.ID) {
+func (s *memSegment) Reset() {
 	s.state.Lock()
 	defer s.state.Unlock()
 
