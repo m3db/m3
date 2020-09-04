@@ -247,11 +247,16 @@ func timeShift(
 // another quoted string with the time to end the line. The start and end times are inclusive.
 // Useful for filtering out a part of a series of data from a wider range of data.
 func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end string) (ts.SeriesList, error) {
-	tzOffsetForAbsoluteTime := time.Duration(0)
-	startTime, err := graphite.ParseTime(start, time.Now(), tzOffsetForAbsoluteTime)
-	endTime, err := graphite.ParseTime(end, time.Now(), tzOffsetForAbsoluteTime)
-
-	if (err != nil) {
+	var (
+		now = time.Now()
+		tzOffsetForAbsoluteTime time.Duration
+	)
+	startTime, err := graphite.ParseTime(start, now, tzOffsetForAbsoluteTime)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	endTime, err := graphite.ParseTime(end, now, tzOffsetForAbsoluteTime)
+	if err != nil {
 		return ts.NewSeriesList(), err
 	}
 
