@@ -355,11 +355,17 @@ func (s *peersSource) runPersistenceQueueWorkerLoop(
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 ) {
+	// Track async cleanup tasks.
+	asyncTasks := &sync.WaitGroup{}
+
+	// Wait for cleanups to all occur before returning from worker.
+	defer asyncTasks.Wait()
+
 	// If performing a bootstrap with persistence enabled then flush one
 	// at a time as shard results are gathered.
 	for flush := range persistenceQueue {
 		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
-			flush.shardResult, flush.timeRange)
+			flush.shardResult, flush.timeRange, asyncTasks)
 		if err == nil {
 			continue
 		}
@@ -511,6 +517,7 @@ func (s *peersSource) flush(
 	shard uint32,
 	shardResult result.ShardResult,
 	tr xtime.Range,
+	asyncTasks *sync.WaitGroup,
 ) error {
 	persistConfig := opts.PersistConfig()
 	if persistConfig.FileSetType != persist.FileSetFlushType {
@@ -591,27 +598,17 @@ func (s *peersSource) flush(
 				continue
 			}
 
-			flushCtx.Reset()
-			stream, err := bl.Stream(flushCtx)
-			if err != nil {
-				flushCtx.BlockingCloseReset()
-				blockErr = err // Need to call prepared.Close, avoid return
-				break
-			}
-
-			segment, err := stream.Segment()
-			if err != nil {
-				flushCtx.BlockingCloseReset()
-				blockErr = err // Need to call prepared.Close, avoid return
-				break
-			}
-
 			checksum, err := bl.Checksum()
 			if err != nil {
-				flushCtx.BlockingCloseReset()
-				blockErr = err
+				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
+
+			// Discard and finalize the block.
+			segment := bl.Discard()
+
+			// Remove from map.
+			s.Blocks.RemoveBlockAt(start)
 
 			metadata := persist.NewMetadataFromIDAndTags(s.ID, s.Tags,
 				persist.MetadataOptions{})
@@ -621,13 +618,6 @@ func (s *peersSource) flush(
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
-
-			// Now that we've persisted the data to disk, we can finalize the block,
-			// as there is no need to keep it in memory. We do this here because it
-			// is better to do this as we loop to make blocks return to the pool earlier
-			// than all at once the end of this flush cycle.
-			s.Blocks.RemoveBlockAt(start)
-			bl.Close()
 		}
 
 		// Always close before attempting to check if block error occurred,
@@ -643,38 +633,45 @@ func (s *peersSource) flush(
 		}
 	}
 
-	// Since we've persisted the data to disk, we don't want to keep all the series in the shard
-	// result. Otherwise if we leave them in, then they will all get loaded into the shard object,
-	// and then immediately evicted on the next tick which causes unnecessary memory pressure
-	// during peer bootstrapping.
-	numSeriesTriedToRemoveWithRemainingBlocks := 0
-	for _, entry := range shardResult.AllSeries().Iter() {
-		series := entry.Value()
-		numBlocksRemaining := len(series.Blocks.AllBlocks())
-		// Should never happen since we removed all the block in the previous loop and fetching
-		// bootstrap blocks should always be exclusive on the end side.
-		if numBlocksRemaining > 0 {
-			numSeriesTriedToRemoveWithRemainingBlocks++
-			continue
-		}
+	// Perform cleanup async but allow caller to wait on them.
+	// This allows to progress to next flush faster.
+	asyncTasks.Add(1)
+	go func() {
+		defer asyncTasks.Done()
 
-		shardResult.RemoveSeries(series.ID)
-		series.Blocks.Close()
-		// Safe to finalize these IDs and Tags because the prepared object was the only other thing
-		// using them, and it has been closed.
-		series.ID.Finalize()
-		series.Tags.Finalize()
-	}
-	if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
-		iOpts := s.opts.ResultOptions().InstrumentOptions()
-		instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
-			l.With(
-				zap.Int64("start", tr.Start.Unix()),
-				zap.Int64("end", tr.End.Unix()),
-				zap.Int("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
-			).Error("error tried to remove series that still has blocks")
-		})
-	}
+		// Since we've persisted the data to disk, we don't want to keep all the series in the shard
+		// result. Otherwise if we leave them in, then they will all get loaded into the shard object,
+		// and then immediately evicted on the next tick which causes unnecessary memory pressure
+		// during peer bootstrapping.
+		numSeriesTriedToRemoveWithRemainingBlocks := 0
+		for _, entry := range shardResult.AllSeries().Iter() {
+			series := entry.Value()
+			numBlocksRemaining := len(series.Blocks.AllBlocks())
+			// Should never happen since we removed all the block in the previous loop and fetching
+			// bootstrap blocks should always be exclusive on the end side.
+			if numBlocksRemaining > 0 {
+				numSeriesTriedToRemoveWithRemainingBlocks++
+				continue
+			}
+
+			shardResult.RemoveSeries(series.ID)
+			series.Blocks.Close()
+			// Safe to finalize these IDs and Tags because the prepared object was the only other thing
+			// using them, and it has been closed.
+			series.ID.Finalize()
+			series.Tags.Finalize()
+		}
+		if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
+			iOpts := s.opts.ResultOptions().InstrumentOptions()
+			instrument.EmitAndLogInvariantViolation(iOpts, func(l *zap.Logger) {
+				l.With(
+					zap.Int64("start", tr.Start.Unix()),
+					zap.Int64("end", tr.End.Unix()),
+					zap.Int("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
+				).Error("error tried to remove series that still has blocks")
+			})
+		}
+	}()
 
 	return nil
 }

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/unsafe"
 )
 
@@ -44,11 +45,16 @@ const (
 
 	// MatchAllPattern that is used to match all metrics.
 	MatchAllPattern = ".*"
+
+	// TagNameMinLength is the minimum length of a graphite tag name.
+	TagNameMinLength = 6
 )
 
 var (
 	// Should never be modified after init().
 	preFormattedTagNames [][]byte
+	// Should never be modified after init().
+	preFormattedTagNameIDs []ident.ID
 
 	// Prefix is the prefix for graphite metrics
 	Prefix = []byte("__g")
@@ -61,6 +67,7 @@ func init() {
 	for i := 0; i < numPreFormattedTagNames; i++ {
 		name := generateTagName(i)
 		preFormattedTagNames = append(preFormattedTagNames, name)
+		preFormattedTagNameIDs = append(preFormattedTagNameIDs, ident.BytesID(name))
 	}
 }
 
@@ -74,12 +81,25 @@ func TagName(idx int) []byte {
 	return []byte(fmt.Sprintf(graphiteFormat, idx))
 }
 
+// TagNameID gets a preallocated or generate a tag name ID for the given graphite
+// path index.
+func TagNameID(idx int) ident.ID {
+	if idx < len(preFormattedTagNameIDs) {
+		return preFormattedTagNameIDs[idx]
+	}
+
+	return ident.StringID(fmt.Sprintf(graphiteFormat, idx))
+}
+
 func generateTagName(idx int) []byte {
 	return []byte(fmt.Sprintf(graphiteFormat, idx))
 }
 
 // TagIndex returns the index given the tag.
 func TagIndex(tag []byte) (int, bool) {
+	if len(tag) < TagNameMinLength {
+		return 0, false // Fast path for very unlikely graphite tag names.
+	}
 	if !bytes.HasPrefix(tag, Prefix) ||
 		!bytes.HasSuffix(tag, suffix) {
 		return 0, false

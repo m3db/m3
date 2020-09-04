@@ -66,11 +66,10 @@ type shardResult struct {
 }
 
 // NewShardResult creates a new shard result.
-func NewShardResult(capacity int, opts Options) ShardResult {
+func NewShardResult(opts Options) ShardResult {
 	return &shardResult{
 		opts: opts,
 		blocks: NewMap(MapOptions{
-			InitialSize: capacity,
 			KeyCopyPool: opts.DatabaseBlockOptions().BytesPool().BytesPool(),
 		}),
 	}

@@ -72,7 +72,6 @@ const (
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
 	blockMetadataChBufSize               = 4096
-	shardResultCapacity                  = 4096
 	hostNotAvailableMinSleepInterval     = 1 * time.Millisecond
 	hostNotAvailableMaxSleepInterval     = 100 * time.Millisecond
 )
@@ -3525,7 +3524,7 @@ func newBulkBlocksResult(
 	return &bulkBlocksResult{
 		nsCtx:            nsCtx,
 		baseBlocksResult: newBaseBlocksResult(nsCtx, opts, resultOpts),
-		result:           result.NewShardResult(shardResultCapacity, resultOpts),
+		result:           result.NewShardResult(resultOpts),
 		tagDecoderPool:   tagDecoderPool,
 		idPool:           idPool,
 	}
@@ -3629,7 +3628,7 @@ type enqueueCh struct {
 	metrics              *streamFromPeersMetrics
 }
 
-const enqueueChannelDefaultLen = 32768
+const enqueueChannelDefaultLen = 512
 
 func newEnqueueChannel(m *streamFromPeersMetrics) enqueueChannel {
 	c := &enqueueCh{
