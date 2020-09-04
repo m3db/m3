@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -236,21 +235,14 @@ func TestSeriesIteratorSetIterateEqualTimestampStrategy(t *testing.T) {
 		DefaultIterateEqualTimestampStrategy)
 }
 
-type testSeriesProcessor struct {
+type testSeriesConsolidator struct {
 	iters []MultiReaderIterator
 }
 
-func (c *testSeriesProcessor) ConsolidateReplicas(
+func (c *testSeriesConsolidator) ConsolidateReplicas(
 	_ []MultiReaderIterator,
 ) ([]MultiReaderIterator, error) {
 	return c.iters, nil
-}
-
-func (c *testSeriesProcessor) InspectSeries(
-	_ context.Context,
-	_ []SeriesIterator,
-) error {
-	return nil
 }
 
 func TestSeriesIteratorSetSeriesIteratorConsolidator(t *testing.T) {
@@ -268,14 +260,14 @@ func TestSeriesIteratorSetSeriesIteratorConsolidator(t *testing.T) {
 	newIter.EXPECT().Current().Return(ts.Datapoint{}, xtime.Second, nil).Times(2)
 
 	iter.iters.setFilter(0, 1)
-	processor := &testSeriesProcessor{iters: []MultiReaderIterator{newIter}}
+	consolidator := &testSeriesConsolidator{iters: []MultiReaderIterator{newIter}}
 	oldIter := NewMockMultiReaderIterator(ctrl)
 	oldIters := []MultiReaderIterator{oldIter}
 	iter.multiReaderIters = oldIters
 	assert.Equal(t, oldIter, iter.multiReaderIters[0])
 	iter.Reset(SeriesIteratorOptions{
-		Replicas:                oldIters,
-		SeriesIteratorProcessor: processor,
+		Replicas:                   oldIters,
+		SeriesIteratorConsolidator: consolidator,
 	})
 	assert.Equal(t, newIter, iter.multiReaderIters[0])
 }
