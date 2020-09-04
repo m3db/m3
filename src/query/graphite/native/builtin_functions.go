@@ -264,8 +264,7 @@ func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end 
 	output := make([]*ts.Series, input.Len())
 
 	for i, series := range input.Values {
-		nanoSecondsPerStep := series.MillisPerStep() * 1000000
-		stepDuration := time.Duration(nanoSecondsPerStep)
+		stepDuration := time.Duration(series.MillisPerStep()) * time.Millisecond
 		truncatedValues := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
 
 		currentTime := series.StartTime()
