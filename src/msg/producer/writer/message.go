@@ -21,9 +21,6 @@
 package writer
 
 import (
-	stdatomic "sync/atomic"
-	"unsafe"
-
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -56,7 +53,7 @@ func newMessage() *message {
 func (m *message) Set(meta metadata, rm *producer.RefCountedMessage, initNanos int64) {
 	m.initNanos = initNanos
 	m.meta = meta
-	m.storeRefCountedMessage(rm)
+	m.RefCountedMessage = rm
 	m.ToProto(&m.pb)
 }
 
@@ -101,7 +98,7 @@ func (m *message) IsAcked() bool {
 // Ack acknowledges the message. Duplicated acks on the same message might cause panic.
 func (m *message) Ack() {
 	m.isAcked.Store(true)
-	m.loadRefCountedMessage().DecRef()
+	m.RefCountedMessage.DecRef()
 }
 
 // Metadata returns the metadata.
@@ -111,29 +108,14 @@ func (m *message) Metadata() metadata {
 
 // Marshaler returns the marshaler and a bool to indicate whether the marshaler is valid.
 func (m *message) Marshaler() (proto.Marshaler, bool) {
-	return &m.pb, !m.loadRefCountedMessage().IsDroppedOrConsumed()
+	return &m.pb, !m.RefCountedMessage.IsDroppedOrConsumed()
 }
 
 func (m *message) ToProto(pb *msgpb.Message) {
 	m.meta.ToProto(&pb.Metadata)
-	pb.Value = m.loadRefCountedMessage().Bytes()
+	pb.Value = m.RefCountedMessage.Bytes()
 }
 
 func (m *message) ResetProto(pb *msgpb.Message) {
 	pb.Value = nil
-}
-
-func (m *message) storeRefCountedMessage(rm *producer.RefCountedMessage) {
-	stdatomic.StorePointer(
-		(*unsafe.Pointer)(unsafe.Pointer(&m.RefCountedMessage)),
-		unsafe.Pointer(rm),
-	)
-}
-
-func (m *message) loadRefCountedMessage() *producer.RefCountedMessage {
-	return (*producer.RefCountedMessage)(
-		stdatomic.LoadPointer(
-			(*unsafe.Pointer)(unsafe.Pointer(&m.RefCountedMessage)),
-		),
-	)
 }

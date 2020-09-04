@@ -553,8 +553,8 @@ writer:
   topicName: topicName
   topicWatchInitTimeout: 100ms
   placementWatchInitTimeout: 100ms
-  messagePool:
-    size: 100
+  # FIXME: Consumers sharing the same pool trigger false-positives in race detector
+  messagePool: ~
   messageRetry:
     initialBackoff: 20ms
     maxBackoff: 50ms
