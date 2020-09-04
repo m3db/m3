@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -39,6 +40,27 @@ import (
 )
 
 func TestPeersBootstrapHighConcurrency(t *testing.T) {
+	for _, test := range []testPeersBootstrapHighConcurrencyOptions{
+		{BatchSize: 16, Concurrency: 64, BatchesPerWorker: 8},
+	} {
+		name, err := json.Marshal(test)
+		require.NoError(t, err)
+		t.Run(string(name), func(t *testing.T) {
+			testPeersBootstrapHighConcurrency(t, test)
+		})
+	}
+}
+
+type testPeersBootstrapHighConcurrencyOptions struct {
+	BatchSize        int
+	Concurrency      int
+	BatchesPerWorker int
+}
+
+func testPeersBootstrapHighConcurrency(
+	t *testing.T,
+	testOpts testPeersBootstrapHighConcurrencyOptions,
+) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -88,8 +110,9 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	defer closeFn()
 
 	// Write test data for first node
-	numSeries := 8 * batchSize * concurrency
-	log.Sugar().Debugf("testing a total of %d IDs with %d batch size %d concurrency", numSeries, batchSize, concurrency)
+	numSeries := testOpts.BatchesPerWorker * testOpts.Concurrency * testOpts.BatchSize
+	log.Sugar().Debugf("testing a total of %d IDs with %d batch size %d concurrency",
+		numSeries, testOpts.BatchSize, testOpts.Concurrency)
 
 	now := setups[0].NowFn()()
 	commonTags := []ident.Tag{
