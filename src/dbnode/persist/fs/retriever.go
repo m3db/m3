@@ -108,6 +108,11 @@ type blockRetriever struct {
 	fetchLoopsHaveShutdownCh   chan struct{}
 }
 
+// ByteLimitExceeded returns true if the limit is exceeded.
+func ByteLimitExceeded() bool {
+	return recentBytes.Load() >= recentBytesLimit
+}
+
 // NewBlockRetriever returns a new block retriever for TSDB file sets.
 func NewBlockRetriever(
 	opts BlockRetrieverOptions,
@@ -346,7 +351,7 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
-		numBytes = recentBytes.Add(entry.Size)
+		numBytes := recentBytes.Add(entry.Size)
 		if numBytes >= recentBytesLimit {
 			req.onError(errors.New("rate of bytes retrieved from disk exceeds limit of 1M"))
 			continue
