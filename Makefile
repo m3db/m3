@@ -134,12 +134,12 @@ $(SERVICE)-docker-dev: clean-build $(SERVICE)-linux-amd64
 	make docker-dev-prep
 
 	# Build development docker image
-	docker build -t $(SERVICE):dev -t quay.io/m3dbtest/$(SERVICE):dev-$(USER) -f ./docker/$(SERVICE)/development.Dockerfile ./bin
+	docker build -t $(SERVICE):dev -t gcr.io/chronosphere-dev/$(SERVICE):dev-$(USER) -f ./docker/$(SERVICE)/development.Dockerfile ./bin
 
 .PHONY: $(SERVICE)-docker-dev-push
 $(SERVICE)-docker-dev-push: $(SERVICE)-docker-dev
-	docker push quay.io/m3dbtest/$(SERVICE):dev-$(USER)
-	@echo "Pushed quay.io/m3dbtest/$(SERVICE):dev-$(USER)"
+	docker push gcr.io/chronosphere-dev/$(SERVICE):dev-$(USER)
+	@echo "Pushed gcr.io/chronosphere-dev/$(SERVICE):dev-$(USER)"
 
 endef
 

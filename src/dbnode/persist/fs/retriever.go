@@ -59,9 +59,10 @@ var (
 	errBlockRetrieverAlreadyClosed       = errors.New("block retriever already closed")
 	errNoSeekerMgr                       = errors.New("there is no open seeker manager")
 
-	recentBytes        = xatomic.NewUint32(0)
+	recentBytesLimit   = uint32(100_000_000)
 	recentBytesGauge   tally.Gauge
 	recentBytesCounter tally.Counter
+	recentBytes        = xatomic.NewUint32(0)
 	initBytes          sync.Once
 )
 
@@ -124,6 +125,7 @@ func NewBlockRetriever(
 				select {
 				case <-ticker.C:
 					recentBytes.Store(0)
+					recentBytesGauge.Update(0)
 				}
 			}
 		}()
@@ -314,6 +316,13 @@ func (r *blockRetriever) fetchBatch(
 	reqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
 ) {
+	if recentBytes.Load() >= recentBytesLimit {
+		for _, req := range reqs {
+			req.onError(errors.New("exceeded global query bytes disk limit"))
+		}
+		return
+	}
+
 	// Resolve the seeker from the seeker mgr
 	seeker, err := seekerMgr.Borrow(shard, blockStart)
 	if err != nil {
@@ -326,14 +335,25 @@ func (r *blockRetriever) fetchBatch(
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {
+		if recentBytes.Load() >= recentBytesLimit {
+			req.onError(errors.New("exceeded global query bytes disk limit"))
+			continue
+		}
+
 		entry, err := seeker.SeekIndexEntry(req.id, seekerResources)
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
 			continue
 		}
+
 		numBytes := recentBytes.Add(entry.Size)
 		recentBytesGauge.Update(float64(numBytes))
 		recentBytesCounter.Inc(int64(entry.Size))
+
+		if numBytes >= recentBytesLimit {
+			req.onError(errors.New("exceeded global query bytes disk limit"))
+			continue
+		}
 
 		if err == errSeekIDNotFound {
 			req.notFound = true
