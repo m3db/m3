@@ -712,7 +712,7 @@ func (s *peersSource) readIndex(
 	for timeWindowReaders := range readersCh {
 		// NB(bodu): Since we are re-using the same builder for all bootstrapped index blocks,
 		// it is not thread safe and requires reset after every processed index block.
-		builder.Builder().Reset(0)
+		builder.Builder().Reset()
 
 		// NB(bodu): This is fetching the data for all shards for a block of time.
 		remainingRanges, timesWithErrors := s.processReaders(
