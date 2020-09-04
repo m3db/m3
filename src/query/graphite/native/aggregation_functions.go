@@ -192,6 +192,25 @@ func sumSeriesWithWildcards(
 	return combineSeriesWithWildcards(ctx, series, positions, sumSpecificationFunc, ts.Sum)
 }
 
+// aggregateWithWildcards splits the given set of series into sub-groupings
+// based on wildcard matches in the hierarchy, then aggregate the values in
+// each grouping based on the given function.
+func aggregateWithWildcards(
+	ctx *common.Context,
+	series singlePathSpec,
+	fname string,
+	positions ...int,
+) (ts.SeriesList, error) {
+	f, fexists := summarizeFuncs[fname]
+	if !fexists {
+		err := errors.NewInvalidParamsError(fmt.Errorf(
+			"invalid func %s", fname))
+		return ts.NewSeriesList(), err
+	}
+
+	return combineSeriesWithWildcards(ctx, series, positions, f.specificationFunc, f.consolidationFunc)
+}
+
 // combineSeriesWithWildcards splits the given set of series into sub-groupings
 // based on wildcard matches in the hierarchy, then combines the values in each
 // sub-grouping according to the provided consolidation function

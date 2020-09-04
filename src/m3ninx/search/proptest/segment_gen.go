@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3/src/m3ninx/postings"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -56,7 +55,7 @@ func collectDocs(iter doc.Iterator) ([]doc.Document, error) {
 
 func newTestMemSegment(t *testing.T, docs []doc.Document) segment.MutableSegment {
 	opts := mem.NewOptions()
-	s, err := mem.NewSegment(postings.ID(0), opts)
+	s, err := mem.NewSegment(opts)
 	require.NoError(t, err)
 	for _, d := range docs {
 		_, err := s.Insert(d)
@@ -68,8 +67,7 @@ func newTestMemSegment(t *testing.T, docs []doc.Document) segment.MutableSegment
 func (i propTestInput) generate(t *testing.T, docs []doc.Document) []segment.Segment {
 	var result []segment.Segment
 	for j := 0; j < len(i.segments); j++ {
-		initialOffset := postings.ID(i.segments[j].initialDocIDOffset)
-		s, err := mem.NewSegment(initialOffset, memOptions)
+		s, err := mem.NewSegment(memOptions)
 		require.NoError(t, err)
 		for k := 0; k < len(i.docIds[j]); k++ {
 			idx := i.docIds[j][k]
@@ -145,8 +143,7 @@ func genPropTestInput(numDocs int) gopter.Gen {
 
 func genSegment() gopter.Gen {
 	return gopter.CombineGens(
-		gen.Bool(),         // simple segment
-		gen.IntRange(1, 5), // initial doc id offset
+		gen.Bool(), // simple segment
 	).Map(func(val interface{}) generatedSegment {
 		var inputs []interface{}
 		if x, ok := val.(*gopter.GenResult); ok {
@@ -159,15 +156,13 @@ func genSegment() gopter.Gen {
 			inputs = val.([]interface{})
 		}
 		return generatedSegment{
-			simpleSegment:      inputs[0].(bool),
-			initialDocIDOffset: inputs[1].(int),
+			simpleSegment: inputs[0].(bool),
 		}
 	})
 }
 
 type generatedSegment struct {
-	simpleSegment      bool
-	initialDocIDOffset int
+	simpleSegment bool
 }
 
 type randomDocIds []int

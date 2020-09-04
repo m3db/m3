@@ -44,10 +44,8 @@ exception WriteBatchRawErrors {
 service Node {
 	// Friendly not highly performant read/write endpoints
 	QueryResult query(1: QueryRequest req) throws (1: Error err)
-	AggregateQueryRawResult aggregateRaw(1: AggregateQueryRawRequest req) throws (1: Error err)
 	AggregateQueryResult aggregate(1: AggregateQueryRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
-	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
 	void writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
 
@@ -55,7 +53,8 @@ service Node {
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBatchRawResult fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
-
+	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
+	AggregateQueryRawResult aggregateRaw(1: AggregateQueryRawRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
