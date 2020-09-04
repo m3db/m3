@@ -254,13 +254,13 @@ func delay(
 	steps int,
 ) (ts.SeriesList, error) {
 	input := ts.SeriesList(singlePath)
-	output := make([]*ts.Series, input.Len())
+	output := make([]*ts.Series, 0, input.Len())
 
-	for i, series := range input.Values {
-		delayedVals := delayValuesHelper(ctx, *series, steps)
+	for _, series := range input.Values {
+		delayedVals := delayValuesHelper(ctx, series, steps)
 		delayedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), delayedVals)
 		renamedSeries := delayedSeries.RenamedTo(fmt.Sprintf("delay(%s,%d)", delayedSeries.Name(), steps))
-		output[i] = renamedSeries
+		output = append(output, renamedSeries)
 	}
 	input.Values = output
 	return input, nil
@@ -268,7 +268,7 @@ func delay(
 
 // delayValuesHelper takes a series and returns a copy of the values after
 // delaying the values by `steps` number of steps
-func delayValuesHelper(ctx *common.Context, series ts.Series, steps int ) (ts.Values) {
+func delayValuesHelper(ctx *common.Context, series *ts.Series, steps int) ts.Values {
 	output := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
 	for i := steps; i < series.Len(); i++ {
 		output.SetValueAt(i, series.ValueAt(i - steps))
