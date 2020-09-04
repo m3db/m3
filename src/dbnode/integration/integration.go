@@ -228,7 +228,7 @@ func newDefaultBootstrappableTestSetups(
 					SetTopologyInitializer(topologyInitializer).(client.AdminOptions).
 					SetOrigin(origin)
 
-				// Prevent integration tests from timing out when a node is down
+			// Prevent integration tests from timing out when a node is down
 			retryOpts = xretry.NewOptions().
 					SetInitialBackoff(1 * time.Millisecond).
 					SetMaxRetries(1).

@@ -30,6 +30,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
@@ -42,14 +45,26 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 
 	// Test setups
 	log := xtest.NewLogger(t)
-	retentionOpts := retention.NewOptions().
+
+	blockSize := 2 * time.Hour
+
+	idxOpts := namespace.NewIndexOptions().
+		SetEnabled(true).
+		SetBlockSize(blockSize)
+
+	rOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
-		SetBlockSize(2 * time.Hour).
+		SetBlockSize(blockSize).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	namesp, err := namespace.NewMetadata(testNamespaces[0],
-		namespace.NewOptions().SetRetentionOptions(retentionOpts))
+
+	nOpts := namespace.NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(idxOpts)
+
+	namesp, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
+
 	opts := NewTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		// Use TChannel clients for writing / reading because we want to target individual nodes at a time
@@ -73,22 +88,43 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	defer closeFn()
 
 	// Write test data for first node
-	total := 8 * batchSize * concurrency
-	log.Sugar().Debugf("testing a total of %d IDs with %d batch size %d concurrency", total, batchSize, concurrency)
-	shardIDs := make([]string, 0, total)
-	for i := 0; i < total; i++ {
-		id := fmt.Sprintf("id.%d", i)
-		shardIDs = append(shardIDs, id)
-	}
+	numSeries := 8 * batchSize * concurrency
+	log.Sugar().Debugf("testing a total of %d IDs with %d batch size %d concurrency", numSeries, batchSize, concurrency)
 
 	now := setups[0].NowFn()()
-	blockSize := retentionOpts.BlockSize()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{IDs: shardIDs, NumPoints: 3, Start: now.Add(-3 * blockSize)},
-		{IDs: shardIDs, NumPoints: 3, Start: now.Add(-2 * blockSize)},
-		{IDs: shardIDs, NumPoints: 3, Start: now.Add(-blockSize)},
-		{IDs: shardIDs, NumPoints: 3, Start: now},
-	})
+	commonTags := []ident.Tag{
+		{
+			Name:  ident.StringID("fruit"),
+			Value: ident.StringID("apple"),
+		},
+	}
+	numPoints := 10
+	seriesMaps := generate.BlocksByStart(blockConfigs(
+		generateTaggedBlockConfigs(generateTaggedBlockConfig{
+			series:     numSeries,
+			numPoints:  numPoints,
+			commonTags: commonTags,
+			blockStart: now.Add(-3 * blockSize),
+		}),
+		generateTaggedBlockConfigs(generateTaggedBlockConfig{
+			series:     numSeries,
+			numPoints:  numPoints,
+			commonTags: commonTags,
+			blockStart: now.Add(-2 * blockSize),
+		}),
+		generateTaggedBlockConfigs(generateTaggedBlockConfig{
+			series:     numSeries,
+			numPoints:  numPoints,
+			commonTags: commonTags,
+			blockStart: now.Add(-1 * blockSize),
+		}),
+		generateTaggedBlockConfigs(generateTaggedBlockConfig{
+			series:     numSeries,
+			numPoints:  numPoints,
+			commonTags: commonTags,
+			blockStart: now,
+		}),
+	))
 	err = writeTestDataToDisk(namesp, setups[0], seriesMaps, 0)
 	require.NoError(t, err)
 
@@ -111,4 +147,62 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	for _, setup := range setups {
 		verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
 	}
+
+	// Issue some index queries to the second node which bootstrapped the metadata
+	session, err := setups[1].M3DBClient().DefaultSession()
+	require.NoError(t, err)
+
+	start := now.Add(-rOpts.RetentionPeriod())
+	end := now.Add(blockSize)
+	queryOpts := index.QueryOptions{StartInclusive: start, EndExclusive: end}
+
+	// Match on common tags
+	termQuery := idx.NewTermQuery(commonTags[0].Name.Bytes(), commonTags[0].Value.Bytes())
+	iter, _, err := session.FetchTaggedIDs(namesp.ID(),
+		index.Query{Query: termQuery}, queryOpts)
+	require.NoError(t, err)
+	defer iter.Finalize()
+
+	count := 0
+	for iter.Next() {
+		count++
+	}
+	require.Equal(t, numSeries, count)
+}
+
+type generateTaggedBlockConfig struct {
+	series     int
+	numPoints  int
+	commonTags []ident.Tag
+	blockStart time.Time
+}
+
+func generateTaggedBlockConfigs(
+	cfg generateTaggedBlockConfig,
+) []generate.BlockConfig {
+	results := make([]generate.BlockConfig, 0, cfg.series)
+	for i := 0; i < cfg.series; i++ {
+		id := fmt.Sprintf("series_%d", i)
+		tags := make([]ident.Tag, 0, 1+len(cfg.commonTags))
+		tags = append(tags, ident.Tag{
+			Name:  ident.StringID("series"),
+			Value: ident.StringID(fmt.Sprintf("%d", i)),
+		})
+		tags = append(tags, cfg.commonTags...)
+		results = append(results, generate.BlockConfig{
+			IDs:       []string{id},
+			Tags:      ident.NewTags(tags...),
+			NumPoints: cfg.numPoints,
+			Start:     cfg.blockStart,
+		})
+	}
+	return results
+}
+
+func blockConfigs(cfgs ...[]generate.BlockConfig) []generate.BlockConfig {
+	var results []generate.BlockConfig
+	for _, elem := range cfgs {
+		results = append(results, elem...)
+	}
+	return results
 }
