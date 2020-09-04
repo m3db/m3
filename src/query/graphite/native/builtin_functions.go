@@ -2017,6 +2017,7 @@ func init() {
 	})
 	MustRegisterFunction(useSeriesAbove)
 	MustRegisterFunction(weightedAverage)
+
 	// alias functions - in alpha ordering
 	MustRegisterAliasedFunction("abs", absolute)
 	MustRegisterAliasedFunction("avg", averageSeries)
