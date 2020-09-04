@@ -243,7 +243,9 @@ func timeShift(
 	}, nil
 }
 
-
+// timeSlice takes one metric or a wildcard metric, followed by a quoted string with the time to start the line and
+// another quoted string with the time to end the line. The start and end times are inclusive.
+// Useful for filtering out a part of a series of data from a wider range of data.
 func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end string) (ts.SeriesList, error) {
 	tzOffsetForAbsoluteTime := time.Duration(0)
 	startTime, err := graphite.ParseTime(start, time.Now(), tzOffsetForAbsoluteTime)
