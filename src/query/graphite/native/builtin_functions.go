@@ -253,17 +253,17 @@ func delay(
 	singlePath singlePathSpec,
 	steps int,
 ) (ts.SeriesList, error) {
-		input := ts.SeriesList(singlePath)
-		output := make([]*ts.Series, input.Len())
+	input := ts.SeriesList(singlePath)
+	output := make([]*ts.Series, input.Len())
 
-		for i, series := range input.Values {
-			delayedVals := delayValuesHelper(ctx, *series, steps)
-			delayedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), delayedVals)
-			renamedSeries := delayedSeries.RenamedTo(fmt.Sprintf("delay(%s,%d)", delayedSeries.Name(), steps))
-			output[i] = renamedSeries
-		}
-		input.Values = output
-		return input, nil
+	for i, series := range input.Values {
+		delayedVals := delayValuesHelper(ctx, *series, steps)
+		delayedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), delayedVals)
+		renamedSeries := delayedSeries.RenamedTo(fmt.Sprintf("delay(%s,%d)", delayedSeries.Name(), steps))
+		output[i] = renamedSeries
+	}
+	input.Values = output
+	return input, nil
 }
 
 // delayValuesHelper takes a series and returns a copy of the values after
