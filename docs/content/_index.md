@@ -1,10 +1,9 @@
 ---
 date: 2020-04-01T19:26:56-04:00
 weight: 1
-chapter: true
 ---
 
-# M3
+# M3 Introduction
 
 ## About
 

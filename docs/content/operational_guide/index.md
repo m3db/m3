@@ -1,1 +1,0 @@
-# Operational Guides
