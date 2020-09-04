@@ -274,7 +274,7 @@ func TestUseSeriesAbove(t *testing.T) {
 	ctx := common.NewContext(common.ContextOptions{Start: startTime, End: endTime, Engine: engine})
 	defer ctx.Close()
 
-	stepSize := 3000000
+	stepSize := 60000
 	target := "useSeriesAbove(foo.bar.q.zed, -1, 'q', 'g')"
 
 	store.EXPECT().FetchByQuery(gomock.Any(), "foo.bar.q.zed", gomock.Any()).DoAndReturn(

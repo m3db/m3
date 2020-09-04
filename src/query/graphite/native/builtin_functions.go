@@ -109,11 +109,12 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedV
 	results := make([]*ts.Series, len(seriesList.Values))
 	for idx, series := range seriesList.Values {
 		if series.SafeMax() > maxAllowedValue {
-			end := time.Now()
-			start := end.Add(time.Hour * -2)
+			now := time.Now().Truncate(time.Hour)
+			startTime := now.Add(-3 * time.Minute)
+			endTime := now.Add(-time.Minute)
 			opts := storage.FetchOptions{
-				StartTime: start,
-				EndTime:   end,
+				StartTime: startTime,
+				EndTime:   endTime,
 				DataOptions: storage.DataOptions{
 					Timeout: time.Minute,
 				},
