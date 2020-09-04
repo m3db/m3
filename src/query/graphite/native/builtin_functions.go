@@ -106,8 +106,8 @@ corresponding request/s metric is > 10
 &target=useSeriesAbove(ganglia.metric1.reqs,10,"reqs","time")
 */
 func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedValue float64, search, replace string) (ts.SeriesList, error) {
-	results := make([]*ts.Series, len(seriesList.Values))
-	for idx, series := range seriesList.Values {
+	results := make([]*ts.Series, 0, len(seriesList.Values))
+	for _, series := range seriesList.Values {
 		if series.SafeMax() > maxAllowedValue {
 			now := time.Now().Truncate(time.Hour)
 			startTime := now.Add(-3 * time.Minute)
@@ -121,9 +121,9 @@ func useSeriesAbove(ctx *common.Context, seriesList singlePathSpec , maxAllowedV
 			}
 			seriesName := strings.Replace(series.Name(), search, replace, 1)
 			result, _ := ctx.Engine.FetchByQuery(ctx, seriesName, opts)
-			results[idx] = result.SeriesList[0]
+			results = append(results, result.SeriesList[0])
 		} else {
-			results[idx] = series
+			results = append(results, series)
 		}
 	}
 
