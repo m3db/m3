@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"context"
 	"io"
 	"time"
 
@@ -281,13 +280,10 @@ type SeriesIteratorStats struct {
 	ApproximateSizeInBytes int
 }
 
-// SeriesIteratorProcessor optionally defines methods to process series iterators.
-type SeriesIteratorProcessor interface {
+// SeriesIteratorConsolidator optionally defines methods to consolidate series iterators.
+type SeriesIteratorConsolidator interface {
 	// ConsolidateReplicas consolidates MultiReaderIterator slices.
 	ConsolidateReplicas(replicas []MultiReaderIterator) ([]MultiReaderIterator, error)
-
-	// InspectSeries inspects SeriesIterator slices.
-	InspectSeries(ctx context.Context, seriesIterators []SeriesIterator) error
 }
 
 // SeriesIteratorOptions is a set of options for using a series iterator.
@@ -299,7 +295,7 @@ type SeriesIteratorOptions struct {
 	StartInclusive                xtime.UnixNano
 	EndExclusive                  xtime.UnixNano
 	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
-	SeriesIteratorProcessor       SeriesIteratorProcessor
+	SeriesIteratorConsolidator    SeriesIteratorConsolidator
 }
 
 // SeriesIterators is a collection of SeriesIterator that can

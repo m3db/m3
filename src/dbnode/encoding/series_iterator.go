@@ -145,8 +145,8 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 	it.SetIterateEqualTimestampStrategy(opts.IterateEqualTimestampStrategy)
 	replicas := opts.Replicas
 	var err error
-	if processor := opts.SeriesIteratorProcessor; processor != nil {
-		replicas, err = processor.ConsolidateReplicas(replicas)
+	if consolidator := opts.SeriesIteratorConsolidator; consolidator != nil {
+		replicas, err = consolidator.ConsolidateReplicas(replicas)
 		if err != nil {
 			it.err = err
 			return

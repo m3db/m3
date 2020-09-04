@@ -89,7 +89,7 @@ type QueryOptions struct {
 
 // IterationOptions enables users to specify iteration preferences.
 type IterationOptions struct {
-	SeriesIteratorProcessor encoding.SeriesIteratorProcessor
+	SeriesIteratorConsolidator encoding.SeriesIteratorConsolidator
 }
 
 // SeriesLimitExceeded returns whether a given size exceeds the

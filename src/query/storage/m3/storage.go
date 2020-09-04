@@ -55,11 +55,10 @@ var (
 )
 
 type m3storage struct {
-	clusters  Clusters
-	opts      m3db.Options
-	adminOpts client.AdminOptions
-	nowFn     func() time.Time
-	logger    *zap.Logger
+	clusters Clusters
+	opts     m3db.Options
+	nowFn    func() time.Time
+	logger   *zap.Logger
 }
 
 // NewStorage creates a new local m3storage instance.
@@ -72,17 +71,11 @@ func NewStorage(
 		return nil, err
 	}
 
-	adminOpts := client.NewAdminOptions()
-	for _, opt := range opts.CustomAdminOptions() {
-		adminOpts = opt(adminOpts)
-	}
-
 	return &m3storage{
-		clusters:  clusters,
-		opts:      opts,
-		adminOpts: adminOpts,
-		nowFn:     time.Now,
-		logger:    instrumentOpts.Logger(),
+		clusters: clusters,
+		opts:     opts,
+		nowFn:    time.Now,
+		logger:   instrumentOpts.Logger(),
 	}, nil
 }
 
@@ -207,7 +200,7 @@ func (s *m3storage) FetchCompressed(
 		return result, noop, err
 	}
 
-	if processor := s.adminOpts.IterationOptions().SeriesIteratorProcessor; processor != nil {
+	if processor := s.opts.SeriesIteratorProcessor(); processor != nil {
 		_, span, sampled := xcontext.StartSampledTraceSpan(ctx,
 			tracepoint.FetchCompressedInspectSeries)
 		iters := result.SeriesIterators()
