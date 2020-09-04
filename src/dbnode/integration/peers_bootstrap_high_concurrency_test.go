@@ -37,6 +37,7 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestPeersBootstrapHighConcurrency(t *testing.T) {
@@ -155,8 +156,9 @@ func testPeersBootstrapHighConcurrency(
 	require.NoError(t, setups[0].StartServer())
 
 	// Start the last server with peers and filesystem bootstrappers
+	start := time.Now()
 	require.NoError(t, setups[1].StartServer())
-	log.Debug("servers are now up")
+	log.Debug("servers are now up", zap.Duration("took", time.Since(start)))
 
 	// Stop the servers
 	defer func() {
