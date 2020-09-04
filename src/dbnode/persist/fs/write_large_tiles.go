@@ -125,6 +125,7 @@ func (w *largeTilesWriter) Write(
 		// None of the datapoints passed the predicate.
 		return nil
 	}
+	defer stream.Finalize()
 	segment, err := stream.Segment()
 	if err != nil {
 		return err
