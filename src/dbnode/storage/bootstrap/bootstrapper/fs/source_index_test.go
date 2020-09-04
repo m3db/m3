@@ -145,7 +145,7 @@ func writeTSDBPersistedIndexBlock(
 	shards map[uint32]struct{},
 	block []testSeries,
 ) {
-	seg, err := mem.NewSegment(0, mem.NewOptions())
+	seg, err := mem.NewSegment(mem.NewOptions())
 	require.NoError(t, err)
 
 	for _, series := range block {

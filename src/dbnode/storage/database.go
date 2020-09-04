@@ -974,10 +974,10 @@ func (d *db) IsBootstrappedAndDurable() bool {
 		return false
 	}
 
-	lastBootstrapCompletionTime, ok := d.mediator.LastBootstrapCompletionTime()
+	lastBootstrapCompletionTimeNano, ok := d.mediator.LastBootstrapCompletionTime()
 	if !ok {
 		d.log.Debug("not bootstrapped and durable because: no last bootstrap completion time",
-			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTime))
+			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTimeNano.ToTime()))
 
 		return false
 	}
@@ -985,14 +985,15 @@ func (d *db) IsBootstrappedAndDurable() bool {
 	lastSnapshotStartTime, ok := d.mediator.LastSuccessfulSnapshotStartTime()
 	if !ok {
 		d.log.Debug("not bootstrapped and durable because: no last snapshot start time",
-			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
-			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime),
+			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTimeNano.ToTime()),
+			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime.ToTime()),
 		)
 		return false
 	}
 
 	var (
-		hasSnapshottedPostBootstrap            = lastSnapshotStartTime.After(lastBootstrapCompletionTime)
+		lastBootstrapCompletionTime            = lastBootstrapCompletionTimeNano.ToTime()
+		hasSnapshottedPostBootstrap            = lastSnapshotStartTime.After(lastBootstrapCompletionTimeNano)
 		hasBootstrappedSinceReceivingNewShards = lastBootstrapCompletionTime.After(d.lastReceivedNewShards) ||
 			lastBootstrapCompletionTime.Equal(d.lastReceivedNewShards)
 		isBootstrappedAndDurable = hasSnapshottedPostBootstrap &&
@@ -1003,7 +1004,7 @@ func (d *db) IsBootstrappedAndDurable() bool {
 		d.log.Debug(
 			"not bootstrapped and durable because: has not snapshotted post bootstrap and/or has not bootstrapped since receiving new shards",
 			zap.Time("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
-			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime),
+			zap.Time("lastSnapshotStartTime", lastSnapshotStartTime.ToTime()),
 			zap.Time("lastReceivedNewShards", d.lastReceivedNewShards),
 		)
 		return false

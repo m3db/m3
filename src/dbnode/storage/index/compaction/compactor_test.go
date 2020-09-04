@@ -81,7 +81,7 @@ func init() {
 }
 
 func TestCompactorSingleMutableSegment(t *testing.T) {
-	seg, err := mem.NewSegment(0, testMemSegmentOptions)
+	seg, err := mem.NewSegment(testMemSegmentOptions)
 	require.NoError(t, err)
 
 	_, err = seg.Insert(testDocuments[0])
@@ -105,7 +105,7 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 }
 
 func TestCompactorSingleMutableSegmentWithMmapDocsData(t *testing.T) {
-	seg, err := mem.NewSegment(0, testMemSegmentOptions)
+	seg, err := mem.NewSegment(testMemSegmentOptions)
 	require.NoError(t, err)
 
 	_, err = seg.Insert(testDocuments[0])
@@ -131,13 +131,13 @@ func TestCompactorSingleMutableSegmentWithMmapDocsData(t *testing.T) {
 }
 
 func TestCompactorManySegments(t *testing.T) {
-	seg1, err := mem.NewSegment(0, testMemSegmentOptions)
+	seg1, err := mem.NewSegment(testMemSegmentOptions)
 	require.NoError(t, err)
 
 	_, err = seg1.Insert(testDocuments[0])
 	require.NoError(t, err)
 
-	seg2, err := mem.NewSegment(0, testMemSegmentOptions)
+	seg2, err := mem.NewSegment(testMemSegmentOptions)
 	require.NoError(t, err)
 
 	_, err = seg2.Insert(testDocuments[1])
@@ -159,13 +159,13 @@ func TestCompactorManySegments(t *testing.T) {
 }
 
 func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
-	seg1, err := mem.NewSegment(0, testMemSegmentOptions)
+	seg1, err := mem.NewSegment(testMemSegmentOptions)
 	require.NoError(t, err)
 
 	_, err = seg1.Insert(testDocuments[0])
 	require.NoError(t, err)
 
-	seg2, err := mem.NewSegment(0, testMemSegmentOptions)
+	seg2, err := mem.NewSegment(testMemSegmentOptions)
 	require.NoError(t, err)
 
 	_, err = seg2.Insert(testDocuments[0])
