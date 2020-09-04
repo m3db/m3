@@ -551,9 +551,7 @@ func (s *peersSource) flush(
 	var (
 		ropts     = nsMetadata.Options().RetentionOptions()
 		blockSize = ropts.BlockSize()
-		flushCtx  = s.opts.ContextPool().Get()
 	)
-
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepareOpts := persist.DataPrepareOptions{
 			NamespaceMetadata: nsMetadata,
@@ -613,7 +611,6 @@ func (s *peersSource) flush(
 			metadata := persist.NewMetadataFromIDAndTags(s.ID, s.Tags,
 				persist.MetadataOptions{})
 			err = prepared.Persist(metadata, segment, checksum)
-			flushCtx.BlockingCloseReset()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
