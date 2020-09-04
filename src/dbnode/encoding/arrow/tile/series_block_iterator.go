@@ -32,8 +32,6 @@ type seriesBlockIter struct {
 
 	err       error
 	exhausted bool
-	hasID     bool
-	hasTag    bool
 
 	step  xtime.UnixNano
 	start xtime.UnixNano
@@ -41,8 +39,8 @@ type seriesBlockIter struct {
 	recorder  recorder
 	iter      SeriesFrameIterator
 	blockIter fs.CrossBlockIterator
-	tagIters  ident.TagIterator
-	ids       ident.ID
+	tags      ident.TagIterator
+	id        ident.ID
 }
 
 // NewSeriesBlockIterator creates a new SeriesBlockIterator.
@@ -74,16 +72,6 @@ func (b *seriesBlockIter) Next() bool {
 		return false
 	}
 
-	if b.hasID && b.ids != nil {
-		b.ids.Finalize()
-		b.hasID = false
-	}
-
-	if b.hasTag && b.tagIters != nil {
-		b.tagIters.Close()
-		b.hasTag = false
-	}
-
 	if !b.reader.Next() {
 		b.exhausted = true
 		b.err = b.reader.Err()
@@ -91,32 +79,27 @@ func (b *seriesBlockIter) Next() bool {
 	}
 
 	var blockRecords []fs.BlockRecord
-	b.ids, b.tagIters, blockRecords = b.reader.Current()
-	b.hasID, b.hasTag = true, true
+	b.id, b.tags, blockRecords = b.reader.Current()
 	b.blockIter.Reset(blockRecords)
-	b.iter.Reset(b.start, b.step, b.blockIter, b.ids, b.tagIters)
-
+	b.iter.Reset(b.start, b.step, b.blockIter)
 	return true
 }
 
-func (b *seriesBlockIter) Current() SeriesFrameIterator {
-	return b.iter
+func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.ID, ident.TagIterator) {
+	return b.iter, b.id, b.tags
 }
 
 func (b *seriesBlockIter) Close() error {
 	b.recorder.release()
 	b.blockIter.Close()
-
-	if b.hasID && b.ids != nil {
-		b.ids.Finalize()
-		b.hasID = false
+	if b.tags != nil {
+		b.tags.Close()
+		b.tags = nil
 	}
-
-	if b.hasTag && b.tagIters != nil {
-		b.tagIters.Close()
-		b.hasTag = false
+	if b.id != nil {
+		b.id.Finalize()
+		b.id = nil
 	}
-
 	return b.iter.Close()
 }
 

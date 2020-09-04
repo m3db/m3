@@ -2721,41 +2721,19 @@ func (s *dbShard) AggregateTiles(
 		processedBlockCount atomic.Int64
 		multiErr            xerrors.MultiError
 		dp                  ts.Datapoint
-		id, prevID          ident.ID
 		downsampledValues   = make([]tile.DownsampledValue, 0, 4)
-		tags                ident.TagIterator
-		justStarted         = true
-		lastError           error
 	)
 
 	for readerIter.Next() {
-		seriesIter := readerIter.Current()
+		seriesIter, id, tags := readerIter.Current()
 		prevFrameLastValue := math.NaN()
+		encoder.Reset(opts.Start, 0, targetSchemaDesc)
 		for seriesIter.Next() {
 			frame := seriesIter.Current()
-			id = frame.ID()
-			if justStarted {
-				prevID = id
-				justStarted = false
-				encoder.Reset(opts.Start, 0, targetSchemaDesc)
-			} else if !id.Equal(prevID) {
-				if err := writer.Write(ctx, encoder, prevID, tags); err != nil {
-					s.metrics.largeTilesWriteErrors.Inc(1)
-					lastError = err
-				} else {
-					s.metrics.largeTilesWrites.Inc(1)
-				}
-
-				encoder.Reset(opts.Start, 0, targetSchemaDesc)
-				prevID = id
-			}
-
-			tags = frame.Tags()
 			unit, singleUnit := frame.Units().SingleValue()
 			annotation, singleAnnotation := frame.Annotations().SingleValue()
 
 			if frameValues := frame.Values(); len(frameValues) > 0 {
-
 				downsampledValues = downsampledValues[:0]
 				lastIdx := len(frameValues) - 1
 
@@ -2769,7 +2747,6 @@ func (s *dbShard) AggregateTiles(
 				}
 
 				for _, downsampledValue := range downsampledValues {
-
 					value := downsampledValue.Value
 					timestamp := frame.Timestamps()[downsampledValue.FrameIndex]
 
@@ -2794,7 +2771,7 @@ func (s *dbShard) AggregateTiles(
 					err = encoder.Encode(dp, unit, annotation)
 					if err != nil {
 						s.metrics.largeTilesWriteErrors.Inc(1)
-						lastError = err
+						multiErr = multiErr.Add(err)
 					}
 				}
 
@@ -2802,20 +2779,13 @@ func (s *dbShard) AggregateTiles(
 				processedBlockCount.Inc()
 			}
 		}
-	}
 
-	// If there was at least one series then the last one wasn't written. Write it.
-	if !justStarted {
 		if err := writer.Write(ctx, encoder, id, tags); err != nil {
 			s.metrics.largeTilesWriteErrors.Inc(1)
-			lastError = err
+			multiErr = multiErr.Add(err)
 		} else {
 			s.metrics.largeTilesWrites.Inc(1)
 		}
-	}
-
-	if lastError != nil {
-		multiErr = multiErr.Add(lastError)
 	}
 
 	if err := writer.Close(); err != nil {

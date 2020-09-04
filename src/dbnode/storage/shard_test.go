@@ -195,8 +195,8 @@ func TestShardBootstrapWithFlushVersion(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -273,8 +273,8 @@ func TestShardBootstrapWithFlushVersionNoCleanUp(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
 	)
 	opts = opts.
 		SetCommitLogOptions(newClOpts)
@@ -331,8 +331,8 @@ func TestShardBootstrapWithCacheShardIndices(t *testing.T) {
 		fsOpts = opts.CommitLogOptions().FilesystemOptions().
 			SetFilePathPrefix(dir)
 		newClOpts = opts.
-			CommitLogOptions().
-			SetFilesystemOptions(fsOpts)
+				CommitLogOptions().
+				SetFilesystemOptions(fsOpts)
 		mockRetriever = block.NewMockDatabaseBlockRetriever(ctrl)
 	)
 	opts = opts.SetCommitLogOptions(newClOpts)
@@ -1784,7 +1784,6 @@ func TestShardAggregateTiles(t *testing.T) {
 	defer targetShard.Close()
 
 	reverseIndex := NewMockNamespaceIndex(ctrl)
-	reverseIndex.EXPECT().WriteBatch(gomock.Any()).Return(nil).Times(3)
 	targetShard.reverseIndex = reverseIndex
 
 	sourceNsID := sourceShard.namespace.ID()
@@ -1805,12 +1804,14 @@ func TestShardAggregateTiles(t *testing.T) {
 	}
 
 	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start)
+	reader0.EXPECT().Entries().Return(2).AnyTimes()
 	reader0.EXPECT().Read().Return(ident.StringID("id1"), ident.EmptyTagIterator, buildBytes(), uint32(11), nil)
 	reader0.EXPECT().Read().Return(ident.StringID("id2"), ident.MustNewTagStringsIterator("foo", "bar"), buildBytes(), uint32(22), nil)
 	reader0.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
 
 	secondSourceBlockStart := start.Add(sourceBlockSize)
 	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart)
+	reader1.EXPECT().Entries().Return(1).AnyTimes()
 	reader1.EXPECT().Read().Return(ident.StringID("id3"), ident.EmptyTagIterator, buildBytes(), uint32(33), nil)
 	reader1.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
 
@@ -1820,7 +1821,8 @@ func TestShardAggregateTiles(t *testing.T) {
 		{secondSourceBlockStart, volume1},
 	}
 
-	processedBlockCount, err := targetShard.AggregateTiles(ctx, sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, series.WriteOptions{})
+	processedBlockCount, err := targetShard.AggregateTiles(
+		ctx, sourceNsID, sourceShard.ID(), blockReaders, sourceBlockVolumes, opts, nil)
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), processedBlockCount)
 }

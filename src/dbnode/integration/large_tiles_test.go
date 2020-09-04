@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
@@ -76,15 +77,12 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.NoError(t, err)
 	nowFn := testSetup.NowFn()
 
-	tags := []ident.Tag{
-		ident.StringTag("__name__", "cpu"),
-		ident.StringTag("job", "job1"),
-	}
-
 	// Write test data.
 	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
 	dpTime := dpTimeStart
-	err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 15, xtime.Second, nil)
+	err = session.WriteTagged(srcNs.ID(), ident.StringID("aab"),
+		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
+		dpTime, 15, xtime.Second, nil)
 
 	testDataPointsCount := 60.0
 	for a := 0.0; a < testDataPointsCount; a++ {
@@ -92,7 +90,9 @@ func TestReadAggregateWrite(t *testing.T) {
 			dpTime = dpTime.Add(10 * time.Minute)
 			continue
 		}
-		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"), ident.NewTagsIterator(ident.NewTags(tags...)), dpTime, 42.1+a, xtime.Second, nil)
+		err = session.WriteTagged(srcNs.ID(), ident.StringID("foo"),
+			ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
+			dpTime, 42.1+a, xtime.Second, nil)
 		require.NoError(t, err)
 		dpTime = dpTime.Add(10 * time.Minute)
 	}
@@ -121,43 +121,40 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(6), processedBlockCount)
 
-	counters := reporter.Counters()
-	writeErrorsCount, _ := counters["database.writeAggData.errors"]
-	require.Equal(t, int64(0), writeErrorsCount)
-	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
-	require.Equal(t, int64(2), seriesWritesCount)
+	require.True(t, xclock.WaitUntil(func() bool {
+		counters := reporter.Counters()
+		writeErrorsCount, _ := counters["database.writeAggData.errors"]
+		require.Equal(t, int64(0), writeErrorsCount)
+		seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
+		fmt.Println(seriesWritesCount)
+		return seriesWritesCount >= 2
+	}, time.Second*10))
 
 	log.Info("validating aggregated data")
-	expectedDps := map[int64]float64{
-		dpTimeStart.Add(110 * time.Minute).Unix(): 53.1,
-		dpTimeStart.Add(170 * time.Minute).Unix(): 59.1,
-		dpTimeStart.Add(230 * time.Minute).Unix(): 65.1,
-		dpTimeStart.Add(290 * time.Minute).Unix(): 71.1,
-		dpTimeStart.Add(350 * time.Minute).Unix(): 77.1,
+	expectedDps := []ts.Datapoint{
+		ts.Datapoint{Timestamp: dpTimeStart.Add(110 * time.Minute), Value: 53.1},
+		ts.Datapoint{Timestamp: dpTimeStart.Add(170 * time.Minute), Value: 59.1},
+		ts.Datapoint{Timestamp: dpTimeStart.Add(230 * time.Minute), Value: 65.1},
+		ts.Datapoint{Timestamp: dpTimeStart.Add(290 * time.Minute), Value: 71.1},
+		ts.Datapoint{Timestamp: dpTimeStart.Add(350 * time.Minute), Value: 77.1},
 	}
 
-	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("job"), []byte("j.*"))
-	assert.NoError(t, err)
-	iters, fetchResponse, err := session.FetchTagged(srcNs.ID(), index.Query{reQuery}, index.QueryOptions{
-		StartInclusive: dpTimeStart,
-		EndExclusive:   nowFn(),
-	})
-	require.NoError(t, err)
-	fmt.Printf("iters: %+v\n", iters)
-	fmt.Printf("fetchResponse: %+v\n", fetchResponse)
-	// tags := series.Tags()
-	// for tags.Next() {
-	// 	fmt.Println("TAGS:", tags.Current())
-	// }
-	// for series.Next() {
-	// 	dp, _, _ := series.Current()
+	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn(), expectedDps)
 
-	// 	fmt.Println(dp)
+	expectedDps = []ts.Datapoint{
+		ts.Datapoint{Timestamp: dpTimeStart, Value: 15},
+	}
+	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("aab"), dpTimeStart, nowFn(), expectedDps)
+}
+
+const (
+	iterationCount      = 100
+	testSeriesCount     = 100
+	testDataPointsCount = 600
+)
 	// 	tags := series.Tags()
 	// 	for tags.Next() {
 	// 		fmt.Println("TAGS:", tags.Current())
-	// 	}
-	// }
 
 	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn(), expectedDps)
 
@@ -196,7 +193,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		flushes, _ := counters["database.flushIndex.success"]
 		writes, _ := counters["database.series.cold-writes"]
 		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 && writes >= 600000 && successFlushes >= 4
+		return flushes >= 1 && writes >= testDataPointsCount*testSeriesCount && successFlushes >= 4
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
@@ -217,19 +214,13 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 			for inProgress.Load() {
 				//fmt.Printf("Fetch...")
 				series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(b)), dpTimeStart, dpTimeStart.Add(blockSizeT))
-				count := 0
-				if err == nil {
-					for series.Next() {
-						_, _, _ = series.Current()
-						count++
-					}
-				}
-
 				//fmt.Println(count, "Done")
 				if err != nil {
 					fmt.Println(time.Now(), "FETCH ERR", err)
 					return
 				}
+        
+				series.Close()
 				time.Sleep(time.Millisecond)
 			}
 		}()
@@ -238,16 +229,18 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	var (
 		processedBlockCount int64
 	)
-	for a := 0; true; a++ {
-		fmt.Println(time.Now(), "Aggregation", a)
+	for a := 0; a < iterationCount; a++ {
+		fmt.Println(time.Now(), "Aggregation", a+1, "/", iterationCount)
 		ctx := storageOpts.ContextPool().Get()
 		processedBlockCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
 		ctx.Close()
 		if err != nil {
+			require.NoError(t, err)
 			fmt.Println(time.Now(), "AGG ERR", err)
 		}
-		fmt.Println("Aggregation-Done", processedBlockCount)
-		if err != nil || processedBlockCount != 36000 {
+		expectedPoints := int64(testDataPointsCount * testSeriesCount / 100 * 6)
+		fmt.Println("Aggregation-Done", processedBlockCount, expectedPoints)
+		if err != nil || processedBlockCount != expectedPoints {
 			break
 		}
 	}
@@ -255,13 +248,13 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	wg.Wait()
 	require.NoError(t, err)
-	require.Equal(t, int64(36000), processedBlockCount)
+	require.Equal(t, int64(testDataPointsCount*testSeriesCount/100*6), processedBlockCount)
 
 	counters := reporter.Counters()
 	writeErrorsCount, _ := counters["database.writeAggData.errors"]
 	require.Equal(t, int64(0), writeErrorsCount)
 	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
-	require.Equal(t, int64(10000), seriesWritesCount)
+	require.Equal(t, int64(testSeriesCount*iterationCount), seriesWritesCount)
 
 	series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
 	require.NoError(t, err)
@@ -278,36 +271,28 @@ func fetchAndValidate(
 	nsID ident.ID,
 	id ident.ID,
 	startInclusive, endExclusive time.Time,
-	expectedDps map[int64]float64,
+	expected []ts.Datapoint,
 ) {
 	series, err := session.Fetch(nsID, id, startInclusive, endExclusive)
 	require.NoError(t, err)
 
-	tags := series.Tags()
+	actual := make([]ts.Datapoint, 0, len(expected))
 	for tags.Next() {
 		fmt.Println("TAGS:", tags.Current())
 	}
 
-	count := 0
 	for series.Next() {
 		dp, _, _ := series.Current()
-
-		fmt.Println(dp)
-		tags := series.Tags()
-		for tags.Next() {
+		// FIXME: init expected timestamp nano field as well for equality, or use
+		// permnissive equality check instead.
+		dp.TimestampNanos = 0
+		actual = append(actual, dp)
 			fmt.Println("TAGS:", tags.Current())
 		}
 
-		value, ok := expectedDps[dp.Timestamp.Unix()]
-		require.True(t, ok,
-			"didn't expect to find timestamp %v in aggregated result",
-			dp.Timestamp.Unix())
-		require.Equal(t, value, dp.Value,
-			"value for timestamp %v doesn't match. Expected %v but got %v",
-			dp.Timestamp.Unix(), value, dp.Value)
-		count++
 	}
-	require.Equal(t, len(expectedDps), count)
+
+	assert.Equal(t, expected, actual)
 }
 
 func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
@@ -359,9 +344,6 @@ func writeTestData(t *testing.T, testSetup TestSetup, dpTimeStart time.Time, ns 
 	}
 
 	dpTime := dpTimeStart
-
-	testDataPointsCount := 600.0
-	testSeriesCount := 1000
 
 	testTagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
 		pool.NewObjectPoolOptions().SetSize(1))

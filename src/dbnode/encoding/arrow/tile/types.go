@@ -71,8 +71,6 @@ type SeriesFrameIterator interface {
 		start xtime.UnixNano,
 		step xtime.UnixNano,
 		it fs.CrossBlockIterator,
-		id ident.ID,
-		tags ident.TagIterator,
 	) error
 }
 
@@ -85,8 +83,9 @@ type SeriesBlockIterator interface {
 	Next() bool
 	// Close closes the iterator.
 	Close() error
-	// Current returns the next set of series frame iterators.
-	Current() SeriesFrameIterator
+	// Current returns the next set of series frame iterators, with relevant
+	// tags and IDs.
+	Current() (SeriesFrameIterator, ident.ID, ident.TagIterator)
 }
 
 type recorder interface {

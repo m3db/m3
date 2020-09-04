@@ -91,9 +91,10 @@ func (r *crossBlockReader) Next() bool {
 			return false
 		}
 	} else {
-		// use empty var in inner loop with "for i := range" to have compiler use memclr optimization
-		// see: https://codereview.appspot.com/137880043
-		for i := range r.records {
+		for i, record := range r.records {
+			if record.Data != nil {
+				record.Data.DecRef()
+			}
 			r.records[i] = emptyRecord
 		}
 	}
@@ -116,7 +117,7 @@ func (r *crossBlockReader) Next() bool {
 
 	for len(r.minHeap) > 0 && r.minHeap[0].id.Equal(firstEntry.id) {
 		nextEntry, err := r.readOne()
-		if err != nil {
+		if err != nil { // what do if err
 			// Close the resources that were already read but not returned to the consumer:
 			r.id.Finalize()
 			r.tags.Close()
@@ -143,9 +144,6 @@ func (r *crossBlockReader) Next() bool {
 }
 
 func (r *crossBlockReader) Current() (ident.ID, ident.TagIterator, []BlockRecord) {
-	for _, record := range r.records {
-		record.Data.DecRef()
-	}
 	return r.id, r.tags, r.records
 }
 
@@ -315,18 +313,11 @@ func (c *crossBlockIterator) Next() bool {
 		c.started = true
 		c.idx = c.idx + 1
 
-		// NB: clear previous.
-		if c.idx > 0 {
-			c.records[c.idx-1].Data.DecRef()
-			c.records[c.idx-1].Data.Finalize()
-		}
-
 		if c.idx >= len(c.records) {
 			c.exhausted = true
 			return false
 		}
 
-		c.records[c.idx].Data.IncRef()
 		c.byteReader.Reset(c.records[c.idx].Data.Bytes())
 		c.current.Reset(c.byteReader, nil)
 		// NB: rerun using the next record.
@@ -341,14 +332,6 @@ func (c *crossBlockIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 }
 
 func (c *crossBlockIterator) Reset(records []BlockRecord) {
-	// NB: close any open records.
-	if len(c.records) > 0 && c.idx >= 0 {
-		for i := c.idx; i < len(c.records); i++ {
-			c.records[i].Data.DecRef()
-			c.records[i].Data.Finalize()
-		}
-	}
-
 	c.idx = -1
 	c.records = records
 	c.started = false
