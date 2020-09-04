@@ -146,8 +146,8 @@ func TestReadAggregateWrite(t *testing.T) {
 }
 
 const (
-	iterationCount      = 1000
-	testSeriesCount     = 1000
+	iterationCount      = 100
+	testSeriesCount     = 100
 	testDataPointsCount = 600
 )
 
@@ -216,16 +216,18 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	var (
 		processedBlockCount int64
 	)
-	for a := 0; true; a++ {
-		fmt.Println(time.Now(), "Aggregation", a)
+	for a := 0; a < iterationCount; a++ {
+		fmt.Println(time.Now(), "Aggregation", a+1, "/", iterationCount)
 		ctx := storageOpts.ContextPool().Get()
 		processedBlockCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
 		ctx.Close()
 		if err != nil {
+			require.NoError(t, err)
 			fmt.Println(time.Now(), "AGG ERR", err)
 		}
-		fmt.Println("Aggregation-Done", processedBlockCount)
-		if err != nil || processedBlockCount != testDataPointsCount*testSeriesCount {
+		expectedPoints := int64(testDataPointsCount * testSeriesCount / 100 * 6)
+		fmt.Println("Aggregation-Done", processedBlockCount, expectedPoints)
+		if err != nil || processedBlockCount != expectedPoints {
 			break
 		}
 	}
@@ -239,7 +241,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	writeErrorsCount, _ := counters["database.writeAggData.errors"]
 	require.Equal(t, int64(0), writeErrorsCount)
 	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
-	require.Equal(t, int64(testSeriesCount), seriesWritesCount)
+	require.Equal(t, int64(testSeriesCount*iterationCount), seriesWritesCount)
 
 	_, err = session.Fetch(srcNs.ID(), ident.StringID("foo"+string(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
 	require.NoError(t, err)

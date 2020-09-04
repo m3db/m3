@@ -46,11 +46,6 @@ import (
 
 var errExpected = errors.New("expected error")
 
-const (
-	iterCount = 5
-	count     = 3
-)
-
 func TestCrossBlockReaderRejectMisconfiguredInputs(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -213,7 +208,6 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 
 			previousBlockIndex = blockIndex
 			assert.NotNil(t, record.Data)
-			record.Data.Finalize()
 		}
 
 		blockCount += len(records)
@@ -231,6 +225,160 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 	for _, dfsReader := range dfsReaders {
 		assert.NotNil(t, dfsReader)
 	}
+}
+
+func TestSkippingReader(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	now := time.Now().Truncate(time.Hour)
+	var dfsReaders []DataFileSetReader
+
+	expectedBlockCount := 0
+
+	blockSeriesIDs := [][]string{{"id1"}, {"id2"}, {"id3"}}
+	expectedIDs := []string{"id3"}
+	for blockIndex, ids := range blockSeriesIDs {
+		dfsReader := NewMockDataFileSetReader(ctrl)
+		dfsReader.EXPECT().OrderedByIndex().Return(true)
+		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
+
+		blockHasError := false
+		for j, id := range ids {
+			tags := ident.NewTags(ident.StringTag("foo", strconv.Itoa(j)))
+			data := checkedBytes([]byte{byte(j)})
+			data.DecRef()                  // start with 0 ref
+			checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
+			if id == "error" {
+				dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), errExpected)
+				blockHasError = true
+			} else {
+				dfsReader.EXPECT().Read().Return(ident.StringID(id), ident.NewTagsIterator(tags), data, checksum, nil)
+			}
+		}
+
+		if !blockHasError {
+			dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF).MaxTimes(1)
+		}
+
+		dfsReaders = append(dfsReaders, dfsReader)
+		expectedBlockCount += len(ids)
+	}
+
+	cbReader, err := NewCrossBlockReader(dfsReaders, instrument.NewTestOptions(t))
+	require.NoError(t, err)
+	defer cbReader.Close()
+
+	blockCount := 0
+	seriesCount := 0
+	// NB: skip first two
+	expectedBlockCount -= 2
+	require.True(t, cbReader.Next())
+	require.True(t, cbReader.Next())
+	for cbReader.Next() {
+		// NB: call Current twice to ensure it does not mutate values.
+		id, _, _ := cbReader.Current()
+		assert.Equal(t, expectedIDs[seriesCount], id.String())
+		_, tags, records := cbReader.Current()
+
+		strID := id.String()
+		id.Finalize()
+		assert.Equal(t, expectedIDs[seriesCount], strID)
+
+		assert.NotNil(t, tags)
+		tags.Close()
+
+		previousBlockIndex := -1
+		for _, record := range records {
+			blockIndex := int(record.DataChecksum) // see the comment above
+			assert.True(t, blockIndex > previousBlockIndex, "same id blocks must be read in temporal order")
+
+			previousBlockIndex = blockIndex
+			assert.NotNil(t, record.Data)
+		}
+
+		blockCount += len(records)
+		seriesCount++
+	}
+
+	assert.Equal(t, len(expectedIDs), seriesCount, "count of series read")
+
+	err = cbReader.Err()
+	if err == nil || (err.Error() != errExpected.Error() && !strings.HasPrefix(err.Error(), "duplicate id")) {
+		require.NoError(t, cbReader.Err())
+		assert.Equal(t, expectedBlockCount, blockCount, "count of blocks read")
+	}
+
+	for _, dfsReader := range dfsReaders {
+		assert.NotNil(t, dfsReader)
+	}
+}
+
+func TestCrossBlockIterator(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	reader := encoding.NewMockReaderIterator(ctrl)
+
+	iterPool := encoding.NewMockReaderIteratorPool(ctrl)
+	iterPool.EXPECT().Get().Return(reader)
+
+	iter := NewCrossBlockIterator(iterPool)
+	assert.False(t, iter.Next())
+
+	count := 3
+	iterCount := 5
+	startTime := time.Now().Truncate(time.Hour)
+	start := startTime
+	records := make([]BlockRecord, 0, count)
+	for i := 0; i < count; i++ {
+		byteString := fmt.Sprint(i)
+
+		data := checked.NewMockBytes(ctrl)
+		gomock.InOrder(
+			data.EXPECT().Bytes().Return([]byte(byteString)),
+		)
+		records = append(records, BlockRecord{
+			Data: data,
+		})
+
+		reader.EXPECT().Reset(gomock.Any(), nil).Do(
+			func(r io.Reader, _ namespace.SchemaDescr) {
+				b, err := ioutil.ReadAll(r)
+				require.NoError(t, err)
+				assert.Equal(t, byteString, string(b))
+			})
+
+		for j := 0; j < iterCount; j++ {
+			reader.EXPECT().Next().Return(true)
+			reader.EXPECT().Current().Return(ts.Datapoint{
+				Value:     float64(j),
+				Timestamp: start,
+			}, xtime.Second, nil)
+			start = start.Add(time.Minute)
+		}
+
+		reader.EXPECT().Next().Return(false)
+		reader.EXPECT().Err().Return(nil)
+	}
+
+	iter.Reset(records)
+	i := 0
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		// NB: iterator values should go [0,1,...,iterCount] for each block record.
+		assert.Equal(t, float64(i%iterCount), dp.Value)
+		// NB: time should be constantly increasing per value.
+		assert.Equal(t, startTime.Add(time.Minute*time.Duration(i)), dp.Timestamp)
+		i++
+	}
+
+	assert.Equal(t, count*iterCount, i)
+
+	reader.EXPECT().Err().Return(errExpected)
+	assert.Equal(t, errExpected, iter.Err())
+	reader.EXPECT().Close()
+	iter.Close()
 }
 
 func TestFailingCrossBlockIterator(t *testing.T) {
@@ -257,12 +405,6 @@ func TestFailingCrossBlockIterator(t *testing.T) {
 		data := checked.NewMockBytes(ctrl)
 
 		if remaining == 0 {
-			// NB: ensure all data is cleaned on an error.
-			gomock.InOrder(
-				data.EXPECT().DecRef(),
-				data.EXPECT().Finalize(),
-			)
-
 			records = append(records, BlockRecord{
 				Data: data,
 			})
@@ -270,12 +412,7 @@ func TestFailingCrossBlockIterator(t *testing.T) {
 			continue
 		}
 
-		gomock.InOrder(
-			data.EXPECT().IncRef(),
-			data.EXPECT().Bytes().Return([]byte(byteString)),
-			data.EXPECT().DecRef(),
-			data.EXPECT().Finalize(),
-		)
+		data.EXPECT().Bytes().Return([]byte(byteString))
 		records = append(records, BlockRecord{
 			Data: data,
 		})
@@ -320,132 +457,5 @@ func TestFailingCrossBlockIterator(t *testing.T) {
 
 	assert.Equal(t, errExpected, iter.Err())
 	reader.EXPECT().Close()
-	iter.Close()
-}
-
-func buildIter(t *testing.T, ctrl *gomock.Controller) (CrossBlockIterator, time.Time) {
-	reader := encoding.NewMockReaderIterator(ctrl)
-
-	iterPool := encoding.NewMockReaderIteratorPool(ctrl)
-	iterPool.EXPECT().Get().Return(reader)
-
-	iter := NewCrossBlockIterator(iterPool)
-	assert.False(t, iter.Next())
-
-	startTime := time.Now().Truncate(time.Hour)
-	start := startTime
-	records := make([]BlockRecord, 0, count)
-	for i := 0; i < count; i++ {
-		byteString := fmt.Sprint(i)
-
-		data := checked.NewMockBytes(ctrl)
-		gomock.InOrder(
-			data.EXPECT().IncRef(),
-			data.EXPECT().Bytes().Return([]byte(byteString)),
-			data.EXPECT().DecRef(),
-			data.EXPECT().Finalize(),
-		)
-		records = append(records, BlockRecord{
-			Data: data,
-		})
-
-		reader.EXPECT().Reset(gomock.Any(), nil).Do(
-			func(r io.Reader, _ namespace.SchemaDescr) {
-				b, err := ioutil.ReadAll(r)
-				require.NoError(t, err)
-				assert.Equal(t, byteString, string(b))
-			})
-
-		for j := 0; j < iterCount; j++ {
-			reader.EXPECT().Next().Return(true)
-			reader.EXPECT().Current().Return(ts.Datapoint{
-				Value:     float64(j),
-				Timestamp: start,
-			}, xtime.Second, nil)
-			start = start.Add(time.Minute)
-		}
-
-		reader.EXPECT().Next().Return(false)
-		reader.EXPECT().Err().Return(nil)
-	}
-
-	iter.Reset(records)
-
-	reader.EXPECT().Err().Return(errExpected)
-	reader.EXPECT().Close()
-	return iter, startTime
-}
-
-func TestCrossBlockIterator(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	iter, startTime := buildIter(t, ctrl)
-	i := 0
-	for iter.Next() {
-		dp, _, _ := iter.Current()
-		// NB: iterator values should go [0,...,iterCount] for each block record.
-		assert.Equal(t, float64(i%iterCount), dp.Value)
-		// NB: time should be constantly increasing per value.
-		assert.Equal(t, startTime.Add(time.Minute*time.Duration(i)), dp.Timestamp)
-		i++
-	}
-
-	assert.Equal(t, count*iterCount, i)
-
-	assert.Equal(t, errExpected, iter.Err())
-	iter.Close()
-}
-
-func TestCrossBlockIteratorDoubleNext(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	iter, startTime := buildIter(t, ctrl)
-	require.True(t, iter.Next())
-	// FIXME: test fails if this is commented
-	iter.Current()
-	require.True(t, iter.Next())
-	// FIXME: test fails if this is commented
-	iter.Current()
-	i := 0
-	for iter.Next() {
-		dp, _, _ := iter.Current()
-		// NB: iterator values should go [2,...,iterCount] for each block record.
-		require.Equal(t, float64(i%iterCount), dp.Value)
-		// NB: time should be constantly increasing per value.
-		require.Equal(t, startTime.Add(time.Minute*time.Duration(i)), dp.Timestamp)
-		i++
-	}
-
-	assert.Equal(t, count*iterCount, i)
-
-	assert.Equal(t, errExpected, iter.Err())
-	iter.Close()
-}
-
-func TestCrossBlockIteratorDoubleCurrent(t *testing.T) {
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
-
-	iter, startTime := buildIter(t, ctrl)
-	require.True(t, iter.Next())
-	i := 0
-	for iter.Next() {
-		// NB: multiple calls to Current should yield same result.
-		// FIXME: fails on j > 1
-		for j := 0; j < 1; j++ {
-			dp, _, _ := iter.Current()
-			// NB: iterator values should go [0,...,iterCount] for each block record.
-			require.Equal(t, float64(i%iterCount), dp.Value)
-			// NB: time should be constantly increasing per value.
-			require.Equal(t, startTime.Add(time.Minute*time.Duration(i)), dp.Timestamp)
-		}
-		i++
-	}
-
-	assert.Equal(t, count*iterCount, i)
-
-	assert.Equal(t, errExpected, iter.Err())
 	iter.Close()
 }

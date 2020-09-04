@@ -92,6 +92,14 @@ func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.ID, ident.TagIte
 func (b *seriesBlockIter) Close() error {
 	b.recorder.release()
 	b.blockIter.Close()
+	if b.tags != nil {
+		b.tags.Close()
+		b.tags = nil
+	}
+	if b.id != nil {
+		b.id.Finalize()
+		b.id = nil
+	}
 	return b.iter.Close()
 }
 
