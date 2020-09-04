@@ -39,6 +39,7 @@ var (
 	funcMut   sync.RWMutex
 	functions = map[string]*Function{}
 )
+
 // list of graphite function name strings. (not whole list, update on-demand)
 const (
 	Average        = "average"
@@ -49,12 +50,19 @@ const (
 	Diff           = "diff"
 	DiffSeries     = "diffSeries"
 	Empty          = ""
+	Last           = "last"
+	KeepLastValue  = "keepLastValue"
 	Max            = "max"
 	MaxSeries      = "maxSeries"
 	Min            = "min"
 	MinSeries      = "minSeries"
 	Multiply       = "multiply"
 	MultiplySeries = "multiplySeries"
+	Range          = "range"
+	RangeOf        = "rangeOf"
+	RangeOfSeries  = "rangeOfSeries"
+	Stdev          = "stdev"
+	Stddev         = "stddev"
 	Sum            = "sum"
 	SumSeries      = "sumSeries"
 	Total          = "total"

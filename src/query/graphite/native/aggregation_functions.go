@@ -146,14 +146,24 @@ func aggregate(ctx *common.Context, series singlePathSpec, fname string) (ts.Ser
 	case Max, MaxSeries:
 		return maxSeries(ctx, multiplePathSpecs(series))
 	case Avg, Average, AverageSeries:
-		return averageSeries(ctx,multiplePathSpecs(series))
+		return averageSeries(ctx, multiplePathSpecs(series))
 	case Multiply, MultiplySeries:
 		return multiplySeries(ctx, multiplePathSpecs(series))
 	case Diff, DiffSeries:
 		return diffSeries(ctx, multiplePathSpecs(series))
 	case Count, CountSeries:
 		return countSeries(ctx, multiplePathSpecs(series))
+	case Range, RangeOf, RangeOfSeries:
+		return rangeOfSeries(ctx, series)
+	case Last, KeepLastValue:
+		return keepLastValue(ctx, series, -1) // using default value, same as graphite-web python implementation.
+	case Stdev, Stddev:
+		// default value for points in python implementation not clear, using an arbitrary 5 data points value should works fine.
+		// default value for null value ratio is same as graphite-web python implementation.
+		return stdev(ctx, series, 5, 0.1)
 	default:
+		// Median: the movingMedian() method already implemented is returning an series non compatible result. skip support for now.
+		// avg_zero is not implemented, skip support for now unless later identified actual use cases.
 		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid func %s", fname))
 	}
 }
