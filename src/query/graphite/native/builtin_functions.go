@@ -924,50 +924,6 @@ func integral(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) 
 	return r, nil
 }
 
-
-/*
-
-def integralByInterval(requestContext, seriesList, intervalUnit):
-  """
-  This will do the same as integral() funcion, except resetting the total to 0
-  at the given time in the parameter "from"
-  Useful for finding totals per hour/day/week/..
-
-  Example:
-
-  .. code-block:: none
-
-    &target=integralByInterval(company.sales.perMinute, "1d")&from=midnight-10days
-
-  This would start at zero on the left side of the graph, adding the sales each
-  minute, and show the evolution of sales per day during the last 10 days.
-  """
-  intervalDuration = int(abs(deltaseconds(parseTimeOffset(intervalUnit))))
-  startTime = int(timestamp(requestContext['startTime']))
-  results = []
-  for series in seriesList:
-    newValues = []
-    currentTime = series.start # current time within series iteration
-    current = 0.0 # current accumulated value
-    for val in series:
-      # reset integral value if crossing an interval boundary
-      if (currentTime - startTime)//intervalDuration != (currentTime - startTime - series.step)//intervalDuration:
-        current = 0.0
-      if val is None:
-        # keep previous value since val can be None when resetting current to 0.0
-        newValues.append(current)
-      else:
-        current += val
-        newValues.append(current)
-      currentTime += series.step
-    series.tags['integralByInterval'] = intervalUnit
-    newName = "integralByInterval(%s,'%s')" % (series.name, intervalUnit)
-    newSeries = series.copy(name=newName, values=newValues)
-    results.append(newSeries)
-  return results
-
-
-*/
 // integralByInterval will do the same as integral funcion, except it resets the total to 0
 // at the given time in the parameter “from”. Useful for finding totals per hour/day/week.
 func integralByInterval(ctx *common.Context, input singlePathSpec, intervalString string) (ts.SeriesList, error) {
@@ -989,7 +945,7 @@ func integralByInterval(ctx *common.Context, input singlePathSpec, intervalStrin
 				currentSum = 0.0
 			}
 			n := series.ValueAt(i)
-			if math.IsNaN(n) {
+			if !math.IsNaN(n) {
 				currentSum += n
 				outvals.SetValueAt(i, currentSum)
 			}
@@ -1983,6 +1939,7 @@ func init() {
 	MustRegisterFunction(holtWintersForecast)
 	MustRegisterFunction(identity)
 	MustRegisterFunction(integral)
+	MustRegisterFunction(integralByInterval)
 	MustRegisterFunction(isNonNull)
 	MustRegisterFunction(keepLastValue).WithDefaultParams(map[uint8]interface{}{
 		2: -1, // limit

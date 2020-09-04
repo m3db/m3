@@ -1699,6 +1699,36 @@ func TestIntegral(t *testing.T) {
 	}
 }
 
+func TestIntegralByInterval(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	invals := []float64{
+		0, 1, 2, 3, 4, 5, 6, math.NaN(), 8, math.NaN(),
+	}
+
+	outvals := []float64{
+		0, 1, 3, 6, 4, 9, 15, math.NaN(), 8, math.NaN(),
+	}
+
+	series := ts.NewSeries(ctx, "hello", time.Now(),
+		common.NewTestSeriesValues(ctx, 10000, invals))
+
+	r, err := integralByInterval(ctx, singlePathSpec{
+		Values: []*ts.Series{series},
+	}, "30s")
+	require.NoError(t, err)
+
+	output := r.Values
+	require.Equal(t, 1, len(output))
+	assert.Equal(t, "integralByInterval(hello, 30s)", output[0].Name())
+	assert.Equal(t, series.StartTime(), output[0].StartTime())
+	require.Equal(t, len(outvals), output[0].Len())
+	for i, expected := range outvals {
+		xtest.Equalish(t, expected, output[0].ValueAt(i), "incorrect value at %d", i)
+	}
+}
+
 func TestDerivative(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -2944,6 +2974,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"holtWintersForecast",
 		"identity",
 		"integral",
+		"integralByInterval",
 		"isNonNull",
 		"keepLastValue",
 		"legendValue",
