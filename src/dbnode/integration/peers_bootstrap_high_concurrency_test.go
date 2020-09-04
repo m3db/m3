@@ -156,9 +156,9 @@ func testPeersBootstrapHighConcurrency(
 	require.NoError(t, setups[0].StartServer())
 
 	// Start the last server with peers and filesystem bootstrappers
-	start := time.Now()
+	bootstrapStart := time.Now()
 	require.NoError(t, setups[1].StartServer())
-	log.Debug("servers are now up", zap.Duration("took", time.Since(start)))
+	log.Debug("servers are now up", zap.Duration("took", time.Since(bootstrapStart)))
 
 	// Stop the servers
 	defer func() {
