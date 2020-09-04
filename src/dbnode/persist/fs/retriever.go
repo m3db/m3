@@ -318,7 +318,7 @@ func (r *blockRetriever) fetchBatch(
 ) {
 	if recentBytes.Load() >= recentBytesLimit {
 		for _, req := range reqs {
-			req.onError(errors.New("exceeded global query bytes disk limit"))
+			req.onError(errors.New("rate of bytes retrieved from disk exceeds limit of 1M"))
 		}
 		return
 	}
@@ -336,7 +336,7 @@ func (r *blockRetriever) fetchBatch(
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {
 		if recentBytes.Load() >= recentBytesLimit {
-			req.onError(errors.New("exceeded global query bytes disk limit"))
+			req.onError(errors.New("rate of bytes retrieved from disk exceeds limit of 1M"))
 			continue
 		}
 
@@ -346,14 +346,13 @@ func (r *blockRetriever) fetchBatch(
 			continue
 		}
 
-		numBytes := recentBytes.Add(entry.Size)
-		recentBytesGauge.Update(float64(numBytes))
-		recentBytesCounter.Inc(int64(entry.Size))
-
+		numBytes = recentBytes.Add(entry.Size)
 		if numBytes >= recentBytesLimit {
-			req.onError(errors.New("exceeded global query bytes disk limit"))
+			req.onError(errors.New("rate of bytes retrieved from disk exceeds limit of 1M"))
 			continue
 		}
+		recentBytesGauge.Update(float64(numBytes))
+		recentBytesCounter.Inc(int64(entry.Size))
 
 		if err == errSeekIDNotFound {
 			req.notFound = true
