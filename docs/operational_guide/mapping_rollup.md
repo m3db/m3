@@ -99,6 +99,11 @@ downsample:
           retention: 720h
 ```
 
+**Note:** only metrics that contain all of the `group_by` tags will be rolled up.
+For example, in the above config, only `http_request_bucket` metrics that 
+have all of the `group_by` labels present will be rolled up into the new
+metric `http_request_rollup_no_pod_bucket`.
+
 While the above example can be used to create a new rolled up metric, 
 often times the goal of rollup rules is to eliminate the underlaying, 
 raw metrics. In order to do this, a `mappingRule` will need to be 
