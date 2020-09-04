@@ -1596,55 +1596,60 @@ func windowPointsLength(series *ts.Series, interval time.Duration) int {
 	return int(interval / (time.Duration(series.MillisPerStep()) * time.Millisecond))
 }
 
-type movingImplementationFn func(window []float64, values *ts.MutableValues, windowPoints int, i int)
+type movingImplementationFn func(window []float64, values ts.MutableValues, windowPoints int, i int)
 
 // movingMedianHelper given a slice of floats, calculates the median and assigns it into vals as index i
-func movingMedianHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
+func movingMedianHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
 	nans := common.SafeSort(window)
 
 	if nans < windowPoints {
 		index := (windowPoints - nans) / 2
 		median := window[nans+index]
-		(*vals).SetValueAt(i, median)
+		vals.SetValueAt(i, median)
 	}
 }
 
 // movingSumHelper given a slice of floats, calculates the sum and assigns it into vals as index i
-func movingSumHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
+func movingSumHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
 	sum, nans := common.SafeSum(window)
 
 	if nans < windowPoints {
-		(*vals).SetValueAt(i, sum)
+		vals.SetValueAt(i, sum)
 	}
 }
 
 // movingMaxHelper given a slice of floats, finds the max and assigns it into vals as index i
-func movingMaxHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
+func movingMaxHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
 	max, nans := common.SafeMax(window)
 
 	if nans < windowPoints {
-		(*vals).SetValueAt(i, max)
+		vals.SetValueAt(i, max)
 	}
 }
 
 // movingMinHelper given a slice of floats, finds the min and assigns it into vals as index i
-func movingMinHelper(window []float64, vals *ts.MutableValues, windowPoints int, i int) {
+func movingMinHelper(window []float64, vals ts.MutableValues, windowPoints int, i int) {
 	min, nans := common.SafeMin(window)
 
 	if nans < windowPoints {
-		(*vals).SetValueAt(i, min)
+		vals.SetValueAt(i, min)
 	}
 }
 
 
 
-func newMovingBinaryTransform(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface, movingFunctionName string, impl movingImplementationFn) (*binaryContextShifter, error) {
+func newMovingBinaryTransform(
+	ctx *common.Context,
+	input singlePathSpec,
+	windowSizeValue genericInterface,
+	movingFunctionName string,
+	impl movingImplementationFn,
+) (*binaryContextShifter, error) {
 	if len(input.Values) == 0 {
 		return nil, nil
 	}
 
 	windowSize, err := parseWindowSize(windowSizeValue, input)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1710,7 +1715,7 @@ func newMovingBinaryTransform(ctx *common.Context, input singlePathSpec, windowS
 
 						window[idx] = bootstrap.ValueAt(j)
 					}
-					impl(window, &vals, currWindowPoints, i)
+					impl(window, vals, currWindowPoints, i)
 				}
 				name := fmt.Sprintf("%s(%s,%s)", movingFunctionName, series.Name(), windowSize.stringValue)
 				newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
