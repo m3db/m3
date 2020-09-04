@@ -16,7 +16,6 @@ require (
 	github.com/apex/log v1.3.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.1 // indirect
 	github.com/bmizerany/perks v0.0.0-20141205001514-d9a9656a3a4b // indirect
-	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/briandowns/spinner v1.11.1 // indirect
 	github.com/c2h5oh/datasize v0.0.0-20171227191756-4eba002a5eae
 	github.com/cespare/xxhash/v2 v2.1.1
@@ -48,11 +47,11 @@ require (
 	github.com/influxdata/influxdb v1.7.7
 	github.com/jhump/protoreflect v1.6.1
 	github.com/json-iterator/go v1.1.9
-	github.com/leanovate/gopter v0.2.3-0.20181005062252-e2604588f4db
+	github.com/leanovate/gopter v0.2.8
 	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
-	github.com/m3db/bloom v3.0.0+incompatible
+	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
 	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
 	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd // indirect
 	github.com/m3db/prometheus_client_golang v0.8.1
@@ -60,16 +59,16 @@ require (
 	github.com/m3db/prometheus_common v0.0.0-20180517030744-25aaa3dff79b
 	github.com/m3db/prometheus_procfs v0.8.1
 	github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f
-	github.com/m3db/stackmurmur3 v0.0.0-20171110233611-744c0229c12e // indirect
+	github.com/m3db/stackmurmur3/v2 v2.0.2
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
-	github.com/m3dbx/pilosa v0.0.0-20200602205121-7f389745e9ab
+	github.com/m3dbx/pilosa v1.4.1
 	github.com/m3dbx/vellum v0.0.0-20200826162549-f94c029903de
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
-	github.com/opentracing/opentracing-go v1.1.0
+	github.com/opentracing/opentracing-go v1.2.0
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/pborman/getopt v0.0.0-20160216163137-ec82d864f599
 	github.com/pborman/uuid v1.2.0
@@ -92,36 +91,35 @@ require (
 	github.com/sergi/go-diff v1.1.0
 	github.com/shirou/gopsutil v2.20.5+incompatible // indirect
 	github.com/spf13/cast v1.3.1-0.20190531151931-f31dc0aaab5a // indirect
-	github.com/spf13/cobra v0.0.3
+	github.com/spf13/cobra v0.0.5
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5
-	github.com/spf13/viper v1.6.1
+	github.com/spf13/viper v1.7.1
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.6.1
 	github.com/subosito/gotenv v1.2.1-0.20190917103637-de67a6614a4d // indirect
-	github.com/twmb/murmur3 v1.1.3
 	github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553
 	github.com/uber-go/atomic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/uber-go/tally v3.3.13+incompatible
-	github.com/uber/jaeger-client-go v2.16.0+incompatible
+	github.com/uber/jaeger-client-go v2.25.0+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible
 	github.com/uber/tchannel-go v1.12.0
 	github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a
 	github.com/willf/bitset v1.1.10
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 
-	// This is 3.4.10. Note: we need to specify the version this way due to the issue
+	// This is 3.4.13. Note: we need to specify the version this way due to the issue
 	// described in https://github.com/etcd-io/etcd/issues/11154 .
 	// Version string was obtained by the method described in
 	// https://github.com/etcd-io/etcd/issues/11154#issuecomment-568587798
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20200716221620-18dfb9cca345
-	go.uber.org/atomic v1.5.1
+	go.etcd.io/etcd v0.5.0-alpha.5.0.20200824191128-ae9734ed278b
+	go.uber.org/atomic v1.6.0
 	go.uber.org/config v1.4.0
 	go.uber.org/zap v1.13.0
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
-	golang.org/x/net v0.0.0-20200301022130-244492dfa37a
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20200302150141-5c8b2ff67527
+	golang.org/x/net v0.0.0-20200822124328-c89045814202
+	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
+	golang.org/x/sys v0.0.0-20200831180312-196b9ba8737a
 	golang.org/x/tools v0.0.0-20200601175630-2caf76543d99 // indirect
 	google.golang.org/grpc v1.27.1
 	gopkg.in/go-ini/ini.v1 v1.57.0 // indirect
@@ -153,4 +151,14 @@ replace github.com/stretchr/testify => github.com/stretchr/testify v1.1.4-0.2016
 
 replace github.com/prometheus/common => github.com/prometheus/common v0.9.1
 
-replace github.com/uber-go/atomic => go.uber.org/atomic v1.6.0
+// Fix legacy import path - https://github.com/uber-go/atomic/pull/60
+replace github.com/uber-go/atomic => github.com/uber-go/atomic v1.4.0
+
+// Pull in https://github.com/etcd-io/bbolt/pull/220, required for go 1.14 compatibility
+//
+// etcd 3.14.13 depends on v1.3.3, but everything before v1.3.5 has unsafe misuses, and fails hard on go 1.14
+// TODO: remove after etcd pulls in the change to a new release on 3.4 branch
+replace go.etcd.io/bbolt => go.etcd.io/bbolt v1.3.5
+
+// https://github.com/ory/dockertest/issues/212
+replace golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6
