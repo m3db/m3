@@ -261,7 +261,7 @@ func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end 
 	}
 
 	input := ts.SeriesList(inputPath)
-	output := make([]*ts.Series, input.Len())
+	output := make([]*ts.Series, 0, input.Len())
 
 	for i, series := range input.Values {
 		stepDuration := time.Duration(series.MillisPerStep()) * time.Millisecond
@@ -269,7 +269,9 @@ func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end 
 
 		currentTime := series.StartTime()
 		for i := 0; i < series.Len(); i++ {
-			if ( currentTime.After(startTime) && currentTime.Before(endTime)) {
+			equalOrAfterStart := currentTime.Equal(startTime) || currentTime.After(startTime)
+			beforeOrEqualEnd := currentTime.Before(endTime) || currentTime.Equal(endTime)
+			if equalOrAfterStart && beforeOrEqualEnd {
 				truncatedValues.SetValueAt(i, series.ValueAtTime(currentTime))
 			}
 			currentTime = currentTime.Add(stepDuration)
@@ -277,6 +279,7 @@ func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end 
 
 		slicedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), truncatedValues)
 		renamedSlicedSeries := slicedSeries.RenamedTo(fmt.Sprintf("timeSlice(%s, %s, %s)", slicedSeries.Name(), start, end))
+
 		output[i] = renamedSlicedSeries
 	}
 	input.Values = output
