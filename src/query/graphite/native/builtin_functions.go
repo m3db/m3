@@ -924,6 +924,87 @@ func integral(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) 
 	return r, nil
 }
 
+
+/*
+
+def integralByInterval(requestContext, seriesList, intervalUnit):
+  """
+  This will do the same as integral() funcion, except resetting the total to 0
+  at the given time in the parameter "from"
+  Useful for finding totals per hour/day/week/..
+
+  Example:
+
+  .. code-block:: none
+
+    &target=integralByInterval(company.sales.perMinute, "1d")&from=midnight-10days
+
+  This would start at zero on the left side of the graph, adding the sales each
+  minute, and show the evolution of sales per day during the last 10 days.
+  """
+  intervalDuration = int(abs(deltaseconds(parseTimeOffset(intervalUnit))))
+  startTime = int(timestamp(requestContext['startTime']))
+  results = []
+  for series in seriesList:
+    newValues = []
+    currentTime = series.start # current time within series iteration
+    current = 0.0 # current accumulated value
+    for val in series:
+      # reset integral value if crossing an interval boundary
+      if (currentTime - startTime)//intervalDuration != (currentTime - startTime - series.step)//intervalDuration:
+        current = 0.0
+      if val is None:
+        # keep previous value since val can be None when resetting current to 0.0
+        newValues.append(current)
+      else:
+        current += val
+        newValues.append(current)
+      currentTime += series.step
+    series.tags['integralByInterval'] = intervalUnit
+    newName = "integralByInterval(%s,'%s')" % (series.name, intervalUnit)
+    newSeries = series.copy(name=newName, values=newValues)
+    results.append(newSeries)
+  return results
+
+
+*/
+// integralByInterval will do the same as integral funcion, except it resets the total to 0
+// at the given time in the parameter “from”. Useful for finding totals per hour/day/week.
+func integralByInterval(ctx *common.Context, input singlePathSpec, intervalString string) (ts.SeriesList, error) {
+	intervalUnit, err := common.ParseInterval(intervalString)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	results := make([]*ts.Series, 0, len(input.Values))
+	for _, series := range input.Values {
+		stepsPerInterval := intervalUnit.Milliseconds() /  int64(series.MillisPerStep())
+		var stepCounter int64 = 0
+
+		outvals := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+		var currentSum float64
+		for i := 0; i < series.Len(); i++ {
+			if stepCounter > stepsPerInterval {
+				// startNewInterval
+				stepCounter = 0
+				currentSum = 0.0
+			}
+			n := series.ValueAt(i)
+			if math.IsNaN(n) {
+				currentSum += n
+				outvals.SetValueAt(i, currentSum)
+			}
+			stepCounter += 1
+		}
+
+		newName := fmt.Sprintf("integralByInterval(%s, %s)", series.Name(), intervalString)
+		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), outvals))
+	}
+
+	r := ts.SeriesList(input)
+	r.Values = results
+	return r, nil
+}
+
 // This is the opposite of the integral function.  This is useful for taking a
 // running total metric and calculating the delta between subsequent data
 // points.
