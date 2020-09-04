@@ -177,8 +177,6 @@ type builder struct {
 	opts      Options
 	newUUIDFn util.NewUUIDFn
 
-	offset postings.ID
-
 	batchSizeOne  index.Batch
 	docs          []doc.Document
 	idSet         *IDsMap
@@ -286,11 +284,9 @@ func (b *builder) IndexConcurrency() int {
 	return b.concurrency
 }
 
-func (b *builder) Reset(offset postings.ID) {
+func (b *builder) Reset() {
 	b.status.Lock()
 	defer b.status.Unlock()
-
-	b.offset = offset
 
 	// Reset the documents slice.
 	var empty doc.Document
@@ -485,8 +481,7 @@ func (b *builder) AllDocs() (index.IDDocIterator, error) {
 	b.status.RLock()
 	defer b.status.RUnlock()
 
-	rangeIter := postings.NewRangeIterator(b.offset,
-		b.offset+postings.ID(len(b.docs)))
+	rangeIter := postings.NewRangeIterator(0, postings.ID(len(b.docs)))
 	return index.NewIDDocIterator(b, rangeIter), nil
 }
 
@@ -494,7 +489,7 @@ func (b *builder) Doc(id postings.ID) (doc.Document, error) {
 	b.status.RLock()
 	defer b.status.RUnlock()
 
-	idx := int(id - b.offset)
+	idx := int(id)
 	if idx < 0 || idx >= len(b.docs) {
 		return doc.Document{}, errDocNotFound
 	}

@@ -1892,6 +1892,7 @@ func init() {
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
+	MustRegisterFunction(groupByNodes)
 	MustRegisterFunction(highestAverage)
 	MustRegisterFunction(highestCurrent)
 	MustRegisterFunction(highestMax)
@@ -1960,6 +1961,7 @@ func init() {
 	})
 	MustRegisterFunction(sumSeries)
 	MustRegisterFunction(sumSeriesWithWildcards)
+	MustRegisterFunction(aggregateWithWildcards)
 	MustRegisterFunction(sustainedAbove)
 	MustRegisterFunction(sustainedBelow)
 	MustRegisterFunction(threshold).WithDefaultParams(map[uint8]interface{}{

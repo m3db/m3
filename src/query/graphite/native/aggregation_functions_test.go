@@ -331,6 +331,56 @@ func TestSumSeriesWithWildcards(t *testing.T) {
 	}
 }
 
+func TestAggregateWithWildcards(t *testing.T) {
+	var (
+		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _   = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx      = common.NewContext(common.ContextOptions{Start: start, End: end})
+		inputs   = []*ts.Series{
+			ts.NewSeries(ctx, "servers.foo-1.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 2, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 4, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 6, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-1.pod2.status.500", start,
+				ts.NewConstantValues(ctx, 8, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod2.status.500", start,
+				ts.NewConstantValues(ctx, 10, 12, 10000)),
+
+			ts.NewSeries(ctx, "servers.foo-1.pod1.status.400", start,
+				ts.NewConstantValues(ctx, 20, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod1.status.400", start,
+				ts.NewConstantValues(ctx, 30, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-3.pod2.status.400", start,
+				ts.NewConstantValues(ctx, 40, 12, 10000)),
+		}
+	)
+	defer ctx.Close()
+
+	outSeries, err := aggregateWithWildcards(ctx, singlePathSpec{
+		Values: inputs,
+	}, "sum", 1, 2)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(outSeries.Values))
+
+	outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+
+	expectedOutputs := []struct {
+		name      string
+		sumOfVals float64
+	}{
+		{"servers.status.400", 90 * 12},
+		{"servers.status.500", 30 * 12},
+	}
+
+	for i, expected := range expectedOutputs {
+		series := outSeries.Values[i]
+		assert.Equal(t, expected.name, series.Name())
+		assert.Equal(t, expected.sumOfVals, series.SafeSum())
+	}
+}
+
 func TestGroupByNode(t *testing.T) {
 	var (
 		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
@@ -397,6 +447,85 @@ func TestGroupByNode(t *testing.T) {
 				"wrong name for %d %s (%d)", test.node, test.fname, i)
 			assert.Equal(t, expected.sumOfVals, series.SafeSum(),
 				"wrong result for %d %s (%d)", test.node, test.fname, i)
+		}
+	}
+}
+
+func TestGroupByNodes(t *testing.T) {
+	var (
+		start, _ = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:41:19 GMT")
+		end, _   = time.Parse(time.RFC1123, "Mon, 27 Jul 2015 19:43:19 GMT")
+		ctx      = common.NewContext(common.ContextOptions{Start: start, End: end})
+		inputs   = []*ts.Series{
+			ts.NewSeries(ctx, "servers.foo-1.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 2, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 4, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-3.pod1.status.500", start,
+				ts.NewConstantValues(ctx, 6, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-1.pod2.status.500", start,
+				ts.NewConstantValues(ctx, 8, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod2.status.500", start,
+				ts.NewConstantValues(ctx, 10, 12, 10000)),
+
+			ts.NewSeries(ctx, "servers.foo-1.pod1.status.400", start,
+				ts.NewConstantValues(ctx, 20, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-2.pod1.status.400", start,
+				ts.NewConstantValues(ctx, 30, 12, 10000)),
+			ts.NewSeries(ctx, "servers.foo-3.pod2.status.400", start,
+				ts.NewConstantValues(ctx, 40, 12, 10000)),
+		}
+	)
+	defer ctx.Close()
+
+	type result struct {
+		name      string
+		sumOfVals float64
+	}
+
+	tests := []struct {
+		fname           string
+		nodes            []int
+		expectedResults []result
+	}{
+		{"avg", []int{2, 4}, []result{ // test normal group by nodes
+			{"pod1.400", ((20 + 30) / 2) * 12},
+			{"pod1.500", ((2 + 4 + 6) / 3) * 12},
+			{"pod2.400", (40 / 1) * 12},
+			{"pod2.500", ((8 + 10) / 2) * 12},
+		}},
+		{"max", []int{2, 4}, []result{ // test with different function
+			{"pod1.400", 30 * 12},
+			{"pod1.500", 6 * 12},
+			{"pod2.400", 40 * 12},
+			{"pod2.500", 10 * 12},
+		}},
+		{"min", []int{2, -1}, []result{ // test negative index handling
+			{"pod1.400", 20 * 12},
+			{"pod1.500", 2 * 12},
+			{"pod2.400", 40 * 12},
+			{"pod2.500", 8 * 12},
+		}},
+		{"sum", []int{}, []result{ // test empty slice handing.
+			{"*", (2 + 4 + 6 + 8 + 10 + 20 + 30 + 40)  * 12},
+		}},
+	}
+
+	for _, test := range tests {
+		outSeries, err := groupByNodes(ctx, singlePathSpec{
+			Values: inputs,
+		}, test.fname, test.nodes...)
+		require.NoError(t, err)
+		require.Equal(t, len(test.expectedResults), len(outSeries.Values))
+
+		outSeries, _ = sortByName(ctx, singlePathSpec(outSeries))
+
+		for i, expected := range test.expectedResults {
+			series := outSeries.Values[i]
+			assert.Equal(t, expected.name, series.Name(),
+				"wrong name for %v %s (%d)", test.nodes, test.fname, i)
+			assert.Equal(t, expected.sumOfVals, series.SafeSum(),
+				"wrong result for %v %s (%d)", test.nodes, test.fname, i)
 		}
 	}
 }

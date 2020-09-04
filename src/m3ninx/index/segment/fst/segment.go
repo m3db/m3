@@ -72,7 +72,7 @@ type SegmentData struct {
 	// the docs data and docs idx data if the documents
 	// already reside in memory and we want to use the
 	// in memory references instead.
-	DocsReader *docs.SliceReader
+	DocsReader docs.Reader
 
 	Closer io.Closer
 }
@@ -131,38 +131,27 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 	}
 
 	var (
-		docsSliceReader = data.DocsReader
-		docsDataReader  *docs.DataReader
-		docsIndexReader *docs.IndexReader
-		startInclusive  postings.ID
-		endExclusive    postings.ID
+		docsThirdPartyReader = data.DocsReader
+		docsDataReader       *docs.DataReader
+		docsIndexReader      *docs.IndexReader
 	)
-	if docsSliceReader != nil {
-		startInclusive = docsSliceReader.Base()
-		endExclusive = startInclusive + postings.ID(docsSliceReader.Len())
-	} else {
+	if docsThirdPartyReader == nil {
 		docsDataReader = docs.NewDataReader(data.DocsData.Bytes)
 		docsIndexReader, err = docs.NewIndexReader(data.DocsIdxData.Bytes)
 		if err != nil {
 			return nil, fmt.Errorf("unable to load documents index: %v", err)
 		}
-
-		// NB(jeromefroe): Currently we assume the postings IDs are contiguous.
-		startInclusive = docsIndexReader.Base()
-		endExclusive = startInclusive + postings.ID(docsIndexReader.Len())
 	}
 
 	s := &fsSegment{
-		fieldsFST:       fieldsFST,
-		docsDataReader:  docsDataReader,
-		docsIndexReader: docsIndexReader,
-		docsSliceReader: docsSliceReader,
+		fieldsFST:            fieldsFST,
+		docsDataReader:       docsDataReader,
+		docsIndexReader:      docsIndexReader,
+		docsThirdPartyReader: docsThirdPartyReader,
 
-		data:           data,
-		opts:           opts,
-		numDocs:        metadata.NumDocs,
-		startInclusive: startInclusive,
-		endExclusive:   endExclusive,
+		data:    data,
+		opts:    opts,
+		numDocs: metadata.NumDocs,
 	}
 
 	// NB(r): The segment uses the context finalization to finalize
@@ -180,19 +169,17 @@ var _ segment.ImmutableSegment = (*fsSegment)(nil)
 
 type fsSegment struct {
 	sync.RWMutex
-	ctx             context.Context
-	closed          bool
-	finalized       bool
-	fieldsFST       *vellum.FST
-	docsDataReader  *docs.DataReader
-	docsIndexReader *docs.IndexReader
-	docsSliceReader *docs.SliceReader
-	data            SegmentData
-	opts            Options
+	ctx                  context.Context
+	closed               bool
+	finalized            bool
+	fieldsFST            *vellum.FST
+	docsDataReader       *docs.DataReader
+	docsIndexReader      *docs.IndexReader
+	docsThirdPartyReader docs.Reader
+	data                 SegmentData
+	opts                 Options
 
-	numDocs        int64
-	startInclusive postings.ID
-	endExclusive   postings.ID
+	numDocs int64
 }
 
 func (r *fsSegment) SegmentData(ctx context.Context) (SegmentData, error) {
@@ -623,7 +610,7 @@ func (r *fsSegment) matchAllNotClosedMaybeFinalizedWithRLock() (postings.Mutable
 	}
 
 	pl := r.opts.PostingsListPool().Get()
-	err := pl.AddRange(r.startInclusive, r.endExclusive)
+	err := pl.AddRange(0, postings.ID(r.numDocs))
 	if err != nil {
 		return nil, err
 	}
@@ -648,8 +635,8 @@ func (r *fsSegment) docNotClosedMaybeFinalizedWithRLock(id postings.ID) (doc.Doc
 	}
 
 	// If using docs slice reader, return from the in memory slice reader
-	if r.docsSliceReader != nil {
-		return r.docsSliceReader.Read(id)
+	if r.docsThirdPartyReader != nil {
+		return r.docsThirdPartyReader.Read(id)
 	}
 
 	offset, err := r.docsIndexReader.Read(id)
@@ -700,7 +687,7 @@ func (r *fsSegment) allDocsNotClosedMaybeFinalizedWithRLock(
 		return nil, errReaderFinalized
 	}
 
-	pi := postings.NewRangeIterator(r.startInclusive, r.endExclusive)
+	pi := postings.NewRangeIterator(0, postings.ID(r.numDocs))
 	return index.NewIDDocIterator(retriever, pi), nil
 }
 
