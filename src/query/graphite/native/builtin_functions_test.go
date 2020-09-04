@@ -3023,6 +3023,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"timeFunction",
 		"timeShift",
 		"transformNull",
+		"useSeriesAbove",
 		"weightedAverage",
 	}
 
