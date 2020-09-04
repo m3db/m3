@@ -95,7 +95,7 @@ func (q *queryStats) Update(newDocs int) error {
 	if q == nil {
 		return nil
 	}
-	if newDocs <= 0 {
+	if newDocs < 0 {
 		return nil
 	}
 
