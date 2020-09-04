@@ -206,7 +206,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 					fmt.Println(time.Now(), "FETCH ERR", err)
 					return
 				}
-
+        
 				series.Close()
 				time.Sleep(time.Millisecond)
 			}
