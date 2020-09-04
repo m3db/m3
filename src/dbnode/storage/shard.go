@@ -2786,6 +2786,7 @@ func (s *dbShard) AggregateTiles(
 		} else {
 			s.metrics.largeTilesWrites.Inc(1)
 		}
+		tags.Close()
 	}
 
 	if err := writer.Close(); err != nil {
@@ -2794,7 +2795,6 @@ func (s *dbShard) AggregateTiles(
 		// Notify all block leasers that a new volume for the namespace/shard/blockstart
 		// has been created. This will block until all leasers have relinquished their
 		// leases.
-		// TODO: should we call it async?
 		_, err = s.opts.BlockLeaseManager().UpdateOpenLeases(block.LeaseDescriptor{
 			Namespace:  s.namespace.ID(),
 			Shard:      s.ID(),

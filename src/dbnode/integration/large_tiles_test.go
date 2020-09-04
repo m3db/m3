@@ -33,10 +33,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	m3ninxidx "github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -152,17 +150,6 @@ const (
 	testSeriesCount     = 100
 	testDataPointsCount = 600
 )
-	// 	tags := series.Tags()
-	// 	for tags.Next() {
-	// 		fmt.Println("TAGS:", tags.Current())
-
-	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn(), expectedDps)
-
-	expectedDps = map[int64]float64{
-		dpTimeStart.Unix(): 15,
-	}
-	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("aab"), dpTimeStart, nowFn(), expectedDps)
-}
 
 func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	testSetup, srcNs, trgNs, reporter, closer := setupServer(t)
@@ -219,7 +206,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 					fmt.Println(time.Now(), "FETCH ERR", err)
 					return
 				}
-        
+
 				series.Close()
 				time.Sleep(time.Millisecond)
 			}
@@ -277,19 +264,12 @@ func fetchAndValidate(
 	require.NoError(t, err)
 
 	actual := make([]ts.Datapoint, 0, len(expected))
-	for tags.Next() {
-		fmt.Println("TAGS:", tags.Current())
-	}
-
 	for series.Next() {
 		dp, _, _ := series.Current()
 		// FIXME: init expected timestamp nano field as well for equality, or use
 		// permnissive equality check instead.
 		dp.TimestampNanos = 0
 		actual = append(actual, dp)
-			fmt.Println("TAGS:", tags.Current())
-		}
-
 	}
 
 	assert.Equal(t, expected, actual)
