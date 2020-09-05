@@ -2586,6 +2586,8 @@ func (s *session) streamBlocksMetadataFromPeerSequential(
 		}
 	}
 
+	var totalFetched int64
+
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
@@ -2594,11 +2596,18 @@ func (s *session) streamBlocksMetadataFromPeerSequential(
 		req.Shard = int32(shard)
 		req.RangeStart = start.UnixNano()
 		req.RangeEnd = end.UnixNano()
-		req.Limit = int64(s.streamBlocksBatchSize)
 		req.PageToken = startPageToken
 		req.IncludeSizes = &optionIncludeSizes
 		req.IncludeChecksums = &optionIncludeChecksums
 		req.IncludeLastRead = &optionIncludeLastRead
+
+		batchSize := int64(s.streamBlocksBatchSize)
+		limitCurr := batchSize
+		if position != nil && batchSize+totalFetched >= position.limitTotal {
+			limitCurr = position.limitTotal - totalFetched
+		}
+
+		req.Limit = limitCurr
 
 		progress.metadataFetchBatchCall.Inc(1)
 		result, err := client.FetchBlocksMetadataRawV2(tctx, req)
@@ -2616,6 +2625,12 @@ func (s *session) streamBlocksMetadataFromPeerSequential(
 			startPageToken = append(startPageToken[:0], result.NextPageToken...)
 		} else {
 			// No further results
+			moreResults = false
+		}
+
+		totalFetched += int64(len(result.Elements))
+		if position != nil && totalFetched >= position.limitTotal {
+			// Reached limit at this batch.
 			moreResults = false
 		}
 
