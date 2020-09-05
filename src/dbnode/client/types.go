@@ -209,6 +209,7 @@ type AdminSession interface {
 		shard uint32,
 		start, end time.Time,
 		opts result.Options,
+		persisting bool,
 	) (result.ShardResult, error)
 
 	// FetchBootstrapBlocksMetadataFromPeers will fetch the blocks metadata from

@@ -296,8 +296,9 @@ func (s replicatedSession) FetchBootstrapBlocksFromPeers(
 	shard uint32,
 	start, end time.Time,
 	opts result.Options,
+	persisting bool,
 ) (result.ShardResult, error) {
-	return s.session.FetchBootstrapBlocksFromPeers(namespace, shard, start, end, opts)
+	return s.session.FetchBootstrapBlocksFromPeers(namespace, shard, start, end, opts, persisting)
 }
 
 // FetchBootstrapBlocksMetadataFromPeers will fetch the blocks metadata from
