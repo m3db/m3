@@ -2417,7 +2417,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 		wg.Add(1)
 		streamSequentialWorkers.Go(func() {
-			defer wg.Wait()
+			defer wg.Done()
 
 			// TODO: cancel inflight metadata calls if we return early
 			// from an error in the dispatch loop.
