@@ -2271,6 +2271,12 @@ func (s *session) streamBlocksMetadataFromPeers(
 				var err error
 				currPageToken, err = s.streamBlocksMetadataFromPeer(namespace, shardID,
 					peer, start, end, currPageToken, metadataCh, resultOpts, persisting, progress)
+				if err != nil {
+					s.log.Warn("failed stream blocks metadata from peer, will retry if need",
+						zap.String("peer", peer.Host().String()),
+						zap.Error(err))
+				}
+
 				// Set error or success if err is nil
 				errs.setError(idx, err)
 
