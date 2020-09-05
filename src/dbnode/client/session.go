@@ -2441,7 +2441,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	// Dispatch sequential requests in parallel.
 	for {
 		prevProbePos = probePos
-		probePos += 100000
+		probePos += int64(s.streamBlocksBatchSize)
 
 		token = &pagetoken.PageToken{
 			FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
