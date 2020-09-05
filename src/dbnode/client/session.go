@@ -68,12 +68,11 @@ import (
 )
 
 const (
-	clusterConnectWaitInterval           = 10 * time.Millisecond
-	blocksMetadataChannelInitialCapacity = 4096
-	gaugeReportInterval                  = 500 * time.Millisecond
-	blockMetadataChBufSize               = 4096
-	hostNotAvailableMinSleepInterval     = 1 * time.Millisecond
-	hostNotAvailableMaxSleepInterval     = 100 * time.Millisecond
+	clusterConnectWaitInterval       = 10 * time.Millisecond
+	gaugeReportInterval              = 500 * time.Millisecond
+	blockMetadataChBufSize           = 65536
+	hostNotAvailableMinSleepInterval = 1 * time.Millisecond
+	hostNotAvailableMaxSleepInterval = 100 * time.Millisecond
 )
 
 type resultTypeEnum string
@@ -2010,7 +2009,7 @@ func (s *session) fetchBlocksMetadataFromPeers(
 
 	var (
 		metadataCh = make(chan receivedBlockMetadata,
-			blocksMetadataChannelInitialCapacity)
+			blockMetadataChBufSize)
 		errCh = make(chan error, 1)
 		meta  = resultTypeMetadata
 		m     = s.newPeerMetadataStreamingProgressMetrics(shard, meta)
