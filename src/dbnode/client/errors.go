@@ -40,6 +40,18 @@ func IsInternalServerError(err error) bool {
 	return false
 }
 
+// InternalServerError returns an internal server error if there is one
+// contained by the error.
+func InternalServerError(err error) (*rpc.Error, bool) {
+	for err != nil {
+		if e, ok := err.(*rpc.Error); ok && tterrors.IsInternalError(e) {
+			return e, true
+		}
+		err = xerrors.InnerError(err)
+	}
+	return nil, false
+}
+
 // IsBadRequestError determines if the error is a bad request error.
 func IsBadRequestError(err error) bool {
 	for err != nil {

@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strings"
@@ -2376,9 +2377,13 @@ func (s *session) streamBlocksMetadataFromPeer(
 		result, err = client.FetchBlocksMetadataRawV2(tctx, req)
 	})
 	if borrowErr != nil {
+		s.log.Debug("stream meta initial probe request borrow connection error",
+			zap.Error(err))
 		return nil, borrowErr
 	}
 	if err != nil {
+		s.log.Debug("stream meta initial probe request error",
+			zap.Error(err))
 		return nil, err
 	}
 
@@ -2396,28 +2401,40 @@ func (s *session) streamBlocksMetadataFromPeer(
 	// Now get the volume.
 	if token.ActiveSeriesPhase != nil || token.FlushedSeriesPhase == nil {
 		// This is an error case.
-		return nil, fmt.Errorf("flushed phase not set for block start: %v", start)
+		s.log.Debug("stream meta flushed phase not set for block",
+			zap.Error(err))
+		return nil, fmt.Errorf("flushed phase not set for block: %v", start)
 	}
 	if token.FlushedSeriesPhase.CurrBlockStartUnixNanos != start.UnixNano() {
 		// This is an error case.
-		return nil, fmt.Errorf("flushed phase zero value for block start: %v", start)
+		s.log.Debug("stream meta flushed phase zero value for block",
+			zap.Error(err))
+		return nil, fmt.Errorf("flushed phase zero value for block: %v", start)
 	}
 
 	// We can directly take value of it.
 	volume := token.FlushedSeriesPhase.Volume
 
 	var (
-		prevProbePos int64
-		probePos     int64
-		wg           sync.WaitGroup
-		errors       xerrors.MultiError
-		errorsLock   sync.Mutex
+		sequentialDispatches int
+		finalDispatch        bool
+		prevProbePos         int64
+		probePos             int64
+		wg                   sync.WaitGroup
+		errors               xerrors.MultiError
+		errorsLock           sync.Mutex
 	)
 	streamSequentialWorkers := xsync.NewWorkerPool(
 		s.opts.(AdminOptions).FetchSeriesBlocksBatchConcurrency())
 	streamSequentialWorkers.Init()
 
-	enqueueStream := func() error {
+	enqueueStream := func() {
+		// Capture vars for safe access by lambda.
+		sequentialDispatchFinal := finalDispatch
+		sequentialDispatchIndex := sequentialDispatches
+
+		sequentialDispatches++
+
 		startPos := prevProbePos
 		limitTotal := probePos - prevProbePos
 
@@ -2438,10 +2455,15 @@ func (s *session) streamBlocksMetadataFromPeer(
 				errorsLock.Lock()
 				errors = errors.Add(err)
 				errorsLock.Unlock()
+				s.log.Debug("stream meta sequential error",
+					zap.Int("sequentialDispatchIndex", sequentialDispatchIndex),
+					zap.Bool("sequentialDispatchFinal", sequentialDispatchFinal),
+					zap.Int64("startPos", startPos),
+					zap.Int64("limitTotal", limitTotal),
+					zap.Int64("volume", volume),
+					zap.Error(err))
 			}
 		})
-
-		return nil
 	}
 
 	// Dispatch sequential requests in parallel.
@@ -2480,17 +2502,35 @@ func (s *session) streamBlocksMetadataFromPeer(
 			result, err = client.FetchBlocksMetadataRawV2(tctx, req)
 		})
 		if borrowErr != nil {
+			s.log.Debug("stream meta probe request borrow connection error",
+				zap.Int("sequentialDispatches", sequentialDispatches),
+				zap.Int64("startPos", prevProbePos),
+				zap.Int64("limitTotal", probePos-prevProbePos),
+				zap.Error(err))
 			return nil, borrowErr
 		}
 		if err != nil {
+			if serverErr, ok := InternalServerError(err); ok {
+				if serverErr.Message == io.EOF.Error() {
+					// No more, enqueue the last fetch and we're done.
+					finalDispatch = true
+					enqueueStream()
+					break
+				}
+			}
+
+			s.log.Debug("stream meta probe request error",
+				zap.Int("sequentialDispatches", sequentialDispatches),
+				zap.Int64("startPos", prevProbePos),
+				zap.Int64("limitTotal", probePos-prevProbePos),
+				zap.Error(err))
 			return nil, err
 		}
 
 		if result.NextPageToken == nil {
 			// No more, enqueue the last fetch and we're done.
-			if err := enqueueStream(); err != nil {
-				return nil, err
-			}
+			finalDispatch = true
+			enqueueStream()
 			break
 		}
 
@@ -2504,10 +2544,14 @@ func (s *session) streamBlocksMetadataFromPeer(
 		if token.ActiveSeriesPhase != nil || token.FlushedSeriesPhase == nil {
 			// This is an error case, should always get this phase back or
 			// completely empty token.
+			s.log.Debug("stream meta probe flushed phase not set for block",
+				zap.Error(err))
 			return nil, fmt.Errorf("flush phase not set for block start in dispatch: %v", start)
 		}
 		if token.FlushedSeriesPhase.CurrBlockStartUnixNanos != start.UnixNano() {
 			// This is an error case.
+			s.log.Debug("stream meta probe flushed phase zero value for block",
+				zap.Error(err))
 			return nil, fmt.Errorf("flushed phase zero value for block start in dispatch: %v", start)
 		}
 
@@ -2515,9 +2559,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		volume = token.FlushedSeriesPhase.Volume
 
 		// Enqueue next and progress.
-		if err := enqueueStream(); err != nil {
-			return nil, err
-		}
+		enqueueStream()
 	}
 
 	wg.Wait()
