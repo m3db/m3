@@ -360,8 +360,11 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
 		s.streamBlocksRetrier = opts.StreamBlocksRetrier()
 		pooledWorkerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-			SetInstrumentOptions(opts.InstrumentOptions()).
-			SetGrowOnDemand(false)
+			SetInstrumentOptions(opts.InstrumentOptions().
+				SetMetricsScope(scope.SubScope("stream-metadata-sequential-workers"))).
+			SetGrowOnDemand(false).
+			// Make sure to emit every time a worker in use since low frequency.
+			SetInstrumentSampleRate(sampler.Rate(1))
 		s.streamMetadataSequentialWorkers, err = xsync.NewPooledWorkerPool(
 			opts.FetchSeriesBlocksBatchConcurrency(),
 			pooledWorkerPoolOpts)
