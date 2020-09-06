@@ -176,7 +176,7 @@ func main() {
 			}
 
 			for it.Next() {
-				frameIter := it.Current()
+				frameIter, _, _ := it.Current()
 				for frameIter.Next() {
 					// No-op for now for better benchmarking underlying iters.
 				}
