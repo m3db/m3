@@ -25,11 +25,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/sampler"
 )
 
 const (
 	defaultKillWorkerProbability = 0.001
 	defaultGrowOnDemand          = false
+	defaultInstrumentSampleRate  = sampler.Rate(0.001)
 )
 
 var (
@@ -46,8 +48,9 @@ func NewPooledWorkerPoolOptions() PooledWorkerPoolOptions {
 		growOnDemand:          defaultGrowOnDemand,
 		numShards:             defaultNumShards,
 		killWorkerProbability: defaultKillWorkerProbability,
-		nowFn: defaultNowFn,
-		iOpts: instrument.NewOptions(),
+		nowFn:                 defaultNowFn,
+		iOpts:                 instrument.NewOptions(),
+		instrumentSampleRate:  defaultInstrumentSampleRate,
 	}
 }
 
@@ -57,6 +60,7 @@ type pooledWorkerPoolOptions struct {
 	killWorkerProbability float64
 	nowFn                 NowFn
 	iOpts                 instrument.Options
+	instrumentSampleRate  sampler.Rate
 }
 
 func (o *pooledWorkerPoolOptions) SetGrowOnDemand(value bool) PooledWorkerPoolOptions {
@@ -107,4 +111,14 @@ func (o *pooledWorkerPoolOptions) SetInstrumentOptions(value instrument.Options)
 
 func (o *pooledWorkerPoolOptions) InstrumentOptions() instrument.Options {
 	return o.iOpts
+}
+
+func (o *pooledWorkerPoolOptions) SetInstrumentSampleRate(value sampler.Rate) PooledWorkerPoolOptions {
+	opts := *o
+	opts.instrumentSampleRate = value
+	return &opts
+}
+
+func (o *pooledWorkerPoolOptions) InstrumentSampleRate() sampler.Rate {
+	return o.instrumentSampleRate
 }

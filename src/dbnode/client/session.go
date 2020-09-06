@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strings"
@@ -35,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
@@ -61,6 +63,7 @@ import (
 	xtime "github.com/m3db/m3/src/x/time"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
+	"github.com/gogo/protobuf/proto"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -157,6 +160,7 @@ type session struct {
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
 	streamBlocksBatchTimeout         time.Duration
+	streamMetadataSequentialWorkers  xsync.PooledWorkerPool
 	metrics                          sessionMetrics
 }
 
@@ -355,6 +359,19 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
 		s.streamBlocksRetrier = opts.StreamBlocksRetrier()
+		pooledWorkerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+			SetInstrumentOptions(opts.InstrumentOptions().
+				SetMetricsScope(scope.SubScope("stream-metadata-sequential-workers"))).
+			SetGrowOnDemand(false).
+			// Make sure to emit every time a worker in use since low frequency.
+			SetInstrumentSampleRate(sampler.Rate(1))
+		s.streamMetadataSequentialWorkers, err = xsync.NewPooledWorkerPool(
+			opts.FetchSeriesBlocksBatchConcurrency(),
+			pooledWorkerPoolOpts)
+		if err != nil {
+			return nil, err
+		}
+		s.streamMetadataSequentialWorkers.Init()
 	}
 
 	if runtimeOptsMgr := opts.RuntimeOptionsManager(); runtimeOptsMgr != nil {
@@ -2016,7 +2033,7 @@ func (s *session) fetchBlocksMetadataFromPeers(
 	)
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard,
-			peers, start, end, level, metadataCh, resultOpts, m)
+			peers, start, end, level, metadataCh, resultOpts, false, m)
 		close(metadataCh)
 		close(errCh)
 	}()
@@ -2033,6 +2050,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	shard uint32,
 	start, end time.Time,
 	opts result.Options,
+	persisting bool,
 ) (result.ShardResult, error) {
 	nsCtx, err := s.nsCtxFromMetadata(nsMetadata)
 	if err != nil {
@@ -2076,7 +2094,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard,
-			peers, start, end, level, metadataCh, opts, progress)
+			peers, start, end, level, metadataCh, opts, persisting, progress)
 		close(metadataCh)
 	}()
 
@@ -2192,6 +2210,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	level runtimeReadConsistencyLevel,
 	metadataCh chan<- receivedBlockMetadata,
 	resultOpts result.Options,
+	persisting bool,
 	progress *streamFromPeersMetrics,
 ) error {
 	var (
@@ -2266,7 +2285,13 @@ func (s *session) streamBlocksMetadataFromPeers(
 			for condition() {
 				var err error
 				currPageToken, err = s.streamBlocksMetadataFromPeer(namespace, shardID,
-					peer, start, end, currPageToken, metadataCh, resultOpts, progress)
+					peer, start, end, currPageToken, metadataCh, resultOpts, persisting, progress)
+				if err != nil {
+					s.log.Warn("failed stream blocks metadata from peer, will retry if need",
+						zap.String("peer", peer.Host().String()),
+						zap.Error(err))
+				}
+
 				// Set error or success if err is nil
 				errs.setError(idx, err)
 
@@ -2322,7 +2347,263 @@ func (s *session) streamBlocksMetadataFromPeer(
 	startPageToken pageToken,
 	metadataCh chan<- receivedBlockMetadata,
 	resultOpts result.Options,
+	persisting bool,
 	progress *streamFromPeersMetrics,
+) (pageToken, error) {
+	if !persisting {
+		// Fallback to original implementation since may have in memory data.
+		return s.streamBlocksMetadataFromPeerSequential(namespace, shard, peer,
+			start, end, startPageToken, metadataCh, resultOpts, progress, nil)
+	}
+
+	var (
+		optionIncludeSizes     = true
+		optionIncludeChecksums = true
+		optionIncludeLastRead  = true
+	)
+
+	// Get first page with size 1 in flush phase.
+	token := &pagetoken.PageToken{
+		FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{},
+	}
+	requestToken, err := proto.Marshal(token)
+	if err != nil {
+		return nil, err
+	}
+
+	// First start at zero and retrieve the volume index.
+	tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
+	req := rpc.NewFetchBlocksMetadataRawV2Request()
+	req.NameSpace = namespace.Bytes()
+	req.Shard = int32(shard)
+	req.RangeStart = start.UnixNano()
+	req.RangeEnd = end.UnixNano()
+	req.Limit = 1
+	req.PageToken = requestToken
+	req.IncludeSizes = &optionIncludeSizes
+	req.IncludeChecksums = &optionIncludeChecksums
+	req.IncludeLastRead = &optionIncludeLastRead
+
+	var (
+		result *rpc.FetchBlocksMetadataRawV2Result_
+	)
+	borrowErr := peer.BorrowConnection(func(client rpc.TChanNode) {
+		result, err = client.FetchBlocksMetadataRawV2(tctx, req)
+	})
+	if borrowErr != nil {
+		s.log.Debug("stream meta initial probe request borrow connection error",
+			zap.Error(err))
+		return nil, borrowErr
+	}
+	if err != nil {
+		s.log.Debug("stream meta initial probe request error",
+			zap.Error(err))
+		return nil, err
+	}
+
+	if result.NextPageToken == nil {
+		// Complete, nothing for this time range.
+		return nil, nil
+	}
+
+	// Decode page token.
+	token = &pagetoken.PageToken{}
+	if err := proto.Unmarshal(result.NextPageToken, token); err != nil {
+		return nil, err
+	}
+
+	// Now get the volume.
+	if token.ActiveSeriesPhase != nil || token.FlushedSeriesPhase == nil {
+		// This is an error case.
+		s.log.Debug("stream meta flushed phase not set for block",
+			zap.Error(err))
+		return nil, fmt.Errorf("flushed phase not set for block: %v", start)
+	}
+	if token.FlushedSeriesPhase.CurrBlockStartUnixNanos != start.UnixNano() {
+		// This is an error case.
+		s.log.Debug("stream meta flushed phase zero value for block",
+			zap.Error(err))
+		return nil, fmt.Errorf("flushed phase zero value for block: %v", start)
+	}
+
+	// We can directly take value of it.
+	volume := token.FlushedSeriesPhase.Volume
+
+	var (
+		sequentialDispatches int
+		finalDispatch        bool
+		prevProbePos         int64
+		probePos             int64
+		wg                   sync.WaitGroup
+		errors               xerrors.MultiError
+		errorsLock           sync.Mutex
+	)
+	enqueueStream := func() {
+		// Capture vars for safe access by lambda.
+		sequentialDispatchFinal := finalDispatch
+		sequentialDispatchIndex := sequentialDispatches
+
+		sequentialDispatches++
+
+		startPos := prevProbePos
+		limitTotal := probePos - prevProbePos
+
+		wg.Add(1)
+		s.streamMetadataSequentialWorkers.Go(func() {
+			defer wg.Done()
+
+			// TODO: cancel inflight metadata calls if we return early
+			// from an error in the dispatch loop.
+			_, err := s.streamBlocksMetadataFromPeerSequential(namespace, shard, peer,
+				start, end, nil, metadataCh, resultOpts, progress,
+				&streamBlocksMetadataFromPeerSequentialOptions{
+					startPos:   startPos,
+					limitTotal: limitTotal,
+					volume:     volume,
+				})
+			if err != nil {
+				errorsLock.Lock()
+				errors = errors.Add(err)
+				errorsLock.Unlock()
+				s.log.Debug("stream meta sequential error",
+					zap.Int("sequentialDispatchIndex", sequentialDispatchIndex),
+					zap.Bool("sequentialDispatchFinal", sequentialDispatchFinal),
+					zap.Int64("startPos", startPos),
+					zap.Int64("limitTotal", limitTotal),
+					zap.Int64("volume", volume),
+					zap.Error(err))
+			}
+		})
+	}
+
+	// Dispatch sequential requests in parallel.
+	for {
+		prevProbePos = probePos
+		probePos += int64(s.streamBlocksBatchSize)
+
+		token = &pagetoken.PageToken{
+			FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
+				CurrBlockStartUnixNanos: start.UnixNano(),
+				CurrBlockEntryIdx:       int64(probePos),
+				Volume:                  volume,
+			},
+		}
+		requestToken, err := proto.Marshal(token)
+		if err != nil {
+			return nil, err
+		}
+
+		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
+		req := rpc.NewFetchBlocksMetadataRawV2Request()
+		req.NameSpace = namespace.Bytes()
+		req.Shard = int32(shard)
+		req.RangeStart = start.UnixNano()
+		req.RangeEnd = end.UnixNano()
+		req.Limit = 1
+		req.PageToken = requestToken
+		req.IncludeSizes = &optionIncludeSizes
+		req.IncludeChecksums = &optionIncludeChecksums
+		req.IncludeLastRead = &optionIncludeLastRead
+
+		var (
+			result *rpc.FetchBlocksMetadataRawV2Result_
+		)
+		borrowErr := peer.BorrowConnection(func(client rpc.TChanNode) {
+			result, err = client.FetchBlocksMetadataRawV2(tctx, req)
+		})
+		if borrowErr != nil {
+			s.log.Debug("stream meta probe request borrow connection error",
+				zap.Int("sequentialDispatches", sequentialDispatches),
+				zap.Int64("startPos", prevProbePos),
+				zap.Int64("limitTotal", probePos-prevProbePos),
+				zap.Error(err))
+			return nil, borrowErr
+		}
+		if err != nil {
+			if serverErr, ok := InternalServerError(err); ok {
+				if serverErr.Message == io.EOF.Error() {
+					// No more, enqueue the last fetch and we're done.
+					finalDispatch = true
+					enqueueStream()
+					break
+				}
+			}
+
+			s.log.Debug("stream meta probe request error",
+				zap.Int("sequentialDispatches", sequentialDispatches),
+				zap.Int64("startPos", prevProbePos),
+				zap.Int64("limitTotal", probePos-prevProbePos),
+				zap.Error(err))
+			return nil, err
+		}
+
+		if result.NextPageToken == nil {
+			// No more, enqueue the last fetch and we're done.
+			finalDispatch = true
+			enqueueStream()
+			break
+		}
+
+		// Decode page token.
+		token = &pagetoken.PageToken{}
+		if err := proto.Unmarshal(result.NextPageToken, token); err != nil {
+			return nil, err
+		}
+
+		// Verify we're progressing as necessary.
+		if token.ActiveSeriesPhase != nil || token.FlushedSeriesPhase == nil {
+			// This is an error case, should always get this phase back or
+			// completely empty token.
+			s.log.Debug("stream meta probe flushed phase not set for block",
+				zap.Error(err))
+			return nil, fmt.Errorf("flush phase not set for block start in dispatch: %v", start)
+		}
+		if token.FlushedSeriesPhase.CurrBlockStartUnixNanos != start.UnixNano() {
+			// This is an error case.
+			s.log.Debug("stream meta probe flushed phase zero value for block",
+				zap.Error(err))
+			return nil, fmt.Errorf("flushed phase zero value for block start in dispatch: %v", start)
+		}
+
+		// Keep using latest volume
+		volume = token.FlushedSeriesPhase.Volume
+
+		// Enqueue next and progress.
+		enqueueStream()
+	}
+
+	wg.Wait()
+
+	errorsLock.Lock()
+	defer errorsLock.Unlock()
+
+	if errors.NumErrors() == 0 {
+		return nil, nil
+	}
+
+	return nil, errors.FinalError()
+}
+
+// todo rename from "options" to "position"
+type streamBlocksMetadataFromPeerSequentialOptions struct {
+	startPos   int64
+	limitTotal int64
+	volume     int64
+}
+
+// streamBlocksMetadataFromPeer has several heap allocated anonymous
+// function, however, they're only allocated once per peer/shard combination
+// for the entire peer bootstrapping process so performance is acceptable
+func (s *session) streamBlocksMetadataFromPeerSequential(
+	namespace ident.ID,
+	shard uint32,
+	peer peer,
+	start, end time.Time,
+	startPageToken pageToken,
+	metadataCh chan<- receivedBlockMetadata,
+	resultOpts result.Options,
+	progress *streamFromPeersMetrics,
+	position *streamBlocksMetadataFromPeerSequentialOptions,
 ) (pageToken, error) {
 	var (
 		optionIncludeSizes     = true
@@ -2331,6 +2612,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		moreResults            = true
 		idPool                 = s.pools.id
 		bytesPool              = resultOpts.DatabaseBlockOptions().BytesPool()
+		err                    error
 
 		// Only used for logs
 		peerStr              = peer.Host().ID()
@@ -2347,6 +2629,23 @@ func (s *session) streamBlocksMetadataFromPeer(
 		}
 	}()
 
+	// If resuming at a position, then encode the start page token ourselves.
+	if position != nil {
+		token := &pagetoken.PageToken{
+			FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
+				CurrBlockStartUnixNanos: start.UnixNano(),
+				CurrBlockEntryIdx:       position.startPos,
+				Volume:                  position.volume,
+			},
+		}
+		startPageToken, err = proto.Marshal(token)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var totalFetched int64
+
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
@@ -2355,11 +2654,18 @@ func (s *session) streamBlocksMetadataFromPeer(
 		req.Shard = int32(shard)
 		req.RangeStart = start.UnixNano()
 		req.RangeEnd = end.UnixNano()
-		req.Limit = int64(s.streamBlocksBatchSize)
 		req.PageToken = startPageToken
 		req.IncludeSizes = &optionIncludeSizes
 		req.IncludeChecksums = &optionIncludeChecksums
 		req.IncludeLastRead = &optionIncludeLastRead
+
+		batchSize := int64(s.streamBlocksBatchSize)
+		limitCurr := batchSize
+		if position != nil && batchSize+totalFetched >= position.limitTotal {
+			limitCurr = position.limitTotal - totalFetched
+		}
+
+		req.Limit = limitCurr
 
 		progress.metadataFetchBatchCall.Inc(1)
 		result, err := client.FetchBlocksMetadataRawV2(tctx, req)
@@ -2377,6 +2683,12 @@ func (s *session) streamBlocksMetadataFromPeer(
 			startPageToken = append(startPageToken[:0], result.NextPageToken...)
 		} else {
 			// No further results
+			moreResults = false
+		}
+
+		totalFetched += int64(len(result.Elements))
+		if position != nil && totalFetched >= position.limitTotal {
+			// Reached limit at this batch.
 			moreResults = false
 		}
 

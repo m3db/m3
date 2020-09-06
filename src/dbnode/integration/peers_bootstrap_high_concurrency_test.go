@@ -42,7 +42,7 @@ import (
 
 func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	for _, test := range []testPeersBootstrapHighConcurrencyOptions{
-		{BatchSize: 16, Concurrency: 64, BatchesPerWorker: 8},
+		{BatchSize: 4096, Concurrency: 64, NumSeries: 84848},
 	} {
 		name, err := json.Marshal(test)
 		require.NoError(t, err)
@@ -53,9 +53,9 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 }
 
 type testPeersBootstrapHighConcurrencyOptions struct {
-	BatchSize        int
-	Concurrency      int
-	BatchesPerWorker int
+	BatchSize   int
+	Concurrency int
+	NumSeries   int
 }
 
 func testPeersBootstrapHighConcurrency(
@@ -111,7 +111,7 @@ func testPeersBootstrapHighConcurrency(
 	defer closeFn()
 
 	// Write test data for first node
-	numSeries := testOpts.BatchesPerWorker * testOpts.Concurrency * testOpts.BatchSize
+	numSeries := testOpts.NumSeries
 	log.Sugar().Debugf("testing a total of %d IDs with %d batch size %d concurrency",
 		numSeries, testOpts.BatchSize, testOpts.Concurrency)
 

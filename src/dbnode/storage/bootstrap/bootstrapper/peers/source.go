@@ -419,7 +419,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 		for blockStart := currRange.Start; blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
 			blockEnd := blockStart.Add(blockSize)
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(
-				nsMetadata, shard, blockStart, blockEnd, bopts)
+				nsMetadata, shard, blockStart, blockEnd, bopts, shouldPersist)
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
 			if err != nil {

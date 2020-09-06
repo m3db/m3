@@ -58,6 +58,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
 	xsync "github.com/m3db/m3/src/x/sync"
 
 	"github.com/stretchr/testify/require"
@@ -89,7 +90,35 @@ var (
 		return prototest.ProtoEqual(testSchema, expect, actual)
 	}
 	testProtoIter = prototest.NewProtoMessageIterator(testProtoMessages)
+
+	metricsExposeRootScope tally.Scope
 )
+
+func init() {
+	if strings.ToLower(os.Getenv("METRICS_EXPOSE")) == "true" {
+		sanitization := instrument.PrometheusMetricSanitization
+		extended := instrument.DetailedExtendedMetrics
+		cfg := instrument.MetricsConfiguration{
+			Sanitization: &sanitization,
+			SamplingRate: 1,
+			PrometheusReporter: &instrument.PrometheusConfiguration{
+				HandlerPath:   "/metrics",
+				ListenAddress: "0.0.0.0:7203",
+			},
+			ExtendedMetrics: &extended,
+		}
+		scope, closer, _, err := cfg.NewRootScopeAndReporters(
+			instrument.NewRootScopeAndReportersOptions{})
+		if err != nil {
+			panic(err)
+		}
+
+		defer closer.Close()
+
+		// Assign global var that it should be used.
+		metricsExposeRootScope = scope
+	}
+}
 
 // nowSetterFn is the function that sets the current time
 type nowSetterFn func(t time.Time)
@@ -254,6 +283,12 @@ func NewTestSetup(
 	scope := tally.NewTestScope("", nil)
 	storageOpts = storageOpts.SetInstrumentOptions(
 		storageOpts.InstrumentOptions().SetMetricsScope(scope))
+
+	if metricsExposeRootScope != nil {
+		// Override if a global root scope should be used.
+		storageOpts = storageOpts.SetInstrumentOptions(
+			storageOpts.InstrumentOptions().SetMetricsScope(metricsExposeRootScope))
+	}
 
 	// Use specified series cache policy from environment if set.
 	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))

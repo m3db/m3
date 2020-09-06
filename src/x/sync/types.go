@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/x/instrument"
+	"github.com/m3db/m3/src/x/sampler"
 )
 
 // Work is a unit of item to be worked on.
@@ -110,4 +111,10 @@ type PooledWorkerPoolOptions interface {
 
 	// InstrumentOptions returns the now function.
 	InstrumentOptions() instrument.Options
+
+	// SetInstrumentSampleRate sets the metrics sample rate.
+	SetInstrumentSampleRate(value sampler.Rate) PooledWorkerPoolOptions
+
+	// InstrumentSampleRate returns the metrics sampler rate.
+	InstrumentSampleRate() sampler.Rate
 }
