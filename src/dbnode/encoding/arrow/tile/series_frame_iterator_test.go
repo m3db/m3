@@ -30,7 +30,6 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -101,7 +100,6 @@ func TestSeriesFrameIterator(t *testing.T) {
 
 	numPoints := 30
 	start := time.Now().Truncate(time.Hour)
-	pool := memory.NewGoAllocator()
 
 	stepSize := time.Second * 10
 
@@ -156,7 +154,7 @@ func TestSeriesFrameIterator(t *testing.T) {
 		},
 	}
 
-	recorder := newDatapointRecorder(pool)
+	recorder := newFlatDatapointRecorder()
 	it := newSeriesFrameIterator(recorder)
 	require.False(t, it.Next())
 	require.Error(t, it.Err())
@@ -174,18 +172,18 @@ func TestSeriesFrameIterator(t *testing.T) {
 		exTime := start.UnixNano()
 		for it.Next() {
 			require.True(t, step < len(tt.exSums))
-			rec := it.Current()
-			assert.NotNil(t, rec)
-			assert.Equal(t, tt.exSums[step], rec.Sum())
+			frame := it.Current()
+			assert.NotNil(t, frame)
+			assert.Equal(t, tt.exSums[step], frame.Sum())
 
-			vals := rec.Values()
+			vals := frame.Values()
 			require.Equal(t, tt.exCounts[step], len(vals))
 			for i := 0; i < tt.exCounts[step]; i++ {
 				assert.Equal(t, exVal, vals[i])
 				exVal++
 			}
 
-			times := rec.Timestamps()
+			times := frame.Timestamps()
 			require.Equal(t, tt.exCounts[step], len(times))
 			for i := 0; i < tt.exCounts[step]; i++ {
 				assert.Equal(t, exTime, times[i].UnixNano())

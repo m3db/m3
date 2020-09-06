@@ -23,7 +23,6 @@ package tile
 import (
 	"testing"
 
-	"github.com/apache/arrow/go/arrow/memory"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xtime "github.com/m3db/m3/src/x/time"
 	"github.com/stretchr/testify/assert"
@@ -31,14 +30,15 @@ import (
 )
 
 func TestDatapointRecorder(t *testing.T) {
-	pool := memory.NewGoAllocator()
-	recorder := newDatapointRecorder(pool)
+	recorder := newFlatDatapointRecorder()
 	addPoints := func(size int) {
 		for i := 0; i < size; i++ {
+			timestampNanos := xtime.UnixNano(i)
 			recorder.record(
 				ts.Datapoint{
 					Value:          float64(i),
-					TimestampNanos: xtime.UnixNano(i),
+					Timestamp:      timestampNanos.ToTime(),
+					TimestampNanos: timestampNanos,
 				},
 				xtime.Microsecond,
 				ts.Annotation("foobar"),
@@ -101,8 +101,7 @@ func TestDatapointRecorder(t *testing.T) {
 }
 
 func TestDatapointRecorderChangingAnnotationsAndUnits(t *testing.T) {
-	pool := memory.NewGoAllocator()
-	recorder := newDatapointRecorder(pool)
+	recorder := newFlatDatapointRecorder()
 	frame := SeriesBlockFrame{record: newDatapointRecord()}
 
 	recorder.record(ts.Datapoint{}, xtime.Day, ts.Annotation("foo"))

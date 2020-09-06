@@ -1070,9 +1070,6 @@ func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
 	d.RUnlock()
 
 	if !exists {
-		for _, v := range d.namespaces.Iter() {
-			fmt.Println("Have NAMESPACE with ID", v.value.ID().String())
-		}
 		return nil, dberrors.NewUnknownNamespaceError(namespace.String())
 	}
 	return n, nil

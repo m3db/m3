@@ -36,7 +36,7 @@ import (
 )
 
 type LargeTilesWriter interface {
-	Open(encoder encoding.Encoder) error
+	Open() error
 	Write(ctx context.Context, encoder encoding.Encoder, id ident.ID, tags ident.TagIterator) error
 	Close() error
 }
@@ -57,7 +57,7 @@ type largeTilesWriter struct {
 	writerOpts   DataWriterOpenOptions
 	data         []checked.Bytes
 	currIdx      int64
-	prevID       []byte
+	prevIDBytes  []byte
 	summaryEvery int64
 	bloomFilter  *bloom.BloomFilter
 	indexOffset  int64
@@ -104,13 +104,14 @@ func NewLargeTilesWriter(opts LargeTilesWriterOptions) (LargeTilesWriter, error)
 	}, nil
 }
 
-func (w *largeTilesWriter) Open(encoder encoding.Encoder) error {
+func (w *largeTilesWriter) Open() error {
 	if err := w.writer.Open(w.writerOpts); err != nil {
 		return err
 	}
 	w.tagsEncoder = w.writer.tagEncoderPool.Get()
 	w.indexOffset = 0
 	w.summaries = 0
+	w.prevIDBytes = nil
 	return nil
 }
 
@@ -120,6 +121,12 @@ func (w *largeTilesWriter) Write(
 	id ident.ID,
 	tags ident.TagIterator,
 ) error {
+	// Need to check if w.prevIDBytes != nil, otherwise we can never write an empty string ID
+	if w.prevIDBytes != nil && bytes.Compare(id.Bytes(), w.prevIDBytes) <= 0 {
+		return fmt.Errorf("ids must be written in lexicographic order, no duplicates, but got %s followed by %s", w.prevIDBytes, id)
+	}
+	w.prevIDBytes = append(w.prevIDBytes[:0], id.Bytes()...)
+
 	stream, ok := encoder.Stream(ctx)
 	if !ok {
 		// None of the datapoints passed the predicate.
@@ -144,6 +151,7 @@ func (w *largeTilesWriter) Write(
 
 	return nil
 }
+
 func (w *largeTilesWriter) writeData(
 	data []checked.Bytes,
 	dataChecksum uint32,
@@ -185,17 +193,10 @@ func (w *largeTilesWriter) writeIndexRelated(
 	tags ident.TagIterator,
 	entry *indexEntry,
 ) error {
-	idb := id.Bytes()
-	// Need to check if i > 0 or we can never write an empty string ID
-	if entry.index > 0 && bytes.Equal(idb, w.prevID) {
-		// Should never happen, Write() should only be called once per ID
-		return fmt.Errorf("encountered duplicate ID: %s", id)
-	}
-
 	// Add to the bloom filter, note this must be zero alloc or else this will
 	// cause heavy GC churn as we flush millions of series at end of each
 	// time window
-	w.bloomFilter.Add(idb)
+	w.bloomFilter.Add(id.Bytes())
 
 	if entry.index%w.summaryEvery == 0 {
 		// Capture the offset for when we write this summary back, only capture
@@ -203,12 +204,11 @@ func (w *largeTilesWriter) writeIndexRelated(
 		entry.indexFileOffset = w.indexOffset
 	}
 
-	indexOffset, err := w.writer.writeIndex(idb, tags, w.tagsEncoder, *entry, w.indexOffset)
+	indexOffset, err := w.writer.writeIndex(id.Bytes(), tags, w.tagsEncoder, *entry, w.indexOffset)
 	if err != nil {
 		return err
 	}
 	w.indexOffset = indexOffset
-	w.prevID = idb
 
 	if entry.index%w.summaryEvery == 0 {
 		entry.metadata = persist.NewMetadataFromIDAndTagIterator(id, nil, persist.MetadataOptions{})
@@ -224,6 +224,9 @@ func (w *largeTilesWriter) writeIndexRelated(
 
 func (w *largeTilesWriter) Close() error {
 	w.tagsEncoder.Finalize()
+	for i := range w.data {
+		w.data[i] = nil
+	}
 
 	// Write the bloom filter bitset out
 	if err := w.writer.writeBloomFilterFileContents(w.bloomFilter); err != nil {

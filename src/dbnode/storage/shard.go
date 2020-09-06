@@ -2713,7 +2713,7 @@ func (s *dbShard) AggregateTiles(
 		return 0, err
 	}
 
-	if err := writer.Open(encoder); err != nil {
+	if err := writer.Open(); err != nil {
 		return 0, err
 	}
 
@@ -2786,6 +2786,8 @@ func (s *dbShard) AggregateTiles(
 		} else {
 			s.metrics.largeTilesWrites.Inc(1)
 		}
+
+		id.Finalize()
 		tags.Close()
 	}
 

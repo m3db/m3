@@ -45,7 +45,7 @@ func (r *record) values() []float64 {
 }
 
 func (r *record) sum() float64 {
-	if len(r.vals) > 0 {
+	if r.vals != nil {
 		sum := 0.0
 		for _, v := range r.vals {
 			sum += v

@@ -91,10 +91,7 @@ func (r *crossBlockReader) Next() bool {
 			return false
 		}
 	} else {
-		for i, record := range r.records {
-			if record.Data != nil {
-				record.Data.DecRef()
-			}
+		for i := range r.records {
 			r.records[i] = emptyRecord
 		}
 	}
@@ -115,14 +112,14 @@ func (r *crossBlockReader) Next() bool {
 	r.records = r.records[:0]
 	r.records = append(r.records, BlockRecord{firstEntry.data, firstEntry.checksum})
 
+	// as long as id stays the same across the blocks, accumulate records for this id/tags
 	for len(r.minHeap) > 0 && r.minHeap[0].id.Equal(firstEntry.id) {
 		nextEntry, err := r.readOne()
-		if err != nil { // what do if err
+		if err != nil {
 			// Close the resources that were already read but not returned to the consumer:
 			r.id.Finalize()
 			r.tags.Close()
 			for _, record := range r.records {
-				record.Data.DecRef()
 				record.Data.Finalize()
 			}
 			for i := range r.records {
@@ -153,6 +150,8 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 	}
 
 	entry := heap.Pop(&r.minHeap).(*minHeapEntry)
+	entry.data.DecRef()
+
 	if r.dataFileSetReaders[entry.dataFileSetReaderIndex] != nil {
 		nextEntry, err := r.readFromDataFileSet(entry.dataFileSetReaderIndex)
 		if err == io.EOF {
@@ -280,8 +279,8 @@ func (h *minHeap) Pop() interface{} {
 	return x
 }
 
+//TODO: extract crossBlockIterator to a separate file
 type crossBlockIterator struct {
-	started    bool
 	idx        int
 	exhausted  bool
 	current    encoding.ReaderIterator
@@ -304,20 +303,25 @@ func (c *crossBlockIterator) Next() bool {
 	}
 
 	// NB: if no values remain in current iterator,
-	if !c.started || !c.current.Next() {
-		if c.started && c.current.Err() != nil {
-			c.exhausted = true
-			return false
+	if c.idx < 0 || !c.current.Next() {
+		// NB: clear previous.
+		if c.idx >= 0 {
+			c.records[c.idx].Data.DecRef()
+			c.records[c.idx].Data.Finalize()
+
+			if c.current.Err() != nil {
+				c.exhausted = true
+				return false
+			}
 		}
 
-		c.started = true
-		c.idx = c.idx + 1
-
+		c.idx++
 		if c.idx >= len(c.records) {
 			c.exhausted = true
 			return false
 		}
 
+		c.records[c.idx].Data.IncRef()
 		c.byteReader.Reset(c.records[c.idx].Data.Bytes())
 		c.current.Reset(c.byteReader, nil)
 		// NB: rerun using the next record.
@@ -332,9 +336,12 @@ func (c *crossBlockIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 }
 
 func (c *crossBlockIterator) Reset(records []BlockRecord) {
+	// NB: close any unread records.
+	for i := c.idx + 1; i < len(c.records); i++ {
+		c.records[i].Data.Finalize()
+	}
 	c.idx = -1
 	c.records = records
-	c.started = false
 	c.exhausted = false
 	c.byteReader.Reset(nil)
 }

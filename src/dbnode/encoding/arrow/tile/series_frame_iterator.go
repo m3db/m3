@@ -114,6 +114,7 @@ func (b *seriesFrameIter) Next() bool {
 	firstPoint, firstUnit, firstAnnotation := b.iter.Current()
 	if firstPoint.TimestampNanos >= cutover {
 		// NB: empty block.
+		b.recorder.release()
 		b.recorder.updateRecord(b.curr.record)
 		return true
 	}

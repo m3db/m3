@@ -314,6 +314,7 @@ func TestSkippingReader(t *testing.T) {
 	}
 }
 
+//TODO: extract CrossBlockIterator into a separate file
 func TestCrossBlockIterator(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -336,7 +337,10 @@ func TestCrossBlockIterator(t *testing.T) {
 
 		data := checked.NewMockBytes(ctrl)
 		gomock.InOrder(
+			data.EXPECT().IncRef(),
 			data.EXPECT().Bytes().Return([]byte(byteString)),
+			data.EXPECT().DecRef(),
+			data.EXPECT().Finalize(),
 		)
 		records = append(records, BlockRecord{
 			Data: data,
@@ -393,7 +397,7 @@ func TestFailingCrossBlockIterator(t *testing.T) {
 	iter := NewCrossBlockIterator(iterPool)
 	assert.False(t, iter.Next())
 
-	count := 3
+	count := 4
 	iterCount := 5
 	remaining := 12
 	startTime := time.Now().Truncate(time.Hour)
@@ -405,6 +409,9 @@ func TestFailingCrossBlockIterator(t *testing.T) {
 		data := checked.NewMockBytes(ctrl)
 
 		if remaining == 0 {
+			gomock.InOrder(
+				data.EXPECT().Finalize(),
+			)
 			records = append(records, BlockRecord{
 				Data: data,
 			})
@@ -412,7 +419,12 @@ func TestFailingCrossBlockIterator(t *testing.T) {
 			continue
 		}
 
-		data.EXPECT().Bytes().Return([]byte(byteString))
+		gomock.InOrder(
+			data.EXPECT().IncRef(),
+			data.EXPECT().Bytes().Return([]byte(byteString)),
+			data.EXPECT().DecRef(),
+			data.EXPECT().Finalize(),
+		)
 		records = append(records, BlockRecord{
 			Data: data,
 		})
