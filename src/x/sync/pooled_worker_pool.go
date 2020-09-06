@@ -26,12 +26,10 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/m3db/m3/src/x/sampler"
+
 	"github.com/MichaelTJones/pcg"
 	"github.com/uber-go/tally"
-)
-
-const (
-	numGoroutinesGaugeSampleRate = 1000
 )
 
 type pooledWorkerPool struct {
@@ -42,9 +40,11 @@ type pooledWorkerPool struct {
 	numWorkingRoutinesGauge  tally.Gauge
 	growOnDemand             bool
 	workChs                  []chan Work
+	samplers                 []*sampler.Sampler
 	numShards                int64
 	killWorkerProbability    float64
 	nowFn                    NowFn
+	sampler                  *sampler.Sampler
 }
 
 // NewPooledWorkerPool creates a new worker pool.
@@ -58,9 +58,18 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 		numShards = int64(size)
 	}
 
-	workChs := make([]chan Work, numShards)
-	for i := range workChs {
-		workChs[i] = make(chan Work, int64(size)/numShards)
+	workChs := make([]chan Work, 0, numShards)
+	for i := 0; i < int(numShards); i++ {
+		workChs = append(workChs, make(chan Work, int64(size)/numShards))
+	}
+
+	samplers := make([]*sampler.Sampler, 0, numShards)
+	for i := 0; i < int(numShards); i++ {
+		sampler, err := sampler.NewSampler(opts.InstrumentSampleRate())
+		if err != nil {
+			return nil, err
+		}
+		samplers = append(samplers, sampler)
 	}
 
 	return &pooledWorkerPool{
@@ -70,6 +79,7 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 		numWorkingRoutinesGauge:  opts.InstrumentOptions().MetricsScope().Gauge("num-working-routines"),
 		growOnDemand:             opts.GrowOnDemand(),
 		workChs:                  workChs,
+		samplers:                 samplers,
 		numShards:                numShards,
 		killWorkerProbability:    opts.KillWorkerProbability(),
 		nowFn:                    opts.NowFn(),
@@ -88,12 +98,14 @@ func (p *pooledWorkerPool) Init() {
 func (p *pooledWorkerPool) Go(work Work) {
 	var (
 		// Use time.Now() to avoid excessive synchronization
-		currTime  = p.nowFn().UnixNano()
-		workChIdx = currTime % p.numShards
-		workCh    = p.workChs[workChIdx]
+		currTime = p.nowFn().UnixNano()
+		shardIdx = currTime % p.numShards
+		workCh   = p.workChs[shardIdx]
+		sampler  = p.samplers[shardIdx]
 	)
 
-	if currTime%numGoroutinesGaugeSampleRate == 0 {
+	// Use per shard sampler for less synchronization overhead.
+	if sampler.Sample() {
 		p.emitNumRoutines()
 		p.emitNumWorkingRoutines()
 	}

@@ -160,6 +160,7 @@ type session struct {
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
 	streamBlocksBatchTimeout         time.Duration
+	streamMetadataSequentialWorkers  xsync.PooledWorkerPool
 	metrics                          sessionMetrics
 }
 
@@ -358,6 +359,16 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
 		s.streamBlocksRetrier = opts.StreamBlocksRetrier()
+		pooledWorkerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+			SetInstrumentOptions(opts.InstrumentOptions()).
+			SetGrowOnDemand(false)
+		s.streamMetadataSequentialWorkers, err = xsync.NewPooledWorkerPool(
+			opts.FetchSeriesBlocksBatchConcurrency(),
+			pooledWorkerPoolOpts)
+		if err != nil {
+			return nil, err
+		}
+		s.streamMetadataSequentialWorkers.Init()
 	}
 
 	if runtimeOptsMgr := opts.RuntimeOptionsManager(); runtimeOptsMgr != nil {
@@ -2424,10 +2435,6 @@ func (s *session) streamBlocksMetadataFromPeer(
 		errors               xerrors.MultiError
 		errorsLock           sync.Mutex
 	)
-	streamSequentialWorkers := xsync.NewWorkerPool(
-		s.opts.(AdminOptions).FetchSeriesBlocksBatchConcurrency())
-	streamSequentialWorkers.Init()
-
 	enqueueStream := func() {
 		// Capture vars for safe access by lambda.
 		sequentialDispatchFinal := finalDispatch
@@ -2439,7 +2446,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		limitTotal := probePos - prevProbePos
 
 		wg.Add(1)
-		streamSequentialWorkers.Go(func() {
+		s.streamMetadataSequentialWorkers.Go(func() {
 			defer wg.Done()
 
 			// TODO: cancel inflight metadata calls if we return early
