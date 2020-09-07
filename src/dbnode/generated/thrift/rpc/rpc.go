@@ -13690,16 +13690,10 @@ type Node interface {
 	Query(req *QueryRequest) (r *QueryResult_, err error)
 	// Parameters:
 	//  - Req
-	AggregateRaw(req *AggregateQueryRawRequest) (r *AggregateQueryRawResult_, err error)
-	// Parameters:
-	//  - Req
 	Aggregate(req *AggregateQueryRequest) (r *AggregateQueryResult_, err error)
 	// Parameters:
 	//  - Req
 	Fetch(req *FetchRequest) (r *FetchResult_, err error)
-	// Parameters:
-	//  - Req
-	FetchTagged(req *FetchTaggedRequest) (r *FetchTaggedResult_, err error)
 	// Parameters:
 	//  - Req
 	Write(req *WriteRequest) (err error)
@@ -13715,6 +13709,12 @@ type Node interface {
 	// Parameters:
 	//  - Req
 	FetchBlocksRaw(req *FetchBlocksRawRequest) (r *FetchBlocksRawResult_, err error)
+	// Parameters:
+	//  - Req
+	FetchTagged(req *FetchTaggedRequest) (r *FetchTaggedResult_, err error)
+	// Parameters:
+	//  - Req
+	AggregateRaw(req *AggregateQueryRawRequest) (r *AggregateQueryRawResult_, err error)
 	// Parameters:
 	//  - Req
 	FetchBlocksMetadataRawV2(req *FetchBlocksMetadataRawV2Request) (r *FetchBlocksMetadataRawV2Result_, err error)
@@ -13873,87 +13873,6 @@ func (p *NodeClient) recvQuery() (value *QueryResult_, err error) {
 
 // Parameters:
 //  - Req
-func (p *NodeClient) AggregateRaw(req *AggregateQueryRawRequest) (r *AggregateQueryRawResult_, err error) {
-	if err = p.sendAggregateRaw(req); err != nil {
-		return
-	}
-	return p.recvAggregateRaw()
-}
-
-func (p *NodeClient) sendAggregateRaw(req *AggregateQueryRawRequest) (err error) {
-	oprot := p.OutputProtocol
-	if oprot == nil {
-		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
-		p.OutputProtocol = oprot
-	}
-	p.SeqId++
-	if err = oprot.WriteMessageBegin("aggregateRaw", thrift.CALL, p.SeqId); err != nil {
-		return
-	}
-	args := NodeAggregateRawArgs{
-		Req: req,
-	}
-	if err = args.Write(oprot); err != nil {
-		return
-	}
-	if err = oprot.WriteMessageEnd(); err != nil {
-		return
-	}
-	return oprot.Flush()
-}
-
-func (p *NodeClient) recvAggregateRaw() (value *AggregateQueryRawResult_, err error) {
-	iprot := p.InputProtocol
-	if iprot == nil {
-		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
-		p.InputProtocol = iprot
-	}
-	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
-	if err != nil {
-		return
-	}
-	if method != "aggregateRaw" {
-		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "aggregateRaw failed: wrong method name")
-		return
-	}
-	if p.SeqId != seqId {
-		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "aggregateRaw failed: out of sequence response")
-		return
-	}
-	if mTypeId == thrift.EXCEPTION {
-		error37 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error38 error
-		error38, err = error37.Read(iprot)
-		if err != nil {
-			return
-		}
-		if err = iprot.ReadMessageEnd(); err != nil {
-			return
-		}
-		err = error38
-		return
-	}
-	if mTypeId != thrift.REPLY {
-		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "aggregateRaw failed: invalid message type")
-		return
-	}
-	result := NodeAggregateRawResult{}
-	if err = result.Read(iprot); err != nil {
-		return
-	}
-	if err = iprot.ReadMessageEnd(); err != nil {
-		return
-	}
-	if result.Err != nil {
-		err = result.Err
-		return
-	}
-	value = result.GetSuccess()
-	return
-}
-
-// Parameters:
-//  - Req
 func (p *NodeClient) Aggregate(req *AggregateQueryRequest) (r *AggregateQueryResult_, err error) {
 	if err = p.sendAggregate(req); err != nil {
 		return
@@ -14002,16 +13921,16 @@ func (p *NodeClient) recvAggregate() (value *AggregateQueryResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error39 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error40 error
-		error40, err = error39.Read(iprot)
+		error37 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error38 error
+		error38, err = error37.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error40
+		err = error38
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -14083,16 +14002,16 @@ func (p *NodeClient) recvFetch() (value *FetchResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error41 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error42 error
-		error42, err = error41.Read(iprot)
+		error39 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error40 error
+		error40, err = error39.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error42
+		err = error40
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -14100,87 +14019,6 @@ func (p *NodeClient) recvFetch() (value *FetchResult_, err error) {
 		return
 	}
 	result := NodeFetchResult{}
-	if err = result.Read(iprot); err != nil {
-		return
-	}
-	if err = iprot.ReadMessageEnd(); err != nil {
-		return
-	}
-	if result.Err != nil {
-		err = result.Err
-		return
-	}
-	value = result.GetSuccess()
-	return
-}
-
-// Parameters:
-//  - Req
-func (p *NodeClient) FetchTagged(req *FetchTaggedRequest) (r *FetchTaggedResult_, err error) {
-	if err = p.sendFetchTagged(req); err != nil {
-		return
-	}
-	return p.recvFetchTagged()
-}
-
-func (p *NodeClient) sendFetchTagged(req *FetchTaggedRequest) (err error) {
-	oprot := p.OutputProtocol
-	if oprot == nil {
-		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
-		p.OutputProtocol = oprot
-	}
-	p.SeqId++
-	if err = oprot.WriteMessageBegin("fetchTagged", thrift.CALL, p.SeqId); err != nil {
-		return
-	}
-	args := NodeFetchTaggedArgs{
-		Req: req,
-	}
-	if err = args.Write(oprot); err != nil {
-		return
-	}
-	if err = oprot.WriteMessageEnd(); err != nil {
-		return
-	}
-	return oprot.Flush()
-}
-
-func (p *NodeClient) recvFetchTagged() (value *FetchTaggedResult_, err error) {
-	iprot := p.InputProtocol
-	if iprot == nil {
-		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
-		p.InputProtocol = iprot
-	}
-	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
-	if err != nil {
-		return
-	}
-	if method != "fetchTagged" {
-		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "fetchTagged failed: wrong method name")
-		return
-	}
-	if p.SeqId != seqId {
-		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "fetchTagged failed: out of sequence response")
-		return
-	}
-	if mTypeId == thrift.EXCEPTION {
-		error43 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error44 error
-		error44, err = error43.Read(iprot)
-		if err != nil {
-			return
-		}
-		if err = iprot.ReadMessageEnd(); err != nil {
-			return
-		}
-		err = error44
-		return
-	}
-	if mTypeId != thrift.REPLY {
-		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "fetchTagged failed: invalid message type")
-		return
-	}
-	result := NodeFetchTaggedResult{}
 	if err = result.Read(iprot); err != nil {
 		return
 	}
@@ -14245,16 +14083,16 @@ func (p *NodeClient) recvWrite() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error45 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error46 error
-		error46, err = error45.Read(iprot)
+		error41 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error42 error
+		error42, err = error41.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error46
+		err = error42
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -14325,16 +14163,16 @@ func (p *NodeClient) recvWriteTagged() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error47 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error48 error
-		error48, err = error47.Read(iprot)
+		error43 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error44 error
+		error44, err = error43.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error48
+		err = error44
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -14405,16 +14243,16 @@ func (p *NodeClient) recvFetchBatchRaw() (value *FetchBatchRawResult_, err error
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error49 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error50 error
-		error50, err = error49.Read(iprot)
+		error45 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error46 error
+		error46, err = error45.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error50
+		err = error46
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -14486,16 +14324,16 @@ func (p *NodeClient) recvFetchBatchRawV2() (value *FetchBatchRawResult_, err err
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error51 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error52 error
-		error52, err = error51.Read(iprot)
+		error47 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error48 error
+		error48, err = error47.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error52
+		err = error48
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -14567,6 +14405,168 @@ func (p *NodeClient) recvFetchBlocksRaw() (value *FetchBlocksRawResult_, err err
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
+		error49 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error50 error
+		error50, err = error49.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error50
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "fetchBlocksRaw failed: invalid message type")
+		return
+	}
+	result := NodeFetchBlocksRawResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
+// Parameters:
+//  - Req
+func (p *NodeClient) FetchTagged(req *FetchTaggedRequest) (r *FetchTaggedResult_, err error) {
+	if err = p.sendFetchTagged(req); err != nil {
+		return
+	}
+	return p.recvFetchTagged()
+}
+
+func (p *NodeClient) sendFetchTagged(req *FetchTaggedRequest) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("fetchTagged", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeFetchTaggedArgs{
+		Req: req,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvFetchTagged() (value *FetchTaggedResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "fetchTagged" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "fetchTagged failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "fetchTagged failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error51 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error52 error
+		error52, err = error51.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error52
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "fetchTagged failed: invalid message type")
+		return
+	}
+	result := NodeFetchTaggedResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
+// Parameters:
+//  - Req
+func (p *NodeClient) AggregateRaw(req *AggregateQueryRawRequest) (r *AggregateQueryRawResult_, err error) {
+	if err = p.sendAggregateRaw(req); err != nil {
+		return
+	}
+	return p.recvAggregateRaw()
+}
+
+func (p *NodeClient) sendAggregateRaw(req *AggregateQueryRawRequest) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("aggregateRaw", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeAggregateRawArgs{
+		Req: req,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvAggregateRaw() (value *AggregateQueryRawResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "aggregateRaw" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "aggregateRaw failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "aggregateRaw failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
 		error53 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
 		var error54 error
 		error54, err = error53.Read(iprot)
@@ -14580,10 +14580,10 @@ func (p *NodeClient) recvFetchBlocksRaw() (value *FetchBlocksRawResult_, err err
 		return
 	}
 	if mTypeId != thrift.REPLY {
-		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "fetchBlocksRaw failed: invalid message type")
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "aggregateRaw failed: invalid message type")
 		return
 	}
-	result := NodeFetchBlocksRawResult{}
+	result := NodeAggregateRawResult{}
 	if err = result.Read(iprot); err != nil {
 		return
 	}
@@ -16284,15 +16284,15 @@ func NewNodeProcessor(handler Node) *NodeProcessor {
 
 	self97 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
 	self97.processorMap["query"] = &nodeProcessorQuery{handler: handler}
-	self97.processorMap["aggregateRaw"] = &nodeProcessorAggregateRaw{handler: handler}
 	self97.processorMap["aggregate"] = &nodeProcessorAggregate{handler: handler}
 	self97.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
-	self97.processorMap["fetchTagged"] = &nodeProcessorFetchTagged{handler: handler}
 	self97.processorMap["write"] = &nodeProcessorWrite{handler: handler}
 	self97.processorMap["writeTagged"] = &nodeProcessorWriteTagged{handler: handler}
 	self97.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
 	self97.processorMap["fetchBatchRawV2"] = &nodeProcessorFetchBatchRawV2{handler: handler}
 	self97.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
+	self97.processorMap["fetchTagged"] = &nodeProcessorFetchTagged{handler: handler}
+	self97.processorMap["aggregateRaw"] = &nodeProcessorAggregateRaw{handler: handler}
 	self97.processorMap["fetchBlocksMetadataRawV2"] = &nodeProcessorFetchBlocksMetadataRawV2{handler: handler}
 	self97.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
 	self97.processorMap["writeBatchRawV2"] = &nodeProcessorWriteBatchRawV2{handler: handler}
@@ -16372,59 +16372,6 @@ func (p *nodeProcessorQuery) Process(seqId int32, iprot, oprot thrift.TProtocol)
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("query", thrift.REPLY, seqId); err2 != nil {
-		err = err2
-	}
-	if err2 = result.Write(oprot); err == nil && err2 != nil {
-		err = err2
-	}
-	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
-		err = err2
-	}
-	if err2 = oprot.Flush(); err == nil && err2 != nil {
-		err = err2
-	}
-	if err != nil {
-		return
-	}
-	return true, err
-}
-
-type nodeProcessorAggregateRaw struct {
-	handler Node
-}
-
-func (p *nodeProcessorAggregateRaw) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := NodeAggregateRawArgs{}
-	if err = args.Read(iprot); err != nil {
-		iprot.ReadMessageEnd()
-		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("aggregateRaw", thrift.EXCEPTION, seqId)
-		x.Write(oprot)
-		oprot.WriteMessageEnd()
-		oprot.Flush()
-		return false, err
-	}
-
-	iprot.ReadMessageEnd()
-	result := NodeAggregateRawResult{}
-	var retval *AggregateQueryRawResult_
-	var err2 error
-	if retval, err2 = p.handler.AggregateRaw(args.Req); err2 != nil {
-		switch v := err2.(type) {
-		case *Error:
-			result.Err = v
-		default:
-			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing aggregateRaw: "+err2.Error())
-			oprot.WriteMessageBegin("aggregateRaw", thrift.EXCEPTION, seqId)
-			x.Write(oprot)
-			oprot.WriteMessageEnd()
-			oprot.Flush()
-			return true, err2
-		}
-	} else {
-		result.Success = retval
-	}
-	if err2 = oprot.WriteMessageBegin("aggregateRaw", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -16531,59 +16478,6 @@ func (p *nodeProcessorFetch) Process(seqId int32, iprot, oprot thrift.TProtocol)
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("fetch", thrift.REPLY, seqId); err2 != nil {
-		err = err2
-	}
-	if err2 = result.Write(oprot); err == nil && err2 != nil {
-		err = err2
-	}
-	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
-		err = err2
-	}
-	if err2 = oprot.Flush(); err == nil && err2 != nil {
-		err = err2
-	}
-	if err != nil {
-		return
-	}
-	return true, err
-}
-
-type nodeProcessorFetchTagged struct {
-	handler Node
-}
-
-func (p *nodeProcessorFetchTagged) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := NodeFetchTaggedArgs{}
-	if err = args.Read(iprot); err != nil {
-		iprot.ReadMessageEnd()
-		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("fetchTagged", thrift.EXCEPTION, seqId)
-		x.Write(oprot)
-		oprot.WriteMessageEnd()
-		oprot.Flush()
-		return false, err
-	}
-
-	iprot.ReadMessageEnd()
-	result := NodeFetchTaggedResult{}
-	var retval *FetchTaggedResult_
-	var err2 error
-	if retval, err2 = p.handler.FetchTagged(args.Req); err2 != nil {
-		switch v := err2.(type) {
-		case *Error:
-			result.Err = v
-		default:
-			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing fetchTagged: "+err2.Error())
-			oprot.WriteMessageBegin("fetchTagged", thrift.EXCEPTION, seqId)
-			x.Write(oprot)
-			oprot.WriteMessageEnd()
-			oprot.Flush()
-			return true, err2
-		}
-	} else {
-		result.Success = retval
-	}
-	if err2 = oprot.WriteMessageBegin("fetchTagged", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -16843,6 +16737,112 @@ func (p *nodeProcessorFetchBlocksRaw) Process(seqId int32, iprot, oprot thrift.T
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("fetchBlocksRaw", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorFetchTagged struct {
+	handler Node
+}
+
+func (p *nodeProcessorFetchTagged) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeFetchTaggedArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("fetchTagged", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeFetchTaggedResult{}
+	var retval *FetchTaggedResult_
+	var err2 error
+	if retval, err2 = p.handler.FetchTagged(args.Req); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing fetchTagged: "+err2.Error())
+			oprot.WriteMessageBegin("fetchTagged", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("fetchTagged", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorAggregateRaw struct {
+	handler Node
+}
+
+func (p *nodeProcessorAggregateRaw) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeAggregateRawArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("aggregateRaw", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeAggregateRawResult{}
+	var retval *AggregateQueryRawResult_
+	var err2 error
+	if retval, err2 = p.handler.AggregateRaw(args.Req); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing aggregateRaw: "+err2.Error())
+			oprot.WriteMessageBegin("aggregateRaw", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("aggregateRaw", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -18217,261 +18217,6 @@ func (p *NodeQueryResult) String() string {
 
 // Attributes:
 //  - Req
-type NodeAggregateRawArgs struct {
-	Req *AggregateQueryRawRequest `thrift:"req,1" db:"req" json:"req"`
-}
-
-func NewNodeAggregateRawArgs() *NodeAggregateRawArgs {
-	return &NodeAggregateRawArgs{}
-}
-
-var NodeAggregateRawArgs_Req_DEFAULT *AggregateQueryRawRequest
-
-func (p *NodeAggregateRawArgs) GetReq() *AggregateQueryRawRequest {
-	if !p.IsSetReq() {
-		return NodeAggregateRawArgs_Req_DEFAULT
-	}
-	return p.Req
-}
-func (p *NodeAggregateRawArgs) IsSetReq() bool {
-	return p.Req != nil
-}
-
-func (p *NodeAggregateRawArgs) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		switch fieldId {
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	return nil
-}
-
-func (p *NodeAggregateRawArgs) ReadField1(iprot thrift.TProtocol) error {
-	p.Req = &AggregateQueryRawRequest{
-		AggregateQueryType: 1,
-
-		RangeType: 0,
-	}
-	if err := p.Req.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
-	}
-	return nil
-}
-
-func (p *NodeAggregateRawArgs) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("aggregateRaw_args"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *NodeAggregateRawArgs) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
-	}
-	if err := p.Req.Write(oprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
-	}
-	return err
-}
-
-func (p *NodeAggregateRawArgs) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("NodeAggregateRawArgs(%+v)", *p)
-}
-
-// Attributes:
-//  - Success
-//  - Err
-type NodeAggregateRawResult struct {
-	Success *AggregateQueryRawResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
-	Err     *Error                    `thrift:"err,1" db:"err" json:"err,omitempty"`
-}
-
-func NewNodeAggregateRawResult() *NodeAggregateRawResult {
-	return &NodeAggregateRawResult{}
-}
-
-var NodeAggregateRawResult_Success_DEFAULT *AggregateQueryRawResult_
-
-func (p *NodeAggregateRawResult) GetSuccess() *AggregateQueryRawResult_ {
-	if !p.IsSetSuccess() {
-		return NodeAggregateRawResult_Success_DEFAULT
-	}
-	return p.Success
-}
-
-var NodeAggregateRawResult_Err_DEFAULT *Error
-
-func (p *NodeAggregateRawResult) GetErr() *Error {
-	if !p.IsSetErr() {
-		return NodeAggregateRawResult_Err_DEFAULT
-	}
-	return p.Err
-}
-func (p *NodeAggregateRawResult) IsSetSuccess() bool {
-	return p.Success != nil
-}
-
-func (p *NodeAggregateRawResult) IsSetErr() bool {
-	return p.Err != nil
-}
-
-func (p *NodeAggregateRawResult) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		switch fieldId {
-		case 0:
-			if err := p.ReadField0(iprot); err != nil {
-				return err
-			}
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	return nil
-}
-
-func (p *NodeAggregateRawResult) ReadField0(iprot thrift.TProtocol) error {
-	p.Success = &AggregateQueryRawResult_{}
-	if err := p.Success.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
-	}
-	return nil
-}
-
-func (p *NodeAggregateRawResult) ReadField1(iprot thrift.TProtocol) error {
-	p.Err = &Error{
-		Type: 0,
-	}
-	if err := p.Err.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
-	}
-	return nil
-}
-
-func (p *NodeAggregateRawResult) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("aggregateRaw_result"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-		if err := p.writeField0(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *NodeAggregateRawResult) writeField0(oprot thrift.TProtocol) (err error) {
-	if p.IsSetSuccess() {
-		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
-		}
-		if err := p.Success.Write(oprot); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *NodeAggregateRawResult) writeField1(oprot thrift.TProtocol) (err error) {
-	if p.IsSetErr() {
-		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
-		}
-		if err := p.Err.Write(oprot); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *NodeAggregateRawResult) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("NodeAggregateRawResult(%+v)", *p)
-}
-
-// Attributes:
-//  - Req
 type NodeAggregateArgs struct {
 	Req *AggregateQueryRequest `thrift:"req,1" db:"req" json:"req"`
 }
@@ -18978,259 +18723,6 @@ func (p *NodeFetchResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("NodeFetchResult(%+v)", *p)
-}
-
-// Attributes:
-//  - Req
-type NodeFetchTaggedArgs struct {
-	Req *FetchTaggedRequest `thrift:"req,1" db:"req" json:"req"`
-}
-
-func NewNodeFetchTaggedArgs() *NodeFetchTaggedArgs {
-	return &NodeFetchTaggedArgs{}
-}
-
-var NodeFetchTaggedArgs_Req_DEFAULT *FetchTaggedRequest
-
-func (p *NodeFetchTaggedArgs) GetReq() *FetchTaggedRequest {
-	if !p.IsSetReq() {
-		return NodeFetchTaggedArgs_Req_DEFAULT
-	}
-	return p.Req
-}
-func (p *NodeFetchTaggedArgs) IsSetReq() bool {
-	return p.Req != nil
-}
-
-func (p *NodeFetchTaggedArgs) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		switch fieldId {
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	return nil
-}
-
-func (p *NodeFetchTaggedArgs) ReadField1(iprot thrift.TProtocol) error {
-	p.Req = &FetchTaggedRequest{
-		RangeTimeType: 0,
-	}
-	if err := p.Req.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
-	}
-	return nil
-}
-
-func (p *NodeFetchTaggedArgs) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("fetchTagged_args"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *NodeFetchTaggedArgs) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
-	}
-	if err := p.Req.Write(oprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
-	}
-	return err
-}
-
-func (p *NodeFetchTaggedArgs) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("NodeFetchTaggedArgs(%+v)", *p)
-}
-
-// Attributes:
-//  - Success
-//  - Err
-type NodeFetchTaggedResult struct {
-	Success *FetchTaggedResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
-	Err     *Error              `thrift:"err,1" db:"err" json:"err,omitempty"`
-}
-
-func NewNodeFetchTaggedResult() *NodeFetchTaggedResult {
-	return &NodeFetchTaggedResult{}
-}
-
-var NodeFetchTaggedResult_Success_DEFAULT *FetchTaggedResult_
-
-func (p *NodeFetchTaggedResult) GetSuccess() *FetchTaggedResult_ {
-	if !p.IsSetSuccess() {
-		return NodeFetchTaggedResult_Success_DEFAULT
-	}
-	return p.Success
-}
-
-var NodeFetchTaggedResult_Err_DEFAULT *Error
-
-func (p *NodeFetchTaggedResult) GetErr() *Error {
-	if !p.IsSetErr() {
-		return NodeFetchTaggedResult_Err_DEFAULT
-	}
-	return p.Err
-}
-func (p *NodeFetchTaggedResult) IsSetSuccess() bool {
-	return p.Success != nil
-}
-
-func (p *NodeFetchTaggedResult) IsSetErr() bool {
-	return p.Err != nil
-}
-
-func (p *NodeFetchTaggedResult) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		switch fieldId {
-		case 0:
-			if err := p.ReadField0(iprot); err != nil {
-				return err
-			}
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	return nil
-}
-
-func (p *NodeFetchTaggedResult) ReadField0(iprot thrift.TProtocol) error {
-	p.Success = &FetchTaggedResult_{}
-	if err := p.Success.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
-	}
-	return nil
-}
-
-func (p *NodeFetchTaggedResult) ReadField1(iprot thrift.TProtocol) error {
-	p.Err = &Error{
-		Type: 0,
-	}
-	if err := p.Err.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
-	}
-	return nil
-}
-
-func (p *NodeFetchTaggedResult) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("fetchTagged_result"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-		if err := p.writeField0(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *NodeFetchTaggedResult) writeField0(oprot thrift.TProtocol) (err error) {
-	if p.IsSetSuccess() {
-		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
-		}
-		if err := p.Success.Write(oprot); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *NodeFetchTaggedResult) writeField1(oprot thrift.TProtocol) (err error) {
-	if p.IsSetErr() {
-		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
-		}
-		if err := p.Err.Write(oprot); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *NodeFetchTaggedResult) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("NodeFetchTaggedResult(%+v)", *p)
 }
 
 // Attributes:
@@ -20398,6 +19890,514 @@ func (p *NodeFetchBlocksRawResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("NodeFetchBlocksRawResult(%+v)", *p)
+}
+
+// Attributes:
+//  - Req
+type NodeFetchTaggedArgs struct {
+	Req *FetchTaggedRequest `thrift:"req,1" db:"req" json:"req"`
+}
+
+func NewNodeFetchTaggedArgs() *NodeFetchTaggedArgs {
+	return &NodeFetchTaggedArgs{}
+}
+
+var NodeFetchTaggedArgs_Req_DEFAULT *FetchTaggedRequest
+
+func (p *NodeFetchTaggedArgs) GetReq() *FetchTaggedRequest {
+	if !p.IsSetReq() {
+		return NodeFetchTaggedArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+func (p *NodeFetchTaggedArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *NodeFetchTaggedArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeFetchTaggedArgs) ReadField1(iprot thrift.TProtocol) error {
+	p.Req = &FetchTaggedRequest{
+		RangeTimeType: 0,
+	}
+	if err := p.Req.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
+	}
+	return nil
+}
+
+func (p *NodeFetchTaggedArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("fetchTagged_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeFetchTaggedArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
+	}
+	if err := p.Req.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeFetchTaggedArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeFetchTaggedArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeFetchTaggedResult struct {
+	Success *FetchTaggedResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error              `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeFetchTaggedResult() *NodeFetchTaggedResult {
+	return &NodeFetchTaggedResult{}
+}
+
+var NodeFetchTaggedResult_Success_DEFAULT *FetchTaggedResult_
+
+func (p *NodeFetchTaggedResult) GetSuccess() *FetchTaggedResult_ {
+	if !p.IsSetSuccess() {
+		return NodeFetchTaggedResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeFetchTaggedResult_Err_DEFAULT *Error
+
+func (p *NodeFetchTaggedResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeFetchTaggedResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeFetchTaggedResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeFetchTaggedResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeFetchTaggedResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeFetchTaggedResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &FetchTaggedResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeFetchTaggedResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeFetchTaggedResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("fetchTagged_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeFetchTaggedResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeFetchTaggedResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeFetchTaggedResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeFetchTaggedResult(%+v)", *p)
+}
+
+// Attributes:
+//  - Req
+type NodeAggregateRawArgs struct {
+	Req *AggregateQueryRawRequest `thrift:"req,1" db:"req" json:"req"`
+}
+
+func NewNodeAggregateRawArgs() *NodeAggregateRawArgs {
+	return &NodeAggregateRawArgs{}
+}
+
+var NodeAggregateRawArgs_Req_DEFAULT *AggregateQueryRawRequest
+
+func (p *NodeAggregateRawArgs) GetReq() *AggregateQueryRawRequest {
+	if !p.IsSetReq() {
+		return NodeAggregateRawArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+func (p *NodeAggregateRawArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *NodeAggregateRawArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeAggregateRawArgs) ReadField1(iprot thrift.TProtocol) error {
+	p.Req = &AggregateQueryRawRequest{
+		AggregateQueryType: 1,
+
+		RangeType: 0,
+	}
+	if err := p.Req.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
+	}
+	return nil
+}
+
+func (p *NodeAggregateRawArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("aggregateRaw_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeAggregateRawArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
+	}
+	if err := p.Req.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeAggregateRawArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeAggregateRawArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeAggregateRawResult struct {
+	Success *AggregateQueryRawResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                    `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeAggregateRawResult() *NodeAggregateRawResult {
+	return &NodeAggregateRawResult{}
+}
+
+var NodeAggregateRawResult_Success_DEFAULT *AggregateQueryRawResult_
+
+func (p *NodeAggregateRawResult) GetSuccess() *AggregateQueryRawResult_ {
+	if !p.IsSetSuccess() {
+		return NodeAggregateRawResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeAggregateRawResult_Err_DEFAULT *Error
+
+func (p *NodeAggregateRawResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeAggregateRawResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeAggregateRawResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeAggregateRawResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeAggregateRawResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeAggregateRawResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &AggregateQueryRawResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeAggregateRawResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeAggregateRawResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("aggregateRaw_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeAggregateRawResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeAggregateRawResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeAggregateRawResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeAggregateRawResult(%+v)", *p)
 }
 
 // Attributes:

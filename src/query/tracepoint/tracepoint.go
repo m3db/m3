@@ -31,6 +31,9 @@ const (
 	// FetchCompressedFetchTagged is for the call to FetchTagged in fetchCompressed.
 	FetchCompressedFetchTagged = "m3.m3storage.fetchCompressed.FetchTagged"
 
+	// FetchCompressedInspectSeries is for the call to InspectSeries in FetchCompressed.
+	FetchCompressedInspectSeries = "m3.m3storage.FetchCompressed.InspectSeries"
+
 	// SearchCompressedFetchTaggedIDs is for the call to FetchTaggedIDs in SearchCompressed.
 	SearchCompressedFetchTaggedIDs = "m3.m3storage.SearchCompressed.FetchTaggedIDs"
 
