@@ -167,8 +167,6 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		closer.Close()
 	}()
 
-	session, err := testSetup.M3DBClient().DefaultSession()
-	require.NoError(t, err)
 	nowFn := testSetup.NowFn()
 	fmt.Println(nowFn())
 
@@ -184,13 +182,20 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	inProgress := atomic.NewBool(true)
 	var wg sync.WaitGroup
 	for b := 0; b < 4; b++ {
+
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
+
+			query := index.Query{
+				Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
+
 			for inProgress.Load() {
-				query := index.Query{
-					Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
+				session, err := testSetup.M3DBClient().NewSession()
+				require.NoError(t, err)
 				result, _, err := session.FetchTagged(srcNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart, EndExclusive: dpTimeStart.Add(blockSizeT * 10)})
+				session.Close()
 				if err != nil {
 					fmt.Println(time.Now(), "FETCH ERR", err)
 					require.NoError(t, err)
@@ -211,7 +216,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		fmt.Println(time.Now(), "Aggregation", a+1, "/", iterationCount)
 		ctx := storageOpts.ContextPool().Get()
 		processedBlockCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
-		ctx.Close()
+		ctx.BlockingClose()
 		if err != nil {
 			require.NoError(t, err)
 			fmt.Println(time.Now(), "AGG ERR", err)
@@ -234,7 +239,10 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
 	require.Equal(t, int64(testSeriesCount*iterationCount), seriesWritesCount)
 
+	session, err := testSetup.M3DBClient().NewSession()
+	require.NoError(t, err)
 	series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
+	session.Close()
 	require.NoError(t, err)
 
 	sTags := series.Tags()
