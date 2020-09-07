@@ -25,6 +25,7 @@ package integration
 import (
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -33,8 +34,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -108,6 +111,29 @@ func TestReadAggregateWrite(t *testing.T) {
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
+
+	// reQuery := m3ninxidx.NewTermQuery([]byte("__name__"), []byte("cpu"))
+	// result, err := testSetup.DB().QueryIDs(storageOpts.ContextPool().Get(), srcNs.ID(), index.Query{reQuery}, index.QueryOptions{
+	// 	StartInclusive: dpTimeStart,
+	// 	EndExclusive:   dpTimeStart.Add(2 * time.Hour),
+	// })
+	// require.NoError(t, err)
+	// fmt.Println(result)
+	// fmt.Println(result.Results, result.Results.TotalDocsCount())
+	// require.Fail(t, "Asd")
+	//assert.Equal(t, 1, iters.Len())
+
+	query := index.Query{
+		Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
+	result, _, err := session.FetchTagged(srcNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart, EndExclusive: nowFn()})
+	require.NoError(t, err)
+	for _, iter := range result.Iters() {
+		for iter.Next() {
+			dp, _, _ := iter.Current()
+			fmt.Println(dp)
+		}
+	}
+	assert.Equal(t, 1, len(result.Iters()))
 
 	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), time.Hour, false)
 	require.NoError(t, err)
@@ -280,7 +306,7 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 		rOpts    = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSize)
 		rOptsT   = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSizeT)
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
-		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
+		idxOptsT = namespace.NewIndexOptions().SetEnabled(false).SetBlockSize(indexBlockSizeT)
 		nsOpts   = namespace.NewOptions().
 				SetRetentionOptions(rOpts).
 				SetIndexOptions(idxOpts).
@@ -291,6 +317,7 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 			SetColdWritesEnabled(true)
 	)
 
+	os.Setenv("RAW_NAMESPACE", testNamespaces[0].String())
 	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOptsT)
