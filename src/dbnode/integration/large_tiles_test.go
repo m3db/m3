@@ -133,7 +133,7 @@ func TestReadAggregateWrite(t *testing.T) {
 			fmt.Println(dp)
 		}
 	}
-	assert.Equal(t, 1, len(result.Iters()))
+	assert.Equal(t, 2, len(result.Iters()))
 
 	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), time.Hour, false)
 	require.NoError(t, err)
@@ -218,7 +218,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 					require.NoError(t, err)
 					return
 				}
-				require.Equal(t, 1, len(result.Iters()))
+				require.Equal(t, 23, len(result.Iters()))
 
 				result.Close()
 				time.Sleep(time.Millisecond)
