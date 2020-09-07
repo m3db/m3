@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -237,7 +238,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 
 	session, err := testSetup.M3DBClient().NewSession()
 	require.NoError(t, err)
-	series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
+	series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+strconv.Itoa(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
 	session.Close()
 	require.NoError(t, err)
 
@@ -262,7 +263,7 @@ func fetchAndValidate(
 	for series.Next() {
 		dp, _, _ := series.Current()
 		// FIXME: init expected timestamp nano field as well for equality, or use
-		// permnissive equality check instead.
+		// permissive equality check instead.
 		dp.TimestampNanos = 0
 		actual = append(actual, dp)
 	}
@@ -341,7 +342,7 @@ func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter 
 
 		for b := 0; b < testSeriesCount; b++ {
 			tagsIter.Rewind()
-			err := batchWriter.AddTagged(i, ident.StringID("foo"+string(b)), tagsIter, encodedTagsBytes, dpTime, 42.1+float64(a), xtime.Second, nil)
+			err := batchWriter.AddTagged(i, ident.StringID("foo"+strconv.Itoa(b)), tagsIter, encodedTagsBytes, dpTime, 42.1+float64(a), xtime.Second, nil)
 			require.NoError(t, err)
 			i++
 		}
