@@ -91,9 +91,9 @@ func SafeMax(input []float64) (float64, int) {
 	max := -math.MaxFloat64
 	for _, v := range input {
 		if !math.IsNaN(v) {
-			if v > max {
-				max = v
-			}
+		if v > max {
+			max = v
+		}
 		} else {
 			nans += 1
 		}
