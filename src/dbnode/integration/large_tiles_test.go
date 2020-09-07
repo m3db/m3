@@ -112,29 +112,6 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 
-	// reQuery := m3ninxidx.NewTermQuery([]byte("__name__"), []byte("cpu"))
-	// result, err := testSetup.DB().QueryIDs(storageOpts.ContextPool().Get(), srcNs.ID(), index.Query{reQuery}, index.QueryOptions{
-	// 	StartInclusive: dpTimeStart,
-	// 	EndExclusive:   dpTimeStart.Add(2 * time.Hour),
-	// })
-	// require.NoError(t, err)
-	// fmt.Println(result)
-	// fmt.Println(result.Results, result.Results.TotalDocsCount())
-	// require.Fail(t, "Asd")
-	//assert.Equal(t, 1, iters.Len())
-
-	query := index.Query{
-		Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
-	result, _, err := session.FetchTagged(srcNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart, EndExclusive: nowFn()})
-	require.NoError(t, err)
-	for _, iter := range result.Iters() {
-		for iter.Next() {
-			dp, _, _ := iter.Current()
-			fmt.Println(dp)
-		}
-	}
-	assert.Equal(t, 2, len(result.Iters()))
-
 	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), time.Hour, false)
 	require.NoError(t, err)
 
@@ -193,6 +170,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	session, err := testSetup.M3DBClient().DefaultSession()
 	require.NoError(t, err)
 	nowFn := testSetup.NowFn()
+	fmt.Println(nowFn())
 
 	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
 	writeTestData(t, testSetup, log, reporter, dpTimeStart, srcNs.ID())
@@ -218,7 +196,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 					require.NoError(t, err)
 					return
 				}
-				require.Equal(t, 23, len(result.Iters()))
+				require.Equal(t, testSeriesCount, len(result.Iters()))
 
 				result.Close()
 				time.Sleep(time.Millisecond)
@@ -290,8 +268,8 @@ func fetchAndValidate(
 
 func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
 	var (
-		rOpts    = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSize)
-		rOptsT   = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSizeT)
+		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
+		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT)
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
 		idxOptsT = namespace.NewIndexOptions().SetEnabled(false).SetBlockSize(indexBlockSizeT)
 		nsOpts   = namespace.NewOptions().
