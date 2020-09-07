@@ -113,7 +113,7 @@ func (r *crossBlockReader) Next() bool {
 	r.records = append(r.records, BlockRecord{firstEntry.data, firstEntry.checksum})
 
 	// as long as id stays the same across the blocks, accumulate records for this id/tags
-	for len(r.minHeap) > 0 && r.minHeap[0].id.Equal(firstEntry.id) {
+	for len(r.minHeap) > 0 && bytes.Equal(r.minHeap[0].id.Bytes(), firstEntry.id.Bytes()) {
 		nextEntry, err := r.readOne()
 		if err != nil {
 			// Close the resources that were already read but not returned to the consumer:
@@ -158,16 +158,31 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 			// will no longer read from this one
 			r.dataFileSetReaders[entry.dataFileSetReaderIndex] = nil
 		} else if err != nil {
+			entry.id.Finalize()
+			entry.tags.Close()
+			entry.data.Finalize()
+
 			return nil, err
-		} else if nextEntry.id.Equal(entry.id) {
+
+		} else if bytes.Equal(nextEntry.id.Bytes(), entry.id.Bytes()) {
 			err := fmt.Errorf("duplicate id %s on block starting at %s",
 				entry.id, r.dataFileSetReaders[entry.dataFileSetReaderIndex].Range().Start)
+
+			entry.id.Finalize()
+			entry.tags.Close()
+			entry.data.Finalize()
+
+			nextEntry.id.Finalize()
+			nextEntry.tags.Close()
+			nextEntry.data.DecRef()
+			nextEntry.data.Finalize()
 
 			instrument.EmitAndLogInvariantViolation(r.iOpts, func(l *zap.Logger) {
 				l.Error(err.Error())
 			})
 
 			return nil, err
+
 		} else {
 			heap.Push(&r.minHeap, nextEntry)
 		}

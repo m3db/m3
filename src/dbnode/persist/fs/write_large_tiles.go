@@ -227,6 +227,7 @@ func (w *largeTilesWriter) Close() error {
 	for i := range w.data {
 		w.data[i] = nil
 	}
+	w.prevIDBytes = nil
 
 	// Write the bloom filter bitset out
 	if err := w.writer.writeBloomFilterFileContents(w.bloomFilter); err != nil {

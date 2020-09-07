@@ -126,7 +126,7 @@ func TestCrossBlockReader(t *testing.T) {
 			expectedIDs:    []string{"id1", "id2", "id3", "id4", "id5"},
 		},
 		{
-			name:           "duplicate ids within a reader",
+			name:           "duplicate ids within a block",
 			blockSeriesIDs: [][]string{{"id1", "id2"}, {"id2", "id2"}},
 			expectedIDs:    []string{"id1"},
 		},
@@ -164,16 +164,31 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
 
 		blockHasError := false
-		for j, id := range ids {
-			tags := ident.NewTags(ident.StringTag("foo", strconv.Itoa(j)))
-			data := checkedBytes([]byte{byte(j)})
-			data.DecRef()                  // start with 0 ref
-			checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
-			if id == "error" {
+		for _, strID := range ids {
+			if strID == "error" {
 				dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), errExpected)
 				blockHasError = true
 			} else {
-				dfsReader.EXPECT().Read().Return(ident.StringID(id), ident.NewTagsIterator(tags), data, checksum, nil)
+				id := ident.NewMockID(ctrl)
+				gomock.InOrder(
+					id.EXPECT().Bytes().Return([]byte(strID)).AnyTimes(),
+					id.EXPECT().String().Return(strID).MaxTimes(1), // only called from test code
+					id.EXPECT().Finalize(),
+				)
+
+				tags := ident.NewMockTagIterator(ctrl)
+				tags.EXPECT().Close()
+
+				data := checked.NewMockBytes(ctrl)
+				gomock.InOrder(
+					data.EXPECT().IncRef(),
+					data.EXPECT().DecRef(),
+					data.EXPECT().Finalize(),
+				)
+
+				checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
+
+				dfsReader.EXPECT().Read().Return(id, tags, data, checksum, nil)
 			}
 		}
 
@@ -208,6 +223,8 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 
 			previousBlockIndex = blockIndex
 			assert.NotNil(t, record.Data)
+
+			record.Data.Finalize()
 		}
 
 		blockCount += len(records)
