@@ -25,6 +25,7 @@ package integration
 import (
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -33,8 +34,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
@@ -164,50 +167,38 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		closer.Close()
 	}()
 
-	start := time.Now()
 	session, err := testSetup.M3DBClient().DefaultSession()
 	require.NoError(t, err)
 	nowFn := testSetup.NowFn()
+	fmt.Println(nowFn())
 
 	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
-	writeTestData(t, testSetup, dpTimeStart, srcNs.ID())
-	log.Info("test data written", zap.Duration("took", time.Since(start)))
-
-	log.Info("waiting till data is cold flushed")
-	start = time.Now()
-	flushed := xclock.WaitUntil(func() bool {
-		counters := reporter.Counters()
-		flushes, _ := counters["database.flushIndex.success"]
-		writes, _ := counters["database.series.cold-writes"]
-		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 && writes >= testDataPointsCount*testSeriesCount && successFlushes >= 4
-	}, time.Minute)
-	require.True(t, flushed)
-	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
+	writeTestData(t, testSetup, log, reporter, dpTimeStart, srcNs.ID())
 
 	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), 10*time.Minute, false)
 	require.NoError(t, err)
 
 	log.Info("Starting aggregation loop")
-	start = time.Now()
+	start := time.Now()
 
 	inProgress := atomic.NewBool(true)
 	var wg sync.WaitGroup
 	for b := 0; b < 4; b++ {
-		b := b
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for inProgress.Load() {
-				//fmt.Printf("Fetch...")
-				series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(b)), dpTimeStart, dpTimeStart.Add(blockSizeT))
-				//fmt.Println(count, "Done")
+				query := index.Query{
+					Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
+				result, _, err := session.FetchTagged(srcNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart, EndExclusive: dpTimeStart.Add(blockSizeT * 10)})
 				if err != nil {
 					fmt.Println(time.Now(), "FETCH ERR", err)
+					require.NoError(t, err)
 					return
 				}
+				require.Equal(t, testSeriesCount, len(result.Iters()))
 
-				series.Close()
+				result.Close()
 				time.Sleep(time.Millisecond)
 			}
 		}()
@@ -277,10 +268,10 @@ func fetchAndValidate(
 
 func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
 	var (
-		rOpts    = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSize)
-		rOptsT   = retention.NewOptions().SetRetentionPeriod(76 * blockSize).SetBlockSize(blockSizeT)
+		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
+		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT)
 		idxOpts  = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSize)
-		idxOptsT = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(indexBlockSizeT)
+		idxOptsT = namespace.NewIndexOptions().SetEnabled(false).SetBlockSize(indexBlockSizeT)
 		nsOpts   = namespace.NewOptions().
 				SetRetentionOptions(rOpts).
 				SetIndexOptions(idxOpts).
@@ -291,6 +282,7 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 			SetColdWritesEnabled(true)
 	)
 
+	os.Setenv("RAW_NAMESPACE", testNamespaces[0].String())
 	srcNs, err := namespace.NewMetadata(testNamespaces[0], nsOpts)
 	require.NoError(t, err)
 	trgNs, err := namespace.NewMetadata(testNamespaces[1], nsOptsT)
@@ -317,7 +309,7 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	return testSetup, srcNs, trgNs, reporter, closer
 }
 
-func writeTestData(t *testing.T, testSetup TestSetup, dpTimeStart time.Time, ns ident.ID) {
+func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter xmetrics.TestStatsReporter, dpTimeStart time.Time, ns ident.ID) {
 	tags := []ident.Tag{
 		ident.StringTag("__name__", "cpu"),
 		ident.StringTag("job", "job1"),
@@ -337,6 +329,7 @@ func writeTestData(t *testing.T, testSetup TestSetup, dpTimeStart time.Time, ns 
 	require.True(t, ok)
 	encodedTagsBytes := encodedTags.Bytes()
 
+	start := time.Now()
 	i := 0
 	for a := 0.0; a < testDataPointsCount; a++ {
 		batchWriter, err := testSetup.DB().BatchWriter(ns, int(testDataPointsCount))
@@ -353,4 +346,18 @@ func writeTestData(t *testing.T, testSetup TestSetup, dpTimeStart time.Time, ns 
 
 		dpTime = dpTime.Add(time.Minute)
 	}
+
+	log.Info("test data written", zap.Duration("took", time.Since(start)))
+
+	log.Info("waiting till data is cold flushed")
+	start = time.Now()
+	flushed := xclock.WaitUntil(func() bool {
+		counters := reporter.Counters()
+		flushes, _ := counters["database.flushIndex.success"]
+		writes, _ := counters["database.series.cold-writes"]
+		successFlushes, _ := counters["database.flushColdData.success"]
+		return flushes >= 1 && writes >= testDataPointsCount*testSeriesCount && successFlushes >= 4
+	}, time.Minute)
+	require.True(t, flushed)
+	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 }
