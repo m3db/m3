@@ -1,5 +1,3 @@
-// +build integration
-
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -55,7 +53,7 @@ import (
 
 var (
 	blockSize       = 2 * time.Hour
-	blockSizeT      = 6 * time.Hour
+	blockSizeT      = 24 * time.Hour
 	indexBlockSize  = 2 * blockSize
 	indexBlockSizeT = 2 * blockSizeT
 )
@@ -85,7 +83,7 @@ func TestReadAggregateWrite(t *testing.T) {
 		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
 		dpTime, 15, xtime.Second, nil)
 
-	testDataPointsCount := 60.0
+	testDataPointsCount := 144.0
 	for a := 0.0; a < testDataPointsCount; a++ {
 		if a < 10 {
 			dpTime = dpTime.Add(10 * time.Minute)
@@ -120,7 +118,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	processedBlockCount, err := testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	require.NoError(t, err)
-	assert.Equal(t, int64(6), processedBlockCount)
+	assert.Equal(t, int64(24), processedBlockCount)
 
 	require.True(t, xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
@@ -148,10 +146,10 @@ func TestReadAggregateWrite(t *testing.T) {
 	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("aab"), dpTimeStart, nowFn(), expectedDps)
 }
 
-const (
+var (
 	iterationCount      = 100
 	testSeriesCount     = 100
-	testDataPointsCount = 600
+	testDataPointsCount = int(blockSizeT.Hours()) * 100
 )
 
 func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
@@ -167,8 +165,6 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		closer.Close()
 	}()
 
-	session, err := testSetup.M3DBClient().DefaultSession()
-	require.NoError(t, err)
 	nowFn := testSetup.NowFn()
 	fmt.Println(nowFn())
 
@@ -184,13 +180,20 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	inProgress := atomic.NewBool(true)
 	var wg sync.WaitGroup
 	for b := 0; b < 4; b++ {
+
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
+
+			query := index.Query{
+				Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
+
 			for inProgress.Load() {
-				query := index.Query{
-					Query: idx.NewTermQuery([]byte("job"), []byte("job1"))}
-				result, _, err := session.FetchTagged(srcNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart, EndExclusive: dpTimeStart.Add(blockSizeT * 10)})
+				session, err := testSetup.M3DBClient().NewSession()
+				require.NoError(t, err)
+				result, _, err := session.FetchTagged(srcNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart.Add(-blockSizeT), EndExclusive: nowFn()})
+				session.Close()
 				if err != nil {
 					fmt.Println(time.Now(), "FETCH ERR", err)
 					require.NoError(t, err)
@@ -211,16 +214,14 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		fmt.Println(time.Now(), "Aggregation", a+1, "/", iterationCount)
 		ctx := storageOpts.ContextPool().Get()
 		processedBlockCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
-		ctx.Close()
+		ctx.BlockingClose()
 		if err != nil {
 			require.NoError(t, err)
 			fmt.Println(time.Now(), "AGG ERR", err)
 		}
 		expectedPoints := int64(testDataPointsCount * testSeriesCount / 100 * 6)
 		fmt.Println("Aggregation-Done", processedBlockCount, expectedPoints)
-		if err != nil || processedBlockCount != expectedPoints {
-			break
-		}
+		require.Equal(t, processedBlockCount, expectedPoints)
 	}
 	inProgress.Toggle()
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
@@ -234,7 +235,10 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
 	require.Equal(t, int64(testSeriesCount*iterationCount), seriesWritesCount)
 
+	session, err := testSetup.M3DBClient().NewSession()
+	require.NoError(t, err)
 	series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+string(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
+	session.Close()
 	require.NoError(t, err)
 
 	sTags := series.Tags()
@@ -331,13 +335,13 @@ func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter 
 
 	start := time.Now()
 	i := 0
-	for a := 0.0; a < testDataPointsCount; a++ {
+	for a := 0; a < testDataPointsCount; a++ {
 		batchWriter, err := testSetup.DB().BatchWriter(ns, int(testDataPointsCount))
 		require.NoError(t, err)
 
 		for b := 0; b < testSeriesCount; b++ {
 			tagsIter.Rewind()
-			err := batchWriter.AddTagged(i, ident.StringID("foo"+string(b)), tagsIter, encodedTagsBytes, dpTime, 42.1+a, xtime.Second, nil)
+			err := batchWriter.AddTagged(i, ident.StringID("foo"+string(b)), tagsIter, encodedTagsBytes, dpTime, 42.1+float64(a), xtime.Second, nil)
 			require.NoError(t, err)
 			i++
 		}
@@ -356,7 +360,7 @@ func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter 
 		flushes, _ := counters["database.flushIndex.success"]
 		writes, _ := counters["database.series.cold-writes"]
 		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 && writes >= testDataPointsCount*testSeriesCount && successFlushes >= 4
+		return flushes >= 1 && int(writes) >= testDataPointsCount*testSeriesCount && successFlushes >= 4
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
