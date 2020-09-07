@@ -90,9 +90,9 @@ func maxSeries(ctx *common.Context, series multiplePathSpecs) (ts.SeriesList, er
 	return combineSeries(ctx, series, wrapPathExpr("maxSeries", ts.SeriesList(series)), ts.Max)
 }
 
-func divideSeriesHelper(ctx *common.Context, dividendSeries, divisorSeries ts.Series, metadata block.ResultMetadata) (*ts.Series, error) {
+func divideSeriesHelper(ctx *common.Context, dividendSeries, divisorSeries *ts.Series, metadata block.ResultMetadata) (*ts.Series, error) {
 	normalized, minBegin, _, lcmMillisPerStep, err := common.Normalize(ctx, ts.SeriesList{
-		Values:   []*ts.Series{&dividendSeries, &divisorSeries},
+		Values:   []*ts.Series{dividendSeries, divisorSeries},
 		Metadata: metadata,
 	})
 	if err != nil {
@@ -134,7 +134,7 @@ func divideSeries(ctx *common.Context, dividendSeriesList, divisorSeriesList sin
 	results := make([]*ts.Series, len(dividendSeriesList.Values))
 	for idx, dividendSeries := range dividendSeriesList.Values {
 		metadata :=  divisorSeriesList.Metadata.CombineMetadata(dividendSeriesList.Metadata)
-		quotientSeries, err := divideSeriesHelper(ctx, *dividendSeries, *divisorSeries, metadata)
+		quotientSeries, err := divideSeriesHelper(ctx, dividendSeries, divisorSeries, metadata)
 		if err != nil {
 			return ts.NewSeriesList(), err
 		}
@@ -158,7 +158,7 @@ func divideSeriesLists(ctx *common.Context, dividendSeriesList, divisorSeriesLis
 	for idx, dividendSeries := range dividendSeriesList.Values {
 		divisorSeries := divisorSeriesList.Values[idx]
 		metadata :=  divisorSeriesList.Metadata.CombineMetadata(dividendSeriesList.Metadata)
-		quotientSeries, err := divideSeriesHelper(ctx, *dividendSeries, *divisorSeries, metadata)
+		quotientSeries, err := divideSeriesHelper(ctx, dividendSeries, divisorSeries, metadata)
 		if err != nil {
 			return ts.NewSeriesList(), err
 		}
