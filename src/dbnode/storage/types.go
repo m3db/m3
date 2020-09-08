@@ -548,7 +548,7 @@ type databaseShard interface {
 		snapshotStart time.Time,
 		flush persist.SnapshotPreparer,
 		nsCtx namespace.Context,
-	) error
+	) (ShardSnapshotResult, error)
 
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) (fileOpState, error)
@@ -581,6 +581,11 @@ type databaseShard interface {
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Document, bool, error)
+}
+
+// ShardSnapshotResult is a result from a shard snapshot.
+type ShardSnapshotResult struct {
+	SeriesPersist int
 }
 
 // ShardColdFlush exposes a done method to finalize shard cold flush

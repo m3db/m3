@@ -159,6 +159,12 @@ type DatabaseSeries interface {
 
 // SnapshotResult contains metadata regarding the snapshot.
 type SnapshotResult struct {
+	Persist bool
+	Stats   SnapshotResultStats
+}
+
+// SnapshotResultStats contains stats regarding the snapshot.
+type SnapshotResultStats struct {
 	TimeMergeByBucket      time.Duration
 	TimeMergeAcrossBuckets time.Duration
 	TimeChecksum           time.Duration
@@ -166,7 +172,7 @@ type SnapshotResult struct {
 }
 
 // Add adds the result of a snapshot result to this result.
-func (r *SnapshotResult) Add(other SnapshotResult) {
+func (r *SnapshotResultStats) Add(other SnapshotResultStats) {
 	r.TimeMergeByBucket += other.TimeMergeByBucket
 	r.TimeMergeAcrossBuckets += other.TimeMergeAcrossBuckets
 	r.TimeChecksum += other.TimeChecksum

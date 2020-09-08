@@ -561,7 +561,7 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	afterMergeByBucket := b.nowFn()
-	result.TimeMergeByBucket = afterMergeByBucket.Sub(start)
+	result.Stats.TimeMergeByBucket = afterMergeByBucket.Sub(start)
 
 	var (
 		numStreams         = len(streams)
@@ -605,7 +605,7 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	afterMergeAcrossBuckets := b.nowFn()
-	result.TimeMergeAcrossBuckets = afterMergeAcrossBuckets.Sub(afterMergeByBucket)
+	result.Stats.TimeMergeAcrossBuckets = afterMergeAcrossBuckets.Sub(afterMergeByBucket)
 
 	if segment.Len() == 0 {
 		// Don't write out series with no data.
@@ -615,13 +615,13 @@ func (b *dbBuffer) Snapshot(
 	checksum := segment.CalculateChecksum()
 
 	afterChecksum := b.nowFn()
-	result.TimeChecksum = afterChecksum.Sub(afterMergeAcrossBuckets)
+	result.Stats.TimeChecksum = afterChecksum.Sub(afterMergeAcrossBuckets)
 
 	if err := persistFn(metadata, segment, checksum); err != nil {
 		return result, err
 	}
 
-	result.TimePersist = b.nowFn().Sub(afterChecksum)
+	result.Stats.TimePersist = b.nowFn().Sub(afterChecksum)
 	return result, nil
 }
 

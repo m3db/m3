@@ -784,7 +784,7 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 	s.bootstrapState = Bootstrapping
 
 	snapshotPreparer := persist.NewMockSnapshotPreparer(ctrl)
-	err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
+	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
 	require.Equal(t, errShardNotBootstrappedToSnapshot, err)
 }
 
@@ -832,8 +832,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		s.list.PushBack(lookup.NewEntry(entry, 0))
 	}
 
-	err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
-
+	_, err := s.Snapshot(blockStart, blockStart, snapshotPreparer, namespace.Context{})
 	require.Equal(t, len(snapshotted), 2)
 	for i := 0; i < 2; i++ {
 		_, ok := snapshotted[i]
