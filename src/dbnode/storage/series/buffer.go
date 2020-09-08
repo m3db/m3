@@ -622,6 +622,8 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	result.Stats.TimePersist = b.nowFn().Sub(afterChecksum)
+
+	result.Persist = true
 	return result, nil
 }
 
