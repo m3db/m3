@@ -22,6 +22,7 @@ package pool
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"sync/atomic"
 
@@ -57,6 +58,11 @@ type objectPoolMetrics struct {
 	total      tally.Gauge
 	getOnEmpty tally.Counter
 	putOnFull  tally.Counter
+}
+
+type FinalizeableOnce interface {
+	Finalized() bool
+	SetFinalized(f bool)
 }
 
 // NewObjectPool creates a new pool
@@ -119,6 +125,9 @@ func (p *objectPool) Get() interface{} {
 		v = p.alloc()
 		metrics.getOnEmpty.Inc(1)
 	}
+	if v, ok := v.(FinalizeableOnce); ok {
+		v.SetFinalized(false)
+	}
 
 	if unsafe.Fastrandn(sampleObjectPoolLengthEvery) == 0 {
 		// inlined setGauges()
@@ -138,6 +147,15 @@ func (p *objectPool) Put(obj interface{}) {
 		p.onPoolAccessErrorFn(errPoolAccessBeforeInitialized)
 		return
 	}
+
+	if obj, ok := obj.(FinalizeableOnce); ok {
+		if obj.Finalized() {
+			p.onPoolAccessErrorFn(fmt.Errorf("double finalize, %v", obj))
+			return
+		}
+		obj.SetFinalized(true)
+	}
+
 	select {
 	case p.values <- obj:
 	default:

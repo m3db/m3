@@ -35,6 +35,7 @@ var (
 )
 
 type decoder struct {
+	checked.FinalizeableOnce
 	checkedData checked.Bytes
 	data        []byte
 	nextCalls   int

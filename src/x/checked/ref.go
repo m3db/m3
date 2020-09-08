@@ -33,6 +33,7 @@ import (
 
 // RefCount is an embeddable checked.Ref.
 type RefCount struct {
+	FinalizeableOnce
 	ref           int32
 	reads         int32
 	writes        int32
@@ -102,7 +103,7 @@ func (c *RefCount) finalizeWithLock() {
 // DelayFinalizer will delay calling the finalizer on this entity
 // until the closer returned by the method is called at least once.
 // This is useful for dependent resources requiring the lifetime of this
-// entityt to be extended.
+// entity to be extended.
 func (c *RefCount) DelayFinalizer() resource.Closer {
 	c.finalizeState.Lock()
 	c.finalizeState.delayRef++

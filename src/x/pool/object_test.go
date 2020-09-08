@@ -22,8 +22,11 @@ package pool
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/m3db/m3/src/x/checked"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,6 +120,28 @@ func TestObjectPoolPutBeforeInitError(t *testing.T) {
 
 	assert.Error(t, accessErr)
 	assert.Equal(t, errPoolAccessBeforeInitialized, accessErr)
+}
+
+func TestObjectPoolDoublePutError(t *testing.T) {
+	var _ FinalizeableOnce = (*checked.RefCount)(nil) // ensure interface compliance
+
+	var accessErr error
+	opts := NewObjectPoolOptions().SetOnPoolAccessErrorFn(func(err error) {
+		accessErr = err
+	})
+
+	pool := NewObjectPool(opts)
+	pool.Init(func() interface{} {
+		return 1
+	})
+
+	bytes := checked.NewBytes([]byte{0}, checked.NewBytesOptions())
+	pool.Put(bytes)
+	require.NoError(t, accessErr)
+
+	pool.Put(bytes)
+	assert.Error(t, accessErr)
+	assert.True(t, strings.HasPrefix(accessErr.Error(), "double finalize"))
 }
 
 func BenchmarkObjectPoolGetPut(b *testing.B) {

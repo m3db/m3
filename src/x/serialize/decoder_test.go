@@ -22,10 +22,12 @@ package serialize
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/golang/mock/gomock"
@@ -342,6 +344,27 @@ func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
 	mockBytes.EXPECT().NumRef().Return(0)
 	mockBytes.EXPECT().Finalize()
 	dupe.Close()
+}
+
+func TestDecodeDoubleCloseError(t *testing.T) {
+	var _ pool.FinalizeableOnce = (*decoder)(nil) // ensure interface compliance
+
+	var accessErr error
+	poolOpts := pool.NewObjectPoolOptions().SetOnPoolAccessErrorFn(func(err error) {
+		accessErr = err
+	})
+
+	decoderPool := NewTagDecoderPool(testDecodeOpts, poolOpts)
+	decoderPool.Init()
+
+	d := newTagDecoder(testDecodeOpts, decoderPool)
+
+	d.Close()
+	require.NoError(t, accessErr)
+
+	d.Close()
+	require.Error(t, accessErr)
+	assert.True(t, strings.HasPrefix(accessErr.Error(), "double finalize"))
 }
 
 func newTestTagDecoder() TagDecoder {
