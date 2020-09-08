@@ -683,9 +683,11 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		return nil, err
 	}
 
-	// Step 2: If fetching data read the results of the asynchronuous block readers.
+	// Step 2: If fetching data read the results of the asynchronous block readers.
 	if fetchData {
-		s.fetchReadResults(ctx, response, nsID, encodedDataResults)
+		if err := s.fetchReadResults(ctx, response, nsID, callStart, encodedDataResults); err != nil {
+			return nil, err
+		}
 	}
 
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
@@ -740,7 +742,8 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
 			opts.StartInclusive, opts.EndExclusive)
 		if err != nil {
-			elem.Err = convert.ToRPCError(err)
+			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
+			return convert.ToRPCError(err)
 		} else {
 			encodedDataResults[idx] = encoded
 		}
@@ -748,11 +751,13 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 	return nil
 }
 
-func (s *service) fetchReadResults(ctx context.Context,
+func (s *service) fetchReadResults(
+	ctx context.Context,
 	response *rpc.FetchTaggedResult_,
 	nsID ident.ID,
+	callStart time.Time,
 	encodedDataResults [][][]xio.BlockReader,
-) {
+) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadResults)
 	if sampled {
 		sp.LogFields(
@@ -762,19 +767,16 @@ func (s *service) fetchReadResults(ctx context.Context,
 	}
 	defer sp.Finish()
 
-	for idx, elem := range response.Elements {
-		if elem.Err != nil {
-			continue
-		}
-
+	for idx := range response.Elements {
 		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedDataResults[idx])
 		if rpcErr != nil {
-			elem.Err = rpcErr
-			continue
+			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
+			return rpcErr
 		}
 
 		response.Elements[idx].Segments = segments
 	}
+	return nil
 }
 
 func (s *service) Aggregate(tctx thrift.Context, req *rpc.AggregateQueryRequest) (*rpc.AggregateQueryResult_, error) {
