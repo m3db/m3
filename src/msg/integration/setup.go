@@ -237,7 +237,7 @@ func (s *setup) Run(
 func (s *setup) VerifyConsumers(t *testing.T) {
 	numWritesPerProducer := s.ExpectedNumMessages()
 	for _, cs := range s.consumerServices {
-		require.Equal(t, numWritesPerProducer, len(cs.consumed))
+		require.Equal(t, numWritesPerProducer, cs.numConsumed())
 	}
 }
 
@@ -407,6 +407,13 @@ func (cs *testConsumerService) markConsumed(b []byte) {
 	cs.consumed[string(b)] = struct{}{}
 }
 
+func (cs *testConsumerService) numConsumed() int {
+	cs.Lock()
+	defer cs.Unlock()
+
+	return len(cs.consumed)
+}
+
 func (cs *testConsumerService) Close() {
 	for _, c := range cs.testConsumers {
 		c.Close()
@@ -435,6 +442,13 @@ func (c *testConsumer) Close() {
 	c.closed = true
 	c.listener.Close()
 	close(c.doneCh)
+}
+
+func (c *testConsumer) numConsumed() int {
+	c.Lock()
+	defer c.Unlock()
+
+	return c.consumed
 }
 
 func newTestConsumer(t *testing.T, cs *testConsumerService) *testConsumer {
@@ -539,8 +553,8 @@ writer:
   topicName: topicName
   topicWatchInitTimeout: 100ms
   placementWatchInitTimeout: 100ms
-  messagePool:
-    size: 100
+  # FIXME: Consumers sharing the same pool trigger false-positives in race detector
+  messagePool: ~
   messageRetry:
     initialBackoff: 20ms
     maxBackoff: 50ms
