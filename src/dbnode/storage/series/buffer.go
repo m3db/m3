@@ -96,7 +96,7 @@ type databaseBuffer interface {
 		metadata persist.Metadata,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
-	) error
+	) (SnapshotResult, error)
 
 	WarmFlush(
 		ctx context.Context,
@@ -541,10 +541,15 @@ func (b *dbBuffer) Snapshot(
 	metadata persist.Metadata,
 	persistFn persist.DataFn,
 	nsCtx namespace.Context,
-) error {
+) (SnapshotResult, error) {
+	var (
+		start  = b.nowFn()
+		result SnapshotResult
+	)
+
 	buckets, exists := b.bucketVersionsAt(blockStart)
 	if !exists {
-		return nil
+		return result, nil
 	}
 
 	// Snapshot must take both cold and warm writes because cold flushes don't
@@ -552,13 +557,22 @@ func (b *dbBuffer) Snapshot(
 	// warm flush has happened).
 	streams, err := buckets.mergeToStreams(ctx, streamsOptions{filterWriteType: false, nsCtx: nsCtx})
 	if err != nil {
-		return err
+		return result, err
 	}
-	numStreams := len(streams)
 
-	var mergedStream xio.SegmentReader
-	if numStreams == 1 {
-		mergedStream = streams[0]
+	afterMergeByBucket := b.nowFn()
+	result.Stats.TimeMergeByBucket = afterMergeByBucket.Sub(start)
+
+	var (
+		numStreams         = len(streams)
+		mergeAcrossBuckets = numStreams != 1
+		segment            ts.Segment
+	)
+	if !mergeAcrossBuckets {
+		segment, err = streams[0].Segment()
+		if err != nil {
+			return result, err
+		}
 	} else {
 		// We may need to merge again here because the regular merge method does
 		// not merge warm and cold buckets or buckets that have different versions.
@@ -580,34 +594,37 @@ func (b *dbBuffer) Snapshot(
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
 			if err := encoder.Encode(dp, unit, annotation); err != nil {
-				return err
+				return result, err
 			}
 		}
 		if err := iter.Err(); err != nil {
-			return err
+			return result, err
 		}
 
-		var ok bool
-		mergedStream, ok = encoder.Stream(ctx)
-		if !ok {
-			// Don't write out series with no data.
-			return nil
-		}
+		segment = encoder.Discard()
 	}
 
-	segment, err := mergedStream.Segment()
-	if err != nil {
-		return err
-	}
+	afterMergeAcrossBuckets := b.nowFn()
+	result.Stats.TimeMergeAcrossBuckets = afterMergeAcrossBuckets.Sub(afterMergeByBucket)
 
 	if segment.Len() == 0 {
 		// Don't write out series with no data.
-		return nil
+		return result, nil
 	}
 
 	checksum := segment.CalculateChecksum()
 
-	return persistFn(metadata, segment, checksum)
+	afterChecksum := b.nowFn()
+	result.Stats.TimeChecksum = afterChecksum.Sub(afterMergeAcrossBuckets)
+
+	if err := persistFn(metadata, segment, checksum); err != nil {
+		return result, err
+	}
+
+	result.Stats.TimePersist = b.nowFn().Sub(afterChecksum)
+
+	result.Persist = true
+	return result, nil
 }
 
 func (b *dbBuffer) WarmFlush(
