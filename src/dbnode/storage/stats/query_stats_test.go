@@ -54,8 +54,11 @@ func (t *testQueryStatsTracker) StatsValues() QueryStatsValues {
 	return t.QueryStatsValues
 }
 
-func (t *testQueryStatsTracker) Lookback() time.Duration {
-	return t.lookback
+func (t *testQueryStatsTracker) Options() QueryStatsOptions {
+	return QueryStatsOptions{
+		MaxDocsLookback:      t.lookback,
+		MaxBytesReadLookback: t.lookback,
+	}
 }
 
 func TestUpdateTracker(t *testing.T) {
@@ -64,11 +67,11 @@ func TestUpdateTracker(t *testing.T) {
 	queryStats := NewQueryStats(tracker)
 	defer queryStats.Stop()
 
-	err := queryStats.Update(3)
+	err := queryStats.UpdateDocs(3)
 	require.NoError(t, err)
 	verifyStats(t, tracker, 3, 3)
 
-	err = queryStats.Update(2)
+	err = queryStats.UpdateDocs(2)
 	require.NoError(t, err)
 	verifyStats(t, tracker, 2, 5)
 }
@@ -78,7 +81,7 @@ func TestPeriodicallyResetRecentDocs(t *testing.T) {
 
 	queryStats := NewQueryStats(tracker)
 
-	err := queryStats.Update(1)
+	err := queryStats.UpdateDocs(1)
 	require.NoError(t, err)
 	verifyStats(t, tracker, 1, 1)
 

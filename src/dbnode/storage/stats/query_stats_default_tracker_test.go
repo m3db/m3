@@ -69,8 +69,8 @@ func TestValidateTrackerInputs(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			err := QueryStatsOptions{
-				MaxDocs:  test.maxDocs,
-				Lookback: test.lookback,
+				MaxDocs:         test.maxDocs,
+				MaxDocsLookback: test.lookback,
 			}.Validate()
 			if test.expectedError != "" {
 				require.Error(t, err)
@@ -90,14 +90,14 @@ func TestEmitQueryStatsBasedMetrics(t *testing.T) {
 		{
 			name: "metrics only",
 			opts: QueryStatsOptions{
-				Lookback: time.Second,
+				MaxDocsLookback: time.Second,
 			},
 		},
 		{
 			name: "metrics and limits",
 			opts: QueryStatsOptions{
-				MaxDocs:  1000,
-				Lookback: time.Second,
+				MaxDocs:         1000,
+				MaxDocsLookback: time.Second,
 			},
 		},
 	} {
@@ -132,14 +132,14 @@ func TestLimitMaxDocs(t *testing.T) {
 		{
 			name: "metrics only",
 			opts: QueryStatsOptions{
-				Lookback: time.Second,
+				MaxDocsLookback: time.Second,
 			},
 		},
 		{
 			name: "metrics and limits",
 			opts: QueryStatsOptions{
-				MaxDocs:  100,
-				Lookback: time.Second,
+				MaxDocs:         100,
+				MaxDocsLookback: time.Second,
 			},
 			expectLimitError: "query aborted, global recent time series blocks over limit: limit=100, current=101, within=1s",
 		},

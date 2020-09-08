@@ -88,7 +88,7 @@ func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
 		return fmt.Errorf(
 			"query aborted, global recent time series blocks over limit: "+
 				"limit=%d, current=%d, within=%s",
-			t.options.MaxDocs, values.RecentDocs, t.options.Lookback)
+			t.options.MaxDocs, values.RecentDocs, t.options.MaxDocsLookback)
 	}
 	// Enforce max queried docs (if specified).
 	if t.options.MaxBytesRead > 0 && values.RecentBytesRead > t.options.MaxBytesRead {
@@ -96,7 +96,12 @@ func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
 		return fmt.Errorf(
 			"query aborted, global recent time series bytes read from disk over limit: "+
 				"limit=%d, current=%d, within=%s",
-			t.options.MaxBytesRead, values.RecentBytesRead, t.options.Lookback)
+			t.options.MaxBytesRead, values.RecentBytesRead, t.options.MaxBytesReadLookback)
 	}
 	return nil
+}
+
+// Options returns the tracker options.
+func (t *queryStatsTracker) Options() QueryStatsOptions {
+	return t.options
 }

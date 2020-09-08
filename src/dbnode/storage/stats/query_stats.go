@@ -86,9 +86,10 @@ type QueryStatsTracker interface {
 // NewQueryStats enables query stats to be tracked within a recency lookback duration.
 func NewQueryStats(tracker QueryStatsTracker) QueryStats {
 	return &queryStats{
-		tracker:    tracker,
-		recentDocs: atomic.NewInt64(0),
-		stopCh:     make(chan struct{}),
+		tracker:         tracker,
+		recentDocs:      atomic.NewInt64(0),
+		recentBytesRead: atomic.NewInt64(0),
+		stopCh:          make(chan struct{}),
 	}
 }
 
