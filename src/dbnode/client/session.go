@@ -159,6 +159,7 @@ type session struct {
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
 	streamBlocksBatchTimeout         time.Duration
+	writeShardsInitializing          bool
 	metrics                          sessionMetrics
 }
 
@@ -288,7 +289,8 @@ func newSession(opts Options) (clientSession, error) {
 			context: opts.ContextPool(),
 			id:      opts.IdentifierPool(),
 		},
-		metrics: newSessionMetrics(scope),
+		writeShardsInitializing: opts.WriteShardsInitializing(),
+		metrics:                 newSessionMetrics(scope),
 	}
 	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
 	s.pickBestPeerFn = s.streamBlocksPickBestPeer
@@ -731,9 +733,9 @@ func (s *session) hostQueues(
 		}
 		// Be optimistic
 		clusterAvailable := true
-		for _, shard := range shards {
+		for _, shardID := range shards {
 			shardReplicasAvailable := 0
-			routeErr := topoMap.RouteShardForEach(shard, func(idx int, _ topology.Host) {
+			routeErr := topoMap.RouteShardForEach(shardID, func(idx int, _ shard.Shard, _ topology.Host) {
 				if queues[idx].ConnectionCount() >= minConnectionCount {
 					shardReplicasAvailable++
 				}
@@ -1142,7 +1144,19 @@ func (s *session) writeAttemptWithRLock(
 	state.nsID, state.tsID, state.tagEncoder = nsID, tsID, tagEncoder
 	op.SetCompletionFn(state.completionFn)
 
-	if err := s.state.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
+	if err := s.state.topoMap.RouteForEach(tsID, func(
+		idx int,
+		hostShard shard.Shard,
+		host topology.Host,
+	) {
+		if !s.writeShardsInitializing && hostShard.State() == shard.Initializing {
+			// NB(r): Do not write to this node as the shard is initializing
+			// and writing to intialized shards is not enabled (also
+			// depending on your config initializing shards won't count
+			// towards quorum, current defaults, so this is ok consistency wise).
+			return
+		}
+
 		// Count pending write requests before we enqueue the completion fns,
 		// which rely on the count when executing
 		state.pending++
@@ -1706,7 +1720,11 @@ func (s *session) fetchIDsAttempt(
 			}
 		}
 
-		if err := s.state.topoMap.RouteForEach(tsID, func(hostIdx int, host topology.Host) {
+		if err := s.state.topoMap.RouteForEach(tsID, func(
+			hostIdx int,
+			hostShard shard.Shard,
+			host topology.Host,
+		) {
 			// Inc safely as this for each is sequential
 			enqueued++
 			pending++
@@ -1943,17 +1961,21 @@ func (p peers) selfExcludedAndSelfHasShardAvailable() bool {
 	return state == shard.Available
 }
 
-func (s *session) peersForShard(shard uint32) (peers, error) {
+func (s *session) peersForShard(shardID uint32) (peers, error) {
 	s.state.RLock()
 	var (
 		lookupErr error
 		result    = peers{
 			peers:            make([]peer, 0, s.state.topoMap.Replicas()),
-			shard:            shard,
+			shard:            shardID,
 			majorityReplicas: s.state.topoMap.MajorityReplicas(),
 		}
 	)
-	err := s.state.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
+	err := s.state.topoMap.RouteShardForEach(shardID, func(
+		idx int,
+		_ shard.Shard,
+		host topology.Host,
+	) {
 		if s.origin != nil && s.origin.ID() == host.ID() {
 			// Don't include the origin host
 			result.selfExcluded = true
