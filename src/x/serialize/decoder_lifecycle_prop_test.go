@@ -112,6 +112,9 @@ var decoderCommandsFunctor = func(t *testing.T) *commands.ProtoCommands {
 		},
 		DestroySystemUnderTestFunc: func(s commands.SystemUnderTest) {
 			sys := s.(*multiDecoderSystem)
+			defer func() {
+				recover() // might be closing already closed objects
+			}()
 			sys.primary.Close()
 			for _, dupe := range sys.duplicates {
 				dupe.Close()
@@ -304,6 +307,10 @@ var duplicateCmd = &commands.ProtoCommand{
 
 var closeCmd = &commands.ProtoCommand{
 	Name: "Close",
+	PreConditionFunc: func(s commands.State) bool {
+		state := s.(*multiDecoderState)
+		return !state.primary.closed
+	},
 	RunFunc: func(s commands.SystemUnderTest) commands.Result {
 		sys := s.(*multiDecoderSystem)
 		d := sys.primary.(*decoder)
