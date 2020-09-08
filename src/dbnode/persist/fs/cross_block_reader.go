@@ -111,14 +111,14 @@ func (r *crossBlockReader) Next() bool {
 	r.records = r.records[:0]
 	r.records = append(r.records, BlockRecord{firstEntry.data, firstEntry.checksum})
 
-	for len(r.minHeap) > 0 && r.minHeap[0].id.Equal(firstEntry.id) {
+	// as long as id stays the same across the blocks, accumulate records for this id/tags
+	for len(r.minHeap) > 0 && bytes.Equal(r.minHeap[0].id.Bytes(), firstEntry.id.Bytes()) {
 		nextEntry, err := r.readOne()
 		if err != nil {
 			// Close the resources that were already read but not returned to the consumer:
 			r.id.Finalize()
 			r.tags.Close()
 			for _, record := range r.records {
-				record.Data.DecRef()
 				record.Data.Finalize()
 			}
 			for i := range r.records {
@@ -149,22 +149,39 @@ func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
 	}
 
 	entry := heap.Pop(&r.minHeap).(*minHeapEntry)
+	entry.data.DecRef()
+
 	if r.dataFileSetReaders[entry.dataFileSetReaderIndex] != nil {
 		nextEntry, err := r.readFromDataFileSet(entry.dataFileSetReaderIndex)
 		if err == io.EOF {
 			// will no longer read from this one
 			r.dataFileSetReaders[entry.dataFileSetReaderIndex] = nil
 		} else if err != nil {
+			entry.id.Finalize()
+			entry.tags.Close()
+			entry.data.Finalize()
+
 			return nil, err
+
 		} else if bytes.Equal(nextEntry.id.Bytes(), entry.id.Bytes()) {
 			err := fmt.Errorf("duplicate id %s on block starting at %s",
 				entry.id, r.dataFileSetReaders[entry.dataFileSetReaderIndex].Range().Start)
+
+			entry.id.Finalize()
+			entry.tags.Close()
+			entry.data.Finalize()
+
+			nextEntry.id.Finalize()
+			nextEntry.tags.Close()
+			nextEntry.data.DecRef()
+			nextEntry.data.Finalize()
 
 			instrument.EmitAndLogInvariantViolation(r.iOpts, func(l *zap.Logger) {
 				l.Error(err.Error())
 			})
 
 			return nil, err
+
 		} else {
 			heap.Push(&r.minHeap, nextEntry)
 		}
@@ -207,6 +224,8 @@ func (r *crossBlockReader) readFromDataFileSet(index int) (*minHeapEntry, error)
 		return nil, multiErr.FinalError()
 	}
 
+	data.IncRef()
+
 	return &minHeapEntry{
 		dataFileSetReaderIndex: index,
 		id:                     id,
@@ -225,6 +244,7 @@ func (r *crossBlockReader) Close() error {
 	for i, entry := range r.minHeap {
 		entry.id.Finalize()
 		entry.tags.Close()
+
 		entry.data.DecRef()
 		entry.data.Finalize()
 		r.minHeap[i] = nil

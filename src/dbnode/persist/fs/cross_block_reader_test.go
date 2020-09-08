@@ -29,16 +29,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var expectedError = errors.New("expected error")
+var errExpected = errors.New("expected error")
 
 func TestCrossBlockReaderRejectMisconfiguredInputs(t *testing.T) {
 	ctrl := xtest.NewController(t)
@@ -120,7 +122,7 @@ func TestCrossBlockReader(t *testing.T) {
 			expectedIDs:    []string{"id1", "id2", "id3", "id4", "id5"},
 		},
 		{
-			name:           "duplicate ids within a reader",
+			name:           "duplicate ids within a block",
 			blockSeriesIDs: [][]string{{"id1", "id2"}, {"id2", "id2"}},
 			expectedIDs:    []string{"id1"},
 		},
@@ -149,6 +151,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 
 	now := time.Now().Truncate(time.Hour)
 	var dfsReaders []DataFileSetReader
+
 	expectedBlockCount := 0
 
 	for blockIndex, ids := range blockSeriesIds {
@@ -157,15 +160,31 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
 
 		blockHasError := false
-		for j, id := range ids {
-			tags := ident.NewTags(ident.StringTag("foo", strconv.Itoa(j)))
-			data := checkedBytes([]byte{byte(j)})
-			checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
-			if id == "error" {
-				dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), expectedError)
+		for _, strID := range ids {
+			if strID == "error" {
+				dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), errExpected)
 				blockHasError = true
 			} else {
-				dfsReader.EXPECT().Read().Return(ident.StringID(id), ident.NewTagsIterator(tags), data, checksum, nil)
+				id := ident.NewMockID(ctrl)
+				gomock.InOrder(
+					id.EXPECT().Bytes().Return([]byte(strID)).AnyTimes(),
+					id.EXPECT().String().Return(strID).MaxTimes(1), // only called from test code
+					id.EXPECT().Finalize(),
+				)
+
+				tags := ident.NewMockTagIterator(ctrl)
+				tags.EXPECT().Close()
+
+				data := checked.NewMockBytes(ctrl)
+				gomock.InOrder(
+					data.EXPECT().IncRef(),
+					data.EXPECT().DecRef(),
+					data.EXPECT().Finalize(),
+				)
+
+				checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
+
+				dfsReader.EXPECT().Read().Return(id, tags, data, checksum, nil)
 			}
 		}
 
@@ -186,9 +205,9 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 	for cbReader.Next() {
 		id, tags, records := cbReader.Current()
 
-		strId := id.String()
+		strID := id.String()
 		id.Finalize()
-		assert.Equal(t, expectedIDs[seriesCount], strId)
+		assert.Equal(t, expectedIDs[seriesCount], strID)
 
 		assert.NotNil(t, tags)
 		tags.Close()
@@ -197,9 +216,10 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 		for _, record := range records {
 			blockIndex := int(record.DataChecksum) // see the comment above
 			assert.True(t, blockIndex > previousBlockIndex, "same id blocks must be read in temporal order")
+
 			previousBlockIndex = blockIndex
 			assert.NotNil(t, record.Data)
-			record.Data.DecRef()
+
 			record.Data.Finalize()
 		}
 
@@ -210,7 +230,94 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 	assert.Equal(t, len(expectedIDs), seriesCount, "count of series read")
 
 	err = cbReader.Err()
-	if err == nil || (err.Error() != expectedError.Error() && !strings.HasPrefix(err.Error(), "duplicate id")) {
+	if err == nil || (err.Error() != errExpected.Error() && !strings.HasPrefix(err.Error(), "duplicate id")) {
+		require.NoError(t, cbReader.Err())
+		assert.Equal(t, expectedBlockCount, blockCount, "count of blocks read")
+	}
+
+	for _, dfsReader := range dfsReaders {
+		assert.NotNil(t, dfsReader)
+	}
+}
+
+func TestSkippingReader(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	now := time.Now().Truncate(time.Hour)
+	var dfsReaders []DataFileSetReader
+
+	expectedBlockCount := 0
+
+	blockSeriesIDs := [][]string{{"id1"}, {"id2"}, {"id3"}}
+	expectedIDs := []string{"id3"}
+	for blockIndex, ids := range blockSeriesIDs {
+		dfsReader := NewMockDataFileSetReader(ctrl)
+		dfsReader.EXPECT().OrderedByIndex().Return(true)
+		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
+
+		blockHasError := false
+		for j, id := range ids {
+			tags := ident.NewTags(ident.StringTag("foo", strconv.Itoa(j)))
+			data := checkedBytes([]byte{byte(j)})
+			data.DecRef()                  // start with 0 ref
+			checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
+			if id == "error" {
+				dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), errExpected)
+				blockHasError = true
+			} else {
+				dfsReader.EXPECT().Read().Return(ident.StringID(id), ident.NewTagsIterator(tags), data, checksum, nil)
+			}
+		}
+
+		if !blockHasError {
+			dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF).MaxTimes(1)
+		}
+
+		dfsReaders = append(dfsReaders, dfsReader)
+		expectedBlockCount += len(ids)
+	}
+
+	cbReader, err := NewCrossBlockReader(dfsReaders, instrument.NewTestOptions(t))
+	require.NoError(t, err)
+	defer cbReader.Close()
+
+	blockCount := 0
+	seriesCount := 0
+	// NB: skip first two
+	expectedBlockCount -= 2
+	require.True(t, cbReader.Next())
+	require.True(t, cbReader.Next())
+	for cbReader.Next() {
+		// NB: call Current twice to ensure it does not mutate values.
+		id, _, _ := cbReader.Current()
+		assert.Equal(t, expectedIDs[seriesCount], id.String())
+		_, tags, records := cbReader.Current()
+
+		strID := id.String()
+		id.Finalize()
+		assert.Equal(t, expectedIDs[seriesCount], strID)
+
+		assert.NotNil(t, tags)
+		tags.Close()
+
+		previousBlockIndex := -1
+		for _, record := range records {
+			blockIndex := int(record.DataChecksum) // see the comment above
+			assert.True(t, blockIndex > previousBlockIndex, "same id blocks must be read in temporal order")
+
+			previousBlockIndex = blockIndex
+			assert.NotNil(t, record.Data)
+		}
+
+		blockCount += len(records)
+		seriesCount++
+	}
+
+	assert.Equal(t, len(expectedIDs), seriesCount, "count of series read")
+
+	err = cbReader.Err()
+	if err == nil || (err.Error() != errExpected.Error() && !strings.HasPrefix(err.Error(), "duplicate id")) {
 		require.NoError(t, cbReader.Err())
 		assert.Equal(t, expectedBlockCount, blockCount, "count of blocks read")
 	}

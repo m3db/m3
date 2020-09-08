@@ -654,6 +654,14 @@ type CrossBlockReader interface {
 	Current() (ident.ID, ident.TagIterator, []BlockRecord)
 }
 
+// CrossBlockIterator iterates across BlockRecords.
+type CrossBlockIterator interface {
+	encoding.Iterator
+
+	// Reset resets the iterator to the given block records.
+	Reset(records []BlockRecord)
+}
+
 // InfoFileResultsPerShard maps shards to info files.
 type InfoFileResultsPerShard map[uint32][]ReadInfoFileResult
 
