@@ -90,12 +90,12 @@ func SafeMax(input []float64) (float64, int) {
 	nans := 0
 	max := -math.MaxFloat64
 	for _, v := range input {
-		if !math.IsNaN(v) {
+		if math.IsNaN(v) {
+			nans++
+			continue
+		}
 		if v > max {
 			max = v
-		}
-		} else {
-			nans += 1
 		}
 	}
 	return max, nans
@@ -106,12 +106,12 @@ func SafeMin(input []float64) (float64, int) {
 	nans := 0
 	min := math.MaxFloat64
 	for _, v := range input {
-		if !math.IsNaN(v) {
-			if v < min {
-				min = v
-			}
-		} else {
-			nans += 1
+		if math.IsNaN(v) {
+			nans++
+			continue
+		}
+		if v < min {
+			min = v
 		}
 	}
 	return min, nans
