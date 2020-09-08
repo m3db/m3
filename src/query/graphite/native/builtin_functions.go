@@ -242,6 +242,39 @@ func timeShift(
 	}, nil
 }
 
+// delay shifts all samples later by an integer number of steps. This can be used
+// for custom derivative calculations, among other things. Note: this will pad
+// the early end of the data with NaN for every step shifted. delay complements
+// other time-displacement functions such as timeShift and timeSlice, in that
+// delay is indifferent about the step intervals being shifted.
+func delay(
+	ctx *common.Context,
+	singlePath singlePathSpec,
+	steps int,
+) (ts.SeriesList, error) {
+	input := ts.SeriesList(singlePath)
+	output := make([]*ts.Series, 0, input.Len())
+
+	for _, series := range input.Values {
+		delayedVals := delayValuesHelper(ctx, series, steps)
+		delayedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), delayedVals)
+		renamedSeries := delayedSeries.RenamedTo(fmt.Sprintf("delay(%s,%d)", delayedSeries.Name(), steps))
+		output = append(output, renamedSeries)
+	}
+	input.Values = output
+	return input, nil
+}
+
+// delayValuesHelper takes a series and returns a copy of the values after
+// delaying the values by `steps` number of steps
+func delayValuesHelper(ctx *common.Context, series *ts.Series, steps int) ts.Values {
+	output := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+	for i := steps; i < series.Len(); i++ {
+		output.SetValueAt(i, series.ValueAt(i - steps))
+	}
+	return output
+}
+
 // absolute returns the absolute value of each element in the series.
 func absolute(ctx *common.Context, input singlePathSpec) (ts.SeriesList, error) {
 	return transform(ctx, input,
@@ -1885,6 +1918,7 @@ func init() {
 	MustRegisterFunction(dashed).WithDefaultParams(map[uint8]interface{}{
 		2: 5.0, // dashLength
 	})
+	MustRegisterFunction(delay)
 	MustRegisterFunction(derivative)
 	MustRegisterFunction(diffSeries)
 	MustRegisterFunction(divideSeries)
