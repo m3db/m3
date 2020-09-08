@@ -411,13 +411,16 @@ func Run(runOpts RunOptions) {
 
 	// Setup query stats tracking.
 	statsOpts := stats.QueryStatsOptions{
-		Lookback: stats.DefaultLookback,
+		MaxDocsLookback:      stats.DefaultLookback,
+		MaxBytesReadLookback: stats.DefaultLookback,
 	}
 	if max := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; max != nil {
-		statsOpts = stats.QueryStatsOptions{
-			MaxDocs:  max.Value,
-			Lookback: max.Lookback,
-		}
+		statsOpts.MaxDocs = max.Value
+		statsOpts.MaxDocsLookback = max.Lookback
+	}
+	if max := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBytesRead; max != nil {
+		statsOpts.MaxBytesRead = max.Value
+		statsOpts.MaxBytesReadLookback = max.Lookback
 	}
 	if err := statsOpts.Validate(); err != nil {
 		logger.Fatal("could not construct query stats options from config", zap.Error(err))
@@ -559,7 +562,8 @@ func Run(runOpts RunOptions) {
 			SetBytesPool(opts.BytesPool()).
 			SetRetrieveRequestPool(opts.RetrieveRequestPool()).
 			SetIdentifierPool(opts.IdentifierPool()).
-			SetBlockLeaseManager(blockLeaseManager)
+			SetBlockLeaseManager(blockLeaseManager).
+			SetQueryStats(queryStats)
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
 			retrieverOpts = retrieverOpts.
 				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
