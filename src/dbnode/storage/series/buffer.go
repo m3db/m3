@@ -585,8 +585,11 @@ func (b *dbBuffer) Snapshot(
 		encoder := bopts.EncoderPool().Get()
 		encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 		iter := b.opts.MultiReaderIteratorPool().Get()
+		var encoderClosed bool
 		defer func() {
-			encoder.Close()
+			if !encoderClosed {
+				encoder.Close()
+			}
 			iter.Close()
 		}()
 		iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize(), nsCtx.Schema)
@@ -602,6 +605,8 @@ func (b *dbBuffer) Snapshot(
 		}
 
 		segment = encoder.Discard()
+		defer segment.Finalize()
+		encoderClosed = true
 	}
 
 	afterMergeAcrossBuckets := b.nowFn()
