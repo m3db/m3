@@ -86,7 +86,7 @@ func TestReadAggregateWrite(t *testing.T) {
 		ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"),
 		dpTime, 15, xtime.Second, nil)
 
-	testDataPointsCount := 144.0
+	testDataPointsCount := 60.0
 	for a := 0.0; a < testDataPointsCount; a++ {
 		if a < 10 {
 			dpTime = dpTime.Add(10 * time.Minute)
@@ -121,7 +121,7 @@ func TestReadAggregateWrite(t *testing.T) {
 	processedBlockCount, err := testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	require.NoError(t, err)
-	assert.Equal(t, int64(24), processedBlockCount)
+	assert.Equal(t, int64(10), processedBlockCount)
 
 	require.True(t, xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
@@ -139,6 +139,10 @@ func TestReadAggregateWrite(t *testing.T) {
 		ts.Datapoint{Timestamp: dpTimeStart.Add(230 * time.Minute), Value: 65.1},
 		ts.Datapoint{Timestamp: dpTimeStart.Add(290 * time.Minute), Value: 71.1},
 		ts.Datapoint{Timestamp: dpTimeStart.Add(350 * time.Minute), Value: 77.1},
+		ts.Datapoint{Timestamp: dpTimeStart.Add(410 * time.Minute), Value: 83.1},
+		ts.Datapoint{Timestamp: dpTimeStart.Add(470 * time.Minute), Value: 89.1},
+		ts.Datapoint{Timestamp: dpTimeStart.Add(530 * time.Minute), Value: 95.1},
+		ts.Datapoint{Timestamp: dpTimeStart.Add(590 * time.Minute), Value: 101.1},
 	}
 
 	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn(), expectedDps)
