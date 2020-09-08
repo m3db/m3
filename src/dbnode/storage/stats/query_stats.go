@@ -179,7 +179,7 @@ func (q *queryStats) Start() {
 	}
 	opts := q.tracker.Options()
 	docsTicker := time.NewTicker(opts.MaxDocsLookback)
-	bytesTicker := time.NewTicker(opts.MaxDocsLookback)
+	bytesTicker := time.NewTicker(opts.MaxBytesReadLookback)
 	go func() {
 		defer docsTicker.Stop()
 		defer bytesTicker.Stop()
