@@ -1316,11 +1316,6 @@ func (i *nsIndex) Query(
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
-	// Check if exceeding query limits at very beginning of query path.
-	if err := i.opts.IndexOptions().QueryStats().UpdateDocs(0); err != nil {
-		return index.QueryResult{}, err
-	}
-
 	// Get results and set the namespace ID and size limit.
 	results := i.resultsPool.Get()
 	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{

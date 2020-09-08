@@ -826,6 +826,12 @@ func (d *db) QueryIDs(
 	}
 	defer sp.Finish()
 
+	// Check if exceeding query limits at very beginning of
+	// query path to abandon as early as possible.
+	if err := d.opts.IndexOptions().QueryStats().UpdateDocs(0); err != nil {
+		return index.QueryResult{}, err
+	}
+
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		sp.LogFields(opentracinglog.Error(err))

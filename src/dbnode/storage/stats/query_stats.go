@@ -98,7 +98,7 @@ func NoOpQueryStats() QueryStats {
 	return &noOpQueryStats{}
 }
 
-// UpdateDocs adds new query stats which are being tracked.
+// UpdateDocs adds new docs stats to be tracked.
 func (q *queryStats) UpdateDocs(newDocs int) error {
 	if q == nil {
 		return nil
@@ -125,7 +125,7 @@ func (q *queryStats) UpdateDocs(newDocs int) error {
 	return q.tracker.TrackStats(values)
 }
 
-// UpdateDocs adds new query stats which are being tracked.
+// UpdateBytesRead adds new bytes stats to be tracked.
 func (q *queryStats) UpdateBytesRead(newBytesRead int) error {
 	if q == nil {
 		return nil
