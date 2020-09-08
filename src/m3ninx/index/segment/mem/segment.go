@@ -68,19 +68,18 @@ type memSegment struct {
 
 // NewSegment returns a new in-memory mutable segment. It will start assigning
 // postings IDs at the provided offset.
-func NewSegment(offset postings.ID, opts Options) (segment.MutableSegment, error) {
+func NewSegment(opts Options) (segment.MutableSegment, error) {
 	s := &memSegment{
-		offset:    int(offset),
 		plPool:    opts.PostingsListPool(),
 		newUUIDFn: opts.NewUUIDFn(),
 		termsDict: newTermsDict(opts),
-		readerID:  postings.NewAtomicID(offset),
+		readerID:  postings.NewAtomicID(0),
 	}
 
 	s.docs.data = make([]doc.Document, opts.InitialCapacity())
 
 	s.writer.idSet = newIDsMap(256)
-	s.writer.nextID = offset
+	s.writer.nextID = 0
 	return s, nil
 }
 
@@ -92,15 +91,14 @@ func (s *memSegment) IndexConcurrency() int {
 	return 1
 }
 
-func (s *memSegment) Reset(offset postings.ID) {
+func (s *memSegment) Reset() {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	s.state.sealed = false
 
-	s.offset = int(offset)
 	s.termsDict.Reset()
-	s.readerID = postings.NewAtomicID(offset)
+	s.readerID = postings.NewAtomicID(0)
 
 	var empty doc.Document
 	for i := range s.docs.data {
@@ -109,20 +107,13 @@ func (s *memSegment) Reset(offset postings.ID) {
 	s.docs.data = s.docs.data[:0]
 
 	s.writer.idSet.Reset()
-	s.writer.nextID = offset
-}
-
-func (s *memSegment) Offset() postings.ID {
-	s.state.RLock()
-	offset := postings.ID(s.offset)
-	s.state.RUnlock()
-	return offset
+	s.writer.nextID = 0
 }
 
 func (s *memSegment) Size() int64 {
 	s.state.RLock()
 	closed := s.state.closed
-	size := int64(s.readerID.Load()) - int64(s.offset)
+	size := int64(s.readerID.Load())
 	s.state.RUnlock()
 	if closed {
 		return 0
@@ -326,7 +317,7 @@ func (s *memSegment) indexDocWithStateLock(id postings.ID, d doc.Document) error
 // storeDocWithStateLock stores a documents into the segment's mapping of postings
 // IDs to documents. It must be called with the segment's state lock.
 func (s *memSegment) storeDocWithStateLock(id postings.ID, d doc.Document) {
-	idx := int(id) - s.offset
+	idx := int(id)
 
 	// Can return early if we have sufficient capacity.
 	{
@@ -371,7 +362,7 @@ func (s *memSegment) Reader() (segment.Reader, error) {
 	}
 
 	limits := readerDocRange{
-		startInclusive: postings.ID(s.offset),
+		startInclusive: postings.ID(0),
 		endExclusive:   s.readerID.Load(),
 	}
 	return newReader(s, limits, s.plPool), nil
@@ -412,7 +403,7 @@ func (s *memSegment) getDoc(id postings.ID) (doc.Document, error) {
 		return doc.Document{}, segment.ErrClosed
 	}
 
-	idx := int(id) - s.offset
+	idx := int(id)
 
 	s.docs.RLock()
 	if idx >= len(s.docs.data) {

@@ -60,9 +60,7 @@ func TestToVersion1_1Run(t *testing.T) {
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions(), persist.FileSetFlushType)
 	require.Equal(t, 1, len(results))
 	infoFileResult := results[0]
-	indexFd, err := os.Open(path.Join(fsOpts.FilePathPrefix(), fmt.Sprintf("data/%s/%d/fileset-%d-0-index.db",
-		nsId.String(), shard, infoFileResult.Info.BlockStart)))
-	require.NoError(t, err)
+	indexFd := openFile(t, fsOpts, nsId, shard, infoFileResult, "index")
 	oldBytes, err := ioutil.ReadAll(indexFd)
 	require.NoError(t, err)
 
@@ -97,13 +95,23 @@ func TestToVersion1_1Run(t *testing.T) {
 	task, err := NewToVersion1_1Task(opts)
 	require.NoError(t, err)
 
-	err = task.Run()
+	updatedInfoFile, err := task.Run()
 	require.NoError(t, err)
 
-	// Read the index entries of new volume set
-	indexFd, err = os.Open(path.Join(fsOpts.FilePathPrefix(), fmt.Sprintf("data/%s/%d/fileset-%d-1-index.db",
-		nsId.String(), shard, infoFileResult.Info.BlockStart)))
+	// Read new info file and make sure it matches results returned by task
+	newInfoFd := openFile(t, fsOpts, nsId, shard, updatedInfoFile, "info")
+
+	newInfoBytes, err := ioutil.ReadAll(newInfoFd)
 	require.NoError(t, err)
+
+	decoder := msgpack.NewDecoder(nil)
+	decoder.Reset(msgpack.NewByteDecoderStream(newInfoBytes))
+	info, err := decoder.DecodeIndexInfo()
+
+	require.Equal(t, updatedInfoFile.Info, info)
+
+	// Read the index entries of new volume set
+	indexFd = openFile(t, fsOpts, nsId, shard, updatedInfoFile, "index")
 	newBytes, err := ioutil.ReadAll(indexFd)
 	require.NoError(t, err)
 
@@ -111,12 +119,25 @@ func TestToVersion1_1Run(t *testing.T) {
 	require.NotEqual(t, oldBytes, newBytes)
 
 	// Corrupt bytes to trip newly added checksum
-	decoder := msgpack.NewDecoder(nil)
 	newBytes[len(newBytes)-1] = 1 + newBytes[len(newBytes)-1]
 	decoder.Reset(msgpack.NewByteDecoderStream(newBytes))
 	_, err = decoder.DecodeIndexEntry(nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "checksum mismatch")
+}
+
+func openFile(
+	t *testing.T,
+	fsOpts fs.Options,
+	nsId ident.ID,
+	shard uint32,
+	infoFileResult fs.ReadInfoFileResult,
+	fileType string,
+) *os.File {
+	indexFd, err := os.Open(path.Join(fsOpts.FilePathPrefix(), fmt.Sprintf("data/%s/%d/fileset-%d-%d-%s.db",
+		nsId.String(), shard, infoFileResult.Info.BlockStart, infoFileResult.Info.VolumeIndex, fileType)))
+	require.NoError(t, err)
+	return indexFd
 }
 
 func writeUnmigratedData(t *testing.T, filePathPrefix string, nsId ident.ID, shard uint32) fs.Options {

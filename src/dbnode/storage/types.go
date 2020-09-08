@@ -548,7 +548,7 @@ type databaseShard interface {
 		snapshotStart time.Time,
 		flush persist.SnapshotPreparer,
 		nsCtx namespace.Context,
-	) error
+	) (ShardSnapshotResult, error)
 
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) (fileOpState, error)
@@ -581,6 +581,11 @@ type databaseShard interface {
 
 	// DocRef returns the doc if already present in a shard series.
 	DocRef(id ident.ID) (doc.Document, bool, error)
+}
+
+// ShardSnapshotResult is a result from a shard snapshot.
+type ShardSnapshotResult struct {
+	SeriesPersist int
 }
 
 // ShardColdFlush exposes a done method to finalize shard cold flush
@@ -727,7 +732,7 @@ type databaseBootstrapManager interface {
 
 	// LastBootstrapCompletionTime returns the last bootstrap completion time,
 	// if any.
-	LastBootstrapCompletionTime() (time.Time, bool)
+	LastBootstrapCompletionTime() (xtime.UnixNano, bool)
 
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
 	Bootstrap() (BootstrapResult, error)
@@ -749,7 +754,7 @@ type databaseFlushManager interface {
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
-	LastSuccessfulSnapshotStartTime() (time.Time, bool)
+	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
 
 	// Report reports runtime information.
 	Report()
@@ -797,7 +802,7 @@ type databaseFileSystemManager interface {
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
-	LastSuccessfulSnapshotStartTime() (time.Time, bool)
+	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
 }
 
 // databaseColdFlushManager manages the database related cold flush activities.
@@ -867,7 +872,7 @@ type databaseMediator interface {
 
 	// LastBootstrapCompletionTime returns the last bootstrap completion time,
 	// if any.
-	LastBootstrapCompletionTime() (time.Time, bool)
+	LastBootstrapCompletionTime() (xtime.UnixNano, bool)
 
 	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() (BootstrapResult, error)
@@ -892,7 +897,7 @@ type databaseMediator interface {
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last
 	// successful snapshot, if any.
-	LastSuccessfulSnapshotStartTime() (time.Time, bool)
+	LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool)
 }
 
 // OnColdFlush can perform work each time a series is flushed.

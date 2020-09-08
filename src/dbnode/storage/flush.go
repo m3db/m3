@@ -31,9 +31,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -63,6 +65,7 @@ type flushManagerMetrics struct {
 	dataWarmFlushDuration           tally.Timer
 	dataSnapshotDuration            tally.Timer
 	indexFlushDuration              tally.Timer
+	commitLogRotationDuration       tally.Timer
 }
 
 func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
@@ -74,6 +77,7 @@ func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
 		dataWarmFlushDuration:           scope.Timer("data-warm-flush-duration"),
 		dataSnapshotDuration:            scope.Timer("data-snapshot-duration"),
 		indexFlushDuration:              scope.Timer("index-flush-duration"),
+		commitLogRotationDuration:       scope.Timer("commit-log-rotation-duration"),
 	}
 }
 
@@ -90,9 +94,10 @@ type flushManager struct {
 	state   flushManagerState
 	metrics flushManagerMetrics
 
-	lastSuccessfulSnapshotStartTime time.Time
-	logger                          *zap.Logger
-	nowFn                           clock.NowFn
+	lastSuccessfulSnapshotStartTime atomic.Int64 // == xtime.UnixNano
+
+	logger *zap.Logger
+	nowFn  clock.NowFn
 }
 
 func newFlushManager(
@@ -144,7 +149,9 @@ func (m *flushManager) Flush(startTime time.Time) error {
 		multiErr = multiErr.Add(err)
 	}
 
+	start := m.nowFn()
 	rotatedCommitlogID, err := m.commitlog.RotateLogs()
+	m.metrics.commitLogRotationDuration.Record(m.nowFn().Sub(start))
 	if err == nil {
 		if err = m.dataSnapshot(namespaces, startTime, rotatedCommitlogID); err != nil {
 			multiErr = multiErr.Add(err)
@@ -247,7 +254,7 @@ func (m *flushManager) dataSnapshot(
 
 	finalErr := multiErr.FinalError()
 	if finalErr == nil {
-		m.lastSuccessfulSnapshotStartTime = startTime
+		m.lastSuccessfulSnapshotStartTime.Store(int64(xtime.ToUnixNano(startTime)))
 	}
 	m.metrics.dataSnapshotDuration.Record(m.nowFn().Sub(start))
 	return finalErr
@@ -378,6 +385,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	return multiErr.FinalError()
 }
 
-func (m *flushManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
-	return m.lastSuccessfulSnapshotStartTime, !m.lastSuccessfulSnapshotStartTime.IsZero()
+func (m *flushManager) LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool) {
+	snapTime := xtime.UnixNano(m.lastSuccessfulSnapshotStartTime.Load())
+	return snapTime, snapTime > 0
 }

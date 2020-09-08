@@ -1168,7 +1168,7 @@ func (i *nsIndex) flushBlockSegment(
 	builder segment.DocumentsBuilder,
 ) error {
 	// Reset the builder
-	builder.Reset(0)
+	builder.Reset()
 
 	var (
 		batch     = m3ninxindex.Batch{AllowPartialUpdates: true}
@@ -1900,10 +1900,10 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 		fsOpts.InfoReaderBufferSize(),
 	)
 
-	segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart := make(map[time.Time]map[idxpersist.IndexVolumeType][]fs.Segments)
+	segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart := make(map[xtime.UnixNano]map[idxpersist.IndexVolumeType][]fs.Segments)
 	for _, file := range infoFiles {
 		seg := fs.NewSegments(file.Info, file.ID.VolumeIndex, file.AbsoluteFilePaths)
-		blockStart := seg.BlockStart()
+		blockStart := xtime.ToUnixNano(seg.BlockStart())
 		segmentsOrderByVolumeIndexByVolumeType, ok := segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart[blockStart]
 		if !ok {
 			segmentsOrderByVolumeIndexByVolumeType = make(map[idxpersist.IndexVolumeType][]fs.Segments)
