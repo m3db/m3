@@ -1760,7 +1760,7 @@ func TestShardIterateBatchSize(t *testing.T) {
 	require.True(t, shardIterateBatchMinSize < iterateBatchSize(2000))
 }
 
-func TestAggregateTiles(t *testing.T) {
+func TestShardAggregateTiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -1788,7 +1788,8 @@ func TestAggregateTiles(t *testing.T) {
 			BlockStart:  opts.Start,
 			VolumeIndex: latestSourceVolume,
 		},
-		FileSetType: persist.FileSetFlushType,
+		FileSetType:    persist.FileSetFlushType,
+		OrderedByIndex: true,
 	}
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
