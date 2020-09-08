@@ -143,8 +143,8 @@ func statsEqual(values QueryStatsValues,
 	expectedNewBytesRead int64,
 	expectedRecentBytesRead int64,
 ) bool {
-	return expectedNewDocs == values.NewDocs &&
-		expectedRecentDocs == values.RecentDocs &&
-		expectedNewBytesRead == values.NewBytesRead &&
-		expectedRecentBytesRead == values.RecentBytesRead
+	return expectedNewDocs == values.DocsMatched.New &&
+		expectedRecentDocs == values.DocsMatched.Recent &&
+		expectedNewBytesRead == values.BytesRead.New &&
+		expectedRecentBytesRead == values.BytesRead.Recent
 }

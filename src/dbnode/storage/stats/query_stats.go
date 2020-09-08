@@ -68,13 +68,21 @@ type QueryStatsOptions struct {
 
 // QueryStatsValues stores values of query stats.
 type QueryStatsValues struct {
-	RecentDocs int64
-	NewDocs    int64
-	ResetDocs  bool
+	// DocsMatched is a sum of all docs matched by recent queries.
+	DocsMatched QueryStatsValue
+	// BytesRead is the sum of bytes read from disk by recent queries.
+	BytesRead QueryStatsValue
+}
 
-	RecentBytesRead int64
-	NewBytesRead    int64
-	ResetBytesRead  bool
+// QueryStatsValue stores values of a particular query
+// stat being tracked within a lookback period.
+type QueryStatsValue struct {
+	// Recent is the total count having occurred in the most recent lookback period.
+	Recent int64
+	// New is the latest incremental count to have occurred.
+	New int64
+	// Reset marks whether a lookback period has elapsed and therefore the count reset to zero.
+	Reset bool
 }
 
 // QueryStatsTracker provides an interface for tracking current query stats.
@@ -113,14 +121,18 @@ func (q *queryStats) UpdateDocs(newDocs int) error {
 	recentDocs := q.recentDocs.Add(newDocsI64)
 
 	values := QueryStatsValues{
-		RecentDocs: recentDocs,
-		NewDocs:    newDocsI64,
-		// Pass current bytes-read along with docs since we want
-		// to check if above that limit as well.
-		RecentBytesRead: q.recentBytesRead.Load(),
-		NewBytesRead:    0,
-		ResetDocs:       false,
-		ResetBytesRead:  false,
+		DocsMatched: QueryStatsValue{
+			Recent: recentDocs,
+			New:    newDocsI64,
+			Reset:  false,
+		},
+		BytesRead: QueryStatsValue{
+			// Pass current bytes-read along with docs since we want
+			// to check if above that limit as well.
+			Recent: q.recentBytesRead.Load(),
+			New:    0,
+			Reset:  false,
+		},
 	}
 
 	// Invoke the custom tracker based on the new stats values.
@@ -142,14 +154,18 @@ func (q *queryStats) UpdateBytesRead(newBytesRead int) error {
 	recentBytes := q.recentBytesRead.Add(newBytesReadI64)
 
 	values := QueryStatsValues{
-		RecentBytesRead: recentBytes,
-		NewBytesRead:    newBytesReadI64,
-		// Pass current docs along with bytes-read since we want
-		// to check if above that limit as well.
-		RecentDocs:     q.recentDocs.Load(),
-		NewDocs:        0,
-		ResetDocs:      false,
-		ResetBytesRead: false,
+		BytesRead: QueryStatsValue{
+			Recent: recentBytes,
+			New:    newBytesReadI64,
+			Reset:  false,
+		},
+		DocsMatched: QueryStatsValue{
+			// Pass current docs along with bytes-read since we want
+			// to check if above that limit as well.
+			Recent: q.recentDocs.Load(),
+			New:    0,
+			Reset:  false,
+		},
 	}
 
 	// Invoke the custom tracker based on the new stats values.
@@ -185,12 +201,16 @@ func (q *queryStats) Start() {
 
 func (q *queryStats) trackReset(resetDocs bool, resetBytesRead bool) {
 	_ = q.tracker.TrackStats(QueryStatsValues{
-		RecentBytesRead: q.recentBytesRead.Load(),
-		NewBytesRead:    0,
-		RecentDocs:      q.recentDocs.Load(),
-		NewDocs:         0,
-		ResetDocs:       resetDocs,
-		ResetBytesRead:  resetBytesRead,
+		DocsMatched: QueryStatsValue{
+			Recent: q.recentDocs.Load(),
+			New:    0,
+			Reset:  resetDocs,
+		},
+		BytesRead: QueryStatsValue{
+			Recent: q.recentBytesRead.Load(),
+			New:    0,
+			Reset:  resetBytesRead,
+		},
 	})
 }
 

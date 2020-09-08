@@ -71,34 +71,37 @@ func DefaultQueryStatsTracker(
 }
 
 func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
+	docsMatched := values.DocsMatched
+	bytesRead := values.BytesRead
+
 	// Only update the recent metrics on each reset so
 	// we measure only consistently timed peak values.
-	if values.ResetDocs {
-		t.recentDocs.Update(float64(values.RecentDocs))
+	if docsMatched.Reset {
+		t.recentDocs.Update(float64(docsMatched.Recent))
 	}
-	if values.ResetBytesRead {
-		t.recentBytesRead.Update(float64(values.RecentBytesRead))
+	if bytesRead.Reset {
+		t.recentBytesRead.Update(float64(bytesRead.Recent))
 	}
 
 	// Track stats as metrics.
-	t.totalDocs.Inc(values.NewDocs)
-	t.totalBytesRead.Inc(values.NewBytesRead)
+	t.totalDocs.Inc(docsMatched.New)
+	t.totalBytesRead.Inc(bytesRead.New)
 
 	// Enforce max queried docs (if specified).
-	if t.options.MaxDocs > 0 && values.RecentDocs > t.options.MaxDocs {
+	if t.options.MaxDocs > 0 && docsMatched.Recent > t.options.MaxDocs {
 		t.recentDocsLimitError.Inc(1)
 		return fmt.Errorf(
 			"query aborted, global recent time series blocks over limit: "+
 				"limit=%d, current=%d, within=%s",
-			t.options.MaxDocs, values.RecentDocs, t.options.MaxDocsLookback)
+			t.options.MaxDocs, docsMatched.Recent, t.options.MaxDocsLookback)
 	}
 	// Enforce max queried docs (if specified).
-	if t.options.MaxBytesRead > 0 && values.RecentBytesRead > t.options.MaxBytesRead {
+	if t.options.MaxBytesRead > 0 && bytesRead.Recent > t.options.MaxBytesRead {
 		t.recentBytesReadLimitError.Inc(1)
 		return fmt.Errorf(
 			"query aborted, global recent time series bytes read from disk over limit: "+
 				"limit=%d, current=%d, within=%s",
-			t.options.MaxBytesRead, values.RecentBytesRead, t.options.MaxBytesReadLookback)
+			t.options.MaxBytesRead, bytesRead.Recent, t.options.MaxBytesReadLookback)
 	}
 	return nil
 }
