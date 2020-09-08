@@ -33,51 +33,80 @@ import (
 
 func TestValidateTrackerInputs(t *testing.T) {
 	for _, test := range []struct {
-		name          string
-		maxDocs       int64
-		lookback      time.Duration
-		expectedError string
+		name        string
+		max         int64
+		lookback    time.Duration
+		expectError bool
 	}{
 		{
 			name:     "valid lookback without limit",
-			maxDocs:  0,
+			max:      0,
 			lookback: time.Millisecond,
 		},
 		{
 			name:     "valid lookback with valid limit",
-			maxDocs:  1,
+			max:      1,
 			lookback: time.Millisecond,
 		},
 		{
-			name:          "negative lookback",
-			maxDocs:       0,
-			lookback:      -time.Millisecond,
-			expectedError: "query stats tracker requires lookback > 0 (-1000000)",
+			name:        "negative lookback",
+			max:         0,
+			lookback:    -time.Millisecond,
+			expectError: true,
 		},
 		{
-			name:          "zero lookback",
-			maxDocs:       0,
-			lookback:      time.Duration(0),
-			expectedError: "query stats tracker requires lookback > 0 (0)",
+			name:        "zero lookback",
+			max:         0,
+			lookback:    time.Duration(0),
+			expectError: true,
 		},
 		{
-			name:          "negative max",
-			maxDocs:       -1,
-			lookback:      time.Millisecond,
-			expectedError: "query stats tracker requires max docs >= 0 (-1)",
+			name:        "negative max",
+			max:         -1,
+			lookback:    time.Millisecond,
+			expectError: true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			// Validate docs limit.
 			err := QueryStatsOptions{
-				MaxDocs:         test.maxDocs,
-				MaxDocsLookback: test.lookback,
+				MaxDocs:              test.max,
+				MaxDocsLookback:      test.lookback,
+				MaxBytesReadLookback: test.lookback,
 			}.Validate()
-			if test.expectedError != "" {
+			if test.expectError {
 				require.Error(t, err)
-				require.Equal(t, test.expectedError, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
+
+			// Validate bytes read limit.
+			err = QueryStatsOptions{
+				MaxBytesRead:         test.max,
+				MaxDocsLookback:      test.lookback,
+				MaxBytesReadLookback: test.lookback,
+			}.Validate()
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			// Validate all limits.
+			err = QueryStatsOptions{
+				MaxDocs:              test.max,
+				MaxDocsLookback:      test.lookback,
+				MaxBytesRead:         test.max,
+				MaxBytesReadLookback: test.lookback,
+			}.Validate()
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			// Validate empty.
+			require.Error(t, QueryStatsOptions{}.Validate())
 		})
 	}
 }

@@ -217,13 +217,13 @@ func (opts QueryStatsOptions) Validate() error {
 		return fmt.Errorf("query stats tracker requires max docs >= 0 (%d)", opts.MaxDocs)
 	}
 	if opts.MaxDocsLookback <= 0 {
-		return fmt.Errorf("query stats tracker requires lookback > 0 (%d)", opts.MaxDocsLookback)
+		return fmt.Errorf("query stats tracker requires max docs lookback > 0 (%d)", opts.MaxDocsLookback)
 	}
 	if opts.MaxBytesRead < 0 {
-		return fmt.Errorf("query stats tracker requires max docs >= 0 (%d)", opts.MaxDocs)
+		return fmt.Errorf("query stats tracker requires max bytes read >= 0 (%d)", opts.MaxBytesRead)
 	}
 	if opts.MaxBytesReadLookback <= 0 {
-		return fmt.Errorf("query stats tracker requires lookback > 0 (%d)", opts.MaxDocsLookback)
+		return fmt.Errorf("query stats tracker requires max bytes lookback > 0 (%d)", opts.MaxBytesReadLookback)
 	}
 	return nil
 }
