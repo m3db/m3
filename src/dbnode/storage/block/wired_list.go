@@ -226,6 +226,7 @@ func (l *WiredList) Stop() error {
 func (l *WiredList) BlockingUpdate(v DatabaseBlock) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+
 	if l.updatesCh == nil {
 		return
 	}
@@ -236,6 +237,9 @@ func (l *WiredList) BlockingUpdate(v DatabaseBlock) {
 // if the channel is full. Used in cases where a blocking update could trigger deadlock with
 // the WiredList itself.
 func (l *WiredList) NonBlockingUpdate(v DatabaseBlock) bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
 	select {
 	case l.updatesCh <- v:
 		return true
