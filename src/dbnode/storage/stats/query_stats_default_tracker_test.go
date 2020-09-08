@@ -123,56 +123,94 @@ func TestLimitMaxDocs(t *testing.T) {
 	opts := instrument.NewOptions().SetMetricsScope(scope)
 
 	maxDocs := int64(100)
+	maxBytes := int64(100)
 
 	for _, test := range []struct {
-		name             string
-		opts             QueryStatsOptions
-		expectLimitError string
+		name                  string
+		opts                  QueryStatsOptions
+		expectDocsLimitError  string
+		expectBytesLimitError string
 	}{
 		{
 			name: "metrics only",
 			opts: QueryStatsOptions{
-				MaxDocsLookback: time.Second,
+				MaxDocsLookback:      time.Second,
+				MaxBytesReadLookback: time.Second,
 			},
+		},
+		{
+			name: "metrics and docs limit",
+			opts: QueryStatsOptions{
+				MaxDocs:              100,
+				MaxDocsLookback:      time.Second,
+				MaxBytesReadLookback: time.Second,
+			},
+			expectDocsLimitError: "query aborted, global recent time series blocks over limit: limit=100, current=101, within=1s",
+		},
+		{
+			name: "metrics and bytes limit",
+			opts: QueryStatsOptions{
+				MaxBytesRead:         100,
+				MaxDocsLookback:      time.Second,
+				MaxBytesReadLookback: time.Second,
+			},
+			expectBytesLimitError: "query aborted, global recent time series bytes read from disk over limit: limit=100, current=101, within=1s",
 		},
 		{
 			name: "metrics and limits",
 			opts: QueryStatsOptions{
-				MaxDocs:         100,
-				MaxDocsLookback: time.Second,
+				MaxDocs:              100,
+				MaxBytesRead:         100,
+				MaxDocsLookback:      time.Second,
+				MaxBytesReadLookback: time.Second,
 			},
-			expectLimitError: "query aborted, global recent time series blocks over limit: limit=100, current=101, within=1s",
+			expectDocsLimitError:  "query aborted, global recent time series blocks over limit: limit=100, current=101, within=1s",
+			expectBytesLimitError: "query aborted, global recent time series bytes read from disk over limit: limit=100, current=101, within=1s",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			tracker := DefaultQueryStatsTracker(opts, test.opts)
 
-			err := tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1})
-			if test.expectLimitError != "" {
+			err := tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1, RecentBytesRead: maxBytes - 1})
+			if test.expectDocsLimitError != "" {
 				require.Error(t, err)
-				require.Equal(t, test.expectLimitError, err.Error())
+				require.Equal(t, test.expectDocsLimitError, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
 
-			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs - 1})
-			require.NoError(t, err)
-
-			err = tracker.TrackStats(QueryStatsValues{RecentDocs: 0})
-			require.NoError(t, err)
-
-			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1})
-			if test.expectLimitError != "" {
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs - 1, RecentBytesRead: maxBytes + 1})
+			if test.expectBytesLimitError != "" {
 				require.Error(t, err)
-				require.Equal(t, test.expectLimitError, err.Error())
+				require.Equal(t, test.expectBytesLimitError, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
 
-			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs - 1})
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1, RecentBytesRead: maxBytes + 1})
+			if test.expectBytesLimitError != "" || test.expectDocsLimitError != "" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs - 1, RecentBytesRead: maxBytes - 1})
 			require.NoError(t, err)
 
-			err = tracker.TrackStats(QueryStatsValues{RecentDocs: 0})
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: 0, RecentBytesRead: 0})
+			require.NoError(t, err)
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs + 1, RecentBytesRead: maxBytes + 1})
+			if test.expectBytesLimitError != "" || test.expectDocsLimitError != "" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: maxDocs - 1, RecentBytesRead: maxBytes - 1})
+			require.NoError(t, err)
+
+			err = tracker.TrackStats(QueryStatsValues{RecentDocs: 0, RecentBytesRead: 0})
 			require.NoError(t, err)
 		})
 	}

@@ -71,10 +71,12 @@ func DefaultQueryStatsTracker(
 }
 
 func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
-	if values.Reset {
-		// Only update the recent metrics on each reset so
-		// we measure only consistently timed peak values.
+	// Only update the recent metrics on each reset so
+	// we measure only consistently timed peak values.
+	if values.ResetDocs {
 		t.recentDocs.Update(float64(values.RecentDocs))
+	}
+	if values.ResetBytesRead {
 		t.recentBytesRead.Update(float64(values.RecentBytesRead))
 	}
 

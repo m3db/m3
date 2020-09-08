@@ -68,13 +68,13 @@ type QueryStatsOptions struct {
 
 // QueryStatsValues stores values of query stats.
 type QueryStatsValues struct {
-	RecentDocs      int64
-	NewDocs         int64
+	RecentDocs int64
+	NewDocs    int64
+	ResetDocs  bool
+
 	RecentBytesRead int64
 	NewBytesRead    int64
-
-	// Reset resets metric counters and gauges back to zero.
-	Reset bool
+	ResetBytesRead  bool
 }
 
 // QueryStatsTracker provides an interface for tracking current query stats.
@@ -119,7 +119,6 @@ func (q *queryStats) UpdateDocs(newDocs int) error {
 		// to check if above that limit as well.
 		RecentBytesRead: q.recentBytesRead.Load(),
 		NewBytesRead:    0,
-		Reset:           false,
 	}
 
 	// Invoke the custom tracker based on the new stats values.
@@ -147,7 +146,6 @@ func (q *queryStats) UpdateBytesRead(newBytesRead int) error {
 		// to check if above that limit as well.
 		RecentDocs: q.recentDocs.Load(),
 		NewDocs:    0,
-		Reset:      false,
 	}
 
 	// Invoke the custom tracker based on the new stats values.
@@ -166,13 +164,13 @@ func (q *queryStats) Start() {
 		defer docsTicker.Stop()
 		defer bytesTicker.Stop()
 		for {
+			// Invoke the track func for current values before resetting.
 			select {
 			case <-docsTicker.C:
-				// Invoke the track func for current values before resetting.
-				q.trackPeaks()
+				q.trackReset(true, false)
 				q.recentDocs.Store(0)
 			case <-bytesTicker.C:
-				q.trackPeaks()
+				q.trackReset(false, true)
 				q.recentBytesRead.Store(0)
 			case <-q.stopCh:
 				return
@@ -181,13 +179,14 @@ func (q *queryStats) Start() {
 	}()
 }
 
-func (q *queryStats) trackPeaks() {
+func (q *queryStats) trackReset(resetDocs bool, resetBytesRead bool) {
 	_ = q.tracker.TrackStats(QueryStatsValues{
 		RecentBytesRead: q.recentBytesRead.Load(),
 		NewBytesRead:    0,
 		RecentDocs:      q.recentDocs.Load(),
 		NewDocs:         0,
-		Reset:           true,
+		ResetDocs:       resetDocs,
+		ResetBytesRead:  resetBytesRead,
 	})
 }
 
