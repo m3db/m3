@@ -61,12 +61,12 @@ func DefaultQueryStatsTracker(
 		SubScope("query-stats")
 	return &queryStatsTracker{
 		options:                   queryStatsOpts,
-		recentDocs:                scope.Gauge("recent-docs-per-block"),
-		totalDocs:                 scope.Counter("total-docs-per-block"),
+		recentDocs:                scope.Gauge("recent-docs-matched"),
+		totalDocs:                 scope.Counter("total-docs-matched"),
 		recentBytesRead:           scope.Gauge("recent-bytes-read"),
 		totalBytesRead:            scope.Counter("total-bytes-read"),
-		recentDocsLimitError:      scope.Tagged(map[string]string{"limit": "docs"}).Counter("limit-error"),
-		recentBytesReadLimitError: scope.Tagged(map[string]string{"limit": "bytes-read"}).Counter("limit-error"),
+		recentDocsLimitError:      scope.Tagged(map[string]string{"limit": "docs-matched"}).Counter("error"),
+		recentBytesReadLimitError: scope.Tagged(map[string]string{"limit": "bytes-read"}).Counter("error"),
 	}
 }
 
