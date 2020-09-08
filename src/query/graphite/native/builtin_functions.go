@@ -242,7 +242,6 @@ func timeShift(
 	}, nil
 }
 
-
 // delay shifts all samples later by an integer number of steps. This can be used
 // for custom derivative calculations, among other things. Note: this will pad
 // the early end of the data with NaN for every step shifted. delay complements
