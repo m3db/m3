@@ -285,11 +285,12 @@ func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0 interface{}) *gomock.Call {
 }
 
 // Snapshot mocks base method
-func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) error {
+func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn, arg3 namespace.Context) (SnapshotResult, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(SnapshotResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Snapshot indicates an expected call of Snapshot
