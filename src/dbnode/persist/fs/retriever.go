@@ -47,9 +47,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
-	"github.com/uber-go/tally"
 
-	xatomic "go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -58,12 +56,6 @@ var (
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
 	errBlockRetrieverAlreadyClosed       = errors.New("block retriever already closed")
 	errNoSeekerMgr                       = errors.New("there is no open seeker manager")
-
-	recentBytesLimit   = uint32(100_000_000)
-	recentBytesGauge   tally.Gauge
-	recentBytesCounter tally.Counter
-	recentBytes        = xatomic.NewUint32(0)
-	initBytes          sync.Once
 )
 
 const (
@@ -121,26 +113,6 @@ func NewBlockRetriever(
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-
-	initBytes.Do(func() {
-		go func() {
-			ticker := time.NewTicker(time.Second * 60)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					recentBytes.Store(0)
-					recentBytesGauge.Update(0)
-				}
-			}
-		}()
-
-		scope := fsOpts.InstrumentOptions().
-			MetricsScope().
-			SubScope("query-stats")
-		recentBytesGauge = scope.Gauge("recent-bytes-retrieved")
-		recentBytesCounter = scope.Counter("total-bytes-retrieved")
-	})
 
 	return &blockRetriever{
 		opts:           opts,
@@ -321,7 +293,7 @@ func (r *blockRetriever) fetchBatch(
 	reqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
 ) {
-	if recentBytes.Load() >= recentBytesLimit {
+	if err := r.opts.QueryStats().UpdateBytesRead(0); err != nil {
 		for _, req := range reqs {
 			req.onError(errors.New("rate of bytes retrieved from disk exceeds limit of 1M"))
 		}
@@ -339,9 +311,10 @@ func (r *blockRetriever) fetchBatch(
 
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
+	var entrySize int
 	for _, req := range reqs {
-		if recentBytes.Load() >= recentBytesLimit {
-			req.onError(errors.New("rate of bytes retrieved from disk exceeds limit of 1M"))
+		if err := r.opts.QueryStats().UpdateBytesRead(numBytes) {
+			req.onError(err)
 			continue
 		}
 
@@ -350,14 +323,7 @@ func (r *blockRetriever) fetchBatch(
 			req.onError(err)
 			continue
 		}
-
-		numBytes := recentBytes.Add(entry.Size)
-		if numBytes >= recentBytesLimit {
-			req.onError(errors.New("rate of bytes retrieved from disk exceeds limit of 1M"))
-			continue
-		}
-		recentBytesGauge.Update(float64(numBytes))
-		recentBytesCounter.Inc(int64(entry.Size))
+		entrySize = entry.Size
 
 		if err == errSeekIDNotFound {
 			req.notFound = true
