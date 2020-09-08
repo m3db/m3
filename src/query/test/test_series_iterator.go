@@ -137,7 +137,6 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 		{mergedReader},
 		unmergedReaders,
 	})
-
 	multiReader.ResetSliceOfSlices(sliceOfSlicesIter, nil)
 	return multiReader, nil
 }

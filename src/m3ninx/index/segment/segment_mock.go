@@ -130,10 +130,10 @@ func (mr *MockSegmentMockRecorder) ContainsField(field interface{}) *gomock.Call
 }
 
 // Reader mocks base method
-func (m *MockSegment) Reader() (index.Reader, error) {
+func (m *MockSegment) Reader() (Reader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reader")
-	ret0, _ := ret[0].(index.Reader)
+	ret0, _ := ret[0].(Reader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -156,6 +156,193 @@ func (m *MockSegment) Close() error {
 func (mr *MockSegmentMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSegment)(nil).Close))
+}
+
+// MockReader is a mock of Reader interface
+type MockReader struct {
+	ctrl     *gomock.Controller
+	recorder *MockReaderMockRecorder
+}
+
+// MockReaderMockRecorder is the mock recorder for MockReader
+type MockReaderMockRecorder struct {
+	mock *MockReader
+}
+
+// NewMockReader creates a new mock instance
+func NewMockReader(ctrl *gomock.Controller) *MockReader {
+	mock := &MockReader{ctrl: ctrl}
+	mock.recorder = &MockReaderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockReader) EXPECT() *MockReaderMockRecorder {
+	return m.recorder
+}
+
+// Doc mocks base method
+func (m *MockReader) Doc(id postings.ID) (doc.Document, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Doc", id)
+	ret0, _ := ret[0].(doc.Document)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Doc indicates an expected call of Doc
+func (mr *MockReaderMockRecorder) Doc(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockReader)(nil).Doc), id)
+}
+
+// MatchField mocks base method
+func (m *MockReader) MatchField(field []byte) (postings.List, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MatchField", field)
+	ret0, _ := ret[0].(postings.List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MatchField indicates an expected call of MatchField
+func (mr *MockReaderMockRecorder) MatchField(field interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchField", reflect.TypeOf((*MockReader)(nil).MatchField), field)
+}
+
+// MatchTerm mocks base method
+func (m *MockReader) MatchTerm(field, term []byte) (postings.List, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MatchTerm", field, term)
+	ret0, _ := ret[0].(postings.List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MatchTerm indicates an expected call of MatchTerm
+func (mr *MockReaderMockRecorder) MatchTerm(field, term interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchTerm", reflect.TypeOf((*MockReader)(nil).MatchTerm), field, term)
+}
+
+// MatchRegexp mocks base method
+func (m *MockReader) MatchRegexp(field []byte, c index.CompiledRegex) (postings.List, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MatchRegexp", field, c)
+	ret0, _ := ret[0].(postings.List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MatchRegexp indicates an expected call of MatchRegexp
+func (mr *MockReaderMockRecorder) MatchRegexp(field, c interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchRegexp", reflect.TypeOf((*MockReader)(nil).MatchRegexp), field, c)
+}
+
+// MatchAll mocks base method
+func (m *MockReader) MatchAll() (postings.MutableList, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MatchAll")
+	ret0, _ := ret[0].(postings.MutableList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MatchAll indicates an expected call of MatchAll
+func (mr *MockReaderMockRecorder) MatchAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchAll", reflect.TypeOf((*MockReader)(nil).MatchAll))
+}
+
+// Docs mocks base method
+func (m *MockReader) Docs(pl postings.List) (doc.Iterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Docs", pl)
+	ret0, _ := ret[0].(doc.Iterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Docs indicates an expected call of Docs
+func (mr *MockReaderMockRecorder) Docs(pl interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Docs", reflect.TypeOf((*MockReader)(nil).Docs), pl)
+}
+
+// AllDocs mocks base method
+func (m *MockReader) AllDocs() (index.IDDocIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AllDocs")
+	ret0, _ := ret[0].(index.IDDocIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AllDocs indicates an expected call of AllDocs
+func (mr *MockReaderMockRecorder) AllDocs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllDocs", reflect.TypeOf((*MockReader)(nil).AllDocs))
+}
+
+// Close mocks base method
+func (m *MockReader) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockReaderMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReader)(nil).Close))
+}
+
+// Fields mocks base method
+func (m *MockReader) Fields() (FieldsIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Fields")
+	ret0, _ := ret[0].(FieldsIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Fields indicates an expected call of Fields
+func (mr *MockReaderMockRecorder) Fields() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockReader)(nil).Fields))
+}
+
+// Terms mocks base method
+func (m *MockReader) Terms(field []byte) (TermsIterator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Terms", field)
+	ret0, _ := ret[0].(TermsIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Terms indicates an expected call of Terms
+func (mr *MockReaderMockRecorder) Terms(field interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terms", reflect.TypeOf((*MockReader)(nil).Terms), field)
+}
+
+// ContainsField mocks base method
+func (m *MockReader) ContainsField(field []byte) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainsField", field)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContainsField indicates an expected call of ContainsField
+func (mr *MockReaderMockRecorder) ContainsField(field interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsField", reflect.TypeOf((*MockReader)(nil).ContainsField), field)
 }
 
 // MockFieldsIterable is a mock of FieldsIterable interface
@@ -751,10 +938,10 @@ func (mr *MockMutableSegmentMockRecorder) ContainsField(field interface{}) *gomo
 }
 
 // Reader mocks base method
-func (m *MockMutableSegment) Reader() (index.Reader, error) {
+func (m *MockMutableSegment) Reader() (Reader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reader")
-	ret0, _ := ret[0].(index.Reader)
+	ret0, _ := ret[0].(Reader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -810,15 +997,15 @@ func (mr *MockMutableSegmentMockRecorder) Terms(field interface{}) *gomock.Call 
 }
 
 // Reset mocks base method
-func (m *MockMutableSegment) Reset(offset postings.ID) {
+func (m *MockMutableSegment) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockMutableSegmentMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockMutableSegmentMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableSegment)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableSegment)(nil).Reset))
 }
 
 // Docs mocks base method
@@ -918,20 +1105,6 @@ func (m *MockMutableSegment) Fields() (FieldsIterator, error) {
 func (mr *MockMutableSegmentMockRecorder) Fields() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockMutableSegment)(nil).Fields))
-}
-
-// Offset mocks base method
-func (m *MockMutableSegment) Offset() postings.ID {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Offset")
-	ret0, _ := ret[0].(postings.ID)
-	return ret0
-}
-
-// Offset indicates an expected call of Offset
-func (mr *MockMutableSegmentMockRecorder) Offset() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Offset", reflect.TypeOf((*MockMutableSegment)(nil).Offset))
 }
 
 // Seal mocks base method
@@ -1058,10 +1231,10 @@ func (mr *MockImmutableSegmentMockRecorder) ContainsField(field interface{}) *go
 }
 
 // Reader mocks base method
-func (m *MockImmutableSegment) Reader() (index.Reader, error) {
+func (m *MockImmutableSegment) Reader() (Reader, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reader")
-	ret0, _ := ret[0].(index.Reader)
+	ret0, _ := ret[0].(Reader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1154,15 +1327,15 @@ func (mr *MockBuilderMockRecorder) Terms(field interface{}) *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockBuilder) Reset(offset postings.ID) {
+func (m *MockBuilder) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockBuilderMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockBuilderMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockBuilder)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockBuilder)(nil).Reset))
 }
 
 // Docs mocks base method
@@ -1248,15 +1421,15 @@ func (mr *MockDocumentsBuilderMockRecorder) Terms(field interface{}) *gomock.Cal
 }
 
 // Reset mocks base method
-func (m *MockDocumentsBuilder) Reset(offset postings.ID) {
+func (m *MockDocumentsBuilder) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockDocumentsBuilderMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockDocumentsBuilderMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDocumentsBuilder)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDocumentsBuilder)(nil).Reset))
 }
 
 // Docs mocks base method
@@ -1397,15 +1570,15 @@ func (mr *MockCloseableDocumentsBuilderMockRecorder) Terms(field interface{}) *g
 }
 
 // Reset mocks base method
-func (m *MockCloseableDocumentsBuilder) Reset(offset postings.ID) {
+func (m *MockCloseableDocumentsBuilder) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockCloseableDocumentsBuilderMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockCloseableDocumentsBuilderMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockCloseableDocumentsBuilder)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockCloseableDocumentsBuilder)(nil).Reset))
 }
 
 // Docs mocks base method
@@ -1560,15 +1733,15 @@ func (mr *MockSegmentsBuilderMockRecorder) Terms(field interface{}) *gomock.Call
 }
 
 // Reset mocks base method
-func (m *MockSegmentsBuilder) Reset(offset postings.ID) {
+func (m *MockSegmentsBuilder) Reset() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reset", offset)
+	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockSegmentsBuilderMockRecorder) Reset(offset interface{}) *gomock.Call {
+func (mr *MockSegmentsBuilderMockRecorder) Reset() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSegmentsBuilder)(nil).Reset), offset)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSegmentsBuilder)(nil).Reset))
 }
 
 // Docs mocks base method

@@ -157,6 +157,25 @@ func sumSeriesWithWildcards(
 	return combineSeriesWithWildcards(ctx, series, positions, sumSpecificationFunc, ts.Sum)
 }
 
+// aggregateWithWildcards splits the given set of series into sub-groupings
+// based on wildcard matches in the hierarchy, then aggregate the values in
+// each grouping based on the given function.
+func aggregateWithWildcards(
+	ctx *common.Context,
+	series singlePathSpec,
+	fname string,
+	positions ...int,
+) (ts.SeriesList, error) {
+	f, fexists := summarizeFuncs[fname]
+	if !fexists {
+		err := errors.NewInvalidParamsError(fmt.Errorf(
+			"invalid func %s", fname))
+		return ts.NewSeriesList(), err
+	}
+
+	return combineSeriesWithWildcards(ctx, series, positions, f.specificationFunc, f.consolidationFunc)
+}
+
 // combineSeriesWithWildcards splits the given set of series into sub-groupings
 // based on wildcard matches in the hierarchy, then combines the values in each
 // sub-grouping according to the provided consolidation function
@@ -247,6 +266,55 @@ func groupByNode(ctx *common.Context, series singlePathSpec, node int, fname str
 		metaSeries[key] = append(metaSeries[key], s)
 	}
 
+	return applyFnToMetaSeries(ctx, series, metaSeries, fname)
+}
+
+// Takes a serieslist and maps a callback to subgroups within as defined by multiple nodes
+//
+//      &target=groupByNodes(ganglia.server*.*.cpu.load*,"sum",1,4)
+//
+// Would return multiple series which are each the result of applying the “sum” aggregation to groups joined on the
+// nodes’ list (0 indexed) resulting in a list of targets like
+//
+// 		sumSeries(ganglia.server1.*.cpu.load5),sumSeries(ganglia.server1.*.cpu.load10),sumSeries(ganglia.server1.*.cpu.load15),
+// 		sumSeries(ganglia.server2.*.cpu.load5),sumSeries(ganglia.server2.*.cpu.load10),sumSeries(ganglia.server2.*.cpu.load15),...
+//
+// NOTE: if len(nodes) = 0, aggregate all series into 1 series.
+func groupByNodes(ctx *common.Context, series singlePathSpec, fname string, nodes ...int) (ts.SeriesList, error) {
+	metaSeries := make(map[string][]*ts.Series)
+
+	nodeLen := len(nodes)
+	if nodeLen == 0 {
+		key := "*" // put into single group, not ideal, but more graphite-ish.
+		for _, s := range series.Values {
+			metaSeries[key] = append(metaSeries[key], s)
+		}
+	} else {
+		for _, s := range series.Values {
+			parts := strings.Split(s.Name(), ".")
+
+			var keys []string
+			for _, n := range nodes {
+				if n < 0 {
+					n = len(parts) + n
+				}
+
+				if n >= len(parts) || n < 0 {
+					err := errors.NewInvalidParamsError(fmt.Errorf("could not group %s by nodes %v; not enough parts", s.Name(), nodes))
+					return ts.NewSeriesList(), err
+				}
+
+				keys = append(keys, parts[n])
+			}
+			key := strings.Join(keys, ".")
+			metaSeries[key] = append(metaSeries[key], s)
+		}
+	}
+
+	return applyFnToMetaSeries(ctx, series, metaSeries, fname)
+}
+
+func applyFnToMetaSeries(ctx *common.Context, series singlePathSpec, metaSeries map[string][]*ts.Series, fname string) (ts.SeriesList, error) {
 	if fname == "" {
 		fname = "sum"
 	}

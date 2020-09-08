@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
-	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
@@ -458,11 +457,11 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 		},
 	}
 
-	r1 := index.NewMockReader(ctrl)
+	r1 := segment.NewMockReader(ctrl)
 	seg1.EXPECT().Reader().Return(r1, nil)
 	r1.EXPECT().Close().Return(nil)
 
-	r2 := index.NewMockReader(ctrl)
+	r2 := segment.NewMockReader(ctrl)
 	seg2.EXPECT().Reader().Return(r2, nil)
 	r2.EXPECT().Close().Return(nil)
 
@@ -966,8 +965,9 @@ func TestBlockAddResultsAddsSegment(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
 	require.NoError(t, b.AddResults(results))
 	shardRangesSegments := b.shardRangesSegmentsByVolumeType[idxpersist.DefaultIndexVolumeType]
 	require.Equal(t, 1, len(shardRangesSegments))
@@ -988,8 +988,9 @@ func TestBlockAddResultsAfterCloseFails(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
 	require.Error(t, blk.AddResults(results))
 }
 
@@ -1009,8 +1010,9 @@ func TestBlockAddResultsAfterSealWorks(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
 	require.NoError(t, b.AddResults(results))
 	shardRangesSegments := b.shardRangesSegmentsByVolumeType[idxpersist.DefaultIndexVolumeType]
 	require.Equal(t, 1, len(shardRangesSegments))
@@ -1061,8 +1063,9 @@ func TestBlockTickMultipleSegment(t *testing.T) {
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg2.EXPECT().Size().Return(int64(20))
 	results := result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
 	require.NoError(t, b.AddResults(results))
 
 	result, err := blk.Tick(nil)
@@ -1125,13 +1128,15 @@ func TestBlockAddResultsRangeCheck(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start.Add(-1*time.Minute), start, 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, true)},
+			result.NewShardTimeRangesFromRange(start.Add(-1*time.Minute), start, 1, 2, 3)))
 	require.Error(t, b.AddResults(results))
 
 	results = result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start, start.Add(2*time.Hour), 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(2*time.Hour), 1, 2, 3)))
 	require.Error(t, b.AddResults(results))
 }
 
@@ -1150,15 +1155,17 @@ func TestBlockAddResultsCoversCurrentData(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
 	require.NoError(t, b.AddResults(results))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg1.EXPECT().Close().Return(nil)
 	results = result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3, 4)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3, 4)))
 	require.NoError(t, b.AddResults(results))
 
 	require.NoError(t, b.Seal())
@@ -1181,14 +1188,16 @@ func TestBlockAddResultsDoesNotCoverCurrentData(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
 	require.NoError(t, b.AddResults(results))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	results = result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 5)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 5)))
 	require.NoError(t, b.AddResults(results))
 
 	require.NoError(t, b.Seal())
@@ -1251,8 +1260,9 @@ func TestBlockNeedsMutableSegmentsEvictedMutableSegments(t *testing.T) {
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	seg1.EXPECT().Size().Return(int64(0)).AnyTimes()
 	results := result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
 	require.NoError(t, b.AddResults(results))
 	require.False(t, b.NeedsMutableSegmentsEvicted())
 
@@ -1260,8 +1270,9 @@ func TestBlockNeedsMutableSegmentsEvictedMutableSegments(t *testing.T) {
 	seg2.EXPECT().Size().Return(int64(1)).AnyTimes()
 	seg3 := segment.NewMockSegment(ctrl)
 	results = result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2, seg3},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 4)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, true), result.NewSegment(seg3, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 4)))
 	require.NoError(t, b.AddResults(results))
 	require.True(t, b.NeedsMutableSegmentsEvicted())
 }
@@ -1299,8 +1310,9 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	results := result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg1},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 3)))
 	require.NoError(t, b.AddResults(results))
 	seg1.EXPECT().Close().Return(nil)
 	err = b.EvictMutableSegments()
@@ -1309,8 +1321,9 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
 	results = result.NewIndexBlockByVolumeType(start)
-	results.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg2, seg3},
-		result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 4)))
+	results.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg2, true), result.NewSegment(seg3, true)},
+			result.NewShardTimeRangesFromRange(start, start.Add(time.Hour), 1, 2, 4)))
 	require.NoError(t, b.AddResults(results))
 	seg2.EXPECT().Close().Return(nil)
 	err = b.EvictMutableSegments()
@@ -1532,8 +1545,9 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 
 	seg := testSegment(t, testDoc1DupeID())
 	idxResults := result.NewIndexBlockByVolumeType(blockStart)
-	idxResults.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg},
-		result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(blockSize), 1, 2, 3)))
+	idxResults.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg, true)},
+			result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(blockSize), 1, 2, 3)))
 	require.NoError(t, blk.AddResults(idxResults))
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
@@ -1610,8 +1624,9 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 
 	seg := testSegment(t, testDoc2())
 	idxResults := result.NewIndexBlockByVolumeType(blockStart)
-	idxResults.SetBlock(idxpersist.DefaultIndexVolumeType, result.NewIndexBlock([]segment.Segment{seg},
-		result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(blockSize), 1, 2, 3)))
+	idxResults.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg, true)},
+			result.NewShardTimeRangesFromRange(blockStart, blockStart.Add(blockSize), 1, 2, 3)))
 	require.NoError(t, blk.AddResults(idxResults))
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
@@ -1786,11 +1801,14 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
+	reader := segment.NewMockReader(ctrl)
+	reader.EXPECT().Close().Return(nil)
+	seg1.EXPECT().Reader().Return(reader, nil)
 
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1800,14 +1818,18 @@ func TestBlockAggregateIterationErr(t *testing.T) {
 	}, testOpts)
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
+		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("unknown error")),
 		iter.EXPECT().Close().Return(nil),
 	)
-	_, err = b.Aggregate(context.NewContext(), resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 3}, results, emptyLogFields)
+
+	ctx := context.NewContext()
+	defer ctx.BlockingClose()
+
+	_, err = b.Aggregate(ctx, resource.NewCancellableLifetime(), QueryOptions{SeriesLimit: 3}, results, emptyLogFields)
 	require.Error(t, err)
 }
 
@@ -1825,11 +1847,14 @@ func TestBlockAggregate(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
+	reader := segment.NewMockReader(ctrl)
+	reader.EXPECT().Close().Return(nil)
+	seg1.EXPECT().Reader().Return(reader, nil)
 
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1839,13 +1864,15 @@ func TestBlockAggregate(t *testing.T) {
 	}, testOpts)
 
 	ctx := context.NewContext()
+	defer ctx.BlockingClose()
+
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
+		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(true),
@@ -1897,11 +1924,14 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
+	reader := segment.NewMockReader(ctrl)
+	reader.EXPECT().Close().Return(nil)
+	seg1.EXPECT().Reader().Return(reader, nil)
 
 	b.mutableSegments.foregroundSegments = []*readableSeg{newReadableSeg(seg1, testOpts)}
 	iter := NewMockfieldsAndTermsIterator(ctrl)
 	b.newFieldsAndTermsIteratorFn = func(
-		s segment.Segment, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
+		_ segment.Reader, opts fieldsAndTermsIteratorOpts) (fieldsAndTermsIterator, error) {
 		return iter, nil
 	}
 
@@ -1911,13 +1941,15 @@ func TestBlockAggregateNotExhaustive(t *testing.T) {
 	}, testOpts)
 
 	ctx := context.NewContext()
+	defer ctx.BlockingClose()
+
 	// create initial span from a mock tracer and get ctx
 	mtr := mocktracer.New()
 	sp := mtr.StartSpan("root")
 	ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
 
 	gomock.InOrder(
-		iter.EXPECT().Reset(seg1, gomock.Any()).Return(nil),
+		iter.EXPECT().Reset(reader, gomock.Any()).Return(nil),
 		iter.EXPECT().Next().Return(true),
 		iter.EXPECT().Current().Return([]byte("f1"), []byte("t1")),
 		iter.EXPECT().Next().Return(true),
@@ -2054,11 +2086,13 @@ func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string,
 	// ensure `expected` contained in `observed`
 	for field, terms := range expected {
 		entry, ok := aggResultsMap.Get(ident.StringID(field))
-		require.True(t, ok, "field from expected map missing in observed", field)
+		require.True(t, ok,
+			fmt.Sprintf("field from expected map missing in observed: field=%s", field))
 		valuesMap := entry.valuesMap
 		for _, term := range terms {
 			_, ok = valuesMap.Get(ident.StringID(term))
-			require.True(t, ok, "term from expected map missing in observed", field, term)
+			require.True(t, ok,
+				fmt.Sprintf("term from expected map missing in observed: field=%s, term=%s", field, term))
 		}
 	}
 	// ensure `observed` contained in `expected`
@@ -2068,20 +2102,22 @@ func assertAggregateResultsMapEquals(t *testing.T, expected map[string][]string,
 		for _, entry := range valuesMap.Iter() {
 			term := entry.Key()
 			slice, ok := expected[field.String()]
-			require.True(t, ok, "field from observed map missing in expected", field.String())
+			require.True(t, ok,
+				fmt.Sprintf("field from observed map missing in expected: field=%s", field.String()))
 			found := false
 			for _, expTerm := range slice {
 				if expTerm == term.String() {
 					found = true
 				}
 			}
-			require.True(t, found, "term from observed map missing in expected", field.String(), term.String())
+			require.True(t, found,
+				fmt.Sprintf("term from observed map missing in expected: field=%s, term=%s", field.String(), term.String()))
 		}
 	}
 }
 
 func testSegment(t *testing.T, docs ...doc.Document) segment.Segment {
-	seg, err := mem.NewSegment(0, testOpts.MemSegmentOptions())
+	seg, err := mem.NewSegment(testOpts.MemSegmentOptions())
 	require.NoError(t, err)
 
 	for _, d := range docs {

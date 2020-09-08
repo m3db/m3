@@ -61,6 +61,7 @@ type encodedBlockOptions struct {
 	readWorkerPools               xsync.PooledWorkerPool
 	writeWorkerPools              xsync.PooledWorkerPool
 	queryConsolidatorMatchOptions queryconsolidator.MatchOptions
+	seriesIteratorProcessor       SeriesIteratorProcessor
 	batchingFn                    IteratorBatchingFn
 	adminOptions                  []client.CustomAdminOption
 	instrumented                  bool
@@ -205,6 +206,16 @@ func (o *encodedBlockOptions) SetSeriesConsolidationMatchOptions(
 
 func (o *encodedBlockOptions) SeriesConsolidationMatchOptions() queryconsolidator.MatchOptions {
 	return o.queryConsolidatorMatchOptions
+}
+
+func (o *encodedBlockOptions) SetSeriesIteratorProcessor(p SeriesIteratorProcessor) Options {
+	opts := *o
+	opts.seriesIteratorProcessor = p
+	return &opts
+}
+
+func (o *encodedBlockOptions) SeriesIteratorProcessor() SeriesIteratorProcessor {
+	return o.seriesIteratorProcessor
 }
 
 func (o *encodedBlockOptions) SetIteratorBatchingFn(fn IteratorBatchingFn) Options {

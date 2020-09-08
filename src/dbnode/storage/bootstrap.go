@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/instrument"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
@@ -88,7 +89,7 @@ type bootstrapManager struct {
 	status                      tally.Gauge
 	bootstrapDuration           tally.Timer
 	durableStatus               tally.Gauge
-	lastBootstrapCompletionTime time.Time
+	lastBootstrapCompletionTime xtime.UnixNano
 }
 
 func newBootstrapManager(
@@ -120,8 +121,11 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	return state == Bootstrapped
 }
 
-func (m *bootstrapManager) LastBootstrapCompletionTime() (time.Time, bool) {
-	return m.lastBootstrapCompletionTime, !m.lastBootstrapCompletionTime.IsZero()
+func (m *bootstrapManager) LastBootstrapCompletionTime() (xtime.UnixNano, bool) {
+	m.RLock()
+	bsTime := m.lastBootstrapCompletionTime
+	m.RUnlock()
+	return bsTime, bsTime > 0
 }
 
 func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
@@ -194,8 +198,9 @@ func (m *bootstrapManager) Bootstrap() (BootstrapResult, error) {
 	// load to the cluster. It turns out to be better to let ticking happen naturally
 	// on its own course so that the load of ticking and flushing is more spread out
 	// across the cluster.
-
-	m.lastBootstrapCompletionTime = m.nowFn()
+	m.Lock()
+	m.lastBootstrapCompletionTime = xtime.ToUnixNano(m.nowFn())
+	m.Unlock()
 	return result, nil
 }
 

@@ -85,7 +85,6 @@ type QueryOptions struct {
 	SeriesLimit       int
 	DocsLimit         int
 	RequireExhaustive bool
-	IterationOptions  IterationOptions
 }
 
 // IterationOptions enables users to specify iteration preferences.
@@ -473,8 +472,11 @@ type WriteBatchResult struct {
 
 // BlockTickResult returns statistics about tick.
 type BlockTickResult struct {
-	NumSegments int64
-	NumDocs     int64
+	NumSegments             int64
+	NumSegmentsBootstrapped int64
+	NumSegmentsMutable      int64
+	NumDocs                 int64
+	FreeMmap                int64
 }
 
 // WriteBatch is a batch type that allows for building of a slice of documents
@@ -831,7 +833,7 @@ type fieldsAndTermsIterator interface {
 	Close() error
 
 	// Reset resets the iterator to the start iterating the given segment.
-	Reset(seg segment.Segment, opts fieldsAndTermsIteratorOpts) error
+	Reset(reader segment.Reader, opts fieldsAndTermsIteratorOpts) error
 }
 
 // Options control the Indexing knobs.
