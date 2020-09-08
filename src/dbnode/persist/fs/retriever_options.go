@@ -25,6 +25,7 @@ import (
 	"runtime"
 
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/pool"
@@ -43,6 +44,7 @@ type blockRetrieverOptions struct {
 	fetchConcurrency  int
 	identifierPool    ident.Pool
 	blockLeaseManager block.LeaseManager
+	queryStats        stats.QueryStats
 }
 
 // NewBlockRetrieverOptions creates a new set of block retriever options
@@ -65,6 +67,7 @@ func NewBlockRetrieverOptions() BlockRetrieverOptions {
 		bytesPool:        bytesPool,
 		fetchConcurrency: defaultFetchConcurrency,
 		identifierPool:   ident.NewPool(bytesPool, ident.PoolOptions{}),
+		queryStats:       stats.NoOpQueryStats(),
 	}
 
 	return o
@@ -125,4 +128,14 @@ func (o *blockRetrieverOptions) SetBlockLeaseManager(leaseMgr block.LeaseManager
 
 func (o *blockRetrieverOptions) BlockLeaseManager() block.LeaseManager {
 	return o.blockLeaseManager
+}
+
+func (o *blockRetrieverOptions) SetQueryStats(value stats.QueryStats) BlockRetrieverOptions {
+	opts := *o
+	opts.queryStats = value
+	return &opts
+}
+
+func (o *blockRetrieverOptions) QueryStats() stats.QueryStats {
+	return o.queryStats
 }
