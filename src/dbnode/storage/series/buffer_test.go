@@ -1164,7 +1164,7 @@ func testBufferWithEmptyEncoder(t *testing.T, testSnapshot bool) {
 		ctx = context.NewContext()
 		defer ctx.Close()
 
-		err = buffer.Snapshot(ctx, start, metadata, assertPersistDataFn, namespace.Context{})
+		_, err = buffer.Snapshot(ctx, start, metadata, assertPersistDataFn, namespace.Context{})
 		assert.NoError(t, err)
 	} else {
 		ctx = context.NewContext()
@@ -1266,7 +1266,7 @@ func testBufferSnapshot(t *testing.T, opts Options, setAnn setAnnotation) {
 		ID: []byte("some-id"),
 	})
 
-	err := buffer.Snapshot(ctx, start, metadata, assertPersistDataFn, nsCtx)
+	_, err := buffer.Snapshot(ctx, start, metadata, assertPersistDataFn, nsCtx)
 	assert.NoError(t, err)
 
 	// Check internal state to make sure the merge happened and was persisted.
@@ -1413,7 +1413,7 @@ func TestBufferSnapshotWithColdWrites(t *testing.T) {
 		ID: []byte("some-id"),
 	})
 
-	err := buffer.Snapshot(ctx, start, metadata, assertPersistDataFn, nsCtx)
+	_, err := buffer.Snapshot(ctx, start, metadata, assertPersistDataFn, nsCtx)
 	require.NoError(t, err)
 
 	// Check internal state of warm bucket to make sure the merge happened and

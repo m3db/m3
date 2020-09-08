@@ -210,11 +210,19 @@ type dbShardMetrics struct {
 	insertAsyncWriteInternalErrors      tally.Counter
 	insertAsyncWriteInvalidParamsErrors tally.Counter
 	insertAsyncIndexErrors              tally.Counter
-	seriesSnapshotLatencyHistogram      tally.Histogram
+	snapshotTotalLatency                tally.Timer
+	snapshotCheckNeedsSnapshotLatency   tally.Timer
+	snapshotPrepareLatency              tally.Timer
+	snapshotMergeByBucketLatency        tally.Timer
+	snapshotMergeAcrossBucketsLatency   tally.Timer
+	snapshotChecksumLatency             tally.Timer
+	snapshotPersistLatency              tally.Timer
+	snapshotCloseLatency                tally.Timer
 }
 
 func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 	const insertErrorName = "insert-async.errors"
+	snapshotScope := scope.SubScope("snapshot")
 	return dbShardMetrics{
 		create:       scope.Counter("create"),
 		close:        scope.Counter("close"),
@@ -239,8 +247,14 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"error_type":    "reverse-index",
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
-		// Current buckets give us 1ms - ~10mins resolution.
-		seriesSnapshotLatencyHistogram: histogramWithDurationBuckets(scope, "series-snapshot.latency"),
+		snapshotTotalLatency:              snapshotScope.Timer("total-latency"),
+		snapshotCheckNeedsSnapshotLatency: snapshotScope.Timer("check-needs-snapshot-latency"),
+		snapshotPrepareLatency:            snapshotScope.Timer("prepare-latency"),
+		snapshotMergeByBucketLatency:      snapshotScope.Timer("merge-by-bucket-latency"),
+		snapshotMergeAcrossBucketsLatency: snapshotScope.Timer("merge-across-buckets-latency"),
+		snapshotChecksumLatency:           snapshotScope.Timer("checksum-latency"),
+		snapshotPersistLatency:            snapshotScope.Timer("persist-latency"),
+		snapshotCloseLatency:              snapshotScope.Timer("close-latency"),
 	}
 }
 
@@ -2382,7 +2396,13 @@ func (s *dbShard) Snapshot(
 
 	s.RUnlock()
 
+	// Record per-shard snapshot latency, not many shards so safe
+	// to use a timer.
+	totalTimer := s.metrics.snapshotTotalLatency.Start()
+	defer totalTimer.Stop()
+
 	var needsSnapshot bool
+	checkNeedsSnapshotTimer := s.metrics.snapshotCheckNeedsSnapshotLatency.Start()
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		if !entry.Series.IsBufferEmptyAtBlockStart(blockStart) {
 			needsSnapshot = true
@@ -2390,6 +2410,8 @@ func (s *dbShard) Snapshot(
 		}
 		return true
 	})
+	checkNeedsSnapshotTimer.Stop()
+
 	// Only terminate early when we would be over-writing an empty snapshot fileset on disk.
 	// TODO(bodu): We could bootstrap empty snapshot state in the bs path to avoid doing extra
 	// snapshotting work after a bootstrap since this cached state gets cleared.
@@ -2401,8 +2423,6 @@ func (s *dbShard) Snapshot(
 	if !needsSnapshot && emptySnapshotOnDisk {
 		return nil
 	}
-
-	var multiErr xerrors.MultiError
 
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: s.namespace,
@@ -2418,21 +2438,24 @@ func (s *dbShard) Snapshot(
 			SnapshotTime: snapshotTime,
 		},
 	}
+	prepareTimer := s.metrics.snapshotPrepareLatency.Start()
 	prepared, err := snapshotPreparer.PrepareData(prepareOpts)
-	// Add the err so the defer will capture it
-	multiErr = multiErr.Add(err)
+	prepareTimer.Stop()
 	if err != nil {
 		return err
 	}
 
-	snapshotCtx := s.contextPool.Get()
+	var (
+		snapshotCtx    = s.contextPool.Get()
+		snapshotResult series.SnapshotResult
+		multiErr       xerrors.MultiError
+	)
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
-		start := s.nowFn()
 		series := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
 		snapshotCtx.Reset()
-		err := series.Snapshot(snapshotCtx, blockStart, prepared.Persist, nsCtx)
+		result, err := series.Snapshot(snapshotCtx, blockStart, prepared.Persist, nsCtx)
 		snapshotCtx.BlockingCloseReset()
 
 		if err != nil {
@@ -2442,13 +2465,22 @@ func (s *dbShard) Snapshot(
 			return false
 		}
 
-		s.metrics.seriesSnapshotLatencyHistogram.RecordDuration(s.nowFn().Sub(start))
+		// Add snapshot result to cumulative result.
+		snapshotResult.Add(result)
 		return true
 	})
 
-	if err := prepared.Close(); err != nil {
-		multiErr = multiErr.Add(err)
+	// Emit cumulative snapshot result timings.
+	if multiErr.NumErrors() == 0 {
+		s.metrics.snapshotMergeByBucketLatency.Record(snapshotResult.TimeMergeByBucket)
+		s.metrics.snapshotMergeAcrossBucketsLatency.Record(snapshotResult.TimeMergeAcrossBuckets)
+		s.metrics.snapshotChecksumLatency.Record(snapshotResult.TimeChecksum)
+		s.metrics.snapshotPersistLatency.Record(snapshotResult.TimePersist)
 	}
+
+	closeTimer := s.metrics.snapshotCloseLatency.Start()
+	multiErr = multiErr.Add(prepared.Close())
+	closeTimer.Stop()
 
 	if err := multiErr.FinalError(); err != nil {
 		return err
@@ -2713,25 +2745,4 @@ func (r *dbShardFlushResult) update(u series.FlushOutcome) {
 	if u == series.FlushOutcomeBlockDoesNotExist {
 		r.numBlockDoesNotExist++
 	}
-}
-
-const (
-	// histogramDurationBucketsVersion must be bumped if histogramDurationBuckets is changed
-	// to namespace the different buckets from each other so they don't overlap and cause the
-	// histogram function to error out due to overlapping buckets in the same query.
-	histogramDurationBucketsVersion = "v1"
-	// histogramDurationBucketsVersionTag is the tag for the version of the buckets in use.
-	histogramDurationBucketsVersionTag = "schema"
-)
-
-func histogramDurationBuckets() tally.DurationBuckets {
-	return append(tally.DurationBuckets{0},
-		tally.MustMakeExponentialDurationBuckets(time.Millisecond, 1.25, 60)...)
-}
-
-func histogramWithDurationBuckets(scope tally.Scope, name string) tally.Histogram {
-	sub := scope.Tagged(map[string]string{
-		histogramDurationBucketsVersionTag: histogramDurationBucketsVersion,
-	})
-	return sub.Histogram(name, histogramDurationBuckets())
 }

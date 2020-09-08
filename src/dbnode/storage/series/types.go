@@ -141,7 +141,7 @@ type DatabaseSeries interface {
 		blockStart time.Time,
 		persistFn persist.DataFn,
 		nsCtx namespace.Context,
-	) error
+	) (SnapshotResult, error)
 
 	// ColdFlushBlockStarts returns the block starts that need cold flushes.
 	ColdFlushBlockStarts(blockStates BootstrappedBlockStateSnapshot) OptimizedTimes
@@ -155,6 +155,22 @@ type DatabaseSeries interface {
 
 	// Reset resets the series for reuse.
 	Reset(opts DatabaseSeriesOptions)
+}
+
+// SnapshotResult contains metadata regarding the snapshot.
+type SnapshotResult struct {
+	TimeMergeByBucket      time.Duration
+	TimeMergeAcrossBuckets time.Duration
+	TimeChecksum           time.Duration
+	TimePersist            time.Duration
+}
+
+// Add adds the result of a snapshot result to this result.
+func (r *SnapshotResult) Add(other SnapshotResult) {
+	r.TimeMergeByBucket += other.TimeMergeByBucket
+	r.TimeMergeAcrossBuckets += other.TimeMergeAcrossBuckets
+	r.TimeChecksum += other.TimeChecksum
+	r.TimePersist += other.TimePersist
 }
 
 // FetchBlocksMetadataOptions encapsulates block fetch metadata options
@@ -376,6 +392,7 @@ type Stats struct {
 	coldWrites                tally.Counter
 	encodersPerBlock          tally.Histogram
 	encoderLimitWriteRejected tally.Counter
+	snapshotMergesEachBucket  tally.Counter
 }
 
 // NewStats returns a new Stats for the provided scope.
@@ -389,6 +406,7 @@ func NewStats(scope tally.Scope) Stats {
 		coldWrites:                subScope.Counter("cold-writes"),
 		encodersPerBlock:          subScope.Histogram("encoders-per-block", buckets),
 		encoderLimitWriteRejected: subScope.Counter("encoder-limit-write-rejected"),
+		snapshotMergesEachBucket:  subScope.Counter("snapshot-merges-each-bucket"),
 	}
 }
 
