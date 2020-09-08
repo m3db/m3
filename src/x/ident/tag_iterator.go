@@ -98,6 +98,7 @@ type tagsSlice struct {
 
 type tagSliceIter struct {
 	backingSlice        tagsSlice
+	closed              bool
 	currentIdx          int
 	currentTag          Tag
 	currentReuseableTag Tag
@@ -143,10 +144,11 @@ func (i *tagSliceIter) Close() {
 	i.currentIdx = 0
 	i.currentTag = Tag{}
 
-	if i.pool == nil {
+	if i.pool == nil || i.closed {
 		return
 	}
 
+	i.closed = true
 	i.pool.PutTagsIterator(i)
 }
 

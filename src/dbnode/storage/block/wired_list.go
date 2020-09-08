@@ -75,7 +75,7 @@ var (
 
 // WiredList is a database block wired list.
 type WiredList struct {
-	sync.Mutex
+	sync.RWMutex
 
 	nowFn clock.NowFn
 
@@ -204,7 +204,12 @@ func (l *WiredList) Stop() error {
 //
 // We use a channel and a background processing goroutine to reduce blocking / lock contention.
 func (l *WiredList) BlockingUpdate(v DatabaseBlock) {
+	l.RLock()
+	if l.updatesCh == nil {
+		return
+	}
 	l.updatesCh <- v
+	l.RUnlock()
 }
 
 // NonBlockingUpdate will attempt to put the block in the events channel, but will not block
