@@ -79,6 +79,7 @@ var (
 	errDbIndexTerminatingTickCancellation = errors.New("terminating tick early due to cancellation")
 	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
 	errDbIndexDoNotIndexSeries            = errors.New("series matched do not index fields")
+        errDbIndexSnapshotBlockDoesNotExist = errors.New("snapshot index block does not exist")
 )
 
 const (
@@ -1278,11 +1279,18 @@ func (i *nsIndex) Snapshot(
 	}
 	// Blocks are removed during ticks once they are out of retention, this means
 	// that we may snapshot data that's out of retention which is fine.
-	blocks := make([]index.Block, 0, len(i.state.blocksByTime))
-	for _, block := range i.state.blocksByTime {
-		blocks = append(blocks, block)
-	}
+        block, ok := i.state.blocksByTime[blockStart]
+        if !ok {
+                return errDbIndexSnapshotBlockDoesNotExist
+        }
 	i.state.RUnlock()
+
+        indexVolumeType := idxpersist.SnapshotWarmIndexVolumeType
+        // NB(bodu): If a block is sealed, then we're writing data into cold segments only.
+        // TODO(bodu): f/u on if it's possible to be sealed and still have warm data that needs snapshotting.
+        if block.IsSealed() {
+                indexVolumeType = idxpersist.SnapshotColdIndexVolumeType
+        }
 
 	prepareOpts := persist.IndexPrepareSnapshotOptions{
 		IndexPrepareOptions: persist.IndexPrepareOptions{
@@ -1290,8 +1298,7 @@ func (i *nsIndex) Snapshot(
 			BlockStart:        blockStart,
 			FileSetType:       persist.FileSetSnapshotType,
 			Shards:            shards,
-			// NB(bodu): All index snapshots are of the default volume type for now.
-			IndexVolumeType: idxpersist.DefaultIndexVolumeType,
+			IndexVolumeType: indexVolumeType,
 		},
 		SnapshotTime: snapshotTime,
 	}
@@ -1303,21 +1310,16 @@ func (i *nsIndex) Snapshot(
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	multiErr := xerrors.NewMultiError()
-	for _, block := range blocks {
-		segmentsData, err := block.MemorySegmentsData(ctx)
-		if err != nil {
-			return err
-		}
+        segmentsData, err := block.MemorySegmentsData(ctx)
+        if err != nil {
+                return err
+        }
 
-		for _, segmentData := range segmentsData {
-			multiErr = multiErr.Add(prepared.Persist(segmentData))
-		}
-	}
-
+        if err := prepared.Persist(segmentData)); err != nil {
+                return err
+        }
 	_, err = prepared.Close()
-	multiErr = multiErr.Add(err)
-	return multiErr.FinalError()
+	return err
 }
 
 func (i *nsIndex) sanitizeAllowDuplicatesWriteError(err error) error {

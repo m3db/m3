@@ -114,6 +114,10 @@ const (
 	// DefaultIndexVolumeType is a default IndexVolumeType.
 	// This is the type if not otherwise specified.
 	DefaultIndexVolumeType IndexVolumeType = "default"
+	// SnapshotColdIndexVolumeType holds cold index snapshot data.
+	SnapshotColdIndexVolumeType IndexVolumeType = "snapshot_cold"
+	// SnapshotWarmIndexVolumeType holds warm index snapshot data.
+	SnapshotWarmIndexVolumeType IndexVolumeType = "snapshot_warm"
 )
 
 // IndexSegmentType is the type of an index file set.
