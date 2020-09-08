@@ -1,4 +1,7 @@
-# Prometheus
+---
+title: "Prometheus"
+weight: 1
+---
 
 This document is a getting started guide to integrating M3DB with Prometheus.
 

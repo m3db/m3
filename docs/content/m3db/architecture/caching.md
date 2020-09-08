@@ -1,4 +1,7 @@
-# Caching policies
+---
+title: "Caching"
+weight: 7
+---
 
 ## Overview
 

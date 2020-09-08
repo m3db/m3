@@ -1,4 +1,8 @@
-# FAQs
+---
+title: "FAQs"
+weight: 10
+chapter: true
+---
 
 - **Is there a way to disable M3DB embedded `etcd` and just use an external `etcd` cluster?**
 Yes, you can definitely do that. It's all just about setting the etcd endpoints in config as etcd hosts instead of M3DB hosts. See [these docs](https://m3db.github.io/m3/operational_guide/etcd/#configuring-an-external-etcd-cluster) for more information.

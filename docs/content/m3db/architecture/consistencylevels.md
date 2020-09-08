@@ -1,4 +1,7 @@
-# Consistency Levels
+---
+title: "Consistency Levels"
+weight: 3
+---
 
 M3DB provides variable consistency levels for read and write operations, as well as cluster connection operations. These consistency levels are handled at the client level.
 

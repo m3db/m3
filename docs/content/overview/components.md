@@ -1,4 +1,7 @@
-# Components
+---
+title: "Components"
+weight: 1
+---
 
 ## M3 Coordinator
 

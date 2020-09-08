@@ -1,4 +1,7 @@
-# Graphite
+---
+title: "Graphite"
+weight: 2
+---
 
 This document is a getting started guide to integrating the M3 stack with Graphite.
 

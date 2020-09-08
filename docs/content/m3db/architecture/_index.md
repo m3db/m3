@@ -1,4 +1,8 @@
-# Architecture
+---
+title: "Architecture"
+weight: 2
+chapter: true
+---
 
 ## Overview
 

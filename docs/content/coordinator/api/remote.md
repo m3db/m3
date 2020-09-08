@@ -1,4 +1,7 @@
-# API
+---
+title: "API"
+weight: 1
+---
 
 The M3 Coordinator implements the Prometheus Remote Read and Write HTTP endpoints, they also can be used however as general purpose metrics write and read APIs. Any metrics that are written to the remote write API can be queried using PromQL through the query APIs as well as being able to be read back by the Prometheus Remote Read endpoint.
 
@@ -28,7 +31,7 @@ None.
 
 Binary [snappy compressed](http://google.github.io/snappy/) Prometheus [WriteRequest protobuf message](https://github.com/prometheus/prometheus/blob/10444e8b1dc69ffcddab93f09ba8dfa6a4a2fddb/prompb/remote.proto#L22-L24).
 
-### Available Tuning Params 
+### Available Tuning Params
 
 Refer [here](https://prometheus.io/docs/practices/remote_write/) for an up to date list of remote tuning parameters. 
 
@@ -50,6 +53,7 @@ Here is an example of writing the datapoint at the current unix timestamp with v
 Note: keep this example similar to the one found in query API 
 documentation for consistency/ease of readers.
 -->
+
 ```bash
 docker run -it --rm                                            \
   quay.io/m3db/prometheus_remote_client_golang:latest          \
@@ -91,9 +95,9 @@ None.
 
 #### Optional
 
---8<--
+\--8&lt;--
 docs/common/headers_optional_read_write.md
---8<--
+\--8&lt;--
 
 ### Data Params
 

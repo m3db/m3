@@ -1,4 +1,9 @@
-# M3DB, a distributed time series database
+---
+title: "M3DB, a distributed time series database"
+menuTitle: "M3DB"
+weight: 3
+chapter: true
+---
 
 ## About
 

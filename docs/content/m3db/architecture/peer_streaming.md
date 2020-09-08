@@ -1,4 +1,7 @@
-# Peer Streaming
+---
+title: "Peer Streaming"
+weight: 6
+---
 
 ## Client
 

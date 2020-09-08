@@ -1,4 +1,7 @@
-# Storage
+---
+title: "Storage"
+weight: 4
+---
 
 ## Overview
 

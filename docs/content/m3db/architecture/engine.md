@@ -1,4 +1,7 @@
-# Storage Engine Overview
+---
+title: "Storage Engine"
+weight: 1
+---
 
 M3DB is a time series database that was primarily designed to be horizontally scalable and able to handle high data throughput.
 

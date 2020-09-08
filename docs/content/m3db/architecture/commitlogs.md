@@ -1,4 +1,8 @@
-# Commit Logs And Snapshot Files
+---
+title: "Commit Logs And Snapshot Files"
+menuTitle: "Commit Logs"
+weight: 5
+---
 
 ## Overview
 
