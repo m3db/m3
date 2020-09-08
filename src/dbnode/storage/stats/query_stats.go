@@ -119,6 +119,8 @@ func (q *queryStats) UpdateDocs(newDocs int) error {
 		// to check if above that limit as well.
 		RecentBytesRead: q.recentBytesRead.Load(),
 		NewBytesRead:    0,
+		ResetDocs:       false,
+		ResetBytesRead:  false,
 	}
 
 	// Invoke the custom tracker based on the new stats values.
@@ -144,8 +146,10 @@ func (q *queryStats) UpdateBytesRead(newBytesRead int) error {
 		NewBytesRead:    newBytesReadI64,
 		// Pass current docs along with bytes-read since we want
 		// to check if above that limit as well.
-		RecentDocs: q.recentDocs.Load(),
-		NewDocs:    0,
+		RecentDocs:     q.recentDocs.Load(),
+		NewDocs:        0,
+		ResetDocs:      false,
+		ResetBytesRead: false,
 	}
 
 	// Invoke the custom tracker based on the new stats values.
@@ -223,7 +227,7 @@ func (opts QueryStatsOptions) Validate() error {
 		return fmt.Errorf("query stats tracker requires max bytes read >= 0 (%d)", opts.MaxBytesRead)
 	}
 	if opts.MaxBytesReadLookback <= 0 {
-		return fmt.Errorf("query stats tracker requires max bytes lookback > 0 (%d)", opts.MaxBytesReadLookback)
+		return fmt.Errorf("query stats tracker requires max bytes read lookback > 0 (%d)", opts.MaxBytesReadLookback)
 	}
 	return nil
 }
