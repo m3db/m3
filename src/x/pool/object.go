@@ -60,6 +60,7 @@ type objectPoolMetrics struct {
 	putOnFull  tally.Counter
 }
 
+// FinalizeableOnce must be implemented by objects that require enforcement of single finalization (wrt. objectPool).
 type FinalizeableOnce interface {
 	Finalized() bool
 	SetFinalized(f bool)
