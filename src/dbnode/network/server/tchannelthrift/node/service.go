@@ -680,12 +680,14 @@ func (s *service) fetchTagged(ctx context.Context, db storage.Database, req *rpc
 		encodedDataResults = make([][][]xio.BlockReader, results.Size())
 	}
 	if err := s.fetchReadEncoded(ctx, db, response, results, nsID, nsIDBytes, callStart, opts, fetchData, encodedDataResults); err != nil {
+		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
 
 	// Step 2: If fetching data read the results of the asynchronous block readers.
 	if fetchData {
-		if err := s.fetchReadResults(ctx, response, nsID, callStart, encodedDataResults); err != nil {
+		if err := s.fetchReadResults(ctx, response, nsID, encodedDataResults); err != nil {
+			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return nil, err
 		}
 	}
@@ -725,7 +727,6 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 		ctx.RegisterFinalizer(enc)
 		encodedTags, err := s.encodeTags(enc, tags)
 		if err != nil { // This is an invariant, should never happen
-			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return tterrors.NewInternalError(err)
 		}
 
@@ -742,7 +743,6 @@ func (s *service) fetchReadEncoded(ctx context.Context,
 		encoded, err := db.ReadEncoded(ctx, nsID, tsID,
 			opts.StartInclusive, opts.EndExclusive)
 		if err != nil {
-			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return convert.ToRPCError(err)
 		} else {
 			encodedDataResults[idx] = encoded
@@ -755,7 +755,6 @@ func (s *service) fetchReadResults(
 	ctx context.Context,
 	response *rpc.FetchTaggedResult_,
 	nsID ident.ID,
-	callStart time.Time,
 	encodedDataResults [][][]xio.BlockReader,
 ) error {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.FetchReadResults)
@@ -770,7 +769,6 @@ func (s *service) fetchReadResults(
 	for idx := range response.Elements {
 		segments, rpcErr := s.readEncodedResult(ctx, nsID, encodedDataResults[idx])
 		if rpcErr != nil {
-			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
 			return rpcErr
 		}
 
