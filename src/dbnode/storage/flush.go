@@ -31,9 +31,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3/src/x/errors"
+	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -92,9 +94,10 @@ type flushManager struct {
 	state   flushManagerState
 	metrics flushManagerMetrics
 
-	lastSuccessfulSnapshotStartTime time.Time
-	logger                          *zap.Logger
-	nowFn                           clock.NowFn
+	lastSuccessfulSnapshotStartTime atomic.Int64 // == xtime.UnixNano
+
+	logger *zap.Logger
+	nowFn  clock.NowFn
 }
 
 func newFlushManager(
@@ -251,7 +254,7 @@ func (m *flushManager) dataSnapshot(
 
 	finalErr := multiErr.FinalError()
 	if finalErr == nil {
-		m.lastSuccessfulSnapshotStartTime = startTime
+		m.lastSuccessfulSnapshotStartTime.Store(int64(xtime.ToUnixNano(startTime)))
 	}
 	m.metrics.dataSnapshotDuration.Record(m.nowFn().Sub(start))
 	return finalErr
@@ -382,6 +385,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	return multiErr.FinalError()
 }
 
-func (m *flushManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
-	return m.lastSuccessfulSnapshotStartTime, !m.lastSuccessfulSnapshotStartTime.IsZero()
+func (m *flushManager) LastSuccessfulSnapshotStartTime() (xtime.UnixNano, bool) {
+	snapTime := xtime.UnixNano(m.lastSuccessfulSnapshotStartTime.Load())
+	return snapTime, snapTime > 0
 }

@@ -642,6 +642,43 @@ func testMovingFunction(t *testing.T, target, expectedName string, values, boots
 		expected, res.Values)
 }
 
+var (
+	testGeneralFunctionStart     = time.Now().Add(time.Minute * -11).Truncate(time.Minute)
+	testGeneralFunctionEnd       = time.Now().Add(time.Minute * -3).Truncate(time.Minute)
+)
+
+// testGeneralFunction is a copy of testMovingFunction but without any logic for bootstrapping values
+func testGeneralFunction(t *testing.T, target, expectedName string, values, output []float64) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	engine := NewEngine(
+		&common.MovingFunctionStorage{
+			StepMillis:     60000,
+			Values:         values,
+		},
+	)
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  testGeneralFunctionStart,
+		End:    testGeneralFunctionEnd,
+		Engine: engine,
+	})
+
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	var expected []common.TestSeries
+	if output != nil {
+		expectedSeries := common.TestSeries{
+			Name: expectedName,
+			Data: output,
+		}
+		expected = append(expected, expectedSeries)
+	}
+	common.CompareOutputsAndExpected(t, 60000, testGeneralFunctionStart, expected, res.Values)
+}
+
 func TestMovingAverageSuccess(t *testing.T) {
 	values := []float64{12.0, 19.0, -10.0, math.NaN(), 10.0}
 	bootstrap := []float64{3.0, 4.0, 5.0}
@@ -2840,6 +2877,68 @@ func TestTimeShift(t *testing.T) {
 		[]common.TestSeries{expected}, res.Values)
 }
 
+func TestDelay(t *testing.T) {
+	var values = [3][]float64{
+		{54.0, 48.0, 92.0, 54.0, 14.0, 1.2},
+		{4.0, 5.0, math.NaN(), 6.4, 7.2, math.NaN()},
+		{math.NaN(), 8.0, 9.0, 10.6, 11.2, 12.2},
+	}
+	expected := [3][]float64{
+		{math.NaN(), math.NaN(), math.NaN(), 54.0, 48.0, 92.0},
+		{math.NaN(), math.NaN(), math.NaN(), 4.0, 5.0, math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8.0, 9.0},
+	}
+
+	for index, value := range values {
+		e := expected[index]
+		testDelay(t, "delay(foo.bar.baz, 3)", "delay(foo.bar.baz,3)", value, e)
+	}
+}
+
+var (
+	testDelayStart     = time.Now().Truncate(time.Minute)
+	testDelayEnd       = testMovingFunctionEnd.Add(time.Minute)
+)
+
+func testDelay(t *testing.T, target, expectedName string, values, output []float64) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	engine := NewEngine(
+		&common.MovingFunctionStorage{
+			StepMillis:     10000,
+			Values:         values,
+		},
+	)
+	phonyContext := common.NewContext(common.ContextOptions{
+		Start:  testDelayStart,
+		End:    testDelayEnd,
+		Engine: engine,
+	})
+
+	expr, err := phonyContext.Engine.(*Engine).Compile(target)
+	require.NoError(t, err)
+	res, err := expr.Execute(phonyContext)
+	require.NoError(t, err)
+	var expected []common.TestSeries
+
+	if output != nil {
+		expectedSeries := common.TestSeries{
+			Name: expectedName,
+			Data: output,
+		}
+		expected = append(expected, expectedSeries)
+	}
+	common.CompareOutputsAndExpected(t, 10000, testDelayStart, expected, res.Values)
+}
+
+func TestTimeSlice(t *testing.T) {
+	values := []float64{math.NaN(),1.0,2.0,3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,8.0,9.0}
+	expected := []float64{math.NaN(),math.NaN(),math.NaN(),3.0,math.NaN(),5.0,6.0,math.NaN(),7.0,math.NaN(),math.NaN()}
+
+	testGeneralFunction(t, "timeSlice(foo.bar.baz, '-9min','-3min')", "timeSlice(foo.bar.baz, -9min, -3min)", values, expected)
+}
+
 func TestDashed(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -2927,6 +3026,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"currentAbove",
 		"currentBelow",
 		"dashed",
+		"delay",
 		"derivative",
 		"diffSeries",
 		"divideSeries",
@@ -2934,6 +3034,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"fallbackSeries",
 		"group",
 		"groupByNode",
+		"groupByNodes",
 		"highestAverage",
 		"highestCurrent",
 		"highestMax",
@@ -2989,6 +3090,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"time",
 		"timeFunction",
 		"timeShift",
+		"timeSlice",
 		"transformNull",
 		"weightedAverage",
 	}
