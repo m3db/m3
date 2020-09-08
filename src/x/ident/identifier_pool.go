@@ -150,9 +150,7 @@ func (p *simplePool) GetTagsIterator(c context.Context) TagsIterator {
 }
 
 func (p *simplePool) TagsIterator() TagsIterator {
-	iter := p.itersPool.Get().(*tagSliceIter)
-	iter.closed = false
-	return iter
+	return p.itersPool.Get().(*tagSliceIter)
 }
 
 func (p *simplePool) Tags() Tags {

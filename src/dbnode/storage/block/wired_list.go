@@ -75,7 +75,7 @@ var (
 
 // WiredList is a database block wired list.
 type WiredList struct {
-	sync.RWMutex
+	mu sync.RWMutex
 
 	nowFn clock.NowFn
 
@@ -155,8 +155,8 @@ func (l *WiredList) SetRuntimeOptions(value runtime.Options) {
 
 // Start starts processing the wired list
 func (l *WiredList) Start() error {
-	l.Lock()
-	defer l.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if l.updatesCh != nil {
 		return errAlreadyStarted
 	}
@@ -181,8 +181,8 @@ func (l *WiredList) Start() error {
 
 // Stop stops processing the wired list
 func (l *WiredList) Stop() error {
-	l.Lock()
-	defer l.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	if l.updatesCh == nil {
 		return errAlreadyStopped
@@ -204,18 +204,28 @@ func (l *WiredList) Stop() error {
 //
 // We use a channel and a background processing goroutine to reduce blocking / lock contention.
 func (l *WiredList) BlockingUpdate(v DatabaseBlock) {
-	l.RLock()
+	// Fast path, don't use defer (in Go 1.14 this won't matter anymore since
+	// defer is basically compile time for simple callsites).
+	l.mu.RLock()
 	if l.updatesCh == nil {
+		l.mu.RUnlock()
 		return
 	}
 	l.updatesCh <- v
-	l.RUnlock()
+	l.mu.RUnlock()
 }
 
 // NonBlockingUpdate will attempt to put the block in the events channel, but will not block
 // if the channel is full. Used in cases where a blocking update could trigger deadlock with
 // the WiredList itself.
 func (l *WiredList) NonBlockingUpdate(v DatabaseBlock) bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	if l.updatesCh == nil {
+		return false
+	}
+
 	select {
 	case l.updatesCh <- v:
 		return true

@@ -27,8 +27,6 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/pool"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -219,40 +217,4 @@ func newTestSimplePool() Pool {
 		})
 	bytesPool.Init()
 	return NewPool(bytesPool, PoolOptions{})
-}
-
-func TestPoolTagsIteratorDoubleClose(t *testing.T) {
-	bytesPool := pool.NewCheckedBytesPool(nil, nil,
-		func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, nil)
-		})
-	bytesPool.Init()
-
-	tagOpts := pool.NewObjectPoolOptions().SetSize(1)
-	iterOpts := pool.NewObjectPoolOptions().SetSize(2)
-
-	pool := NewPool(bytesPool, PoolOptions{
-		IDPoolOptions:           tagOpts,
-		TagsPoolOptions:         tagOpts,
-		TagsCapacity:            1,
-		TagsIteratorPoolOptions: iterOpts,
-	})
-
-	iterOne := pool.TagsIterator()
-	iterTwo := pool.TagsIterator()
-	iterOne.Close()
-	iterOne.Close()
-	iterTwo.Close()
-
-	iterOne = pool.TagsIterator()
-	iterTwo = pool.TagsIterator()
-	tags := pool.Tags()
-	tags.Append(pool.StringTag("foo", "bar"))
-	iterOne.Reset(tags)
-	require.False(t, iterTwo.Next())
-	require.True(t, iterOne.Next())
-	assert.Equal(t, "foo", iterOne.Current().Name.String())
-	assert.Equal(t, "bar", iterOne.Current().Value.String())
-	iterOne.Close()
-	iterTwo.Close()
 }
