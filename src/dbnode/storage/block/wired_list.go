@@ -75,7 +75,7 @@ var (
 
 // WiredList is a database block wired list.
 type WiredList struct {
-	sync.Mutex
+	mu sync.Mutex
 
 	nowFn clock.NowFn
 
@@ -87,6 +87,7 @@ type WiredList struct {
 	updatesChSize int
 	updatesCh     chan DatabaseBlock
 	doneCh        chan struct{}
+	wg            sync.WaitGroup
 
 	metrics wiredListMetrics
 	iOpts   instrument.Options
@@ -155,45 +156,64 @@ func (l *WiredList) SetRuntimeOptions(value runtime.Options) {
 
 // Start starts processing the wired list
 func (l *WiredList) Start() error {
-	l.Lock()
-	defer l.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	if l.updatesCh != nil {
 		return errAlreadyStarted
 	}
 
-	l.updatesCh = make(chan DatabaseBlock, l.updatesChSize)
-	l.doneCh = make(chan struct{}, 1)
-	go func() {
-		i := 0
-		for v := range l.updatesCh {
-			l.processUpdateBlock(v)
-			if i%wiredListSampleGaugesEvery == 0 {
-				l.metrics.unwireable.Update(float64(l.length))
-				l.metrics.limit.Update(float64(atomic.LoadInt64(&l.maxWired)))
-			}
-			i++
-		}
-		l.doneCh <- struct{}{}
-	}()
-
+	<-l.initialize()
 	return nil
+}
+
+func (l *WiredList) initialize() <-chan struct{} {
+	initialized := make(chan struct{})
+
+	l.wg.Add(1)
+	go func() {
+		defer l.wg.Done()
+
+		l.updatesCh = make(chan DatabaseBlock, l.updatesChSize) // closed by Stop()
+		l.doneCh = make(chan struct{})
+		defer func() {
+			close(l.doneCh)
+			l.updatesCh = nil
+			l.doneCh = nil
+		}()
+
+		initialized <- struct{}{}
+
+		l.updateLoop(l.updatesCh)
+	}()
+	return initialized
+}
+
+func (l *WiredList) updateLoop(ch <-chan DatabaseBlock) {
+	var i int
+	for v := range ch {
+		l.processUpdateBlock(v)
+		if i%wiredListSampleGaugesEvery == 0 {
+			l.metrics.unwireable.Update(float64(l.length))
+			l.metrics.limit.Update(float64(atomic.LoadInt64(&l.maxWired)))
+		}
+		i++
+	}
 }
 
 // Stop stops processing the wired list
 func (l *WiredList) Stop() error {
-	l.Lock()
-	defer l.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
-	if l.updatesCh == nil {
+	select {
+	case <-l.doneCh:
 		return errAlreadyStopped
+	default:
 	}
 
 	close(l.updatesCh)
-	<-l.doneCh
-
-	l.updatesCh = nil
-	close(l.doneCh)
-	l.doneCh = nil
+	l.wg.Wait()
 
 	return nil
 }
