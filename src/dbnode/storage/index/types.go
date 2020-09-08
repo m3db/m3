@@ -962,7 +962,7 @@ type Options interface {
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
 
-	// SetQueryStatsTracker sets current query stats.
+	// SetQueryStats sets current query stats.
 	SetQueryStats(value stats.QueryStats) Options
 
 	// QueryStats returns the current query stats.

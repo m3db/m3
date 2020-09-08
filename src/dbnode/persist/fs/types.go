@@ -550,8 +550,8 @@ type BlockRetrieverOptions interface {
 	// BlockLeaseManager returns the block leaser.
 	BlockLeaseManager() block.LeaseManager
 
-	// SetQueryStatsTracker sets current query stats.
-	SetQueryStats(value stats.QueryStats) Options
+	// SetQueryStats sets current query stats.
+	SetQueryStats(value stats.QueryStats) BlockRetrieverOptions
 
 	// QueryStats returns the current query stats.
 	QueryStats() stats.QueryStats
