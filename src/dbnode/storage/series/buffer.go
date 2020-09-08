@@ -602,6 +602,7 @@ func (b *dbBuffer) Snapshot(
 		}
 
 		segment = encoder.Discard()
+		defer segment.Finalize()
 	}
 
 	afterMergeAcrossBuckets := b.nowFn()
