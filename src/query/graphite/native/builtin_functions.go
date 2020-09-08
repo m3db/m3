@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/query/graphite/common"
 	"github.com/m3db/m3/src/query/graphite/errors"
+	"github.com/m3db/m3/src/query/graphite/graphite"
 	"github.com/m3db/m3/src/query/graphite/ts"
 	"github.com/m3db/m3/src/query/util"
 )
@@ -240,6 +241,81 @@ func timeShift(
 		ContextShiftFunc: contextShiftingFn,
 		UnaryTransformer: transformerFn,
 	}, nil
+}
+
+// delay shifts all samples later by an integer number of steps. This can be used
+// for custom derivative calculations, among other things. Note: this will pad
+// the early end of the data with NaN for every step shifted. delay complements
+// other time-displacement functions such as timeShift and timeSlice, in that
+// delay is indifferent about the step intervals being shifted.
+func delay(
+	ctx *common.Context,
+	singlePath singlePathSpec,
+	steps int,
+) (ts.SeriesList, error) {
+	input := ts.SeriesList(singlePath)
+	output := make([]*ts.Series, 0, input.Len())
+
+	for _, series := range input.Values {
+		delayedVals := delayValuesHelper(ctx, series, steps)
+		delayedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), delayedVals)
+		renamedSeries := delayedSeries.RenamedTo(fmt.Sprintf("delay(%s,%d)", delayedSeries.Name(), steps))
+		output = append(output, renamedSeries)
+	}
+	input.Values = output
+	return input, nil
+}
+
+// delayValuesHelper takes a series and returns a copy of the values after
+// delaying the values by `steps` number of steps
+func delayValuesHelper(ctx *common.Context, series *ts.Series, steps int) ts.Values {
+	output := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+	for i := steps; i < series.Len(); i++ {
+		output.SetValueAt(i, series.ValueAt(i - steps))
+	}
+	return output
+}
+
+// timeSlice takes one metric or a wildcard metric, followed by a quoted string with the time to start the line and
+// another quoted string with the time to end the line. The start and end times are inclusive.
+// Useful for filtering out a part of a series of data from a wider range of data.
+func timeSlice(ctx *common.Context, inputPath singlePathSpec, start string, end string) (ts.SeriesList, error) {
+	var (
+		now = time.Now()
+		tzOffsetForAbsoluteTime time.Duration
+	)
+	startTime, err := graphite.ParseTime(start, now, tzOffsetForAbsoluteTime)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+	endTime, err := graphite.ParseTime(end, now, tzOffsetForAbsoluteTime)
+	if err != nil {
+		return ts.NewSeriesList(), err
+	}
+
+	input := ts.SeriesList(inputPath)
+	output := make([]*ts.Series, 0, input.Len())
+
+	for _, series := range input.Values {
+		stepDuration := time.Duration(series.MillisPerStep()) * time.Millisecond
+		truncatedValues := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+
+		currentTime := series.StartTime()
+		for i := 0; i < series.Len(); i++ {
+			equalOrAfterStart := currentTime.Equal(startTime) || currentTime.After(startTime)
+			beforeOrEqualEnd := currentTime.Before(endTime) || currentTime.Equal(endTime)
+			if equalOrAfterStart && beforeOrEqualEnd {
+				truncatedValues.SetValueAt(i, series.ValueAtTime(currentTime))
+			}
+			currentTime = currentTime.Add(stepDuration)
+		}
+
+		slicedSeries := ts.NewSeries(ctx, series.Name(), series.StartTime(), truncatedValues)
+		renamedSlicedSeries := slicedSeries.RenamedTo(fmt.Sprintf("timeSlice(%s, %s, %s)", slicedSeries.Name(), start, end))
+		output = append(output, renamedSlicedSeries)
+	}
+	input.Values = output
+	return input, nil
 }
 
 // absolute returns the absolute value of each element in the series.
@@ -1963,6 +2039,7 @@ func init() {
 	MustRegisterFunction(dashed).WithDefaultParams(map[uint8]interface{}{
 		2: 5.0, // dashLength
 	})
+	MustRegisterFunction(delay)
 	MustRegisterFunction(derivative)
 	MustRegisterFunction(diffSeries)
 	MustRegisterFunction(divideSeries)
@@ -2054,6 +2131,9 @@ func init() {
 	})
 	MustRegisterFunction(timeShift).WithDefaultParams(map[uint8]interface{}{
 		3: true, // resetEnd
+	})
+	MustRegisterFunction(timeSlice).WithDefaultParams(map[uint8]interface{}{
+		3: "now", // endTime
 	})
 	MustRegisterFunction(transformNull).WithDefaultParams(map[uint8]interface{}{
 		2: 0.0, // defaultValue

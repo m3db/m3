@@ -561,7 +561,10 @@ func TestNamespaceSnapshotShardError(t *testing.T) {
 	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
-func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapshotTestCase) error {
+func testSnapshotWithShardSnapshotErrs(
+	t *testing.T,
+	shardMethodResults []snapshotTestCase,
+) error {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -588,7 +591,9 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 		shardID := uint32(i)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 		if tc.expectSnapshot {
-			shard.EXPECT().Snapshot(blockStart, now, gomock.Any(), gomock.Any()).Return(tc.shardSnapshotErr)
+			shard.EXPECT().
+				Snapshot(blockStart, now, gomock.Any(), gomock.Any()).
+				Return(ShardSnapshotResult{}, tc.shardSnapshotErr)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
