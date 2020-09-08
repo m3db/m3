@@ -34,8 +34,15 @@ const DefaultLookback = time.Second * 5
 
 // Tracker implementation that emits query stats as metrics.
 type queryStatsTracker struct {
-	recentDocs tally.Gauge
-	totalDocs  tally.Counter
+	recentDocs         tally.Gauge
+	recentDocsMax      tally.Gauge
+	totalDocs          tally.Counter
+	recentBytesRead    tally.Gauge
+	recentBytesReadMax tally.Gauge
+	totalBytesRead     tally.Counter
+
+	recentDocsLimitError      tally.Counter
+	recentBytesReadLimitError tally.Counter
 
 	options QueryStatsOptions
 }
@@ -53,23 +60,43 @@ func DefaultQueryStatsTracker(
 		MetricsScope().
 		SubScope("query-stats")
 	return &queryStatsTracker{
-		options:    queryStatsOpts,
-		recentDocs: scope.Gauge("recent-docs-per-block"),
-		totalDocs:  scope.Counter("total-docs-per-block"),
+		options:                   queryStatsOpts,
+		recentDocs:                scope.Gauge("recent-docs-per-block"),
+		totalDocs:                 scope.Counter("total-docs-per-block"),
+		recentBytesRead:           scope.Gauge("recent-bytes-read"),
+		totalBytesRead:            scope.Counter("total-bytes-read"),
+		recentDocsLimitError:      scope.Tagged(map[string]string{"limit": "docs"}).Counter("limit-error"),
+		recentBytesReadLimitError: scope.Tagged(map[string]string{"limit": "bytes-read"}).Counter("limit-error"),
 	}
 }
 
 func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
+	if values.Reset {
+		// Only update the recent metrics on each reset so
+		// we measure only consistently timed peak values.
+		t.recentDocs.Update(float64(values.RecentDocs))
+		t.recentBytesRead.Update(float64(values.RecentBytesRead))
+	}
+
 	// Track stats as metrics.
-	t.recentDocs.Update(float64(values.RecentDocs))
 	t.totalDocs.Inc(values.NewDocs)
+	t.totalBytesRead.Inc(values.NewBytesRead)
 
 	// Enforce max queried docs (if specified).
 	if t.options.MaxDocs > 0 && values.RecentDocs > t.options.MaxDocs {
+		t.recentDocsLimitError.Inc(1)
 		return fmt.Errorf(
 			"query aborted, global recent time series blocks over limit: "+
 				"limit=%d, current=%d, within=%s",
 			t.options.MaxDocs, values.RecentDocs, t.options.Lookback)
+	}
+	// Enforce max queried docs (if specified).
+	if t.options.MaxBytesRead > 0 && values.RecentBytesRead > t.options.MaxBytesRead {
+		t.recentBytesReadLimitError.Inc(1)
+		return fmt.Errorf(
+			"query aborted, global recent time series bytes read from disk over limit: "+
+				"limit=%d, current=%d, within=%s",
+			t.options.MaxBytesRead, values.RecentBytesRead, t.options.Lookback)
 	}
 	return nil
 }
