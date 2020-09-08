@@ -100,11 +100,6 @@ type blockRetriever struct {
 	fetchLoopsHaveShutdownCh   chan struct{}
 }
 
-// ByteLimitExceeded returns true if the limit is exceeded.
-func ByteLimitExceeded() bool {
-	return recentBytes.Load() >= recentBytesLimit
-}
-
 // NewBlockRetriever returns a new block retriever for TSDB file sets.
 func NewBlockRetriever(
 	opts BlockRetrieverOptions,
@@ -295,7 +290,7 @@ func (r *blockRetriever) fetchBatch(
 ) {
 	if err := r.opts.QueryStats().UpdateBytesRead(0); err != nil {
 		for _, req := range reqs {
-			req.onError(errors.New("rate of bytes retrieved from disk exceeds limit of 1M"))
+			req.onError(err)
 		}
 		return
 	}
@@ -362,7 +357,6 @@ func (r *blockRetriever) fetchBatch(
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
 		callOnRetrieve := req.onRetrieve != nil && req.foundAndHasNoError()
-		callOnRetrieve = false
 		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database to cache the in memory data for
