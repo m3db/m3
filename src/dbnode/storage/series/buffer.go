@@ -586,7 +586,8 @@ func (b *dbBuffer) Snapshot(
 		encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize(), nsCtx.Schema)
 		iter := b.opts.MultiReaderIteratorPool().Get()
 		defer func() {
-			encoder.Close()
+			// NB(bodu): encoder.Discard() closes the encoder so we don't need to close
+			// it here.
 			iter.Close()
 		}()
 		iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize(), nsCtx.Schema)
