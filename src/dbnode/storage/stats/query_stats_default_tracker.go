@@ -100,7 +100,3 @@ func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
 	}
 	return nil
 }
-
-func (t *queryStatsTracker) Lookback() time.Duration {
-	return t.options.Lookback
-}

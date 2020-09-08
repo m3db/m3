@@ -79,7 +79,7 @@ type QueryStatsValues struct {
 
 // QueryStatsTracker provides an interface for tracking current query stats.
 type QueryStatsTracker interface {
-	Lookback() time.Duration
+	Options() QueryStatsOptions
 	TrackStats(stats QueryStatsValues) error
 }
 
@@ -112,8 +112,10 @@ func (q *queryStats) UpdateDocs(newDocs int) error {
 	recentDocs := q.recentDocs.Add(newDocsI64)
 
 	values := QueryStatsValues{
-		RecentDocs:      recentDocs,
-		NewDocs:         newDocsI64,
+		RecentDocs: recentDocs,
+		NewDocs:    newDocsI64,
+		// Pass current bytes-read along with docs since we want
+		// to check if above that limit as well.
 		RecentBytesRead: q.recentBytesRead.Load(),
 		NewBytesRead:    0,
 		Reset:           false,
@@ -140,9 +142,11 @@ func (q *queryStats) UpdateBytesRead(newBytesRead int) error {
 	values := QueryStatsValues{
 		RecentBytesRead: recentBytes,
 		NewBytesRead:    newBytesReadI64,
-		RecentDocs:      q.recentDocs.Load(),
-		NewDocs:         0,
-		Reset:           false,
+		// Pass current docs along with bytes-read since we want
+		// to check if above that limit as well.
+		RecentDocs: q.recentDocs.Load(),
+		NewDocs:    0,
+		Reset:      false,
 	}
 
 	// Invoke the custom tracker based on the new stats values.
@@ -154,31 +158,36 @@ func (q *queryStats) Start() {
 	if q == nil {
 		return
 	}
+	opts := q.tracker.Options()
+	docsTicker := time.NewTicker(opts.MaxDocsLookback)
+	bytesTicker := time.NewTicker(opts.MaxDocsLookback)
 	go func() {
-		ticker := time.NewTicker(q.tracker.Lookback())
-		defer ticker.Stop()
+		defer docsTicker.Stop()
+		defer bytesTicker.Stop()
 		for {
 			select {
-			case <-ticker.C:
-				stats := QueryStatsValues{
-					RecentBytesRead: q.recentBytesRead.Load(),
-					NewBytesRead:    0,
-					RecentDocs:      q.recentDocs.Load(),
-					NewDocs:         0,
-					Reset:           true,
-				}
-
-				// Clear recent docs every X duration.
+			case <-docsTicker.C:
+				// Invoke the track func for current values before resetting.
+				q.trackPeaks()
 				q.recentDocs.Store(0)
+			case <-bytesTicker.C:
+				q.trackPeaks()
 				q.recentBytesRead.Store(0)
-
-				// Also invoke the track func for having zero value.
-				_ = q.tracker.TrackStats(stats)
 			case <-q.stopCh:
 				return
 			}
 		}
 	}()
+}
+
+func (q *queryStats) trackPeaks() {
+	_ = q.tracker.TrackStats(QueryStatsValues{
+		RecentBytesRead: q.recentBytesRead.Load(),
+		NewBytesRead:    0,
+		RecentDocs:      q.recentDocs.Load(),
+		NewDocs:         0,
+		Reset:           true,
+	})
 }
 
 func (q *queryStats) Stop() {
