@@ -32,6 +32,7 @@ var (
 	errIncorrectHeader               = errors.New("header magic number does not match expected value")
 	errInvalidByteStreamIDDecoding   = errors.New("internal error, invalid byte stream while decoding ID")
 	errInvalidByteStreamUintDecoding = errors.New("internal error, invalid byte stream while decoding uint")
+	errTagsDoubleClose               = errors.New("closing already closed tags decoder")
 )
 
 type decoder struct {
@@ -219,9 +220,13 @@ func (d *decoder) resetForReuse() {
 }
 
 func (d *decoder) Close() {
+	checkedDataBeforeClose := d.checkedData
 	d.resetForReuse()
 	if d.pool == nil {
 		return
+	}
+	if checkedDataBeforeClose == nil {
+		panic(errTagsDoubleClose)
 	}
 	d.pool.Put(d)
 }
