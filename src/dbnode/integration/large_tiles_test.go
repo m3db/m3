@@ -110,10 +110,10 @@ func TestReadAggregateWrite(t *testing.T) {
 	expectedNumWrites := int64(20)
 	flushed := xclock.WaitUntil(func() bool {
 		counters := reporter.Counters()
-		counter, ok := counters["database.series.cold-writes"]     // Wait until data is written
-		warmData, ok := counters["database.flushWarmData.success"] // Wait until data is flushed
-		return ok && counter == expectedNumWrites && warmData >= expectedNumWrites
-	}, time.Minute)
+		flushes, _ := counters["database.flushIndex.success"]
+		writes, _ := counters["database.series.cold-writes"]
+		successFlushes, _ := counters["database.flushColdData.success"]
+		return flushes >= 1 && writes >= expectedNumWrites && successFlushes >= 4	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 
