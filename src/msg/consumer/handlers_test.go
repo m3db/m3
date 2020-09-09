@@ -34,58 +34,62 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var testOpts = []Options{testOptions(), testOptionsUsingSnappyCompression()}
+
 func TestServerWithMessageFn(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	var (
-		data []string
-		wg   sync.WaitGroup
-	)
+	for _, opts := range testOpts {
+		var (
+			data []string
+			wg   sync.WaitGroup
+		)
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	p := NewMockMessageProcessor(ctrl)
-	p.EXPECT().Process(gomock.Any()).Do(
-		func(m Message) {
-			data = append(data, string(m.Bytes()))
-			m.Ack()
-			wg.Done()
-		},
-	).Times(2)
-	// Set a large ack buffer size to make sure the background go routine
-	// can flush it.
-	opts := testOptions().SetAckBufferSize(100)
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+		p := NewMockMessageProcessor(ctrl)
+		p.EXPECT().Process(gomock.Any()).Do(
+			func(m Message) {
+				data = append(data, string(m.Bytes()))
+				m.Ack()
+				wg.Done()
+			},
+		).Times(2)
+		// Set a large ack buffer size to make sure the background go routine
+		// can flush it.
+		opts = opts.SetAckBufferSize(100)
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
 
-	s := server.NewServer("a", NewMessageHandler(p, opts), server.NewOptions())
-	s.Serve(l)
+		s := server.NewServer("a", NewMessageHandler(p, opts), server.NewOptions())
+		s.Serve(l)
 
-	conn, err := net.Dial("tcp", l.Addr().String())
-	require.NoError(t, err)
+		conn, err := net.Dial("tcp", l.Addr().String())
+		require.NoError(t, err)
 
-	wg.Add(1)
-	err = produce(conn, &testMsg1)
-	require.NoError(t, err)
-	wg.Add(1)
-	err = produce(conn, &testMsg2)
-	require.NoError(t, err)
+		wg.Add(1)
+		err = produce(conn, &testMsg1, opts)
+		require.NoError(t, err)
+		wg.Add(1)
+		err = produce(conn, &testMsg2, opts)
+		require.NoError(t, err)
 
-	wg.Wait()
-	require.Equal(t, string(testMsg1.Value), data[0])
-	require.Equal(t, string(testMsg2.Value), data[1])
+		wg.Wait()
+		require.Equal(t, string(testMsg1.Value), data[0])
+		require.Equal(t, string(testMsg2.Value), data[1])
 
-	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
-	err = testDecoder.Decode(&ack)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(ack.Metadata))
-	require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
-	require.Equal(t, testMsg2.Metadata, ack.Metadata[1])
+		var ack msgpb.Ack
+		testDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
+		err = testDecoder.Decode(&ack)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(ack.Metadata))
+		require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
+		require.Equal(t, testMsg2.Metadata, ack.Metadata[1])
 
-	p.EXPECT().Close()
-	s.Close()
+		p.EXPECT().Close()
+		s.Close()
+	}
 }
 
 func TestServerWithConsumeFn(t *testing.T) {
@@ -112,33 +116,35 @@ func TestServerWithConsumeFn(t *testing.T) {
 		closed = true
 	}
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+	for _, opts := range testOpts {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
 
-	// Set a large ack buffer size to make sure the background go routine
-	// can flush it.
-	opts := testOptions().SetAckBufferSize(100)
-	s := server.NewServer("a", NewConsumerHandler(consumeFn, opts), server.NewOptions())
-	require.NoError(t, err)
-	s.Serve(l)
+		// Set a large ack buffer size to make sure the background go routine
+		// can flush it.
+		opts = opts.SetAckBufferSize(100)
+		s := server.NewServer("a", NewConsumerHandler(consumeFn, opts), server.NewOptions())
+		require.NoError(t, err)
+		s.Serve(l)
 
-	conn, err := net.Dial("tcp", l.Addr().String())
-	require.NoError(t, err)
+		conn, err := net.Dial("tcp", l.Addr().String())
+		require.NoError(t, err)
 
-	wg.Add(1)
-	err = produce(conn, &testMsg1)
-	require.NoError(t, err)
+		wg.Add(1)
+		err = produce(conn, &testMsg1, opts)
+		require.NoError(t, err)
 
-	wg.Wait()
-	require.Equal(t, testMsg1.Value, bytes)
+		wg.Wait()
+		require.Equal(t, testMsg1.Value, bytes)
 
-	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
-	err = testDecoder.Decode(&ack)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(ack.Metadata))
-	require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
+		var ack msgpb.Ack
+		testDecoder := proto.NewDecoder(conn, opts.DecoderOptions(), 10)
+		err = testDecoder.Decode(&ack)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(ack.Metadata))
+		require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
 
-	s.Close()
-	require.True(t, closed)
+		s.Close()
+		require.True(t, closed)
+	}
 }

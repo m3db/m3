@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 )
 
 // Message carries the data that needs to be processed.
@@ -117,6 +118,12 @@ type Options interface {
 
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
+
+	// Compression returns the compression method used.
+	Compression() xio.CompressionMethod
+
+	// SetCompression sets the compression method used.
+	SetCompression(value xio.CompressionMethod) Options
 }
 
 // MessageProcessor processes the message. When a MessageProcessor was set in the

@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -54,44 +55,49 @@ var (
 func TestNewConsumerWriter(t *testing.T) {
 	defer leaktest.Check(t)()
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer lis.Close()
+	testOpts := []Options{
+		testOptions(),
+		testOptionsUsingSnappyCompression(),
+	}
 
-	ctrl := xtest.NewController(t)
-	defer ctrl.Finish()
+	for _, opts := range testOpts {
+		lis, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer lis.Close()
 
-	mockRouter := NewMockackRouter(ctrl)
+		ctrl := xtest.NewController(t)
+		defer ctrl.Finish()
 
-	opts := testOptions()
+		mockRouter := NewMockackRouter(ctrl)
 
-	w := newConsumerWriter(lis.Addr().String(), mockRouter, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
-	require.Equal(t, 0, len(w.resetCh))
+		w := newConsumerWriter(lis.Addr().String(), mockRouter, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
+		require.Equal(t, 0, len(w.resetCh))
 
-	var wg sync.WaitGroup
+		var wg sync.WaitGroup
 
-	wg.Add(1)
-	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis, opts.EncoderOptions(), opts.DecoderOptions())
-		wg.Done()
-	}()
+		wg.Add(1)
+		go func() {
+			testConsumeAndAckOnConnectionListener(t, lis, opts.EncoderOptions(), opts.DecoderOptions())
+			wg.Done()
+		}()
 
-	require.NoError(t, write(w, &testMsg))
+		require.NoError(t, write(w, &testMsg))
 
-	wg.Add(1)
-	mockRouter.EXPECT().
-		Ack(newMetadataFromProto(testMsg.Metadata)).
-		Do(func(interface{}) { wg.Done() }).
-		Return(nil)
+		wg.Add(1)
+		mockRouter.EXPECT().
+			Ack(newMetadataFromProto(testMsg.Metadata)).
+			Do(func(interface{}) { wg.Done() }).
+			Return(nil)
 
-	w.Init()
-	wg.Wait()
+		w.Init()
+		wg.Wait()
 
-	w.Close()
-	// Make sure the connection is closed after closing the consumer writer.
-	_, err = w.writeState.conns[0].conn.Read([]byte{})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "closed network connection")
+		w.Close()
+		// Make sure the connection is closed after closing the consumer writer.
+		_, err = w.writeState.conns[0].conn.Read([]byte{})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "closed network connection")
+	}
 }
 
 // TODO: tests for multiple connection writers.
@@ -398,12 +404,20 @@ func testOptions() Options {
 		SetConnectionOptions(testConnectionOptions())
 }
 
+func testOptionsUsingSnappyCompression() Options {
+	return testOptions().SetConnectionOptions(testConnectionOptionsUsingSnappyCompression())
+}
+
 func testConnectionOptions() ConnectionOptions {
 	return NewConnectionOptions().
 		SetNumConnections(1).
 		SetRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetFlushInterval(100 * time.Millisecond).
 		SetResetDelay(100 * time.Millisecond)
+}
+
+func testConnectionOptionsUsingSnappyCompression() ConnectionOptions {
+	return testConnectionOptions().SetCompression(xio.SnappyCompression)
 }
 
 func testConsumeAndAckOnConnection(

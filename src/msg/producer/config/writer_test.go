@@ -21,6 +21,8 @@
 package config
 
 import (
+	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -47,6 +49,7 @@ retry:
 flushInterval: 2s
 writeBufferSize: 100
 readBufferSize: 200
+compression: snappy
 `
 
 	var cfg ConnectionConfiguration
@@ -62,6 +65,7 @@ readBufferSize: 200
 	require.Equal(t, 2*time.Second, cOpts.FlushInterval())
 	require.Equal(t, 100, cOpts.WriteBufferSize())
 	require.Equal(t, 200, cOpts.ReadBufferSize())
+	require.Equal(t, xio.SnappyCompression, cOpts.Compression())
 }
 
 func TestWriterConfiguration(t *testing.T) {
@@ -88,6 +92,7 @@ ackErrorRetry:
   initialBackoff: 2ms
 connection:
   dialTimeout: 5s
+  compression: snappy
 encoder:
   maxMessageSize: 100
 decoder:
@@ -123,4 +128,29 @@ decoder:
 	require.Equal(t, 5*time.Second, wOpts.ConnectionOptions().DialTimeout())
 	require.Equal(t, 100, wOpts.EncoderOptions().MaxMessageSize())
 	require.Equal(t, 200, wOpts.DecoderOptions().MaxMessageSize())
+	require.Equal(t, xio.SnappyCompression, wOpts.ConnectionOptions().Compression())
+
+	decoderWriteFnExpected := xio.SnappyResettableWriterFn()
+	decoderWriteFnActual := wOpts.DecoderOptions().RWOptions().ResettableWriterFn()
+	decoderWriteFnExpectedName := runtime.FuncForPC(reflect.ValueOf(decoderWriteFnExpected).Pointer()).Name()
+	decoderWriteFnActualName := runtime.FuncForPC(reflect.ValueOf(decoderWriteFnActual).Pointer()).Name()
+	require.Equal(t, decoderWriteFnExpectedName, decoderWriteFnActualName)
+
+	decoderReadFnExpected := xio.SnappyResettableReaderFn()
+	decoderReadFnActual := wOpts.DecoderOptions().RWOptions().ResettableReaderFn()
+	decoderReadFnExpectedName := runtime.FuncForPC(reflect.ValueOf(decoderReadFnExpected).Pointer()).Name()
+	decoderReadFnActualName := runtime.FuncForPC(reflect.ValueOf(decoderReadFnActual).Pointer()).Name()
+	require.Equal(t, decoderReadFnExpectedName, decoderReadFnActualName)
+
+	encoderWriteFnExpected := xio.SnappyResettableWriterFn()
+	encoderWriteFnActual := wOpts.EncoderOptions().RWOptions().ResettableWriterFn()
+	encoderWriteFnExpectedName := runtime.FuncForPC(reflect.ValueOf(encoderWriteFnExpected).Pointer()).Name()
+	encoderWriteFnActualName := runtime.FuncForPC(reflect.ValueOf(encoderWriteFnActual).Pointer()).Name()
+	require.Equal(t, encoderWriteFnExpectedName, encoderWriteFnActualName)
+
+	encoderReadFnExpected := xio.SnappyResettableReaderFn()
+	encoderReadFnActual := wOpts.EncoderOptions().RWOptions().ResettableReaderFn()
+	encoderReadFnExpectedName := runtime.FuncForPC(reflect.ValueOf(encoderReadFnExpected).Pointer()).Name()
+	encoderReadFnActualName := runtime.FuncForPC(reflect.ValueOf(encoderReadFnActual).Pointer()).Name()
+	require.Equal(t, encoderReadFnExpectedName, encoderReadFnActualName)
 }

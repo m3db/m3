@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/x/instrument"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/retry"
 	xserver "github.com/m3db/m3/src/x/server"
@@ -45,12 +46,12 @@ type M3MsgServerConfiguration struct {
 
 // NewServerOptions creates a new set of M3Msg server options.
 func (c *M3MsgServerConfiguration) NewServerOptions(
-	instrumentOpts instrument.Options,
+	instrumentOpts instrument.Options, rwOpts xio.Options,
 ) (m3msg.Options, error) {
 	opts := m3msg.NewOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetServerOptions(c.Server.NewOptions(instrumentOpts)).
-		SetConsumerOptions(c.Consumer.NewOptions(instrumentOpts))
+		SetConsumerOptions(c.Consumer.NewOptions(instrumentOpts, rwOpts))
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}

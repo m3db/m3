@@ -99,7 +99,7 @@ func Run(opts RunOptions) {
 			SetMetricsScope(scope.
 				SubScope("m3msg-server").
 				Tagged(map[string]string{"server": "m3msg"}))
-		m3msgServerOpts, err := cfg.M3Msg.NewServerOptions(m3msgInsrumentOpts)
+		m3msgServerOpts, err := cfg.M3Msg.NewServerOptions(m3msgInsrumentOpts, serverOptions.RWOptions())
 		if err != nil {
 			logger.Fatal("could not create m3msg server options", zap.Error(err))
 		}

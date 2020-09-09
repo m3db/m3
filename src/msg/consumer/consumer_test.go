@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
+	xio "github.com/m3db/m3/src/x/io"
 	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/fortytw2/leaktest"
@@ -68,7 +69,7 @@ func TestConsumerWithMessagePool(t *testing.T) {
 	c, err := l.Accept()
 	require.NoError(t, err)
 
-	err = produce(conn, &testMsg1)
+	err = produce(conn, &testMsg1, opts)
 	require.NoError(t, err)
 
 	m1, err := c.Message()
@@ -78,7 +79,7 @@ func TestConsumerWithMessagePool(t *testing.T) {
 	// Acking m1 making it available for reuse.
 	m1.Ack()
 
-	err = produce(conn, &testMsg2)
+	err = produce(conn, &testMsg2, opts)
 	require.NoError(t, err)
 
 	m2, err := c.Message()
@@ -88,7 +89,7 @@ func TestConsumerWithMessagePool(t *testing.T) {
 
 	require.Equal(t, m1, m2)
 
-	err = produce(conn, &testMsg1)
+	err = produce(conn, &testMsg1, opts)
 	require.NoError(t, err)
 
 	m3, err := c.Message()
@@ -114,7 +115,7 @@ func TestConsumerAckReusedMessage(t *testing.T) {
 	c, err := l.Accept()
 	require.NoError(t, err)
 
-	err = produce(conn, &testMsg1)
+	err = produce(conn, &testMsg1, opts)
 	require.NoError(t, err)
 
 	m1, err := c.Message()
@@ -124,7 +125,7 @@ func TestConsumerAckReusedMessage(t *testing.T) {
 	// Acking m1 making it available for reuse.
 	m1.Ack()
 
-	err = produce(conn, &testMsg2)
+	err = produce(conn, &testMsg2, opts)
 	require.NoError(t, err)
 
 	m2, err := c.Message()
@@ -162,7 +163,7 @@ func TestConsumerAckError(t *testing.T) {
 	cc := c.(*consumer)
 	cc.encoder = mockEncoder
 
-	err = produce(conn, &testMsg1)
+	err = produce(conn, &testMsg1, opts)
 	require.NoError(t, err)
 
 	m, err := cc.Message()
@@ -197,7 +198,7 @@ func TestConsumerMessageError(t *testing.T) {
 	cc := c.(*consumer)
 	cc.decoder = mockDecoder
 
-	err = produce(conn, &testMsg1)
+	err = produce(conn, &testMsg1, opts)
 	require.NoError(t, err)
 
 	mockDecoder.EXPECT().Decode(gomock.Any()).Return(errors.New("mock encode err"))
@@ -227,10 +228,10 @@ func TestConsumerAckBuffer(t *testing.T) {
 	cc := c.(*consumer)
 	cc.encoder = mockEncoder
 
-	err = produce(conn, &testMsg1)
+	err = produce(conn, &testMsg1, opts)
 	require.NoError(t, err)
 
-	err = produce(conn, &testMsg2)
+	err = produce(conn, &testMsg2, opts)
 	require.NoError(t, err)
 
 	m1, err := cc.Message()
@@ -271,10 +272,10 @@ func TestConsumerAckAfterClosed(t *testing.T) {
 	cc := c.(*consumer)
 	cc.encoder = mockEncoder
 
-	err = produce(conn, &testMsg1)
+	err = produce(conn, &testMsg1, opts)
 	require.NoError(t, err)
 
-	err = produce(conn, &testMsg2)
+	err = produce(conn, &testMsg2, opts)
 	require.NoError(t, err)
 
 	m1, err := cc.Message()
@@ -315,10 +316,10 @@ func TestConsumerTimeBasedFlush(t *testing.T) {
 	cc := c.(*consumer)
 	cc.encoder = mockEncoder
 
-	err = produce(conn, &testMsg1)
+	err = produce(conn, &testMsg1, opts)
 	require.NoError(t, err)
 
-	err = produce(conn, &testMsg2)
+	err = produce(conn, &testMsg2, opts)
 	require.NoError(t, err)
 
 	m1, err := cc.Message()
@@ -356,10 +357,10 @@ func TestConsumerFlushAcksOnClose(t *testing.T) {
 	cc := c.(*consumer)
 	cc.encoder = mockEncoder
 
-	err = produce(conn, &testMsg1)
+	err = produce(conn, &testMsg1, opts)
 	require.NoError(t, err)
 
-	err = produce(conn, &testMsg2)
+	err = produce(conn, &testMsg2, opts)
 	require.NoError(t, err)
 
 	m1, err := cc.Message()
@@ -390,7 +391,7 @@ func TestListenerMultipleConnection(t *testing.T) {
 func testProduceAndReceiveAck(t *testing.T, testMsg msgpb.Message, l Listener, opts Options) {
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	produce(conn, &testMsg)
+	produce(conn, &testMsg, opts)
 	require.NoError(t, err)
 
 	c, err := l.Accept()
@@ -420,12 +421,32 @@ func testOptions() Options {
 		SetConnectionWriteBufferSize(1)
 }
 
-func produce(w io.Writer, m proto.Marshaler) error {
-	encoder := proto.NewEncoder(nil)
+func testOptionsUsingSnappyCompression() Options {
+	opts := NewOptions()
+	rwOpts := xio.NewOptions().
+		SetResettableReaderFn(xio.SnappyResettableReaderFn()).
+		SetResettableWriterFn(xio.SnappyResettableWriterFn())
+	return opts.
+		SetAckBufferSize(1).
+		SetAckFlushInterval(50 * time.Millisecond).
+		SetMessagePoolOptions(MessagePoolOptions{
+			PoolOptions: pool.NewObjectPoolOptions().SetSize(1),
+		}).
+		SetConnectionWriteBufferSize(1).
+		SetCompression(xio.SnappyCompression).
+		SetEncoderOptions(opts.EncoderOptions().SetRWOptions(rwOpts)).
+		SetDecoderOptions(opts.DecoderOptions().SetRWOptions(rwOpts))
+}
+
+func produce(w io.Writer, m proto.Marshaler, opts Options) error {
+	encoder := proto.NewEncoder(opts.EncoderOptions())
 	err := encoder.Encode(m)
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(encoder.Bytes())
+	writerOpts := xio.ResettableWriterOptions{WriteBufferSize: opts.ConnectionWriteBufferSize()}
+	writerFn := opts.EncoderOptions().RWOptions().ResettableWriterFn()(w, writerOpts)
+	_, err = writerFn.Write(encoder.Bytes())
+	err = writerFn.Flush()
 	return err
 }

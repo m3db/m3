@@ -595,7 +595,7 @@ connectionWriteBufferSize: 32
 	var cfg consumer.Configuration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 
-	return cfg.NewOptions(instrument.NewOptions())
+	return cfg.NewOptions(instrument.NewOptions(), xio.NewOptions())
 }
 
 func serviceID(id int) services.ServiceID {

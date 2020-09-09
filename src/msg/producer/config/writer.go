@@ -40,15 +40,16 @@ import (
 
 // ConnectionConfiguration configs the connection options.
 type ConnectionConfiguration struct {
-	NumConnections  *int                 `yaml:"numConnections"`
-	DialTimeout     *time.Duration       `yaml:"dialTimeout"`
-	WriteTimeout    *time.Duration       `yaml:"writeTimeout"`
-	KeepAlivePeriod *time.Duration       `yaml:"keepAlivePeriod"`
-	ResetDelay      *time.Duration       `yaml:"resetDelay"`
-	Retry           *retry.Configuration `yaml:"retry"`
-	FlushInterval   *time.Duration       `yaml:"flushInterval"`
-	WriteBufferSize *int                 `yaml:"writeBufferSize"`
-	ReadBufferSize  *int                 `yaml:"readBufferSize"`
+	NumConnections  *int                  `yaml:"numConnections"`
+	DialTimeout     *time.Duration        `yaml:"dialTimeout"`
+	WriteTimeout    *time.Duration        `yaml:"writeTimeout"`
+	KeepAlivePeriod *time.Duration        `yaml:"keepAlivePeriod"`
+	ResetDelay      *time.Duration        `yaml:"resetDelay"`
+	Retry           *retry.Configuration  `yaml:"retry"`
+	FlushInterval   *time.Duration        `yaml:"flushInterval"`
+	WriteBufferSize *int                  `yaml:"writeBufferSize"`
+	ReadBufferSize  *int                  `yaml:"readBufferSize"`
+	Compression     xio.CompressionMethod `yaml:"compression"`
 }
 
 // NewOptions creates connection options.
@@ -81,6 +82,7 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 	if c.ReadBufferSize != nil {
 		opts = opts.SetReadBufferSize(*c.ReadBufferSize)
 	}
+	opts = opts.SetCompression(c.Compression)
 	return opts.SetInstrumentOptions(iOpts)
 }
 
@@ -178,6 +180,16 @@ func (c *WriterConfiguration) NewOptions(
 		opts = opts.SetConnectionOptions(c.Connection.NewOptions(iOpts))
 	}
 
-	opts = opts.SetDecoderOptions(opts.DecoderOptions().SetRWOptions(rwOptions))
+	// Enable compression
+	if opts.ConnectionOptions().Compression() == xio.SnappyCompression {
+		rwOptions = rwOptions.
+			SetResettableReaderFn(xio.SnappyResettableReaderFn()).
+			SetResettableWriterFn(xio.SnappyResettableWriterFn())
+	}
+
+	opts = opts.
+		SetDecoderOptions(opts.DecoderOptions().SetRWOptions(rwOptions)).
+		SetEncoderOptions(opts.EncoderOptions().SetRWOptions(rwOptions))
+
 	return opts, nil
 }
