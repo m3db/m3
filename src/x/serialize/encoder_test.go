@@ -26,8 +26,10 @@ import (
 
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/pool"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -218,6 +220,28 @@ func TestSingleValueTagIterEncode(t *testing.T) {
 	mockBytes.EXPECT().Reset(nil)
 	mockBytes.EXPECT().DecRef()
 	enc.Reset()
+}
+
+func TestEncoderDoubleFinalizeError(t *testing.T) {
+	var _ pool.FinalizeableOnce = (*encoder)(nil) // ensure interface compliance
+
+	var accessErr error
+	poolOpts := pool.NewObjectPoolOptions().SetOnPoolAccessErrorFn(func(err error) {
+		accessErr = err
+	})
+
+	encoderOpts := newTestEncoderOpts()
+	encoderPool := NewTagEncoderPool(encoderOpts, poolOpts)
+	encoderPool.Init()
+
+	e := newTagEncoder(defaultNewCheckedBytesFn, encoderOpts, encoderPool)
+
+	e.Finalize()
+	require.NoError(t, accessErr)
+
+	e.Finalize()
+	require.Error(t, accessErr)
+	assert.Equal(t, "double finalize: *serialize.encoder", accessErr.Error())
 }
 
 func nstring(n int) string {

@@ -22,7 +22,6 @@ package serialize
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/m3db/m3/src/x/checked"
@@ -346,7 +345,7 @@ func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
 	dupe.Close()
 }
 
-func TestDecodeDoubleCloseError(t *testing.T) {
+func TestDecoderDoubleCloseError(t *testing.T) {
 	var _ pool.FinalizeableOnce = (*decoder)(nil) // ensure interface compliance
 
 	var accessErr error
@@ -364,7 +363,7 @@ func TestDecodeDoubleCloseError(t *testing.T) {
 
 	d.Close()
 	require.Error(t, accessErr)
-	assert.True(t, strings.HasPrefix(accessErr.Error(), "double finalize"))
+	assert.Equal(t, "double finalize: *serialize.decoder", accessErr.Error())
 }
 
 func newTestTagDecoder() TagDecoder {

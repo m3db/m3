@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"sync/atomic"
 
 	"github.com/m3db/m3/src/x/unsafe"
@@ -62,8 +63,8 @@ type objectPoolMetrics struct {
 
 // FinalizeableOnce must be implemented by objects that require enforcement of single finalization (wrt. objectPool).
 type FinalizeableOnce interface {
-	Finalized() bool
-	SetFinalized(f bool)
+	SetFinalized() error
+	SetUnfinalized() error
 }
 
 // NewObjectPool creates a new pool
@@ -105,12 +106,13 @@ func (p *objectPool) Init(alloc Allocator) {
 		return
 	}
 
+	p.alloc = alloc
+
 	p.values = make(chan interface{}, p.size)
 	for i := 0; i < cap(p.values); i++ {
-		p.values <- alloc()
+		p.values <- p.allocate()
 	}
 
-	p.alloc = alloc
 	p.setGauges()
 }
 
@@ -122,12 +124,15 @@ func (p *objectPool) Get() interface{} {
 
 	select {
 	case v = <-p.values:
+		if v, ok := v.(FinalizeableOnce); ok {
+			err := v.SetUnfinalized()
+			if err != nil {
+				p.onPoolAccessErrorFn(fmt.Errorf("%s: %s", err, reflect.TypeOf(v)))
+			}
+		}
 	default:
 		v = p.alloc()
 		metrics.getOnEmpty.Inc(1)
-	}
-	if v, ok := v.(FinalizeableOnce); ok {
-		v.SetFinalized(false)
 	}
 
 	if unsafe.Fastrandn(sampleObjectPoolLengthEvery) == 0 {
@@ -150,11 +155,11 @@ func (p *objectPool) Put(obj interface{}) {
 	}
 
 	if obj, ok := obj.(FinalizeableOnce); ok {
-		if obj.Finalized() {
-			p.onPoolAccessErrorFn(fmt.Errorf("double finalize, %v", obj))
+		err := obj.SetFinalized()
+		if err != nil {
+			p.onPoolAccessErrorFn(fmt.Errorf("%s: %s", err, reflect.TypeOf(obj)))
 			return
 		}
-		obj.SetFinalized(true)
 	}
 
 	select {
@@ -179,10 +184,18 @@ func (p *objectPool) tryFill() {
 
 		for len(p.values) < p.refillHighWatermark {
 			select {
-			case p.values <- p.alloc():
+			case p.values <- p.allocate():
 			default:
 				return
 			}
 		}
 	}()
+}
+
+func (p *objectPool) allocate() interface{} {
+	v := p.alloc()
+	if v, ok := v.(FinalizeableOnce); ok {
+		_ = v.SetFinalized()
+	}
+	return v
 }

@@ -22,7 +22,6 @@ package pool
 
 import (
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -140,8 +139,8 @@ func TestObjectPoolDoublePutError(t *testing.T) {
 	require.NoError(t, accessErr)
 
 	pool.Put(bytes)
-	assert.Error(t, accessErr)
-	assert.True(t, strings.HasPrefix(accessErr.Error(), "double finalize"))
+	require.Error(t, accessErr)
+	assert.Equal(t, "double finalize: *checked.bytesRef", accessErr.Error())
 }
 
 func BenchmarkObjectPoolGetPut(b *testing.B) {

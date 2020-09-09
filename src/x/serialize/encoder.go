@@ -70,6 +70,8 @@ type newCheckedBytesFn func([]byte, checked.BytesOptions) checked.Bytes
 var defaultNewCheckedBytesFn = checked.NewBytes
 
 type encoder struct {
+	checked.FinalizeableOnce
+
 	buf               *bytes.Buffer
 	checkedBytes      checked.Bytes
 	staticBuffer      [2]byte
