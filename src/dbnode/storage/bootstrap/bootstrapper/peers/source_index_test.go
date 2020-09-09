@@ -257,7 +257,7 @@ func TestBootstrapIndex(t *testing.T) {
 			_ result.Options,
 		) (result.ShardResult, error) {
 			goodID := ident.StringID("foo")
-			goodResult := result.NewShardResult(0, opts.ResultOptions())
+			goodResult := result.NewShardResult(opts.ResultOptions())
 			for ; blockStart.Before(blockEnd); blockStart = blockStart.Add(blockSize) {
 				fooBlock := block.NewDatabaseBlock(blockStart, ropts.BlockSize(),
 					ts.Segment{}, testBlockOpts, namespace.Context{})
@@ -468,7 +468,7 @@ func TestBootstrapIndex(t *testing.T) {
 //			_ result.Options,
 //		) (result.ShardResult, error) {
 //			goodID := ident.StringID("foo")
-//			goodResult := result.NewShardResult(0, opts.ResultOptions())
+//			goodResult := result.NewShardResult(opts.ResultOptions())
 //			for ; blockStart.Before(blockEnd); blockStart = blockStart.Add(blockSize) {
 //				fooBlock := block.NewDatabaseBlock(blockStart, ropts.BlockSize(),
 //					ts.Segment{}, testBlockOpts, namespace.Context{})

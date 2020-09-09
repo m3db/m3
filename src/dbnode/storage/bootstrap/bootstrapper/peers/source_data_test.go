@@ -209,7 +209,7 @@ func TestPeersSourceReturnsUnfulfilled(t *testing.T) {
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
 
-	goodResult := result.NewShardResult(0, opts.ResultOptions())
+	goodResult := result.NewShardResult(opts.ResultOptions())
 	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts, namespace.Context{})
 	goodID := ident.StringID("foo")
 	goodResult.AddBlock(goodID, ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
@@ -275,8 +275,8 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		end := start.Add(2 * ropts.BlockSize())
 
-		shard0ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
-		shard0ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
+		shard0ResultBlock1 := result.NewShardResult(opts.ResultOptions())
+		shard0ResultBlock2 := result.NewShardResult(opts.ResultOptions())
 		fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, 1, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
@@ -286,8 +286,8 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		shard0ResultBlock1.AddBlock(ident.StringID("foo"), ident.NewTags(ident.StringTag("foo", "oof")), fooBlock)
 		shard0ResultBlock2.AddBlock(ident.StringID("bar"), ident.NewTags(ident.StringTag("bar", "rab")), barBlock)
 
-		shard1ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
-		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
+		shard1ResultBlock1 := result.NewShardResult(opts.ResultOptions())
+		shard1ResultBlock2 := result.NewShardResult(opts.ResultOptions())
 		bazBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, 3, ts.FinalizeNone),
 			testBlockOpts, namespace.Context{})
@@ -468,7 +468,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 
 	results := make(map[resultsKey]result.ShardResult)
 	addResult := func(shard uint32, id string, b block.DatabaseBlock, expectedErr bool) {
-		r := result.NewShardResult(0, opts.ResultOptions())
+		r := result.NewShardResult(opts.ResultOptions())
 		r.AddBlock(ident.StringID(id), ident.NewTags(ident.StringTag(id, id)), b)
 		start := b.StartTime()
 		end := start.Add(ropts.BlockSize())

@@ -373,7 +373,7 @@ func testShardLoadLimit(t *testing.T, limit int64, shouldReturnError bool) {
 		start             = time.Now().Truncate(testBlockSize)
 		threeBytes        = checked.NewBytes([]byte("123"), nil)
 
-		sr      = result.NewShardResult(0, result.NewOptions())
+		sr      = result.NewShardResult(result.NewOptions())
 		fooTags = ident.NewTags(ident.StringTag("foo", "foe"))
 		barTags = ident.NewTags(ident.StringTag("bar", "baz"))
 	)
