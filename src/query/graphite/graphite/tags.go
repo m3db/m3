@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/unsafe"
 )
 
@@ -50,8 +49,6 @@ const (
 var (
 	// Should never be modified after init().
 	preFormattedTagNames [][]byte
-	// Should never be modified after init().
-	preFormattedTagNameIDs []ident.ID
 
 	// Prefix is the prefix for graphite metrics
 	Prefix = []byte("__g")
@@ -64,7 +61,6 @@ func init() {
 	for i := 0; i < numPreFormattedTagNames; i++ {
 		name := generateTagName(i)
 		preFormattedTagNames = append(preFormattedTagNames, name)
-		preFormattedTagNameIDs = append(preFormattedTagNameIDs, ident.BytesID(name))
 	}
 }
 
@@ -76,16 +72,6 @@ func TagName(idx int) []byte {
 	}
 
 	return []byte(fmt.Sprintf(graphiteFormat, idx))
-}
-
-// TagNameID gets a preallocated or generate a tag name ID for the given graphite
-// path index.
-func TagNameID(idx int) ident.ID {
-	if idx < len(preFormattedTagNameIDs) {
-		return preFormattedTagNameIDs[idx]
-	}
-
-	return ident.StringID(fmt.Sprintf(graphiteFormat, idx))
 }
 
 func generateTagName(idx int) []byte {
