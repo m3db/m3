@@ -254,6 +254,10 @@ func (mgr *followerFlushManager) CanLead() bool {
 		// time, meaning the forwarded metrics that didn't make to the process have been
 		// flushed successfully downstream.
 		for windowNanos, fbr := range shardFlushTimes.ForwardedByResolution {
+			if windowNanos > _maxWindowSize.Nanoseconds() {
+				continue
+			}
+
 			if fbr == nil {
 				mgr.metrics.forwarded.nilForwardedTimes.Inc(1)
 				return false
@@ -279,12 +283,20 @@ func (mgr *followerFlushManager) CanLead() bool {
 	return true
 }
 
+const _maxWindowSize = 1*time.Minute
+
 func (mgr *followerFlushManager) canLead(
 	flushTimes map[int64]int64,
 	metrics standardFollowerFlusherMetrics,
 ) bool {
 	for windowNanos, lastFlushedNanos := range flushTimes {
 		windowSize := time.Duration(windowNanos)
+
+		// Skip large window sizes!
+		if windowSize.Nanoseconds() > _maxWindowSize.Nanoseconds() {
+			continue
+		}
+
 		windowEndAt := mgr.openedAt.Truncate(windowSize)
 		if windowEndAt.Before(mgr.openedAt) {
 			windowEndAt = windowEndAt.Add(windowSize)
