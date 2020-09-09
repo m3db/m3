@@ -155,7 +155,7 @@ func TestReadAggregateWrite(t *testing.T) {
 
 var (
 	iterationCount      = 100
-	testSeriesCount     = 100
+	testSeriesCount     = 5000
 	testDataPointsCount = int(blockSizeT.Hours()) * 100
 )
 
@@ -336,8 +336,8 @@ func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter 
 	encodedTagsBytes := encodedTags.Bytes()
 
 	start := time.Now()
-	i := 0
 	for a := 0; a < testDataPointsCount; a++ {
+		i := 0
 		batchWriter, err := testSetup.DB().BatchWriter(ns, int(testDataPointsCount))
 		require.NoError(t, err)
 
@@ -347,7 +347,14 @@ func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter 
 			require.NoError(t, err)
 			i++
 		}
-		err = testSetup.DB().WriteTaggedBatch(context.NewContext(), ns, batchWriter, nil)
+		for r := 0; r < 3; r++ {
+			err = testSetup.DB().WriteTaggedBatch(context.NewContext(), ns, batchWriter, nil)
+			if err != nil && err.Error() == "commit log queue is full" {
+				time.Sleep(time.Second)
+				continue
+			}
+			break
+		}
 		require.NoError(t, err)
 
 		dpTime = dpTime.Add(time.Minute)
