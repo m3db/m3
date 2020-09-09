@@ -719,3 +719,11 @@ type CrossBlockIterator interface {
 	// Reset resets the iterator to the given block records.
 	Reset(records []BlockRecord)
 }
+
+// ReadIndexInfoFilesFn reads in index info files given a namespace.
+type ReadIndexInfoFilesFn func(
+	filePathPrefix string,
+	namespace ident.ID,
+	readerBufferSize int,
+	fileSetType persist.FileSetType,
+) []ReadIndexInfoFileResult

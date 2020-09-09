@@ -1338,7 +1338,11 @@ func (n *dbNamespace) ColdFlush(flushPersist persist.FlushPreparer) error {
 	return res
 }
 
-func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
+func (n *dbNamespace) FlushIndex(
+	flush persist.IndexFlush,
+	snapshotTime time.Time,
+	snapshotPersist persist.SnapshotPreparer,
+) error {
 	callStart := n.nowFn()
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
@@ -1354,7 +1358,7 @@ func (n *dbNamespace) FlushIndex(flush persist.IndexFlush) error {
 	}
 
 	shards := n.OwnedShards()
-	err := n.reverseIndex.WarmFlush(flush, shards)
+	err := n.reverseIndex.WarmFlush(flush, shards, snapshotTime, snapshotPersist)
 	n.metrics.flushIndex.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
@@ -1363,6 +1367,7 @@ func (n *dbNamespace) Snapshot(
 	blockStart,
 	snapshotTime time.Time,
 	snapshotPersist persist.SnapshotPreparer,
+	infoFiles []fs.ReadIndexInfoFileResult,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
@@ -1407,7 +1412,13 @@ func (n *dbNamespace) Snapshot(
 
 	n.metrics.snapshotSeriesPersist.Inc(int64(seriesPersist))
 
-	multiErr = multiErr.Add(n.reverseIndex.Snapshot(shardIDs, blockStart, snapshotTime, snapshotPersist))
+	multiErr = multiErr.Add(n.reverseIndex.Snapshot(
+		shardIDs,
+		blockStart,
+		snapshotTime,
+		snapshotPersist,
+		infoFiles,
+	))
 
 	res := multiErr.FinalError()
 	n.metrics.snapshot.ReportSuccessOrError(res, n.nowFn().Sub(callStart))

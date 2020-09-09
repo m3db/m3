@@ -1604,17 +1604,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) WarmFlush(blockStart, flush interfa
 }
 
 // FlushIndex mocks base method
-func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush) error {
+func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush, snapshotTime time.Time, snapshot persist.SnapshotPreparer) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FlushIndex", flush)
+	ret := m.ctrl.Call(m, "FlushIndex", flush, snapshotTime, snapshot)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // FlushIndex indicates an expected call of FlushIndex
-func (mr *MockdatabaseNamespaceMockRecorder) FlushIndex(flush interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) FlushIndex(flush, snapshotTime, snapshot interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).FlushIndex), flush)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).FlushIndex), flush, snapshotTime, snapshot)
 }
 
 // ColdFlush mocks base method
@@ -1632,17 +1632,17 @@ func (mr *MockdatabaseNamespaceMockRecorder) ColdFlush(flush interface{}) *gomoc
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error {
+func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer, infoFiles []fs.ReadIndexInfoFileResult) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush)
+	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush, infoFiles)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot
-func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, flush interface{}) *gomock.Call {
+func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, flush, infoFiles interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, flush)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, flush, infoFiles)
 }
 
 // NeedsFlush mocks base method
@@ -2575,17 +2575,17 @@ func (mr *MockNamespaceIndexMockRecorder) Tick(c, startTime interface{}) *gomock
 }
 
 // WarmFlush mocks base method
-func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard) error {
+func (m *MockNamespaceIndex) WarmFlush(flush persist.IndexFlush, shards []databaseShard, snapshotTime time.Time, snapshotPersist persist.SnapshotPreparer) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WarmFlush", flush, shards)
+	ret := m.ctrl.Call(m, "WarmFlush", flush, shards, snapshotTime, snapshotPersist)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WarmFlush indicates an expected call of WarmFlush
-func (mr *MockNamespaceIndexMockRecorder) WarmFlush(flush, shards interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) WarmFlush(flush, shards, snapshotTime, snapshotPersist interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlush), flush, shards)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WarmFlush", reflect.TypeOf((*MockNamespaceIndex)(nil).WarmFlush), flush, shards, snapshotTime, snapshotPersist)
 }
 
 // ColdFlush mocks base method
@@ -2630,17 +2630,17 @@ func (mr *MockNamespaceIndexMockRecorder) DebugMemorySegments(opts interface{}) 
 }
 
 // Snapshot mocks base method
-func (m *MockNamespaceIndex) Snapshot(shards map[uint32]struct{}, blockStart, snapshotTime time.Time, snapshotPersist persist.SnapshotPreparer) error {
+func (m *MockNamespaceIndex) Snapshot(shards map[uint32]struct{}, blockStart, snapshotTime time.Time, snapshotPersist persist.SnapshotPreparer, infoFiles []fs.ReadIndexInfoFileResult) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", shards, blockStart, snapshotTime, snapshotPersist)
+	ret := m.ctrl.Call(m, "Snapshot", shards, blockStart, snapshotTime, snapshotPersist, infoFiles)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot
-func (mr *MockNamespaceIndexMockRecorder) Snapshot(shards, blockStart, snapshotTime, snapshotPersist interface{}) *gomock.Call {
+func (mr *MockNamespaceIndexMockRecorder) Snapshot(shards, blockStart, snapshotTime, snapshotPersist, infoFiles interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockNamespaceIndex)(nil).Snapshot), shards, blockStart, snapshotTime, snapshotPersist)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockNamespaceIndex)(nil).Snapshot), shards, blockStart, snapshotTime, snapshotPersist, infoFiles)
 }
 
 // Close mocks base method

@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3/src/x/errors"
@@ -96,8 +97,9 @@ type flushManager struct {
 
 	lastSuccessfulSnapshotStartTime atomic.Int64 // == xtime.UnixNano
 
-	logger *zap.Logger
-	nowFn  clock.NowFn
+	logger               *zap.Logger
+	nowFn                clock.NowFn
+	readIndexInfoFilesFn fs.ReadIndexInfoFilesFn
 }
 
 func newFlushManager(
@@ -107,13 +109,14 @@ func newFlushManager(
 ) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
-		database:  database,
-		commitlog: commitlog,
-		opts:      opts,
-		pm:        opts.PersistManager(),
-		metrics:   newFlushManagerMetrics(scope),
-		logger:    opts.InstrumentOptions().Logger(),
-		nowFn:     opts.ClockOptions().NowFn(),
+		database:             database,
+		commitlog:            commitlog,
+		opts:                 opts,
+		pm:                   opts.PersistManager(),
+		metrics:              newFlushManagerMetrics(scope),
+		logger:               opts.InstrumentOptions().Logger(),
+		nowFn:                opts.ClockOptions().NowFn(),
+		readIndexInfoFilesFn: fs.ReadIndexInfoFiles,
 	}
 }
 
@@ -160,7 +163,7 @@ func (m *flushManager) Flush(startTime time.Time) error {
 		multiErr = multiErr.Add(fmt.Errorf("error rotating commitlog in mediator tick: %v", err))
 	}
 
-	if err = m.indexFlush(namespaces); err != nil {
+	if err = m.indexFlush(namespaces, startTime); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 
@@ -214,7 +217,6 @@ func (m *flushManager) dataAndIndexSnapshot(
 	if err != nil {
 		return err
 	}
-
 	m.setState(flushManagerSnapshotInProgress)
 	var (
 		start                           = m.nowFn()
@@ -222,6 +224,17 @@ func (m *flushManager) dataAndIndexSnapshot(
 		multiErr                        = xerrors.NewMultiError()
 	)
 	for _, ns := range namespaces {
+		// NB(bodu): Read in index info files and pass them in for determining
+		// whether or not snapshots are warm or cold. We do this here so we're not
+		// doing dupe work per block start.
+		fsOpts := m.opts.CommitLogOptions().FilesystemOptions()
+		infoFiles := m.readIndexInfoFilesFn(
+			fsOpts.FilePathPrefix(),
+			ns.ID(),
+			fsOpts.InfoReaderBufferSize(),
+			persist.FileSetFlushType,
+		)
+
 		snapshotBlockStarts, err := m.namespaceSnapshotTimes(ns, startTime)
 		if err != nil {
 			detailedErr := fmt.Errorf(
@@ -236,7 +249,11 @@ func (m *flushManager) dataAndIndexSnapshot(
 		}
 		for _, snapshotBlockStart := range snapshotBlockStarts {
 			err := ns.Snapshot(
-				snapshotBlockStart, startTime, snapshotPersist)
+				snapshotBlockStart,
+				startTime,
+				snapshotPersist,
+				infoFiles,
+			)
 
 			if err != nil {
 				detailedErr := fmt.Errorf(
@@ -262,8 +279,15 @@ func (m *flushManager) dataAndIndexSnapshot(
 
 func (m *flushManager) indexFlush(
 	namespaces []databaseNamespace,
+	startTime time.Time,
 ) error {
 	indexFlush, err := m.pm.StartIndexPersist()
+	if err != nil {
+		return err
+	}
+
+	snapshotID := uuid.NewUUID()
+	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
 	if err != nil {
 		return err
 	}
@@ -281,7 +305,7 @@ func (m *flushManager) indexFlush(
 		if !indexEnabled {
 			continue
 		}
-		multiErr = multiErr.Add(ns.FlushIndex(indexFlush))
+		multiErr = multiErr.Add(ns.FlushIndex(indexFlush, startTime, snapshotPersist))
 	}
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 

@@ -431,6 +431,8 @@ type databaseNamespace interface {
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
 		flush persist.IndexFlush,
+		snapshotTime time.Time,
+		snapshot persist.SnapshotPreparer,
 	) error
 
 	// ColdFlush flushes unflushed in-memory ColdWrites.
@@ -439,7 +441,12 @@ type databaseNamespace interface {
 	) error
 
 	// Snapshot snapshots unflushed in-memory WarmWrites.
-	Snapshot(blockStart, snapshotTime time.Time, flush persist.SnapshotPreparer) error
+	Snapshot(
+		blockStart,
+		snapshotTime time.Time,
+		flush persist.SnapshotPreparer,
+		infoFiles []fs.ReadIndexInfoFileResult,
+	) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
@@ -770,6 +777,8 @@ type NamespaceIndex interface {
 	WarmFlush(
 		flush persist.IndexFlush,
 		shards []databaseShard,
+		snapshotTime time.Time,
+		snapshotPersist persist.SnapshotPreparer,
 	) error
 
 	// ColdFlush performs any cold flushes that the index has outstanding using
@@ -789,6 +798,7 @@ type NamespaceIndex interface {
 		blockStart,
 		snapshotTime time.Time,
 		snapshotPersist persist.SnapshotPreparer,
+		infoFiles []fs.ReadIndexInfoFileResult,
 	) error
 
 	// Close will release the index resources and close the index.

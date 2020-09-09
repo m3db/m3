@@ -79,7 +79,7 @@ var (
 	errDbIndexTerminatingTickCancellation = errors.New("terminating tick early due to cancellation")
 	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
 	errDbIndexDoNotIndexSeries            = errors.New("series matched do not index fields")
-        errDbIndexSnapshotBlockDoesNotExist = errors.New("snapshot index block does not exist")
+	errDbIndexSnapshotBlockDoesNotExist   = errors.New("snapshot index block does not exist")
 )
 
 const (
@@ -112,7 +112,7 @@ type nsIndex struct {
 	namespaceRuntimeOptsMgr namespace.RuntimeOptionsManager
 	indexFilesetsBeforeFn   indexFilesetsBeforeFn
 	deleteFilesFn           deleteFilesFn
-	readIndexInfoFilesFn    readIndexInfoFilesFn
+	readIndexInfoFilesFn    fs.ReadIndexInfoFilesFn
 
 	newBlockFn            index.NewBlockFn
 	logger                *zap.Logger
@@ -194,12 +194,6 @@ type indexFilesetsBeforeFn func(dir string,
 	nsID ident.ID,
 	exclusiveTime time.Time,
 ) ([]string, error)
-
-type readIndexInfoFilesFn func(filePathPrefix string,
-	namespace ident.ID,
-	readerBufferSize int,
-	fileSetType persist.FileSetType,
-) []fs.ReadIndexInfoFileResult
 
 type newNamespaceIndexOpts struct {
 	md                      namespace.Metadata
@@ -919,6 +913,8 @@ func (i *nsIndex) Tick(c context.Cancellable, startTime time.Time) (namespaceInd
 func (i *nsIndex) WarmFlush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
+	snapshotTime time.Time,
+	snapshotPersist persist.SnapshotPreparer,
 ) error {
 	if len(shards) == 0 {
 		// No-op if no shards currently owned.
@@ -952,7 +948,7 @@ func (i *nsIndex) WarmFlush(
 
 	var evicted int
 	for _, block := range flushable {
-		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
+		immutableSegments, err := i.flushBlock(flush, block, shards, builder, snapshotTime, snapshotPersist)
 		if err != nil {
 			return err
 		}
@@ -1129,6 +1125,8 @@ func (i *nsIndex) flushBlock(
 	indexBlock index.Block,
 	shards []databaseShard,
 	builder segment.DocumentsBuilder,
+	snapshotTime time.Time,
+	snapshotPersist persist.SnapshotPreparer,
 ) ([]segment.Segment, error) {
 	allShards := make(map[uint32]struct{})
 	for _, shard := range shards {
@@ -1164,8 +1162,28 @@ func (i *nsIndex) flushBlock(
 		return nil, err
 	}
 
-	closed = true
+	// NB(bodu): After a successful warm block flush, we must write an empty snapshot to disk.
+	// If the DB node crashes before next snapshot is written to disk and we bootstrap the warm snapshot
+	// into the now "sealed" block those warm bootstrapped segments will never get evicted from memory.
+	prepareOpts := persist.IndexPrepareSnapshotOptions{
+		IndexPrepareOptions: persist.IndexPrepareOptions{
+			NamespaceMetadata: i.nsMetadata,
+			BlockStart:        indexBlock.StartTime(),
+			FileSetType:       persist.FileSetSnapshotType,
+			Shards:            allShards,
+			IndexVolumeType:   idxpersist.SnapshotWarmIndexVolumeType,
+		},
+		SnapshotTime: snapshotTime,
+	}
+	prepared, err := snapshotPersist.PrepareIndexSnapshot(prepareOpts)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := prepared.Close(); err != nil {
+		return nil, err
+	}
 
+	closed = true
 	// Now return the immutable segments
 	return preparedPersist.Close()
 }
@@ -1271,6 +1289,7 @@ func (i *nsIndex) Snapshot(
 	blockStart,
 	snapshotTime time.Time,
 	snapshotPersist persist.SnapshotPreparer,
+	infoFiles []fs.ReadIndexInfoFileResult,
 ) error {
 	i.state.RLock()
 	if i.state.closed {
@@ -1279,18 +1298,22 @@ func (i *nsIndex) Snapshot(
 	}
 	// Blocks are removed during ticks once they are out of retention, this means
 	// that we may snapshot data that's out of retention which is fine.
-        block, ok := i.state.blocksByTime[blockStart]
-        if !ok {
-                return errDbIndexSnapshotBlockDoesNotExist
-        }
+	block, ok := i.state.blocksByTime[xtime.ToUnixNano(blockStart)]
+	if !ok {
+		return errDbIndexSnapshotBlockDoesNotExist
+	}
 	i.state.RUnlock()
 
-        indexVolumeType := idxpersist.SnapshotWarmIndexVolumeType
-        // NB(bodu): If a block is sealed, then we're writing data into cold segments only.
-        // TODO(bodu): f/u on if it's possible to be sealed and still have warm data that needs snapshotting.
-        if block.IsSealed() {
-                indexVolumeType = idxpersist.SnapshotColdIndexVolumeType
-        }
+	// NB(bodu): There is a time window between when a block is sealed and when it is
+	// flushed that we are accumulating data in cold segments but we will snapshot to disk as
+	// warm segments. This is fine since we have not yet warm flushed this index block and loading
+	// all snapshotted segments into as warm mutable segments will place them in the correct lifecycle.
+	indexVolumeType := idxpersist.SnapshotWarmIndexVolumeType
+	// NB(bodu): If a block is sealed && there is flushed data on disk,
+	// then we're writing data into cold segments only.
+	if block.IsSealed() && i.hasIndexWarmFlushedToDisk(infoFiles, block.StartTime()) {
+		indexVolumeType = idxpersist.SnapshotColdIndexVolumeType
+	}
 
 	prepareOpts := persist.IndexPrepareSnapshotOptions{
 		IndexPrepareOptions: persist.IndexPrepareOptions{
@@ -1298,7 +1321,7 @@ func (i *nsIndex) Snapshot(
 			BlockStart:        blockStart,
 			FileSetType:       persist.FileSetSnapshotType,
 			Shards:            shards,
-			IndexVolumeType: indexVolumeType,
+			IndexVolumeType:   indexVolumeType,
 		},
 		SnapshotTime: snapshotTime,
 	}
@@ -1310,14 +1333,16 @@ func (i *nsIndex) Snapshot(
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-        segmentsData, err := block.MemorySegmentsData(ctx)
-        if err != nil {
-                return err
-        }
+	segmentsData, err := block.MemorySegmentsData(ctx)
+	if err != nil {
+		return err
+	}
 
-        if err := prepared.Persist(segmentData)); err != nil {
-                return err
-        }
+	for _, segmentData := range segmentsData {
+		if err := prepared.Persist(segmentData); err != nil {
+			return err
+		}
+	}
 	_, err = prepared.Close()
 	return err
 }
