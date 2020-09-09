@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/namespace"
@@ -35,6 +34,8 @@ import (
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	xtime "github.com/m3db/m3/src/x/time"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -156,9 +157,7 @@ func TestLargeTilesInfoReadWrite(t *testing.T) {
 
 	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil, persist.FileSetFlushType)
 	require.Equal(t, 1, len(readInfoFileResults))
-	for _, result := range readInfoFileResults {
-		require.NoError(t, result.Err.Error())
-	}
+	require.NoError(t, readInfoFileResults[0].Err.Error())
 
 	infoFile := readInfoFileResults[0].Info
 	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
