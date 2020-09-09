@@ -324,6 +324,20 @@ func (m *mutableSegments) Close() {
 	m.optsListener.Close()
 }
 
+func (m *mutableSegments) addSnapshottedSegments(segments []segment.Segment) error {
+	m.Lock()
+	defer m.Unlock()
+	if m.state == mutableSegmentsStateClosed {
+		return errMutableSegmentsAlreadyClosed
+	}
+	for _, segment := range segments {
+		// NB(bodu): Add all snapshotted segments to background segments. It is the responsbility of the
+		// warm/cold flush lifecycles to evict these from memory.
+		m.backgroundSegments = append(m.backgroundSegments, newReadableSeg(segment, m.opts))
+	}
+	return nil
+}
+
 func (m *mutableSegments) maybeBackgroundCompactWithLock() {
 	if m.compact.compactingBackground {
 		return

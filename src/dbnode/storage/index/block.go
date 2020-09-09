@@ -833,18 +833,6 @@ func (b *block) AddResults(
 	b.Lock()
 	defer b.Unlock()
 
-	multiErr := xerrors.NewMultiError()
-	for volumeType, results := range resultsByVolumeType.Iter() {
-		multiErr = multiErr.Add(b.addResults(volumeType, results))
-	}
-
-	return multiErr.FinalError()
-}
-
-func (b *block) addResults(
-	volumeType persist.IndexVolumeType,
-	results result.IndexBlock,
-) error {
 	// NB(prateek): we have to allow bootstrap to succeed even if we're Sealed because
 	// of topology changes. i.e. if the current m3db process is assigned new shards,
 	// we need to include their data in the index.
@@ -862,6 +850,27 @@ func (b *block) addResults(
 			results.Fulfilled().SummaryString(), blockRange.String())
 	}
 
+	multiErr := xerrors.NewMultiError()
+	for volumeType, results := range resultsByVolumeType.Iter() {
+		switch volumeType {
+		case idxpersist.SnapshotColdIndexVolumeType:
+			// NB(bodu): There is always at least 1 cold mutable segment.
+			coldBlock := b.coldMutableSegments[len(b.coldMutableSegments)-1]
+			coldBlock.addSnapshottedSegments(results.Segments())
+		case idxpersist.SnapshotWarmIndexVolumeType:
+			b.mutableSegments.addSnapshottedSegments(results.Segments())
+		default:
+			multiErr = multiErr.Add(b.addResults(volumeType, results))
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
+func (b *block) addResults(
+	volumeType persist.IndexVolumeType,
+	results result.IndexBlock,
+) error {
 	shardRangesSegments, ok := b.shardRangesSegmentsByVolumeType[volumeType]
 	if !ok {
 		shardRangesSegments = make([]blockShardRangesSegments, 0)
