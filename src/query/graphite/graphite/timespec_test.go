@@ -104,3 +104,42 @@ func TestAbsoluteOffset(t *testing.T) {
 		assert.Equal(t, test.expectedTime, parsed, "incorrect parsed value for %s", s)
 	}
 }
+
+// April 3 2013, 4:05
+func TestParseTimeReference(t *testing.T) {
+	tests := []struct {
+		ref     string
+		expectedTime time.Time
+	}{
+		{"", relativeTo},
+		{"now", relativeTo},
+		{"8:50", relativeTo.Add((time.Hour * 4) + (time.Minute * 45))},
+		{"8:50am", relativeTo.Add((time.Hour * 4) + (time.Minute * 45))},
+		{"8:50pm", relativeTo.Add((time.Hour * 16) + (time.Minute * 45))},
+		{"8am", relativeTo.Add((time.Hour * 3) + (time.Minute * 55))},
+		{"10pm", relativeTo.Add((time.Hour * 17) + (time.Minute * 55))},
+		{"noon", relativeTo.Add((time.Hour * 7) + (time.Minute * 55))},
+		{"midnight", relativeTo.Add((time.Hour * -4) + (time.Minute * -5))},
+		{"teatime", relativeTo.Add((time.Hour * 12) + (time.Minute * -5))},
+		{"yesterday", relativeTo.Add(time.Hour * 24 * -1)},
+		{"today", relativeTo},
+		{"tomorrow", relativeTo.Add(time.Hour * 24)},
+		{"04/24/13", relativeTo.Add(time.Hour * 24 * 21)},
+		{"04/24/2013", relativeTo.Add(time.Hour * 24 * 21)},
+		{"20130424", relativeTo.Add(time.Hour * 24 * 21)},
+		{"may6", relativeTo.Add(time.Hour * 24 * 33)},
+		{"may06", relativeTo.Add(time.Hour * 24 * 33)},
+		{"december17", relativeTo.Add(time.Hour * 24 * 258)},
+	}
+
+	for _, test := range tests {
+		ref := test.ref
+		parsed, err := ParseTimeReference(ref, relativeTo)
+		assert.Nil(t, err, "error parsing %s", ref)
+		assert.Equal(t, test.expectedTime, parsed, "incorrect parsed value for %s", ref)
+	}
+}
+
+func TestParseTimeReferenceErrors(t *testing.T) {
+	// check errors
+}

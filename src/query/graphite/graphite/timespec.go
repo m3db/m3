@@ -31,6 +31,8 @@ import (
 )
 
 var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)$`)
+var reMonthAndDay = regexp.MustCompile(`(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)([0-9]+)$`)
+var reDayOfWeek = regexp.MustCompile(`(?i)^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`)
 
 var periods = map[string]time.Duration{
 	"s":   time.Second,
@@ -42,6 +44,31 @@ var periods = map[string]time.Duration{
 	"y":   time.Hour * 24 * 365,
 }
 
+var weekdays = map[string]int {
+	"sunday" : 0,
+	"monday" : 1,
+	"tuesday" : 2,
+	"wednesday" : 3,
+	"thursday" : 4,
+	"friday" : 5,
+	"saturday" : 6,
+}
+
+var months = map[string]int {
+	"january" : 1,
+	"february" : 2,
+	"march" : 3,
+	"april" : 4,
+	"may" : 5,
+	"june" : 6,
+	"july" : 7,
+	"august" : 8,
+	"september" : 9,
+	"october" : 10,
+	"november" : 11,
+	"december" : 12,
+}
+
 // on Jan 2 15:04:05 -0700 MST 2006
 var formats = []string{
 	"15:04_060102",
@@ -50,6 +77,7 @@ var formats = []string{
 	"15:04_02.01.06",
 	"02.01.06",
 	"01/02/06",
+	"01/02/2006",
 	"060102",
 	"20060102",
 }
@@ -94,6 +122,7 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 		return now.Add(-1 * time.Duration(timePast) * period), nil
 	}
 
+
 	newS := bypassTimeParseBug(s)
 	for _, format := range formats {
 		t, err := time.Parse(format, newS)
@@ -108,8 +137,141 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 		return time.Unix(n, 0).UTC(), nil
 	}
 
+	ref, offset := s, ""
+	if strings.Contains(s, "+") {
+		stringSlice := strings.Split(s, "+")
+		ref, offset = stringSlice[0], stringSlice[1]
+	} else if strings.Contains(s, "-") {
+		stringSlice := strings.Split(s, "-")
+		ref, offset = stringSlice[0], stringSlice[1]
+	}
+	parsedReference, err := ParseTimeReference(ref, now)
+	parsedOffset, err := ParseDuration(offset)
+	if err == nil {
+		return parsedReference.Add(parsedOffset), err
+	}
+
 	return now, err
 }
+
+
+func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
+	hour := now.Hour()
+	minute := now.Minute()
+	refDate := time.Time{}
+
+	if ref == "" || ref == "now" {
+		return now, nil
+	}
+
+	// check if the time ref fits an absolute time format
+	for _, format := range formats {
+		t, err := time.Parse(format, ref)
+		if err == nil {
+			return time.Date(t.Year(), t.Month(), t.Day(), hour, minute, 0, 0, now.Location()), nil
+		}
+	}
+
+	rawRef := ref
+
+	// Time of Day Reference
+	i := strings.Index(ref,":")
+	if 0 < i && i < 3 {
+		newHour, err := strconv.ParseInt(ref[:i], 10, 0)
+		if err != nil {
+			return refDate, err
+		}
+		hour = int(newHour)
+		newMinute, err := strconv.ParseInt(ref[i+1:i+3], 10, 32)
+		if err != nil {
+			return refDate, err
+		}
+		minute = int(newMinute)
+		ref = ref[i+3:]
+
+		if len(ref) >= 2 {
+			if ref[:2] == "am" {
+				ref = ref[2:]
+			} else if  ref[:2] == "pm" {
+				hour = (hour + 12) % 24
+				ref = ref[2:]
+			}
+		}
+	}
+
+	// Xam or XXam
+	i = strings.Index(ref,"am")
+	if 0 < i && i < 3 {
+		newHour, err := strconv.ParseInt(ref[:i], 10, 32)
+		if err != nil {
+			return refDate, err
+		}
+		hour = int(newHour)
+		minute = 0
+		ref = ref[i+2:]
+	}
+
+
+	// Xpm or XXpm
+	i = strings.Index(ref, "pm")
+	if 0 < i && i < 3 {
+		newHour, err := strconv.ParseInt(ref[:i], 10, 32)
+		if err != nil {
+			return refDate, err
+		}
+		hour = int((newHour + 12) % 24)
+		minute = 0
+		ref = ref[i+2:]
+	}
+
+	if strings.HasPrefix(ref, "noon") {
+		hour,minute = 12,0
+		ref = ref[4:]
+	} else if strings.HasPrefix(ref, "midnight") {
+		hour,minute = 0,0
+		ref = ref[8:]
+	} else if strings.HasPrefix(ref, "teatime") {
+		hour,minute = 16,0
+		ref = ref[7:]
+	}
+
+	refDate = time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
+
+	// Day reference
+	if ref == "yesterday" {
+		refDate = refDate.Add(time.Hour * -24)
+	} else if ref == "tomorrow" {
+		refDate = refDate.Add(time.Hour * 24)
+	} else if ref == "today" {
+		return refDate, nil
+	} else if reMonthAndDay.MatchString(ref) { // monthDay (january10, may6, may06 etc.)
+		day := 0
+		monthString := ""
+		if val, err := strconv.ParseInt(ref[len(ref)-2:],10,64); err == nil {
+			day = int(val)
+			monthString = ref[:len(ref)-2]
+		} else if val, err := strconv.ParseInt(ref[len(ref)-1:],10,64); err == nil {
+			day = int(val)
+			monthString = ref[:len(ref)-1]
+		} else {
+			return refDate, errors.NewInvalidParamsError(fmt.Errorf("day of month required after month name"))
+		}
+		refDate = time.Date(refDate.Year(), time.Month(months[monthString]), day, hour, minute, 0, 0, refDate.Location())
+	} else if reDayOfWeek.MatchString(ref)   { // DayOfWeek (Monday, etc)
+		expectedDay := weekdays[ref]
+		today := int(refDate.Weekday())
+		dayOffset := today - expectedDay
+		if dayOffset < 0 {
+			dayOffset += 7
+		}
+		refDate.Add(time.Hour * 24 * -1 * time.Duration(dayOffset))
+	} else if ref != "" {
+		return refDate, errors.NewInvalidParamsError(fmt.Errorf("unkown day reference %s", rawRef))
+	}
+
+	return refDate, nil
+}
+
 
 // ParseDuration parses a duration
 func ParseDuration(s string) (time.Duration, error) {
