@@ -11,3 +11,6 @@
 
 [context."braskin/hugo_site"]
   command = "hugo"
+
+[context."chrischinch/quickstart"]
+  command = "hugo"  
