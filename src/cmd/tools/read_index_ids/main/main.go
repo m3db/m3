@@ -37,10 +37,11 @@ import (
 
 func main() {
 	var (
-		optPathPrefix = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
-		optNamespace  = getopt.StringLong("namespace", 'n', "", "Namespace [e.g. metrics]")
-		optShard      = getopt.Uint32Long("shard", 's', 0, "Shard ID [expected format uint32]")
-		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
+		optPathPrefix  = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
+		optNamespace   = getopt.StringLong("namespace", 'n', "", "Namespace [e.g. metrics]")
+		optShard       = getopt.Uint32Long("shard", 's', 0, "Shard ID [expected format uint32]")
+		optBlockstart  = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
+		optVolumeIndex = getopt.IntLong("volume-index", 'v', 0, "Volume index [e.g. 0]")
 	)
 	getopt.Parse()
 
@@ -68,9 +69,10 @@ func main() {
 	}
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:  ident.StringID(*optNamespace),
-			Shard:      *optShard,
-			BlockStart: time.Unix(0, *optBlockstart),
+			Namespace:   ident.StringID(*optNamespace),
+			Shard:       *optShard,
+			BlockStart:  time.Unix(0, *optBlockstart),
+			VolumeIndex: *optVolumeIndex,
 		},
 	}
 	err = reader.Open(openOpts)
