@@ -53,6 +53,8 @@ var (
 	// Update BootstrapPeersConfiguration comment in
 	// src/cmd/services/m3dbnode/config package if this is changed.
 	DefaultShardPersistenceFlushConcurrency = 1
+	// defaultIndexSegmentConcurrency defines the default index segment building concurrency.
+	defaultIndexSegmentConcurrency = 1
 )
 
 var (
@@ -70,6 +72,7 @@ type options struct {
 	defaultShardConcurrency          int
 	shardPersistenceConcurrency      int
 	shardPersistenceFlushConcurrency int
+	indexSegmentConcurrency          int
 	persistenceMaxQueueSize          int
 	persistManager                   persist.Manager
 	runtimeOptionsManager            m3dbruntime.OptionsManager
@@ -86,6 +89,7 @@ func NewOptions() Options {
 		defaultShardConcurrency:          DefaultShardConcurrency,
 		shardPersistenceConcurrency:      DefaultShardPersistenceConcurrency,
 		shardPersistenceFlushConcurrency: DefaultShardPersistenceFlushConcurrency,
+		indexSegmentConcurrency:          defaultIndexSegmentConcurrency,
 		persistenceMaxQueueSize:          defaultPersistenceMaxQueueSize,
 		// Use a zero pool, this should be overriden at config time.
 		contextPool: context.NewPool(context.NewOptions().
@@ -164,6 +168,16 @@ func (o *options) SetShardPersistenceFlushConcurrency(value int) Options {
 
 func (o *options) ShardPersistenceFlushConcurrency() int {
 	return o.shardPersistenceFlushConcurrency
+}
+
+func (o *options) SetIndexSegmentConcurrency(value int) Options {
+	opts := *o
+	opts.indexSegmentConcurrency = value
+	return &opts
+}
+
+func (o *options) IndexSegmentConcurrency() int {
+	return o.indexSegmentConcurrency
 }
 
 func (o *options) SetPersistenceMaxQueueSize(value int) Options {

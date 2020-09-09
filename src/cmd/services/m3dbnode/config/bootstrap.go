@@ -65,10 +65,15 @@ type BootstrapConfiguration struct {
 	// CacheSeriesMetadata determines whether individual bootstrappers cache
 	// series metadata across all calls (namespaces / shards / blocks).
 	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
+
+	// IndexSegmentConcurrency determines the concurrency for building index
+	// segments.
+	IndexSegmentConcurrency *int `yaml:"indexSegmentConcurrency"`
 }
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
 type BootstrapFilesystemConfiguration struct {
+	// TODO: deprecate.
 	// NumProcessorsPerCPU is the number of processors per CPU.
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 
@@ -224,6 +229,9 @@ func (bsc BootstrapConfiguration) New(
 				SetIdentifierPool(opts.IdentifierPool()).
 				SetMigrationOptions(fsCfg.migration().NewOptions()).
 				SetStorageOptions(opts)
+			if v := bsc.IndexSegmentConcurrency; v != nil {
+				fsbOpts = fsbOpts.SetIndexSegmentConcurrency(*v)
+			}
 			if err := validator.ValidateFilesystemBootstrapperOptions(fsbOpts); err != nil {
 				return nil, err
 			}
@@ -263,6 +271,9 @@ func (bsc BootstrapConfiguration) New(
 				SetDefaultShardConcurrency(pCfg.StreamShardConcurrency).
 				SetShardPersistenceConcurrency(pCfg.StreamPersistShardConcurrency).
 				SetShardPersistenceFlushConcurrency(pCfg.StreamPersistShardFlushConcurrency)
+			if v := bsc.IndexSegmentConcurrency; v != nil {
+				pOpts = pOpts.SetIndexSegmentConcurrency(*v)
+			}
 			if err := validator.ValidatePeersBootstrapperOptions(pOpts); err != nil {
 				return nil, err
 			}

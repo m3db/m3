@@ -70,6 +70,14 @@ type Options interface {
 	// Compactor returns the compactor used to compact segment builders into segments.
 	Compactor() *compaction.Compactor
 
+	// SetIndexSegmentConcurrency sets the concurrency for
+	// building index segments.
+	SetIndexSegmentConcurrency(value int) Options
+
+	// IndexSegmentConcurrency returns the concurrency for
+	// building index segments.
+	IndexSegmentConcurrency() int
+
 	// SetBoostrapDataNumProcessors sets the number of processors for CPU-bound
 	// work for bootstrapping data file sets.
 	SetBoostrapDataNumProcessors(value int) Options

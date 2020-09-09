@@ -56,6 +56,9 @@ var (
 	// us splitting an index block into smaller pieces is moot because we'll
 	// pull a lot more data into memory if we create more than one at a time.
 	defaultBootstrapIndexNumProcessors = 1
+
+	// defaultIndexSegmentConcurrency defines the default index segment building concurrency.
+	defaultIndexSegmentConcurrency = 1
 )
 
 type options struct {
@@ -65,6 +68,7 @@ type options struct {
 	indexOpts                   index.Options
 	persistManager              persist.Manager
 	compactor                   *compaction.Compactor
+	indexSegmentConcurrency     int
 	bootstrapDataNumProcessors  int
 	bootstrapIndexNumProcessors int
 	runtimeOptsMgr              runtime.OptionsManager
@@ -84,6 +88,7 @@ func NewOptions() Options {
 	return &options{
 		instrumentOpts:              instrument.NewOptions(),
 		resultOpts:                  result.NewOptions(),
+		indexSegmentConcurrency:     defaultIndexSegmentConcurrency,
 		bootstrapDataNumProcessors:  defaultBootstrapDataNumProcessors,
 		bootstrapIndexNumProcessors: defaultBootstrapIndexNumProcessors,
 		runtimeOptsMgr:              runtime.NewOptionsManager(),
@@ -173,6 +178,16 @@ func (o *options) SetCompactor(value *compaction.Compactor) Options {
 
 func (o *options) Compactor() *compaction.Compactor {
 	return o.compactor
+}
+
+func (o *options) SetIndexSegmentConcurrency(value int) Options {
+	opts := *o
+	opts.indexSegmentConcurrency = value
+	return &opts
+}
+
+func (o *options) IndexSegmentConcurrency() int {
+	return o.indexSegmentConcurrency
 }
 
 func (o *options) SetBoostrapDataNumProcessors(value int) Options {
