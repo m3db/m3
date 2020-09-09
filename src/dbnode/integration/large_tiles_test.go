@@ -114,8 +114,7 @@ func TestReadAggregateWrite(t *testing.T) {
 		flushes, _ := counters["database.flushIndex.success"]
 		writes, _ := counters["database.series.cold-writes"]
 		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 && writes >= expectedNumWrites && successFlushes >= 4
-	}, time.Minute)
+		return flushes >= 1 && writes >= expectedNumWrites && successFlushes >= 4	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 
