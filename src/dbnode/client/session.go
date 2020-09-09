@@ -3627,6 +3627,11 @@ type enqueueCh struct {
 	metrics              *streamFromPeersMetrics
 }
 
+// enqueueChannelDefaultLen is the queue length for processing series ready to
+// be fetched from other peers.
+// It was reduced from 32k to 512 since each struct in the queue is quite large
+// and with 32k capacity was using significant memory with high shard
+// concurrency.
 const enqueueChannelDefaultLen = 512
 
 func newEnqueueChannel(m *streamFromPeersMetrics) enqueueChannel {
