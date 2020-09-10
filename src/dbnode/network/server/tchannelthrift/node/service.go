@@ -550,8 +550,8 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 
 	if sampled {
 		sp.LogFields(
-			opentracinglog.String("sourceNameSpace", req.SourceNameSpace),
-			opentracinglog.String("targetNameSpace", req.TargetNameSpace),
+			opentracinglog.String("sourceNamespace", req.SourceNamespace),
+			opentracinglog.String("targetNamespace", req.TargetNamespace),
 			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
 			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
 			opentracinglog.String("step", req.Step),
@@ -582,8 +582,8 @@ func (s *service) aggregateTiles(
 		return 0, tterrors.NewBadRequestError(multiErr.FinalError())
 	}
 
-	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
-	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
+	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNamespace)
+	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNamespace)
 
 	processedBlockCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {

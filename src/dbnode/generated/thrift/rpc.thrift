@@ -493,12 +493,12 @@ struct Query {
 }
 
 struct AggregateTilesRequest {
-	1: required string sourceNameSpace
-	2: required string targetNameSpace
+	1: required string sourceNamespace
+	2: required string targetNamespace
 	3: required i64 rangeStart
 	4: required i64 rangeEnd
 	5: required string step
-	6: bool removeResets
+	6: bool removeResets // FIXME: temporary, remove after metrics type metadata is available.
 	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
 }
 

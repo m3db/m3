@@ -1095,8 +1095,8 @@ func (d *db) AggregateTiles(
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBAggregateTiles)
 	if sampled {
 		sp.LogFields(
-			opentracinglog.String("sourceNameSpace", sourceNsID.String()),
-			opentracinglog.String("targetNameSpace", targetNsID.String()),
+			opentracinglog.String("sourceNamespace", sourceNsID.String()),
+			opentracinglog.String("targetNamespace", targetNsID.String()),
 			xopentracing.Time("start", opts.Start),
 			xopentracing.Time("end", opts.End),
 			xopentracing.Duration("step", opts.Step),

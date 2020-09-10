@@ -3051,8 +3051,8 @@ func TestServiceAggregateTiles(t *testing.T) {
 	).Return(int64(4), nil)
 
 	result, err := service.AggregateTiles(tctx, &rpc.AggregateTilesRequest{
-		SourceNameSpace: sourceNsID,
-		TargetNameSpace: targetNsID,
+		SourceNamespace: sourceNsID,
+		TargetNamespace: targetNsID,
 		RangeStart:      start.Unix(),
 		RangeEnd:        end.Unix(),
 		Step:            step,
