@@ -70,7 +70,7 @@ func TestCrossBlockReaderRejectMisorderedInputs(t *testing.T) {
 
 	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader2, dfsReader1}, instrument.NewTestOptions(t))
 
-	expectedErr := fmt.Errorf("dataFileSetReaders are not ordered by time (%s followed by %s)", later, now)
+	expectedErr := fmt.Errorf("dataFileSetReaders are not ordered by time")
 
 	assert.Equal(t, expectedErr, err)
 }
