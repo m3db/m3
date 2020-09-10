@@ -26,11 +26,40 @@ import (
 	"time"
 
 	xclock "github.com/m3db/m3/src/x/clock"
+	"github.com/m3db/m3/src/x/instrument"
 	"github.com/uber-go/tally"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestQueryLimits(t *testing.T) {
+	docOpts := LookbackLimitOptions{
+		Limit: 1,
+	}
+	bytesOpts := LookbackLimitOptions{
+		Limit: 1,
+	}
+	queryLimits := NewQueryLimits(instrument.NewOptions(), docOpts, bytesOpts)
+	require.NotNil(t, queryLimits)
+
+	// No error yet.
+	require.NoError(t, queryLimits.AnyExceeded())
+
+	// Limit from docs.
+	queryLimits.DocsLimit().Inc(2)
+	require.Error(t, queryLimits.AnyExceeded())
+
+	queryLimits = NewQueryLimits(instrument.NewOptions(), docOpts, bytesOpts)
+	require.NotNil(t, queryLimits)
+
+	// No error yet.
+	require.NoError(t, queryLimits.AnyExceeded())
+
+	// Limit from bytes.
+	queryLimits.BytesReadLimit().Inc(2)
+	require.Error(t, queryLimits.AnyExceeded())
+}
 
 func TestLookbackLimit(t *testing.T) {
 	for _, test := range []struct {
