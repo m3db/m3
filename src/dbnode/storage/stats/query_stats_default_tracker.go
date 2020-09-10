@@ -74,6 +74,19 @@ func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
 	docsMatched := values.DocsMatched
 	bytesRead := values.BytesRead
 
+	// Only update the recent metrics on each reset so
+	// we measure only consistently timed peak values.
+	if docsMatched.Reset {
+		t.recentDocs.Update(float64(docsMatched.Recent))
+	}
+	if bytesRead.Reset {
+		t.recentBytesRead.Update(float64(bytesRead.Recent))
+	}
+
+	// Track stats as metrics.
+	t.totalDocs.Inc(docsMatched.New)
+	t.totalBytesRead.Inc(bytesRead.New)
+
 	// Enforce max queried docs (if specified).
 	if t.options.MaxDocs > 0 && docsMatched.Recent > t.options.MaxDocs {
 		t.recentDocsLimitError.Inc(1)
@@ -90,19 +103,6 @@ func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
 				"limit=%d, current=%d, within=%s",
 			t.options.MaxBytesRead, bytesRead.Recent, t.options.MaxBytesReadLookback)
 	}
-
-	// Only update the recent metrics on each reset so
-	// we measure only consistently timed peak values.
-	if docsMatched.Reset {
-		t.recentDocs.Update(float64(docsMatched.Recent))
-	}
-	if bytesRead.Reset {
-		t.recentBytesRead.Update(float64(bytesRead.Recent))
-	}
-
-	// Track stats as metrics.
-	t.totalDocs.Inc(docsMatched.New)
-	t.totalBytesRead.Inc(bytesRead.New)
 
 	return nil
 }
