@@ -789,11 +789,12 @@ func TestInvalidBlockTypes(t *testing.T) {
 	s, err := NewStorage(nil, opts, instrument.NewOptions())
 	require.NoError(t, err)
 
+	query := &storage.FetchQuery{}
 	fetchOpts := &storage.FetchOptions{BlockType: models.TypeDecodedBlock}
-	_, err = s.FetchBlocks(context.TODO(), nil, fetchOpts)
+	_, err = s.FetchBlocks(context.TODO(), query, fetchOpts)
 	assert.Error(t, err)
 
 	fetchOpts.BlockType = models.TypeMultiBlock
-	_, err = s.FetchBlocks(context.TODO(), nil, fetchOpts)
+	_, err = s.FetchBlocks(context.TODO(), query, fetchOpts)
 	assert.Error(t, err)
 }
