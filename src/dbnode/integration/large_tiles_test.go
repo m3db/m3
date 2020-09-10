@@ -72,7 +72,6 @@ func TestReadAggregateWrite(t *testing.T) {
 		instrument.NewOptions().SetMetricsScope(scope)))
 
 	storageOpts := testSetup.StorageOpts()
-	testSetup.SetStorageOpts(storageOpts)
 
 	// Start the server.
 	log := storageOpts.InstrumentOptions().Logger()
