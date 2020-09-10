@@ -752,7 +752,7 @@ func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowS
 			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
 			firstWindow, err := bootstrap.Slice(0, offset)
 			if err != nil {
-				// do something
+				return ts.NewSeriesList(), err
 			}
 
 			// the first value is just a regular moving average
