@@ -381,7 +381,7 @@ func TestCompileErrors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		expr, err := compile(test.input)
+		expr, err := Compile(test.input)
 		require.NotNil(t, err, "no error for %s", test.input)
 		assert.Equal(t, test.err, err.Error(), "wrong error for %s", test.input)
 		assert.Nil(t, expr, "non-nil expression for %s", test.input)
