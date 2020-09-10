@@ -14,6 +14,9 @@ message Sample {
 message TimeSeries {
   repeated Label labels   = 1 [(gogoproto.nullable) = false];
   repeated Sample samples = 2 [(gogoproto.nullable) = false];
+  MetricType type         = 3;
+  string unit             = 4;
+  string help             = 5;
 
   // NB: These are custom fields that M3 uses. They start at 101 so that they
   // should never clash with prometheus fields.
@@ -41,6 +44,17 @@ message LabelMatcher {
   Type type   = 1;
   bytes name  = 2;
   bytes value = 3;
+}
+
+enum MetricType {
+  UNKNOWN         = 0;
+  COUNTER         = 1;
+  GAUGE           = 2;
+  HISTOGRAM       = 3;
+  GAUGE_HISTOGRAM = 4;
+  SUMMARY         = 5;
+  INFO            = 6;
+  STATESET        = 7;
 }
 
 enum Type {
