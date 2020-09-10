@@ -67,3 +67,10 @@ func (q *noOpLookbackLimit) Stop() {
 
 func (q *noOpLookbackLimit) Start() {
 }
+
+func (q *noOpLookbackLimit) current() int64 {
+	return 0
+}
+
+func (q *noOpLookbackLimit) reset() {
+}

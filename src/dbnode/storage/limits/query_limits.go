@@ -74,6 +74,10 @@ type LookbackLimit interface {
 	Exceeded() error
 	Start()
 	Stop()
+
+	// For testing purposes.
+	current() int64
+	reset()
 }
 
 // LookbackLimitOptions holds options for a lookback limit to be enforced.
@@ -93,8 +97,8 @@ func NewQueryLimits(
 	scope := instrumentOpts.
 		MetricsScope().
 		SubScope("query-limits")
-	docsLimit := NewQueryLimit("docs-matched", scope, docsLimitOpts)
-	bytesReadLimit := NewQueryLimit("bytes-read", scope, bytesReadLimitOpts)
+	docsLimit := NewLookbackLimit("docs-matched", scope, docsLimitOpts)
+	bytesReadLimit := NewLookbackLimit("bytes-read", scope, bytesReadLimitOpts)
 	return &queryLimits{
 		scope:          scope,
 		docsLimit:      docsLimit,
@@ -102,8 +106,8 @@ func NewQueryLimits(
 	}
 }
 
-// NewQueryLimit returns a new query limit.
-func NewQueryLimit(name string, scope tally.Scope, opts LookbackLimitOptions) LookbackLimit {
+// NewLookbackLimit returns a new lookback limit.
+func NewLookbackLimit(name string, scope tally.Scope, opts LookbackLimitOptions) LookbackLimit {
 	return &lookbackLimit{
 		name:    name,
 		options: opts,
@@ -194,12 +198,7 @@ func (q *lookbackLimit) Start() {
 		for {
 			select {
 			case <-ticker.C:
-				// Update peak gauge only on resets so it only tracks
-				// the peak values for each lookback period.
-				recent := q.recent.Load()
-				q.metrics.recentPeak.Update(float64(recent))
-
-				q.recent.Store(0)
+				q.reset()
 			case <-q.stopCh:
 				ticker.Stop()
 				return
@@ -224,4 +223,21 @@ func (opts LookbackLimitOptions) Validate() error {
 		return fmt.Errorf("query limit requires lookback > 0 (%d)", opts.Lookback)
 	}
 	return nil
+}
+
+func (q *lookbackLimit) current() int64 {
+	return q.recent.Load()
+}
+
+func (q *lookbackLimit) reset() {
+	// Update peak gauge only on resets so it only tracks
+	// the peak values for each lookback period.
+	recent := q.recent.Load()
+	q.metrics.recentPeak.Update(float64(recent))
+
+	// Update the standard recent gauge to reflect drop back to zero.
+	q.metrics.recent.Update(0)
+
+	q.recent.Store(0)
+
 }

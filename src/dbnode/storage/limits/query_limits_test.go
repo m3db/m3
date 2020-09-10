@@ -22,115 +22,123 @@ package limits
 
 import (
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
 	xclock "github.com/m3db/m3/src/x/clock"
-	"github.com/m3db/m3/src/x/instrument"
 	"github.com/uber-go/tally"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type testQueryStatsTracker struct {
-	sync.RWMutex
-	QueryStatsValues
-	lookback time.Duration
-}
+func TestLookbackLimit(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		limit int64
+	}{
+		{name: "no limit", limit: 0},
+		{name: "limit", limit: 5},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			scope := tally.NewTestScope("scope", nil)
+			opts := LookbackLimitOptions{
+				Limit:    test.limit,
+				Lookback: time.Millisecond * 100,
+			}
+			name := "test"
+			limit := NewLookbackLimit(name, scope, opts)
 
-var _ QueryStatsTracker = (*testQueryStatsTracker)(nil)
+			require.Equal(t, int64(0), limit.current())
+			err := limit.Exceeded()
+			require.NoError(t, err)
 
-func (t *testQueryStatsTracker) TrackStats(values QueryStatsValues) error {
-	t.Lock()
-	defer t.Unlock()
+			var exceededCount int64
+			exceededCount += verifyLimit(t, limit, 3, test.limit)
+			require.Equal(t, int64(3), limit.current())
+			verifyMetrics(t, scope, name, 3, 0, 3, exceededCount)
 
-	t.QueryStatsValues = values
-	return nil
-}
+			exceededCount += verifyLimit(t, limit, 2, test.limit)
+			require.Equal(t, int64(5), limit.current())
+			verifyMetrics(t, scope, name, 5, 0, 5, exceededCount)
 
-func (t *testQueryStatsTracker) StatsValues() QueryStatsValues {
-	t.RLock()
-	defer t.RUnlock()
+			exceededCount += verifyLimit(t, limit, 1, test.limit)
+			require.Equal(t, int64(6), limit.current())
+			verifyMetrics(t, scope, name, 6, 0, 6, exceededCount)
 
-	return t.QueryStatsValues
-}
+			exceededCount += verifyLimit(t, limit, 4, test.limit)
+			require.Equal(t, int64(10), limit.current())
+			verifyMetrics(t, scope, name, 10, 0, 10, exceededCount)
 
-func (t *testQueryStatsTracker) Options() QueryStatsOptions {
-	return QueryStatsOptions{
-		MaxDocsLookback:      t.lookback,
-		MaxBytesReadLookback: t.lookback,
+			limit.reset()
+
+			require.Equal(t, int64(0), limit.current())
+			verifyMetrics(t, scope, name, 0, 10, 10, exceededCount)
+
+			exceededCount += verifyLimit(t, limit, 2, test.limit)
+			require.Equal(t, int64(2), limit.current())
+			verifyMetrics(t, scope, name, 2, 10, 12, exceededCount)
+
+			exceededCount += verifyLimit(t, limit, 5, test.limit)
+			require.Equal(t, int64(7), limit.current())
+			verifyMetrics(t, scope, name, 7, 10, 17, exceededCount)
+
+			limit.reset()
+
+			require.Equal(t, int64(0), limit.current())
+			verifyMetrics(t, scope, name, 0, 7, 17, exceededCount)
+
+			limit.reset()
+
+			require.Equal(t, int64(0), limit.current())
+			verifyMetrics(t, scope, name, 0, 0, 17, exceededCount)
+		})
 	}
 }
 
-func TestUpdateTracker(t *testing.T) {
-	tracker := &testQueryStatsTracker{}
-
-	queryStats := NewQueryStats(tracker)
-	defer queryStats.Stop()
-
-	// Test docs adding.
-	err := queryStats.UpdateDocs(3)
-	require.NoError(t, err)
-	verifyStats(t, tracker, 3, 3, 0, 0)
-
-	err = queryStats.UpdateDocs(2)
-	require.NoError(t, err)
-	verifyStats(t, tracker, 2, 5, 0, 0)
-
-	// Test bytes adding.
-	err = queryStats.UpdateBytesRead(4)
-	require.NoError(t, err)
-	verifyStats(t, tracker, 0, 5, 4, 4)
-
-	err = queryStats.UpdateBytesRead(2)
-	require.NoError(t, err)
-	verifyStats(t, tracker, 0, 5, 2, 6)
-
-	// Test docs adding after bytes and zeroes.
-	err = queryStats.UpdateDocs(0)
-	require.NoError(t, err)
-	verifyStats(t, tracker, 0, 5, 0, 6)
-
-	err = queryStats.UpdateDocs(1)
-	require.NoError(t, err)
-	verifyStats(t, tracker, 1, 6, 0, 6)
-
-	// Test bytes adding after docs and zeroes.
-	err = queryStats.UpdateBytesRead(0)
-	require.NoError(t, err)
-	verifyStats(t, tracker, 0, 6, 0, 6)
-
-	err = queryStats.UpdateBytesRead(1)
-	require.NoError(t, err)
-	verifyStats(t, tracker, 0, 6, 1, 7)
+func verifyLimit(t *testing.T, limit LookbackLimit, inc int, expectedLimit int64) int64 {
+	var exceededCount int64
+	err := limit.Inc(inc)
+	if limit.current() <= expectedLimit || expectedLimit == 0 {
+		require.NoError(t, err)
+	} else {
+		require.Error(t, err)
+		exceededCount++
+	}
+	err = limit.Exceeded()
+	if limit.current() <= expectedLimit || expectedLimit == 0 {
+		require.NoError(t, err)
+	} else {
+		require.Error(t, err)
+		exceededCount++
+	}
+	return exceededCount
 }
 
-func TestPeriodicallyResetRecentDocs(t *testing.T) {
-	tracker := &testQueryStatsTracker{lookback: 100 * time.Millisecond}
+func TestLookbackReset(t *testing.T) {
+	scope := tally.NewTestScope("scope", nil)
+	opts := LookbackLimitOptions{
+		Limit:    5,
+		Lookback: time.Millisecond * 100,
+	}
+	name := "test"
+	limit := NewLookbackLimit(name, scope, opts)
 
-	queryStats := NewQueryStats(tracker)
-
-	err := queryStats.UpdateDocs(1)
+	err := limit.Inc(3)
 	require.NoError(t, err)
-	verifyStats(t, tracker, 1, 1, 0, 0)
+	require.Equal(t, int64(3), limit.current())
 
-	err = queryStats.UpdateBytesRead(1)
-	require.NoError(t, err)
-	verifyStats(t, tracker, 0, 1, 1, 1)
-
-	queryStats.Start()
-	defer queryStats.Stop()
-	time.Sleep(tracker.lookback * 2)
+	limit.Start()
+	defer limit.Stop()
+	time.Sleep(opts.Lookback * 2)
 
 	success := xclock.WaitUntil(func() bool {
-		return statsEqual(tracker.StatsValues(), 0, 0, 0, 0)
-	}, 10*time.Second)
-	require.True(t, success, "did not eventually reset to zeroes")
+		return limit.current() == 0
+	}, 5*time.Second)
+	require.True(t, success, "did not eventually reset to zero")
 }
 
-func TestValidateTrackerInputs(t *testing.T) {
+func TestValidateLookbackLimitOptions(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		max         int64
@@ -167,36 +175,9 @@ func TestValidateTrackerInputs(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			// Validate docs limit.
-			err := QueryStatsOptions{
-				MaxDocs:              test.max,
-				MaxDocsLookback:      test.lookback,
-				MaxBytesReadLookback: test.lookback,
-			}.Validate()
-			if test.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			// Validate bytes read limit.
-			err = QueryStatsOptions{
-				MaxBytesRead:         test.max,
-				MaxDocsLookback:      test.lookback,
-				MaxBytesReadLookback: test.lookback,
-			}.Validate()
-			if test.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			// Validate all limits.
-			err = QueryStatsOptions{
-				MaxDocs:              test.max,
-				MaxDocsLookback:      test.lookback,
-				MaxBytesRead:         test.max,
-				MaxBytesReadLookback: test.lookback,
+			err := LookbackLimitOptions{
+				Limit:    test.max,
+				Lookback: test.lookback,
 			}.Validate()
 			if test.expectError {
 				require.Error(t, err)
@@ -205,264 +186,34 @@ func TestValidateTrackerInputs(t *testing.T) {
 			}
 
 			// Validate empty.
-			require.Error(t, QueryStatsOptions{}.Validate())
+			require.Error(t, LookbackLimitOptions{}.Validate())
 		})
 	}
 }
 
-func TestEmitQueryStatsBasedMetrics(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		opts QueryStatsOptions
-	}{
-		{
-			name: "metrics only",
-			opts: QueryStatsOptions{
-				MaxDocsLookback: time.Second,
-			},
-		},
-		{
-			name: "metrics and limits",
-			opts: QueryStatsOptions{
-				MaxDocs:         1000,
-				MaxDocsLookback: time.Second,
-			},
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			// Test tracking docs.
-			getStats := func(val QueryStatsValue) QueryStatsValues {
-				return QueryStatsValues{DocsMatched: val}
-			}
-			verifyTrackedStats(t, test.opts, getStats, true, false)
-
-			// Test tracking bytes-read.
-			getStats = func(val QueryStatsValue) QueryStatsValues {
-				return QueryStatsValues{BytesRead: val}
-			}
-			verifyTrackedStats(t, test.opts, getStats, false, true)
-
-			// Test tracking both.
-			getStats = func(val QueryStatsValue) QueryStatsValues {
-				return QueryStatsValues{DocsMatched: val, BytesRead: val}
-			}
-			verifyTrackedStats(t, test.opts, getStats, true, true)
-		})
-	}
-}
-
-func verifyTrackedStats(t *testing.T,
-	opts QueryStatsOptions,
-	getStats func(QueryStatsValue) QueryStatsValues,
-	expectDocs bool,
-	expectBytesRead bool,
+func verifyMetrics(t *testing.T,
+	scope tally.TestScope,
+	name string,
+	expectedRecent float64,
+	expectedRecentPeak float64,
+	expectedTotal int64,
+	expectedExceeded int64,
 ) {
-	scope := tally.NewTestScope("", nil)
-	iOpts := instrument.NewOptions().SetMetricsScope(scope)
-	tracker := DefaultQueryStatsTracker(iOpts, opts)
-
-	docsName := "docs-matched"
-	bytesReadName := "bytes-read"
-
-	err := tracker.TrackStats(getStats(QueryStatsValue{Recent: 100, New: 5, Reset: true}))
-	require.NoError(t, err)
-	if expectDocs {
-		verifyMetrics(t, scope, 100, 5, docsName)
-	}
-	if expectBytesRead {
-		verifyMetrics(t, scope, 100, 5, bytesReadName)
-	}
-
-	err = tracker.TrackStats(getStats(QueryStatsValue{Recent: 140, New: 10, Reset: true}))
-	require.NoError(t, err)
-	if expectDocs {
-		verifyMetrics(t, scope, 140, 15, docsName)
-	}
-	if expectBytesRead {
-		verifyMetrics(t, scope, 140, 15, bytesReadName)
-	}
-
-	err = tracker.TrackStats(getStats(QueryStatsValue{Recent: 140, New: 20, Reset: false}))
-	require.NoError(t, err)
-	if expectDocs {
-		verifyMetrics(t, scope, 140, 35, docsName)
-	}
-	if expectBytesRead {
-		verifyMetrics(t, scope, 140, 35, bytesReadName)
-	}
-
-	err = tracker.TrackStats(getStats(QueryStatsValue{Recent: 140, New: 40, Reset: false}))
-	require.NoError(t, err)
-	if expectDocs {
-		verifyMetrics(t, scope, 140, 75, docsName)
-	}
-	if expectBytesRead {
-		verifyMetrics(t, scope, 140, 75, bytesReadName)
-	}
-
-	err = tracker.TrackStats(getStats(QueryStatsValue{Recent: 0, New: 25, Reset: true}))
-	require.NoError(t, err)
-	if expectDocs {
-		verifyMetrics(t, scope, 0, 100, docsName)
-	}
-	if expectBytesRead {
-		verifyMetrics(t, scope, 0, 100, bytesReadName)
-	}
-
-}
-
-func TestLimits(t *testing.T) {
-	scope := tally.NewTestScope("", nil)
-	opts := instrument.NewOptions().SetMetricsScope(scope)
-
-	maxDocs := int64(100)
-	maxBytes := int64(100)
-
-	for _, test := range []struct {
-		name                  string
-		opts                  QueryStatsOptions
-		expectDocsLimitError  string
-		expectBytesLimitError string
-	}{
-		{
-			name: "metrics only",
-			opts: QueryStatsOptions{
-				MaxDocsLookback:      time.Second,
-				MaxBytesReadLookback: time.Second,
-			},
-		},
-		{
-			name: "metrics and docs limit",
-			opts: QueryStatsOptions{
-				MaxDocs:              100,
-				MaxDocsLookback:      time.Second,
-				MaxBytesReadLookback: time.Second,
-			},
-			expectDocsLimitError: "query aborted, global recent time series blocks over limit: limit=100, current=101, within=1s",
-		},
-		{
-			name: "metrics and bytes limit",
-			opts: QueryStatsOptions{
-				MaxBytesRead:         100,
-				MaxDocsLookback:      time.Second,
-				MaxBytesReadLookback: time.Second,
-			},
-			expectBytesLimitError: "query aborted, global recent time series bytes read from disk over limit: limit=100, current=101, within=1s",
-		},
-		{
-			name: "metrics and limits",
-			opts: QueryStatsOptions{
-				MaxDocs:              100,
-				MaxBytesRead:         100,
-				MaxDocsLookback:      time.Second,
-				MaxBytesReadLookback: time.Second,
-			},
-			expectDocsLimitError:  "query aborted, global recent time series blocks over limit: limit=100, current=101, within=1s",
-			expectBytesLimitError: "query aborted, global recent time series bytes read from disk over limit: limit=100, current=101, within=1s",
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			tracker := DefaultQueryStatsTracker(opts, test.opts)
-
-			err := tracker.TrackStats(QueryStatsValues{
-				DocsMatched: QueryStatsValue{Recent: maxDocs + 1},
-				BytesRead:   QueryStatsValue{Recent: maxBytes - 1},
-			})
-			if test.expectDocsLimitError != "" {
-				require.Error(t, err)
-				require.Equal(t, test.expectDocsLimitError, err.Error())
-			} else {
-				require.NoError(t, err)
-			}
-
-			err = tracker.TrackStats(QueryStatsValues{
-				DocsMatched: QueryStatsValue{Recent: maxDocs - 1},
-				BytesRead:   QueryStatsValue{Recent: maxBytes + 1},
-			})
-			if test.expectBytesLimitError != "" {
-				require.Error(t, err)
-				require.Equal(t, test.expectBytesLimitError, err.Error())
-			} else {
-				require.NoError(t, err)
-			}
-
-			err = tracker.TrackStats(QueryStatsValues{
-				DocsMatched: QueryStatsValue{Recent: maxDocs + 1},
-				BytesRead:   QueryStatsValue{Recent: maxBytes + 1},
-			})
-			if test.expectBytesLimitError != "" || test.expectDocsLimitError != "" {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			err = tracker.TrackStats(QueryStatsValues{
-				DocsMatched: QueryStatsValue{Recent: maxDocs - 1},
-				BytesRead:   QueryStatsValue{Recent: maxBytes - 1},
-			})
-			require.NoError(t, err)
-
-			err = tracker.TrackStats(QueryStatsValues{
-				DocsMatched: QueryStatsValue{Recent: 0},
-				BytesRead:   QueryStatsValue{Recent: 0},
-			})
-			require.NoError(t, err)
-
-			err = tracker.TrackStats(QueryStatsValues{
-				DocsMatched: QueryStatsValue{Recent: maxDocs + 1},
-				BytesRead:   QueryStatsValue{Recent: maxBytes + 1},
-			})
-			if test.expectBytesLimitError != "" || test.expectDocsLimitError != "" {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			err = tracker.TrackStats(QueryStatsValues{
-				DocsMatched: QueryStatsValue{Recent: maxDocs - 1},
-				BytesRead:   QueryStatsValue{Recent: maxBytes - 1},
-			})
-			require.NoError(t, err)
-
-			err = tracker.TrackStats(QueryStatsValues{
-				DocsMatched: QueryStatsValue{Recent: 0},
-				BytesRead:   QueryStatsValue{Recent: 0},
-			})
-			require.NoError(t, err)
-		})
-	}
-}
-
-func verifyMetrics(t *testing.T, scope tally.TestScope, expectedRecent float64, expectedTotal int64, name string) {
 	snapshot := scope.Snapshot()
 
-	recent, exists := snapshot.Gauges()[fmt.Sprintf("query-stats.recent-%s+", name)]
+	recent, exists := snapshot.Gauges()[fmt.Sprintf("scope.recent-%s+", name)]
 	assert.True(t, exists)
-	assert.Equal(t, expectedRecent, recent.Value())
+	assert.Equal(t, expectedRecent, recent.Value(), "recent wrong")
 
-	total, exists := snapshot.Counters()[fmt.Sprintf("query-stats.total-%s+", name)]
+	recentPeak, exists := snapshot.Gauges()[fmt.Sprintf("scope.recent-peak-%s+", name)]
 	assert.True(t, exists)
-	assert.Equal(t, expectedTotal, total.Value())
-}
+	assert.Equal(t, expectedRecentPeak, recentPeak.Value(), "recent peak wrong")
 
-func verifyStats(t *testing.T,
-	tracker *testQueryStatsTracker,
-	expectedNewDocs int64,
-	expectedRecentDocs int64,
-	expectedNewBytesRead int64,
-	expectedRecentBytesRead int64) {
-	values := tracker.StatsValues()
-	assert.True(t, statsEqual(values, expectedNewDocs, expectedRecentDocs, expectedNewBytesRead, expectedRecentBytesRead))
-}
+	total, exists := snapshot.Counters()[fmt.Sprintf("scope.total-%s+", name)]
+	assert.True(t, exists)
+	assert.Equal(t, expectedTotal, total.Value(), "total wrong")
 
-func statsEqual(values QueryStatsValues,
-	expectedNewDocs int64,
-	expectedRecentDocs int64,
-	expectedNewBytesRead int64,
-	expectedRecentBytesRead int64,
-) bool {
-	return expectedNewDocs == values.DocsMatched.New &&
-		expectedRecentDocs == values.DocsMatched.Recent &&
-		expectedNewBytesRead == values.BytesRead.New &&
-		expectedRecentBytesRead == values.BytesRead.Recent
+	exceeded, exists := snapshot.Counters()[fmt.Sprintf("scope.limit-exceeded+limit=%s", name)]
+	assert.True(t, exists)
+	assert.Equal(t, expectedExceeded, exceeded.Value(), "exceeded wrong")
 }
