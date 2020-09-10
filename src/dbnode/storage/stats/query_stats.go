@@ -77,9 +77,9 @@ type QueryStatsValues struct {
 // QueryStatsValue stores values of a particular query
 // stat being tracked within a lookback period.
 type QueryStatsValue struct {
-	// Recent is the total count having occurred in the most recent lookback period.
+	// Recent is the total count over the current lookback period.
 	Recent int64
-	// New is the latest incremental count to have occurred.
+	// New is the latest count recorded.
 	New int64
 	// Reset marks whether a lookback period has elapsed and therefore the count reset to zero.
 	Reset bool
@@ -181,8 +181,6 @@ func (q *queryStats) Start() {
 	docsTicker := time.NewTicker(opts.MaxDocsLookback)
 	bytesTicker := time.NewTicker(opts.MaxBytesReadLookback)
 	go func() {
-		defer docsTicker.Stop()
-		defer bytesTicker.Stop()
 		for {
 			// Invoke the track func for current values before resetting.
 			select {
@@ -193,6 +191,8 @@ func (q *queryStats) Start() {
 				q.trackReset(false, true)
 				q.recentBytesRead.Store(0)
 			case <-q.stopCh:
+				docsTicker.Stop()
+				bytesTicker.Stop()
 				return
 			}
 		}

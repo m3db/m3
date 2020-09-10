@@ -65,27 +65,14 @@ func DefaultQueryStatsTracker(
 		totalDocs:                 scope.Counter("total-docs-matched"),
 		recentBytesRead:           scope.Gauge("recent-bytes-read"),
 		totalBytesRead:            scope.Counter("total-bytes-read"),
-		recentDocsLimitError:      scope.Tagged(map[string]string{"limit": "docs-matched"}).Counter("error"),
-		recentBytesReadLimitError: scope.Tagged(map[string]string{"limit": "bytes-read"}).Counter("error"),
+		recentDocsLimitError:      scope.Tagged(map[string]string{"limit": "docs-matched"}).Counter("limit-exceeded"),
+		recentBytesReadLimitError: scope.Tagged(map[string]string{"limit": "bytes-read"}).Counter("limit-exceeded"),
 	}
 }
 
 func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
 	docsMatched := values.DocsMatched
 	bytesRead := values.BytesRead
-
-	// Only update the recent metrics on each reset so
-	// we measure only consistently timed peak values.
-	if docsMatched.Reset {
-		t.recentDocs.Update(float64(docsMatched.Recent))
-	}
-	if bytesRead.Reset {
-		t.recentBytesRead.Update(float64(bytesRead.Recent))
-	}
-
-	// Track stats as metrics.
-	t.totalDocs.Inc(docsMatched.New)
-	t.totalBytesRead.Inc(bytesRead.New)
 
 	// Enforce max queried docs (if specified).
 	if t.options.MaxDocs > 0 && docsMatched.Recent > t.options.MaxDocs {
@@ -103,6 +90,20 @@ func (t *queryStatsTracker) TrackStats(values QueryStatsValues) error {
 				"limit=%d, current=%d, within=%s",
 			t.options.MaxBytesRead, bytesRead.Recent, t.options.MaxBytesReadLookback)
 	}
+
+	// Only update the recent metrics on each reset so
+	// we measure only consistently timed peak values.
+	if docsMatched.Reset {
+		t.recentDocs.Update(float64(docsMatched.Recent))
+	}
+	if bytesRead.Reset {
+		t.recentBytesRead.Update(float64(bytesRead.Recent))
+	}
+
+	// Track stats as metrics.
+	t.totalDocs.Inc(docsMatched.New)
+	t.totalBytesRead.Inc(bytesRead.New)
+
 	return nil
 }
 
