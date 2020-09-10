@@ -275,3 +275,73 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		benchResult = FetchResultToPromResult(fr, false)
 	}
 }
+
+func TestPromTimeSeriesToSeriesAttributesSource(t *testing.T) {
+	attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{})
+	require.NoError(t, err)
+	assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
+
+	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: prompb.Source_PROMETHEUS})
+	require.NoError(t, err)
+	assert.Equal(t, ts.SourceTypePrometheus, attrs.Source)
+
+	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: prompb.Source_GRAPHITE})
+	require.NoError(t, err)
+	assert.Equal(t, ts.SourceTypeGraphite, attrs.Source)
+
+	attrs, err = PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Source: -1})
+	require.Error(t, err)
+}
+
+func TestPromTimeSeriesToSeriesAttributesPromMetricsType(t *testing.T) {
+	mapping := map[prompb.MetricType]ts.PromMetricType{
+		prompb.MetricType_UNKNOWN:         ts.PromMetricTypeUnknown,
+		prompb.MetricType_COUNTER:         ts.PromMetricTypeCounter,
+		prompb.MetricType_GAUGE:           ts.PromMetricTypeGauge,
+		prompb.MetricType_HISTOGRAM:       ts.PromMetricTypeHistogram,
+		prompb.MetricType_GAUGE_HISTOGRAM: ts.PromMetricTypeGaugeHistogram,
+		prompb.MetricType_SUMMARY:         ts.PromMetricTypeSummary,
+		prompb.MetricType_INFO:            ts.PromMetricTypeInfo,
+		prompb.MetricType_STATESET:        ts.PromMetricTypeStateSet,
+	}
+
+	for proto, expected := range mapping {
+		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: proto})
+		require.NoError(t, err)
+		assert.Equal(t, expected, attrs.PromType)
+	}
+
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{Type: -1})
+	require.Error(t, err)
+}
+
+func TestPromTimeSeriesToSeriesAttributesM3Type(t *testing.T) {
+	mapping := map[prompb.M3Type]ts.M3MetricType{
+		prompb.M3Type_M3_GAUGE:   ts.M3MetricTypeGauge,
+		prompb.M3Type_M3_COUNTER: ts.M3MetricTypeCounter,
+		prompb.M3Type_M3_TIMER:   ts.M3MetricTypeTimer,
+	}
+
+	for proto, expected := range mapping {
+		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{M3Type: proto})
+		require.NoError(t, err)
+		assert.Equal(t, expected, attrs.M3Type)
+	}
+
+	_, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{M3Type: -1})
+	require.Error(t, err)
+}
+
+func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromGraphite(t *testing.T) {
+	mapping := map[prompb.M3Type]ts.PromMetricType{
+		prompb.M3Type_M3_GAUGE:   ts.PromMetricTypeGauge,
+		prompb.M3Type_M3_COUNTER: ts.PromMetricTypeCounter,
+		prompb.M3Type_M3_TIMER:   ts.PromMetricTypeUnknown,
+	}
+
+	for proto, expected := range mapping {
+		attrs, err := PromTimeSeriesToSeriesAttributes(prompb.TimeSeries{M3Type: proto, Source: prompb.Source_GRAPHITE})
+		require.NoError(t, err)
+		assert.Equal(t, expected, attrs.PromType)
+	}
+}

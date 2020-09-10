@@ -70,9 +70,11 @@ func PromLabelsToM3Tags(
 // timeseries.
 func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
 	var (
-		sourceType   ts.SourceType
-		m3MetricType ts.M3MetricType
+		sourceType     ts.SourceType
+		m3MetricType   ts.M3MetricType
+		promMetricType ts.PromMetricType
 	)
+
 	switch series.Source {
 	case prompb.Source_PROMETHEUS:
 		sourceType = ts.SourceTypePrometheus
@@ -81,19 +83,49 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	default:
 		return ts.SeriesAttributes{}, fmt.Errorf("invalid source type %v", series.Source)
 	}
+
+	switch series.Type {
+	case prompb.MetricType_UNKNOWN:
+		promMetricType = ts.PromMetricTypeUnknown
+	case prompb.MetricType_COUNTER:
+		promMetricType = ts.PromMetricTypeCounter
+	case prompb.MetricType_GAUGE:
+		promMetricType = ts.PromMetricTypeGauge
+	case prompb.MetricType_HISTOGRAM:
+		promMetricType = ts.PromMetricTypeHistogram
+	case prompb.MetricType_GAUGE_HISTOGRAM:
+		promMetricType = ts.PromMetricTypeGaugeHistogram
+	case prompb.MetricType_SUMMARY:
+		promMetricType = ts.PromMetricTypeSummary
+	case prompb.MetricType_INFO:
+		promMetricType = ts.PromMetricTypeInfo
+	case prompb.MetricType_STATESET:
+		promMetricType = ts.PromMetricTypeStateSet
+	default:
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid Prometheus metric type %v", series.Type)
+	}
+
 	switch series.M3Type {
-	case prompb.Type_M3_COUNTER:
+	case prompb.M3Type_M3_COUNTER:
 		m3MetricType = ts.M3MetricTypeCounter
-	case prompb.Type_M3_GAUGE:
+		if promMetricType == ts.PromMetricTypeUnknown && series.Source == prompb.Source_GRAPHITE {
+			promMetricType = ts.PromMetricTypeCounter
+		}
+	case prompb.M3Type_M3_GAUGE:
 		m3MetricType = ts.M3MetricTypeGauge
-	case prompb.Type_M3_TIMER:
+		if promMetricType == ts.PromMetricTypeUnknown && series.Source == prompb.Source_GRAPHITE {
+			promMetricType = ts.PromMetricTypeGauge
+		}
+	case prompb.M3Type_M3_TIMER:
 		m3MetricType = ts.M3MetricTypeTimer
 	default:
-		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type %v", series.M3Type)
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid M3 metric type %v", series.M3Type)
 	}
+
 	return ts.SeriesAttributes{
-		M3Type: m3MetricType,
-		Source: sourceType,
+		M3Type:   m3MetricType,
+		PromType: promMetricType,
+		Source:   sourceType,
 	}, nil
 }
 

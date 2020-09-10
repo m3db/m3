@@ -34,6 +34,35 @@ const (
 	M3MetricTypeTimer
 )
 
+// PromMetricType is the enum for Prometheus metric types.
+type PromMetricType int
+
+const (
+	// PromMetricTypeUnknown is the unknown Prometheus metric type.
+	PromMetricTypeUnknown PromMetricType = iota
+
+	// PromMetricTypeUnknown is the counter Prometheus metric type.
+	PromMetricTypeCounter
+
+	// PromMetricTypeUnknown is the gauge Prometheus metric type.
+	PromMetricTypeGauge
+
+	// PromMetricTypeUnknown is the histogram Prometheus metric type.
+	PromMetricTypeHistogram
+
+	// PromMetricTypeUnknown is the gauge histogram Prometheus metric type.
+	PromMetricTypeGaugeHistogram
+
+	// PromMetricTypeUnknown is the summary Prometheus metric type.
+	PromMetricTypeSummary
+
+	// PromMetricTypeUnknown is the info Prometheus metric type.
+	PromMetricTypeInfo
+
+	// PromMetricTypeUnknown is the state set Prometheus metric type.
+	PromMetricTypeStateSet
+)
+
 // SourceType is the enum for metric source types.
 type SourceType int
 
@@ -47,15 +76,17 @@ const (
 
 // SeriesAttributes has attributes about the time series.
 type SeriesAttributes struct {
-	M3Type M3MetricType
-	Source SourceType
+	M3Type   M3MetricType
+	PromType PromMetricType
+	Source   SourceType
 }
 
 // DefaultSeriesAttributes returns a default series attributes.
 func DefaultSeriesAttributes() SeriesAttributes {
 	return SeriesAttributes{
-		M3Type: M3MetricTypeGauge,
-		Source: SourceTypePrometheus,
+		M3Type:   M3MetricTypeGauge,
+		PromType: PromMetricTypeUnknown,
+		Source:   SourceTypePrometheus,
 	}
 }
 

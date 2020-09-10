@@ -20,8 +20,8 @@ message TimeSeries {
 
   // NB: These are custom fields that M3 uses. They start at 101 so that they
   // should never clash with prometheus fields.
-  Type m3_type = 101;
-  Source source = 102;
+  M3Type m3_type = 101;
+  Source source  = 102;
 }
 
 message Label {
@@ -57,7 +57,7 @@ enum MetricType {
   STATESET        = 7;
 }
 
-enum Type {
+enum M3Type {
   M3_GAUGE = 0;
   M3_COUNTER = 1;
   M3_TIMER = 2;
