@@ -30,8 +30,9 @@ import (
 	"github.com/m3db/m3/src/query/graphite/errors"
 )
 
-var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)$`)
-var reMonthAndDay = regexp.MustCompile(`(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)([0-9]+)$`)
+var reRelativeTime = regexp.MustCompile(`(?i)^\-([0-9]+)(s|min|h|d|w|mon|y)$`) // allows -3min, -4d, etc.
+var reTimeOffset = regexp.MustCompile(`(?i)^(\-|\+)([0-9]+)(s|min|h|d|w|mon|y)$`) // -3min, +3min, -4d, +4d
+var reMonthAndDay = regexp.MustCompile(`(?i)^(january|february|march|april|may|june|july|august|september|october|november|december)([0-9][0-9])$`)
 var reDayOfWeek = regexp.MustCompile(`(?i)^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$`)
 
 var periods = map[string]time.Duration{
@@ -141,12 +142,15 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 	if strings.Contains(s, "+") {
 		stringSlice := strings.Split(s, "+")
 		ref, offset = stringSlice[0], stringSlice[1]
+		offset = "+" + offset
 	} else if strings.Contains(s, "-") {
 		stringSlice := strings.Split(s, "-")
 		ref, offset = stringSlice[0], stringSlice[1]
+		offset = "-" + offset
 	}
+	err = nil
 	parsedReference, err := ParseTimeReference(ref, now)
-	parsedOffset, err := ParseDuration(offset)
+	parsedOffset, err := ParseOffset(offset)
 	if err == nil {
 		return parsedReference.Add(parsedOffset), err
 	}
@@ -179,12 +183,12 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	if 0 < i && i < 3 {
 		newHour, err := strconv.ParseInt(ref[:i], 10, 0)
 		if err != nil {
-			return refDate, err
+			return time.Time{}, err
 		}
 		hour = int(newHour)
 		newMinute, err := strconv.ParseInt(ref[i+1:i+3], 10, 32)
 		if err != nil {
-			return refDate, err
+			return time.Time{}, err
 		}
 		minute = int(newMinute)
 		ref = ref[i+3:]
@@ -204,7 +208,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	if 0 < i && i < 3 {
 		newHour, err := strconv.ParseInt(ref[:i], 10, 32)
 		if err != nil {
-			return refDate, err
+			return time.Time{}, err
 		}
 		hour = int(newHour)
 		minute = 0
@@ -217,7 +221,7 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 	if 0 < i && i < 3 {
 		newHour, err := strconv.ParseInt(ref[:i], 10, 32)
 		if err != nil {
-			return refDate, err
+			return time.Time{}, err
 		}
 		hour = int((newHour + 12) % 24)
 		minute = 0
@@ -264,9 +268,10 @@ func ParseTimeReference(ref string, now time.Time) (time.Time, error) {
 		if dayOffset < 0 {
 			dayOffset += 7
 		}
-		refDate.Add(time.Hour * 24 * -1 * time.Duration(dayOffset))
+		offSetDuration := time.Duration(dayOffset)
+		refDate = refDate.Add(time.Hour * 24 * -1 * offSetDuration)
 	} else if ref != "" {
-		return refDate, errors.NewInvalidParamsError(fmt.Errorf("unkown day reference %s", rawRef))
+		return time.Time{}, errors.NewInvalidParamsError(fmt.Errorf("unkown day reference %s", rawRef))
 	}
 
 	return refDate, nil
@@ -286,4 +291,26 @@ func ParseDuration(s string) (time.Duration, error) {
 	}
 
 	return 0, errors.NewInvalidParamsError(fmt.Errorf("invalid relative time %s", s))
+}
+
+// ParseOffset parses a time offset (like a duration, but can be 0 or positive)
+func ParseOffset(s string) (time.Duration, error) {
+	if s == "" {
+		return time.Duration(0), nil
+	}
+
+	if m := reTimeOffset.FindStringSubmatch(s); len(m) != 0 {
+		parity := 1
+		if m[1] == "-" {
+			parity = -1
+		}
+		timeInteger, err := strconv.ParseInt(m[2], 10, 32)
+		if err != nil {
+			return 0, errors.NewInvalidParamsError(fmt.Errorf("invalid time offset %v", err))
+		}
+		period := periods[strings.ToLower(m[3])]
+		return period * time.Duration(timeInteger) * time.Duration(parity), nil
+	}
+
+	return 0, errors.NewInvalidParamsError(fmt.Errorf("invalid time offset %s", s))
 }

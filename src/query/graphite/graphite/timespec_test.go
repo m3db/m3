@@ -46,6 +46,10 @@ func TestParseTime(t *testing.T) {
 		{"20140307", time.Date(2014, time.March, 7, 0, 0, 0, 0, time.UTC)},
 		{"140307", time.Date(2014, time.March, 7, 0, 0, 0, 0, time.UTC)},
 		{"1432581620", time.Date(2015, time.May, 25, 19, 20, 20, 0, time.UTC)},
+		{"now", time.Date(2013, time.April, 3, 4, 5, 0, 0, time.UTC)},
+		{"midnight", time.Date(2013, time.April, 3, 0, 0, 0, 0, time.UTC)},
+		{"midnight+1h", time.Date(2013, time.April, 3, 1, 0, 0, 0, time.UTC)},
+		{"april08+1d", time.Date(2013, time.April, 9, 4, 5, 0, 0, time.UTC)},
 	}
 
 	for _, test := range tests {
@@ -69,6 +73,27 @@ func TestParseDuration(t *testing.T) {
 	for _, test := range tests {
 		s := test.timespec
 		parsed, err := ParseDuration(s)
+		assert.Nil(t, err, "error parsing %s", s)
+		assert.Equal(t, test.expectedDuration, parsed, "incorrect parsed value for %s", s)
+	}
+}
+
+func TestParseOffset(t *testing.T) {
+	tests := []struct {
+		timespec         string
+		expectedDuration time.Duration
+	}{
+		{"-4h", -4 * time.Hour},
+		{"-35MIN", -35 * time.Minute},
+		{"-10s", -10 * time.Second},
+		{"+4h", 4 * time.Hour},
+		{"+35MIN", 35 * time.Minute},
+		{"+10s", 10 * time.Second},
+	}
+
+	for _, test := range tests {
+		s := test.timespec
+		parsed, err := ParseOffset(s)
 		assert.Nil(t, err, "error parsing %s", s)
 		assert.Equal(t, test.expectedDuration, parsed, "incorrect parsed value for %s", s)
 	}
@@ -130,6 +155,7 @@ func TestParseTimeReference(t *testing.T) {
 		{"may6", relativeTo.Add(time.Hour * 24 * 33)},
 		{"may06", relativeTo.Add(time.Hour * 24 * 33)},
 		{"december17", relativeTo.Add(time.Hour * 24 * 258)},
+		{"monday", relativeTo.Add(time.Hour * 24 * -2)},
 	}
 
 	for _, test := range tests {
@@ -141,5 +167,31 @@ func TestParseTimeReference(t *testing.T) {
 }
 
 func TestParseTimeReferenceErrors(t *testing.T) {
-	// check errors
+	tests := []string{
+		"january800",
+		"january",
+		"random",
+		":",
+	}
+
+	for _, test := range tests {
+		parsed, err := ParseTimeReference(test, relativeTo)
+		assert.Error(t, err)
+		assert.Equal(t, time.Time{}, parsed)
+	}
+}
+
+func TestParseOffsetErrors(t *testing.T) {
+	tests := []string{
+		"something",
+		"1m",
+		"10",
+		"month",
+	}
+
+	for _, test := range tests {
+		parsed, err := ParseOffset(test)
+		assert.Error(t, err)
+		assert.Equal(t, time.Duration(0), parsed)
+	}
 }
