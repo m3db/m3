@@ -1980,6 +1980,7 @@ func init() {
 
 	// alias functions - in alpha ordering
 	MustRegisterAliasedFunction("abs", absolute)
+	MustRegisterAliasedFunction("aliasByTags", aliasByNode)
 	MustRegisterAliasedFunction("avg", averageSeries)
 	MustRegisterAliasedFunction("log", logarithm)
 	MustRegisterAliasedFunction("max", maxSeries)

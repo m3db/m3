@@ -2913,6 +2913,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"alias",
 		"aliasByMetric",
 		"aliasByNode",
+		"aliasByTags",
 		"aliasSub",
 		"asPercent",
 		"averageAbove",
