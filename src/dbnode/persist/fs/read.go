@@ -51,7 +51,7 @@ var (
 	// errReadNotExpectedSize returned when the size of the next read does not match size specified by the index
 	errReadNotExpectedSize = errors.New("next read not expected size")
 
-	errUnexpectedSortByOffset = errors.New("should not sort index by offsets when doing reads sorted by Id")
+	errUnexpectedSortByOffset = errors.New("should not sort index by offsets when doing reads sorted by id")
 
 	// errReadMetadataOptimizedForRead returned when we optimized for only reading metadata but are attempting a regular read
 	errReadMetadataOptimizedForRead = errors.New("read metadata optimized for regular read")

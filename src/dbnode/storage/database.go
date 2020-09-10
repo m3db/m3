@@ -1178,5 +1178,10 @@ func NewAggregateTilesOptions(
 		return AggregateTilesOptions{}, fmt.Errorf("AggregateTilesOptions.Step must be positive, got %s", step)
 	}
 
-	return AggregateTilesOptions{Start: start, End: end, Step: step, HandleCounterResets: handleCounterResets}, nil
+	return AggregateTilesOptions{
+		Start: start,
+		End: end,
+		Step: step,
+		HandleCounterResets: handleCounterResets,
+	}, nil
 }
