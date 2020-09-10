@@ -183,6 +183,8 @@ struct FetchTaggedIDResult {
 	2: required binary nameSpace
 	3: required binary encodedTags
 	4: optional list<Segments> segments
+
+	// Deprecated -- do not use.
 	5: optional Error err
 }
 
