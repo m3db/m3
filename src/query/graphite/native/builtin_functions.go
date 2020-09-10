@@ -702,6 +702,84 @@ func movingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue ge
 	}, nil
 }
 
+// exponentialMovingAverage takes a series of values and a window size and produces
+// an exponential moving average utilizing the following formula:
+// 		ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
+// The `constant` is calculated as:
+// 		constant = 2 / (windowSize + 1)
+// the first period EMA uses a simple moving average for its value.
+func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowSizeValue genericInterface) (*binaryContextShifter, error) {
+	if len(input.Values) == 0 {
+		return nil, nil
+	}
+
+	windowSize, err := parseWindowSize(windowSizeValue, input)
+	if err != nil {
+		return nil, err
+	}
+
+	contextShiftingFn := func(c *common.Context) *common.Context {
+		opts := common.NewChildContextOptions()
+		opts.AdjustTimeRange(0, 0, windowSize.deltaValue, 0)
+		childCtx := c.NewChildContext(opts)
+		return childCtx
+	}
+
+	bootstrapStartTime, bootstrapEndTime := ctx.StartTime.Add(-windowSize.deltaValue), ctx.StartTime
+	transformerFn := func(bootstrapped, original ts.SeriesList) (ts.SeriesList, error) {
+		bootstrapList, err := combineBootstrapWithOriginal(ctx,
+			bootstrapStartTime, bootstrapEndTime,
+			bootstrapped, singlePathSpec(original))
+		if err != nil {
+			return ts.NewSeriesList(), err
+		}
+
+		results := make([]*ts.Series, 0, original.Len())
+		for i, bootstrap := range bootstrapList.Values {
+			series := original.Values[i]
+			stepSize := series.MillisPerStep()
+			windowPoints := windowSize.windowSizeFunc(stepSize)
+			if windowPoints == 0 {
+				err := errors.NewInvalidParamsError(fmt.Errorf(
+					"windowSize should not be smaller than stepSize, windowSize=%v, stepSize=%d",
+					windowSizeValue, stepSize))
+				return ts.NewSeriesList(), err
+			}
+			emaConstant := 2.0 / (float64(windowPoints) + 1.0)
+
+			numSteps := series.Len()
+			offset := bootstrap.Len() - numSteps
+			vals := ts.NewValues(ctx, series.MillisPerStep(), numSteps)
+			firstWindow, err := bootstrap.Slice(0, offset)
+			if err != nil {
+				// do something
+			}
+
+			// the first value is just a regular moving average
+			vals.SetValueAt(0, firstWindow.SafeAvg())
+			for i := 1; i < numSteps; i++ {
+				curr := bootstrap.ValueAt(i + offset)
+				// formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
+				ema := emaConstant * curr + (1 - emaConstant) * vals.ValueAt(i - 1)
+
+				vals.SetValueAt(i, ema)
+			}
+
+			name := fmt.Sprintf("exponentialMovingAverage(%s,%s)", series.Name(), windowSize.stringValue)
+			newSeries := ts.NewSeries(ctx, name, series.StartTime(), vals)
+			results = append(results, newSeries)
+		}
+
+		original.Values = results
+		return original, nil
+	}
+
+	return &binaryContextShifter{
+		ContextShiftFunc:  contextShiftingFn,
+		BinaryTransformer: transformerFn,
+	}, nil
+}
+
 // totalFunc takes an index and returns a total value for that index
 type totalFunc func(int) float64
 
@@ -1889,6 +1967,7 @@ func init() {
 	MustRegisterFunction(diffSeries)
 	MustRegisterFunction(divideSeries)
 	MustRegisterFunction(exclude)
+	MustRegisterFunction(exponentialMovingAverage)
 	MustRegisterFunction(fallbackSeries)
 	MustRegisterFunction(group)
 	MustRegisterFunction(groupByNode)
