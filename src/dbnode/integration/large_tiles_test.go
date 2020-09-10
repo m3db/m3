@@ -113,12 +113,17 @@ func TestReadAggregateWrite(t *testing.T) {
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
 
-	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), time.Hour, false)
+	aggOpts, err := storage.NewAggregateTilesOptions(
+		dpTimeStart, dpTimeStart.Add(blockSizeT),
+		time.Hour, false)
 	require.NoError(t, err)
 
 	log.Info("Starting aggregation")
 	start = time.Now()
-	processedBlockCount, err := testSetup.DB().AggregateTiles(storageOpts.ContextPool().Get(), srcNs.ID(), trgNs.ID(), aggOpts)
+	processedBlockCount, err := testSetup.DB().AggregateTiles(
+		storageOpts.ContextPool().Get(),
+		srcNs.ID(), trgNs.ID(),
+		aggOpts)
 	log.Info("Finished aggregation", zap.Duration("took", time.Since(start)))
 	require.NoError(t, err)
 	assert.Equal(t, int64(10), processedBlockCount)
@@ -128,7 +133,6 @@ func TestReadAggregateWrite(t *testing.T) {
 		writeErrorsCount, _ := counters["database.writeAggData.errors"]
 		require.Equal(t, int64(0), writeErrorsCount)
 		seriesWritesCount, _ := counters["dbshard.large-tiles-writes"]
-		fmt.Println(seriesWritesCount)
 		return seriesWritesCount >= 2
 	}, time.Second*10))
 
@@ -145,12 +149,18 @@ func TestReadAggregateWrite(t *testing.T) {
 		ts.Datapoint{Timestamp: dpTimeStart.Add(590 * time.Minute), Value: 101.1},
 	}
 
-	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("foo"), dpTimeStart, nowFn(), expectedDps)
+	fetchAndValidate(t, session, trgNs.ID(),
+		ident.StringID("foo"),
+		dpTimeStart, nowFn(),
+		expectedDps)
 
 	expectedDps = []ts.Datapoint{
 		ts.Datapoint{Timestamp: dpTimeStart, Value: 15},
 	}
-	fetchAndValidate(t, session, trgNs.ID(), ident.StringID("aab"), dpTimeStart, nowFn(), expectedDps)
+	fetchAndValidate(t, session, trgNs.ID(),
+		ident.StringID("aab"),
+		dpTimeStart, nowFn(),
+		expectedDps)
 }
 
 var (
@@ -173,12 +183,12 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 	}()
 
 	nowFn := testSetup.NowFn()
-	fmt.Println(nowFn())
-
 	dpTimeStart := nowFn().Truncate(indexBlockSizeT).Add(-2 * indexBlockSizeT)
 	writeTestData(t, testSetup, log, reporter, dpTimeStart, srcNs.ID())
 
-	aggOpts, err := storage.NewAggregateTilesOptions(dpTimeStart, dpTimeStart.Add(blockSizeT), 10*time.Minute, false)
+	aggOpts, err := storage.NewAggregateTilesOptions(
+		dpTimeStart, dpTimeStart.Add(blockSizeT),
+		10*time.Minute, false)
 	require.NoError(t, err)
 
 	log.Info("Starting aggregation loop")
@@ -199,10 +209,13 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 			for inProgress.Load() {
 				session, err := testSetup.M3DBClient().NewSession()
 				require.NoError(t, err)
-				result, _, err := session.FetchTagged(srcNs.ID(), query, index.QueryOptions{StartInclusive: dpTimeStart.Add(-blockSizeT), EndExclusive: nowFn()})
+				result, _, err := session.FetchTagged(srcNs.ID(), query,
+					index.QueryOptions{
+						StartInclusive: dpTimeStart.Add(-blockSizeT),
+						EndExclusive: nowFn()
+					})
 				session.Close()
 				if err != nil {
-					fmt.Println(time.Now(), "FETCH ERR", err)
 					require.NoError(t, err)
 					return
 				}
@@ -218,16 +231,13 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 		processedBlockCount int64
 	)
 	for a := 0; a < iterationCount; a++ {
-		fmt.Println(time.Now(), "Aggregation", a+1, "/", iterationCount)
 		ctx := storageOpts.ContextPool().Get()
 		processedBlockCount, err = testSetup.DB().AggregateTiles(ctx, srcNs.ID(), trgNs.ID(), aggOpts)
 		ctx.BlockingClose()
 		if err != nil {
 			require.NoError(t, err)
-			fmt.Println(time.Now(), "AGG ERR", err)
 		}
 		expectedPoints := int64(testDataPointsCount * testSeriesCount / 100 * 6)
-		fmt.Println("Aggregation-Done", processedBlockCount, expectedPoints)
 		require.Equal(t, processedBlockCount, expectedPoints)
 	}
 	inProgress.Toggle()
@@ -244,14 +254,11 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 
 	session, err := testSetup.M3DBClient().NewSession()
 	require.NoError(t, err)
-	series, err := session.Fetch(srcNs.ID(), ident.StringID("foo"+strconv.Itoa(50)), dpTimeStart, dpTimeStart.Add(blockSizeT))
+	series, err := session.Fetch(srcNs.ID(),
+		ident.StringID("foo"+strconv.Itoa(50)),
+		dpTimeStart, dpTimeStart.Add(blockSizeT))
 	session.Close()
 	require.NoError(t, err)
-
-	sTags := series.Tags()
-	for sTags.Next() {
-		fmt.Println("TAGS:", sTags.Current())
-	}
 }
 
 func fetchAndValidate(
@@ -277,7 +284,12 @@ func fetchAndValidate(
 	assert.Equal(t, expected, actual)
 }
 
-func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata, xmetrics.TestStatsReporter, io.Closer) {
+func setupServer(t *testing.T)
+(
+	TestSetup,
+	namespace.Metadata, namespace.Metadata,
+	xmetrics.TestStatsReporter, io.Closer
+) {
 	var (
 		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
 		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT)
@@ -320,7 +332,11 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	return testSetup, srcNs, trgNs, reporter, closer
 }
 
-func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter xmetrics.TestStatsReporter, dpTimeStart time.Time, ns ident.ID) {
+func writeTestData(
+	t *testing.T, testSetup TestSetup, log *zap.Logger,
+	reporter xmetrics.TestStatsReporter,
+	dpTimeStart time.Time, ns ident.ID
+) {
 	dpTime := dpTimeStart
 
 	testTagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
@@ -343,7 +359,10 @@ func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter 
 
 		for b := 0; b < testSeriesCount; b++ {
 			tagsIter.Rewind()
-			err := batchWriter.AddTagged(i, ident.StringID("foo"+strconv.Itoa(b)), tagsIter, encodedTagsBytes, dpTime, 42.1+float64(a), xtime.Second, nil)
+			err := batchWriter.AddTagged(i,
+				ident.StringID("foo"+strconv.Itoa(b)),
+				tagsIter, encodedTagsBytes,
+				dpTime, 42.1+float64(a), xtime.Second, nil)
 			require.NoError(t, err)
 			i++
 		}
@@ -362,7 +381,9 @@ func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter 
 		flushes, _ := counters["database.flushIndex.success"]
 		writes, _ := counters["database.series.cold-writes"]
 		successFlushes, _ := counters["database.flushColdData.success"]
-		return flushes >= 1 && int(writes) >= testDataPointsCount*testSeriesCount && successFlushes >= 4
+		return flushes >= 1 &&
+			int(writes) >= testDataPointsCount*testSeriesCount &&
+			successFlushes >= 4
 	}, time.Minute)
 	require.True(t, flushed)
 	log.Info("verified data has been cold flushed", zap.Duration("took", time.Since(start)))
