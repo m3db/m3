@@ -53,6 +53,7 @@ func TestLookbackLimit(t *testing.T) {
 			err := limit.Exceeded()
 			require.NoError(t, err)
 
+			// Validate ascending while checking limits.
 			var exceededCount int64
 			exceededCount += verifyLimit(t, limit, 3, test.limit)
 			require.Equal(t, int64(3), limit.current())
@@ -70,11 +71,12 @@ func TestLookbackLimit(t *testing.T) {
 			require.Equal(t, int64(10), limit.current())
 			verifyMetrics(t, scope, name, 10, 0, 10, exceededCount)
 
+			// Validate first reset.
 			limit.reset()
-
 			require.Equal(t, int64(0), limit.current())
 			verifyMetrics(t, scope, name, 0, 10, 10, exceededCount)
 
+			// Validate ascending again post-reset.
 			exceededCount += verifyLimit(t, limit, 2, test.limit)
 			require.Equal(t, int64(2), limit.current())
 			verifyMetrics(t, scope, name, 2, 10, 12, exceededCount)
@@ -83,11 +85,13 @@ func TestLookbackLimit(t *testing.T) {
 			require.Equal(t, int64(7), limit.current())
 			verifyMetrics(t, scope, name, 7, 10, 17, exceededCount)
 
+			// Validate second reset.
 			limit.reset()
 
 			require.Equal(t, int64(0), limit.current())
 			verifyMetrics(t, scope, name, 0, 7, 17, exceededCount)
 
+			// Validate consecutive reset (ensure peak goes to zero).
 			limit.reset()
 
 			require.Equal(t, int64(0), limit.current())
