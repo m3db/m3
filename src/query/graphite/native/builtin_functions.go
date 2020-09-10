@@ -653,8 +653,6 @@ func lowestCurrent(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesL
 	return lowest(ctx, input, n, "current")
 }
 
-}
-
 // windowSizeFunc calculates window size for moving average calculation
 type windowSizeFunc func(stepSize int) int
 
