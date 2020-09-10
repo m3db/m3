@@ -123,7 +123,6 @@ func ParseTime(s string, now time.Time, absoluteOffset time.Duration) (time.Time
 		return now.Add(-1 * time.Duration(timePast) * period), nil
 	}
 
-
 	newS := bypassTimeParseBug(s)
 	for _, format := range formats {
 		t, err := time.Parse(format, newS)
