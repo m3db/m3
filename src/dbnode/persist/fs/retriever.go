@@ -288,7 +288,7 @@ func (r *blockRetriever) fetchBatch(
 	reqs []*retrieveRequest,
 	seekerResources ReusableSeekerResources,
 ) {
-	if err := r.opts.QueryStats().UpdateBytesRead(0); err != nil {
+	if err := r.opts.QueryLimits().AnyExceeded(); err != nil {
 		for _, req := range reqs {
 			req.onError(err)
 		}
@@ -308,7 +308,7 @@ func (r *blockRetriever) fetchBatch(
 	// to ensure all seeks are in ascending order
 	var entrySize int
 	for _, req := range reqs {
-		if err := r.opts.QueryStats().UpdateBytesRead(entrySize); err != nil {
+		if err := r.opts.QueryLimits().BytesReadLimit().Inc(entrySize); err != nil {
 			req.onError(err)
 			continue
 		}

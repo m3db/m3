@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -962,9 +962,9 @@ type Options interface {
 	// MmapReporter returns the mmap reporter.
 	MmapReporter() mmap.Reporter
 
-	// SetQueryStats sets current query stats.
-	SetQueryStats(value stats.QueryStats) Options
+	// SetQueryLimits sets current query limits.
+	SetQueryLimits(value limits.QueryLimits) Options
 
-	// QueryStats returns the current query stats.
-	QueryStats() stats.QueryStats
+	// QueryLimits returns the current query limits.
+	QueryLimits() limits.QueryLimits
 }

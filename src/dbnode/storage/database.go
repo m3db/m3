@@ -828,7 +828,7 @@ func (d *db) QueryIDs(
 
 	// Check if exceeding query limits at very beginning of
 	// query path to abandon as early as possible.
-	if err := d.opts.IndexOptions().QueryStats().UpdateDocs(0); err != nil {
+	if err := d.opts.IndexOptions().QueryLimits().AnyExceeded(); err != nil {
 		return index.QueryResult{}, err
 	}
 
