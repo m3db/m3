@@ -1683,6 +1683,8 @@ func aggregateLine(ctx *common.Context, seriesList singlePathSpec, f string) (ts
 		Values:   []*ts.Series{renamed},
 		Metadata: seriesList.Metadata,
 	}, nil
+}
+
 // changed takes one metric or a wildcard seriesList.
 // Output 1 when the value changed, 0 when null or the same.
 func changed(ctx *common.Context, seriesList singlePathSpec) (ts.SeriesList, error) {
