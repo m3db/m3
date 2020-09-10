@@ -573,13 +573,21 @@ func (s *service) aggregateTiles(
 	db storage.Database,
 	req *rpc.AggregateTilesRequest,
 ) (int64, error) {
-	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
-	step, stepErr := time.ParseDuration(req.Step)
-	opts, optsErr := storage.NewAggregateTilesOptions(start, end, step, req.RemoveResets)
-	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil || optsErr != nil {
-		multiErr := xerrors.NewMultiError().Add(rangeStartErr).Add(rangeEndErr).Add(stepErr).Add(optsErr)
-		return 0, tterrors.NewBadRequestError(multiErr.FinalError())
+	start, err := convert.ToTime(req.RangeStart, req.RangeType)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	end, err := convert.ToTime(req.RangeEnd, req.RangeType)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	step, err := time.ParseDuration(req.Step)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	opts, err := storage.NewAggregateTilesOptions(start, end, step, req.RemoveResets)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
 	}
 
 	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNamespace)

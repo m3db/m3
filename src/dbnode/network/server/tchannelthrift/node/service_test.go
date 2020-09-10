@@ -3038,7 +3038,8 @@ func TestServiceAggregateTiles(t *testing.T) {
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 
 	step := "10m"
-	stepDuration, _ := time.ParseDuration(step)
+	stepDuration, err := time.ParseDuration(step)
+	require.NoError(t, err)
 
 	sourceNsID := "source"
 	targetNsID := "target"
