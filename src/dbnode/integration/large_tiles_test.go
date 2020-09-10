@@ -311,9 +311,6 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 	testSetup.SetStorageOpts(testSetup.StorageOpts().SetInstrumentOptions(
 		instrument.NewOptions().SetMetricsScope(scope)))
 
-	storageOpts := testSetup.StorageOpts()
-	testSetup.SetStorageOpts(storageOpts)
-
 	// Start the server.
 	require.NoError(t, testSetup.StartServer())
 
