@@ -321,18 +321,13 @@ func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadat
 }
 
 func writeTestData(t *testing.T, testSetup TestSetup, log *zap.Logger, reporter xmetrics.TestStatsReporter, dpTimeStart time.Time, ns ident.ID) {
-	tags := []ident.Tag{
-		ident.StringTag("__name__", "cpu"),
-		ident.StringTag("job", "job1"),
-	}
-
 	dpTime := dpTimeStart
 
 	testTagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
 		pool.NewObjectPoolOptions().SetSize(1))
 	testTagEncodingPool.Init()
 	encoder := testTagEncodingPool.Get()
-	tagsIter := ident.NewTagsIterator(ident.NewTags(tags...))
+	tagsIter := ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"))
 	err := encoder.Encode(tagsIter)
 	require.NoError(t, err)
 
