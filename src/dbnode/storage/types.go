@@ -1270,8 +1270,11 @@ type newFSMergeWithMemFn func(
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith
 
+// AggregateTilesOptions is the options for large tile aggregation.
 type AggregateTilesOptions struct {
+	// Start and End specify the aggregation window.
 	Start, End          time.Time
+	// Step is the downsampling step.
 	Step                time.Duration
 	// HandleCounterResets is temporarily used to force counter reset handling logics on the processed series.
 	// TODO: remove once we have metrics type stored in the metadata.

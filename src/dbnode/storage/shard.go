@@ -252,7 +252,7 @@ func newDatabaseShardMetrics(shardID uint32, scope tally.Scope) dbShardMetrics {
 			"suberror_type": "write-batch-error",
 		}).Counter(insertErrorName),
 		largeTilesWriteErrors: scope.Tagged(map[string]string{
-			"error_type":    "large_tiles",
+			"error_type":    "large-tiles",
 			"suberror_type": "write-error",
 		}).Counter(insertErrorName),
 		snapshotTotalLatency:              snapshotScope.Timer("total-latency"),
