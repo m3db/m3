@@ -65,7 +65,7 @@ func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader, iOpts instrumen
 		}
 		currentStart := dataFileSetReader.Range().Start
 		if !currentStart.After(previousStart) {
-			return nil, fmt.Errorf("dataFileSetReaders are not ordered by time (%s followed by %s)", previousStart, currentStart)
+			return nil, errors.New("dataFileSetReaders are not ordered by time")
 		}
 		previousStart = currentStart
 	}
@@ -115,7 +115,7 @@ func (r *crossBlockReader) Next() bool {
 	for len(r.minHeap) > 0 && bytes.Equal(r.minHeap[0].id.Bytes(), firstEntry.id.Bytes()) {
 		nextEntry, err := r.readOne()
 		if err != nil {
-			// Close the resources that were already read but not returned to the consumer:
+			// Close the resources that were already read but not returned to the consumer.
 			r.id.Finalize()
 			r.tags.Close()
 			for _, record := range r.records {
@@ -240,7 +240,7 @@ func (r *crossBlockReader) Err() error {
 }
 
 func (r *crossBlockReader) Close() error {
-	// Close the resources that were buffered in minHeap:
+	// Close the resources that were buffered in minHeap.
 	for i, entry := range r.minHeap {
 		entry.id.Finalize()
 		entry.tags.Close()
