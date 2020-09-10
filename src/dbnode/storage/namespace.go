@@ -1612,6 +1612,8 @@ func (n *dbNamespace) aggregateTiles(
 	sourceNs databaseNamespace,
 	opts AggregateTilesOptions,
 ) (int64, error) {
+	startedAt := time.Now()
+
 	targetBlockSize := n.Metadata().Options().RetentionOptions().BlockSize()
 	blockStart := opts.Start.Truncate(targetBlockSize)
 	if blockStart.Add(targetBlockSize).Before(opts.End) {
@@ -1655,7 +1657,8 @@ func (n *dbNamespace) aggregateTiles(
 		for _, sourceBlockStart := range sourceBlockStarts {
 			latestVolume, err := sourceShard.LatestVolume(sourceBlockStart)
 			if err != nil {
-				n.log.Error("error getting shards latest volume", zap.Error(err), zap.Uint32("shard", sourceShard.ID()), zap.Time("blockStart", sourceBlockStart))
+				n.log.Error("error getting shards latest volume",
+					zap.Error(err), zap.Uint32("shard", sourceShard.ID()), zap.Time("blockStart", sourceBlockStart))
 				return 0, err
 			}
 			sourceBlockVolumes = append(sourceBlockVolumes, shardBlockVolume{sourceBlockStart, latestVolume})
@@ -1674,6 +1677,13 @@ func (n *dbNamespace) aggregateTiles(
 	if err != nil {
 		n.log.Error("errors when aggregating large tiles", zap.Error(err))
 	}
+
+	n.log.Info("finished large tiles aggregation for namespace",
+		zap.String("sourceNs", sourceNs.ID().String()),
+		zap.String("targetNs", n.ID().String()),
+		zap.Int("shards", len(targetShards)),
+		zap.Int64("processedBlocks", processedBlockCount),
+		zap.Duration("duration", time.Now().Sub(startedAt)))
 
 	return processedBlockCount, multiErr.FinalError()
 }
