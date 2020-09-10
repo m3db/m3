@@ -1003,10 +1003,22 @@ type nIntParamGoldenData struct {
 	outputs []common.TestSeries
 }
 
+// nIntParamGoldenDataWithAgg holds test data for functions that take an additional "n" int parameter
+// It also holds an aggregation function
+type nIntParamGoldenDataWithAgg struct {
+	nIntParamGoldenData
+	aggFunc string
+}
+
+
 // rankingFunc selects the n lowest or highest series based on certain metric of the
 // series (e.g., maximum, minimum, average).
 type rankingFunc func(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesList, error)
 
+
+// testRanking can be used to test the ranking alias functions
+// (e.g. lowestAverage, highestMax, highestAverage, lowestCurrent)
+// these functions are all aliases of the "meta-ranking" functions (i.e. highest and lowest)
 func testRanking(t *testing.T, ctx *common.Context, tests []nIntParamGoldenData, f rankingFunc) {
 	start := time.Now()
 	step := 100
@@ -1024,6 +1036,73 @@ func testRanking(t *testing.T, ctx *common.Context, tests []nIntParamGoldenData,
 		common.CompareOutputsAndExpected(t, step, start,
 			test.outputs, outputs.Values)
 	}
+}
+
+// testOrderedAggregationFunc is a helper function for testing lowest and highest
+func testOrderedAggregationFunc(t *testing.T, ctx *common.Context, tests []nIntParamGoldenDataWithAgg, isLowest bool) {
+	f := highest
+	if isLowest {
+		f = lowest
+	}
+
+	start := time.Now()
+	step := 100
+	for _, test := range tests {
+		input := singlePathSpec{Values: generateSeriesList(ctx, start, test.inputs, step),}
+		outputs, err := f(ctx, input, test.n, test.aggFunc)
+
+		if test.n < 0 {
+			require.NotNil(t, err)
+			require.Equal(t, "n must be positive", err.Error())
+			assert.Nil(t, outputs.Values, "Nil timeseries should be returned")
+			continue
+		}
+
+		require.NoError(t, err)
+		common.CompareOutputsAndExpected(t, step, start,
+			test.outputs, outputs.Values)
+	}
+}
+
+func TestHighest(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	tests := []nIntParamGoldenDataWithAgg{
+		{
+			nIntParamGoldenData {
+				testInput,
+				0,
+				nil,
+			},
+			"sum",
+		},
+		{
+			nIntParamGoldenData {
+				testInput,
+				1,
+				[]common.TestSeries{testInput[0]},
+			},
+			"current",
+		},
+		{
+			nIntParamGoldenData {
+				testInput,
+				2,
+				[]common.TestSeries{testInput[4], testInput[2]},
+			},
+			"average",
+		},
+		{
+			nIntParamGoldenData {
+				testInput,
+				len(testInput) + 10, // force sort
+				[]common.TestSeries{testInput[0], testInput[3], testInput[4], testInput[2], testInput[1]},
+			},
+			"last",
+		},
+	}
+	testOrderedAggregationFunc(t, ctx, tests, false)
 }
 
 func TestHighestCurrent(t *testing.T) {
@@ -1196,6 +1275,47 @@ func TestMostDeviant(t *testing.T) {
 	testRanking(t, ctx, tests, mostDeviant)
 }
 
+func TestLowest(t *testing.T) {
+	ctx := common.NewTestContext()
+	defer ctx.Close()
+
+	tests := []nIntParamGoldenDataWithAgg{
+		{
+			nIntParamGoldenData {
+				testInput,
+				0,
+				nil,
+			},
+			"max",
+		},
+		{
+			nIntParamGoldenData {
+				testInput,
+				2,
+				[]common.TestSeries{testInput[1], testInput[3]},
+			},
+			"sum",
+		},
+		{
+			nIntParamGoldenData {
+				testInput,
+				2,
+				[]common.TestSeries{testInput[1], testInput[2]},
+			},
+			"current",
+		},
+		{
+			nIntParamGoldenData {
+				testInput,
+				3,
+				[]common.TestSeries{testInput[1], testInput[3], testInput[0]},
+			},
+			"average",
+		},
+	}
+	testOrderedAggregationFunc(t, ctx, tests, true)
+}
+
 func TestLowestAverage(t *testing.T) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -1224,6 +1344,8 @@ func TestLowestAverage(t *testing.T) {
 	}
 	testRanking(t, ctx, tests, lowestAverage)
 }
+
+
 
 func TestLowestCurrent(t *testing.T) {
 	ctx := common.NewTestContext()
@@ -3035,6 +3157,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"group",
 		"groupByNode",
 		"groupByNodes",
+		"highest",
 		"highestAverage",
 		"highestCurrent",
 		"highestMax",
@@ -3050,6 +3173,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"limit",
 		"log",
 		"logarithm",
+		"lowest",
 		"lowestAverage",
 		"lowestCurrent",
 		"max",
