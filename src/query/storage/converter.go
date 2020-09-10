@@ -81,15 +81,15 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	default:
 		return ts.SeriesAttributes{}, fmt.Errorf("invalid source type %v", series.Source)
 	}
-	switch series.Type {
-	case prompb.Type_COUNTER:
+	switch series.M3Type {
+	case prompb.Type_M3_COUNTER:
 		metricType = ts.MetricTypeCounter
-	case prompb.Type_GAUGE:
+	case prompb.Type_M3_GAUGE:
 		metricType = ts.MetricTypeGauge
-	case prompb.Type_TIMER:
+	case prompb.Type_M3_TIMER:
 		metricType = ts.MetricTypeTimer
 	default:
-		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type %v", series.Type)
+		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type %v", series.M3Type)
 	}
 	return ts.SeriesAttributes{
 		Type:   metricType,
