@@ -653,31 +653,6 @@ func lowestCurrent(ctx *common.Context, input singlePathSpec, n int) (ts.SeriesL
 	return lowest(ctx, input, n, "current")
 }
 
-// aggregateLine draws a horizontal line based the function applied to the series.
-func aggregateLine(ctx *common.Context, seriesList singlePathSpec, f string) (ts.SeriesList, error) {
-	if len(seriesList.Values) == 0 {
-		return ts.NewSeriesList(), common.ErrEmptySeriesList
-	}
-
-	sa := ts.SeriesReducerApproach(f)
-	r, ok := sa.SafeReducer()
-	if !ok {
-		return ts.NewSeriesList(), errors.NewInvalidParamsError(fmt.Errorf("invalid function %s", f))
-	}
-
-	value := r(seriesList.Values[0])
-	name := fmt.Sprintf("aggregateLine(%s,"+common.FloatingPointFormat+")",
-		seriesList.Values[0].Specification, value)
-	series, err := constantLine(ctx, value)
-	if err != nil {
-		return ts.NewSeriesList(), err
-	}
-
-	renamed := series.Values[0].RenamedTo(name)
-	return ts.SeriesList{
-		Values:   []*ts.Series{renamed},
-		Metadata: seriesList.Metadata,
-	}, nil
 }
 
 // windowSizeFunc calculates window size for moving average calculation
