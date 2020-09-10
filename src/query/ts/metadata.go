@@ -20,18 +20,18 @@
 
 package ts
 
-// MetricType is the enum for metric types.
-type MetricType int
+// M3MetricType is the enum for M3 metric types.
+type M3MetricType int
 
 const (
-	// MetricTypeGauge is the gauge metric type.
-	MetricTypeGauge MetricType = iota
+	// M3MetricTypeGauge is the gauge metric type.
+	M3MetricTypeGauge M3MetricType = iota
 
-	// MetricTypeCounter is the counter metric type.
-	MetricTypeCounter
+	// M3MetricTypeCounter is the counter metric type.
+	M3MetricTypeCounter
 
-	// MetricTypeTimer is the timer metric type.
-	MetricTypeTimer
+	// M3MetricTypeTimer is the timer metric type.
+	M3MetricTypeTimer
 )
 
 // SourceType is the enum for metric source types.
@@ -47,14 +47,14 @@ const (
 
 // SeriesAttributes has attributes about the time series.
 type SeriesAttributes struct {
-	Type   MetricType
+	M3Type M3MetricType
 	Source SourceType
 }
 
 // DefaultSeriesAttributes returns a default series attributes.
 func DefaultSeriesAttributes() SeriesAttributes {
 	return SeriesAttributes{
-		Type:   MetricTypeGauge,
+		M3Type: M3MetricTypeGauge,
 		Source: SourceTypePrometheus,
 	}
 }

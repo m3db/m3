@@ -462,7 +462,7 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		opts := downsample.SampleAppenderOptions{
-			MetricType: value.Attributes.Type,
+			MetricType: value.Attributes.M3Type,
 		}
 		if downsampleMappingRuleOverrides, ok := d.downsampleOverrideRules(overrides); ok {
 			opts = downsample.SampleAppenderOptions{
@@ -484,12 +484,12 @@ func (d *downsamplerAndWriter) writeAggregatedBatch(
 		}
 
 		for _, dp := range value.Datapoints {
-			switch value.Attributes.Type {
-			case ts.MetricTypeGauge:
+			switch value.Attributes.M3Type {
+			case ts.M3MetricTypeGauge:
 				err = result.SamplesAppender.AppendGaugeTimedSample(dp.Timestamp, dp.Value)
-			case ts.MetricTypeCounter:
+			case ts.M3MetricTypeCounter:
 				err = result.SamplesAppender.AppendCounterTimedSample(dp.Timestamp, int64(dp.Value))
-			case ts.MetricTypeTimer:
+			case ts.M3MetricTypeTimer:
 				err = result.SamplesAppender.AppendTimerTimedSample(dp.Timestamp, dp.Value)
 			}
 			if err != nil {

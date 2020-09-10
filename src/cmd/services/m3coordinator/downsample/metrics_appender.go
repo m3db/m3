@@ -153,13 +153,13 @@ func (a *metricsAppender) SamplesAppender(opts SampleAppenderOptions) (SamplesAp
 	if a.augmentM3Tags {
 		// NB (@shreyas): Add the metric type tag. The tag has the prefix
 		// __m3_. All tags with that prefix are only used for the purpose of
-		// filter matchiand then stripped off before we actually send to the aggregator.
+		// filter match and then stripped off before we actually send to the aggregator.
 		switch opts.MetricType {
-		case ts.MetricTypeCounter:
+		case ts.M3MetricTypeCounter:
 			tags.append(metric.M3TypeTag, metric.M3CounterValue)
-		case ts.MetricTypeGauge:
+		case ts.M3MetricTypeGauge:
 			tags.append(metric.M3TypeTag, metric.M3GaugeValue)
-		case ts.MetricTypeTimer:
+		case ts.M3MetricTypeTimer:
 			tags.append(metric.M3TypeTag, metric.M3TimerValue)
 		}
 	}

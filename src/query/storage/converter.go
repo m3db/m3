@@ -70,8 +70,8 @@ func PromLabelsToM3Tags(
 // timeseries.
 func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttributes, error) {
 	var (
-		sourceType ts.SourceType
-		metricType ts.MetricType
+		sourceType   ts.SourceType
+		m3MetricType ts.M3MetricType
 	)
 	switch series.Source {
 	case prompb.Source_PROMETHEUS:
@@ -83,16 +83,16 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 	}
 	switch series.M3Type {
 	case prompb.Type_M3_COUNTER:
-		metricType = ts.MetricTypeCounter
+		m3MetricType = ts.M3MetricTypeCounter
 	case prompb.Type_M3_GAUGE:
-		metricType = ts.MetricTypeGauge
+		m3MetricType = ts.M3MetricTypeGauge
 	case prompb.Type_M3_TIMER:
-		metricType = ts.MetricTypeTimer
+		m3MetricType = ts.M3MetricTypeTimer
 	default:
 		return ts.SeriesAttributes{}, fmt.Errorf("invalid metric type %v", series.M3Type)
 	}
 	return ts.SeriesAttributes{
-		Type:   metricType,
+		M3Type: m3MetricType,
 		Source: sourceType,
 	}, nil
 }
