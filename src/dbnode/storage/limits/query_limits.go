@@ -46,10 +46,10 @@ type lookbackLimit struct {
 }
 
 type lookbackLimitMetrics struct {
-	recent     tally.Gauge
-	recentPeak tally.Gauge
-	total      tally.Counter
-	exceeded   tally.Counter
+	recentCount tally.Gauge
+	recentMax   tally.Gauge
+	total       tally.Counter
+	exceeded    tally.Counter
 }
 
 var (
@@ -96,10 +96,10 @@ func newLookbackLimitMetrics(instrumentOpts instrument.Options, name string) loo
 		MetricsScope().
 		SubScope("query-limit")
 	return lookbackLimitMetrics{
-		recent:     scope.Gauge(fmt.Sprintf("recent-%s", name)),
-		recentPeak: scope.Gauge(fmt.Sprintf("recent-peak-%s", name)),
-		total:      scope.Counter(fmt.Sprintf("total-%s", name)),
-		exceeded:   scope.Tagged(map[string]string{"limit": name}).Counter("limit-exceeded"),
+		recentCount: scope.Gauge(fmt.Sprintf("recent-count%s", name)),
+		recentMax:   scope.Gauge(fmt.Sprintf("recent-max-%s", name)),
+		total:       scope.Counter(fmt.Sprintf("total-%s", name)),
+		exceeded:    scope.Tagged(map[string]string{"limit": name}).Counter("limit-exceeded"),
 	}
 }
 
@@ -145,7 +145,7 @@ func (q *lookbackLimit) Inc(val int) error {
 	recent := q.recent.Add(valI64)
 
 	// Update metrics.
-	q.metrics.recent.Update(float64(recent))
+	q.metrics.recentCount.Update(float64(recent))
 	q.metrics.total.Inc(valI64)
 
 	// Enforce limit (if specified).
@@ -193,10 +193,10 @@ func (q *lookbackLimit) reset() {
 	// Update peak gauge only on resets so it only tracks
 	// the peak values for each lookback period.
 	recent := q.recent.Load()
-	q.metrics.recentPeak.Update(float64(recent))
+	q.metrics.recentMax.Update(float64(recent))
 
 	// Update the standard recent gauge to reflect drop back to zero.
-	q.metrics.recent.Update(0)
+	q.metrics.recentCount.Update(0)
 
 	q.recent.Store(0)
 }
