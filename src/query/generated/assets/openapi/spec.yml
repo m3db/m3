@@ -74,6 +74,33 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
+    put:
+      tags:
+      - "M3DB Namespace"
+      summary: "Update an M3DB namespace"
+      operationId: "namespaceUpdate"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/NamespaceUpdateRequest"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/NamespaceGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
   /services/m3db/namespace/{namespaceID}:
     delete:
       tags:
@@ -652,6 +679,18 @@ definitions:
         type: "string"
       options:
         $ref: "#/definitions/NamespaceOptions"
+  NamespaceUpdateRequest:
+    type: "object"
+    properties:
+      name:
+        type: "string"
+      options:
+        type: "object"
+        properties:
+          retentionOptions:
+            $ref: "#/definitions/RetentionOptions"
+          runtimeOptions:
+            $ref: "#/definitions/NamespaceRuntimeOptions"
   NamespaceOptions:
     type: "object"
     properties:
@@ -671,6 +710,8 @@ definitions:
         type: "boolean"
       indexOptions:
         $ref: "#/definitions/IndexOptions"
+      runtimeOptions:
+        $ref: "#/definitions/NamespaceRuntimeOptions"
   RetentionOptions:
     type: "object"
     properties:
@@ -693,6 +734,15 @@ definitions:
         type: "boolean"
       blockSizeDuration:
         type: "string"
+  NamespaceRuntimeOptions:
+    type: "object"
+    properties:
+      flushIndexingPerCPUConcurrency:
+        type: "number"
+        format: "double"
+      writeIndexingPerCPUConcurrency: 
+        type: "number"
+        format: "double"
   NamespaceGetResponse:
     type: "object"
     properties:

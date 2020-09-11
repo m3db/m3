@@ -47,7 +47,10 @@ const (
 		"name": "testNamespace",
 		"options": {
 			"retentionOptions": {
-				"retentionPeriodNanos": 345600000000000
+				"retentionPeriodDuration": "96h"
+			},
+			"runtimeOptions": {
+				"writeIndexingPerCPUConcurrency": 16
 			}
 		}
 }
@@ -155,7 +158,10 @@ func TestNamespaceUpdateHandler(t *testing.T) {
 							"enabled":        false,
 							"blockSizeNanos": "7200000000000",
 						},
-						"runtimeOptions":    nil,
+						"runtimeOptions": xjson.Map{
+							"flushIndexingPerCPUConcurrency": nil,
+							"writeIndexingPerCPUConcurrency": 16,
+						},
 						"schemaOptions":     nil,
 						"coldWritesEnabled": false,
 					},
