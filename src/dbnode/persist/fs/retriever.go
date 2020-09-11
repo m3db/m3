@@ -309,7 +309,7 @@ func (r *blockRetriever) fetchBatch(
 	var limitErr error
 	for _, req := range reqs {
 		if limitErr != nil {
-			req.onError(err)
+			req.onError(limitErr)
 			continue
 		}
 

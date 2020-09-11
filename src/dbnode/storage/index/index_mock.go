@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
 	time0 "github.com/m3db/m3/src/x/time"
-	"github.com/m3db/prometheus/util/stats"
 
 	"github.com/golang/mock/gomock"
 	"github.com/opentracing/opentracing-go/log"
@@ -1668,18 +1667,18 @@ func (mr *MockOptionsMockRecorder) MmapReporter() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MmapReporter", reflect.TypeOf((*MockOptions)(nil).MmapReporter))
 }
 
-// SetQueryStats mocks base method
-func (m *MockOptions) SetQueryStats(value stats.QueryStats) Options {
+// SetQueryLimits mocks base method
+func (m *MockOptions) SetQueryLimits(value limits.QueryLimits) Options {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetQueryStats", value)
+	ret := m.ctrl.Call(m, "SetQueryLimits", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetQueryStats indicates an expected call of SetQueryStats
-func (mr *MockOptionsMockRecorder) SetQueryStats(value interface{}) *gomock.Call {
+// SetQueryLimits indicates an expected call of SetQueryLimits
+func (mr *MockOptionsMockRecorder) SetQueryLimits(value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryStats", reflect.TypeOf((*MockOptions)(nil).SetQueryStats), value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryLimits", reflect.TypeOf((*MockOptions)(nil).SetQueryLimits), value)
 }
 
 // QueryLimits mocks base method
