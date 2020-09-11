@@ -1008,13 +1008,15 @@ func integralByInterval(ctx *common.Context, input singlePathSpec, intervalStrin
 		return ts.NewSeriesList(), err
 	}
 	results := make([]*ts.Series, 0, len(input.Values))
+
 	for _, series := range input.Values {
-var (
-  stepsPerInterval = intervalUnit.Milliseconds() /  int64(series.MillisPerStep())
-  vals = ts.NewValues(ctx, series.MillisPerStep(), series.Len())
-  stepCounter int64
-  currentSum float64
-)
+		var (
+		  stepsPerInterval = intervalUnit.Milliseconds() /  int64(series.MillisPerStep())
+		  outVals = ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+		  stepCounter int64
+		  currentSum float64
+		)
+
 		for i := 0; i < series.Len(); i++ {
 			if stepCounter > stepsPerInterval {
 				// startNewInterval
@@ -1024,13 +1026,13 @@ var (
 			n := series.ValueAt(i)
 			if !math.IsNaN(n) {
 				currentSum += n
-				outvals.SetValueAt(i, currentSum)
+				outVals.SetValueAt(i, currentSum)
 			}
 			stepCounter += 1
 		}
 
 		newName := fmt.Sprintf("integralByInterval(%s, %s)", series.Name(), intervalString)
-		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), outvals))
+		results = append(results, ts.NewSeries(ctx, newName, series.StartTime(), outVals))
 	}
 
 	r := ts.SeriesList(input)
