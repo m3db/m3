@@ -240,13 +240,13 @@ func verifyMetrics(t *testing.T,
 ) {
 	snapshot := scope.Snapshot()
 
-	recent, exists := snapshot.Gauges()[fmt.Sprintf("query-limit.recent-%s+", name)]
+	recent, exists := snapshot.Gauges()[fmt.Sprintf("query-limit.recent-count-%s+", name)]
 	assert.True(t, exists)
-	assert.Equal(t, expectedRecent, recent.Value(), "recent wrong")
+	assert.Equal(t, expectedRecent, recent.Value(), "recent count wrong")
 
-	recentPeak, exists := snapshot.Gauges()[fmt.Sprintf("query-limit.recent-peak-%s+", name)]
+	recentPeak, exists := snapshot.Gauges()[fmt.Sprintf("query-limit.recent-max-%s+", name)]
 	assert.True(t, exists)
-	assert.Equal(t, expectedRecentPeak, recentPeak.Value(), "recent peak wrong")
+	assert.Equal(t, expectedRecentPeak, recentPeak.Value(), "recent max wrong")
 
 	total, exists := snapshot.Counters()[fmt.Sprintf("query-limit.total-%s+", name)]
 	assert.True(t, exists)
