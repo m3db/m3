@@ -306,9 +306,9 @@ func (r *blockRetriever) fetchBatch(
 
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
-	var entrySize int
+	var limitErr error
 	for _, req := range reqs {
-		if err := r.opts.QueryLimits().BytesReadLimit().Inc(entrySize); err != nil {
+		if limitErr != nil {
 			req.onError(err)
 			continue
 		}
@@ -318,7 +318,12 @@ func (r *blockRetriever) fetchBatch(
 			req.onError(err)
 			continue
 		}
-		entrySize = int(entry.Size)
+
+		if err := r.opts.QueryLimits().BytesReadLimit().Inc(int(entry.Size)); err != nil {
+			req.onError(err)
+			limitErr = err
+			continue
+		}
 
 		if err == errSeekIDNotFound {
 			req.notFound = true
