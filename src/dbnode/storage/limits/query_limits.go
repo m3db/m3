@@ -33,7 +33,6 @@ import (
 const DefaultLookback = time.Second * 15
 
 type queryLimits struct {
-	scope          tally.Scope
 	docsLimit      *lookbackLimit
 	bytesReadLimit *lookbackLimit
 }
@@ -58,48 +57,34 @@ var (
 	_ LookbackLimit = (*lookbackLimit)(nil)
 )
 
-// QueryLimits provides an interface for managing query limits.
-type QueryLimits interface {
-	DocsLimit() LookbackLimit
-	BytesReadLimit() LookbackLimit
-
-	AnyExceeded() error
-	Start()
-	Stop()
-}
-
-// LookbackLimit provides an interface for a specific query limit.
-type LookbackLimit interface {
-	Inc(new int) error
-}
-
-// LookbackLimitOptions holds options for a lookback limit to be enforced.
-type LookbackLimitOptions struct {
-	// Limit past which errors will be returned.
-	Limit int64
-	// Lookback is the period over which the limit is enforced.
-	Lookback time.Duration
-}
-
 // NewQueryLimits returns a new query limits manager.
 func NewQueryLimits(
 	instrumentOpts instrument.Options,
 	docsLimitOpts LookbackLimitOptions,
 	bytesReadLimitOpts LookbackLimitOptions,
-) QueryLimits {
-	scope := instrumentOpts.
-		MetricsScope().
-		SubScope("query-limits")
-	docsLimit := newLookbackLimit("docs-matched", scope, docsLimitOpts)
-	bytesReadLimit := newLookbackLimit("bytes-read", scope, bytesReadLimitOpts)
+) (QueryLimits, error) {
+	if err := docsLimitOpts.validate(); err != nil {
+		return nil, err
+	}
+	if err := bytesReadLimitOpts.validate(); err != nil {
+		return nil, err
+	}
+	docsLimit := newLookbackLimit(instrumentOpts, docsLimitOpts, "docs-matched")
+	bytesReadLimit := newLookbackLimit(instrumentOpts, bytesReadLimitOpts, "bytes-read")
 	return &queryLimits{
-		scope:          scope,
 		docsLimit:      docsLimit,
 		bytesReadLimit: bytesReadLimit,
-	}
+	}, nil
 }
 
-func newLookbackLimit(name string, scope tally.Scope, opts LookbackLimitOptions) *lookbackLimit {
+func newLookbackLimit(
+	instrumentOpts instrument.Options,
+	opts LookbackLimitOptions,
+	name string,
+) *lookbackLimit {
+	scope := instrumentOpts.
+		MetricsScope().
+		SubScope("query-limit")
 	return &lookbackLimit{
 		name:    name,
 		options: opts,
@@ -143,21 +128,21 @@ func (q *queryLimits) AnyExceeded() error {
 }
 
 // Inc increments the current value and returns an error if above the limit.
-func (q *lookbackLimit) Inc(new int) error {
-	if new < 0 {
-		return fmt.Errorf("invalid negative query limit inc %d", new)
+func (q *lookbackLimit) Inc(val int) error {
+	if val < 0 {
+		return fmt.Errorf("invalid negative query limit inc %d", val)
 	}
-	if new == 0 {
+	if val == 0 {
 		return q.exceeded()
 	}
 
 	// Add the new stats to the global state.
-	newI64 := int64(new)
-	recent := q.recent.Add(newI64)
+	valI64 := int64(val)
+	recent := q.recent.Add(valI64)
 
 	// Update metrics.
 	q.metrics.recent.Update(float64(recent))
-	q.metrics.total.Inc(newI64)
+	q.metrics.total.Inc(valI64)
 
 	// Enforce limit (if specified).
 	return q.checkLimit(recent)
@@ -212,8 +197,7 @@ func (q *lookbackLimit) reset() {
 	q.recent.Store(0)
 }
 
-// Validate returns an error if the query stats options are invalid.
-func (opts LookbackLimitOptions) Validate() error {
+func (opts LookbackLimitOptions) validate() error {
 	if opts.Limit < 0 {
 		return fmt.Errorf("query limit requires limit >= 0 (%d)", opts.Limit)
 	}

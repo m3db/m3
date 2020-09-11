@@ -27,20 +27,23 @@ import (
 
 	xclock "github.com/m3db/m3/src/x/clock"
 	"github.com/m3db/m3/src/x/instrument"
-	"github.com/uber-go/tally"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestQueryLimits(t *testing.T) {
 	docOpts := LookbackLimitOptions{
-		Limit: 1,
+		Limit:    1,
+		Lookback: time.Second,
 	}
 	bytesOpts := LookbackLimitOptions{
-		Limit: 1,
+		Limit:    1,
+		Lookback: time.Second,
 	}
-	queryLimits := NewQueryLimits(instrument.NewOptions(), docOpts, bytesOpts)
+	queryLimits, err := NewQueryLimits(instrument.NewOptions(), docOpts, bytesOpts)
+	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
 
 	// No error yet.
@@ -50,7 +53,8 @@ func TestQueryLimits(t *testing.T) {
 	queryLimits.DocsLimit().Inc(2)
 	require.Error(t, queryLimits.AnyExceeded())
 
-	queryLimits = NewQueryLimits(instrument.NewOptions(), docOpts, bytesOpts)
+	queryLimits, err = NewQueryLimits(instrument.NewOptions(), docOpts, bytesOpts)
+	require.NoError(t, err)
 	require.NotNil(t, queryLimits)
 
 	// No error yet.
@@ -70,13 +74,14 @@ func TestLookbackLimit(t *testing.T) {
 		{name: "limit", limit: 5},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			scope := tally.NewTestScope("scope", nil)
+			scope := tally.NewTestScope("", nil)
+			iOpts := instrument.NewOptions().SetMetricsScope(scope)
 			opts := LookbackLimitOptions{
 				Limit:    test.limit,
 				Lookback: time.Millisecond * 100,
 			}
 			name := "test"
-			limit := newLookbackLimit(name, scope, opts)
+			limit := newLookbackLimit(iOpts, opts, name)
 
 			require.Equal(t, int64(0), limit.current())
 			err := limit.exceeded()
@@ -149,13 +154,14 @@ func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit int6
 }
 
 func TestLookbackReset(t *testing.T) {
-	scope := tally.NewTestScope("scope", nil)
+	scope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(scope)
 	opts := LookbackLimitOptions{
 		Limit:    5,
 		Lookback: time.Millisecond * 100,
 	}
 	name := "test"
-	limit := newLookbackLimit(name, scope, opts)
+	limit := newLookbackLimit(iOpts, opts, name)
 
 	err := limit.Inc(3)
 	require.NoError(t, err)
@@ -211,7 +217,7 @@ func TestValidateLookbackLimitOptions(t *testing.T) {
 			err := LookbackLimitOptions{
 				Limit:    test.max,
 				Lookback: test.lookback,
-			}.Validate()
+			}.validate()
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -219,7 +225,7 @@ func TestValidateLookbackLimitOptions(t *testing.T) {
 			}
 
 			// Validate empty.
-			require.Error(t, LookbackLimitOptions{}.Validate())
+			require.Error(t, LookbackLimitOptions{}.validate())
 		})
 	}
 }
@@ -234,19 +240,19 @@ func verifyMetrics(t *testing.T,
 ) {
 	snapshot := scope.Snapshot()
 
-	recent, exists := snapshot.Gauges()[fmt.Sprintf("scope.recent-%s+", name)]
+	recent, exists := snapshot.Gauges()[fmt.Sprintf("query-limit.recent-%s+", name)]
 	assert.True(t, exists)
 	assert.Equal(t, expectedRecent, recent.Value(), "recent wrong")
 
-	recentPeak, exists := snapshot.Gauges()[fmt.Sprintf("scope.recent-peak-%s+", name)]
+	recentPeak, exists := snapshot.Gauges()[fmt.Sprintf("query-limit.recent-peak-%s+", name)]
 	assert.True(t, exists)
 	assert.Equal(t, expectedRecentPeak, recentPeak.Value(), "recent peak wrong")
 
-	total, exists := snapshot.Counters()[fmt.Sprintf("scope.total-%s+", name)]
+	total, exists := snapshot.Counters()[fmt.Sprintf("query-limit.total-%s+", name)]
 	assert.True(t, exists)
 	assert.Equal(t, expectedTotal, total.Value(), "total wrong")
 
-	exceeded, exists := snapshot.Counters()[fmt.Sprintf("scope.limit-exceeded+limit=%s", name)]
+	exceeded, exists := snapshot.Counters()[fmt.Sprintf("query-limit.limit-exceeded+limit=%s", name)]
 	assert.True(t, exists)
 	assert.Equal(t, expectedExceeded, exceeded.Value(), "exceeded wrong")
 }
