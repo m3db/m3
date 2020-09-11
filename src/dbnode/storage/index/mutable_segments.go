@@ -448,6 +448,13 @@ func (m *mutableSegments) backgroundCompactWithPlan(plan *compaction.Plan) {
 		}
 	}
 
+	// Freeze terminal segments.
+	for _, seg := range plan.UnusedSegments {
+		if seg.State() != idxpersist.FrozenIndexSegmentState {
+			seg.Freeze()
+		}
+	}
+
 	for i, task := range plan.Tasks {
 		err := m.backgroundCompactWithTask(task, log,
 			logger.With(zap.Int("task", i)))

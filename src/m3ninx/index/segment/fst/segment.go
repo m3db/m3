@@ -33,6 +33,7 @@ import (
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
+	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
@@ -61,6 +62,7 @@ var (
 type SegmentData struct {
 	Version  Version
 	Metadata []byte
+	State    persist.IndexSegmentState
 
 	DocsData      mmap.Descriptor
 	DocsIdxData   mmap.Descriptor
@@ -193,6 +195,24 @@ func (r *fsSegment) SegmentData(ctx context.Context) (SegmentData, error) {
 	// until all readers have been closed.
 	r.ctx.DependsOn(ctx)
 	return r.data, nil
+}
+
+func (r *fsSegment) Freeze() {
+	r.Lock()
+	defer r.Unlock()
+	if r.closed {
+		return
+	}
+	r.data.State = persist.FrozenIndexSegmentState
+}
+
+func (r *fsSegment) State() persist.IndexSegmentState {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return 0
+	}
+	return r.data.State
 }
 
 func (r *fsSegment) Size() int64 {

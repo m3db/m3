@@ -123,6 +123,7 @@ type fstSegmentDataWriter struct {
 	data                fst.SegmentData
 	docsWriter          *fst.DocumentsWriter
 	docsDataFileWritten bool
+	segmentState        IndexSegmentState
 }
 
 func (w *fstSegmentDataWriter) Reset(data fst.SegmentData) error {
@@ -135,6 +136,10 @@ func (w *fstSegmentDataWriter) Reset(data fst.SegmentData) error {
 
 func (w *fstSegmentDataWriter) SegmentType() IndexSegmentType {
 	return FSTIndexSegmentType
+}
+
+func (w *fstSegmentDataWriter) SegmentState() IndexSegmentState {
+	return w.data.State
 }
 
 func (w *fstSegmentDataWriter) MajorVersion() int {

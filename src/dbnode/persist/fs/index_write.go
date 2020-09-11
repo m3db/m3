@@ -78,6 +78,7 @@ type indexWriter struct {
 
 type writtenIndexSegment struct {
 	segmentType  idxpersist.IndexSegmentType
+	segmentState idxpersist.IndexSegmentState
 	majorVersion int
 	minorVersion int
 	metadata     []byte
@@ -166,6 +167,7 @@ func (w *indexWriter) WriteSegmentFileSet(
 
 	seg := writtenIndexSegment{
 		segmentType:  segType,
+		segmentState: segmentFileSet.SegmentState(),
 		majorVersion: segmentFileSet.MajorVersion(),
 		minorVersion: segmentFileSet.MinorVersion(),
 		metadata:     segmentFileSet.SegmentMetadata(),
@@ -251,6 +253,7 @@ func (w *indexWriter) infoFileData() ([]byte, error) {
 	for _, segment := range w.segments {
 		segmentInfo := &index.SegmentInfo{
 			SegmentType:  string(segment.segmentType),
+			SegmentState: index.SegmentState(segment.segmentState),
 			MajorVersion: int64(segment.majorVersion),
 			MinorVersion: int64(segment.minorVersion),
 			Metadata:     segment.metadata,

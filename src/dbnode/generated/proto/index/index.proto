@@ -15,12 +15,18 @@ message IndexVolumeInfo {
   google.protobuf.StringValue indexVolumeType = 8;
 }
 
+enum SegmentState {
+    COMPACTABLE_SEGMENT_STATE = 0;
+    FROZEN_SEGMENT_STATE = 1;
+}
+
 message SegmentInfo {
   string segmentType = 1;
   int64 majorVersion = 2;
   int64 minorVersion = 3;
   bytes metadata = 4;
   repeated SegmentFileInfo files = 5;
+  SegmentState segmentState = 6;
 }
 
 message SegmentFileInfo {
