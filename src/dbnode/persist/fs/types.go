@@ -550,10 +550,10 @@ type BlockRetrieverOptions interface {
 	// BlockLeaseManager returns the block leaser.
 	BlockLeaseManager() block.LeaseManager
 
-	// SetQueryLimits sets current query limits.
+	// SetQueryLimits sets query limits.
 	SetQueryLimits(value limits.QueryLimits) BlockRetrieverOptions
 
-	// QueryLimits returns the current query limits.
+	// QueryLimits returns the query limits.
 	QueryLimits() limits.QueryLimits
 }
 
