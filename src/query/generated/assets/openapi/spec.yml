@@ -688,7 +688,10 @@ definitions:
         type: "object"
         properties:
           retentionOptions:
-            $ref: "#/definitions/RetentionOptions"
+            type: "object"
+            properties:
+              retentionPeriodDuration:
+                type: "string"
           runtimeOptions:
             $ref: "#/definitions/NamespaceRuntimeOptions"
   NamespaceOptions:
