@@ -82,20 +82,24 @@ func newLookbackLimit(
 	opts LookbackLimitOptions,
 	name string,
 ) *lookbackLimit {
-	scope := instrumentOpts.
-		MetricsScope().
-		SubScope("query-limit")
 	return &lookbackLimit{
 		name:    name,
 		options: opts,
-		metrics: lookbackLimitMetrics{
-			recent:     scope.Gauge(fmt.Sprintf("recent-%s", name)),
-			recentPeak: scope.Gauge(fmt.Sprintf("recent-peak-%s", name)),
-			total:      scope.Counter(fmt.Sprintf("total-%s", name)),
-			exceeded:   scope.Tagged(map[string]string{"limit": name}).Counter("limit-exceeded"),
-		},
-		recent: atomic.NewInt64(0),
-		stopCh: make(chan struct{}),
+		metrics: newLookbackLimitMetrics(instrumentOpts, name),
+		recent:  atomic.NewInt64(0),
+		stopCh:  make(chan struct{}),
+	}
+}
+
+func newLookbackLimitMetrics(instrumentOpts instrument.Options, name string) lookbackLimitMetrics {
+	scope := instrumentOpts.
+		MetricsScope().
+		SubScope("query-limit")
+	return lookbackLimitMetrics{
+		recent:     scope.Gauge(fmt.Sprintf("recent-%s", name)),
+		recentPeak: scope.Gauge(fmt.Sprintf("recent-peak-%s", name)),
+		total:      scope.Counter(fmt.Sprintf("total-%s", name)),
+		exceeded:   scope.Tagged(map[string]string{"limit": name}).Counter("limit-exceeded"),
 	}
 }
 
