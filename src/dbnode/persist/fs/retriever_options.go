@@ -34,6 +34,7 @@ import (
 var (
 	// Allow max concurrency to match available CPUs.
 	defaultFetchConcurrency = runtime.NumCPU()
+	defaultCacheOnRetrieve  = true
 
 	errBlockLeaseManagerNotSet = errors.New("block lease manager is not set")
 )
@@ -42,6 +43,7 @@ type blockRetrieverOptions struct {
 	requestPool       RetrieveRequestPool
 	bytesPool         pool.CheckedBytesPool
 	fetchConcurrency  int
+	cacheOnRetrieve   bool
 	identifierPool    ident.Pool
 	blockLeaseManager block.LeaseManager
 	queryLimits       limits.QueryLimits
@@ -66,6 +68,7 @@ func NewBlockRetrieverOptions() BlockRetrieverOptions {
 		requestPool:      requestPool,
 		bytesPool:        bytesPool,
 		fetchConcurrency: defaultFetchConcurrency,
+		cacheOnRetrieve:  defaultCacheOnRetrieve,
 		identifierPool:   ident.NewPool(bytesPool, ident.PoolOptions{}),
 		queryLimits:      limits.NoOpQueryLimits(),
 	}
@@ -108,6 +111,16 @@ func (o *blockRetrieverOptions) SetFetchConcurrency(value int) BlockRetrieverOpt
 
 func (o *blockRetrieverOptions) FetchConcurrency() int {
 	return o.fetchConcurrency
+}
+
+func (o *blockRetrieverOptions) SetCacheBlocksOnRetrieve(value bool) BlockRetrieverOptions {
+	opts := *o
+	opts.cacheOnRetrieve = value
+	return &opts
+}
+
+func (o *blockRetrieverOptions) CacheBlocksOnRetrieve() bool {
+	return o.cacheOnRetrieve
 }
 
 func (o *blockRetrieverOptions) SetIdentifierPool(value ident.Pool) BlockRetrieverOptions {

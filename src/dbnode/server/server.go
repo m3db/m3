@@ -556,6 +556,9 @@ func Run(runOpts RunOptions) {
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
 			retrieverOpts = retrieverOpts.
 				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
+			if blockRetrieveCfg.CacheBlocksOnRetrieve != nil {
+				retrieverOpts = retrieverOpts.SetCacheBlocksOnRetrieve(*blockRetrieveCfg.CacheBlocksOnRetrieve)
+			}
 		}
 		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 			func(md namespace.Metadata, shardSet sharding.ShardSet) (block.DatabaseBlockRetriever, error) {

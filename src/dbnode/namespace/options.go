@@ -47,6 +47,9 @@ const (
 
 	// Namespace with cold writes disabled by default.
 	defaultColdWritesEnabled = false
+
+	// Namespace caches retrieved blocks by default.
+	defaultCacheBlocksOnRetrieve = true
 )
 
 var (
@@ -57,17 +60,18 @@ var (
 )
 
 type options struct {
-	bootstrapEnabled  bool
-	flushEnabled      bool
-	snapshotEnabled   bool
-	writesToCommitLog bool
-	cleanupEnabled    bool
-	repairEnabled     bool
-	coldWritesEnabled bool
-	retentionOpts     retention.Options
-	indexOpts         IndexOptions
-	schemaHis         SchemaHistory
-	runtimeOpts       RuntimeOptions
+	bootstrapEnabled      bool
+	flushEnabled          bool
+	snapshotEnabled       bool
+	writesToCommitLog     bool
+	cleanupEnabled        bool
+	repairEnabled         bool
+	coldWritesEnabled     bool
+	cacheBlocksOnRetrieve bool
+	retentionOpts         retention.Options
+	indexOpts             IndexOptions
+	schemaHis             SchemaHistory
+	runtimeOpts           RuntimeOptions
 }
 
 // NewSchemaHistory returns an empty schema history.
@@ -78,17 +82,18 @@ func NewSchemaHistory() SchemaHistory {
 // NewOptions creates a new namespace options
 func NewOptions() Options {
 	return &options{
-		bootstrapEnabled:  defaultBootstrapEnabled,
-		flushEnabled:      defaultFlushEnabled,
-		snapshotEnabled:   defaultSnapshotEnabled,
-		writesToCommitLog: defaultWritesToCommitLog,
-		cleanupEnabled:    defaultCleanupEnabled,
-		repairEnabled:     defaultRepairEnabled,
-		coldWritesEnabled: defaultColdWritesEnabled,
-		retentionOpts:     retention.NewOptions(),
-		indexOpts:         NewIndexOptions(),
-		schemaHis:         NewSchemaHistory(),
-		runtimeOpts:       NewRuntimeOptions(),
+		bootstrapEnabled:      defaultBootstrapEnabled,
+		flushEnabled:          defaultFlushEnabled,
+		snapshotEnabled:       defaultSnapshotEnabled,
+		writesToCommitLog:     defaultWritesToCommitLog,
+		cleanupEnabled:        defaultCleanupEnabled,
+		repairEnabled:         defaultRepairEnabled,
+		coldWritesEnabled:     defaultColdWritesEnabled,
+		cacheBlocksOnRetrieve: defaultCacheBlocksOnRetrieve,
+		retentionOpts:         retention.NewOptions(),
+		indexOpts:             NewIndexOptions(),
+		schemaHis:             NewSchemaHistory(),
+		runtimeOpts:           NewRuntimeOptions(),
 	}
 }
 
@@ -128,6 +133,7 @@ func (o *options) Equal(value Options) bool {
 		o.cleanupEnabled == value.CleanupEnabled() &&
 		o.repairEnabled == value.RepairEnabled() &&
 		o.coldWritesEnabled == value.ColdWritesEnabled() &&
+		o.cacheBlocksOnRetrieve == value.CacheBlocksOnRetrieve() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
 		o.indexOpts.Equal(value.IndexOptions()) &&
 		o.schemaHis.Equal(value.SchemaHistory()) &&
@@ -202,6 +208,16 @@ func (o *options) SetColdWritesEnabled(value bool) Options {
 
 func (o *options) ColdWritesEnabled() bool {
 	return o.coldWritesEnabled
+}
+
+func (o *options) SetCacheBlocksOnRetrieve(value bool) Options {
+	opts := *o
+	opts.cacheBlocksOnRetrieve = value
+	return &opts
+}
+
+func (o *options) CacheBlocksOnRetrieve() bool {
+	return o.cacheBlocksOnRetrieve
 }
 
 func (o *options) SetRetentionOptions(value retention.Options) Options {

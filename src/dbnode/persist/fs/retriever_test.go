@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
@@ -67,6 +68,7 @@ type testCleanupFn func()
 
 func newOpenTestBlockRetriever(
 	t *testing.T,
+	md namespace.Metadata,
 	opts testBlockRetrieverOptions,
 ) (*blockRetriever, testCleanupFn) {
 	require.NotNil(t, opts.retrieverOpts)
@@ -88,7 +90,7 @@ func newOpenTestBlockRetriever(
 
 	nsPath := NamespaceDataDirPath(opts.fsOpts.FilePathPrefix(), testNs1ID)
 	require.NoError(t, os.MkdirAll(nsPath, opts.fsOpts.NewDirectoryMode()))
-	require.NoError(t, retriever.Open(testNs1Metadata(t), shardSet))
+	require.NoError(t, retriever.Open(md, shardSet))
 
 	return retriever, func() {
 		require.NoError(t, retriever.Close())
@@ -211,7 +213,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		shards: shards,
 	}
 
-	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	retriever, cleanup := newOpenTestBlockRetriever(t, testNs1Metadata(t), opts)
 	defer cleanup()
 
 	// Setup the open seeker function to fail sometimes to exercise that code path.
@@ -553,7 +555,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 		fsOpts:        fsOpts,
 		shards:        []uint32{shard},
 	}
-	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	retriever, cleanup := newOpenTestBlockRetriever(t, testNs1Metadata(t), opts)
 	defer cleanup()
 
 	// Write out a test file
@@ -602,7 +604,7 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 		fsOpts:        fsOpts,
 		shards:        []uint32{shard},
 	}
-	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	retriever, cleanup := newOpenTestBlockRetriever(t, testNs1Metadata(t), opts)
 	defer cleanup()
 
 	// Write out a test file.
@@ -670,6 +672,87 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 			}
 			require.NoError(t, tagsIter.Err())
 		}), nsCtx)
+
+	require.NoError(t, err)
+}
+
+// TestBlockRetrieverDoesNotInvokeOnRetrieveWithGlobalFlag verifies that the block retriever
+// does not invoke the OnRetrieve block if the global CacheBlocksOnRetrieve is not enabled.
+func TestBlockRetrieverDoesNotInvokeOnRetrieveWithGlobalFlag(t *testing.T) {
+	testBlockRetrieverDoesNotInvokeOnRetrieve(t, false, true)
+}
+
+// TestBlockRetrieverDoesNotInvokeOnRetrieveWithNamespacesFlag verifies that the block retriever
+// does not invoke the OnRetrieve block if the namespace-specific CacheBlocksOnRetrieve is not enabled.
+func TestBlockRetrieverDoesNotInvokeOnRetrieveWithNamespaceFlag(t *testing.T) {
+	testBlockRetrieverDoesNotInvokeOnRetrieve(t, true, false)
+}
+
+func testBlockRetrieverDoesNotInvokeOnRetrieve(t *testing.T, globalFlag bool, nsFlag bool) {
+	// Make sure reader/writer are looking at the same test directory.
+	dir, err := ioutil.TempDir("", "testdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+	filePathPrefix := filepath.Join(dir, "")
+
+	// Setup constants and config.
+	md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().
+		SetCacheBlocksOnRetrieve(nsFlag).
+		SetRetentionOptions(retention.NewOptions().SetBlockSize(testBlockSize)).
+		SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(testBlockSize)))
+	require.NoError(t, err)
+
+	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
+	rOpts := md.Options().RetentionOptions()
+	nsCtx := namespace.NewContextFrom(md)
+	shard := uint32(0)
+	blockStart := time.Now().Truncate(rOpts.BlockSize())
+
+	// Setup the reader.
+	opts := testBlockRetrieverOptions{
+		retrieverOpts: defaultTestBlockRetrieverOptions.SetCacheBlocksOnRetrieve(globalFlag),
+		fsOpts:        fsOpts,
+		shards:        []uint32{shard},
+	}
+	retriever, cleanup := newOpenTestBlockRetriever(t, md, opts)
+	defer cleanup()
+
+	// Write out a test file.
+	var (
+		w, closer = newOpenTestWriter(t, fsOpts, shard, blockStart, 0)
+		tag       = ident.Tag{
+			Name:  ident.StringID("name"),
+			Value: ident.StringID("value"),
+		}
+		tags = ident.NewTags(tag)
+		id   = "foo"
+	)
+	data := checked.NewBytes([]byte("Hello world!"), nil)
+	data.IncRef()
+	defer data.DecRef()
+
+	metadata := persist.NewMetadataFromIDAndTags(ident.StringID(id), tags,
+		persist.MetadataOptions{})
+	err = w.Write(metadata, data, digest.Checksum(data.Bytes()))
+	require.NoError(t, err)
+	closer()
+
+	// Make sure we return the correct error if the ID does not exist
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	retrieveFn := block.OnRetrieveBlockFn(func(
+		id ident.ID,
+		tagsIter ident.TagIterator,
+		startTime time.Time,
+		segment ts.Segment,
+		nsCtx namespace.Context,
+	) {
+		require.Fail(t, "should not be called")
+	})
+
+	_, err = retriever.Stream(ctx, shard,
+		ident.StringID("foo"), blockStart, retrieveFn, nsCtx)
 
 	require.NoError(t, err)
 }
@@ -742,7 +825,7 @@ func testBlockRetrieverHandlesSeekErrors(t *testing.T, ctrl *gomock.Controller, 
 		newSeekerMgrFn: newSeekerMgr,
 		shards:         []uint32{shard},
 	}
-	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	retriever, cleanup := newOpenTestBlockRetriever(t, testNs1Metadata(t), opts)
 	defer cleanup()
 
 	// Make sure we return the correct error.

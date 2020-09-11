@@ -80,6 +80,12 @@ type Options interface {
 	// ColdWritesEnabled returns whether cold writes are enabled for this namespace.
 	ColdWritesEnabled() bool
 
+	// SetCacheBlocksOnRetrieve sets whether to cache blocks from this namespace when retrieved.
+	SetCacheBlocksOnRetrieve(value bool) Options
+
+	// CacheBlocksOnRetrieve sets whether to cache blocks from this namespace when retrieved.
+	CacheBlocksOnRetrieve() bool
+
 	// SetRetentionOptions sets the retention options for this namespace
 	SetRetentionOptions(value retention.Options) Options
 

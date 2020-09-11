@@ -143,6 +143,10 @@ func ToMetadata(
 		SetColdWritesEnabled(opts.ColdWritesEnabled).
 		SetRuntimeOptions(runtimeOpts)
 
+	if opts.CacheBlocksOnRetrieve != nil {
+		mopts = mopts.SetCacheBlocksOnRetrieve(opts.CacheBlocksOnRetrieve.Value)
+	}
+
 	if err := mopts.Validate(); err != nil {
 		return nil, err
 	}
@@ -202,8 +206,9 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 			Enabled:        iopts.Enabled(),
 			BlockSizeNanos: iopts.BlockSize().Nanoseconds(),
 		},
-		ColdWritesEnabled: opts.ColdWritesEnabled(),
-		RuntimeOptions:    toRuntimeOptions(opts.RuntimeOptions()),
+		ColdWritesEnabled:     opts.ColdWritesEnabled(),
+		RuntimeOptions:        toRuntimeOptions(opts.RuntimeOptions()),
+		CacheBlocksOnRetrieve: &protobuftypes.BoolValue{Value: opts.CacheBlocksOnRetrieve()},
 	}
 }
 
