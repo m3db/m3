@@ -29,8 +29,7 @@ import (
 	"go.uber.org/atomic"
 )
 
-// DefaultLookback is the default lookback used for query limits.
-const DefaultLookback = time.Second * 15
+const defaultLookback = time.Second * 15
 
 type queryLimits struct {
 	docsLimit      *lookbackLimit
@@ -56,6 +55,15 @@ var (
 	_ QueryLimits   = (*queryLimits)(nil)
 	_ LookbackLimit = (*lookbackLimit)(nil)
 )
+
+// DefaultLookbackLimitOptions returns a new query limits manager.
+func DefaultLookbackLimitOptions() LookbackLimitOptions {
+	return LookbackLimitOptions{
+		// Default to no limit.
+		Limit:    0,
+		Lookback: defaultLookback,
+	}
+}
 
 // NewQueryLimits returns a new query limits manager.
 func NewQueryLimits(

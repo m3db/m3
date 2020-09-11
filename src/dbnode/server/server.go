@@ -67,7 +67,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/storage/series"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -408,12 +407,8 @@ func Run(runOpts RunOptions) {
 	defer stopReporting()
 
 	// Setup query stats tracking.
-	docsLimit := limits.QueryLimitOptions{
-		Lookback: stats.DefaultLookback,
-	}
-	bytesReadLimit := limits.QueryLimitOptions{
-		Lookback: stats.DefaultLookback,
-	}
+	docsLimit := limits.DefaultLookbackLimitOptions()
+	bytesReadLimit := limits.DefaultLookbackLimitOptions()
 	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBlocks; limitConfig != nil {
 		docsLimit.Limit = limitConfig.Value
 		docsLimit.Lookback = limitConfig.Lookback
@@ -422,14 +417,10 @@ func Run(runOpts RunOptions) {
 		bytesReadLimit.Limit = limitConfig.Value
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}
-	if err := docsLimit.Validate(); err != nil {
-		logger.Fatal("could not construct docs query limit options from config", zap.Error(err))
+	queryLimits, err := limits.NewQueryLimits(iopts, docsLimit, bytesReadLimit)
+	if err != nil {
+		logger.Fatal("could not construct docs query limits from config", zap.Error(err))
 	}
-	if err := bytesReadLimit.Validate(); err != nil {
-		logger.Fatal("could not construct bytes-read query stats options from config", zap.Error(err))
-	}
-
-	queryLimits := limits.NewQueryLimits(iopts, docsLimit, bytesReadLimit)
 	queryLimits.Start()
 	defer queryLimits.Stop()
 
