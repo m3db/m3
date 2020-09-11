@@ -1009,11 +1009,12 @@ func integralByInterval(ctx *common.Context, input singlePathSpec, intervalStrin
 	}
 	results := make([]*ts.Series, 0, len(input.Values))
 	for _, series := range input.Values {
-		stepsPerInterval := intervalUnit.Milliseconds() /  int64(series.MillisPerStep())
-		var stepCounter int64 = 0
-
-		outvals := ts.NewValues(ctx, series.MillisPerStep(), series.Len())
-		var currentSum float64
+var (
+  stepsPerInterval = intervalUnit.Milliseconds() /  int64(series.MillisPerStep())
+  vals = ts.NewValues(ctx, series.MillisPerStep(), series.Len())
+  stepCounter int64
+  currentSum float64
+)
 		for i := 0; i < series.Len(); i++ {
 			if stepCounter > stepsPerInterval {
 				// startNewInterval
