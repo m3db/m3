@@ -54,7 +54,6 @@ require (
 	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
 	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
 	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd // indirect
-	github.com/m3db/prometheus v2.1.0+incompatible
 	github.com/m3db/prometheus_client_golang v0.8.1
 	github.com/m3db/prometheus_client_model v0.0.0-20180517145114-8b2299a4bf7d
 	github.com/m3db/prometheus_common v0.0.0-20180517030744-25aaa3dff79b
