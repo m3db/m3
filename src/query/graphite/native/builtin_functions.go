@@ -832,13 +832,21 @@ func exponentialMovingAverage(ctx *common.Context, input singlePathSpec, windowS
 			}
 
 			// the first value is just a regular moving average
-			vals.SetValueAt(0, firstWindow.SafeAvg())
+			ema := firstWindow.SafeAvg()
+			if math.IsNaN(ema) {
+				ema = 0
+			}
+			vals.SetValueAt(0, ema)
 			for i := 1; i < numSteps; i++ {
 				curr := bootstrap.ValueAt(i + offset)
-				// formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
-				ema := emaConstant * curr + (1 - emaConstant) * vals.ValueAt(i - 1)
+				if !math.IsNaN(curr) {
+					// formula: ema(current) = constant * (Current Value) + (1 - constant) * ema(previous)
+					ema = emaConstant * curr + (1 - emaConstant) * ema
+					vals.SetValueAt(i, ema)
+				} else {
+					vals.SetValueAt(i, math.NaN())
+				}
 
-				vals.SetValueAt(i, ema)
 			}
 
 			name := fmt.Sprintf("exponentialMovingAverage(%s,%s)", series.Name(), windowSize.stringValue)
