@@ -124,7 +124,7 @@ type opts struct {
 	postingsListCache               *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
-	queryLimits                     limit.QueryLimits
+	queryLimits                     limits.QueryLimits
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
