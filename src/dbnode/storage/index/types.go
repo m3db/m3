@@ -984,3 +984,40 @@ type Options interface {
 	// QueryLimits returns the current query limits.
 	QueryLimits() limits.QueryLimits
 }
+
+// BlockStateSnapshot represents a snapshot of a 's block state at
+// a moment in time.
+type BlockStateSnapshot struct {
+	bootstrapped bool
+	snapshot     BootstrappedBlockStateSnapshot
+}
+
+// NewBlockStateSnapshot constructs a new NewBlockStateSnapshot.
+func NewBlockStateSnapshot(
+	bootstrapped bool,
+	snapshot BootstrappedBlockStateSnapshot,
+) BlockStateSnapshot {
+	return BlockStateSnapshot{
+		bootstrapped: bootstrapped,
+		snapshot:     snapshot,
+	}
+}
+
+// UnwrapValue returns a BootstrappedBlockStateSnapshot and a boolean indicating whether the
+// snapshot is bootstrapped or not.
+func (s BlockStateSnapshot) UnwrapValue() (BootstrappedBlockStateSnapshot, bool) {
+	return s.snapshot, s.bootstrapped
+}
+
+// BootstrappedBlockStateSnapshot represents a bootstrapped  block state snapshot.
+type BootstrappedBlockStateSnapshot struct {
+	Snapshot map[xtime.UnixNano]BlockState
+}
+
+// BlockState contains the state of a block.
+type BlockState struct {
+	// SnapshotVersionLoaded represents snapshot version loaded into mem.
+	SnapshotVersionLoaded int
+	// SnapshotVersionFlushed represents snapshot version flushed to disk.
+	SnapshotVersionFlushed int
+}

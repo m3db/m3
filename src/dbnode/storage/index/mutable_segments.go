@@ -67,6 +67,7 @@ type mutableSegments struct {
 
 	foregroundSegments []*readableSeg
 	backgroundSegments []*readableSeg
+	onDiskSegments     []*readableSeg
 
 	compact                  mutableSegmentsCompact
 	blockStart               time.Time
@@ -208,6 +209,11 @@ func (m *mutableSegments) AddReaders(readers []segment.Reader) ([]segment.Reader
 		return nil, err
 	}
 
+	readers, err = m.addReadersWithLock(m.onDiskSegments, readers)
+	if err != nil {
+		return nil, err
+	}
+
 	return readers, nil
 }
 
@@ -226,7 +232,7 @@ func (m *mutableSegments) Len() int {
 	m.RLock()
 	defer m.RUnlock()
 
-	return len(m.foregroundSegments) + len(m.backgroundSegments)
+	return len(m.foregroundSegments) + len(m.backgroundSegments) + len(m.onDiskSegments)
 }
 
 func (m *mutableSegments) MemorySegmentsData(ctx context.Context) ([]fst.SegmentData, error) {
@@ -238,6 +244,7 @@ func (m *mutableSegments) MemorySegmentsData(ctx context.Context) ([]fst.Segment
 	for _, segs := range [][]*readableSeg{
 		m.foregroundSegments,
 		m.backgroundSegments,
+		m.onDiskSegments,
 	} {
 		for _, seg := range segs {
 			fstSegment, ok := seg.Segment().(fst.Segment)
@@ -267,6 +274,9 @@ func (m *mutableSegments) NeedsEviction() bool {
 	for _, seg := range m.backgroundSegments {
 		needsEviction = needsEviction || seg.Segment().Size() > 0
 	}
+	for _, seg := range m.onDiskSegments {
+		needsEviction = needsEviction || seg.Segment().Size() > 0
+	}
 	return needsEviction
 }
 
@@ -282,6 +292,10 @@ func (m *mutableSegments) NumSegmentsAndDocs() (int64, int64) {
 		numDocs += seg.Segment().Size()
 	}
 	for _, seg := range m.backgroundSegments {
+		numSegments++
+		numDocs += seg.Segment().Size()
+	}
+	for _, seg := range m.onDiskSegments {
 		numSegments++
 		numDocs += seg.Segment().Size()
 	}
@@ -310,6 +324,15 @@ func (m *mutableSegments) Stats(reporter BlockStatsReporter) {
 			Size:    seg.Segment().Size(),
 		})
 	}
+	for _, seg := range m.onDiskSegments {
+		_, mutable := seg.Segment().(segment.MutableSegment)
+		reporter.ReportSegmentStats(BlockSegmentStats{
+			Type:    FlushedSegment,
+			Mutable: mutable,
+			Age:     seg.Age(),
+			Size:    seg.Segment().Size(),
+		})
+	}
 
 	reporter.ReportIndexingStats(BlockIndexingStats{
 		IndexConcurrency: m.writeIndexingConcurrency,
@@ -322,18 +345,24 @@ func (m *mutableSegments) Close() {
 	m.state = mutableSegmentsStateClosed
 	m.cleanupCompactWithLock()
 	m.optsListener.Close()
+	// TODO(bodu): F/u on what cleanup on disk segments require.
+	for _, seg := range m.onDiskSegments {
+		if err := seg.Close(); err != nil {
+			instrument.EmitAndLogInvariantViolation(m.iopts, func(l *zap.Logger) {
+				l.Error("error closing on disk index segment", zap.Error(err))
+			})
+		}
+	}
 }
 
-func (m *mutableSegments) addSnapshottedSegments(segments []segment.Segment) error {
+func (m *mutableSegments) addOnDiskSegments(segments []segment.Segment) error {
 	m.Lock()
 	defer m.Unlock()
 	if m.state == mutableSegmentsStateClosed {
 		return errMutableSegmentsAlreadyClosed
 	}
 	for _, segment := range segments {
-		// NB(bodu): Add all snapshotted segments to background segments. It is the responsbility of the
-		// warm/cold flush lifecycles to evict these from memory.
-		m.backgroundSegments = append(m.backgroundSegments, newReadableSeg(segment, m.opts))
+		m.onDiskSegments = append(m.onDiskSegments, newReadableSeg(segment, m.opts))
 	}
 	return nil
 }

@@ -93,9 +93,22 @@ var (
 	allQuery = idx.NewAllQuery()
 )
 
+type snapshotState struct {
+	sync.RWMutex
+	statesByTime map[xtime.UnixNano]index.BlockState
+	initialized  bool
+}
+
+func newSnapshotState() snapshotState {
+	return snapshotState{
+		statesByTime: make(map[xtime.UnixNano]fileOpState),
+	}
+}
+
 // nolint: maligned
 type nsIndex struct {
-	state nsIndexState
+	state         nsIndexState
+	snapshotState snapshotState
 
 	extendedRetentionPeriod time.Duration
 
@@ -323,6 +336,7 @@ func newNamespaceIndexWithOptions(
 			blocksByTime:   make(map[xtime.UnixNano]index.Block),
 			shardsAssigned: make(map[uint32]struct{}),
 		},
+		snapshotState: newSnapshotState(),
 
 		nowFn:                 nowFn,
 		blockSize:             nsMD.Options().IndexOptions().BlockSize(),
@@ -850,6 +864,7 @@ func (i *nsIndex) Bootstrap(
 		if err := block.AddResults(blockResults); err != nil {
 			multiErr = multiErr.Add(err)
 		}
+		// TODO(bodu): Record snapshot version loaded into mem.
 	}
 
 	return multiErr.FinalError()
@@ -1344,6 +1359,7 @@ func (i *nsIndex) Snapshot(
 		}
 	}
 	_, err = prepared.Close()
+	// TODO(bodu): Record snapshot version flushed to disk.
 	return err
 }
 
@@ -2199,6 +2215,32 @@ func (i *nsIndex) DebugMemorySegments(opts DebugMemorySegmentsOptions) error {
 	}
 
 	return nil
+}
+
+func (i *nsIndex) BlockStatesSnapshotWithRLock() index.BlockStateSnapshot {
+	i.RLock()
+	defer i.RUnlock()
+	bootstrapped := i.state.bootstrapState != Bootstrapped
+	if !bootstrapped {
+		// Needs to be bootstrapped.
+		return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
+	}
+
+	s.snapshotState.RLock()
+	defer s.snapshotState.RUnlock()
+	if !s.snapshotState.initialized {
+		// Also needs to have the snapshot states initialized.
+		return index.NewBlockStateSnapshot(false, series.BootstrappedBlockStateSnapshot{})
+	}
+
+	snapshot := make(map[xtime.UnixNano]index.BlockState, len(s.snapshotState.statesByTime))
+	for time, state := range s.snapshotState.statesByTime {
+		snapshot[time] = state
+	}
+
+	return index.NewBlockStateSnapshot(true, series.BootstrappedBlockStateSnapshot{
+		Snapshot: snapshot,
+	})
 }
 
 func (i *nsIndex) Close() error {
