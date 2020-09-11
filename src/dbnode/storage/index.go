@@ -852,6 +852,9 @@ func (i *nsIndex) Bootstrap(
 		i.state.Lock()
 		i.state.bootstrapState = Bootstrapped
 		i.state.Unlock()
+
+		// Initialize snapshot states once at the end of bootstrap.
+		i.initializeSnapshotStates()
 	}()
 
 	var multiErr xerrors.MultiError
@@ -2226,21 +2229,63 @@ func (i *nsIndex) BlockStatesSnapshotWithRLock() index.BlockStateSnapshot {
 		return index.NewBlockStateSnapshot(false, index.BootstrappedBlockStateSnapshot{})
 	}
 
-	s.snapshotState.RLock()
-	defer s.snapshotState.RUnlock()
-	if !s.snapshotState.initialized {
+	i.snapshotState.RLock()
+	defer i.snapshotState.RUnlock()
+	if !i.snapshotState.initialized {
 		// Also needs to have the snapshot states initialized.
-		return index.NewBlockStateSnapshot(false, series.BootstrappedBlockStateSnapshot{})
+		return index.NewBlockStateSnapshot(false, seriei.BootstrappedBlockStateSnapshot{})
 	}
 
-	snapshot := make(map[xtime.UnixNano]index.BlockState, len(s.snapshotState.statesByTime))
-	for time, state := range s.snapshotState.statesByTime {
+	snapshot := make(map[xtime.UnixNano]index.BlockState, len(i.snapshotState.statesByTime))
+	for time, state := range i.snapshotState.statesByTime {
 		snapshot[time] = state
 	}
 
-	return index.NewBlockStateSnapshot(true, series.BootstrappedBlockStateSnapshot{
+	return index.NewBlockStateSnapshot(true, seriei.BootstrappedBlockStateSnapshot{
 		Snapshot: snapshot,
 	})
+}
+
+func (i *nsIndex) initializeSnapshotStates() {
+	i.snapshotState.RLock()
+	initialized := i.snapshotState.initialized
+	i.snapshotState.RUnlock()
+	if initialized {
+		return
+	}
+
+	defer func() {
+		i.snapshotState.Lock()
+		i.snapshotState.initialized = true
+		i.snapshotState.Unlock()
+	}()
+	infoFiles := i.readIndexInfoFilesFn(
+		fsOpts.FilePathPrefix(),
+		i.nsMetadata.ID(),
+		fsOpts.InfoReaderBufferSize(),
+		persist.FileSetSnapshotType,
+	)
+	for _, f := range infoFiles {
+		i.setSnapshotStateVersionFlushed(f.ID.BlockStart, f.ID.VolumeIndex)
+	}
+	return
+}
+
+func (i *nsIndex) setSnapshotStateVersionFlushed(blockStart time.Time, version int) {
+	s.snapshotState.Lock()
+	defer s.snapshotState.Unlock()
+	state := s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.SnapshotVersionFlushed = version
+	s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
+
+}
+
+func (i *nsIndex) setSnapshotStateVersionLoaded(blockStart time.Time, version int) {
+	s.snapshotState.Lock()
+	defer s.snapshotState.Unlock()
+	state := s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)]
+	state.SnapshotVersionLoaded = version
+	s.snapshotState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 }
 
 func (i *nsIndex) Close() error {

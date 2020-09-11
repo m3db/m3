@@ -370,6 +370,7 @@ func (m *cleanupManager) cleanupCompactedNamespaceDataFiles(shards []databaseSha
 //     9. Delete all corrupt commitlog files (ignoring any commitlog files being actively written to.)
 //
 // This process is also modeled formally in TLA+ in the file `SnapshotsSpec.tla`.
+// TODO(bodu): Make this read in index snapshot state and perform cleanup of index snapshot files.
 func (m *cleanupManager) cleanupSnapshotsAndCommitlogs(namespaces []databaseNamespace) (finalErr error) {
 	logger := m.opts.InstrumentOptions().Logger().With(
 		zap.String("comment",
