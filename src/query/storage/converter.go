@@ -26,6 +26,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -126,6 +127,36 @@ func PromTimeSeriesToSeriesAttributes(series prompb.TimeSeries) (ts.SeriesAttrib
 		M3Type:   m3MetricType,
 		PromType: promMetricType,
 		Source:   sourceType,
+	}, nil
+}
+
+// SeriesAttributesToAnnotationPayload converts ts.SeriesAttributes into an annotation.Payload.
+func SeriesAttributesToAnnotationPayload(seriesAttributes ts.SeriesAttributes) (annotation.Payload, error) {
+	var metricType annotation.MetricType
+
+	switch seriesAttributes.PromType {
+	case ts.PromMetricTypeUnknown:
+		metricType = annotation.MetricType_UNKNOWN
+	case ts.PromMetricTypeCounter:
+		metricType = annotation.MetricType_COUNTER
+	case ts.PromMetricTypeGauge:
+		metricType = annotation.MetricType_GAUGE
+	case ts.PromMetricTypeHistogram:
+		metricType = annotation.MetricType_HISTOGRAM
+	case ts.PromMetricTypeGaugeHistogram:
+		metricType = annotation.MetricType_GAUGE_HISTOGRAM
+	case ts.PromMetricTypeSummary:
+		metricType = annotation.MetricType_SUMMARY
+	case ts.PromMetricTypeInfo:
+		metricType = annotation.MetricType_INFO
+	case ts.PromMetricTypeStateSet:
+		metricType = annotation.MetricType_STATESET
+	default:
+		return annotation.Payload{}, fmt.Errorf("invalid Prometheus metric type %v", seriesAttributes.PromType)
+	}
+
+	return annotation.Payload{
+		MetricType: metricType,
 	}, nil
 }
 

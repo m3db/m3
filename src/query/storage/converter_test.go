@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -344,4 +345,26 @@ func TestPromTimeSeriesToSeriesAttributesPromMetricsTypeFromGraphite(t *testing.
 		require.NoError(t, err)
 		assert.Equal(t, expected, attrs.PromType)
 	}
+}
+
+func TestSeriesAttributesToAnnotationPayload(t *testing.T) {
+	mapping := map[ts.PromMetricType]annotation.MetricType{
+		ts.PromMetricTypeUnknown:        annotation.MetricType_UNKNOWN,
+		ts.PromMetricTypeCounter:        annotation.MetricType_COUNTER,
+		ts.PromMetricTypeGauge:          annotation.MetricType_GAUGE,
+		ts.PromMetricTypeHistogram:      annotation.MetricType_HISTOGRAM,
+		ts.PromMetricTypeGaugeHistogram: annotation.MetricType_GAUGE_HISTOGRAM,
+		ts.PromMetricTypeSummary:        annotation.MetricType_SUMMARY,
+		ts.PromMetricTypeInfo:           annotation.MetricType_INFO,
+		ts.PromMetricTypeStateSet:       annotation.MetricType_STATESET,
+	}
+
+	for promType, expected := range mapping {
+		payload, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: promType})
+		require.NoError(t, err)
+		assert.Equal(t, expected, payload.MetricType)
+	}
+
+	_, err := SeriesAttributesToAnnotationPayload(ts.SeriesAttributes{PromType: -1})
+	require.Error(t, err)
 }

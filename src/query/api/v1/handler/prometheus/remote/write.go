@@ -33,6 +33,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -590,15 +591,44 @@ func newPromTSIter(timeseries []prompb.TimeSeries, tagOpts models.TagOptions) (*
 
 type promTSIter struct {
 	idx        int
+	err        error
 	attributes []ts.SeriesAttributes
 	tags       []models.Tags
 	datapoints []ts.Datapoints
 	metadatas  []ts.Metadata
+
+	prevAnnotationPayload annotation.Payload
+	annotation            []byte
 }
 
 func (i *promTSIter) Next() bool {
 	i.idx++
-	return i.idx < len(i.tags)
+	if i.idx >= len(i.tags) {
+		return false
+	}
+
+	annotationPayload, err := storage.SeriesAttributesToAnnotationPayload(i.attributes[i.idx])
+	if err != nil {
+		i.err = err
+		return false
+	}
+
+	// Avoid repeated marshalling for the same payload.
+	if annotationPayload != i.prevAnnotationPayload {
+		i.prevAnnotationPayload = annotationPayload
+		i.annotation = i.annotation[:0]
+		size := annotationPayload.Size()
+		if size > 0 {
+			i.annotation = append(i.annotation, make([]byte, size)...)
+			_, err = annotationPayload.MarshalTo(i.annotation)
+			if err != nil {
+				i.err = err
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func (i *promTSIter) Current() ingest.IterValue {
@@ -611,6 +641,7 @@ func (i *promTSIter) Current() ingest.IterValue {
 		Datapoints: i.datapoints[i.idx],
 		Attributes: i.attributes[i.idx],
 		Unit:       xtime.Millisecond,
+		Annotation: i.annotation,
 	}
 	if i.idx < len(i.metadatas) {
 		value.Metadata = i.metadatas[i.idx]
@@ -620,11 +651,12 @@ func (i *promTSIter) Current() ingest.IterValue {
 
 func (i *promTSIter) Reset() error {
 	i.idx = -1
+	i.err = nil
 	return nil
 }
 
 func (i *promTSIter) Error() error {
-	return nil
+	return i.err
 }
 
 func (i *promTSIter) SetCurrentMetadata(metadata ts.Metadata) {

@@ -22,6 +22,7 @@ package remote
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -33,10 +34,12 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/generated/proto/annotation"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/handleroptions"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/api/v1/options"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3/storagemetadata"
 	xclock "github.com/m3db/m3/src/x/clock"
@@ -45,6 +48,7 @@ import (
 	"github.com/m3db/m3/src/x/instrument"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -284,6 +288,98 @@ func TestPromWriteAggregatedMetricsWithHeader(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+func TestPromWriteMetricsTypes(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var capturedIter ingest.DownsampleAndWriteIter
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, iter ingest.DownsampleAndWriteIter, _ ingest.WriteOptions) ingest.BatchError {
+			capturedIter = iter
+			return nil
+		})
+
+	opts := makeOptions(mockDownsamplerAndWriter)
+	handler, err := NewPromWriteHandler(opts)
+	require.NoError(t, err)
+
+	promReq := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{Type: prompb.MetricType_UNKNOWN},
+			{Type: prompb.MetricType_COUNTER},
+			{Type: prompb.MetricType_GAUGE},
+			{Type: prompb.MetricType_GAUGE},
+			{Type: prompb.MetricType_UNKNOWN},
+		},
+	}
+
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+
+	writer := httptest.NewRecorder()
+	handler.ServeHTTP(writer, req)
+	resp := writer.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
+
+	require.False(t, capturedIter.Next())
+	require.NoError(t, capturedIter.Error())
+}
+
+func TestPromWriteGraphiteMetricsTypes(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var capturedIter ingest.DownsampleAndWriteIter
+	mockDownsamplerAndWriter := ingest.NewMockDownsamplerAndWriter(ctrl)
+	mockDownsamplerAndWriter.
+		EXPECT().
+		WriteBatch(gomock.Any(), gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, iter ingest.DownsampleAndWriteIter, _ ingest.WriteOptions) ingest.BatchError {
+			capturedIter = iter
+			return nil
+		})
+
+	opts := makeOptions(mockDownsamplerAndWriter)
+	handler, err := NewPromWriteHandler(opts)
+	require.NoError(t, err)
+
+	promReq := &prompb.WriteRequest{
+		Timeseries: []prompb.TimeSeries{
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_TIMER},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_COUNTER},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_GAUGE},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_GAUGE},
+			{Source: prompb.Source_GRAPHITE, M3Type: prompb.M3Type_M3_TIMER},
+		},
+	}
+
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
+	req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBody)
+
+	writer := httptest.NewRecorder()
+	handler.ServeHTTP(writer, req)
+	resp := writer.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_COUNTER)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_GAUGE)
+	verifyIterValueAnnotation(t, capturedIter, annotation.MetricType_UNKNOWN)
+
+	require.False(t, capturedIter.Next())
+	require.NoError(t, capturedIter.Error())
+}
+
 func BenchmarkWriteDatapoints(b *testing.B) {
 	ctrl := gomock.NewController(b)
 	defer ctrl.Finish()
@@ -307,4 +403,15 @@ func BenchmarkWriteDatapoints(b *testing.B) {
 		req := httptest.NewRequest(PromWriteHTTPMethod, PromWriteURL, promReqBodyReader)
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 	}
+}
+
+func verifyIterValueAnnotation(t *testing.T, iter ingest.DownsampleAndWriteIter, expectedMetricType annotation.MetricType) {
+	require.True(t, iter.Next())
+	value := iter.Current()
+
+	actualPayload := annotation.Payload{}
+	require.NoError(t, actualPayload.Unmarshal(value.Annotation))
+
+	expectedPayload := annotation.Payload{MetricType: expectedMetricType}
+	assert.Equal(t, expectedPayload, actualPayload)
 }
