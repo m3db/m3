@@ -34,8 +34,8 @@ const DefaultLookback = time.Second * 15
 
 type queryLimits struct {
 	scope          tally.Scope
-	docsLimit      LookbackLimit
-	bytesReadLimit LookbackLimit
+	docsLimit      *lookbackLimit
+	bytesReadLimit *lookbackLimit
 }
 
 type lookbackLimit struct {
@@ -71,13 +71,6 @@ type QueryLimits interface {
 // LookbackLimit provides an interface for a specific query limit.
 type LookbackLimit interface {
 	Inc(new int) error
-	Exceeded() error
-	Start()
-	Stop()
-
-	// For testing purposes.
-	current() int64
-	reset()
 }
 
 // LookbackLimitOptions holds options for a lookback limit to be enforced.
@@ -97,8 +90,8 @@ func NewQueryLimits(
 	scope := instrumentOpts.
 		MetricsScope().
 		SubScope("query-limits")
-	docsLimit := NewLookbackLimit("docs-matched", scope, docsLimitOpts)
-	bytesReadLimit := NewLookbackLimit("bytes-read", scope, bytesReadLimitOpts)
+	docsLimit := newLookbackLimit("docs-matched", scope, docsLimitOpts)
+	bytesReadLimit := newLookbackLimit("bytes-read", scope, bytesReadLimitOpts)
 	return &queryLimits{
 		scope:          scope,
 		docsLimit:      docsLimit,
@@ -106,8 +99,7 @@ func NewQueryLimits(
 	}
 }
 
-// NewLookbackLimit returns a new lookback limit.
-func NewLookbackLimit(name string, scope tally.Scope, opts LookbackLimitOptions) LookbackLimit {
+func newLookbackLimit(name string, scope tally.Scope, opts LookbackLimitOptions) *lookbackLimit {
 	return &lookbackLimit{
 		name:    name,
 		options: opts,
@@ -131,20 +123,20 @@ func (q *queryLimits) BytesReadLimit() LookbackLimit {
 }
 
 func (q *queryLimits) Start() {
-	q.docsLimit.Start()
-	q.bytesReadLimit.Start()
+	q.docsLimit.start()
+	q.bytesReadLimit.start()
 }
 
 func (q *queryLimits) Stop() {
-	q.docsLimit.Stop()
-	q.bytesReadLimit.Stop()
+	q.docsLimit.stop()
+	q.bytesReadLimit.stop()
 }
 
 func (q *queryLimits) AnyExceeded() error {
-	if err := q.docsLimit.Exceeded(); err != nil {
+	if err := q.docsLimit.exceeded(); err != nil {
 		return err
 	}
-	if err := q.bytesReadLimit.Exceeded(); err != nil {
+	if err := q.bytesReadLimit.exceeded(); err != nil {
 		return err
 	}
 	return nil
@@ -152,14 +144,11 @@ func (q *queryLimits) AnyExceeded() error {
 
 // Inc increments the current value and returns an error if above the limit.
 func (q *lookbackLimit) Inc(new int) error {
-	if q == nil {
-		return nil
-	}
 	if new < 0 {
 		return fmt.Errorf("invalid negative query limit inc %d", new)
 	}
 	if new == 0 {
-		return q.Exceeded()
+		return q.exceeded()
 	}
 
 	// Add the new stats to the global state.
@@ -171,14 +160,14 @@ func (q *lookbackLimit) Inc(new int) error {
 	q.metrics.total.Inc(newI64)
 
 	// Enforce limit (if specified).
-	return q.exceeded(recent)
+	return q.checkLimit(recent)
 }
 
-func (q *lookbackLimit) Exceeded() error {
-	return q.exceeded(q.recent.Load())
+func (q *lookbackLimit) exceeded() error {
+	return q.checkLimit(q.recent.Load())
 }
 
-func (q *lookbackLimit) exceeded(recent int64) error {
+func (q *lookbackLimit) checkLimit(recent int64) error {
 	if q.options.Limit > 0 && recent > q.options.Limit {
 		q.metrics.exceeded.Inc(1)
 		return fmt.Errorf(
@@ -188,11 +177,7 @@ func (q *lookbackLimit) exceeded(recent int64) error {
 	return nil
 }
 
-// Start initializes background processing for enforcing the query limit.
-func (q *lookbackLimit) Start() {
-	if q == nil {
-		return
-	}
+func (q *lookbackLimit) start() {
 	ticker := time.NewTicker(q.options.Lookback)
 	go func() {
 		for {
@@ -207,22 +192,8 @@ func (q *lookbackLimit) Start() {
 	}()
 }
 
-func (q *lookbackLimit) Stop() {
-	if q == nil {
-		return
-	}
+func (q *lookbackLimit) stop() {
 	close(q.stopCh)
-}
-
-// Validate returns an error if the query stats options are invalid.
-func (opts LookbackLimitOptions) Validate() error {
-	if opts.Limit < 0 {
-		return fmt.Errorf("query limit requires limit >= 0 (%d)", opts.Limit)
-	}
-	if opts.Lookback <= 0 {
-		return fmt.Errorf("query limit requires lookback > 0 (%d)", opts.Lookback)
-	}
-	return nil
 }
 
 func (q *lookbackLimit) current() int64 {
@@ -239,5 +210,15 @@ func (q *lookbackLimit) reset() {
 	q.metrics.recent.Update(0)
 
 	q.recent.Store(0)
+}
 
+// Validate returns an error if the query stats options are invalid.
+func (opts LookbackLimitOptions) Validate() error {
+	if opts.Limit < 0 {
+		return fmt.Errorf("query limit requires limit >= 0 (%d)", opts.Limit)
+	}
+	if opts.Lookback <= 0 {
+		return fmt.Errorf("query limit requires lookback > 0 (%d)", opts.Lookback)
+	}
+	return nil
 }

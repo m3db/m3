@@ -76,10 +76,10 @@ func TestLookbackLimit(t *testing.T) {
 				Lookback: time.Millisecond * 100,
 			}
 			name := "test"
-			limit := NewLookbackLimit(name, scope, opts)
+			limit := newLookbackLimit(name, scope, opts)
 
 			require.Equal(t, int64(0), limit.current())
-			err := limit.Exceeded()
+			err := limit.exceeded()
 			require.NoError(t, err)
 
 			// Validate ascending while checking limits.
@@ -129,7 +129,7 @@ func TestLookbackLimit(t *testing.T) {
 	}
 }
 
-func verifyLimit(t *testing.T, limit LookbackLimit, inc int, expectedLimit int64) int64 {
+func verifyLimit(t *testing.T, limit *lookbackLimit, inc int, expectedLimit int64) int64 {
 	var exceededCount int64
 	err := limit.Inc(inc)
 	if limit.current() <= expectedLimit || expectedLimit == 0 {
@@ -138,7 +138,7 @@ func verifyLimit(t *testing.T, limit LookbackLimit, inc int, expectedLimit int64
 		require.Error(t, err)
 		exceededCount++
 	}
-	err = limit.Exceeded()
+	err = limit.exceeded()
 	if limit.current() <= expectedLimit || expectedLimit == 0 {
 		require.NoError(t, err)
 	} else {
@@ -155,14 +155,14 @@ func TestLookbackReset(t *testing.T) {
 		Lookback: time.Millisecond * 100,
 	}
 	name := "test"
-	limit := NewLookbackLimit(name, scope, opts)
+	limit := newLookbackLimit(name, scope, opts)
 
 	err := limit.Inc(3)
 	require.NoError(t, err)
 	require.Equal(t, int64(3), limit.current())
 
-	limit.Start()
-	defer limit.Stop()
+	limit.start()
+	defer limit.stop()
 	time.Sleep(opts.Lookback * 2)
 
 	success := xclock.WaitUntil(func() bool {
