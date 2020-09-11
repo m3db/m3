@@ -497,6 +497,8 @@ github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a h1:CwsSHIJLeCESKd
 github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a/go.mod h1:Pk9AtZeKuCO2xcAth0gxwzRNFv4lV26GPSx4I6A7DQ8=
 github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd h1:wzLBtXzxZM9b6IXwLSRE5crynocLTCuRDpGDaOJzyuI=
 github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd/go.mod h1:zLbcVb352e3Jsg62A6zzEhZ1gumeFsiamTqDs9ZmZrs=
+github.com/m3db/prometheus v2.1.0+incompatible h1:Wie+/s10WAoOYOoU1PHoj4F9xaAFrI5hug4kqd8FDow=
+github.com/m3db/prometheus v2.1.0+incompatible/go.mod h1:y3O2uC8UcDL9w/sDA2m1sI6t/UKkvOGsqTw4YuSXYwk=
 github.com/m3db/prometheus_client_golang v0.8.1 h1:t7w/tcFws81JL1j5sqmpqcOyQOpH4RDOmIe3A3fdN3w=
 github.com/m3db/prometheus_client_golang v0.8.1/go.mod h1:8R/f1xYhXWq59KD/mbRqoBulXejss7vYtYzWmruNUwI=
 github.com/m3db/prometheus_client_model v0.0.0-20180517145114-8b2299a4bf7d h1:BtNPRz2kmh42OAVYjsOBjty2wE0FaIh7aPVtFNPcF48=

@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3/src/x/pool"
 	"github.com/m3db/m3/src/x/resource"
 	time0 "github.com/m3db/m3/src/x/time"
+	"github.com/m3db/prometheus/util/stats"
 
 	"github.com/golang/mock/gomock"
 	"github.com/opentracing/opentracing-go/log"
@@ -1681,16 +1682,16 @@ func (mr *MockOptionsMockRecorder) SetQueryStats(value interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryStats", reflect.TypeOf((*MockOptions)(nil).SetQueryStats), value)
 }
 
-// QueryStats mocks base method
-func (m *MockOptions) QueryStats() stats.QueryStats {
+// QueryLimits mocks base method
+func (m *MockOptions) QueryLimits() limits.QueryLimits {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryStats")
-	ret0, _ := ret[0].(stats.QueryStats)
+	ret := m.ctrl.Call(m, "QueryLimits")
+	ret0, _ := ret[0].(limits.QueryLimits)
 	return ret0
 }
 
-// QueryStats indicates an expected call of QueryStats
-func (mr *MockOptionsMockRecorder) QueryStats() *gomock.Call {
+// QueryLimits indicates an expected call of QueryLimits
+func (mr *MockOptionsMockRecorder) QueryLimits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryStats", reflect.TypeOf((*MockOptions)(nil).QueryStats))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryLimits", reflect.TypeOf((*MockOptions)(nil).QueryLimits))
 }
