@@ -212,9 +212,6 @@ func (o *opts) Validate() error {
 	if o.postingsListCache == nil {
 		return errPostingsListCacheUnspecified
 	}
-	if o.queryLimits == nil {
-		return errOptionsQueryLimitsUnspecified
-	}
 	return nil
 }
 
