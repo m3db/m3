@@ -204,11 +204,11 @@ func (w *largeTilesWriter) writeIndexRelated(
 		entry.indexFileOffset = w.indexOffset
 	}
 
-	indexOffset, err := w.writer.writeIndex(id.Bytes(), tags, w.tagsEncoder, *entry, w.indexOffset)
+	length, err := w.writer.writeIndex(id.Bytes(), tags, w.tagsEncoder, *entry)
 	if err != nil {
 		return err
 	}
-	w.indexOffset = indexOffset
+	w.indexOffset += length
 
 	if entry.index%w.summaryEvery == 0 {
 		entry.metadata = persist.NewMetadataFromIDAndTagIterator(id, nil, persist.MetadataOptions{})

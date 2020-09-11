@@ -479,10 +479,11 @@ func (w *writer) writeIndexFileContents(
 			w.indexEntries[i].indexFileOffset = offset
 		}
 
-		offset, err = w.writeIndex(id, tagsIter, tagsEncoder, entry, offset)
+		length, err := w.writeIndex(id, tagsIter, tagsEncoder, entry)
 		if err != nil {
 			return err
 		}
+		offset += length
 
 		prevID = id
 	}
@@ -495,18 +496,17 @@ func (w *writer) writeIndex(
 	tagsIter ident.TagIterator,
 	tagsEncoder serialize.TagEncoder,
 	entry indexEntry,
-	offset int64,
 ) (int64, error) {
 	var encodedTags []byte
 	if numTags := tagsIter.Remaining(); numTags > 0 {
 		tagsEncoder.Reset()
 		if err := tagsEncoder.Encode(tagsIter); err != nil {
-			return offset, err
+			return 0, err
 		}
 
 		encodedTagsData, ok := tagsEncoder.Data()
 		if !ok {
-			return offset, errWriterEncodeTagsDataNotAccessible
+			return 0, errWriterEncodeTagsDataNotAccessible
 		}
 
 		encodedTags = encodedTagsData.Bytes()
@@ -523,16 +523,15 @@ func (w *writer) writeIndex(
 
 	w.encoder.Reset()
 	if err := w.encoder.EncodeIndexEntry(e); err != nil {
-		return offset, err
+		return 0, err
 	}
 
 	data := w.encoder.Bytes()
 	if _, err := w.indexFdWithDigest.Write(data); err != nil {
-		return offset, err
+		return 0, err
 	}
 
-	offset += int64(len(data))
-	return offset, nil
+	return int64(len(data)), nil
 }
 
 func (w *writer) writeSummariesFileContents(
