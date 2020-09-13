@@ -2641,8 +2641,8 @@ func (s *dbShard) AggregateTiles(
 				BlockStart:  sourceBlockVolume.blockStart,
 				VolumeIndex: sourceBlockVolume.latestVolume,
 			},
-			FileSetType:    persist.FileSetFlushType,
-			OrderedByIndex: true,
+			FileSetType:   persist.FileSetFlushType,
+			StreamingMode: true,
 		}
 
 		if err := blockReader.Open(openOpts); err != nil {
@@ -2725,7 +2725,7 @@ func (s *dbShard) AggregateTiles(
 	)
 
 	for readerIter.Next() {
-		seriesIter, id, tags := readerIter.Current()
+		seriesIter, id, encodedTags := readerIter.Current()
 		prevFrameLastValue := math.NaN()
 		encoder.Reset(opts.Start, 0, targetSchemaDesc)
 		for seriesIter.Next() {
@@ -2780,7 +2780,7 @@ func (s *dbShard) AggregateTiles(
 			}
 		}
 
-		if err := writer.Write(ctx, encoder, id, tags); err != nil {
+		if err := writer.Write(ctx, encoder, id, encodedTags); err != nil {
 			s.metrics.largeTilesWriteErrors.Inc(1)
 			multiErr = multiErr.Add(err)
 		} else {
@@ -2788,7 +2788,6 @@ func (s *dbShard) AggregateTiles(
 		}
 
 		id.Finalize()
-		tags.Close()
 	}
 
 	if err := writer.Close(); err != nil {

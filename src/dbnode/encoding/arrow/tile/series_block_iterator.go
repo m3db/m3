@@ -36,11 +36,11 @@ type seriesBlockIter struct {
 	step  xtime.UnixNano
 	start xtime.UnixNano
 
-	recorder  recorder
-	iter      SeriesFrameIterator
-	blockIter fs.CrossBlockIterator
-	tags      ident.TagIterator
-	id        ident.ID
+	recorder    recorder
+	iter        SeriesFrameIterator
+	blockIter   fs.CrossBlockIterator
+	encodedTags []byte
+	id          ident.ID
 }
 
 // NewSeriesBlockIterator creates a new SeriesBlockIterator.
@@ -79,14 +79,14 @@ func (b *seriesBlockIter) Next() bool {
 	}
 
 	var blockRecords []fs.BlockRecord
-	b.id, b.tags, blockRecords = b.reader.Current()
+	b.id, b.encodedTags, blockRecords = b.reader.Current()
 	b.blockIter.Reset(blockRecords)
 	b.iter.Reset(b.start, b.step, b.blockIter)
 	return true
 }
 
-func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.ID, ident.TagIterator) {
-	return b.iter, b.id, b.tags
+func (b *seriesBlockIter) Current() (SeriesFrameIterator, ident.ID, []byte) {
+	return b.iter, b.id, b.encodedTags
 }
 
 func (b *seriesBlockIter) Close() error {

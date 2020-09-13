@@ -85,7 +85,7 @@ type SeriesBlockIterator interface {
 	Close() error
 	// Current returns the next set of series frame iterators, with relevant
 	// tags and IDs.
-	Current() (SeriesFrameIterator, ident.ID, ident.TagIterator)
+	Current() (SeriesFrameIterator, ident.ID, []byte)
 }
 
 type recorder interface {

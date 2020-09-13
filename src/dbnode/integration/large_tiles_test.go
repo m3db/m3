@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -164,7 +163,7 @@ func TestReadAggregateWrite(t *testing.T) {
 }
 
 var (
-	iterationCount      = 100
+	iterationCount      = 20
 	testSeriesCount     = 5000
 	testDataPointsCount = int(blockSizeT.Hours()) * 100
 )
@@ -212,7 +211,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 				result, _, err := session.FetchTagged(srcNs.ID(), query,
 					index.QueryOptions{
 						StartInclusive: dpTimeStart.Add(-blockSizeT),
-						EndExclusive: nowFn()
+						EndExclusive: nowFn(),
 					})
 				session.Close()
 				if err != nil {
@@ -254,7 +253,7 @@ func TestAggregationAndQueryingAtHighConcurrency(t *testing.T) {
 
 	session, err := testSetup.M3DBClient().NewSession()
 	require.NoError(t, err)
-	series, err := session.Fetch(srcNs.ID(),
+	_, err = session.Fetch(srcNs.ID(),
 		ident.StringID("foo"+strconv.Itoa(50)),
 		dpTimeStart, dpTimeStart.Add(blockSizeT))
 	session.Close()
@@ -284,12 +283,7 @@ func fetchAndValidate(
 	assert.Equal(t, expected, actual)
 }
 
-func setupServer(t *testing.T)
-(
-	TestSetup,
-	namespace.Metadata, namespace.Metadata,
-	xmetrics.TestStatsReporter, io.Closer
-) {
+func setupServer(t *testing.T) (TestSetup, namespace.Metadata, namespace.Metadata,xmetrics.TestStatsReporter, io.Closer) {
 	var (
 		rOpts    = retention.NewOptions().SetRetentionPeriod(500 * blockSize).SetBlockSize(blockSize)
 		rOptsT   = retention.NewOptions().SetRetentionPeriod(100 * blockSize).SetBlockSize(blockSizeT)
@@ -332,7 +326,7 @@ func setupServer(t *testing.T)
 func writeTestData(
 	t *testing.T, testSetup TestSetup, log *zap.Logger,
 	reporter xmetrics.TestStatsReporter,
-	dpTimeStart time.Time, ns ident.ID
+	dpTimeStart time.Time, ns ident.ID,
 ) {
 	dpTime := dpTimeStart
 
@@ -340,7 +334,7 @@ func writeTestData(
 		pool.NewObjectPoolOptions().SetSize(1))
 	testTagEncodingPool.Init()
 	encoder := testTagEncodingPool.Get()
-	tagsIter := ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1"))
+	tagsIter := ident.MustNewTagStringsIterator("__name__", "cpu", "job", "job1")
 	err := encoder.Encode(tagsIter)
 	require.NoError(t, err)
 

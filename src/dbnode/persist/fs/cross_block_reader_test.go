@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -51,7 +50,7 @@ func TestCrossBlockReaderRejectMisconfiguredInputs(t *testing.T) {
 	defer ctrl.Finish()
 
 	dfsReader := NewMockDataFileSetReader(ctrl)
-	dfsReader.EXPECT().OrderedByIndex().Return(false)
+	dfsReader.EXPECT().StreamingMode().Return(false)
 
 	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader}, instrument.NewTestOptions(t))
 
@@ -64,19 +63,17 @@ func TestCrossBlockReaderRejectMisorderedInputs(t *testing.T) {
 
 	now := time.Now().Truncate(time.Hour)
 	dfsReader1 := NewMockDataFileSetReader(ctrl)
-	dfsReader1.EXPECT().OrderedByIndex().Return(true)
+	dfsReader1.EXPECT().StreamingMode().Return(true)
 	dfsReader1.EXPECT().Range().Return(xtime.Range{Start: now})
 
 	later := now.Add(time.Hour)
 	dfsReader2 := NewMockDataFileSetReader(ctrl)
-	dfsReader2.EXPECT().OrderedByIndex().Return(true)
+	dfsReader2.EXPECT().StreamingMode().Return(true)
 	dfsReader2.EXPECT().Range().Return(xtime.Range{Start: later})
 
 	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader2, dfsReader1}, instrument.NewTestOptions(t))
 
-	expectedErr := fmt.Errorf("dataFileSetReaders are not ordered by time (%s followed by %s)", later, now)
-
-	assert.Equal(t, expectedErr, err)
+	assert.Equal(t, errUnorderedDataFileSetReaders, err)
 }
 
 func TestCrossBlockReader(t *testing.T) {
@@ -128,7 +125,7 @@ func TestCrossBlockReader(t *testing.T) {
 		{
 			name:           "duplicate ids within a block",
 			blockSeriesIDs: [][]string{{"id1", "id2"}, {"id2", "id2"}},
-			expectedIDs:    []string{"id1"},
+			expectedIDs:    []string{"id1", "id2", "id2"},
 		},
 		{
 			name:           "immediate reader error",
@@ -138,7 +135,7 @@ func TestCrossBlockReader(t *testing.T) {
 		{
 			name:           "reader error later",
 			blockSeriesIDs: [][]string{{"id1", "id2"}, {"id1", "error"}},
-			expectedIDs:    []string{},
+			expectedIDs:    []string{"id1"},
 		},
 	}
 
@@ -160,40 +157,27 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 
 	for blockIndex, ids := range blockSeriesIds {
 		dfsReader := NewMockDataFileSetReader(ctrl)
-		dfsReader.EXPECT().OrderedByIndex().Return(true)
+		dfsReader.EXPECT().StreamingMode().Return(true)
 		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
 
 		blockHasError := false
-		for _, strID := range ids {
+		for i, strID := range ids {
 			if strID == "error" {
-				dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), errExpected)
+				dfsReader.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), errExpected)
 				blockHasError = true
 			} else {
-				id := ident.NewMockID(ctrl)
-				gomock.InOrder(
-					id.EXPECT().Bytes().Return([]byte(strID)).AnyTimes(),
-					id.EXPECT().String().Return(strID).MaxTimes(1), // only called from test code
-					id.EXPECT().Finalize(),
-				)
-
-				tags := ident.NewMockTagIterator(ctrl)
-				tags.EXPECT().Close()
-
-				data := checked.NewMockBytes(ctrl)
-				gomock.InOrder(
-					data.EXPECT().IncRef(),
-					data.EXPECT().DecRef(),
-					data.EXPECT().Finalize(),
-				)
+				id := ident.BytesID(strID)
+				tags := []byte(fmt.Sprintf("tags for %s", strID))
+				data := []byte(strconv.Itoa(i))
 
 				checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
 
-				dfsReader.EXPECT().Read().Return(id, tags, data, checksum, nil)
+				dfsReader.EXPECT().StreamingRead().Return(id, tags, data, checksum, nil)
 			}
 		}
 
 		if !blockHasError {
-			dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF).MaxTimes(1)
+			dfsReader.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF).MaxTimes(1)
 		}
 
 		dfsReaders = append(dfsReaders, dfsReader)
@@ -209,12 +193,8 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 	for cbReader.Next() {
 		id, tags, records := cbReader.Current()
 
-		strID := id.String()
-		id.Finalize()
-		assert.Equal(t, expectedIDs[seriesCount], strID)
-
-		assert.NotNil(t, tags)
-		tags.Close()
+		assert.Equal(t, expectedIDs[seriesCount], string(id))
+		assert.Equal(t, fmt.Sprintf("tags for %s", expectedIDs[seriesCount]), string(tags))
 
 		previousBlockIndex := -1
 		for _, record := range records {
@@ -223,8 +203,6 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 
 			previousBlockIndex = blockIndex
 			assert.NotNil(t, record.Data)
-
-			record.Data.Finalize()
 		}
 
 		blockCount += len(records)
@@ -257,25 +235,26 @@ func TestSkippingReader(t *testing.T) {
 	expectedIDs := []string{"id3"}
 	for blockIndex, ids := range blockSeriesIDs {
 		dfsReader := NewMockDataFileSetReader(ctrl)
-		dfsReader.EXPECT().OrderedByIndex().Return(true)
+		dfsReader.EXPECT().StreamingMode().Return(true)
 		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
 
 		blockHasError := false
 		for j, id := range ids {
-			tags := ident.NewTags(ident.StringTag("foo", strconv.Itoa(j)))
-			data := checkedBytes([]byte{byte(j)})
-			data.DecRef()                  // start with 0 ref
-			checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
 			if id == "error" {
-				dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), errExpected)
+				dfsReader.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), errExpected)
 				blockHasError = true
 			} else {
-				dfsReader.EXPECT().Read().Return(ident.StringID(id), ident.NewTagsIterator(tags), data, checksum, nil)
+				tags := []byte(fmt.Sprintf("tags for %s", id))
+				data := []byte{byte(j)}
+
+				checksum := uint32(blockIndex) // somewhat hacky - using checksum to propagate block index value for assertions
+
+				dfsReader.EXPECT().StreamingRead().Return(ident.BytesID(id), tags, data, checksum, nil)
 			}
 		}
 
 		if !blockHasError {
-			dfsReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF).MaxTimes(1)
+			dfsReader.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF).MaxTimes(1)
 		}
 
 		dfsReaders = append(dfsReaders, dfsReader)
@@ -298,12 +277,9 @@ func TestSkippingReader(t *testing.T) {
 		assert.Equal(t, expectedIDs[seriesCount], id.String())
 		_, tags, records := cbReader.Current()
 
-		strID := id.String()
-		id.Finalize()
+		strID := string(id)
 		assert.Equal(t, expectedIDs[seriesCount], strID)
-
-		assert.NotNil(t, tags)
-		tags.Close()
+		assert.Equal(t, fmt.Sprintf("tags for %s", strID), string(tags))
 
 		previousBlockIndex := -1
 		for _, record := range records {
@@ -351,16 +327,8 @@ func TestCrossBlockIterator(t *testing.T) {
 	records := make([]BlockRecord, 0, count)
 	for i := 0; i < count; i++ {
 		byteString := fmt.Sprint(i)
-
-		data := checked.NewMockBytes(ctrl)
-		gomock.InOrder(
-			data.EXPECT().IncRef(),
-			data.EXPECT().Bytes().Return([]byte(byteString)),
-			data.EXPECT().DecRef(),
-			data.EXPECT().Finalize(),
-		)
 		records = append(records, BlockRecord{
-			Data: data,
+			Data: []byte(byteString),
 		})
 
 		reader.EXPECT().Reset(gomock.Any(), nil).Do(
@@ -422,26 +390,15 @@ func TestFailingCrossBlockIterator(t *testing.T) {
 	records := make([]BlockRecord, 0, count)
 	for i := 0; i < count; i++ {
 		byteString := fmt.Sprint(i)
-
-		data := checked.NewMockBytes(ctrl)
+		data := []byte(byteString)
 
 		if remaining == 0 {
-			gomock.InOrder(
-				data.EXPECT().Finalize(),
-			)
 			records = append(records, BlockRecord{
 				Data: data,
 			})
-
 			continue
 		}
 
-		gomock.InOrder(
-			data.EXPECT().IncRef(),
-			data.EXPECT().Bytes().Return([]byte(byteString)),
-			data.EXPECT().DecRef(),
-			data.EXPECT().Finalize(),
-		)
 		records = append(records, BlockRecord{
 			Data: data,
 		})

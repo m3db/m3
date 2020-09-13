@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/ident"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
@@ -65,9 +64,8 @@ func TestSeriesBlockIterator(t *testing.T) {
 
 	reader := fs.NewMockCrossBlockReader(ctrl)
 	reader.EXPECT().Next().Return(true)
-	tags := ident.MustNewTagStringsIterator("foo", "bar")
-	checkedBytes := checked.NewBytes([]byte("foobar"), checked.NewBytesOptions())
-	records := []fs.BlockRecord{fs.BlockRecord{Data: checkedBytes}}
+	tags := []byte("encoded tags")
+	records := []fs.BlockRecord{{Data: []byte("foobar")}}
 	reader.EXPECT().Current().Return(ident.StringID("foobar"), tags, records)
 	reader.EXPECT().Next().Return(false)
 	reader.EXPECT().Err().Return(nil)
@@ -83,8 +81,5 @@ func TestSeriesBlockIterator(t *testing.T) {
 	assert.Equal(t, 1.0, frame.Sum())
 
 	assert.Equal(t, "foobar", id.String())
-	require.True(t, iterTags.Next())
-	assert.Equal(t, "foo", iterTags.Current().Name.String())
-	assert.Equal(t, "bar", iterTags.Current().Value.String())
-	assert.False(t, iterTags.Next())
+	assert.Equal(t, string(tags), string(iterTags))
 }

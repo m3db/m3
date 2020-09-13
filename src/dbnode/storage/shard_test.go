@@ -1788,7 +1788,7 @@ func TestShardAggregateTiles(t *testing.T) {
 
 	sourceNsID := sourceShard.namespace.ID()
 
-	mockBytes := func() checked.Bytes {
+	dataBytes := func() []byte {
 		encoder := m3tsz.NewEncoder(opts.Start, nil, false, encoding.NewOptions())
 		datapointTimestamp := start.Add(10 * time.Second)
 		datapoint := ts.Datapoint{Timestamp: datapointTimestamp, TimestampNanos: xtime.ToUnixNano(datapointTimestamp), Value: 5}
@@ -1797,47 +1797,20 @@ func TestShardAggregateTiles(t *testing.T) {
 		m3tszSegment := encoder.Discard()
 		encodedBytes := append(m3tszSegment.Head.Bytes(), m3tszSegment.Tail.Bytes()...)
 		m3tszSegment.Finalize()
-		m3tszBytes := checked.NewMockBytes(ctrl)
-		gomock.InOrder(
-			m3tszBytes.EXPECT().IncRef(),
-			m3tszBytes.EXPECT().DecRef(),
-			m3tszBytes.EXPECT().IncRef(),
-			m3tszBytes.EXPECT().Bytes().Return(encodedBytes),
-			m3tszBytes.EXPECT().DecRef(),
-			m3tszBytes.EXPECT().Finalize(),
-		)
-		return m3tszBytes
-	}
-
-	mockID := func(strID string) ident.ID {
-		id := ident.NewMockID(ctrl)
-		gomock.InOrder(
-			id.EXPECT().Bytes().Return([]byte(strID)).AnyTimes(),
-			id.EXPECT().Finalize(),
-		)
-		return id
-	}
-
-	mockTags := func() ident.TagIterator {
-		tagIter := ident.NewMockTagIterator(ctrl)
-		gomock.InOrder(
-			tagIter.EXPECT().Remaining().Return(0),
-			tagIter.EXPECT().Close(),
-		)
-		return tagIter
+		return encodedBytes
 	}
 
 	reader0, volume0 := getMockReader(ctrl, t, sourceShard, start)
 	reader0.EXPECT().Entries().Return(2).AnyTimes()
-	reader0.EXPECT().Read().Return(mockID("id1"), mockTags(), mockBytes(), uint32(11), nil)
-	reader0.EXPECT().Read().Return(mockID("id2"), mockTags(), mockBytes(), uint32(22), nil)
-	reader0.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
+	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id1"), nil, dataBytes(), uint32(11), nil)
+	reader0.EXPECT().StreamingRead().Return(ident.BytesID("id2"), nil, dataBytes(), uint32(22), nil)
+	reader0.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
 
 	secondSourceBlockStart := start.Add(sourceBlockSize)
 	reader1, volume1 := getMockReader(ctrl, t, sourceShard, secondSourceBlockStart)
 	reader1.EXPECT().Entries().Return(1).AnyTimes()
-	reader1.EXPECT().Read().Return(mockID("id3"), mockTags(), mockBytes(), uint32(33), nil)
-	reader1.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
+	reader1.EXPECT().StreamingRead().Return(ident.BytesID("id3"), nil, dataBytes(), uint32(33), nil)
+	reader1.EXPECT().StreamingRead().Return(nil, nil, nil, uint32(0), io.EOF)
 
 	blockReaders := []fs.DataFileSetReader{reader0, reader1}
 	sourceBlockVolumes := []shardBlockVolume{
@@ -1867,13 +1840,13 @@ func getMockReader(
 			BlockStart:  blockStart,
 			VolumeIndex: latestSourceVolume,
 		},
-		FileSetType:    persist.FileSetFlushType,
-		OrderedByIndex: true,
+		FileSetType:   persist.FileSetFlushType,
+		StreamingMode: true,
 	}
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	reader.EXPECT().Open(openOpts).Return(nil)
-	reader.EXPECT().OrderedByIndex().Return(true)
+	reader.EXPECT().StreamingMode().Return(true)
 	reader.EXPECT().Range().Return(xtime.Range{Start: blockStart})
 	reader.EXPECT().Close()
 

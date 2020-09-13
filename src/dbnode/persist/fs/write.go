@@ -512,6 +512,15 @@ func (w *writer) writeIndex(
 		encodedTags = encodedTagsData.Bytes()
 	}
 
+	return w.writeIndexWithEncodedTags(id, encodedTags, entry, offset)
+}
+
+func (w *writer) writeIndexWithEncodedTags(
+	id []byte,
+	encodedTags []byte,
+	entry indexEntry,
+	offset int64,
+) (int64, error) {
 	e := schema.IndexEntry{
 		Index:        entry.index,
 		ID:           id,

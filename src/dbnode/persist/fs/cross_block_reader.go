@@ -24,36 +24,35 @@ import (
 	"bytes"
 	"container/heap"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/x/checked"
 	xerrors "github.com/m3db/m3/src/x/errors"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/instrument"
 	xtime "github.com/m3db/m3/src/x/time"
-
-	"go.uber.org/zap"
 )
 
 var (
-	errReaderNotOrderedByIndex                = errors.New("crossBlockReader can only use DataFileSetReaders ordered by index")
-	errEmptyReader                            = errors.New("trying to read from empty reader")
-	_                          heap.Interface = (*minHeap)(nil)
+	errReaderNotOrderedByIndex     = errors.New("crossBlockReader can only use DataFileSetReaders ordered by index")
+	errUnorderedDataFileSetReaders = errors.New("dataFileSetReaders are not ordered by time")
+
+	_ heap.Interface = (*minHeap)(nil)
 )
 
 type crossBlockReader struct {
-	dataFileSetReaders []DataFileSetReader
-	id                 ident.ID
-	tags               ident.TagIterator
-	records            []BlockRecord
-	started            bool
-	minHeap            minHeap
-	err                error
-	iOpts              instrument.Options
+	dataFileSetReaders   []DataFileSetReader
+	pendingReaderIndices []int
+	minHeap              minHeap
+
+	iOpts instrument.Options
+
+	id          ident.BytesID
+	encodedTags []byte
+	records     []BlockRecord
+	err         error
 }
 
 // NewCrossBlockReader constructs a new CrossBlockReader based on given DataFileSetReaders.
@@ -63,20 +62,27 @@ type crossBlockReader struct {
 func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader, iOpts instrument.Options) (CrossBlockReader, error) {
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
-		if !dataFileSetReader.OrderedByIndex() {
+		if !dataFileSetReader.StreamingMode() {
 			return nil, errReaderNotOrderedByIndex
 		}
 		currentStart := dataFileSetReader.Range().Start
 		if !currentStart.After(previousStart) {
-			return nil, fmt.Errorf("dataFileSetReaders are not ordered by time (%s followed by %s)", previousStart, currentStart)
+			return nil, errUnorderedDataFileSetReaders
 		}
 		previousStart = currentStart
 	}
 
+	pendingReaderIndices := make([]int, len(dataFileSetReaders))
+	for i := range dataFileSetReaders {
+		pendingReaderIndices[i] = i
+	}
+
 	return &crossBlockReader{
-		dataFileSetReaders: append(make([]DataFileSetReader, 0, len(dataFileSetReaders)), dataFileSetReaders...),
-		records:            make([]BlockRecord, 0, len(dataFileSetReaders)),
-		iOpts:              iOpts,
+		dataFileSetReaders:   dataFileSetReaders,
+		pendingReaderIndices: pendingReaderIndices,
+		minHeap:              make([]*minHeapEntry, 0, len(dataFileSetReaders)),
+		records:              make([]BlockRecord, 0, len(dataFileSetReaders)),
+		iOpts:                iOpts,
 	}, nil
 }
 
@@ -85,134 +91,66 @@ func (r *crossBlockReader) Next() bool {
 		return false
 	}
 
+	// use empty var in inner loop with "for i := range" to have compiler use memclr optimization
+	// see: https://codereview.appspot.com/137880043
 	var emptyRecord BlockRecord
-	if !r.started {
-		if r.err = r.start(); r.err != nil {
+	for i := range r.records {
+		r.records[i] = emptyRecord
+	}
+	r.records = r.records[:0]
+
+	if len(r.pendingReaderIndices) == 0 {
+		return false
+	}
+
+	for _, readerIndex := range r.pendingReaderIndices {
+		entry, err := r.readFromDataFileSet(readerIndex)
+		if err == io.EOF {
+			// Will no longer read from this one.
+			continue
+		} else if err != nil {
+			r.err = err
 			return false
-		}
-	} else {
-		for i := range r.records {
-			r.records[i] = emptyRecord
+		} else {
+			heap.Push(&r.minHeap, entry)
 		}
 	}
+
+	r.pendingReaderIndices = r.pendingReaderIndices[:0]
 
 	if len(r.minHeap) == 0 {
 		return false
 	}
 
-	firstEntry, err := r.readOne()
-	if err != nil {
-		r.err = err
-		return false
-	}
+	firstEntry := heap.Pop(&r.minHeap).(*minHeapEntry)
 
 	r.id = firstEntry.id
-	r.tags = firstEntry.tags
+	r.encodedTags = firstEntry.encodedTags
 
-	r.records = r.records[:0]
 	r.records = append(r.records, BlockRecord{firstEntry.data, firstEntry.checksum})
 
-	// as long as id stays the same across the blocks, accumulate records for this id/tags
-	for len(r.minHeap) > 0 && bytes.Equal(r.minHeap[0].id.Bytes(), firstEntry.id.Bytes()) {
-		nextEntry, err := r.readOne()
-		if err != nil {
-			// Close the resources that were already read but not returned to the consumer:
-			r.id.Finalize()
-			r.tags.Close()
-			for _, record := range r.records {
-				record.Data.Finalize()
-			}
-			for i := range r.records {
-				r.records[i] = emptyRecord
-			}
-			r.records = r.records[:0]
-			r.err = err
-			return false
-		}
+	// We have consumed an entry from this dataFileSetReader, so need to schedule a read from it on the next Next().
+	r.pendingReaderIndices = append(r.pendingReaderIndices, firstEntry.dataFileSetReaderIndex)
 
-		// id and tags not needed for subsequent blocks because they are the same as in the first block
-		nextEntry.id.Finalize()
-		nextEntry.tags.Close()
+	// As long as id stays the same across the blocks, accumulate records for this id/tags.
+	for len(r.minHeap) > 0 && bytes.Equal(r.minHeap[0].id.Bytes(), firstEntry.id.Bytes()) {
+		nextEntry := heap.Pop(&r.minHeap).(*minHeapEntry)
 
 		r.records = append(r.records, BlockRecord{nextEntry.data, nextEntry.checksum})
+
+		// We have consumed an entry from this dataFileSetReader, so need to schedule a read from it on the next Next().
+		r.pendingReaderIndices = append(r.pendingReaderIndices, nextEntry.dataFileSetReaderIndex)
 	}
 
 	return true
 }
 
-func (r *crossBlockReader) Current() (ident.ID, ident.TagIterator, []BlockRecord) {
-	return r.id, r.tags, r.records
-}
-
-func (r *crossBlockReader) readOne() (*minHeapEntry, error) {
-	if len(r.minHeap) == 0 {
-		return nil, errEmptyReader
-	}
-
-	entry := heap.Pop(&r.minHeap).(*minHeapEntry)
-	entry.data.DecRef()
-
-	if r.dataFileSetReaders[entry.dataFileSetReaderIndex] != nil {
-		nextEntry, err := r.readFromDataFileSet(entry.dataFileSetReaderIndex)
-		if err == io.EOF {
-			// will no longer read from this one
-			r.dataFileSetReaders[entry.dataFileSetReaderIndex] = nil
-		} else if err != nil {
-			entry.id.Finalize()
-			entry.tags.Close()
-			entry.data.Finalize()
-
-			return nil, err
-
-		} else if bytes.Equal(nextEntry.id.Bytes(), entry.id.Bytes()) {
-			err := fmt.Errorf("duplicate id %s on block starting at %s",
-				entry.id, r.dataFileSetReaders[entry.dataFileSetReaderIndex].Range().Start)
-
-			entry.id.Finalize()
-			entry.tags.Close()
-			entry.data.Finalize()
-
-			nextEntry.id.Finalize()
-			nextEntry.tags.Close()
-			nextEntry.data.DecRef()
-			nextEntry.data.Finalize()
-
-			instrument.EmitAndLogInvariantViolation(r.iOpts, func(l *zap.Logger) {
-				l.Error(err.Error())
-			})
-
-			return nil, err
-
-		} else {
-			heap.Push(&r.minHeap, nextEntry)
-		}
-	}
-
-	return entry, nil
-}
-
-func (r *crossBlockReader) start() error {
-	r.started = true
-	r.minHeap = make([]*minHeapEntry, 0, len(r.dataFileSetReaders))
-
-	for i := range r.dataFileSetReaders {
-		entry, err := r.readFromDataFileSet(i)
-		if err == io.EOF {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		r.minHeap = append(r.minHeap, entry)
-	}
-
-	heap.Init(&r.minHeap)
-
-	return nil
+func (r *crossBlockReader) Current() (ident.BytesID, []byte, []BlockRecord) {
+	return r.id, r.encodedTags, r.records
 }
 
 func (r *crossBlockReader) readFromDataFileSet(index int) (*minHeapEntry, error) {
-	id, tags, data, checksum, err := r.dataFileSetReaders[index].Read()
+	id, encodedTags, data, checksum, err := r.dataFileSetReaders[index].StreamingRead()
 
 	if err == io.EOF {
 		return nil, err
@@ -225,12 +163,10 @@ func (r *crossBlockReader) readFromDataFileSet(index int) (*minHeapEntry, error)
 		return nil, multiErr.FinalError()
 	}
 
-	data.IncRef()
-
 	return &minHeapEntry{
 		dataFileSetReaderIndex: index,
 		id:                     id,
-		tags:                   tags,
+		encodedTags:            encodedTags,
 		data:                   data,
 		checksum:               checksum,
 	}, nil
@@ -241,25 +177,25 @@ func (r *crossBlockReader) Err() error {
 }
 
 func (r *crossBlockReader) Close() error {
-	// Close the resources that were buffered in minHeap:
-	for i, entry := range r.minHeap {
-		entry.id.Finalize()
-		entry.tags.Close()
+	var emptyRecord BlockRecord
+	for i := range r.records {
+		r.records[i] = emptyRecord
+	}
+	r.records = r.records[:0]
 
-		entry.data.DecRef()
-		entry.data.Finalize()
+	for i := range r.minHeap {
 		r.minHeap[i] = nil
 	}
-
 	r.minHeap = r.minHeap[:0]
+
 	return nil
 }
 
 type minHeapEntry struct {
 	dataFileSetReaderIndex int
-	id                     ident.ID
-	tags                   ident.TagIterator
-	data                   checked.Bytes
+	id                     ident.BytesID
+	encodedTags            []byte
+	data                   []byte
 	checksum               uint32
 }
 
@@ -321,9 +257,6 @@ func (c *crossBlockIterator) Next() bool {
 	if c.idx < 0 || !c.current.Next() {
 		// NB: clear previous.
 		if c.idx >= 0 {
-			c.records[c.idx].Data.DecRef()
-			c.records[c.idx].Data.Finalize()
-
 			if c.current.Err() != nil {
 				c.exhausted = true
 				return false
@@ -336,8 +269,7 @@ func (c *crossBlockIterator) Next() bool {
 			return false
 		}
 
-		c.records[c.idx].Data.IncRef()
-		c.byteReader.Reset(c.records[c.idx].Data.Bytes())
+		c.byteReader.Reset(c.records[c.idx].Data)
 		c.current.Reset(c.byteReader, nil)
 		// NB: rerun using the next record.
 		return c.Next()
@@ -351,10 +283,6 @@ func (c *crossBlockIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation)
 }
 
 func (c *crossBlockIterator) Reset(records []BlockRecord) {
-	// NB: close any unread records.
-	for i := c.idx + 1; i < len(c.records); i++ {
-		c.records[i].Data.Finalize()
-	}
 	c.idx = -1
 	c.records = records
 	c.exhausted = false
