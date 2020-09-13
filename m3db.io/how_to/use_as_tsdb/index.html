@@ -1488,7 +1488,7 @@
 <h3 id="schema-modeling">Schema Modeling</h3>
 <p>Every M3DB namespace can be configured with a Protobuf-defined schema that every value in the time series must conform to</p>
 <p>For example, continuing with the vehicle fleet tracking example introduced earlier, a schema might look as follows:</p>
-<div class="highlight"><pre><span></span><code><span class="na">syntax</span> <span class="o">=</span> <span class="s">&quot;proto3&quot;</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><span class="k">syntax</span> <span class="o">=</span> <span class="s">&quot;proto3&quot;</span><span class="p">;</span>
 
 <span class="kd">message</span> <span class="nc">VehicleLocation</span> <span class="p">{</span>
   <span class="kt">double</span> <span class="na">latitude</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
@@ -1515,7 +1515,7 @@
 </ol>
 <h4 id="compression">Compression</h4>
 <p>While M3DB supports schemas that contain nested messages, repeated fields, and map fields, currently it can only effectively compress top level scalar fields. For example, M3DB can compress every field in the following schema:</p>
-<div class="highlight"><pre><span></span><code><span class="na">syntax</span> <span class="o">=</span> <span class="s">&quot;proto3&quot;</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><span class="k">syntax</span> <span class="o">=</span> <span class="s">&quot;proto3&quot;</span><span class="p">;</span>
 
 <span class="kd">message</span> <span class="nc">VehicleLocation</span> <span class="p">{</span>
   <span class="kt">double</span> <span class="na">latitude</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
@@ -1526,7 +1526,7 @@
 </code></pre></div>
 
 <p>however, it will not apply any form of compression to the <code>attributes</code> field in this schema:</p>
-<div class="highlight"><pre><span></span><code><span class="na">syntax</span> <span class="o">=</span> <span class="s">&quot;proto3&quot;</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><span class="k">syntax</span> <span class="o">=</span> <span class="s">&quot;proto3&quot;</span><span class="p">;</span>
 
 <span class="kd">message</span> <span class="nc">VehicleLocation</span> <span class="p">{</span>
   <span class="kt">double</span> <span class="na">latitude</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
@@ -1638,7 +1638,7 @@
     </div>
     
       <script src="../../assets/javascripts/vendor.c3dc8c49.min.js"></script>
-      <script src="../../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"search.config.separator": "[\\s\\-]+", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.result.placeholder": "Type to start searching", "search.result.one": "1 matching document", "search.result.none": "No matching documents", "search.result.other": "# matching documents", "clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard"}</script>
+      <script src="../../assets/javascripts/bundle.f9edbbd5.min.js"></script><script id="__lang" type="application/json">{"search.result.placeholder": "Type to start searching", "clipboard.copied": "Copied to clipboard", "search.result.none": "No matching documents", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.result.other": "# matching documents", "search.result.one": "1 matching document", "clipboard.copy": "Copy to clipboard", "search.config.separator": "[\\s\\-]+"}</script>
       
       <script>
         app = initialize({
