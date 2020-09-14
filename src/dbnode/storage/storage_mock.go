@@ -4531,6 +4531,34 @@ func (mr *MockOptionsMockRecorder) MediatorTickInterval() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MediatorTickInterval", reflect.TypeOf((*MockOptions)(nil).MediatorTickInterval))
 }
 
+// SetBackgroundProcessFns mocks base method
+func (m *MockOptions) SetBackgroundProcessFns(arg0 []NewBackgroundProcessFn) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetBackgroundProcessFns", arg0)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundProcessFns indicates an expected call of SetBackgroundProcessFns
+func (mr *MockOptionsMockRecorder) SetBackgroundProcessFns(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBackgroundProcessFns", reflect.TypeOf((*MockOptions)(nil).SetBackgroundProcessFns), arg0)
+}
+
+// BackgroundProcessFns mocks base method
+func (m *MockOptions) BackgroundProcessFns() []NewBackgroundProcessFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackgroundProcessFns")
+	ret0, _ := ret[0].([]NewBackgroundProcessFn)
+	return ret0
+}
+
+// BackgroundProcessFns indicates an expected call of BackgroundProcessFns
+func (mr *MockOptionsMockRecorder) BackgroundProcessFns() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackgroundProcessFns", reflect.TypeOf((*MockOptions)(nil).BackgroundProcessFns))
+}
+
 // MockMemoryTracker is a mock of MemoryTracker interface
 type MockMemoryTracker struct {
 	ctrl     *gomock.Controller

@@ -166,6 +166,7 @@ type options struct {
 	doNotIndexWithFieldsMap         map[string]string
 	namespaceRuntimeOptsMgrRegistry namespace.RuntimeOptionsManagerRegistry
 	mediatorTickInterval            time.Duration
+	newBackgroundProcessFns			[]NewBackgroundProcessFn
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -811,6 +812,16 @@ func (o *options) SetMediatorTickInterval(value time.Duration) Options {
 
 func (o *options) MediatorTickInterval() time.Duration {
 	return o.mediatorTickInterval
+}
+
+func (o *options) SetBackgroundProcessFns(fns []NewBackgroundProcessFn) Options {
+	opts := *o
+	opts.newBackgroundProcessFns = fns
+	return &opts
+}
+
+func (o *options) BackgroundProcessFns() []NewBackgroundProcessFn {
+	return o.newBackgroundProcessFns
 }
 
 type noOpColdFlush struct{}

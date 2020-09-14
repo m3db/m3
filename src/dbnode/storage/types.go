@@ -1184,11 +1184,17 @@ type Options interface {
 	// NamespaceRuntimeOptionsManagerRegistry returns the namespace runtime options manager.
 	NamespaceRuntimeOptionsManagerRegistry() namespace.RuntimeOptionsManagerRegistry
 
-	// SetMediatorTickInterval sets the ticking interval for the medidator.
+	// SetMediatorTickInterval sets the ticking interval for the mediator.
 	SetMediatorTickInterval(value time.Duration) Options
 
 	// MediatorTickInterval returns the ticking interval for the mediator.
 	MediatorTickInterval() time.Duration
+
+	// SetBackgroundProcessFns sets the list of functions that create background processes for the database.
+	SetBackgroundProcessFns([]NewBackgroundProcessFn) Options
+
+	// BackgroundProcessFns returns the list of functions that create background processes for the database.
+	BackgroundProcessFns() []NewBackgroundProcessFn
 }
 
 // MemoryTracker tracks memory.
@@ -1247,3 +1253,5 @@ type newFSMergeWithMemFn func(
 	dirtySeries *dirtySeriesMap,
 	dirtySeriesToWrite map[xtime.UnixNano]*idList,
 ) fs.MergeWith
+
+type NewBackgroundProcessFn func(Database, Options) (BackgroundProcess, error)

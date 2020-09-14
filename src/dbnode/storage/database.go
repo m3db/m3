@@ -226,7 +226,7 @@ func NewDatabase(
 			zap.Error(err))
 	}
 
-	mediator, err := newMediator(
+	d.mediator, err = newMediator(
 		d, commitLog, opts.SetInstrumentOptions(databaseIOpts))
 	if err != nil {
 		return nil, err
@@ -238,10 +238,16 @@ func NewDatabase(
 		if err != nil {
 			return nil, err
 		}
-		mediator.RegisterBackgroundProcess(d.repairer)
+		d.mediator.RegisterBackgroundProcess(d.repairer)
 	}
 
-	d.mediator = mediator
+	for _, fn := range opts.BackgroundProcessFns() {
+		process, err := fn(d, opts)
+		if err != nil {
+			return nil, err
+		}
+		d.mediator.RegisterBackgroundProcess(process)
+	}
 
 	return d, nil
 }
