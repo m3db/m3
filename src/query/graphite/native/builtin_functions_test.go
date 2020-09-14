@@ -692,6 +692,42 @@ func TestMovingAverageSuccess(t *testing.T) {
 	testMovingFunction(t, "movingAverage(foo.bar.baz, 3)", "movingAverage(foo.bar.baz,3)", values, bootstrapEntireSeries, expected)
 }
 
+func TestExponentialMovingAverageSuccess(t *testing.T) {
+	tests := []struct {
+		target string
+		expectedName string
+		bootstrap []float64
+		inputs  []float64
+		expected []float64
+	}{
+		{
+			"exponentialMovingAverage(foo.bar.baz, 3)",
+			"exponentialMovingAverage(foo.bar.baz,3)",
+			[]float64{0.0, 1.0, 2.0},
+			[]float64{3.0, 4.0, 5.0, 6.0, 7.0},
+			[]float64{1.0, 2.5, 3.75, 4.875, 5.9375},
+		},
+		{
+			"exponentialMovingAverage(foo.bar.baz, '30s')",
+			"exponentialMovingAverage(foo.bar.baz,\"30s\")",
+			[]float64{0.0, 1.0, 2.0},
+			[]float64{3.0, 4.0, 5.0, 6.0, 7.0},
+			[]float64{1.0, 2.5, 3.75, 4.875, 5.9375},
+		},
+		{
+			"exponentialMovingAverage(foo.bar.baz, 3)",
+			"exponentialMovingAverage(foo.bar.baz,3)",
+			[]float64{0.0, 1.0, 2.0},
+			[]float64{3.0, 4.0, 5.0, math.NaN(), 7.0},
+			[]float64{1.0, 2.5, 3.75, math.NaN(), 5.375},
+		},
+	}
+
+	for _, test := range tests {
+		testMovingFunction(t, test.target, test.expectedName, test.inputs, test.bootstrap, test.expected)
+	}
+}
+
 func testMovingFunctionError(t *testing.T, target string) {
 	ctx := common.NewTestContext()
 	defer ctx.Close()
@@ -3031,6 +3067,7 @@ func TestFunctionsRegistered(t *testing.T) {
 		"diffSeries",
 		"divideSeries",
 		"exclude",
+		"exponentialMovingAverage",
 		"fallbackSeries",
 		"group",
 		"groupByNode",
