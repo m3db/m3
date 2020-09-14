@@ -433,34 +433,36 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 			EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1,
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent}
 		enc = newEncoder(opts)
-		dec = newDecoder(opts, nil)
+		dec = newDecoder(opts, NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
 	)
 
 	// Set the default values on the fields that did not exist in V1
 	// and then restore them at the end of the test - This is required
 	// because the new decoder won't try and read the new fields from
 	// the old file format.
-	currEncodedTags := testIndexEntry.EncodedTags
+	currEncodedTags := testIndexCheksumEntry.EncodedTags
 
-	testIndexEntry.EncodedTags = nil
+	testIndexCheksumEntry.EncodedTags = nil
 
 	defer func() {
-		testIndexEntry.EncodedTags = currEncodedTags
+		testIndexCheksumEntry.EncodedTags = currEncodedTags
 	}()
 
-	enc.EncodeIndexEntry(testIndexEntry)
+	enc.EncodeIndexEntry(testIndexCheksumEntry)
 	bytes := enc.Bytes()
 	cloned := append(make([]byte, 0, len(bytes)), bytes...)
 	dec.Reset(NewByteDecoderStream(bytes))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	expected := testIndexEntry
+	expected := testIndexCheksumEntry
 	expected.IndexChecksum = 0
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(cloned))
-	_, _, err = dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
-	require.Error(t, err)
+	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
+	require.NoError(t, err)
+	assert.Equal(t, Match, status)
+	assert.Equal(t, int64(50), chk) // NB: 100 from ID, -50 from data checksum.
 }
 
 // Make sure the V1 decoder code can handle the V3 file format.
@@ -469,19 +471,19 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 		opts = LegacyEncodingOptions{
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1}
 		enc = newEncoder(opts)
-		dec = newDecoder(opts, nil)
+		dec = newDecoder(opts, NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
 	)
 
 	// Set the default values on the fields that did not exist in V1
 	// and then restore them at the end of the test - This is required
 	// because the old decoder won't read the new fields.
-	currEncodedTags := testIndexEntry.EncodedTags
+	currEncodedTags := testIndexCheksumEntry.EncodedTags
 
-	enc.EncodeIndexEntry(testIndexEntry)
+	enc.EncodeIndexEntry(testIndexCheksumEntry)
 
 	// Make sure to zero them before we compare, but after we have
 	// encoded the data.
-	expected := testIndexEntry
+	expected := testIndexCheksumEntry
 	expected.EncodedTags = nil
 	defer func() {
 		expected.EncodedTags = currEncodedTags
@@ -495,8 +497,10 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	_, _, err = dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
-	require.Error(t, err)
+	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
+	require.NoError(t, err)
+	assert.Equal(t, Match, status)
+	assert.Equal(t, int64(50), chk) // NB: 100 from ID, -50 from data checksum.
 }
 
 // Make sure the V3 decoding code can handle the V2 file format.
@@ -505,24 +509,26 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 		opts = LegacyEncodingOptions{EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV2,
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent}
 		enc = newEncoder(opts)
-		dec = newDecoder(opts, nil)
+		dec = newDecoder(opts, NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
 	)
 
 	// The additional field added to V3 is the index entry checksum that's transparently used by the encoder
 	// and decoder and is never set on the IndexEntry struct. Therefore, no need to zero out any field in the struct
 	// to make a comparison.
 
-	enc.EncodeIndexEntry(testIndexEntry)
+	enc.EncodeIndexEntry(testIndexCheksumEntry)
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	expected := testIndexEntry
+	expected := testIndexCheksumEntry
 	expected.IndexChecksum = 0
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	_, _, err = dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
-	require.Error(t, err)
+	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
+	require.NoError(t, err)
+	assert.Equal(t, Match, status)
+	assert.Equal(t, testIndexHashValue, chk) // NB: tags present.
 }
 
 // Make sure the V2 decoder code can handle the V3 file format.
@@ -530,24 +536,26 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
 		opts = LegacyEncodingOptions{DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV2}
 		enc  = newEncoder(opts)
-		dec  = newDecoder(opts, nil)
+		dec  = newDecoder(opts, NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
 	)
 
 	// The additional field added to V3 is the index entry checksum that's transparently used by the encoder
 	// and decoder and is never set on the IndexEntry struct. Therefore, no need to zero out any field in the struct
 	// to make a comparison.
 
-	enc.EncodeIndexEntry(testIndexEntry)
+	enc.EncodeIndexEntry(testIndexCheksumEntry)
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	expected := testIndexEntry
+	expected := testIndexCheksumEntry
 	expected.IndexChecksum = 0
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	_, _, err = dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
-	require.Error(t, err)
+	chk, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexCheksumEntry.ID, nil)
+	require.NoError(t, err)
+	assert.Equal(t, Match, status)
+	assert.Equal(t, testIndexHashValue, chk) // NB: tags present.
 }
 
 func TestIndexSummaryRoundtrip(t *testing.T) {

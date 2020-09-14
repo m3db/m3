@@ -394,7 +394,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	return indexBloomFilterInfo
 }
 
-func (dec *Decoder) checkNumIndexFields() (int, int, bool) {
+func (dec *Decoder) checkNumIndexEntryFields() (int, int, bool) {
 	var opts checkNumFieldsOptions
 	switch dec.legacy.DecodeLegacyIndexEntryVersion {
 	case LegacyEncodingIndexEntryVersionV1:
@@ -420,18 +420,11 @@ func (dec *Decoder) checkNumIndexFields() (int, int, bool) {
 }
 
 func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry {
-	numFieldsToSkip, actual, ok := dec.checkNumIndexFields()
+	numFieldsToSkip, actual, ok := dec.checkNumIndexEntryFields()
 	if !ok {
 		return emptyIndexEntry
 	}
-	return dec.decodeIndexEntryWithSizes(numFieldsToSkip, actual, bytesPool)
-}
 
-func (dec *Decoder) decodeIndexEntryWithSizes(
-	numFieldsToSkip int,
-	actual int,
-	bytesPool pool.BytesPool,
-) schema.IndexEntry {
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
 
@@ -488,17 +481,7 @@ func (dec *Decoder) decodeIndexChecksum(
 	compareID []byte,
 	bytesPool pool.BytesPool,
 ) (int64, IndexChecksumLookupStatus) {
-	numFieldsToSkip, actual, ok := dec.checkNumIndexFields()
-	if !ok || dec.err != nil {
-		return 0, NotFound
-	}
-
-	if actual-numFieldsToSkip < 7 {
-		dec.err = errors.New("invalid entry file version")
-		return 0, NotFound
-	}
-
-	entry := dec.decodeIndexEntryWithSizes(numFieldsToSkip, actual, bytesPool)
+	entry := dec.decodeIndexEntry(bytesPool)
 	if dec.err != nil {
 		return 0, NotFound
 	}
@@ -509,7 +492,6 @@ func (dec *Decoder) decodeIndexChecksum(
 		dec.hash.Reset()
 		// NB: need to compute hash before freeing entry bytes.
 		checksum = entry.Hash(dec.hash)
-		// fmt.Println("getting checksum", checksum)
 	}
 
 	// free elements if pooled.
