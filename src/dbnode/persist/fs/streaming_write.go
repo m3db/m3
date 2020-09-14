@@ -34,13 +34,16 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
-type LargeTilesWriter interface {
+// StreamingWriter writes int data fileset without intermediate buffering.
+// Writes must be lexicographically ordered by the id.
+type StreamingWriter interface {
 	Open() error
 	Write(ctx context.Context, encoder encoding.Encoder, id ident.ID, encodedTags []byte) error
 	Close() error
 }
 
-type LargeTilesWriterOptions struct {
+// StreamingWriterOptions in the options for the StreamingWriter.
+type StreamingWriterOptions struct {
 	Options             Options
 	NamespaceID         ident.ID
 	ShardID             uint32
@@ -50,8 +53,8 @@ type LargeTilesWriterOptions struct {
 	PlannedRecordsCount uint
 }
 
-type largeTilesWriter struct {
-	opts         LargeTilesWriterOptions
+type streamingWriter struct {
+	opts         StreamingWriterOptions
 	writer       *writer
 	writerOpts   DataWriterOpenOptions
 	data         []checked.Bytes
@@ -63,7 +66,7 @@ type largeTilesWriter struct {
 	summaries    int
 }
 
-func NewLargeTilesWriter(opts LargeTilesWriterOptions) (LargeTilesWriter, error) {
+func NewStreamingWriter(opts StreamingWriterOptions) (StreamingWriter, error) {
 	w, err := NewWriter(opts.Options)
 	if err != nil {
 		return nil, err
@@ -92,7 +95,7 @@ func NewLargeTilesWriter(opts LargeTilesWriterOptions) (LargeTilesWriter, error)
 		summaryEvery = int(math.Floor(float64(opts.PlannedRecordsCount) / summariesApprox))
 	}
 
-	return &largeTilesWriter{
+	return &streamingWriter{
 		opts:         opts,
 		writer:       w.(*writer),
 		writerOpts:   writerOpts,
@@ -102,7 +105,7 @@ func NewLargeTilesWriter(opts LargeTilesWriterOptions) (LargeTilesWriter, error)
 	}, nil
 }
 
-func (w *largeTilesWriter) Open() error {
+func (w *streamingWriter) Open() error {
 	if err := w.writer.Open(w.writerOpts); err != nil {
 		return err
 	}
@@ -112,7 +115,7 @@ func (w *largeTilesWriter) Open() error {
 	return nil
 }
 
-func (w *largeTilesWriter) Write(
+func (w *streamingWriter) Write(
 	ctx context.Context,
 	encoder encoding.Encoder,
 	id ident.ID,
@@ -149,7 +152,7 @@ func (w *largeTilesWriter) Write(
 	return nil
 }
 
-func (w *largeTilesWriter) writeData(
+func (w *streamingWriter) writeData(
 	data []checked.Bytes,
 	dataChecksum uint32,
 ) (*indexEntry, error) {
@@ -185,7 +188,7 @@ func (w *largeTilesWriter) writeData(
 	return entry, nil
 }
 
-func (w *largeTilesWriter) writeIndexRelated(
+func (w *streamingWriter) writeIndexRelated(
 	id ident.ID,
 	encodedTags []byte,
 	entry *indexEntry,
@@ -219,7 +222,7 @@ func (w *largeTilesWriter) writeIndexRelated(
 	return nil
 }
 
-func (w *largeTilesWriter) Close() error {
+func (w *streamingWriter) Close() error {
 	for i := range w.data {
 		w.data[i] = nil
 	}

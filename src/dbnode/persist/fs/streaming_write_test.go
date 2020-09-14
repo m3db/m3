@@ -41,21 +41,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testLargeTileEntry struct {
+type testStreamingEntry struct {
 	testEntry
 	values []float64
 }
 
-func newTestLargeTilesWriter(
+func newTestStreamingWriter(
 	t *testing.T,
 	filePathPrefix string,
 	shard uint32,
 	timestamp time.Time,
 	nextVersion int,
 	plannedEntries uint,
-) LargeTilesWriter {
-	writer, err := NewLargeTilesWriter(
-		LargeTilesWriterOptions{
+) StreamingWriter {
+	writer, err := NewStreamingWriter(
+		StreamingWriterOptions{
 			NamespaceID: testNs1ID,
 			ShardID:     shard,
 			BlockStart:  timestamp,
@@ -77,14 +77,14 @@ func TestIdsMustBeSorted(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	entries := []testLargeTileEntry{
+	entries := []testStreamingEntry{
 		{testEntry{"baz", nil, nil}, []float64{65536}},
 		{testEntry{"bar", nil, nil}, []float64{4.8, 5.2, 6}},
 	}
 
-	w := newTestLargeTilesWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
 	defer w.Close()
-	err := writeTestLargeTilesData(t, w, testWriterStart, entries)
+	err := streamingWriteTestData(t, w, testWriterStart, entries)
 	require.Error(t, err)
 	require.Equal(t, "ids must be written in lexicographic order, no duplicates, but got baz followed by bar",
 		err.Error())
@@ -95,25 +95,25 @@ func TestDoubleWritesAreNotAllowed(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	entries := []testLargeTileEntry{
+	entries := []testStreamingEntry{
 		{testEntry{"baz", nil, nil}, []float64{65536}},
 		{testEntry{"baz", nil, nil}, []float64{4.8, 5.2, 6}},
 	}
 
-	w := newTestLargeTilesWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
 	defer w.Close()
-	err := writeTestLargeTilesData(t, w, testWriterStart, entries)
+	err := streamingWriteTestData(t, w, testWriterStart, entries)
 	require.Error(t, err)
 	require.Equal(t, "ids must be written in lexicographic order, no duplicates, but got baz followed by baz",
 		err.Error())
 }
 
-func TestSimpleLargeTilesReadWrite(t *testing.T) {
+func TestSimpleReadStreamingWrite(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	entries := []testLargeTileEntry{
+	entries := []testStreamingEntry{
 		{testEntry{"bar", nil, nil}, []float64{4.8, 5.2, 6}},
 		{testEntry{"baz", nil, nil}, []float64{65536}},
 		{testEntry{"cat", nil, nil}, []float64{100000}},
@@ -124,8 +124,8 @@ func TestSimpleLargeTilesReadWrite(t *testing.T) {
 		}, nil}, []float64{7, 8, 9}},
 	}
 
-	w := newTestLargeTilesWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
-	err := writeTestLargeTilesData(t, w, testWriterStart, entries)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 5)
+	err := streamingWriteTestData(t, w, testWriterStart, entries)
 	require.NoError(t, err)
 	err = w.Close()
 	require.NoError(t, err)
@@ -139,20 +139,20 @@ func TestSimpleLargeTilesReadWrite(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, expectEntries)
 }
 
-func TestLargeTilesInfoReadWrite(t *testing.T) {
+func TestInfoReadStreamingWrite(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	entries := []testLargeTileEntry{
+	entries := []testStreamingEntry{
 		{testEntry{"bar", nil, nil}, []float64{4.8, 5.2, 6}},
 		{testEntry{"baz", nil, nil}, []float64{65536}},
 		{testEntry{"cat", nil, nil}, []float64{100000}},
 		{testEntry{"foo", nil, nil}, []float64{1, 2, 3}},
 	}
 
-	w := newTestLargeTilesWriter(t, filePathPrefix, 0, testWriterStart, 0, 12)
-	err := writeTestLargeTilesData(t, w, testWriterStart, entries)
+	w := newTestStreamingWriter(t, filePathPrefix, 0, testWriterStart, 0, 12)
+	err := streamingWriteTestData(t, w, testWriterStart, entries)
 	require.NoError(t, err)
 	err = w.Close()
 	require.NoError(t, err)
@@ -167,20 +167,20 @@ func TestLargeTilesInfoReadWrite(t *testing.T) {
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }
 
-func writeTestLargeTilesData(
+func streamingWriteTestData(
 	t *testing.T,
-	w LargeTilesWriter,
+	w StreamingWriter,
 	blockStart time.Time,
-	entries []testLargeTileEntry,
+	entries []testStreamingEntry,
 ) error {
-	return writeTestLargeTilesDataWithVolume(t, w, blockStart, entries)
+	return streamingWriteWithVolume(t, w, blockStart, entries)
 }
 
-func writeTestLargeTilesDataWithVolume(
+func streamingWriteWithVolume(
 	t *testing.T,
-	w LargeTilesWriter,
+	w StreamingWriter,
 	blockStart time.Time,
-	entries []testLargeTileEntry,
+	entries []testStreamingEntry,
 ) error {
 	if err := w.Open(); err != nil {
 		return err
