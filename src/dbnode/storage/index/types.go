@@ -80,28 +80,29 @@ type Query struct {
 // QueryOptions enables users to specify constraints and
 // preferences on query execution.
 type QueryOptions struct {
-	StartInclusive    time.Time
-	EndExclusive      time.Time
-	SeriesLimit       int
-	DocsLimit         int
+	// StartInclusive is the start time for the query.
+	StartInclusive time.Time
+	// EndExclusive	is the exclusive end for the query.
+	EndExclusive time.Time
+	// SeriesLimit is an optional limit for number of series matched.
+	SeriesLimit int
+	// DocsLimit is an optional limit for number of documents matched.
+	DocsLimit int
+	// RequireExhaustive requires queries to be under given limit sizes.
 	RequireExhaustive bool
+	// IterationOptions controls additional iteration methods.
+	IterationOptions IterationOptions
+	// IndexChecksumQuery causes this query to return only matching IDs and a
+	// corresponding checksum.
+	IndexChecksumQuery bool
+	// BatchSize controls IndexChecksumQuery batch size.
+	BatchSize int
 }
 
 // IterationOptions enables users to specify iteration preferences.
 type IterationOptions struct {
+	// SeriesIteratorConsolidator provides additional series consolidations.
 	SeriesIteratorConsolidator encoding.SeriesIteratorConsolidator
-}
-
-// SeriesLimitExceeded returns whether a given size exceeds the
-// series limit the query options imposes, if it is enabled.
-func (o QueryOptions) SeriesLimitExceeded(size int) bool {
-	return o.SeriesLimit > 0 && size >= o.SeriesLimit
-}
-
-// DocsLimitExceeded returns whether a given size exceeds the
-// docs limit the query options imposes, if it is enabled.
-func (o QueryOptions) DocsLimitExceeded(size int) bool {
-	return o.DocsLimit > 0 && size >= o.DocsLimit
 }
 
 // AggregationOptions enables users to specify constraints on aggregations.
@@ -170,12 +171,13 @@ type QueryResultsOptions struct {
 	// SizeLimit will limit the total results set to a given limit and if
 	// overflown will return early successfully.
 	SizeLimit int
-
 	// FilterID, if provided, can be used to filter out unwanted IDs from
 	// the query results.
 	// NB(r): This is used to filter out results from shards the DB node
 	// node no longer owns but is still included in index segments.
 	FilterID func(id ident.ID) bool
+	// OnlySeriesIDs, if set, will not include tag values in the result map.
+	OnlySeriesIDs bool
 }
 
 // QueryResultsAllocator allocates QueryResults types.
@@ -335,7 +337,7 @@ type Block interface {
 		opts QueryOptions,
 		results BaseResults,
 		logFields []opentracinglog.Field,
-	) (exhaustive bool, err error)
+	) (bool, error)
 
 	// Aggregate aggregates known tag names/values.
 	// NB(prateek): different from aggregating by means of Query, as we can
@@ -346,7 +348,7 @@ type Block interface {
 		opts QueryOptions,
 		results AggregateResults,
 		logFields []opentracinglog.Field,
-	) (exhaustive bool, err error)
+	) (bool, error)
 
 	// AddResults adds bootstrap results to the block.
 	AddResults(resultsByVolumeType result.IndexBlockByVolumeType) error

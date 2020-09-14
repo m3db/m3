@@ -462,6 +462,16 @@ func (r *blockRetriever) Stream(
 	// read the data.
 	return req.toBlock(), nil
 }
+func (r *blockRetriever) StreamIndexChecksum(
+	ctx context.Context,
+	shard uint32,
+	id ident.ID,
+	useID bool,
+	startTime time.Time,
+	nsCtx namespace.Context,
+) (ident.IndexChecksum, bool, error) {
+	return ident.IndexChecksum{}, false, nil // TODO: implement.
+}
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
 	return xio.BlockReader{

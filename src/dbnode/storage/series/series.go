@@ -410,7 +410,7 @@ func (s *dbSeries) IndexChecksum(
 ) (ident.IndexChecksum, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.indexChecksum(ctx, start, useID, nsCtx)
+	r, err := reader.IndexChecksum(ctx, start, useID, nsCtx)
 	s.RUnlock()
 	return r, err
 }

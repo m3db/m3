@@ -203,6 +203,16 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	return results, nil
 }
 
+// IndexChecksum reads index checksum blocks using just a block retriever.
+func (r Reader) IndexChecksum(
+	ctx context.Context,
+	start time.Time,
+	useID bool,
+	nsCtx namespace.Context,
+) (ident.IndexChecksum, error) {
+	return ident.IndexChecksum{}, nil // TODO: add logic.
+}
+
 // FetchBlocks returns data blocks given a list of block start times using
 // just a block retriever.
 func (r Reader) FetchBlocks(
