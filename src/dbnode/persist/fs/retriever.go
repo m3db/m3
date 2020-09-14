@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/limits"
@@ -380,6 +381,7 @@ func (r *blockRetriever) fetchBatch(
 		// far, otherwise we'll get a checksum mismatch error because the default
 		// offset value for indexEntry is zero.
 		if req.foundAndHasNoError() {
+			// FIXME: here req.checksumMismatcher.ComputeMismatchForEntry(req.indexEntry)
 			data, err = seeker.SeekByIndexEntry(req.indexEntry, seekerResources)
 			if err != nil && err != errSeekIDNotFound {
 				req.onError(err)
@@ -704,11 +706,12 @@ type retrieveRequest struct {
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
 
-	reqType       reqType
-	indexEntry    IndexEntry
-	indexChecksum ident.IndexChecksum
-	useID         bool
-	reader        xio.SegmentReader
+	reqType            reqType
+	indexEntry         IndexEntry
+	indexChecksum      ident.IndexChecksum
+	useID              bool
+	reader             xio.SegmentReader
+	checksumMismatcher wide.EntryChecksumMismatchChecker
 
 	err error
 
@@ -840,6 +843,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.reqType = streamReq
 	req.indexEntry = IndexEntry{}
 	req.indexChecksum = ident.IndexChecksum{}
+	// req.checksumMismatcher = req.checksumMismatcher.Reset() TODO: reset this here
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

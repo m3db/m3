@@ -62,7 +62,7 @@ const (
 	InsertAsync
 )
 
-// AggregationType specifies what granularity to aggregate upto.
+// AggregationType specifies aggregate query granularity.
 type AggregationType uint8
 
 const (

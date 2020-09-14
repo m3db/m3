@@ -21,6 +21,8 @@
 package msgpack
 
 import (
+	"hash/adler32"
+
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 )
 
@@ -43,6 +45,10 @@ type DecodingOptions interface {
 
 const (
 	defaultAllocDecodedBytes = false
+)
+
+var (
+	defaultHash = adler32.New()
 )
 
 type decodingOptions struct {

@@ -49,8 +49,14 @@ const (
 	// AggregateTiles is the operation name for the tchannelthrift AggregateTiles path.
 	AggregateTiles = "tchannelthrift/node.service.AggregateTiles"
 
+	// FetchMismatches is the operation name for the tchannelthrift FetchMismatches path.
+	FetchMismatches = "tchannelthrift/node.service.FetchMismatches"
+
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
+
+	// DBQueryIDsFetchMismatch is the operation name for the db QueryIDsFetchMismatch path.
+	DBQueryIDsFetchMismatch = "storage.db.QueryIDsFetchMismatch"
 
 	// DBAggregateQuery is the operation name for the db AggregateQuery path.
 	DBAggregateQuery = "storage.db.AggregateQuery"
@@ -82,11 +88,17 @@ const (
 	// NSWideQueryIDs is the operation name for the dbNamespace WideQueryIDs path.
 	NSWideQueryIDs = "storage.nsIndex.WideQueryIDs"
 
+	// NSFetchMismatchQuery is the operation name for the dbNamespace QueryIDs path when fetching mismatches.
+	NSFetchMismatchQuery = "storage.nsIndex.FetchMismatch"
+
 	// NSPrepareBootstrap is the operation name for the dbNamespace PrepareBootstrap path.
 	NSPrepareBootstrap = "storage.dbNamespace.PrepareBootstrap"
 
 	// NSBootstrap is the operation name for the dbNamespace Bootstrap path.
 	NSBootstrap = "storage.dbNamespace.Bootstrap"
+
+	// NSFetchMismatch is the operation name for the tchannelthrift FetchMismatch path.
+	NSFetchMismatch = "storage.dbNamespace.FetchMismatch"
 
 	// ShardPrepareBootstrap is the operation name for the dbShard PrepareBootstrap path.
 	ShardPrepareBootstrap = "storage.dbShard.PrepareBootstrap"
@@ -117,6 +129,9 @@ const (
 
 	// BlockAggregate is the operation name for the index block aggregate path.
 	BlockAggregate = "storage/index.block.Aggregate"
+
+	// FetchMismatchQuery is the operation name for the FetchMismatch query path.
+	FetchMismatchQuery = "storage/index.block.FetchMismatch"
 
 	// BootstrapProcessRun is the operation name for the bootstrap process Run path.
 	BootstrapProcessRun = "bootstrap.bootstrapProcess.Run"

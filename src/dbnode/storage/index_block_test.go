@@ -45,6 +45,7 @@ import (
 	"github.com/golang/mock/gomock"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -678,6 +679,98 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 			spans := mtr.FinishedSpans()
 			require.Len(t, spans, 11)
 		})
+	}
+}
+
+func TestWideNamespaceIndexBlockQuery(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	retention := 2 * time.Hour
+	blockSize := time.Hour
+	now := time.Now()
+	start := now.Truncate(blockSize)
+	startNanos := xtime.ToUnixNano(start)
+	end := start.Add(1 * blockSize)
+	var nowLock sync.Mutex
+	nowFn := func() time.Time {
+		nowLock.Lock()
+		defer nowLock.Unlock()
+		return now
+	}
+
+	opts := DefaultTestOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+
+	b0 := index.NewMockBlock(ctrl)
+	b0.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	b0.EXPECT().Close().Return(nil)
+	b0.EXPECT().StartTime().Return(start).AnyTimes()
+	b0.EXPECT().EndTime().Return(end).AnyTimes()
+	newBlockFn := func(
+		ts time.Time,
+		md namespace.Metadata,
+		_ index.BlockOptions,
+		_ namespace.RuntimeOptionsManager,
+		io index.Options,
+	) (index.Block, error) {
+		require.Equal(t, start, ts)
+		return b0, nil
+	}
+	md := testNamespaceMetadata(blockSize, retention)
+	idx, err := newNamespaceIndexWithNewBlockFn(md,
+		namespace.NewRuntimeOptionsManager(md.ID().String()),
+		testShardSet, newBlockFn, opts)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, idx.Close())
+	}()
+
+	seg1 := segment.NewMockSegment(ctrl)
+	startResults := result.NewIndexBlockByVolumeType(start)
+	startResults.SetBlock(idxpersist.DefaultIndexVolumeType,
+		result.NewIndexBlock([]result.Segment{result.NewSegment(seg1, false)},
+			result.NewShardTimeRangesFromRange(start, end, 1, 2, 3)))
+	bootstrapResults := result.IndexResults{
+		startNanos: startResults,
+	}
+
+	b0.EXPECT().AddResults(bootstrapResults[startNanos]).Return(nil)
+	require.NoError(t, idx.Bootstrap(bootstrapResults))
+
+	tests := []struct {
+		queryType  index.QueryType
+		tracepoint string
+	}{
+		{queryType: index.IndexChecksum, tracepoint: "storage.nsIndex.IndexChecksum"},
+		{queryType: index.FetchMismatch, tracepoint: "storage.nsIndex.FetchMismatch"},
+	}
+
+	for _, tt := range tests {
+		// only queries as much as is needed (wrt to time)
+		ctx := context.NewContext()
+		q := defaultQuery
+		qOpts := index.QueryOptions{
+			QueryType:      tt.queryType,
+			StartInclusive: start,
+			EndExclusive:   end,
+		}
+
+		// create initial span from a mock tracer and get ctx
+		mtr := mocktracer.New()
+		sp := mtr.StartSpan("root")
+		ctx.SetGoContext(opentracing.ContextWithSpan(stdlibctx.Background(), sp))
+
+		b0.EXPECT().Query(gomock.Any(), gomock.Any(), q, qOpts, gomock.Any(), gomock.Any()).Return(true, nil)
+		result, err := idx.Query(ctx, q, qOpts)
+		require.NoError(t, err)
+		require.True(t, result.Exhaustive)
+
+		sp.Finish()
+		spans := mtr.FinishedSpans()
+		require.Len(t, spans, 4)
+		assert.Equal(t, tt.tracepoint, spans[2].OperationName)
 	}
 }
 

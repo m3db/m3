@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -147,6 +148,21 @@ func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg
 func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadata", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchBlocksMetadata), arg0, arg1, arg2, arg3)
+}
+
+// FetchMismatch mocks base method
+func (m *MockDatabaseSeries) FetchMismatch(arg0 context.Context, arg1 wide.IndexChecksumBlockBuffer, arg2 time.Time, arg3 namespace.Context) ([]wide.ReadMismatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchMismatch", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]wide.ReadMismatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchMismatch indicates an expected call of FetchMismatch
+func (mr *MockDatabaseSeriesMockRecorder) FetchMismatch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchMismatch", reflect.TypeOf((*MockDatabaseSeries)(nil).FetchMismatch), arg0, arg1, arg2, arg3)
 }
 
 // ID mocks base method

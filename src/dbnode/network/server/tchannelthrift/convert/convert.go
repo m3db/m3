@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -202,6 +203,49 @@ type FetchTaggedConversionPools interface {
 
 	// CheckedBytesWrapperPool returns a CheckedBytesWrapperPool.
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
+}
+
+// FromFetchMismatchRequest converts the rpc request type for FetchMismatchRequest into corresponding Go API types.
+func FromFetchMismatchRequest(
+	req *rpc.FetchMismatchRequest,
+	buffer wide.IndexChecksumBlockBuffer,
+	pools FetchTaggedConversionPools,
+) (ident.ID, index.Query, index.QueryOptions, error) {
+	start, rangeStartErr := ToTime(req.Query.BlockStart, fetchTaggedTimeType)
+	if rangeStartErr != nil {
+		return nil, index.Query{}, index.QueryOptions{}, rangeStartErr
+	}
+
+	opts := index.QueryOptions{
+		StartInclusive: start,
+		SeriesLimit:    0,
+		DocsLimit:      0,
+	}
+
+	q, err := idx.Unmarshal(req.Query.Query)
+	if err != nil {
+		return nil, index.Query{}, index.QueryOptions{}, err
+	}
+
+	var ns ident.ID
+	if pools != nil {
+		nsBytes := pools.CheckedBytesWrapper().Get(req.Query.NameSpace)
+		ns = pools.ID().BinaryID(nsBytes)
+	} else {
+		ns = ident.StringID(string(req.Query.NameSpace))
+	}
+
+	go func() {
+		buffer.Push(ident.IndexChecksumBlock{
+			Checksums: req.ChecksumBatch.Checksums,
+			Marker:    req.ChecksumBatch.Marker,
+		})
+
+		// TODO: stream rather than cancelling after first.
+		buffer.Close()
+	}()
+
+	return ns, index.Query{Query: q}, opts, nil
 }
 
 // FromRPCFetchTaggedRequest converts the rpc request type for FetchTaggedRequest into corresponding Go API types.

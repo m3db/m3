@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -181,6 +182,16 @@ type Database interface {
 		shards []uint32,
 		iterOpts index.IterationOptions,
 	) ([]ident.IndexChecksum, error) // FIXME: change when exact type known.
+
+	// FetchMismatch retrieves read mismatch segments for an ID, given a
+	// checksum block buffer.
+	FetchMismatch(
+		ctx context.Context,
+		namespace ident.ID,
+		id ident.ID,
+		buffer wide.IndexChecksumBlockBuffer,
+		start time.Time,
+	) ([]wide.ReadMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -364,6 +375,15 @@ type databaseNamespace interface {
 		useID bool,
 	) (ident.IndexChecksum, error)
 
+	// FetchMismatch retrieves read mismatch segments for an ID, given a
+	// checksum block buffer.
+	FetchMismatch(
+		ctx context.Context,
+		id ident.ID,
+		buffer wide.IndexChecksumBlockBuffer,
+		start time.Time,
+	) ([]wide.ReadMismatch, error)
+
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
 	FetchBlocks(
@@ -530,6 +550,16 @@ type databaseShard interface {
 		useID bool,
 		nsCtx namespace.Context,
 	) (ident.IndexChecksum, error)
+
+	// FetchMismatch retrieves read mismatch segments for an ID, given a
+	// checksum block buffer.
+	FetchMismatch(
+		ctx context.Context,
+		id ident.ID,
+		buffer wide.IndexChecksumBlockBuffer,
+		start time.Time,
+		nsCtx namespace.Context,
+	) ([]wide.ReadMismatch, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.

@@ -22,6 +22,7 @@ package node
 
 import (
 	"bytes"
+	"context"
 	gocontext "context"
 	"errors"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -3152,4 +3154,162 @@ func TestServiceAggregateTiles(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, int64(4), result.ProcessedTileCount)
+}
+
+func TestServiceFetchMismatch(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	batchSize := 0
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+	opts := testTChannelThriftOptions.SetBatchSize(batchSize)
+	service := NewService(mockDB, opts).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(gocontext.Background(), sp))
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	nsID := "metrics"
+
+	streams := map[string]xio.SegmentReader{}
+	series := map[string][]struct {
+		t time.Time
+		v float64
+	}{
+		"abc": {
+			{start.Add(10 * time.Second), 1.0},
+			{start.Add(20 * time.Second), 2.0},
+		},
+		"bar": {
+			{start.Add(20 * time.Second), 3.0},
+			{start.Add(30 * time.Second), 4.0},
+		},
+		"baz": {
+			{start.Add(10 * time.Second), 5.0},
+			{start.Add(30 * time.Second), 6.0},
+		},
+	}
+	for id, s := range series {
+		enc := testStorageOpts.EncoderPool().Get()
+		enc.Reset(start, 0, nil)
+		for _, v := range s {
+			dp := ts.Datapoint{
+				Timestamp: v.t,
+				Value:     v.v,
+			}
+			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
+		}
+
+		stream, _ := enc.Stream(ctx)
+		streams[id] = stream
+		// expectedChecksum := int64(s[0].v)
+		mockDB.EXPECT().
+			//ctx context.Context, namespace, id ident.ID, buffer wide.IndexChecksumBlockBuffer, start time.Time
+			// FetchMismatch(gomock.Any(), ident.NewIDMatcher(nsID),
+			// ident.NewIDMatcher(id), gomock.Any(), start).
+			FetchMismatch(gomock.Any(), gomock.Any(),
+				gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, namespace, id ident.ID,
+				buffer wide.IndexChecksumBlockBuffer, start time.Time,
+			) ([]wide.ReadMismatch, error) {
+				assert.True(t, buffer.Next())
+				chksum := buffer.Current()
+				fmt.Println("checksum", chksum)
+				assert.False(t, buffer.Next())
+				// if useID {
+				// 	bID := id.Bytes()
+				// 	b := append(make([]byte, 0, len(bID)), bID...)
+				// 	return []wide.ReadMismatch{{Mismatched: true, Checksum: 12}}, /*
+				// 			// Mismatched indicates this is a mismatched read.
+				// 			Mismatched bool
+				// 			// Checksum is the checksum for the mismatched series.
+				// 			Checksum int64
+				// 			// Data is the data for this query.
+				// 			// NB: only present for entry mismatches.
+				// 			Data checked.Bytes
+				// 			// EncodedTags are the tags for this query.
+				// 			// NB: only present for entry mismatches.
+				// 			EncodedTags []byte
+				// 			// ID is the ID for this query.
+				// 			// NB: only present for entry mismatches.
+				// 			ID []byte
+
+				// 			cleanup Cleanup*/
+				// 		nil
+				// }
+
+				return nil, nil
+			}).AnyTimes()
+	}
+
+	req, err := idx.NewRegexpQuery([]byte("abc"), []byte("b.*"))
+	require.NoError(t, err)
+	qry := index.Query{Query: req}
+
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
+	resMap.Map().Set(ident.StringID("abc"), nil)
+	resMap.Map().Set(ident.StringID("bar"), nil)
+	resMap.Map().Set(ident.StringID("baz"), nil)
+
+	fmt.Printf("extp %+v\n", index.QueryOptions{
+		StartInclusive: start,
+		QueryType:      index.FetchMismatch,
+		BatchSize:      batchSize,
+	})
+
+	mockDB.EXPECT().QueryIDs(
+		gomock.Any(),
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.QueryOptions{
+			StartInclusive: start,
+			QueryType:      index.FetchMismatch,
+			BatchSize:      batchSize,
+		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil).AnyTimes()
+
+	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+	bs := int64(batchSize)
+	r, err := service.FetchMismatch(tctx, &rpc.FetchMismatchRequest{
+		Query: &rpc.IndexChecksumRequest{
+			NameSpace:  []byte(nsID),
+			Query:      []byte(data),
+			BlockStart: startNanos,
+			BatchSize:  &bs,
+		},
+		ChecksumBatch: &rpc.IndexChecksumResult_{
+			Checksums: []int64{1, 2, 3, 4},
+			Marker:    []byte("marker"),
+		},
+	})
+	require.NoError(t, err)
+
+	// expected := &rpc.FetchMismatchResult_{
+	// 	Checksums: []int64{1, 3, 5},
+	// 	Marker:    []byte("baz"),
+	// }
+	fmt.Println(r, string(data))
+	// assert.Equal(t, expected, r)
+
+	// sp.Finish()
+	// spans := mtr.FinishedSpans()
+	// require.Len(t, spans, 3)
+	// assert.Equal(t, tracepoint.FetchMismatchSingleResult, spans[0].OperationName)
+	// assert.Equal(t, tracepoint.FetchMismatch, spans[1].OperationName)
+	// assert.Equal(t, "root", spans[2].OperationName)
 }

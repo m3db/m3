@@ -27,15 +27,24 @@ import (
 	"github.com/m3db/m3/src/x/ident"
 )
 
+const invalid = ""
+
+// SnapToNearestDataBlock will snap query options to the closest block, given
+// the data block size.
+func (o *QueryOptions) SnapToNearestDataBlock(blockSize time.Duration) {
+	o.StartInclusive = o.StartInclusive.Truncate(blockSize)
+	o.EndExclusive = o.StartInclusive.Add(blockSize)
+}
+
 // SeriesLimitExceeded returns whether a given size exceeds the
 // series limit the query options imposes, if it is enabled.
-func (o QueryOptions) SeriesLimitExceeded(size int) bool {
+func (o *QueryOptions) SeriesLimitExceeded(size int) bool {
 	return o.SeriesLimit > 0 && size >= o.SeriesLimit
 }
 
 // DocsLimitExceeded returns whether a given size exceeds the
 // docs limit the query options imposes, if it is enabled.
-func (o QueryOptions) DocsLimitExceeded(size int) bool {
+func (o *QueryOptions) DocsLimitExceeded(size int) bool {
 	return o.DocsLimit > 0 && size >= o.DocsLimit
 }
 
@@ -44,7 +53,7 @@ func (o QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
 	return o.SeriesLimitExceeded(seriesCount) || o.DocsLimitExceeded(docsCount)
 }
 
-func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
+func (o *QueryOptions) exhaustive(seriesCount, docsCount int) bool {
 	return !o.SeriesLimitExceeded(seriesCount) && !o.DocsLimitExceeded(docsCount)
 }
 

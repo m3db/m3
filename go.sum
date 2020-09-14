@@ -494,10 +494,8 @@ github.com/lightstep/lightstep-tracer-go v0.18.1/go.mod h1:jlF1pusYV4pidLvZ+XD0U
 github.com/lyft/protoc-gen-validate v0.0.13/go.mod h1:XbGvPuh87YZc5TdIa2/I4pLk0QoUACkjt2znoq26NVQ=
 github.com/m3db/bitset v2.0.0+incompatible h1:wMgri1Z2QSwJ8K/7ZuV7vE4feLOT7EofVC8RakIOybI=
 github.com/m3db/bitset v2.0.0+incompatible/go.mod h1:X8CCqZmZxs2O6d4qHhiqtAKCin4G5mScPhiwX9rsc5c=
-github.com/m3db/bloom v3.0.1+incompatible h1:EILDlnoiPKJAGtg3RCm7Zf5VIpwh+hgcHokoZNzeJy8=
-github.com/m3db/bloom v3.0.1+incompatible/go.mod h1:W6XzpFw4t+CIYq+NGyp5c2394YsUc1P1+W/KAWty2lU=
-github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9 h1:H5Iznc9FI44Sekos8STE+Hj2cPohzaYfWTUHf77q6RY=
-github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9/go.mod h1:JDmGHlO6ygyY1V9eOHtXiNl3+axznDTrBqwWEeWALlQ=
+github.com/m3db/bloom/v4 v4.0.0 h1:oK8MZmnwY+FpinSigY//EAjCC41McZ2KcmnRXpS2CU4=
+github.com/m3db/bloom/v4 v4.0.0/go.mod h1:mHdlh1IHhEMkGmsGWMS7lsK74tVKWmGSjfsTTuCakTQ=
 github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a h1:CwsSHIJLeCESKdZ844jXg/3rQD3yA5azuVlJBp5w8U8=
 github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a/go.mod h1:Pk9AtZeKuCO2xcAth0gxwzRNFv4lV26GPSx4I6A7DQ8=
 github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd h1:wzLBtXzxZM9b6IXwLSRE5crynocLTCuRDpGDaOJzyuI=
@@ -512,8 +510,6 @@ github.com/m3db/prometheus_procfs v0.8.1 h1:LsxWzVELhDU9sLsZTaFLCeAwCn7bC7qecZcK
 github.com/m3db/prometheus_procfs v0.8.1/go.mod h1:N8lv8fLh3U3koZx1Bnisj60GYUMDpWb09x1R+dmMOJo=
 github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f h1:+FWCOZjB96lBc0L7lvz6/TW1gF5fEVd6JQNQG59CpZE=
 github.com/m3db/stackadler32 v0.0.0-20180104200216-bfebcd73ef6f/go.mod h1:VJQWii2dj/AE1cRKup4MXL4TKbbs5J4wZnNe5I1CZaw=
-github.com/m3db/stackmurmur3 v1.0.1 h1:ASTdJ6Bd2m34dgsnOBZHrwWdKGcpaavP3MokiKL/ERs=
-github.com/m3db/stackmurmur3 v1.0.1/go.mod h1:hkR/F91aDUfPxDv5Jw55ifIXV6ZW1jzNHW0d8GP02rw=
 github.com/m3db/stackmurmur3/v2 v2.0.2 h1:q/kOlC12PwOib9XziHUTM/jsCQULHnRxBz/H4hT/Aro=
 github.com/m3db/stackmurmur3/v2 v2.0.2/go.mod h1:HnguA9wfEbTqYdTT/5klUlhxSDPRMGaWyvLzugxW+MA=
 github.com/m3db/thrift v0.0.0-20190820191926-05b5a2227fe4 h1:1x3mMuURd3wqKJ2qVjhRYOAmL9g4EA9JTagWB/y/3xo=
@@ -809,8 +805,6 @@ github.com/tmc/grpc-websocket-proxy v0.0.0-20170815181823-89b8d40f7ca8/go.mod h1
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5 h1:LnC5Kc/wtumK+WB441p7ynQJzVuNRJiqddSIE3IlSEQ=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
-github.com/twmb/murmur3 v1.1.4 h1:NnlAxelwOgdQDmYuV0T/K+tpDQ/8wdsDVOGmvUqBOCw=
-github.com/twmb/murmur3 v1.1.4/go.mod h1:Qq/R7NUyOfr65zD+6Q5IHKsJLwP7exErjN6lyyq3OSQ=
 github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553 h1:DRC1ubdb3ZmyyIeCSTxjZIQAnpLPfKVgYrLETQuOPjo=
 github.com/twotwotwo/sorts v0.0.0-20160814051341-bf5c1f2b8553/go.mod h1:Rj7Csq/tZ/egz+Ltc2IVpsA5309AmSMEswjkTZmq2Xc=
 github.com/uber-go/tally v3.3.13+incompatible h1:5ic2UsDwjcWsw9jvEdWEE2XsmGCLMTt5Ukg4d74fed4=

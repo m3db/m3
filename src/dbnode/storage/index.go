@@ -1337,10 +1337,12 @@ func (i *nsIndex) Query(
 
 	// Get results and set the namespace ID and size limit.
 	results := i.resultsPool.Get()
-	results.Reset(i.nsMetadata.ID(), index.QueryResultsOptions{
+	resultOpts := index.QueryResultsOptions{
 		SizeLimit: opts.SeriesLimit,
 		FilterID:  i.shardsFilterID(),
-	})
+	}
+
+	results.Reset(i.nsMetadata.ID(), resultOpts)
 	ctx.RegisterFinalizer(results)
 	exhaustive, err := i.query(ctx, query, results, opts, i.execBlockQueryFn, logFields)
 	if err != nil {
@@ -1753,7 +1755,7 @@ func (i *nsIndex) execBlockAggregateQueryFn(
 	ctx context.Context,
 	cancellable *resource.CancellableLifetime,
 	block index.Block,
-	query index.Query,
+	_ index.Query,
 	opts index.QueryOptions,
 	state *asyncQueryExecState,
 	results index.BaseResults,

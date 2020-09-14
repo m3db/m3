@@ -36,7 +36,7 @@ type objectPoolOptions struct {
 	onPoolAccessErrorFn OnPoolAccessErrorFn
 }
 
-// NewObjectPoolOptions creates a new set of object pool options
+// NewObjectPoolOptions creates a new set of object pool options.
 func NewObjectPoolOptions() ObjectPoolOptions {
 	return &objectPoolOptions{
 		size:                defaultSize,

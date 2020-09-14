@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs/wide"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
@@ -411,6 +412,19 @@ func (s *dbSeries) IndexChecksum(
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.IndexChecksum(ctx, start, useID, nsCtx)
+	s.RUnlock()
+	return r, err
+}
+
+func (s *dbSeries) FetchMismatch(
+	ctx context.Context,
+	buffer wide.IndexChecksumBlockBuffer,
+	start time.Time,
+	nsCtx namespace.Context,
+) ([]wide.ReadMismatch, error) {
+	s.RLock()
+	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
+	r, err := reader.FetchMismatch(ctx, buffer, start, nsCtx)
 	s.RUnlock()
 	return r, err
 }

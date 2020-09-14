@@ -423,7 +423,14 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	if !ok {
 		return emptyIndexEntry
 	}
+	return dec.decodeIndexEntryWithSizes(numFieldsToSkip, actual, bytesPool)
+}
 
+func (dec *Decoder) decodeIndexEntryWithSizes(
+	numFieldsToSkip int,
+	actual int,
+	bytesPool pool.BytesPool,
+) schema.IndexEntry {
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
 

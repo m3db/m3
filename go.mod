@@ -51,7 +51,7 @@ require (
 	github.com/lib/pq v1.6.0 // indirect
 	github.com/lightstep/lightstep-tracer-go v0.18.1
 	github.com/m3db/bitset v2.0.0+incompatible
-	github.com/m3db/bloom/v4 v4.0.0-20200901140942-52efb8544fe9
+	github.com/m3db/bloom/v4 v4.0.0
 	github.com/m3db/build-tools v0.0.0-20181013000606-edd1bdd1df8a
 	github.com/m3db/m3x v0.0.0-20190408051622-ebf3c7b94afd // indirect
 	github.com/m3db/prometheus_client_golang v0.8.1
@@ -63,6 +63,7 @@ require (
 	github.com/m3db/tools v0.0.0-20181008195521-c6ded3f34878
 	github.com/m3dbx/pilosa v1.4.1
 	github.com/m3dbx/vellum v0.0.0-20200826162549-f94c029903de
+	github.com/magiconair/properties v1.8.2 // indirect
 	github.com/mauricelam/genny v0.0.0-20180903214747-eb2c5232c885
 	github.com/mjibson/esc v0.1.0
 	github.com/opencontainers/image-spec v1.0.1 // indirect
