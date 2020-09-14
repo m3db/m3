@@ -120,7 +120,9 @@ func (w *streamMismatchWriter) emitChecksumMismatches(
 	outStream chan<- ReadMismatch,
 ) {
 	// NB: If data checksums match, this entry matches.
-	if checksum == e.entry.Hash(w.decodeOpts.Hash32()) {
+	entryChecksum := e.entry.Hash(w.decodeOpts.Hash32())
+	w.decodeOpts.Hash32().Reset()
+	if checksum == entryChecksum {
 		return
 	}
 

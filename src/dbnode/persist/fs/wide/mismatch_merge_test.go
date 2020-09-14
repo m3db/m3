@@ -69,7 +69,6 @@ func buildExpectedOutputStream(
 		actual := make([]ReadMismatch, 0, len(expected))
 		for mismatch := range ch {
 			actual = append(actual, mismatch)
-			fmt.Printf("%+v\n", mismatch)
 		}
 		assert.Equal(t, expected, actual,
 			fmt.Sprintf("mismatch lists do not match\n\nExpected: %+v\nActual:   %+v",
@@ -153,12 +152,12 @@ func TestDrainRemainingBlockStreamAndClose(t *testing.T) {
 }
 
 func TestReadRemainingReadersAndClose(t *testing.T) {
-	entry := idxEntry("b1ar")
-	reader := newEntryReaders(idxEntry("f2oo"), idxEntry("q3ux"))
+	entry := idxEntry("bar1")
+	reader := newEntryReaders(idxEntry("foo2"), idxEntry("qux3"))
 	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
-		mismatch(1, []byte("bar")),
-		mismatch(2, []byte("foo")),
-		mismatch(3, []byte("qux")),
+		mismatch(1, []byte("bar1")),
+		mismatch(2, []byte("foo2")),
+		mismatch(3, []byte("qux3")),
 	})
 	defer wg.Wait()
 
@@ -172,7 +171,7 @@ func TestEmitChecksumMismatches(t *testing.T) {
 	})
 
 	w := newTestStreamMismatchWriter(t)
-	w.emitChecksumMismatches(idxEntry("b1ar"), 1, outStream)
+	w.emitChecksumMismatches(idxEntry("bar1"), 1, outStream)
 	w.emitChecksumMismatches(idxEntry("def2"), 1, outStream)
 
 	// NB: outStream not closed naturally in this subfunction; close explicitly.
@@ -245,12 +244,12 @@ func TestLoadNextValidIndexChecksumBlockValid(t *testing.T) {
 
 func TestLoadNextValidIndexChecksumBlockSkipThenValid(t *testing.T) {
 	bl1 := ident.IndexChecksumBlock{
-		Marker:    []byte("aardvark"),
+		Marker:    []byte("aardvark2"),
 		Checksums: []int64{1, 2},
 	}
 
 	bl2 := ident.IndexChecksumBlock{
-		Marker:    []byte("zztop"),
+		Marker:    []byte("zztop4"),
 		Checksums: []int64{3, 4},
 	}
 
@@ -269,7 +268,7 @@ func TestLoadNextValidIndexChecksumBlockSkipThenValid(t *testing.T) {
 	bl, hasNext := w.loadNextValidIndexChecksumBatch(inStream, reader, outStream)
 	assert.True(t, hasNext)
 	assert.Equal(t, []int64{3, 4}, bl.Checksums)
-	assert.Equal(t, "zztop", string(bl.Marker))
+	assert.Equal(t, "zztop4", string(bl.Marker))
 
 	// NB: outStream not closed in this path; close explicitly.
 	close(outStream)
@@ -277,12 +276,12 @@ func TestLoadNextValidIndexChecksumBlockSkipThenValid(t *testing.T) {
 
 func TestLoadNextValidIndexChecksumBlockSkipsExhaustive(t *testing.T) {
 	bl1 := ident.IndexChecksumBlock{
-		Marker:    []byte("aardvark"),
+		Marker:    []byte("aardvark2"),
 		Checksums: []int64{1, 2},
 	}
 
 	bl2 := ident.IndexChecksumBlock{
-		Marker:    []byte("abc"),
+		Marker:    []byte("abc4"),
 		Checksums: []int64{3, 4},
 	}
 
@@ -311,7 +310,7 @@ func TestLoadNextValidIndexChecksumBlockSkipsExhaustive(t *testing.T) {
 
 func TestLoadNextValidIndexChecksumBlockLastElementMatch(t *testing.T) {
 	inStream := buildDataInputStream([]ident.IndexChecksumBlock{{
-		Marker:    []byte("abc"),
+		Marker:    []byte("abc3"),
 		Checksums: []int64{1, 2, 3},
 	}})
 	reader := newEntryReaders(idxEntry("abc3"))
@@ -333,17 +332,17 @@ func TestLoadNextValidIndexChecksumBlockLastElementMatch(t *testing.T) {
 
 func TestLoadNextValidIndexChecksumBlock(t *testing.T) {
 	bl1 := ident.IndexChecksumBlock{
-		Marker:    []byte("a"),
+		Marker:    []byte("a3"),
 		Checksums: []int64{1, 2, 3},
 	}
 
 	bl2 := ident.IndexChecksumBlock{
-		Marker:    []byte("b"),
+		Marker:    []byte("b5"),
 		Checksums: []int64{4, 5},
 	}
 
 	bl3 := ident.IndexChecksumBlock{
-		Marker:    []byte("d"),
+		Marker:    []byte("d7"),
 		Checksums: []int64{6, 7},
 	}
 
@@ -356,6 +355,7 @@ func TestLoadNextValidIndexChecksumBlock(t *testing.T) {
 		{Checksum: 1},
 		{Checksum: 2},
 		{Checksum: 3},
+		{Checksum: 4},
 	})
 	defer wg.Wait()
 
@@ -370,22 +370,22 @@ func TestLoadNextValidIndexChecksumBlock(t *testing.T) {
 
 func TestMergeHelper(t *testing.T) {
 	bl1 := ident.IndexChecksumBlock{
-		Marker:    []byte("a"),
+		Marker:    []byte("a3"),
 		Checksums: []int64{2, 3},
 	}
 
 	bl2 := ident.IndexChecksumBlock{
-		Marker:    []byte("d"),
+		Marker:    []byte("d5"),
 		Checksums: []int64{12, 4, 5},
 	}
 
 	bl3 := ident.IndexChecksumBlock{
-		Marker:    []byte("mismatch"),
+		Marker:    []byte("mismatch88"),
 		Checksums: []int64{6},
 	}
 
 	bl4 := ident.IndexChecksumBlock{
-		Marker:    []byte("z"),
+		Marker:    []byte("z1"),
 		Checksums: []int64{1},
 	}
 
@@ -393,7 +393,7 @@ func TestMergeHelper(t *testing.T) {
 		bl1, bl2, bl3, bl4})
 	mismatched := entry{
 		entry: schema.IndexEntry{
-			ID: []byte("mismatch"),
+			ID: []byte("mismatch88"),
 		},
 		idChecksum: 88,
 	}
@@ -402,7 +402,7 @@ func TestMergeHelper(t *testing.T) {
 		idxEntry("b12"),
 		idxEntry("d5"),
 		mismatched,
-		idxEntry("q7ux"))
+		idxEntry("qux7"))
 	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
 		// Values preceeding MARKER in second index hash block are only on primary.
 		{Checksum: 2},
@@ -410,9 +410,9 @@ func TestMergeHelper(t *testing.T) {
 		{Checksum: 4},
 		// Value at 5 matches, not in output.
 		// Value at 6 is a DATA_MISMATCH
-		ReadMismatch{Checksum: 88, ID: []byte("mismatch")},
+		ReadMismatch{Checksum: 88, ID: []byte("mismatch88")},
 		// Value at 10 only on secondary.
-		mismatch(7, []byte("qux")),
+		mismatch(7, []byte("qux7")),
 		// Value at 7 only on primary.
 		{Checksum: 1},
 	})
@@ -437,7 +437,7 @@ func TestMergeIntermittentBlock(t *testing.T) {
 	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
 		{Checksum: 1},
 		{Checksum: 3},
-		mismatch(4, []byte("y")),
+		mismatch(4, []byte("y4")),
 	})
 	defer wg.Wait()
 
@@ -449,7 +449,7 @@ func TestMergeIntermittentBlock(t *testing.T) {
 
 func TestMergeIntermittentBlockMismatch(t *testing.T) {
 	bl := ident.IndexChecksumBlock{
-		Marker:    []byte("z"),
+		Marker:    []byte("z5"),
 		Checksums: []int64{1, 2, 3, 4},
 	}
 
@@ -460,8 +460,9 @@ func TestMergeIntermittentBlockMismatch(t *testing.T) {
 	)
 
 	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
-		mismatch(2, []byte("n")),
-		mismatch(5, []byte("z")),
+		{Checksum: 1},
+		{Checksum: 3},
+		mismatch(5, []byte("z5")),
 	})
 	defer wg.Wait()
 
@@ -473,12 +474,12 @@ func TestMergeIntermittentBlockMismatch(t *testing.T) {
 
 func TestMergeTrailingBlock(t *testing.T) {
 	bl1 := ident.IndexChecksumBlock{
-		Marker:    []byte("m"),
+		Marker:    []byte("m2"),
 		Checksums: []int64{1, 2},
 	}
 
 	bl2 := ident.IndexChecksumBlock{
-		Marker:    []byte("z"),
+		Marker:    []byte("z5"),
 		Checksums: []int64{3, 5},
 	}
 
@@ -490,7 +491,7 @@ func TestMergeTrailingBlock(t *testing.T) {
 
 	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
 		{Checksum: 2},
-		mismatch(4, []byte("w")),
+		mismatch(4, []byte("w4")),
 		{Checksum: 3},
 		{Checksum: 5},
 	})
@@ -504,22 +505,22 @@ func TestMergeTrailingBlock(t *testing.T) {
 
 func TestMerge(t *testing.T) {
 	bl1 := ident.IndexChecksumBlock{
-		Marker:    []byte("c"),
+		Marker:    []byte("c3"),
 		Checksums: []int64{1, 2, 3},
 	}
 
 	bl2 := ident.IndexChecksumBlock{
-		Marker:    []byte("f"),
+		Marker:    []byte("f5"),
 		Checksums: []int64{4, 5},
 	}
 
 	bl3 := ident.IndexChecksumBlock{
-		Marker:    []byte("p"),
+		Marker:    []byte("p9"),
 		Checksums: []int64{6, 7, 8, 9},
 	}
 
 	bl4 := ident.IndexChecksumBlock{
-		Marker:    []byte("z"),
+		Marker:    []byte("z15"),
 		Checksums: []int64{11, 15},
 	}
 
@@ -537,11 +538,11 @@ func TestMerge(t *testing.T) {
 	)
 	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
 		{Checksum: 2},
-		ReadMismatch{Checksum: 100, ID: []byte("c")},
+		ReadMismatch{Checksum: 100, ID: []byte("c3")},
 		{Checksum: 4},
 		{Checksum: 5},
 		{Checksum: 6},
-		mismatch(10, []byte("q")),
+		mismatch(10, []byte("q10")),
 		{Checksum: 11},
 	})
 	defer wg.Wait()
@@ -554,7 +555,7 @@ func TestMerge(t *testing.T) {
 
 func TestMergeIntermittentBlockJagged(t *testing.T) {
 	bl := ident.IndexChecksumBlock{
-		Marker:    []byte("z"),
+		Marker:    []byte("z6"),
 		Checksums: []int64{1, 2, 4, 6},
 	}
 
@@ -566,11 +567,14 @@ func TestMergeIntermittentBlockJagged(t *testing.T) {
 		idxEntry("z6"),
 	)
 
+	// NB: when unable to make a call as to which comes first if different
+	// values are missing on different sources, local mismatches should be
+	// presented first.
 	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
+		mismatch(3, []byte("f3")),
+		mismatch(5, []byte("w5")),
 		mismatch(2, nil),
-		mismatch(3, nil),
 		mismatch(4, nil),
-		mismatch(5, nil),
 	})
 	defer wg.Wait()
 
