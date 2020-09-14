@@ -24,6 +24,9 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/digest"
+	xtest "github.com/m3db/m3/src/x/test"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -143,14 +146,16 @@ func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 	// Strip checksum, add new field, add updated checksum
 	enc.buf.Truncate(len(enc.Bytes()) - 5)
 	require.NoError(t, enc.enc.EncodeInt64(1234))
-	require.NoError(t, enc.enc.EncodeInt64(int64(digest.Checksum(enc.Bytes()))))
+	checksum := int64(digest.Checksum(enc.Bytes()))
+	require.NoError(t, enc.enc.EncodeInt64(checksum))
+	expected := testIndexEntry
+	expected.IndexChecksum = uint32(checksum)
 
 	// Verify we can successfully skip unnecessary fields
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-
-	require.Equal(t, testIndexEntry, res)
+	require.Equal(t, expected, res)
 }
 
 func TestDecodeLogInfoMoreFieldsThanExpected(t *testing.T) {
@@ -277,4 +282,30 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	_, err := dec.DecodeIndexEntry(nil)
 	require.Error(t, err)
+}
+
+func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
+	var (
+		enc = NewEncoder()
+		dec = NewDecoder(NewDecodingOptions().SetHash32(xtest.NewHash32(t)))
+	)
+
+	require.NoError(t, enc.EncodeIndexEntry(testIndexCheksumEntry))
+	data := enc.Bytes()
+	dec.Reset(NewByteDecoderStream(data))
+	res, status, err := dec.DecodeIndexEntryToIndexChecksum([]byte("test100"), nil)
+	require.NoError(t, err)
+	require.Equal(t, status, Match)
+	require.Equal(t, testIndexHashValue, res)
+	dec.Reset(NewByteDecoderStream(data))
+	idBeforeTestEntry := []byte("aaa")
+	res, status, err = dec.DecodeIndexEntryToIndexChecksum(idBeforeTestEntry, nil)
+	require.NoError(t, err)
+	assert.Equal(t, NotFound, status)
+
+	dec.Reset(NewByteDecoderStream(data))
+	idAfterTestEntry := []byte("zzzz")
+	res, status, err = dec.DecodeIndexEntryToIndexChecksum(idAfterTestEntry, nil)
+	require.NoError(t, err)
+	assert.Equal(t, Mismatch, status)
 }

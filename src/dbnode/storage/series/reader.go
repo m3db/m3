@@ -210,7 +210,48 @@ func (r Reader) IndexChecksum(
 	useID bool,
 	nsCtx namespace.Context,
 ) (ident.IndexChecksum, error) {
-	return ident.IndexChecksum{}, nil // TODO: add logic.
+	return r.indexChecksum(ctx, start, useID, nsCtx)
+}
+
+func (r Reader) indexChecksum(
+	ctx context.Context,
+	start time.Time,
+	useID bool,
+	nsCtx namespace.Context,
+) (ident.IndexChecksum, error) {
+	var (
+		nowFn        = r.opts.ClockOptions().NowFn()
+		now          = nowFn()
+		ropts        = r.opts.RetentionOptions()
+		size         = ropts.BlockSize()
+		alignedStart = start.Truncate(size)
+	)
+	// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
+	earliest := retention.FlushTimeStart(ropts, now)
+	if alignedStart.Before(earliest) {
+		alignedStart = earliest
+	}
+
+	if r.retriever == nil {
+		return ident.IndexChecksum{}, nil
+	}
+	// Try to stream from disk
+	isRetrievable, err := r.retriever.IsBlockRetrievable(alignedStart)
+	if err != nil {
+		return ident.IndexChecksum{}, err
+	} else if !isRetrievable {
+		return ident.IndexChecksum{}, nil
+	}
+	streamedBlock, found, err := r.retriever.StreamIndexChecksum(ctx,
+		r.id, useID, alignedStart, nsCtx)
+	if err != nil {
+		return ident.IndexChecksum{}, err
+	}
+	if !found {
+		return ident.IndexChecksum{}, nil
+	}
+
+	return streamedBlock, nil
 }
 
 // FetchBlocks returns data blocks given a list of block start times using

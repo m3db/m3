@@ -3166,7 +3166,7 @@ func TestServiceIndexChecksum(t *testing.T) {
 
 		stream, _ := enc.Stream(ctx)
 		streams[id] = stream
-		expectedChecksum := uint32(s[0].v)
+		expectedChecksum := int64(s[0].v)
 		mockDB.EXPECT().
 			IndexChecksum(gomock.Any(), ident.NewIDMatcher(nsID),
 				ident.NewIDMatcher(id), gomock.Any(), start).
