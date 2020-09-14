@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/x/checked"
+	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -3106,4 +3107,253 @@ func TestServiceSetWriteNewSeriesLimitPerShardPerSecond(t *testing.T) {
 	setResp, err := service.SetWriteNewSeriesLimitPerShardPerSecond(tctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, int64(84), setResp.WriteNewSeriesLimitPerShardPerSecond)
+}
+
+func TestServiceIndexChecksum(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	batchSize := 20
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+	opts := testTChannelThriftOptions.SetBatchSize(batchSize)
+	service := NewService(mockDB, opts).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	mtr := mocktracer.New()
+	sp := mtr.StartSpan("root")
+	ctx.SetGoContext(opentracing.ContextWithSpan(gocontext.Background(), sp))
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	nsID := "metrics"
+
+	streams := map[string]xio.SegmentReader{}
+	series := map[string][]struct {
+		t time.Time
+		v float64
+	}{
+		"abc": {
+			{start.Add(10 * time.Second), 1.0},
+			{start.Add(20 * time.Second), 2.0},
+		},
+		"bar": {
+			{start.Add(20 * time.Second), 3.0},
+			{start.Add(30 * time.Second), 4.0},
+		},
+		"baz": {
+			{start.Add(10 * time.Second), 5.0},
+			{start.Add(30 * time.Second), 6.0},
+		},
+	}
+	for id, s := range series {
+		enc := testStorageOpts.EncoderPool().Get()
+		enc.Reset(start, 0, nil)
+		for _, v := range s {
+			dp := ts.Datapoint{
+				Timestamp: v.t,
+				Value:     v.v,
+			}
+			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
+		}
+
+		stream, _ := enc.Stream(ctx)
+		streams[id] = stream
+		expectedChecksum := uint32(s[0].v)
+		mockDB.EXPECT().
+			IndexChecksum(gomock.Any(), ident.NewIDMatcher(nsID),
+				ident.NewIDMatcher(id), gomock.Any(), start).
+			DoAndReturn(func(ctx context.Context, namespace, id ident.ID, useID bool,
+				start time.Time) (ident.IndexChecksum, error) {
+				if useID {
+					bID := id.Bytes()
+					b := append(make([]byte, 0, len(bID)), bID...)
+					return ident.IndexChecksum{
+						ID:       b,
+						Checksum: expectedChecksum,
+					}, nil
+				}
+
+				return ident.IndexChecksum{Checksum: expectedChecksum}, nil
+			})
+	}
+
+	req, err := idx.NewRegexpQuery([]byte("abc"), []byte("b.*"))
+	require.NoError(t, err)
+	qry := index.Query{Query: req}
+
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
+	resMap.Map().Set(ident.StringID("abc"), nil)
+	resMap.Map().Set(ident.StringID("bar"), nil)
+	resMap.Map().Set(ident.StringID("baz"), nil)
+
+	mockDB.EXPECT().QueryIDs(
+		gomock.Any(),
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.QueryOptions{
+			StartInclusive:     start,
+			IndexChecksumQuery: true,
+			BatchSize:          batchSize,
+		}).Return(index.QueryResult{Results: resMap, Exhaustive: true}, nil)
+
+	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+	r, err := service.IndexChecksum(tctx, &rpc.IndexChecksumRequest{
+		NameSpace:  []byte(nsID),
+		Query:      data,
+		BlockStart: startNanos,
+	})
+	require.NoError(t, err)
+
+	expected := &rpc.IndexChecksumResult_{
+		Checksums: []int64{1, 3, 5},
+		Marker:    []byte("baz"),
+	}
+
+	assert.Equal(t, expected, r)
+
+	sp.Finish()
+	spans := mtr.FinishedSpans()
+	require.Len(t, spans, 3)
+	assert.Equal(t, tracepoint.IndexChecksumSingleResult, spans[0].OperationName)
+	assert.Equal(t, tracepoint.IndexChecksum, spans[1].OperationName)
+	assert.Equal(t, "root", spans[2].OperationName)
+}
+
+func TestServiceIndexChecksumIsOverloaded(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(true)
+
+	var (
+		service = NewService(mockDB, testTChannelThriftOptions).(*service)
+
+		tctx, _ = tchannelthrift.NewContext(time.Minute)
+		ctx     = tchannelthrift.Context(tctx)
+
+		start = time.Now().Add(-2 * time.Hour)
+		end   = start.Add(2 * time.Hour)
+
+		nsID = "metrics"
+	)
+
+	defer ctx.Close()
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+
+	resMap := index.NewQueryResults(ident.StringID(nsID),
+		index.QueryResultsOptions{}, testIndexOptions)
+	resMap.Map().Set(ident.StringID("foo"), nil)
+	resMap.Map().Set(ident.StringID("bar"), nil)
+
+	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+	_, err = service.IndexChecksum(tctx, &rpc.IndexChecksumRequest{
+		NameSpace:  []byte(nsID),
+		Query:      data,
+		BlockStart: startNanos,
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+}
+
+func TestServiceIndexChecksumDatabaseNotSet(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		service = NewService(nil, testTChannelThriftOptions).(*service)
+
+		tctx, _ = tchannelthrift.NewContext(time.Minute)
+		ctx     = tchannelthrift.Context(tctx)
+
+		start = time.Now().Add(-2 * time.Hour)
+		end   = start.Add(2 * time.Hour)
+
+		nsID = "metrics"
+	)
+
+	defer ctx.Close()
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+
+	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+
+	_, err = service.IndexChecksum(tctx, &rpc.IndexChecksumRequest{
+		NameSpace:  []byte(nsID),
+		Query:      data,
+		BlockStart: startNanos,
+	})
+	require.Equal(t, tterrors.NewInternalError(errDatabaseIsNotInitializedYet), err)
+}
+
+func TestServiceIndexChecksumErrs(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+
+	service := NewService(mockDB, testTChannelThriftOptions).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+	nsID := "metrics"
+
+	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+
+	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+	qry := index.Query{Query: req}
+
+	mockDB.EXPECT().QueryIDs(
+		ctx,
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.QueryOptions{
+			StartInclusive:     start,
+			IndexChecksumQuery: true,
+			BatchSize:          1024,
+		}).Return(index.QueryResult{}, fmt.Errorf("random err"))
+
+	require.NoError(t, err)
+	_, err = service.IndexChecksum(tctx, &rpc.IndexChecksumRequest{
+		NameSpace:  []byte(nsID),
+		Query:      data,
+		BlockStart: startNanos,
+	})
+	require.Error(t, err)
 }

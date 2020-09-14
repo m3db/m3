@@ -403,7 +403,7 @@ func (b *block) Query(
 	results BaseResults,
 	logFields []opentracinglog.Field,
 ) (bool, error) {
-	ctx, sp := ctx.StartTraceSpan(tracepoint.BlockQuery)
+	ctx, sp := ctx.StartTraceSpan(opts.queryTracepoint())
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 
@@ -485,8 +485,9 @@ func (b *block) queryWithSpan(
 		docsPool.Put(batch)
 	}()
 
+	// does a similar thing to this.
 	for iter.Next() {
-		if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
@@ -516,8 +517,7 @@ func (b *block) queryWithSpan(
 		return false, err
 	}
 
-	exhaustive := !opts.SeriesLimitExceeded(size) && !opts.DocsLimitExceeded(docsCount)
-	return exhaustive, nil
+	return opts.exhaustive(size, docsCount), nil
 }
 
 func (b *block) closeAsync(closer io.Closer) {
@@ -669,7 +669,7 @@ func (b *block) aggregateWithSpan(
 	}
 
 	for _, reader := range readers {
-		if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
+		if opts.LimitsExceeded(size, docsCount) {
 			break
 		}
 
@@ -680,7 +680,7 @@ func (b *block) aggregateWithSpan(
 		iterClosed = false // only once the iterator has been successfully Reset().
 
 		for iter.Next() {
-			if opts.SeriesLimitExceeded(size) || opts.DocsLimitExceeded(docsCount) {
+			if opts.LimitsExceeded(size, docsCount) {
 				break
 			}
 
@@ -714,8 +714,7 @@ func (b *block) aggregateWithSpan(
 		}
 	}
 
-	exhaustive := !opts.SeriesLimitExceeded(size) && !opts.DocsLimitExceeded(docsCount)
-	return exhaustive, nil
+	return opts.exhaustive(size, docsCount), nil
 }
 
 func (b *block) appendFieldAndTermToBatch(

@@ -813,7 +813,7 @@ func (d *db) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResult, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBQueryIDs)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(opts.DBTracepoint())
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("query", query.String()),
@@ -888,6 +888,33 @@ func (d *db) ReadEncoded(
 	}
 
 	return n.ReadEncoded(ctx, id, start, end)
+}
+
+func (d *db) IndexChecksum(
+	ctx context.Context,
+	namespace ident.ID,
+	id ident.ID,
+	useID bool,
+	start time.Time,
+) (ident.IndexChecksum, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("namespace", namespace.String()),
+			opentracinglog.String("id", id.String()),
+			opentracinglog.Bool("useID", useID),
+			xopentracing.Time("start", start),
+		)
+	}
+	defer sp.Finish()
+
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceRead.Inc(1)
+		return ident.IndexChecksum{}, err
+	}
+
+	return n.IndexChecksum(ctx, id, useID, start)
 }
 
 func (d *db) FetchBlocks(

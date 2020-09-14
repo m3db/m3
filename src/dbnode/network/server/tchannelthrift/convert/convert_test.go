@@ -240,6 +240,59 @@ func TestConvertAggregateRawQueryRequest(t *testing.T) {
 	}
 }
 
+func TestConvertIndexChecksumRequest(t *testing.T) {
+	ns := ident.StringID("abc")
+	opts := index.QueryOptions{
+		StartInclusive:     time.Now().Add(-900 * time.Hour),
+		BatchSize:          10,
+		IndexChecksumQuery: true,
+	}
+	var batch int64 = 10
+	requestSkeleton := &rpc.IndexChecksumRequest{
+		NameSpace:  ns.Bytes(),
+		BlockStart: mustToRpcTime(t, opts.StartInclusive),
+		BatchSize:  &batch,
+	}
+	requireEqual := func(a, b interface{}) {
+		d := cmp.Diff(a, b)
+		assert.Equal(t, "", d, d)
+	}
+
+	type inputFn func(t *testing.T) (idx.Query, []byte)
+
+	for _, pools := range []struct {
+		name string
+		pool convert.FetchTaggedConversionPools
+	}{
+		{"nil pools", nil},
+		{"valid pools", newTestPools()},
+	} {
+		testCases := []struct {
+			name string
+			fn   inputFn
+		}{
+			{"Field Query", fieldQueryTestCase},
+			{"Term Query", termQueryTestCase},
+			{"Regexp Query", regexpQueryTestCase},
+			{"Negate Term Query", negateTermQueryTestCase},
+			{"Negate Regexp Query", negateRegexpQueryTestCase},
+			{"Conjunction Query A", conjunctionQueryATestCase},
+		}
+		for _, tc := range testCases {
+			t.Run(fmt.Sprintf("(%s pools) Backward %s", pools.name, tc.name), func(t *testing.T) {
+				expectedQuery, rpcQ := tc.fn(t)
+				rpcRequest := &(*requestSkeleton)
+				rpcRequest.Query = rpcQ
+				id, observedQuery, observedOpts, err := convert.FromRPCIndexChecksumRequest(rpcRequest, 15, pools.pool)
+				require.NoError(t, err)
+				require.Equal(t, ns.String(), id.String())
+				require.True(t, index.NewQueryMatcher(index.Query{Query: expectedQuery}).Matches(observedQuery))
+				requireEqual(opts, observedOpts)
+			})
+		}
+	}
+}
+
 type testPools struct {
 	id      ident.Pool
 	wrapper xpool.CheckedBytesWrapperPool

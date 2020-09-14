@@ -579,6 +579,10 @@ func IsSeedNode(initialCluster []environment.SeedNode, hostID string) bool {
 
 // TChannelConfiguration holds TChannel config options.
 type TChannelConfiguration struct {
-	MaxIdleTime       time.Duration `yaml:"maxIdleTime"`
+	// MaxIdleTime is the maximum idle time.
+	MaxIdleTime time.Duration `yaml:"maxIdleTime"`
+	// IdleCheckInterval is the idle check interval.
 	IdleCheckInterval time.Duration `yaml:"idleCheckInterval"`
+	// BatchSize represents batch size for wide operations.
+	BatchSize int `yaml:"batchSize"`
 }

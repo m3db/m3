@@ -43,44 +43,45 @@ exception WriteBatchRawErrors {
 
 service Node {
 	// Friendly not highly performant read/write endpoints
-	QueryResult query(1: QueryRequest req) throws (1: Error err)
+	QueryResult          query(1: QueryRequest req) throws (1: Error err)
 	AggregateQueryResult aggregate(1: AggregateQueryRequest req) throws (1: Error err)
-	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
-	void write(1: WriteRequest req) throws (1: Error err)
-	void writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
+	FetchResult          fetch(1: FetchRequest req) throws (1: Error err)
+	void                 write(1: WriteRequest req) throws (1: Error err)
+	void                 writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
 
 	// Performant read/write endpoints
-	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
-	FetchBatchRawResult fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
-	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
-	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
-	AggregateQueryRawResult aggregateRaw(1: AggregateQueryRawRequest req) throws (1: Error err)
+	AggregateQueryRawResult        aggregateRaw(1: AggregateQueryRawRequest req) throws (1: Error err)
+	FetchBatchRawResult            fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
+	FetchBatchRawResult            fetchBatchRawV2(1: FetchBatchRawV2Request req) throws (1: Error err)
+	FetchBlocksRawResult           fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
+	FetchTaggedResult              fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
-	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
-	void writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
-	void writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
-	void writeTaggedBatchRawV2(1: WriteTaggedBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
-	void repair() throws (1: Error err)
-	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
+	IndexChecksumResult            indexChecksum(1: IndexChecksumRequest req) throws (1: Error err)
+	void                           writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
+	void                           writeBatchRawV2(1: WriteBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
+	void                           writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
+	void                           writeTaggedBatchRawV2(1: WriteTaggedBatchRawV2Request req) throws (1: WriteBatchRawErrors err)
+	void                           repair() throws (1: Error err)
+	TruncateResult                 truncate(1: TruncateRequest req) throws (1: Error err)
 
 	// Management endpoints
-	NodeHealthResult health() throws (1: Error err)
+	NodeHealthResult                               health() throws (1: Error err)
 	// NB: bootstrapped is for use with cluster management tools like k8s.
-	NodeBootstrappedResult bootstrapped() throws (1: Error err)
+	NodeBootstrappedResult                         bootstrapped() throws (1: Error err)
 	// NB: bootstrappedInPlacementOrNoPlacement is for use with cluster management tools like k8s.
 	NodeBootstrappedInPlacementOrNoPlacementResult bootstrappedInPlacementOrNoPlacement() throws (1: Error err)
-	NodePersistRateLimitResult getPersistRateLimit() throws (1: Error err)
-	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
-	NodeWriteNewSeriesAsyncResult getWriteNewSeriesAsync() throws (1: Error err)
-	NodeWriteNewSeriesAsyncResult setWriteNewSeriesAsync(1: NodeSetWriteNewSeriesAsyncRequest req) throws (1: Error err)
-	NodeWriteNewSeriesBackoffDurationResult getWriteNewSeriesBackoffDuration() throws (1: Error err)
-	NodeWriteNewSeriesBackoffDurationResult setWriteNewSeriesBackoffDuration(1: NodeSetWriteNewSeriesBackoffDurationRequest req) throws (1: Error err)
+	NodePersistRateLimitResult                     getPersistRateLimit() throws (1: Error err)
+	NodePersistRateLimitResult                     setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
+	NodeWriteNewSeriesAsyncResult                  getWriteNewSeriesAsync() throws (1: Error err)
+	NodeWriteNewSeriesAsyncResult                  setWriteNewSeriesAsync(1: NodeSetWriteNewSeriesAsyncRequest req) throws (1: Error err)
+	NodeWriteNewSeriesBackoffDurationResult        getWriteNewSeriesBackoffDuration() throws (1: Error err)
+	NodeWriteNewSeriesBackoffDurationResult        setWriteNewSeriesBackoffDuration(1: NodeSetWriteNewSeriesBackoffDurationRequest req) throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult getWriteNewSeriesLimitPerShardPerSecond() throws (1: Error err)
 	NodeWriteNewSeriesLimitPerShardPerSecondResult setWriteNewSeriesLimitPerShardPerSecond(1: NodeSetWriteNewSeriesLimitPerShardPerSecondRequest req) throws (1: Error err)
 
 	// Debug endpoints
-	DebugProfileStartResult debugProfileStart(1: DebugProfileStartRequest req) throws (1: Error err)
-	DebugProfileStopResult debugProfileStop(1: DebugProfileStopRequest req) throws (1: Error err)
+	DebugProfileStartResult        debugProfileStart(1: DebugProfileStartRequest req) throws (1: Error err)
+	DebugProfileStopResult         debugProfileStop(1: DebugProfileStopRequest req) throws (1: Error err)
 	DebugIndexMemorySegmentsResult debugIndexMemorySegments(1: DebugIndexMemorySegmentsRequest req) throws (1: Error err)
 }
 
@@ -429,6 +430,18 @@ struct AggregateQueryResultTagNameElement {
 
 struct AggregateQueryResultTagValueElement {
 	1: required string tagValue
+}
+
+struct IndexChecksumRequest {
+	1: required binary nameSpace
+	2: required binary query
+	3: required i64    blockStart
+	4: optional i64    batchSize
+}
+
+struct IndexChecksumResult {
+	1: optional list<i64> checksums
+	2: optional binary    marker
 }
 
 // Query wrapper types for simple non-optimized query use

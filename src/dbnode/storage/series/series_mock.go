@@ -163,6 +163,21 @@ func (mr *MockDatabaseSeriesMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockDatabaseSeries)(nil).ID))
 }
 
+// IndexChecksum mocks base method
+func (m *MockDatabaseSeries) IndexChecksum(arg0 context.Context, arg1 time.Time, arg2 bool, arg3 namespace.Context) (ident.IndexChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexChecksum", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IndexChecksum indicates an expected call of IndexChecksum
+func (mr *MockDatabaseSeriesMockRecorder) IndexChecksum(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockDatabaseSeries)(nil).IndexChecksum), arg0, arg1, arg2, arg3)
+}
+
 // IsBufferEmptyAtBlockStart mocks base method
 func (m *MockDatabaseSeries) IsBufferEmptyAtBlockStart(arg0 time.Time) bool {
 	m.ctrl.T.Helper()
@@ -439,4 +454,20 @@ func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID
 func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).Stream), arg0, arg1, arg2, arg3, arg4)
+}
+
+// StreamIndexChecksum mocks base method
+func (m *MockQueryableBlockRetriever) StreamIndexChecksum(arg0 context.Context, arg1 ident.ID, arg2 bool, arg3 time.Time, arg4 namespace.Context) (ident.IndexChecksum, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamIndexChecksum", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// StreamIndexChecksum indicates an expected call of StreamIndexChecksum
+func (mr *MockQueryableBlockRetrieverMockRecorder) StreamIndexChecksum(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).StreamIndexChecksum), arg0, arg1, arg2, arg3, arg4)
 }

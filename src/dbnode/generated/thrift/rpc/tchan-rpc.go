@@ -63,6 +63,7 @@ type TChanNode interface {
 	GetWriteNewSeriesBackoffDuration(ctx thrift.Context) (*NodeWriteNewSeriesBackoffDurationResult_, error)
 	GetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error)
 	Health(ctx thrift.Context) (*NodeHealthResult_, error)
+	IndexChecksum(ctx thrift.Context, req *IndexChecksumRequest) (*IndexChecksumResult_, error)
 	Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error)
 	Repair(ctx thrift.Context) error
 	SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error)
@@ -792,6 +793,24 @@ func (c *tchanNodeClient) Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) IndexChecksum(ctx thrift.Context, req *IndexChecksumRequest) (*IndexChecksumResult_, error) {
+	var resp NodeIndexChecksumResult
+	args := NodeIndexChecksumArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "indexChecksum", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for indexChecksum")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error) {
 	var resp NodeQueryResult
 	args := NodeQueryArgs{
@@ -1060,6 +1079,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"getWriteNewSeriesBackoffDuration",
 		"getWriteNewSeriesLimitPerShardPerSecond",
 		"health",
+		"indexChecksum",
 		"query",
 		"repair",
 		"setPersistRateLimit",
@@ -1114,6 +1134,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleGetWriteNewSeriesLimitPerShardPerSecond(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
+	case "indexChecksum":
+		return s.handleIndexChecksum(ctx, protocol)
 	case "query":
 		return s.handleQuery(ctx, protocol)
 	case "repair":
@@ -1632,6 +1654,34 @@ func (s *tchanNodeServer) handleHealth(ctx thrift.Context, protocol athrift.TPro
 
 	r, err :=
 		s.handler.Health(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleIndexChecksum(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeIndexChecksumArgs
+	var res NodeIndexChecksumResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.IndexChecksum(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {

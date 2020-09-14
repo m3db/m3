@@ -343,6 +343,21 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
 }
 
+// IndexChecksum mocks base method
+func (m *MockDatabase) IndexChecksum(ctx context.Context, namespace, id ident.ID, useID bool, start time.Time) (ident.IndexChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexChecksum", ctx, namespace, id, useID, start)
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IndexChecksum indicates an expected call of IndexChecksum
+func (mr *MockDatabaseMockRecorder) IndexChecksum(ctx, namespace, id, useID, start interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockDatabase)(nil).IndexChecksum), ctx, namespace, id, useID, start)
+}
+
 // FetchBlocks mocks base method
 func (m *MockDatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
@@ -736,6 +751,21 @@ func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, 
 func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*Mockdatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
+}
+
+// IndexChecksum mocks base method
+func (m *Mockdatabase) IndexChecksum(ctx context.Context, namespace, id ident.ID, useID bool, start time.Time) (ident.IndexChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexChecksum", ctx, namespace, id, useID, start)
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IndexChecksum indicates an expected call of IndexChecksum
+func (mr *MockdatabaseMockRecorder) IndexChecksum(ctx, namespace, id, useID, start interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*Mockdatabase)(nil).IndexChecksum), ctx, namespace, id, useID, start)
 }
 
 // FetchBlocks mocks base method
@@ -1313,6 +1343,21 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadEncoded), ctx, id, start, end)
 }
 
+// IndexChecksum mocks base method
+func (m *MockdatabaseNamespace) IndexChecksum(ctx context.Context, id ident.ID, useID bool, start time.Time) (ident.IndexChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexChecksum", ctx, id, useID, start)
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IndexChecksum indicates an expected call of IndexChecksum
+func (mr *MockdatabaseNamespaceMockRecorder) IndexChecksum(ctx, id, useID, start interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockdatabaseNamespace)(nil).IndexChecksum), ctx, id, useID, start)
+}
+
 // FetchBlocks mocks base method
 func (m *MockdatabaseNamespace) FetchBlocks(ctx context.Context, shardID uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
 	m.ctrl.T.Helper()
@@ -1774,6 +1819,21 @@ func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start,
 func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseShard)(nil).ReadEncoded), ctx, id, start, end, nsCtx)
+}
+
+// IndexChecksum mocks base method
+func (m *MockdatabaseShard) IndexChecksum(ctx context.Context, id ident.ID, useID bool, start time.Time, nsCtx namespace.Context) (ident.IndexChecksum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexChecksum", ctx, id, useID, start, nsCtx)
+	ret0, _ := ret[0].(ident.IndexChecksum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IndexChecksum indicates an expected call of IndexChecksum
+func (mr *MockdatabaseShardMockRecorder) IndexChecksum(ctx, id, useID, start, nsCtx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockdatabaseShard)(nil).IndexChecksum), ctx, id, useID, start, nsCtx)
 }
 
 // FetchBlocks mocks base method

@@ -30,6 +30,8 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 )
 
+const defaultBatchSize = 1024
+
 type options struct {
 	clockOpts                   clock.Options
 	instrumentOpts              instrument.Options
@@ -42,9 +44,10 @@ type options struct {
 	checkedBytesWrapperPool     xpool.CheckedBytesWrapperPool
 	maxOutstandingWriteRequests int
 	maxOutstandingReadRequests  int
+	batchSize                   int
 }
 
-// NewOptions creates new options
+// NewOptions creates new options.
 func NewOptions() Options {
 	// Use a zero size pool by default, override from config.
 	poolOptions := pool.NewObjectPoolOptions().
@@ -83,6 +86,7 @@ func NewOptions() Options {
 		tagEncoderPool:           tagEncoderPool,
 		tagDecoderPool:           tagDecoderPool,
 		checkedBytesWrapperPool:  bytesWrapperPool,
+		batchSize:                defaultBatchSize,
 	}
 }
 
@@ -194,4 +198,14 @@ func (o *options) SetMaxOutstandingReadRequests(value int) Options {
 
 func (o *options) MaxOutstandingReadRequests() int {
 	return o.maxOutstandingReadRequests
+}
+
+func (o *options) SetBatchSize(value int) Options {
+	opts := *o
+	opts.batchSize = value
+	return &opts
+}
+
+func (o *options) BatchSize() int {
+	return o.batchSize
 }

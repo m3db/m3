@@ -635,6 +635,10 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests)
 
+	if cfg.TChannel != nil && cfg.TChannel.BatchSize > 0 {
+		ttopts = ttopts.SetBatchSize(cfg.TChannel.BatchSize)
+	}
+
 	// Start servers before constructing the DB so orchestration tools can check health endpoints
 	// before topology is set.
 	var (

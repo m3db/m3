@@ -204,6 +204,48 @@ type FetchTaggedConversionPools interface {
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
 }
 
+// FromRPCIndexChecksumRequest converts the rpc request type for IndexChecksumRequest into corresponding Go API types.
+func FromRPCIndexChecksumRequest(
+	req *rpc.IndexChecksumRequest,
+	defaultBatchSize int,
+	pools FetchTaggedConversionPools,
+) (ident.ID, index.Query, index.QueryOptions, error) {
+	start, rangeStartErr := ToTime(req.BlockStart, fetchTaggedTimeType)
+	if rangeStartErr != nil {
+		return nil, index.Query{}, index.QueryOptions{}, rangeStartErr
+	}
+
+	batchSize := defaultBatchSize
+	if req.BatchSize != nil {
+		if size := int(*req.BatchSize); size > 0 {
+			batchSize = size
+		}
+	}
+
+	opts := index.QueryOptions{
+		StartInclusive:     start,
+		SeriesLimit:        0,
+		DocsLimit:          0,
+		IndexChecksumQuery: true,
+		BatchSize:          batchSize,
+	}
+
+	q, err := idx.Unmarshal(req.Query)
+	if err != nil {
+		return nil, index.Query{}, index.QueryOptions{}, err
+	}
+
+	var ns ident.ID
+	if pools != nil {
+		nsBytes := pools.CheckedBytesWrapper().Get(req.NameSpace)
+		ns = pools.ID().BinaryID(nsBytes)
+	} else {
+		ns = ident.StringID(string(req.NameSpace))
+	}
+
+	return ns, index.Query{Query: q}, opts, nil
+}
+
 // FromRPCFetchTaggedRequest converts the rpc request type for FetchTaggedRequest into corresponding Go API types.
 func FromRPCFetchTaggedRequest(
 	req *rpc.FetchTaggedRequest, pools FetchTaggedConversionPools,

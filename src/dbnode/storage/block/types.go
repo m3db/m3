@@ -283,6 +283,18 @@ type DatabaseBlockRetriever interface {
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
 
+	// StreamIndexChecksum will stream block index checksums for a given id and
+	// start, yielding an index checksum if available, a boolean indicating if it
+	// was found, and any errors encountered.
+	StreamIndexChecksum(
+		ctx context.Context,
+		shard uint32,
+		id ident.ID,
+		useID bool,
+		startTime time.Time,
+		nsCtx namespace.Context,
+	) (ident.IndexChecksum, bool, error)
+
 	AssignShardSet(shardSet sharding.ShardSet)
 }
 
@@ -296,6 +308,17 @@ type DatabaseShardBlockRetriever interface {
 		onRetrieve OnRetrieveBlock,
 		nsCtx namespace.Context,
 	) (xio.BlockReader, error)
+
+	// StreamIndexChecksum will stream block index checksums for a given id and
+	// start, yielding an index checksum if available, a boolean indicating if
+	// it was found, and any errors encountered.
+	StreamIndexChecksum(
+		ctx context.Context,
+		id ident.ID,
+		useID bool,
+		blockStart time.Time,
+		nsCtx namespace.Context,
+	) (ident.IndexChecksum, bool, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

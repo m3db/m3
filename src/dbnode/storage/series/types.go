@@ -86,6 +86,14 @@ type DatabaseSeries interface {
 		nsCtx namespace.Context,
 	) ([][]xio.BlockReader, error)
 
+	// IndexChecksum reads checksums from encoded blocks.
+	IndexChecksum(
+		ctx context.Context,
+		start time.Time,
+		useID bool,
+		nsCtx namespace.Context,
+	) (ident.IndexChecksum, error)
+
 	// FetchBlocks returns data blocks given a list of block start times.
 	FetchBlocks(
 		ctx context.Context,

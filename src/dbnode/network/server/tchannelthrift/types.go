@@ -100,4 +100,10 @@ type Options interface {
 	// MaxOutstandingReadRequests returns the maxinum number of allowed
 	// outstanding read requests.
 	MaxOutstandingReadRequests() int
+
+	// SetBatchSize sets batch size for wide operations.
+	SetBatchSize(value int) Options
+
+	// BatchSize returns batch size for wide operations.
+	BatchSize() int
 }

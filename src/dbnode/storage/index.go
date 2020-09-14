@@ -1312,7 +1312,7 @@ func (i *nsIndex) Query(
 		xopentracing.Time("queryEnd", opts.EndExclusive),
 	}
 
-	ctx, sp := ctx.StartTraceSpan(tracepoint.NSIdxQuery)
+	ctx, sp := ctx.StartTraceSpan(opts.NSIdxTracepoint())
 	sp.LogFields(logFields...)
 	defer sp.Finish()
 

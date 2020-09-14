@@ -21,6 +21,7 @@
 package node
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime"
@@ -104,6 +105,7 @@ var (
 type serviceMetrics struct {
 	fetch                   instrument.MethodMetrics
 	fetchTagged             instrument.MethodMetrics
+	indexChecksum           instrument.MethodMetrics
 	aggregate               instrument.MethodMetrics
 	write                   instrument.MethodMetrics
 	writeTagged             instrument.MethodMetrics
@@ -124,6 +126,7 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 	return serviceMetrics{
 		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
 		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
+		indexChecksum:           instrument.NewMethodMetrics(scope, "indexChecksum", opts),
 		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", opts),
 		write:                   instrument.NewMethodMetrics(scope, "write", opts),
 		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", opts),
@@ -865,6 +868,111 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	}
 	s.metrics.aggregate.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
+}
+
+func (s *service) IndexChecksum(tctx thrift.Context, req *rpc.IndexChecksumRequest) (*rpc.IndexChecksumResult_, error) {
+	db, err := s.startReadRPCWithDB()
+	if err != nil {
+		return nil, err
+	}
+	defer s.readRPCCompleted()
+
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.IndexChecksum)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("query", string(req.Query)),
+			opentracinglog.String("namespace", string(req.NameSpace)),
+			xopentracing.Time("start", time.Unix(0, req.BlockStart)),
+		)
+	}
+
+	result, err := s.indexChecksum(ctx, db, req)
+	if sampled && err != nil {
+		sp.LogFields(opentracinglog.Error(err))
+	}
+	sp.Finish()
+
+	return result, err
+}
+
+func (s *service) indexChecksum(
+	ctx context.Context,
+	db storage.Database,
+	req *rpc.IndexChecksumRequest,
+) (*rpc.IndexChecksumResult_, error) {
+	callStart := s.nowFn()
+	ns, query, opts, err := convert.FromRPCIndexChecksumRequest(req, s.opts.BatchSize(), s.pools)
+	if err != nil {
+		s.metrics.indexChecksum.ReportError(s.nowFn().Sub(callStart))
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
+	if err != nil {
+		s.metrics.indexChecksum.ReportError(s.nowFn().Sub(callStart))
+		return nil, convert.ToRPCError(err)
+	}
+
+	results := queryResult.Results
+	response := &rpc.IndexChecksumResult_{
+		Checksums: make([]int64, 0, s.opts.BatchSize()),
+	}
+
+	// TODO: this should open a stream.
+	if err := s.indexHashSingle(ctx, db, response, results, opts); err != nil {
+		s.metrics.indexChecksum.ReportError(s.nowFn().Sub(callStart))
+		return nil, err
+	}
+
+	s.metrics.indexChecksum.ReportSuccess(s.nowFn().Sub(callStart))
+	return response, nil
+}
+
+func (s *service) indexHashSingle(ctx context.Context,
+	db storage.Database,
+	response *rpc.IndexChecksumResult_,
+	results index.QueryResults,
+	opts index.QueryOptions,
+) error {
+	nsID := results.Namespace()
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexChecksumSingleResult)
+	if sampled {
+		sp.LogFields(
+			opentracinglog.String("id", nsID.String()),
+		)
+	}
+	defer sp.Finish()
+
+	i := 0
+	count := results.Map().Len()
+	// TODO: have an ordered representation generated into the result instead.
+	orderedIDs := make([]ident.ID, 0, count)
+	for _, entry := range results.Map().Iter() {
+		orderedIDs = append(orderedIDs, entry.Key())
+	}
+	// Sort counters for comparison purposes.
+	sort.Slice(orderedIDs, func(i, j int) bool {
+		return bytes.Compare(orderedIDs[i].Bytes(), orderedIDs[j].Bytes()) == -1
+	})
+
+	for _, tsID := range orderedIDs {
+		i++
+
+		// if last element of the batch or last element in the result set,
+		// include ID as a batch marker.
+		useID := i%opts.BatchSize == 0 || i == count
+		checksum, err := db.IndexChecksum(ctx, nsID, tsID, useID,
+			opts.StartInclusive)
+		if err != nil {
+			continue
+		}
+
+		response.Checksums = append(response.Checksums, int64(checksum.Checksum))
+		if useID {
+			response.Marker = checksum.ID
+		}
+	}
+	return nil
 }
 
 func (s *service) encodeTags(
