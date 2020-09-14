@@ -550,8 +550,8 @@ func (s *service) AggregateTiles(tctx thrift.Context, req *rpc.AggregateTilesReq
 
 	if sampled {
 		sp.LogFields(
-			opentracinglog.String("sourceNameSpace", req.SourceNameSpace),
-			opentracinglog.String("targetNameSpace", req.TargetNameSpace),
+			opentracinglog.String("sourceNamespace", req.SourceNamespace),
+			opentracinglog.String("targetNamespace", req.TargetNamespace),
 			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
 			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
 			opentracinglog.String("step", req.Step),
@@ -573,17 +573,25 @@ func (s *service) aggregateTiles(
 	db storage.Database,
 	req *rpc.AggregateTilesRequest,
 ) (int64, error) {
-	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
-	step, stepErr := time.ParseDuration(req.Step)
-	opts, optsErr := storage.NewAggregateTilesOptions(start, end, step, req.RemoveResets)
-	if rangeStartErr != nil || rangeEndErr != nil || stepErr != nil || optsErr != nil {
-		multiErr := xerrors.NewMultiError().Add(rangeStartErr).Add(rangeEndErr).Add(stepErr).Add(optsErr)
-		return 0, tterrors.NewBadRequestError(multiErr.FinalError())
+	start, err := convert.ToTime(req.RangeStart, req.RangeType)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	end, err := convert.ToTime(req.RangeEnd, req.RangeType)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	step, err := time.ParseDuration(req.Step)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
+	}
+	opts, err := storage.NewAggregateTilesOptions(start, end, step, req.RemoveResets)
+	if err != nil {
+		return 0, tterrors.NewBadRequestError(err)
 	}
 
-	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNameSpace)
-	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNameSpace)
+	sourceNsID := s.pools.id.GetStringID(ctx, req.SourceNamespace)
+	targetNsID := s.pools.id.GetStringID(ctx, req.TargetNamespace)
 
 	processedBlockCount, err := db.AggregateTiles(ctx, sourceNsID, targetNsID, opts)
 	if err != nil {

@@ -12907,16 +12907,16 @@ func (p *Query) String() string {
 }
 
 // Attributes:
-//  - SourceNameSpace
-//  - TargetNameSpace
+//  - SourceNamespace
+//  - TargetNamespace
 //  - RangeStart
 //  - RangeEnd
 //  - Step
 //  - RemoveResets
 //  - RangeType
 type AggregateTilesRequest struct {
-	SourceNameSpace string   `thrift:"sourceNameSpace,1,required" db:"sourceNameSpace" json:"sourceNameSpace"`
-	TargetNameSpace string   `thrift:"targetNameSpace,2,required" db:"targetNameSpace" json:"targetNameSpace"`
+	SourceNamespace string   `thrift:"sourceNamespace,1,required" db:"sourceNamespace" json:"sourceNamespace"`
+	TargetNamespace string   `thrift:"targetNamespace,2,required" db:"targetNamespace" json:"targetNamespace"`
 	RangeStart      int64    `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd        int64    `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
 	Step            string   `thrift:"step,5,required" db:"step" json:"step"`
@@ -12930,12 +12930,12 @@ func NewAggregateTilesRequest() *AggregateTilesRequest {
 	}
 }
 
-func (p *AggregateTilesRequest) GetSourceNameSpace() string {
-	return p.SourceNameSpace
+func (p *AggregateTilesRequest) GetSourceNamespace() string {
+	return p.SourceNamespace
 }
 
-func (p *AggregateTilesRequest) GetTargetNameSpace() string {
-	return p.TargetNameSpace
+func (p *AggregateTilesRequest) GetTargetNamespace() string {
+	return p.TargetNamespace
 }
 
 func (p *AggregateTilesRequest) GetRangeStart() int64 {
@@ -12968,8 +12968,8 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
-	var issetSourceNameSpace bool = false
-	var issetTargetNameSpace bool = false
+	var issetSourceNamespace bool = false
+	var issetTargetNamespace bool = false
 	var issetRangeStart bool = false
 	var issetRangeEnd bool = false
 	var issetStep bool = false
@@ -12987,12 +12987,12 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField1(iprot); err != nil {
 				return err
 			}
-			issetSourceNameSpace = true
+			issetSourceNamespace = true
 		case 2:
 			if err := p.ReadField2(iprot); err != nil {
 				return err
 			}
-			issetTargetNameSpace = true
+			issetTargetNamespace = true
 		case 3:
 			if err := p.ReadField3(iprot); err != nil {
 				return err
@@ -13028,11 +13028,11 @@ func (p *AggregateTilesRequest) Read(iprot thrift.TProtocol) error {
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 	}
-	if !issetSourceNameSpace {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field SourceNameSpace is not set"))
+	if !issetSourceNamespace {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field SourceNamespace is not set"))
 	}
-	if !issetTargetNameSpace {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field TargetNameSpace is not set"))
+	if !issetTargetNamespace {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field TargetNamespace is not set"))
 	}
 	if !issetRangeStart {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field RangeStart is not set"))
@@ -13050,7 +13050,7 @@ func (p *AggregateTilesRequest) ReadField1(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
-		p.SourceNameSpace = v
+		p.SourceNamespace = v
 	}
 	return nil
 }
@@ -13059,7 +13059,7 @@ func (p *AggregateTilesRequest) ReadField2(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
-		p.TargetNameSpace = v
+		p.TargetNamespace = v
 	}
 	return nil
 }
@@ -13147,27 +13147,27 @@ func (p *AggregateTilesRequest) Write(oprot thrift.TProtocol) error {
 }
 
 func (p *AggregateTilesRequest) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("sourceNameSpace", thrift.STRING, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:sourceNameSpace: ", p), err)
+	if err := oprot.WriteFieldBegin("sourceNamespace", thrift.STRING, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:sourceNamespace: ", p), err)
 	}
-	if err := oprot.WriteString(string(p.SourceNameSpace)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.sourceNameSpace (1) field write error: ", p), err)
+	if err := oprot.WriteString(string(p.SourceNamespace)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.sourceNamespace (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:sourceNameSpace: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:sourceNamespace: ", p), err)
 	}
 	return err
 }
 
 func (p *AggregateTilesRequest) writeField2(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("targetNameSpace", thrift.STRING, 2); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:targetNameSpace: ", p), err)
+	if err := oprot.WriteFieldBegin("targetNamespace", thrift.STRING, 2); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:targetNamespace: ", p), err)
 	}
-	if err := oprot.WriteString(string(p.TargetNameSpace)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.targetNameSpace (2) field write error: ", p), err)
+	if err := oprot.WriteString(string(p.TargetNamespace)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.targetNamespace (2) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:targetNameSpace: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:targetNamespace: ", p), err)
 	}
 	return err
 }

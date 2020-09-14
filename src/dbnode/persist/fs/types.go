@@ -120,7 +120,9 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
+	// Identifier allows to identify a FileSetFile.
 	Identifier  FileSetFileIdentifier
+	// FileSetType is the file set type.
 	FileSetType persist.FileSetType
 	// StreamingMode enables using streaming methods, such as DataFileSetReader.StreamingRead.
 	StreamingMode bool

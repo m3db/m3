@@ -1,6 +1,6 @@
 // +build integration
 
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -73,7 +73,6 @@ func TestReadAggregateWrite(t *testing.T) {
 		instrument.NewOptions().SetMetricsScope(scope)))
 
 	storageOpts := testSetup.StorageOpts()
-	testSetup.SetStorageOpts(storageOpts)
 
 	// Start the server.
 	log := storageOpts.InstrumentOptions().Logger()
