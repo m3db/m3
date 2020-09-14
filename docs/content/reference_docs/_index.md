@@ -1,9 +1,8 @@
 +++
 title = "Reference Documentation"
 date = 2020-04-21T21:00:26-04:00
-weight = 7
+weight = 8
 chapter = true
-pre = "<b>7. </b>"
 +++
 
 ### Chapter X

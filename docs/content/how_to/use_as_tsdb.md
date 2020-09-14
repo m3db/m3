@@ -1,10 +1,8 @@
 ---
-date: 2020-04-01T19:26:56-04:00
-weight: 5
-chapter: false
+weight: 6
+title: Using M3DB as a general purpose time series database
 ---
 
-# Using M3DB as a general purpose time series database
 
 ## Overview
 

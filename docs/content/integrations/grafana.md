@@ -1,4 +1,8 @@
-# Grafana
+---
+title: "Grafana"
+weight: 3
+---
+
 
 M3 supports a variety of Grafana integrations.
 

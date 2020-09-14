@@ -131,4 +131,4 @@ limits:
 
 The following headers can also be used to override configured limits on a per request basis (to allow for different limits dependent on caller):
 
-{{% codeinclude file="/common/headers_optional_read_limits.md" language="shell" %}}
+{{% fileinclude file="/includes/headers_optional_read_limits.md" %}}

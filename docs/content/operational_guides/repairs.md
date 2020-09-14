@@ -1,5 +1,5 @@
 ---
-title: "Background Repairs (beta)"
+title: "Background Repairs"
 weight: 14
 ---
 

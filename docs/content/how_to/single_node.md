@@ -1,10 +1,7 @@
 ---
-date: 2020-04-01T19:26:56-04:00
 weight: 1
-chapter: false
+title: M3DB Single Node Deployment
 ---
-
-# M3DB Single Node Deployment
 
 Deploying a single-node cluster is a great way to experiment with M3DB and get a feel for what it
 has to offer. Our Docker image by default configures a single M3DB instance as one binary

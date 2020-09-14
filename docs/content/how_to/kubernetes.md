@@ -1,8 +1,6 @@
 ---
 title: M3DB on Kubernetes
-date: 2020-04-01T19:26:56-04:00
-weight: 2
-chapter: false
+weight: 3
 ---
 
 

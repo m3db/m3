@@ -1,5 +1,5 @@
 ---
-title: "Replication between clusters (beta)"
+title: "Replication between clusters"
 weight: 15
 ---
 

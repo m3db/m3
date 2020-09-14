@@ -1,8 +1,7 @@
 ---
 title: Setting up m3query
-date: 2020-04-01T19:26:56-04:00
+menuTitle: M3Query
 weight: 4
-chapter: false
 ---
 
 

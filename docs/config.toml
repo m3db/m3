@@ -17,7 +17,7 @@ pygmentsUseClasses = false
 pygmentsUseClassic = false
 #pygmentsOptions = "linenos=table"
 # See https://help.farbox.com/pygments.html
-pygmentsStyle = "vs"
+# pygmentsStyle = "vs"
 
 enableGitInfo = true
 
@@ -110,6 +110,9 @@ name = "<i class='fab fa-fw fa-github'></i> GitHub"
 identifier = "ds"
 url = "https://github.com/m3db/m3"
 weight = 10
+
+[permalinks]
+posts = "/:sections/:slug.md"
 
 [outputs]
 home = [ "HTML", "RSS", "JSON"]

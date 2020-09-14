@@ -1,5 +1,6 @@
 ---
 title: "Fetching and querying"
+menuTitle: "Query Fanout"
 weight: 2
 ---
 

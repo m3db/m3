@@ -80,7 +80,7 @@ The instructions below all contain sample curl commands, but you can always revi
 
 Additionally, the following headers can be used in the placement operations: 
 
-{{% codeinclude file="/common/headers_placement_namespace.md" language="shell" %}}
+{{% fileinclude file="/includes/headers_placement_namespace.md" %}}
 
 #### Placement Initialization
 
