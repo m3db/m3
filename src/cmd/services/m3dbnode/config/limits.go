@@ -29,10 +29,10 @@ type LimitsConfiguration struct {
 	// max is surpassed encounter an error.
 	MaxRecentlyQueriedSeriesBlocks *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesBlocks"`
 
-	// MaxRecentlyQueriedSeriesBytesRead sets the upper limit on time series bytes
+	// MaxRecentlyQueriedSeriesDiskBytesRead sets the upper limit on time series bytes
 	// read from disk within a given lookback period. Queries which are issued while this
 	// max is surpassed encounter an error.
-	MaxRecentlyQueriedSeriesBytesRead *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesBytesRead"`
+	MaxRecentlyQueriedSeriesDiskBytesRead *MaxRecentQueryResourceLimitConfiguration `yaml:"maxRecentlyQueriedSeriesDiskBytesRead"`
 
 	// MaxOutstandingWriteRequests controls the maximum number of outstanding write requests
 	// that the server will allow before it begins rejecting requests. Note that this value

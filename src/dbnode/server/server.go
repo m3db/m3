@@ -413,7 +413,7 @@ func Run(runOpts RunOptions) {
 		docsLimit.Limit = limitConfig.Value
 		docsLimit.Lookback = limitConfig.Lookback
 	}
-	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesBytesRead; limitConfig != nil {
+	if limitConfig := runOpts.Config.Limits.MaxRecentlyQueriedSeriesDiskBytesRead; limitConfig != nil {
 		bytesReadLimit.Limit = limitConfig.Value
 		bytesReadLimit.Lookback = limitConfig.Lookback
 	}

@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/tracepoint"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/ts/writes"
@@ -114,6 +115,8 @@ type db struct {
 	log     *zap.Logger
 
 	writeBatchPool *writes.WriteBatchPool
+
+	queryLimits limits.QueryLimits
 }
 
 type databaseMetrics struct {
@@ -186,6 +189,7 @@ func NewDatabase(
 		metrics:                newDatabaseMetrics(scope),
 		log:                    logger,
 		writeBatchPool:         opts.WriteBatchPool(),
+		queryLimits:            opts.IndexOptions().QueryLimits(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -828,7 +832,7 @@ func (d *db) QueryIDs(
 
 	// Check if exceeding query limits at very beginning of
 	// query path to abandon as early as possible.
-	if err := d.opts.IndexOptions().QueryLimits().AnyExceeded(); err != nil {
+	if err := d.queryLimits.AnyExceeded(); err != nil {
 		return index.QueryResult{}, err
 	}
 
