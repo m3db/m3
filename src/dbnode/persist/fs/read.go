@@ -56,8 +56,8 @@ var (
 	// errReadMetadataOptimizedForRead returned when we optimized for only reading metadata but are attempting a regular read
 	errReadMetadataOptimizedForRead = errors.New("read metadata optimized for regular read")
 
-	errStreamingModeRequired    = errors.New("streaming mode required for streaming read methods")
-	errStreamingModeUnsupported = errors.New("streaming mode unsupported for non streaming read methods")
+	errStreamingRequired    = errors.New("streaming must be enabled for streaming read methods")
+	errStreamingUnsupported = errors.New("streaming mode be disabled for non streaming read methods")
 )
 
 const (
@@ -111,7 +111,7 @@ type reader struct {
 	shard                     uint32
 	volume                    int
 	open                      bool
-	streamingMode             bool
+	streamingEnabled          bool
 	// NB(bodu): Informs whether or not we optimize for only reading
 	// metadata. We don't need to sort for reading metadata but sorting is
 	// required if we are performing regulars reads.
@@ -168,7 +168,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		dataFilepath        string
 	)
 
-	r.streamingMode = opts.StreamingMode
+	r.streamingEnabled = opts.StreamingEnabled
 
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
@@ -282,7 +282,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		r.Close()
 		return err
 	}
-	if opts.StreamingMode {
+	if opts.StreamingEnabled {
 		r.decoder.Reset(r.indexDecoderStream)
 	} else if err := r.readIndexAndSortByOffsetAsc(); err != nil {
 		r.Close()
@@ -351,7 +351,7 @@ func (r *reader) readInfo(size int) error {
 }
 
 func (r *reader) readIndexAndSortByOffsetAsc() error {
-	if r.streamingMode {
+	if r.streamingEnabled {
 		return errUnexpectedSortByOffset
 	}
 
@@ -373,8 +373,8 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 }
 
 func (r *reader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) {
-	if !r.streamingMode {
-		return nil, nil, nil, 0, errStreamingModeRequired
+	if !r.streamingEnabled {
+		return nil, nil, nil, 0, errStreamingRequired
 	}
 
 	if r.entriesRead >= r.entries {
@@ -404,8 +404,8 @@ func (r *reader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) 
 }
 
 func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
-	if r.streamingMode {
-		return nil, nil, nil, 0, errStreamingModeUnsupported
+	if r.streamingEnabled {
+		return nil, nil, nil, 0, errStreamingUnsupported
 	}
 
 	// NB(bodu): We cannot perform regular reads if we're optimizing for only reading metadata.
@@ -454,8 +454,8 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 }
 
 func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
-	if r.streamingMode {
-		return nil, nil, 0, 0, errStreamingModeUnsupported
+	if r.streamingEnabled {
+		return nil, nil, 0, 0, errStreamingUnsupported
 	}
 
 	if r.metadataRead >= r.entries {
@@ -558,8 +558,8 @@ func (r *reader) MetadataRead() int {
 	return r.metadataRead
 }
 
-func (r *reader) StreamingMode() bool {
-	return r.streamingMode
+func (r *reader) StreamingEnabled() bool {
+	return r.streamingEnabled
 }
 
 func (r *reader) Close() error {

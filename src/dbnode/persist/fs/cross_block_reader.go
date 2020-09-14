@@ -59,7 +59,7 @@ type crossBlockReader struct {
 func NewCrossBlockReader(dataFileSetReaders []DataFileSetReader, iOpts instrument.Options) (CrossBlockReader, error) {
 	var previousStart time.Time
 	for _, dataFileSetReader := range dataFileSetReaders {
-		if !dataFileSetReader.StreamingMode() {
+		if !dataFileSetReader.StreamingEnabled() {
 			return nil, errReaderNotOrderedByIndex
 		}
 		currentStart := dataFileSetReader.Range().Start

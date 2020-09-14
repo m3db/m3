@@ -45,7 +45,7 @@ func TestCrossBlockReaderRejectMisconfiguredInputs(t *testing.T) {
 	defer ctrl.Finish()
 
 	dfsReader := NewMockDataFileSetReader(ctrl)
-	dfsReader.EXPECT().StreamingMode().Return(false)
+	dfsReader.EXPECT().StreamingEnabled().Return(false)
 
 	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader}, instrument.NewTestOptions(t))
 
@@ -58,12 +58,12 @@ func TestCrossBlockReaderRejectMisorderedInputs(t *testing.T) {
 
 	now := time.Now().Truncate(time.Hour)
 	dfsReader1 := NewMockDataFileSetReader(ctrl)
-	dfsReader1.EXPECT().StreamingMode().Return(true)
+	dfsReader1.EXPECT().StreamingEnabled().Return(true)
 	dfsReader1.EXPECT().Range().Return(xtime.Range{Start: now})
 
 	later := now.Add(time.Hour)
 	dfsReader2 := NewMockDataFileSetReader(ctrl)
-	dfsReader2.EXPECT().StreamingMode().Return(true)
+	dfsReader2.EXPECT().StreamingEnabled().Return(true)
 	dfsReader2.EXPECT().Range().Return(xtime.Range{Start: later})
 
 	_, err := NewCrossBlockReader([]DataFileSetReader{dfsReader2, dfsReader1}, instrument.NewTestOptions(t))
@@ -152,7 +152,7 @@ func testCrossBlockReader(t *testing.T, blockSeriesIds [][]string, expectedIDs [
 
 	for blockIndex, ids := range blockSeriesIds {
 		dfsReader := NewMockDataFileSetReader(ctrl)
-		dfsReader.EXPECT().StreamingMode().Return(true)
+		dfsReader.EXPECT().StreamingEnabled().Return(true)
 		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
 
 		blockHasError := false
@@ -230,7 +230,7 @@ func TestSkippingReader(t *testing.T) {
 	expectedIDs := []string{"id3"}
 	for blockIndex, ids := range blockSeriesIDs {
 		dfsReader := NewMockDataFileSetReader(ctrl)
-		dfsReader.EXPECT().StreamingMode().Return(true)
+		dfsReader.EXPECT().StreamingEnabled().Return(true)
 		dfsReader.EXPECT().Range().Return(xtime.Range{Start: now.Add(time.Hour * time.Duration(blockIndex))}).AnyTimes()
 
 		blockHasError := false
