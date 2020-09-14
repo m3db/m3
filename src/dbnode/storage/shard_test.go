@@ -1569,9 +1569,6 @@ func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
 }
 
 func TestShardStreamIndexChecksum(t *testing.T) {
-	// TODO: re-enable test when retriever logic is hooked up.
-	t.SkipNow()
-
 	dir, err := ioutil.TempDir("", "testdir")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -1586,7 +1583,6 @@ func TestShardStreamIndexChecksum(t *testing.T) {
 	opts = opts.
 		SetCommitLogOptions(opts.CommitLogOptions().
 			SetFilesystemOptions(fsOpts))
-
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 

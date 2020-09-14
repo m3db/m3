@@ -34,7 +34,7 @@ const MajorVersion = 1
 // we want to have some level of control around how they're rolled out.
 const MinorVersion = 1
 
-// IndexInfo stores metadata information about block filesets
+// IndexInfo stores metadata information about block filesets.
 type IndexInfo struct {
 	MajorVersion int64
 	BlockStart   int64
@@ -49,39 +49,40 @@ type IndexInfo struct {
 	MinorVersion int64
 }
 
-// IndexSummariesInfo stores metadata about the summaries
+// IndexSummariesInfo stores metadata about the summaries.
 type IndexSummariesInfo struct {
 	Summaries int64
 }
 
-// IndexBloomFilterInfo stores metadata about the bloom filter
+// IndexBloomFilterInfo stores metadata about the bloom filter.
 type IndexBloomFilterInfo struct {
 	NumElementsM int64
 	NumHashesK   int64
 }
 
-// IndexEntry stores entry-level data indexing
+// IndexEntry stores entry-level data indexing.
 //
 // When serialized to disk, the encoder will automatically add the IndexEntryChecksum, a checksum to validate
 // the index entry itself, to the end of the entry. That field is not exposed on this struct as this is handled
 // transparently by the encoder and decoder. Appending of checksum starts in V3.
 type IndexEntry struct {
-	Index        int64
-	ID           []byte
-	Size         int64
-	Offset       int64
-	DataChecksum int64
-	EncodedTags  []byte
+	Index         int64
+	ID            []byte
+	Size          int64
+	Offset        int64
+	DataChecksum  int64
+	EncodedTags   []byte
+	IndexChecksum uint32
 }
 
-// IndexSummary stores a summary of an index entry to lookup
+// IndexSummary stores a summary of an index entry to lookup.
 type IndexSummary struct {
 	Index            int64
 	ID               []byte
 	IndexEntryOffset int64
 }
 
-// LogInfo stores summary information about a commit log
+// LogInfo stores summary information about a commit log.
 type LogInfo struct {
 	// Deprecated fields, left intact as documentation for the actual
 	// format on disk.
@@ -102,7 +103,7 @@ type LogEntry struct {
 	Annotation []byte
 }
 
-// LogMetadata stores metadata information about a commit log
+// LogMetadata stores metadata information about a commit log.
 type LogMetadata struct {
 	ID          []byte
 	Namespace   []byte

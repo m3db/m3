@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/ident"
+	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
 	"github.com/golang/mock/gomock"
@@ -39,7 +40,7 @@ import (
 )
 
 func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newSeriesTestOptions()
@@ -85,6 +86,41 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 		require.Equal(t, 1, len(readers))
 		assert.Equal(t, blockReaders[i], readers[0])
 	}
+}
+
+func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
+	ctrl := xtest.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ropts := opts.RetentionOptions()
+
+	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	start := end.Add(-2 * ropts.BlockSize())
+
+	retriever := NewMockQueryableBlockRetriever(ctrl)
+	retriever.EXPECT().IsBlockRetrievable(start).Return(true, nil)
+
+	indexChecksum := ident.IndexChecksum{
+		ID:       []byte("foo"),
+		Checksum: 5,
+	}
+
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	retriever.EXPECT().
+		StreamIndexChecksum(ctx, ident.NewIDMatcher("foo"),
+			true, start, gomock.Any()).
+		Return(indexChecksum, true, nil)
+
+	reader := NewReaderUsingRetriever(
+		ident.StringID("foo"), retriever, nil, nil, opts)
+
+	// Check reads as expected
+	r, err := reader.IndexChecksum(ctx, start, true, namespace.Context{})
+	require.NoError(t, err)
+	assert.Equal(t, indexChecksum, r)
 }
 
 type readTestCase struct {
@@ -443,7 +479,7 @@ var robustReaderTestCases = []readTestCase{
 func TestReaderFetchBlocksRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		t.Run(tc.title, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
+			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
 			var (
@@ -535,7 +571,7 @@ func TestReaderFetchBlocksRobust(t *testing.T) {
 func TestReaderReadEncodedRobust(t *testing.T) {
 	for _, tc := range robustReaderTestCases {
 		t.Run(tc.title, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
+			ctrl := xtest.NewController(t)
 			defer ctrl.Finish()
 
 			var (

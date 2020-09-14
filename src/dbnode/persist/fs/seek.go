@@ -84,7 +84,7 @@ type seeker struct {
 }
 
 // IndexEntry is an entry from the index file which can be passed to
-// SeekUsingIndexEntry to seek to the data for that entry
+// SeekUsingIndexEntry to seek to the data for that entry.
 type IndexEntry struct {
 	Size         uint32
 	DataChecksum uint32
@@ -458,6 +458,65 @@ func (s *seeker) SeekIndexEntry(
 		if comparison == 1 {
 			return IndexEntry{}, errSeekIDNotFound
 		}
+	}
+}
+
+// SeekIndexEntryToIndexChecksum performs the following steps:
+//
+//     1. Go to the indexLookup and it will give us an offset that is a good starting
+//        point for scanning the index file.
+//     2. Reset an offsetFileReader with the index fd and an offset (so that calls to Read() will
+//        begin at the offset provided by the offset lookup).
+//     3. Reset a decoder with fileDecoderStream (offsetFileReader wrapped in a bufio.Reader).
+//     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
+//        offsetFileReader internally) until we've either found the entry we're looking for or gone so
+//        far we know it does not exist.
+func (s *seeker) SeekIndexEntryToIndexChecksum(
+	id ident.ID,
+	withID bool,
+	resources ReusableSeekerResources,
+) (ident.IndexChecksum, error) {
+	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
+	// Should never happen, either something is really wrong with the code or
+	// the file on disk was corrupted.
+	if err != nil {
+		return ident.IndexChecksum{}, err
+	}
+
+	resources.offsetFileReader.reset(s.indexFd, offset)
+	resources.fileDecoderStream.Reset(resources.offsetFileReader)
+	resources.xmsgpackDecoder.Reset(resources.fileDecoderStream)
+
+	idBytes := id.Bytes()
+	for {
+		checksum, status, err := resources.xmsgpackDecoder.
+			DecodeIndexEntryToIndexChecksum(idBytes, resources.decodeIndexEntryBytesPool)
+		if err != nil {
+			if err == io.EOF {
+				// Reached the end of the file without finding the ID.
+				return ident.IndexChecksum{}, errSeekIDNotFound
+			}
+			// Should never happen, either something is really wrong with the code or
+			// the file on disk was corrupted.
+			return ident.IndexChecksum{}, instrument.InvariantErrorf(err.Error())
+		}
+
+		if status == xmsgpack.NotFound {
+			return ident.IndexChecksum{}, errSeekIDNotFound
+		} else if status == xmsgpack.Mismatch {
+			continue
+		}
+
+		// Safe to return resources to the pool because the hash already exists.
+		bl := ident.IndexChecksum{
+			Checksum: checksum,
+		}
+
+		if withID {
+			bl.ID = idBytes
+		}
+
+		return bl, nil
 	}
 }
 
