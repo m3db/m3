@@ -173,36 +173,41 @@ var readTestTypes = []readTestType{
 }
 
 func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
-	readTestDataWithOrderOpt(t, r, shard, timestamp, entries, false)
+	readTestDataWithStreamingOpt(t, r, shard, timestamp, entries, false)
 
 	sortedEntries := append(make(testEntries, 0, len(entries)), entries...)
 	sort.Sort(sortedEntries)
 
-	readTestDataWithOrderOpt(t, r, shard, timestamp, sortedEntries, true)
+	readTestDataWithStreamingOpt(t, r, shard, timestamp, sortedEntries, true)
 }
 
-// readTestData will test reading back the data matches what was written,
+// readTestDataWithStreamingOpt will test reading back the data matches what was written,
 // note that this test also tests reuse of the reader since it first reads
 // all the data then closes it, reopens and reads through again but just
 // reading the metadata the second time.
 // If it starts to fail during the pass that reads just the metadata it could
 // be a newly introduced reader reuse bug.
-func readTestDataWithOrderOpt(
+func readTestDataWithStreamingOpt(
 	t *testing.T,
 	r DataFileSetReader,
 	shard uint32,
 	timestamp time.Time,
 	entries []testEntry,
-	orderByIndex bool,
+	streamingMode bool,
 ) {
 	for _, underTest := range readTestTypes {
+		if underTest == readTestTypeMetadata && streamingMode {
+			// ATM there is no streaming support for metadata.
+			continue
+		}
+
 		rOpenOpts := DataReaderOpenOptions{
 			Identifier: FileSetFileIdentifier{
 				Namespace:  testNs1ID,
 				Shard:      shard,
 				BlockStart: timestamp,
 			},
-			OrderedByIndex: orderByIndex,
+			StreamingMode: streamingMode,
 		}
 		err := r.Open(rOpenOpts)
 		require.NoError(t, err)
@@ -226,7 +231,7 @@ func readTestDataWithOrderOpt(
 		for i := 0; i < r.Entries(); i++ {
 			switch underTest {
 			case readTestTypeData:
-				id, tags, data, checksum, err := r.Read()
+				id, tags, data, checksum, err := readData(t, r)
 				require.NoError(t, err)
 
 				data.IncRef()
@@ -559,6 +564,23 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, []testEntry{
 		{"foo", nil, []byte{1, 2, 3, 4, 5, 6}},
 	})
+}
+
+func readData(t *testing.T, reader DataFileSetReader) (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error) {
+	if reader.StreamingMode() {
+		id, encodedTags, data, checksum, err := reader.StreamingRead()
+		var tags = ident.EmptyTagIterator
+		if len(encodedTags) > 0 {
+			tagsDecoder := testTagDecoderPool.Get()
+			tagsDecoder.Reset(checkedBytes(encodedTags))
+			require.NoError(t, tagsDecoder.Err())
+			tags = tagsDecoder
+		}
+
+		return id, tags, checked.NewBytes(data, nil), checksum, err
+	}
+
+	return reader.Read()
 }
 
 func checkedBytes(b []byte) checked.Bytes {

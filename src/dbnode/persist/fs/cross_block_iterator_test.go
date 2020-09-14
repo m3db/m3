@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/x/checked"
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
@@ -39,7 +38,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//TODO: extract CrossBlockIterator into a separate file
 func TestCrossBlockIterator(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
@@ -59,16 +57,8 @@ func TestCrossBlockIterator(t *testing.T) {
 	records := make([]BlockRecord, 0, count)
 	for i := 0; i < count; i++ {
 		byteString := fmt.Sprint(i)
-
-		data := checked.NewMockBytes(ctrl)
-		gomock.InOrder(
-			data.EXPECT().IncRef(),
-			data.EXPECT().Bytes().Return([]byte(byteString)),
-			data.EXPECT().DecRef(),
-			data.EXPECT().Finalize(),
-		)
 		records = append(records, BlockRecord{
-			Data: data,
+			Data: []byte(byteString),
 		})
 
 		reader.EXPECT().Reset(gomock.Any(), nil).Do(
@@ -130,26 +120,15 @@ func TestFailingCrossBlockIterator(t *testing.T) {
 	records := make([]BlockRecord, 0, count)
 	for i := 0; i < count; i++ {
 		byteString := fmt.Sprint(i)
-
-		data := checked.NewMockBytes(ctrl)
+		data := []byte(byteString)
 
 		if remaining == 0 {
-			gomock.InOrder(
-				data.EXPECT().Finalize(),
-			)
 			records = append(records, BlockRecord{
 				Data: data,
 			})
-
 			continue
 		}
 
-		gomock.InOrder(
-			data.EXPECT().IncRef(),
-			data.EXPECT().Bytes().Return([]byte(byteString)),
-			data.EXPECT().DecRef(),
-			data.EXPECT().Finalize(),
-		)
 		records = append(records, BlockRecord{
 			Data: data,
 		})

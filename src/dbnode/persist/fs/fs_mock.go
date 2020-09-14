@@ -229,20 +229,6 @@ func (mr *MockDataFileSetReaderMockRecorder) Open(arg0 interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDataFileSetReader)(nil).Open), arg0)
 }
 
-// OrderedByIndex mocks base method
-func (m *MockDataFileSetReader) OrderedByIndex() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OrderedByIndex")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// OrderedByIndex indicates an expected call of OrderedByIndex
-func (mr *MockDataFileSetReaderMockRecorder) OrderedByIndex() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OrderedByIndex", reflect.TypeOf((*MockDataFileSetReader)(nil).OrderedByIndex))
-}
-
 // Range mocks base method
 func (m *MockDataFileSetReader) Range() time0.Range {
 	m.ctrl.T.Helper()
@@ -320,6 +306,38 @@ func (m *MockDataFileSetReader) Status() DataFileSetReaderStatus {
 func (mr *MockDataFileSetReaderMockRecorder) Status() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockDataFileSetReader)(nil).Status))
+}
+
+// StreamingMode mocks base method
+func (m *MockDataFileSetReader) StreamingMode() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamingMode")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// StreamingMode indicates an expected call of StreamingMode
+func (mr *MockDataFileSetReaderMockRecorder) StreamingMode() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingMode", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingMode))
+}
+
+// StreamingRead mocks base method
+func (m *MockDataFileSetReader) StreamingRead() (ident.BytesID, []byte, []byte, uint32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamingRead")
+	ret0, _ := ret[0].(ident.BytesID)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].([]byte)
+	ret3, _ := ret[3].(uint32)
+	ret4, _ := ret[4].(error)
+	return ret0, ret1, ret2, ret3, ret4
+}
+
+// StreamingRead indicates an expected call of StreamingRead
+func (mr *MockDataFileSetReaderMockRecorder) StreamingRead() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamingRead", reflect.TypeOf((*MockDataFileSetReader)(nil).StreamingRead))
 }
 
 // Validate mocks base method
@@ -1315,11 +1333,11 @@ func (mr *MockCrossBlockReaderMockRecorder) Close() *gomock.Call {
 }
 
 // Current mocks base method
-func (m *MockCrossBlockReader) Current() (ident.ID, ident.TagIterator, []BlockRecord) {
+func (m *MockCrossBlockReader) Current() (ident.BytesID, []byte, []BlockRecord) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
-	ret0, _ := ret[0].(ident.ID)
-	ret1, _ := ret[1].(ident.TagIterator)
+	ret0, _ := ret[0].(ident.BytesID)
+	ret1, _ := ret[1].([]byte)
 	ret2, _ := ret[2].([]BlockRecord)
 	return ret0, ret1, ret2
 }
