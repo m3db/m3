@@ -102,6 +102,7 @@ type db struct {
 
 	state    databaseState
 	mediator databaseMediator
+	repairer databaseRepairer
 
 	created    uint64
 	bootstraps int
@@ -230,6 +231,16 @@ func NewDatabase(
 	if err != nil {
 		return nil, err
 	}
+
+	d.repairer = newNoopDatabaseRepairer()
+	if opts.RepairEnabled() {
+		d.repairer, err = newDatabaseRepairer(d, opts)
+		if err != nil {
+			return nil, err
+		}
+		mediator.RegisterBackgroundProcess(d.repairer)
+	}
+
 	d.mediator = mediator
 
 	return d, nil
@@ -1013,8 +1024,12 @@ func (d *db) IsBootstrappedAndDurable() bool {
 	return true
 }
 
+func (d *db) RegisterBackgroundProcess(process BackgroundProcess) {
+	d.mediator.RegisterBackgroundProcess(process)
+}
+
 func (d *db) Repair() error {
-	return d.mediator.Repair()
+	return d.repairer.Repair()
 }
 
 func (d *db) Truncate(namespace ident.ID) (int64, error) {

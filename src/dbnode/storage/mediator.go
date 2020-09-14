@@ -40,7 +40,6 @@ type (
 
 const (
 	fileOpCheckInterval              = time.Second
-	fileSystemProcessesCheckInterval = 100 * time.Millisecond
 
 	mediatorNotOpen mediatorState = iota
 	mediatorOpen
@@ -51,7 +50,6 @@ var (
 	errMediatorAlreadyOpen                  = errors.New("mediator is already open")
 	errMediatorNotOpen                      = errors.New("mediator is not open")
 	errMediatorAlreadyClosed                = errors.New("mediator is already closed")
-	errMediatorTimeBarrierAlreadyWaiting    = errors.New("mediator time barrier already has a waiter")
 	errMediatorTimeTriedToProgressBackwards = errors.New("mediator time tried to progress backwards")
 )
 
@@ -78,7 +76,6 @@ type mediator struct {
 	databaseFileSystemManager
 	databaseColdFlushManager
 	databaseTickManager
-	databaseRepairer
 
 	opts                Options
 	nowFn               clock.NowFn
@@ -88,6 +85,7 @@ type mediator struct {
 	mediatorTimeBarrier mediatorTimeBarrier
 	closedCh            chan struct{}
 	tickInterval        time.Duration
+	backgroundProcesses []BackgroundProcess
 }
 
 // TODO(r): Consider renaming "databaseMediator" to "databaseCoordinator"
@@ -123,17 +121,16 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 	cfm := newColdFlushManager(database, pm, opts)
 	d.databaseColdFlushManager = cfm
 
-	d.databaseRepairer = newNoopDatabaseRepairer()
-	if opts.RepairEnabled() {
-		d.databaseRepairer, err = newDatabaseRepairer(database, opts)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	d.databaseTickManager = newTickManager(database, opts)
 	d.databaseBootstrapManager = newBootstrapManager(database, d, opts)
 	return d, nil
+}
+
+func (m *mediator) RegisterBackgroundProcess(process BackgroundProcess) {
+	m.Lock()
+	defer m.Unlock()
+
+	m.backgroundProcesses = append(m.backgroundProcesses, process)
 }
 
 func (m *mediator) Open() error {
@@ -147,7 +144,11 @@ func (m *mediator) Open() error {
 	go m.ongoingFileSystemProcesses()
 	go m.ongoingColdFlushProcesses()
 	go m.ongoingTick()
-	m.databaseRepairer.Start()
+
+	for _, process := range m.backgroundProcesses {
+		process.Start()
+	}
+
 	return nil
 }
 
@@ -175,9 +176,16 @@ func (m *mediator) EnableFileOps() {
 
 func (m *mediator) Report() {
 	m.databaseBootstrapManager.Report()
-	m.databaseRepairer.Report()
 	m.databaseFileSystemManager.Report()
 	m.databaseColdFlushManager.Report()
+
+	m.Lock()
+	processes := append(make([]BackgroundProcess, 0, len(m.backgroundProcesses)), m.backgroundProcesses...)
+	m.Unlock()
+
+	for _, process := range processes {
+		process.Report()
+	}
 }
 
 func (m *mediator) Close() error {
@@ -191,7 +199,11 @@ func (m *mediator) Close() error {
 	}
 	m.state = mediatorClosed
 	close(m.closedCh)
-	m.databaseRepairer.Stop()
+
+	for _, process := range m.backgroundProcesses {
+		process.Stop()
+	}
+
 	return nil
 }
 

@@ -2874,6 +2874,65 @@ func (mr *MockdatabaseShardRepairerMockRecorder) Repair(ctx, nsCtx, nsMeta, tr, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShardRepairer)(nil).Repair), ctx, nsCtx, nsMeta, tr, shard)
 }
 
+// MockBackgroundProcess is a mock of BackgroundProcess interface
+type MockBackgroundProcess struct {
+	ctrl     *gomock.Controller
+	recorder *MockBackgroundProcessMockRecorder
+}
+
+// MockBackgroundProcessMockRecorder is the mock recorder for MockBackgroundProcess
+type MockBackgroundProcessMockRecorder struct {
+	mock *MockBackgroundProcess
+}
+
+// NewMockBackgroundProcess creates a new mock instance
+func NewMockBackgroundProcess(ctrl *gomock.Controller) *MockBackgroundProcess {
+	mock := &MockBackgroundProcess{ctrl: ctrl}
+	mock.recorder = &MockBackgroundProcessMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockBackgroundProcess) EXPECT() *MockBackgroundProcessMockRecorder {
+	return m.recorder
+}
+
+// Start mocks base method
+func (m *MockBackgroundProcess) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start
+func (mr *MockBackgroundProcessMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockBackgroundProcess)(nil).Start))
+}
+
+// Stop mocks base method
+func (m *MockBackgroundProcess) Stop() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Stop")
+}
+
+// Stop indicates an expected call of Stop
+func (mr *MockBackgroundProcessMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockBackgroundProcess)(nil).Stop))
+}
+
+// Report mocks base method
+func (m *MockBackgroundProcess) Report() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Report")
+}
+
+// Report indicates an expected call of Report
+func (mr *MockBackgroundProcessMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockBackgroundProcess)(nil).Report))
+}
+
 // MockdatabaseRepairer is a mock of databaseRepairer interface
 type MockdatabaseRepairer struct {
 	ctrl     *gomock.Controller
@@ -2921,6 +2980,18 @@ func (mr *MockdatabaseRepairerMockRecorder) Stop() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockdatabaseRepairer)(nil).Stop))
 }
 
+// Report mocks base method
+func (m *MockdatabaseRepairer) Report() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Report")
+}
+
+// Report indicates an expected call of Report
+func (mr *MockdatabaseRepairerMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseRepairer)(nil).Report))
+}
+
 // Repair mocks base method
 func (m *MockdatabaseRepairer) Repair() error {
 	m.ctrl.T.Helper()
@@ -2933,18 +3004,6 @@ func (m *MockdatabaseRepairer) Repair() error {
 func (mr *MockdatabaseRepairerMockRecorder) Repair() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseRepairer)(nil).Repair))
-}
-
-// Report mocks base method
-func (m *MockdatabaseRepairer) Report() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Report")
-}
-
-// Report indicates an expected call of Report
-func (mr *MockdatabaseRepairerMockRecorder) Report() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseRepairer)(nil).Report))
 }
 
 // MockdatabaseTickManager is a mock of databaseTickManager interface
@@ -3019,6 +3078,18 @@ func (m *MockdatabaseMediator) Open() error {
 func (mr *MockdatabaseMediatorMockRecorder) Open() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockdatabaseMediator)(nil).Open))
+}
+
+// RegisterBackgroundProcess mocks base method
+func (m *MockdatabaseMediator) RegisterBackgroundProcess(process BackgroundProcess) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RegisterBackgroundProcess", process)
+}
+
+// RegisterBackgroundProcess indicates an expected call of RegisterBackgroundProcess
+func (mr *MockdatabaseMediatorMockRecorder) RegisterBackgroundProcess(process interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterBackgroundProcess", reflect.TypeOf((*MockdatabaseMediator)(nil).RegisterBackgroundProcess), process)
 }
 
 // IsBootstrapped mocks base method
@@ -3101,20 +3172,6 @@ func (m *MockdatabaseMediator) Tick(forceType forceType, startTime time.Time) er
 func (mr *MockdatabaseMediatorMockRecorder) Tick(forceType, startTime interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseMediator)(nil).Tick), forceType, startTime)
-}
-
-// Repair mocks base method
-func (m *MockdatabaseMediator) Repair() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Repair")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Repair indicates an expected call of Repair
-func (mr *MockdatabaseMediatorMockRecorder) Repair() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseMediator)(nil).Repair))
 }
 
 // Close mocks base method

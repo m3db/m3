@@ -839,19 +839,23 @@ type databaseShardRepairer interface {
 	) (repair.MetadataComparisonResult, error)
 }
 
-// databaseRepairer repairs in-memory database data.
-type databaseRepairer interface {
-	// Start starts the repair process.
+type BackgroundProcess interface {
+	// Start starts BackgroundProcess.
 	Start()
 
-	// Stop stops the repair process.
+	// Stop stops the BackgroundProcess.
 	Stop()
-
-	// Repair repairs in-memory data.
-	Repair() error
 
 	// Report reports runtime information.
 	Report()
+}
+
+// databaseRepairer repairs in-memory database data.
+type databaseRepairer interface {
+	BackgroundProcess
+
+	// Repair repairs in-memory data.
+	Repair() error
 }
 
 // databaseTickManager performs periodic ticking.
@@ -866,6 +870,9 @@ type databaseTickManager interface {
 type databaseMediator interface {
 	// Open opens the mediator.
 	Open() error
+
+	// RegisterBackgroundProcess registers a BackgroundProcess to be executed by the mediator.
+	RegisterBackgroundProcess(process BackgroundProcess)
 
 	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
@@ -885,9 +892,6 @@ type databaseMediator interface {
 
 	// Tick performs a tick.
 	Tick(forceType forceType, startTime time.Time) error
-
-	// Repair repairs the database.
-	Repair() error
 
 	// Close closes the mediator.
 	Close() error
