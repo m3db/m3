@@ -1,10 +1,13 @@
-# etcd
+---
+title: "etcd"
+weight: 12
+---
 
 The M3 stack leverages `etcd` as a distributed key-value storage to:
 
-1. Update cluster configuration in realtime
-2. Manage placements for our distributed / sharded tiers like M3DB and M3Aggregator
-3. Perform leader-election in M3Aggregator
+1.  Update cluster configuration in realtime
+2.  Manage placements for our distributed / sharded tiers like M3DB and M3Aggregator
+3.  Perform leader-election in M3Aggregator
 
 and much more!
 

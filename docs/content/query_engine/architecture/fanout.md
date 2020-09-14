@@ -1,4 +1,7 @@
-# Fetching and querying
+---
+title: "Fetching and querying"
+weight: 2
+---
 
 ## Fetch fanout
 

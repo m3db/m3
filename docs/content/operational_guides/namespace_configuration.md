@@ -1,6 +1,7 @@
-# Namespace Configuration
-
-## Introduction
+---
+title: "Namespace Configuration"
+weight: 8
+---
 
 Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces and the technical details of their implementation, read our [storage engine documentation](../m3db/architecture/engine.md).
 
@@ -12,9 +13,7 @@ The operations below include sample cURLs, but you can always review the API doc
 
 Additionally, the following headers can be used in the namespace operations: 
 
---8<--
-docs/common/headers_placement_namespace.md
---8<--
+{{% codeinclude file="/common/headers_placement_namespace.md" language="shell" %}}
 
 ### Adding a Namespace
 
@@ -42,7 +41,7 @@ If you feel the need to configure the namespace options yourself (for performanc
 The "advanced" API allows you to configure every aspect of the namespace that you're adding which can sometimes be helpful for development, debugging, and tuning clusters for maximum performance.
 Adding a namespace is a simple as using the `POST` `api/v1/namespace` API on an M3Coordinator instance.
 
-```
+```shell
 curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/namespace -d '{
   "name": "default_unaggregated",
   "options": {
@@ -137,7 +136,7 @@ Can be modified without creating a new namespace: `no`
 Below are recommendations for block size based on resolution:
 
 | Resolution | Block Size |
-|------------|------------|
+| ---------- | ---------- |
 | 5s         | 60m        |
 | 15s        | 3h         |
 | 30s        | 6h         |
@@ -148,7 +147,7 @@ Below are recommendations for block size based on resolution:
 
 These values control how far into the future and the past (compared to the system time on an M3DB node) writes for the namespace will be accepted. For example, consider the following configuration:
 
-```
+```text
 bufferPast: 10m
 bufferFuture: 20m
 currentSystemTime: 2:35:00PM
@@ -156,7 +155,7 @@ currentSystemTime: 2:35:00PM
 
 Now consider the following writes (all of which arrive at 2:35:00PM system time, but include datapoints with the specified timestamps):
 
-```
+```text
 2:25:00PM - Accepted, within the 10m bufferPast
 
 2:24:59PM - Rejected, outside the 10m bufferPast

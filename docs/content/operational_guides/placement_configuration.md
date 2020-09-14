@@ -1,6 +1,7 @@
-# Placement Configuration
-
-## Overview
+---
+title: "Placement Configuration"
+weight: 7
+---
 
 M3DB was designed from the ground up to be a distributed (clustered) database that is availability zone or rack aware (by using isolation groups). Clusters will seamlessly scale with your data, and you can start with a small number of nodes and grow it to a size of several hundred nodes with no downtime or expensive migrations.
 
@@ -16,7 +17,7 @@ some guidelines depending on how many nodes you will have in your cluster eventu
 cannot change this once the cluster is created.
 
 | Number of Nodes | Number of Shards |
-|-----------------|------------------|
+| --------------- | ---------------- |
 | 3               | 64               |
 | 6               | 128              |
 | 12              | 256              |
@@ -79,9 +80,7 @@ The instructions below all contain sample curl commands, but you can always revi
 
 Additionally, the following headers can be used in the placement operations: 
 
---8<--
-docs/common/headers_placement_namespace.md
---8<--
+{{% codeinclude file="/common/headers_placement_namespace.md" language="shell" %}}
 
 #### Placement Initialization
 
@@ -163,7 +162,7 @@ this section is intentionally brief.
 
 To add or remove nodes to the etcd cluster, use `etcdctl member add` and `etcdctl member remove` as found in `Replacing
 a Seed Node` below. A general rule to keep in mind is that any time the M3DB process starts on a seed node, the list of
-cluster members in `etcdctl member list` must match *exactly* the list in config.
+cluster members in `etcdctl member list` must match _exactly_ the list in config.
 
 #### Replacing a Node
 
@@ -192,7 +191,7 @@ curl -X POST <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/
 
 If you are using the embedded etcd mode (which is only recommended for test purposes) and replacing a seed node then
 there are a few more steps to be done, as you are essentially doing two replace operations at once (replacing an etcd
-node *and* and M3DB node). To perform these steps you will need the `etcdctl` binary (version 3.2 or later), which can
+node _and_ and M3DB node). To perform these steps you will need the `etcdctl` binary (version 3.2 or later), which can
 be downloaded from the [etcd releases](https://github.com/etcd-io/etcd/releases) page.
 
 Many of the instructions here are mentioned in the [etcd operational
@@ -202,7 +201,7 @@ reading for more context.
 To provide some context for the commands below, let's assume your cluster was created with the below configuration, and
 that you'd like to replace `host3` with a new host `host4`, which has IP address `1.1.1.4`:
 
-```
+```yaml
 initialCluster:
   - hostID: host1
     endpoint: http://1.1.1.1:2380
@@ -212,10 +211,10 @@ initialCluster:
     endpoint: http://1.1.1.3:2380
 ```
 
-1. On an existing node in the cluster that is **not** the one you're removing, use `etcdctl` to remove `host3` from the
-   cluster:
+1.  On an existing node in the cluster that is **not** the one you're removing, use `etcdctl` to remove `host3` from the
+    cluster:
 
-```
+```shell
 $ ETCDCTL_API=3 etcdctl member list
 9d29673cf1328d1, started, host1, http://1.1.1.1:2380, http://1.1.1.1:2379
 f14613b6c8a336b, started, host2, http://1.1.1.2:2380, http://1.1.1.2:2379
@@ -225,17 +224,17 @@ $ ETCDCTL_API=3 etcdctl member remove 2fd477713daf243
 Removed member 2fd477713daf243 from cluster
 ```
 
-2. From the same host, use `etcdctl` to add `host4` to the cluster:
+2.  From the same host, use `etcdctl` to add `host4` to the cluster:
 
-```
+```shell
 $ ETCDCTL_API=3 etcdctl member add host4 --peer-urls http://1.1.1.4:2380
 ```
 
-3. **Before** starting M3DB on `host4`, modify the initial cluster list to indicate `host4` has a cluster state of
-   `existing`. Note: if you had previously started M3DB on this host, you'll have to remove the `member` subdirectory in
-   `$M3DB_DATA_DIR/etcd/`.
+3.  **Before** starting M3DB on `host4`, modify the initial cluster list to indicate `host4` has a cluster state of
+    `existing`. Note: if you had previously started M3DB on this host, you'll have to remove the `member` subdirectory in
+    `$M3DB_DATA_DIR/etcd/`.
 
-```
+```yaml
 initialCluster:
   - hostID: host1
     endpoint: http://1.1.1.1:2380
@@ -246,21 +245,21 @@ initialCluster:
     endpoint: http://1.1.1.4:2380
 ```
 
-4. Start M3DB on `host4`.
+4.  Start M3DB on `host4`.
 
-5. On all other seed nodes, update their `initialCluster` list to be exactly equal to the list on `host4` from step 3.
-   Rolling restart the hosts one at a time, waiting until they indicate they are bootstrapped (indicated in the
-   `/health`) endpoint before continuing to the next.
+5.  On all other seed nodes, update their `initialCluster` list to be exactly equal to the list on `host4` from step 3.
+    Rolling restart the hosts one at a time, waiting until they indicate they are bootstrapped (indicated in the
+    `/health`) endpoint before continuing to the next.
 
-6. Follow the steps from `Replacing a Seed Node` to replace `host3` with `host4` in the M3DB placement.
+6.  Follow the steps from `Replacing a Seed Node` to replace `host3` with `host4` in the M3DB placement.
 
 #### Setting a new placement (Not Recommended)
 
 This endpoint is unsafe since it creates a brand new placement and therefore should be used with extreme caution.
 Some use cases for using this endpoint include:
 
-- Changing IP addresses of nodes
-- Rebalancing shards
+-   Changing IP addresses of nodes
+-   Rebalancing shards
 
 If the placement for `M3DB` needs to be recreated, the `/api/v1/services/m3db/placement/set` can be used to do so.
 Please note, a placement already needs to exist to use this endpoint. If no placement exists, use the `Placement Initialization`
@@ -310,8 +309,8 @@ curl -X POST localhost:7201/api/v1/services/m3db/placement/set -d '{
 ```
 
 **Note:** The `set` endpoint can also be used to set the placements in `M3Aggregator` and `M3Coordinator` using the following endpoints, respectively:
+
 ```bash
 /api/v1/m3aggregator/set
 /api/v1/m3coordinator/set
 ```
-

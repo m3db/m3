@@ -1,10 +1,9 @@
 ---
+title: M3DB Cluster Deployment, Manually (The Hard Way)
 date: 2020-04-01T19:26:56-04:00
 weight: 3
 chapter: false
 ---
-
-# M3DB Cluster Deployment, Manually (The Hard Way)
 
 This document lists the manual steps involved in deploying a M3DB cluster. In practice, you'd be automating this using Terraform or using Kubernetes rather than doing this by hand; guides for doing so are available under the How-To section.
 

@@ -1,14 +1,15 @@
-# Upgrading M3
-
-## Overview
+---
+title: "Upgrading M3"
+weight: 3
+---
 
 This guide explains how to upgrade M3 from one version to another (e.g. from 0.14.0 to 0.15.0).
 This includes upgrading:
 
-- m3dbnode
-- m3coordinator
-- m3query
-- m3aggregator
+-   m3dbnode
+-   m3coordinator
+-   m3query
+-   m3aggregator
 
 ## m3dbnode
 
@@ -37,7 +38,7 @@ sudo systemctl stop m3dbnode
 sudo systemctl start m3dbnode
 ```
 
-*Note:* If unable to stop `m3dbnode` using `systemctl`, use `pkill` instead.
+_Note:_ If unable to stop `m3dbnode` using `systemctl`, use `pkill` instead.
 
 ```bash
 # stop m3dbnode
@@ -49,18 +50,16 @@ pkill m3dbnode
 
 3) Confirm m3dbnode has finished bootstrapping.
 
-```
-20:10:12.911218[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
-20:10:13.462798[I] node tchannelthrift: listening on 0.0.0.0:9000
-20:10:13.463107[I] cluster tchannelthrift: listening on 0.0.0.0:9001
-20:10:13.747173[I] node httpjson: listening on 0.0.0.0:9002
-20:10:13.747506[I] cluster httpjson: listening on 0.0.0.0:9003
-20:10:13.747763[I] bootstrapping shards for range starting ...
-...
-20:10:13.757834[I] bootstrap finished [{namespace metrics} {duration 10.1261ms}]
-20:10:13.758001[I] bootstrapped
-20:10:14.764771[I] successfully updated topology to 3 hosts
-```
+    20:10:12.911218[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
+    20:10:13.462798[I] node tchannelthrift: listening on 0.0.0.0:9000
+    20:10:13.463107[I] cluster tchannelthrift: listening on 0.0.0.0:9001
+    20:10:13.747173[I] node httpjson: listening on 0.0.0.0:9002
+    20:10:13.747506[I] cluster httpjson: listening on 0.0.0.0:9003
+    20:10:13.747763[I] bootstrapping shards for range starting ...
+    ...
+    20:10:13.757834[I] bootstrap finished [{namespace metrics} {duration 10.1261ms}]
+    20:10:13.758001[I] bootstrapped
+    20:10:14.764771[I] successfully updated topology to 3 hosts
 
 4) Repeat steps 2 and 3 until all nodes have been upgraded.
 
@@ -68,16 +67,16 @@ pkill m3dbnode
 
 If running `M3DB` on Kubernetes, upgrade by completing the following steps. 
 
-1. Identify the version of m3dbnode to upgrade to [on Quay](https://quay.io/repository/m3db/m3dbnode?tab=tags).
+1.  Identify the version of m3dbnode to upgrade to [on Quay](https://quay.io/repository/m3db/m3dbnode?tab=tags).
 
-2. Replace the Docker image in the `StatefulSet` manifest (or `m3db-operator` manifest) to be the new version of m3dbnode.
+2.  Replace the Docker image in the `StatefulSet` manifest (or `m3db-operator` manifest) to be the new version of m3dbnode.
 
 ```yaml
 spec:
   image: quay.io/m3db/m3dbnode:$VERSION
 ```
 
-3. Once updated, apply the updated manifest and a rolling restart will be performed.
+3.  Once updated, apply the updated manifest and a rolling restart will be performed.
 
 ```bash
 kubectl apply -f <m3dbnode_manifest>

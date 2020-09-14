@@ -1,19 +1,19 @@
-# Replication and Deployment in Zones
-
-## Overview
+---
+title: "Replication and Deployment in Zones"
+weight: 1
+---
 
 M3DB supports both deploying across multiple zones in a region or deploying to a single zone with rack-level isolation. It can also be deployed across multiple regions for a global view of data, though both latency and bandwidth costs may increase as a result.
 
 In addition, M3DB has support for automatically replicating data between isolated M3DB clusters (potentially running in different zones / regions). More details can be found in the [Replication between clusters](./replication_between_clusters.md) operational guide.
 
-### Replication
+## Replication
 
 A replication factor of at least 3 is highly recommended for any M3DB deployment, due to the consistency levels (for both reads and writes) that require quorum in order to complete an operation. For more information on consistency levels, see the documentation concerning [tuning availability, consistency and durability](availability_consistency_durability.md).
 
 M3DB will do its best to distribute shards evenly among the availability zones while still taking each individual node's weight into account, but if some of the availability zones have less available hosts than others then each host in that zone will be responsible for more shards than hosts in the other zones and will thus be subjected to heavier load.
 
-
-### Replication Factor Recommendations
+## Replication Factor Recommendations
 
 Running with `RF=1` or `RF=2` is not recommended for any multi-node use cases (testing or production). In [the
 future][1107] such topologies may be rejected by M3DB entirely. It is also recommended to only run with an odd number of
@@ -36,16 +36,16 @@ following table demonstrates the quorum size and failure tolerance of various RF
 tolerance][failure-tolerance] documentation.
 
 | Replica Factor | Quorum Size | Failure Tolerance |
-|:-:|:-:|:-:|
-| 1 | 1 | 0 |
-| 2 | 2 | 0 |
-| 3 | 2 | 1 |
-| 4 | 3 | 1 |
-| 5 | 3 | 2 |
-| 6 | 4 | 2 |
-| 7 | 4 | 3 |
+| :------------: | :---------: | :---------------: |
+|        1       |      1      |         0         |
+|        2       |      2      |         0         |
+|        3       |      2      |         1         |
+|        4       |      3      |         1         |
+|        5       |      3      |         2         |
+|        6       |      4      |         2         |
+|        7       |      4      |         3         |
 
-### Upgrading hosts in a deployment
+## Upgrading hosts in a deployment
 
 When an M3DB node is restarted it has to perform a bootstrap process before it can serve reads. During this time the node will continue to accept writes, but will not be available for reads.
 
@@ -90,5 +90,7 @@ For example, in a multi-region deployment with four shards spread over five regi
 Typically, deployments have many more than four shards - this is a simple example that illustrates how M3DB maintains availability while losing up to two regions, as three of five replicas are still intact.
 
 [1107]: https://github.com/m3db/m3/issues/1107
+
 [failure-tolerance]: https://github.com/etcd-io/etcd/blob/cca0d5c1bed134ac30e1354241f7655d2a118db4/Documentation/faq.md#what-is-failure-tolerance
+
 [isolation-group]: ./placement_configuration.md#isolation-group

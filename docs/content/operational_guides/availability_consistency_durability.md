@@ -1,6 +1,7 @@
-# Tuning Availability, Consistency, and Durability
-
-## Overview
+---
+title: "Tuning Availability, Consistency, and Durability"
+weight: 5
+---
 
 M3DB is designed as a High Availability [HA](https://en.wikipedia.org/wiki/High_availability) system because it doesn't use a consensus protocol like Raft or Paxos to enforce strong consensus and consistency guarantees.
 However, even within the category of HA systems, there is a broad spectrum of consistency and durability guarantees that a database can provide.
@@ -28,7 +29,7 @@ This means that writes will be reported as successful by the client, though the 
 
 For example, consider the default configuration:
 
-```
+```yaml
 commitlog:
   flushMaxBytes: 524288
   flushEvery: 1s
@@ -39,8 +40,8 @@ commitlog:
 
 This configuration states that the commitlog should be flushed whenever either of the following is true:
 
-1. 524288 or more bytes have been written since the last time M3DB flushed the commitlog.
-2. One or more seconds has elapsed since the last time M3DB flushed the commitlog.
+1.  524288 or more bytes have been written since the last time M3DB flushed the commitlog.
+2.  One or more seconds has elapsed since the last time M3DB flushed the commitlog.
 
 In addition, the configuration also states that M3DB should allow up to `2097152` writes to be buffered in the commitlog queue before the database node will begin rejecting incoming writes so it can attempt to drain the queue and catch up. Increasing the size of this queue can often increase the write throughput of an M3DB node at the cost of potentially losing more data if the node experiences a sudden failure like a hard crash or power loss.
 
@@ -48,7 +49,7 @@ In addition, the configuration also states that M3DB should allow up to `2097152
 
 The default M3DB YAML configuration will contain the following as a top-level key under the `db` section:
 
-```
+```yaml
 writeNewSeriesAsync: true
 ```
 
@@ -58,7 +59,7 @@ However, since new time series are created asynchronously, it's possible that th
 
 M3DB also allows operators to rate limit the number of new series that can be created per second via the following configuration:
 
-```
+```yaml
 writeNewSeriesLimitPerSecond: 1048576
 ```
 
@@ -71,7 +72,7 @@ However, in situations where the process crashed/exited unexpectedly or the node
 In such situations, M3DB will read as much of the commitlog as possible in an attempt to recover the maximum amount of data. However, it then needs to make a decision: it can either **(a)** come up successfully and tolerate an ostensibly minor amount of data or loss, or **(b)** attempt to stream the missing data from its peers.
 This behavior is controlled by the following default configuration:
 
-```
+```yaml
 bootstrap:
   commitlog:
     returnUnfulfilledForCorruptCommitLogFiles: false
@@ -86,7 +87,7 @@ This issue requires an operator with significant M3DB operational experience to 
 ### Client Write and Read consistency
 
 The most important thing to understand is that **if you want to guarantee that you will be able to read the result of every successful write, then both writes and reads must be done with `majority` consistency.**
-This means that both writes *and* reads will fail if a quorum of nodes are unavailable for a given shard.
+This means that both writes _and_ reads will fail if a quorum of nodes are unavailable for a given shard.
 You can read about the consistency levels in more detail in [the Consistency Levels section](../m3db/architecture/consistencylevels.md)
 
 ### Commitlog Configuration
@@ -94,12 +95,11 @@ You can read about the consistency levels in more detail in [the Consistency Lev
 M3DB supports running the commitlog synchronously such that every write is flushed to disk and fsync'd before the client receives a successful acknowledgement, but this is not currently exposed to users in the YAML configuration and generally leads to a massive performance degradation.
 We only recommend operating M3DB this way for workloads where data consistency and durability is strictly required, and even then there may be better alternatives such as running M3DB with the bootstrapping configuration: `filesystem,peers,uninitialized_topology` as described in our [bootstrapping operational guide](./bootstrapping_crash_recovery.md).
 
-
 ### Writing New Series Asynchronously
 
 If you want to guarantee that M3DB will immediately allow you to read data for writes that have been acknowledged by the client, including the situation where the previous write was for a brand new timeseries, then you  will need to change the default M3DB configuration to set `writeNewSeriesAsync: false` as a top-level key under the `db` section:
 
-```
+```yaml
 writeNewSeriesAsync: false
 ```
 
@@ -107,7 +107,7 @@ This instructs M3DB to handle writes for new timeseries (for a given time block)
 
 Since this operation is so expensive, M3DB allows operator to rate limit the number of new series that can be created per second via the following configuration (also a top-level key under the `db` section):
 
-```
+```yaml
 writeNewSeriesLimitPerSecond: 1048576
 ```
 
@@ -115,7 +115,7 @@ writeNewSeriesLimitPerSecond: 1048576
 
 As described in the "Tuning for Performance and Availability" section, we recommend configuring M3DB to ignore corrupt commitlog files on bootstrap. However, if you want to avoid any amount of inconsistency or data loss, no matter how minor, then you should configure M3DB to return unfulfilled when the commitlog bootstrapper encounters corrupt commitlog files. You can do so by modifying your configuration to look like this:
 
-```
+```yaml
 bootstrap:
   commitlog:
     returnUnfulfilledForCorruptCommitLogFiles: true

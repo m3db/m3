@@ -1,25 +1,26 @@
-# Bootstrapping & Crash Recovery
-
-## Introduction
+---
+title: "Bootstrapping & Crash Recovery"
+weight: 9
+---
 
 We recommend reading the [placement operational guide](placement.md) before reading the rest of this document.
 
-When an M3DB node is turned on (goes through a placement change) it needs to go through a bootstrapping process to determine the integrity of data that it has, replay writes from the commit log, and/or stream missing data from its peers. In most cases, as long as you're running with the default and recommended bootstrapper configuration of: `filesystem,commitlog,peers,uninitialized_topology` then you should not need to worry about the bootstrapping process at all and M3DB will take care of doing the right thing such that you don't lose data and consistency guarantees are met. Note that the order of the configured bootstrappers *does* matter.
+When an M3DB node is turned on (goes through a placement change) it needs to go through a bootstrapping process to determine the integrity of data that it has, replay writes from the commit log, and/or stream missing data from its peers. In most cases, as long as you're running with the default and recommended bootstrapper configuration of: `filesystem,commitlog,peers,uninitialized_topology` then you should not need to worry about the bootstrapping process at all and M3DB will take care of doing the right thing such that you don't lose data and consistency guarantees are met. Note that the order of the configured bootstrappers _does_ matter.
 
 Generally speaking, we recommend that operators do not modify the bootstrappers configuration, but in the rare case that you to, this document is designed to help you understand the implications of doing so.
 
 M3DB currently supports 5 different bootstrappers:
 
-1. `filesystem`
-2. `commitlog`
-3. `peers`
-4. `uninitialized_topology`
-5. `noop-all`
+1.  `filesystem`
+2.  `commitlog`
+3.  `peers`
+4.  `uninitialized_topology`
+5.  `noop-all`
 
 When the bootstrapping process begins, M3DB nodes need to determine two things:
 
-1. What shards the bootstrapping node should bootstrap, which can be determined from the cluster placement.
-2. What time-ranges the bootstrapping node needs to bootstrap those shards for, which can be determined from the namespace retention.
+1.  What shards the bootstrapping node should bootstrap, which can be determined from the cluster placement.
+2.  What time-ranges the bootstrapping node needs to bootstrap those shards for, which can be determined from the namespace retention.
 
 For example, imagine a M3DB node that is responsible for shards 1, 5, 13, and 25 according to the cluster placement. In addition, it has a single namespace called "metrics" with a retention of 48 hours. When the M3DB node is started, the node will determine that it needs to bootstrap shards 1, 5, 13, and 25 for the time range starting at the current time and ending 48 hours ago. In order to obtain all this data, it will run the configured bootstrappers in the specified order. Every bootstrapper will notify the bootstrapping process of which shard/ranges it was able to bootstrap and the bootstrapping process will continue working its way through the list of bootstrappers until all the shards/ranges required have been marked as fulfilled. Otherwise the M3DB node will fail to start.
 
@@ -33,13 +34,13 @@ The `filesystem` bootstrapper's responsibility is to determine which immutable [
 
 The `commitlog` bootstrapper's responsibility is to read the commitlog and snapshot (compacted commitlogs) files on disk and recover any data that has not yet been written out as an immutable Fileset file. Unlike the `filesystem` bootstrapper, the commit log bootstrapper cannot simply check which files are on disk in order to determine if it can satisfy a bootstrap request. Instead, the `commitlog` bootstrapper determines whether it can satisfy a bootstrap request using a simple heuristic.
 
-On a shard-by-shard basis, the `commitlog` bootstrapper will consult the cluster placement to see if the node it is running on has ever achieved the `Available` status for the specified shard. If so, then the commit log bootstrapper should have all the data since the last Fileset file was flushed and will return that it can satisfy any time range for that shard. In other words, the commit log bootstrapper is all-or-nothing for a given shard: it will either return that it can satisfy any time range for a given shard or none at all. In addition, the `commitlog` bootstrapper *assumes* it is running after the `filesystem` bootstrapper. M3DB will not allow you to run with a configuration where the `filesystem` bootstrapper is placed after the `commitlog` bootstrapper, but it will allow you to run the `commitlog` bootstrapper without the `filesystem` bootstrapper which can result in loss of data, depending on the workload.
+On a shard-by-shard basis, the `commitlog` bootstrapper will consult the cluster placement to see if the node it is running on has ever achieved the `Available` status for the specified shard. If so, then the commit log bootstrapper should have all the data since the last Fileset file was flushed and will return that it can satisfy any time range for that shard. In other words, the commit log bootstrapper is all-or-nothing for a given shard: it will either return that it can satisfy any time range for a given shard or none at all. In addition, the `commitlog` bootstrapper _assumes_ it is running after the `filesystem` bootstrapper. M3DB will not allow you to run with a configuration where the `filesystem` bootstrapper is placed after the `commitlog` bootstrapper, but it will allow you to run the `commitlog` bootstrapper without the `filesystem` bootstrapper which can result in loss of data, depending on the workload.
 
 ### Peers Bootstrapper
 
-The `peers` bootstrapper's responsibility is to stream in data for shard/ranges from other M3DB nodes (peers) in the cluster. This bootstrapper is only useful in M3DB clusters with more than a single node *and* where the replication factor is set to a value larger than 1. The `peers` bootstrapper will determine whether or not it can satisfy a bootstrap request on a shard-by-shard basis by consulting the cluster placement and determining if there are enough peers to satisfy the bootstrap request. For example, imagine the following M3DB placement where node A is trying to perform a peer bootstrap:
+The `peers` bootstrapper's responsibility is to stream in data for shard/ranges from other M3DB nodes (peers) in the cluster. This bootstrapper is only useful in M3DB clusters with more than a single node _and_ where the replication factor is set to a value larger than 1. The `peers` bootstrapper will determine whether or not it can satisfy a bootstrap request on a shard-by-shard basis by consulting the cluster placement and determining if there are enough peers to satisfy the bootstrap request. For example, imagine the following M3DB placement where node A is trying to perform a peer bootstrap:
 
-```
+```text
     ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
     │     Node A      │          │     Node B      │        │     Node C      │
 ────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
@@ -54,9 +55,9 @@ The `peers` bootstrapper's responsibility is to stream in data for shard/ranges 
 └─────────────────────────┘   └───────────────────────┘   └──────────────────────┘
 ```
 
-In this case, the `peers` bootstrapper running on node A will not be able to fullfill any requests because node B is in the `Initializing` state for all of its shards and cannot fulfill bootstrap requests. This means that node A's `peers` bootstrapper cannot meet its default consistency level of majority for bootstrapping (1 < 2 which is majority with a replication factor of 3). On the other hand, node A would be able to peer bootstrap its shards in the following placement because its peers (nodes B/C) have sufficient replicas of the shards it needs in the `Available` state:
+In this case, the `peers` bootstrapper running on node A will not be able to fullfill any requests because node B is in the `Initializing` state for all of its shards and cannot fulfill bootstrap requests. This means that node A's `peers` bootstrapper cannot meet its default consistency level of majority for bootstrapping (1 &lt; 2 which is majority with a replication factor of 3). On the other hand, node A would be able to peer bootstrap its shards in the following placement because its peers (nodes B/C) have sufficient replicas of the shards it needs in the `Available` state:
 
-```
+```text
     ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
     │     Node A      │          │     Node B      │        │     Node C      │
 ────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
@@ -77,7 +78,7 @@ Note that a bootstrap consistency level of `majority` is the default value, but 
 
 ### Uninitialized Topology Bootstrapper
 
-The purpose of the `uninitialized_topology` bootstrapper is to succeed bootstraps for all time ranges for shards that have never been completely bootstrapped (at a cluster level). This allows us to run the default bootstrapper configuration of: `filesystem,commitlog,peers,topology_uninitialized` such that the `filesystem` and `commitlog` bootstrappers are used by default in node restarts, the `peers` bootstrapper is used for node adds/removes/replaces, and bootstraps still succeed for brand new placement where both the `commitlog` and `peers` bootstrappers will be unable to succeed any bootstraps. In other words, the `uninitialized_topology` bootstrapper allows us to place the `commitlog` bootstrapper *before* the `peers` bootstrapper and still succeed bootstraps with brand new placements without resorting to using the noop-all bootstrapper which suceeds bootstraps for all shard/time-ranges regardless of the status of the placement.
+The purpose of the `uninitialized_topology` bootstrapper is to succeed bootstraps for all time ranges for shards that have never been completely bootstrapped (at a cluster level). This allows us to run the default bootstrapper configuration of: `filesystem,commitlog,peers,topology_uninitialized` such that the `filesystem` and `commitlog` bootstrappers are used by default in node restarts, the `peers` bootstrapper is used for node adds/removes/replaces, and bootstraps still succeed for brand new placement where both the `commitlog` and `peers` bootstrappers will be unable to succeed any bootstraps. In other words, the `uninitialized_topology` bootstrapper allows us to place the `commitlog` bootstrapper _before_ the `peers` bootstrapper and still succeed bootstraps with brand new placements without resorting to using the noop-all bootstrapper which suceeds bootstraps for all shard/time-ranges regardless of the status of the placement.
 
 The `uninitialized_topology` bootstrapper determines whether a placement is "new" for a given shard by counting the number of nodes in the `Initializing` state and `Leaving` states and there are more `Initializing` than `Leaving`, then it succeeds the bootstrap because that means the placement has never reached a state where all nodes are `Available`.
 
@@ -103,7 +104,7 @@ Everytime a node is restarted it will attempt to stream in all of the the data f
 
 ### peers,uninitialized_topology
 
-Every time a node is restarted, it will attempt to stream in *all* of the data that it is responsible for from its peers, completely ignoring the immutable Fileset files it already has on disk. This mode can be useful if you want to improve performance or save disk space by operating nodes without a commitlog, or want to force a repair of all data on an individual node. This mode can lead to violations of M3DB's consistency guarantees due to the fact that the commit logs are being ignored. In addition, if you lose a replication factors worth or more of hosts at the same time, the node will not be able to bootstrap unless an operator modifies the bootstrap consistency level configuration in etcd (see `peers` bootstrap section above). Finally, this mode adds additional network and resource pressure on other nodes in the cluster while one node is peer bootstrapping from them which can be problematic in catastrophic scenarios where all the nodes are trying to stream data from each other.
+Every time a node is restarted, it will attempt to stream in _all_ of the data that it is responsible for from its peers, completely ignoring the immutable Fileset files it already has on disk. This mode can be useful if you want to improve performance or save disk space by operating nodes without a commitlog, or want to force a repair of all data on an individual node. This mode can lead to violations of M3DB's consistency guarantees due to the fact that the commit logs are being ignored. In addition, if you lose a replication factors worth or more of hosts at the same time, the node will not be able to bootstrap unless an operator modifies the bootstrap consistency level configuration in etcd (see `peers` bootstrap section above). Finally, this mode adds additional network and resource pressure on other nodes in the cluster while one node is peer bootstrapping from them which can be problematic in catastrophic scenarios where all the nodes are trying to stream data from each other.
 
 ## Invalid bootstrappers configuration
 
@@ -145,7 +146,7 @@ The following base64-encoded string represents a Protobuf-serialized [message][s
 `unstrict_majority`: `ChF1bnN0cmljdF9tYWpvcml0eQ==`. Decode this string and place it in the following etcd key, where
 `$ENV` is the value determined above:
 
-```
+```text
 _kv/$ENV/m3db.client.bootstrap-consistency-level
 ```
 
@@ -171,4 +172,5 @@ env ETCDCTL_API=3 etcdctl del _kv/default_env/m3db.client.bootstrap-consistency-
 ```
 
 [string-proto]: https://github.com/m3db/m3/blob/61c299dba378432de955dbff31e6c1bdd55272d7/src/cluster/generated/proto/commonpb/common.proto#L40-L42
+
 [cfg-env]: https://github.com/m3db/m3/blob/61c299dba378432de955dbff31e6c1bdd55272d7/src/dbnode/config/m3dbnode-all-config.yml#L266

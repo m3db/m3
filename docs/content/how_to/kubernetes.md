@@ -1,10 +1,10 @@
 ---
+title: M3DB on Kubernetes
 date: 2020-04-01T19:26:56-04:00
 weight: 2
 chapter: false
 ---
 
-# M3DB on Kubernetes
 
 **Please note:** If possible _[PLEASE USE THE OPERATOR](https://operator.m3db.io/)_ to deploy to Kubernetes if you
 can. It is a considerably more streamlined setup.

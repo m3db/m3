@@ -1,15 +1,13 @@
 ---
-title: "Namespace management"
-date: 2020-04-21T20:58:51-04:00
-draft: true
+title: "Namespace Management"
+weight: 7
 ---
-
-### Namespaces
+<!-- TODO: Where does this doc come from? -->
 M3DB uses the concept of namespaces to determine how metrics are stored and retained. The M3DB operator allows a user to define their own namespaces, or to use a set of presets we consider to be suitable for production use cases.
 
 Namespaces are configured as part of an m3dbcluster spec.
 
-#### Presets
+## Presets
 10s:2d
 This preset will store metrics at 10 second resolution for 2 days. For example, in your cluster spec:
 

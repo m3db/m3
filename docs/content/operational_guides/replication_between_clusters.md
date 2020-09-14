@@ -1,6 +1,7 @@
-# Replication between clusters (beta)
-
-## Overview
+---
+title: "Replication between clusters (beta)"
+weight: 15
+---
 
 M3DB clusters can be configured to passively replicate data from other clusters. This feature is most commonly used when operators wish to run two (or more) regional clusters that function independently while passively replicating data from the other cluster in an eventually consistent manner.
 
@@ -8,18 +9,18 @@ The cross-cluster replication feature is built on-top of the [background repairs
 
 While cross-cluster replication is built on top of the background repairs feature, background repairs do not need to be enabled for cross-cluster replication to be enabled. In other words, clusters can be configured such that:
 
-1. Background repairs (within a cluster) are disabled and replication is also disabled.
-2. Background repairs (within a cluster) are enabled, but replication is disabled.
-3. Background repairs (within a cluster) are disabled, but replication is enabled.
-4. Background repairs (within a cluster) are enabled and replication is also enabled.
+1.  Background repairs (within a cluster) are disabled and replication is also disabled.
+2.  Background repairs (within a cluster) are enabled, but replication is disabled.
+3.  Background repairs (within a cluster) are disabled, but replication is enabled.
+4.  Background repairs (within a cluster) are enabled and replication is also enabled.
 
 ## Configuration
 
 **Important**: All M3DB clusters involved in the cross-cluster replication process must be configured such that they have the exact same:
 
-1. Number of shards
-2. Replication factor
-3. Namespace configuration
+1.  Number of shards
+2.  Replication factor
+3.  Namespace configuration
 
 The replication feature can be enabled by adding the following configuration to `m3dbnode.yml` under the `db` section:
 

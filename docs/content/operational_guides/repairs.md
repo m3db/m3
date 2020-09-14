@@ -1,6 +1,7 @@
-# Background Repairs (beta)
-
-## Overview
+---
+title: "Background Repairs (beta)"
+weight: 14
+---
 
 Background repairs enable M3DB to eventually reach a consistent state such that all nodes have identical view
 An M3DB cluster can be configured to repair itself in the background. If background repairs are enabled, M3DB nodes will continuously scan the metadata of other nodes. If a mismatch is detected, affected nodes will perform a repair such that each node in the cluster eventually settles on a consistent view of the data.
@@ -42,5 +43,5 @@ The `throttle` field controls how long the M3DB node will pause between repairin
 
 ## Caveats and Limitations
 
-1. Background repairs do not currently support M3DB's inverted index; as a result, it can only be used for clusters / namespaces where the indexing feature is disabled.
-2. Background repairs will wait until (`block start` + `block size` + `buffer past`) has elapsed before attempting to repair a block. For example, if M3DB is configured with a 2 hour block size and a 20 minute buffer past that M3DB will not attempt to repair the `12PM->2PM` block until at least `2:20PM`. This limitation is in place primarily to reduce "churn" caused by repairing mutable data that is actively being modified. **Note**: This limitation has no impact or negative interaction with M3DB's cold writes feature. In other words, even though it may take some time before a block becomes available for repairs, M3DB will repair the same block repeatedly until it falls out of retention so mismatches between nodes that were caused by "cold" writes will still eventually be repaired.
+1.  Background repairs do not currently support M3DB's inverted index; as a result, it can only be used for clusters / namespaces where the indexing feature is disabled.
+2.  Background repairs will wait until (`block start` + `block size` + `buffer past`) has elapsed before attempting to repair a block. For example, if M3DB is configured with a 2 hour block size and a 20 minute buffer past that M3DB will not attempt to repair the `12PM->2PM` block until at least `2:20PM`. This limitation is in place primarily to reduce "churn" caused by repairing mutable data that is actively being modified. **Note**: This limitation has no impact or negative interaction with M3DB's cold writes feature. In other words, even though it may take some time before a block becomes available for repairs, M3DB will repair the same block repeatedly until it falls out of retention so mismatches between nodes that were caused by "cold" writes will still eventually be repaired.

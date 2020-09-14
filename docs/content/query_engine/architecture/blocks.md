@@ -1,4 +1,7 @@
-# Blocks
+---
+title: "Blocks"
+weight: 1
+---
 
 **Please note:** This documentation is a work in progress and more detail is required.
 
