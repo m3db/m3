@@ -32,12 +32,11 @@ import (
 	"github.com/m3db/m3/src/x/checked"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
-	"github.com/m3db/m3/src/x/serialize"
 )
 
 type LargeTilesWriter interface {
 	Open() error
-	Write(ctx context.Context, encoder encoding.Encoder, id ident.ID, tags ident.TagIterator) error
+	Write(ctx context.Context, encoder encoding.Encoder, id ident.ID, encodedTags []byte) error
 	Close() error
 }
 
@@ -61,7 +60,6 @@ type largeTilesWriter struct {
 	summaryEvery int64
 	bloomFilter  *bloom.BloomFilter
 	indexOffset  int64
-	tagsEncoder  serialize.TagEncoder
 	summaries    int
 }
 
@@ -108,7 +106,6 @@ func (w *largeTilesWriter) Open() error {
 	if err := w.writer.Open(w.writerOpts); err != nil {
 		return err
 	}
-	w.tagsEncoder = w.writer.tagEncoderPool.Get()
 	w.indexOffset = 0
 	w.summaries = 0
 	w.prevIDBytes = nil
@@ -119,7 +116,7 @@ func (w *largeTilesWriter) Write(
 	ctx context.Context,
 	encoder encoding.Encoder,
 	id ident.ID,
-	tags ident.TagIterator,
+	encodedTags []byte,
 ) error {
 	// Need to check if w.prevIDBytes != nil, otherwise we can never write an empty string ID
 	if w.prevIDBytes != nil && bytes.Compare(id.Bytes(), w.prevIDBytes) <= 0 {
@@ -146,7 +143,7 @@ func (w *largeTilesWriter) Write(
 	}
 
 	if entry != nil {
-		return w.writeIndexRelated(id, tags, entry)
+		return w.writeIndexRelated(id, encodedTags, entry)
 	}
 
 	return nil
@@ -190,7 +187,7 @@ func (w *largeTilesWriter) writeData(
 
 func (w *largeTilesWriter) writeIndexRelated(
 	id ident.ID,
-	tags ident.TagIterator,
+	encodedTags []byte,
 	entry *indexEntry,
 ) error {
 	// Add to the bloom filter, note this must be zero alloc or else this will
@@ -204,7 +201,7 @@ func (w *largeTilesWriter) writeIndexRelated(
 		entry.indexFileOffset = w.indexOffset
 	}
 
-	length, err := w.writer.writeIndex(id.Bytes(), tags, w.tagsEncoder, *entry)
+	length, err := w.writer.writeIndexWithEncodedTags(id.Bytes(), encodedTags, *entry)
 	if err != nil {
 		return err
 	}
@@ -223,7 +220,6 @@ func (w *largeTilesWriter) writeIndexRelated(
 }
 
 func (w *largeTilesWriter) Close() error {
-	w.tagsEncoder.Finalize()
 	for i := range w.data {
 		w.data[i] = nil
 	}

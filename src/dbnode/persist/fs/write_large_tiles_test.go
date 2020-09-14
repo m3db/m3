@@ -21,6 +21,8 @@
 package fs
 
 import (
+	"github.com/m3db/m3/src/x/pool"
+	"github.com/m3db/m3/src/x/serialize"
 	"os"
 	"path/filepath"
 	"testing"
@@ -192,6 +194,9 @@ func writeTestLargeTilesDataWithVolume(
 	encoder.SetSchema(schema)
 	var dp ts.Datapoint
 
+	tagEncodingPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions())
+	tagEncodingPool.Init()
+
 	for i := range entries {
 		encoder.Reset(blockStart, 0, schema)
 		dp.Timestamp = blockStart
@@ -214,8 +219,13 @@ func writeTestLargeTilesDataWithVolume(
 		entries[i].data = append(segment.Head.Bytes(), segment.Tail.Bytes()...)
 		stream.Finalize()
 
-		tagIter := ident.NewTagsIterator(entries[i].Tags())
-		if err := w.Write(ctx, encoder, ident.StringID(entries[i].id), tagIter); err != nil {
+		tagsIter := ident.NewTagsIterator(entries[i].Tags())
+		tagEncoder := tagEncodingPool.Get()
+		err = tagEncoder.Encode(tagsIter)
+		require.NoError(t, err)
+		encodedTags, _ := tagEncoder.Data()
+
+		if err := w.Write(ctx, encoder, ident.StringID(entries[i].id), encodedTags.Bytes()); err != nil {
 			return err
 		}
 	}
