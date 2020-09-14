@@ -207,3 +207,30 @@ func TestTracing(t *testing.T) {
 		assert.Equal(t, expected.Outputs, trace.Outputs, "incorrect outputs for trace %d", i)
 	}
 }
+
+func buildEmptyTestSeriesFn() func(context.Context, string, storage.FetchOptions) (*storage.FetchResult, error) {
+	return func(_ context.Context, q string, opts storage.FetchOptions) (*storage.FetchResult, error) {
+		series := make([]*ts.Series, 0, 0)
+		return &storage.FetchResult{SeriesList: series}, nil
+	}
+}
+
+func TestNilBinaryContextShifter(t *testing.T) {
+	ctrl := xgomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := storage.NewMockStorage(ctrl)
+
+	engine := NewEngine(store)
+
+	ctx := common.NewContext(common.ContextOptions{Start: time.Now().Add(-1 * time.Hour), End: time.Now(), Engine: engine})
+
+	store.EXPECT().FetchByQuery(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		buildEmptyTestSeriesFn()).AnyTimes()
+
+	expr, err := engine.Compile("movingSum(foo.bar.q.zed, 30s)")
+	require.NoError(t, err)
+
+	_, err = expr.Execute(ctx)
+	require.NoError(t, err)
+}
