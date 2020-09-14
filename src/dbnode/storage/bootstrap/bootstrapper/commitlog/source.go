@@ -72,6 +72,14 @@ type commitLogSource struct {
 	newReaderFn     newReaderFn
 
 	metrics commitLogSourceMetrics
+
+	// Cache the results so the commit log is not read twice. This source is special since it reads the entire
+	// time series range, irrespective of the requested time range. This is required since the commit log may hold
+	// cold writes that have not been committed to a cold block. Another source might report it fulfilled a cold block,
+	// but it could be missing writes only available in the commit log.
+	//
+	// The bootstrapper is single threaded so we don't need a mutex for this.
+	bootstrapResults bootstrap.NamespaceResults
 }
 
 type bootstrapNamespace struct {
@@ -174,6 +182,12 @@ func (s *commitLogSource) Read(
 ) (bootstrap.NamespaceResults, error) {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperCommitLogSourceRead)
 	defer span.Finish()
+
+	// bail early if this source already ran before.
+	if s.bootstrapResults.Results != nil {
+		s.log.Info("the entire range of the commit has already been read. returning previous results")
+		return s.bootstrapResults, nil
+	}
 
 	var (
 		// Emit bootstrapping gauge for duration of ReadData.
@@ -521,9 +535,8 @@ func (s *commitLogSource) Read(
 		return bootstrap.NamespaceResults{}, err
 	}
 
-	bootstrapResult := bootstrap.NamespaceResults{
-		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
-	}
+	s.bootstrapResults.Results = bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{})
+
 	for _, ns := range namespaceResults {
 		id := ns.namespace.Metadata.ID()
 		dataResult := result.NewDataBootstrapResult()
@@ -539,7 +552,7 @@ func (s *commitLogSource) Read(
 				indexResult = shardTimeRanges.ToUnfulfilledIndexResult()
 			}
 		}
-		bootstrapResult.Results.Set(id, bootstrap.NamespaceResult{
+		s.bootstrapResults.Results.Set(id, bootstrap.NamespaceResult{
 			Metadata:    ns.namespace.Metadata,
 			Shards:      ns.namespace.Shards,
 			DataResult:  dataResult,
@@ -547,7 +560,7 @@ func (s *commitLogSource) Read(
 		})
 	}
 
-	return bootstrapResult, nil
+	return s.bootstrapResults, nil
 }
 
 func (s *commitLogSource) snapshotFilesByShard(
