@@ -393,6 +393,12 @@ func (r *reader) readInIndexedOrder() (ident.ID, ident.TagIterator, checked.Byte
 		defer data.DecRef()
 	}
 
+	if entry.Offset+entry.Size > int64(len(r.dataMmap.Bytes)) {
+		return nil, nil, nil, 0, fmt.Errorf(
+			"attempt to read beyond data file size (offset=%d, size=%d, file size=%d)",
+			entry.Offset, entry.Size, len(r.dataMmap.Bytes))
+	}
+
 	data.AppendAll(r.dataMmap.Bytes[entry.Offset : entry.Offset+entry.Size])
 
 	// NB(r): _must_ check the checksum against known checksum as the data
