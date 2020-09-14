@@ -47,6 +47,7 @@ type TChanCluster interface {
 type TChanNode interface {
 	Aggregate(ctx thrift.Context, req *AggregateQueryRequest) (*AggregateQueryResult_, error)
 	AggregateRaw(ctx thrift.Context, req *AggregateQueryRawRequest) (*AggregateQueryRawResult_, error)
+	AggregateTiles(ctx thrift.Context, req *AggregateTilesRequest) (*AggregateTilesResult_, error)
 	Bootstrapped(ctx thrift.Context) (*NodeBootstrappedResult_, error)
 	BootstrappedInPlacementOrNoPlacement(ctx thrift.Context) (*NodeBootstrappedInPlacementOrNoPlacementResult_, error)
 	DebugIndexMemorySegments(ctx thrift.Context, req *DebugIndexMemorySegmentsRequest) (*DebugIndexMemorySegmentsResult_, error)
@@ -512,6 +513,24 @@ func (c *tchanNodeClient) AggregateRaw(ctx thrift.Context, req *AggregateQueryRa
 			err = resp.Err
 		default:
 			err = fmt.Errorf("received no result or unknown exception for aggregateRaw")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) AggregateTiles(ctx thrift.Context, req *AggregateTilesRequest) (*AggregateTilesResult_, error) {
+	var resp NodeAggregateTilesResult
+	args := NodeAggregateTilesArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "aggregateTiles", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for aggregateTiles")
 		}
 	}
 
@@ -1044,6 +1063,7 @@ func (s *tchanNodeServer) Methods() []string {
 	return []string{
 		"aggregate",
 		"aggregateRaw",
+		"aggregateTiles",
 		"bootstrapped",
 		"bootstrappedInPlacementOrNoPlacement",
 		"debugIndexMemorySegments",
@@ -1082,6 +1102,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleAggregate(ctx, protocol)
 	case "aggregateRaw":
 		return s.handleAggregateRaw(ctx, protocol)
+	case "aggregateTiles":
+		return s.handleAggregateTiles(ctx, protocol)
 	case "bootstrapped":
 		return s.handleBootstrapped(ctx, protocol)
 	case "bootstrappedInPlacementOrNoPlacement":
@@ -1184,6 +1206,34 @@ func (s *tchanNodeServer) handleAggregateRaw(ctx thrift.Context, protocol athrif
 
 	r, err :=
 		s.handler.AggregateRaw(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleAggregateTiles(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeAggregateTilesArgs
+	var res NodeAggregateTilesResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.AggregateTiles(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {

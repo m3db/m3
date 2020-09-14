@@ -51,6 +51,8 @@ var (
 	// errReadNotExpectedSize returned when the size of the next read does not match size specified by the index
 	errReadNotExpectedSize = errors.New("next read not expected size")
 
+	errUnexpectedSortByOffset = errors.New("should not sort index by offsets when doing reads sorted by id")
+
 	// errReadMetadataOptimizedForRead returned when we optimized for only reading metadata but are attempting a regular read
 	errReadMetadataOptimizedForRead = errors.New("read metadata optimized for regular read")
 )
@@ -102,6 +104,7 @@ type reader struct {
 	shard                     uint32
 	volume                    int
 	open                      bool
+	orderedByIndex            bool
 	// NB(bodu): Informs whether or not we optimize for only reading
 	// metadata. We don't need to sort for reading metadata but sorting is
 	// required if we are performing regulars reads.
@@ -157,6 +160,8 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		indexFilepath       string
 		dataFilepath        string
 	)
+
+	r.orderedByIndex = opts.OrderedByIndex
 
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
@@ -270,7 +275,9 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		r.Close()
 		return err
 	}
-	if err := r.readIndexAndSortByOffsetAsc(); err != nil {
+	if opts.OrderedByIndex {
+		r.decoder.Reset(r.indexDecoderStream)
+	} else if err := r.readIndexAndSortByOffsetAsc(); err != nil {
 		r.Close()
 		return err
 	}
@@ -290,7 +297,7 @@ func (r *reader) Status() DataFileSetReaderStatus {
 		Shard:      r.shard,
 		Volume:     r.volume,
 		BlockStart: r.start,
-		BlockSize:  time.Duration(r.blockSize),
+		BlockSize:  r.blockSize,
 	}
 }
 
@@ -337,6 +344,10 @@ func (r *reader) readInfo(size int) error {
 }
 
 func (r *reader) readIndexAndSortByOffsetAsc() error {
+	if r.orderedByIndex {
+		return errUnexpectedSortByOffset
+	}
+
 	r.decoder.Reset(r.indexDecoderStream)
 	for i := 0; i < r.entries; i++ {
 		entry, err := r.decoder.DecodeIndexEntry(nil)
@@ -355,6 +366,56 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 }
 
 func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
+	if r.orderedByIndex {
+		return r.readInIndexedOrder()
+	}
+	return r.readInStoredOrder()
+}
+
+func (r *reader) readInIndexedOrder() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
+	if r.entriesRead >= r.entries {
+		return nil, nil, nil, 0, io.EOF
+	}
+
+	entry, err := r.decoder.DecodeIndexEntry(nil)
+	if err != nil {
+		return nil, nil, nil, 0, err
+	}
+
+	var data checked.Bytes
+	if r.bytesPool != nil {
+		data = r.bytesPool.Get(int(entry.Size))
+		data.IncRef()
+		defer data.DecRef()
+	} else {
+		data = checked.NewBytes(make([]byte, 0, entry.Size), nil)
+		data.IncRef()
+		defer data.DecRef()
+	}
+
+	if entry.Offset+entry.Size > int64(len(r.dataMmap.Bytes)) {
+		return nil, nil, nil, 0, fmt.Errorf(
+			"attempt to read beyond data file size (offset=%d, size=%d, file size=%d)",
+			entry.Offset, entry.Size, len(r.dataMmap.Bytes))
+	}
+
+	data.AppendAll(r.dataMmap.Bytes[entry.Offset : entry.Offset+entry.Size])
+
+	// NB(r): _must_ check the checksum against known checksum as the data
+	// file might not have been verified if we haven't read through the file yet.
+	if entry.DataChecksum != int64(digest.Checksum(data.Bytes())) {
+		return nil, nil, nil, 0, errSeekChecksumMismatch
+	}
+
+	id := r.entryClonedID(entry.ID)
+	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
+
+	r.entriesRead++
+
+	return id, tags, data, uint32(entry.DataChecksum), nil
+}
+
+func (r *reader) readInStoredOrder() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
 	// NB(bodu): We cannot perform regular reads if we're optimizing for only reading metadata.
 	if r.optimizedReadMetadataOnly {
 		return nil, nil, nil, 0, errReadMetadataOptimizedForRead
@@ -401,6 +462,32 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 }
 
 func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
+	if r.orderedByIndex {
+		return r.readMetadataInIndexedOrder()
+	}
+	return r.readMetadataInStoredOrder()
+}
+
+func (r *reader) readMetadataInIndexedOrder() (ident.ID, ident.TagIterator, int, uint32, error) {
+	if r.entriesRead >= r.entries {
+		return nil, nil, 0, 0, io.EOF
+	}
+
+	entry, err := r.decoder.DecodeIndexEntry(nil)
+	if err != nil {
+		return nil, nil, 0, 0, err
+	}
+
+	id := r.entryClonedID(entry.ID)
+	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
+	length := int(entry.Size)
+	checksum := uint32(entry.DataChecksum)
+
+	r.metadataRead++
+	return id, tags, length, checksum, nil
+}
+
+func (r *reader) readMetadataInStoredOrder() (ident.ID, ident.TagIterator, int, uint32, error) {
 	if r.metadataRead >= r.entries {
 		return nil, nil, 0, 0, io.EOF
 	}
@@ -499,6 +586,10 @@ func (r *reader) EntriesRead() int {
 
 func (r *reader) MetadataRead() int {
 	return r.metadataRead
+}
+
+func (r *reader) OrderedByIndex() bool {
+	return r.orderedByIndex
 }
 
 func (r *reader) Close() error {
