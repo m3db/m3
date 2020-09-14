@@ -60,7 +60,9 @@ var (
 		M3CoordinatorServicePlacementPathName, setPathName)
 )
 
-// SetHandler is the type for placement replaces.
+// SetHandler is the type for manually setting a placement value. If none
+// currently exists, this will set the initial placement. Otherwise it will
+// override the existing placement.
 type SetHandler Handler
 
 // NewSetHandler returns a new SetHandler.
