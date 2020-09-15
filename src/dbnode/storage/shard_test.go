@@ -1788,7 +1788,7 @@ func TestShardAggregateTiles(t *testing.T) {
 			BlockStart:  opts.Start,
 			VolumeIndex: latestSourceVolume,
 		},
-		FileSetType:    persist.FileSetFlushType,
+		FileSetType: persist.FileSetFlushType,
 	}
 
 	reader := fs.NewMockDataFileSetReader(ctrl)

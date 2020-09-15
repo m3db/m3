@@ -262,6 +262,7 @@ func TestSkippingReader(t *testing.T) {
 
 	blockCount := 0
 	seriesCount := 0
+
 	// NB: skip first two
 	expectedBlockCount -= 2
 	require.True(t, cbReader.Next())

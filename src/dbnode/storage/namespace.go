@@ -158,7 +158,7 @@ type databaseNamespaceMetrics struct {
 	snapshot              instrument.MethodMetrics
 	write                 instrument.MethodMetrics
 	writeTagged           instrument.MethodMetrics
-	writeAggregated       instrument.MethodMetrics
+	aggregateTiles        instrument.MethodMetrics
 	read                  instrument.MethodMetrics
 	fetchBlocks           instrument.MethodMetrics
 	fetchBlocksMetadata   instrument.MethodMetrics
@@ -244,7 +244,7 @@ func newDatabaseNamespaceMetrics(
 		snapshot:              instrument.NewMethodMetrics(scope, "snapshot", opts),
 		write:                 instrument.NewMethodMetrics(scope, "write", opts),
 		writeTagged:           instrument.NewMethodMetrics(scope, "write-tagged", opts),
-		writeAggregated:       instrument.NewMethodMetrics(scope, "write-aggregated", opts),
+		aggregateTiles:        instrument.NewMethodMetrics(scope, "aggregate-tiles", opts),
 		read:                  instrument.NewMethodMetrics(scope, "read", opts),
 		fetchBlocks:           instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
 		fetchBlocksMetadata:   instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
@@ -1613,7 +1613,7 @@ func (n *dbNamespace) AggregateTiles(
 ) (int64, error) {
 	callStart := n.nowFn()
 	processedBlockCount, err := n.aggregateTiles(ctx, sourceNs, opts, pm)
-	n.metrics.writeAggregated.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	n.metrics.aggregateTiles.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 
 	return processedBlockCount, err
 }
@@ -1713,7 +1713,7 @@ func (n *dbNamespace) coldFlushSingleShard(
 	if n.reverseIndex != nil {
 		onColdFlushDone, err = n.reverseIndex.ColdFlush([]databaseShard{shard})
 		if err != nil {
-			n.metrics.writeAggregated.ReportError(n.nowFn().Sub(callStart))
+			n.metrics.aggregateTiles.ReportError(n.nowFn().Sub(callStart))
 			return multiErr.Add(
 				fmt.Errorf("error preparing to coldflush a reverse index for shard %d: %v",
 					shard.ID(),
@@ -1723,7 +1723,7 @@ func (n *dbNamespace) coldFlushSingleShard(
 
 	onColdFlushNs, err := n.opts.OnColdFlush().ColdFlushNamespace(n)
 	if err != nil {
-		n.metrics.writeAggregated.ReportError(n.nowFn().Sub(callStart))
+		n.metrics.aggregateTiles.ReportError(n.nowFn().Sub(callStart))
 		return multiErr.Add(
 			fmt.Errorf("error preparing to coldflush a namespace for shard %d: %v",
 				shard.ID(),
@@ -1732,7 +1732,7 @@ func (n *dbNamespace) coldFlushSingleShard(
 
 	flushPersist, err := pm.StartFlushPersist()
 	if err != nil {
-		n.metrics.writeAggregated.ReportError(n.nowFn().Sub(callStart))
+		n.metrics.aggregateTiles.ReportError(n.nowFn().Sub(callStart))
 		return multiErr.Add(
 			fmt.Errorf("error starting flush persist for shard %d: %v",
 				shard.ID(),
@@ -1764,7 +1764,7 @@ func (n *dbNamespace) coldFlushSingleShard(
 	localErrors = multiErr.Add(err)
 
 	res := localErrors.FinalError()
-	n.metrics.writeAggregated.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	n.metrics.aggregateTiles.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
 
 	for _, err := range localErrors.Errors() {
 		multiErr = multiErr.Add(err)

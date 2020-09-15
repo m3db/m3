@@ -1165,6 +1165,7 @@ func (m metadatas) String() (string, error) {
 	return buf.String(), nil
 }
 
+// NewAggregateTilesOptions creates new AggregateTilesOptions.
 func NewAggregateTilesOptions(
 	start, end time.Time,
 	step time.Duration,

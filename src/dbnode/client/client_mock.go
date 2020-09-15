@@ -1776,6 +1776,34 @@ func (mr *MockOptionsMockRecorder) FetchRetrier() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRetrier", reflect.TypeOf((*MockOptions)(nil).FetchRetrier))
 }
 
+// SetWriteShardsInitializing mocks base method
+func (m *MockOptions) SetWriteShardsInitializing(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteShardsInitializing", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteShardsInitializing indicates an expected call of SetWriteShardsInitializing
+func (mr *MockOptionsMockRecorder) SetWriteShardsInitializing(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteShardsInitializing", reflect.TypeOf((*MockOptions)(nil).SetWriteShardsInitializing), value)
+}
+
+// WriteShardsInitializing mocks base method
+func (m *MockOptions) WriteShardsInitializing() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteShardsInitializing")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// WriteShardsInitializing indicates an expected call of WriteShardsInitializing
+func (mr *MockOptionsMockRecorder) WriteShardsInitializing() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteShardsInitializing", reflect.TypeOf((*MockOptions)(nil).WriteShardsInitializing))
+}
+
 // SetTagEncoderOptions mocks base method
 func (m *MockOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
 	m.ctrl.T.Helper()
@@ -3253,6 +3281,34 @@ func (m *MockAdminOptions) FetchRetrier() retry.Retrier {
 func (mr *MockAdminOptionsMockRecorder) FetchRetrier() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchRetrier", reflect.TypeOf((*MockAdminOptions)(nil).FetchRetrier))
+}
+
+// SetWriteShardsInitializing mocks base method
+func (m *MockAdminOptions) SetWriteShardsInitializing(value bool) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetWriteShardsInitializing", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteShardsInitializing indicates an expected call of SetWriteShardsInitializing
+func (mr *MockAdminOptionsMockRecorder) SetWriteShardsInitializing(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteShardsInitializing", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteShardsInitializing), value)
+}
+
+// WriteShardsInitializing mocks base method
+func (m *MockAdminOptions) WriteShardsInitializing() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteShardsInitializing")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// WriteShardsInitializing indicates an expected call of WriteShardsInitializing
+func (mr *MockAdminOptionsMockRecorder) WriteShardsInitializing() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteShardsInitializing", reflect.TypeOf((*MockAdminOptions)(nil).WriteShardsInitializing))
 }
 
 // SetTagEncoderOptions mocks base method
