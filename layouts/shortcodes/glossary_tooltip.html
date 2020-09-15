@@ -11,7 +11,7 @@
 {{- end }}
 {{- with $term_info -}}
 {{- $text := $text | default $term_info.Title -}}
-{{- $glossary_home := "reference/glossary/?all=true" | relLangURL -}}
+{{- $glossary_home := "glossary/?all=true" | relLangURL -}}
 {{- $external_link := $term_info.Params.full_link | default (printf "%s#term-%s" $glossary_home $id | safeURL  ) -}}
 {{- $tooltip :=  $term_info.Params.short_description | markdownify -}}
 {{- $tooltip := $tooltip | replaceRE "(?s)<a class='glossary-tooltip'.*?>(.*?)<span class='tooltip-text'>.*</a>" "$1" | plainify -}}
