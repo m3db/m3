@@ -2679,7 +2679,7 @@ func (s *dbShard) AggregateTiles(
 			BlockStart:  sourceBlockStart,
 			VolumeIndex: latestSourceVolume,
 		},
-		FileSetType:      persist.FileSetFlushType,
+		FileSetType: persist.FileSetFlushType,
 		//TODO add after streaming supported - OrderByIndex: true
 	}
 	if err := reader.Open(openOpts); err != nil {
