@@ -18,7 +18,13 @@ Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings fo
 
 ## Recorded Talks
 
+- [OpenObservability Talks: Long-Term Metrics with M3 and Prometheus](https://youtu.be/XQ_yCLyAMLU) By Matt Schallert. Aug 27, 2020.
+
+- [From Alert Notification to Comparison of Good and Bad Requests in One Click](https://youtu.be/nsTEFLwRJRI) By Shreyas Srivatsan. Aug 18, 2020 [Slides](https://static.sched.com/hosted_files/kccnceu20/bc/From%20Alert%20Notification%20to%20Comparison%20of%20Good%20and%20Bad%20Requests%20in%20One%20Click.pdf)
+
 - [CNCF Webinar: Maximizing M3 – Pushing performance boundaries in a distributed metrics engine](https://www.cncf.io/webinars/maximizing-m3-pushing-performance-boundaries-in-a-distributed-metrics-engine-at-global-scale/) By Ryan Allen - Aug 6, 2020.
+
+- [Deep Linking Metrics and Traces with OpenTelemetry, OpenMetrics and M3](https://www.youtube.com/watch?v=TzNZIEvhAdA) By Rob Skillington - Nov 21, 2019. [Slides](https://static.sched.com/hosted_files/kccncna19/2e/Deep%20Linking%20Metrics%20and%20Traces%20with%20OpenTelemetry%2C%20OpenMetrics%2C%20Prometheus%20and%20M3%20%281%29.pdf)
 
 - [OSCON 2019: Large-Scale Automated Storage on Kubernetes](https://youtu.be/N9A7xSE9n-c) By Matt Schallert - Jul 18, 2019. [Slides](https://schallert.io/OSCON%20Large-Scale%20Automated%20Storage%20on%20Kubernetes.pdf)
 
@@ -43,4 +49,3 @@ Recordings of all past meetups can be found on a [Vimeo M3 Community Meetings fo
 - [PromCon 2018 Panel Discussion: Prometheus Long-Term Storage Approaches](https://youtube.com/watch?v=3pTG_N8yGSU) including highlights of the M3 stack by Nikunj Aggarwal - Aug 9, 2018.
 
 - [Putting billions of time series to work at Uber with autonomous monitoring](https://vimeo.com/274821002) By Prateek Rungta - Jun 6, 2018. [Slides](http://bit.ly/m3db-monitorama2018)
-
