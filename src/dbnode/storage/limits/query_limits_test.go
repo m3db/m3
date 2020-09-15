@@ -252,7 +252,7 @@ func verifyMetrics(t *testing.T,
 	assert.True(t, exists)
 	assert.Equal(t, expectedTotal, total.Value(), "total wrong")
 
-	exceeded, exists := snapshot.Counters()[fmt.Sprintf("query-limit.limit-exceeded+limit=%s", name)]
+	exceeded, exists := snapshot.Counters()[fmt.Sprintf("query-limit.exceeded+limit=%s", name)]
 	assert.True(t, exists)
 	assert.Equal(t, expectedExceeded, exceeded.Value(), "exceeded wrong")
 }

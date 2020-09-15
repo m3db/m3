@@ -107,7 +107,7 @@ func newLookbackLimitMetrics(instrumentOpts instrument.Options, name string) loo
 		recentCount: scope.Gauge(fmt.Sprintf("recent-count-%s", name)),
 		recentMax:   scope.Gauge(fmt.Sprintf("recent-max-%s", name)),
 		total:       scope.Counter(fmt.Sprintf("total-%s", name)),
-		exceeded:    scope.Tagged(map[string]string{"limit": name}).Counter("limit-exceeded"),
+		exceeded:    scope.Tagged(map[string]string{"limit": name}).Counter("exceeded"),
 	}
 }
 
