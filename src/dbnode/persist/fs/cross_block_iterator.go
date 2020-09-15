@@ -38,11 +38,9 @@ type crossBlockIterator struct {
 
 // NewCrossBlockIterator creates a new CrossBlockIterator.
 func NewCrossBlockIterator(pool encoding.ReaderIteratorPool) CrossBlockIterator {
-	return &crossBlockIterator{
-		idx:        -1,
-		current:    pool.Get(),
-		byteReader: bytes.NewReader(nil),
-	}
+	c := &crossBlockIterator{current: pool.Get(), byteReader: bytes.NewReader(nil)}
+	c.Reset(nil)
+	return c
 }
 
 func (c *crossBlockIterator) Next() bool {

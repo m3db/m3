@@ -35,8 +35,6 @@ import (
 var (
 	errReaderNotOrderedByIndex     = errors.New("crossBlockReader can only use DataFileSetReaders ordered by index")
 	errUnorderedDataFileSetReaders = errors.New("dataFileSetReaders are not ordered by time")
-
-	_ heap.Interface = (*minHeap)(nil)
 )
 
 type crossBlockReader struct {
@@ -196,6 +194,8 @@ type minHeapEntry struct {
 	dataFileSetReaderIndex int
 	checksum               uint32
 }
+
+var _ heap.Interface = (*minHeap)(nil)
 
 type minHeap []minHeapEntry
 
