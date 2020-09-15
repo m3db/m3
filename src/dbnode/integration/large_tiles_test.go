@@ -42,6 +42,9 @@ import (
 )
 
 func TestReadAggregateWrite(t *testing.T) {
+	//FIXME
+	t.Skip("Appears to be flaky, reenable after https://github.com/m3db/m3/pull/2599 is merged")
+
 	var (
 		blockSize      = 2 * time.Hour
 		indexBlockSize = 2 * blockSize
