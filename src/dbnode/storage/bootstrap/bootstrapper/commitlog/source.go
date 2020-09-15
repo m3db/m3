@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"io"
 	"sync"
 	"time"
@@ -73,13 +74,12 @@ type commitLogSource struct {
 
 	metrics commitLogSourceMetrics
 
-	// Cache the results so the commit log is not read twice. This source is special since it reads the entire
-	// time series range, irrespective of the requested time range. This is required since the commit log may hold
-	// cold writes that have not been committed to a cold block. Another source might report it fulfilled a cold block,
-	// but it could be missing writes only available in the commit log.
+	// Only read the commit log once, since it can be expensive to read twice. Since the commit log is not sharded by
+	// time range we can't read just the configured time ranges for each pass. Instead we read the entire retention
+	//period during the first pass and skip the second pass.
 	//
 	// The bootstrapper is single threaded so we don't need a mutex for this.
-	bootstrapResults bootstrap.NamespaceResults
+	alreadyRun bool
 }
 
 type bootstrapNamespace struct {
@@ -180,14 +180,16 @@ func (s *commitLogSource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
 ) (bootstrap.NamespaceResults, error) {
+	// bail early if we already read the commit log in a previous pass.
+	if s.alreadyRun {
+		s.log.Debug("the entire range of the commit log has already been read. skipping this subsequent pass.")
+		none, _ := bootstrapper.NewNoOpNoneBootstrapperProvider().Provide()
+		return none.Bootstrap(ctx, namespaces)
+	}
+	s.alreadyRun = true
+
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperCommitLogSourceRead)
 	defer span.Finish()
-
-	// bail early if this source already ran before.
-	if s.bootstrapResults.Results != nil {
-		s.log.Info("the entire range of the commit has already been read. returning previous results")
-		return s.bootstrapResults, nil
-	}
 
 	var (
 		// Emit bootstrapping gauge for duration of ReadData.
@@ -215,9 +217,9 @@ func (s *commitLogSource) Read(
 		shardTimeRanges := result.NewShardTimeRanges()
 		// NB(bodu): Use TargetShardTimeRanges which covers the entire original target shard range
 		// since the commitlog bootstrapper should run for the entire bootstrappable range per shard.
-		shardTimeRanges.AddRanges(ns.DataRunOptions.TargetShardTimeRanges)
+		shardTimeRanges.AddRanges(ns.DataRunOptions.AllShardTimeRanges)
 		if ns.Metadata.Options().IndexOptions().Enabled() {
-			shardTimeRanges.AddRanges(ns.IndexRunOptions.TargetShardTimeRanges)
+			shardTimeRanges.AddRanges(ns.IndexRunOptions.AllShardTimeRanges)
 		}
 
 		namespaceResults[ns.Metadata.ID().String()] = &readNamespaceResult{
@@ -535,7 +537,9 @@ func (s *commitLogSource) Read(
 		return bootstrap.NamespaceResults{}, err
 	}
 
-	s.bootstrapResults.Results = bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{})
+	bootstrapResult := bootstrap.NamespaceResults{
+		Results: bootstrap.NewNamespaceResultsMap(bootstrap.NamespaceResultsMapOptions{}),
+	}
 
 	for _, ns := range namespaceResults {
 		id := ns.namespace.Metadata.ID()
@@ -552,7 +556,7 @@ func (s *commitLogSource) Read(
 				indexResult = shardTimeRanges.ToUnfulfilledIndexResult()
 			}
 		}
-		s.bootstrapResults.Results.Set(id, bootstrap.NamespaceResult{
+		bootstrapResult.Results.Set(id, bootstrap.NamespaceResult{
 			Metadata:    ns.namespace.Metadata,
 			Shards:      ns.namespace.Shards,
 			DataResult:  dataResult,
@@ -560,7 +564,7 @@ func (s *commitLogSource) Read(
 		})
 	}
 
-	return s.bootstrapResults, nil
+	return bootstrapResult, nil
 }
 
 func (s *commitLogSource) snapshotFilesByShard(

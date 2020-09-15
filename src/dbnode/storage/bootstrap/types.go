@@ -226,11 +226,10 @@ type NamespaceRunOptions struct {
 	// ShardTimeRanges are the time ranges for the shards that should be fulfilled
 	// by the bootstrapper. This changes each bootstrapper pass as time ranges are fulfilled.
 	ShardTimeRanges result.ShardTimeRanges
-	// TargetShardTimeRanges are the original target time ranges for shards and does not change
-	// each bootstrapper pass.
-	// NB(bodu): This is used by the commit log bootstrapper as it needs to run for the entire original
-	// target shard time ranges.
-	TargetShardTimeRanges result.ShardTimeRanges
+	// AllShardTimeRanges covers the entire retention period and does not change each bootstrapper pass.
+	// NB(rhall): This is used by the commit log bootstrapper since it only runs during a single pass of the bootstrapper.
+	// See the commit log bootstrapper for more details.
+	AllShardTimeRanges result.ShardTimeRanges
 	// RunOptions are the run options for the bootstrap run.
 	RunOptions RunOptions
 }

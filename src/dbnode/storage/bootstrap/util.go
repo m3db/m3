@@ -378,14 +378,14 @@ func BuildNamespacesTesterWithReaderIteratorPool(
 			Shards:          shards,
 			DataAccumulator: acc,
 			DataRunOptions: NamespaceRunOptions{
-				ShardTimeRanges:       ranges.Copy(),
-				TargetShardTimeRanges: ranges.Copy(),
-				RunOptions:            runOpts,
+				ShardTimeRanges:    ranges.Copy(),
+				AllShardTimeRanges: ranges.Copy(),
+				RunOptions:         runOpts,
 			},
 			IndexRunOptions: NamespaceRunOptions{
-				ShardTimeRanges:       ranges.Copy(),
-				TargetShardTimeRanges: ranges.Copy(),
-				RunOptions:            runOpts,
+				ShardTimeRanges:    ranges.Copy(),
+				AllShardTimeRanges: ranges.Copy(),
+				RunOptions:         runOpts,
 			},
 		})
 	}

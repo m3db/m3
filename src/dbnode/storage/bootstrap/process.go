@@ -173,6 +173,10 @@ func (b bootstrapProcess) Run(
 			dataRanges.firstRangeWithPersistTrue.Range,
 			namespace.Shards,
 		)
+		secondRanges := b.newShardTimeRanges(
+			dataRanges.secondRangeWithPersistFalse.Range, namespace.Shards)
+		allRanges := firstRanges.Copy()
+		allRanges.AddRanges(secondRanges)
 		namespacesRunFirst.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
@@ -181,18 +185,16 @@ func (b bootstrapProcess) Run(
 			DataTargetRange:  dataRanges.firstRangeWithPersistTrue,
 			IndexTargetRange: indexRanges.firstRangeWithPersistTrue,
 			DataRunOptions: NamespaceRunOptions{
-				ShardTimeRanges:       firstRanges.Copy(),
-				TargetShardTimeRanges: firstRanges.Copy(),
-				RunOptions:            dataRanges.firstRangeWithPersistTrue.RunOptions,
+				ShardTimeRanges:    firstRanges.Copy(),
+				AllShardTimeRanges: allRanges.Copy(),
+				RunOptions:         dataRanges.firstRangeWithPersistTrue.RunOptions,
 			},
 			IndexRunOptions: NamespaceRunOptions{
-				ShardTimeRanges:       firstRanges.Copy(),
-				TargetShardTimeRanges: firstRanges.Copy(),
-				RunOptions:            indexRanges.firstRangeWithPersistTrue.RunOptions,
+				ShardTimeRanges:    firstRanges.Copy(),
+				AllShardTimeRanges: allRanges.Copy(),
+				RunOptions:         indexRanges.firstRangeWithPersistTrue.RunOptions,
 			},
 		})
-		secondRanges := b.newShardTimeRanges(
-			dataRanges.secondRangeWithPersistFalse.Range, namespace.Shards)
 		namespacesRunSecond.Namespaces.Set(namespace.Metadata.ID(), Namespace{
 			Metadata:         namespace.Metadata,
 			Shards:           namespace.Shards,
@@ -201,14 +203,14 @@ func (b bootstrapProcess) Run(
 			DataTargetRange:  dataRanges.secondRangeWithPersistFalse,
 			IndexTargetRange: indexRanges.secondRangeWithPersistFalse,
 			DataRunOptions: NamespaceRunOptions{
-				ShardTimeRanges:       secondRanges.Copy(),
-				TargetShardTimeRanges: secondRanges.Copy(),
-				RunOptions:            dataRanges.secondRangeWithPersistFalse.RunOptions,
+				ShardTimeRanges:    secondRanges.Copy(),
+				AllShardTimeRanges: allRanges.Copy(),
+				RunOptions:         dataRanges.secondRangeWithPersistFalse.RunOptions,
 			},
 			IndexRunOptions: NamespaceRunOptions{
-				ShardTimeRanges:       secondRanges.Copy(),
-				TargetShardTimeRanges: secondRanges.Copy(),
-				RunOptions:            indexRanges.secondRangeWithPersistFalse.RunOptions,
+				ShardTimeRanges:    secondRanges.Copy(),
+				AllShardTimeRanges: allRanges.Copy(),
+				RunOptions:         indexRanges.secondRangeWithPersistFalse.RunOptions,
 			},
 		})
 	}
