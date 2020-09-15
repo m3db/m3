@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -120,8 +121,12 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
+	// Identifier allows to identify a FileSetFile.
 	Identifier  FileSetFileIdentifier
+	// FileSetType is the file set type.
 	FileSetType persist.FileSetType
+	// StreamingEnabled enables using streaming methods, such as DataFileSetReader.StreamingRead.
+	StreamingEnabled bool
 	// NB(bodu): This option can inform the reader to optimize for reading
 	// only metadata by not sorting index entries. Setting this option will
 	// throw an error if a regular `Read()` is attempted.
@@ -138,11 +143,17 @@ type DataFileSetReader interface {
 	// Status returns the status of the reader
 	Status() DataFileSetReaderStatus
 
-	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
+	// Read returns the next id, tags, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
 	// them so they can be returned to their respective pools.
 	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
+
+	// StreamingRead returns the next unpooled id, encodedTags, data, checksum values ordered by id,
+	// or error, will return io.EOF at end of volume.
+	// Can only by used when DataReaderOpenOptions.StreamingEnabled is enabled.
+	// Note: the returned id, encodedTags and data get invalidated on the next call to StreamingRead.
+	StreamingRead() (id ident.BytesID, encodedTags []byte, data []byte, checksum uint32, err error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
@@ -174,6 +185,9 @@ type DataFileSetReader interface {
 
 	// MetadataRead returns the position of metadata read into the volume
 	MetadataRead() int
+
+	// StreamingEnabled returns true if the reader is opened in streaming mode
+	StreamingEnabled() bool
 }
 
 // DataFileSetSeeker provides an out of order reader for a TSDB file set
@@ -548,6 +562,12 @@ type BlockRetrieverOptions interface {
 
 	// BlockLeaseManager returns the block leaser.
 	BlockLeaseManager() block.LeaseManager
+
+	// SetQueryLimits sets query limits.
+	SetQueryLimits(value limits.QueryLimits) BlockRetrieverOptions
+
+	// QueryLimits returns the query limits.
+	QueryLimits() limits.QueryLimits
 }
 
 // ForEachRemainingFn is the function that is run on each of the remaining
@@ -621,6 +641,37 @@ type Segments interface {
 	VolumeIndex() int
 	AbsoluteFilePaths() []string
 	BlockStart() time.Time
+}
+
+// BlockRecord wraps together M3TSZ data bytes with their checksum.
+type BlockRecord struct {
+	Data         []byte
+	DataChecksum uint32
+}
+
+// CrossBlockReader allows reading data (encoded bytes) from multiple DataFileSetReaders of the same shard,
+// ordered by series id first, and block start time next.
+type CrossBlockReader interface {
+	io.Closer
+
+	// Next advances to the next data record and returns true, or returns false if no more data exists.
+	Next() bool
+
+	// Err returns the last error encountered (if any).
+	Err() error
+
+	// Current returns distinct series id and encodedTags, plus a slice with data and checksums from all
+	// blocks corresponding to that series (in temporal order).
+	// id, encodedTags, records slice and underlying data are being invalidated on each call to Next().
+	Current() (id ident.BytesID, encodedTags []byte, records []BlockRecord)
+}
+
+// CrossBlockIterator iterates across BlockRecords.
+type CrossBlockIterator interface {
+	encoding.Iterator
+
+	// Reset resets the iterator to the given block records.
+	Reset(records []BlockRecord)
 }
 
 // InfoFileResultsPerShard maps shards to info files.

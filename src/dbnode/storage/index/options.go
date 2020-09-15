@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-	"github.com/m3db/m3/src/dbnode/storage/stats"
+	"github.com/m3db/m3/src/dbnode/storage/limits"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -68,7 +68,7 @@ var (
 	errOptionsAggResultsEntryPoolUnspecified = errors.New("aggregate results entry array pool is unset")
 	errIDGenerationDisabled                  = errors.New("id generation is disabled")
 	errPostingsListCacheUnspecified          = errors.New("postings list cache is unset")
-	errOptionsQueryStatsUnspecified          = errors.New("query stats is unset")
+	errOptionsQueryLimitsUnspecified         = errors.New("query limits is unset")
 
 	defaultForegroundCompactionOpts compaction.PlannerOptions
 	defaultBackgroundCompactionOpts compaction.PlannerOptions
@@ -124,7 +124,7 @@ type opts struct {
 	postingsListCache               *PostingsListCache
 	readThroughSegmentOptions       ReadThroughSegmentOptions
 	mmapReporter                    mmap.Reporter
-	queryStats                      stats.QueryStats
+	queryLimits                     limits.QueryLimits
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -175,7 +175,7 @@ func NewOptions() Options {
 		aggResultsEntryArrayPool:        aggResultsEntryArrayPool,
 		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
 		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
-		queryStats:                      stats.NoOpQueryStats(),
+		queryLimits:                     limits.NoOpQueryLimits(),
 	}
 	resultsPool.Init(func() QueryResults {
 		return NewQueryResults(nil, QueryResultsOptions{}, opts)
@@ -211,9 +211,6 @@ func (o *opts) Validate() error {
 	}
 	if o.postingsListCache == nil {
 		return errPostingsListCacheUnspecified
-	}
-	if o.queryStats == nil {
-		return errOptionsQueryStatsUnspecified
 	}
 	return nil
 }
@@ -422,12 +419,12 @@ func (o *opts) MmapReporter() mmap.Reporter {
 	return o.mmapReporter
 }
 
-func (o *opts) SetQueryStats(value stats.QueryStats) Options {
+func (o *opts) SetQueryLimits(value limits.QueryLimits) Options {
 	opts := *o
-	opts.queryStats = value
+	opts.queryLimits = value
 	return &opts
 }
 
-func (o *opts) QueryStats() stats.QueryStats {
-	return o.queryStats
+func (o *opts) QueryLimits() limits.QueryLimits {
+	return o.queryLimits
 }

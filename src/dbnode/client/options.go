@@ -89,6 +89,9 @@ const (
 	// defaultTruncateRequestTimeout is the default truncate request timeout
 	defaultTruncateRequestTimeout = 60 * time.Second
 
+	// defaultWriteShardsInitializing is the default write to shards intializing value
+	defaultWriteShardsInitializing = true
+
 	// defaultIdentifierPoolSize is the default identifier pool size
 	defaultIdentifierPoolSize = 8192
 
@@ -249,6 +252,7 @@ type options struct {
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
+	writeShardsInitializing                 bool
 	newConnectionFn                         NewConnectionFn
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                  int
@@ -365,6 +369,7 @@ func newOptions() *options {
 		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
 		writeRetrier:                            defaultWriteRetrier,
 		fetchRetrier:                            defaultFetchRetrier,
+		writeShardsInitializing:                 defaultWriteShardsInitializing,
 		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
 		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
 		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
@@ -702,6 +707,16 @@ func (o *options) SetFetchRetrier(value xretry.Retrier) Options {
 
 func (o *options) FetchRetrier() xretry.Retrier {
 	return o.fetchRetrier
+}
+
+func (o *options) SetWriteShardsInitializing(value bool) Options {
+	opts := *o
+	opts.writeShardsInitializing = value
+	return &opts
+}
+
+func (o *options) WriteShardsInitializing() bool {
+	return o.writeShardsInitializing
 }
 
 func (o *options) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {

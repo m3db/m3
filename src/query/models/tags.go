@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+	xerrors "github.com/m3db/m3/src/x/errors"
 
 	"github.com/cespare/xxhash/v2"
 )
@@ -258,6 +259,16 @@ func (t Tags) Normalize() Tags {
 // Validate will validate there are tag values, and the
 // tags are ordered and there are no duplicates.
 func (t Tags) Validate() error {
+	// Wrap call to validate to make sure a validation error
+	// is always an invalid parameters error so we return bad request
+	// instead of internal server error at higher in the stack.
+	if err := t.validate(); err != nil {
+		return xerrors.NewInvalidParamsError(err)
+	}
+	return nil
+}
+
+func (t Tags) validate() error {
 	n := t.Len()
 	if n == 0 {
 		return errNoTags

@@ -411,6 +411,14 @@ type Options interface {
 	// a fetch operation. Only retryable errors are retried.
 	FetchRetrier() xretry.Retrier
 
+	// SetWriteShardsInitializing sets whether to write to shards that are
+	// initializing or not.
+	SetWriteShardsInitializing(value bool) Options
+
+	// WriteShardsInitializing returns whether to write to shards that are
+	// initializing or not.
+	WriteShardsInitializing() bool
+
 	// SetTagEncoderOptions sets the TagEncoderOptions.
 	SetTagEncoderOptions(value serialize.TagEncoderOptions) Options
 
